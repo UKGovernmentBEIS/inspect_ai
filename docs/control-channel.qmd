@@ -131,7 +131,7 @@ For evals that may run longer than a few minutes, do not run
 $ inspect ctl task
 task_id       task                        model                      solver    samples             started
 ------------  --------------------------  -------------------------  --------  ------------------  --------
-ZByxJpK4bKSz  inspect_evals/gpqa_diamond  openai/gpt-6-sol               react     12/40 (3 running)   14:02:11
+ZByxJpK4bKSz  inspect_evals/gpqa_diamond  openai/gpt-6-sol           react     12/40 (3 running)   14:02:11
 fR8mWn2cQspD  inspect_evals/humaneval     anthropic/claude-sonnet-5  generate  164/164 (complete)  13:58:40
 ```
 

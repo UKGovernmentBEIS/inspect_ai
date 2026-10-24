@@ -270,7 +270,7 @@ input = [
 
 Some models can generate multimodal output along with text:
 
-- OpenAI models that support the Responses API `image_generation` tool (e.g. `gpt-5.4` and `gpt-6-luna`) support image generation
+- OpenAI models that support the Responses API `image_generation` tool (e.g. `gpt-6-luna`) can generate images
 
 - Google models `gemini-2.5-flash-image`, `gemini-3-pro-image-preview`, and `gemini-3.1-flash-image-preview` support image generation.
 
@@ -284,7 +284,7 @@ Text output is always implicitly included—you only need to specify additional 
 
 ### OpenAI
 
-Image generation uses OpenAI GPT Image models (e.g. `gpt-image-2.5-flare`) under the hood (you can custmize this using `ImageOutput` options).
+Image generation uses the Responses API `image_generation` tool with OpenAI's default GPT Image model. To choose a model such as `gpt-image-2.5-flare` or `gpt-image-2.5-sunburst`, set `model` in `ImageOutput` options.
 
 ``` python
 model = get_model("openai/gpt-6-luna")

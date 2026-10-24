@@ -39,7 +39,7 @@ The `openai` provider supports the following custom model args (other model args
 | `responses_store` | Pass `store=True` to the Responses API (defaults to `True`). |
 | `responses_phase` | Synthesize missing assistant message `phase` values when replaying Responses API histories. |
 | `service_tier` | Processing type used for serving the request ("auto", "default", or "flex"). |
-| `background` | Execute generate requests asynchronously, polling response objects to check status over time. Defaults to `True` for `gpt-5-pro` and `deep-research` models and for requests with `reasoning_mode="pro"`, and `False` otherwise. |
+| `background` | Execute generate requests asynchronously, polling response objects to check status over time. Defaults to `True` for `-pro` models such as `gpt-5.5-pro`, for `deep-research` models, and for requests with `reasoning_mode="pro"`, and `False` otherwise. |
 | `safety_identifier` | A stable identifier used to help detect users of your application. |
 | `streaming` | Whether to use streaming responses. The default ("auto") streams when the caller passes an `on_stream` callback to `generate()` — except Azure chat-completions requests, which never auto-stream (accumulated streamed responses would lose content-filter stop details); pass `true` or `false` to override. If the server rejects the streaming request itself (a 400 naming the `stream` param — e.g. reasoning models on organizations that haven't completed verification), auto mode retries the request non-streamed. |
 | `prompt_cache_key` | Used by OpenAI to cache responses for similar requests. |
@@ -68,7 +68,7 @@ eval(
 
 ### Responses API
 
-By default, Inspect uses the standard OpenAI Chat Completions API for GPT-4 models and the new [Responses API](https://platform.openai.com/docs/api-reference/responses) for GPT-5 and later (including GPT-6), o-series models, and the `computer_use_preview` model.
+By default, Inspect uses the standard OpenAI Chat Completions API for GPT-4 models and the new [Responses API](https://platform.openai.com/docs/api-reference/responses) for GPT-5 and later (including GPT-6) and o-series models.
 
 If you want to manually enable or disable the Responses API you can use the `responses_api` model argument. For example:
 
@@ -76,7 +76,7 @@ If you want to manually enable or disable the Responses API you can use the `res
 inspect eval math.py --model openai/gpt-6-luna -M responses_api=false
 ```
 
-Note that certain models including `gpt-5.5-pro` *require* the use of the Responses API, and that on Chat Completions GPT-6 Luna supports function calling only with `reasoning_effort="none"`. Check the Open AI [models documentation](https://platform.openai.com/docs/models) for details on which models are supported by the respective APIs.
+Note that certain models including `gpt-5.5-pro` *require* the use of the Responses API. On Chat Completions, GPT-6 Luna supports function calling only with reasoning off, so set `reasoning_effort="none"` when using tools with `responses_api=false`. Check the Open AI [models documentation](https://platform.openai.com/docs/models) for details on which models are supported by the respective APIs.
 
 ### Responses Phase
 
@@ -138,13 +138,13 @@ The `openai` provider supports OpenAI models deployed on the [Azure AI Foundry](
 | `AZUREAI_OPENAI_API_VERSION` | OpenAI API version (optional) |
 | `AZUREAI_AUDIENCE` | Azure resource URI that the access token is intended for when using managed identity (optional, defaults to `https://cognitiveservices.azure.com/.default`) |
 
-You can then use the normal `openai` provider with the `azure` qualifier and the name of your model deployment (e.g. `gpt-4o-mini`). For example:
+You can then use the normal `openai` provider with the `azure` qualifier and the name of your model deployment (e.g. `gpt-6-luna`). For example:
 
 ``` bash
 export AZUREAI_OPENAI_API_KEY=your-api-key
 export AZUREAI_OPENAI_BASE_URL=https://your-url-at.azure.com
 export AZUREAI_OPENAI_API_VERSION=2025-03-01-preview
-inspect eval math.py --model openai/azure/gpt-4o-mini
+inspect eval math.py --model openai/azure/gpt-6-luna
 ```
 
 If using managed identity for authentication, install the `azure-identity` package and do not specify `AZUREAI_API_KEY`.
@@ -154,7 +154,7 @@ pip install azure-identity
 export AZUREAI_OPENAI_BASE_URL=https://your-url-at.azure.com
 export AZUREAI_AUDIENCE=https://cognitiveservices.azure.com/.default
 export AZUREAI_OPENAI_API_VERSION=2025-03-01-preview
-inspect eval math.py --model openai/azure/gpt-4o-mini
+inspect eval math.py --model openai/azure/gpt-6-luna
 ```
 
 Note that if the `AZUREAI_OPENAI_API_VERSION` is not specified, Inspect will generally default to the latest deployed version, which as of this writing is `2025-03-01-preview`. When using managed identity for authentication, install the `azure-identity` package and leave `AZUREAI_OPENAI_API_KEY` undefined.
