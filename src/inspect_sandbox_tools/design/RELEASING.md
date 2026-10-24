@@ -96,6 +96,19 @@ The attestation's `runDetails.metadata.invocationId` names the run that signed
 it; check that run's title names the PR head commit. The wizard does both
 checks for all four artifacts.
 
+**The built commit may never be on `main`.** PRs are squash-merged, so the
+commit CI built (the PR head) is not an ancestor of the merge commit; it stays
+fetchable through `refs/pull/N/head`. What `main` gets is the same *files*: the
+branch must be up to date to merge, so the squash commit's tree is the PR's. So
+the guarantee is about build inputs, not commits: `slow-tool-tests-release`
+verifies each published object's attestation, reads the built commit from the
+attesting run's title, and fails unless the build inputs (the injectable source
+and the build files in `_sandbox_tools_utils/`) at that commit match the PR's.
+Two limits remain. The commit is tied to the signature through the run title
+rather than signed itself, so the check trusts GitHub's record of which inputs
+started the run. And the check runs after upload: if it fails, the published
+version can't be replaced, so bump the version and publish a fresh build.
+
 The same script builds a single variant locally (`--arch {amd64,arm64} [--musl]`,
 `-dev` suffix by default), as the runtime's local-build fallback and the
 `slow-tool-tests-dev` CI job do.

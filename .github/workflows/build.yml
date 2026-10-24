@@ -594,6 +594,11 @@ jobs:
     if: needs.detect-slow.outputs.tools_changed == 'true' && needs.check-version-bump.outputs.version_correctly_bumped == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    # attestations/actions: read the build provenance and its run's title.
+    permissions:
+      contents: read
+      attestations: read
+      actions: read
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -659,6 +664,63 @@ jobs:
               exit 1
             }
             chmod +x "src/inspect_ai/binaries/${FILENAME}"
+          done
+
+      # The published bytes must come from a sandbox-tools-build.yml run on
+      # main (its attestation names the run, and the run title names the
+      # commit it built), and that commit's build inputs must match this PR's.
+      # The built commit itself needn't land on main (squash merges), so its
+      # build inputs are compared instead. A failure here comes after upload:
+      # bump the version and publish fresh artifacts rather than re-uploading.
+      - name: Check published binaries were built in CI from this PR's code
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(tr -d '[:space:]' < src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt)
+          UTILS=src/inspect_ai/tool/_sandbox_tools_utils
+          # Keep the injectable part in sync with detect-slow's injectable_src
+          # filter; the rest is what build_within_container.py reads.
+          BUILD_INPUTS=(
+            src/inspect_sandbox_tools
+            ":(exclude)src/inspect_sandbox_tools/tests"
+            ":(exclude,glob)src/inspect_sandbox_tools/**/*.md"
+            ":(exclude)src/inspect_sandbox_tools/design"
+            "$UTILS/sandbox_tools_version.txt"
+            "$UTILS/Dockerfile.pyinstaller"
+            "$UTILS/Dockerfile.pyinstaller.musl"
+            "$UTILS/requirements.txt"
+            "$UTILS/conda-amd64.lock"
+            "$UTILS/conda-arm64.lock"
+            "$UTILS/build_within_container.py"
+            "$UTILS/build_executable.py"
+            "$UTILS/_build_bundled_executable.py"
+            "$UTILS/_build_config.py"
+          )
+          for VARIANT in amd64 amd64-musl arm64 arm64-musl; do
+            FILENAME="inspect-sandbox-tools-${VARIANT}-v${VERSION}"
+            INVOCATION=$(gh attestation verify "src/inspect_ai/binaries/${FILENAME}" \
+              --repo "$GITHUB_REPOSITORY" \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/sandbox-tools-build.yml" \
+              --source-ref refs/heads/main --format json \
+              --jq '.[0].verificationResult.statement.predicate.runDetails.metadata.invocationId') || {
+              echo "::error::${FILENAME} on S3 has no valid attestation from sandbox-tools-build.yml on main. Release binaries must be built in CI (RELEASING.md step 3); bump the version and publish CI-built artifacts."
+              exit 1
+            }
+            RUN_ID=$(sed -E 's#.*/actions/runs/([0-9]+)/.*#\1#' <<< "$INVOCATION")
+            TITLE=$(gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --json displayTitle --jq .displayTitle)
+            BUILT=${TITLE#Build sandbox tools at }
+            if ! [[ "$BUILT" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "::error::Can't read the built commit from run ${RUN_ID} (title: ${TITLE})."
+              exit 1
+            fi
+            git fetch --quiet --no-tags origin "$BUILT"
+            if ! git diff --quiet "$BUILT" HEAD -- "${BUILD_INPUTS[@]}"; then
+              echo "::error::${FILENAME} was built from ${BUILT} (run ${RUN_ID}), whose build inputs differ from this PR:"
+              git diff --stat "$BUILT" HEAD -- "${BUILD_INPUTS[@]}"
+              echo "::error::Bump the version and publish artifacts built at the PR's current head."
+              exit 1
+            fi
+            echo "${FILENAME}: built in run ${RUN_ID} from ${BUILT}; build inputs match"
           done
 
       - name: Run slow tool tests against published artifact
