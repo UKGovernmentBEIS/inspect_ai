@@ -298,6 +298,55 @@ def test_claude_40_reasoning_tokens_not_promoted_to_adaptive():
     assert fields == {"thinking": {"type": "enabled", "budget_tokens": 4096}}
 
 
+# --- claude 5 (regression for #5931) ---------------------------------------
+
+CLAUDE_5_IDS = [
+    "anthropic.claude-opus-5-v1:0",
+    "us.anthropic.claude-opus-5-v1:0",
+    "anthropic.claude-sonnet-5-v1:0",
+    "eu.anthropic.claude-sonnet-5-v1:0",
+    "anthropic.claude-fable-5-1-v1:0",
+    "global.anthropic.claude-fable-5-1-v1:0",
+]
+
+
+@pytest.mark.parametrize("model", CLAUDE_5_IDS)
+def test_claude_5_is_claude_4_6_or_later(model: str):
+    assert _make_api(model).is_claude_4_6_or_later() is True
+
+
+@pytest.mark.parametrize("model", CLAUDE_5_IDS)
+def test_claude_5_reasoning_effort_emits_adaptive(model: str):
+    fields = _make_api(model).reasoning_config(GenerateConfig(reasoning_effort="high"))
+    assert fields == {
+        "thinking": {"type": "adaptive"},
+        "output_config": {"effort": "high"},
+    }
+
+
+@pytest.mark.parametrize("model", CLAUDE_5_IDS)
+def test_claude_5_reasoning_effort_max_preserved(model: str):
+    fields = _make_api(model).reasoning_config(GenerateConfig(reasoning_effort="max"))
+    assert fields == {
+        "thinking": {"type": "adaptive"},
+        "output_config": {"effort": "max"},
+    }
+
+
+@pytest.mark.parametrize("model", CLAUDE_5_IDS)
+def test_claude_5_effort_max_preserved(model: str):
+    fields = _make_api(model).reasoning_config(GenerateConfig(effort="max"))
+    assert fields == {"output_config": {"effort": "max"}}
+
+
+def test_claude_haiku_4_5_not_classified_as_4_6_or_later():
+    api = _make_api("anthropic.claude-haiku-4-5-20251001-v1:0")
+    assert api.is_claude_4_6_or_later() is False
+    assert api.reasoning_config(GenerateConfig(effort="max")) == {
+        "output_config": {"effort": "high"}
+    }
+
+
 # --- Fable/Mythos 5.1 forced tool choice ----------------------------------
 
 
