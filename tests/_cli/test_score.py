@@ -155,7 +155,7 @@ async def test_score_stream_preserves_log_updates(
     )
 
     async def fake_score_async(
-        *, log, scorers, metrics, model, model_roles, action, copy, samples
+        *, log, scorers, metrics, model, model_roles, action, copy, samples, sample_ids
     ):
         assert samples is not None
         return log
@@ -217,7 +217,7 @@ async def test_score_stream_flushes_periodically(
     )
 
     async def fake_score_async(
-        *, log, scorers, metrics, model, model_roles, action, copy, samples
+        *, log, scorers, metrics, model, model_roles, action, copy, samples, sample_ids
     ):
         assert samples is not None
         for idx in range(10):
@@ -241,6 +241,116 @@ async def test_score_stream_flushes_periodically(
     )
 
     assert flush_counts == [1, 2, 3]
+
+
+@pytest.mark.anyio
+async def test_score_forwards_parsed_sample_ids(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(score_cli, "init_eval_context", lambda *args, **kwargs: None)
+    monkeypatch.setattr(score_cli, "print_results", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        score_cli, "resolve_scorers", lambda *args, **kwargs: [object()]
+    )
+    received: list[object] = []
+
+    async def fake_score_async(*, log, sample_ids, **kwargs):
+        received.append(sample_ids)
+        return log
+
+    monkeypatch.setattr(score_cli, "score_async", fake_score_async)
+
+    await score(
+        log_dir="",
+        log_file=str(LOG_SCORED),
+        action="overwrite",
+        log_level=None,
+        output_file=str(tmp_path / "rescored.eval"),
+        overwrite=True,
+        scorer="match",
+        s=(),
+        metric=None,
+        stream=False,
+        sample_id="1, 3",
+    )
+
+    assert received == [["1", "3"]]
+
+
+@pytest.mark.anyio
+async def test_score_stream_rejects_unknown_sample_ids_before_writing(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A streamed pass writes samples as it reads them, so the check comes first."""
+    output_file = tmp_path / "rescored.eval"
+    monkeypatch.setattr(score_cli, "init_eval_context", lambda *args, **kwargs: None)
+    monkeypatch.setattr(score_cli, "print_results", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        score_cli, "resolve_scorers", lambda *args, **kwargs: [object()]
+    )
+
+    async def fake_score_async(**kwargs):
+        raise AssertionError("scoring must not start with an unknown sample id")
+
+    monkeypatch.setattr(score_cli, "score_async", fake_score_async)
+
+    with pytest.raises(ValueError, match="42"):
+        await score(
+            log_dir="",
+            log_file=str(LOG_SCORED),
+            action="overwrite",
+            log_level=None,
+            output_file=str(output_file),
+            overwrite=True,
+            scorer="match",
+            s=(),
+            metric=None,
+            stream=True,
+            sample_id="1,42",
+        )
+    assert not output_file.exists()
+
+
+@pytest.mark.anyio
+async def test_score_stream_writes_untouched_samples_through(
+    tmp_path: pathlib.Path,
+) -> None:
+    output_file = tmp_path / "rescored.eval"
+    before = await read_eval_log_async(str(LOG_SCORED))
+    assert before.samples is not None
+
+    await score(
+        log_dir="",
+        log_file=str(LOG_SCORED),
+        action="overwrite",
+        log_level=None,
+        output_file=str(output_file),
+        overwrite=True,
+        scorer="match",
+        s=(),
+        metric=None,
+        model="mockllm/model",
+        stream=True,
+        sample_id="3",
+    )
+
+    after = await read_eval_log_async(output_file)
+    assert after.samples is not None
+    assert [s.id for s in after.samples] == [s.id for s in before.samples]
+    for old, new in zip(before.samples, after.samples):
+        if old.id == 3:
+            assert new.scores is not None and [*new.scores] == ["match"]
+            assert new.events != old.events
+        else:
+            # the streaming writer re-derives `working_start` on every sample
+            # it writes, so compare events by shape rather than by value
+            assert new.model_dump(exclude={"events"}) == old.model_dump(
+                exclude={"events"}
+            )
+            assert [type(e) for e in new.events] == [type(e) for e in old.events]
+    assert after.results is not None
+    assert after.results.total_samples == 10
+    assert [s.name for s in after.results.scores] == ["match"]
 
 
 def early_stops(count: int) -> EarlyStoppingSummary:
