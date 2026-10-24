@@ -78,7 +78,9 @@ def test_openai_responses_o3_pro():
 
 @skip_if_no_openai
 def test_openai_responses_no_store():
-    log = eval(Task(), model="openai/o3", model_args=dict(responses_store=False))[0]
+    log = eval(
+        Task(), model="openai/gpt-5-mini", model_args=dict(responses_store=False)
+    )[0]
     assert log.status == "success"
 
 

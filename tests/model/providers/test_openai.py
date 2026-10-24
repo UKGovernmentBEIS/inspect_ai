@@ -198,7 +198,7 @@ async def test_openai_o_series_max_tokens() -> None:
 def test_openai_flex_requests():
     log = eval(
         Task(),
-        model="openai/o3",
+        model="openai/gpt-5-mini",
         model_args=dict(service_tier="flex", client_timeout=1200),
     )[0]
     assert log.status == "success"
