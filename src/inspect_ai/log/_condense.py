@@ -1,9 +1,6 @@
-import copy
 import dataclasses
 import json
-import random
 from collections.abc import Mapping, MutableMapping
-from dataclasses import dataclass
 from logging import getLogger
 from typing import (
     Callable,
@@ -31,6 +28,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import JsonChange, exceeds_max_depth, to_json_safe
+from inspect_ai._util.lineage import PrefixLineages
 from inspect_ai._util.url import is_data_uri
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.event._pool import (
@@ -38,7 +36,6 @@ from inspect_ai.event._pool import (
     CallMessageKey,
     _build_call_index,
     _build_msg_index,
-    _strict_eq_prefix_len,
     condense_model_event_calls,
     condense_model_event_inputs,
     resolve_model_event_calls,
@@ -128,6 +125,15 @@ class WalkContext(TypedDict):
     """
 
     only_core: bool
+
+    call_message_cache: NotRequired[dict[int, tuple[JsonValue, JsonValue]]]
+    """Walked model-call wire messages keyed by ``id`` of the pre-walk value.
+
+    Each value is ``(pre_walk_value, walked_result)``; a hit requires the
+    identical object. Logged calls share wire-message objects across events
+    (see ``CallMessageInterner``), so walking every event's call costs one
+    walk per distinct message. Same lifetime rule as ``message_cache``.
+    """
 
     media_fn: NotRequired[Callable[[str], str]]
     """Content function for media in tool results (``walk_tool_result``).
@@ -316,12 +322,18 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
     # objects/ids as event inputs and a shared cache would return
     # event-walked results during the messages walk.
     events_context = WalkContext(
-        message_cache={}, only_core=False, media_fn=messages_fn
+        message_cache={},
+        only_core=False,
+        media_fn=messages_fn,
+        call_message_cache={},
     )
     messages_context = WalkContext(message_cache={}, only_core=False)
     condensed_events = walk_events(sample.events, events_fn, events_context)
     retry_events_context = WalkContext(
-        message_cache={}, only_core=False, media_fn=messages_fn
+        message_cache={},
+        only_core=False,
+        media_fn=messages_fn,
+        call_message_cache={},
     )
     condensed_error_retries = (
         [
@@ -554,66 +566,28 @@ def _recording_attachment_fn(
 
 
 _CALL_WALK_SLOTS: Final = 8
-"""Retained request lineages per `CallWalkCache`.
+"""Retained request lineages per `CallWalkCache` (see `PrefixLineages`).
 
-Each generate stream produces two lineages per turn (the raw request at
-call-registration/completion, and the transcript-condensed form the
-timestamp update re-notifies), so 8 slots cover ~4 interleaved streams with
-distinct request prefixes (fork()/collect()/parallel tools funnel into one
-sample transcript). Streams sharing a pre-fork history prefix occupy
-separate slots, so they keep prefix-hitting independently. The residual cost
-of fork fan-out is slot-count pressure: beyond capacity, eviction is random
-rather than LRU (LRU under round-robin access evicts exactly the
-next-needed lineage, collapsing every stream's hit rate at once), so
-degradation stays proportional to the excess and is bounded above by the
-full-walk cost — never worse.
+Each generate stream produces two lineages per turn (the raw request, and
+the transcript-condensed form the timestamp update re-notifies), so 8 cover
+~4 interleaved streams with distinct request prefixes.
 """
 
 
 _CALL_WALK_MAX_IDLE: Final = 4 * _CALL_WALK_SLOTS
-"""Prefix scans a lineage may go unmatched before it is dropped.
-
-Retention is only a problem for *abandoned* lineages — a compaction cycle,
-or a fork that never resumes. A live lineage is re-matched every turn, and
-its content is kept alive by the condensed event anyway; an abandoned one
-is pinned by nothing else and nothing else reclaims it.
-
-The value is a heuristic, not a measured threshold. The floor it has to
-clear is the interleave depth the slots exist for: `_CALL_WALK_SLOTS`
-lineages taken round-robin touch each one every 8 scans, so 4x that leaves
-headroom for bursty interleaving before a live lineage is dropped. The
-ceiling is what a wrong guess costs: a parked stream that resumes after
-its slot aged out pays exactly one full re-walk and then re-establishes a
-lineage, which is the pre-cache cost for that single call.
-"""
+"""Prefix scans a lineage may go unmatched before it is dropped."""
 
 
 class _WalkedCallMessage(NamedTuple):
-    """One cached wire message: cache-owned snapshots plus what walking created.
+    """One cached wire message: its walked form plus what walking created.
 
-    ``pre_walk`` and ``walked`` are cache-owned deep copies (strings shared —
-    deepcopy treats str as atomic): the copy-on-write walkers alias unchanged
-    subtrees of the caller's live request, and callers can mutate
-    ``call.request`` in place (the same hazard ``CallPoolIndex.set_prev``
-    documents). ``attachments`` records what walking this message created, so
-    prefix reuse can re-assert content that bounded-mode refcounting has
-    since pruned from the caller's attachment map.
+    ``attachments`` records what walking this message created, so prefix
+    reuse can re-assert content that bounded-mode refcounting has since
+    pruned from the caller's attachment map.
     """
 
-    pre_walk: JsonValue
     walked: JsonValue
     attachments: list[_CreatedAttachment]
-
-
-# identity removal: slots are unique objects, never compared by value
-@dataclass(eq=False)
-class _CallWalkSlot:
-    """One retained request lineage (see :class:`CallWalkCache`)."""
-
-    key: CallMessageKey
-    messages: list[_WalkedCallMessage]
-    last_used: int
-    """Scan counter value when this lineage was last created or matched."""
 
 
 class CallWalkCache:
@@ -622,33 +596,20 @@ class CallWalkCache:
     Prefix-cached equivalent of :func:`walk_model_call`: consecutive calls
     from one generate stream share their conversation prefix, so only the
     divergent tail (plus non-message request fields and the response, which
-    change per notification) is walked and hashed.
+    change per notification) is walked. Requests are matched against recent
+    ones (see `PrefixLineages`); logged requests share message objects
+    across calls (see `CallMessageInterner`), so matching is mostly identity
+    checks.
 
-    Up to ``_CALL_WALK_SLOTS`` request lineages are retained. A request
-    replaces the lineage it matched only when it consumes that lineage fully
-    — it extends it. A partial match is a sibling lineage forked from a
-    shared prefix (fork()/collect() streams share pre-fork history);
-    replacing would merge the two, and they would then alternately destroy
-    each other's cached tails, re-walking the divergent tail on every call.
-    An unmatched request is appended, evicting a random lineage at capacity.
-
-    A lineage nothing has matched in ``_CALL_WALK_MAX_IDLE`` prefix scans is
-    dropped at the next append: only abandoned lineages (a compaction cycle, a fork
-    that never resumes) hold content nothing else owns, and nothing else
-    reclaims them. Dropping one costs at most a re-walk.
-
-    Ties in match length break toward a fully consumed lineage, so a request
-    repeating a strict prefix of a longer lineage replaces the slot it created
-    last time instead of appending an identical sibling on every repeat.
+    Walked messages are shared by every condensed call that reuses them,
+    and lineages retain the requests' own message objects, so neither
+    requests nor condensed calls may be mutated in place.
     """
 
     def __init__(self) -> None:
-        self._slots: list[_CallWalkSlot] = []
-        # monotonic count of prefix scans, for staleness eviction
-        self._calls = 0
-        # Seeded for reproducibility; eviction choice affects performance
-        # only, never output content.
-        self._evict_rng = random.Random(0)
+        self._lineages: PrefixLineages[CallMessageKey, _WalkedCallMessage] = (
+            PrefixLineages(_CALL_WALK_SLOTS, _CALL_WALK_MAX_IDLE)
+        )
 
     def condense(
         self,
@@ -680,81 +641,27 @@ class CallWalkCache:
         if msg_key is None or not isinstance(msgs, list) or not msgs:
             return walk_model_call(call, events_attachment_fn(attachments), context)
 
-        self._calls += 1
-        best_slot: _CallWalkSlot | None = None
-        best_len = 0
-        best_full = False
-        # newest lineage first: a request usually extends the most recently
-        # cached lineage, so the best match is normally the first candidate
-        for slot in reversed(self._slots):
-            if slot.key != msg_key:
-                continue
-            n = _strict_eq_prefix_len(msgs, (m.pre_walk for m in slot.messages))
-            full = n == len(slot.messages)
-            # ties break toward a fully consumed lineage (see class docstring);
-            # a plain `>=` would prefer the *last* tie, which can be partial
-            if (n, full) > (best_len, best_full):
-                best_len = n
-                best_full = full
-                best_slot = slot
-                # consuming both sides fully is the maximum of that ordering,
-                # so no remaining lineage can win. Exiting on a full match of
-                # `msgs` alone would take a partial match over a later exact
-                # one and fork a duplicate slot.
-                if full and n == len(msgs):
-                    break
-        # stamp the slot the scan SELECTED, not every slot it visited: the
-        # early exit above means "visited" is not a usage signal
-        if best_slot is not None:
-            best_slot.last_used = self._calls
-
-        walked_msgs: list[JsonValue] = []
-        slot_messages: list[_WalkedCallMessage] = []
-        if best_slot is not None:
-            for entry in best_slot.messages[:best_len]:
-                for created in entry.attachments:
-                    attachments[created.hash] = created.content
-                walked_msgs.append(copy.deepcopy(entry.walked))
-            slot_messages.extend(best_slot.messages[:best_len])
+        match = self._lineages.match(msg_key, msgs)
+        entries = match.entries
+        for entry in entries:
+            for created in entry.attachments:
+                attachments[created.hash] = created.content
 
         event_fn = events_attachment_fn(attachments)
-        for msg in msgs[best_len:]:
+        for msg in msgs[match.length :]:
             created_attachments: list[_CreatedAttachment] = []
             walked = walk_json_value(
                 msg, _recording_attachment_fn(event_fn, created_attachments), context
             )
-            walked_msgs.append(walked)
-            slot_messages.append(
-                _WalkedCallMessage(
-                    pre_walk=copy.deepcopy(msg),
-                    walked=copy.deepcopy(walked),
-                    attachments=created_attachments,
-                )
-            )
+            entries.append(_WalkedCallMessage(walked, created_attachments))
+
+        self._lineages.record(match, list(msgs), entries)
 
         rest = {k: v for k, v in call.request.items() if k != msg_key}
         new_request: dict[str, JsonValue] = dict(
             walk_json_dict(rest, event_fn, context)
         )
-        new_request[msg_key] = walked_msgs
-
-        # Staleness eviction (see _CALL_WALK_MAX_IDLE), before the capacity
-        # rules so it can make room instead of evicting at random. `best_slot`
-        # is never dropped here: the scan above stamped it with the current
-        # self._calls, so its idle age is 0.
-        self._slots = [
-            s for s in self._slots if self._calls - s.last_used <= _CALL_WALK_MAX_IDLE
-        ]
-        # see class docstring: replace only on full consumption, else append
-        # as a sibling lineage
-        if best_slot is not None and best_full:
-            self._slots.remove(best_slot)
-        elif len(self._slots) >= _CALL_WALK_SLOTS:
-            # random, not LRU (see _CALL_WALK_SLOTS)
-            del self._slots[self._evict_rng.randrange(len(self._slots))]
-        self._slots.append(
-            _CallWalkSlot(key=msg_key, messages=slot_messages, last_used=self._calls)
-        )
+        new_request[msg_key] = [entry.walked for entry in entries]
 
         return call.model_copy(
             update={
@@ -1184,7 +1091,7 @@ def walk_model_call(
     if call:
         return call.model_copy(
             update={
-                "request": walk_json_dict(call.request, content_fn, context),
+                "request": _walk_call_request(call.request, content_fn, context),
                 "response": walk_json_dict(call.response, content_fn, context)
                 if call.response
                 else None,
@@ -1192,6 +1099,37 @@ def walk_model_call(
         )
     else:
         return None
+
+
+def _walk_call_request(
+    request: dict[str, JsonValue],
+    content_fn: Callable[[str], str],
+    context: WalkContext,
+) -> dict[str, JsonValue]:
+    cache = context.get("call_message_cache")
+    msg_key = next((k for k in _CALL_MESSAGE_KEYS if k in request), None)
+    msgs = request.get(msg_key) if msg_key is not None else None
+    if cache is None or msg_key is None or not isinstance(msgs, list):
+        return walk_json_dict(request, content_fn, context)
+
+    walked_msgs: list[JsonValue] | None = None
+    for i, msg in enumerate(msgs):
+        hit = cache.get(id(msg))
+        if hit is not None and hit[0] is msg:
+            walked = hit[1]
+        else:
+            walked = walk_json_value(msg, content_fn, context, depth=2)
+            cache[id(msg)] = (msg, walked)
+        if walked is not msg:
+            if walked_msgs is None:
+                walked_msgs = list(msgs)
+            walked_msgs[i] = walked
+    rest = {k: v for k, v in request.items() if k != msg_key}
+    walked_rest = walk_json_dict(rest, content_fn, context)
+    if walked_msgs is None and walked_rest is rest:
+        return request
+    new_msgs = walked_msgs if walked_msgs is not None else msgs
+    return {k: new_msgs if k == msg_key else walked_rest[k] for k in request}
 
 
 def walk_state_event(
