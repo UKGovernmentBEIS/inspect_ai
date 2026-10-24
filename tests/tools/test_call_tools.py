@@ -16,7 +16,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageTool,
 )
-from inspect_ai.tool import ToolParam, ToolParams, tool
+from inspect_ai.tool import ToolParam, ToolParams, todo_write, tool, update_plan
 from inspect_ai.tool._tool import tool_result_content
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_def import ToolDef
@@ -624,6 +624,48 @@ async def test_tool_event_message_id_for_multiple_calls():
     # ensure each event has a distinct message_id (regression: previously
     # every event pointed at the first ChatMessageTool)
     assert len({e.message_id for e in tool_events}) == 3
+
+
+@pytest.mark.parametrize(
+    "tool_factory,name,item",
+    [
+        (todo_write, "todos", {"content": "write tests", "status": "pending"}),
+        (update_plan, "plan", {"step": "write tests", "status": "pending"}),
+    ],
+    ids=["todo_write", "update_plan"],
+)
+async def test_plan_tools_run_as_approved(
+    tool_factory: Any, name: str, item: dict[str, str]
+) -> None:
+    """The built-in tools that take `list[BaseModel]` run under approval."""
+    from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
+
+    approved: list[ToolCall] = []
+
+    @approver(name="test_plan_recorder")
+    def recorder() -> Approver:
+        async def approve(
+            message: str, call: ToolCall, view: Any, history: Any
+        ) -> Approval:
+            approved.append(call)
+            return Approval(decision="approve")
+
+        return approve
+
+    tool_def = ToolDef(tool_factory())
+    messages, _ = await execute_tools(
+        [
+            ChatMessageAssistant(
+                content=[], tool_calls=[make_call(tool_def.name, {name: [item]})]
+            )
+        ],
+        [tool_def],
+        approval=[ApprovalPolicy(recorder(), "*")],
+    )
+
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is None
+    assert [c.arguments for c in approved] == [{name: [item]}]
 
 
 async def test_tool_with_varargs_and_kwargs():
