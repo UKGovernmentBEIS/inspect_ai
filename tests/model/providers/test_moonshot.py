@@ -171,6 +171,9 @@ def test_moonshot_kimi_k3_1_pro_uses_k3_handling(
         tools=[], tool_choice=ToolFunction(name="addition"), config=GenerateConfig()
     )
     assert tool_choice == "any"
+    assert any("addition" in m and model in m for m in _warn_once_messages), (
+        "expected a warning for coerced tool_choice"
+    )
 
     _, tool_choice, _ = api.resolve_tools(
         tools=[], tool_choice="any", config=GenerateConfig()
