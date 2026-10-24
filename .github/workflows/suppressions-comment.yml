@@ -20,9 +20,12 @@
 #      checked out. `git merge-tree` computes the post-merge tree without
 #      touching the worktree or index, then `git show` reads only its
 #      suppressions.json blob.
-#   3. No dependency installs. The delta script is stdlib-only by design;
+#   3. No dependency installs. The delta script is stdlib-only by design
+#      and runs under `uv run --no-project`, which installs no packages
+#      (only uv's own managed Python 3.11, if the runner lacks it);
 #      installing the project (pip/uv) would execute PR-controllable
-#      setup and dependency code.
+#      setup and dependency code. setup-uv's cache is disabled so this
+#      write-token job restores nothing a PR run could have written.
 #
 # Do NOT "fix" this workflow by checking out the PR head or computed merge
 # tree, running any script from it, or adding an install step — any of those
@@ -44,6 +47,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
+env:
+  UV_VERSION: 0.13.5
+
 jobs:
   comment:
     runs-on: ubuntu-latest
@@ -58,6 +64,13 @@ jobs:
           # historical file contents (the full pack is ~400MB). Blobs the
           # step below reads are lazy-fetched from origin.
           filter: "blob:none"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.11"
+          enable-cache: false
 
       - name: Comment ledger delta on PR
         env:
@@ -102,9 +115,9 @@ jobs:
             else
               echo '{}' > /tmp/merged-suppressions.json
             fi
-            # Base script, system python, stdlib only — no installs (see the
-            # security model above).
-            body=$(python3 .github/scripts/suppressions_pr_delta.py /tmp/base-suppressions.json /tmp/merged-suppressions.json)
+            # Base script, stdlib only, run without the project — no package
+            # installs (see the security model above).
+            body=$(uv run --no-project .github/scripts/suppressions_pr_delta.py /tmp/base-suppressions.json /tmp/merged-suppressions.json)
           fi
           # Sticky comment: match on the marker, not --edit-last, so other
           # bot comments on the PR are never clobbered. Filter by author

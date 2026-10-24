@@ -78,6 +78,7 @@ from inspect_ai.tool._tool_info import parse_docstring
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util import OutputLimitExceededError
 from inspect_ai.util._anyio import inner_exception
+from inspect_ai.util._json import dataclass_fields
 from inspect_ai.util._limit import LimitExceededError, apply_limits
 from inspect_ai.util._sandbox.environment import SandboxUnavailableError
 from inspect_ai.util._sandbox.events import SandboxTimeoutError
@@ -1324,20 +1325,20 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
             return typeddict_data
         elif is_dataclass(type_hint):
             dataclass_data: dict[str, Any] = {}
-            fields = type_hint.__dataclass_fields__  # type: ignore
+            fields = dataclass_fields(type_hint)
             non_init_fields = [
                 name
-                for name, field in fields.items()
+                for name, (field, _) in fields.items()
                 if not field.init and name in input
             ]
             if non_init_fields:
                 raise ToolParsingError(
                     f"Unexpected non-init dataclass fields: {', '.join(non_init_fields)}"
                 )
-            for name, field in fields.items():
+            for name, (field, field_type) in fields.items():
                 if not field.init:
                     continue
-                dataclass_data[name] = tool_param(field.type, input.get(name))  # type: ignore
+                dataclass_data[name] = tool_param(field_type, input.get(name))
             return type_hint(**dataclass_data)
         elif issubclass(type_hint, BaseModel):
             return type_hint(**input)
