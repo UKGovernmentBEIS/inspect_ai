@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import errno
 import functools
 import io
@@ -35,6 +36,9 @@ from anyio import AsyncFile, EndOfStream, open_file
 from anyio.abc import ByteReceiveStream
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 from botocore.exceptions import ClientError, ResponseStreamingError
+from fsspec.exceptions import (  # type: ignore[import-untyped]  # fsspec ships no type stubs
+    FSTimeoutError,
+)
 from tenacity import (
     AsyncRetrying,
     RetryCallState,
@@ -53,7 +57,14 @@ if TYPE_CHECKING:
 from inspect_ai._util._async import current_async_backend, tg_collect
 from inspect_ai._util.constants import HTTP
 from inspect_ai._util.error import WriteConflictError
-from inspect_ai._util.file import FileInfo, file, filesystem, local_path, to_uri
+from inspect_ai._util.file import (
+    FileInfo,
+    FileSystem,
+    file,
+    filesystem,
+    local_path,
+    to_uri,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +72,9 @@ _S3_MISSING_OBJECT_CODES = ("404", "NoSuchKey", "NotFound")
 
 # default chunk size for read_file_into
 _READ_INTO_CHUNK_SIZE = 1024 * 1024  # 1 MB
+
+# bytes per request when `read_file_bytes` streams an async fsspec file
+_REMOTE_RANGE_SIZE = 8 * 1024 * 1024  # 8 MiB
 
 
 @contextmanager
@@ -201,6 +215,53 @@ class _AnyIOFileByteReceiveStream(ByteReceiveStream):
         if self._file is not None:
             await self._file.aclose()
             self._file = None
+
+
+class _RangedRemoteByteReceiveStream(ByteReceiveStream):
+    """Stream [start, end) of an async fsspec file, one range request at a time.
+
+    NOTE: This class does not support concurrent calls to receive.
+    """
+
+    def __init__(self, fs: Any, path: str, start: int, end: int) -> None:
+        """Initialize with the fsspec filesystem, stripped path and byte range."""
+        self._fs = fs
+        self._path = path
+        self._next = start
+        self._end = end
+        self._buffer = b""
+        self._position = 0
+
+    async def receive(self, max_bytes: int = 65536) -> bytes:
+        """Receive up to max_bytes, fetching the next range once the buffer is spent.
+
+        An empty response before ``end`` (the object is shorter than its
+        reported size) ends the stream, and no further range is requested. A
+        receive cancelled while its range is in flight leaves the offset where
+        it was: the next receive requests that range again.
+        """
+        if self._position >= len(self._buffer):
+            if self._next >= self._end:
+                raise EndOfStream
+            stop = min(self._next + _REMOTE_RANGE_SIZE, self._end)
+            self._buffer = await _run_on_fsspec_loop(
+                self._fs, self._fs._cat_file(self._path, start=self._next, end=stop)
+            )
+            self._position = 0
+            if not self._buffer:
+                # the object ends before `end`: the stream ends short
+                self._next = self._end
+                raise EndOfStream
+            self._next += len(self._buffer)
+
+        chunk = self._buffer[self._position : self._position + max_bytes]
+        self._position += len(chunk)
+        return chunk
+
+    async def aclose(self) -> None:
+        """Drop the buffer; no further range is fetched."""
+        self._buffer = b""
+        self._next = self._end
 
 
 @dataclass
@@ -859,7 +920,11 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                     s3_info, self.s3_client(), bucket, key, filename
                 )
         else:
-            return filesystem(filename).info(filename)
+            fsw = filesystem(filename)
+            if _is_async_remote(fsw):
+                info = await _run_on_fsspec_loop(fsw.fs, fsw.fs._info(filename))
+                return fsw._file_info(info)
+            return fsw.info(filename)
 
     async def exists(self, filename: str) -> bool:
         """Return True if `filename` exists, False otherwise."""
@@ -884,7 +949,11 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                 s3_exists, self.s3_client(), bucket, key
             )
         else:
-            return filesystem(filename).exists(filename)
+            fsw = filesystem(filename)
+            if _is_async_remote(fsw):
+                exists = await _run_on_fsspec_loop(fsw.fs, fsw.fs._exists(filename))
+                return exists is True
+            return fsw.exists(filename)
 
     async def read_file(self, filename: str) -> bytes:
         """Read a file's full contents.
@@ -911,6 +980,10 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                         s3_read_file, self.s3_client(), bucket, key
                     )
         else:
+            fsw = filesystem(filename)
+            if _is_async_remote(fsw):
+                path = fsw.fs._strip_protocol(filename)
+                return await _run_on_fsspec_loop(fsw.fs, fsw.fs._cat_file(path))
             with file(filename, "rb") as f:
                 return f.read()
 
@@ -944,9 +1017,14 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             return await anyio.to_thread.run_sync(
                 _local_read_file_info, local_path(filename)
             )
-        with file(filename, "rb") as f:
-            data = f.read()
-        info = fsw.info(filename)
+        if _is_async_remote(fsw):
+            path = fsw.fs._strip_protocol(filename)
+            data = await _run_on_fsspec_loop(fsw.fs, fsw.fs._cat_file(path))
+            info = await self.info(filename)
+        else:
+            with file(filename, "rb") as f:
+                data = f.read()
+            info = fsw.info(filename)
         return FileContent(data=data, etag=info.etag, mtime=info.mtime)
 
     async def read_file_bytes(
@@ -961,6 +1039,13 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
 
         ``if_match`` pins an S3 read to that ETag: if the object has changed,
         the read raises :class:`ObjectChangedError`. Other backends ignore it.
+
+        An async fsspec file (``gs://``, ``az://``, ...) is fetched in
+        ``_REMOTE_RANGE_SIZE`` ranges on fsspec's loop as the stream is
+        consumed: a reader that stops early fetches only what it read, and
+        memory is bounded by one range, at the cost of one request per range
+        rather than one for the whole range (:meth:`read_file_bytes_fully`
+        keeps the single request).
         """
         if is_s3_filename(filename):
             bucket, key = s3_bucket_and_key(filename)
@@ -996,6 +1081,20 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             if fs.is_local():
                 # If local, use AnyIO's async/chunking file reading support
                 return _AnyIOFileByteReceiveStream(local_path(filename), start, end)
+            if _is_async_remote(fs):
+                path = fs.fs._strip_protocol(filename)
+                # as the file object's `seek` does; `_cat_file` would read a suffix
+                if start < 0:
+                    raise ValueError(f"Negative start offset: {start}")
+                # the file object looks the file up and returns b"" here; some
+                # `_cat_file`s send an unsatisfiable range request instead
+                if end is not None and end <= start:
+                    await _run_on_fsspec_loop(fs.fs, fs.fs._info(path))
+                    return _BytesByteReceiveStream(b"")
+                if end is None:
+                    info = await _run_on_fsspec_loop(fs.fs, fs.fs._info(path))
+                    end = info["size"]
+                return _RangedRemoteByteReceiveStream(fs.fs, path, start, end)
             with file(filename, "rb") as f:
                 f.seek(start)
                 return _BytesByteReceiveStream(
@@ -1014,12 +1113,22 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
 
         ``if_match`` is as for :meth:`read_file_bytes`. A local range is read
         in one worker thread rather than through :meth:`read_file_bytes`, whose
-        file stream makes a thread hop for each open, seek, read and close.
+        file stream makes a thread hop for each open, seek, read and close;
+        an async fsspec range is fetched in one request rather than in
+        that method's ranges.
         """
-        if not is_s3_filename(filename) and filesystem(filename).is_local():
-            return await anyio.to_thread.run_sync(
-                _read_local_range, local_path(filename), start, end
-            )
+        if not is_s3_filename(filename):
+            fsw = filesystem(filename)
+            if fsw.is_local():
+                return await anyio.to_thread.run_sync(
+                    _read_local_range, local_path(filename), start, end
+                )
+            # a negative or empty range keeps `read_file_bytes`'s checks
+            if _is_async_remote(fsw) and start >= 0 and (end is None or end > start):
+                path = fsw.fs._strip_protocol(filename)
+                return await _run_on_fsspec_loop(
+                    fsw.fs, fsw.fs._cat_file(path, start=start, end=end)
+                )
         stream = await self.read_file_bytes(filename, start, end, if_match=if_match)
         chunks: list[bytes] = []
         try:
@@ -1050,11 +1159,13 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         cancellation checks between chunks; under asyncio a byte stream
         from :meth:`read_file_bytes` is written inline (a buffered
         write of one chunk lands in the page cache faster than a thread hop
-        would). Any other remote filesystem (``gs://``, ``az://``, ...) has
-        no async client and, per the fsspec rule in AGENTS.md, cannot be read
-        in a worker thread either, so it is read synchronously on the event
-        loop one chunk at a time with a checkpoint between chunks: each
-        stall is bounded by one chunk's fetch rather than the whole download.
+        would). An async fsspec filesystem (``gs://``, ``az://``, ...) is
+        read with one ranged request per chunk on fsspec's own event loop,
+        without blocking the caller's. Any other remote filesystem has no
+        async API and, per the fsspec rule in AGENTS.md, cannot be read in a
+        worker thread either, so it is read synchronously on the event loop
+        one chunk at a time with a checkpoint between chunks: each stall is
+        bounded by one chunk's fetch rather than the whole download.
 
         Returns the S3 object's ETag on the asyncio backend, taken from the
         response the bytes came from, so both describe the same object
@@ -1084,10 +1195,21 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                     dest.write(chunk)
             finally:
                 await stream.aclose()
-        elif filesystem(filename).is_local():
+        elif (fsw := filesystem(filename)).is_local():
             await anyio.to_thread.run_sync(
                 _copy_local_file_into, local_path(filename), dest, chunk_size
             )
+        elif _is_async_remote(fsw):
+            path = fsw.fs._strip_protocol(filename)
+            info = await _run_on_fsspec_loop(fsw.fs, fsw.fs._info(path))
+            size = info["size"]
+            for start in range(0, size, chunk_size):
+                end = min(start + chunk_size, size)
+                dest.write(
+                    await _run_on_fsspec_loop(
+                        fsw.fs, fsw.fs._cat_file(path, start=start, end=end)
+                    )
+                )
         else:
             with file(filename, "rb") as src:
                 while chunk := src.read(chunk_size):
@@ -1130,7 +1252,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                         suffix_length,
                     )
         else:
-            file_size = filesystem(filename).info(filename).size
+            file_size = (await self.info(filename)).size
             start = max(0, file_size - suffix_length)
             data = await self.read_file_bytes_fully(filename, start, file_size)
             return SuffixResult(data, file_size)
@@ -1387,7 +1509,9 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         existing read-only target (restic writes repo files ``0400``) is
         replaced rather than opened for writing. boto3's ``download_file``
         does this itself; the asyncio path streams into the temp file. The
-        non-S3 branch copies in place.
+        non-S3 branch copies in place; an async fsspec filesystem (``gs://``,
+        ``az://``, ...) downloads on fsspec's own event loop without blocking
+        the caller's.
         """
         if is_s3_filename(remote):
             bucket, key = s3_bucket_and_key(remote)
@@ -1408,7 +1532,11 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                         s3_get_file, self.s3_client(), bucket, key, local
                     )
         else:
-            filesystem(remote).get_file(remote, local)
+            fsw = filesystem(remote)
+            if _is_async_remote(fsw):
+                await _run_on_fsspec_loop(fsw.fs, fsw.fs._get_file(remote, local))
+            else:
+                fsw.get_file(remote, local)
 
     async def get_file_if_match(self, remote: str, local: str, etag: str) -> None:
         """Download the S3 object `remote` to `local` only if its ETag is `etag`.
@@ -1621,21 +1749,35 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         else:
             fsw = filesystem(base)
             fs = fsw.fs
+            on_loop = _is_async_remote(fsw)
             if recursive:
                 if detail:
-                    found = fs.find(base, detail=True)
+                    found = (
+                        await _run_on_fsspec_loop(fs, fs._find(base, detail=True))
+                        if on_loop
+                        else fs.find(base, detail=True)
+                    )
                     for path, info in found.items():
                         if fnmatchcase(path.rsplit("/", 1)[-1], pattern):
                             yield fsw._file_info(info)
                 else:
-                    paths = fs.find(base)
+                    paths = (
+                        await _run_on_fsspec_loop(fs, fs._find(base))
+                        if on_loop
+                        else fs.find(base)
+                    )
                     if isinstance(paths, dict):
                         paths = list(paths.keys())
                     for path in paths:
                         if fnmatchcase(path.rsplit("/", 1)[-1], pattern):
                             yield path
             else:
-                for entry in fs.ls(base, detail=True):
+                entries = (
+                    await _run_on_fsspec_loop(fs, fs._ls(base, detail=True))
+                    if on_loop
+                    else fs.ls(base, detail=True)
+                )
+                for entry in entries:
                     if entry["type"] == "file":
                         name = entry["name"]
                         if fnmatchcase(name.rsplit("/", 1)[-1], pattern):
@@ -1694,14 +1836,26 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                 for r in results:
                     yield r
         else:
-            fs = filesystem(base).fs
+            fsw = filesystem(base)
+            fs = fsw.fs
+            on_loop = _is_async_remote(fsw)
             if not recursive:
-                for entry in fs.ls(base, detail=True):
+                entries = (
+                    await _run_on_fsspec_loop(fs, fs._ls(base, detail=True))
+                    if on_loop
+                    else fs.ls(base, detail=True)
+                )
+                for entry in entries:
                     if entry["type"] == "directory":
                         name = entry["name"]
                         terminal = name.rstrip("/").rsplit("/", 1)[-1]
                         if fnmatchcase(terminal, pattern):
                             yield name.rstrip("/") + "/"
+            elif on_loop:
+                async for dirpath, dirnames in _walk_dirs(fs, base):
+                    for dirname in dirnames:
+                        if fnmatchcase(dirname, pattern):
+                            yield f"{dirpath.rstrip('/')}/{dirname}/"
             else:
                 for dirpath, dirnames, _ in fs.walk(base):
                     for dirname in dirnames:
@@ -1762,7 +1916,12 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             )
         files = []
         dirs = []
-        for entry in fsw.fs.ls(base, detail=True):
+        entries = (
+            await _run_on_fsspec_loop(fsw.fs, fsw.fs._ls(base, detail=True))
+            if _is_async_remote(fsw)
+            else fsw.fs.ls(base, detail=True)
+        )
+        for entry in entries:
             name = entry["name"].rstrip("/").rsplit("/", 1)[-1]
             if entry["type"] == "directory":
                 dirs.append(f"{prefix_path}/{name}")
@@ -2345,6 +2504,114 @@ _current_async_fs: ContextVar[AsyncFilesystem | None] = ContextVar(
 
 
 _T = TypeVar("_T")
+
+
+def _is_async_remote(fsw: FileSystem) -> bool:
+    """Whether reads from `fsw` go through :func:`_run_on_fsspec_loop`."""
+    fs = fsw.fs
+    # a `DirFileSystem` is async by class even over a synchronous filesystem,
+    # whose coroutines it then calls
+    if "dir" in _protocols(fs):
+        fs = fs.fs
+    # HTTP keeps the file-object path: its `_cat_file` doesn't check that the
+    # server honoured the range, and its size can be unknown (the file streams)
+    return bool(fs.async_impl) and not {"http", "https"} & _protocols(fs)
+
+
+def _protocols(fs: Any) -> set[str]:
+    protocol = fs.protocol
+    return set(protocol if isinstance(protocol, tuple) else (protocol,))
+
+
+async def _run_on_fsspec_loop(fs: Any, coro: Coroutine[Any, Any, _T]) -> _T:
+    """Run `coro`, a coroutine of the async fsspec filesystem `fs`, on fsspec's loop.
+
+    Like ``fsspec.asyn.sync()``, but the caller's event loop keeps running. On
+    cancellation it returns only once the coroutine has finished, so its own
+    cleanup has run. As with ``sync()``, a ``TimeoutError`` is raised as
+    ``FSTimeoutError``. An ``asynchronous=True`` filesystem is awaited directly.
+    """
+    # `sync()` without its blocking wait: no thread pool is nested over
+    # fsspec's loop, so the fsspec rule in AGENTS.md holds
+    backend = current_async_backend()
+    if fs.asynchronous:
+        return await coro
+    # as `run_coroutine_threadsafe` does: `start` can't report a failure
+    if not asyncio.iscoroutine(coro):
+        raise TypeError(f"A coroutine object is required, not {type(coro)!r}")
+    try:
+        # raises in a forked child, as `sync()` does
+        loop = fs.loop
+    except BaseException:
+        coro.close()
+        raise
+    if backend == "asyncio" and loop is asyncio.get_running_loop():
+        return await coro
+    if loop is None or loop.is_closed():
+        coro.close()
+        raise RuntimeError("Loop is not running")
+
+    # a wake-up only schedules work on the caller's loop: that loop may itself
+    # be blocked in a synchronous fsspec call, so waiting on it would deadlock
+    done = anyio.Event()
+    if backend == "trio":
+        import trio
+
+        token = trio.lowlevel.current_trio_token()
+
+        def wake() -> None:
+            token.run_sync_soon(done.set)
+    else:
+        caller_loop = asyncio.get_running_loop()
+
+        def wake() -> None:
+            caller_loop.call_soon_threadsafe(done.set)
+
+    tasks: list[asyncio.Task[_T]] = []
+
+    def start() -> None:
+        task = loop.create_task(coro)
+        # fires even for a task cancelled before its first step
+        task.add_done_callback(lambda _: wake())
+        tasks.append(task)
+
+    loop.call_soon_threadsafe(start)
+    try:
+        await done.wait()
+    except BaseException:
+        # callbacks run in order, so `start` has run before this one
+        loop.call_soon_threadsafe(lambda: tasks[0].cancel())
+        while not done.is_set():
+            try:
+                with anyio.CancelScope(shield=True):
+                    await done.wait()
+            except anyio.get_cancelled_exc_class():
+                # a repeated native asyncio cancel reaches through the shield
+                continue
+        raise
+    try:
+        return tasks[0].result()
+    except TimeoutError as ex:
+        raise FSTimeoutError from ex
+
+
+async def _walk_dirs(fs: Any, path: str) -> AsyncIterator[tuple[str, list[str]]]:
+    """``(dirpath, dirnames)`` per directory, lazily, as ``fs.walk(path)`` yields them."""
+    path = fs._strip_protocol(path)
+    # `_ls`, not `_walk`: adlfs defines `_walk` as an unrelated synchronous helper
+    try:
+        listing = await _run_on_fsspec_loop(fs, fs._ls(path, detail=True))
+    except (FileNotFoundError, OSError):
+        return
+    dirs: dict[str, str] = {}
+    for info in listing:
+        pathname = info["name"].rstrip("/")
+        if info["type"] == "directory" and pathname != path:
+            dirs[pathname.rsplit("/", 1)[-1]] = pathname
+    yield path, list(dirs)
+    for pathname in dirs.values():
+        async for entry in _walk_dirs(fs, pathname):
+            yield entry
 
 
 def with_async_fs(
