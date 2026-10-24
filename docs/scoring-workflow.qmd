@@ -92,7 +92,7 @@ log = eval(popularity, model="openai/gpt-4o")[0]
 
 grader_models = [
     "openai/gpt-4o",
-    "anthropic/claude-opus-5-5",
+    "anthropic/claude-3-opus-20240229",
     "google/gemini-2.5-pro",
     "mistral/mistral-large-latest"
 ]
@@ -112,7 +112,7 @@ log = read_eval_log(input_log_path)
 
 grader_models = [
     "openai/gpt-4o",
-    "anthropic/claude-opus-5-5",
+    "anthropic/claude-3-opus-20240229",
     "google/gemini-2.5-pro",
     "mistral/mistral-large-latest"
 ]
