@@ -8,6 +8,7 @@ import pytest
 
 import inspect_ai.hooks._startup as hooks_startup_module
 from inspect_ai import eval, eval_async
+from inspect_ai._control.cancel import cancel_task
 from inspect_ai._eval.task.task import Task
 from inspect_ai._util._async import current_async_backend
 from inspect_ai._util.entrypoints import clear_entry_points_state, ensure_entry_points
@@ -37,6 +38,7 @@ from inspect_ai.hooks._hooks import (
 )
 from inspect_ai.hooks._startup import _load_registry_hooks, init_hooks
 from inspect_ai.log import EvalLog, list_eval_logs_async, read_eval_log_async
+from inspect_ai.scorer import match
 from inspect_ai.solver._solver import Generate, Solver, generate, solver
 from inspect_ai.solver._task_state import TaskState
 
@@ -597,6 +599,114 @@ async def test_run_end_hook_finishes_once_when_samples_are_cancelled(
     (log,) = await _eval_async_one_sample()
     assert log.status == "success"
     assert len(awaiting_run_hooks.run_end_events) == 2
+
+
+def test_task_end_hook_runs_when_task_is_aborted(mock_hooks: MockHooks) -> None:
+    # `inspect ctl task cancel` aborts a task: its log ends with an error status,
+    # and on_task_end must still be called with that log
+    victim_running = anyio.Event()
+
+    @solver
+    def wait_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            victim_running.set()
+            await anyio.sleep_forever()
+            return state
+
+        return solve
+
+    @solver
+    def cancel_victim_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            await victim_running.wait()
+            (victim,) = [
+                event
+                for event in mock_hooks.task_start_events
+                if event.spec.task == "victim"
+            ]
+            cancel_task(victim.spec.task_id)
+            return state
+
+        return solve
+
+    logs = eval(
+        [
+            Task(dataset=[Sample("sample_1")], solver=wait_solver(), name="victim"),
+            Task(
+                dataset=[Sample("sample_1")],
+                solver=cancel_victim_solver(),
+                name="canceller",
+            ),
+        ],
+        model="mockllm/model",
+        max_tasks=2,
+    )
+
+    assert {log.eval.task: log.status for log in logs} == {
+        "victim": "error",
+        "canceller": "success",
+    }
+    ended = sorted(
+        (event.log.eval.task, event.log.status) for event in mock_hooks.task_end_events
+    )
+    assert ended == [("canceller", "success"), ("victim", "error")]
+
+
+async def test_task_end_hook_runs_when_task_is_cancelled(
+    mock_hooks: MockHooks, tmp_path: Path
+) -> None:
+    sample_started = anyio.Event()
+
+    @solver
+    def wait_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            sample_started.set()
+            await anyio.sleep_forever()
+            return state
+
+        return solve
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(_eval_async_one_sample, wait_solver(), str(tmp_path))
+        await sample_started.wait()
+        tg.cancel_scope.cancel()
+
+    (task_end,) = mock_hooks.task_end_events
+    assert task_end.log.status == "cancelled"
+
+
+def test_task_end_hook_runs_when_task_raises(mock_hooks: MockHooks) -> None:
+    # an exception escaping the task (here, while computing results) ends it
+    # with an error log, which on_task_end must receive
+    with patch(
+        "inspect_ai._eval.task.run.eval_results", side_effect=RuntimeError("boom")
+    ):
+        (log,) = eval(
+            Task(dataset=[Sample("sample_1")], solver=generate(), scorer=match()),
+            model="mockllm/model",
+        )
+
+    assert log.status == "error"
+    (task_end,) = mock_hooks.task_end_events
+    assert task_end.log.status == "error"
+    assert task_end.log.error is not None
+    assert "boom" in task_end.log.error.message
+
+
+def test_task_end_hook_not_called_without_task_start(mock_hooks: MockHooks) -> None:
+    # a task that fails before on_task_start was called gets an error log but
+    # no end hook, so hooks never see an end without its start
+    with patch(
+        "inspect_ai._eval.task.run.register_eval", side_effect=RuntimeError("boom")
+    ):
+        (log,) = eval(
+            Task(dataset=[Sample("sample_1")], solver=generate()),
+            model="mockllm/model",
+        )
+
+    assert log.status == "error"
+    assert mock_hooks.task_start_events == []
+    assert mock_hooks.task_end_events == []
 
 
 def test_hooks_do_not_need_to_subscribe_to_all_events(
