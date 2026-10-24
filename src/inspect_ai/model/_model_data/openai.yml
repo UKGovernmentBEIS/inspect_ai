@@ -1,6 +1,9 @@
 openai:
   display_name: OpenAI
   models:
+    # Retired from the OpenAI API on 2026-10-23 (requests return 404
+    # model_not_found). Entry retained for historical log analysis.
+    # https://platform.openai.com/docs/deprecations
     gpt-3.5-turbo:
       display_name: GPT-3.5 Turbo
       release_date: 2023-03-01
@@ -22,6 +25,9 @@ openai:
           release_date: 2023-11-06
         gpt-3.5-turbo-latest:
           snapshot: latest
+    # Retired from the OpenAI API on 2026-10-23 (requests return 404
+    # model_not_found). Entry retained for historical log analysis.
+    # https://platform.openai.com/docs/deprecations
     gpt-4:
       display_name: GPT-4
       release_date: 2023-03-14
@@ -157,6 +163,9 @@ openai:
           snapshot: "2024-09-12"
         latest:
           snapshot: latest
+    # Retired from the OpenAI API on 2026-10-23 (requests return 404
+    # model_not_found). Entry retained for historical log analysis.
+    # https://platform.openai.com/docs/deprecations
     o1-pro:
       display_name: o1 Pro
       release_date: 2025-03-19
@@ -181,6 +190,9 @@ openai:
           snapshot: "2025-04-16"
         latest:
           snapshot: latest
+    # Retired from the OpenAI API on 2026-10-23 (requests return 404
+    # model_not_found). Entry retained for historical log analysis.
+    # https://platform.openai.com/docs/deprecations
     o3-mini:
       display_name: o3-mini
       release_date: 2025-01-31
@@ -205,6 +217,9 @@ openai:
           snapshot: "2025-06-10"
         latest:
           snapshot: latest
+    # Retired from the OpenAI API on 2026-10-23 (requests return 404
+    # model_not_found). Entry retained for historical log analysis.
+    # https://platform.openai.com/docs/deprecations
     o4-mini:
       display_name: o4 Mini
       release_date: 2025-04-16
