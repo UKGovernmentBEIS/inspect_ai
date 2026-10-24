@@ -683,9 +683,13 @@ jobs:
           # Whole directories, not a file list: the build scripts run with their
           # own directory first on sys.path, so any file there can change the
           # bytes. binaries/ is gitignored, but a force-added file there would be
-          # uploaded with the build's output.
+          # uploaded with the build's output. The excluded docs and tests are
+          # outside the package's src/, so the wheel never contains them.
           BUILD_INPUTS=(
             src/inspect_sandbox_tools
+            ":(exclude)src/inspect_sandbox_tools/design"
+            ":(exclude)src/inspect_sandbox_tools/tests"
+            ":(exclude,glob)src/inspect_sandbox_tools/*.md"
             src/inspect_ai/tool/_sandbox_tools_utils
             ":(exclude)src/inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS"
             src/inspect_ai/binaries
