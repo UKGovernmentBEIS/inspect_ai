@@ -158,7 +158,13 @@ def test_pinned_uv_versions_meet_required_version() -> None:
         workflow: yaml.safe_load(
             (REPO / ".github" / "workflows" / workflow).read_text()
         )["env"]["UV_VERSION"]
-        for workflow in ["build.yml", "log_viewer.yml", "sync_model_data.yml"]
+        for workflow in [
+            "build.yml",
+            "log_viewer.yml",
+            "suppressions.yml",
+            "suppressions-comment.yml",
+            "sync_model_data.yml",
+        ]
     }
     pre_commit = yaml.safe_load((REPO / ".pre-commit-config.yaml").read_text())
     (pinned["pre-commit"],) = [
@@ -188,13 +194,15 @@ def workflow_run_lines() -> list[tuple[str, str]]:
 
 
 # A bare `uv run` or `uv sync` re-resolves an out-of-date uv.lock and installs
-# the result.
+# the result. `uv run --no-project` ignores the project and uv.lock, so it is
+# allowed only without `--with`, which would install unlocked packages.
 def test_uv_never_relocks() -> None:
     unlocked = [
         (where, line)
         for where, line in workflow_run_lines()
         if re.search(r"\buv (run|sync)\b", line)
         and not {"--locked", "--no-sync"} & set(line.split())
+        and not ("--no-project" in line.split() and "--with" not in line)
     ]
     assert unlocked == []
 
