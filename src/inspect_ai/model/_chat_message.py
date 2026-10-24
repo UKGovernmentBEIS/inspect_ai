@@ -3,7 +3,14 @@ import json
 from logging import getLogger
 from typing import Any, Literal, Type, Union
 
-from pydantic import BaseModel, Field, ModelWrapValidatorHandler, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ModelWrapValidatorHandler,
+    TypeAdapter,
+    model_validator,
+)
 from pydantic_core.core_schema import ValidationInfo
 from shortuuid import uuid
 
@@ -118,16 +125,26 @@ class ChatMessageBase(BaseModel):
         engineering) often need to interact with chat messages with
         the assumption that they are a simple string. The text property
         sets text either to content directly (if it is a `str`) or to
-        the first text content item in the message (inserting one at
-        the beginning if necessary). If there are multiple text content
-        items in the message then after the set there will be only
+        the first text content item in the message, keeping its position
+        (appending one at the end if necessary). If there are multiple text
+        content items in the message then after the set there will be only
         one remaining (image content will remain).
         """
         if isinstance(self.content, str):
             self.content = text
         else:
-            all_other = [content for content in self.content if content.type != "text"]
-            self.content = all_other + [ContentText(text=text)]
+            first_text_idx: int | None = None
+            new_content: list[Content] = []
+            for item in self.content:
+                if item.type == "text":
+                    if first_text_idx is None:
+                        first_text_idx = len(new_content)
+                        new_content.append(ContentText(text=text))
+                else:
+                    new_content.append(item)
+            if first_text_idx is None:
+                new_content.append(ContentText(text=text))
+            self.content = new_content
 
     @property
     def content_list(self) -> list[Content]:
@@ -212,3 +229,22 @@ ChatMessage = Union[
     ChatMessageSystem, ChatMessageUser, ChatMessageAssistant, ChatMessageTool
 ]
 """Message in a chat conversation"""
+
+
+_logged_json_adapter: TypeAdapter[ChatMessage] = TypeAdapter(
+    ChatMessage, config=ConfigDict(ser_json_inf_nan="constants")
+)
+
+
+def logged_json(message: ChatMessage) -> bytes | None:
+    """JSON for comparing message versions, or None if it can't be serialized.
+
+    Uses `EvalSample`'s non-finite encoding: `model_dump_json()` writes NaN,
+    infinities and None all as null, which would hide an edit from one to
+    another. The message pool can still merge NaN, None and infinities in
+    saved logs. Values such as numpy arrays can't be serialized.
+    """
+    try:
+        return _logged_json_adapter.dump_json(message)
+    except ValueError:
+        return None

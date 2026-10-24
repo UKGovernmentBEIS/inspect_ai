@@ -239,6 +239,63 @@ async def test_mixed_batch_serial_acts_as_barrier() -> None:
     assert d_start > c_end
 
 
+async def test_operator_cancelled_modified_call_records_the_modified_arguments() -> (
+    None
+):
+    """A cancelled call reports the arguments an approver substituted, not the proposal."""
+    from inspect_ai.approval._apply import _tool_approver
+    from inspect_ai.approval._approval import Approval
+    from inspect_ai.log._transcript import transcript
+
+    @tool
+    def cancel_self():
+        async def cancel_self(label: str) -> str:
+            """Cancel this call from inside it.
+
+            Args:
+                label: The label.
+            """
+            event = next(
+                e
+                for e in reversed(transcript().events)
+                if isinstance(e, ToolEvent) and e.id == "mod-c0" and e.pending
+            )
+            event._cancel()
+            await anyio.sleep_forever()
+            return label
+
+        return cancel_self
+
+    async def modify(message, call, view, history):
+        return Approval(
+            decision="modify",
+            modified=ToolCall(
+                id=call.id, function=call.function, arguments={"label": "modified"}
+            ),
+        )
+
+    proposal = call("cancel_self", "mod-c0", label="original")
+    token = _tool_approver.set(modify)
+    try:
+        with anyio.fail_after(5):
+            messages, _ = await execute_tools(
+                [assistant(proposal)], [ToolDef(cancel_self())]
+            )
+    finally:
+        _tool_approver.reset(token)
+
+    (tool_message,) = messages
+    assert isinstance(tool_message, ChatMessageTool)
+    assert tool_message.error is not None and tool_message.error.type == "timeout"
+    (event,) = [
+        e for e in transcript().events if isinstance(e, ToolEvent) and e.id == "mod-c0"
+    ]
+    assert event.arguments == {"label": "modified"}
+    assert event.error == tool_message.error
+    # the model's proposal is untouched
+    assert proposal.arguments == {"label": "original"}
+
+
 async def test_tool_error_in_parallel_does_not_abort_siblings():
     """ToolError becomes tool-result content; sibling completes normally."""
     err_def = ToolDef(parallel_raise_tool_error())

@@ -1,6 +1,8 @@
 """Tests for model_info lookup functionality."""
 
+import re
 from datetime import date
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -649,6 +651,24 @@ class TestGetModelInputTokens:
         assert bedrock_info is not None
         assert bedrock_info.snapshot == "20260928"
 
+    def test_claude_haiku_5_5(self):
+        """Test that Claude Haiku 5.5 reports 1MM input tokens."""
+        model = get_model("anthropic/claude-haiku-5-5")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+        # distinguishes the explicit entry from a fuzzy match of haiku-4-5
+        info = get_model_info("anthropic/claude-haiku-5-5")
+        assert info is not None
+        assert info.snapshot == "20261007"
+        assert str(info.release_date) == "2026-10-07"
+        assert str(info.knowledge_cutoff_date) == "2026-06-01"
+        assert info.output_tokens == 128_000
+        assert info.reasoning_effort_default == "medium"
+        # the Bedrock id resolves to the same entry via its alias
+        bedrock_info = get_model_info("bedrock/anthropic.claude-haiku-5-5")
+        assert bedrock_info is not None
+        assert bedrock_info.snapshot == "20261007"
+
     def test_claude_fable_5(self):
         """Test that Claude Fable 5 reports 1MM input tokens."""
         model = get_model("anthropic/claude-fable-5")
@@ -711,6 +731,19 @@ class TestGetModelInputTokens:
         assert info is not None
         assert str(info.release_date) == release_date
         assert str(info.knowledge_cutoff_date) == "2026-03-01"
+        assert info.reasoning_effort_default == "medium"
+
+    def test_gemini_4_argon(self) -> None:
+        """Gemini 4 Argon resolves to its own entry (1M context, 64K output)."""
+        model = get_model("google/gemini-4-argon", api_key="test-key")
+        assert get_model_input_tokens(model) == 1_048_576
+        info = get_model_info("google/gemini-4-argon")
+        assert info is not None
+        assert info.model == "Gemini 4 Argon"
+        assert str(info.release_date) == "2026-10-13"
+        assert str(info.knowledge_cutoff_date) == "2026-03-01"
+        assert info.output_tokens == 65_536
+        assert info.reasoning is True
         assert info.reasoning_effort_default == "medium"
 
     def test_claude_latest_defaults_to_1m(self):
@@ -972,6 +1005,35 @@ class TestDoesNotReinstantiateProvider:
         record_and_check_model_usage(model, usage)
         # (3 * 1000 + 4 * 1000) / 1_000_000 = 0.007
         assert usage.total_cost == pytest.approx(0.007)
+
+
+def test_bundled_model_data_yaml_io_has_explicit_encoding() -> None:
+    """Bundled model-data YAML must be read and written with an explicit encoding.
+
+    The YAML ships inside the package and is UTF-8, but a plain `open()`
+    decodes with the platform locale: on Windows with a CJK ANSI code page
+    (cp932/936/949/950) every model call died on the em dash in `zai.yml`
+    (#5433). CI cannot observe this — ubuntu coerces non-UTF-8 locales to
+    UTF-8 (PEP 538/540) — so the guard is a source scan, mirroring
+    `tests/_control/test_ctl.py::test_no_bare_click_exit_in_ctl_error_sites`.
+    """
+    import inspect_ai.model._model_data as model_data_package
+
+    package_dir = Path(model_data_package.__file__).parent
+    offenders = [
+        f"{path.name}:{lineno}"
+        for path in sorted(package_dir.glob("*.py"))
+        for lineno, line in enumerate(
+            path.read_text(encoding="utf-8").splitlines(), start=1
+        )
+        if re.search(r"(?<![\w.])open\(", line)
+        and "encoding=" not in line
+        and not re.search(r"[\"'](rb|br|wb|bw)[\"']", line)
+    ]
+    assert not offenders, (
+        "open() without an explicit encoding in _model_data/ — bundled YAML "
+        f"is UTF-8 and must be read as such (#5433): {offenders}"
+    )
 
 
 @modelapi("servedtest")

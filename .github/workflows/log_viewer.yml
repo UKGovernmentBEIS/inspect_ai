@@ -18,7 +18,7 @@ permissions:
   contents: read
 
 env:
-  UV_VERSION: 0.9.4
+  UV_VERSION: 0.13.5
 
 jobs:
   # Keep the existing check names on Markdown-only PRs, but skip the viewer
@@ -29,7 +29,7 @@ jobs:
       contents: read
       pull-requests: read
     steps:
-      - uses: dorny/paths-filter@v4
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         if: github.event_name == 'pull_request'
         id: filter
         with:
@@ -40,7 +40,7 @@ jobs:
               - '!docs/**'
               - '!design/**'
               - '!**/*.md'
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
         with:
           fetch-depth: 0
@@ -50,30 +50,27 @@ jobs:
           filter: "blob:none"
           submodules: recursive
 
-      - name: Set up Python
-        if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        uses: actions/setup-python@v7
-        with:
-          python-version: 3.11
-
       - name: Install uv
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        uses: astral-sh/setup-uv@v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           enable-cache: true
           version: "${{ env.UV_VERSION }}"
+          python-version: "3.11"
 
+      # Exactly what uv.lock pins, so the check changes only with the code or
+      # the lockfile.
       - name: Install Python dependencies
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        run: uv pip install --system .[dev]
+        run: uv sync --locked
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
         with:
           package_json_file: src/inspect_ai/_view/ts-mono/package.json
       - name: Set up Node.js
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22.x"
           cache: pnpm
@@ -105,11 +102,11 @@ jobs:
 
       - name: Regenerate schema from Python source
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        run: python src/inspect_ai/_view/schema.py
+        run: uv run --no-sync python src/inspect_ai/_view/schema.py
 
       - name: Check schema is up to date (docstring-only drift tolerated)
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        run: python .github/scripts/check_openapi_drift.py
+        run: uv run --no-sync python .github/scripts/check_openapi_drift.py
 
       - name: Ensure regeneration produced no other changes
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
@@ -135,7 +132,7 @@ jobs:
       contents: read
       pull-requests: read
     steps:
-      - uses: dorny/paths-filter@v4
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         if: github.event_name == 'pull_request'
         id: filter
         with:
@@ -146,7 +143,7 @@ jobs:
               - '!docs/**'
               - '!design/**'
               - '!**/*.md'
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
 
       - name: Verify submodule commit is on ts-mono main
@@ -177,7 +174,7 @@ jobs:
       contents: read
       pull-requests: read
     steps:
-      - uses: dorny/paths-filter@v4
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         if: github.event_name == 'pull_request'
         id: filter
         with:
@@ -188,19 +185,19 @@ jobs:
               - '!docs/**'
               - '!design/**'
               - '!**/*.md'
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
         with:
           submodules: true
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
         with:
           package_json_file: src/inspect_ai/_view/ts-mono/package.json
 
       - name: Set up Node.js
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22.x"
           cache: pnpm
@@ -226,7 +223,7 @@ jobs:
       contents: read
       pull-requests: read
     steps:
-      - uses: dorny/paths-filter@v4
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         if: github.event_name == 'pull_request'
         id: filter
         with:
@@ -237,19 +234,19 @@ jobs:
               - '!docs/**'
               - '!design/**'
               - '!**/*.md'
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
         with:
           submodules: true
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
         with:
           package_json_file: src/inspect_ai/_view/ts-mono/package.json
 
       - name: Set up Node.js
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22.x"
           cache: pnpm

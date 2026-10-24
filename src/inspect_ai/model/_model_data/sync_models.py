@@ -1,4 +1,15 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["pyyaml", "requests"]
+#
+# [tool.uv]
+# exclude-newer = "7 days"
+#
+# # Exempt as in pyproject.toml: certifi releases remove compromised roots.
+# [tool.uv.exclude-newer-package]
+# certifi = false
+# ///
 """Sync model data from external sources.
 
 This script fetches model information from inference provider APIs and writes
@@ -24,7 +35,9 @@ a sibling file and the sync leaves it alone.
 
 This script must stay self-contained (stdlib + pyyaml + requests only, no
 inspect_ai imports): the sync workflow runs it without installing the package
-(see .github/workflows/sync_model_data.yml).
+(see .github/workflows/sync_model_data.yml), from the inline script metadata
+above and its lockfile, `sync_models.py.lock`. After changing the metadata,
+update the lockfile with `uv lock --no-config --script <this file>`.
 
 Usage:
     python -m inspect_ai.model._model_data.sync_models [--source SOURCE]
@@ -124,7 +137,7 @@ def load_curated_model_keys(data_dir: Path) -> set[str]:
     for info_file in sorted(data_dir.glob("*.yml")):
         if info_file.name in GENERATED_FILES:
             continue
-        with open(info_file) as f:
+        with open(info_file, encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
         for org, org_data in data.items():
             for model_name, model_def in (org_data.get("models") or {}).items():
@@ -387,7 +400,7 @@ def load_existing_data(output_file: Path) -> dict[str, Any]:
     if not output_file.exists():
         return {}
 
-    with open(output_file) as f:
+    with open(output_file, encoding="utf-8") as f:
         content = yaml.safe_load(f)
 
     return cast(dict[str, Any], content) if content else {}
@@ -506,7 +519,7 @@ def write_yaml(data: dict[str, Any], source: Source) -> None:
 #   {source.api_key_env}=your_key python -m inspect_ai.model._model_data.sync_models --source {source.name}
 
 """
-    with open(source.output_file, "w") as f:
+    with open(source.output_file, "w", encoding="utf-8") as f:
         f.write(header)
         yaml.dump(
             data, f, default_flow_style=False, allow_unicode=True, sort_keys=False

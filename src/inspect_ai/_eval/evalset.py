@@ -3,7 +3,7 @@ import hashlib
 import logging
 import os
 import threading
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple, Set, TypeVar, cast
@@ -54,6 +54,7 @@ from inspect_ai._eval.task.scan import (
     serialized_scan,
     verify_selection_scan_dir,
 )
+from inspect_ai._sentinel._config import SentinelSpec, resolve_sentinel_spec
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.azure import call_with_azure_auth_fallback
 from inspect_ai._util.dotenv import init_dotenv
@@ -96,7 +97,7 @@ from inspect_ai.model._model_config import (
 from inspect_ai.model._model_data.model_data import ModelCost
 from inspect_ai.review._policy import ReviewPolicy, ReviewPolicyConfig
 from inspect_ai.scorer._reducer import reducer_log_name
-from inspect_ai.solver._chain import chain
+from inspect_ai.solver._chain import chain, is_solver_sequence
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import DisplayType, SandboxEnvironmentType
 from inspect_ai.util._checkpoint import CheckpointConfig
@@ -165,7 +166,7 @@ class Log(NamedTuple):
 @dataclass
 class EvalSetArgsInTaskIdentifier:
     config: GenerateConfig
-    solver: Solver | SolverSpec | Agent | list[Solver] | None = None
+    solver: Solver | SolverSpec | Agent | Sequence[Solver] | None = None
     message_limit: int | None = None
     token_limit: int | TokenLimit | None = None
     turn_limit: int | None = None
@@ -180,6 +181,12 @@ def _applied(value: _T, override: "_T | None") -> _T:
     `None` on an override field means *keep what the definition chose*, which is what makes an omitted field and an absent document mean the same thing. Written as a function so that thirty-odd applications read as a list of names rather than as thirty-odd conditionals, and so that a mistyped pairing is a type error.
     """
     return value if override is None else override
+
+
+def _validate_sentinel(sentinel: SentinelSpec | None) -> None:
+    # after task resolution, so names registered by task files resolve
+    if sentinel is not None:
+        resolve_sentinel_spec(sentinel)
 
 
 def _overridden_selection(
@@ -250,7 +257,7 @@ def eval_set(
     checkpoint: CheckpointConfig | bool | None = None,
     acp_server: bool | int | str | None = None,
     ctl_server: bool | str | None = None,
-    solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
+    solver: Solver | SolverSpec | Agent | Sequence[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
@@ -297,6 +304,7 @@ def eval_set(
     log_dir_allow_dirty: bool | None = None,
     eval_set_id: str | None = None,
     embed_viewer: bool = False,
+    sentinel: SentinelSpec | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> tuple[bool, list[EvalLog]]:
     r"""Evaluate a set of tasks.
@@ -424,7 +432,10 @@ def eval_set(
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
-            time spent waiting on retries or shared resources.
+            time spent waiting on retries or shared resources. While a wait is
+            open, only model calls, sandbox commands and tool calls are charged,
+            so working time can undercount; set `time_limit` as well to bound
+            wall clock time.
         cost_limit: Limit on total cost (in dollars) for each sample.
             Requires model cost data via set_model_cost() or --model-cost-config.
         model_cost_config: YAML or JSON file with model prices for cost tracking.
@@ -460,6 +471,9 @@ def eval_set(
             for tasks in this eval set (defaults to False).
         eval_set_id: ID for the eval set. If not specified, a unique ID will be generated.
         embed_viewer: If True, embed a log viewer into the log directory.
+        sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
+            A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in `observe_only()` to record without acting.
+            Overrides the task's sentinel. Defaults to no sentinel.
         **kwargs: Model generation options.
 
     Returns:
@@ -554,6 +568,7 @@ def eval_set(
             display=display,
             approval=approval,
             review=review,
+            sentinel=sentinel,
             notification=notification,
             log_level=log_level,
             log_level_transcript=log_level_transcript,
@@ -725,6 +740,7 @@ def eval_set(
         checkpoint = _applied(checkpoint, overrides.checkpoint)
         approval = _applied(approval, overrides.approval)
         review = _applied(review, overrides.review)
+        sentinel = _applied(sentinel, overrides.sentinel)
         retry_on_error = _applied(retry_on_error, overrides.retry_on_error)
         score_on_error = _applied(score_on_error, overrides.score_on_error)
         debug_errors = _applied(debug_errors, overrides.debug_errors)
@@ -763,7 +779,6 @@ def eval_set(
         log_refusals=log_refusals,
         **kwargs,
     )
-
     # capture mode: resolve tasks, write the manifest, and exit the process
     # without running anything. deliberately placed before any log_dir side
     # effects (mkdir, .eval-set-id, eval-set.json) and before eval-set hooks.
@@ -791,6 +806,7 @@ def eval_set(
             raise PrerequisiteError(
                 "Error: No inspect tasks were found at the specified paths."
             )
+        _validate_sentinel(sentinel)
         # the definition's scanner configuration, serialized so a runner can
         # own the scan directory's lifecycle without executing the definition
         # (workers scan record-only in selection mode).
@@ -882,6 +898,7 @@ def eval_set(
                 raise PrerequisiteError(
                     "Error: No inspect tasks were found at the specified paths."
                 )
+            _validate_sentinel(sentinel)
             return resolved
 
         selection_args = EvalSetArgsInTaskIdentifier(
@@ -1047,6 +1064,7 @@ def eval_set(
             raise PrerequisiteError(
                 "Error: No inspect tasks were found at the specified paths."
             )
+        _validate_sentinel(sentinel)
 
         # list all logs currently in the log directory (update manifest if there are some)
         all_logs = list_all_eval_logs(log_dir)
@@ -1511,6 +1529,7 @@ def as_previous_tasks(
                 task_args=resolve_task_args(task.task),
                 model=task.model,
                 model_roles=task.model_roles,
+                sandbox=task.sandbox,
                 log=eval_log,
                 log_info=log_info,
             )
@@ -1738,6 +1757,7 @@ def _resumed_task(task: ResolvedTask, identifier: str, resume: str) -> PreviousT
         task_args=resolve_task_args(task.task),
         model=task.model,
         model_roles=task.model_roles,
+        sandbox=task.sandbox,
         log=eval_log,
         log_info=log_info,
     )
@@ -2085,13 +2105,13 @@ GENERATE_CONFIG_FIELDS_TO_EXCLUDE = {
 
 
 def resolve_solver(
-    solver: Solver | SolverSpec | Agent | list[Solver] | None,
+    solver: Solver | SolverSpec | Agent | Sequence[Solver] | None,
 ) -> Solver | None:
     # resolve solver
-    if isinstance(solver, list):
-        return chain(solver)
-    elif is_agent(solver):
+    if is_agent(solver):
         return as_solver(solver)
+    elif is_solver_sequence(solver):
+        return chain(solver)
     elif isinstance(solver, SolverSpec):
         return solver_from_spec(solver)
     else:

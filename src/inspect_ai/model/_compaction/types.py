@@ -1,10 +1,35 @@
 import abc
-from typing import Any, Literal, Protocol
+from typing import Any, Literal, NamedTuple, Protocol
 
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._model import Model
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool_info import ToolInfo
+
+
+class CompactionResult(NamedTuple):
+    """Result of a single `compact()` call.
+
+    `preserve_prefix` and `applied` describe the strategy that actually
+    produced `input`. For a delegating strategy such as `CompactionAuto`
+    that is not the strategy the caller configured, and the orchestrator
+    needs the delegate's values rather than the wrapper's.
+    """
+
+    input: list[ChatMessage]
+    """Input to present to the model."""
+
+    message: ChatMessageUser | None
+    """Optional message to append to the history (e.g. a summarization)."""
+
+    preserve_prefix: bool
+    """`preserve_prefix` of the strategy that produced this result."""
+
+    applied: str
+    """Class name of the strategy that produced this result."""
+
+    fallback_reason: str | None = None
+    """Why a delegating strategy did not use its preferred delegate."""
 
 
 class CompactionStrategy(abc.ABC):
@@ -69,6 +94,32 @@ class CompactionStrategy(abc.ABC):
         """
         ...
 
+    async def compact_outcome(
+        self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
+    ) -> CompactionResult:
+        """Compact messages and report which strategy applied.
+
+        The default implementation calls `compact()` and reports this
+        strategy's own values. Delegating strategies override this to
+        report the delegate that ran, so the orchestrator can apply that
+        delegate's prefix rule.
+
+        Args:
+            model: Target model for compaction.
+            messages: Full message history
+            tools: Available tools
+
+        Returns: The compacted input along with the prefix rule and identity
+            of the strategy that produced it.
+        """
+        input, message = await self.compact(model, messages, tools)
+        return CompactionResult(
+            input=input,
+            message=message,
+            preserve_prefix=self.preserve_prefix,
+            applied=type(self).__name__,
+        )
+
 
 class Compact(Protocol):
     """Interface for compaction strategies."""
@@ -84,7 +135,10 @@ class Compact(Protocol):
             messages: Full message history.
             force: If True, perform compaction unconditionally (skip the
                 threshold gate). Used by overflow recovery paths after a
-                model_length error.
+                model_length error. The handler does not check that the
+                result is smaller than the input that overflowed, so a
+                caller that retries after a forced compaction should not
+                force compaction again if the retry also overflows.
 
         Returns: Input to present to the model and (optionally) a message to append to the history (e.g. a summarization).
         """
@@ -96,13 +150,14 @@ class Compact(Protocol):
         """Record the output from a generate call.
 
         Calibrates the compaction's token estimation against the actual
-        input token count from `output.usage`. This captures API-level
+        input token count from `output.input_context_tokens` (or
+        `output.usage` when that is None). This captures API-level
         overhead (tool definitions, system messages, thinking configuration)
         that per-message counting cannot.
 
         `input` must be the messages that were passed to `model.generate`
         — it determines the baseline message ids that produced
-        `output.usage`. This matters when one `Compact` instance is shared
+        that count. This matters when one `Compact` instance is shared
         across concurrent callers (e.g. via AgentBridge).
 
         Args:

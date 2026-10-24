@@ -1,13 +1,168 @@
-## Unreleased
+# Changelog
 
+## [0.3.283](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.282...0.3.283) (2026-10-21)
+
+
+### Breaking Changes
+
+* dataset loaders now read a top-level `checkpoint` field as the sample's checkpoint configuration and raise when it isn't a valid one. Datasets that use `checkpoint` for unrelated data should pass `FieldSpec(checkpoint=None)` to skip the field, or `FieldSpec(checkpoint="<column>")` to read checkpoint settings from another column. Dataset records also can't set the checkpoint `trigger`; set it with `Task(checkpoint=CheckpointConfig(trigger=...))` or `eval(checkpoint=...)` instead.
+* Perplexity requests failing after Sonar moved to the Agent API ([#5703](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5703))
+
+### Features
+
+* **meta:** send prompt cache key and request 24 hour cache retention ([#6005](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6005)) ([17d4403](https://github.com/UKGovernmentBEIS/inspect_ai/commit/17d440355b9b4a718ba7ec0e6b203f39489c409d))
+* pass arguments to a registered sentinel with --sentinel-arg ([#5877](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5877)) ([b9f2574](https://github.com/UKGovernmentBEIS/inspect_ai/commit/b9f257419ad32c88cb49eff1edf2800170093ddd))
+* record a task's trust_content with in-eval scan results so Scout shows them as plain text ([#5788](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5788)) ([bc9012c](https://github.com/UKGovernmentBEIS/inspect_ai/commit/bc9012c28511295db92e382620c723fa8c17fbbc))
+* record bridged host tool calls as tool events in the transcript ([#5741](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5741)) ([d90a8a0](https://github.com/UKGovernmentBEIS/inspect_ai/commit/d90a8a0d335a7821abeff5f1b61e9f43f5120c06))
+* **sentinel:** tool steps carry the id of the message that made the call and its request's tool choice ([#5964](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5964)) ([c90c3a1](https://github.com/UKGovernmentBEIS/inspect_ai/commit/c90c3a1bf0be223393dcd0732e5ebc9e4c4222df))
+
+
+### Bug Fixes
+
+* a span that raises or is cancelled logs its own store changes ([#5961](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5961)) ([5603856](https://github.com/UKGovernmentBEIS/inspect_ai/commit/560385640e12a59b417275e660f1ce40f4f2a783))
+* **anthropic:** Anthropic provider fails on anthropic 2.0 with 'Cannot instantiate typing.Union' ([#6003](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6003)) ([f35c925](https://github.com/UKGovernmentBEIS/inspect_ai/commit/f35c925bbc89a1aa7dd0268385064c1505334228))
+* charge working time for model calls, sandbox commands and tool calls that run while another task waits ([#5880](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5880)) ([1579809](https://github.com/UKGovernmentBEIS/inspect_ai/commit/157980923b2993d2496a8d150c81f32465f15991))
+* Ctrl-C during eval() on the trio backend raises KeyboardInterrupt and logs the cancelled eval ([#5870](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5870)) ([9868e10](https://github.com/UKGovernmentBEIS/inspect_ai/commit/9868e105fa6eb371395a909b9709423c92a88512))
+* eval-set resume runs in the task's sandbox instead of the one the previous log names ([#6006](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6006)) ([27f034c](https://github.com/UKGovernmentBEIS/inspect_ai/commit/27f034ca4e06d6fadb93825ad9fea237cc46b6b9))
+* Groq and Mistral send a tool error to the model ([#5882](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5882)) ([eda5bcb](https://github.com/UKGovernmentBEIS/inspect_ai/commit/eda5bcbaeadbf14deb9bfc977fec2df4367ac223))
+* Perplexity requests failing after Sonar moved to the Agent API ([#5703](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5703)) ([4a4f7ea](https://github.com/UKGovernmentBEIS/inspect_ai/commit/4a4f7ea76fd695dbdd0824cd22ffd002b8cbe45a))
+* preserve sample checkpoint settings when loading datasets ([#5411](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5411)) ([7a83ea9](https://github.com/UKGovernmentBEIS/inspect_ai/commit/7a83ea99eedbf2effaca3f68a21d753b2fd41bdc))
+* share tool-execution classification between model and human agent paths ([#4993](https://github.com/UKGovernmentBEIS/inspect_ai/issues/4993)) ([63e45cc](https://github.com/UKGovernmentBEIS/inspect_ai/commit/63e45cc52d39b873b944124613da21fdad6f6dcc))
+* viewer update keeps a bridged agent's own tool calls visible in focus mode ([#5998](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5998)) ([5e06ec2](https://github.com/UKGovernmentBEIS/inspect_ai/commit/5e06ec2d8ba569c4ec867bfd48a7d66cda53c370))
+* warn when a sample or task sandbox config is not used ([#5736](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5736)) ([6bfa187](https://github.com/UKGovernmentBEIS/inspect_ai/commit/6bfa187cd4e9909222bdb1d9e67549b30f9b89dc))
+* write checkpoint attachments.json in insertion order so restic can deduplicate it ([#5967](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5967)) ([22141c9](https://github.com/UKGovernmentBEIS/inspect_ai/commit/22141c91d80528e729123f6aac287566334367a9))
+
+
+### Performance Improvements
+
+* make repeated inspect ctl --log-dir polls read only the logs that changed ([#5776](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5776)) ([973cf79](https://github.com/UKGovernmentBEIS/inspect_ai/commit/973cf7925abefd248c86f4638fad0ddd5d9b97d7))
+
+## [0.3.282](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.281...0.3.282) (2026-10-19)
+
+
+### Breaking Changes
+
+* tool state scopes so agents running concurrently in one sample keep separate tool state ([#5861](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5861))
+
+### Features
+
+* **sharding:** conditional S3 writes and a local lock helper ([#5775](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5775)) ([5384f73](https://github.com/UKGovernmentBEIS/inspect_ai/commit/5384f7393564f76b040be5d5e06cb2767e96037d))
+* show a sharded run as one task in inspect ctl --log-dir ([#5774](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5774)) ([c0e60d0](https://github.com/UKGovernmentBEIS/inspect_ai/commit/c0e60d046796cb741ecaafc3184c1d027521e119))
+* tool state scopes so agents running concurrently in one sample keep separate tool state ([#5861](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5861)) ([c03cd92](https://github.com/UKGovernmentBEIS/inspect_ai/commit/c03cd9274352a3b9d5d3466774aae778a23f20f2))
+
+
+### Bug Fixes
+
+* cancelled trio eval with the rich display fails instead of returning its log ([#5872](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5872)) ([f99c61d](https://github.com/UKGovernmentBEIS/inspect_ai/commit/f99c61d02d4205c4caf740c456633d901dfb4d19))
+* gemini-2.5-pro repeating tool calls after a tool result ([#5753](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5753)) ([8181840](https://github.com/UKGovernmentBEIS/inspect_ai/commit/8181840c18f1c004c1be851f83919d73f67d0f82))
+* stop installing brotli with Inspect ([#5900](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5900)) ([a699376](https://github.com/UKGovernmentBEIS/inspect_ai/commit/a699376315c95b6410f5aec01af37c8dec452aea))
+* usage undercounted when a provider call sends several billed requests ([#5643](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5643)) ([9ac4412](https://github.com/UKGovernmentBEIS/inspect_ai/commit/9ac4412952ae391a179f744907a7edad0a5e6bac))
+* **view:** enforce the log viewer's Content-Security-Policy in inspect view and view bundle ([#5552](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5552)) ([7afcb24](https://github.com/UKGovernmentBEIS/inspect_ai/commit/7afcb2411d3459250bbab3246b454cef69a34d62))
+
+
+### Performance Improvements
+
+* faster events_df() on long agent transcripts ([#5819](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5819)) ([21ea635](https://github.com/UKGovernmentBEIS/inspect_ai/commit/21ea6355860798307785592f05aa41bb6c3d47fe))
+
+## [0.3.281](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.280...0.3.281) (2026-10-15)
+
+
+### Breaking Changes
+
+* require Python 3.11 and test on Python 3.14 ([#5862](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5862))
+
+### Features
+
+* add swarm_controller and swarm_channel registry types ([#5860](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5860)) ([a11afc9](https://github.com/UKGovernmentBEIS/inspect_ai/commit/a11afc94322a431782f57c0f48a3d6b7666413c3))
+* **agent-bridge:** forward allowed Anthropic betas, Accept-Encoding and Responses reasoning context ([#5708](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5708)) ([be4fd1f](https://github.com/UKGovernmentBEIS/inspect_ai/commit/be4fd1fba7bd6c31bf5f708a4d90f3fca969ae07))
+* let agent bridges transform model responses with `response_filter` ([#5715](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5715)) ([19f9349](https://github.com/UKGovernmentBEIS/inspect_ai/commit/19f9349d2a21572333854f987a46c02327754ef1))
+* require Python 3.11 and test on Python 3.14 ([#5862](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5862)) ([f612192](https://github.com/UKGovernmentBEIS/inspect_ai/commit/f612192808ddcb2575a205df16469c28a3bf7716))
+* sentinel monitors can call context.host.score ([#5865](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5865)) ([b0a5cd1](https://github.com/UKGovernmentBEIS/inspect_ai/commit/b0a5cd1d3b0c5f240df3ba696d3edd1d15e78bb1))
+
+
+### Bug Fixes
+
+* Antigravity host tool calls being denied as unproposed by the sandbox agent bridge ([#5717](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5717)) ([46e79a4](https://github.com/UKGovernmentBEIS/inspect_ai/commit/46e79a4f46f288cbbd67a43842dde684d598a469))
+* count overlapping waits once in working time and add suspend_working_limit() ([#5758](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5758)) ([974c17d](https://github.com/UKGovernmentBEIS/inspect_ai/commit/974c17d43738702adde22f404293d07c316242af))
+* **litellm-proxy:** Grok models keep reasoning across turns, accept every reasoning effort, and report refusals ([#5874](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5874)) ([7158198](https://github.com/UKGovernmentBEIS/inspect_ai/commit/71581988aaabd7a7c44c31fe25fe907a01e81680))
+* **litellm-proxy:** Meta Muse models keep reasoning across turns, accept unsupported parameters, and report refusals ([#5878](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5878)) ([08f8600](https://github.com/UKGovernmentBEIS/inspect_ai/commit/08f8600926ee7383c0b582faada2640c6c6f0740))
+* **litellm:** stop the function-calling hint making Gemini loop on tool calls ([#5761](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5761)) ([0c3b3e4](https://github.com/UKGovernmentBEIS/inspect_ai/commit/0c3b3e46ee76afd2115c2aae09a719c01900f1c5))
+* prevent StoreModel validation leaks and make store and instance read-only ([#5748](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5748)) ([aaad90c](https://github.com/UKGovernmentBEIS/inspect_ai/commit/aaad90c850d82f302c5a8750f6f5c9775bfe3eaf))
+* reject unknown sandbox names even when only one environment exists ([#5723](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5723)) ([3f9c2e3](https://github.com/UKGovernmentBEIS/inspect_ai/commit/3f9c2e3fb4cc4799577971f61d29a5c8cd381ed4))
+* **sandbox:** Docker `read_file()` no longer unpacks agent-controlled archives on the host or fills its disk ([#5829](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5829)) ([86c1157](https://github.com/UKGovernmentBEIS/inspect_ai/commit/86c1157328b8d83ce02bf830484bba45afae053c))
+
+## [0.3.280](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.279...0.3.280) (2026-10-14)
+
+
+### Features
+
+* **agent-bridge:** filters can now tell which agent a bridged model request belongs to ([#4791](https://github.com/UKGovernmentBEIS/inspect_ai/issues/4791)) ([1b78969](https://github.com/UKGovernmentBEIS/inspect_ai/commit/1b78969d6350bd8ce84bba84a92cbaddf8b175d6))
+* **google:** support Gemini 4 Argon ([#5843](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5843)) ([76e69f9](https://github.com/UKGovernmentBEIS/inspect_ai/commit/76e69f92b9e4f84fda6214d69c15842f8e20dd49))
+* keep the response headers of a model call ([#5795](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5795)) ([1b16791](https://github.com/UKGovernmentBEIS/inspect_ai/commit/1b167913bce1c6bb9dbf85bd67edbc02015b706c))
+
+
+### Bug Fixes
+
+* Behavior change: Docker sandboxes now block writable host mounts by default; use read-only mounts, Sample.files or Docker-managed volumes, or the unsafe opt-in ([#5830](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5830)) ([d7495e8](https://github.com/UKGovernmentBEIS/inspect_ai/commit/d7495e8020d362f22aa7ac8ae238c3c9c6ca5602))
+* Groq and OpenAI on Bedrock requests failing during credential refresh ([#5707](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5707)) ([618d6f0](https://github.com/UKGovernmentBEIS/inspect_ai/commit/618d6f0a49c9b6d969e1244717f78cc081400879))
+* remove duplicated type: ignore comments that ast-serialize 0.13 rejects ([#5835](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5835)) ([81c1668](https://github.com/UKGovernmentBEIS/inspect_ai/commit/81c1668d31030eebf7ff55e8376c2650b4f811ed))
+* slow reads of local .eval logs ([#5783](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5783)) ([bf37243](https://github.com/UKGovernmentBEIS/inspect_ai/commit/bf3724303c4fbb8c8842a6fe1d15aba6aba8d1eb))
+* store and state changes crashing, replaying wrong, or logging unchanged NaNs ([#5751](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5751)) ([31a5661](https://github.com/UKGovernmentBEIS/inspect_ai/commit/31a5661544bc1c49dba9af8c5fed00087ef3fe9f))
+
+
+### Reverts
+
+* remove the short-lived inspect_ai.core package added in 0.3.277; core data types stay at their original import paths ([#5828](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5828)) ([295daba](https://github.com/UKGovernmentBEIS/inspect_ai/commit/295dabaaba23ffc8dc0480b9506344054e73fcc1))
+
+## [0.3.279](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.278...0.3.279) (2026-10-12)
+
+### Bug Fixes
+
+* Internal improvements.
+
+## 0.3.278 (09 October 2026)
+
+- Tasks and samples can carry a `description` of what they ask of the agent, recorded in the eval log and in `evals_df()` and `samples_df()`.
+- Tool review now also reviews `handoff()` calls, as approval does.
+- Compaction: Fixed compaction triggering early and reporting inflated token counts on OpenAI reasoning models, which counted replayed reasoning twice.
+- Compaction: Removed `ModelAPI.apply_redacted_reasoning_tokens_to_input()` and stopped adding `redacted_reasoning_tokens` to assistant message metadata.
+- Compaction: Overflow recovery in `react()` no longer forces compaction again when the retry after a forced compaction also overflows, which could resend the same request indefinitely.
+- Grok: Fixed batch mode failing after a credential refresh (e.g. on an expired API key), including batches already in progress.
+- Models: Setting `text` on a `ChatMessage` with a list of content now replaces the existing text in place instead of moving it after images and other media; a message with no text still gets the new text appended. `prompt_template()`, `chain_of_thought()` and `multiple_choice()` set `text`, so multimodal evals that put text before media now send the prompt in the order they wrote it, and their baselines may shift on rerun. (#4770)
+- Solver: `TaskState.input_text` no longer raises when the last user message has no text; image-only and other non-text messages return placeholders such as `[image]`, and an empty message returns `""`.
+- Bugfix: Hugging Face task loading reads the Hub-delivered `eval.yaml` in UTF-8 rather than the locale default, so task configs with non-ASCII characters no longer crash or silently corrupt on Windows with a non-UTF-8 code page (or on a C-locale system).
+- Anthropic: Support for Claude Haiku 5.5 (`claude-haiku-5-5`): `reasoning_effort="none"` disables thinking, computer use uses the computer toolset on the Claude API and Vertex, and `fallback_models` is ignored with a warning.
+- Anthropic: With `reasoning_effort` on Claude 4.6+, forced tool choice (except on Fable/Mythos 5.1, Opus 5.5, Sonnet 5.5), `tool_choice="none"` and `parallel_tool_calls=False` are now honored; forced turns skip thinking.
+- Bugfix: `inspect log convert --stream` (and `convert_eval_logs(stream=...)`) no longer drops the error message and traceback from logs of failed evals.
+- Fixed `StoreModel` skipping field validation when constructed with an empty `instance` string.
+- Fixed the human reviewer filling in tool arguments inside tool output that contains `{{{...}}}` (three or more braces).
+- Tools: Tools with `*args` or `**kwargs` no longer advertise required `args`/`kwargs` parameters to models; declare model-chosen arguments with an explicit `ToolParams` schema instead.
+- Control Channel: `inspect ctl model throughput` now reports each model's input, output and cache read/write tokens per minute, in the table and in `--json` output; the table's output column is now per minute instead of per second.
+- Bugfix: An approver's `modify` decision with no modified call now rejects the tool call instead of running the original, and the human approver no longer offers Modify.
+- Deep Agent: `deepagent(background=True)` run from a scorer can now dispatch background subagents instead of failing.
+- Anthropic: Forced web searches now work on Claude 4.6+, and `web_search()` now honors `allowed_callers` and `type` in its `anthropic` options.
+- Agent Bridge: Web search from a bridged Anthropic client, such as Claude Code's WebSearch, now uses the tool version the client declared unless the eval sets one.
+- Agent Bridge: A provider error delivered during a streamed response now reaches the bridged agent as an error instead of a malformed HTTP 200 success.
+- Agent Bridge: A bridged Anthropic client now sees conflict, timeout, and billing errors as such instead of as generic server errors.
+- Agent Bridge: Sandboxed agents now receive exhausted provider errors with their original status and error details.
+- Dependencies: Require `nest_asyncio2` >= 1.7.4, fixing cancel scope errors (e.g. from Mistral streaming) after Inspect is called synchronously from a notebook or another running event loop.
+
+## 0.3.277 (06 October 2026)
+
+- Fixed trace logs growing to many gigabytes when model output caching is enabled.
+- Fixed model calls and token counting in multiprocess Scout scans using the default model configuration.
+- Bugfix: Interrupting after scoring no longer drops the scored sample from a cancelled evaluation log while its sandbox is being cleaned up.
+- Bugfix: Overflow recovery no longer drops the sample's input from the recorded conversation, so scorers and the viewer still see the task after a forced compaction.
 - Sample sources: `enqueue_sample(samples, epoch=N)` runs each sample once as epoch `N`, so a source can run one sample repeatedly under its own id.
 - Run config: `eval_config.token_limit_type` from an exported or handwritten run config is applied as the token-limit metering type instead of being rejected as an unknown generate option.
+- Fixed model calls failing before the first sample on Windows systems with a CJK ANSI code page (cp932/936/949/950).
 - Realtime logging: Fixed live sample reads occasionally showing model calls with empty inputs when the sample finished while being read.
 - Meta: Muse models not yet in the model database (new versions or codenames) now use the current frontier model's context window and `max` reasoning effort support.
 - Bedrock: Unsupported Amazon Nova models now ignore reasoning effort with a warning instead of failing every request.
 - Timestamps and times ending in a lowercase `z` are now parsed as UTC on Python 3.11 and later, as they already were on Python 3.10.
 - Model API: Model events log provider request ids (including for retried requests) and response ids, even when raw model API calls are not logged.
 - Datasets: `shuffle` on `csv_dataset()`, `json_dataset()`, `file_dataset()` and `hf_dataset()` now treats an integer as a seed, so `shuffle=0` shuffles with seed 0.
+- Fixed `exact()` and `f1()` scorers awarding a perfect score when a target normalizes to an empty string.
 - Security: Text-editor undo history uses non-executable data stored privately per OS account; old pickle history is ignored.
 - Sandbox tools: killing an `exec_remote` job that has already exited now guards against signalling unrelated processes that reused its PID.
 - Sandbox: `exec_remote()` and `sandbox_agent_bridge()` take a new opt-in `poll_timeout_recovery` that keeps polling a running command through a temporary sandbox stall instead of failing.
@@ -19,6 +174,8 @@
 - Model providers: Failed and cancelled requests no longer leave tracking entries that grow memory use over a long evaluation.
 - Google: Fixed audio, video and document content being sent with the MIME type of an earlier upload of the same bytes; uploads are now reused only for the same MIME type and account.
 - Limits: A model call is now refused before it is sent when a token or cost limit is already reached, including when usage exactly equals the limit.
+- Core data types (`ChatMessage`, `ModelOutput`, `ToolInfo`, `GenerateConfig` and the types they use) moved to the new `inspect_ai.core` package; existing import paths still work.
+- `ModelOutput.from_message()` takes an optional `model` argument.
 - Bugfix: Cost tracking and `cost_limit` now price a request at the rates of the model that served it (refusal fallbacks, Azure deployments, and routers on OpenRouter, Bedrock, Fireworks and LiteLLM proxies); providers report it with the new `ModelAPI.served_model_usage()`.
 - Batch mode: Requests with different HTTP headers, such as `extra_headers` or Anthropic beta headers, are now sent in separate batches, so one request's headers no longer apply to others.
 - Mistral: Image URLs in model output are no longer downloaded from any host; they are recorded as text with the URL. Inline images are unchanged.
@@ -26,6 +183,15 @@
 - Bugfix: Remote MCP servers are now refused while an approval policy is active, rather than having their tools run by the model provider without approval.
 - Bugfix: Results of `sandbox_agent_bridge()` bridged tools are now truncated at `max_tool_output` (or the tool's `max_output`), as other tool results are.
 - Eval Set: Fixed logging with S3 credentials restricted to the log directory's prefix, and reading and writing `eval-set.json` for Azure log directories with a trailing slash or an account in the URL.
+- Analysis: Type checkers now accept column extract functions that take a specific event, message or sample type, or return a precise JSON type such as `list[dict[str, int]]`.
+- Hugging Face: Concurrent requests for different models or generation settings are now generated with their own model and settings, not the first request's.
+- OpenAI and Anthropic: Fixed concurrent requests failing or restarting when another sample's request triggers a credential refresh (e.g. on an expired API key).
+- OpenAI: OpenAI: The OpenAI providers, message and output converters, and agent bridge now require openai >= 3.4.0.
+- Bugfix: Tool events now record the arguments an approver's `modify` decision substituted, and a `modify` that changes the function now fails the sample instead of running the wrong call.
+- Agent Bridge: `sandbox_agent_bridge()` now serves a request for an unknown model name with the eval's model and logs a warning; add the name to `model_aliases` to send it to another model.
+- Agent Bridge: Fixed a bridge `filter` sometimes receiving the model name instead of a `Model` (or the reverse) when filters of both signatures were used in one process.
+- Perplexity: Each response now gets only its own citations and usage when one model handles concurrent requests, and a failed request no longer reuses an earlier response's.
+- Agent Bridge: For both `agent_bridge()` and `sandbox_agent_bridge()`, the eval's configuration now governs `service_tier`, `store`, `truncation` and provider tool options such as web search domains, which the agent's requests no longer override; requests with `previous_response_id` are refused.
 
 ## 0.3.276 (02 October 2026)
 

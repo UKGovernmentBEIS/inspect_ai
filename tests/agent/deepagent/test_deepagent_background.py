@@ -4,20 +4,26 @@ Covers ``agent(background=True)``, the registry, ``_run_background``,
 cap behaviour, ``background=True|False|int`` resolution, the lifecycle
 tools (agent_status, agent_wait, agent_cancel, agent_list), the
 ``on_continue`` forgetting-backstop reminder, and the safety/async
-edge cases (limit propagation, errors not killing the sample, fork +
+edge cases (limit propagation, unexpected errors failing the sample, fork +
 background, abandon-on-exit, timeout partials).
 """
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+from typing import Any, Awaitable, Callable, Coroutine, Iterator
+
 import anyio
 import pytest
+from anyio.abc import TaskGroup
+from typing_extensions import Unpack
 
 from inspect_ai import Task, eval
 from inspect_ai.agent import deepagent, subagent
 from inspect_ai.agent._deepagent.agent_tool import (
     AgentFuture,
     BackgroundRegistry,
+    _dispatch_background,
     active_background_agents,
     background_registry,
     current_background_registry,
@@ -28,9 +34,17 @@ from inspect_ai.agent._deepagent.deepagent import (
 )
 from inspect_ai.dataset import Sample
 from inspect_ai.event._tool import ToolEvent
-from inspect_ai.model import ModelOutput, get_model
-from inspect_ai.tool import Tool, tool
+from inspect_ai.log import EvalLog
+from inspect_ai.model import ChatMessageUser, ModelOutput, get_model
+from inspect_ai.scorer import Score, Scorer, Target, accuracy, scorer
+from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
+from inspect_ai.tool import Tool, ToolError, tool
 from inspect_ai.util import message_limit
+from inspect_ai.util._background import (
+    BackgroundTarget,
+    PosArgsT,
+    background_target,
+)
 
 # ---------------------------------------------------------------------------
 # Test-only helper: wait for a specific AgentFuture to complete and report
@@ -118,6 +132,7 @@ def _eval_deepagent(
     outputs: list[ModelOutput],
     input: str = "Do the task",
     message_limit: int = 30,
+    fail_on_error: bool = True,
 ) -> dict:
     agent_kwargs.setdefault("submit", True)
     # These are background-dispatch tests; deepagent()'s production default is
@@ -131,7 +146,7 @@ def _eval_deepagent(
         message_limit=message_limit,
     )
     model = get_model("mockllm/model", custom_outputs=outputs)
-    log = eval(task, model=model)[0]
+    log = eval(task, model=model, fail_on_error=fail_on_error)[0]
     return {
         "log": log,
         "status": log.status,
@@ -229,8 +244,7 @@ def _build_erroring_subagent(name: str, message: str = "boom"):
 
     The raise is a plain ``RuntimeError`` (an ``Exception``, not a
     ``BaseException``), so it exercises ``_run_background``'s
-    swallow-and-record path: the sample must survive and the future must
-    settle as ``errored`` with the message surfaced.
+    record-and-propagate path: the failure must reach the sample runner.
     """
     from inspect_ai.agent._deepagent.subagent import subagent as subagent_factory
 
@@ -1772,30 +1786,156 @@ class TestBackgroundLimits:
 
 
 class TestBackgroundErrors:
-    """A background subagent error must not fail the sample (Phase 2 fix)."""
+    """Unexpected subagent failures fail the sample in either dispatch mode."""
 
-    def test_error_does_not_kill_sample(self) -> None:
+    @pytest.mark.parametrize("background", [False, True])
+    @pytest.mark.parametrize("fail_on_error", [False, True])
+    def test_error_fails_sample(self, background: bool, fail_on_error: bool) -> None:
         boomer = _build_erroring_subagent("boomer", "kaboom")
         result = _eval_deepagent(
             agent_kwargs={"subagents": [boomer], "tools": [_wait_test_helper()]},
             outputs=[
-                _agent_call(prompt="go"),
+                _agent_call(prompt="go", background=background),
+                _tool_call("_wait_test_helper", agent_id="AGENT-1"),
+                _submit("done"),
+            ],
+            fail_on_error=fail_on_error,
+        )
+        assert result["status"] == ("error" if fail_on_error else "success")
+        sample = result["log"].samples[0]
+        assert sample.error is not None
+        assert "kaboom" in sample.error.message
+
+    @pytest.mark.parametrize("background", [False, True])
+    @pytest.mark.parametrize("error_type", [RuntimeError, ToolError])
+    def test_tool_errors(self, background: bool, error_type: type[Exception]) -> None:
+        @tool
+        def fail() -> Tool:
+            async def execute() -> str:
+                """Raise a tool or infrastructure error."""
+                raise error_type("sandbox failure")
+
+            return execute
+
+        worker = subagent(
+            name="worker",
+            description="Failing worker.",
+            prompt="Do the task.",
+            tools=[fail()],
+            model=get_model(
+                "mockllm/model",
+                custom_outputs=[_tool_call("fail"), _submit("recovered")],
+            ),
+        )
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [worker], "tools": [_wait_test_helper()]},
+            outputs=[
+                _agent_call(background=background),
                 _tool_call("_wait_test_helper", agent_id="AGENT-1"),
                 _submit("done"),
             ],
         )
-        # sample survives despite the background exception
-        assert result["status"] == "success"
-        waits = _events_for(result, "_wait_test_helper")
-        assert len(waits) == 1
-        body = str(waits[0].result)
-        # error is surfaced (status errored + message), not silently swallowed
-        assert body.startswith("errored:")
-        assert "kaboom" in body
+        sample = result["log"].samples[0]
+        if error_type is ToolError:
+            assert result["status"] == "success"
+            assert sample.error is None
+        else:
+            assert result["status"] == "error"
+            assert sample.error is not None
+            assert "sandbox failure" in sample.error.message
+
+    def test_background_error_is_retried(self) -> None:
+        from inspect_ai.model import ChatMessage, ChatMessageTool, GenerateConfig
+        from inspect_ai.tool import ToolChoice, ToolInfo
+
+        worker_calls = 0
+
+        def worker_output(
+            input: list[ChatMessage],
+            tools: list[ToolInfo],
+            tool_choice: ToolChoice,
+            config: GenerateConfig,
+        ) -> ModelOutput:
+            nonlocal worker_calls
+            worker_calls += 1
+            if worker_calls == 1:
+                raise RuntimeError("temporary infrastructure failure")
+            return _submit("recovered")
+
+        def parent_output(
+            input: list[ChatMessage],
+            tools: list[ToolInfo],
+            tool_choice: ToolChoice,
+            config: GenerateConfig,
+        ) -> ModelOutput:
+            called = {m.function for m in input if isinstance(m, ChatMessageTool)}
+            if "agent" not in called:
+                return _agent_call()
+            if "_wait_test_helper" not in called:
+                return _tool_call("_wait_test_helper", agent_id="AGENT-1")
+            return _submit("done")
+
+        worker = subagent(
+            name="worker",
+            description="Retrying worker.",
+            prompt="Do the task.",
+            model=get_model("mockllm/model", custom_outputs=worker_output),
+        )
+        task = Task(
+            solver=deepagent(
+                subagents=[worker],
+                tools=[_wait_test_helper()],
+                background=True,
+                submit=True,
+            )
+        )
+        log = eval(
+            task,
+            model=get_model("mockllm/model", custom_outputs=parent_output),
+            retry_on_error=1,
+        )[0]
+        assert log.status == "success"
+        assert worker_calls == 2
+        assert log.samples is not None
+        sample = log.samples[0]
+        assert sample.error is None
+        assert sample.error_retries is not None
+        assert len(sample.error_retries) == 1
+        assert "temporary infrastructure failure" in sample.error_retries[0].message
+
+    async def test_error_settles_future_and_propagates(self) -> None:
+        from inspect_ai.agent import AgentState
+        from inspect_ai.agent._deepagent.agent_tool import _run_background
+
+        error = RuntimeError("infrastructure failed")
+
+        async def fail(state: AgentState) -> AgentState:
+            raise error
+
+        future = AgentFuture(
+            agent_id="AGENT-1",
+            span_id="test-error",
+            subagent_name="worker",
+            cancel_scope=anyio.CancelScope(),
+        )
+        with pytest.raises(RuntimeError) as caught:
+            await _run_background(
+                future,
+                fail,
+                _build_erroring_subagent("worker"),
+                "go",
+                future.span_id,
+                False,
+                None,
+            )
+        assert caught.value is error
+        assert future.status == "errored"
+        assert future.error == "RuntimeError: infrastructure failed"
+        assert future.done.is_set()
 
 
 def _build_refusing_subagent(name: str):
-    """Build a subagent whose model always refuses (stop_reason content_filter)."""
+    """Build a subagent that refuses once, then submits if allowed to continue."""
     from inspect_ai.agent._deepagent.subagent import subagent as subagent_factory
 
     bg_model = get_model(
@@ -1805,7 +1945,8 @@ def _build_refusing_subagent(name: str):
                 model="mockllm/model",
                 content="I cannot help with that.",
                 stop_reason="content_filter",
-            )
+            ),
+            _submit("refusal handled"),
         ],
     )
     return subagent_factory(
@@ -1942,6 +2083,630 @@ class TestAbandonOnExit:
         agent_events = _events_for(result, "agent")
         assert len(agent_events) == 1
         assert "AGENT-1" in str(agent_events[0].result)
+
+
+def _capture_background_registry(captured: list[BackgroundRegistry]) -> Tool:
+    """Build a parent tool that records the deepagent's background registry."""
+
+    @tool
+    def capture_background_registry() -> Tool:
+        """Record the current deepagent background registry."""
+
+        async def execute() -> str:
+            """Record the active background registry."""
+            registry = current_background_registry()
+            assert registry is not None
+            captured.append(registry)
+            return "captured"
+
+        return execute
+
+    return capture_background_registry()
+
+
+def _eval_in_scorer(
+    run_in_scorer: Callable[[TaskState], Awaitable[None]], **eval_kwargs: Any
+) -> EvalLog:
+    """Eval one sample whose scorer awaits ``run_in_scorer`` after the solver."""
+
+    @scorer(metrics=[accuracy()])
+    def run_after_solver() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            await run_in_scorer(state)
+            return Score(value=1.0)
+
+        return score
+
+    task = Task(
+        dataset=[Sample(input="Solve this.", target="done")],
+        solver=[generate()],
+        scorer=run_after_solver(),
+    )
+    solver_model = get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput.from_content("mockllm/model", "done")],
+    )
+    return eval(task, model=solver_model, **eval_kwargs)[0]
+
+
+class TestNoLiveSampleTaskGroup:
+    """Background dispatch when the sample's task group cannot take children.
+
+    The sample runner cancels its task group when the solver chain finishes,
+    so a deepagent that starts in a scorer owns the task group its children
+    run in. Inside a solver, children keep the sample-scoped lifetime.
+    """
+
+    def test_scorer_dispatches_and_waits_for_background_agent(self) -> None:
+        from inspect_ai.agent._agent import AgentState
+
+        reviewer = _build_submit_subagent("reviewer", "reviewed")
+        reviewer_model = get_model(
+            "mockllm/model",
+            custom_outputs=[
+                _agent_call(prompt="Review the completed solver output."),
+                _tool_call("agent_wait", agent_ids=["AGENT-1"], mode="all"),
+                _submit("scorecard complete"),
+            ],
+        )
+
+        async def review(state: TaskState) -> None:
+            review_agent = deepagent(
+                subagents=[reviewer],
+                model=reviewer_model,
+                background=True,
+                submit=True,
+            )
+            await review_agent(AgentState(messages=list(state.messages)))
+
+        log = _eval_in_scorer(review)
+
+        assert log.status == "success"
+        assert log.samples is not None
+        events = log.samples[0].events
+        agent_events = [
+            e for e in events if isinstance(e, ToolEvent) and e.function == "agent"
+        ]
+        assert len(agent_events) == 1
+        assert agent_events[0].error is None
+        wait_events = [
+            e for e in events if isinstance(e, ToolEvent) and e.function == "agent_wait"
+        ]
+        assert len(wait_events) == 1
+        assert wait_events[0].error is None
+        assert "completed" in str(wait_events[0].result)
+        assert "reviewed" in str(wait_events[0].result)
+
+    def test_solver_child_outlives_parent_until_sample_teardown(self) -> None:
+        from inspect_ai.agent._agent import AgentState
+
+        captured: list[BackgroundRegistry] = []
+        status_after_return: list[str] = []
+        agent = deepagent(
+            subagents=[_build_blocking_subagent("runner")],
+            tools=[_capture_background_registry(captured)],
+            model=get_model(
+                "mockllm/model",
+                custom_outputs=[
+                    _agent_call(prompt="go"),
+                    _tool_call("capture_background_registry"),
+                    _submit("done"),
+                ],
+            ),
+            background=True,
+            submit=True,
+        )
+
+        @solver
+        def run_agent() -> Solver:
+            async def solve(state: TaskState, generate: Generate) -> TaskState:
+                await agent(AgentState(messages=list(state.messages)))
+                status_after_return.append(captured[0].futures["AGENT-1"].status)
+                return state
+
+            return solve
+
+        log = eval(
+            Task(dataset=[Sample(input="Do work.")], solver=[run_agent()]),
+            model="mockllm/model",
+        )[0]
+
+        assert log.status == "success"
+        assert status_after_return == ["running"]
+        future = captured[0].futures["AGENT-1"]
+        assert future.status == "cancelled"
+        assert future.done.is_set()
+
+    def test_scorer_parent_return_cancels_children(self) -> None:
+        from inspect_ai.agent._agent import AgentState
+
+        captured: list[BackgroundRegistry] = []
+        agent = deepagent(
+            subagents=[_build_blocking_subagent("runner")],
+            tools=[_capture_background_registry(captured)],
+            model=get_model(
+                "mockllm/model",
+                custom_outputs=[
+                    _agent_call(prompt="go"),
+                    _tool_call("capture_background_registry"),
+                    _submit("done"),
+                ],
+            ),
+            background=True,
+            submit=True,
+        )
+
+        async def run_agent(state: TaskState) -> None:
+            # The child blocks for 60s, so returning promptly proves it was
+            # cancelled rather than awaited.
+            with anyio.fail_after(30):
+                await agent(AgentState(messages=list(state.messages)))
+
+        log = _eval_in_scorer(run_agent)
+
+        assert log.status == "success"
+        assert log.samples is not None and log.samples[0].error is None
+        future = captured[0].futures["AGENT-1"]
+        assert future.status == "cancelled"
+        assert future.done.is_set()
+
+    def test_scorer_parent_failure_cancels_children_and_keeps_cause(self) -> None:
+        from inspect_ai.agent._agent import AgentState
+
+        captured: list[BackgroundRegistry] = []
+        errors: list[RuntimeError] = []
+        calls = 0
+
+        def parent_output(input, tools, tool_choice, config):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                return _agent_call(prompt="go")
+            if calls == 2:
+                return _tool_call("capture_background_registry")
+            raise RuntimeError("root failure") from ValueError("root cause")
+
+        agent = deepagent(
+            subagents=[_build_blocking_subagent("runner")],
+            tools=[_capture_background_registry(captured)],
+            model=get_model("mockllm/model", custom_outputs=parent_output),
+            background=True,
+            submit=True,
+        )
+
+        async def run_agent(state: TaskState) -> None:
+            with anyio.fail_after(30):
+                try:
+                    await agent(AgentState(messages=list(state.messages)))
+                except RuntimeError as ex:
+                    errors.append(ex)
+
+        log = _eval_in_scorer(run_agent)
+
+        assert log.status == "success"
+        assert [str(ex) for ex in errors] == ["root failure"]
+        assert isinstance(errors[0].__cause__, ValueError)
+        future = captured[0].futures["AGENT-1"]
+        assert future.status == "cancelled"
+        assert future.done.is_set()
+
+    def test_scorer_parent_cancellation_cancels_children(self) -> None:
+        from inspect_ai.agent._agent import AgentState
+
+        captured: list[BackgroundRegistry] = []
+        cancelled: list[bool] = []
+
+        async def run_agent(state: TaskState) -> None:
+            with anyio.fail_after(30):
+                with anyio.CancelScope() as cancel_scope:
+
+                    @tool
+                    def cancel_parent() -> Tool:
+                        """Cancel the scope enclosing the deepagent."""
+
+                        async def execute() -> str:
+                            """Cancel the enclosing scope."""
+                            cancel_scope.cancel()
+                            await anyio.sleep(0)
+                            return "unreachable"
+
+                        return execute
+
+                    agent = deepagent(
+                        subagents=[_build_blocking_subagent("runner")],
+                        tools=[_capture_background_registry(captured), cancel_parent()],
+                        model=get_model(
+                            "mockllm/model",
+                            custom_outputs=[
+                                _agent_call(prompt="go"),
+                                _tool_call("capture_background_registry"),
+                                _tool_call("cancel_parent"),
+                            ],
+                        ),
+                        background=True,
+                        submit=True,
+                    )
+                    await agent(AgentState(messages=list(state.messages)))
+            cancelled.append(cancel_scope.cancel_called)
+
+        log = _eval_in_scorer(run_agent)
+
+        assert log.status == "success"
+        assert cancelled == [True]
+        future = captured[0].futures["AGENT-1"]
+        assert future.status == "cancelled"
+        assert future.done.is_set()
+
+    def test_scorer_parent_exception_group_reaches_caller_intact(self) -> None:
+        from inspect_ai.agent._agent import AgentState
+
+        errors: list[ExceptionGroup] = []
+
+        def parent_output(input, tools, tool_choice, config):
+            raise ExceptionGroup("grp", [ValueError("a"), KeyError("b")])
+
+        agent = deepagent(
+            subagents=[_build_submit_subagent("helper", "done")],
+            model=get_model("mockllm/model", custom_outputs=parent_output),
+            background=True,
+            submit=True,
+        )
+
+        async def run_agent(state: TaskState) -> None:
+            try:
+                await agent(AgentState(messages=list(state.messages)))
+            except ExceptionGroup as ex:
+                errors.append(ex)
+
+        log = _eval_in_scorer(run_agent)
+
+        assert log.status == "success"
+        assert len(errors) == 1
+        assert errors[0].message == "grp"
+        assert [type(ex) for ex in errors[0].exceptions] == [ValueError, KeyError]
+
+    @pytest.mark.parametrize("background", [False, True])
+    def test_scorer_parent_saved_cancellation_reaches_caller(
+        self, background: bool
+    ) -> None:
+        # A library may save a cancellation from a scope it cancelled itself
+        # and re-raise it after that scope exits. The owned task group's own
+        # cancel must not absorb it and turn it into a normal return.
+        from inspect_ai.agent._agent import AgentState
+
+        escaped: list[BaseException] = []
+
+        async def parent_output(input, tools, tool_choice, config):
+            saved: BaseException | None = None
+            with anyio.CancelScope() as scope:
+                scope.cancel()
+                try:
+                    await anyio.sleep(10)
+                except anyio.get_cancelled_exc_class() as ex:
+                    saved = ex
+            assert saved is not None
+            raise saved
+
+        agent = deepagent(
+            subagents=[_build_submit_subagent("helper", "done")],
+            model=get_model("mockllm/model", custom_outputs=parent_output),
+            background=background,
+            submit=True,
+        )
+
+        async def run_agent(state: TaskState) -> None:
+            try:
+                await agent(AgentState(messages=list(state.messages)))
+            except anyio.get_cancelled_exc_class() as ex:
+                escaped.append(ex)
+                raise
+
+        log = _eval_in_scorer(run_agent)
+
+        assert len(escaped) == 1
+        assert log.samples is not None
+        assert log.samples[0].error is not None
+        assert not log.samples[0].scores
+
+    def test_scorer_child_refusal_reaches_caller(self) -> None:
+        from inspect_ai.agent._agent import AgentState
+        from inspect_ai.model._model import ModelRefusalError
+
+        raised: list[BaseException] = []
+        agent = deepagent(
+            subagents=[_build_refusing_subagent("refuser")],
+            tools=[_wait_test_helper()],
+            model=get_model(
+                "mockllm/model",
+                custom_outputs=[
+                    _agent_call(prompt="go"),
+                    _tool_call("_wait_test_helper", agent_id="AGENT-1"),
+                    _submit("done"),
+                ],
+            ),
+            background=True,
+            submit=True,
+            retry_refusals=None,
+        )
+
+        async def run_agent(state: TaskState) -> None:
+            try:
+                await agent(AgentState(messages=list(state.messages)))
+            except BaseException as ex:
+                raised.append(ex)
+                raise
+
+        log = _eval_in_scorer(run_agent, fail_on_refusal=True, fail_on_error=False)
+
+        assert [type(ex) for ex in raised] == [ModelRefusalError]
+        assert log.samples is not None
+        error = log.samples[0].error
+        assert error is not None
+        assert "Model refusal (mockllm/model)" in error.message
+
+
+class _TaskGroupTarget:
+    """A background target over an anyio task group."""
+
+    def __init__(self, tg: TaskGroup) -> None:
+        self._tg = tg
+        self.started = 0
+
+    def start_soon(
+        self,
+        func: Callable[[Unpack[PosArgsT]], Coroutine[Any, Any, Any]],
+        *args: Unpack[PosArgsT],
+    ) -> None:
+        self.started += 1
+        self._tg.start_soon(func, *args)
+
+
+class _ClosedTarget:
+    """A background target that refuses new work, as a closed owner does."""
+
+    def start_soon(
+        self,
+        func: Callable[[Unpack[PosArgsT]], Coroutine[Any, Any, Any]],
+        *args: Unpack[PosArgsT],
+    ) -> None:
+        raise RuntimeError("target closed")
+
+
+@contextmanager
+def _target(target: BackgroundTarget | None) -> Iterator[None]:
+    token = background_target.set(target)
+    try:
+        yield
+    finally:
+        background_target.reset(token)
+
+
+def _dispatch_dummy() -> str:
+    async def dummy_agent(state):
+        return state
+
+    return _dispatch_background(
+        child_agent=dummy_agent,
+        sa=subagent(name="general", description="d", prompt="p"),
+        dispatch_input="ignored",
+        span_id="x",
+        forked=False,
+        from_message=None,
+    )
+
+
+class TestBackgroundTarget:
+    """Children start in ``background_target`` when it is set."""
+
+    def test_solver_child_runs_in_target(self) -> None:
+        from inspect_ai.agent._agent import AgentState
+
+        captured: list[BackgroundRegistry] = []
+        observed: dict[str, object] = {}
+        agent = deepagent(
+            subagents=[_build_blocking_subagent("runner")],
+            tools=[_capture_background_registry(captured)],
+            model=get_model(
+                "mockllm/model",
+                custom_outputs=[
+                    _agent_call(prompt="go"),
+                    _tool_call("capture_background_registry"),
+                    _submit("done"),
+                ],
+            ),
+            background=True,
+            submit=True,
+        )
+
+        @solver
+        def run_agent() -> Solver:
+            async def solve(state: TaskState, generate: Generate) -> TaskState:
+                async with anyio.create_task_group() as tg:
+                    target = _TaskGroupTarget(tg)
+                    with _target(target):
+                        await agent(AgentState(messages=list(state.messages)))
+                    observed["started"] = target.started
+                    observed["after_return"] = captured[0].futures["AGENT-1"].status
+                    tg.cancel_scope.cancel()
+                # The sample's task group is still live here, so the child
+                # was cancelled by the target's group, not by sample teardown.
+                observed["after_cancel"] = captured[0].futures["AGENT-1"].status
+                return state
+
+            return solve
+
+        log = eval(
+            Task(dataset=[Sample(input="Do work.")], solver=[run_agent()]),
+            model="mockllm/model",
+        )[0]
+
+        assert log.status == "success"
+        assert observed == {
+            "started": 1,
+            "after_return": "running",
+            "after_cancel": "cancelled",
+        }
+
+    async def test_owned_task_group_steps_aside_for_target(self) -> None:
+        # Outside a sample there is no live sample task group, so without a
+        # target the registry owns one.
+        registry = BackgroundRegistry(max_background=1)
+        async with registry.owned_task_group():
+            assert registry._task_group is not None
+
+        async with anyio.create_task_group() as tg:
+            with _target(_TaskGroupTarget(tg)):
+                async with registry.owned_task_group():
+                    assert registry._task_group is None
+
+    @pytest.mark.parametrize("change", ["set", "reset", "replaced"])
+    async def test_dispatch_refused_when_target_changes(self, change: str) -> None:
+        async with anyio.create_task_group() as tg:
+            first, second = _TaskGroupTarget(tg), _TaskGroupTarget(tg)
+            entry = None if change == "set" else first
+            later = None if change == "reset" else second
+            registry = BackgroundRegistry(max_background=1)
+            with _target(entry):
+                async with registry.owned_task_group():
+                    with background_registry(registry), _target(later):
+                        with pytest.raises(ToolError, match="target changed"):
+                            _dispatch_dummy()
+
+        assert registry.futures == {}
+        assert first.started == second.started == 0
+
+    async def test_dispatch_unregisters_future_when_target_raises(self) -> None:
+        registry = BackgroundRegistry(max_background=1)
+        with _target(_ClosedTarget()):
+            async with registry.owned_task_group():
+                with background_registry(registry):
+                    with pytest.raises(RuntimeError, match="target closed"):
+                        _dispatch_dummy()
+
+        assert registry.futures == {}
+        assert registry.running_count() == 0
+
+        # The failed start gave its id back, so the next dispatch reuses it.
+        async with anyio.create_task_group() as tg:
+            target = _TaskGroupTarget(tg)
+            with _target(target):
+                async with registry.owned_task_group():
+                    with background_registry(registry):
+                        assert _dispatch_dummy() == "Dispatched AGENT-1."
+            tg.cancel_scope.cancel()
+        assert list(registry.futures) == ["AGENT-1"]
+        assert target.started == 1
+
+    def test_scorer_child_runs_in_target(self) -> None:
+        from inspect_ai.agent._agent import AgentState
+
+        captured: list[BackgroundRegistry] = []
+        started: list[int] = []
+        reviewer_model = get_model(
+            "mockllm/model",
+            custom_outputs=[
+                _agent_call(prompt="Review the completed solver output."),
+                _tool_call("capture_background_registry"),
+                _tool_call("agent_wait", agent_ids=["AGENT-1"], mode="all"),
+                _submit("scorecard complete"),
+            ],
+        )
+        review_agent = deepagent(
+            subagents=[_build_submit_subagent("reviewer", "reviewed")],
+            tools=[_capture_background_registry(captured)],
+            model=reviewer_model,
+            background=True,
+            submit=True,
+        )
+
+        async def review(state: TaskState) -> None:
+            async with anyio.create_task_group() as tg:
+                target = _TaskGroupTarget(tg)
+                with _target(target):
+                    await review_agent(AgentState(messages=list(state.messages)))
+                started.append(target.started)
+
+        log = _eval_in_scorer(review)
+
+        assert log.status == "success"
+        assert started == [1]
+        # The sample's task group is cancelled during scoring, so the child
+        # completing shows it ran in the target.
+        future = captured[0].futures["AGENT-1"]
+        assert future.status == "completed"
+        assert future.result is not None and "reviewed" in future.result
+
+    def test_nested_deepagent_children_run_in_same_target(self) -> None:
+        from inspect_ai.agent._agent import AgentState
+
+        captured: list[BackgroundRegistry] = []
+        observed: dict[str, object] = {}
+        inner = deepagent(
+            subagents=[_build_blocking_subagent("inner_runner")],
+            tools=[_capture_background_registry(captured)],
+            model=get_model(
+                "mockllm/model",
+                custom_outputs=[
+                    _agent_call(prompt="go"),
+                    _tool_call("capture_background_registry"),
+                    _submit("inner done"),
+                ],
+            ),
+            background=True,
+            submit=True,
+        )
+
+        @tool
+        def run_inner() -> Tool:
+            """Run a nested deepagent."""
+
+            async def execute() -> str:
+                """Run the nested deepagent to completion."""
+                await inner(AgentState(messages=[ChatMessageUser(content="go")]))
+                return "inner returned"
+
+            return execute
+
+        outer = deepagent(
+            subagents=[_build_blocking_subagent("outer_runner")],
+            tools=[_capture_background_registry(captured), run_inner()],
+            model=get_model(
+                "mockllm/model",
+                custom_outputs=[
+                    _agent_call(prompt="go"),
+                    _tool_call("capture_background_registry"),
+                    _tool_call("run_inner"),
+                    _submit("done"),
+                ],
+            ),
+            background=True,
+            submit=True,
+        )
+
+        @solver
+        def run_agent() -> Solver:
+            async def solve(state: TaskState, generate: Generate) -> TaskState:
+                async with anyio.create_task_group() as tg:
+                    target = _TaskGroupTarget(tg)
+                    with _target(target):
+                        await outer(AgentState(messages=list(state.messages)))
+                    observed["started"] = target.started
+                    tg.cancel_scope.cancel()
+                observed["statuses"] = [
+                    registry.futures["AGENT-1"].status for registry in captured
+                ]
+                return state
+
+            return solve
+
+        log = eval(
+            Task(dataset=[Sample(input="Do work.")], solver=[run_agent()]),
+            model="mockllm/model",
+        )[0]
+
+        assert log.status == "success"
+        assert len(captured) == 2 and captured[0] is not captured[1]
+        assert observed == {"started": 2, "statuses": ["cancelled", "cancelled"]}
 
 
 # ---------------------------------------------------------------------------
@@ -2343,41 +3108,22 @@ class TestEagerCompletionE2E:
         text = msgs[0].text
         assert "AGENT-1" in text and "done_one" in text and "completed" in text
 
-    def test_pushes_error(self) -> None:
-        boom = _build_erroring_subagent("err_one", "kaboom")
-        result = _eval_deepagent(
-            agent_kwargs={"subagents": [boom], "tools": [_wait_test_helper()]},
-            outputs=[
-                _agent_call(),
-                _tool_call("_wait_test_helper", agent_id="AGENT-1"),
-                _idle(),
-                _submit("done"),
-            ],
-        )
-        assert result["status"] == "success"
-        msgs = _completion_messages(result)
-        assert len(msgs) == 1
-        assert "AGENT-1" in msgs[0].text and "errored" in msgs[0].text
-
 
 class TestErroredCancelledDisplay:
     """agent_status / agent_list render errored and cancelled agents."""
 
-    def test_status_and_list_show_errored(self) -> None:
-        boomer = _build_erroring_subagent("boomer2", "splat")
-        result = _eval_deepagent(
-            agent_kwargs={"subagents": [boomer], "tools": [_wait_test_helper()]},
-            outputs=[
-                _agent_call(),
-                _tool_call("_wait_test_helper", agent_id="AGENT-1"),
-                _tool_call("agent_status", agent_id="AGENT-1"),
-                _tool_call("agent_list"),
-                _submit("done"),
-            ],
-        )
-        status = str(_events_for(result, "agent_status")[0].result)
+    async def test_status_and_list_show_errored(self) -> None:
+        from inspect_ai.agent._deepagent.lifecycle_tools import agent_list, agent_status
+
+        future = _mk_future("AGENT-1", "boomer2", "errored")
+        future.error = "RuntimeError: splat"
+        future.done.set()
+        registry = BackgroundRegistry(max_background=8)
+        registry.futures[future.agent_id] = future
+        with background_registry(registry):
+            status = str(await agent_status()(agent_id="AGENT-1"))
+            listing = str(await agent_list()())
         assert "AGENT-1" in status and "errored" in status and "splat" in status
-        listing = str(_events_for(result, "agent_list")[0].result)
         assert "AGENT-1" in listing and "errored" in listing
 
     def test_list_shows_cancelled(self) -> None:

@@ -21,6 +21,7 @@ from inspect_ai.model import (
     GenerateConfig,
     ModelOutput,
 )
+from inspect_ai.model import _cache as cache_module
 from inspect_ai.model._cache import (
     _CACHE_KEY_DROPPED_FIELDS,
     _CACHE_KEY_NEUTRALIZED_FIELDS,
@@ -222,6 +223,86 @@ def test_cache_skips_content_filter(monkeypatch: pytest.MonkeyPatch, tmp_path: P
     fetched = cache_fetch(cache_entry())
     assert fetched is not None
     assert fetched.completion == "Hi"
+
+
+def test_cache_entry_from_before_input_context_tokens(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A cached output pickled before input_context_tokens existed still reads it."""
+    import pickle
+
+    from inspect_ai.model import ModelUsage
+    from inspect_ai.model._model_output import output_input_context_tokens
+
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+
+    timestamp = str(datetime.now(timezone.utc))
+
+    def run_eval() -> EvalSample:
+        log = eval(
+            Task(
+                dataset=[Sample(input=f"What is the timestamp: {timestamp}")],
+                solver=[generate(cache=True)],
+            ),
+            model="mockllm/model",
+        )[0]
+        assert log.status == "success"
+        assert log.samples
+        return log.samples[0]
+
+    run_eval()
+
+    # rewrite the stored entry in the pickle state of an older ModelOutput
+    entries = [p for p in tmp_path.rglob("*") if p.is_file()]
+    assert len(entries) == 1
+    expiry, output = pickle.loads(entries[0].read_bytes())
+    output.usage = ModelUsage(input_tokens=5, output_tokens=1, total_tokens=6)
+    del output.__dict__["input_context_tokens"]
+    output.__pydantic_fields_set__.discard("input_context_tokens")
+    entries[0].write_bytes(pickle.dumps((expiry, output)))
+
+    _, legacy = pickle.loads(entries[0].read_bytes())
+    assert legacy.input_context_tokens is None
+    assert output_input_context_tokens(legacy) == 5
+
+    # a cache hit on that entry publishes and logs a usable output
+    sample = run_eval()
+    events = [e for e in sample.events if isinstance(e, ModelEvent)]
+    assert [e.cache for e in events] == ["read"]
+    assert events[0].output.input_context_tokens is None
+    assert output_input_context_tokens(events[0].output) == 5
+
+
+def test_cache_trace_omits_key_components(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+    traced: list[str] = []
+    monkeypatch.setattr(
+        cache_module,
+        "trace",
+        lambda msg, *args: traced.append(msg % args if args else msg),
+    )
+
+    secret = "distinctive-message-content-1234"
+    entry = CacheEntry(
+        base_url=None,
+        config=GenerateConfig(),
+        input=[ChatMessageUser(content=secret)],
+        model="mockllm/model",
+        policy=CachePolicy(),
+        tool_choice=None,
+        tools=[],
+    )
+    output = ModelOutput.from_content(model="mockllm/model", content="Hi")
+    assert cache_store(entry=entry, output=output) is True
+    assert cache_fetch(entry) is not None
+
+    # the trace log identifies entries by key, never by the (potentially
+    # very large) conversation the key was computed from
+    assert traced
+    assert all(secret not in message for message in traced)
+    assert any(entry.key in message for message in traced)
 
 
 # A model name that walks out of the cache directory. With the cache root at

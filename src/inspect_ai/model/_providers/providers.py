@@ -379,7 +379,9 @@ def hf_inference_providers() -> type[ModelAPI]:
 def validate_openai_client(feature: str) -> None:
     FEATURE = feature
     PACKAGE = "openai"
-    MIN_VERSION = "3.1.0"
+    # 3.4.0: Azure clients ignore AZURE_OPENAI_AD_TOKEN when given explicit
+    # credentials, so OpenAIAPI.refresh_credentials() can update the key in place
+    MIN_VERSION = "3.4.0"
 
     # verify we have the package
     try:
@@ -393,9 +395,8 @@ def validate_openai_client(feature: str) -> None:
 
 def validate_anthropic_client(feature: str) -> None:
     PACKAGE = "anthropic"
-    # 1.0.0 removed temperature/top_p/top_k from method signatures, removed
-    # LegacyAPIResponse, and moved from httpx to httpx2 — inspect requires it
-    MIN_VERSION = "1.0.0"
+    # 2.0.0 split MessageParam into role-specific types — inspect requires it
+    MIN_VERSION = "2.0.0"
 
     # verify we have the package
     try:

@@ -383,6 +383,7 @@ def test_opus_5_base_keeps_forced_tool_choice():
         ("anthropic.claude-opus-5-5", {"auto": {}}, True),
         ("anthropic.claude-opus-5", {"tool": {"name": "addition"}}, False),
         ("anthropic.claude-sonnet-5-5", {"auto": {}}, True),
+        ("anthropic.claude-haiku-5-5", {"tool": {"name": "addition"}}, False),
     ],
 )
 async def test_bedrock_fable_5_1_forced_tool_choice_wiring(

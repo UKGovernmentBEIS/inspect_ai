@@ -1,15 +1,16 @@
 import contextlib
 import functools
 import logging
+import math
 import os
-import sys
 from contextlib import nullcontext
 from contextvars import Token, copy_context
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, Literal, Sequence, cast
 
 import anyio
+import anyio.lowlevel
 from anyio.abc import TaskGroup
 
 from inspect_ai._control.eval_state import reset_run_registries
@@ -36,15 +37,20 @@ from inspect_ai.model._model_info import set_model_cost
 from inspect_ai.model._util import resolve_model_costs, resolve_model_roles
 from inspect_ai.util._anyio import inner_exception
 
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
-
+# The imports above must load before _display (circular import).
+# isort: split
 from shortuuid import uuid
 from typing_extensions import Unpack
 
 from inspect_ai._display.core.active import active_display as active_task_display
 from inspect_ai._display.core.active import display as task_display
 from inspect_ai._eval.task.scan import Scanners, scan_context
+from inspect_ai._sentinel._config import (
+    SentinelSpec,
+    resolve_sentinel_spec,
+    sentinel_config,
+)
+from inspect_ai._util._async import current_async_backend, unwrap_exception_group
 from inspect_ai._util.asyncfiles import with_async_fs
 from inspect_ai._util.config import parse_cli_args, resolve_args
 from inspect_ai._util.constants import (
@@ -90,7 +96,7 @@ from inspect_ai.review._policy import (
     review_policies_from_config,
 )
 from inspect_ai.scorer._reducer import reducer_log_names
-from inspect_ai.solver._chain import chain
+from inspect_ai.solver._chain import chain, is_solver_sequence
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentType
 from inspect_ai.util._checkpoint import CheckpointConfig, normalize_checkpoint
@@ -105,7 +111,7 @@ from inspect_ai.util._limit import TokenLimit, token_limit_fields
 from inspect_ai.util._notify import build_apprise, init_apprise
 
 from .context import init_eval_context
-from .loader import resolve_task_source, resolve_tasks
+from .loader import resolve_task_file_sandbox, resolve_task_source, resolve_tasks
 from .run import TaskInjection, eval_run
 from .task import Epochs, PreviousTask, Task, TaskSource
 from .task.enqueue import (
@@ -134,7 +140,7 @@ def eval(
     checkpoint: CheckpointConfig | bool | None = None,
     acp_server: bool | int | str | None = None,
     ctl_server: bool | str | None = None,
-    solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
+    solver: Solver | SolverSpec | Agent | Sequence[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
@@ -183,6 +189,7 @@ def eval(
     eval_set_tasks: list[str] | None = None,
     scan_id: str | None = None,
     task_retry_attempts: int | None = None,
+    sentinel: SentinelSpec | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     r"""Evaluate tasks using a Model.
@@ -282,7 +289,10 @@ def eval(
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
-            time spent waiting on retries or shared resources.
+            time spent waiting on retries or shared resources. While a wait is
+            open, only model calls, sandbox commands and tool calls are charged,
+            so working time can undercount; set `time_limit` as well to bound
+            wall clock time.
         cost_limit: Limit on total cost (in dollars) for each sample.
             Requires model cost data via set_model_cost() or --model-cost-config.
         model_cost_config: YAML or JSON file with model prices for cost tracking
@@ -320,6 +330,9 @@ def eval(
         eval_set_tasks: Names of every task in the eval set, so `task:id` sample selectors resolve the same way for a retried subset of tasks (this is passed from `eval_set()` and should not be specified directly).
         scan_id: Override the scan-dir identifier (defaults to `eval_set_id` or `run_id`). Set by `eval_retry` to reuse the original eval's scan dir.
         task_retry_attempts: Number of times to retry tasks (defaults to 0)
+        sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
+            A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in `observe_only()` to record without acting.
+            Overrides the task's sentinel. Defaults to no sentinel.
         **kwargs: Model generation options.
 
     Returns:
@@ -334,7 +347,8 @@ def eval(
     )
 
     async def run_task_app() -> list[EvalLog]:
-        try:
+        # exceptions can escape when debug_errors is True and that's okay
+        with unwrap_exception_group("first" if debug_errors else None):
             return await eval_async(
                 tasks=tasks,
                 model=model,
@@ -352,6 +366,7 @@ def eval(
                 metadata=metadata,
                 approval=approval,
                 review=review,
+                sentinel=sentinel,
                 notification=notification,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
@@ -397,12 +412,6 @@ def eval(
                 task_retry_attempts=task_retry_attempts,
                 **kwargs,
             )
-        # exceptions can escape when debug_errors is True and that's okay
-        except ExceptionGroup as ex:
-            if debug_errors:
-                raise ex.exceptions[0] from None
-            else:
-                raise
 
     result = task_display().run_task_app(with_async_fs(run_task_app))
 
@@ -437,7 +446,7 @@ async def eval_async(
     checkpoint: CheckpointConfig | bool | None = None,
     acp_server: bool | int | str | None = None,
     ctl_server: bool | str | None = None,
-    solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
+    solver: Solver | SolverSpec | Agent | Sequence[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
@@ -484,6 +493,7 @@ async def eval_async(
     eval_set_tasks: list[str] | None = None,
     scan_id: str | None = None,
     task_retry_attempts: int | None = None,
+    sentinel: SentinelSpec | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     r"""Evaluate tasks using a Model (async).
@@ -561,7 +571,10 @@ async def eval_async(
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
-            time spent waiting on retries or shared resources.
+            time spent waiting on retries or shared resources. While a wait is
+            open, only model calls, sandbox commands and tool calls are charged,
+            so working time can undercount; set `time_limit` as well to bound
+            wall clock time.
         cost_limit: Limit on total cost (in dollars) for each sample.
             Requires model cost data via set_model_cost() or --model-cost-config.
         model_cost_config: YAML or JSON file with model prices for cost tracking
@@ -591,6 +604,9 @@ async def eval_async(
         eval_set_tasks: Names of every task in the eval set, so `task:id` sample selectors resolve the same way for a retried subset of tasks (this is passed from `eval_set()` and should not be specified directly).
         scan_id: Override the scan-dir identifier (defaults to `eval_set_id` or `run_id`). Set by `eval_retry` to reuse the original eval's scan dir.
         task_retry_attempts: Number of times to retry tasks (defaults to 0)
+        sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
+            A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in `observe_only()` to record without acting.
+            Overrides the task's sentinel. Defaults to no sentinel.
         **kwargs: Model generation options.
 
     Returns:
@@ -637,6 +653,7 @@ async def eval_async(
                 metadata=metadata,
                 approval=approval,
                 review=review,
+                sentinel=sentinel,
                 notification=notification,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
@@ -714,12 +731,13 @@ async def _eval_async_inner(
     checkpoint: CheckpointConfig | None = None,
     acp_server: bool | int | str | None = None,
     ctl_server: bool | str | None = None,
-    solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
+    solver: Solver | SolverSpec | Agent | Sequence[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     review: str | list[ReviewPolicy] | ReviewPolicyConfig | None = None,
+    sentinel: SentinelSpec | None = None,
     notification: bool | str | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
@@ -796,6 +814,7 @@ async def _eval_async_inner(
     run_id = uuid()
 
     enqueuer_token: Token[TaskEnqueuer | None] | None = None
+    trio_cancelled = False
     try:
         # intialise eval
         model = eval_init(
@@ -834,6 +853,9 @@ async def _eval_async_inner(
             task_source=task_source,
             input_media_policy="trusted_pre_run",
             review=review,
+        )
+        eval_sentinel = (
+            resolve_sentinel_spec(sentinel) if sentinel is not None else None
         )
 
         # warn and return empty string if we resolved no tasks
@@ -895,10 +917,10 @@ async def _eval_async_inner(
             )
 
         # resolve solver
-        if isinstance(solver, list):
-            solver = chain(solver)
-        elif is_agent(solver):
+        if is_agent(solver):
             solver = as_solver(solver)
+        elif is_solver_sequence(solver):
+            solver = chain(solver)
         else:
             solver = cast(Solver | SolverSpec | None, solver)
 
@@ -933,6 +955,9 @@ async def _eval_async_inner(
             else None,
             approval=config_from_approval_policies(approval) if approval else None,
             review=config_from_review_policies(review) if review else None,
+            sentinel=sentinel_config(eval_sentinel)
+            if eval_sentinel is not None
+            else None,
             notification=notification,
             fail_on_error=fail_on_error,
             continue_on_fail=continue_on_fail,
@@ -1105,6 +1130,7 @@ async def _eval_async_inner(
                         epochs_reducer=epochs_reducer,
                         approval=approval,
                         review=review,
+                        sentinel=eval_sentinel,
                         solver=solver,
                         scanner=scanner,
                         scan_id=scan_id,
@@ -1218,21 +1244,31 @@ async def _eval_async_inner(
                 )
                 await wait_for_shutdown_async(_ctl_server)
 
-        # cleanup sample buffers if required
-        await cleanup_sample_buffers(log_dir)
+        # under trio, a Ctrl-C leaves the run's scope cancelled: finish the
+        # run shielded (on asyncio, the cancellation ends it as before)
+        trio_cancelled = (
+            current_async_backend() == "trio"
+            and anyio.current_effective_deadline() == -math.inf
+        )
+        with anyio.CancelScope(shield=True) if trio_cancelled else nullcontext():
+            # cleanup sample buffers if required
+            await cleanup_sample_buffers(log_dir)
 
-        try:
-            await emit_run_end(eval_set_id, run_id, logs)
-        except UnboundLocalError:
-            await emit_run_end(eval_set_id, run_id, EvalLogs([]))
-        _eval_async_running = False
+            try:
+                await emit_run_end(eval_set_id, run_id, logs)
+            except UnboundLocalError:
+                await emit_run_end(eval_set_id, run_id, EvalLogs([]))
 
     except BaseException as e:
-        await emit_run_end(eval_set_id, run_id, EvalLogs([]), e)
-        _eval_async_running = False
+        # a second Ctrl-C while finishing a cancelled trio run does not start
+        # the hooks again
+        if not trio_cancelled:
+            with anyio.CancelScope(shield=True):
+                await emit_run_end(eval_set_id, run_id, EvalLogs([]), e)
         raise e
 
     finally:
+        _eval_async_running = False
         # Stop accepting task additions for this run.
         if enqueuer_token is not None:
             clear_task_enqueuer(enqueuer_token)
@@ -1728,6 +1764,9 @@ async def eval_retry_async(
     # eval them in turn
     eval_logs: list[EvalLog] = []
     for i, eval_log in enumerate(retry_eval_logs):
+        # don't start another retry once the caller is cancelled (under trio
+        # a Ctrl-C leaves the scope cancelled after the interrupted eval)
+        await anyio.lowlevel.checkpoint_if_cancelled()
         if i in finalized_indexes:
             eval_logs.append(eval_log)
             continue
@@ -1803,6 +1842,7 @@ async def eval_retry_async(
         )
         approval = eval_log.eval.config.approval
         review = eval_log.eval.config.review
+        sentinel = eval_log.eval.config.sentinel
         notification: bool | str | None = eval_log.eval.config.notification
         message_limit = eval_log.eval.config.message_limit
         config_token_limit = eval_log.eval.config.token_limit
@@ -1930,6 +1970,9 @@ async def eval_retry_async(
                     task_args=task_args,
                     model=None,
                     model_roles=None,
+                    sandbox=resolve_task_file_sandbox(
+                        eval_log.eval.task_file, eval_log.eval.sandbox
+                    ),
                     log=eval_log,
                     log_info=None,
                 ),
@@ -1946,6 +1989,7 @@ async def eval_retry_async(
                 metadata=metadata,
                 approval=approval,
                 review=review,
+                sentinel=sentinel,
                 notification=notification,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,

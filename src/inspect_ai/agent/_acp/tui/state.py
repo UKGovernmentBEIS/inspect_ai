@@ -272,7 +272,7 @@ ToolCallStatus = Literal["pending", "in_progress", "completed", "failed"]
 ApprovalDecisionLabel = Literal["approved", "denied", "cancelled"]
 """Post-resolution label shown in the tool card's decision-summary line.
 
-Kept narrow: the actual ``ApprovalDecision`` (approve / reject / modify
+Kept narrow: the actual ``ApprovalDecision`` (approve / reject
 / terminate / escalate) is recorded server-side; the TUI only needs
 to distinguish "the operator allowed it" vs. "denied it" vs. "we were
 cancelled / interrupted before deciding".
@@ -426,7 +426,9 @@ class ToolCallState:
     scaffold runs the tool, so there's no pending ``ToolEvent`` to cancel and the
     request would no-op. The ``cancel_tool_call_ids`` accessor filters these out
     so the per-tool cancel affordance isn't offered (turn-level interrupt still
-    works). Absent meta ⇒ True (the react default).
+    works). Absent meta ⇒ True (the react default). A later update carrying the
+    key replaces it: a host tool the sandbox bridge runs for a proposed call
+    makes its synthesized card cancelable.
     """
     parallel_batch_id: int | None = None
     """Sticky id of the parallel batch this tool joined, or None for solo tools.
@@ -589,18 +591,16 @@ class EventChip:
 TranscriptItem = Union[MessageGroup, ToolCallState, ScoreChip, EventChip]
 
 
-_APPROVE_OPTION_IDS = frozenset({"approve", "modify"})
+_APPROVE_OPTION_IDS = frozenset({"approve"})
 """The ``ApprovalDecision`` ids that map to the ``approved`` summary label.
 
 ``option_id`` from the server is always one of the literal
 :class:`ApprovalDecision` strings (set by ``_options_from_choices``
 in ``approval/_human/acp.py``) — match those directly rather than
 re-deriving from :class:`PermissionOption.kind`. ``approve`` is the
-plain allow; ``modify`` is "approve with modification" which the
-in-proc panel also treats as the allow half (see
-``_KIND_BY_DECISION`` in the shim). Anything else (``reject`` /
-``terminate`` / ``escalate``, or an unknown id from a misbehaving
-client) maps to ``denied``.
+only allow (the human approver never offers ``modify``). Anything
+else (``reject`` / ``terminate`` / ``escalate``, or an unknown id
+from a misbehaving client) maps to ``denied``.
 """
 
 
@@ -698,6 +698,18 @@ def _format_token_count(count: int) -> str:
     if count < 1000:
         return str(count)
     return f"{count / 1000:.1f}k"
+
+
+def _compaction_strategy_label(applied: str) -> str:
+    """Short chip label for a compaction strategy class name.
+
+    ``"CompactionNative"`` → ``"native"``, to sit alongside the
+    ``summary`` / ``edit`` / ``trim`` vocabulary the chip already uses.
+    A third-party name that doesn't follow the convention is rendered
+    as-is rather than mangled.
+    """
+    stripped = applied.removeprefix("Compaction")
+    return stripped.lower() if stripped and stripped != applied else applied
 
 
 def _format_limit_value(limit_type: Any, value: float) -> str:
@@ -1956,18 +1968,39 @@ class SessionState:
 
         Wire shape mirrors :class:`inspect_ai.event.CompactionEvent`:
         a ``type`` discriminator (``summary`` / ``edit`` / ``trim``),
-        optional ``tokens_before`` / ``tokens_after`` counts, and an
-        optional ``source``. The chip renders as a single line — the
-        strategy + the token delta — with no body row; the ``source``
-        field is metadata about *who* ran the compaction, which the
-        operator rarely needs at a glance, and a multi-row body for
-        a transient compaction chip was more visual weight than the
-        event warranted.
+        optional ``tokens_before`` / ``tokens_after`` counts, an
+        optional ``source``, and a ``metadata`` dict. The chip renders
+        as a single line — the strategy + the token delta — with no
+        body row; the ``source`` field is metadata about *who* ran the
+        compaction, which the operator rarely needs at a glance, and a
+        multi-row body for a transient compaction chip was more visual
+        weight than the event warranted.
+
+        ``type`` alone cannot name the strategy for a delegating one:
+        both native and summary compaction register ``"summary"``, so
+        under ``CompactionAuto`` the discriminator is constant. When
+        ``metadata.strategy_applied`` says which delegate actually ran,
+        it wins the label. A ``fallback_reason`` is flagged inline —
+        silently degrading to the slower, lossier summary path is the
+        thing an operator most wants to notice; the reason itself stays
+        in the transcript metadata rather than earning a body row.
         """
         compaction_type = event.get("type")
+        metadata = event.get("metadata")
+        metadata = metadata if isinstance(metadata, dict) else {}
+
+        applied = metadata.get("strategy_applied")
+        label: str | None = None
+        if isinstance(applied, str) and applied:
+            label = _compaction_strategy_label(applied)
+        elif isinstance(compaction_type, str) and compaction_type:
+            label = compaction_type
+        if label is not None and metadata.get("fallback_reason"):
+            label = f"{label} (fell back)"
+
         parts: list[str] = ["compaction"]
-        if isinstance(compaction_type, str) and compaction_type:
-            parts.append(compaction_type)
+        if label is not None:
+            parts.append(label)
         before = event.get("tokens_before")
         after = event.get("tokens_after")
         if isinstance(before, int) and isinstance(after, int):
@@ -2751,6 +2784,9 @@ class SessionState:
             tc.raw_input = update.raw_input
         if update.raw_output is not None:
             tc.raw_output = update.raw_output
+        meta = getattr(update, "field_meta", None) or {}
+        if TOOL_CALL_CANCELABLE_META_KEY in meta:
+            tc.cancelable = bool(meta[TOOL_CALL_CANCELABLE_META_KEY])
 
     def _consume_usage(self, update: UsageUpdate, outer_meta: dict[str, Any]) -> bool:
         # ``totalMessages`` rides on the outer ``field_meta`` (the inspect-

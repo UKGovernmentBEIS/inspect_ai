@@ -800,6 +800,8 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
     # (drain/score/error) — the marker that says a static-looking row is a
     # draining tail (or a stalled scorer), not a stall
     any_resolving = any(s.get("resolving") for s in summaries)
+    # `--log-dir` rows only: a sharded task's shard counts
+    any_shards = any(s.get("shards") for s in summaries)
 
     rows = []
     for s in summaries:
@@ -834,6 +836,8 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
         cells.append(_format_started(s.get("started_at", 0)))
         if any_retries:
             cells.append(str(int(s.get("attempts", 1) or 1)))
+        if any_shards:
+            cells.append(_format_shards(s))
         rows.append(tuple(cells))
 
     headers_list = ["task_id", "task", "model"]
@@ -859,8 +863,26 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
     headers_list.append("started")
     if any_retries:
         headers_list.append("attempts")
+    if any_shards:
+        headers_list.append("shards")
 
     _render_table(tuple(headers_list), rows)
+
+
+def _format_shards(summary: dict[str, Any]) -> str:
+    """A ``--log-dir`` row's shards cell (blank for an unsharded task).
+
+    The task's shard count, with the running, overlapping and mismatched ones.
+    """
+    shards = summary.get("shards")
+    if not shards:
+        return ""
+    notes = [
+        f"{shards[key]} {key}"
+        for key in ("running", "overlapping", "mismatched")
+        if shards.get(key)
+    ]
+    return f"{shards['total']} ({', '.join(notes)})" if notes else str(shards["total"])
 
 
 def _format_count(value: Any) -> str:
@@ -1147,12 +1169,17 @@ def _render_table(
     rows: Sequence[tuple[str, ...]],
     *,
     err: bool = False,
+    max_width: int | None = None,
 ) -> None:
     """Print an aligned, dashed-underline table (to stderr when ``err``).
 
     Every cell is sanitized here (not only via `_truncate`) so no
     agent-controlled string reaches the terminal raw, the width math counts
     printable characters only, and an embedded newline can't forge rows.
+
+    With ``max_width``, a first cell too long to keep the row within that
+    width is printed whole on its own line, and its row follows with that
+    cell blank (the first column is not widened for it).
     """
     headers = tuple(_sanitize_control(h) for h in headers)
     rows = [tuple(_sanitize_line(cell) for cell in row) for row in rows]
@@ -1160,13 +1187,26 @@ def _render_table(
         max(len(h), max((len(r[i]) for r in rows), default=0))
         for i, h in enumerate(headers)
     ]
+    own_line: set[int] = set()
+    if max_width is not None and headers:
+        first_max = max(
+            len(headers[0]), max_width - sum(widths[1:]) - 2 * (len(widths) - 1)
+        )
+        own_line = {i for i, r in enumerate(rows) if len(r[0]) > first_max}
+        widths[0] = max(
+            [len(headers[0])]
+            + [len(r[0]) for i, r in enumerate(rows) if i not in own_line]
+        )
 
     def _fmt_row(row: tuple[str, ...]) -> str:
         return "  ".join(cell.ljust(widths[i]) for i, cell in enumerate(row))
 
     _echo(_fmt_row(headers), err=err)
     _echo(_fmt_row(tuple("-" * w for w in widths)), err=err)
-    for row in rows:
+    for i, row in enumerate(rows):
+        if i in own_line:
+            _echo(row[0], err=err)
+            row = ("",) + row[1:]
         _echo(_fmt_row(row), err=err)
 
 

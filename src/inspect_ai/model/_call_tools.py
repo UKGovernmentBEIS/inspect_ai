@@ -4,7 +4,7 @@ import string
 import types
 import typing
 from copy import copy, deepcopy
-from dataclasses import is_dataclass
+from dataclasses import is_dataclass, replace
 from datetime import date, datetime, time
 from enum import EnumMeta
 from logging import getLogger
@@ -40,6 +40,8 @@ from anyio.streams.memory import MemoryObjectSendStream
 from pydantic import BaseModel
 from typing_extensions import is_typeddict
 
+from inspect_ai._sentinel._context import SentinelFailure, checks_tool_calls
+from inspect_ai._sentinel._scope import AgentScope, sentinel_scope
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
@@ -55,7 +57,11 @@ from inspect_ai._util.json import exceeds_max_depth
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.text import truncate_string_to_bytes
 from inspect_ai._util.trace import trace_action
-from inspect_ai._util.working import sample_waiting_time
+from inspect_ai._util.working import (
+    known_work,
+    sample_clock,
+    sample_working_time_since,
+)
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool import Tool, ToolCall, ToolError, ToolInfo
 from inspect_ai.tool._tool import (
@@ -66,11 +72,13 @@ from inspect_ai.tool._tool import (
     tool_result_content,
 )
 from inspect_ai.tool._tool_call import ToolCallContent, ToolCallError
+from inspect_ai.tool._tool_canonical import tool_canonical_arguments
 from inspect_ai.tool._tool_def import ToolDef, tool_def_fields, tool_defs
 from inspect_ai.tool._tool_info import parse_docstring
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util import OutputLimitExceededError
 from inspect_ai.util._anyio import inner_exception
+from inspect_ai.util._json import dataclass_fields
 from inspect_ai.util._limit import LimitExceededError, apply_limits
 from inspect_ai.util._sandbox.environment import SandboxUnavailableError
 from inspect_ai.util._sandbox.events import SandboxTimeoutError
@@ -123,104 +131,14 @@ class ExecuteToolsResult(NamedTuple):
     """Model output if a generation occurred within the conversation."""
 
 
-class MappedToolCallError(NamedTuple):
-    """A tool call exception the model sees as a `ToolCallError`."""
-
-    error: ToolCallError
-    """The error reported in the tool message."""
-
-    result: ToolResult | None
-    """Output the model still receives alongside the error (e.g. truncated output), or `None` to leave the result as is."""
-
-
-def tool_call_error(ex: Exception, function: str) -> MappedToolCallError | None:
-    """Map an exception raised by a tool call to the error the model sees.
-
-    A fixed set of exception types are the model's problem: the call is reported
-    to it as a `ToolCallError` and the sample continues. For anything else
-    `None` is returned and the exception is the eval's fault (the sample fails).
-    This is the single definition of that set: `execute_tools` applies it to
-    native calls and the sandbox agent bridge classifies host tool exceptions
-    with it.
-
-    Args:
-       ex: The exception, already unwrapped from any `ExceptionGroup`.
-       function: Name of the tool that was called (used in messages).
-    """
-    if isinstance(ex, TimeoutError):
-        return MappedToolCallError(
-            ToolCallError("timeout", "Command timed out before completing."),
-            ex.truncated_output
-            if isinstance(ex, SandboxTimeoutError) and ex.truncated_output
-            else None,
-        )
-    elif isinstance(ex, UnicodeDecodeError):
-        return MappedToolCallError(
-            ToolCallError(
-                "unicode_decode",
-                f"Error decoding bytes to {ex.encoding}: {ex.reason}",
-            ),
-            None,
-        )
-    elif isinstance(ex, ValueError):
-        # CPython's subprocess module raises ValueError("embedded null byte")
-        # when a command or argument string contains '\x00'. Surface it as
-        # a tool error so the model can recover instead of crashing the sample.
-        if "embedded null byte" in str(ex):
-            return MappedToolCallError(
-                ToolCallError(
-                    "parsing",
-                    f"An argument to tool '{function}' contained an embedded null byte.",
-                ),
-                None,
-            )
-        return None
-    elif isinstance(ex, SandboxUnavailableError):
-        # Preserve the tool loop's existing non-terminal behavior while
-        # surfacing sandbox unavailability as a failed tool call. Evals
-        # that need it to be terminal can enforce that policy in their
-        # agent logic.
-        return MappedToolCallError(ToolCallError("sandbox_unavailable", str(ex)), None)
-    elif isinstance(ex, PermissionError):
-        err = f"{ex.strerror or str(ex)}."
-        if isinstance(ex.filename, str):
-            err = f"{err} Filename '{ex.filename}'."
-        return MappedToolCallError(ToolCallError("permission", err), None)
-    elif isinstance(ex, FileNotFoundError):
-        if isinstance(ex.filename, str):
-            err = f"File '{ex.filename}' was not found."
-        else:
-            err = ex.strerror or str(ex)
-        return MappedToolCallError(ToolCallError("file_not_found", err), None)
-    elif isinstance(ex, IsADirectoryError):
-        err = f"{ex.strerror or str(ex)}."
-        if isinstance(ex.filename, str):
-            err = f"{err} Filename '{ex.filename}'."
-        return MappedToolCallError(ToolCallError("is_a_directory", err), None)
-    elif isinstance(ex, OutputLimitExceededError):
-        return MappedToolCallError(
-            ToolCallError(
-                "limit",
-                f"The tool exceeded its output limit of {ex.limit_str}.",
-            ),
-            ex.truncated_output or "",
-        )
-    elif isinstance(ex, LimitExceededError):
-        return MappedToolCallError(
-            ToolCallError(
-                "limit",
-                f"The tool exceeded its {ex.type} limit of {ex.limit_str}.",
-            ),
-            None,
-        )
-    elif isinstance(ex, ToolParsingError):
-        return MappedToolCallError(ToolCallError("parsing", ex.message), None)
-    elif isinstance(ex, ToolApprovalError):
-        return MappedToolCallError(ToolCallError("approval", ex.message), None)
-    elif isinstance(ex, ToolError):
-        return MappedToolCallError(ToolCallError("unknown", ex.message), None)
-    else:
-        return None
+def _sentinel_exception(ex: SentinelFailure) -> Exception:
+    # A limit keeps its meaning. Any other sentinel error must fail the sample
+    # rather than become a tool error the model sees, so it stays wrapped through
+    # enclosing agents' tool calls until the sample unwraps it.
+    inner = inner_exception(ex.error)
+    if isinstance(inner, (LimitExceededError, TerminateSampleError)):
+        return inner
+    return ex
 
 
 async def execute_tools(
@@ -317,10 +235,11 @@ async def _execute_tools_impl(
 
             try:
                 try:
-                    with _observer.track_tool_call(call.id, event):
+                    with _observer.track_tool_call(call.id, event), known_work():
                         called = await call_tool(
                             tdefs,
                             message.text,
+                            message.id,
                             call,
                             event,
                             conversation,
@@ -336,6 +255,8 @@ async def _execute_tools_impl(
                     inner_ex = inner_exception(ex)
                     raise inner_ex.with_traceback(inner_ex.__traceback__)
 
+            except SentinelFailure as ex:
+                tool_exception = _sentinel_exception(ex)
             except Exception as ex:
                 mapped = tool_call_error(ex, call.function)
                 if mapped is not None:
@@ -349,46 +270,21 @@ async def _execute_tools_impl(
                 else:
                     tool_exception = ex
 
-            # massage result, leave list[Content] alone, convert all other
-            # types to string as that is what the model APIs accept
-            truncated: tuple[int, int] | None = None
-            content: (
-                str
-                | list[
-                    ContentText
-                    | ContentImage
-                    | ContentAudio
-                    | ContentVideo
-                    | ContentDocument
-                ]
+            content, truncated = resolve_tool_content(
+                result,
+                call.function,
+                _tool_max_output(tdefs, call.function, max_output),
             )
-            result_content = tool_result_content_list(result)
-            if result_content is not None:
-                content = result_content
-            else:
-                content = str(result)
 
-                # truncate if necessary
-                truncated_output = truncate_tool_output(
-                    call.function,
-                    content,
-                    _tool_max_output(tdefs, call.function, max_output),
-                )
-                if truncated_output:
-                    content = truncated_output.output
-                    truncated = (
-                        truncated_output.raw_bytes,
-                        truncated_output.truncated_bytes,
-                    )
-
-            # create event
+            # create event (`call_tool` records an approver's modified arguments
+            # on `event`)
             result_event = ToolEvent(
                 id=call.id,
                 function=call.function,
-                arguments=call.arguments,
+                arguments=event.arguments,
                 result=content,
                 truncated=truncated,
-                view=call.view,
+                view=event.view,
                 error=tool_error,
                 agent=agent,
                 agent_span_id=agent_span_id,
@@ -411,14 +307,18 @@ async def _execute_tools_impl(
                         await _apply_tool_review(
                             tdefs,
                             message.text,
+                            message.id,
                             executed_call,
                             tool_message,
                             result,
+                            truncated,
                             conversation,
                         )
                 except anyio.get_cancelled_exc_class():
                     on_review_cancelled(execution_result, result_event)
                     raise
+                except SentinelFailure as ex:
+                    tool_exception = _sentinel_exception(ex)
                 except Exception as ex:
                     tool_exception = ex
 
@@ -474,16 +374,16 @@ async def _execute_tools_impl(
         result_output: ModelOutput | None = None
 
         for stage in stages:
-            # Pre-create pending events and waiting-time baselines so they
-            # reflect the moment this stage actually starts. (The tool
-            # transcript event itself is recorded inside call_tool by
-            # call_tool_task; the baseline lets us compute working time.)
+            # Pre-create pending events and start times so they reflect the
+            # moment this stage actually starts. (The tool transcript event
+            # itself is recorded inside call_tool by call_tool_task; the start
+            # time lets us compute working time.)
             stage_events: dict[int, ToolEvent] = {}
             waiting_starts: dict[int, float] = {}
             stage_results: dict[int, StreamItem | None] = {}
             for idx in stage:
                 call = tool_calls[idx]
-                waiting_starts[idx] = sample_waiting_time()
+                waiting_starts[idx] = sample_clock()
                 stage_events[idx] = ToolEvent(
                     id=call.id,
                     function=call.function,
@@ -530,7 +430,7 @@ async def _execute_tools_impl(
                     result=skipped_event.result,
                     truncated=skipped_event.truncated,
                     error=skipped_event.error,
-                    waiting_time=0,
+                    working_time=sample_working_time_since(waiting_starts[idx]),
                     agent=None,
                     failed=None,
                     message_id=tool_message.id,
@@ -571,7 +471,7 @@ async def _execute_tools_impl(
                         result=result_event.result,
                         truncated=result_event.truncated,
                         error=result_event.error,
-                        waiting_time=sample_waiting_time() - waiting_start,
+                        working_time=sample_working_time_since(waiting_start),
                         agent=result_event.agent,
                         failed=None,
                         message_id=result.messages[0].id,
@@ -611,12 +511,11 @@ async def _execute_tools_impl(
                             # call actually finished, not when the whole
                             # stage exits. Fast siblings of slow tools would
                             # otherwise look as slow as the slowest call.
-                            waiting_time_end = sample_waiting_time()
                             event._set_result(
                                 result=result_event.result,
                                 truncated=result_event.truncated,
                                 error=result_event.error,
-                                waiting_time=waiting_time_end - waiting_start,
+                                working_time=sample_working_time_since(waiting_start),
                                 agent=result_event.agent,
                                 failed=True if call_exception else None,
                                 message_id=(
@@ -668,10 +567,10 @@ async def _execute_tools_impl(
                     op_result_event = ToolEvent(
                         id=call.id,
                         function=call.function,
-                        arguments=call.arguments,
+                        arguments=event.arguments,
                         result=tool_result_content(op_tool_message.content),
                         truncated=None,
-                        view=call.view,
+                        view=event.view,
                         error=op_tool_message.error,
                     )
                     results[idx] = (
@@ -679,12 +578,11 @@ async def _execute_tools_impl(
                         op_result_event,
                         None,
                     )
-                    waiting_time_end = sample_waiting_time()
                     event._set_result(
                         result=op_result_event.result,
                         truncated=op_result_event.truncated,
                         error=op_result_event.error,
-                        waiting_time=waiting_time_end - waiting_start,
+                        working_time=sample_working_time_since(waiting_start),
                         agent=op_result_event.agent,
                         # Operator-cancel preserves pre-existing serial
                         # semantics: failed=None, the "timeout" error
@@ -755,10 +653,10 @@ async def _execute_tools_impl(
                     cancellation_event = ToolEvent(
                         id=call.id,
                         function=call.function,
-                        arguments=call.arguments,
+                        arguments=event.arguments,
                         result=tool_result_content(tool_message.content),
                         truncated=None,
-                        view=call.view,
+                        view=event.view,
                         error=tool_message.error,
                     )
                     transcript().info(
@@ -767,12 +665,11 @@ async def _execute_tools_impl(
                     )
                     result_messages.append(tool_message)
 
-                    waiting_time_end = sample_waiting_time()
                     event._set_result(
                         result=cancellation_event.result,
                         truncated=cancellation_event.truncated,
                         error=cancellation_event.error,
-                        waiting_time=waiting_time_end - waiting_start,
+                        working_time=sample_working_time_since(waiting_start),
                         agent=cancellation_event.agent,
                         failed=True,
                         message_id=tool_message.id,
@@ -841,6 +738,7 @@ class CalledTool(NamedTuple):
 async def call_tool(
     tools: list[ToolDef],
     message: str,
+    message_id: str | None,
     call: ToolCall,
     event: BaseModel,
     conversation: list[ChatMessage],
@@ -880,8 +778,15 @@ async def call_tool(
     if tool_def is None:
         raise await record_tool_parsing_error(f"Tool {call.function} not found")
 
+    canonical_arguments = tool_canonical_arguments(tool_def.tool)
+    if canonical_arguments is not None:
+        call = replace(call, arguments=canonical_arguments(call.arguments))
+
     # if we have a tool approver, apply it now
-    from inspect_ai.approval._apply import apply_tool_approval
+    from inspect_ai.approval._apply import (
+        apply_tool_approval,
+        modified_function_error,
+    )
 
     approved, approval = await apply_tool_approval(
         message, call, tool_def.viewer, conversation
@@ -894,7 +799,36 @@ async def call_tool(
         else:
             raise ToolApprovalError(approval.explanation if approval else None)
     if approval and approval.modified:
+        error = modified_function_error(call, approval.modified)
+        if error is not None:
+            await record_pending_tool_event()
+            raise RuntimeError(error)
+        # record the arguments that run: the model's proposal stays in the
+        # ModelEvent and the ApprovalEvent
         call = approval.modified
+        if canonical_arguments is not None:
+            call = replace(call, arguments=canonical_arguments(call.arguments))
+        event.arguments = call.arguments
+        event.view = tool_call_view(call, tools)
+
+    if checks_tool_calls():
+        from inspect_ai._sentinel._dispatch import (
+            apply_sentinel_decision,
+            sentinel_before_tool_call,
+        )
+
+        try:
+            decision = await sentinel_before_tool_call(
+                message, message_id, call, tool_def.viewer, conversation
+            )
+            modified = apply_sentinel_decision(decision, call)
+        except (SentinelFailure, ToolApprovalError, TerminateSampleError):
+            await record_pending_tool_event()
+            raise
+        if modified is not call:
+            call = modified
+            event.arguments = call.arguments
+            event.view = tool_call_view(call, tools)
 
     # validate the schema of the passed object
     validation_errors = validate_tool_input(call.arguments, tool_def.parameters)
@@ -912,6 +846,8 @@ async def call_tool(
             async with span(tool_def.tool.name, type="handoff"):
                 async with span(name=call.function, type="tool"):
                     transcript()._event(event)
+                    if on_execute is not None:
+                        on_execute(call)
                     handoff_result = await agent_handoff(tool_def, call, conversation)
                     return CalledTool(*handoff_result, None)
 
@@ -921,7 +857,8 @@ async def call_tool(
                 transcript()._event(event)
                 if on_execute is not None:
                     on_execute(call)
-                result: ToolResult = await tool_def.tool(**arguments)
+                with sentinel_scope(AgentScope.OFF):
+                    result: ToolResult = await tool_def.tool(**arguments)
                 agent_span_id = getattr(tool_def.tool, "agent_span_id", None)
                 return CalledTool(result, [], None, None, agent_span_id)
 
@@ -929,28 +866,25 @@ async def call_tool(
 async def _apply_tool_review(
     tools: list[ToolDef],
     message: str,
+    message_id: str | None,
     call: ToolCall,
     result: ChatMessageTool,
     output: ToolResult,
+    truncated: tuple[int, int] | None,
     conversation: list[ChatMessage],
 ) -> None:
-    """Give the active review policies the executed call's result.
+    """Give the active review policies and sentinel the executed call's result.
 
     Only calls that actually ran are reviewed (the caller checks this): a call
     rejected at the call stage or failed by argument parsing produced no result,
-    and the error the model receives is its feedback. Handoffs are not reviewed
-    either: their "result" is a transfer notice, and the sub-agent's own tool
-    calls are reviewed individually as they execute.
+    and the error the model receives is its feedback.
 
     Raises:
-        TerminateSampleError: A reviewer requested termination.
+        TerminateSampleError: A reviewer or the sentinel requested termination.
     """
-    from inspect_ai.agent._handoff import AgentTool
     from inspect_ai.review._apply import apply_tool_review
 
     tool_def = next((tool for tool in tools if tool.name == call.function), None)
-    if tool_def is not None and isinstance(tool_def.tool, AgentTool):
-        return
     review = await apply_tool_review(
         message,
         call,
@@ -961,6 +895,20 @@ async def _apply_tool_review(
     )
     if review is not None and review.decision == "terminate":
         raise TerminateSampleError("Tool result reviewer requested termination.")
+
+    if checks_tool_calls():
+        from inspect_ai._sentinel._dispatch import sentinel_after_tool_call
+
+        await sentinel_after_tool_call(
+            message,
+            message_id,
+            call,
+            result,
+            output,
+            truncated,
+            tool_def.viewer if tool_def else None,
+            conversation,
+        )
 
 
 async def agent_handoff(
@@ -1272,20 +1220,22 @@ def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, An
 
     # build params
     params: dict[str, Any] = {}
+    named_params: set[str] = set()
+    var_keyword: inspect.Parameter | None = None
     for param_name, param in signature.parameters.items():
-        # Parse docstring
-        docstring_info = parse_docstring(docstring, param_name)
+        # *args can't be passed by name, so tool arguments never fill it
+        if param.kind == inspect.Parameter.VAR_POSITIONAL:
+            continue
+
+        # **kwargs receives the arguments that no named parameter takes
+        if param.kind == inspect.Parameter.VAR_KEYWORD:
+            var_keyword = param
+            continue
+
+        named_params.add(param_name)
 
         # get type hint (fallback to docstring as required)
-        type_hint: Type[Any] | None = None
-        if param_name in type_hints:
-            type_hint = type_hints[param_name]
-        # as a fallback try to parse it from the docstring
-        elif "docstring_type" in docstring_info:
-            docstring_type = docstring_info["docstring_type"]
-            import builtins
-
-            type_hint = getattr(builtins, docstring_type, None)
+        type_hint = param_type_hint(param_name, type_hints, docstring)
 
         # error if there is no type_hint
         if type_hint is None:
@@ -1303,7 +1253,41 @@ def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, An
                 f"Required parameter {param_name} not provided to tool call."
             )
 
+    # pass the remaining arguments (e.g. ones declared by an explicit tool
+    # schema) through to **kwargs, converted using its annotation or
+    # docstring type if present
+    if var_keyword is not None:
+        kwargs_type: Any = (
+            param_type_hint(var_keyword.name, type_hints, docstring) or Any
+        )
+        for name, value in input.items():
+            if name not in named_params:
+                params[name] = tool_param(kwargs_type, value)
+
     return params
+
+
+def param_type_hint(
+    param_name: str, type_hints: dict[str, Type[Any]], docstring: str | None
+) -> Type[Any] | None:
+    # prefer the annotation
+    if param_name in type_hints:
+        return type_hints[param_name]
+
+    # as a fallback try to parse it from the docstring (a documented type
+    # that can't be resolved is an error rather than missing type info)
+    docstring_info = parse_docstring(docstring, param_name)
+    if "docstring_type" in docstring_info:
+        import builtins
+
+        type_hint: Type[Any] | None = getattr(
+            builtins, docstring_info["docstring_type"], None
+        )
+        if type_hint is None:
+            raise ValueError(f"No type annotation available for parameter {param_name}")
+        return type_hint
+
+    return None
 
 
 def tool_param(type_hint: Type[Any], input: Any) -> Any:
@@ -1337,9 +1321,8 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
             return typeddict_data
         elif is_dataclass(type_hint):
             dataclass_data: dict[str, Any] = {}
-            fields = type_hint.__dataclass_fields__  # type: ignore
-            for name, field in fields.items():
-                dataclass_data[name] = tool_param(field.type, input.get(name))  # type: ignore
+            for name, (_, field_type) in dataclass_fields(type_hint).items():
+                dataclass_data[name] = tool_param(field_type, input.get(name))
             return type_hint(**dataclass_data)
         elif issubclass(type_hint, BaseModel):
             return type_hint(**input)
@@ -1374,6 +1357,209 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
             return input
     else:
         return input
+
+
+class MappedToolCallError(NamedTuple):
+    """A tool-execution exception mapped to the error the model/human sees.
+
+    Returned from tool_call_error(); None means the exception is
+    unexpected. Native tool calls (`execute_tools`) and the sandbox agent
+    bridge's host tools (`call_tool`) both classify with it and fail the
+    sample on an unexpected exception. `classify_tool_exception()` adapts
+    it for the human agent tool path (`human_cli(tools=...)`, #3053), whose
+    caller is not part of this module.
+    """
+
+    error: ToolCallError
+    result: ToolResult | None = None
+
+
+def tool_call_error(ex: Exception, function: str) -> MappedToolCallError | None:
+    """Map a tool-execution exception to the error the caller reports.
+
+    Callers must normalize exception groups (inner_exception()) first.
+    Control-flow exceptions are classified where they have a tool-error
+    rendering (limits) — callers with propagation semantics re-raise after
+    recording. Unexpected exceptions (including non-embedded-null-byte
+    ValueErrors) return None: this function is policy-free, and each
+    caller applies its own disposition.
+
+    Args:
+        ex: The (normalized) exception raised by tool execution.
+        function: Tool function name (used in messages).
+
+    Returns:
+        MappedToolCallError with the error (and any partial result, e.g.
+        truncated output from a sandbox timeout, or None if there is no
+        partial result), or None if the exception is unexpected.
+    """
+    if isinstance(ex, TimeoutError):
+        return MappedToolCallError(
+            error=ToolCallError("timeout", "Command timed out before completing."),
+            result=ex.truncated_output
+            if isinstance(ex, SandboxTimeoutError) and ex.truncated_output
+            else None,
+        )
+    elif isinstance(ex, UnicodeDecodeError):
+        return MappedToolCallError(
+            error=ToolCallError(
+                "unicode_decode",
+                f"Error decoding bytes to {ex.encoding}: {ex.reason}",
+            )
+        )
+    elif isinstance(ex, ValueError) and "embedded null byte" in str(ex):
+        # CPython's subprocess module raises ValueError("embedded null byte")
+        # when a command or argument string contains '\x00'. Surface it as
+        # a tool error so the model can recover instead of crashing the sample.
+        # (Other ValueErrors are unexpected — callers apply their own policy.)
+        return MappedToolCallError(
+            error=ToolCallError(
+                "parsing",
+                f"An argument to tool '{function}' contained an embedded null byte.",
+            )
+        )
+    elif isinstance(ex, SandboxUnavailableError):
+        # Preserve the tool loop's existing non-terminal behavior while
+        # surfacing sandbox unavailability as a failed tool call. Evals
+        # that need it to be terminal can enforce that policy in their
+        # agent logic.
+        return MappedToolCallError(error=ToolCallError("sandbox_unavailable", str(ex)))
+    elif isinstance(ex, PermissionError):
+        err = f"{ex.strerror or str(ex)}."
+        if isinstance(ex.filename, str):
+            err = f"{err} Filename '{ex.filename}'."
+        return MappedToolCallError(error=ToolCallError("permission", err))
+    elif isinstance(ex, FileNotFoundError):
+        if isinstance(ex.filename, str):
+            err = f"File '{ex.filename}' was not found."
+        else:
+            err = ex.strerror or str(ex)
+        return MappedToolCallError(error=ToolCallError("file_not_found", err))
+    elif isinstance(ex, IsADirectoryError):
+        err = f"{ex.strerror or str(ex)}."
+        if isinstance(ex.filename, str):
+            err = f"{err} Filename '{ex.filename}'."
+        return MappedToolCallError(error=ToolCallError("is_a_directory", err))
+    elif isinstance(ex, OutputLimitExceededError):
+        return MappedToolCallError(
+            error=ToolCallError(
+                "limit",
+                f"The tool exceeded its output limit of {ex.limit_str}.",
+            ),
+            # Note the sentinel here is "" (not None): a limit-truncated
+            # result of zero bytes is still a known ("no output") partial
+            # result, distinct from "no partial result available" (None).
+            result=ex.truncated_output or "",
+        )
+    elif isinstance(ex, LimitExceededError):
+        return MappedToolCallError(
+            error=ToolCallError(
+                "limit",
+                f"The tool exceeded its {ex.type} limit of {ex.limit_str}.",
+            )
+        )
+    elif isinstance(ex, ToolParsingError):
+        return MappedToolCallError(error=ToolCallError("parsing", ex.message))
+    elif isinstance(ex, ToolApprovalError):
+        return MappedToolCallError(error=ToolCallError("approval", ex.message))
+    elif isinstance(ex, ToolError):
+        return MappedToolCallError(error=ToolCallError("unknown", ex.message))
+    else:
+        return None
+
+
+class ClassifiedToolException(NamedTuple):
+    """A tool-execution exception classified as an expected tool failure.
+
+    Compatibility adapter for #3053's human agent tool path, which passes
+    `result` straight into `resolve_tool_content()` and needs the "no
+    partial result" sentinel to be `""`, not `None`. `tool_call_error()`
+    is the single classification implementation; this wraps it and
+    translates only that sentinel — it does not re-derive classification.
+    """
+
+    error: ToolCallError
+    result: ToolResult = ""
+
+
+def classify_tool_exception(
+    ex: Exception, function: str
+) -> ClassifiedToolException | None:
+    """Classify a tool-execution exception as an expected tool failure.
+
+    Thin adapter over tool_call_error() for #3053: translates its `None`
+    "no partial result" sentinel to `""`. See ClassifiedToolException.
+
+    Args:
+        ex: The (normalized) exception raised by tool execution.
+        function: Tool function name (used in messages).
+
+    Returns:
+        ClassifiedToolException with the error (and any partial result,
+        e.g. truncated output from a sandbox timeout), or None if the
+        exception is unexpected.
+    """
+    mapped = tool_call_error(ex, function)
+    if mapped is None:
+        return None
+    return ClassifiedToolException(
+        error=mapped.error, result=mapped.result if mapped.result is not None else ""
+    )
+
+
+ToolResultContent = (
+    str
+    | list[ContentText | ContentImage | ContentAudio | ContentVideo | ContentDocument]
+)
+"""Content forms a tool result may take after massaging."""
+
+
+class ResolvedToolContent(NamedTuple):
+    """A tool result massaged for recording."""
+
+    content: ToolResultContent
+    """The recorded content."""
+
+    truncated: tuple[int, int] | None
+    """(raw_bytes, truncated_bytes) when truncation occurred, otherwise `None`."""
+
+
+def resolve_tool_content(
+    result: ToolResult, function: str, max_output: int | None
+) -> ResolvedToolContent:
+    """Massage a tool result for recording, truncating oversize text.
+
+    Shared by the model tool path and the human agent tool path: valid
+    Content values (single or list) pass through structurally untouched;
+    everything else is stringified and truncated to the active output cap.
+
+    Args:
+        result: Raw ToolResult from tool execution.
+        function: Tool function name (used in the truncation marker).
+        max_output: Maximum output bytes (None uses the active generate
+            config, falling back to the 16 KiB default).
+
+    Returns:
+        The recorded content, with (raw_bytes, truncated_bytes) when
+        truncation occurred.
+    """
+    truncated: tuple[int, int] | None = None
+    content: ToolResultContent
+    result_content = tool_result_content_list(result)
+    if result_content is not None:
+        content = result_content
+    else:
+        content = str(result)
+
+        # truncate if necessary
+        truncated_output = truncate_tool_output(function, content, max_output)
+        if truncated_output:
+            content = truncated_output.output
+            truncated = (
+                truncated_output.raw_bytes,
+                truncated_output.truncated_bytes,
+            )
+    return ResolvedToolContent(content=content, truncated=truncated)
 
 
 def tool_call_view(call: ToolCall, tdefs: list[ToolDef]) -> ToolCallContent | None:

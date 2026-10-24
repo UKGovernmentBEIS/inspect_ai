@@ -56,7 +56,7 @@ web_search({
 
 ### OpenAI Options
 
-The `web_search()` tool can use OpenAI's built-in search capability when running on a limited number of OpenAI models (currently "gpt-4o", "gpt-4o-mini", "gpt-4.1", "o3", "o4-mini", and GPT-5 and later, including GPT-6). This provider does not require any API keys beyond what's needed for the model itself.
+The `web_search()` tool can use OpenAI's built-in search capability when running on a limited number of OpenAI models (currently "gpt-4o", "gpt-4o-mini", "gpt-4.1", "o3", and GPT-5 and later, including GPT-6). This provider does not require any API keys beyond what's needed for the model itself.
 
 For more details on OpenAI's web search parameters, see [OpenAI Web Search Documentation](https://platform.openai.com/docs/guides/tools-web-search?api-mode=responses).
 
@@ -67,6 +67,8 @@ Note that when using the "openai" provider, you should also specify a fallback e
 The `web_search()` tool can use Anthropic's built-in search capability when running on a limited number of Anthropic models (currently "claude-opus-4-20250514", "claude-sonnet-4-20250514", "claude-3-7-sonnet-20250219", "claude-3-5-sonnet-latest", "claude-3-5-haiku-latest"). This provider does not require any API keys beyond what's needed for the model itself.
 
 For more details on Anthropic's web search parameters, see [Anthropic Web Search Documentation](https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool).
+
+On Claude 4.6 and later (except on Bedrock and Vertex), Inspect uses the dynamic filtering tool versions (`web_search_20260209` and `web_fetch_20260209`). Set `type` to `"web_search_20250305"` in the `anthropic` options to use the earlier versions. When `tool_choice` forces `web_search`, Inspect adds `"direct"` to `allowed_callers` unless you set `allowed_callers` yourself.
 
 Note that when using the "anthropic" provider, you should also specify a fallback external provider (like "tavily", "exa", or "google") if you are also running the evaluation with non-Anthropic model.
 
@@ -86,17 +88,27 @@ Gemini 3 and later models can use `web_search("gemini")` alongside other tools. 
 
 ### Grok Options
 
-The `web_search()` tool can use Grok's built-in live search capability when running on Grok 3.0 models and later. This provider does not require any API keys beyond what's needed for the model itself.
+The `web_search()` tool can use Grok's built-in web search when running on Grok 4 models and later. This provider does not require any API keys beyond what's needed for the model itself. The `grok` provider options are the parameters of xAI's web search tool, such as `allowed_domains` and `excluded_domains`. For example:
 
-For more details, see [Live Search](https://docs.x.ai/docs/guides/live-search).
+``` python
+web_search({"grok": {"allowed_domains": ["arxiv.org"]}})
+```
 
-Note that when using the "grok" provider, you should also specify a fallback external provider (like "tavily", "exa", or "google") if you are also running the evaluation with non-Grok models.
+For more details, see [Web Search](https://docs.x.ai/developers/tools/web-search).
+
+Note that when using the "grok" provider, you should also specify a fallback external provider (like "tavily", "exa", or "google") if you are also running the evaluation with non-Grok models or with Grok models before Grok 4.
 
 ### Perplexity Options
 
-The `web_search()` tool can use Perplexity's built-in search capability when running on Perplexity models. This provider does not require any API keys beyond what's needed for the model itself. Search parameters can be passed using the `perplexity` provider options and will be forwarded to the model API.
+The `web_search()` tool can use Perplexity's built-in search capability when running on Perplexity models. This provider does not require any API keys beyond what's needed for the model itself. Perplexity models do not search without the `web_search()` tool, including `perplexity/sonar`. The `perplexity` provider options are the fields of the Agent API's `web_search` tool, such as `filters`, `search_type`, `max_results`, and the search token budgets `max_tokens` and `max_tokens_per_page`. For example:
 
-For more details, see [Perplexity API Documentation](https://docs.perplexity.ai/api-reference/chat-completions-post).
+``` python
+web_search({"perplexity": {"filters": {"search_domain_filter": ["arxiv.org"]}}})
+```
+
+For all the options, see Perplexity's [Web Search](https://docs.perplexity.ai/docs/agent-api/tools/web-search) documentation. Sonar search parameters such as `search_mode` and `search_context_size` are not accepted. Use the token budgets in place of `search_context_size`; Perplexity's [migration guide](https://docs.perplexity.ai/docs/agent-api/migrate-from-sonar/how-to#parameter-reference) lists the other replacements.
+
+The model decides whether to search. To make it search, set `tool_choice` to `"any"` or `ToolFunction("web_search")`.
 
 Note that when using the "perplexity" provider, you should also specify a fallback external provider (like "tavily", "exa", or "google") if you are also running the evaluation with non-Perplexity models.
 
@@ -445,7 +457,7 @@ inspect eval computer.py --approval approval.yaml
 
 The computer tool's schema is a superset of the standard [Anthropic](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool),[OpenAI](https://platform.openai.com/docs/guides/tools-computer-use), and [Google](https://ai.google.dev/gemini-api/docs/computer-use) computer tool schemas. When using models tuned for computer use, the computer tool will automatically bind to the native computer tool definitions.
 
-For Claude models, the binding depends on the model and platform: on the Claude API and Vertex, Claude Opus 5.5, Sonnet 5.5, Fable 5/5.1 and Mythos 5/5.1 use Anthropic's computer toolset (`computer_toolset_20260801`), where each action is its own tool call and a failed action halts the remaining computer actions in that turn; other Claude models, and every model on Bedrock and Foundry (which offer only the earlier tool), keep the legacy `computer_20251124` tool. See [Computer Use](providers.qmd#anthropic-computer-use) in the Anthropic provider documentation for details, including the `computer_toolset` model arg that forces either mode.
+For Claude models, the binding depends on the model and platform: on the Claude API and Vertex, Claude Opus 5.5, Sonnet 5.5, Haiku 5.5, Fable 5/5.1 and Mythos 5/5.1 use Anthropic's computer toolset (`computer_toolset_20260801`), where each action is its own tool call and a failed action halts the remaining computer actions in that turn; other Claude models, and every model on Bedrock and Foundry (which offer only the earlier tool), keep the legacy `computer_20251124` tool. See [Computer Use](providers.qmd#anthropic-computer-use) in the Anthropic provider documentation for details, including the `computer_toolset` model arg that forces either mode.
 
 ## Code Execution {#sec-code-execution}
 
@@ -818,6 +830,8 @@ scratch = memory(instance="scratch")
 ```
 
 This mirrors `skill(instance=...)`. Use it when two memory tools must not collide — for example, to give a subagent a private scratchpad, or to compare shared vs. separate memory as conditions in a study.
+
+Agents that run concurrently in one sample can instead each run inside their own [tool state scope](agent-custom.qmd#tool-state-scopes), which gives each of them a separate default `memory()`.
 
 Note that `instance` namespaces the data within the sample's in-memory store; it is **not** a security boundary, since everything still lives in the same process. For a hard boundary between agents, isolate them with a [Sandbox Environment](sandboxing.qmd) instead.
 

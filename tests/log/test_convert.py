@@ -9,6 +9,7 @@ from test_helpers.chunked_corpus import CORPUS_SMALL_CHUNK_SIZE, ChunkedCorpus
 
 from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai.event import ModelEvent, SampleInitEvent
+from inspect_ai.log import EvalError
 from inspect_ai.log._convert import convert_eval_logs
 from inspect_ai.log._edit import (
     MetadataEdit,
@@ -149,6 +150,43 @@ def test_stream_convert_preserves_log_updates(
     assert "qa_reviewed" in raw.get("tags", [])
     assert raw.get("metadata", {}).get("reviewer") == "alice"
     assert len(raw.get("log_updates", [])) == 1
+
+
+@pytest.mark.parametrize(
+    "stream", [True, False, 3], ids=["stream", "no-stream", "stream-3"]
+)
+@pytest.mark.parametrize("to", ["eval", "json"])
+def test_convert_preserves_eval_error(
+    tmp_path: pathlib.Path,
+    stream: bool | int,
+    to: Literal["eval", "json"],
+) -> None:
+    input_file = (
+        _TESTS_DIR
+        / "test_list_logs/2024-11-05T13-32-37-05-00_input-task_hxs4q9azL3ySGkjJirypKZ.eval"
+    )
+    errored_input = tmp_path / "input" / input_file.name
+    errored_input.parent.mkdir()
+
+    log = read_eval_log(str(input_file))
+    log.status = "error"
+    log.error = EvalError(
+        message="RuntimeError('boom')",
+        traceback="Traceback (most recent call last): ...",
+        traceback_ansi="Traceback (most recent call last): ...",
+    )
+    write_eval_log(log, str(errored_input))
+    assert read_eval_log(str(errored_input), header_only=True).error is not None
+
+    output_dir = tmp_path / "output"
+    convert_eval_logs(str(errored_input), to, str(output_dir), stream=stream)
+
+    output_file = (output_dir / input_file.name).with_suffix(f".{to}")
+    converted = read_eval_log(str(output_file), header_only=True)
+    assert converted.status == "error"
+    assert converted.error is not None
+    assert converted.error.message == "RuntimeError('boom')"
+    assert converted.error.traceback == "Traceback (most recent call last): ..."
 
 
 @pytest.mark.parametrize("stream", [True, False], ids=["stream", "no-stream"])
@@ -674,6 +712,26 @@ def test_convert_chunked_overwrite(tmp_path: pathlib.Path):
     with pytest.raises(FileExistsError):
         convert_eval_logs_to_chunked(str(input_file), str(tmp_path))
     convert_eval_logs_to_chunked(str(input_file), str(tmp_path), overwrite=True)
+
+
+def test_convert_chunked_truncated_log_raises(tmp_path: pathlib.Path):
+    """A log missing its last byte fails to convert rather than converting empty.
+
+    The sample id puts the EOCD signature in the central directory, where a
+    search that skipped the truncated EOCD would find it.
+    """
+    log = read_eval_log(str(_TESTS_DIR / "test_eval_log/log_read_sample.eval"))
+    assert log.samples
+    log.samples[0].id = "PK\x05\x06" + "A" * 30
+    input_file = tmp_path / "input" / "truncated.eval"
+    input_file.parent.mkdir()
+    write_eval_log(log, str(input_file))
+    input_file.write_bytes(input_file.read_bytes()[:-1])
+
+    output_dir = tmp_path / "output"
+    with pytest.raises(ValueError, match="EOCD not found"):
+        convert_eval_logs_to_chunked(str(input_file), str(output_dir))
+    assert not (output_dir / input_file.name).exists()
 
 
 def test_convert_chunked_cli_hidden():
