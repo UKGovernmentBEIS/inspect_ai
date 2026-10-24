@@ -43,6 +43,9 @@ openai:
           release_date: 2023-06-13
         gpt-4-latest:
           snapshot: latest
+    # Retired from the OpenAI API on 2026-10-23 (requests return 404
+    # model_not_found). Entry retained for historical log analysis.
+    # https://platform.openai.com/docs/deprecations
     gpt-4-turbo:
       display_name: GPT-4 Turbo
       release_date: 2024-04-09
@@ -67,6 +70,7 @@ openai:
         gpt-4o-2024-08-06:
           snapshot: "2024-08-06"
           release_date: 2024-08-06
+        # Snapshot retired from the OpenAI API on 2026-10-23.
         gpt-4o-2024-05-13:
           snapshot: "2024-05-13"
           release_date: 2024-05-13
@@ -105,6 +109,9 @@ openai:
           snapshot: "2025-04-14"
         latest:
           snapshot: latest
+    # Retired from the OpenAI API on 2026-10-23 (requests return 404
+    # model_not_found). Entry retained for historical log analysis.
+    # https://platform.openai.com/docs/deprecations
     gpt-4.1-nano:
       display_name: GPT-4.1 Nano
       release_date: 2025-04-14
@@ -127,6 +134,9 @@ openai:
           snapshot: "2025-02-27"
         latest:
           snapshot: latest
+    # Retired from the OpenAI API on 2026-10-23 (requests return 404
+    # model_not_found). Entry retained for historical log analysis.
+    # https://platform.openai.com/docs/deprecations
     o1:
       display_name: o1
       release_date: 2024-12-17
