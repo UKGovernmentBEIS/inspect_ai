@@ -173,13 +173,16 @@ jobs:
   # install with `uv pip install --exclude-newer false`, which resolves the
   # newest releases of everything (ignoring the cooldown in pyproject.toml), so
   # an upstream release that breaks resolution or installation shows up here
-  # first. The `uv run` steps that follow then sync uv.lock's versions over the
-  # packages it locks, so the render and tests themselves run against uv.lock
-  # plus the latest versions of anything outside it. These jobs hold no
-  # secrets and don't save the uv cache (save-cache: false), so honest runs
-  # don't put unvetted releases into the cache. A malicious package can still
-  # write to the cache directly, so jobs that hold credentials restore no
-  # cache (tests/test_workflow_cache.py).
+  # first. The `uv run --locked` steps that follow then sync the project's main
+  # and dev dependencies to uv.lock (failing if uv.lock is out of date rather
+  # than re-resolving it), so the render and tests themselves run against
+  # uv.lock for those and the latest versions of anything outside them, such
+  # as the parts of the docs toolchain and of inspect_sandbox_tools' own
+  # dependencies that the project doesn't also depend on. These jobs
+  # hold no secrets and don't save the uv cache (save-cache: false), so honest
+  # runs don't put unvetted releases into the cache. A malicious package can
+  # still write to the cache directly, so jobs that hold credentials restore
+  # no cache (tests/test_workflow_cache.py).
   #
   # Validate the Quarto docs site whenever docs change — on docs-only PRs
   # (where the test matrix is skipped) and on mixed docs+code PRs alike.
@@ -248,7 +251,7 @@ jobs:
       - name: Render docs
         if: steps.render-cache.outputs.cache-hit != 'true'
         run: |-
-          uv run quarto render docs
+          uv run --locked quarto render docs
           touch .docs-render-ok
 
       - name: Minimize uv cache
@@ -324,12 +327,10 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       # `uv sync` then `uv run --no-sync`, for the same reason as the mypy job.
-      # The other `uv run` sites below keep their implicit sync on purpose:
-      # for docs and sandbox-tools-unit, dropping it would change which
-      # dependency versions the job tests against, and slow-tool-tests-release
-      # relies on the sync replacing its wheel install with the lockfile's
-      # editable one, so `_binaries_dir()` resolves to the source tree the
-      # published binaries were downloaded into.
+      # The canaries sync in `uv run --locked` instead, because that sync is
+      # what puts uv.lock's versions back over their floating install. The
+      # slow jobs run `uv run --locked` after `uv sync --locked`, which only
+      # re-checks the lock.
       # tests/test_package goes in after the sync (it is not in the lockfile)
       # so ensure_test_package_installed() short-circuits instead of
       # pip-installing it mid-run (~9s on the xdist critical path, paid by
@@ -401,7 +402,7 @@ jobs:
           uv pip install --exclude-newer false "./src/inspect_sandbox_tools[dev]"
 
       - name: Test with pytest
-        run: uv run pytest src/inspect_sandbox_tools/tests/ -ra --color=yes
+        run: uv run --locked pytest src/inspect_sandbox_tools/tests/ -ra --color=yes
 
       - name: Minimize uv cache
         if: ${{ !cancelled() }}
@@ -448,7 +449,7 @@ jobs:
               - "!src/inspect_sandbox_tools/**/*.md"
               - "!src/inspect_sandbox_tools/design/**"
       # Generic, growable table of areas whose slow tests run with nothing but
-      # `uv pip install .[dev]` + Docker-on-the-runner. `changes` is a JSON list
+      # `uv sync --locked` + Docker-on-the-runner. `changes` is a JSON list
       # of the keys that matched; the slow-tests matrix fans out over it.
       # Convention: each key is also the tests/<key>/ directory to run.
       # Tests needing an API key self-skip via skip_if_no_* (no secrets here),
@@ -563,8 +564,8 @@ jobs:
           BUILDKIT_PROGRESS: plain
         # Both libc variants: the slow suite includes an Alpine (musl) case.
         run: |
-          uv run python src/inspect_ai/tool/_sandbox_tools_utils/build_within_container.py --arch amd64
-          uv run python src/inspect_ai/tool/_sandbox_tools_utils/build_within_container.py --arch amd64 --musl
+          uv run --locked python src/inspect_ai/tool/_sandbox_tools_utils/build_within_container.py --arch amd64
+          uv run --locked python src/inspect_ai/tool/_sandbox_tools_utils/build_within_container.py --arch amd64 --musl
 
       - name: Run slow tool tests
         env:
@@ -576,7 +577,7 @@ jobs:
           # runner has Compose >= 2.39, together with the same setting in
           # meridianlabs-ai/actions inspect-ai-scheduled-tests.yml (actions#156).
           COMPOSE_BAKE: "false"
-        run: uv run pytest --runslow -m slow tests/tools/ -x -v --durations=0 -n logical
+        run: uv run --locked pytest --runslow -m slow tests/tools/ -x -v --durations=0 -n logical
 
       - name: Minimize uv cache
         if: ${{ !cancelled() }}
@@ -608,10 +609,10 @@ jobs:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"
 
+      # The project installs editable, so `_binaries_dir()` resolves to the
+      # source tree the published binaries are downloaded into below.
       - name: Install dependencies
-        run: |-
-          uv venv
-          uv pip install .[dev]
+        run: uv sync --locked
 
       - name: Fetch and verify published non-dev sandbox-tools binaries
         run: |
@@ -670,7 +671,7 @@ jobs:
           INSPECT_SANDBOX_TOOLS_INSTALL_STATE: clean
           # Shared image IDs under Compose 2.38; see "Run slow tool tests".
           COMPOSE_BAKE: "false"
-        run: uv run pytest --runslow -m slow tests/tools/ -x -v --durations=0 -n logical
+        run: uv run --locked pytest --runslow -m slow tests/tools/ -x -v --durations=0 -n logical
 
       - name: Minimize uv cache
         if: ${{ !cancelled() }}
@@ -706,15 +707,13 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: |-
-          uv venv
-          uv pip install .[dev]
+        run: uv sync --locked
 
       - name: Run slow tests
         env:
           # Shared image IDs under Compose 2.38; see "Run slow tool tests".
           COMPOSE_BAKE: "false"
-        run: uv run pytest --runslow -m slow tests/${{ matrix.area }}/ -n logical --durations=0
+        run: uv run --locked pytest --runslow -m slow tests/${{ matrix.area }}/ -n logical --durations=0
 
       - name: Minimize uv cache
         if: ${{ !cancelled() }}
