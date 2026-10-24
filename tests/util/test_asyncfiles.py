@@ -3400,6 +3400,7 @@ class _GatedFS(fsspec.asyn.AsyncFileSystem):
         self.released = 0
         self.entries = 0
         self.cat_calls = 0
+        self.cat_ranges: list[tuple[int | None, int | None]] = []
         self.ls_calls = 0
         self.cleaned = False
         self.cat_returned = threading.Event()
@@ -3470,6 +3471,7 @@ class _GatedFS(fsspec.asyn.AsyncFileSystem):
         self, path: str, start: int | None = None, end: int | None = None, **kwargs: Any
     ) -> bytes:
         self.cat_calls += 1
+        self.cat_ranges.append((start, end))
         path = self._strip_protocol(path)
         try:
             await self._gate()
@@ -3577,6 +3579,12 @@ async def _read_file_suffix_fields(
     return suffix.data, suffix.file_size
 
 
+async def _read_file_bytes_drained(afs: AsyncFilesystem, tmp: Path) -> bytes:
+    stream = await afs.read_file_bytes(_GATED_URL, 2, 5)
+    async with stream:
+        return b"".join([chunk async for chunk in stream])
+
+
 async def _read_file_into_bytes(afs: AsyncFilesystem, tmp: Path) -> bytes:
     with tempfile.TemporaryFile() as dest:
         await afs.read_file_into(_GATED_URL, dest, chunk_size=100)
@@ -3618,10 +3626,11 @@ _NON_BLOCKING_CASES = [
     ),
     pytest.param(_list_dir_names, ({"a.bin"}, {"sub"}), id="list_dir"),
     pytest.param(_read_file_info_data, _PAYLOAD, id="read_file_info"),
+    pytest.param(_read_file_bytes_drained, _PAYLOAD[2:5], id="read_file_bytes"),
     pytest.param(
         lambda afs, tmp: afs.read_file_bytes_fully(_GATED_URL, 2, 5),
         _PAYLOAD[2:5],
-        id="read_file_bytes",
+        id="read_file_bytes_fully",
     ),
     pytest.param(
         _read_file_suffix_fields, (_PAYLOAD[-100:], 1024), id="read_file_suffix"
@@ -3754,6 +3763,109 @@ async def test_async_fsspec_read_range_edges(gated_fs: _GatedFS) -> None:
             await afs.read_file_bytes_fully(_GATED_URL, -1, None)
     # gcsfs's `_cat_file` sends an unsatisfiable range for an empty one
     assert gated_fs.cat_calls == 0
+
+
+_RANGE = 1024
+_RANGED_URL = "gatedtest://bucket/dir/big.bin"
+
+
+@pytest.fixture
+def ranged_file(gated_fs: _GatedFS, monkeypatch: pytest.MonkeyPatch) -> bytes:
+    """A 3.5-range file on the released gated filesystem, with `_RANGE` ranges."""
+    monkeypatch.setattr(asyncfiles, "_REMOTE_RANGE_SIZE", _RANGE)
+    gated_fs.release.set()
+    payload = os.urandom(3 * _RANGE + _RANGE // 2)
+    gated_fs.files["bucket/dir/big.bin"] = payload
+    return payload
+
+
+def _ranges(start: int, end: int) -> list[tuple[int, int]]:
+    """Contiguous ranges of at most `_RANGE` bytes covering [start, end)."""
+    return [(s, min(s + _RANGE, end)) for s in range(start, end, _RANGE)]
+
+
+async def test_async_remote_read_file_bytes_streams_in_ranges(
+    gated_fs: _GatedFS, ranged_file: bytes
+) -> None:
+    start, end = 100, len(ranged_file)
+    async with AsyncFilesystem() as afs:
+        stream = await afs.read_file_bytes(_RANGED_URL, start, end)
+        async with stream:
+            chunks = [chunk async for chunk in stream]
+    assert b"".join(chunks) == ranged_file[start:end]
+    assert gated_fs.cat_ranges == _ranges(start, end)
+
+
+async def test_async_remote_read_file_bytes_stops_fetching_when_closed(
+    gated_fs: _GatedFS, ranged_file: bytes
+) -> None:
+    async with AsyncFilesystem() as afs:
+        stream = await afs.read_file_bytes(_RANGED_URL, 0, len(ranged_file))
+        assert await stream.receive(10) == ranged_file[:10]
+        await stream.aclose()
+        with pytest.raises(EndOfStream):
+            await stream.receive(10)
+    assert gated_fs.cat_ranges == [(0, _RANGE)]
+
+
+async def test_async_remote_read_file_bytes_fully_is_one_request(
+    gated_fs: _GatedFS, ranged_file: bytes
+) -> None:
+    end = len(ranged_file)
+    async with AsyncFilesystem() as afs:
+        whole = await afs.read_file_bytes_fully(_RANGED_URL, 0, end)
+        to_eof = await afs.read_file_bytes_fully(_RANGED_URL, 100, None)
+    assert (whole, to_eof) == (ranged_file, ranged_file[100:])
+    assert gated_fs.cat_ranges == [(0, end), (100, None)]
+
+
+async def test_async_remote_read_file_bytes_to_eof_uses_size(
+    gated_fs: _GatedFS, ranged_file: bytes
+) -> None:
+    start = 100
+    async with AsyncFilesystem() as afs:
+        stream = await afs.read_file_bytes(_RANGED_URL, start, None)
+        async with stream:
+            chunks = [chunk async for chunk in stream]
+    assert b"".join(chunks) == ranged_file[start:]
+    assert gated_fs.cat_ranges == _ranges(start, len(ranged_file))
+
+
+@pytest.mark.timeout(30, method="thread")
+async def test_async_remote_read_file_bytes_cancelled_receive_keeps_offset(
+    gated_fs: _GatedFS, ranged_file: bytes
+) -> None:
+    gated_fs.release.clear()
+    start = 100
+    async with AsyncFilesystem() as afs:
+        stream = await afs.read_file_bytes(_RANGED_URL, start, len(ranged_file))
+        with anyio.CancelScope() as scope:
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(_cancel_when_entered, gated_fs, scope)
+                await stream.receive(10)
+        assert scope.cancelled_caught
+        # the cancelled `_cat_file` finished before the cancellation propagated
+        assert gated_fs.cat_returned.is_set()
+        gated_fs.release.set()
+        assert await stream.receive(10) == ranged_file[start : start + 10]
+    assert gated_fs.cat_ranges == [(start, start + _RANGE)] * 2
+
+
+async def test_async_remote_read_file_bytes_ends_short_on_empty_range(
+    gated_fs: _GatedFS, ranged_file: bytes
+) -> None:
+    short = 2 * _RANGE - 48
+    async with AsyncFilesystem() as afs:
+        stream = await afs.read_file_bytes(_RANGED_URL, 0, None)
+        # the object shrank after its size was read
+        gated_fs.files["bucket/dir/big.bin"] = ranged_file[:short]
+        async with stream:
+            chunks = [chunk async for chunk in stream]
+            with pytest.raises(EndOfStream):
+                await stream.receive()
+    assert b"".join(chunks) == ranged_file[:short]
+    # the empty response ends the stream; nothing is requested after it
+    assert gated_fs.cat_ranges == _ranges(0, 2 * _RANGE) + [(short, short + _RANGE)]
 
 
 def test_http_keeps_the_synchronous_path() -> None:

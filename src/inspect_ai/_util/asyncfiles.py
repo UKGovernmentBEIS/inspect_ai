@@ -73,6 +73,9 @@ _S3_MISSING_OBJECT_CODES = ("404", "NoSuchKey", "NotFound")
 # default chunk size for read_file_into
 _READ_INTO_CHUNK_SIZE = 1024 * 1024  # 1 MB
 
+# bytes per request when `read_file_bytes` streams an async fsspec file
+_REMOTE_RANGE_SIZE = 8 * 1024 * 1024  # 8 MiB
+
 
 @contextmanager
 def _map_missing_s3_object(filename: str) -> Iterator[None]:
@@ -211,6 +214,53 @@ class _AnyIOFileByteReceiveStream(ByteReceiveStream):
         if self._file is not None:
             await self._file.aclose()
             self._file = None
+
+
+class _RangedRemoteByteReceiveStream(ByteReceiveStream):
+    """Stream [start, end) of an async fsspec file, one range request at a time.
+
+    NOTE: This class does not support concurrent calls to receive.
+    """
+
+    def __init__(self, fs: Any, path: str, start: int, end: int) -> None:
+        """Initialize with the fsspec filesystem, stripped path and byte range."""
+        self._fs = fs
+        self._path = path
+        self._next = start
+        self._end = end
+        self._buffer = b""
+        self._position = 0
+
+    async def receive(self, max_bytes: int = 65536) -> bytes:
+        """Receive up to max_bytes, fetching the next range once the buffer is spent.
+
+        An empty response before ``end`` (the object is shorter than its
+        reported size) ends the stream, and no further range is requested. A
+        receive cancelled while its range is in flight leaves the offset where
+        it was: the next receive requests that range again.
+        """
+        if self._position >= len(self._buffer):
+            if self._next >= self._end:
+                raise EndOfStream
+            stop = min(self._next + _REMOTE_RANGE_SIZE, self._end)
+            self._buffer = await _run_on_fsspec_loop(
+                self._fs, self._fs._cat_file(self._path, start=self._next, end=stop)
+            )
+            self._position = 0
+            if not self._buffer:
+                # the object ends before `end`: the stream ends short
+                self._next = self._end
+                raise EndOfStream
+            self._next += len(self._buffer)
+
+        chunk = self._buffer[self._position : self._position + max_bytes]
+        self._position += len(chunk)
+        return chunk
+
+    async def aclose(self) -> None:
+        """Drop the buffer; no further range is fetched."""
+        self._buffer = b""
+        self._next = self._end
 
 
 @dataclass
@@ -805,6 +855,13 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
 
         ``if_match`` pins an S3 read to that ETag: if the object has changed,
         the read raises :class:`ObjectChangedError`. Other backends ignore it.
+
+        An async fsspec file (``gs://``, ``az://``, ...) is fetched in
+        ``_REMOTE_RANGE_SIZE`` ranges on fsspec's loop as the stream is
+        consumed: a reader that stops early fetches only what it read, and
+        memory is bounded by one range, at the cost of one request per range
+        rather than one for the whole range (:meth:`read_file_bytes_fully`
+        keeps the single request).
         """
         if is_s3_filename(filename):
             bucket, key = s3_bucket_and_key(filename)
@@ -848,11 +905,10 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                 if end is not None and end <= start:
                     await _run_on_fsspec_loop(fs.fs, fs.fs._info(path))
                     return _BytesByteReceiveStream(b"")
-                return _BytesByteReceiveStream(
-                    await _run_on_fsspec_loop(
-                        fs.fs, fs.fs._cat_file(path, start=start, end=end)
-                    )
-                )
+                if end is None:
+                    info = await _run_on_fsspec_loop(fs.fs, fs.fs._info(path))
+                    end = info["size"]
+                return _RangedRemoteByteReceiveStream(fs.fs, path, start, end)
             with file(filename, "rb") as f:
                 f.seek(start)
                 return _BytesByteReceiveStream(
@@ -871,12 +927,22 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
 
         ``if_match`` is as for :meth:`read_file_bytes`. A local range is read
         in one worker thread rather than through :meth:`read_file_bytes`, whose
-        file stream makes a thread hop for each open, seek, read and close.
+        file stream makes a thread hop for each open, seek, read and close;
+        an async fsspec range is fetched in one request rather than in
+        that method's ranges.
         """
-        if not is_s3_filename(filename) and filesystem(filename).is_local():
-            return await anyio.to_thread.run_sync(
-                _read_local_range, local_path(filename), start, end
-            )
+        if not is_s3_filename(filename):
+            fsw = filesystem(filename)
+            if fsw.is_local():
+                return await anyio.to_thread.run_sync(
+                    _read_local_range, local_path(filename), start, end
+                )
+            # a negative or empty range keeps `read_file_bytes`'s checks
+            if _is_async_remote(fsw) and start >= 0 and (end is None or end > start):
+                path = fsw.fs._strip_protocol(filename)
+                return await _run_on_fsspec_loop(
+                    fsw.fs, fsw.fs._cat_file(path, start=start, end=end)
+                )
         stream = await self.read_file_bytes(filename, start, end, if_match=if_match)
         chunks: list[bytes] = []
         try:
