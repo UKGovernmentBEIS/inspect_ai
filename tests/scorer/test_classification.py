@@ -87,6 +87,44 @@ async def test_stop_words2():
     assert result.text == "1.0"
 
 
+@pytest.mark.parametrize("separator", ["\n", "\t", "\r\n", " "])
+def test_stop_words_removed_after_any_whitespace(separator: str):
+    # A stop word is removed whatever whitespace separates it from the
+    # surrounding words, so the same answer scores the same however it is
+    # laid out (#5935).
+    answer = f"Paris{separator}Texas"
+    assert max_f1_score(answer, ["Paris"], stop_words=["texas"]) == 1.0
+    # With the stop word kept, "Texas" would count against precision (0.5).
+    assert max_f1_score(answer, ["Paris Dallas"], stop_words=["texas"]) == 0.67
+
+
+@pytest.mark.anyio
+async def test_stop_words_multiline_answer():
+    scorer = f1(stop_words=["Texas"])
+    state = simple_task_state(model_output="Paris\nTexas")
+    result = await scorer(state, Target(["Paris"]))
+
+    assert result.text == "1.0"
+
+
+def test_tokenize_hyphen_and_number_handling_unchanged():
+    # Hyphens still split tokens and numbers are still normalized per token.
+    assert max_f1_score("well-known", ["well known"]) == 1.0
+    assert max_f1_score("3-5", ["3 5"]) == 1.0
+    assert max_f1_score("3-5", ["3.0 5.0"]) == 1.0
+    assert max_f1_score("Paris-Texas", ["Paris"], stop_words=["Texas"]) == 1.0
+
+
+def test_exact_whitespace_variants_normalize_alike():
+    # exact() shares the tokenizer. Words separated by a newline or tab are
+    # now normalized one at a time, so numbers next to them are parsed as
+    # numbers instead of losing their punctuation ("3.0\n5" used to become
+    # "30 5").
+    assert max_exact_score("Paris\nTexas", ["Paris Texas"]) == 1.0
+    assert max_exact_score("3.0\n5", ["3.0 5"]) == 1.0
+    assert max_exact_score("(3.14)\t7", ["3.14 7"]) == 1.0
+
+
 def test_max_score_target_leading_whitespace():
     # Targets with leading whitespace must not be silently skipped — the
     # whole target string is checked, not just its first character.
