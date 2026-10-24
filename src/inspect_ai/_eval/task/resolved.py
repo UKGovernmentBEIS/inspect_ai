@@ -1,3 +1,4 @@
+import os
 from dataclasses import dataclass, field
 from typing import Any, Sequence, Set
 
@@ -22,6 +23,7 @@ class ResolvedTask:
     sandbox: SandboxEnvironmentSpec | None
     checkpoint: CheckpointConfig | None
     sequence: int
+    run_dir: str = field(default_factory=os.getcwd)
     sample_source: EvalSampleSource | None = field(default=None)
     initial_model_usage: dict[str, ModelUsage] | None = field(default=None)
     initial_role_usage: dict[str, ModelUsage] | None = field(default=None)

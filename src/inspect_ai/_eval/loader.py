@@ -83,6 +83,7 @@ def resolve_tasks(
     eval_checkpoint: CheckpointConfig | None = None,
     warn_unconsumed_task_args: bool = False,
     input_media_policy: InputMediaPolicy = "inline_only",
+    default_run_dir: str | None = None,
 ) -> list[ResolvedTask]:
     # A TaskSource drives a run dynamically and is handled by eval() (which
     # resolves its initial_tasks() and pulls next_tasks()); it isn't a concrete,
@@ -118,6 +119,7 @@ def resolve_tasks(
                 model=task.model or model,
                 model_roles=_merge_model_roles(task.model_roles, model_roles),
                 sandbox=resolve_task_sandbox(task, sandbox),
+                run_dir=task_run_dir(task, default_run_dir),
                 checkpoint=task.checkpoint,
                 sequence=sequence,
                 input_media_policy=input_media_policy,
@@ -350,6 +352,7 @@ def resolve_previous_task(
         task=loaded_task,
         task_args=loaded_task_args,
         task_file=previous_task.log.eval.task_file,
+        run_dir=task_run_dir(loaded_task),
         model=previous_task.model or loaded_task.model or model,
         # same precedence as as_resolved_tasks: eval roles outrank task roles
         model_roles=_merge_model_roles(
@@ -410,6 +413,7 @@ def resolve_task_args(task: Task) -> dict[str, Any]:
 def resolve_task_sandbox(
     task: Task, sandbox: SandboxEnvironmentType | None
 ) -> SandboxEnvironmentSpec | None:
+    run_dir = task_run_dir(task)
     # do the resolution
     resolved_sandbox = resolve_sandbox_environment(sandbox) or task.sandbox
 
@@ -436,7 +440,7 @@ def resolve_task_sandbox(
             config_files = config_files_fn()
 
             # probe for them in task src dir
-            src_dir = task_run_dir(task)
+            src_dir = run_dir
             for config_file in config_files:
                 config_file_path = os.path.join(src_dir, config_file)
                 if os.path.isfile(config_file_path):
@@ -500,7 +504,7 @@ def resolve_task_sandbox(
         if isinstance(resolved_sandbox.config, str):
             file_path = Path(resolved_sandbox.config)
             if not file_path.is_absolute():
-                file_path = Path(task_run_dir(task)) / file_path
+                file_path = Path(run_dir) / file_path
                 resolved_sandbox = SandboxEnvironmentSpec(
                     resolved_sandbox.type, file_path.as_posix()
                 )

@@ -27,10 +27,12 @@ from inspect_ai import (
     Task,
     TaskSource,
     enqueue_sample,
+    enqueue_task,
     eval,
     eval_async,
 )
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.path import chdir
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog, EvalSample
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
@@ -71,7 +73,12 @@ class FakeDocker:
         self.events: list[str] = []
         self.running: set[str] = set()
         self.reported: list[str] = []
+        self.project_directories: list[str | None] = []
         self.fail_build_contexts: set[str] = set()
+        self.failing_downs = 0  # the next `down`s that fail, e.g. on an invalid .env
+        self.failing_ps = False
+        self.failing_services = False
+        self.failing_up = False
         self.on_build_failure: list[Any] = []
         self.on_build: list[Any] = []
         data_dir = tmp_path.resolve() / "inspect-data"
@@ -85,6 +92,9 @@ class FakeDocker:
             pass
 
         async def compose_services(project: ComposeProject) -> dict[str, Any]:
+            if self.failing_services:
+                raise RuntimeError("fake config failure")
+            self.project_directories.append(project.project_directory)
             assert project.config is not None and Path(project.config).exists()
             with open(project.config) as f:
                 services: dict[str, Any] = yaml.safe_load(f)["services"]
@@ -116,8 +126,10 @@ class FakeDocker:
         async def compose_up(
             project: ComposeProject, services: dict[str, Any]
         ) -> ExecResult[str]:
-            self.running.add(project.name)
             self.events.append(f"up:{project.sample_id}")
+            if self.failing_up:
+                return ExecResult(success=False, returncode=1, stdout="", stderr="")
+            self.running.add(project.name)
             return ExecResult(success=True, returncode=0, stdout="", stderr="")
 
         async def compose_check_running(
@@ -133,9 +145,14 @@ class FakeDocker:
         async def get_ports_info(container: str) -> None:
             return None
 
-        async def compose_down(project: ComposeProject, quiet: bool = True) -> None:
+        async def compose_down(project: ComposeProject, quiet: bool = True) -> bool:
+            if self.failing_downs > 0:
+                self.failing_downs -= 1
+                self.events.append(f"down-failed:{project.sample_id}")
+                return False
             self.running.discard(project.name)
             self.events.append(f"down:{project.sample_id}")
+            return True
 
         def containers(project: ComposeProject) -> list[dict[str, Any]]:
             if project.name in self.running:
@@ -147,6 +164,8 @@ class FakeDocker:
         ) -> list[dict[str, Any]]:
             # the "not yet cleaned up" report's lookup (cleanup.py)
             self.reported.append(f"ps:{project.sample_id}")
+            if self.failing_ps:
+                raise RuntimeError("fake ps failure")
             return containers(project)
 
         async def connection_ps(
@@ -351,6 +370,77 @@ async def test_shutdown_releases_the_registry(
         assert fake_docker.generated_files() == [
             f"{name}.yaml" for name in fake_docker.running
         ]
+
+
+@pytest.mark.parametrize(
+    "failing_downs,failing_ps", [(1, False), (2, False), (2, True)]
+)
+async def test_failed_down_keeps_the_project_for_another_attempt(
+    fake_docker: FakeDocker,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    failing_downs: int,
+    failing_ps: bool,
+) -> None:
+    """A project whose `down` fails (e.g. on an invalid `.env`) is not treated as gone.
+
+    Sample cleanup leaves it registered, so shutdown tries again. If that also
+    fails, the project is reported, even when its containers can't be listed,
+    and its generated config is kept for `inspect sandbox cleanup docker
+    <project>`, which needs the volumes and networks it declares.
+    """
+    monkeypatch.setattr(
+        cleanup_module, "print", Console(width=80, force_terminal=False).print
+    )
+    fake_docker.failing_downs = failing_downs
+    fake_docker.failing_ps = failing_ps
+    with sandbox_lifecycle_scope():
+        await run_lifecycle(fake_docker, compose_config())
+        assert cleanup_state().running_projects == []
+        assert cleanup_state().auto_compose_files == set()
+
+    retry = "down:None" if failing_downs == 1 else "down-failed:None"
+    assert fake_docker.events == ["up:None", "down-failed:None", retry]
+    if failing_downs == 1:
+        assert fake_docker.reported == []
+        assert fake_docker.generated_files() == []
+    else:
+        assert fake_docker.reported == ["ps:None"]
+        (project_name,) = fake_docker.running
+        assert fake_docker.generated_files() == [f"{project_name}.yaml"]
+        lines = [line.rstrip() for line in capsys.readouterr().out.splitlines()]
+        assert f"  inspect sandbox cleanup docker {project_name}" in lines
+
+
+@pytest.mark.parametrize("stage", ["services", "up"])
+async def test_failed_sample_init_keeps_only_a_project_that_reached_up(
+    fake_docker: FakeDocker, stage: str
+) -> None:
+    """A failed `down` keeps a project only once `up` was attempted.
+
+    `down` fails on an invalid config whether or not containers exist, so a
+    `sample_init` that fails earlier releases its project: it is neither
+    reported nor given a kept config that no Docker project would use.
+    """
+    config = compose_config()
+    with sandbox_lifecycle_scope():
+        await DockerSandboxEnvironment.task_init("startup", config)
+        fake_docker.failing_downs = 2
+        fake_docker.failing_services = stage == "services"
+        fake_docker.failing_up = stage == "up"
+        with pytest.raises(RuntimeError):
+            await DockerSandboxEnvironment.sample_init("sample", config, {})
+        await DockerSandboxEnvironment.task_cleanup("shutdown", config, True)
+        assert cleanup_state().running_projects == []
+
+    if stage == "services":
+        assert fake_docker.events == []
+        assert fake_docker.reported == []
+        assert fake_docker.generated_files() == []
+    else:
+        assert fake_docker.events == ["up:None", "down-failed:None", "down-failed:None"]
+        assert fake_docker.reported == ["ps:None"]
+        assert len(fake_docker.generated_files()) == 1
 
 
 async def test_repeated_task_init_preserves_registered_resources(
@@ -622,11 +712,12 @@ async def test_reported_compose_config_project_is_cleaned_up_by_name(
             Project(Name=other_name, Status="running", ConfigFiles=other_config),
         ]
 
-    async def fake_compose_down(project: ComposeProject, quiet: bool = True) -> None:
+    async def fake_compose_down(project: ComposeProject, quiet: bool = True) -> bool:
         assert project.config is not None
         compose_down_configs.append(
             (project.name, Path(project.config).read_text(encoding="utf-8"))
         )
+        return True
 
     monkeypatch.setattr(cleanup_module, "compose_ls", fake_compose_ls)
     monkeypatch.setattr(cleanup_module, "compose_down", fake_compose_down)
@@ -662,6 +753,63 @@ async def test_cli_cleanup_removes_orphaned_auto_compose_config(
     await DockerSandboxEnvironment.cli_cleanup(None)
 
     assert fake_docker.generated_files() == []
+
+
+@pytest.mark.parametrize("contents", ["services: [", "x-inspect-project-directory: 42"])
+async def test_cli_cleanup_continues_after_invalid_config(
+    fake_docker: FakeDocker,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    contents: str,
+) -> None:
+    bad = auto_compose_dir() / "inspect-bad-i123456.yaml"
+    bad.write_text(contents)
+    good = auto_compose_dir() / "inspect-good-i123456.yaml"
+    write_compose_file(good)
+    cleaned: list[str] = []
+
+    async def projects() -> list[Project]:
+        return [
+            Project(Name=p.stem, Status="running", ConfigFiles=str(p))
+            for p in (bad, good)
+        ]
+
+    async def down(project: ComposeProject, quiet: bool = True) -> bool:
+        cleaned.append(project.name)
+        return True
+
+    monkeypatch.setattr(cleanup_module, "compose_ls", projects)
+    monkeypatch.setattr(cleanup_module, "compose_down", down)
+    await DockerSandboxEnvironment.cli_cleanup(None)
+    assert cleaned == [good.stem]
+    assert bad.exists()
+    assert not good.exists()
+    assert "Unable to clean up Docker project inspect-bad" in caplog.text
+
+
+async def test_cli_cleanup_keeps_config_when_down_fails(
+    fake_docker: FakeDocker, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A project whose `down` fails keeps its generated config for another attempt."""
+    failed = auto_compose_dir() / "inspect-failed-i123456.yaml"
+    good = auto_compose_dir() / "inspect-good-i123456.yaml"
+    for path in (failed, good):
+        write_compose_file(path)
+
+    async def projects() -> list[Project]:
+        return [
+            Project(Name=p.stem, Status="running", ConfigFiles=str(p))
+            for p in (failed, good)
+        ]
+
+    async def down(project: ComposeProject, quiet: bool = True) -> bool:
+        return project.name != failed.stem
+
+    monkeypatch.setattr(cleanup_module, "compose_ls", projects)
+    monkeypatch.setattr(cleanup_module, "compose_down", down)
+    await DockerSandboxEnvironment.cli_cleanup(None)
+    assert failed.exists()
+    assert not good.exists()
 
 
 # -- eval level -----------------------------------------------------------------
@@ -700,7 +848,9 @@ class _AddOne(SampleSource):
 
 @pytest.mark.parametrize("route", ["next_samples", "enqueue_sample", "sample_complete"])
 async def test_docker_sample_added_to_a_task_without_docker_samples(
-    fake_docker: FakeDocker, route: str
+    fake_docker: FakeDocker,
+    route: str,
+    tmp_path: Path,
 ) -> None:
     """The first Docker sample of a task may arrive from the source, not the seed.
 
@@ -709,18 +859,25 @@ async def test_docker_sample_added_to_a_task_without_docker_samples(
     sample (`sample_complete` route), runs `task_init` in the feeder task.
     The added sample must start, and everything must be cleaned at the end.
     """
+    from inspect_ai._eval.task.constants import TASK_RUN_DIR_ATTR
+
+    config = compose_config()
+    spec = SandboxEnvironmentSpec("docker", config)
     if route == "sample_complete":
-        added = Sample(input="added", sandbox="docker")
+        added = Sample(input="added", sandbox=spec)
         task = Task(dataset=_AddOne(route, added), solver=[generate()], name="t")
     else:
         added = Sample(input="added")
         task = Task(
             dataset=_AddOne(route, added),
             solver=[generate()],
-            sandbox="docker",
+            sandbox=spec,
             name="t",
         )
 
+    task_dir = tmp_path / "task"
+    task_dir.mkdir()
+    setattr(task, TASK_RUN_DIR_ATTR, str(task_dir))
     logs = await eval_async(task, model="mockllm/model")
 
     assert logs[0].status == "success", logs[0].error
@@ -732,6 +889,56 @@ async def test_docker_sample_added_to_a_task_without_docker_samples(
     assert fake_docker.events == [f"up:{added_id}", f"down:{added_id}"]
     assert fake_docker.generated_files() == []
     assert sandbox_lifecycle_state() is None
+    assert len(fake_docker.project_directories) >= 2
+    assert set(fake_docker.project_directories) == {str(task_dir)}
+    assert config.extensions == {}
+
+
+@pytest.mark.parametrize("config_kind", ["programmatic", "file", "discovered"])
+async def test_enqueued_docker_task_directories(
+    fake_docker: FakeDocker, tmp_path: Path, config_kind: str
+) -> None:
+    launch_dir = os.getcwd()
+    enqueue_dir = tmp_path / "enqueue"
+    enqueue_dir.mkdir()
+    config: SandboxEnvironmentConfigType | None = compose_config()
+    expected_config = enqueue_dir / "compose.yaml"
+    if config_kind != "programmatic":
+        write_compose_file(Path(launch_dir) / "compose.yaml")
+        write_compose_file(expected_config)
+        config = "compose.yaml" if config_kind == "file" else None
+
+    @solver
+    def add_task() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            with chdir(str(enqueue_dir)):
+                enqueue_task(
+                    Task(
+                        dataset=[Sample(input="added")],
+                        solver=[],
+                        sandbox=SandboxEnvironmentSpec("docker", config),
+                        name="added",
+                    )
+                )
+            return state
+
+        return solve
+
+    logs = await eval_async(
+        Task(dataset=[Sample(input="seed")], solver=add_task(), name="seed"),
+        model="mockllm/model",
+    )
+    assert sorted(log.eval.task for log in logs) == ["added", "seed"]
+    assert all(log.status == "success" for log in logs), [log.error for log in logs]
+    if config_kind == "programmatic":
+        assert set(fake_docker.project_directories) == {launch_dir}
+    else:
+        added = next(log for log in logs if log.eval.task == "added")
+        assert added.eval.sandbox is not None
+        assert isinstance(added.eval.sandbox.config, str)
+        assert Path(added.eval.sandbox.config).resolve() == expected_config.resolve()
+        assert set(fake_docker.project_directories) == {None}
+    assert fake_docker.generated_files() == []
 
 
 async def test_late_docker_config_keeps_earlier_startup_resources(

@@ -1,10 +1,12 @@
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import anyio
 import pytest
 from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import Task, eval
+from inspect_ai._util._async import tg_collect
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
@@ -13,9 +15,37 @@ from inspect_ai.util import SandboxEnvironment, sandbox
 from inspect_ai.util._sandbox.context import (
     sandbox_default,
     sandbox_environments_context_var,
+    sandbox_run_dir,
+    sandbox_run_dir_context,
 )
 
 CURRENT_DIRECTORY = Path(__file__).resolve().parent
+
+
+async def test_sandbox_run_dir_isolation_and_cancellation(tmp_path: Path) -> None:
+    entered = [anyio.Event(), anyio.Event()]
+    finished: list[bool] = []
+    outer = str(tmp_path / "outer")
+
+    async def worker(index: int) -> None:
+        directory = str(tmp_path / str(index))
+        with anyio.CancelScope() as scope:
+            with sandbox_run_dir_context(directory):
+                entered[index].set()
+                await entered[1 - index].wait()
+                assert sandbox_run_dir() == directory
+                if index == 0:
+                    scope.cancel()
+                await anyio.lowlevel.checkpoint()
+                assert sandbox_run_dir() == directory
+        assert sandbox_run_dir() == outer
+        finished.append(scope.cancelled_caught)
+
+    with sandbox_run_dir_context(outer):
+        await tg_collect([lambda: worker(0), lambda: worker(1)])
+        assert sandbox_run_dir() == outer
+    assert sorted(finished) == [False, True]
+    assert sandbox_run_dir() == str(Path.cwd())
 
 
 @pytest.mark.parametrize("environment_names", [["bar"], ["bar", "baz"]])

@@ -1,9 +1,16 @@
 """Tests for Docker compatibility functionality in sandbox environments."""
 
 from collections.abc import Iterator
+from pathlib import Path
+from typing import Any
 
+import anyio
 import pytest
 
+from inspect_ai import Task, eval_async
+from inspect_ai.analysis import EvalTask, evals_df
+from inspect_ai.dataset import Sample
+from inspect_ai.solver import generate
 from inspect_ai.util._sandbox.compose import (
     ComposeConfig,
     ComposeService,
@@ -11,8 +18,10 @@ from inspect_ai.util._sandbox.compose import (
     is_docker_compatible_sandbox_type,
     is_dockerfile,
 )
+from inspect_ai.util._sandbox.context import sandbox_run_dir, sandbox_run_dir_context
 from inspect_ai.util._sandbox.environment import (
     SandboxEnvironment,
+    SandboxEnvironmentConfigType,
     SandboxEnvironmentSpec,
     deserialize_sandbox_specific_config,
 )
@@ -892,8 +901,9 @@ class TestResolveTaskSandboxDockerCompatibility:
 
         assert result is not None
         assert result.type == "mock_docker_compatible"
-        # ComposeConfig should be forwarded
+        assert isinstance(result.config, ComposeConfig)
         assert result.config == compose_config
+        assert compose_config.extensions == {}
 
     def test_no_task_sandbox_uses_override(self, tmp_path):
         """When task has no sandbox, override should be used as-is."""
@@ -981,6 +991,7 @@ class TestResolveSandboxForTaskAndSampleStartup:
         # the raw task sandbox would yield type "docker" here instead)
         assert result is not None
         assert result.sandbox.type == "mock_docker_compatible"
+        assert isinstance(result.sandbox.config, ComposeConfig)
         assert result.sandbox.config == compose_config
 
         # and the collected spec is exactly what the execution path resolves
@@ -989,6 +1000,97 @@ class TestResolveSandboxForTaskAndSampleStartup:
 
 
 # --- Tests for deserialize_sandbox_specific_config() ---
+
+
+@pytest.mark.parametrize("sample_config", [False, True])
+async def test_provider_hooks_and_logs_preserve_compose_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, sample_config: bool
+) -> None:
+    seen: list[str] = []
+    config = ComposeConfig(services={"default": ComposeService(image="alpine")})
+    expected = config.model_dump(exclude_none=True, by_alias=True)
+    launch = tmp_path / "launch"
+    launch.mkdir()
+
+    def check(hook: str, received: SandboxEnvironmentConfigType | None) -> None:
+        assert isinstance(received, ComposeConfig)
+        assert received.model_dump(exclude_none=True, by_alias=True) == expected
+        assert sandbox_run_dir() == str(launch)
+        seen.append(hook)
+
+    @sandboxenv(name="mock_strict_compose")
+    class StrictComposeSandbox(MockDockerCompatibleSandbox):
+        @classmethod
+        async def task_init_environment(
+            cls, config: SandboxEnvironmentConfigType | None, metadata: dict[str, str]
+        ) -> dict[str, str]:
+            check("task_init_environment", config)
+            return {}
+
+        @classmethod
+        async def task_init(
+            cls, task_name: str, config: SandboxEnvironmentConfigType | None
+        ) -> None:
+            check("task_init", config)
+
+        @classmethod
+        async def sample_init(
+            cls,
+            task_name: str,
+            config: SandboxEnvironmentConfigType | None,
+            metadata: dict[str, Any],
+        ) -> dict[str, SandboxEnvironment]:
+            check("sample_init", config)
+            return {"default": cls()}
+
+        @classmethod
+        async def sample_cleanup(
+            cls,
+            task_name: str,
+            config: SandboxEnvironmentConfigType | None,
+            environments: dict[str, SandboxEnvironment],
+            interrupted: bool,
+        ) -> None:
+            check("sample_cleanup", config)
+
+        @classmethod
+        async def task_cleanup(
+            cls,
+            task_name: str,
+            config: SandboxEnvironmentConfigType | None,
+            cleanup: bool,
+        ) -> None:
+            check("task_cleanup", config)
+
+    spec = SandboxEnvironmentSpec("docker", config)
+    task = Task(
+        dataset=[Sample(input="test", sandbox=spec if sample_config else None)],
+        sandbox=None if sample_config else spec,
+        solver=generate(),
+    )
+    monkeypatch.chdir(launch)
+    with sandbox_run_dir_context(str(tmp_path / "outer")):
+        logs = await eval_async(
+            task,
+            model="mockllm/model",
+            sandbox="mock_strict_compose",
+            log_dir=str(tmp_path / "logs"),
+        )
+        assert sandbox_run_dir() == str(tmp_path / "outer")
+    assert logs[0].status == "success", logs[0].error
+    assert seen == [
+        "task_init_environment",
+        "task_init",
+        "sample_init",
+        "sample_cleanup",
+        "task_cleanup",
+    ]
+    assert config.model_dump(exclude_none=True, by_alias=True) == expected
+    assert "x-inspect-project-directory" not in logs[0].model_dump_json()
+    frame = await anyio.to_thread.run_sync(
+        lambda: evals_df(logs, columns=EvalTask, quiet=True)
+    )
+    assert "x-inspect-project-directory" not in str(frame["sandbox_config"].iloc[0])
 
 
 class TestDeserializeSandboxSpecificConfig:

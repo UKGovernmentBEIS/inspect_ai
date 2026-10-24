@@ -85,6 +85,7 @@ from inspect_ai.util._checkpoint._layout import (
     eval_checkpoints_dir_from_config,
 )
 from inspect_ai.util._display import display_type
+from inspect_ai.util._sandbox.context import sandbox_run_dir_context
 from inspect_ai.util._sandbox.environment import (
     SandboxEnvironmentConfigType,
     SandboxEnvironmentSpec,
@@ -117,7 +118,7 @@ from .task.sandbox import (
 )
 from .task.task import Task
 from .task.task_source import TaskSource
-from .task.util import resolve_task_sample_ids, slice_dataset, task_run_dir
+from .task.util import resolve_task_sample_ids, slice_dataset
 
 log = logging.getLogger(__name__)
 
@@ -248,7 +249,7 @@ async def eval_run(
         # create run tasks
         task_run_options: list[TaskRunOptions] = []
         for resolved_task in resolved_tasks:
-            with chdir(task_run_dir(resolved_task.task)):
+            with chdir(resolved_task.run_dir):
                 # tasks can provide their epochs, message_limit,
                 # token_limit, time_limit, and fail_on_error so broadcast these
                 # into the eval config (so long as they aren't overriding a
@@ -471,6 +472,7 @@ async def eval_run(
                         eval_checkpoint=eval_checkpoint,
                         logger=logger,
                         eval_wd=eval_wd,
+                        run_dir=resolved_task.run_dir,
                         config=task_eval_config,
                         sentinel=sentinel_root,
                         solver=eval_solver,
@@ -1150,10 +1152,10 @@ class SandboxManager:
         ] = []
         self._init_lock = anyio.Lock()
         self._lifecycle: ExitStack | None = None
-        # keyed by (task, spec): resolution folds in per-task state (run_dir),
+        # keyed by (task, run_dir, spec): resolution folds in per-task state,
         # so a spec-only key would leak one task's resolution to another
         self._resolved_no_metadata: dict[
-            tuple[Task, SandboxEnvironmentSpec], TaskSandboxEnvironment
+            tuple[Task, str, SandboxEnvironmentSpec], TaskSandboxEnvironment
         ] = {}
 
     def open(self) -> None:
@@ -1219,16 +1221,16 @@ class SandboxManager:
         sandboxenvs: Set[TaskSandboxEnvironment] = set()
         for sample in samples:
             sandboxenv: TaskSandboxEnvironment | None = None
-            cache_key: tuple[Task, SandboxEnvironmentSpec] | None = None
+            cache_key: tuple[Task, str, SandboxEnvironmentSpec] | None = None
             if not sample.metadata:
                 spec = await resolve_sandbox(task.sandbox, sample, task.task.name)
                 if spec is None:
                     continue
-                cache_key = (task.task, spec)
+                cache_key = (task.task, task.run_dir, spec)
                 sandboxenv = self._resolved_no_metadata.get(cache_key)
             if sandboxenv is None:
                 sandboxenv = await resolve_sandbox_for_task_and_sample(
-                    task.sandbox, task.task, sample
+                    task.sandbox, task.task, sample, task.run_dir
                 )
                 if sandboxenv is not None and cache_key is not None:
                     self._resolved_no_metadata[cache_key] = sandboxenv
@@ -1276,7 +1278,11 @@ class SandboxManager:
 
                     # run startup
                     task_init = cast(TaskInit, getattr(sandboxenv_type, "task_init"))
-                    with chdir(sandboxenv.run_dir), environ_vars(dict(sandboxenv.env)):
+                    with (
+                        chdir(sandboxenv.run_dir),
+                        environ_vars(dict(sandboxenv.env)),
+                        sandbox_run_dir_context(sandboxenv.run_dir),
+                    ):
                         await task_init("startup", sandboxenv.sandbox.config)
 
                     # track as started and append cleanup method
@@ -1305,7 +1311,7 @@ class SandboxManager:
                 for cleanup_jobs in self._cleanups:
                     try:
                         cleanup_fn, config, task_run_dir = cleanup_jobs
-                        with chdir(task_run_dir):
+                        with chdir(task_run_dir), sandbox_run_dir_context(task_run_dir):
                             await cleanup_fn("shutdown", config, self._cleanup)
                     except BaseException as ex:
                         log.warning(
