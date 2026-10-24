@@ -59,16 +59,20 @@ def sample_id_filter(
 ) -> SampleIdMatcher:
     """Predicate matching a sample id against `sample_id` patterns.
 
-    Ids are normalised (`normalise_sample_id`) and matched with `fnmatch`,
-    the same semantics `slice_dataset` applies to a dataset. The normalised
-    patterns ride along so callers reporting on the filter (warnings/errors)
-    use exactly what the predicate matches.
+    Globs match the visible string form of an id. Exact selectors retain
+    numeric normalisation, so 5, "5" and "05" match the same ids. Normalised
+    exact selectors and unchanged globs accompany the predicate for diagnostics.
     """
     sample_ids = sample_id if isinstance(sample_id, list) else [sample_id]
     patterns = [normalise_sample_id(id) for id in sample_ids]
 
     def matches(id: str | int | None) -> bool:
-        return any(fnmatch(normalise_sample_id(id), pat) for pat in patterns)
+        return any(
+            fnmatch(str(id), pat)
+            if any(char in pat for char in "*?[")
+            else fnmatch(normalise_sample_id(id), pat)
+            for pat in patterns
+        )
 
     return SampleIdMatcher(matches, patterns)
 
@@ -171,9 +175,9 @@ def slice_dataset(
 
         # validate all the sample ids and warn if they aren't in the dataset
         if not dynamic:
-            all_sample_ids = [normalise_sample_id(sample.id) for sample in dataset]
             for id in matcher.patterns:
-                if id not in all_sample_ids:
+                pattern_matcher = sample_id_filter(id)
+                if not any(pattern_matcher.matches(sample.id) for sample in dataset):
                     warn_once(
                         logger,
                         f"sample id '{id}' not found in dataset '{dataset.name}'.",
