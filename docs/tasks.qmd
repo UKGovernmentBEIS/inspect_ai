@@ -577,7 +577,8 @@ model_roles:
   grader:
     model: openai/gpt-6-luna
     config:
-      reasoning_effort: low
+      reasoning_effort: none
+      temperature: 0.0
 
 generate_config:
   temperature: 0.5

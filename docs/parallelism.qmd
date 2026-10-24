@@ -67,7 +67,7 @@ tasks = [
     for effort in ["low", "medium", "high"]
 ]
 
-eval(tasks, max_tasks=5)
+eval(tasks, max_tasks=3)
 ```
 
 It's critical to reinforce that this will only provide a performance gain if the number of samples is very small. For example, if the dataset contains 10 samples and your `max_connections` is 10, there is no gain to be had by running tasks in parallel.

@@ -260,7 +260,7 @@ Task(
         "grader": {
             "model": "openai/gpt-6-luna",
             "reasoning_effort": "low",
-            "max_tokens": 2048
+            "max_tokens": 8192
         }
     }
 )

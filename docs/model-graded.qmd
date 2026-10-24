@@ -195,7 +195,7 @@ grader = get_model(
 model_graded_qa(model=grader)
 ```
 
-GPT-6 Luna reasons by default, and OpenAI rejects `temperature` while a model reasons, so the example sets `reasoning_effort="none"`. The OpenAI Responses API, which GPT-5 and later models use, does not accept `seed`. Set a `seed` for providers that support one.
+GPT-6 Luna reasons by default, and Inspect drops `temperature` (with a warning) while an OpenAI model reasons, so the example sets `reasoning_effort="none"`. See [Reasoning Effort](reasoning.qmd#reasoning-effort). The OpenAI Responses API, which Inspect uses by default for GPT-5 and later, does not accept `seed`. Set a `seed` for providers that support one.
 
 You can apply the same configuration through the `grader` model role instead of the `model` argument — see [Model Roles](models.qmd#model-roles).
 

@@ -52,7 +52,7 @@ For example:
 
 ``` bash
 inspect eval arc.py --model openai/gpt-6-luna \
-   -M responses_api=true
+   -M service_tier=flex
 ```
 
 Or from Python:
@@ -62,7 +62,7 @@ from inspect_ai import eval
 
 eval(
     "arc.py", model="openai/gpt-6-luna",
-    model_args= { "responses_api": True }
+    model_args= { "service_tier": "flex" }
 )
 ```
 
