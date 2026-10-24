@@ -361,6 +361,11 @@ else
     exit 1
   fi
 fi
+# find_run picked a first attempt, but the run could have been re-run since.
+if [[ "$(gh run view "$RUN_ID" --repo "$UPSTREAM_REPO" --json attempt --jq .attempt)" != 1 ]]; then
+  warn "Run $RUN_ID was re-run; only a first attempt counts. Re-run this wizard to dispatch a new build."
+  exit 1
+fi
 DOWNLOAD_DIR=$(mktemp -d)
 gh run download "$RUN_ID" --repo "$UPSTREAM_REPO" -n "sandbox-tools-v$V" -D "$DOWNLOAD_DIR"
 mkdir -p src/inspect_ai/binaries
