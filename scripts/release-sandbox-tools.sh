@@ -361,7 +361,10 @@ fi
 DOWNLOAD_DIR=$(mktemp -d)
 gh run download "$RUN_ID" --repo "$UPSTREAM_REPO" -n "sandbox-tools-v$V" -D "$DOWNLOAD_DIR"
 mkdir -p src/inspect_ai/binaries
-say "Verifying attestations (built by $BUILD_WORKFLOW from main, in run $RUN_ID):"
+# The run's success is its latest attempt's; bytes from an earlier attempt may
+# have failed validation.
+ATTEMPT=$(gh run view "$RUN_ID" --repo "$UPSTREAM_REPO" --json attempt --jq .attempt)
+say "Verifying attestations (built by $BUILD_WORKFLOW from main, in run $RUN_ID attempt $ATTEMPT):"
 for f in $VARIANTS; do
   name="inspect-sandbox-tools-$f-v$V"
   if [[ ! -f "$DOWNLOAD_DIR/$name" ]]; then
@@ -377,8 +380,8 @@ for f in $VARIANTS; do
     warn "Attestation check failed for $name — do not upload it."
     exit 1
   }
-  if [[ "$INVOCATION" != */actions/runs/"$RUN_ID"/* ]]; then
-    warn "$name was attested by $INVOCATION, not run $RUN_ID — do not upload it."
+  if [[ "$INVOCATION" != */actions/runs/"$RUN_ID"/attempts/"$ATTEMPT" ]]; then
+    warn "$name was attested by $INVOCATION, not run $RUN_ID attempt $ATTEMPT — do not upload it."
     exit 1
   fi
   mv "$DOWNLOAD_DIR/$name" "src/inspect_ai/binaries/$name"

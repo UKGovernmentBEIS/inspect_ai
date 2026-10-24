@@ -709,16 +709,23 @@ jobs:
               echo "::error::${FILENAME} on S3 has no valid attestation from sandbox-tools-build.yml on main. Release binaries must be built in CI (RELEASING.md step 3); bump the version and publish CI-built artifacts."
               exit 1
             }
-            RUN_ID=$(sed -nE 's#.*/actions/runs/([0-9]+)/.*#\1#p' <<< "$INVOCATION")
-            if [ -z "$RUN_ID" ]; then
+            RUN_ID=$(sed -nE 's#.*/actions/runs/([0-9]+)/attempts/[0-9]+$#\1#p' <<< "$INVOCATION")
+            ATTEMPT=$(sed -nE 's#.*/actions/runs/[0-9]+/attempts/([0-9]+)$#\1#p' <<< "$INVOCATION")
+            if [ -z "$RUN_ID" ] || [ -z "$ATTEMPT" ]; then
               echo "::error::Can't read the attesting run from ${FILENAME}'s attestation (invocationId: ${INVOCATION})."
               exit 1
             fi
-            # Validation runs after signing, so only a successful run counts.
+            # Validation runs after signing, so only a successful run counts,
+            # and only its latest attempt: the run's conclusion is that attempt's.
             CONCLUSION=$(gh run view "$RUN_ID" --repo "$REPO" --json conclusion --jq .conclusion)
+            LATEST=$(gh run view "$RUN_ID" --repo "$REPO" --json attempt --jq .attempt)
             TITLE=$(gh run view "$RUN_ID" --repo "$REPO" --json displayTitle --jq .displayTitle)
             if [ "$CONCLUSION" != "success" ]; then
               echo "::error::${FILENAME} comes from run ${RUN_ID}, which did not succeed (${CONCLUSION:-in progress}); its validation may have failed."
+              exit 1
+            fi
+            if [ "$ATTEMPT" != "$LATEST" ]; then
+              echo "::error::${FILENAME} was signed by attempt ${ATTEMPT} of run ${RUN_ID}, but the run's success is from attempt ${LATEST}; attempt ${ATTEMPT}'s validation may have failed."
               exit 1
             fi
             BUILT=${TITLE#Build sandbox tools at }

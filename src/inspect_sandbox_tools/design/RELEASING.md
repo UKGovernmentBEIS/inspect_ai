@@ -106,7 +106,8 @@ fetchable through `refs/pull/N/head`. What `main` gets is the same *files*: the
 branch must be up to date to merge, so the squash commit's tree is the PR's. So
 the guarantee is about build inputs, not commits: `slow-tool-tests-release`
 verifies each published object's attestation, checks the attesting run
-succeeded, reads the built commit from its title, and fails unless the build
+succeeded and that the signing attempt is its latest (an earlier attempt's
+binaries may have failed validation), reads the built commit from its title, and fails unless the build
 inputs at that commit match the PR's. The build inputs are whole directories,
 since the build scripts run with their own directory first on `sys.path`:
 `src/inspect_sandbox_tools/` (except `design/` and `tests/`, which the wheel
@@ -122,6 +123,9 @@ comparison sees only a link's target path while the build reads its content. Lim
 - The check runs after upload. If it fails, the published version can't be
   replaced: bump the version and publish a fresh build. That includes a change
   to a build input landing on `main` between the upload and the merge.
+- A `.gitattributes` file above the build-input directories (none exists
+  today) can change how checkout writes those files, and the comparison
+  doesn't cover it.
 - `slow-tool-tests-release` is not a required check, so a red result blocks
   the merge only because maintainers don't merge on red.
 - A change to the build files alone (a lockfile, a Dockerfile) is not
