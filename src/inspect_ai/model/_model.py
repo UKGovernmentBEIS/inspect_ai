@@ -1025,12 +1025,17 @@ class Model:
 
         prepared = await self._prepare_input(input, tools, tool_choice, config)
 
+        # the uuid of this generate's first ModelEvent, minted before the
+        # sentinel runs so that its generate stages are identified by it
+        generate_id = uuid()
+
         # outside the connection slot, since a monitor may call this model too
         generate_step = None
         if is_agent_generate():
             from inspect_ai._sentinel._dispatch import sentinel_before_generate
 
             generate_step = await sentinel_before_generate(
+                generate_id=generate_id,
                 model=str(self),
                 input=prepared.input,
                 tools=prepared.tools,
@@ -1049,6 +1054,7 @@ class Model:
                 cache=cache,
                 connection=connection,
                 on_stream=on_stream,
+                event_uuid=generate_id,
             )
 
             # update the most recent ModelEvent with the actual start/completed
@@ -1087,7 +1093,7 @@ class Model:
         if generate_step is not None:
             from inspect_ai._sentinel._dispatch import sentinel_after_generate
 
-            await sentinel_after_generate(generate_step, output)
+            await sentinel_after_generate(generate_step, output, generate_id)
 
         return output
 
@@ -1422,6 +1428,7 @@ class Model:
         cache: bool | CachePolicy | NotGiven = NOT_GIVEN,
         connection: ConnectionSlot | None = None,
         on_stream: StreamHandler | None = None,
+        event_uuid: str | None = None,
     ) -> tuple[ModelOutput, BaseModel]:
         from inspect_ai.event._model import ModelEvent
         from inspect_ai.hooks._hooks import (
@@ -1466,6 +1473,13 @@ class Model:
         from inspect_ai._control.pause import wait_generate_dispatch
 
         attempts = ModelAttempts()
+
+        # the first attempt's event takes event_uuid; a retry's mints its own
+        first_uuid = [event_uuid]
+
+        def attempt_uuid() -> str | None:
+            minted, first_uuid[0] = first_uuid[0], None
+            return minted
 
         @retry(
             **model_retry_config(
@@ -1534,6 +1548,7 @@ class Model:
                         cache="read",
                         output=existing,
                         call=None,
+                        event_uuid=attempt_uuid(),
                     )
                     # announce the attempt even though no provider call runs:
                     # a cache hit on a *retry* attempt (a concurrent identical
@@ -1570,6 +1585,7 @@ class Model:
                 tool_choice=tool_choice,
                 config=config,
                 cache=cache_mode,
+                event_uuid=attempt_uuid(),
             )
 
             # create timeout context manager if we have an attempt timeout
@@ -2023,10 +2039,12 @@ class Model:
         cache: Literal["read", "write"] | None,
         output: ModelOutput | None = None,
         call: ModelCall | None = None,
+        event_uuid: str | None = None,
     ) -> tuple[
         Callable[[ModelOutput | Exception, ModelCall | None], None],
         BaseModel,
     ]:
+        from inspect_ai._sentinel._scope import current_origin
         from inspect_ai.event._model import ModelEvent
         from inspect_ai.log._transcript import transcript
 
@@ -2034,9 +2052,11 @@ class Model:
         # installed model-event sink, if any)
         model = str(self)
         event = ModelEvent(
+            uuid=event_uuid,
             model=model,
             role=self.role,
             requested_model=_requested_model.get(),
+            origin=current_origin(),
             input=_snapshot_messages(input),
             tools=tools,
             tool_choice=tool_choice,
