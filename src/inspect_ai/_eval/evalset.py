@@ -3,7 +3,7 @@ import hashlib
 import logging
 import os
 import threading
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple, Set, TypeVar, cast
@@ -97,7 +97,7 @@ from inspect_ai.model._model_config import (
 from inspect_ai.model._model_data.model_data import ModelCost
 from inspect_ai.review._policy import ReviewPolicy, ReviewPolicyConfig
 from inspect_ai.scorer._reducer import reducer_log_name
-from inspect_ai.solver._chain import chain
+from inspect_ai.solver._chain import chain, is_solver_sequence
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import DisplayType, SandboxEnvironmentType
 from inspect_ai.util._checkpoint import CheckpointConfig
@@ -166,7 +166,7 @@ class Log(NamedTuple):
 @dataclass
 class EvalSetArgsInTaskIdentifier:
     config: GenerateConfig
-    solver: Solver | SolverSpec | Agent | list[Solver] | None = None
+    solver: Solver | SolverSpec | Agent | Sequence[Solver] | None = None
     message_limit: int | None = None
     token_limit: int | TokenLimit | None = None
     turn_limit: int | None = None
@@ -257,7 +257,7 @@ def eval_set(
     checkpoint: CheckpointConfig | bool | None = None,
     acp_server: bool | int | str | None = None,
     ctl_server: bool | str | None = None,
-    solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
+    solver: Solver | SolverSpec | Agent | Sequence[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
@@ -2105,13 +2105,13 @@ GENERATE_CONFIG_FIELDS_TO_EXCLUDE = {
 
 
 def resolve_solver(
-    solver: Solver | SolverSpec | Agent | list[Solver] | None,
+    solver: Solver | SolverSpec | Agent | Sequence[Solver] | None,
 ) -> Solver | None:
     # resolve solver
-    if isinstance(solver, list):
-        return chain(solver)
-    elif is_agent(solver):
+    if is_agent(solver):
         return as_solver(solver)
+    elif is_solver_sequence(solver):
+        return chain(solver)
     elif isinstance(solver, SolverSpec):
         return solver_from_spec(solver)
     else:
