@@ -861,6 +861,7 @@ async def messages_from_openai(
                             signature=smuggled_reasoning.signature,
                             redacted=smuggled_reasoning.redacted,
                             summary=smuggled_reasoning.summary,
+                            internal=smuggled_reasoning.internal,
                         ),
                     ]
                     if asst_content:

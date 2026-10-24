@@ -1181,27 +1181,12 @@ def reasoning_from_responses_reasoning(
     else:
         summary_text = None
 
-    if (
-        readable is not None
-        and item.encrypted_content is not None
-        and summary_text is None
-    ):
-        return ContentReasoning(
-            reasoning=item.encrypted_content,
-            summary=readable,
-            signature=item.id,
-            redacted=True,
-        )
     reasoning = readable if readable is not None else (item.encrypted_content or "")
-    # When content, encrypted_content, and summary all exist, stash the
+    # When readable content and encrypted_content both exist, stash the
     # encrypted blob in `internal` so it survives a round-trip back to a
     # ResponseReasoningItem for replay.
     internal: dict[str, JsonValue] | None = None
-    if (
-        readable is not None
-        and summary_text is not None
-        and item.encrypted_content is not None
-    ):
+    if readable is not None and item.encrypted_content is not None:
         internal = {REASONING_ENCRYPTED_CONTENT: item.encrypted_content}
     return ContentReasoning(
         reasoning=reasoning,
@@ -1235,7 +1220,7 @@ def responses_reasoning_from_reasoning(
     encrypted_content: str | None = content.reasoning if content.redacted else None
 
     # If non-redacted, look for an encrypted blob stashed in `internal`
-    # (set when OpenAI returned content + encrypted_content + summary together).
+    # (set when OpenAI returned readable content alongside encrypted_content).
     if not content.redacted and isinstance(content.internal, dict):
         stashed = content.internal.get(REASONING_ENCRYPTED_CONTENT)
         if isinstance(stashed, str):
