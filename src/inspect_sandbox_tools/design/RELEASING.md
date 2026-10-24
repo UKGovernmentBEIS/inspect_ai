@@ -113,7 +113,8 @@ since the build scripts run with their own directory first on `sys.path`:
 never contains), `src/inspect_ai/tool/_sandbox_tools_utils/`
 (except `SHA256SUMS`), and `src/inspect_ai/binaries/` (gitignored, so normally
 empty). Any change there after the build, even to runtime code such as
-`sandbox.py`, needs a new build. Limits:
+`sandbox.py`, needs a new build. Symlinks there fail the gate, since the
+comparison sees only a link's target path while the build reads its content. Limits:
 
 - The commit is tied to the signature through the run title rather than
   signed itself, so the check trusts GitHub's record of which inputs started

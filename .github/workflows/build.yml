@@ -693,6 +693,12 @@ jobs:
             ":(exclude)src/inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS"
             src/inspect_ai/binaries
           )
+          # The diff below compares a symlink's target path, not the target's
+          # content, and the build follows symlinks; so allow none.
+          if git ls-files -s -- "${BUILD_INPUTS[@]}" | awk '$1 == "120000" { print; found = 1 } END { exit !found }'; then
+            echo "::error::Symlinks in the sandbox tools build inputs (above) aren't allowed: the build-input comparison can't see changes to their targets."
+            exit 1
+          fi
           for VARIANT in amd64 amd64-musl arm64 arm64-musl; do
             FILENAME="inspect-sandbox-tools-${VARIANT}-v${VERSION}"
             INVOCATION=$(gh attestation verify "src/inspect_ai/binaries/${FILENAME}" \
