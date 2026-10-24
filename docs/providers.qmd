@@ -16,7 +16,7 @@ To use the [OpenAI](https://platform.openai.com/) provider, install the `openai`
 ``` bash
 pip install openai
 export OPENAI_API_KEY=your-openai-api-key
-inspect eval arc.py --model openai/gpt-4o-mini
+inspect eval arc.py --model openai/gpt-6-luna
 ```
 
 The following environment variables are supported by the OpenAI provider
@@ -51,7 +51,7 @@ The `openai` provider supports the following custom model args (other model args
 For example:
 
 ``` bash
-inspect eval arc.py --model openai/gpt-4o-mini \ 
+inspect eval arc.py --model openai/gpt-6-luna \
    -M responses_api=true
 ```
 
@@ -61,7 +61,7 @@ Or from Python:
 from inspect_ai import eval
 
 eval(
-    "arc.py", model=" openai/gpt-4o-mini", 
+    "arc.py", model="openai/gpt-6-luna",
     model_args= { "responses_api": True }
 )
 ```

@@ -131,7 +131,7 @@ from datetime import timedelta
 from inspect_ai.util import CheckpointConfig, TimeInterval
 
 eval(
-    "arc.py", model="openai/gpt-4o",
+    "arc.py", model="openai/gpt-6-luna",
     checkpoint=CheckpointConfig(
         trigger=TimeInterval(every=timedelta(minutes=15)),
         max_consecutive_failures=3,

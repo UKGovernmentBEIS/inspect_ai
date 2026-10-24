@@ -81,7 +81,7 @@ from inspect_ai.solver import generate, system_message
 def security_guide(
     system="devops.txt",
     grader="expert.txt",
-    grader_model="openai/gpt-4o"
+    grader_model="openai/gpt-6-luna"
 ):
    return Task(
       dataset=example_dataset("security_guide"),
@@ -540,14 +540,14 @@ Individual CLI flags (e.g. `--temperature`) take precedence over values in the c
 Model roles assign models to named purposes within a task (for example, a "grader" model for scoring). They can be set on `Task`, with `task_with()`, with `eval()`, or on the CLI with `--model-role` (see the [override reference](#override-reference) for where each form fits). The most common pattern:
 
 ``` python
-Task(..., model_roles={"grader": "openai/gpt-4o"})
+Task(..., model_roles={"grader": "openai/gpt-6-luna"})
 eval(my_task(), model_roles={"grader": "google/gemini-2.0-flash"})
 ```
 
 Inside a solver or scorer, resolve the role with `get_model()`:
 
 ``` python
-model = get_model(role="grader", default="openai/gpt-4o")
+model = get_model(role="grader", default="openai/gpt-6-luna")
 ```
 
 For inline YAML/JSON examples and role-resolution details, see [Model Roles](models.qmd#model-roles).
@@ -575,9 +575,9 @@ model:
 
 model_roles:
   grader:
-    model: openai/gpt-4o
+    model: openai/gpt-6-luna
     config:
-      temperature: 0.0
+      reasoning_effort: low
 
 generate_config:
   temperature: 0.5
@@ -810,7 +810,7 @@ from itertools import product
 params = {
     "system": ["devops.txt", "researcher.txt"],
     "grader": ["hacker.txt", "expert.txt"],
-    "grader_model": ["openai/gpt-4o", "google/gemini-2.5-pro"],
+    "grader_model": ["openai/gpt-6-luna", "google/gemini-2.5-pro"],
 }
 grid = list(product(*(params[name] for name in params)))
 
