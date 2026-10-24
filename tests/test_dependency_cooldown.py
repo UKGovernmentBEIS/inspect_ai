@@ -194,15 +194,17 @@ def workflow_run_lines() -> list[tuple[str, str]]:
 
 
 # A bare `uv run` or `uv sync` re-resolves an out-of-date uv.lock and installs
-# the result. `uv run --no-project` ignores the project and uv.lock, so it is
-# allowed only without `--with`, which would install unlocked packages.
+# the result. `uv run --no-project` ignores the project and uv.lock. `--with`
+# installs unlocked packages whatever the other flags.
 def test_uv_never_relocks() -> None:
     unlocked = [
         (where, line)
         for where, line in workflow_run_lines()
         if re.search(r"\buv (run|sync)\b", line)
-        and not {"--locked", "--no-sync"} & set(line.split())
-        and not ("--no-project" in line.split() and "--with" not in line)
+        and (
+            "--with" in line
+            or not {"--locked", "--no-sync", "--no-project"} & set(line.split())
+        )
     ]
     assert unlocked == []
 

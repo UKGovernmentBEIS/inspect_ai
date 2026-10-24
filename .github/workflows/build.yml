@@ -176,8 +176,9 @@ jobs:
   # first. The `uv run --locked` steps that follow then sync the project's main
   # and dev dependencies to uv.lock (failing if uv.lock is out of date rather
   # than re-resolving it), so the render and tests themselves run against
-  # uv.lock for those and the latest versions of everything else, such as the
-  # docs toolchain and inspect_sandbox_tools' own dependencies. These jobs
+  # uv.lock for those and the latest versions of anything outside them, such
+  # as the parts of the docs toolchain and of inspect_sandbox_tools' own
+  # dependencies that the project doesn't also depend on. These jobs
   # hold no secrets and don't save the uv cache (save-cache: false), so honest
   # runs don't put unvetted releases into the cache. A malicious package can
   # still write to the cache directly, so jobs that hold credentials restore
