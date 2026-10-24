@@ -991,14 +991,12 @@ async def test_task_logger_stale_flush_compose_prefix_violation_fails_the_finish
     async with AsyncFilesystem() as fs:
         written = await fs.read_file(location)
 
-    # no flush records a prefix yet, so install the one an own-key flush
-    # would: the object was just written from these bytes
+    # the flush recorded the log's own object as the next flush's prefix
     zip_log = recorder.data[recorder._log_file_key(logger.eval)]
     assert zip_log._zip is not None and zip_log._etag is not None
-    async with zip_log._lock:
-        await zip_log._record_compose_prefix(
-            ComposeSource(location, zip_log._etag, zip_log._zip.start_dir)
-        )
+    assert zip_log._compose_prefix == ComposeSource(
+        location, zip_log._etag, zip_log._zip.start_dir
+    )
     temp = zip_log._temp_file
     position = temp.tell()
     offset = zip_log._zip.start_dir // 2
