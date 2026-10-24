@@ -1124,6 +1124,10 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         eval_plan = plan_to_eval_plan(plan, generate_config)
         await logger.log_start(eval_plan)
 
+        # the error and cancel paths below call the end hook only when the
+        # start hook was called, so hooks always see the two as a pair
+        task_start_emitted = False
+
         try:
             # return immediately if we are not running samples
             if not options.run_samples:
@@ -1211,6 +1215,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # start must be paired with a task end, and an abandoned attempt
             # ends with neither a log nor an end hook)
             await emit_task_start(logger, eval_plan)
+            task_start_emitted = True
 
             # publish the interim-scoring capability (the task's scorers and
             # scoring inputs as resolved at eval start) for the control
@@ -2040,6 +2045,8 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         reductions=reductions,
                         error=error,
                     )
+                    if task_start_emitted:
+                        await emit_task_end(logger, eval_log)
                     td.complete(
                         TaskError(
                             logger.samples_completed,
@@ -2056,6 +2063,8 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         results=results,
                         reductions=reductions,
                     )
+                    if task_start_emitted:
+                        await emit_task_end(logger, eval_log)
                     td.complete(TaskCancelled(logger.samples_completed, stats))
 
         except TaskRetryAbandonedError:
@@ -2089,6 +2098,8 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     reductions=reductions,
                     error=error,
                 )
+                if task_start_emitted:
+                    await emit_task_end(logger, eval_log)
 
                 # display it
                 td.complete(TaskError(logger.samples_completed, type, value, traceback))
