@@ -20,7 +20,7 @@ import yaml
 REPO = pathlib.Path(__file__).parents[1]
 WORKFLOWS = REPO / ".github" / "workflows"
 BUILD = WORKFLOWS / "build.yml"
-LOCKED_JOBS = ["mypy", "test"]
+LOCKED_JOBS = ["mypy", "test", "slow-tests", "slow-tool-tests-release"]
 PROVIDERS = REPO / "src" / "inspect_ai" / "model" / "_providers"
 SYNC_MODELS = REPO / "src" / "inspect_ai" / "model" / "_model_data" / "sync_models.py"
 DEPENDENCY_CHECKS = {"pip_dependency_error", "verify_required_version"}
@@ -158,7 +158,13 @@ def test_pinned_uv_versions_meet_required_version() -> None:
         workflow: yaml.safe_load(
             (REPO / ".github" / "workflows" / workflow).read_text()
         )["env"]["UV_VERSION"]
-        for workflow in ["build.yml", "log_viewer.yml", "sync_model_data.yml"]
+        for workflow in [
+            "build.yml",
+            "log_viewer.yml",
+            "suppressions.yml",
+            "suppressions-comment.yml",
+            "sync_model_data.yml",
+        ]
     }
     pre_commit = yaml.safe_load((REPO / ".pre-commit-config.yaml").read_text())
     (pinned["pre-commit"],) = [
@@ -176,6 +182,44 @@ def test_pinned_uv_versions_meet_required_version() -> None:
 def test_locked_jobs_install_from_the_lockfile(name: str) -> None:
     syncs = [line for line in run_lines(build_job(name)) if line.startswith("uv sync")]
     assert syncs == ["uv sync --locked"]
+
+
+def workflow_run_lines() -> list[tuple[str, str]]:
+    return [
+        (f"{path.name}:{name}", line)
+        for path in sorted(WORKFLOWS.glob("*.yml"))
+        for name, job in yaml.safe_load(path.read_text())["jobs"].items()
+        for line in run_lines(job)
+    ]
+
+
+# A bare `uv run` or `uv sync` re-resolves an out-of-date uv.lock and installs
+# the result. `uv run --no-project` ignores the project and uv.lock. `--with`
+# installs unlocked packages whatever the other flags.
+def test_uv_never_relocks() -> None:
+    unlocked = [
+        (where, line)
+        for where, line in workflow_run_lines()
+        if re.search(r"\buv (run|sync)\b", line)
+        and (
+            "--with" in line
+            or not {"--locked", "--no-sync", "--no-project"} & set(line.split())
+        )
+    ]
+    assert unlocked == []
+
+
+# pip installs skip uv.lock, so only the canaries' floating installs and
+# dependency-free installs of local packages may use them.
+def test_pip_installs_are_canaries_or_dependency_free() -> None:
+    unlocked = [
+        (where, line)
+        for where, line in workflow_run_lines()
+        if re.search(r"\bpip3? install\b", line)
+        and "--exclude-newer false" not in line
+        and "--no-deps" not in line.split()
+    ]
+    assert unlocked == []
 
 
 def canary_jobs() -> list[tuple[str, str]]:
