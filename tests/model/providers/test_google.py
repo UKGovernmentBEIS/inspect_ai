@@ -69,6 +69,7 @@ from inspect_ai.model._providers.google import (
     chat_content_to_part,
     completion_choice_from_candidate,
     content,
+    finish_reason_to_stop_reason,
 )
 from inspect_ai.model._providers.util import OAUTH_PLACEHOLDER_API_KEY
 from inspect_ai.model._providers.util.hooks import HttpHooks
@@ -124,6 +125,25 @@ def test_google_block_reason():
     # TODO: comment in once we have an input that triggers the filter
     # assert log.samples
     # assert log.samples[0].output.stop_reason == "content_filter"
+
+
+@pytest.mark.parametrize(
+    "finish_reason",
+    [
+        FinishReason.SAFETY,
+        FinishReason.RECITATION,
+        FinishReason.BLOCKLIST,
+        FinishReason.PROHIBITED_CONTENT,
+        FinishReason.SPII,
+        FinishReason.IMAGE_SAFETY,
+        FinishReason.IMAGE_PROHIBITED_CONTENT,
+        FinishReason.IMAGE_RECITATION,
+    ],
+)
+def test_finish_reason_safety_blocks_are_content_filter(
+    finish_reason: FinishReason,
+) -> None:
+    assert finish_reason_to_stop_reason(finish_reason) == "content_filter"
 
 
 def test_completion_choice_malformed_function_call():
