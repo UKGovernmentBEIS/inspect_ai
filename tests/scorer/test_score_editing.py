@@ -7,6 +7,7 @@ import pytest
 from inspect_ai import Task, eval_async, task
 from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.event._score_edit import ScoreEditEvent
+from inspect_ai.log import read_eval_log_sample_async, write_eval_log_async
 from inspect_ai.log._edit import ProvenanceData
 from inspect_ai.log._metric import recompute_metrics
 from inspect_ai.log._score import edit_score
@@ -803,3 +804,50 @@ async def test_edit_clearing_reason_drops_legacy_unscored_reason_metadata():
     # (Score.model_validate) - the cleared reason must not be resurrected.
     round_tripped = Score.model_validate(edited_score.model_dump(exclude_none=True))
     assert round_tripped.reason is None
+
+
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+@pytest.mark.anyio
+async def test_score_edit_none_fields_round_trip(
+    tmp_path: Path, log_format: str
+) -> None:
+    """Fields an edit sets to None read back as None, not UNCHANGED."""
+    log = (await eval_async(single_metric_task(), model="mockllm/model"))[0]
+    assert log.samples
+    sample_id = log.samples[0].id
+    provenance = ProvenanceData(author="test_editor")
+    edit_score(
+        log,
+        sample_id,
+        "single_metric_scorer",
+        ScoreEdit(value=0, explanation="why", provenance=provenance),
+    )
+    edit_score(
+        log,
+        sample_id,
+        "single_metric_scorer",
+        ScoreEdit(explanation=None, provenance=provenance),
+    )
+    assert log.samples[0].scores
+    edited_history = log.samples[0].scores["single_metric_scorer"].history
+    log_file = (tmp_path / f"log.{log_format}").as_posix()
+    await write_eval_log_async(log, log_file)
+
+    read_sample = await read_eval_log_sample_async(log_file, id=sample_id, epoch=1)
+
+    assert read_sample.scores
+    history = read_sample.scores["single_metric_scorer"].history
+    assert history[0].answer is None
+    assert history[0].explanation is None
+    assert history[2].explanation is None
+    assert history[2].answer == "UNCHANGED"
+    assert history == edited_history
+    edit_events = [e for e in read_sample.events if isinstance(e, ScoreEditEvent)]
+    assert [e.edit for e in edit_events] == history[1:]
+
+
+def test_score_edit_missing_fields_are_unchanged_outside_log_reads() -> None:
+    assert ScoreEdit.model_validate({"value": 1}).answer == "UNCHANGED"
+    assert ScoreEdit(value=1).reason == "UNCHANGED"
+    edit = ScoreEdit.model_validate({"value": 1}, context={"events_by_uuid": {}})
+    assert edit.explanation == "UNCHANGED"
