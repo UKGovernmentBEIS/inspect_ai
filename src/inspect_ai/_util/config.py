@@ -23,7 +23,7 @@ def resolve_args(args: dict[str, Any] | str) -> dict[str, Any]:
 def parse_cli_args(
     args: tuple[str, ...] | list[str] | None,
     force_str: bool = False,
-    preserve_quoted_commas: bool = False,
+    preserve_quoted_commas: bool = True,
 ) -> dict[str, Any]:
     params: dict[str, Any] = dict()
     if args:
