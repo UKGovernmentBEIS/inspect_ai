@@ -48,6 +48,11 @@ from inspect_ai.tool._tools._web_search._web_search import (
 
 from .anthropic_api import inspect_anthropic_api_request
 from .completions import inspect_completions_api_request
+from .context import (
+    CREDENTIAL_HEADER_PREFIXES,
+    CREDENTIAL_HEADERS,
+    client_request_headers_scope,
+)
 from .google_api import inspect_google_api_request
 from .responses import inspect_responses_api_request
 from .util import (
@@ -95,14 +100,8 @@ _BLOCKED_BRIDGE_HEADER_PREFIXES = ("x-stainless-",)
 # the provider SDK or Inspect owns. The credential names cover the provider
 # SDKs Inspect uses: bearer tokens, Anthropic and Foundry keys, Azure OpenAI's
 # `api-key`, Google's `x-goog-api-key`, and AWS SigV4 (`x-amz-` prefix).
-_BLOCKED_CLIENT_HEADERS = frozenset(
+_BLOCKED_CLIENT_HEADERS = CREDENTIAL_HEADERS | frozenset(
     [
-        "authorization",
-        "proxy-authorization",
-        "x-api-key",
-        "api-key",
-        "x-goog-api-key",
-        "cookie",
         "host",
         "content-type",
         "content-length",
@@ -113,7 +112,7 @@ _BLOCKED_CLIENT_HEADERS = frozenset(
         "x-irid",
     ]
 )
-_BLOCKED_CLIENT_HEADER_PREFIXES = ("x-stainless-", "x-amz-")
+_BLOCKED_CLIENT_HEADER_PREFIXES = ("x-stainless-", *CREDENTIAL_HEADER_PREFIXES)
 
 _FORWARD_CLIENT_HEADERS_OPTION = "sandbox_agent_bridge(forward_client_headers=...)"
 
@@ -614,21 +613,23 @@ def init_openai_request_patch() -> None:
                 if stream:
                     raise_stream_error()
 
-                headers = filter_bridge_headers(request_headers(options))
+                client_headers = request_headers(options)
+                headers = filter_bridge_headers(client_headers)
 
                 result: BaseModel
-                if options.url == "/chat/completions":
-                    result = await inspect_completions_api_request(
-                        json_data, headers, config.bridge
-                    )
-                else:
-                    result = await inspect_responses_api_request(
-                        json_data,
-                        headers,
-                        config.web_search,
-                        config.code_execution,
-                        config.bridge,
-                    )
+                with client_request_headers_scope(client_headers):
+                    if options.url == "/chat/completions":
+                        result = await inspect_completions_api_request(
+                            json_data, headers, config.bridge
+                        )
+                    else:
+                        result = await inspect_responses_api_request(
+                            json_data,
+                            headers,
+                            config.web_search,
+                            config.code_execution,
+                            config.bridge,
+                        )
                 return await finalize_bridge_response(
                     self,
                     cast_to,
@@ -751,14 +752,16 @@ def init_anthropic_request_patch() -> None:
                 options = await self._copy_and_prepare(options)
                 json_data = cast(dict[str, Any], options.json_data)
                 is_beta = "beta" in options.url
-                result = await inspect_anthropic_api_request(
-                    json_data,
-                    filter_bridge_headers(request_headers(options)),
-                    config.web_search,
-                    config.code_execution,
-                    config.bridge,
-                    beta=is_beta,
-                )
+                client_headers = request_headers(options)
+                with client_request_headers_scope(client_headers):
+                    result = await inspect_anthropic_api_request(
+                        json_data,
+                        filter_bridge_headers(client_headers),
+                        config.web_search,
+                        config.code_execution,
+                        config.bridge,
+                        beta=is_beta,
+                    )
                 return await finalize_bridge_response(
                     self, cast_to, options, stream, stream_cls, result
                 )
