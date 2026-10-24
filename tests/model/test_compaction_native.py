@@ -3,16 +3,21 @@
 import pytest
 from test_helpers.utils import skip_if_no_anthropic, skip_if_no_openai
 
-from inspect_ai._util.content import ContentData, ContentText
+from inspect_ai._util.content import ContentData, ContentDocument, ContentText
+from inspect_ai._util.registry import RegistryInfo, set_registry_info
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
     ChatMessageSystem,
+    ChatMessageTool,
     ChatMessageUser,
     GenerateConfig,
+    ModelUsage,
 )
 from inspect_ai.model._compaction.native import CompactionNative
-from inspect_ai.model._model import get_model
+from inspect_ai.model._model import Model, ModelAPI, get_model
+from inspect_ai.model._model_call import ModelCall
+from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._providers.anthropic import (
     CONTEXT_MANAGEMENT,
     EDITS,
@@ -21,6 +26,7 @@ from inspect_ai.model._providers.anthropic import (
     _compaction_from_content_data,
     _compaction_from_message,
 )
+from inspect_ai.tool import ToolChoice, ToolInfo
 
 
 def _sample_messages() -> list[ChatMessage]:
@@ -278,3 +284,126 @@ def _long_messages() -> list[ChatMessage]:
     # End with user message so API can respond
     messages.append(ChatMessageUser(content="Please continue.", id="final_user"))
     return messages
+
+
+# --- Model.compact() input preparation ---
+
+
+class _CaptureAPI(ModelAPI):
+    """Records the messages it receives from both generate() and compact()."""
+
+    def __init__(self, *, collapse: bool, replay_documents: bool = True) -> None:
+        super().__init__("model")
+        set_registry_info(self, RegistryInfo(type="modelapi", name="test"))
+        self.generate_input: list[ChatMessage] | None = None
+        self.compact_input: list[ChatMessage] | None = None
+        self._collapse = collapse
+        self._replay_documents = replay_documents
+
+    async def generate(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+        self.generate_input = input
+        return ModelOutput.from_content("model", "ok")
+
+    async def compact(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        config: GenerateConfig,
+        instructions: str | None = None,
+    ) -> tuple[list[ChatMessage], ModelUsage | None]:
+        self.compact_input = input
+        return [ChatMessageUser(content="compacted")], None
+
+    def collapse_user_messages(self) -> bool:
+        return self._collapse
+
+    def collapse_assistant_messages(self) -> bool:
+        return self._collapse
+
+    def tool_result_documents(self) -> bool:
+        return self._replay_documents
+
+
+def _consecutive_messages() -> list[ChatMessage]:
+    return [
+        ChatMessageUser(content="task"),
+        ChatMessageAssistant(content="first"),
+        ChatMessageAssistant(content="second"),
+        ChatMessageUser(content="limit usage"),
+        ChatMessageUser(content="please continue"),
+    ]
+
+
+def _dump(messages: list[ChatMessage] | None) -> list[dict[str, object]]:
+    """Message contents without ids (collapsing and replay mint fresh ids)."""
+    assert messages is not None
+    return [message.model_dump(exclude={"id"}) for message in messages]
+
+
+def _roles(messages: list[ChatMessage] | None) -> list[str]:
+    assert messages is not None
+    return [message.role for message in messages]
+
+
+async def test_compact_collapses_consecutive_messages() -> None:
+    """compact() collapses consecutive messages exactly as generate() does."""
+    api = _CaptureAPI(collapse=True)
+    model = Model(api, GenerateConfig())
+    messages = _consecutive_messages()
+
+    await model.generate(messages)
+    await model.compact(messages, [])
+
+    assert _roles(api.generate_input) == ["user", "assistant", "user"]
+    assert _dump(api.compact_input) == _dump(api.generate_input)
+
+
+async def test_compact_leaves_consecutive_messages_when_api_does_not_collapse() -> None:
+    """Providers that don't ask for collapsing receive the messages unchanged."""
+    api = _CaptureAPI(collapse=False)
+    model = Model(api, GenerateConfig())
+    messages = _consecutive_messages()
+
+    await model.compact(messages, [])
+
+    assert _dump(api.compact_input) == _dump(messages)
+
+
+async def test_compact_does_not_modify_caller_messages() -> None:
+    """Collapsing builds new messages; the caller's history is untouched."""
+    api = _CaptureAPI(collapse=True)
+    model = Model(api, GenerateConfig())
+    messages = _consecutive_messages()
+    snapshot = [message.model_copy(deep=True) for message in messages]
+
+    await model.compact(messages, [])
+
+    assert messages == snapshot
+
+
+async def test_compact_replays_unsupported_tool_result_media() -> None:
+    """compact() moves tool-result media the provider can't take, as generate() does."""
+    document = ContentDocument(document="data:application/pdf;base64,AAAA")
+    messages: list[ChatMessage] = [
+        ChatMessageTool(tool_call_id="doc", content=[document])
+    ]
+    api = _CaptureAPI(collapse=False, replay_documents=False)
+    model = Model(api, GenerateConfig())
+
+    await model.generate(messages)
+    await model.compact(messages, [])
+
+    assert api.compact_input is not None
+    assert _dump(api.compact_input) == _dump(api.generate_input)
+    tool_message = api.compact_input[0]
+    assert isinstance(tool_message.content, list)
+    assert tool_message.content == [
+        ContentText(text="Document content is included below.")
+    ]
+    assert _roles(api.compact_input) == ["tool", "user"]
