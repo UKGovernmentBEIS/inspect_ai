@@ -197,8 +197,7 @@ def read_target(obj: Any | None) -> str | list[str]:
     # programmatically via Sample are unaffected.
     if isinstance(obj, list):
         return [
-            str(item).strip() if isinstance(item, str) else str(item)
-            for item in obj
+            str(item).strip() if isinstance(item, str) else str(item) for item in obj
         ]
     return str(obj).strip() if isinstance(obj, str) else str(obj)
 
