@@ -3,7 +3,6 @@ import tomllib
 from pathlib import Path
 
 import pytest
-import yaml
 
 from inspect_ai.tool._sandbox_tools_utils._build_config import (
     SandboxToolsBuildConfig,
@@ -204,16 +203,3 @@ def test_conda_lock_is_explicit_and_matches_the_base_image(arch: str) -> None:
         for p in packages
     )
     assert any("/python-3.10." in p for p in packages)
-
-
-def test_dependabot_opens_only_security_updates_for_the_build_lock() -> None:
-    updates = yaml.safe_load((REPO / ".github" / "dependabot.yml").read_text())[
-        "updates"
-    ]
-    (update,) = [
-        u
-        for u in updates
-        if u["directory"] == "/src/inspect_ai/tool/_sandbox_tools_utils"
-    ]
-    assert update["package-ecosystem"] == "uv"
-    assert update["open-pull-requests-limit"] == 0

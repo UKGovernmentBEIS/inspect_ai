@@ -178,6 +178,9 @@ def _prepare_build_environment() -> None:
         + ["--no-deps", "--no-build-isolation", "."],
         check=True,
     )
+    # --no-deps skips checking the lock against the package's requirements (e.g.
+    # a raised version floor without a re-lock); fail the build instead.
+    subprocess.run([sys.executable, "-m", "pip", "check"], check=True)
 
 
 if __name__ == "__main__":

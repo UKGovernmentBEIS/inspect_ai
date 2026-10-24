@@ -19,6 +19,7 @@ CREDENTIAL_JOBS = [
     # Builds released binaries; attest signs whatever build uploaded.
     ("sandbox-tools-build.yml", "build"),
     ("sandbox-tools-build.yml", "attest"),
+    ("sandbox-tools-build.yml", "validate"),
 ]
 
 

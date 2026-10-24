@@ -2,8 +2,8 @@
 #
 # Produces a musl-linked onedir tree (tarred by _build_bundled_executable) for
 # injection into musl-based sandboxes (e.g. Alpine). PyInstaller and all Python
-# deps install as musllinux wheels from src/inspect_sandbox_tools/requirements.txt
-# (sdists are refused), so no Rust toolchain is needed.
+# deps install as musllinux wheels from requirements.txt (sdists are refused except
+# jsonrpcserver's, which is pure Python), so no Rust toolchain is needed.
 # Pin to an older Alpine: its musl sets the runtime floor (a newer Alpine builds a
 # CPython that references newer musl symbols, e.g. pwritev2, breaking older targets).
 # alpine3.16 ships musl 1.2.3 (~2022); the bundle runs on that Alpine and newer.

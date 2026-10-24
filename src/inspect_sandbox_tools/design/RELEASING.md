@@ -75,11 +75,15 @@ builds `--onedir` bundles in Docker and tars each bundle tree:
 - `inspect-sandbox-tools-amd64-musl-v{VERSION}` (musl, built via `Dockerfile.pyinstaller.musl`)
 - `inspect-sandbox-tools-arm64-musl-v{VERSION}` (musl)
 
-Each variant is then validated across distros on the same runner (step 4). A
-final job writes `SHA256SUMS`, attests the four artifacts' provenance, and
-publishes them as the run artifact `sandbox-tools-v{VERSION}`. The build jobs
-hold only `contents: read`; only the attest job can sign, and no job restores
-a cache. The run is titled `Build sandbox tools at {SHA}`.
+The build jobs run the build scripts with the runner's stdlib `python3` (no
+project install), so only the build inputs listed below run before signing.
+They hold only `contents: read`, and no job restores a cache. The attest job,
+the only one that can sign, writes `SHA256SUMS`, attests the four artifacts'
+provenance, and publishes them as the run artifact `sandbox-tools-v{VERSION}`.
+Validation (step 4) runs after signing, on each arch's runner; it imports all
+of `inspect_ai`, so it runs where anything it changed would fail attestation
+verification. Release only from a run that succeeded. The run is titled
+`Build sandbox tools at {SHA}`.
 
 Download and verify the artifacts into `src/inspect_ai/binaries/` before
 uploading:
@@ -93,21 +97,31 @@ gh attestation verify src/inspect_ai/binaries/inspect-sandbox-tools-amd64-v{VERS
 ```
 
 The attestation's `runDetails.metadata.invocationId` names the run that signed
-it; check that run's title names the PR head commit. The wizard does both
-checks for all four artifacts.
+it; check that the run succeeded and its title names the PR head commit. The
+wizard does these checks for all four artifacts.
 
 **The built commit may never be on `main`.** PRs are squash-merged, so the
 commit CI built (the PR head) is not an ancestor of the merge commit; it stays
 fetchable through `refs/pull/N/head`. What `main` gets is the same *files*: the
 branch must be up to date to merge, so the squash commit's tree is the PR's. So
 the guarantee is about build inputs, not commits: `slow-tool-tests-release`
-verifies each published object's attestation, reads the built commit from the
-attesting run's title, and fails unless the build inputs (the injectable source
-and the build files in `_sandbox_tools_utils/`) at that commit match the PR's.
-Two limits remain. The commit is tied to the signature through the run title
-rather than signed itself, so the check trusts GitHub's record of which inputs
-started the run. And the check runs after upload: if it fails, the published
-version can't be replaced, so bump the version and publish a fresh build.
+verifies each published object's attestation, checks the attesting run
+succeeded, reads the built commit from its title, and fails unless the build
+inputs (the injectable source and the build files in `_sandbox_tools_utils/`)
+at that commit match the PR's. Limits:
+
+- The commit is tied to the signature through the run title rather than
+  signed itself, so the check trusts GitHub's record of which inputs started
+  the run.
+- The check runs after upload. If it fails, the published version can't be
+  replaced: bump the version and publish a fresh build. That includes a change
+  to a build input landing on `main` between the upload and the merge.
+- `slow-tool-tests-release` is not a required check, so a red result blocks
+  the merge only because maintainers don't merge on red.
+- A change to the build files alone (a lockfile, a Dockerfile) is not
+  "injectable source" to `check-version-bump`, so it can't be released without
+  also changing `src/inspect_sandbox_tools/`. Until that rule covers the build
+  files, ship such a change together with an injectable change.
 
 The same script builds a single variant locally (`--arch {amd64,arm64} [--musl]`,
 `-dev` suffix by default), as the runtime's local-build fallback and the
@@ -120,8 +134,11 @@ PyPI or conda-forge serve that day. Everything below lives in
 `src/inspect_ai/tool/_sandbox_tools_utils/`:
 
 - **Base images** are pinned by digest in `Dockerfile.pyinstaller` and
-  `Dockerfile.pyinstaller.musl`. `apt-get`/`apk` build tools (binutils, the C
-  toolchain) are not pinned; none of them is bundled.
+  `Dockerfile.pyinstaller.musl`. The `apt-get`/`apk` build tools are not
+  pinned. None of them is bundled, but binutils' `strip` rewrites the bundled
+  libraries (PyInstaller runs with `--strip`), so the glibc builder's binutils
+  version can affect the bytes. Alpine 3.16's package repository no longer
+  changes.
 - **The glibc builder's CPython** and the runtime libraries bundled with it
   (openssl, libffi, ...) come from `conda-{amd64,arm64}.lock`, explicit conda
   lockfiles with a sha256 per package. Dependabot does not support conda;
@@ -130,9 +147,12 @@ PyPI or conda-forge serve that day. Everything below lives in
   lists any package published in the last 7 days for review.
 - **Python packages** (the package's dependencies plus PyInstaller and the
   build backend) come from `requirements.txt`, installed with
-  `--require-hashes --no-deps`. `jsonrpcserver` publishes no wheel and builds
-  from its hash-checked sdist. Dependabot opens security updates only for this
-  file; take routine updates when preparing a release:
+  `--require-hashes --no-deps`, followed by `pip check`. `jsonrpcserver`
+  publishes no wheel and builds from its hash-checked sdist (on musl, through
+  the base image's pip 23 and its legacy `setup.py install` path). The
+  binaries are released rarely, so there is no Dependabot entry for this file:
+  GitHub's security alerts flag vulnerable pins in it, and updates are made by
+  hand, as a fix for an alert or when preparing a release:
 
   ```bash
   cd src/inspect_ai/tool/_sandbox_tools_utils
@@ -143,7 +163,7 @@ PyPI or conda-forge serve that day. Everything below lives in
 
 ### 4. Validate across distros
 
-CI runs this on each build runner:
+CI runs this on each arch's runner, after signing:
 
 ```bash
 python -m inspect_ai.tool._sandbox_tools_utils.validate_distros

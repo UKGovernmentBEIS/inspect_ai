@@ -296,13 +296,16 @@ if [[ "$DRY_RUN" == 0 ]] && ! command -v aws >/dev/null 2>&1; then
 fi
 
 HEAD_SHA=$(git rev-parse HEAD)
-if [[ "$HEAD_SHA" != "$PR_HEAD" ]]; then
+if [[ -z "$PR_HEAD" && "$DRY_RUN" == 1 ]]; then
+  warn "No open PR for this branch — dry run builds this checkout's HEAD; push it first."
+elif [[ "$HEAD_SHA" != "$PR_HEAD" ]]; then
   warn "This checkout is at $HEAD_SHA but PR #$PR_NUMBER's head is ${PR_HEAD:-unknown}."
   warn "Pull or push so they match: CI builds the PR's head commit, and the"
   warn "digests are committed on top of it. Then re-run."
   exit 1
+else
+  say "✓ Checkout matches PR #$PR_NUMBER's head ($HEAD_SHA)."
 fi
-say "✓ Checkout matches PR #$PR_NUMBER's head ($HEAD_SHA)."
 
 note "Fetching origin/main to check the injectable version..."
 git fetch --quiet origin main

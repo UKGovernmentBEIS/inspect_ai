@@ -667,8 +667,9 @@ jobs:
           done
 
       # The published bytes must come from a sandbox-tools-build.yml run on
-      # main (its attestation names the run, and the run title names the
-      # commit it built), and that commit's build inputs must match this PR's.
+      # main that succeeded (its attestation names the run, and the run title
+      # names the commit it built), and that commit's build inputs must match
+      # this PR's.
       # The built commit itself needn't land on main (squash merges), so its
       # build inputs are compared instead. A failure here comes after upload:
       # bump the version and publish fresh artifacts rather than re-uploading.
@@ -706,8 +707,18 @@ jobs:
               echo "::error::${FILENAME} on S3 has no valid attestation from sandbox-tools-build.yml on main. Release binaries must be built in CI (RELEASING.md step 3); bump the version and publish CI-built artifacts."
               exit 1
             }
-            RUN_ID=$(sed -E 's#.*/actions/runs/([0-9]+)/.*#\1#' <<< "$INVOCATION")
-            TITLE=$(gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --json displayTitle --jq .displayTitle)
+            RUN_ID=$(sed -nE 's#.*/actions/runs/([0-9]+)/.*#\1#p' <<< "$INVOCATION")
+            if [ -z "$RUN_ID" ]; then
+              echo "::error::Can't read the attesting run from ${FILENAME}'s attestation (invocationId: ${INVOCATION})."
+              exit 1
+            fi
+            # Validation runs after signing, so only a successful run counts.
+            read -r CONCLUSION TITLE < <(gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" \
+              --json conclusion,displayTitle --jq '"\(.conclusion) \(.displayTitle)"')
+            if [ "$CONCLUSION" != "success" ]; then
+              echo "::error::${FILENAME} comes from run ${RUN_ID}, which did not succeed (${CONCLUSION:-in progress}); its validation may have failed."
+              exit 1
+            fi
             BUILT=${TITLE#Build sandbox tools at }
             if ! [[ "$BUILT" =~ ^[0-9a-f]{40}$ ]]; then
               echo "::error::Can't read the built commit from run ${RUN_ID} (title: ${TITLE})."
