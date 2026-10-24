@@ -584,7 +584,7 @@ jobs:
         run: uv cache prune --ci
 
   # Release gate: runs only when the version bumped to N+1. Verifies the
-  # new v{N+1} artifact is published to S3 (fails fast with upload_to_s3.py
+  # new v{N+1} artifact is published to S3 (fails fast with a release-wizard
   # hint if not), then re-runs the slow tests against it. Maintainer reruns
   # from the Actions UI after uploading. Runs in parallel with
   # slow-tool-tests-dev: it consumes only the published S3 artifacts,
@@ -594,6 +594,11 @@ jobs:
     if: needs.detect-slow.outputs.tools_changed == 'true' && needs.check-version-bump.outputs.version_correctly_bumped == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    # attestations/actions: read the build provenance and its run's title.
+    permissions:
+      contents: read
+      attestations: read
+      actions: read
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -625,7 +630,7 @@ jobs:
           # exit: `exit 1` in the awk body jumps to END, whose own exit would
           # override the status.
           if ! awk -v v="v${VERSION}" 'NF { n++; if ($2 !~ ("-" v "$")) bad = 1 } END { exit (bad || n != 4) }' "$SUMS"; then
-            echo "::error::${SUMS} is not updated for v${VERSION}. Build+upload the artifacts (upload_to_s3.py rewrites it) and commit it in this PR."
+            echo "::error::${SUMS} is not updated for v${VERSION}. Publish the CI-built artifacts with scripts/release-sandbox-tools.sh, which commits it (src/inspect_sandbox_tools/design/RELEASING.md)."
             exit 1
           fi
           # All four artifacts are fetched and digest-checked, not just the amd64
@@ -643,7 +648,7 @@ jobs:
             # Keep today's explicit not-yet-uploaded error (a bare curl -f 404 is
             # terse and carries no ::error annotation).
             if ! curl -fsI "$URL" >/dev/null; then
-              echo "::error::Published binary ${FILENAME} not found at ${URL}. Run: python src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py ${VERSION}, commit the rewritten SHA256SUMS, then rerun this job."
+              echo "::error::Published binary ${FILENAME} not found at ${URL}. Publish the CI-built artifacts with scripts/release-sandbox-tools.sh (src/inspect_sandbox_tools/design/RELEASING.md), then rerun this job."
               exit 1
             fi
             curl -fSL -o "src/inspect_ai/binaries/${FILENAME}" "$URL"
@@ -659,6 +664,83 @@ jobs:
               exit 1
             }
             chmod +x "src/inspect_ai/binaries/${FILENAME}"
+          done
+
+      # The published bytes must come from a sandbox-tools-build.yml run on
+      # main that succeeded (its attestation names the run, and the run title
+      # names the commit it built), and that commit's build inputs must match
+      # this PR's.
+      # The built commit itself needn't land on main (squash merges), so its
+      # build inputs are compared instead. A failure here comes after upload:
+      # bump the version and publish fresh artifacts rather than re-uploading.
+      - name: Check published binaries were built in CI from this PR's code
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(tr -d '[:space:]' < src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt)
+          # Attestations exist only on the upstream repo (also when this runs in a fork).
+          REPO=UKGovernmentBEIS/inspect_ai
+          # Whole directories, not a file list: the build scripts run with their
+          # own directory first on sys.path, so any file there can change the
+          # bytes. binaries/ is gitignored, but a force-added file there would be
+          # uploaded with the build's output. design/ and tests/ are outside
+          # the package's src/, so the wheel never contains them.
+          BUILD_INPUTS=(
+            src/inspect_sandbox_tools
+            ":(exclude)src/inspect_sandbox_tools/design"
+            ":(exclude)src/inspect_sandbox_tools/tests"
+            src/inspect_ai/tool/_sandbox_tools_utils
+            ":(exclude)src/inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS"
+            src/inspect_ai/binaries
+          )
+          # The diff below compares a symlink's target path, not the target's
+          # content, and the build follows symlinks; so allow none.
+          if git ls-files -s -- "${BUILD_INPUTS[@]}" | awk '$1 == "120000" { print; found = 1 } END { exit !found }'; then
+            echo "::error::Symlinks in the sandbox tools build inputs (above) aren't allowed: the build-input comparison can't see changes to their targets."
+            exit 1
+          fi
+          for VARIANT in amd64 amd64-musl arm64 arm64-musl; do
+            FILENAME="inspect-sandbox-tools-${VARIANT}-v${VERSION}"
+            INVOCATION=$(gh attestation verify "src/inspect_ai/binaries/${FILENAME}" \
+              --repo "$REPO" \
+              --signer-workflow "$REPO/.github/workflows/sandbox-tools-build.yml" \
+              --source-ref refs/heads/main --format json \
+              --jq '.[0].verificationResult.statement.predicate.runDetails.metadata.invocationId') || {
+              echo "::error::${FILENAME} on S3 has no valid attestation from sandbox-tools-build.yml on main. Release binaries must be built in CI (RELEASING.md step 3); bump the version and publish CI-built artifacts."
+              exit 1
+            }
+            # Only a first attempt counts: a re-run's conclusion can come from a
+            # different attempt than the one that signed these bytes.
+            RUN_ID=$(sed -nE 's#.*/actions/runs/([0-9]+)/attempts/1$#\1#p' <<< "$INVOCATION")
+            if [ -z "$RUN_ID" ]; then
+              echo "::error::${FILENAME} wasn't signed by the first attempt of a run (invocationId: ${INVOCATION}). Publish artifacts from a fresh run."
+              exit 1
+            fi
+            # Validation runs after signing, so only a successful run counts.
+            CONCLUSION=$(gh run view "$RUN_ID" --repo "$REPO" --json conclusion --jq .conclusion)
+            LATEST=$(gh run view "$RUN_ID" --repo "$REPO" --json attempt --jq .attempt)
+            TITLE=$(gh run view "$RUN_ID" --repo "$REPO" --json displayTitle --jq .displayTitle)
+            if [ "$CONCLUSION" != "success" ]; then
+              echo "::error::${FILENAME} comes from run ${RUN_ID}, which did not succeed (${CONCLUSION:-in progress}); its validation may have failed."
+              exit 1
+            fi
+            if [ "$LATEST" != "1" ]; then
+              echo "::error::Run ${RUN_ID}, which built ${FILENAME}, was re-run (attempt ${LATEST}); only a run that succeeded on its first attempt counts. Publish artifacts from a fresh run."
+              exit 1
+            fi
+            BUILT=${TITLE#Build sandbox tools at }
+            if ! [[ "$BUILT" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "::error::Can't read the built commit from run ${RUN_ID} (title: ${TITLE})."
+              exit 1
+            fi
+            git fetch --quiet --no-tags origin "$BUILT"
+            if ! git diff --quiet "$BUILT" HEAD -- "${BUILD_INPUTS[@]}"; then
+              echo "::error::${FILENAME} was built from ${BUILT} (run ${RUN_ID}), whose build inputs differ from this PR:"
+              git diff --stat "$BUILT" HEAD -- "${BUILD_INPUTS[@]}"
+              echo "::error::Bump the version and publish artifacts built at the PR's current head."
+              exit 1
+            fi
+            echo "${FILENAME}: built in run ${RUN_ID} from ${BUILT}; build inputs match"
           done
 
       - name: Run slow tool tests against published artifact
