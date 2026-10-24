@@ -332,10 +332,12 @@ say "$BUILD_WORKFLOW builds and validates each variant on its own arch's runner"
 say "at $HEAD_SHA, then attests the four artifacts."
 # A finished run for this commit is reused, so re-runs skip the build.
 RUN_TITLE="Build sandbox tools at $HEAD_SHA"
+# Only first attempts count: a re-run can mix bytes signed by one attempt with a
+# result from another. To retry a failed build, dispatch a new run.
 find_run() {
   gh run list --repo "$UPSTREAM_REPO" --workflow "$BUILD_WORKFLOW" --branch main \
-    --event workflow_dispatch --limit 50 --json databaseId,displayTitle,conclusion \
-    --jq "[.[] | select(.displayTitle == \"$RUN_TITLE\") $1][0].databaseId // empty"
+    --event workflow_dispatch --limit 50 --json databaseId,displayTitle,conclusion,attempt \
+    --jq "[.[] | select(.displayTitle == \"$RUN_TITLE\" and .attempt == 1) $1][0].databaseId // empty"
 }
 RUN_ID=$(find_run '| select(.conclusion == "success")')
 if [[ -n "$RUN_ID" ]]; then
@@ -354,17 +356,15 @@ else
     exit 1
   fi
   if ! gh run watch "$RUN_ID" --repo "$UPSTREAM_REPO" --exit-status; then
-    warn "CI build failed — see run $RUN_ID. Fix the PR, then re-run."
+    warn "CI build failed — see run $RUN_ID. Fix the PR, or for a flake just re-run"
+    warn "this wizard: it dispatches a new build. GitHub's re-run buttons don't help."
     exit 1
   fi
 fi
 DOWNLOAD_DIR=$(mktemp -d)
 gh run download "$RUN_ID" --repo "$UPSTREAM_REPO" -n "sandbox-tools-v$V" -D "$DOWNLOAD_DIR"
 mkdir -p src/inspect_ai/binaries
-# The run's success is its latest attempt's; bytes from an earlier attempt may
-# have failed validation.
-ATTEMPT=$(gh run view "$RUN_ID" --repo "$UPSTREAM_REPO" --json attempt --jq .attempt)
-say "Verifying attestations (built by $BUILD_WORKFLOW from main, in run $RUN_ID attempt $ATTEMPT):"
+say "Verifying attestations (built by $BUILD_WORKFLOW from main, in run $RUN_ID):"
 for f in $VARIANTS; do
   name="inspect-sandbox-tools-$f-v$V"
   if [[ ! -f "$DOWNLOAD_DIR/$name" ]]; then
@@ -380,8 +380,8 @@ for f in $VARIANTS; do
     warn "Attestation check failed for $name — do not upload it."
     exit 1
   }
-  if [[ "$INVOCATION" != */actions/runs/"$RUN_ID"/attempts/"$ATTEMPT" ]]; then
-    warn "$name was attested by $INVOCATION, not run $RUN_ID attempt $ATTEMPT — do not upload it."
+  if [[ "$INVOCATION" != */actions/runs/"$RUN_ID"/attempts/1 ]]; then
+    warn "$name was attested by $INVOCATION, not run $RUN_ID attempt 1 — do not upload it."
     exit 1
   fi
   mv "$DOWNLOAD_DIR/$name" "src/inspect_ai/binaries/$name"

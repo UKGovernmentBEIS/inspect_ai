@@ -68,7 +68,9 @@ Running earlier wastes builds if review rounds change the injectable source.
    the rewritten `SHA256SUMS`, and verifies the published bytes — don't redo
    those steps around it. It also resumes: a successful build run for the
    same commit is reused, so stopping and re-running (or dry-run then real
-   run) is cheap.
+   run) is cheap. If the build fails on a flake, re-run the wizard, which
+   dispatches a new build; don't use GitHub's re-run buttons, since only a
+   run that succeeded on its first attempt counts.
 4. **Confirm CI goes green.** The digest push triggers a fresh run; watch
    `slow-tool-tests-release` pass. If the wizard ended without pushing the
    digests (its closing summary lists the commit as still to do), commit the
