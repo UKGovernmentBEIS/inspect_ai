@@ -61,8 +61,8 @@ def test_openai_responses_tool_image_result():
 
 @skip_if_no_openai
 @flaky_retry(max_retries=3)
-def test_openai_o4_mini_tool_image_result():
-    check_tool_image_result(get_model("openai/o4-mini"))
+def test_openai_o3_tool_image_result():
+    check_tool_image_result(get_model("openai/o3"))
 
 
 @skip_if_no_google
