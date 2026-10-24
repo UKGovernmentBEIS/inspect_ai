@@ -8,7 +8,7 @@ llms-description: Getting the most out of evaluation logs for developing, debugg
 Every time you use `inspect eval` or call the `eval()` function, an evaluation log is written for each task evaluated. By default, logs are written to the `./logs` sub-directory of the current working directory (we'll cover how to change this below). You will find a link to the log at the bottom of the results for each task:
 
 ``` bash
-$ inspect eval security_guide.py --model openai/gpt-4
+$ inspect eval security_guide.py --model openai/gpt-4o
 ```
 
 ![](images/eval-log.png){fig-alt="The Inspect task results displayed in the terminal. A link to the evaluation log is at the bottom of the results display."}
@@ -42,13 +42,13 @@ This article will focus primarily on configuring Inspect's logging behavior (loc
 By default, logs are written to the `./logs` sub-directory of the current working directory You can change where logs are written using eval options or an environment variable:
 
 ``` bash
-$ inspect eval popularity.py --model openai/gpt-4 --log-dir ./experiment-log
+$ inspect eval popularity.py --model openai/gpt-4o --log-dir ./experiment-log
 ```
 
 Or:
 
 ``` python
-log = eval(popularity, model="openai/gpt-4", log_dir = "./experiment-log")
+log = eval(popularity, model="openai/gpt-4o", log_dir = "./experiment-log")
 ```
 
 Note that in addition to logging the `eval()` function also returns an `EvalLog` object for programmatic access to the details of the evaluation. We'll talk more about how to use this object below.
@@ -208,7 +208,7 @@ The `EvalLog` object returned from `eval()` provides programmatic interface to t
 Before analysing results from a log, you should always check their status to ensure they represent a successful run:
 
 ``` python
-log = eval(popularity, model="openai/gpt-4")
+log = eval(popularity, model="openai/gpt-4o")
 if log.status == "success":
    ...
 ```
@@ -268,8 +268,8 @@ A common workflow is to define an `INSPECT_LOG_DIR` for running a set of evaluat
 os.environ["INSPECT_LOG_DIR"] = "./experiment-logs"
 
 # do a bunch of evals
-eval(popularity, model="openai/gpt-4")
-eval(security_guide, model="openai/gpt-4")
+eval(popularity, model="openai/gpt-4o")
+eval(security_guide, model="openai/gpt-4o")
 
 # analyze the results in the logs
 logs = list_eval_logs()
@@ -538,7 +538,7 @@ HF_TOKEN=hf_...
 You can then run evaluations and view logs directly from the bucket:
 
 ``` bash
-inspect eval popularity.py --model openai/gpt-4
+inspect eval popularity.py --model openai/gpt-4o
 inspect view --log-dir hf://buckets/my-org/inspect-logs/runs
 ```
 
@@ -593,7 +593,7 @@ Also set `AZURE_STORAGE_ANON=false` here—leaving it empty reverts to anonymous
 **Running Evaluations & Viewer**
 
 ```
-inspect eval popularity.py --model openai/gpt-4
+inspect eval popularity.py --model openai/gpt-4o
 inspect view  # streams directly from Azure
 ```
 
