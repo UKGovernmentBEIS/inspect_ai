@@ -277,12 +277,10 @@ read -r PR_NUMBER REVIEW_DECISION PR_HEAD < <(gh pr list --repo "$UPSTREAM_REPO"
   --jq '"\(.[0].number // "") \(.[0].reviewDecision // "") \(.[0].headRefOid // "")"') || true
 if [[ "$REVIEW_DECISION" == "APPROVED" ]]; then
   say "✓ PR #$PR_NUMBER is approved."
-elif [[ "$DRY_RUN" == 1 ]]; then
-  warn "PR IS NOT APPROVED (review decision: ${REVIEW_DECISION:-unknown — no open PR found for this branch})."
-  warn "Continuing because this is a dry run — a real release requires an approved PR."
 else
   warn "PR is not approved (review decision: ${REVIEW_DECISION:-unknown — no open PR found for this branch})."
-  warn "Get the PR approved, then re-run."
+  warn "Get the PR approved, then re-run. (Dry runs too: they dispatch the build on"
+  warn "main, which shouldn't run unreviewed code.)"
   exit 1
 fi
 
@@ -296,16 +294,13 @@ if [[ "$DRY_RUN" == 0 ]] && ! command -v aws >/dev/null 2>&1; then
 fi
 
 HEAD_SHA=$(git rev-parse HEAD)
-if [[ -z "$PR_HEAD" && "$DRY_RUN" == 1 ]]; then
-  warn "No open PR for this branch — dry run builds this checkout's HEAD; push it first."
-elif [[ "$HEAD_SHA" != "$PR_HEAD" ]]; then
+if [[ "$HEAD_SHA" != "$PR_HEAD" ]]; then
   warn "This checkout is at $HEAD_SHA but PR #$PR_NUMBER's head is ${PR_HEAD:-unknown}."
   warn "Pull or push so they match: CI builds the PR's head commit, and the"
   warn "digests are committed on top of it. Then re-run."
   exit 1
-else
-  say "✓ Checkout matches PR #$PR_NUMBER's head ($HEAD_SHA)."
 fi
+say "✓ Checkout matches PR #$PR_NUMBER's head ($HEAD_SHA)."
 
 note "Fetching origin/main to check the injectable version..."
 git fetch --quiet origin main

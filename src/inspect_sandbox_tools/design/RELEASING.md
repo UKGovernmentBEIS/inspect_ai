@@ -33,7 +33,7 @@ branch, which needs "Allow edits by maintainers" (on by default).
 
 Steps 3–6 are scripted as an interactive wizard. Run it from a checkout of
 the PR's head branch (`gh pr checkout <N>` for a fork PR) once the PR is
-approved (`--dry-run` gets the CI build and checks it without publishing;
+approved, also for a dry run (`--dry-run` gets the CI build and checks it without publishing;
 `--auto` answers every prompt with its safe default, for agents/unattended
 runs):
 
@@ -107,8 +107,12 @@ branch must be up to date to merge, so the squash commit's tree is the PR's. So
 the guarantee is about build inputs, not commits: `slow-tool-tests-release`
 verifies each published object's attestation, checks the attesting run
 succeeded, reads the built commit from its title, and fails unless the build
-inputs (the injectable source and the build files in `_sandbox_tools_utils/`)
-at that commit match the PR's. Limits:
+inputs at that commit match the PR's. The build inputs are whole directories,
+since the build scripts run with their own directory first on `sys.path`:
+`src/inspect_sandbox_tools/`, `src/inspect_ai/tool/_sandbox_tools_utils/`
+(except `SHA256SUMS`), and `src/inspect_ai/binaries/` (gitignored, so normally
+empty). Any change there after the build, even to runtime code such as
+`sandbox.py`, needs a new build. Limits:
 
 - The commit is tied to the signature through the run title rather than
   signed itself, so the check trusts GitHub's record of which inputs started

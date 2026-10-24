@@ -584,7 +584,7 @@ jobs:
         run: uv cache prune --ci
 
   # Release gate: runs only when the version bumped to N+1. Verifies the
-  # new v{N+1} artifact is published to S3 (fails fast with upload_to_s3.py
+  # new v{N+1} artifact is published to S3 (fails fast with a release-wizard
   # hint if not), then re-runs the slow tests against it. Maintainer reruns
   # from the Actions UI after uploading. Runs in parallel with
   # slow-tool-tests-dev: it consumes only the published S3 artifacts,
@@ -630,7 +630,7 @@ jobs:
           # exit: `exit 1` in the awk body jumps to END, whose own exit would
           # override the status.
           if ! awk -v v="v${VERSION}" 'NF { n++; if ($2 !~ ("-" v "$")) bad = 1 } END { exit (bad || n != 4) }' "$SUMS"; then
-            echo "::error::${SUMS} is not updated for v${VERSION}. Build+upload the artifacts (upload_to_s3.py rewrites it) and commit it in this PR."
+            echo "::error::${SUMS} is not updated for v${VERSION}. Publish the CI-built artifacts with scripts/release-sandbox-tools.sh, which commits it (src/inspect_sandbox_tools/design/RELEASING.md)."
             exit 1
           fi
           # All four artifacts are fetched and digest-checked, not just the amd64
@@ -648,7 +648,7 @@ jobs:
             # Keep today's explicit not-yet-uploaded error (a bare curl -f 404 is
             # terse and carries no ::error annotation).
             if ! curl -fsI "$URL" >/dev/null; then
-              echo "::error::Published binary ${FILENAME} not found at ${URL}. Run: python src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py ${VERSION}, commit the rewritten SHA256SUMS, then rerun this job."
+              echo "::error::Published binary ${FILENAME} not found at ${URL}. Publish the CI-built artifacts with scripts/release-sandbox-tools.sh (src/inspect_sandbox_tools/design/RELEASING.md), then rerun this job."
               exit 1
             fi
             curl -fSL -o "src/inspect_ai/binaries/${FILENAME}" "$URL"
@@ -678,30 +678,23 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION=$(tr -d '[:space:]' < src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt)
-          UTILS=src/inspect_ai/tool/_sandbox_tools_utils
-          # Keep the injectable part in sync with detect-slow's injectable_src
-          # filter; the rest is what build_within_container.py reads.
+          # Attestations exist only on the upstream repo (also when this runs in a fork).
+          REPO=UKGovernmentBEIS/inspect_ai
+          # Whole directories, not a file list: the build scripts run with their
+          # own directory first on sys.path, so any file there can change the
+          # bytes. binaries/ is gitignored, but a force-added file there would be
+          # uploaded with the build's output.
           BUILD_INPUTS=(
             src/inspect_sandbox_tools
-            ":(exclude)src/inspect_sandbox_tools/tests"
-            ":(exclude,glob)src/inspect_sandbox_tools/**/*.md"
-            ":(exclude)src/inspect_sandbox_tools/design"
-            "$UTILS/sandbox_tools_version.txt"
-            "$UTILS/Dockerfile.pyinstaller"
-            "$UTILS/Dockerfile.pyinstaller.musl"
-            "$UTILS/requirements.txt"
-            "$UTILS/conda-amd64.lock"
-            "$UTILS/conda-arm64.lock"
-            "$UTILS/build_within_container.py"
-            "$UTILS/build_executable.py"
-            "$UTILS/_build_bundled_executable.py"
-            "$UTILS/_build_config.py"
+            src/inspect_ai/tool/_sandbox_tools_utils
+            ":(exclude)src/inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS"
+            src/inspect_ai/binaries
           )
           for VARIANT in amd64 amd64-musl arm64 arm64-musl; do
             FILENAME="inspect-sandbox-tools-${VARIANT}-v${VERSION}"
             INVOCATION=$(gh attestation verify "src/inspect_ai/binaries/${FILENAME}" \
-              --repo "$GITHUB_REPOSITORY" \
-              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/sandbox-tools-build.yml" \
+              --repo "$REPO" \
+              --signer-workflow "$REPO/.github/workflows/sandbox-tools-build.yml" \
               --source-ref refs/heads/main --format json \
               --jq '.[0].verificationResult.statement.predicate.runDetails.metadata.invocationId') || {
               echo "::error::${FILENAME} on S3 has no valid attestation from sandbox-tools-build.yml on main. Release binaries must be built in CI (RELEASING.md step 3); bump the version and publish CI-built artifacts."
@@ -713,8 +706,8 @@ jobs:
               exit 1
             fi
             # Validation runs after signing, so only a successful run counts.
-            read -r CONCLUSION TITLE < <(gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" \
-              --json conclusion,displayTitle --jq '"\(.conclusion) \(.displayTitle)"')
+            CONCLUSION=$(gh run view "$RUN_ID" --repo "$REPO" --json conclusion --jq .conclusion)
+            TITLE=$(gh run view "$RUN_ID" --repo "$REPO" --json displayTitle --jq .displayTitle)
             if [ "$CONCLUSION" != "success" ]; then
               echo "::error::${FILENAME} comes from run ${RUN_ID}, which did not succeed (${CONCLUSION:-in progress}); its validation may have failed."
               exit 1
