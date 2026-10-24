@@ -109,8 +109,8 @@ verifies each published object's attestation, checks the attesting run
 succeeded, reads the built commit from its title, and fails unless the build
 inputs at that commit match the PR's. The build inputs are whole directories,
 since the build scripts run with their own directory first on `sys.path`:
-`src/inspect_sandbox_tools/` (except `design/`, `tests/` and its top-level
-`*.md`, which the wheel never contains), `src/inspect_ai/tool/_sandbox_tools_utils/`
+`src/inspect_sandbox_tools/` (except `design/` and `tests/`, which the wheel
+never contains), `src/inspect_ai/tool/_sandbox_tools_utils/`
 (except `SHA256SUMS`), and `src/inspect_ai/binaries/` (gitignored, so normally
 empty). Any change there after the build, even to runtime code such as
 `sandbox.py`, needs a new build. Limits:
