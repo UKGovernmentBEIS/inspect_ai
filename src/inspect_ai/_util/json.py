@@ -114,6 +114,26 @@ def is_ijson_int_overflow_error(
     return "integer overflow" in str(ex).lower()
 
 
+def is_ijson_float_overflow_error(
+    ex: "ValueError | IncompleteJSONError | UnexpectedSymbol",
+) -> bool:
+    """Check if an ijson exception is due to a number too large for a double.
+
+    The ijson C backend (yajl2_c) with use_float=True raises "numeric (floating
+    point) overflow" for literals like 1e309, which are valid JSON and parse to
+    inf with pydantic. This helper identifies these errors so callers can parse
+    again without use_float.
+
+    Args:
+        ex: Exception from ijson parsing (ValueError, IncompleteJSONError,
+            or UnexpectedSymbol).
+
+    Returns:
+        True if the exception is due to floating point overflow.
+    """
+    return "floating point) overflow" in str(ex).lower()
+
+
 def get_ijson_backend() -> Any:
     """Return an ijson module compatible with the current async backend.
 

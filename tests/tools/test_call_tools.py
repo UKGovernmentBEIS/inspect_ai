@@ -1,5 +1,5 @@
 import datetime
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, time, timezone
 from enum import Enum
 from typing import Any, Dict, List, Literal, Optional, Set, Tuple, Union
@@ -63,6 +63,21 @@ class MyTypedDict(TypedDict):
 class MyDataClass:
     value: float
     flag: bool
+
+
+@dataclass
+class MyStringAnnotatedDataClass:
+    # string annotations are what `from __future__ import annotations`
+    # (PEP 563) leaves in `field.type`
+    value: "float"
+    flag: "bool"
+    items: "list[int]" = field(default_factory=list)
+
+
+@dataclass
+class MyTree:
+    label: str
+    children: "list[MyTree]" = field(default_factory=list)
 
 
 class MyPydanticModel(BaseModel):
@@ -151,6 +166,32 @@ def complex_tool():
 
 
 @tool
+def string_annotated_tool():
+    async def string_annotated_tool(dc: MyStringAnnotatedDataClass) -> dict:
+        """Echo a dataclass whose fields use string annotations.
+
+        Args:
+            dc (MyStringAnnotatedDataClass): A dataclass with 'value', 'flag' and 'items'.
+        """
+        return {"value": dc.value, "flag": dc.flag, "items": dc.items}
+
+    return string_annotated_tool
+
+
+@tool
+def tree_tool():
+    async def tree_tool(tree: MyTree) -> str:
+        """Describe a recursive dataclass.
+
+        Args:
+            tree (MyTree): A tree with a 'label' and 'children'.
+        """
+        return f"{tree.label}:{len(tree.children)}:{type(tree.children[0]).__name__ if tree.children else ''}"
+
+    return tree_tool
+
+
+@tool
 def document_tool():
     async def document_tool() -> ContentDocument:
         """Return a document tool result."""
@@ -183,6 +224,53 @@ async def test_incr_simple_positive():
 
     assert isinstance(messages[-1], ChatMessageTool)
     assert messages[-1].content == "1"
+
+
+def test_string_annotated_dataclass_schema():
+    schema = ToolDef(string_annotated_tool()).parameters.properties["dc"]
+    assert schema.properties is not None
+    assert schema.properties["value"].type == "number"
+    assert schema.properties["flag"].type == "boolean"
+    assert schema.properties["items"].type == "array"
+    assert schema.properties["items"].items is not None
+    assert schema.properties["items"].items.type == "integer"
+
+
+async def test_string_annotated_dataclass_arguments():
+    call = make_call(
+        "string_annotated_tool", {"dc": {"value": 2, "flag": True, "items": [1, 2]}}
+    )
+
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])],
+        [ToolDef(string_annotated_tool())],
+    )
+
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is None
+    result = eval(messages[-1].content)
+    assert result == {"value": 2.0, "flag": True, "items": [1, 2]}
+    assert isinstance(result["value"], float)
+
+
+@pytest.mark.parametrize(
+    "children,expected",
+    [([], "root:0:"), ([{"label": "leaf", "children": []}], "root:1:MyTree")],
+)
+async def test_recursive_dataclass_arguments(children, expected):
+    schema = ToolDef(tree_tool()).parameters.properties["tree"]
+    assert schema.properties is not None
+    assert schema.properties["children"].type == "array"
+
+    call = make_call("tree_tool", {"tree": {"label": "root", "children": children}})
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])],
+        [ToolDef(tree_tool())],
+    )
+
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is None
+    assert messages[-1].content == expected
 
 
 async def test_deeply_nested_dict_arguments_rejected_as_parse_error():
