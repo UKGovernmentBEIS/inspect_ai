@@ -409,7 +409,7 @@ async def test_approval_sees_canonical_path() -> None:
         return approve
 
     policies = [
-        ApprovalPolicy(recording(), "memory(path='/memories/public/*"),
+        ApprovalPolicy(recording(), "memory", arguments={"path": "/memories/public/*"}),
         ApprovalPolicy(auto_approver("reject"), "*"),
     ]
     tool = memory()
@@ -418,7 +418,6 @@ async def test_approval_sees_canonical_path() -> None:
         call = ToolCall(
             id="1",
             function="memory",
-            # path first: the policy pattern is matched against the call text
             arguments={"path": path, "command": "create", "file_text": "x"},
         )
         messages, _ = await execute_tools(
