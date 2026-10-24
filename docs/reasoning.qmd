@@ -14,13 +14,13 @@ The `reasoning_effort` option controls how much reasoning is performed. Inspect 
 For example:
 
 ``` bash
-inspect eval math.py --model openai/gpt-5 --reasoning-effort high
+inspect eval math.py --model openai/gpt-6-luna --reasoning-effort high
 ```
 
 Or from Python:
 
 ```python
-eval("math.py", model="openai/gpt-5", reasoning_effort="high")
+eval("math.py", model="openai/gpt-6-luna", reasoning_effort="high")
 ```
 
 ### Provider Mapping

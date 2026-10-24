@@ -103,6 +103,8 @@ inspect eval arc.py \
 
 There are a variety of configuration options that affect the behaviour of model generation. There are options which affect the generated tokens (`temperature`, `top_p`, etc.) as well as the connection to model providers (`timeout`, `max_retries`, etc.)
 
+Many current models reject sampling options such as `temperature` and `top_p`: OpenAI GPT-5.5 and later while they reason, and Anthropic models always. Inspect drops these options with a warning. See [Reasoning Effort](reasoning.qmd#reasoning-effort) for how to turn OpenAI reasoning off so they are sent.
+
 You can specify generation options either on the command line or in direct calls to `eval()`. For example:
 
 ``` bash
