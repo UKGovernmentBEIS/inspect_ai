@@ -148,6 +148,16 @@ class ModelEvent(BaseEvent):
     """In-flight stream progress while pending (see :class:`ModelEventProgress`);
     access via :func:`model_event_progress`."""
 
+    _defer_sample_hook: bool = PrivateAttr(default=False)
+    """Skip the hook delivery of this snapshot.
+
+    A successful call is written when the provider returns, and a cache
+    hit is written complete on its first insert. ``generate`` writes the
+    timed snapshot after either of those. The sample buffer needs both.
+    Hooks should see the timed one only.
+    Not serialized.
+    """
+
     @field_serializer("completed")
     def serialize_completed(self, dt: datetime | None) -> str | None:
         if dt is None:
