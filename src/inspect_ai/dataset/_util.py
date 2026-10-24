@@ -163,14 +163,27 @@ def read_messages(messages: list[dict[str, Any]]) -> list[ChatMessage]:
 
         match role:
             case "system":
-                chat_messages.append(ChatMessageSystem(content=content, source="input"))
+                chat_messages.append(
+                    ChatMessageSystem(
+                        content=content,
+                        source="input",
+                        metadata=message.get("metadata", None),
+                    )
+                )
             case "user":
-                chat_messages.append(ChatMessageUser(content=content, source="input"))
+                chat_messages.append(
+                    ChatMessageUser(
+                        content=content,
+                        source="input",
+                        metadata=message.get("metadata", None),
+                    )
+                )
             case "assistant":
                 chat_messages.append(
                     ChatMessageAssistant(
                         content=content,
                         source="input",
+                        metadata=message.get("metadata", None),
                         tool_calls=message.get("tool_calls", None),
                     )
                 )
@@ -179,6 +192,7 @@ def read_messages(messages: list[dict[str, Any]]) -> list[ChatMessage]:
                     ChatMessageTool(
                         content=content,
                         source="input",
+                        metadata=message.get("metadata", None),
                         tool_call_id=message.get("tool_call_id", None),
                         function=message.get("function", None),
                         error=message.get("error", None),
