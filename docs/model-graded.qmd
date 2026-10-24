@@ -153,7 +153,7 @@ The built-in model graded scorers also support using multiple grader models (whe
 model_graded_qa(
     model = [
         "google/gemini-2.5-pro",
-        "anthropic/claude-3-opus-20240229",
+        "anthropic/claude-opus-5-5",
         "together/meta-llama/Llama-3-70b-chat-hf",
     ]
 )
