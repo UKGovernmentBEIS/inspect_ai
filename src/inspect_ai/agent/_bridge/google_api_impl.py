@@ -192,7 +192,9 @@ def generate_config_from_google(generation_config: Any) -> GenerateConfig:
     )
     config = GenerateConfig()
     config.temperature = generation_config.get("temperature")
-    config.max_tokens = generation_config.get("maxOutputTokens")
+    config.max_tokens = generation_config.get(
+        "maxOutputTokens", generation_config.get("max_output_tokens")
+    )
     config.top_p = generation_config.get("topP", generation_config.get("top_p"))
     config.top_k = generation_config.get("topK", generation_config.get("top_k"))
     config.stop_seqs = generation_config.get(
@@ -222,14 +224,18 @@ def generate_config_from_google(generation_config: Any) -> GenerateConfig:
     # responseSchema the dropped-keyword warning skips the dialect's own keywords
     # (they were never modelled, so warning would misread routine Gemini requests
     # as degraded) but still fires for shared constraints like `minItems`.
-    if json_schema := generation_config.get("responseJsonSchema"):
+    if json_schema := generation_config.get(
+        "responseJsonSchema", generation_config.get("response_json_schema")
+    ):
         config.response_schema = ResponseSchema(
             name="response",
             json_schema=client_json_schema(
                 _google_schema_to_json_schema(json_schema), "responseJsonSchema"
             ),
         )
-    elif openapi_schema := generation_config.get("responseSchema"):
+    elif openapi_schema := generation_config.get(
+        "responseSchema", generation_config.get("response_schema")
+    ):
         config.response_schema = ResponseSchema(
             name="response",
             json_schema=client_json_schema(
@@ -279,8 +285,11 @@ def tools_from_google_tools(
     tools: list[ToolInfo | Tool] = []
 
     for google_tool in google_tools or []:
-        if "functionDeclarations" in google_tool:
-            for func_decl in google_tool["functionDeclarations"]:
+        function_declarations = google_tool.get(
+            "functionDeclarations", google_tool.get("function_declarations")
+        )
+        if function_declarations is not None:
+            for func_decl in function_declarations:
                 # Parameters can be in "parameters" or "parametersJsonSchema"
                 parameters = func_decl.get(
                     "parameters", func_decl.get("parametersJsonSchema", {})
@@ -302,7 +311,7 @@ def tools_from_google_tools(
                 withheld_bridge_tool("googleSearch")
             else:
                 tools.append(web_search(web_search_providers))
-        elif "codeExecution" in google_tool:
+        elif "codeExecution" in google_tool or "code_execution" in google_tool:
             if code_execution_providers is None:
                 withheld_bridge_tool("codeExecution")
             else:
