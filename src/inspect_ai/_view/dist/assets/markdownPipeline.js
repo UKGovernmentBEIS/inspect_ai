@@ -1744,8 +1744,8 @@ var punycode = {
 	"toUnicode": toUnicode
 };
 //#endregion
-//#region ../../node_modules/.pnpm/markdown-it@15.0.2/node_modules/markdown-it/dist/markdown-it.mjs
-/*! markdown-it 15.0.2 https://github.com/markdown-it/markdown-it @license MIT */
+//#region ../../node_modules/.pnpm/markdown-it@15.0.3/node_modules/markdown-it/dist/markdown-it.mjs
+/*! markdown-it 15.0.3 https://github.com/markdown-it/markdown-it @license MIT */
 var __defProp = Object.defineProperty;
 var __exportAll = (all, no_symbols) => {
 	let target = {};
@@ -3107,12 +3107,14 @@ var StateBlock = class {
 		const s = this.src;
 		for (let start = 0, pos = 0, indent = 0, offset = 0, len = s.length, indent_found = false; pos < len; pos++) {
 			const ch = s.charCodeAt(pos);
-			if (!indent_found) if (isSpace(ch)) {
-				indent++;
-				if (ch === 9) offset += 4 - offset % 4;
-				else offset++;
-				continue;
-			} else indent_found = true;
+			if (!indent_found) {
+				if (isSpace(ch)) {
+					indent++;
+					if (ch === 9) offset += 4 - offset % 4;
+					else offset++;
+					continue;
+				} else indent_found = true;
+			}
 			if (ch === 10 || pos === len - 1) {
 				if (ch !== 10) pos++;
 				this.bMarks.push(start);
@@ -3179,9 +3181,10 @@ var StateBlock = class {
 			else last = this.eMarks[line];
 			while (first < last && lineIndent < indent) {
 				const ch = this.src.charCodeAt(first);
-				if (isSpace(ch)) if (ch === 9) lineIndent += 4 - (lineIndent + this.bsCount[line]) % 4;
-				else lineIndent++;
-				else if (first - lineStart < this.tShift[line]) lineIndent++;
+				if (isSpace(ch)) {
+					if (ch === 9) lineIndent += 4 - (lineIndent + this.bsCount[line]) % 4;
+					else lineIndent++;
+				} else if (first - lineStart < this.tShift[line]) lineIndent++;
 				else break;
 				first++;
 			}
@@ -3206,13 +3209,15 @@ function escapedSplit(str) {
 	let lastPos = 0;
 	let current = "";
 	while (pos < max) {
-		if (ch === 124) if (!isEscaped) {
-			result.push(current + str.substring(lastPos, pos));
-			current = "";
-			lastPos = pos + 1;
-		} else {
-			current += str.substring(lastPos, pos - 1);
-			lastPos = pos;
+		if (ch === 124) {
+			if (!isEscaped) {
+				result.push(current + str.substring(lastPos, pos));
+				current = "";
+				lastPos = pos + 1;
+			} else {
+				current += str.substring(lastPos, pos - 1);
+				lastPos = pos;
+			}
 		}
 		isEscaped = ch === 92;
 		pos++;
@@ -3244,8 +3249,10 @@ function table(state, startLine, endLine, silent) {
 	const aligns = [];
 	for (let i = 0; i < columns.length; i++) {
 		const t = columns[i].trim();
-		if (!t) if (i === 0 || i === columns.length - 1) continue;
-		else return false;
+		if (!t) {
+			if (i === 0 || i === columns.length - 1) continue;
+			else return false;
+		}
 		if (!/^:?-+:?$/.test(t)) return false;
 		if (t.charCodeAt(t.length - 1) === 58) aligns.push(t.charCodeAt(0) === 58 ? "center" : "right");
 		else if (t.charCodeAt(0) === 58) aligns.push("left");
@@ -3432,9 +3439,10 @@ function blockquote(state, startLine, endLine, silent) {
 			state.bMarks[nextLine] = pos;
 			while (pos < max) {
 				const ch = state.src.charCodeAt(pos);
-				if (isSpace(ch)) if (ch === 9) offset += 4 - (offset + state.bsCount[nextLine] + (adjustTab ? 1 : 0)) % 4;
-				else offset++;
-				else break;
+				if (isSpace(ch)) {
+					if (ch === 9) offset += 4 - (offset + state.bsCount[nextLine] + (adjustTab ? 1 : 0)) % 4;
+					else offset++;
+				} else break;
 				pos++;
 			}
 			lastLineEmpty = pos >= max;
@@ -3661,129 +3669,141 @@ function list(state, startLine, endLine, silent) {
 	if (tight) markTightParagraphs(state, listTokIdx);
 	return true;
 }
+var MAX_LABEL_LENGTH = 999;
+function countCodePoints(str) {
+	let length = str.length;
+	for (let i = 0; i < str.length - 1; i++) {
+		const high = str.charCodeAt(i);
+		if (high < 55296 || high > 56319) continue;
+		const low = str.charCodeAt(i + 1);
+		if (low >= 56320 && low <= 57343) {
+			length--;
+			i++;
+		}
+	}
+	return length;
+}
+function lineEnd(state, line) {
+	return Math.min(state.eMarks[line] + 1, state.src.length);
+}
+function getNextLinePos(state, nextLine) {
+	const endLine = state.lineMax;
+	if (nextLine >= endLine || state.isEmpty(nextLine)) return -1;
+	let isContinuation = false;
+	if (state.sCount[nextLine] - state.blkIndent > 3) isContinuation = true;
+	if (state.sCount[nextLine] < 0) isContinuation = true;
+	if (!isContinuation) {
+		const terminatorRules = state.md.block.ruler.getRules("reference");
+		const oldParentType = state.parentType;
+		state.parentType = "reference";
+		let terminate = false;
+		for (let i = 0, l = terminatorRules.length; i < l; i++) if (terminatorRules[i](state, nextLine, endLine, true)) {
+			terminate = true;
+			break;
+		}
+		state.parentType = oldParentType;
+		if (terminate) return -1;
+	}
+	return state.bMarks[nextLine] + state.tShift[nextLine];
+}
 function reference(state, startLine, _endLine, silent) {
+	const src = state.src;
 	let pos = state.bMarks[startLine] + state.tShift[startLine];
-	let max = state.eMarks[startLine];
 	let nextLine = startLine + 1;
 	if (state.sCount[startLine] - state.blkIndent >= 4) return false;
-	if (state.src.charCodeAt(pos) !== 91) return false;
-	function getNextLine(nextLine) {
-		const endLine = state.lineMax;
-		if (nextLine >= endLine || state.isEmpty(nextLine)) return null;
-		let isContinuation = false;
-		if (state.sCount[nextLine] - state.blkIndent > 3) isContinuation = true;
-		if (state.sCount[nextLine] < 0) isContinuation = true;
-		if (!isContinuation) {
-			const terminatorRules = state.md.block.ruler.getRules("reference");
-			const oldParentType = state.parentType;
-			state.parentType = "reference";
-			let terminate = false;
-			for (let i = 0, l = terminatorRules.length; i < l; i++) if (terminatorRules[i](state, nextLine, endLine, true)) {
-				terminate = true;
-				break;
-			}
-			state.parentType = oldParentType;
-			if (terminate) return null;
-		}
-		const pos = state.bMarks[nextLine] + state.tShift[nextLine];
-		const max = state.eMarks[nextLine];
-		return state.src.slice(pos, max + 1);
-	}
-	let str = state.src.slice(pos, max + 1);
-	max = str.length;
+	if (src.charCodeAt(pos) !== 91) return false;
+	let max = lineEnd(state, startLine);
+	let rawLabel = "";
 	let labelEnd = -1;
-	for (pos = 1; pos < max; pos++) {
-		const ch = str.charCodeAt(pos);
+	let segmentStart = ++pos;
+	while (pos < max) {
+		if (rawLabel.length + pos - segmentStart > MAX_LABEL_LENGTH * 2) return false;
+		let ch = src.charCodeAt(pos);
 		if (ch === 91) return false;
-		else if (ch === 93) {
+		if (ch === 93) {
 			labelEnd = pos;
 			break;
-		} else if (ch === 10) {
-			const lineContent = getNextLine(nextLine);
-			if (lineContent !== null) {
-				str += lineContent;
-				max = str.length;
-				nextLine++;
-			}
-		} else if (ch === 92) {
-			pos++;
-			if (pos < max && str.charCodeAt(pos) === 10) {
-				const lineContent = getNextLine(nextLine);
-				if (lineContent !== null) {
-					str += lineContent;
-					max = str.length;
-					nextLine++;
-				}
-			}
 		}
+		if (ch === 92) ch = src.charCodeAt(++pos);
+		if (ch === 10 && pos < max) {
+			const nextPos = getNextLinePos(state, nextLine);
+			if (nextPos < 0) return false;
+			rawLabel += src.slice(segmentStart, max);
+			pos = segmentStart = nextPos;
+			max = lineEnd(state, nextLine++);
+			continue;
+		}
+		pos++;
 	}
-	if (labelEnd < 0 || str.charCodeAt(labelEnd + 1) !== 58) return false;
-	for (pos = labelEnd + 2; pos < max; pos++) {
-		const ch = str.charCodeAt(pos);
+	if (labelEnd < 0 || src.charCodeAt(labelEnd + 1) !== 58) return false;
+	rawLabel += src.slice(segmentStart, labelEnd);
+	if (rawLabel.length > MAX_LABEL_LENGTH && countCodePoints(rawLabel) > MAX_LABEL_LENGTH) return false;
+	pos = labelEnd + 2;
+	while (pos < max) {
+		const ch = src.charCodeAt(pos);
 		if (ch === 10) {
-			const lineContent = getNextLine(nextLine);
-			if (lineContent !== null) {
-				str += lineContent;
-				max = str.length;
-				nextLine++;
-			}
-		} else if (isSpace(ch)) {} else break;
+			const nextPos = getNextLinePos(state, nextLine);
+			if (nextPos < 0) break;
+			pos = nextPos;
+			max = lineEnd(state, nextLine++);
+		} else if (isSpace(ch)) pos++;
+		else break;
 	}
-	const destRes = state.md.helpers.parseLinkDestination(str, pos, max);
+	const destRes = state.md.helpers.parseLinkDestination(src, pos, max);
 	if (!destRes.ok) return false;
 	const href = state.md.normalizeLink(destRes.str);
 	if (!state.md.validateLink(href)) return false;
 	pos = destRes.pos;
 	const destEndPos = pos;
+	const destEndMax = max;
 	const destEndLineNo = nextLine;
-	const start = pos;
-	for (; pos < max; pos++) {
-		const ch = str.charCodeAt(pos);
+	while (pos < max) {
+		const ch = src.charCodeAt(pos);
 		if (ch === 10) {
-			const lineContent = getNextLine(nextLine);
-			if (lineContent !== null) {
-				str += lineContent;
-				max = str.length;
-				nextLine++;
-			}
-		} else if (isSpace(ch)) {} else break;
+			const nextPos = getNextLinePos(state, nextLine);
+			if (nextPos < 0) break;
+			pos = nextPos;
+			max = lineEnd(state, nextLine++);
+		} else if (isSpace(ch)) pos++;
+		else break;
 	}
-	let titleRes = state.md.helpers.parseLinkTitle(str, pos, max);
+	const titleStart = pos;
+	let titleRes = state.md.helpers.parseLinkTitle(src, pos, max);
 	while (titleRes.can_continue) {
-		const lineContent = getNextLine(nextLine);
-		if (lineContent === null) break;
-		str += lineContent;
-		pos = max;
-		max = str.length;
-		nextLine++;
-		titleRes = state.md.helpers.parseLinkTitle(str, pos, max, titleRes);
+		const nextPos = getNextLinePos(state, nextLine);
+		if (nextPos < 0) break;
+		pos = nextPos;
+		max = lineEnd(state, nextLine++);
+		titleRes = state.md.helpers.parseLinkTitle(src, pos, max, titleRes);
 	}
 	let title;
-	if (pos < max && start !== pos && titleRes.ok) {
+	if (titleStart !== destEndPos && titleRes.ok) {
 		title = titleRes.str;
 		pos = titleRes.pos;
 	} else {
 		title = "";
 		pos = destEndPos;
+		max = destEndMax;
 		nextLine = destEndLineNo;
 	}
 	while (pos < max) {
-		if (!isSpace(str.charCodeAt(pos))) break;
+		if (!isSpace(src.charCodeAt(pos))) break;
 		pos++;
 	}
-	if (pos < max && str.charCodeAt(pos) !== 10) {
+	if (pos < max && src.charCodeAt(pos) !== 10) {
 		if (title) {
 			title = "";
 			pos = destEndPos;
+			max = destEndMax;
 			nextLine = destEndLineNo;
 			while (pos < max) {
-				if (!isSpace(str.charCodeAt(pos))) break;
+				if (!isSpace(src.charCodeAt(pos))) break;
 				pos++;
 			}
 		}
 	}
-	if (pos < max && str.charCodeAt(pos) !== 10) return false;
-	const label = normalizeReference(str.slice(1, labelEnd));
+	if (pos < max && src.charCodeAt(pos) !== 10) return false;
+	const label = normalizeReference(rawLabel);
 	if (!label) return false;
 	/* istanbul ignore if */
 	if (silent) return true;
@@ -3867,7 +3887,7 @@ var html_blocks_default = [
 ];
 var open_tag = `<[A-Za-z][A-Za-z0-9\\-]*(?:\\s+[a-zA-Z_:][a-zA-Z0-9:._-]*(?:\\s*=\\s*(?:[^"'=<>\`\\x00-\\x20]+|'[^']*'|"[^"]*"))?)*\\s*\\/?>`;
 var close_tag = "<\\/[A-Za-z][A-Za-z0-9\\-]*\\s*>";
-var HTML_TAG_RE = new RegExp(`^(?:${open_tag}|${close_tag}|<!---?>|<!--(?:[^-]|-[^-]|--[^>])*-->|<[?][\\s\\S]*?[?]>|<![A-Za-z][^>]*>|<!\\[CDATA\\[[\\s\\S]*?\\]\\]>)`);
+new RegExp(`^(?:${open_tag}|${close_tag}|<!---?>|<!--(?:[^-]|-[^-]|--[^>])*-->|<[?][\\s\\S]*?[?]>|<![A-Za-z][^>]*>|<!\\[CDATA\\[[\\s\\S]*?\\]\\]>)`);
 var HTML_OPEN_CLOSE_TAG_RE = new RegExp(`^(?:${open_tag}|${close_tag})`);
 var HTML_SEQUENCES = [
 	[
@@ -4181,6 +4201,7 @@ var StateInline = class {
 		_defineProperty(this, "cache", {});
 		_defineProperty(this, "backticks", {});
 		_defineProperty(this, "backticksScanned", false);
+		_defineProperty(this, "skipHtmlSpecial", false);
 		_defineProperty(this, "linkLevel", 0);
 		_defineProperty(this, "delimiters", []);
 		_defineProperty(this, "_prev_delimiters", []);
@@ -4341,16 +4362,19 @@ function newline(state, silent) {
 	if (state.src.charCodeAt(pos) !== 10) return false;
 	const pmax = state.pending.length - 1;
 	const max = state.posMax;
-	if (!silent) if (pmax >= 0 && state.pending.charCodeAt(pmax) === 32) if (pmax >= 1 && state.pending.charCodeAt(pmax - 1) === 32) {
-		let ws = pmax - 1;
-		while (ws >= 1 && state.pending.charCodeAt(ws - 1) === 32) ws--;
-		state.pending = state.pending.slice(0, ws);
-		state.push("hardbreak", "br", 0);
-	} else {
-		state.pending = state.pending.slice(0, -1);
-		state.push("softbreak", "br", 0);
+	if (!silent) {
+		if (pmax >= 0 && state.pending.charCodeAt(pmax) === 32) {
+			if (pmax >= 1 && state.pending.charCodeAt(pmax - 1) === 32) {
+				let ws = pmax - 1;
+				while (ws >= 1 && state.pending.charCodeAt(ws - 1) === 32) ws--;
+				state.pending = state.pending.slice(0, ws);
+				state.push("hardbreak", "br", 0);
+			} else {
+				state.pending = state.pending.slice(0, -1);
+				state.push("softbreak", "br", 0);
+			}
+		} else state.push("softbreak", "br", 0);
 	}
-	else state.push("softbreak", "br", 0);
 	pos++;
 	while (pos < max && isSpace(state.src.charCodeAt(pos))) pos++;
 	state.pos = pos;
@@ -4823,22 +4847,53 @@ function isLetter(ch) {
 	const lc = ch | 32;
 	return lc >= 97 && lc <= 122;
 }
+function scanSpecial(state, pos) {
+	const src = state.src;
+	let start;
+	let terminator;
+	if (src.startsWith("<!--", pos)) {
+		if (src.startsWith(">", pos + 4)) return pos + 5;
+		if (src.startsWith("->", pos + 4)) return pos + 6;
+		start = pos + 4;
+		terminator = "-->";
+	} else if (src.startsWith("<![CDATA[", pos)) {
+		start = pos + 9;
+		terminator = "]]>";
+	} else if (src.charCodeAt(pos + 1) === 63) {
+		start = pos + 2;
+		terminator = "?>";
+	} else if (isLetter(src.charCodeAt(pos + 2))) {
+		start = pos + 3;
+		terminator = ">";
+	} else return -1;
+	if (state.skipHtmlSpecial) return -1;
+	const end = src.indexOf(terminator, start);
+	if (end < 0) {
+		state.skipHtmlSpecial = true;
+		return -1;
+	}
+	return end + terminator.length;
+}
 function html_inline(state, silent) {
 	if (!state.md.options.html) return false;
 	const max = state.posMax;
 	const pos = state.pos;
 	if (state.src.charCodeAt(pos) !== 60 || pos + 2 >= max) return false;
+	let end;
 	const ch = state.src.charCodeAt(pos + 1);
-	if (ch !== 33 && ch !== 63 && ch !== 47 && !isLetter(ch)) return false;
-	const match = state.src.slice(pos).match(HTML_TAG_RE);
-	if (!match) return false;
+	if (ch === 33 || ch === 63) end = scanSpecial(state, pos);
+	else if (ch === 47 || isLetter(ch)) {
+		const match = state.src.slice(pos).match(HTML_OPEN_CLOSE_TAG_RE);
+		end = match ? pos + match[0].length : -1;
+	} else return false;
+	if (end < 0) return false;
 	if (!silent) {
 		const token = state.push("html_inline", "", 0);
-		token.content = match[0];
+		token.content = state.src.slice(pos, end);
 		if (isLinkOpen(token.content)) state.linkLevel++;
 		if (isLinkClose(token.content)) state.linkLevel--;
 	}
-	state.pos += match[0].length;
+	state.pos = end;
 	return true;
 }
 var DIGITAL_RE = /^&#((?:x[a-f0-9]{1,6}|[0-9]{1,7}));/i;

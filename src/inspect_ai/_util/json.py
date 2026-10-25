@@ -122,7 +122,8 @@ def is_ijson_float_overflow_error(
     The ijson C backend (yajl2_c) with use_float=True raises "numeric (floating
     point) overflow" for literals like 1e309, which are valid JSON and parse to
     inf with pydantic. This helper identifies these errors so callers can parse
-    again without use_float.
+    again with something that accepts them (json.loads, or ijson without
+    use_float).
 
     Args:
         ex: Exception from ijson parsing (ValueError, IncompleteJSONError,
