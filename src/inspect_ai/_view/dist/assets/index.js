@@ -103327,7 +103327,13 @@ function collectFromContent(content, out, sourceSpans, skipAgentSpanId, includeU
 		}
 	}
 	const emittedBranchedFroms = /* @__PURE__ */ new Set();
+	const openCheckpointIds = [];
 	for (const item of content) if (item.type === "event") {
+		if (item.event.event === "span_begin" && item.event.type === "checkpoint") openCheckpointIds.push(item.event.id);
+		else if (item.event.event === "span_end") {
+			const index = openCheckpointIds.lastIndexOf(item.event.id);
+			if (index !== -1) openCheckpointIds.splice(index, 1);
+		}
 		if (skipAgentSpanId && item.event.event === "tool" && item.event.agent_span_id === skipAgentSpanId) continue;
 		if (item.event.event === "model" && pendingToolCallIds.size > 0) {
 			const modelEvent = item.event;
@@ -103355,7 +103361,7 @@ function collectFromContent(content, out, sourceSpans, skipAgentSpanId, includeU
 			span_id: item.id,
 			type: item.spanType,
 			timestamp: item.startTime().toISOString(),
-			parent_id: null,
+			parent_id: openCheckpointIds.at(-1) ?? null,
 			pending: false,
 			working_start: 0,
 			uuid: item.id,
@@ -119747,6 +119753,75 @@ var SampleScoresView = (t0) => {
 function _temp$33(choice, index) {
 	return `${String.fromCharCode(65 + index)}) ${choice}`;
 }
+var StoreTerminalSessions_module_default = {
+	sessions: "_sessions_ezmbx_1",
+	sessionLabel: "_sessionLabel_ezmbx_7"
+};
+//#endregion
+//#region src/app/samples/StoreTerminalSessions.tsx
+var kAsciicastStorePrefix = "asciinema:";
+/** Collect the playable asciicast entries from a sample's store. */ var storeCasts = (store) => Object.entries(store).flatMap(([key, value]) => key.startsWith(kAsciicastStorePrefix) && typeof value === "string" ? [{
+	key,
+	name: key.slice(10),
+	cast: value
+}] : []);
+/** Plays each store asciicast, labeled by session name. */ var StoreTerminalSessions = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(8);
+	const { id, casts } = t0;
+	let t1;
+	if ($[0] !== casts || $[1] !== id) {
+		let t2;
+		if ($[3] !== casts.length || $[4] !== id) {
+			t2 = (storeCast) => {
+				const { rows, cols } = castGeometry(storeCast.cast);
+				return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [casts.length > 1 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+					className: clsx(StoreTerminalSessions_module_default.sessionLabel, "text-style-label"),
+					children: storeCast.name
+				}) : void 0, /*#__PURE__*/ (0, import_jsx_runtime.jsx)(AsciinemaPlayer, {
+					id: `${id}-${storeCast.name}`,
+					cast: storeCast.cast,
+					rows,
+					cols,
+					fit: "width"
+				})] }, storeCast.key);
+			};
+			$[3] = casts.length;
+			$[4] = id;
+			$[5] = t2;
+		} else t2 = $[5];
+		t1 = casts.map(t2);
+		$[0] = casts;
+		$[1] = id;
+		$[2] = t1;
+	} else t1 = $[2];
+	let t2;
+	if ($[6] !== t1) {
+		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: StoreTerminalSessions_module_default.sessions,
+			children: t1
+		});
+		$[6] = t1;
+		$[7] = t2;
+	} else t2 = $[7];
+	return t2;
+};
+var castGeometry = (cast) => {
+	let rows = 24;
+	let cols = 80;
+	const newline = cast.indexOf("\n");
+	const headerLine = newline === -1 ? cast : cast.slice(0, newline);
+	try {
+		const header = JSON.parse(headerLine);
+		if (typeof header === "object" && header !== null) {
+			if ("height" in header && typeof header.height === "number") rows = header.height;
+			if ("width" in header && typeof header.width === "number") cols = header.width;
+		}
+	} catch {}
+	return {
+		rows,
+		cols
+	};
+};
 //#endregion
 //#region src/app/samples/transcript/chunked/ChunkedRowView.tsx
 /** Stable row identity: event uuid when present, else the sequence ordinal. */ var rowNodeId = (row) => {
@@ -122205,11 +122280,18 @@ var metadataViewsForSample = (id, scrollRef, sample) => {
 			copyButton: true
 		})
 	})] }, `sample-metadata-${id}`));
-	if (Object.keys(sample.store).length > 0) sampleMetadatas.push(/*#__PURE__*/ (0, import_jsx_runtime.jsxs)(Card$1, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardHeader, { label: "Store" }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardBody, {
+	const terminalSessions = storeCasts(sample.store);
+	if (terminalSessions.length > 0) sampleMetadatas.push(/*#__PURE__*/ (0, import_jsx_runtime.jsxs)(Card$1, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardHeader, { label: "Terminal Sessions" }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardBody, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(StoreTerminalSessions, {
+		id: `task-sample-terminal-sessions-${id}`,
+		casts: terminalSessions
+	}) })] }, `sample-terminal-sessions-${id}`));
+	const castKeys = new Set(terminalSessions.map((session) => session.key));
+	const storeRecord = Object.fromEntries(Object.entries(sample.store).filter(([key]) => !castKeys.has(key)));
+	if (Object.keys(storeRecord).length > 0) sampleMetadatas.push(/*#__PURE__*/ (0, import_jsx_runtime.jsxs)(Card$1, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardHeader, { label: "Store" }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardBody, {
 		padded: false,
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RecordTree, {
 			id: `task-sample-store-${id}`,
-			record: sample.store,
+			record: storeRecord,
 			className: clsx("tab-pane", SampleDisplay_module_default.noTop),
 			scrollRef,
 			processStore: true,
