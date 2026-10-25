@@ -374,11 +374,8 @@ BUILD_INPUTS=(
 # matches. A rebuild isn't reproducible (PyInstaller), so it would hit the
 # upload immutability guard. Prints "RUN_ID BUILT_COMMIT". A built commit not
 # available locally and not fetchable is skipped here so the search continues;
-# the gate instead requires it (its fetch has no fallback and hard-fails).
-# More than one successful first-attempt run can match (a re-dispatch or a manual
-# dispatch); the newest wins. If another matching run's bytes were already
-# published for this version, re-uploading trips the immutability guard, and the
-# published bytes are kept rather than bumped (see sandbox-tools-release-flow.md).
+# the gate instead requires it (its fetch has no fallback and hard-fails). More
+# than one matching run can exist; see sandbox-tools-release-flow.md.
 find_reusable_run() {
   local id title built
   while IFS=$'\t' read -r id title; do
@@ -502,9 +499,9 @@ else
   if ! "$PYTHON" src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py "$V"; then
     warn "Upload aborted. If it hit the immutability guard (v$V already published"
     warn "with different bytes), never force over it. If a build input changed,"
-    warn "bump the version and publish fresh. If the published bytes are from"
-    warn "another valid CI build of these same inputs, keep them: rerun the gate,"
-    warn "no bump. See src/inspect_sandbox_tools/design/sandbox-tools-release-flow.md."
+    warn "bump the version and publish fresh. If the bytes are from another valid"
+    warn "CI build of these inputs, keep them and finish from that run, no bump."
+    warn "Recovery: src/inspect_sandbox_tools/design/sandbox-tools-release-flow.md."
     exit 1
   fi
   say "✓ Uploaded and verified all four artifacts."

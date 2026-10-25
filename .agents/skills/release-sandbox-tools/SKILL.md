@@ -89,9 +89,11 @@ failure with its recovery are in
 survive any manual fallback:
 
 - **Published versions are immutable.** If an object for the version already
-  exists on S3 with different bytes (the upload script's guard aborts on
-  this), never force over it. The version is burned; recover by bumping past
-  it (see the release flow doc for the triggers and steps).
+  exists on S3 with different bytes (the upload script's guard aborts on this),
+  never force over it. If a build input changed, the version is burned: bump
+  past it. If the bytes are from another valid CI build of the same inputs, keep
+  them and finish from that run, no bump. See the release flow doc for the
+  distinction and the steps.
 - **Binaries must come from the exact PR code, built in CI.** Artifact
   filenames only encode the version, so files lying around from an earlier
   review round look identical. Upload only artifacts from a

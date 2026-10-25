@@ -121,8 +121,23 @@ starting a duplicate, so this stays uncommon.
 
 If a different matching run's bytes are already published for the version, a
 re-run that selects the newer run re-uploads and trips the immutability guard.
-Those published bytes are still valid CI output for these inputs, so do not bump:
-keep them and rerun the gate. Bump only when a build input actually changed.
+Those published bytes are still valid CI output for these inputs, so do not bump.
+Bump only when a build input actually changed.
+
+How to finish depends on how far the already-published run got. If all four of
+its objects were published and its `SHA256SUMS` was committed and pushed, the
+release is already complete: rerun the gate and ignore this build. If its upload
+was interrupted or its digest commit was never pushed, the wizard cannot finish
+it (it keeps selecting the newer run and tripping the guard), so finish that run
+by hand. With RUN the run whose bytes are published:
+
+1. `gh run download RUN --repo UKGovernmentBEIS/inspect_ai -n sandbox-tools-v{V} -D src/inspect_ai/binaries`
+   (the four artifacts land flat, named `inspect-sandbox-tools-{arch}[-musl]-v{V}`).
+2. Verify each artifact's attestation as stage 2 does (`gh attestation verify`).
+3. `python src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py {V}`: identical
+   bytes re-upload is allowed, so it uploads any missing objects and rewrites
+   `SHA256SUMS`.
+4. Commit and push `SHA256SUMS` to the PR branch, then rerun the gate.
 
 ## Recovery archetypes
 
@@ -176,7 +191,7 @@ The tables below reference these.
 
 | Trigger | What you see | Recovery |
 |---|---|---|
-| Object already published with different bytes | upload "is already published with different bytes", wizard "If it hit the immutability guard" | If a build input changed, R2. If the bytes are from another valid CI run of these same inputs, keep the published bytes and rerun the gate, no bump (see More than one matching build) |
+| Object already published with different bytes | upload "is already published with different bytes", wizard "If it hit the immutability guard" | If a build input changed, R2. If the bytes are from another valid CI run of these same inputs, keep the published bytes, no bump, and finish from that run (see More than one matching build) |
 | Upload interrupted part way (crash or Ctrl-C) | some objects on S3, `SHA256SUMS` rewritten but uncommitted; the gate later 404s on the missing object | Re-run the wizard; re-upload is idempotent for identical bytes and finishes the rest (R1) |
 | Round-trip verify mismatch | "does not match the local digest" | Transient (the just-uploaded object read back short); re-run the upload (R1). A pre-existing wrong object cannot reach here, it trips the immutability guard above |
 | Local artifact missing | "not found" | Re-run the wizard so the download repopulates `binaries/` (R1) |
@@ -190,7 +205,7 @@ The tables below reference these.
 | `SHA256SUMS` not rewritten for the version (gate) | "is not updated for v" | Run the wizard; stage 3 rewrites it and stage 4 commits it (R1) |
 | Published object missing, gate 404 | "not found at" | Finish the upload by re-running the wizard (R1) |
 | Malformed `SHA256SUMS` entry (gate) | "Expected exactly one ... entry" | Re-run the wizard to rewrite `SHA256SUMS` (R1) |
-| Public object does not match the committed digest | wizard "do NOT merge", gate "does not match the digests committed in this PR. Do NOT re-upload over it" | If the object is missing or the read was transient, R1. If the published bytes are persistently wrong, investigate and R2. Never re-upload over it |
+| Public object does not match the committed digest | wizard "do NOT merge", gate "does not match the digests committed in this PR. Do NOT re-upload over it" | If the read was transient, R1. If the published bytes are persistently wrong, investigate and R2. Never re-upload over it |
 
 ## Re-running and Ctrl-C
 
