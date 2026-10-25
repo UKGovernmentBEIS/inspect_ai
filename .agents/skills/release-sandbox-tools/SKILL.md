@@ -63,7 +63,9 @@ Running earlier wastes builds if review rounds change the injectable source.
 3. **Run the wizard** from that checkout's repo root:
    `scripts/release-sandbox-tools.sh --auto` (add `--dry-run` to get the CI
    build without publishing anything). The wizard itself checks
-   preconditions (branch, PR approval, head commit, version bump), dispatches
+   preconditions (branch, PR approval, head commit, version bump, and that
+   merging upstream main as of its last fetch leaves the build inputs
+   unchanged), dispatches
    `sandbox-tools-build.yml` at the head commit and waits for it, downloads
    and attestation-checks the artifacts, uploads to S3, commits and pushes
    the rewritten `SHA256SUMS`, and verifies the published bytes — don't redo

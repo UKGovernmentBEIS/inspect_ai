@@ -69,7 +69,9 @@ Step by step:
    version bump, and it is approved.
 2. Preconditions (stage 1): on the PR head branch, PR approved, checkout at the
    PR head, version canonical and above `main`, no stray uncommitted
-   build-input changes.
+   build-input changes, and merging upstream main (as of the last fetch) would
+   leave the build inputs unchanged (merge main into the branch first if it
+   would not).
 3. CI build (stage 2): the wizard looks for a successful first-attempt run
    whose built commit has the same build inputs as HEAD. On a commit's first
    release there is none, so it dispatches `sandbox-tools-build.yml` on `main`
@@ -105,8 +107,13 @@ merging `main` into it. What happens next depends on what moved.
   unchanged, so the gate still passes and a wizard re-run reuses the existing
   build. Nothing to redo.
 - A build-input change (anything else under `src/inspect_sandbox_tools/`,
-  `_sandbox_tools_utils/`, or `binaries/`): the published bytes no longer match
-  the PR. The version is burned. Recover with R2.
+  `_sandbox_tools_utils/`, or `binaries/`): the timing decides the cost. Stage 1
+  and the stage-3 pre-upload re-check compute the merge with upstream main (as of
+  their last fetch) and stop the wizard with "merge main first" when it would
+  change the build inputs, so nothing is published and no version is burned;
+  merge main into the branch, push, and re-run. If main moves in the build inputs
+  after that last check, or after the upload, the published bytes no longer match
+  the PR merge and the version is burned; recover with R2.
 
 The same split applies to a push to the PR branch after upload: a non-build-input
 push is fine, a build-input push burns the version.
@@ -168,6 +175,7 @@ The tables below reference these.
 | Trigger | What you see | Recovery |
 |---|---|---|
 | Wrong branch, PR not approved, or checkout not at the PR head | "Check out the PR's head branch, then re-run.", "PR is not approved", or "This checkout is at ... but PR #N's head is ..." | Align the branch, approval, or checkout, then re-run (R4) |
+| Merging upstream main would change the build inputs, or the branch conflicts with main (stage 1, or the stage-3 pre-upload re-check) | "merging main changes the build inputs" or "This branch conflicts with main" | Merge main into the PR branch, push, re-run (R4); nothing is published, so no burn |
 | Version not a canonical integer | wizard "must be a positive integer, not", gate "must be a positive integer, not v" | Set the version file to a plain positive integer, commit, re-run (R4) |
 | Injectable changed but version not above `main` | wizard "CI requires a version above v", gate "bump it above v" | Bump above `main`, commit, re-run (R4) |
 | Version changed with no injectable change | gate "changed to v... but src/inspect_sandbox_tools/ is unchanged" | Revert the version or include the injectable change (R4) |

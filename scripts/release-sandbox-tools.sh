@@ -243,6 +243,62 @@ VARIANTS="amd64 arm64 amd64-musl arm64-musl"
 
 BUILD_WORKFLOW="sandbox-tools-build.yml"
 
+# The build inputs slow-tool-tests-release compares (kept identical to the
+# BUILD_INPUTS list in build.yml, asserted by a test). SHA256SUMS is excluded,
+# so the stage-4 digest-pin commit leaves them unchanged.
+BUILD_INPUTS=(
+  src/inspect_sandbox_tools
+  ":(exclude)src/inspect_sandbox_tools/design"
+  ":(exclude)src/inspect_sandbox_tools/tests"
+  src/inspect_ai/tool/_sandbox_tools_utils
+  ":(exclude)src/inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS"
+  src/inspect_ai/binaries
+)
+
+# fetch_main: fetch upstream main and record its commit in MAIN_SHA. Reads
+# UPSTREAM_REPO directly rather than origin, which may be a fork or have a narrow
+# fetch refspec that leaves origin/main stale.
+fetch_main() {
+  git fetch --quiet --no-tags "https://github.com/$UPSTREAM_REPO.git" main
+  MAIN_SHA=$(git rev-parse FETCH_HEAD)
+}
+
+# require_main_merged: the gate runs on the PR merged with main. This computes
+# that merge locally and requires its build inputs to equal HEAD's, so the HEAD
+# comparison in find_reusable_run matches the gate. Pass the main commit as $1
+# (fetch it with fetch_main first).
+require_main_merged() {
+  local tree status=0
+  tree=$(git merge-tree --write-tree HEAD "$1") || status=$?
+  if [[ "$status" -eq 1 ]]; then
+    warn "This branch conflicts with main. Merge main into the PR branch, push,"
+    warn "and re-run."
+    exit 1
+  fi
+  if [[ "$status" -ne 0 ]]; then
+    warn "Couldn't compute the merge with main (needs git 2.38+ for"
+    warn "merge-tree --write-tree). git merge-tree exit $status."
+    exit 1
+  fi
+  # A clean merge prints just the tree OID; keep the first line defensively.
+  tree=${tree%%$'\n'*}
+  status=0
+  git diff --quiet HEAD "$tree" -- "${BUILD_INPUTS[@]}" || status=$?
+  if [[ "$status" -eq 0 ]]; then
+    return 0
+  fi
+  if [[ "$status" -ne 1 ]]; then
+    warn "Couldn't compare HEAD against the merge with main (git diff exit $status)."
+    exit 1
+  fi
+  warn "merging main changes the build inputs:"
+  git --no-pager diff --stat HEAD "$tree" -- "${BUILD_INPUTS[@]}"
+  warn "Merge main into the PR branch, push, and re-run. CI checks the PR merged"
+  warn "with main, so a build without these changes would fail the gate and burn"
+  warn "the version."
+  exit 1
+}
+
 TITLE="Sandbox tools release"
 if [[ "$DRY_RUN" == 1 ]]; then TITLE="$TITLE — DRY RUN (no S3 upload)"; fi
 banner "$TITLE"
@@ -303,9 +359,9 @@ if [[ "$HEAD_SHA" != "$PR_HEAD" ]]; then
 fi
 say "✓ Checkout matches PR #$PR_NUMBER's head ($HEAD_SHA)."
 
-note "Fetching origin/main to check the injectable version..."
-git fetch --quiet origin main
-MAIN_V=$(git show origin/main:"$VERSION_FILE" | tr -d '[:space:]')
+note "Fetching upstream main to check the injectable version..."
+fetch_main
+MAIN_V=$(git show "$MAIN_SHA:$VERSION_FILE" | tr -d '[:space:]')
 # Read and validate the version the way upload_to_s3.py does: strip only
 # surrounding whitespace (not internal, so "3 7" can't pass as 37, which the
 # uploader's .strip() rejects), and require canonical digits before the numeric
@@ -323,14 +379,16 @@ EXPECTED_V=$((MAIN_V + 1))
 # burned version (published, then a build input changed) is recovered by bumping
 # past it.
 if [[ "$LOCAL_V" -gt "$MAIN_V" ]]; then
-  say "✓ Version bumped: origin/main has v$MAIN_V, this branch has v$LOCAL_V."
+  say "✓ Version bumped: main has v$MAIN_V, this branch has v$LOCAL_V."
 else
-  warn "This branch has v$LOCAL_V but origin/main has v$MAIN_V — check-version-bump"
+  warn "This branch has v$LOCAL_V but main has v$MAIN_V — check-version-bump"
   warn "CI requires a version above v$MAIN_V (normally v$EXPECTED_V). Commit the bump"
   warn "to $VERSION_FILE on the PR branch, then re-run."
   exit 1
 fi
 V=$LOCAL_V
+
+require_main_merged "$MAIN_SHA"
 
 # SHA256SUMS is excluded: it's release output (rewritten by the upload step,
 # including on dry runs), not a build input.
@@ -354,20 +412,10 @@ find_run() {
     --jq "[.[] | select(.displayTitle == \"Build sandbox tools at $1\" and .attempt == 1) $2][0].databaseId // empty"
 }
 
-# The build inputs slow-tool-tests-release compares (kept identical to the
-# BUILD_INPUTS list in build.yml, asserted by a test). SHA256SUMS is excluded,
-# so the stage-4 digest-pin commit leaves them unchanged.
-BUILD_INPUTS=(
-  src/inspect_sandbox_tools
-  ":(exclude)src/inspect_sandbox_tools/design"
-  ":(exclude)src/inspect_sandbox_tools/tests"
-  src/inspect_ai/tool/_sandbox_tools_utils
-  ":(exclude)src/inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS"
-  src/inspect_ai/binaries
-)
-
 # Reuse the newest successful first-attempt run whose built commit has the same
-# build inputs as HEAD, the comparison slow-tool-tests-release makes. This skips
+# build inputs as HEAD, the comparison slow-tool-tests-release makes.
+# require_main_merged (stages 1 and 3) ensures HEAD's build inputs equal the PR
+# merge result's, so this HEAD comparison matches what the gate sees. This skips
 # the build on a re-run (HEAD itself was built), and keeps working after stage 4
 # pushes the digest-pin commit (and any later merge of main the up-to-date rule
 # forces in): those leave the build inputs unchanged, so an earlier build still
@@ -496,6 +544,9 @@ else
     fi
   done
   say "✓ AWS credentials OK."
+  note "Re-checking upstream main before upload (the CI build took ~10 min)..."
+  fetch_main
+  require_main_merged "$MAIN_SHA"
   if ! "$PYTHON" src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py "$V"; then
     warn "Upload aborted. If it hit the immutability guard (v$V already published"
     warn "with different bytes), never force over it. If a build input changed,"
