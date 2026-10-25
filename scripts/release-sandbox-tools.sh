@@ -306,6 +306,13 @@ note "Fetching origin/main to check the injectable version..."
 git fetch --quiet origin main
 MAIN_V=$(git show origin/main:"$VERSION_FILE" | tr -d '[:space:]')
 LOCAL_V=$(tr -d '[:space:]' < "$VERSION_FILE")
+# Validate before the numeric compare: [[ -gt ]] evaluates its operands as
+# arithmetic, so a non-canonical $LOCAL_V like a[$(cmd)] would run cmd, and a
+# value like +36 would break artifact naming (v36 vs v+36).
+if ! [[ "$LOCAL_V" =~ ^[1-9][0-9]*$ ]]; then
+  warn "$VERSION_FILE must be a positive integer, not '$LOCAL_V'."
+  exit 1
+fi
 EXPECTED_V=$((MAIN_V + 1))
 # Any version above main, matching check-version-bump. Normally v$EXPECTED_V; a
 # burned version (published, then a build input changed) is recovered by bumping
@@ -342,9 +349,9 @@ find_run() {
     --jq "[.[] | select(.displayTitle == \"Build sandbox tools at $1\" and .attempt == 1) $2][0].databaseId // empty"
 }
 
-# The build inputs slow-tool-tests-release compares (keep in sync with the
-# BUILD_INPUTS list in build.yml). SHA256SUMS is excluded, so the stage-4
-# digest-pin commit leaves them unchanged.
+# The build inputs slow-tool-tests-release compares (kept identical to the
+# BUILD_INPUTS list in build.yml, asserted by a test). SHA256SUMS is excluded,
+# so the stage-4 digest-pin commit leaves them unchanged.
 BUILD_INPUTS=(
   src/inspect_sandbox_tools
   ":(exclude)src/inspect_sandbox_tools/design"
@@ -354,28 +361,38 @@ BUILD_INPUTS=(
   src/inspect_ai/binaries
 )
 
-# A finished run for this commit is reused, so re-runs skip the build.
-RUN_ID=$(find_run "$HEAD_SHA" '| select(.conclusion == "success")')
-BUILT_COMMIT=$HEAD_SHA
-# After stage 4 pushes the digest-pin commit, HEAD is one commit past the built
-# head and no run is titled with it. That commit changes only SHA256SUMS, so the
-# build on HEAD's parent is still valid for HEAD when their build inputs match —
-# the comparison slow-tool-tests-release makes. Reuse it rather than rebuilding:
-# PyInstaller output isn't reproducible, so a rebuild would hit the upload
-# immutability guard.
-if [[ -z "$RUN_ID" ]]; then
-  PARENT=$(git rev-parse --verify --quiet HEAD^) || true
-  if [[ -n "$PARENT" ]] && git diff --quiet "$PARENT" HEAD -- "${BUILD_INPUTS[@]}"; then
-    REUSE_ID=$(find_run "$PARENT" '| select(.conclusion == "success")')
-    if [[ -n "$REUSE_ID" ]]; then
-      RUN_ID=$REUSE_ID
-      BUILT_COMMIT=$PARENT
+# Reuse the newest successful first-attempt run whose built commit has the same
+# build inputs as HEAD, the comparison slow-tool-tests-release makes. This skips
+# the build on a re-run (HEAD itself was built), and keeps working after stage 4
+# pushes the digest-pin commit (and any later merge of main the up-to-date rule
+# forces in): those leave the build inputs unchanged, so an earlier build still
+# matches. A rebuild isn't reproducible (PyInstaller), so it would hit the
+# upload immutability guard. Prints "RUN_ID BUILT_COMMIT". A built commit not
+# available locally and not fetchable is skipped, as the gate does.
+find_reusable_run() {
+  local id title built
+  while IFS=$'\t' read -r id title; do
+    built=${title#Build sandbox tools at }
+    [[ "$built" =~ ^[0-9a-f]{40}$ ]] || continue
+    git cat-file -e "${built}^{commit}" 2>/dev/null \
+      || git fetch --quiet --no-tags origin "$built" 2>/dev/null \
+      || continue
+    if git diff --quiet "$built" HEAD -- "${BUILD_INPUTS[@]}"; then
+      printf '%s %s\n' "$id" "$built"
+      return 0
     fi
-  fi
-fi
+  done < <(gh run list --repo "$UPSTREAM_REPO" --workflow "$BUILD_WORKFLOW" \
+    --branch main --event workflow_dispatch --limit 50 \
+    --json databaseId,displayTitle,conclusion,attempt \
+    --jq '.[] | select(.attempt == 1 and .conclusion == "success")
+      | "\(.databaseId)\t\(.displayTitle)"')
+  return 0
+}
+read -r RUN_ID BUILT_COMMIT < <(find_reusable_run) || true
 if [[ -n "$RUN_ID" ]]; then
   say "✓ Reusing successful run $RUN_ID (built $BUILT_COMMIT)."
 else
+  BUILT_COMMIT=$HEAD_SHA
   pause "Press Enter to start the CI build"
   gh workflow run "$BUILD_WORKFLOW" --repo "$UPSTREAM_REPO" --ref main -f sha="$HEAD_SHA"
   note "Waiting for the run to appear..."
@@ -394,7 +411,7 @@ else
     exit 1
   fi
 fi
-# find_run picked a first attempt, but the run could have been re-run since.
+# The run was a first attempt when picked, but could have been re-run since.
 if [[ "$(gh run view "$RUN_ID" --repo "$UPSTREAM_REPO" --json attempt --jq .attempt)" != 1 ]]; then
   warn "Run $RUN_ID was re-run; only a first attempt counts. Re-run this wizard to dispatch a new build."
   exit 1

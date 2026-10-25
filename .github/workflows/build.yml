@@ -465,8 +465,8 @@ jobs:
               - "src/inspect_ai/util/_restic/**"
               - "tests/checkpoint/**"
 
-  # Fast gate: confirm sandbox_tools_version.txt is bumped to exactly N+1
-  # when the injectable source changed. Blocks downstream slow jobs on
+  # Fast gate: confirm sandbox_tools_version.txt is bumped above N (normally
+  # N+1) when the injectable source changed. Blocks downstream slow jobs on
   # failure so PR contributors don't wait on a Docker build to learn they
   # forgot the bump.
   check-version-bump:
@@ -491,6 +491,13 @@ jobs:
           VERSION_PATH="src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt"
           BASE_VERSION=$(git show "origin/${BASE_REF}:${VERSION_PATH}" | tr -d '[:space:]')
           PR_VERSION=$(tr -d '[:space:]' < "${VERSION_PATH}")
+          # Validate before the numeric compare below: the PR file is
+          # attacker-controlled on fork PRs, and a non-canonical value would
+          # either run arithmetic (a[$(cmd)]) or break artifact naming (v+36).
+          if ! [[ "$PR_VERSION" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::${VERSION_PATH} must be a positive integer, not v${PR_VERSION}."
+            exit 1
+          fi
           EXPECTED=$((BASE_VERSION + 1))
           echo "Base (${BASE_REF}): v${BASE_VERSION}; PR: v${PR_VERSION}; expected on bump: v${EXPECTED} or higher; injectable_src_changed=${INJECTABLE_SRC_CHANGED}"
           if [ "$INJECTABLE_SRC_CHANGED" = "true" ]; then
@@ -590,8 +597,8 @@ jobs:
         if: ${{ !cancelled() }}
         run: uv cache prune --ci
 
-  # Release gate: runs only when the version bumped to N+1. Verifies the
-  # new v{N+1} artifact is published to S3 (fails fast with a release-wizard
+  # Release gate: runs only when the version was bumped. Verifies the bumped
+  # version's artifacts are published to S3 (fails fast with a release-wizard
   # hint if not), then re-runs the slow tests against it. Maintainer reruns
   # from the Actions UI after uploading. Runs in parallel with
   # slow-tool-tests-dev: it consumes only the published S3 artifacts,
