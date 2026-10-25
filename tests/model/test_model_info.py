@@ -125,6 +125,24 @@ class TestGetModelInfo:
         assert info.organization == "Moonshot AI"
         assert info.context_length == 1048576
 
+    @pytest.mark.parametrize(
+        "model,display_name",
+        [
+            ("kimi-k3.1-pro", "Kimi K3.1 Pro"),
+            ("kimi-k3.1-pro-highspeed", "Kimi K3.1 Pro Highspeed"),
+        ],
+    )
+    def test_known_kimi_k3_1_pro_models(self, model, display_name):
+        """Test lookup of Kimi K3.1 Pro and its highspeed variant."""
+        info = get_model_info(f"moonshot/{model}")
+        assert info is not None
+        assert info.organization == "Moonshot AI"
+        assert info.model == display_name
+        assert info.context_length == 1048576
+        assert info.output_tokens == 1048576
+        assert info.reasoning is True
+        assert info.reasoning_effort_default == "max"
+
     def test_kimi_org_detection_on_hosting_provider(self):
         """Test kimi-* org detection for hosting providers (e.g. azureai)."""
         info = get_model_info("azureai/kimi-k3")
