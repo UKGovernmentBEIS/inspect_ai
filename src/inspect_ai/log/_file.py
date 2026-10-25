@@ -1084,22 +1084,35 @@ def read_eval_log_samples(
             + "Specify all_samples_required=False to read the samples that exist."
         )
 
+    # the header's sample_ids describe the seed dataset only, so add the
+    # samples a SampleSource / enqueue_sample added at runtime from the summaries
+    sample_keys = dict.fromkeys(
+        [
+            (sample_id, epoch_id)
+            for sample_id in log_header.eval.dataset.sample_ids
+            for epoch_id in range(1, (log_header.eval.config.epochs or 1) + 1)
+        ]
+        + [
+            (summary.id, summary.epoch)
+            for summary in read_eval_log_sample_summaries(log_file, format=format)
+        ]
+    )
+
     # loop over samples and epochs
-    for sample_id in log_header.eval.dataset.sample_ids:
-        for epoch_id in range(1, (log_header.eval.config.epochs or 1) + 1):
-            try:
-                sample = read_eval_log_sample(
-                    log_file=log_file,
-                    id=sample_id,
-                    epoch=epoch_id,
-                    resolve_attachments=resolve_attachments,
-                    format=format,
-                    exclude_fields=exclude_fields,
-                )
-                yield sample
-            except IndexError:
-                if all_samples_required:
-                    raise
+    for sample_id, epoch_id in sample_keys:
+        try:
+            sample = read_eval_log_sample(
+                log_file=log_file,
+                id=sample_id,
+                epoch=epoch_id,
+                resolve_attachments=resolve_attachments,
+                format=format,
+                exclude_fields=exclude_fields,
+            )
+            yield sample
+        except IndexError:
+            if all_samples_required:
+                raise
 
 
 def manifest_eval_log_name(info: EvalLogInfo, log_dir: str, sep: str) -> str:
