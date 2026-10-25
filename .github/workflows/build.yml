@@ -490,14 +490,20 @@ jobs:
         run: |
           VERSION_PATH="src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt"
           BASE_VERSION=$(git show "origin/${BASE_REF}:${VERSION_PATH}" | tr -d '[:space:]')
-          PR_VERSION=$(tr -d '[:space:]' < "${VERSION_PATH}")
-          # Validate before the numeric compare below: the PR file is
-          # attacker-controlled on fork PRs, and a non-canonical value would
-          # either run arithmetic (a[$(cmd)]) or break artifact naming (v+36).
-          if ! [[ "$PR_VERSION" =~ ^[1-9][0-9]*$ ]]; then
-            echo "::error::${VERSION_PATH} must be a positive integer, not v${PR_VERSION}."
+          # Read and validate the version the way upload_to_s3.py does: strip only
+          # surrounding whitespace (not internal, so "3 7" can't pass as 37, which
+          # the uploader's .strip() rejects), and require canonical digits before
+          # the numeric compare below. The PR file is attacker-controlled on fork
+          # PRs. Single-bracket test -gt doesn't run a[$(cmd)] (that's a [[ ]]/(( ))
+          # behavior), but a non-canonical value still needs a clear, early
+          # failure: it would break artifact naming (v+36) or, unbounded, overflow
+          # the integer compare. The digit bound keeps it in range.
+          PR_VERSION=$(< "${VERSION_PATH}")
+          if ! [[ "$PR_VERSION" =~ ^[[:space:]]*([1-9][0-9]{0,8})[[:space:]]*$ ]]; then
+            echo "::error::${VERSION_PATH} must be a positive integer of up to 9 digits, not v${PR_VERSION}."
             exit 1
           fi
+          PR_VERSION=${BASH_REMATCH[1]}
           EXPECTED=$((BASE_VERSION + 1))
           echo "Base (${BASE_REF}): v${BASE_VERSION}; PR: v${PR_VERSION}; expected on bump: v${EXPECTED} or higher; injectable_src_changed=${INJECTABLE_SRC_CHANGED}"
           if [ "$INJECTABLE_SRC_CHANGED" = "true" ]; then

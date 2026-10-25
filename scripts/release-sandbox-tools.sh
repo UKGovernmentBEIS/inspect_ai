@@ -306,14 +306,18 @@ say "✓ Checkout matches PR #$PR_NUMBER's head ($HEAD_SHA)."
 note "Fetching origin/main to check the injectable version..."
 git fetch --quiet origin main
 MAIN_V=$(git show origin/main:"$VERSION_FILE" | tr -d '[:space:]')
-LOCAL_V=$(tr -d '[:space:]' < "$VERSION_FILE")
-# Validate before the numeric compare: [[ -gt ]] evaluates its operands as
-# arithmetic, so a non-canonical $LOCAL_V like a[$(cmd)] would run cmd, and a
-# value like +36 would break artifact naming (v36 vs v+36).
-if ! [[ "$LOCAL_V" =~ ^[1-9][0-9]*$ ]]; then
-  warn "$VERSION_FILE must be a positive integer, not '$LOCAL_V'."
+# Read and validate the version the way upload_to_s3.py does: strip only
+# surrounding whitespace (not internal, so "3 7" can't pass as 37, which the
+# uploader's .strip() rejects), and require canonical digits before the numeric
+# compare. [[ -gt ]] evaluates operands as arithmetic, so a non-canonical value
+# like a[$(cmd)] would run cmd; +36 would break artifact naming (v36 vs v+36);
+# the digit bound keeps it clear of bash arithmetic overflow.
+LOCAL_V=$(< "$VERSION_FILE")
+if ! [[ "$LOCAL_V" =~ ^[[:space:]]*([1-9][0-9]{0,8})[[:space:]]*$ ]]; then
+  warn "$VERSION_FILE must be a positive integer of up to 9 digits, not '$LOCAL_V'."
   exit 1
 fi
+LOCAL_V=${BASH_REMATCH[1]}
 EXPECTED_V=$((MAIN_V + 1))
 # Any version above main, matching check-version-bump. Normally v$EXPECTED_V; a
 # burned version (published, then a build input changed) is recovered by bumping
@@ -369,7 +373,12 @@ BUILD_INPUTS=(
 # forces in): those leave the build inputs unchanged, so an earlier build still
 # matches. A rebuild isn't reproducible (PyInstaller), so it would hit the
 # upload immutability guard. Prints "RUN_ID BUILT_COMMIT". A built commit not
-# available locally and not fetchable is skipped, as the gate does.
+# available locally and not fetchable is skipped here so the search continues;
+# the gate instead requires it (its fetch has no fallback and hard-fails).
+# More than one successful first-attempt run can match (a re-dispatch or a manual
+# dispatch); the newest wins. If another matching run's bytes were already
+# published for this version, re-uploading trips the immutability guard, and the
+# published bytes are kept rather than bumped (see sandbox-tools-release-flow.md).
 find_reusable_run() {
   local id title built
   while IFS=$'\t' read -r id title; do
@@ -394,17 +403,25 @@ if [[ -n "$RUN_ID" ]]; then
   say "✓ Reusing successful run $RUN_ID (built $BUILT_COMMIT)."
 else
   BUILT_COMMIT=$HEAD_SHA
-  pause "Press Enter to start the CI build"
-  gh workflow run "$BUILD_WORKFLOW" --repo "$UPSTREAM_REPO" --ref main -f sha="$HEAD_SHA"
-  note "Waiting for the run to appear..."
-  for _ in $(seq 30); do
-    RUN_ID=$(find_run "$HEAD_SHA" '| select(.conclusion == "")')
-    [[ -n "$RUN_ID" ]] && break
-    sleep 5
-  done
-  if [[ -z "$RUN_ID" ]]; then
-    warn "The dispatched run didn't appear — check the Actions tab, then re-run."
-    exit 1
+  # Don't dispatch a duplicate: an earlier dispatch for this commit may still be
+  # running (e.g. Ctrl-C mid-build, then re-run). A second run would build
+  # different, non-reproducible bytes, so wait on the existing one instead.
+  RUN_ID=$(find_run "$HEAD_SHA" '| select(.conclusion == "")')
+  if [[ -n "$RUN_ID" ]]; then
+    say "✓ A build for this commit is already running; waiting on run $RUN_ID."
+  else
+    pause "Press Enter to start the CI build"
+    gh workflow run "$BUILD_WORKFLOW" --repo "$UPSTREAM_REPO" --ref main -f sha="$HEAD_SHA"
+    note "Waiting for the run to appear..."
+    for _ in $(seq 30); do
+      RUN_ID=$(find_run "$HEAD_SHA" '| select(.conclusion == "")')
+      [[ -n "$RUN_ID" ]] && break
+      sleep 5
+    done
+    if [[ -z "$RUN_ID" ]]; then
+      warn "The dispatched run didn't appear — check the Actions tab, then re-run."
+      exit 1
+    fi
   fi
   if ! gh run watch "$RUN_ID" --repo "$UPSTREAM_REPO" --exit-status; then
     warn "CI build failed — see run $RUN_ID. Fix the PR, or for a flake just re-run"
@@ -484,8 +501,10 @@ else
   say "✓ AWS credentials OK."
   if ! "$PYTHON" src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py "$V"; then
     warn "Upload aborted. If it hit the immutability guard (v$V already published"
-    warn "with different bytes), never force over it — bump the version and publish"
-    warn "fresh artifacts."
+    warn "with different bytes), never force over it. If a build input changed,"
+    warn "bump the version and publish fresh. If the published bytes are from"
+    warn "another valid CI build of these same inputs, keep them: rerun the gate,"
+    warn "no bump. See src/inspect_sandbox_tools/design/sandbox-tools-release-flow.md."
     exit 1
   fi
   say "✓ Uploaded and verified all four artifacts."
