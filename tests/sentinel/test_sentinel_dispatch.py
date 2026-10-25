@@ -1350,39 +1350,49 @@ def test_sentinel_errors_in_a_background_sub_agent_fail_the_sample() -> None:
     assert sample_error.message == "PermissionError('sentinel denied')"
 
 
+async def run_addition(grouped: bool) -> None:
+    message = ChatMessageAssistant(
+        content="",
+        tool_calls=[
+            ToolCall(id="add_call", function="addition", arguments={"x": 1, "y": 2})
+        ],
+    )
+
+    async def run_tools() -> None:
+        await execute_tools([message], [addition()])
+
+    if grouped:
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(run_tools)
+    else:
+        await run_tools()
+
+
+@solver
+def d3_adds_with_tools(grouped: bool = False) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        await run_addition(grouped)
+        return state
+
+    return solve
+
+
 @scorer(metrics=[])
 def adds_with_tools(grouped: bool = False) -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:
-        message = ChatMessageAssistant(
-            content="",
-            tool_calls=[
-                ToolCall(
-                    id="score_call", function="addition", arguments={"x": 1, "y": 2}
-                )
-            ],
-        )
-
-        async def run_tools() -> None:
-            await execute_tools([message], [addition()])
-
-        if grouped:
-            async with anyio.create_task_group() as tg:
-                tg.start_soon(run_tools)
-        else:
-            await run_tools()
+        await run_addition(grouped)
         return Score(value=1)
 
     return score
 
 
 @pytest.mark.parametrize("grouped", [False, True])
-def test_sentinel_errors_in_a_scorer_report_the_original_exception(
+def test_sentinel_errors_in_a_tool_call_report_the_original_exception(
     grouped: bool,
 ) -> None:
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target="2")],
-        solver=generate(),
-        scorer=adds_with_tools(grouped),
+        solver=d3_adds_with_tools(grouped),
         sentinel=[d3_raising(PermissionError("sentinel denied"))],
     )
     log = eval(task, model="mockllm/model")[0]
@@ -1391,6 +1401,22 @@ def test_sentinel_errors_in_a_scorer_report_the_original_exception(
     sample_error = log.samples[0].error
     assert sample_error is not None
     assert sample_error.message == "PermissionError('sentinel denied')"
+
+
+@pytest.mark.parametrize("grouped", [False, True])
+def test_a_task_scorer_s_tool_calls_are_not_checked(grouped: bool) -> None:
+    seen: list[StageSeen] = []
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=generate(),
+        scorer=adds_with_tools(grouped),
+        sentinel=[d3_every_stage(seen)],
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.status == "success", log.error
+    assert of_stage(seen, BeforeToolCall) == []
+    assert of_stage(seen, AfterToolCall) == []
+    assert len(of_stage(seen, BeforeGenerate)) == 1
 
 
 @pytest.mark.parametrize("after", [False, True])
@@ -5090,6 +5116,8 @@ def run_origin_case(name: str, sentinel: Any) -> EvalLog:
             solver=[d3_scores_mid_run(), d3_generates_once()],
             scorer=d3_model_scorer(),
         )
+    elif name == "agent_in_scorer":
+        return run_task(solver=generate(), scorer=d3_agent_scorer())
     elif name == "compaction":
         return run_task(solver=d3_compacts_then_generates())
     elif name == "approval_and_review":
@@ -5132,6 +5160,7 @@ _ORIGIN_CASES: dict[str, dict[str | None, int]] = {
     "bridged": {"agent": 1},
     # the solver's score(), the agent's generate, then the scoring phase
     "scorer": {"scorer": 2, "agent": 1},
+    "agent_in_scorer": {"agent": 1, "scorer": 1},
     "compaction": {"compaction": 1, "agent": 1},
     "approval_and_review": {"agent": 2, "approval": 1, "review": 1},
     "agent_in_approval": {"agent": 2, "approval": 1},
@@ -5772,10 +5801,20 @@ def test_a_message_edited_in_place_in_the_prefix_is_sent_again() -> None:
         step.input[2].text,
     ]
     assert last[1] is last[2]
-    # the log's earlier ModelEvent snapshots its input, so it keeps the
-    # content as it was sent
-    first, _ = agent_events(log)
-    assert first.input[1].text == "Draft question."
+    # a known difference: live history holds the edited object in both
+    # places, while the log snapshots each input, so its fold has the
+    # message as it was sent and then the edited version
+    from inspect_ai._sentinel._sent import _Sent
+
+    fold = _Sent()
+    for event in agent_events(log):
+        fold.record(event.input)
+    assert sent_texts(fold.messages) == [
+        "Be helpful.",
+        "Draft question.",
+        "Final question.",
+        step.input[2].text,
+    ]
 
 
 # attributes each call to a sub-agent span, as a bridged CLI's event consumer does

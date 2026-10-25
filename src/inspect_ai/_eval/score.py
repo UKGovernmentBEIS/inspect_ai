@@ -521,7 +521,7 @@ async def _run_score_task(
             )
             scorer_names.append(scorer_name)
             async with span(name=scorer_name, type=SCORER_SPAN_TYPE):
-                with sentinel_scope("scorer"):
+                with sentinel_scope("scorer", final=True):
                     score_result = await scorer(state, target)
                 if scorer_name in state.scores:
                     raise RuntimeError(

@@ -3091,7 +3091,9 @@ async def _task_run_sample_attempt(
                                             ):
                                                 if not scorer:
                                                     continue
-                                                with sentinel_scope("scorer"):
+                                                with sentinel_scope(
+                                                    "scorer", final=True
+                                                ):
                                                     score_result = await scorer(
                                                         state, Target(sample.target)
                                                     )
