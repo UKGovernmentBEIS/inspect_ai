@@ -97,8 +97,9 @@ gh attestation verify src/inspect_ai/binaries/inspect-sandbox-tools-amd64-v{VERS
 ```
 
 The attestation's `runDetails.metadata.invocationId` names the run that signed
-it; check that the run succeeded and its title names the PR head commit. The
-wizard does these checks for all four artifacts.
+it; check that the run succeeded and that its title names the built commit (the
+PR head, or an earlier commit whose build inputs match it). The wizard does
+these checks for all four artifacts.
 
 **The built commit may never be on `main`.** PRs are squash-merged, so the
 commit CI built (the PR head) is not an ancestor of the merge commit; it stays
@@ -121,14 +122,13 @@ comparison sees only a link's target path while the build reads its content. Lim
   signed itself, so the check trusts GitHub's record of which inputs started
   the run.
 - The check runs after upload. If it fails, the published version is burned:
-  its S3 bytes are immutable and can't be replaced, so bump the version past
-  the burned number and publish a fresh build. `check-version-bump` accepts any
-  version above `main`, not only `main + 1`, so skipping the burned number
-  passes; the number is only an artifact label, and a gap is harmless at
-  runtime. This covers both triggers: a build input changing after upload (a
-  late fix to `sandbox.py`), and a build-input change landing on `main` between
-  the upload and the merge, which the strict up-to-date rule then forces into
-  the PR.
+  its S3 bytes are immutable, so bump the version past the burned number and
+  publish a fresh build. `check-version-bump` accepts any version above `main`,
+  so the skip passes; the number is only an artifact label, so a gap is
+  harmless at runtime. This covers both triggers: a build input changing after
+  upload (a late fix to `sandbox.py`), and a build-input change landing on
+  `main` between the upload and the merge, which the strict up-to-date rule then
+  forces into the PR.
 - A `.gitattributes` file above the build-input directories (none exists
   today) can change how checkout writes those files, and the comparison
   doesn't cover it.

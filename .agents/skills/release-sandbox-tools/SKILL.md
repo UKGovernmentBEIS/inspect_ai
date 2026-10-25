@@ -55,7 +55,7 @@ Running earlier wastes builds if review rounds change the injectable source.
    the failing check instead, the fix is a committed version bump in
    `src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt`
    (greater than origin/main's; normally one more, but a burned version is
-   skipped by bumping further — see below) — the wizard requires it and
+   skipped by bumping further, see below) — the wizard requires it and
    won't write it.
 2. **Get a checkout of the PR's head branch** (a git worktree is ideal;
    `gh pr checkout <N>` for a fork PR) at the PR's current head commit — the
@@ -95,6 +95,6 @@ fallback:
 - **Binaries must come from the exact PR code, built in CI.** Artifact
   filenames only encode the version, so files lying around from an earlier
   review round look identical. Upload only artifacts from a
-  `sandbox-tools-build.yml` run titled with the PR's head commit, after
-  `gh attestation verify` passes on each (RELEASING.md step 3). Never upload
-  a local build.
+  `sandbox-tools-build.yml` run whose built commit's build inputs match the
+  PR's (normally the PR head), after `gh attestation verify` passes on each
+  (RELEASING.md step 3). Never upload a local build.
