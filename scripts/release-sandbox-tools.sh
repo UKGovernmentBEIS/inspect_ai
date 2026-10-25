@@ -330,24 +330,54 @@ pause
 stage "Build in CI (slow — 4 variants build and validate in parallel, ~10 minutes)"
 say "$BUILD_WORKFLOW builds and validates each variant on its own arch's runner"
 say "at $HEAD_SHA, then attests the four artifacts."
-# A finished run for this commit is reused, so re-runs skip the build.
-RUN_TITLE="Build sandbox tools at $HEAD_SHA"
 # Only first attempts count: a re-run can mix bytes signed by one attempt with a
 # result from another. To retry a failed build, dispatch a new run.
+# $1: built-commit SHA (matched against the run title); $2: jq conclusion filter.
 find_run() {
   gh run list --repo "$UPSTREAM_REPO" --workflow "$BUILD_WORKFLOW" --branch main \
     --event workflow_dispatch --limit 50 --json databaseId,displayTitle,conclusion,attempt \
-    --jq "[.[] | select(.displayTitle == \"$RUN_TITLE\" and .attempt == 1) $1][0].databaseId // empty"
+    --jq "[.[] | select(.displayTitle == \"Build sandbox tools at $1\" and .attempt == 1) $2][0].databaseId // empty"
 }
-RUN_ID=$(find_run '| select(.conclusion == "success")')
+
+# The build inputs slow-tool-tests-release compares (keep in sync with the
+# BUILD_INPUTS list in build.yml). SHA256SUMS is excluded, so the stage-4
+# digest-pin commit leaves them unchanged.
+BUILD_INPUTS=(
+  src/inspect_sandbox_tools
+  ":(exclude)src/inspect_sandbox_tools/design"
+  ":(exclude)src/inspect_sandbox_tools/tests"
+  src/inspect_ai/tool/_sandbox_tools_utils
+  ":(exclude)src/inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS"
+  src/inspect_ai/binaries
+)
+
+# A finished run for this commit is reused, so re-runs skip the build.
+RUN_ID=$(find_run "$HEAD_SHA" '| select(.conclusion == "success")')
+BUILT_COMMIT=$HEAD_SHA
+# After stage 4 pushes the digest-pin commit, HEAD is one commit past the built
+# head and no run is titled with it. That commit changes only SHA256SUMS, so the
+# build on HEAD's parent is still valid for HEAD when their build inputs match —
+# the comparison slow-tool-tests-release makes. Reuse it rather than rebuilding:
+# PyInstaller output isn't reproducible, so a rebuild would hit the upload
+# immutability guard.
+if [[ -z "$RUN_ID" ]]; then
+  PARENT=$(git rev-parse --verify --quiet HEAD^) || true
+  if [[ -n "$PARENT" ]] && git diff --quiet "$PARENT" HEAD -- "${BUILD_INPUTS[@]}"; then
+    REUSE_ID=$(find_run "$PARENT" '| select(.conclusion == "success")')
+    if [[ -n "$REUSE_ID" ]]; then
+      RUN_ID=$REUSE_ID
+      BUILT_COMMIT=$PARENT
+    fi
+  fi
+fi
 if [[ -n "$RUN_ID" ]]; then
-  say "✓ Reusing successful run $RUN_ID for this commit."
+  say "✓ Reusing successful run $RUN_ID (built $BUILT_COMMIT)."
 else
   pause "Press Enter to start the CI build"
   gh workflow run "$BUILD_WORKFLOW" --repo "$UPSTREAM_REPO" --ref main -f sha="$HEAD_SHA"
   note "Waiting for the run to appear..."
   for _ in $(seq 30); do
-    RUN_ID=$(find_run '| select(.conclusion == "")')
+    RUN_ID=$(find_run "$HEAD_SHA" '| select(.conclusion == "")')
     [[ -n "$RUN_ID" ]] && break
     sleep 5
   done
@@ -377,7 +407,7 @@ for f in $VARIANTS; do
     exit 1
   fi
   # The attestation names the run that signed it; the run's title names the
-  # commit it built, so this ties the bytes to $HEAD_SHA.
+  # commit it built, so this ties the bytes to $BUILT_COMMIT.
   INVOCATION=$(gh attestation verify "$DOWNLOAD_DIR/$name" --repo "$UPSTREAM_REPO" \
     --signer-workflow "$UPSTREAM_REPO/.github/workflows/$BUILD_WORKFLOW" \
     --source-ref refs/heads/main --format json \
