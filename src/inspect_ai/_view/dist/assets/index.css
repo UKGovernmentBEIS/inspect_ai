@@ -832,29 +832,29 @@ button._segment_116ql_10._disabled_116ql_51:hover {
 ._hidden_hqi3c_47 {
   opacity: 0 !important;
 }
-.btn._toolButton_3h5lc_1 {
+.btn._toolButton_xg5wq_1 {
   background-color: var(--bs-light-border-subtle);
 }
 
-.btn._toolButton_3h5lc_1._bodyColor_3h5lc_5 {
+.btn._toolButton_xg5wq_1._bodyColor_xg5wq_5 {
   background-color: var(--bs-light);
 }
 
-._toolButton_3h5lc_1 {
+._toolButton_xg5wq_1 {
   white-space: nowrap;
 }
 
-._toolButton_3h5lc_1 i {
+._toolButton_xg5wq_1 i {
   margin-right: 0.5em;
 }
 
-._toolButton_3h5lc_1 ._chevron_3h5lc_17 {
+._toolButton_xg5wq_1 ._chevron_xg5wq_17 {
   margin-left: 0.5em;
   margin-right: 0;
   font-size: 0.75em;
 }
 
-._toolButton_3h5lc_1:focus {
+._toolButton_xg5wq_1:focus {
   outline: none;
   box-shadow:
     0 0 0 2px rgba(var(--bs-primary-rgb), 0.5),
@@ -862,7 +862,7 @@ button._segment_116ql_10._disabled_116ql_51:hover {
     inset 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
-._backdrop_3h5lc_31 {
+._backdrop_xg5wq_31 {
   position: fixed;
   top: 0;
   left: 0;
@@ -872,7 +872,7 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   z-index: 1049;
 }
 
-._dropdownMenu_3h5lc_41 {
+._dropdownMenu_xg5wq_41 {
   position: fixed;
   background: var(--bs-body-bg);
   border: 1px solid var(--bs-border-color);
@@ -883,7 +883,7 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   overflow: hidden;
 }
 
-._dropdownItem_3h5lc_52 {
+._dropdownItem_xg5wq_52 {
   display: block;
   width: 100%;
   padding: 0.25rem 0.75rem;
@@ -896,15 +896,15 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   transition: background-color 0.15s ease-in-out;
 }
 
-._dropdownItem_3h5lc_52:hover {
+._dropdownItem_xg5wq_52:hover {
   background-color: var(--bs-tertiary-bg);
 }
 
-._dropdownItem_3h5lc_52:active {
+._dropdownItem_xg5wq_52:active {
   background-color: var(--bs-secondary-bg);
 }
 
-._dropdownHeading_3h5lc_73 {
+._dropdownHeading_xg5wq_73 {
   padding: 0.15rem 0.75rem 0.1rem;
   font-size: 0.65rem;
   text-transform: uppercase;
@@ -913,20 +913,40 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   white-space: nowrap;
 }
 
-._dropdownDivider_3h5lc_82 {
+._dropdownDivider_xg5wq_82 {
   border-top: 1px solid var(--bs-border-color);
   margin: 0.25rem 0;
 }
 
-._dropdownFooter_3h5lc_87 {
+._dropdownFooter_xg5wq_87 {
   display: flex;
   align-items: center;
   gap: 0.5em;
   color: var(--bs-secondary-color);
 }
 
-._dropdownFooter_3h5lc_87 i {
+._dropdownFooter_xg5wq_87 i {
   font-size: 0.85em;
+}
+
+._toolButton_xg5wq_1 ._noMargin_xg5wq_98 {
+  margin-right: 0;
+}
+
+._collapsibleLabel_xg5wq_102 {
+  margin-left: 0.5em;
+}
+
+/* Below this width the label is visually hidden but stays the accessible name. */
+@media (max-width: 1300px) {
+  ._collapsibleLabel_xg5wq_102 {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }
 ._visible_tm52u_1 {
   display: block;
@@ -946,11 +966,11 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   padding: 0.1rem 0.6rem;
   border-radius: var(--bs-border-radius);
 }
-._tabs_1ugqd_1 {
+._tabs_mmxoy_1 {
   align-items: center;
 }
 
-._tabContents_1ugqd_5 {
+._tabContents_mmxoy_5 {
   flex: 1;
   /* clip instead of hidden to ensure scroll container for position: sticky; children is higher in the hierarchy */
   overflow-y: clip;
@@ -962,13 +982,13 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   min-width: 0;
 }
 
-._tabContents_1ugqd_5._scrollable_1ugqd_13 {
+._tabContents_mmxoy_5._scrollable_mmxoy_13 {
   min-height: 0;
   overflow-y: auto;
   height: 100%;
 }
 
-._tab_1ugqd_1 {
+._tab_mmxoy_1 {
   color: "var(--bs-body-color)";
   padding: 0.25rem 0.5rem;
   border-top-left-radius: var(--bs-border-radius);
@@ -980,33 +1000,33 @@ button._segment_116ql_10._disabled_116ql_51:hover {
 
 /* A tab rendered as <a> (href set): match the <button> tab's centred label
    when a caller gives tabs a fixed width. */
-._linkTab_1ugqd_35 {
+._linkTab_mmxoy_35 {
   text-align: center;
 }
 
-._tabItem_1ugqd_39 {
+._tabItem_mmxoy_39 {
   align-self: end;
 }
 
-._pillSmallContainer_1ugqd_43 {
-  gap: 0.25rem;
+._pillSmallContainer_mmxoy_43 {
+  gap: 0.125rem;
 }
 
-._pillSmall_1ugqd_43 {
-  padding: 0.3rem 0.5rem;
+._pillSmall_mmxoy_43 {
+  padding: 0.3rem 0.3rem;
 }
 
-._tabIcon_1ugqd_51 {
+._tabIcon_mmxoy_51 {
   margin-right: 0.5em;
 }
 
-._tabSpacer_1ugqd_55 {
+._tabSpacer_mmxoy_55 {
   flex: 1 1 0;
   min-width: 0;
   list-style: none;
 }
 
-._tabTools_1ugqd_61 {
+._tabTools_mmxoy_61 {
   /* Grow alongside the spacer so flex children inside (e.g. a filter
      input) can claim leftover horizontal space rather than being
      content-sized. `justify-content: end` keeps non-growing tools
@@ -1020,20 +1040,20 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   column-gap: 0.5rem;
 }
 
-._tabStyle_1ugqd_75 {
+._tabStyle_mmxoy_75 {
   padding-left: 0.7em;
   padding-right: 0.7em;
 }
 
-._tabTools_1ugqd_61 > * {
+._tabTools_mmxoy_61 > * {
   flex: 0 1 auto;
 }
 
-._tabTools_1ugqd_61 input {
+._tabTools_mmxoy_61 input {
   font-size: var(--inspect-font-size-smallest);
 }
 
-._tabTools_1ugqd_61 .btn {
+._tabTools_mmxoy_61 .btn {
   font-size: var(--inspect-font-size-smallest);
   padding: 0.1em 0.5em;
 }
@@ -24921,14 +24941,195 @@ pre._value_8citi_25 {
 ._scores_148cv_9 {
   padding-top: 1em;
 }
-._sessions_ezmbx_1 {
-  display: flex;
-  flex-direction: column;
+._tiles_gwli1_1 {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 1em;
 }
 
-._sessionLabel_ezmbx_7 {
-  margin-bottom: 0.3em;
+._tile_gwli1_1 {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  overflow: hidden;
+  background-color: var(--bs-body-bg);
+}
+
+._tile_gwli1_1:hover,
+._tile_gwli1_1:focus-within {
+  border-color: var(--bs-primary);
+}
+
+._tileHeader_gwli1_22 {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5em;
+  padding: 0.35em 0.6em;
+  border-bottom: 1px solid var(--bs-border-color);
+}
+
+._tileName_gwli1_31 {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+._tilePreview_gwli1_38 {
+  position: relative;
+  height: 200px;
+  background-color: #121314;
+  pointer-events: none;
+}
+
+._tilePlay_gwli1_45 {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3em;
+  color: rgba(255, 255, 255, 0.85);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+._tile_gwli1_1:hover ._tilePlay_gwli1_45,
+._tile_gwli1_1:focus-within ._tilePlay_gwli1_45 {
+  opacity: 1;
+}
+
+._tileButton_gwli1_62 {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+._tileButton_gwli1_62:focus-visible {
+  outline: 2px solid var(--bs-primary);
+  outline-offset: -2px;
+}
+
+._overlay_gwli1_75 {
+  position: fixed;
+  inset: 0;
+  z-index: 1060;
+  display: flex;
+  flex-direction: column;
+  background-color: rgba(0, 0, 0, 0.92);
+}
+
+._overlayHeader_gwli1_84 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1em;
+  padding: 0.6em 1em;
+  color: #fff;
+}
+
+._overlayTitleGroup_gwli1_93 {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  column-gap: 1em;
+  min-width: 0;
+}
+
+._overlayTitle_gwli1_93 {
+  font-weight: 600;
+}
+
+._overlayNote_gwli1_105 {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+._overlayNoteDetail_gwli1_109 {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+._overlayControls_gwli1_113 {
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  margin-left: auto;
+}
+
+._speedGroup_gwli1_120 {
+  display: inline-flex;
+}
+
+._speedGroup_gwli1_120 ._headerButton_gwli1_124:not(:first-child) {
+  margin-left: -1px;
+}
+
+._speedGroup_gwli1_120 ._headerButton_gwli1_124:not(:first-child, :last-child) {
+  border-radius: 0;
+}
+
+._speedGroup_gwli1_120 ._headerButton_gwli1_124:first-child:not(:last-child) {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+._speedGroup_gwli1_120 ._headerButton_gwli1_124:last-child:not(:first-child) {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+._headerButton_gwli1_124 {
+  padding: 0.15em 0.6em;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: var(--bs-border-radius);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: var(--inspect-font-size-small);
+  cursor: pointer;
+}
+
+._headerButton_gwli1_124:hover,
+._headerButton_gwli1_124:focus-visible {
+  background-color: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+._headerButton_gwli1_124._headerButtonActive_gwli1_158 {
+  background-color: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+
+._closeButton_gwli1_163 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.15em;
+  border: 0;
+  border-radius: var(--bs-border-radius);
+  background: transparent;
+  color: #fff;
+  font-size: 1.75em;
+  line-height: 1;
+  cursor: pointer;
+}
+
+._closeButton_gwli1_163:hover,
+._closeButton_gwli1_163:focus-visible {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+._overlayBody_gwli1_182 {
+  flex: 1;
+  min-height: 0;
+  padding: 0 1em 1em;
+}
+
+._overlayBody_gwli1_182 .ap-term {
+  cursor: pointer;
 }
 ._layout_6xi98_1 {
   display: flex;
