@@ -116,14 +116,16 @@ class ScoreEdit(BaseModel):
 
         Logs are written with ``exclude_none``, which drops None fields, while
         UNCHANGED is always written out. So when deserializing a log, a missing
-        nullable field can only have been None.
+        ``answer`` or ``explanation`` can only have been None. ``reason`` is
+        left alone: edits written before it existed (#4629) have no ``reason``
+        key and mean UNCHANGED, which a dropped None can't be told apart from.
         """
         if (
             isinstance(data, dict)
             and isinstance(info.context, dict)
             and info.context.get(DESERIALIZING, False)
         ):
-            return {"answer": None, "explanation": None, "reason": None} | data
+            return {"answer": None, "explanation": None} | data
         return data
 
 

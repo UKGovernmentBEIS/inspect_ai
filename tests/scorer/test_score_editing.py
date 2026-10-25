@@ -1,10 +1,12 @@
 """Tests for score editing functionality."""
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from inspect_ai import Task, eval_async, task
+from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.event._score_edit import ScoreEditEvent
 from inspect_ai.log import read_eval_log_sample_async, write_eval_log_async
@@ -811,7 +813,10 @@ async def test_edit_clearing_reason_drops_legacy_unscored_reason_metadata():
 async def test_score_edit_none_fields_round_trip(
     tmp_path: Path, log_format: str
 ) -> None:
-    """Fields an edit sets to None read back as None, not UNCHANGED."""
+    """Answers and explanations an edit sets to None read back as None.
+
+    ``reason`` is excluded; see test_legacy_score_edit_without_reason_keeps_reason.
+    """
     log = (await eval_async(single_metric_task(), model="mockllm/model"))[0]
     assert log.samples
     sample_id = log.samples[0].id
@@ -841,9 +846,13 @@ async def test_score_edit_none_fields_round_trip(
     assert history[0].explanation is None
     assert history[2].explanation is None
     assert history[2].answer == "UNCHANGED"
-    assert history == edited_history
+
+    def fields(edits: list[ScoreEdit]) -> list[tuple[Any, ...]]:
+        return [(e.value, e.answer, e.explanation, e.metadata) for e in edits]
+
+    assert fields(history) == fields(edited_history)
     edit_events = [e for e in read_sample.events if isinstance(e, ScoreEditEvent)]
-    assert [e.edit for e in edit_events] == history[1:]
+    assert fields([e.edit for e in edit_events]) == fields(history[1:])
 
 
 def test_score_edit_missing_fields_are_unchanged_outside_log_reads() -> None:
@@ -851,3 +860,39 @@ def test_score_edit_missing_fields_are_unchanged_outside_log_reads() -> None:
     assert ScoreEdit(value=1).reason == "UNCHANGED"
     edit = ScoreEdit.model_validate({"value": 1}, context={"events_by_uuid": {}})
     assert edit.explanation == "UNCHANGED"
+
+
+@pytest.mark.anyio
+async def test_legacy_score_edit_without_reason_keeps_reason() -> None:
+    """Edits written before ScoreEdit.reason existed have no reason key.
+
+    A missing reason can't be told apart from a None that exclude_none
+    dropped, so it keeps meaning UNCHANGED. Re-applying such an edit must not
+    clear the score's reason.
+    """
+    legacy_edit = ScoreEdit.model_validate(
+        {
+            "value": 0,
+            "answer": "UNCHANGED",
+            "explanation": "UNCHANGED",
+            "metadata": "UNCHANGED",
+        },
+        context=get_deserializing_context(),
+    )
+    assert legacy_edit.reason == "UNCHANGED"
+
+    log = (await eval_async(single_metric_task(), model="mockllm/model"))[0]
+    assert log.samples
+    sample = log.samples[0]
+    scores = sample.scores
+    assert scores is not None
+    scores["single_metric_scorer"] = Score(
+        value=1, metadata={"unscored_reason": "grade_parse_failure"}
+    )
+    edit_score(
+        log, sample.id, "single_metric_scorer", legacy_edit, recompute_metrics=False
+    )
+
+    edited = scores["single_metric_scorer"]
+    assert edited.reason == "grade_parse_failure"
+    assert edited.metadata == {"unscored_reason": "grade_parse_failure"}
