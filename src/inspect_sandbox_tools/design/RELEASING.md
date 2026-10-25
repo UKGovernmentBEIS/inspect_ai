@@ -120,9 +120,15 @@ comparison sees only a link's target path while the build reads its content. Lim
 - The commit is tied to the signature through the run title rather than
   signed itself, so the check trusts GitHub's record of which inputs started
   the run.
-- The check runs after upload. If it fails, the published version can't be
-  replaced: bump the version and publish a fresh build. That includes a change
-  to a build input landing on `main` between the upload and the merge.
+- The check runs after upload. If it fails, the published version is burned:
+  its S3 bytes are immutable and can't be replaced, so bump the version past
+  the burned number and publish a fresh build. `check-version-bump` accepts any
+  version above `main`, not only `main + 1`, so skipping the burned number
+  passes; the number is only an artifact label, and a gap is harmless at
+  runtime. This covers both triggers: a build input changing after upload (a
+  late fix to `sandbox.py`), and a build-input change landing on `main` between
+  the upload and the merge, which the strict up-to-date rule then forces into
+  the PR.
 - A `.gitattributes` file above the build-input directories (none exists
   today) can change how checkout writes those files, and the comparison
   doesn't cover it.

@@ -492,12 +492,19 @@ jobs:
           BASE_VERSION=$(git show "origin/${BASE_REF}:${VERSION_PATH}" | tr -d '[:space:]')
           PR_VERSION=$(tr -d '[:space:]' < "${VERSION_PATH}")
           EXPECTED=$((BASE_VERSION + 1))
-          echo "Base (${BASE_REF}): v${BASE_VERSION}; PR: v${PR_VERSION}; expected on bump: v${EXPECTED}; injectable_src_changed=${INJECTABLE_SRC_CHANGED}"
+          echo "Base (${BASE_REF}): v${BASE_VERSION}; PR: v${PR_VERSION}; expected on bump: v${EXPECTED} or higher; injectable_src_changed=${INJECTABLE_SRC_CHANGED}"
           if [ "$INJECTABLE_SRC_CHANGED" = "true" ]; then
-            if [ "$PR_VERSION" = "$EXPECTED" ]; then
+            # Any version above main, not only N+1. If a published version is
+            # burned (its S3 bytes can no longer match the PR, because a build
+            # input changed after upload), it can't be re-used (S3 objects are
+            # immutable) and recovery is to bump past it. The version is only an
+            # artifact label: gaps are harmless at runtime (sandbox.py reads it
+            # to name the object to fetch), and provenance is proved by
+            # slow-tool-tests-release, not by the number. Normally this is N+1.
+            if [ "$PR_VERSION" -gt "$BASE_VERSION" ]; then
               echo "correctly_bumped=true" >> "$GITHUB_OUTPUT"
             else
-              echo "::error::src/inspect_sandbox_tools/ changed but ${VERSION_PATH} is v${PR_VERSION}; bump it to v${EXPECTED}."
+              echo "::error::src/inspect_sandbox_tools/ changed but ${VERSION_PATH} is v${PR_VERSION}; bump it above v${BASE_VERSION} (normally v${EXPECTED})."
               exit 1
             fi
           else
@@ -672,7 +679,9 @@ jobs:
       # this PR's.
       # The built commit itself needn't land on main (squash merges), so its
       # build inputs are compared instead. A failure here comes after upload:
-      # bump the version and publish fresh artifacts rather than re-uploading.
+      # the published bytes are burned, so bump the version past the burned
+      # number and publish fresh artifacts rather than re-uploading.
+      # check-version-bump accepts any bump above main, so the skip is allowed.
       - name: Check published binaries were built in CI from this PR's code
         env:
           GH_TOKEN: ${{ github.token }}
@@ -737,7 +746,7 @@ jobs:
             if ! git diff --quiet "$BUILT" HEAD -- "${BUILD_INPUTS[@]}"; then
               echo "::error::${FILENAME} was built from ${BUILT} (run ${RUN_ID}), whose build inputs differ from this PR:"
               git diff --stat "$BUILT" HEAD -- "${BUILD_INPUTS[@]}"
-              echo "::error::Bump the version and publish artifacts built at the PR's current head."
+              echo "::error::Bump the version (past the burned one; any bump above main is accepted) and publish artifacts built at the PR's current head."
               exit 1
             fi
             echo "${FILENAME}: built in run ${RUN_ID} from ${BUILT}; build inputs match"

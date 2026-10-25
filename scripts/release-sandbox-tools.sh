@@ -307,12 +307,15 @@ git fetch --quiet origin main
 MAIN_V=$(git show origin/main:"$VERSION_FILE" | tr -d '[:space:]')
 LOCAL_V=$(tr -d '[:space:]' < "$VERSION_FILE")
 EXPECTED_V=$((MAIN_V + 1))
-if [[ "$LOCAL_V" == "$EXPECTED_V" ]]; then
+# Any version above main, matching check-version-bump. Normally v$EXPECTED_V; a
+# burned version (published, then a build input changed) is recovered by bumping
+# past it.
+if [[ "$LOCAL_V" -gt "$MAIN_V" ]]; then
   say "✓ Version bumped: origin/main has v$MAIN_V, this branch has v$LOCAL_V."
 else
   warn "This branch has v$LOCAL_V but origin/main has v$MAIN_V — check-version-bump"
-  warn "CI requires exactly v$EXPECTED_V. Commit the bump to"
-  warn "$VERSION_FILE on the PR branch, then re-run."
+  warn "CI requires a version above v$MAIN_V (normally v$EXPECTED_V). Commit the bump"
+  warn "to $VERSION_FILE on the PR branch, then re-run."
   exit 1
 fi
 V=$LOCAL_V

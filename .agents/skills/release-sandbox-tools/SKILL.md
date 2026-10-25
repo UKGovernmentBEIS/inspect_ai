@@ -54,7 +54,8 @@ Running earlier wastes builds if review rounds change the injectable source.
    is the failing check (per "When to run" above). If `check-version-bump` is
    the failing check instead, the fix is a committed version bump in
    `src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt`
-   (exactly one greater than origin/main's) — the wizard requires it and
+   (greater than origin/main's; normally one more, but a burned version is
+   skipped by bumping further — see below) — the wizard requires it and
    won't write it.
 2. **Get a checkout of the PR's head branch** (a git worktree is ideal;
    `gh pr checkout <N>` for a fork PR) at the PR's current head commit — the
@@ -88,6 +89,9 @@ fallback:
 - **Published versions are immutable.** If an object for the version already
   exists on S3 with different bytes (the upload script's guard aborts on
   this), never force over it — bump the version and publish fresh artifacts.
+  The old version is burned: `check-version-bump` accepts any bump above
+  origin/main, so skip past the burned number. The number is only an artifact
+  label, so a gap is harmless.
 - **Binaries must come from the exact PR code, built in CI.** Artifact
   filenames only encode the version, so files lying around from an earlier
   review round look identical. Upload only artifacts from a
