@@ -1,5 +1,45 @@
 # Changelog
 
+## [0.3.284](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.283...0.3.284) (2026-10-25)
+
+
+### Features
+
+* **moonshot:** support Kimi K3.1 Pro and K3.1 Pro Highspeed ([#6072](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6072)) ([eade928](https://github.com/UKGovernmentBEIS/inspect_ai/commit/eade928ea4119e0f0eddfe58617d9993ba9d710a))
+* **sentinel:** step.agent_messages is the running agent's own message list at every stage ([#5986](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5986)) ([4744d5f](https://github.com/UKGovernmentBEIS/inspect_ai/commit/4744d5fdd8077ec28231d0a0f0a7289628a9b2b6))
+* update fireworks and together model info ([d6bbd08](https://github.com/UKGovernmentBEIS/inspect_ai/commit/d6bbd08ef68093da291e78a80b4e0893d4f9d595))
+* viewer plays asciicasts stored in the sample store under asciinema:* keys ([#6069](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6069)) ([473fac0](https://github.com/UKGovernmentBEIS/inspect_ai/commit/473fac0ad0e65ef5a558c977203b401e9fe2c319))
+
+
+### Bug Fixes
+
+* collect() drops the cause of a task's error ([#6000](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6000)) ([2521656](https://github.com/UKGovernmentBEIS/inspect_ai/commit/2521656e345f995e37b1bea09d3f212e4819bd18))
+* **computer:** reject out-of-bounds click coordinates instead of clicking at the screen edge ([#5927](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5927)) ([1529d0d](https://github.com/UKGovernmentBEIS/inspect_ai/commit/1529d0dc3c3937770b036a646f78bc59ea96c994))
+* concurrent download() calls for the same file no longer fail ([#5825](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5825)) ([db24cde](https://github.com/UKGovernmentBEIS/inspect_ai/commit/db24cde1562706c4501c0ebd2cdd579fdf4a83f4))
+* content_only no longer modifies the messages it filters ([#6024](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6024)) ([ef3bc31](https://github.com/UKGovernmentBEIS/inspect_ai/commit/ef3bc31473c346bdb2c113080a6dc1c50563f04b))
+* dataclass tool parameters losing their types under `from __future__ import annotations` ([#5746](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5746)) ([7c2dccc](https://github.com/UKGovernmentBEIS/inspect_ai/commit/7c2dcccbebc6747f310a70eeba1fa4063fe060db))
+* duplicated task prompt when using CompactionAuto with native compaction ([#4804](https://github.com/UKGovernmentBEIS/inspect_ai/issues/4804)) ([1de26ac](https://github.com/UKGovernmentBEIS/inspect_ai/commit/1de26acfcbaa8e2c8258cec8b92bd774ffc309a8))
+* fail samples on unexpected background subagent errors ([#5962](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5962)) ([13cfcad](https://github.com/UKGovernmentBEIS/inspect_ai/commit/13cfcad88ab2039d365933e503ceaf6e510049c0))
+* floats in .json log headers saved as strings after tag edits or streaming convert and score ([#6034](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6034)) ([b6f7af7](https://github.com/UKGovernmentBEIS/inspect_ai/commit/b6f7af751ca62961fce68cf636eb00c071dd4318))
+* keep timezone-less dataframe timestamps on the UTC clock ([#5767](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5767)) ([d7c8e2a](https://github.com/UKGovernmentBEIS/inspect_ai/commit/d7c8e2ad66b67f49c7ca81ce4831d16de87ee5e4))
+* legacy bridge filters with postponed annotations ([#5734](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5734)) ([35565c3](https://github.com/UKGovernmentBEIS/inspect_ai/commit/35565c32d3e4d60ee2c36e16fb560bd36a262cbe))
+* local_path no longer drops the Windows drive from file:// URIs ([#6035](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6035)) ([901bc92](https://github.com/UKGovernmentBEIS/inspect_ai/commit/901bc92554d59dde00b6c1d9b9a13203c7a999ef))
+* logged model inputs and outputs no longer change when an agent later edits a message in place ([#5883](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5883)) ([ae59272](https://github.com/UKGovernmentBEIS/inspect_ai/commit/ae59272ed3d66499e2d25b6e31b9d59f5b325217))
+* **memory:** refuse rename onto an existing destination ([#5975](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5975)) ([5253ae5](https://github.com/UKGovernmentBEIS/inspect_ai/commit/5253ae533dd2d52ebe1e9afaba9d7a427885a042))
+* preserve model role attribution in scout workers ([#5684](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5684)) ([116340a](https://github.com/UKGovernmentBEIS/inspect_ai/commit/116340aa5cd29546ca4137edbb260d2757883d86))
+* recovered samples keep full input, target and scores ([#6032](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6032)) ([b8d81ea](https://github.com/UKGovernmentBEIS/inspect_ai/commit/b8d81eafb9448e269e82fba32289333a104092ce))
+* recovered samples keep output and message text inline instead of attachment refs ([#6043](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6043)) ([2845d9c](https://github.com/UKGovernmentBEIS/inspect_ai/commit/2845d9ce43748fc327f488683905cf267d71c6ff))
+* score_to_float() returns double[pyarrow] with pd.NA instead of float64 on pandas 3.1 ([#6027](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6027)) ([a8f5015](https://github.com/UKGovernmentBEIS/inspect_ai/commit/a8f5015d4d8cbde4d5a14a1d6ecc5fd685f7a45c))
+* skills read on Windows install subdirectory files at nested sandbox paths ([#5909](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5909)) ([39f0b44](https://github.com/UKGovernmentBEIS/inspect_ai/commit/39f0b447b83d7c764f2c3296f449b4ec61d64e36)), closes [#5786](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5786)
+* **solver:** accept any sequence of solvers consistently ([#5090](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5090)) ([02b8697](https://github.com/UKGovernmentBEIS/inspect_ai/commit/02b8697852343da02ac74eba539f4efd2db48f03))
+* some valid .eval logs fail to open with struct.error or "Corrupt ZIP64 structure" ([#6033](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6033)) ([7f4e424](https://github.com/UKGovernmentBEIS/inspect_ai/commit/7f4e4246a706f2fa71e0b4a655c463286b603423))
+* **tests:** make test_deployment_name_normalization able to fail ([#5908](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5908)) ([48c53eb](https://github.com/UKGovernmentBEIS/inspect_ai/commit/48c53ebd3aab232e4fcc75730818b18593b4a38f)), closes [#5615](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5615)
+
+
+### Performance Improvements
+
+* retrying an eval whose logs are on S3 no longer re-uploads the prior attempt's log before the retry starts ([#5899](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5899)) ([1031b57](https://github.com/UKGovernmentBEIS/inspect_ai/commit/1031b575f9dad158860faa0f9dba0025864b0e68))
+
 ## [0.3.283](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.282...0.3.283) (2026-10-21)
 
 
