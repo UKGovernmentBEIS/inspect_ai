@@ -812,12 +812,16 @@ async def model_proxy_server(
 
                     seq_num = 0
 
-                    # Like the real API, created/in_progress carry no output yet:
+                    # Like the real API, created/in_progress carry no results yet:
                     # items arrive via output_item.added (openai >= 3.31 rejects
                     # an added index that the snapshot already holds).
-                    in_progress_resp = dict(resp)
-                    in_progress_resp["status"] = "in_progress"
-                    in_progress_resp["output"] = []
+                    in_progress_resp = {
+                        **resp,
+                        "status": "in_progress",
+                        "output": [],
+                        "usage": None,
+                        "incomplete_details": None,
+                    }
 
                     # 1. response.created event
                     seq_num += 1
