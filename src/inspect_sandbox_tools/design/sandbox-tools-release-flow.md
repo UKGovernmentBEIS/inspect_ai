@@ -111,6 +111,19 @@ merging `main` into it. What happens next depends on what moved.
 The same split applies to a push to the PR branch after upload: a non-build-input
 push is fine, a build-input push burns the version.
 
+## More than one matching build
+
+More than one successful first-attempt run can have build inputs equal to HEAD: a
+re-dispatch (for example after Ctrl-C mid-build) or a manual dispatch. Because the
+build is not reproducible, their bytes differ. The wizard reuses the newest and,
+before dispatching, waits on an in-progress run for the commit rather than
+starting a duplicate, so this stays uncommon.
+
+If a different matching run's bytes are already published for the version, a
+re-run that selects the newer run re-uploads and trips the immutability guard.
+Those published bytes are still valid CI output for these inputs, so do not bump:
+keep them and rerun the gate. Bump only when a build input actually changed.
+
 ## Recovery archetypes
 
 The tables below reference these.
@@ -121,8 +134,15 @@ The tables below reference these.
   `sandbox_tools_version.txt` to any number above `main`, skipping the burned
   one, commit it, and re-run the wizard, which dispatches a fresh build at the
   new head and publishes it. Rerun the gate.
-- R3, fresh build run. Re-run the wizard, which dispatches a new build run.
-  GitHub's re-run buttons do not help, because only a first attempt counts.
+- R3, fresh build run. Get a new successful first-attempt run to become the
+  newest matching candidate. For a failed run or a re-run (attempt greater than
+  1), re-running the wizard dispatches one, since neither is reused. For a
+  successful first-attempt run that keeps being reselected (its artifacts
+  expired, or its attestation fails to verify), dispatch one yourself so a newer
+  run exists:
+  `gh workflow run sandbox-tools-build.yml --repo UKGovernmentBEIS/inspect_ai --ref main -f sha=<HEAD>`,
+  then re-run the wizard. GitHub's re-run buttons do not help, because only a
+  first attempt counts.
 - R4, fix the PR. Correct the version file or the change set as the message
   says, commit, re-run.
 
@@ -142,35 +162,35 @@ The tables below reference these.
 
 | Trigger | What you see | Recovery |
 |---|---|---|
-| Dispatched run never appeared | "The dispatched run didn't appear" | Re-run the wizard (R1) |
-| Build run failed | "CI build failed" | Fix the PR (R4), or for a flake re-run the wizard (R3) |
-| Build run was re-run (attempt > 1) | wizard "only a first attempt counts", gate "was re-run (attempt N)" | Re-run the wizard for a fresh build (R3) |
-| Build run did not succeed (gate) | "which did not succeed" | R3 |
-| Artifact missing or attestation fails at download | "has no inspect-sandbox-tools", "Attestation check failed", or "not run ... attempt 1" | Re-run the wizard for a fresh build (R3) |
+| Dispatched run never appeared | "The dispatched run didn't appear" | Re-run the wizard; it waits on the run if the dispatch registered, otherwise dispatches one (R1) |
+| Build run failed | "CI build failed" | Fix the PR (R4), or for a flake re-run the wizard, which dispatches a new build (R3) |
+| Picked run was re-run before download (attempt > 1) | wizard "only a first attempt counts" | Re-run the wizard; the attempt-2 run is no longer reused, so a fresh build is dispatched (R3) |
+| Reused run's artifact is missing or its attestation fails at download | "has no inspect-sandbox-tools", "Attestation check failed", or "not run ... attempt 1" | The same run keeps being reselected; dispatch a fresh build, then re-run (R3) |
+| Signing run did not succeed or was re-run (gate, after publication) | "which did not succeed" or "was re-run (attempt" | R2 (the bytes are published; fresh bytes would hit the immutability guard) |
 | No valid attestation on the S3 object (gate) | "has no valid attestation from sandbox-tools-build.yml on main" | R2 |
 | Built commit's inputs differ from the PR (gate) | "whose build inputs differ from this PR" | R2 |
-| Built commit unreadable from the run title (gate) | "Can't read the built commit from run" | Republish from a proper run (R2) |
+| Built commit unreadable from the run title (gate) | "Can't read the built commit from run" | R2 |
 | Symlink in the build inputs (gate) | "Symlinks in the sandbox tools build inputs ... aren't allowed" | Replace it with a regular file (R4); if bytes were already published, also R2 |
 
 ### Upload and publish (wizard stage 3, upload_to_s3.py)
 
 | Trigger | What you see | Recovery |
 |---|---|---|
-| Object already published with different bytes | upload "is already published with different bytes", wizard "If it hit the immutability guard" | R2 |
+| Object already published with different bytes | upload "is already published with different bytes", wizard "If it hit the immutability guard" | If a build input changed, R2. If the bytes are from another valid CI run of these same inputs, keep the published bytes and rerun the gate, no bump (see More than one matching build) |
 | Upload interrupted part way (crash or Ctrl-C) | some objects on S3, `SHA256SUMS` rewritten but uncommitted; the gate later 404s on the missing object | Re-run the wizard; re-upload is idempotent for identical bytes and finishes the rest (R1) |
-| Round-trip verify mismatch | "does not match the local digest" | Re-run the upload (R1) |
+| Round-trip verify mismatch | "does not match the local digest" | Transient (the just-uploaded object read back short); re-run the upload (R1). A pre-existing wrong object cannot reach here, it trips the immutability guard above |
 | Local artifact missing | "not found" | Re-run the wizard so the download repopulates `binaries/` (R1) |
 
 ### Digests, verify, and the gate (wizard stages 4-6, slow-tool-tests-release)
 
 | Trigger | What you see | Recovery |
 |---|---|---|
-| Digests already committed | "Nothing to commit, digests are already committed" | None; the wizard continues |
-| Wizard did not push the digest commit | "Skipped, remember to commit and push it yourself" | Commit and push `SHA256SUMS` to the PR branch (R1) |
+| Digests already committed | "digests are already committed" | None; the wizard continues |
+| Wizard did not push the digest commit | "remember to commit and push it yourself" | Commit and push `SHA256SUMS` to the PR branch (R1) |
 | `SHA256SUMS` not rewritten for the version (gate) | "is not updated for v" | Run the wizard; stage 3 rewrites it and stage 4 commits it (R1) |
 | Published object missing, gate 404 | "not found at" | Finish the upload by re-running the wizard (R1) |
 | Malformed `SHA256SUMS` entry (gate) | "Expected exactly one ... entry" | Re-run the wizard to rewrite `SHA256SUMS` (R1) |
-| Public object does not match the committed digest | wizard "Digest mismatch, do NOT merge", gate "does not match the digests committed in this PR. Do NOT re-upload over it" | Investigate. If the upload was incomplete, R1; if the published object is wrong, R2. Never re-upload over it |
+| Public object does not match the committed digest | wizard "do NOT merge", gate "does not match the digests committed in this PR. Do NOT re-upload over it" | If the object is missing or the read was transient, R1. If the published bytes are persistently wrong, investigate and R2. Never re-upload over it |
 
 ## Re-running and Ctrl-C
 
@@ -180,7 +200,8 @@ leaves, and what a re-run does:
 | Stopped at | State left behind | A re-run |
 |---|---|---|
 | Stage 1, preconditions | nothing | starts over |
-| Stage 2, build | perhaps a dispatched build run on `main`; nothing published | reuses the successful run, or waits for or dispatches one |
+| Stage 2, build | perhaps a dispatched build run on `main`; nothing published | reuses the run if it finished successfully, waits on it if still running, or dispatches one if none exists |
 | Stage 3, upload | some or all objects on S3; `SHA256SUMS` rewritten locally, uncommitted | reuses the build, re-uploads idempotently, round-trip verifies |
-| Stage 4, after the digest commit is pushed | `SHA256SUMS` committed and pushed; HEAD is now the digest commit | reuse still matches, since `SHA256SUMS` is not a build input; stage 3 re-upload is idempotent; stage 4 reports "Nothing to commit" |
+| Stage 4, after the digest commit but before the push | a local digest commit sits ahead of the PR head | stage 1's head check fails ("This checkout is at ... but PR #N's head is"); push the existing commit, then re-run |
+| Stage 4, after the digest commit is pushed | `SHA256SUMS` committed and pushed; HEAD is now the digest commit | reuse still matches, since `SHA256SUMS` is not a build input; stage 3 re-upload is idempotent; stage 4 reports "digests are already committed" |
 | Stage 5-6 | published and committed | idempotent; re-verifies and watches the gate |
