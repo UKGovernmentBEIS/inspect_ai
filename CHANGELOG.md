@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.285](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.284...0.3.285) (2026-10-25)
+
+
+### Features
+
+* viewer Terminals tab for recorded terminal sessions and a merged Info tab ([#6079](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6079)) ([e37ce2f](https://github.com/UKGovernmentBEIS/inspect_ai/commit/e37ce2fd3533ba53221d751e4e4eced74d4869b3))
+
+
+### Bug Fixes
+
+* .eval reads with exclude_fields failing on large float literals ([#6045](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6045)) ([641b871](https://github.com/UKGovernmentBEIS/inspect_ai/commit/641b8712f7d4e18c4813c261068e2a88022fb553))
+* agent bridge returns non-beta Anthropic usage to beta.messages calls with anthropic 2.3 ([#6061](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6061)) ([3dcd2de](https://github.com/UKGovernmentBEIS/inspect_ai/commit/3dcd2ded36085d7c068d966a8d3118563296916e))
+
 ## [0.3.284](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.283...0.3.284) (2026-10-25)
 
 
