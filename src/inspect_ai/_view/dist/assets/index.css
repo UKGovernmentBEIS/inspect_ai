@@ -24921,6 +24921,15 @@ pre._value_8citi_25 {
 ._scores_148cv_9 {
   padding-top: 1em;
 }
+._sessions_ezmbx_1 {
+  display: flex;
+  flex-direction: column;
+  gap: 1em;
+}
+
+._sessionLabel_ezmbx_7 {
+  margin-bottom: 0.3em;
+}
 ._layout_6xi98_1 {
   display: flex;
   gap: 1em;
