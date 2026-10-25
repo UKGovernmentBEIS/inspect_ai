@@ -255,6 +255,7 @@ PYTHON="$ROOT/.venv/bin/python"
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 say "Repo:   $ROOT"
 say "Branch: $BRANCH"
+note "Flow and failure recovery: src/inspect_sandbox_tools/design/sandbox-tools-release-flow.md"
 
 if [[ "$BRANCH" == "main" ]]; then
   warn "You're on main. Binaries must be built from the PR's head branch —"

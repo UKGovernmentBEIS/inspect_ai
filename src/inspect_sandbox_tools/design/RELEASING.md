@@ -41,7 +41,9 @@ runs):
 scripts/release-sandbox-tools.sh [--dry-run] [--auto]
 ```
 
-The sections below document the underlying commands.
+The sections below document the underlying commands. For a walkthrough of the
+flow and every failure with its recovery, see
+[sandbox-tools-release-flow.md](sandbox-tools-release-flow.md).
 
 ### 1. Make code changes
 
@@ -121,14 +123,11 @@ comparison sees only a link's target path while the build reads its content. Lim
 - The commit is tied to the signature through the run title rather than
   signed itself, so the check trusts GitHub's record of which inputs started
   the run.
-- The check runs after upload. If it fails, the published version is burned:
-  its S3 bytes are immutable, so bump the version past the burned number and
-  publish a fresh build. `check-version-bump` accepts any version above `main`,
-  so the skip passes; the number is only an artifact label, so a gap is
-  harmless at runtime. This covers both triggers: a build input changing after
-  upload (a late fix to `sandbox.py`), and a build-input change landing on
-  `main` between the upload and the merge, which the strict up-to-date rule then
-  forces into the PR.
+- The check runs after upload, so a failure means the published version is
+  burned: its bytes can no longer match the PR. Recovery is to bump past the
+  burned number and publish fresh. See
+  [sandbox-tools-release-flow.md](sandbox-tools-release-flow.md) for the
+  triggers and steps.
 - A `.gitattributes` file above the build-input directories (none exists
   today) can change how checkout writes those files, and the comparison
   doesn't cover it.

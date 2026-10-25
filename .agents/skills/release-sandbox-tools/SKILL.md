@@ -83,15 +83,15 @@ Running earlier wastes builds if review rounds change the injectable source.
 ## If the wizard fails or can't be used
 
 The underlying commands and mechanism are documented in
-`src/inspect_sandbox_tools/design/RELEASING.md`. Two rules survive any manual
-fallback:
+`src/inspect_sandbox_tools/design/RELEASING.md`; the end-to-end flow and every
+failure with its recovery are in
+`src/inspect_sandbox_tools/design/sandbox-tools-release-flow.md`. Two rules
+survive any manual fallback:
 
 - **Published versions are immutable.** If an object for the version already
   exists on S3 with different bytes (the upload script's guard aborts on
-  this), never force over it — bump the version and publish fresh artifacts.
-  The old version is burned: `check-version-bump` accepts any bump above
-  origin/main, so skip past the burned number. The number is only an artifact
-  label, so a gap is harmless.
+  this), never force over it. The version is burned; recover by bumping past
+  it (see the release flow doc for the triggers and steps).
 - **Binaries must come from the exact PR code, built in CI.** Artifact
   filenames only encode the version, so files lying around from an earlier
   review round look identical. Upload only artifacts from a
