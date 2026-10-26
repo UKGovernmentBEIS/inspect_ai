@@ -67,7 +67,7 @@ from inspect_ai.tool import (
     ToolInfo,
     tool,
 )
-from inspect_ai.tool._tool import ToolApprovalError
+from inspect_ai.tool._tool import ToolApprovalError, ToolParsingError
 from inspect_ai.util._span import span
 
 from .test_sentinel_dispatch import (
@@ -127,12 +127,12 @@ ABSENT: dict[str, set[str]] = {"AfterToolCall": {"output"}}
 
 
 @monitor
-def r7_probe(seen: dict[str, Step]) -> MonitorGroup:
-    """Record every step it is handed, under a token its observation carries."""
+def r7_probe(seen: dict[str, Step], copies: bool = False) -> MonitorGroup:
+    """Record every step it is handed, under a token its observation carries, or with `copies` a copy of its messages as they were then (`as_seen`)."""
 
     def probe(step: Step) -> Observation:
         token = str(len(seen))
-        seen[token] = step
+        seen[token] = as_seen(step) if copies else step
         return Observation.score(0.0, token)
 
     async def before_generate(
@@ -152,6 +152,22 @@ def r7_probe(seen: dict[str, Step]) -> MonitorGroup:
         return probe(step)
 
     return MonitorGroup(before_generate, after_generate, before_call, after_call)
+
+
+def as_seen(step: Step) -> Step:
+    """The step as its monitor saw it: a message the scaffold edits in place afterwards (react's `submit`) keeps what it held then."""
+
+    def copied(value: Any) -> Any:
+        if isinstance(value, BaseModel):
+            return value.model_copy(deep=True)
+        if isinstance(value, Sequence) and not isinstance(value, str):
+            return [copied(item) for item in value]
+        return value
+
+    return dataclasses.replace(
+        step,
+        **{f.name: copied(getattr(step, f.name)) for f in dataclasses.fields(step)},
+    )
 
 
 def live_steps(
@@ -233,7 +249,7 @@ def assert_replay_equals_live(
     task = Task(
         dataset=[sample or Sample(input="What is 1 + 1?", target="2")],
         solver=solver,
-        sentinel=[r7_probe(seen), *sentinel],
+        sentinel=[r7_probe(seen, copies=True), *sentinel],
         **task_kwargs,
     )
     log = eval(task, model=model)[0]
@@ -436,10 +452,6 @@ def test_a_retried_refusal_replays_as_it_ran() -> None:
             ),
             call("submit", answer="2"),
         ),
-        # known difference: react's submit appends the answer to the assistant
-        # message in place once the call has run, so the log holds the edited
-        # text that live's tool steps had not yet seen
-        differences=["tool_call.message", "tool_result.message"],
     )
 
 
@@ -522,13 +534,11 @@ def test_an_unparsable_call_replays_as_it_ran() -> None:
     assert not [step for step in replay if step.stage.startswith("tool")]
 
 
-def test_a_schema_validation_error_replays_as_it_ran() -> None:
+def test_a_call_that_fails_its_schema_has_no_tool_steps() -> None:
     replay = assert_replay_equals_live(
         tool_loop(addition()), outputs(call("addition", x="one", y=1), done())
     )
-    assert [step.stage for step in replay if step.stage.startswith("tool")] == [
-        "tool_call"
-    ]
+    assert not [step for step in replay if step.stage.startswith("tool")]
 
 
 @solver
@@ -655,15 +665,8 @@ def test_a_hook_that_rewrites_the_input_is_a_known_difference() -> None:
         _registry.pop("hooks:r7_rewrites_the_input", None)
 
 
-def test_a_message_edited_in_place_after_it_was_sent_is_a_known_difference() -> None:
-    # known difference: the log's earlier ModelEvent holds the edited object, so
-    # replay has the message once, as edited, where live has both versions
-    assert_replay_equals_live(
-        d3_edits_a_sent_message_in_place(),
-        "mockllm/model",
-        differences=["model_input.input", "model_input.history", "model_output.input"]
-        + ["model_output.history"],
-    )
+def test_a_message_edited_in_place_after_it_was_sent_replays_as_it_ran() -> None:
+    assert_replay_equals_live(d3_edits_a_sent_message_in_place(), "mockllm/model")
 
 
 def memory_call(path: str) -> ModelOutput:
@@ -1413,6 +1416,15 @@ def refuses() -> Tool:
     return execute
 
 
+@tool
+def misparses() -> Tool:
+    async def execute() -> str:
+        """Fail, as a call with invalid arguments would."""
+        raise ToolParsingError("not a number")
+
+    return execute
+
+
 @monitor
 def r7_counts_tool_calls(seen: list[Any]) -> MonitorGroup:
     async def before_call(context: Context, step: BeforeToolCall) -> Observation | None:
@@ -1422,14 +1434,19 @@ def r7_counts_tool_calls(seen: list[Any]) -> MonitorGroup:
     return MonitorGroup(before_call)
 
 
-def test_a_tool_that_raises_tool_approval_error_itself_is_a_known_difference() -> None:
+@pytest.mark.parametrize(
+    "raises,name", [(refuses, "refuses"), (misparses, "misparses")]
+)
+def test_a_tool_that_raises_an_oversight_error_itself_is_a_known_difference(
+    raises: Callable[[], Tool], name: str
+) -> None:
     # known difference: with every instance abstaining, the log of a tool that
-    # raises ToolApprovalError itself reads as a call rejected before its step
-    # was built, so replay gives it no tool steps
+    # raises ToolApprovalError or ToolParsingError itself reads as a call
+    # rejected before its step was built, so replay gives it no tool steps
     seen: list[Any] = []
     log = run_logged(
-        tool_loop(refuses()),
-        outputs(call("refuses"), done()),
+        tool_loop(raises()),
+        outputs(call(name), done()),
         sentinel=[r7_counts_tool_calls(seen)],
     )
     assert len(seen) == 1
@@ -1683,16 +1700,13 @@ def r7_scores_with_a_tool_loop() -> Scorer:
     return score
 
 
-def test_a_task_scorer_s_tool_calls_are_replayed() -> None:
+def test_a_task_scorer_s_tool_calls_have_no_tool_steps() -> None:
     replay = assert_replay_equals_live(
         generate(),
         outputs(done(), call("addition", x=1, y=1)),
         scorer=r7_scores_with_a_tool_loop(),
     )
-    assert [s.stage for s in replay if s.stage.startswith("tool")] == [
-        "tool_call",
-        "tool_result",
-    ]
+    assert not [s for s in replay if s.stage.startswith("tool")]
 
 
 @solver
@@ -1756,7 +1770,15 @@ def test_a_superseded_human_decision_is_withdrawn(
     ] == ["tool_call"]
 
 
-@pytest.mark.parametrize("version,truncated", [("0.3.30", None), ("0.3.31", False)])
+@pytest.mark.parametrize(
+    "version,truncated",
+    [
+        ("0.3.30", None),
+        ("0.3.31", False),
+        ("0.3.262.dev32+g5ea5c5ce1", False),
+        ("unknown", False),
+    ],
+)
 def test_a_log_from_before_the_record_of_cuts_says_it_cannot_tell(
     version: str, truncated: bool | None
 ) -> None:
@@ -1901,7 +1923,7 @@ def test_an_operator_cancel_is_a_known_difference() -> None:
     assert live <= replay
 
 
-def test_a_task_scorer_s_unrecorded_tool_calls_are_replayed() -> None:
+def test_a_task_scorer_s_unrecorded_tool_calls_have_no_tool_steps() -> None:
     # with every instance abstaining no SentinelEvent records the stage, so
     # replay decides from the producer's region alone
     seen: list[Any] = []
@@ -1911,8 +1933,8 @@ def test_a_task_scorer_s_unrecorded_tool_calls_are_replayed() -> None:
         sentinel=[r7_counts_tool_calls(seen)],
         scorer=r7_scores_with_a_tool_loop(),
     )
-    assert len(seen) == 1
-    assert [s.stage for s in replayed(log) if s.stage == "tool_call"] == ["tool_call"]
+    assert not seen
+    assert not [s for s in replayed(log) if s.stage == "tool_call"]
 
 
 # review pass 3: concurrent batches, misses, shared range indexes, suffixes

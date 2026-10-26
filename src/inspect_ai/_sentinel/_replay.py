@@ -1,12 +1,11 @@
 """The log driver: a sample's steps rebuilt from its events, with the builders the live dispatcher uses (`_steps.py`)."""
 
+import re
 from bisect import bisect_left, bisect_right
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, replace
 from functools import partial
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
-
-from packaging.version import InvalidVersion, Version
 
 from inspect_ai._util.content import Content
 from inspect_ai.event._approval import ApprovalEvent
@@ -642,10 +641,11 @@ class _Driver:
         )
         checked = before_span is not None or (
             tool_span is not None
-            # the call was rejected before its step was built: by a viewer
-            # that raised, or with every instance abstaining, by a tool that
-            # raised ToolApprovalError itself, which reads the same
-            and (event.error is None or event.error.type != "approval")
+            # the call was rejected before its step was built: by validation
+            # or a viewer that raised, or with every instance abstaining, by
+            # a tool that raised ToolParsingError or ToolApprovalError itself,
+            # which reads the same
+            and (event.error is None or event.error.type not in ("parsing", "approval"))
             and proposal.parse_error is None
             and (
                 call.producer is None
@@ -741,23 +741,7 @@ class _Driver:
 
         Live decides by the region that runs the call (`checks_tool_calls()` in `call_tool`), which the log does not record, so a call run in a region other than the one its producer was made in is replayed by its producer's. A call no model call produced (a pre-filled message) is taken as checked.
         """
-        if producer is None:
-            return True
-        if producer.origin in _NON_FINAL:
-            return True
-        # a task's scorers run in a region that is not final; score() called
-        # from a solver runs in a final one
-        return producer.origin == "scorer" and self._in_span_type(
-            producer.span_id, "scorers"
-        )
-
-    def _in_span_type(self, span_id: str | None, type: str) -> bool:
-        while span_id is not None and span_id in self.begins:
-            begin = self.begins[span_id][1]
-            if begin.type == type:
-                return True
-            span_id = begin.parent_id
-        return False
+        return producer is None or producer.origin in _NON_FINAL
 
     # ---- effects of the second pass
 
@@ -1006,10 +990,10 @@ def _records_truncation(version: str | None) -> bool:
     # ToolEvent.truncated exists since inspect_ai 0.3.31 (max_tool_output)
     if version is None:
         return False
-    try:
-        return Version(version) >= Version("0.3.31")
-    except InvalidVersion:
+    release = re.match(r"(\d+)\.(\d+)\.(\d+)", version)
+    if release is None:
         return True
+    return tuple(int(part) for part in release.groups()) >= (0, 3, 31)
 
 
 def _event_key(event: Event) -> object:
