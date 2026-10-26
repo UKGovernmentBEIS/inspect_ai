@@ -8,6 +8,7 @@ Uses inspect_ai's event_tree() to parse span structure.
 from __future__ import annotations
 
 import contextlib
+from bisect import bisect_left, insort
 from datetime import datetime, timezone
 from typing import (
     Annotated,
@@ -1215,14 +1216,10 @@ class _Call(NamedTuple):
     output: ChatMessage | None
 
 
-# the input lengths, most recent first, at which open calls are looked up
-_LENGTHS = 4
-
-
 class _OpenCalls:
     """Calls a later call may continue, looked up where it would hold their output: at the position of their input's length, by their output's fingerprint.
 
-    Every call stays open until the thread settles it. A lookup probes the input lengths of the most recently opened calls, at most ``_LENGTHS`` of them, so it costs a bounded number of fingerprints however many calls are open: forks of one tip share their input, and so their length.
+    Every call stays open, and every input length among them is looked up, until the thread settles them: a later call is looked up at each open length shorter than its input, a fingerprint each. The thread settles its open calls whenever it advances or compacts, so a lookup's work is the number of distinct input lengths opened since then. Forks of one tip share their input, and so their length, and side calls between two turns are few; the costly case is a long run of calls none of which continues another, each with an input of a new length, whose lookups then read at most the positions their inputs hold (pinned by ``test_calls_that_continue_nothing_cost_at_most_their_inputs``).
     """
 
     def __init__(self, inputs: _Inputs) -> None:
@@ -1230,29 +1227,29 @@ class _OpenCalls:
         self.calls: list[_Call] = []
         # input length -> output fingerprint -> the latest such call's index
         self._index: dict[int, dict[_Fingerprint, int]] = {}
+        # the input lengths in the index, ascending
+        self._lengths: list[int] = []
 
     def add(self, call: _Call) -> None:
         assert call.output is not None
         at = len(call.input)
-        by_output = self._index.pop(at, {})
+        by_output = self._index.get(at)
+        if by_output is None:
+            by_output = self._index[at] = {}
+            insort(self._lengths, at)
         by_output[self._inputs.fingerprint(call.output)] = len(self.calls)
-        self._index[at] = by_output
-        if len(self._index) > _LENGTHS:
-            del self._index[next(iter(self._index))]
         self.calls.append(call)
 
     def continued_by(self, call: _Call) -> _Call | None:
         """The latest open call that `call` continues."""
         best = -1
-        for at, by_output in self._index.items():
-            if at < len(call.input):
-                best = max(
-                    best, by_output.get(self._inputs.fingerprint(call.input[at]), -1)
-                )
+        for at in self._lengths[: bisect_left(self._lengths, len(call.input))]:
+            found = self._index[at].get(self._inputs.fingerprint(call.input[at]), -1)
+            best = max(best, found)
         return self.calls[best] if best >= 0 else None
 
     def clear(self) -> None:
-        self.calls, self._index = [], {}
+        self.calls, self._index, self._lengths = [], {}, []
 
 
 class _Continuity:
@@ -1266,7 +1263,7 @@ class _Continuity:
     - A failed call is a turn or utility as its retry, the next call with the same input, is; one not retried is a turn.
     - At the end, a fork goes to the head whose output is in the span's final messages, else the later head; with no thread, the last candidate is the turn.
 
-    A span in which no call continues another has no answer (``linked`` is False), so the existing rules decide. Each call is fingerprinted at a bounded number of positions (``_OpenCalls``), so the work is linear in the calls.
+    A span in which no call continues another has no answer (``linked`` is False), so the existing rules decide. Each call is looked up at the input lengths of the calls still open (``_OpenCalls``), which the thread settles whenever it advances.
     """
 
     def __init__(

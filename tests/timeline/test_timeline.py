@@ -501,3 +501,106 @@ def test_a_wide_fork_s_lookups_are_linear(monkeypatch: pytest.MonkeyPatch) -> No
 
     small, large = looked_up(100), looked_up(200)
     assert large <= 2.2 * small + 10, (small, large)
+
+
+def _plain_model(uuid: str, input: list[Any], output: Any) -> Any:
+    from inspect_ai.event import ModelEvent
+    from inspect_ai.model import ChatCompletionChoice, GenerateConfig, ModelOutput
+
+    return ModelEvent(
+        uuid=uuid,
+        span_id="main",
+        model="mockllm/model",
+        input=input,
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput(
+            model="mockllm/model",
+            choices=[ChatCompletionChoice(message=output, stop_reason="stop")],
+        ),
+    )
+
+
+def _moves_past_side_calls(segments: int) -> list[Any]:
+    """`segments` times: the agent rebuilds its input, makes four side calls with inputs of four other lengths, then carries on the rebuilt call; no origins."""
+    from inspect_ai.event import SpanBeginEvent, SpanEndEvent
+    from inspect_ai.model import (
+        ChatMessageAssistant,
+        ChatMessageSystem,
+        ChatMessageUser,
+    )
+
+    system = ChatMessageSystem(content="You are the main agent.")
+    events: list[Any] = [SpanBeginEvent(id="main", name="main", type="agent")]
+    for k in range(segments):
+        rebuilt = [system, ChatMessageUser(content=f"Earlier, part {k}.")]
+        answer = ChatMessageAssistant(content=f"Part {k}.")
+        events.append(_plain_model(f"r{k}", rebuilt, answer))
+        for n in range(4):
+            notes = [ChatMessageUser(content=f"Note {k}.{i}.") for i in range(n + 2)]
+            side = ChatMessageAssistant(content="noted")
+            events.append(_plain_model(f"s{k}.{n}", [system, *notes], side))
+        go_on = ChatMessageUser(content="Go on.")
+        carried = ChatMessageAssistant(content=f"Done {k}.")
+        events.append(_plain_model(f"m{k}", [*rebuilt, answer, go_on], carried))
+    events.append(SpanEndEvent(id="main"))
+    return events
+
+
+def _looked_up(events: list[Any], monkeypatch: pytest.MonkeyPatch) -> tuple[int, Any]:
+    from inspect_ai.event import _timeline as timeline
+
+    fingerprint = timeline._Inputs.fingerprint
+    count = 0
+
+    def counting(self: Any, message: Any) -> Any:
+        nonlocal count
+        count += 1
+        return fingerprint(self, message)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(timeline._Inputs, "fingerprint", counting)
+        built = timeline_build(events)
+    return count, built
+
+
+def test_moving_past_side_calls_of_many_lengths_is_linear(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    small, _ = _looked_up(_moves_past_side_calls(50), monkeypatch)
+    large, built = _looked_up(_moves_past_side_calls(100), monkeypatch)
+    assert large <= 2.2 * small + 10, (small, large)
+    [main] = [item for item in built.root.content if isinstance(item, TimelineSpan)]
+    utility = {
+        event.uuid
+        for item in main.content
+        if isinstance(item, TimelineSpan) and item.utility
+        for event in _model_events(item)
+    }
+    assert utility == {f"s{k}.{n}" for k in range(100) for n in range(4)}
+
+
+def test_calls_that_continue_nothing_cost_at_most_their_inputs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # the costly case of looking up every open input length: a long run of
+    # calls none of which continues another, each with an input of a new
+    # length, is looked up at every shorter open length, which reads at most
+    # the positions the inputs hold
+    from inspect_ai.event import SpanBeginEvent, SpanEndEvent
+    from inspect_ai.model import ChatMessageAssistant, ChatMessageUser
+
+    notes = [ChatMessageUser(content=f"Note {i}.") for i in range(200)]
+    calls = [
+        _plain_model(f"c{n}", notes[: n + 1], ChatMessageAssistant(content=f"{n}"))
+        for n in range(200)
+    ]
+    events = [
+        SpanBeginEvent(id="main", name="main", type="agent"),
+        *calls,
+        SpanEndEvent(id="main"),
+    ]
+    looked_up, _ = _looked_up(events, monkeypatch)
+    entries = sum(len(call.input) for call in calls)
+    assert looked_up <= entries + 2 * len(calls)
