@@ -16,7 +16,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageTool,
 )
-from inspect_ai.tool import ToolParam, ToolParams, tool
+from inspect_ai.tool import ToolParam, ToolParams, todo_write, tool, update_plan
 from inspect_ai.tool._tool import tool_result_content
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_def import ToolDef
@@ -307,6 +307,58 @@ async def test_dataclass_non_init_fields(extra, schema_kind):
         assert messages[-1].error is None
         assert messages[-1].content == "[(5, 7, [5], 10)]"
 
+    (event,) = [e for e in transcript.events if isinstance(e, ToolEvent)]
+    assert event.error == messages[-1].error
+    assert event.message_id == messages[-1].id
+    assert event.completed is not None
+
+
+async def test_dataclass_non_init_fields_fail_before_approval():
+    from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
+
+    approved: list[ToolCall] = []
+    executed: list[NonInitDataClass] = []
+
+    @tool
+    def overseen_non_init_tool():
+        async def execute(data: list[NonInitDataClass]) -> str:
+            """Read dataclass values.
+
+            Args:
+                data: Values with constructor-managed fields.
+            """
+            executed.extend(data)
+            return "ran"
+
+        return execute
+
+    @approver(name="test_non_init_recorder")
+    def recorder() -> Approver:
+        async def approve(
+            message: str, call: ToolCall, view: Any, history: Any
+        ) -> Approval:
+            approved.append(call)
+            return Approval(decision="approve")
+
+        return approve
+
+    transcript = Transcript()
+    init_transcript(transcript)
+    tool_def = ToolDef(overseen_non_init_tool())
+    call = make_call(tool_def.name, {"data": [{"value": 5}]})
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])],
+        [tool_def],
+        approval=[ApprovalPolicy(recorder(), "*")],
+    )
+
+    assert not approved
+    assert not executed
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is not None
+    assert messages[-1].error.type == "parsing"
+    assert "do not convert back" in messages[-1].error.message
+    assert "non-init dataclass fields" in messages[-1].error.message
     (event,) = [e for e in transcript.events if isinstance(e, ToolEvent)]
     assert event.error == messages[-1].error
     assert event.message_id == messages[-1].id
@@ -712,6 +764,48 @@ async def test_tool_event_message_id_for_multiple_calls():
     # ensure each event has a distinct message_id (regression: previously
     # every event pointed at the first ChatMessageTool)
     assert len({e.message_id for e in tool_events}) == 3
+
+
+@pytest.mark.parametrize(
+    "tool_factory,name,item",
+    [
+        (todo_write, "todos", {"content": "write tests", "status": "pending"}),
+        (update_plan, "plan", {"step": "write tests", "status": "pending"}),
+    ],
+    ids=["todo_write", "update_plan"],
+)
+async def test_plan_tools_run_as_approved(
+    tool_factory: Any, name: str, item: dict[str, str]
+) -> None:
+    """The built-in tools that take `list[BaseModel]` run under approval."""
+    from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
+
+    approved: list[ToolCall] = []
+
+    @approver(name="test_plan_recorder")
+    def recorder() -> Approver:
+        async def approve(
+            message: str, call: ToolCall, view: Any, history: Any
+        ) -> Approval:
+            approved.append(call)
+            return Approval(decision="approve")
+
+        return approve
+
+    tool_def = ToolDef(tool_factory())
+    messages, _ = await execute_tools(
+        [
+            ChatMessageAssistant(
+                content=[], tool_calls=[make_call(tool_def.name, {name: [item]})]
+            )
+        ],
+        [tool_def],
+        approval=[ApprovalPolicy(recorder(), "*")],
+    )
+
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is None
+    assert [c.arguments for c in approved] == [{name: [item]}]
 
 
 async def test_tool_with_varargs_and_kwargs():
