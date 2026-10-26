@@ -195,6 +195,7 @@ var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 	playCircle: "bi bi-play-circle-fill",
 	plug: "bi bi-plug",
 	previous: "bi bi-chevron-left",
+	print: "bi bi-printer",
 	refresh: "bi bi-arrow-clockwise",
 	refuse: "bi bi-ban",
 	retry: "bi bi-arrow-repeat",
@@ -296,81 +297,110 @@ var AnsiDisplay_module_default = {
 	"ansi-display-run-blink": "_ansi-display-run-blink_33le5_1"
 };
 var ToolButton_module_default = {
-	toolButton: "_toolButton_13erz_1",
-	marginRight: "_marginRight_13erz_7",
-	subtle: "_subtle_13erz_19",
-	latched: "_latched_13erz_23"
+	toolButton: "_toolButton_1nf6j_1",
+	marginRight: "_marginRight_1nf6j_7",
+	subtle: "_subtle_1nf6j_19",
+	latched: "_latched_1nf6j_23",
+	collapsibleLabel: "_collapsibleLabel_1nf6j_31"
 };
 //#endregion
 //#region ../../packages/react/src/components/ToolButton.tsx
 var ToolButton = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
-	const $ = (0, import_compiler_runtime.c)(22);
+	const $ = (0, import_compiler_runtime.c)(33);
 	let className;
+	let collapseLabel;
 	let icon;
 	let label;
 	let latched;
 	let rest;
 	let subtle;
 	let t1;
+	let title;
 	if ($[0] !== t0) {
-		({label, classes: t1, icon, className, latched, subtle, ...rest} = t0);
+		({label, classes: t1, icon, className, latched, subtle, collapseLabel, title, ...rest} = t0);
 		$[0] = t0;
 		$[1] = className;
-		$[2] = icon;
-		$[3] = label;
-		$[4] = latched;
-		$[5] = rest;
-		$[6] = subtle;
-		$[7] = t1;
+		$[2] = collapseLabel;
+		$[3] = icon;
+		$[4] = label;
+		$[5] = latched;
+		$[6] = rest;
+		$[7] = subtle;
+		$[8] = t1;
+		$[9] = title;
 	} else {
 		className = $[1];
-		icon = $[2];
-		label = $[3];
-		latched = $[4];
-		rest = $[5];
-		subtle = $[6];
-		t1 = $[7];
+		collapseLabel = $[2];
+		icon = $[3];
+		label = $[4];
+		latched = $[5];
+		rest = $[6];
+		subtle = $[7];
+		t1 = $[8];
+		title = $[9];
 	}
 	const classes = t1 === void 0 ? "" : t1;
 	const t2 = latched ? ToolButton_module_default.latched : void 0;
 	const t3 = subtle ? ToolButton_module_default.subtle : void 0;
 	let t4;
-	if ($[8] !== className || $[9] !== classes || $[10] !== t2 || $[11] !== t3) {
+	if ($[10] !== className || $[11] !== classes || $[12] !== t2 || $[13] !== t3) {
 		t4 = clsx("btn", "btn-tools", ToolButton_module_default.toolButton, classes, className, t2, t3);
-		$[8] = className;
-		$[9] = classes;
-		$[10] = t2;
-		$[11] = t3;
-		$[12] = t4;
-	} else t4 = $[12];
+		$[10] = className;
+		$[11] = classes;
+		$[12] = t2;
+		$[13] = t3;
+		$[14] = t4;
+	} else t4 = $[14];
 	let t5;
-	if ($[13] !== icon || $[14] !== label) {
-		t5 = icon && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
-			name: icon,
-			className: label ? ToolButton_module_default.marginRight : void 0
-		});
-		$[13] = icon;
-		$[14] = label;
-		$[15] = t5;
-	} else t5 = $[15];
+	if ($[15] !== collapseLabel || $[16] !== label || $[17] !== title) {
+		t5 = title ?? (collapseLabel ? labelTitle(label) : void 0);
+		$[15] = collapseLabel;
+		$[16] = label;
+		$[17] = title;
+		$[18] = t5;
+	} else t5 = $[18];
 	let t6;
-	if ($[16] !== label || $[17] !== ref || $[18] !== rest || $[19] !== t4 || $[20] !== t5) {
-		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+	if ($[19] !== collapseLabel || $[20] !== icon || $[21] !== label) {
+		t6 = icon && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
+			name: icon,
+			className: label && !collapseLabel ? ToolButton_module_default.marginRight : void 0
+		});
+		$[19] = collapseLabel;
+		$[20] = icon;
+		$[21] = label;
+		$[22] = t6;
+	} else t6 = $[22];
+	let t7;
+	if ($[23] !== collapseLabel || $[24] !== label) {
+		t7 = collapseLabel && label ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: ToolButton_module_default.collapsibleLabel,
+			children: label
+		}) : label;
+		$[23] = collapseLabel;
+		$[24] = label;
+		$[25] = t7;
+	} else t7 = $[25];
+	let t8;
+	if ($[26] !== ref || $[27] !== rest || $[28] !== t4 || $[29] !== t5 || $[30] !== t6 || $[31] !== t7) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
 			ref,
 			type: "button",
 			className: t4,
+			title: t5,
 			...rest,
-			children: [t5, label]
+			children: [t6, t7]
 		});
-		$[16] = label;
-		$[17] = ref;
-		$[18] = rest;
-		$[19] = t4;
-		$[20] = t5;
-		$[21] = t6;
-	} else t6 = $[21];
-	return t6;
+		$[26] = ref;
+		$[27] = rest;
+		$[28] = t4;
+		$[29] = t5;
+		$[30] = t6;
+		$[31] = t7;
+		$[32] = t8;
+	} else t8 = $[32];
+	return t8;
 });
+var labelTitle = (label) => typeof label === "string" ? label : void 0;
 ToolButton.displayName = "ToolButton";
 //#endregion
 export { logLevelIcon as a, nullProtoRecord as c, iconForMimeType as i, printObject as l, AnsiDisplay_module_default as n, clsx as o, Icon as r, getOwn as s, ToolButton as t };

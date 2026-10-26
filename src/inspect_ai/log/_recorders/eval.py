@@ -61,6 +61,7 @@ from inspect_ai._util.error import EvalError, WriteConflictError
 from inspect_ai._util.file import FileSystem, dirname, file, filesystem, local_path
 from inspect_ai._util.json import (
     ExcludingObjectBuilder,
+    is_ijson_float_overflow_error,
     is_ijson_int_overflow_error,
     is_ijson_nan_inf_error,
     jsonable_dict,
@@ -655,7 +656,8 @@ def _read_local_sample_excluding(
     """Stream a local member's included JSON fields in a worker thread.
 
     Like the async disk reader, retain the stdlib fallback for Python's
-    non-finite numbers and integers too large for the streaming parser.
+    non-finite numbers and integers or floats too large for the streaming
+    parser.
     """
     from inspect_ai._util.json import get_ijson_backend
 
@@ -668,7 +670,11 @@ def _read_local_sample_excluding(
                 builder.event(event, value)
         return builder.data
     except (ValueError, IncompleteJSONError, UnexpectedSymbol) as ex:
-        if not (is_ijson_nan_inf_error(ex) or is_ijson_int_overflow_error(ex)):
+        if not (
+            is_ijson_nan_inf_error(ex)
+            or is_ijson_int_overflow_error(ex)
+            or is_ijson_float_overflow_error(ex)
+        ):
             raise
         with zip.open(member) as stream:
             data: dict[str, Any] = json.load(stream)
@@ -701,7 +707,11 @@ async def _read_member_json_excluding(
         IncompleteJSONError,
         UnexpectedSymbol,
     ) as ex:
-        if is_ijson_nan_inf_error(ex) or is_ijson_int_overflow_error(ex):
+        if (
+            is_ijson_nan_inf_error(ex)
+            or is_ijson_int_overflow_error(ex)
+            or is_ijson_float_overflow_error(ex)
+        ):
             data = json.loads(await reader.read_member_fully(member))
             for field in exclude_fields:
                 data.pop(field, None)

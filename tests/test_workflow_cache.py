@@ -8,6 +8,7 @@ import yaml
 
 REPO = Path(__file__).parents[1]
 CREDENTIAL_JOBS = [
+    ("suppressions-comment.yml", "comment"),
     ("sync_model_data.yml", "sync-models"),
     ("docker.yml", "build-and-push"),
     ("publish.yml", "build"),

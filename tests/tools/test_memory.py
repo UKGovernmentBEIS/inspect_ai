@@ -509,6 +509,61 @@ async def test_approval_sees_canonical_readonly_and_rename_paths() -> None:
     assert "x" in result
 
 
+@pytest.mark.parametrize("oversight", [False, True], ids=["no-approval", "approval"])
+async def test_tool_event_records_paths_as_the_model_gave_them_without_oversight(
+    oversight: bool,
+) -> None:
+    """Without oversight the event keeps the model's paths; with it, the canonical ones."""
+    from pydantic import JsonValue
+
+    from inspect_ai.approval import ApprovalPolicy, auto_approver
+    from inspect_ai.event._tool import ToolEvent
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+    from inspect_ai.model._call_tools import execute_tools
+    from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
+    from inspect_ai.tool._tool import Tool
+    from inspect_ai.tool._tool_call import ToolCall
+
+    async def run(tool: Tool, arguments: dict[str, str]) -> dict[str, JsonValue]:
+        init_transcript(Transcript())
+        call = ToolCall(id="1", function="memory", arguments=arguments)
+        messages, _ = await execute_tools(
+            [ChatMessageAssistant(content=[], tool_calls=[call])],
+            [tool],
+            approval=[ApprovalPolicy(auto_approver(), "*")] if oversight else None,
+        )
+        assert isinstance(messages[-1], ChatMessageTool)
+        assert messages[-1].error is None
+        [event] = [e for e in transcript().events if isinstance(e, ToolEvent)]
+        return ToolEvent.model_validate_json(event.model_dump_json()).arguments
+
+    reader = memory(initial_data={"/memories/seed.txt": "seed"}, readonly=True)
+    viewed = {"command": "view", "path": "/memories/x/../seed.txt"}
+    assert await run(reader, viewed) == (
+        {**viewed, "path": "/memories/seed.txt"} if oversight else viewed
+    )
+
+    tool = memory()
+    created = {"command": "create", "path": "/memories/a/../b.txt", "file_text": "x"}
+    assert await run(tool, created) == (
+        {**created, "path": "/memories/b.txt"} if oversight else created
+    )
+
+    renamed = {
+        "command": "rename",
+        "old_path": "/memories/a/../b.txt",
+        "new_path": "/memories/c/../d.txt",
+    }
+    assert await run(tool, renamed) == (
+        {**renamed, "old_path": "/memories/b.txt", "new_path": "/memories/d.txt"}
+        if oversight
+        else renamed
+    )
+    result = await tool(command="view", path="/memories/d.txt")
+    assert isinstance(result, str)
+    assert "x" in result
+
+
 async def test_tool_state_scopes_keep_separate_memory() -> None:
     """Default-instance memory tools in two scopes keep separate files."""
     tool = memory()
