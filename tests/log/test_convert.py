@@ -219,6 +219,33 @@ def test_convert_preserves_reductions(
     assert converted.reductions == log.reductions
 
 
+@pytest.mark.parametrize(
+    "stream", [True, False, 3], ids=["stream", "no-stream", "stream-3"]
+)
+@pytest.mark.parametrize("format", ["eval", "json"])
+def test_convert_in_place_preserves_reductions(
+    tmp_path: pathlib.Path,
+    stream: bool | int,
+    format: Literal["eval", "json"],
+) -> None:
+    input_file = (
+        _TESTS_DIR
+        / "test_list_logs/2024-11-05T13-32-37-05-00_input-task_hxs4q9azL3ySGkjJirypKZ.eval"
+    )
+    source_file = tmp_path / input_file.with_suffix(f".{format}").name
+    log = read_eval_log(str(input_file))
+    assert log.reductions
+    write_eval_log(log, str(source_file))
+
+    convert_eval_logs(
+        str(source_file), format, str(tmp_path), overwrite=True, stream=stream
+    )
+
+    converted = read_eval_log(str(source_file))
+    assert converted.samples
+    assert converted.reductions == log.reductions
+
+
 @pytest.mark.parametrize("stream", [True, False], ids=["stream", "no-stream"])
 def test_convert_applies_message_pool_dedup(tmp_path: pathlib.Path, stream: bool):
     """Converting a v2 .eval file should apply message pool dedup."""
