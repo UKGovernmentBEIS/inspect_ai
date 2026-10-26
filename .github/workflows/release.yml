@@ -39,7 +39,9 @@ env:
 jobs:
   release-please:
     name: Release Please
-    if: github.ref == 'refs/heads/main'
+    # Forks with Actions enabled would otherwise run Release Please on every
+    # push to their main. The jobs after this one need its tag.
+    if: github.repository == 'UKGovernmentBEIS/inspect_ai' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
