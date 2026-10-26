@@ -1,0 +1,244 @@
+{
+  "description": "A trim CompactionEvent after the first call, before any call continues it, ends the thread as the end of a span does: the call is the thread's only one, so a turn.",
+  "events": [
+    {
+      "event": "span_begin",
+      "id": "solvers",
+      "name": "solvers",
+      "type": "solvers",
+      "parent_id": null,
+      "timestamp": "2026-01-01T00:00:00Z",
+      "uuid": "sb-solvers"
+    },
+    {
+      "event": "span_begin",
+      "id": "agent",
+      "name": "agent",
+      "type": "agent",
+      "parent_id": "solvers",
+      "timestamp": "2026-01-01T00:00:00Z",
+      "uuid": "sb-agent"
+    },
+    {
+      "event": "model",
+      "uuid": "m1",
+      "span_id": "agent",
+      "timestamp": "2026-01-01T00:00:01Z",
+      "completed": "2026-01-01T00:00:02Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are the main assistant."
+        },
+        {
+          "role": "user",
+          "content": "What is 1 + 1?"
+        }
+      ],
+      "tools": [],
+      "tool_choice": "auto",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "c1",
+                  "function": "addition",
+                  "arguments": {
+                    "x": 1,
+                    "y": 1
+                  }
+                }
+              ]
+            },
+            "stop_reason": "tool_calls"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "tool",
+      "uuid": "t1",
+      "span_id": "agent",
+      "timestamp": "2026-01-01T00:00:03Z",
+      "completed": "2026-01-01T00:00:04Z",
+      "id": "c1",
+      "function": "addition",
+      "arguments": {
+        "x": 1,
+        "y": 1
+      },
+      "result": "2",
+      "events": []
+    },
+    {
+      "event": "compaction",
+      "uuid": "cmp",
+      "span_id": "agent",
+      "timestamp": "2026-01-01T00:00:05Z",
+      "type": "trim",
+      "source": "inspect"
+    },
+    {
+      "event": "model",
+      "uuid": "m2",
+      "span_id": "agent",
+      "timestamp": "2026-01-01T00:00:06Z",
+      "completed": "2026-01-01T00:00:07Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are the main assistant."
+        },
+        {
+          "role": "user",
+          "content": "What is 1 + 1?"
+        }
+      ],
+      "tools": [],
+      "tool_choice": "auto",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "c2",
+                  "function": "addition",
+                  "arguments": {
+                    "x": 1,
+                    "y": 1
+                  }
+                }
+              ]
+            },
+            "stop_reason": "tool_calls"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "tool",
+      "uuid": "t2",
+      "span_id": "agent",
+      "timestamp": "2026-01-01T00:00:08Z",
+      "completed": "2026-01-01T00:00:09Z",
+      "id": "c2",
+      "function": "addition",
+      "arguments": {
+        "x": 1,
+        "y": 1
+      },
+      "result": "2",
+      "events": []
+    },
+    {
+      "event": "model",
+      "uuid": "m3",
+      "span_id": "agent",
+      "timestamp": "2026-01-01T00:00:10Z",
+      "completed": "2026-01-01T00:00:11Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are the main assistant."
+        },
+        {
+          "role": "user",
+          "content": "What is 1 + 1?"
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "tool_calls": [
+            {
+              "id": "c2",
+              "function": "addition",
+              "arguments": {
+                "x": 1,
+                "y": 1
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "content": "2",
+          "tool_call_id": "c2",
+          "function": "addition"
+        }
+      ],
+      "tools": [],
+      "tool_choice": "auto",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "2"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "span_end",
+      "id": "agent",
+      "timestamp": "2026-01-01T01:00:00Z",
+      "uuid": "se-agent"
+    },
+    {
+      "event": "span_end",
+      "id": "solvers",
+      "timestamp": "2026-01-01T01:00:00Z",
+      "uuid": "se-solvers"
+    }
+  ],
+  "expected": {
+    "init": null,
+    "agent": {
+      "id": "agent",
+      "name": "main",
+      "event_uuids": [
+        "m1",
+        "t1",
+        "cmp",
+        "m2",
+        "t2",
+        "m3"
+      ],
+      "children": []
+    },
+    "scoring": null
+  }
+}

@@ -1228,7 +1228,7 @@ class _Continuity:
 
     - A call whose input continues the tip, holding the tip's output at position ``len(tip.input)``, is on the thread, a *head*. Two heads of one tip are a fork: the one a later call continues is the turn, and the other is utility.
     - A call that continues nothing is a *candidate*; if one of the next calls continues it, the thread moves to it (a compaction the log does not show). The candidates of a thread that moves on are utility.
-    - A summary ``CompactionEvent`` makes the heads not yet continued utility (the summary call continues the tip, and the next turn's input is the compacted list) and resets the tip; an edit or trim ends the thread as the end of the span does.
+    - A summary ``CompactionEvent`` makes the calls not yet continued utility (the summary call continues the tip, and the next turn's input is the compacted list) and resets the tip; an edit or trim ends the thread as the end of the span does.
     - A failed call is a turn or utility as its retry, the next call with the same input, is; one not retried is a turn.
     - At the end, a fork goes to the head whose output is in the span's final messages, else the later head; with no thread, the last candidate is the turn.
 
@@ -1290,23 +1290,27 @@ class _Continuity:
     def compaction(self, event: CompactionEvent) -> None:
         if event.type == "summary":
             self._close(self._heads)
-        elif self._heads:
-            self._settle(self._heads[-1], self._heads)
-        self._close(self._candidates)
+            self._close(self._candidates)
+        else:
+            self._end(final=False)
         self._tip, self._heads, self._candidates = None, [], []
 
     def finish(self) -> dict[int, bool]:
-        if self._heads:
-            final = [h for h in self._heads if self._in_final(h)]
-            self._settle((final or self._heads)[-1], self._heads)
-            self._close(self._candidates)
-        elif self._candidates:
-            self._settle(self._candidates[-1], self._candidates)
+        self._end(final=True)
         for failed, retry in self._retried:
             self.turns[id(failed.event)] = self.turns.get(id(retry.event), False)
         for failed in self._failed:
             self.turns[id(failed.event)] = True
         return self.turns
+
+    def _end(self, final: bool) -> None:
+        """End the thread: a fork goes to the head in the final messages (with `final`), else the later head; with no head, the last candidate is the turn."""
+        if self._heads:
+            found = [h for h in self._heads if final and self._in_final(h)]
+            self._settle((found or self._heads)[-1], self._heads)
+            self._close(self._candidates)
+        elif self._candidates:
+            self._settle(self._candidates[-1], self._candidates)
 
     def _advance(self, turn: _Call, call: _Call) -> None:
         self.turns[id(turn.event)] = True
