@@ -363,9 +363,12 @@ def test_read_eval_log_samples_includes_added_samples(
     log_format: Literal["eval", "json"], tmp_path: Path
 ) -> None:
     # the header's sample_ids stay seed-sized, so samples the source added
-    # (including an explicit epoch above `epochs`) must still be read back
+    # (including an explicit epoch above `epochs` and an empty id) must still
+    # be read back
     source = _EpochAdds(
-        [("rerun", 3)], seed=["seed"], then={("seed", 1): [("followup", None)]}
+        [("rerun", 3)],
+        seed=["seed"],
+        then={("seed", 1): [("followup", None), ("", None)]},
     )
     log = eval(
         Task(dataset=source, solver=[generate()]),
@@ -376,7 +379,7 @@ def test_read_eval_log_samples_includes_added_samples(
     )[0]
     assert log.status == "success"
     assert log.eval.dataset.sample_ids == ["seed"]
-    expected = [("followup", 1), ("rerun", 3), ("seed", 1)]
+    expected = [("", 1), ("followup", 1), ("rerun", 3), ("seed", 1)]
     assert _runs(log) == expected
     samples = read_eval_log_samples(log.location)
     assert sorted((str(sample.id), sample.epoch) for sample in samples) == expected

@@ -2265,8 +2265,8 @@ def _sample_filename(id: str | int, epoch: int) -> str:
     return f"{SAMPLES_DIR}/{id}_epoch_{epoch}.json"
 
 
-# DOTALL since an id may contain a newline
-_SAMPLE_FILENAME_RE = re.compile(rf"{SAMPLES_DIR}/(.+)_epoch_(\d+)\.json", re.DOTALL)
+# an id may be empty or contain a newline
+_SAMPLE_FILENAME_RE = re.compile(rf"{SAMPLES_DIR}/(.*)_epoch_(\d+)\.json", re.DOTALL)
 
 
 def _sample_key(filename: str) -> SampleRecordKey | None:

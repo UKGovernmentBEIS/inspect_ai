@@ -502,6 +502,9 @@ async def test_eval_recorder_sample_keys_skip_summaries(
         await recorder.log_sample(
             spec, EvalSample(id="line\nbreak", epoch=1, input="y", target="y")
         )
+        await recorder.log_sample(
+            spec, EvalSample(id="", epoch=1, input="z", target="z")
+        )
         await recorder.flush(spec)
         # a re-logged sample repeats its member name
         await recorder.log_sample(spec, _make_sample(1))
@@ -515,4 +518,5 @@ async def test_eval_recorder_sample_keys_skip_summaries(
             SampleRecordKey("1", 1),
             SampleRecordKey("x_epoch_2", 3),
             SampleRecordKey("line\nbreak", 1),
+            SampleRecordKey("", 1),
         ]
