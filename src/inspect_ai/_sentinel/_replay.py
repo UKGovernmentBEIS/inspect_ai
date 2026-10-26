@@ -15,7 +15,12 @@ from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._pool import _build_msg_index, condense_model_event_inputs
 from inspect_ai.event._sentinel import SentinelEvent, SentinelStage
 from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
-from inspect_ai.event._timeline import Timeline, TimelineEvent, TimelineSpan
+from inspect_ai.event._timeline import (
+    Timeline,
+    TimelineEvent,
+    TimelineSpan,
+    _timeline_build,
+)
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -81,6 +86,8 @@ def steps_from_events(
 
     Every step's `agent_messages` is None: the log does not record the agent's own messages, and model input can hold messages the agent kept out of them.
 
+    A log that does not record where a model call was made (`ModelEvent.origin`, written since inspect_ai PR #5990), an older Inspect log or a transcript imported from another source, has its turns inferred: a call made in a tool's span (or nested in its `ToolEvent`) is a tool's, one in the scorers' span a scorer's and one in the init span setup's; of the rest, those the timeline shows as utility (`timeline_build`'s prompt and continuity rules) are not turns, and the others are.
+
     Args:
         messages: The sample's messages (`EvalSample.messages`).
         events: The sample's events, with model inputs condensed (`input_refs` into `message_pool`), as the log stores them; inputs given expanded are condensed first. Attachments must be resolved (`resolve_attachments`), or monitors are handed `attachment://` references.
@@ -95,25 +102,30 @@ def steps_from_events(
 
     Raises:
         MalformedLogError: Two steps of one stage have one step id, the span tree has a `parent_id` cycle, or a model input names rows outside the message pool.
-        NotImplementedError: The log does not record where its model calls were made (`ModelEvent.origin`, written since inspect_ai PR #5990); turns from the timeline come later.
     """
-    flat = _flatten(events)
+    flat, nested = _flatten(events)
     pool: list[ChatMessage] | Sequence[ChatMessage] = message_pool
     if any(isinstance(e, ModelEvent) and e.input_refs is None for e in flat):
         flat, pool = _condensed(flat, message_pool)
     return _Driver(
-        messages, flat, pool, sample_uuid, eval_info, timeline, human_approvers
+        messages, flat, nested, pool, sample_uuid, eval_info, timeline, human_approvers
     ).steps()
 
 
-def _flatten(events: Sequence[Event]) -> list[Event]:
-    # older logs nest a tool call's events inside its ToolEvent
+def _flatten(events: Sequence[Event]) -> tuple[list[Event], list[bool]]:
+    """The events with those older logs nest inside a tool call's `ToolEvent` after it, and whether each was nested."""
     flat: list[Event] = []
-    for event in events:
-        flat.append(event)
-        if isinstance(event, ToolEvent) and event.events:
-            flat.extend(_flatten(event.events))
-    return flat
+    nested: list[bool] = []
+
+    def walk(events: Sequence[Event], inside: bool) -> None:
+        for event in events:
+            flat.append(event)
+            nested.append(inside)
+            if isinstance(event, ToolEvent) and event.events:
+                walk(event.events, True)
+
+    walk(events, False)
+    return flat, nested
 
 
 def _condensed(
@@ -326,6 +338,7 @@ class _Driver:
         self,
         messages: Sequence[ChatMessage],
         events: list[Event],
+        nested: list[bool],
         pool: Sequence[ChatMessage],
         sample_uuid: str,
         eval_info: EvalInfo,
@@ -334,6 +347,7 @@ class _Driver:
     ) -> None:
         self.messages = messages
         self.events = events
+        self.nested = nested
         self.pool = pool
         self.keys = _PoolKeys(pool)
         self.eval_info = eval_info
@@ -358,6 +372,11 @@ class _Driver:
         self._producers: dict[int, Producer] = {}
         self._assistants: dict[str, tuple[ChatMessageAssistant, ToolCall]] | None = None
         self._messages_by_id: dict[str, ChatMessage] | None = None
+        # the origins of model calls the log records none for, by id()
+        self._inferred: dict[int, str] | None = None
+        # span id -> the innermost agent or tool span's type, and the phase
+        # span ("init", "scorers") holding it
+        self._regions: dict[str | None, tuple[str | None, str | None]] = {}
 
     # ---- the first pass: read the events in log order
 
@@ -386,19 +405,12 @@ class _Driver:
             elif isinstance(event, ModelEvent):
                 if self._in_sentinel_span(event.span_id):
                     continue
-                if event.origin is None:
-                    raise NotImplementedError(
-                        "This log does not record where its model calls were made "
-                        "(ModelEvent.origin), so replay cannot tell which calls were "
-                        "agent turns; replaying such logs from their timeline is not "
-                        "built yet."
-                    )
                 message_id = producing_message_id(event)
                 if message_id is not None:
                     message = event.output.choices[0].message
                     for tool_call in message.tool_calls or []:
                         produced[tool_call.id] = (message, event, tool_call)
-                if not is_agent_turn(event.origin):
+                if not is_agent_turn(self._origin(event)):
                     continue
                 conversation = self._conversation(event)
                 self._at(index, 2, partial(self._fold, conversation, event))
@@ -741,7 +753,72 @@ class _Driver:
 
         Live decides by the region that runs the call (`checks_tool_calls()` in `call_tool`), which the log does not record, so a call run in a region other than the one its producer was made in is replayed by its producer's. A call no model call produced (a pre-filled message) is taken as checked.
         """
-        return producer is None or producer.origin in _NON_FINAL
+        return producer is None or self._origin(producer) in _NON_FINAL
+
+    # ---- origins the log does not record
+
+    def _origin(self, event: ModelEvent) -> str:
+        if event.origin is not None:
+            return event.origin
+        if self._inferred is None:
+            self._inferred = self._infer_origins()
+        return self._inferred.get(id(event), "agent")
+
+    def _infer_origins(self) -> dict[int, str]:
+        top = [e for e, nested in zip(self.events, self.nested) if not nested]
+        timeline = _timeline_build(
+            top, message_pool=self.pool, final_messages=self.messages
+        )
+        utility: set[int] = set()
+
+        def walk(span: TimelineSpan, inside: bool) -> None:
+            for item in span.content:
+                if isinstance(item, TimelineEvent):
+                    if inside and isinstance(item.event, ModelEvent):
+                        utility.add(id(item.event))
+                else:
+                    walk(item, inside or item.utility)
+            for branch in span.branches:
+                walk(branch, inside or branch.utility)
+
+        walk(timeline.root, timeline.root.utility)
+        spans = {e.id: e for e in self.events if isinstance(e, SpanBeginEvent)}
+        inferred: dict[int, str] = {}
+        for event, nested in zip(self.events, self.nested):
+            if not isinstance(event, ModelEvent) or event.origin is not None:
+                continue
+            kind, phase = self._region(event.span_id, spans)
+            if nested or kind == "tool":
+                inferred[id(event)] = "tool"
+            elif phase == "scorers":
+                inferred[id(event)] = "scorer"
+            elif phase == "init":
+                inferred[id(event)] = "setup"
+            elif id(event) in utility:
+                inferred[id(event)] = "helper"
+            else:
+                inferred[id(event)] = "agent"
+        return inferred
+
+    def _region(
+        self, span_id: str | None, spans: dict[str, SpanBeginEvent]
+    ) -> tuple[str | None, str | None]:
+        """The type of the innermost agent or tool span holding `span_id`, and the phase span above it."""
+        found = self._regions.get(span_id)
+        if found is not None:
+            return found
+        begin = spans.get(span_id) if span_id is not None else None
+        if begin is None:
+            found = (None, None)
+        else:
+            kind, phase = self._region(begin.parent_id, spans)
+            if begin.type in (AGENT_SPAN_TYPE, "tool"):
+                kind = begin.type
+            if begin.parent_id is None and begin.name in ("init", "scorers"):
+                phase = begin.name
+            found = (kind, phase)
+        self._regions[span_id] = found
+        return found
 
     # ---- effects of the second pass
 

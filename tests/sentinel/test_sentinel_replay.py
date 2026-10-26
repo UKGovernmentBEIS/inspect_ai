@@ -6,6 +6,7 @@ import random
 from collections.abc import Callable, Sequence
 from dataclasses import replace
 from functools import partial
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 import anyio
@@ -232,9 +233,10 @@ def assert_replay_equals_live(
     differences: Sequence[str] = (),
     sample: Sample | None = None,
     status: str = "success",
+    inferred: str | None = None,
     **task_kwargs: Any,
 ) -> list["ReplayStep"]:
-    """Run the eval with a probe watching every stage, rebuild its steps from the log, and compare.
+    """Run the eval with a probe watching every stage, rebuild its steps from the log, and compare; then compare those with the steps replayed with the log's origins removed and the turns inferred.
 
     Args:
         solver: The eval's solver.
@@ -243,6 +245,7 @@ def assert_replay_equals_live(
         differences: Fields known to differ, as `"stage.field"`, each a known difference of replay.
         sample: The sample to run.
         status: The status the eval ends with.
+        inferred: Why the steps replayed with the turns inferred differ from those replayed with the recorded origins; None where they are equal.
         **task_kwargs: More `Task` arguments.
     """
     seen: dict[str, Step] = {}
@@ -281,7 +284,72 @@ def assert_replay_equals_live(
                 ours, theirs = ours.call, theirs.call
             ids = f.name not in POOLED
             assert comparable(ours, ids) == comparable(theirs, ids), f"{key} {f.name}"
+    assert_inferred(log, replay, inferred)
     return replay
+
+
+class Disagreement(NamedTuple):
+    """How the steps replayed with turns inferred differ from those replayed with the recorded origins."""
+
+    steps: int
+    # (stage, step id) of steps on one side only
+    missing: list[tuple[str, str]]
+    extra: list[tuple[str, str]]
+    # (stage, step id, field) of fields that differ
+    fields: list[tuple[str, str, str]]
+
+
+def without_origins(events: Sequence[Event]) -> list[Event]:
+    def stripped(event: Event) -> Event:
+        if isinstance(event, ModelEvent):
+            return event.model_copy(update={"origin": None})
+        if isinstance(event, ToolEvent) and event.events:
+            return event.model_copy(
+                update={"events": [stripped(e) for e in event.events]}
+            )
+        return event
+
+    return [stripped(event) for event in events]
+
+
+def inferred_disagreement(
+    log: EvalLog, recorded: Sequence["ReplayStep"]
+) -> Disagreement:
+    """Replay the log with every `ModelEvent.origin` removed and compare its steps with `recorded`, field by field."""
+    sample = logged_sample(log)
+    inferred = steps_from_events(
+        sample.messages,
+        without_origins(sample.events),
+        [],
+        sample_uuid=sample.uuid or "",
+        eval_info=EvalInfo.from_eval(log.eval),
+    )
+    ours = {(s.stage, s.id): s for s in inferred}
+    theirs = {(s.stage, s.id): s for s in recorded}
+    fields: list[tuple[str, str, str]] = []
+    for key in sorted(set(ours) & set(theirs)):
+        a, b = ours[key], theirs[key]
+        if a.segment != b.segment:
+            fields.append((*key, "segment"))
+        for f in dataclasses.fields(a.step):
+            if comparable(getattr(a.step, f.name)) != comparable(
+                getattr(b.step, f.name)
+            ):
+                fields.append((*key, f.name))
+    return Disagreement(
+        steps=len(theirs),
+        missing=sorted(set(theirs) - set(ours)),
+        extra=sorted(set(ours) - set(theirs)),
+        fields=fields,
+    )
+
+
+def assert_inferred(
+    log: EvalLog, recorded: Sequence["ReplayStep"], differs: str | None
+) -> None:
+    disagreement = inferred_disagreement(log, recorded)
+    agrees = not (disagreement.missing or disagreement.extra or disagreement.fields)
+    assert agrees == (differs is None), disagreement
 
 
 @solver
@@ -734,8 +802,13 @@ def test_a_custom_memory_tool_replays_its_path_as_given() -> None:
 
 
 def run_logged(
-    solver: Solver | list[Solver], model: Any, **task_kwargs: Any
+    solver: Solver | list[Solver],
+    model: Any,
+    *,
+    inferred: str | None = None,
+    **task_kwargs: Any,
 ) -> EvalLog:
+    """Run the eval, and check that its steps replayed with the turns inferred are those replayed with the recorded origins, unless `inferred` names why they differ."""
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target="2")],
         solver=solver,
@@ -743,6 +816,7 @@ def run_logged(
     )
     log = eval(task, model=model)[0]
     assert log.status == "success", log.error
+    assert_inferred(log, replay_events(log, logged_sample(log).events), inferred)
     return log
 
 
@@ -795,14 +869,67 @@ def test_a_span_tree_cycle_no_step_walks_through_fails_the_replay() -> None:
         replay_events(log, [a, b, *events])
 
 
-def test_a_log_without_origins_is_not_replayed_yet() -> None:
-    log = run_logged(tool_loop(addition()), agent_model())
-    events = logged_sample(log).events
-    for event in events:
-        if isinstance(event, ModelEvent):
-            event.origin = None
-    with pytest.raises(NotImplementedError, match="origin"):
-        replay_events(log, events)
+# react with a summary compaction, run by `inspect eval` with inspect_ai 0.3.285,
+# which records no ModelEvent.origin: the solver and model of
+# test_a_log_from_before_recorded_origins_replays_with_the_timeline_s_turns
+OLD_LOG = Path(__file__).parent / "logs" / "react_compaction_0.3.285.json"
+
+
+def react_with_a_summary_compaction() -> tuple[Solver, Any]:
+    from inspect_ai.model._compaction.summary import CompactionSummary
+
+    turns = [call("addition", x=turn, y=turn) for turn in range(6)]
+    solver = as_solver(
+        react(
+            tools=[addition()],
+            compaction=CompactionSummary(threshold=300),
+            submit=False,
+        )
+    )
+    return solver, outputs(*turns, *[done("summary")] * 3, *turns, done())
+
+
+def test_a_log_from_before_recorded_origins_replays_with_the_timeline_s_turns() -> None:
+    old = read_eval_log(str(OLD_LOG), resolve_attachments="full")
+    assert old.eval.packages["inspect_ai"] == "0.3.285"
+    [sample] = old.samples or []
+    models = [e for e in sample.events if isinstance(e, ModelEvent)]
+    assert models and all(e.origin is None for e in models)
+    inferred = steps_from_events(
+        sample.messages,
+        sample.events,
+        sample.events_data["messages"] if sample.events_data else [],
+        sample_uuid=sample.uuid or "",
+        eval_info=EvalInfo.from_eval(old.eval),
+    )
+    # the same eval now, which records origins
+    solver, model = react_with_a_summary_compaction()
+    log = run_logged(solver, model)
+    recorded = replay_events(log, logged_sample(log).events)
+
+    def arguments(step: Step) -> Any:
+        call = getattr(step, "call", None)
+        return call.arguments if call is not None else None
+
+    def shape(steps: Sequence["ReplayStep"]) -> list[Any]:
+        # react's prompts changed since 0.3.285, so compare the messages'
+        # roles, and the steps' tool calls
+        return [
+            (
+                s.stage,
+                s.segment[1],
+                [m.role for m in s.step.history or []],
+                [m.role for m in s.step.input or []],
+                arguments(s.step),
+            )
+            for s in steps
+        ]
+
+    assert shape(inferred) == shape(recorded)
+    # the two summary calls are not turns, so neither has steps
+    generates = {s.id for s in inferred if s.stage == "model_input"}
+    assert len(generates) == len(models) - 2
+    assert max(s.segment[1] for s in inferred) == 2
 
 
 def test_a_log_with_message_based_generate_ids_keeps_its_recorded_ids() -> None:
@@ -1097,12 +1224,13 @@ def assert_linear(small: Work, large: Work, doubles: bool = True) -> None:
         assert large.entries <= 2.2 * small.entries + 10, (small, large)
 
 
-def log_work(turns: int, monkeypatch: pytest.MonkeyPatch) -> Work:
+def log_work(turns: int, monkeypatch: pytest.MonkeyPatch, origins: bool = True) -> Work:
     from inspect_ai._sentinel import _replay
 
     log = long_run(turns)
     sample = logged_sample(log)
-    events, pool = _replay._condensed(sample.events, [])
+    events = sample.events if origins else without_origins(sample.events)
+    events, pool = _replay._condensed(events, [])
     return replay_work(
         monkeypatch,
         sample.messages,
@@ -1113,10 +1241,13 @@ def log_work(turns: int, monkeypatch: pytest.MonkeyPatch) -> Work:
     )
 
 
+@pytest.mark.parametrize("origins", [True, False])
 def test_replay_reads_each_pool_row_once_and_folds_linearly(
-    monkeypatch: pytest.MonkeyPatch,
+    origins: bool, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    assert_linear(log_work(20, monkeypatch), log_work(40, monkeypatch))
+    assert_linear(
+        log_work(20, monkeypatch, origins), log_work(40, monkeypatch, origins)
+    )
 
 
 def turn_event(
@@ -1529,6 +1660,89 @@ def test_a_person_s_approval_decision_reaches_later_steps(
         assert [d.step_id for d in after.step.human_decisions or []][-1:] == [after.id]
 
 
+def answers_as_a_person(decision: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Have the built-in `human` approver's panel decide `decision`; a modify sets x to 7."""
+    from inspect_ai.approval._human import acp as acp_module
+    from inspect_ai.approval._human import approver as approver_module
+
+    async def acp(**kwargs: object) -> Approval | None:
+        return None
+
+    async def panel(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: object,
+        choices: list[str],
+    ) -> Approval:
+        if decision == "modify":
+            return Approval(
+                decision="modify",
+                modified=replace(call, arguments={**call.arguments, "x": 7}),
+                explanation="seven",
+            )
+        return Approval(
+            decision=cast(ApprovalDecision, decision), explanation=f"{decision} it"
+        )
+
+    monkeypatch.setattr(acp_module, "request_human_approval_via_acp", acp)
+    monkeypatch.setattr(approver_module, "panel_approval", panel)
+
+
+@pytest.mark.parametrize(
+    "decision,action",
+    [
+        ("approve", "proceed"),
+        ("reject", "reject"),
+        ("terminate", "terminate"),
+        ("modify", "modify"),
+        ("escalate", None),
+    ],
+)
+def test_a_human_approver_s_decision_reaches_later_steps_in_a_log_without_origins(
+    decision: str, action: str | None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai.approval import auto_approver, human_approver
+
+    answers_as_a_person(decision, monkeypatch)
+    policies = [ApprovalPolicy(human_approver(), "*")]
+    if decision == "escalate":
+        # the person passes the call on to the next approver
+        policies.append(ApprovalPolicy(auto_approver(), "*"))
+    log = run_logged(
+        r7_continues_after_a_termination()
+        if decision == "terminate"
+        else tool_loop(addition()),
+        agent_model(2),
+        approval=policies,
+    )
+    sample = logged_sample(log)
+    replay = steps_from_events(
+        sample.messages,
+        without_origins(sample.events),
+        [],
+        sample_uuid=sample.uuid or "",
+        eval_info=EvalInfo.from_eval(log.eval),
+        human_approvers=("human",),
+    )
+    # a call the person rejected or ended never reached its tool_call step
+    first = next(e.id for e in sample.events if isinstance(e, ToolEvent))
+    later = [s for s in replay if s.stage == "model_input"][-1]
+    decisions = list(later.step.human_decisions or [])
+    if action is None:
+        assert decisions == []
+        return
+    assert decisions
+    assert decisions[0].step_id == first
+    assert decisions[0].call_ids == (first,)
+    reported = decisions[0].decided
+    assert (reported.name, reported.path) == ("human", "human")
+    assert reported.report.action == action
+    if action == "modify":
+        assert reported.report.modified is not None
+        assert reported.report.modified.arguments["x"] == 7
+
+
 @tool
 def times_out() -> Tool:
     async def execute() -> str:
@@ -1683,6 +1897,9 @@ def test_a_call_run_in_a_final_region_has_no_tool_steps() -> None:
     replay = assert_replay_equals_live(
         r7_runs_a_helpers_call_in_its_region(),
         outputs(call("addition", x=1, y=1), done()),
+        # a model_origin() region is not in the span tree, so without origins
+        # the helper's call is a turn and its calls are checked
+        inferred="a model_origin() region",
     )
     assert not [s for s in replay if s.stage.startswith("tool")]
 
@@ -1834,7 +2051,7 @@ def test_a_result_is_the_message_the_tool_event_names() -> None:
     logged = ChatMessageTool(
         id="m1", content="as the model saw it", tool_call_id="c1", function="f"
     )
-    driver = _Driver([], [], [logged], "sample", EvalInfo(None, True), None, ())
+    driver = _Driver([], [], [], [logged], "sample", EvalInfo(None, True), None, ())
     event = ToolEvent(id="c1", function="f", arguments={}, result="", message_id="m1")
     assert driver._result(event) is logged
     unknown = event.model_copy(update={"message_id": "m2", "result": "rebuilt"})
@@ -2015,6 +2232,9 @@ def test_batches_that_overlap_replay_as_they_ran(
             calls(("synchronised", {"kind": "B1"}), turn=2),
             done("C"),
         ),
+        # two threads in one span: continuity follows the one carried on, so
+        # without origins the other's turn is utility
+        inferred="two threads in one conversation",
     )
     assert len([s for s in replay if s.stage == "tool_result"]) == 3
 
