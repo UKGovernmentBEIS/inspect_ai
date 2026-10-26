@@ -1,5 +1,5 @@
 {
-  "description": "A trim CompactionEvent after the first call, before any call continues it, ends the thread as the end of a span does: the call is the thread's only one, so a turn.",
+  "description": "A trim CompactionEvent after the first call, before any call continues it, ends the thread as the end of a span does: the call, still open, gets no answer from continuity, and the existing rules keep it a turn.",
   "events": [
     {
       "event": "span_begin",

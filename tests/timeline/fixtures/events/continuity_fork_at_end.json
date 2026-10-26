@@ -1,5 +1,5 @@
 {
-  "description": "A fork at the end of a span, with nothing after it, goes to the later call (the timeline has no final messages to match), and the earlier is utility.",
+  "description": "A fork at the end of a span, with nothing after it: no later call carries either on, and the timeline has no final messages to match, so continuity gives neither an answer and the existing rules keep both as turns.",
   "events": [
     {
       "event": "span_begin",
@@ -212,29 +212,6 @@
     }
   ],
   "expected": {
-    "init": null,
-    "agent": {
-      "id": "agent",
-      "name": "main",
-      "event_uuids": [
-        "m1",
-        "t1",
-        "m3"
-      ],
-      "children": [
-        {
-          "id": "utility-m2",
-          "name": "utility",
-          "utility": true,
-          "event_uuids": [
-            "m2"
-          ]
-        }
-      ]
-    },
-    "scoring": null
-  },
-  "expected_recorded_as_agent": {
     "init": null,
     "agent": {
       "id": "agent",

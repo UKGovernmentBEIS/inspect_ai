@@ -1258,10 +1258,12 @@ class _Continuity:
     An offline form of the agent bridge's thread tracking, for calls that do not record their ``origin``. Calls are taken in order, and the thread's tip is the last turn:
 
     - A call whose input continues the tip, holding the tip's output at position ``len(tip.input)``, is on the thread, a *head*. Two heads of one tip are a fork: the one a later call continues is the turn, and the others are utility.
-    - A call that continues nothing is a *candidate*; if a later call continues it, the thread moves to it (a compaction the log does not show). The candidates of a thread that moves on are utility.
+    - A call that continues nothing is a *candidate*; if a later call continues it, the thread moves to it (a compaction the log does not show). The candidates a thread goes on without, by advancing or moving to another, are utility; those still open where the thread ends (a scaffold that keeps a window of fixed length, so no later call continues anything) get no answer, and the existing rules decide them.
     - A summary ``CompactionEvent`` makes the calls not yet continued utility (the summary call continues the tip, and the next turn's input is the compacted list) and resets the tip; an edit or trim ends the thread as the end of the span does.
     - A failed call is a turn or utility as its retry, the next call with the same input, is; one not retried is a turn.
-    - At the end, a fork goes to the head whose output is in the span's final messages, else the later head; with no thread, the last candidate is the turn.
+    - Where the thread ends (the end of the span, an edit or trim, or a move to a candidate), a lone head is its last turn, and a fork goes to the head whose output is in the span's final messages; a fork no later call or final message resolves gets no answer, and the existing rules decide its calls (a scaffold that sends one input again and again would otherwise lose all but its last call).
+
+    So a call is utility only where the conversation went on without it, or before a summary compaction.
 
     A span in which no call continues another has no answer (``linked`` is False), so the existing rules decide. Each call is looked up at the input lengths of the calls still open (``_OpenCalls``), which the thread settles whenever it advances.
     """
@@ -1301,8 +1303,7 @@ class _Continuity:
             return
         candidate = self._candidates.continued_by(call)
         if candidate is not None:
-            if self._heads.calls:
-                self._settle(self._heads.calls[-1], self._heads.calls)
+            self._end(final=False)
             self._settle(candidate, self._candidates.calls)
             self._advance(candidate, call)
             return
@@ -1321,21 +1322,21 @@ class _Continuity:
     def finish(self) -> dict[int, bool]:
         self._end(final=True)
         for failed, retry in self._retried:
-            self.turns[id(failed.event)] = self.turns.get(id(retry.event), False)
+            if id(retry.event) in self.turns:
+                self.turns[id(failed.event)] = self.turns[id(retry.event)]
         for waiting in self._failed.values():
             for failed in waiting:
                 self.turns[id(failed.event)] = True
         return self.turns
 
     def _end(self, final: bool) -> None:
-        """End the thread: a fork goes to the head in the final messages (with `final`), else the later head; with no head, the last candidate is the turn."""
-        heads, candidates = self._heads.calls, self._candidates.calls
-        if heads:
-            found = [h for h in heads if final and self._in_final(h)]
-            self._settle((found or heads)[-1], heads)
-            self._close(candidates)
-        elif candidates:
-            self._settle(candidates[-1], candidates)
+        """End the thread: a lone head is its last turn, and a fork goes to the head in the final messages (with `final`). An unresolved fork, and candidates still open, get no answer: nothing showed the thread going on without them."""
+        heads = self._heads.calls
+        found = [h for h in heads if final and self._in_final(h)]
+        if found:
+            self._settle(found[-1], heads)
+        elif len(heads) == 1:
+            self._settle(heads[0], heads)
 
     def _advance(self, turn: _Call, call: _Call) -> None:
         self.turns[id(turn.event)] = True
