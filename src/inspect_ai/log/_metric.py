@@ -22,6 +22,12 @@ def recompute_metrics(log: EvalLog) -> None:
         ValueError: If log is missing required data for recomputation
         ShardSetError: The log is a merged log whose shards still exist.
     """
+    check_shards_merged(log, "recomputing metrics for")
+    recompute_checked_metrics(log)
+
+
+def recompute_checked_metrics(log: EvalLog) -> None:
+    """`recompute_metrics` for a caller that has already run its shard check."""
     # Import here to avoid circular imports
     from inspect_ai._eval.score import (
         metrics_from_log_header,
@@ -29,7 +35,6 @@ def recompute_metrics(log: EvalLog) -> None:
         resolve_scorers_info,
     )
 
-    check_shards_merged(log, "recomputing metrics for")
     if log.samples is None:
         raise ValueError("Log contains no samples")
 

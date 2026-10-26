@@ -1184,7 +1184,12 @@ As each planned sample passes through step 11, the merge parses it once and
 keeps `SampleScore(score=..., sample_id=..., sample_metadata=...)` per
 scorer, whether `error` is set, which scores carry an edit history and
 whether the sample has an `invalidation`; everything else in the sample
-is discarded before the next. After the last sample it calls
+is discarded before the next. A declared scorer's scores get
+`SampleScore.scorer` set to the scorer's name from the header (its
+unqualified registry name, as the task runner records it), also when a
+duplicate's score key is suffixed; solver-set scores keep `None`, as live,
+so a raw-score metric that reads the scorer sees what it saw in the
+worker. After the last sample it calls
 `eval_results(samples=..., scores=..., reducers=..., scorers=resolve_scorers_info(h),
 metrics=metrics_from_log_header(h), completed_samples=...,
 headline_metric=h.eval.headline_metric)` with the template header `h`.
@@ -1326,9 +1331,14 @@ recorded, and a later merge or deletion would then trust the rewritten
 ones. Each refuses (`ShardSetError`) a log that has `eval.shards` while the
 `<name>.shards/` directory beside its `location` exists with any entry:
 one shared helper (`log/_shards/_live.py`), a plain listing in the sync
-writers and `AsyncFilesystem.list_dir` in the async ones. `inspect score`
-checks right after reading the log, before a streamed score starts
-writing its output. Once the merge has deleted the shards the check
+writers and `AsyncFilesystem.list_dir` in the async ones. Each operation
+checks once: `edit_score()` recomputes through `recompute_checked_metrics`,
+and `inspect score` checks right after reading the log, before a streamed
+score starts writing its output, then scores through
+`score_checked_log_async`. For an incomplete merged log (`started` or
+`error`), where `delete_shards` is refused, the message says to re-run the
+incomplete shards and merge with `delete_shards`, or to delete the shards
+directory by hand to abandon them. Once the merge has deleted the shards the check
 passes and the writers behave as before; ordinary logs (no `eval.shards`)
 and logs with no `location` (built in memory) are not checked. The merge
 keeps its edit-history and retained-reduction checks as a backstop for
@@ -1415,7 +1425,14 @@ cleanup (removes the merged log too). Both use one routine,
   cleanup); such a companion is deleted by hand. Local paths are deleted
   by their exact path and are not refused. It neither classifies objects
   nor orders the deletes, and a missing companion is not an error.
-  With `include_log`, the merged log is deleted first.
+  With `include_log`, the merged log is deleted first. A remote delete is
+  then checked by a fresh listing (on S3 through `AsyncFilesystem.list_dir`,
+  elsewhere through `FileSystem.ls`, which drops fsspec's cached listing),
+  because a bulk delete can return normally while objects remain: s3fs
+  ignores the per-object errors of a `DeleteObjects` response. Objects
+  left behind raise `ShardSetError` naming one of them, `shards_deleted`
+  is never reported, the merged log is kept, and a re-run finishes the
+  deletion.
 - **No resumption protocol.** An interrupted deletion raises its storage
   error and leaves some objects behind; the user re-runs the command or
   removes the rest by hand. Nothing records that a deletion was in
@@ -2347,7 +2364,14 @@ Per PR (numbers from "Implementation plan"):
      `edit_score` and the `inspect score` CLI path (streamed, overwriting)
      refuse a merged log read while its shards exist, leaving the merged
      log and shards byte-identical, and succeed on the same log after a
-     merge with `delete_shards=True`; ordinary logs are not affected;
+     merge with `delete_shards=True`; ordinary logs are not affected; the
+     refusal of an incomplete merged log says to re-run the incomplete
+     shards or delete the shards directory; `edit_score` and the CLI path
+     check once;
+   - scorer identity: an unreduced metric counting the raw scores whose
+     `scorer` is the declared scorer gives the unsharded run's value in
+     fresh and incremental merges, with a configured reducer, with
+     reduction disabled (`Epochs(2, [])`) and with a duplicated scorer;
    - fresh equals incremental: after replacing one shard's attempt, after
      adding a shard whose name sorts before the template shard (so the
      template changes), and after a sequence where shard A fails,
@@ -2398,6 +2422,8 @@ Per PR (numbers from "Implementation plan"):
      re-run refuse rather than delete; a vanished shard under a `started`
      merged log is refused even with `delete_shards=True`. On `mock_s3` a
      storage hook fails the recursive delete; the call raises that error
+     and a re-run finishes; a delete that returns normally but leaves an
+     object (as s3fs does on a per-object error) raises `ShardSetError`,
      and a re-run finishes;
    - a merge that read the merged log before a retry-cleanup removal
      deleted it has its conditional publish refused (`WriteConflictError`),

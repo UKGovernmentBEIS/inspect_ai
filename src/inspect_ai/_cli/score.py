@@ -24,7 +24,7 @@ from inspect_ai._eval.loader import metric_from_spec
 from inspect_ai._eval.score import (
     ScoreAction,
     resolve_scorers,
-    score_async,
+    score_checked_log_async,
 )
 from inspect_ai._util._async import configured_async_backend
 from inspect_ai._util.config import parse_cli_args
@@ -245,7 +245,7 @@ async def score(
         await write_recorder.log_init(eval_log.eval, location=output_file)
         await write_recorder.log_start(eval_log.eval, eval_log.plan)
 
-    eval_log = await score_async(
+    eval_log = await score_checked_log_async(
         log=eval_log,
         scorers=scorers,
         metrics=metrics,

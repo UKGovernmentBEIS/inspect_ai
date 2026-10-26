@@ -2387,6 +2387,10 @@ def test_remove_shards_dir_addresses_the_given_url(
         def rm(self, path: str, recursive: bool = False) -> None:
             calls.append(("rm", path, str(recursive)))
 
+        def ls(self, path: str, recursive: bool = False) -> list[FileInfo]:
+            calls.append(("ls", path, str(recursive)))
+            return []
+
     def recording_filesystem(path: str) -> Recording:
         calls.append(("filesystem", path))
         return Recording()
@@ -2399,6 +2403,9 @@ def test_remove_shards_dir_addresses_the_given_url(
     assert calls == [
         ("filesystem", f"{root}/{NAME}.shards"),
         ("rm", f"{root}/{NAME}.shards", "True"),
+        # the check that nothing remains lists the same URL
+        ("filesystem", f"{root}/{NAME}.shards"),
+        ("ls", f"{root}/{NAME}.shards", "True"),
     ]
 
 
@@ -3114,3 +3121,123 @@ def test_writers_refuse_a_merged_log_whose_shards_exist(
 def test_writers_leave_ordinary_logs_alone(tmp_path: Path, writer: str) -> None:
     log = _run(str(tmp_path), "0", _graded_task(Epochs(2, at_least(1, value=0.5))))
     _write_with(writer, read_eval_log(log.location))
+
+
+def test_a_partial_remote_delete_is_reported_and_finished_by_a_rerun(
+    s3_shards: tuple[str, str], s3_root: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    merged, shards = s3_shards
+    merge_eval_log_shards(merged)
+    left = next(
+        k for k in _s3_keys(f"{s3_root}/{NAME}.shards/1/") if k.endswith(".eval")
+    )
+
+    def partial_rm(self: Any, path: str, recursive: bool = False) -> None:
+        # as s3fs does when DeleteObjects reports a per-object error
+        client = boto3.client("s3")
+        for key in _s3_keys(f"{s3_root}/{NAME}.shards/"):
+            if key != left:
+                client.delete_object(Bucket="test-bucket", Key=key)
+
+    monkeypatch.setattr(FileSystem, "rm", partial_rm)
+    with pytest.raises(ShardSetError, match="left 1 objects behind"):
+        merge_eval_log_shards(merged, delete_shards=True)
+    monkeypatch.undo()
+    assert _s3_keys(f"{s3_root}/") == sorted([f"{s3_root}/{NAME}.eval", left])
+    result = merge_eval_log_shards(merged, delete_shards=True)
+    assert result.shards_deleted and not result.written
+    assert _s3_keys(f"{s3_root}/") == [f"{s3_root}/{NAME}.eval"]
+
+
+@metric(scores="unreduced")
+def shard_scorer_identity() -> Metric:
+    """Counts the raw scores that name `identity_scored` as their scorer."""
+
+    def compute(scores: list[SampleScore]) -> float:
+        return float(sum(1 for s in scores if s.scorer == "identity_scored"))
+
+    return compute
+
+
+@scorer(metrics=[mean(), shard_scorer_identity()])
+def identity_scored() -> Scorer:
+    return graded()
+
+
+@pytest.mark.parametrize(
+    "epochs,scorers",
+    [
+        pytest.param(Epochs(2, at_least(1, value=0.5)), 1, id="reduced"),
+        pytest.param(Epochs(2, []), 1, id="reduction-disabled"),
+        pytest.param(Epochs(2, at_least(1, value=0.5)), 2, id="duplicate"),
+    ],
+)
+def test_raw_scores_keep_their_declared_scorer(
+    tmp_path: Path, epochs: Epochs, scorers: int
+) -> None:
+    task = _graded_task(epochs)
+    task.scorer = [identity_scored() for _ in range(scorers)]
+    unsharded = eval(
+        task, model="mockllm/model", log_dir=str(tmp_path / "unsharded"), display="none"
+    )[0]
+    assert unsharded.results is not None
+    identity = [
+        m.value
+        for s in unsharded.results.scores
+        for m in s.metrics.values()
+        if m.name.endswith("shard_scorer_identity")
+    ]
+    assert identity and all(value == 12 for value in identity)
+
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", task, sample_id=[1, 2, 3])
+    _run(shards, "1", task, sample_id=[4, 5, 6])
+    first = merge_eval_log_shards(merged).log
+    assert first.results is not None
+    assert first.results.scores == unsharded.results.scores
+    # incremental: shard 0's samples are carried
+    _run(shards, "1", task, sample_id=[4, 5, 6])
+    result = merge_eval_log_shards(merged, delete_shards=True)
+    assert result.written and result.shards_deleted
+    assert result.log.results is not None
+    assert result.log.results.scores == unsharded.results.scores
+
+
+def test_writer_refusal_of_an_incomplete_merge_says_how_to_finish(
+    tmp_path: Path,
+) -> None:
+    from inspect_ai.log import recompute_metrics
+
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", sample_id=[1, 2, 3])
+    _as_running(_run(shards, "1", sample_id=[4, 5, 6]), keep={(4, 1)})
+    merge_eval_log_shards(merged, allow_incomplete=True)
+    with pytest.raises(
+        ShardSetError, match="incomplete \\(started\\): re-run the incomplete shards"
+    ):
+        recompute_metrics(read_eval_log(merged))
+
+
+def test_each_writer_checks_for_shards_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai.log._shards import _live
+
+    merged, shards = _paths(tmp_path)
+    task = _graded_task(Epochs(2, at_least(1, value=0.5)))
+    _run(shards, "0", task, sample_id=[1, 2, 3])
+    _run(shards, "1", task, sample_id=[4, 5, 6])
+    merge_eval_log_shards(merged, delete_shards=True)
+
+    checks: list[str] = []
+    shards_dir = _live._shards_dir
+
+    def counted(log: EvalLog) -> str | None:
+        checks.append(log.location)
+        return shards_dir(log)
+
+    monkeypatch.setattr(_live, "_shards_dir", counted)
+    for writer in ["edit_score", "cli"]:
+        checks.clear()
+        _write_with(writer, read_eval_log(merged))
+        assert len(checks) == 1, writer

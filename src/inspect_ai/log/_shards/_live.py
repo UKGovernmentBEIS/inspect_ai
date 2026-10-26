@@ -62,7 +62,16 @@ async def _has_entries(fs: AsyncFilesystem, shards_dir: str) -> bool:
 
 
 def _live_shards(log: EvalLog, shards_dir: str, action: str) -> ShardSetError:
+    if log.status == "success":
+        finish = "finish merging (merge with delete_shards)"
+    else:
+        # delete_shards needs a complete set
+        finish = (
+            f"the merge is incomplete ({log.status}): re-run the incomplete "
+            "shards and merge with delete_shards, or delete the shards "
+            "directory by hand to abandon them,"
+        )
     return ShardSetError(
         f"{log.location} is a merge of shards that still exist in {shards_dir}; "
-        f"finish merging (merge with delete_shards) before {action} it."
+        f"{finish} before {action} it."
     )

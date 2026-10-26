@@ -278,8 +278,10 @@ async def _recompute_results(
     # resolve_scorers_info imports the task file for an unregistered metric
     check_scoring_resolvable(template)
     metrics = _task_metrics(template)
-    scores = [sample.scores for sample in inputs if sample.scores]
     declared = resolve_scorers_info(template)
+    scores = _with_scorer_identity(
+        declared, [sample.scores for sample in inputs if sample.scores]
+    )
     others = _other_score_names(declared, scores)
     if metrics is not None:
         other_infos = [ScorerInfo(name=name, metrics=metrics) for name in others]
@@ -343,6 +345,32 @@ async def _recompute_results(
         completed_samples=sum(1 for sample in inputs if not sample.error),
         headline_metric=template.eval.headline_metric,
     )
+
+
+def _with_scorer_identity(
+    declared: list["ScorerInfo"], scores: list[dict[str, SampleScore]]
+) -> list[dict[str, SampleScore]]:
+    """Set `SampleScore.scorer` on declared scorers' scores, as live scoring does.
+
+    The task runner records the scorer's unqualified registry name, which
+    the header keeps as the declared scorer's name, also for a duplicate
+    scorer whose score key is suffixed (`other1`). Solver-set scores keep
+    `None`, as live.
+    """
+    from inspect_ai._eval.task.results import _unique_scorer_names
+
+    identity = dict(
+        zip(_unique_scorer_names(declared), (info.name for info in declared))
+    )
+    return [
+        {
+            name: score.model_copy(update={"scorer": identity[name]})
+            if name in identity
+            else score
+            for name, score in sample_scores.items()
+        }
+        for sample_scores in scores
+    ]
 
 
 def check_retained_reductions(

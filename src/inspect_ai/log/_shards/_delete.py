@@ -12,10 +12,11 @@ from contextlib import suppress
 
 import anyio
 
-from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util.asyncfiles import AsyncFilesystem, is_s3_filename
 from inspect_ai._util.file import filesystem, local_path
 from inspect_ai._util.log_layout import eval_shards_dir
 
+from ._errors import ShardSetError
 from ._publish import is_local
 
 # fsspec expands these in paths it deletes, also inside a recursive delete
@@ -42,6 +43,8 @@ async def remove_shards_dir(
     Raises:
         ValueError: A remote `log` holds glob characters (see
             :func:`check_deletable`); nothing is deleted.
+        ShardSetError: Objects remain under a remote shards directory after
+            the delete returned.
     """
     check_deletable(log)
     if fs is None:
@@ -61,6 +64,15 @@ async def remove_shards_dir(
     # on the loop thread: to_thread over remote fsspec work can deadlock
     with suppress(FileNotFoundError):
         filesystem(shards_dir).rm(shards_dir, recursive=True)
+    # a bulk delete can report success while objects remain (s3fs ignores
+    # the per-object errors of a DeleteObjects response)
+    remaining = await _remaining(fs, shards_dir)
+    if remaining:
+        raise ShardSetError(
+            f"Deleting {shards_dir} left {len(remaining)} objects behind (for "
+            f"example {remaining[0]}). Delete them, or merge again with "
+            "delete_shards."
+        )
 
 
 def check_deletable(log: str) -> None:
@@ -79,6 +91,25 @@ def check_deletable(log: str) -> None:
             "character (*, ? or [), which the storage backend would expand to "
             "other paths. Delete the shards directory by hand."
         )
+
+
+async def _remaining(fs: AsyncFilesystem, shards_dir: str) -> list[str]:
+    """The objects still under a remote `shards_dir`, from a fresh listing."""
+    if is_s3_filename(shards_dir):
+        found: list[str] = []
+        pending = [shards_dir]
+        while pending:
+            listing = await fs.list_dir(pending.pop())
+            found.extend(info.name for info in listing.files)
+            pending.extend(listing.dirs)
+        return found
+    try:
+        # FileSystem.ls drops fsspec's cached listing first
+        return [
+            info.name for info in filesystem(shards_dir).ls(shards_dir, recursive=True)
+        ]
+    except FileNotFoundError:
+        return []
 
 
 def _remove_local_dir(path: str) -> None:

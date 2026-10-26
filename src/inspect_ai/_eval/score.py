@@ -270,6 +270,39 @@ async def score_async(
        ShardSetError: The log is a merged log whose shards still exist.
     """
     await check_shards_merged_async(log, "rescoring")
+    return await score_checked_log_async(
+        log,
+        scorers,
+        metrics,
+        epochs_reducer,
+        model=model,
+        model_roles=model_roles,
+        action=action,
+        display=display,
+        copy=copy,
+        samples=samples,
+    )
+
+
+async def score_checked_log_async(
+    log: EvalLog,
+    scorers: "Scorers",
+    metrics: list[Metric | dict[str, list[Metric]]]
+    | dict[str, list[Metric]]
+    | None = None,
+    epochs_reducer: ScoreReducers | None = None,
+    model: str | Model | None = None,
+    model_roles: ModelRoles | None = None,
+    action: ScoreAction | None = None,
+    display: DisplayType | None = None,
+    copy: bool = True,
+    samples: Callable[[int], AsyncContextManager[EvalSample]] | None = None,
+) -> EvalLog:
+    """`score_async` for a caller that has already run its shard check.
+
+    `inspect score` runs `check_shards_merged_async` itself, before a
+    streamed score starts writing its output, and calls this.
+    """
     if samples is None and log.samples is None:
         raise ValueError("There are no samples to score in the log.")
 

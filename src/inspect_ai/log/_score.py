@@ -7,7 +7,7 @@ from inspect_ai.event._tree import EventTree, EventTreeSpan, event_tree, walk_no
 from inspect_ai.scorer._metric import Score, ScoreEdit
 
 from ._log import EvalLog
-from ._metric import recompute_metrics as _recompute_metrics
+from ._metric import recompute_checked_metrics
 from ._shards._live import check_shards_merged
 
 
@@ -151,7 +151,7 @@ def edit_score(
     sample.events.insert(end_index, score_edit_event)
 
     if recompute_metrics:
-        _recompute_metrics(log)
+        recompute_checked_metrics(log)
 
 
 def _find_scorers_span(tree: EventTree) -> EventTreeSpan | None:
