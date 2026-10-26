@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, NamedTuple
 
 from inspect_ai.model._generate_config import GenerateConfig
 
+from .._config import SentinelProxy
 from .._scope import current_origin, is_agent_turn
 from ._endpoint import Sidecar
 from ._task import SampleFacts, task_sidecars
@@ -22,6 +23,7 @@ class SidecarCall(NamedTuple):
     sidecar: Sidecar
     header: str
     """`x-inspect-context`, naming the call's sample and attempt."""
+    mode: SentinelProxy
 
     def config(self, config: GenerateConfig) -> GenerateConfig:
         """The call's config, with its `x-inspect-context` header."""
@@ -72,4 +74,4 @@ async def sidecar_call(model: "Model") -> SidecarCall | None:
             "attempt": active.id,
         }
     )
-    return SidecarCall(sidecar, header)
+    return SidecarCall(sidecar, header, sidecars.mode)

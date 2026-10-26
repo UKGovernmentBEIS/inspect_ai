@@ -43,10 +43,15 @@ class SentinelField(BaseModel):
 
 
 class ReceivedField:
-    """The field of the latest attempt at a call, once a provider has handed it over."""
+    """The field of the latest attempt at a call, once a provider has handed it over, and the id the attempt was sent under."""
 
-    def __init__(self) -> None:
+    def __init__(self, sidecar: Any = None) -> None:
+        self.sidecar = sidecar
+        """The sidecar the call goes through, which `request_result` asks."""
         self.field: dict[str, Any] | None = None
+        self.request_id: str | None = None
+        self.looked: Any = None
+        """What `request_result` said of a refusal that came without the field."""
 
 
 _received: ContextVar[ReceivedField | None] = ContextVar(
@@ -55,9 +60,9 @@ _received: ContextVar[ReceivedField | None] = ContextVar(
 
 
 @contextmanager
-def receiving_field() -> Iterator[ReceivedField]:
+def receiving_field(sidecar: Any = None) -> Iterator[ReceivedField]:
     """Collect the `sentinel` field of an agent call through a sidecar, for the providers to report it into."""
-    received = ReceivedField()
+    received = ReceivedField(sidecar)
     token = _received.set(received)
     try:
         yield received
@@ -70,6 +75,20 @@ def begin_attempt() -> None:
     received = _received.get()
     if received is not None:
         received.field = None
+        received.request_id = None
+        received.looked = None
+
+
+def current_receiving() -> ReceivedField | None:
+    """What is collected of the current agent call through a sidecar, or None for any other call."""
+    return _received.get()
+
+
+def report_request_id(request_id: str) -> None:
+    """Report the `x-irid` the current agent call is sent under, by which the sidecar's `request_result` finds it."""
+    received = _received.get()
+    if received is not None:
+        received.request_id = request_id
 
 
 def received_field() -> SentinelField | None:
@@ -81,8 +100,17 @@ def received_field() -> SentinelField | None:
     received = _received.get()
     if received is None or received.field is None:
         return None
+    return parse_field(received.field)
+
+
+def parse_field(field: dict[str, Any]) -> SentinelField:
+    """A `sentinel` field, as a sidecar writes it.
+
+    Raises:
+        ValueError: If the field isn't one this Inspect can read.
+    """
     try:
-        return SentinelField.model_validate(received.field)
+        return SentinelField.model_validate(field)
     except ValidationError as ex:
         raise ValueError(f"The sidecar's sentinel field can't be read: {ex}") from ex
 

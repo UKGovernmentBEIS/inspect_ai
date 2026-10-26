@@ -48,8 +48,14 @@ from inspect_ai._sentinel._context import is_agent_generate
 from inspect_ai._sentinel._sidecar._act import act_on_field, refused_output
 from inspect_ai._sentinel._sidecar._field import (
     begin_attempt,
+    parse_field,
     received_field,
     receiving_field,
+)
+from inspect_ai._sentinel._sidecar._lookup import (
+    request_result,
+    unjudged_error,
+    unjudged_reply,
 )
 from inspect_ai._util.constants import (
     DEFAULT_MAX_CONNECTIONS,
@@ -1089,18 +1095,23 @@ class Model:
         async with self._connection_concurrency(config) as connection:
             # generate
             with (
-                receiving_field()
+                receiving_field(through_sidecar.sidecar)
                 if through_sidecar is not None
                 else contextlib.nullcontext()
-            ):
-                output, event = await self._generate(
-                    prepared=prepared,
-                    config=config,
-                    cache=cache,
-                    connection=connection,
-                    on_stream=on_stream,
-                    event_uuid=generate_id,
-                )
+            ) as receiving:
+                try:
+                    output, event = await self._generate(
+                        prepared=prepared,
+                        config=config,
+                        cache=cache,
+                        connection=connection,
+                        on_stream=on_stream,
+                        event_uuid=generate_id,
+                    )
+                except Exception as ex:
+                    if receiving is not None:
+                        unjudged_error(receiving.looked, ex)
+                    raise
                 field = received_field()
 
             # update the most recent ModelEvent with the actual start/completed
@@ -1135,6 +1146,14 @@ class Model:
                 and output.stop_reason == "content_filter"
             ):
                 raise ModelRefusalError(output, str(self), self.role)
+
+        # a reply without the field doesn't mean the call was allowed
+        if through_sidecar is not None and receiving is not None and field is None:
+            looked = await request_result(receiving, replied=True)
+            if looked.state == "decided" and looked.field is not None:
+                field = parse_field(looked.field)
+            else:
+                unjudged_reply(looked, through_sidecar.mode, receiving.request_id)
 
         # before an in-process sentinel, which judges the reply after the
         # proxy did
@@ -1736,7 +1755,9 @@ class Model:
                 except Exception as ex:
                     # a sidecar's refusal of an agent call is acted on as the
                     # model's turn, as an in-process sentinel's decision is
-                    refused = refused_output(str(self))
+                    refused = await refused_output(
+                        str(self), _would_retry(self.api, ex)
+                    )
                     if refused is None:
                         # Mark event as failed for uncaught provider exceptions
                         # (dropping any partial streamed output first — it
@@ -1780,7 +1801,9 @@ class Model:
                 call = None
 
             if isinstance(output, Exception):
-                refused = refused_output(str(self))
+                refused = await refused_output(
+                    str(self), _would_retry(self.api, output)
+                )
                 if refused is not None:
                     stream_observer.discard_partial_output()
                     output = refused
@@ -2390,6 +2413,16 @@ def _model_refusal_message(
     if len(completion) > max_completion:
         completion = completion[:max_completion].rstrip() + "..."
     return f"Model refusal ({', '.join(details)}): {completion}"
+
+
+def _would_retry(api: ModelAPI, ex: BaseException) -> bool:
+    """Whether Inspect retries an error of a model call, as `Model.should_retry` decides, without counting a retry."""
+    if not isinstance(ex, Exception) or isinstance(
+        ex, (AttemptTimeoutError, StreamIdleTimeoutError, NoStreamDataError)
+    ):
+        return True
+    decision = api.should_retry(ex)
+    return decision.retry if isinstance(decision, RetryDecision) else bool(decision)
 
 
 class ModelName:

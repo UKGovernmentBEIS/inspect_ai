@@ -13,7 +13,8 @@ from inspect_ai.model._chat_message import ChatMessageAssistant
 from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
 from inspect_ai.tool._tool_call import ToolCall
 
-from ._field import SentinelField, WithheldTurn, received_field
+from ._field import SentinelField, WithheldTurn, current_receiving, received_field
+from ._lookup import request_result
 
 _ENDED = "A sentinel in the sidecar ended the sample."
 
@@ -46,11 +47,22 @@ def take_call_decision(call_id: str) -> CallDecision | None:
     return decisions.pop(call_id, None) if decisions is not None else None
 
 
-def refused_output(model: str) -> ModelOutput | None:
+async def refused_output(model: str, retryable: bool) -> ModelOutput | None:
     """A refusal of the current agent call, as the model output Inspect acts on, or None if the call wasn't refused by a sidecar's decision.
 
-    A rejected turn is the model's turn, whose calls are answered with approval errors, as in process. A turn refused because the sample ended is the model's turn if the sidecar was handed one, else empty.
+    A rejected turn is the model's turn, whose calls are answered with approval errors, as in process. A turn refused because the sample ended is the model's turn if the sidecar was handed one, else empty. A refusal that came without the field, which Inspect won't retry, is looked up with `request_result`.
+
+    Args:
+        model: The model's name, for the output.
+        retryable: Whether Inspect retries the call's error, as it does an ordinary provider or network failure.
     """
+    received = current_receiving()
+    if received is None:
+        return None
+    if received.field is None and not retryable:
+        received.looked = await request_result(received, replied=False)
+        if received.looked.state == "decided":
+            received.field = received.looked.field
     field = received_field()
     if field is None or field.outcome == "proceed":
         return None

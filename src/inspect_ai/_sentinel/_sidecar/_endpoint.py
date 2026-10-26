@@ -3,10 +3,10 @@
 from dataclasses import dataclass, field
 from itertools import count
 from logging import getLogger
-from typing import Any, Literal, NamedTuple
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 
-from inspect_ai.model._model import ModelAPI
-from inspect_ai.model._providers.util import model_base_url
+if TYPE_CHECKING:
+    from inspect_ai.model._model import ModelAPI
 
 logger = getLogger(__name__)
 
@@ -77,11 +77,13 @@ class _Client(NamedTuple):
     base_url: str
 
 
-def proxy_client(api: ModelAPI) -> _Client | None:
+def proxy_client(api: "ModelAPI") -> _Client | None:
     """The SDK client of a model whose calls a sidecar can read, when its base URL was set.
 
     Only a base URL someone set can point at a proxy, so a provider's own default address is never probed.
     """
+    from inspect_ai.model._providers.util import model_base_url
+
     # as each provider resolves its base URL; its SDK is installed when it is
     # the model's provider, so its module imports
     module = type(api).__module__
