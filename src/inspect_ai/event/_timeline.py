@@ -1372,7 +1372,7 @@ class _Continuity:
 
     So a call is utility only where the conversation went on without it, or where its output is the summary a compaction put in its place.
 
-    A span in which no call continues another has no answer (``linked`` is False), so the existing rules decide. Each call is looked up at the input lengths of the calls still open (``_OpenCalls``), which the thread settles whenever it advances.
+    A span in which no call continues another has no answer (``linked`` is False), so the existing rules decide, apart from its summarizers: the next input holding a call's output is evidence enough. Each call is looked up at the input lengths of the calls still open (``_OpenCalls``), which the thread settles whenever it advances.
     """
 
     def __init__(
@@ -1392,6 +1392,7 @@ class _Continuity:
         # the heads and the candidates open at each summary compaction, until
         # the next call's input shows which summarized
         self._summarized: list[tuple[list[_Call], list[_Call]]] = []
+        self._summarizer_calls: list[_Call] = []
 
     def call(self, event: ModelEvent) -> None:
         call = _Call(event, self._inputs.of(event), _answer(event))
@@ -1440,7 +1441,17 @@ class _Continuity:
         for waiting in self._failed.values():
             for failed in waiting:
                 self.turns[id(failed.event)] = True
-        return self.turns
+        if self.linked:
+            return self.turns
+        # no call continued another: only the summarizers, and the failed calls
+        # they retried, are answered
+        answered = {id(call.event) for call in self._summarizer_calls}
+        answered.update(
+            id(failed.event)
+            for failed, retry in self._retried
+            if id(retry.event) in answered
+        )
+        return {event: turn for event, turn in self.turns.items() if event in answered}
 
     def _end(self, final: bool) -> None:
         """End the thread: a lone head is its last turn, and a fork goes to the head in the final messages (with `final`). An unresolved fork, and candidates still open, get no answer: nothing showed the thread going on without them."""
@@ -1460,6 +1471,7 @@ class _Continuity:
                 if input is not None and self._summarizes(call, input)
             ]
             self._close(summarizers)
+            self._summarizer_calls.extend(summarizers)
             kept = [h for h in heads if not any(h is s for s in summarizers)]
             if len(kept) == 1:
                 self._settle(kept[0], kept)
@@ -1541,7 +1553,7 @@ def _continuity(
 ) -> dict[int, bool]:
     """Whether each of the span's calls with no recorded origin is a turn by continuity, by `id()` of its event.
 
-    The rule runs over each conversation in the span apart (a span can hold more than one, where the timeline unrolls a solver beside an agent), and a conversation in which no call continues another has no answers, so the existing rules decide its calls.
+    The rule runs over each conversation in the span apart (a span can hold more than one, where the timeline unrolls a solver beside an agent), and a conversation in which no call continues another has no answers but its summarizers', so the existing rules decide its other calls.
     """
     threads: dict[str | None, _Continuity] = {}
 
@@ -1562,9 +1574,7 @@ def _continuity(
             thread(item.event).compaction(item.event)
     turns: dict[int, bool] = {}
     for found in threads.values():
-        verdicts = found.finish()
-        if found.linked:
-            turns.update(verdicts)
+        turns.update(found.finish())
     return turns
 
 
