@@ -23,6 +23,7 @@ from inspect_ai._eval.context import init_eval_context
 from inspect_ai._eval.loader import metric_from_spec
 from inspect_ai._eval.score import (
     ScoreAction,
+    log_model_record,
     resolve_scorers,
     score_async,
 )
@@ -130,7 +131,13 @@ def score_command(
     stream: int | bool = False,
     **common: Unpack[CommonOptions],
 ) -> None:
-    """Score a previous evaluation run."""
+    """Score a previous evaluation run.
+
+    This runs code named by the log (its task file and scorers) and uses the
+    model endpoint and other settings recorded in it. Only run it on logs you
+    trust. With --scorer, the log's metrics are rebuilt without importing its
+    task file; the log's model and model roles are still used.
+    """
     process_common_options(common)
 
     async def run_score() -> None:
@@ -208,6 +215,8 @@ async def score(
         raise ValueError(
             "Unable to resolve any scorers for this log. Please specify a scorer using the '--scorer' param."
         )
+    if override_model is None and (record := log_model_record(eval_log)) is not None:
+        display().print(record)
 
     metrics = resolve_metrics(metric)
 

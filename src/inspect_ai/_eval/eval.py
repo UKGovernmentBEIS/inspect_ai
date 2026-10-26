@@ -46,6 +46,8 @@ from inspect_ai._display.core.active import active_display as active_task_displa
 from inspect_ai._display.core.active import display as task_display
 from inspect_ai._eval.task.scan import Scanners, scan_context
 from inspect_ai._sentinel._config import (
+    SentinelConfig,
+    SentinelEntry,
     SentinelSpec,
     resolve_sentinel_spec,
     sentinel_config,
@@ -115,7 +117,12 @@ from inspect_ai.util._limit import TokenLimit, token_limit_fields
 from inspect_ai.util._notify import build_apprise, init_apprise
 
 from .context import init_eval_context
-from .loader import resolve_task_file_sandbox, resolve_task_source, resolve_tasks
+from .loader import (
+    parse_spec_str,
+    resolve_task_file_sandbox,
+    resolve_task_source,
+    resolve_tasks,
+)
 from .run import TaskInjection, eval_run
 from .task import Epochs, PreviousTask, Task, TaskSource
 from .task.enqueue import (
@@ -127,6 +134,7 @@ from .task.enqueue import (
 from .task.images import InputMediaPolicy
 from .task.resolved import ResolvedTask, resolved_model_names, resolved_task_names
 from .task.tasks import Tasks
+from .task.util import split_spec
 
 log = logging.getLogger(__name__)
 
@@ -1577,6 +1585,83 @@ def _requalify_sample_ids(
         return sample_id
 
 
+def retry_record(eval_log: EvalLog, acp_server: bool | int | str | None) -> str:
+    """Record of the code and settings a retry takes from the log.
+
+    Lists the task file (or the Hugging Face repo for an `hf/` task), the
+    solver file, the model and base URL, the sandbox, the sentinel monitors
+    and protocols, and the ACP server binding the log records. Paths are
+    resolved against the working directory, as the retry resolves them.
+
+    Args:
+        eval_log: Log being retried.
+        acp_server: The retry's `acp_server` override; the log's binding is
+            listed only when this is `None`.
+    """
+    spec = eval_log.eval
+    task_name = spec.task_registry_name or spec.task
+    lines = [
+        f"Retrying {eval_log.location or task_name} with settings recorded in the log:"
+    ]
+    if spec.task_file:
+        lines.append(
+            f"  Task: {task_name} in {Path(spec.task_file).absolute().as_posix()}"
+        )
+    elif task_name.startswith("hf/"):
+        repo, revision = split_spec(task_name.replace("hf/", ""))
+        revision = revision or spec.task_args_passed.get("revision", "main")
+        lines.append(
+            f"  Task: eval.yaml from Hugging Face dataset {repo} (revision {revision})"
+        )
+    else:
+        lines.append(f"  Task: {task_name}")
+    if spec.solver:
+        solver_file, _ = parse_spec_str(spec.solver)
+        if solver_file is not None:
+            lines.append(f"  Solver file: {solver_file.as_posix()}")
+    model = f"  Model: {spec.model}"
+    if spec.model_base_url:
+        model += f", base URL {spec.model_base_url}"
+    lines.append(model)
+    sandbox = resolve_task_file_sandbox(spec.task_file, spec.sandbox)
+    if sandbox is not None:
+        if isinstance(sandbox.config, str):
+            lines.append(f"  Sandbox: {sandbox.type}, config {sandbox.config}")
+        elif sandbox.config is not None:
+            lines.append(f"  Sandbox: {sandbox.type}, inline config")
+        else:
+            lines.append(f"  Sandbox: {sandbox.type}")
+    if spec.config.sentinel is not None:
+        names = ", ".join(_sentinel_names(spec.config.sentinel))
+        lines.append(f"  Sentinel: {names}")
+    acp = spec.config.acp_server if acp_server is None else None
+    if isinstance(acp, bool):
+        if acp:
+            lines.append("  ACP server: default UNIX socket")
+    elif isinstance(acp, int):
+        lines.append(f"  ACP server: TCP port {acp}")
+    elif isinstance(acp, str):
+        lines.append(f"  ACP server: UNIX socket {acp}")
+    return "\n".join(lines)
+
+
+def _sentinel_names(config: SentinelConfig) -> list[str]:
+    layer = config.root
+    entries = (
+        [layer]
+        if isinstance(layer, SentinelEntry)
+        else list(layer.values())
+        if isinstance(layer, dict)
+        else layer
+    )
+    names: list[str] = []
+    for entry in entries:
+        names.append(entry.name)
+        for nested in entry.nested.values():
+            names.extend(_sentinel_names(nested))
+    return names
+
+
 async def eval_retry_async(
     tasks: str | EvalLogInfo | EvalLog | list[str] | list[EvalLogInfo] | list[EvalLog],
     log_level: str | None = None,
@@ -1721,6 +1806,11 @@ async def eval_retry_async(
         )
         for task in tasks
     ]
+    for eval_log in retry_eval_logs:
+        record = retry_record(eval_log, acp_server)
+        task_display().print(record)
+        log.info(record)
+
     # opportunistically recover crashed logs before retrying
     from inspect_ai.log._recover import (
         RecoveryNotAvailable,

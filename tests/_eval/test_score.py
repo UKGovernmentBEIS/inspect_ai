@@ -1,7 +1,7 @@
 import contextlib
 import functools
 import pathlib
-from typing import Any
+from typing import Any, Iterator
 
 import pydantic
 import pytest
@@ -22,6 +22,7 @@ from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._score import ScoreEvent
 from inspect_ai.log import (
+    EvalLog,
     EvalSample,
     Transcript,
 )
@@ -979,3 +980,247 @@ def test_scorer_from_spec_preserves_scorer_name_argument() -> None:
     )
     assert callable(resolved)
     assert received_names == ["custom"]
+
+
+# --- scorer names from the log -------------------------------------------------
+
+FILE_SCORER = "recorded_file_scorer"
+
+
+@pytest.fixture
+def imports(tmp_path: pathlib.Path) -> pathlib.Path:
+    """File the marker modules append to when imported."""
+    return tmp_path / "imports.txt"
+
+
+def _imported(imports: pathlib.Path) -> list[str]:
+    return imports.read_text().splitlines() if imports.exists() else []
+
+
+@pytest.fixture
+def scorer_file(
+    tmp_path: pathlib.Path, imports: pathlib.Path
+) -> Iterator[pathlib.Path]:
+    """A task file that records its import and defines FILE_SCORER."""
+    from inspect_ai._util.registry import _registry, registry_key
+
+    path = tmp_path / "scorer_task.py"
+    path.write_text(
+        f"with open({str(imports)!r}, 'a') as f:\n    f.write(__file__ + '\\n')\n"
+        + f"""
+from inspect_ai.scorer import Score, Scorer, Target, accuracy, scorer
+from inspect_ai.solver import TaskState
+
+
+@scorer(metrics=[accuracy()])
+def {FILE_SCORER}() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        return Score(value=1)
+
+    return score
+"""
+    )
+    yield path
+    _registry.pop(registry_key("scorer", FILE_SCORER), None)
+
+
+def _scorer_log(
+    name: str,
+    task_file: pathlib.Path | str | None = None,
+    options: dict[str, Any] | None = None,
+) -> EvalLog:
+    from datetime import datetime, timezone
+
+    from inspect_ai.log._log import EvalConfig, EvalDataset, EvalScorer, EvalSpec
+
+    return EvalLog(
+        eval=EvalSpec(
+            created=datetime.now(timezone.utc).isoformat(),
+            task="scorer_task",
+            task_file=str(task_file) if task_file else None,
+            dataset=EvalDataset(),
+            model="mockllm/model",
+            config=EvalConfig(),
+            scorers=[EvalScorer(name=name, options=options)],
+        )
+    )
+
+
+def _printed(capsys: pytest.CaptureFixture[str]) -> str:
+    # undo the console's line wrapping
+    return capsys.readouterr().out.replace("\n", "")
+
+
+def _record(path: pathlib.Path, scorer: str) -> str:
+    return (
+        f"Imported task file {path.absolute().as_posix()} "
+        f"(recorded in the log) to load scorer '{scorer}'."
+    )
+
+
+@pytest.mark.parametrize("form", ["at", "path"])
+def test_recorded_scorer_name_is_not_imported_as_a_path(
+    scorer_file: pathlib.Path, imports: pathlib.Path, form: str
+) -> None:
+    from inspect_ai._util.error import PrerequisiteError
+
+    name = f"{scorer_file}@{FILE_SCORER}" if form == "at" else str(scorer_file)
+    with pytest.raises(PrerequisiteError, match="couldn't be loaded"):
+        resolve_scorers(_scorer_log(name))
+    assert _imported(imports) == []
+
+
+@pytest.mark.parametrize("source", ["recorded", "bare_scorer_option"])
+def test_unregistered_scorer_loads_from_recorded_task_file(
+    scorer_file: pathlib.Path,
+    imports: pathlib.Path,
+    source: str,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    from inspect_ai._util.registry import registry_info
+
+    # the log records the task file relative to the working directory
+    monkeypatch.chdir(scorer_file.parent)
+    if source == "recorded":
+        log = _scorer_log(FILE_SCORER, task_file=scorer_file.name)
+        scorer_arg = None
+    else:
+        log = _scorer_log("match", task_file=scorer_file.name)
+        scorer_arg = FILE_SCORER
+
+    with caplog.at_level("INFO", logger="inspect_ai._eval.loader"):
+        scorers = resolve_scorers(log, scorer_arg)
+
+    assert registry_info(scorers[0]).name == FILE_SCORER
+    assert len(_imported(imports)) == 1
+    record = _record(pathlib.Path.cwd() / scorer_file.name, FILE_SCORER)
+    assert record in _printed(capsys)
+    assert record in caplog.text
+
+
+@scorer(metrics=[accuracy()])
+def value_error_scorer(mode: str = "ok") -> Scorer:
+    if mode != "ok":
+        raise ValueError(f"invalid mode {mode}")
+
+    async def score(state: TaskState, target: Target) -> Score:
+        return Score(value=1)
+
+    return score
+
+
+def test_registered_scorer_rejecting_options_falls_back_to_task_file(
+    scorer_file: pathlib.Path,
+    imports: pathlib.Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from inspect_ai._util.error import PrerequisiteError
+
+    log = _scorer_log("value_error_scorer", scorer_file, options={"mode": "bad"})
+    with pytest.raises(PrerequisiteError, match="in the file"):
+        resolve_scorers(log)
+    assert len(_imported(imports)) == 1
+    assert _record(scorer_file, "value_error_scorer") in _printed(capsys)
+
+
+def test_scorer_option_file_spec_still_loads_that_file(
+    scorer_file: pathlib.Path, imports: pathlib.Path
+) -> None:
+    from inspect_ai._util.registry import registry_info
+
+    scorers = resolve_scorers(_scorer_log("match"), f"{scorer_file}@{FILE_SCORER}")
+    assert registry_info(scorers[0]).name == FILE_SCORER
+    assert len(_imported(imports)) == 1
+
+
+received_names: list[str] = []
+
+
+@scorer(metrics=[accuracy()])
+def name_option_scorer(name: str) -> Scorer:
+    received_names.append(name)
+
+    async def score(state: TaskState, target: Target) -> Score:
+        return Score(value=1)
+
+    return score
+
+
+def test_recorded_scorer_option_called_name_reaches_factory() -> None:
+    received_names.clear()
+    resolve_scorers(_scorer_log("name_option_scorer", options={"name": "custom"}))
+    assert received_names == ["custom"]
+
+
+LOG_BASE_URL = "https://scoring.invalid/v1"
+
+
+@pytest.fixture
+def base_url_log(tmp_path: pathlib.Path) -> pathlib.Path:
+    from inspect_ai import Task
+    from inspect_ai import eval as inspect_eval
+    from inspect_ai.log import write_eval_log
+    from inspect_ai.scorer import match
+
+    log = inspect_eval(
+        Task(dataset=[Sample(input="a", target="a")], scorer=match()),
+        model="mockllm/model",
+        log_dir=str(tmp_path / "logs"),
+    )[0]
+    log.eval.model_base_url = LOG_BASE_URL
+    path = tmp_path / "base_url.eval"
+    write_eval_log(log, str(path))
+    return path
+
+
+def test_score_command_prints_log_model_base_url(
+    base_url_log: pathlib.Path, tmp_path: pathlib.Path
+) -> None:
+    from click.testing import CliRunner
+
+    from inspect_ai._cli.score import score_command
+
+    output = tmp_path / "scored.eval"
+    args = [str(base_url_log), "--scorer", "match", "--action", "append"]
+    result = CliRunner().invoke(score_command, [*args, "--output-file", str(output)])
+    assert result.exit_code == 0, result.output
+    record = f"Scoring model mockllm/model from the log, base URL {LOG_BASE_URL}."
+    assert record in result.output.replace("\n", "")
+
+    result = CliRunner().invoke(
+        score_command,
+        [
+            *args,
+            "--model",
+            "mockllm/model",
+            "--output-file",
+            str(output),
+            "--overwrite",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert "Scoring model" not in result.output
+
+
+def test_score_logs_log_model_base_url(
+    base_url_log: pathlib.Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    from inspect_ai.scorer import match
+
+    log = read_eval_log(base_url_log)
+    with caplog.at_level("INFO", logger="inspect_ai._eval.score"):
+        score(log, match(), action="append")
+    assert f"base URL {LOG_BASE_URL}" in caplog.text
+
+
+def test_score_command_help_says_trusted_logs_only() -> None:
+    from click.testing import CliRunner
+
+    from inspect_ai._cli.score import score_command
+
+    result = CliRunner().invoke(score_command, ["--help"])
+    help_text = " ".join(result.output.split())
+    assert "Only run it on logs you trust." in help_text
+    assert "the log's metrics are rebuilt without importing its task file" in help_text

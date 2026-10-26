@@ -24,7 +24,7 @@ from inspect_ai.model import GenerateConfig, get_model
 from inspect_ai.model._providers.mockllm import MockLLM
 from inspect_ai.scorer import exact
 from inspect_ai.solver import TaskState, generate, solver
-from inspect_ai.util import SandboxEnvironmentSpec
+from inspect_ai.util import ComposeConfig, SandboxEnvironmentSpec
 from inspect_ai.viewer import TaskSamplesView, ViewerConfig
 
 
@@ -816,3 +816,93 @@ def test_eval_retry_keeps_untrusted_content_and_task_viewer() -> None:
     assert log2.eval.viewer is not None
     assert log2.eval.viewer.trust_content is False
     assert log2.eval.viewer.task_samples_view == TaskSamplesView(name="Custom")
+
+
+def test_eval_retry_help_says_trusted_logs_only() -> None:
+    from click.testing import CliRunner
+
+    from inspect_ai._cli.eval import eval_retry_command
+
+    result = CliRunner().invoke(eval_retry_command, ["--help"])
+    help_text = " ".join(result.output.split())
+    assert "Only run it on logs you trust." in help_text
+    assert "Hugging Face repo" in help_text
+
+
+def test_eval_retry_records_what_it_loads(caplog: pytest.LogCaptureFixture) -> None:
+    log = eval(failing_task_deterministic([True]), model="mockllm/model")[0]
+    assert log.status == "error" and log.eval.task_file is not None
+
+    with caplog.at_level(logging.INFO, logger="inspect_ai._eval.eval"):
+        eval_retry(log)
+
+    task_file = Path(log.eval.task_file).absolute().as_posix()
+    assert f"in {task_file}" in caplog.text
+    assert "  Model: mockllm/model" in caplog.text
+
+
+def test_retry_record_lists_log_settings() -> None:
+    from inspect_ai._eval.eval import retry_record
+    from inspect_ai._sentinel._config import SentinelConfig
+
+    log = eval(mytask(), model="mockllm/model")[0]
+    log.location = "logs/retry.eval"
+    config = log.eval.config.model_copy(
+        update={
+            "acp_server": 8123,
+            "sentinel": SentinelConfig.model_validate(
+                {
+                    "name": "threshold",
+                    "monitors": {
+                        "a": {"name": "monitor_a"},
+                        "b": {"name": "monitor_b", "children": [{"name": "deep"}]},
+                    },
+                }
+            ),
+        }
+    )
+    spec = log.eval.model_copy(
+        update={
+            "task_file": "evals/task.py",
+            "solver": "solvers/agent.py@my_agent",
+            "model_base_url": "https://retry.invalid/v1",
+            "sandbox": SandboxEnvironmentSpec("docker", "compose.yaml"),
+            "config": config,
+        }
+    )
+    record = retry_record(log.model_copy(update={"eval": spec}), None)
+
+    cwd = Path.cwd()
+    assert record.splitlines() == [
+        "Retrying logs/retry.eval with settings recorded in the log:",
+        f"  Task: {spec.task_registry_name or spec.task} in {(cwd / 'evals/task.py').as_posix()}",
+        f"  Solver file: {(cwd / 'solvers/agent.py').as_posix()}",
+        "  Model: mockllm/model, base URL https://retry.invalid/v1",
+        f"  Sandbox: docker, config {(cwd / 'evals/compose.yaml').as_posix()}",
+        "  Sentinel: threshold, monitor_a, monitor_b, deep",
+        "  ACP server: TCP port 8123",
+    ]
+
+    # an explicit acp_server replaces the log's binding
+    assert "ACP server" not in retry_record(log.model_copy(update={"eval": spec}), True)
+
+    hf_spec = spec.model_copy(
+        update={
+            "task_file": None,
+            "task": "hf/org/dataset@v2",
+            "task_registry_name": None,
+            "solver": None,
+            "model_base_url": None,
+            "sandbox": SandboxEnvironmentSpec(
+                "docker", ComposeConfig.model_validate({"services": {}})
+            ),
+            "config": log.eval.config,
+        }
+    )
+    assert retry_record(log.model_copy(update={"eval": hf_spec}), None).splitlines()[
+        1:
+    ] == [
+        "  Task: eval.yaml from Hugging Face dataset org/dataset (revision v2)",
+        "  Model: mockllm/model",
+        "  Sandbox: docker, inline config",
+    ]
