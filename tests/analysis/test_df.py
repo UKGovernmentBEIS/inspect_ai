@@ -499,9 +499,9 @@ def test_samples_df_message_count():
 @pytest.mark.parametrize("strict", [True, False])
 def test_samples_df_int_beyond_int64(tmp_path: Path, strict: bool) -> None:
     """A column holding an int beyond int64 becomes exact strings."""
-    # the leading None would otherwise make pandas read the column as float64
+    # pyarrow overflows on "first"; the leading None makes pandas read "big" as float64
     metadata: list[dict[str, JsonValue]] = [
-        {"big": None},
+        {"big": None, "first": 2**70},
         {"big": 2**70},
         {"big": 2**64 - 1},
         {"big": -(2**63) - 1},
@@ -521,7 +521,9 @@ def test_samples_df_int_beyond_int64(tmp_path: Path, strict: bool) -> None:
         df, errors = samples_df(tmp_path, strict=False)
         assert errors == []
 
-    values = df.sort_values("id")["metadata_big"].to_list()
+    df = df.sort_values("id")
+    assert df["metadata_first"].to_list()[0] == str(2**70)
+    values = df["metadata_big"].to_list()
     assert pd.isna(values[0])
     assert values[1:5] == [str(2**70), str(2**64 - 1), str(-(2**63) - 1), "1"]
     assert pd.isna(values[5])
