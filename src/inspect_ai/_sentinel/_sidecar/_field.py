@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 
 class SentinelStep(BaseModel):
@@ -63,6 +63,28 @@ def receiving_field() -> Iterator[ReceivedField]:
         yield received
     finally:
         _received.reset(token)
+
+
+def begin_attempt() -> None:
+    """Forget the field of an earlier attempt at the current agent call, which a retry supersedes."""
+    received = _received.get()
+    if received is not None:
+        received.field = None
+
+
+def received_field() -> SentinelField | None:
+    """The field of the current agent call's latest attempt, or None if it had none.
+
+    Raises:
+        ValueError: If the field isn't one this Inspect can read.
+    """
+    received = _received.get()
+    if received is None or received.field is None:
+        return None
+    try:
+        return SentinelField.model_validate(received.field)
+    except ValidationError as ex:
+        raise ValueError(f"The sidecar's sentinel field can't be read: {ex}") from ex
 
 
 def report_sentinel_field(source: object) -> None:

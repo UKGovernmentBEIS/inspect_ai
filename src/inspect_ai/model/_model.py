@@ -45,6 +45,12 @@ from tenacity import (
 from tenacity.wait import WaitBaseT
 
 from inspect_ai._sentinel._context import is_agent_generate
+from inspect_ai._sentinel._sidecar._act import act_on_field, refused_output
+from inspect_ai._sentinel._sidecar._field import (
+    begin_attempt,
+    received_field,
+    receiving_field,
+)
 from inspect_ai._util.constants import (
     DEFAULT_MAX_CONNECTIONS,
     DEFAULT_MAX_CONNECTIONS_BATCH,
@@ -1082,14 +1088,20 @@ class Model:
         working_start = sample_working_time()
         async with self._connection_concurrency(config) as connection:
             # generate
-            output, event = await self._generate(
-                prepared=prepared,
-                config=config,
-                cache=cache,
-                connection=connection,
-                on_stream=on_stream,
-                event_uuid=generate_id,
-            )
+            with (
+                receiving_field()
+                if through_sidecar is not None
+                else contextlib.nullcontext()
+            ):
+                output, event = await self._generate(
+                    prepared=prepared,
+                    config=config,
+                    cache=cache,
+                    connection=connection,
+                    on_stream=on_stream,
+                    event_uuid=generate_id,
+                )
+                field = received_field()
 
             # update the most recent ModelEvent with the actual start/completed
             # times as well as a computation of working time (events are
@@ -1123,6 +1135,13 @@ class Model:
                 and output.stop_reason == "content_filter"
             ):
                 raise ModelRefusalError(output, str(self), self.role)
+
+        # before an in-process sentinel, which judges the reply after the
+        # proxy did
+        if field is not None:
+            from inspect_ai.agent._bridge.util import in_bridge_model_generate
+
+            output = act_on_field(field, output, in_bridge_model_generate())
 
         if generate_step is not None:
             from inspect_ai._sentinel._dispatch import sentinel_after_generate
@@ -1698,6 +1717,7 @@ class Model:
                         model_stream_observer(stream_observer),
                     ):
                         with timeout_cm, idle_cm:
+                            begin_attempt()
                             result = await self.api.generate(
                                 input=input,
                                 tools=call_tools,
@@ -1714,12 +1734,18 @@ class Model:
                         ):
                             raise AttemptTimeoutError(attempt_timeout)
                 except Exception as ex:
-                    # Mark event as failed for uncaught provider exceptions
-                    # (dropping any partial streamed output first — it
-                    # belongs to the failed attempt)
+                    # a sidecar's refusal of an agent call is acted on as the
+                    # model's turn, as an in-process sentinel's decision is
+                    refused = refused_output(str(self))
+                    if refused is None:
+                        # Mark event as failed for uncaught provider exceptions
+                        # (dropping any partial streamed output first — it
+                        # belongs to the failed attempt)
+                        stream_observer.discard_partial_output()
+                        complete(ex, None)
+                        raise
                     stream_observer.discard_partial_output()
-                    complete(ex, None)
-                    raise
+                    result = refused
                 except anyio.get_cancelled_exc_class():
                     # Cancellation is a BaseException, so the handler above
                     # misses it — but the event must not stay pending forever
@@ -1752,6 +1778,12 @@ class Model:
             else:
                 output = result
                 call = None
+
+            if isinstance(output, Exception):
+                refused = refused_output(str(self))
+                if refused is not None:
+                    stream_observer.discard_partial_output()
+                    output = refused
 
             # raise error
             if isinstance(output, Exception):

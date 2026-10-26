@@ -16,10 +16,20 @@ from inspect_ai._sentinel._sidecar._endpoint import (
 from inspect_ai._sentinel._sidecar._field import receiving_field
 from inspect_ai._sentinel._sidecar._task import SampleFacts, TaskFacts, TaskSidecars
 from inspect_ai._util._async import tg_collect
+from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
 from inspect_ai.dataset import Sample
-from inspect_ai.model import ChatMessageUser, GenerateConfig, Model, get_model
+from inspect_ai.log import EvalSample
+from inspect_ai.model import (
+    ChatMessageAssistant,
+    ChatMessageTool,
+    ChatMessageUser,
+    GenerateConfig,
+    Model,
+    get_model,
+)
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer
-from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
+from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
+from inspect_ai.tool import Tool, ToolCall, tool
 
 _MODELS = {
     "anthropic": "anthropic/claude-haiku-4-5",
@@ -513,3 +523,200 @@ async def test_the_field_is_read_from_a_refusal(name: str, nested: bool) -> None
     received = await _received(name, Turn(status=400, sentinel=refused, nested=nested))
 
     assert received == refused
+
+
+_LOOKED_UP: list[str] = []
+
+
+@tool
+def weather() -> Tool:
+    async def execute(city: str) -> str:
+        """Look up the weather.
+
+        Args:
+            city: The city.
+        """
+        _LOOKED_UP.append(city)
+        return f"Sunny in {city}."
+
+    return execute
+
+
+def _turn_json(*calls: tuple[str, str]) -> dict[str, Any]:
+    # the model's turn, as the sidecar writes it in the field
+    message = ChatMessageAssistant(
+        content="Checking.",
+        tool_calls=[
+            ToolCall(id=id, function="weather", arguments={"city": city})
+            for id, city in calls
+        ],
+    )
+    return message.model_dump(mode="json", exclude_none=True)
+
+
+def _run_agent(
+    stand_in: StandInSidecar, approval: list[ApprovalPolicy] | None = None
+) -> EvalSample:
+    _LOOKED_UP.clear()
+    task = Task(
+        dataset=[Sample(input="What's the weather?")],
+        solver=[use_tools(weather()), generate()],
+        approval=approval,
+    )
+    [log] = eval(task, model=_model(stand_in), display="none")
+    assert log.status == "success", log.error
+    assert log.samples is not None
+    return log.samples[0]
+
+
+def _tool_messages(sample: EvalSample) -> dict[str, ChatMessageTool]:
+    return {
+        m.tool_call_id: m
+        for m in sample.messages
+        if isinstance(m, ChatMessageTool) and m.tool_call_id is not None
+    }
+
+
+def _turns(sample: EvalSample) -> list[ChatMessageAssistant]:
+    return [m for m in sample.messages if isinstance(m, ChatMessageAssistant)]
+
+
+def test_a_call_the_sidecar_took_out_is_answered_with_an_approval_error() -> None:
+    proposed = {
+        "message": _turn_json(("call_1", "Tokyo"), ("call_2", "Oslo")),
+        "results": {"call_1": "Tokyo is not allowed."},
+    }
+    stand_in = StandInSidecar(
+        turns=[
+            # the sidecar hands over the turn without the rejected call
+            Turn(
+                calls=[("call_2", "weather", {"city": "Oslo"})],
+                sentinel={"outcome": "proceed", "steps": [], "proposed": proposed},
+            ),
+            Turn(text="Sunny in Oslo."),
+        ]
+    )
+
+    sample = _run_agent(stand_in)
+
+    # the model's own turn, both calls in it, as in process
+    first = _turns(sample)[0]
+    assert [c.id for c in first.tool_calls or []] == ["call_1", "call_2"]
+    results = _tool_messages(sample)
+    assert results["call_1"].error is not None
+    assert results["call_1"].error.type == "approval"
+    assert results["call_1"].error.message == "Tokyo is not allowed."
+    assert results["call_2"].error is None
+    assert _LOOKED_UP == ["Oslo"]
+
+
+def test_a_call_the_sidecar_changed_runs_with_its_new_arguments() -> None:
+    original = {"id": "call_1", "function": "weather", "arguments": {"city": "Tokyo"}}
+    modified = {"id": "call_1", "function": "weather", "arguments": {"city": "Oslo"}}
+    stand_in = StandInSidecar(
+        turns=[
+            Turn(
+                calls=[("call_1", "weather", {"city": "Oslo"})],
+                sentinel={
+                    "outcome": "proceed",
+                    "steps": [
+                        {
+                            "stage": "tool_call",
+                            "call": "call_1",
+                            "original": original,
+                            "decision": {"action": "modify", "modified": modified},
+                        }
+                    ],
+                },
+            ),
+            Turn(text="Sunny in Oslo."),
+        ]
+    )
+
+    sample = _run_agent(stand_in)
+
+    # the model's turn keeps the call it made, and the changed one ran
+    [call] = _turns(sample)[0].tool_calls or []
+    assert call.arguments == {"city": "Tokyo"}
+    assert _LOOKED_UP == ["Oslo"]
+
+
+def test_a_turn_the_sidecar_rejected_whole_goes_on_as_the_models_turn() -> None:
+    withheld = {
+        "message": _turn_json(("call_1", "Tokyo")),
+        "results": {"call_1": "Tokyo is not allowed."},
+    }
+    stand_in = StandInSidecar(
+        turns=[
+            Turn(status=400, sentinel={"outcome": "reject", "withheld": withheld}),
+            Turn(text="I can't look that up."),
+        ]
+    )
+
+    sample = _run_agent(stand_in)
+
+    # the agent carries on, as it would in process
+    assert sample.error is None
+    [call] = _turns(sample)[0].tool_calls or []
+    assert call.id == "call_1"
+    error = _tool_messages(sample)["call_1"].error
+    assert error is not None
+    assert (error.type, error.message) == ("approval", "Tokyo is not allowed.")
+    assert _LOOKED_UP == []
+    assert _turns(sample)[-1].text == "I can't look that up."
+
+
+@pytest.mark.parametrize("withheld", [True, False], ids=["a reply", "a request"])
+def test_a_terminate_ends_the_sample_as_an_operator_limit(withheld: bool) -> None:
+    field: dict[str, Any] = {
+        "outcome": "terminate",
+        "steps": [
+            {
+                "stage": "tool_call" if withheld else "model_input",
+                "call": "call_1" if withheld else None,
+                "decision": {"action": "terminate", "explanation": "Too far."},
+            }
+        ],
+    }
+    if withheld:
+        field["withheld"] = {"message": _turn_json(("call_1", "Tokyo")), "results": {}}
+    stand_in = StandInSidecar(turns=[Turn(status=400, sentinel=field)])
+
+    sample = _run_agent(stand_in)
+
+    assert sample.error is None
+    assert sample.limit is not None
+    assert (sample.limit.type, sample.limit.reason) == ("operator", "Too far.")
+    assert _LOOKED_UP == []
+
+
+def test_an_approver_never_sees_a_call_the_sidecar_took_out() -> None:
+    seen: list[str] = []
+
+    @approver
+    def recording() -> Approver:
+        async def approve(
+            message: str, call: ToolCall, view: Any, history: list[Any]
+        ) -> Approval:
+            seen.append(call.id)
+            return Approval(decision="approve")
+
+        return approve
+
+    proposed = {
+        "message": _turn_json(("call_1", "Tokyo"), ("call_2", "Oslo")),
+        "results": {"call_1": "Tokyo is not allowed."},
+    }
+    stand_in = StandInSidecar(
+        turns=[
+            Turn(
+                calls=[("call_2", "weather", {"city": "Oslo"})],
+                sentinel={"outcome": "proceed", "steps": [], "proposed": proposed},
+            ),
+            Turn(text="Done."),
+        ]
+    )
+
+    _run_agent(stand_in, approval=[ApprovalPolicy(approver=recording(), tools="*")])
+
+    assert seen == ["call_2"]
