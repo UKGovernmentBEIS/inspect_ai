@@ -32,6 +32,8 @@ include = ["inspect_ai*"]
 # node_modules. The viewer ships prebuilt as _view/dist.
 [tool.setuptools.exclude-package-data]
 inspect_ai = ["_view/ts-mono*"]
+# Docker image build inputs are not needed at runtime.
+"inspect_ai.util._sandbox.docker" = ["Dockerfile*", "kali-archive-keyring.gpg"]
 
 [tool.setuptools.package-data]
 inspect_ai = [
@@ -122,7 +124,6 @@ exclude = [
   "examples/evals_in_eval",
   "examples/hooks",
   "examples/http_proxy",
-  "src/inspect_tool_support",
   "src/inspect_sandbox_tools",
 ]
 warn_unused_ignores = true
