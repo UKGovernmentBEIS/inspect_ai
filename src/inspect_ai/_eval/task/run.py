@@ -49,7 +49,7 @@ from inspect_ai._eval.task.scan import Scanners
 from inspect_ai._sentinel._config import SentinelRoot
 from inspect_ai._sentinel._context import SentinelFailure
 from inspect_ai._sentinel._scope import sentinel_scope, sentinel_solving
-from inspect_ai._sentinel._sidecar._task import init_task_sidecars
+from inspect_ai._sentinel._sidecar._task import TaskFacts, init_task_sidecars
 from inspect_ai._util._async import Wake, aexit_shielded_when, raise_unwrapped
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem, get_async_filesystem
@@ -1349,7 +1349,18 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 ),
             )
 
-            await init_task_sidecars(config.sentinel_proxy, model)
+            await init_task_sidecars(
+                config.sentinel_proxy,
+                model,
+                TaskFacts(
+                    eval_id=logger.eval.eval_id,
+                    task=task.name,
+                    task_description=task.description,
+                    metadata=task.metadata or {},
+                    sample_ids=sample_ids,
+                    epochs=epochs,
+                ),
+            )
 
             # call early stopping if we have it
             stopping_manager: str = ""
