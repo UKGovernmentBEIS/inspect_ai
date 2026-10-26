@@ -6,7 +6,11 @@ import yaml
 from jsonpath_ng import JSONPath  # type: ignore
 from pydantic import JsonValue
 
-from inspect_ai._util.dateutil import datetime_from_iso_format_safe, datetime_safe
+from inspect_ai._util.dateutil import (
+    _normalize_iso_z_suffix,
+    datetime_from_iso_format_safe,
+    datetime_safe,
+)
 from inspect_ai.analysis._dataframe.events.columns import EventColumn
 from inspect_ai.analysis._dataframe.messages.columns import MessageColumn
 from inspect_ai.analysis._dataframe.samples.columns import SampleColumn
@@ -320,6 +324,19 @@ def _from_timestamp(tp: Type[ColumnType], ts: int | float) -> ColumnType | None:
 
 def _from_iso(tp: Type[ColumnType], iso: str) -> ColumnType | None:
     if tp in (datetime, date, time):
+        if tp is time:
+            try:
+                parsed_time = time.fromisoformat(_normalize_iso_z_suffix(iso))
+            except ValueError:
+                pass
+            else:
+                if parsed_time.tzinfo is not None:
+                    parsed_time = (
+                        datetime.combine(date(1970, 1, 1), parsed_time)
+                        .astimezone(timezone.utc)
+                        .time()
+                    )
+                return parsed_time
         dt = datetime_from_iso_format_safe(iso).astimezone(timezone.utc)
         if tp is datetime:
             return dt

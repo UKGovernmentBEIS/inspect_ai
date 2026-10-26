@@ -406,6 +406,25 @@ def test_resolve_value_datetime_strings(text: str, expected: str) -> None:
     assert resolved.isoformat() == expected
 
 
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("12:34:56", "12:34:56"),
+        ("12:34", "12:34:00"),
+        ("12:34:56.5", "12:34:56.500000"),
+        ("12:34:56Z", "12:34:56"),
+        ("12:34:56+00:00", "12:34:56"),
+        ("12:34:56+05:30", "07:04:56"),
+        ("00:30:00+05:30", "19:00:00"),
+    ],
+)
+def test_resolve_value_time_only_iso_strings(text: str, expected: str) -> None:
+    """Time-only ISO strings coerce without requiring a calendar date."""
+    resolved = _resolve_value(text, time)
+    assert isinstance(resolved, time)
+    assert resolved.isoformat() == expected
+
+
 def test_resolve_value_invalid_datetime_still_fails() -> None:
     """Strings that are not timestamps still fail coercion."""
     with pytest.raises(
@@ -463,6 +482,15 @@ def test_samples_df_naive_metadata_timestamp(tmp_path: Path) -> None:
     write_eval_log(log, path)
     from_file = samples_df(path, columns=columns, quiet=True)
     assert from_file["started"].iloc[0].isoformat() == expected
+
+
+def test_samples_df_time_only_metadata() -> None:
+    """samples_df imports a time-only metadata value into a time column."""
+    columns: list[Column] = [SampleColumn("clock", path="metadata.started", type=time)]
+    log = _log_with_timestamp_metadata("12:34:56")
+
+    frame = samples_df(log, columns=columns, quiet=True)
+    assert frame["clock"].iloc[0] == time(12, 34, 56)
 
 
 def test_column_error_path_type() -> None:
