@@ -1774,9 +1774,21 @@ def test_a_superseded_human_decision_is_withdrawn(
     "version,truncated",
     [
         ("0.3.30", None),
+        ("0.3.31.dev1", None),
+        ("0.3.31rc1", None),
+        ("0.3.31a1.post1", None),
         ("0.3.31", False),
+        ("0.3.31.0", False),
+        ("0.3.31+g5ea5c5ce1", False),
+        ("0.3.31.post1.dev1", False),
+        ("0.3.4", None),
+        ("0.4", False),
+        ("1!0.1", False),
         ("0.3.262.dev32+g5ea5c5ce1", False),
+        # a version that does not parse is taken as current, as packaging's
+        # InvalidVersion was
         ("unknown", False),
+        ("0.3.30garbage", False),
     ],
 )
 def test_a_log_from_before_the_record_of_cuts_says_it_cannot_tell(

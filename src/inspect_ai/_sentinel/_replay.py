@@ -986,14 +986,36 @@ def _default_view(call: ToolCall) -> Any:
     return default_tool_call_viewer(call).call
 
 
+# a PEP 440 version, as `packaging` parses it (not an inspect_ai dependency)
+_VERSION = re.compile(
+    r"v?(?:(?P<epoch>\d+)!)?(?P<release>\d+(?:\.\d+)*)"
+    r"(?P<pre>[-_.]?(?:a|b|c|rc|alpha|beta|pre|preview)[-_.]?\d*)?"
+    r"(?P<post>-\d+|[-_.]?(?:post|rev|r)[-_.]?\d*)?"
+    r"(?P<dev>[-_.]?dev[-_.]?\d*)?"
+    r"(?:\+[a-z0-9]+(?:[-_.][a-z0-9]+)*)?",
+    re.IGNORECASE,
+)
+
+
 def _records_truncation(version: str | None) -> bool:
-    # ToolEvent.truncated exists since inspect_ai 0.3.31 (max_tool_output)
+    # ToolEvent.truncated exists since inspect_ai 0.3.31 (max_tool_output);
+    # PEP 440 orders 0.3.31's dev and pre-releases before it, and a version
+    # that does not parse is taken as recording it
     if version is None:
         return False
-    release = re.match(r"(\d+)\.(\d+)\.(\d+)", version)
-    if release is None:
+    parsed = _VERSION.fullmatch(version.strip())
+    if parsed is None:
         return True
-    return tuple(int(part) for part in release.groups()) >= (0, 3, 31)
+    if int(parsed["epoch"] or 0) > 0:
+        return True
+    release = [int(part) for part in parsed["release"].split(".")]
+    while len(release) > 1 and release[-1] == 0:
+        release.pop()
+    if release != [0, 3, 31]:
+        return release > [0, 3, 31]
+    if parsed["pre"]:
+        return False
+    return bool(parsed["post"]) or not parsed["dev"]
 
 
 def _event_key(event: Event) -> object:
