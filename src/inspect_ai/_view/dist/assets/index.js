@@ -18428,7 +18428,7 @@ var AutocompleteInput = (t0) => {
 		if (isBrowseMode) {
 			let t8;
 			if ($[0] !== suggestions) {
-				t8 = suggestions.filter(_temp$109);
+				t8 = suggestions.filter(_temp$110);
 				$[0] = suggestions;
 				$[1] = t8;
 			} else t8 = $[1];
@@ -18772,7 +18772,7 @@ var AutocompleteInput = (t0) => {
 	} else t27 = $[73];
 	return t27;
 };
-function _temp$109(s) {
+function _temp$110(s) {
 	return s !== null;
 }
 function _temp2$62(s_1) {
@@ -18824,7 +18824,7 @@ var onDemandModule = (importer) => {
 			let cancelled = false;
 			module.load().then((loaded) => {
 				if (!cancelled) setValue(() => loaded);
-			}).catch(_temp$108);
+			}).catch(_temp$109);
 			return () => {
 				cancelled = true;
 			};
@@ -18846,7 +18846,7 @@ var onDemandModule = (importer) => {
 	(0, import_react.useEffect)(t2, t3);
 	return value;
 };
-function _temp$108(error) {
+function _temp$109(error) {
 	console.error("Unable to load module", error);
 }
 var ContentTrust_module_default = {
@@ -18999,7 +18999,7 @@ var ContentTrustProvider = (t0) => {
 */ var usePlainText = () => {
 	return useHasAllContentPermissions() ? {
 		trusted: true,
-		present: _temp$107,
+		present: _temp$108,
 		className: void 0
 	} : {
 		trusted: false,
@@ -19094,7 +19094,7 @@ var UntrustedText = (t0) => {
 	} else t2 = $[4];
 	return t2;
 };
-function _temp$107(text) {
+function _temp$108(text) {
 	return text;
 }
 //#endregion
@@ -31398,12 +31398,12 @@ var usePrismHighlight = (containerRef, contentLength) => {
 	}
 	(0, import_react.useLayoutEffect)(t0, t1);
 };
-function _temp$106(node) {
+function _temp$107(node) {
 	if (node instanceof Element) return node.querySelector("pre code") || node.matches("pre code");
 	return false;
 }
 function _temp2$61(mutation) {
-	if (mutation.type === "childList") return Array.from(mutation.addedNodes).some(_temp$106);
+	if (mutation.type === "childList") return Array.from(mutation.addedNodes).some(_temp$107);
 	return false;
 }
 function _temp3$42(error) {
@@ -31776,7 +31776,7 @@ var RichMarkdownDiv = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
 				(0, import_react.startTransition)(() => {
 					setRenderedHtml(applyPostProcess(sanitizedResult));
 				});
-			}).catch(_temp$105);
+			}).catch(_temp$106);
 			return () => {
 				cancel();
 			};
@@ -31895,7 +31895,7 @@ var MarkdownRenderQueue = class {
 	}
 };
 var renderQueue = new MarkdownRenderQueue(10);
-function _temp$105(error) {
+function _temp$106(error) {
 	console.error("Markdown rendering error:", error);
 }
 var NoContentsPanel_module_default = {
@@ -42364,7 +42364,7 @@ var useBreadcrumbTruncation = (segments, containerRef) => {
 				testElement.style.margin = "0";
 				testElement.style.padding = "0";
 				container.appendChild(testElement);
-				replaceMeasurementItems(testElement, segments.map(_temp$104));
+				replaceMeasurementItems(testElement, segments.map(_temp$105));
 				if (testElement.scrollWidth <= containerWidth) {
 					container.removeChild(testElement);
 					setTruncatedData({
@@ -42428,7 +42428,7 @@ var useBreadcrumbTruncation = (segments, containerRef) => {
 	(0, import_react.useEffect)(t1, t2);
 	return truncatedData;
 };
-function _temp$104(segment) {
+function _temp$105(segment) {
 	return segment.text;
 }
 function _temp2$60(segment_0) {
@@ -42829,7 +42829,7 @@ var SCROLL_RELEASE_KEYS = /* @__PURE__ */ new Set([
 				setCopied(true);
 				window.clearTimeout(timer.current);
 				timer.current = window.setTimeout(() => setCopied(false), confirmMs);
-			}).catch(_temp$103);
+			}).catch(_temp$104);
 		};
 		$[1] = confirmMs;
 		$[2] = t2;
@@ -42847,7 +42847,7 @@ var SCROLL_RELEASE_KEYS = /* @__PURE__ */ new Set([
 	} else t3 = $[5];
 	return t3;
 }
-function _temp$103(error) {
+function _temp$104(error) {
 	console.error("Failed to copy:", error);
 }
 var SourceCodePanel_module_default = {
@@ -43166,21 +43166,24 @@ var TextInput = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
 });
 TextInput.displayName = "TextInput";
 var ToolDropdownButton_module_default = {
-	toolButton: "_toolButton_3h5lc_1",
-	bodyColor: "_bodyColor_3h5lc_5",
-	chevron: "_chevron_3h5lc_17",
-	backdrop: "_backdrop_3h5lc_31",
-	dropdownMenu: "_dropdownMenu_3h5lc_41",
-	dropdownItem: "_dropdownItem_3h5lc_52",
-	dropdownHeading: "_dropdownHeading_3h5lc_73",
-	dropdownDivider: "_dropdownDivider_3h5lc_82",
-	dropdownFooter: "_dropdownFooter_3h5lc_87"
+	toolButton: "_toolButton_xg5wq_1",
+	bodyColor: "_bodyColor_xg5wq_5",
+	chevron: "_chevron_xg5wq_17",
+	backdrop: "_backdrop_xg5wq_31",
+	dropdownMenu: "_dropdownMenu_xg5wq_41",
+	dropdownItem: "_dropdownItem_xg5wq_52",
+	dropdownHeading: "_dropdownHeading_xg5wq_73",
+	dropdownDivider: "_dropdownDivider_xg5wq_82",
+	dropdownFooter: "_dropdownFooter_xg5wq_87",
+	noMargin: "_noMargin_xg5wq_98",
+	collapsibleLabel: "_collapsibleLabel_xg5wq_102"
 };
 //#endregion
 //#region ../../packages/react/src/components/ToolDropdownButton.tsx
 var ToolDropdownButton = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
-	const $ = (0, import_compiler_runtime.c)(53);
+	const $ = (0, import_compiler_runtime.c)(60);
 	let className;
+	let collapseLabel;
 	let dropdownClassName;
 	let footer;
 	let heading;
@@ -43190,48 +43193,53 @@ var ToolDropdownButton = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) =>
 	let rest;
 	let subtle;
 	let t1;
+	let title;
 	if ($[0] !== t0) {
-		({label, icon, className, items, heading, footer, dropdownAlign: t1, dropdownClassName, subtle, ...rest} = t0);
+		({label, icon, className, items, heading, footer, dropdownAlign: t1, dropdownClassName, subtle, collapseLabel, title, ...rest} = t0);
 		$[0] = t0;
 		$[1] = className;
-		$[2] = dropdownClassName;
-		$[3] = footer;
-		$[4] = heading;
-		$[5] = icon;
-		$[6] = items;
-		$[7] = label;
-		$[8] = rest;
-		$[9] = subtle;
-		$[10] = t1;
+		$[2] = collapseLabel;
+		$[3] = dropdownClassName;
+		$[4] = footer;
+		$[5] = heading;
+		$[6] = icon;
+		$[7] = items;
+		$[8] = label;
+		$[9] = rest;
+		$[10] = subtle;
+		$[11] = t1;
+		$[12] = title;
 	} else {
 		className = $[1];
-		dropdownClassName = $[2];
-		footer = $[3];
-		heading = $[4];
-		icon = $[5];
-		items = $[6];
-		label = $[7];
-		rest = $[8];
-		subtle = $[9];
-		t1 = $[10];
+		collapseLabel = $[2];
+		dropdownClassName = $[3];
+		footer = $[4];
+		heading = $[5];
+		icon = $[6];
+		items = $[7];
+		label = $[8];
+		rest = $[9];
+		subtle = $[10];
+		t1 = $[11];
+		title = $[12];
 	}
 	const dropdownAlign = t1 === void 0 ? "left" : t1;
 	const [isOpen, setIsOpen] = (0, import_react.useState)(false);
 	const buttonRef = (0, import_react.useRef)(null);
 	const [menuPosition, setMenuPosition] = (0, import_react.useState)(null);
 	let t2;
-	if ($[11] !== ref) {
+	if ($[13] !== ref) {
 		t2 = (el) => {
 			buttonRef.current = el;
 			if (typeof ref === "function") ref(el);
 			else if (ref && "current" in ref) ref.current = el;
 		};
-		$[11] = ref;
-		$[12] = t2;
-	} else t2 = $[12];
+		$[13] = ref;
+		$[14] = t2;
+	} else t2 = $[14];
 	const setRef = t2;
 	let t3;
-	if ($[13] !== dropdownAlign) {
+	if ($[15] !== dropdownAlign) {
 		t3 = () => {
 			const btn = buttonRef.current;
 			if (!btn) return;
@@ -43249,51 +43257,51 @@ var ToolDropdownButton = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) =>
 				minWidth
 			});
 		};
-		$[13] = dropdownAlign;
-		$[14] = t3;
-	} else t3 = $[14];
+		$[15] = dropdownAlign;
+		$[16] = t3;
+	} else t3 = $[16];
 	const computePosition = t3;
 	let t4;
 	let t5;
-	if ($[15] !== computePosition || $[16] !== isOpen) {
+	if ($[17] !== computePosition || $[18] !== isOpen) {
 		t4 = () => {
 			if (!isOpen) return;
 			computePosition();
 		};
 		t5 = [isOpen, computePosition];
-		$[15] = computePosition;
-		$[16] = isOpen;
-		$[17] = t4;
-		$[18] = t5;
+		$[17] = computePosition;
+		$[18] = isOpen;
+		$[19] = t4;
+		$[20] = t5;
 	} else {
-		t4 = $[17];
-		t5 = $[18];
+		t4 = $[19];
+		t5 = $[20];
 	}
 	(0, import_react.useLayoutEffect)(t4, t5);
 	const repositionTarget = isOpen ? window : null;
 	let t6;
-	if ($[19] !== computePosition) {
+	if ($[21] !== computePosition) {
 		t6 = () => computePosition();
-		$[19] = computePosition;
-		$[20] = t6;
-	} else t6 = $[20];
+		$[21] = computePosition;
+		$[22] = t6;
+	} else t6 = $[22];
 	useEventListener(repositionTarget, "resize", t6);
 	let t7;
-	if ($[21] !== computePosition) {
+	if ($[23] !== computePosition) {
 		t7 = () => computePosition();
-		$[21] = computePosition;
-		$[22] = t7;
-	} else t7 = $[22];
+		$[23] = computePosition;
+		$[24] = t7;
+	} else t7 = $[24];
 	let t8;
-	if ($[23] === Symbol.for("react.memo_cache_sentinel")) {
+	if ($[25] === Symbol.for("react.memo_cache_sentinel")) {
 		t8 = { capture: true };
-		$[23] = t8;
-	} else t8 = $[23];
+		$[25] = t8;
+	} else t8 = $[25];
 	useEventListener(repositionTarget, "scroll", t7, t8);
 	const menuRef = (0, import_react.useRef)(null);
 	let t10;
 	let t9;
-	if ($[24] === Symbol.for("react.memo_cache_sentinel")) {
+	if ($[26] === Symbol.for("react.memo_cache_sentinel")) {
 		t9 = (e) => {
 			if (e.key !== "Escape") return;
 			e.stopPropagation();
@@ -43302,78 +43310,95 @@ var ToolDropdownButton = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) =>
 			if (refocus) buttonRef.current?.focus();
 		};
 		t10 = { capture: true };
-		$[24] = t10;
-		$[25] = t9;
+		$[26] = t10;
+		$[27] = t9;
 	} else {
-		t10 = $[24];
-		t9 = $[25];
+		t10 = $[26];
+		t9 = $[27];
 	}
 	useEventListener(isOpen ? document : null, "keydown", t9, t10);
 	let t11;
-	if ($[26] === Symbol.for("react.memo_cache_sentinel")) {
+	if ($[28] === Symbol.for("react.memo_cache_sentinel")) {
 		t11 = (fn) => {
 			fn();
 			setIsOpen(false);
 		};
-		$[26] = t11;
-	} else t11 = $[26];
+		$[28] = t11;
+	} else t11 = $[28];
 	const handleItemClick = t11;
 	const t12 = subtle ? ToolDropdownButton_module_default.bodyColor : void 0;
 	let t13;
-	if ($[27] !== className || $[28] !== t12) {
+	if ($[29] !== className || $[30] !== t12) {
 		t13 = clsx("btn", "btn-tools", ToolDropdownButton_module_default.toolButton, t12, className);
-		$[27] = className;
-		$[28] = t12;
-		$[29] = t13;
-	} else t13 = $[29];
+		$[29] = className;
+		$[30] = t12;
+		$[31] = t13;
+	} else t13 = $[31];
 	let t14;
-	if ($[30] !== isOpen) {
+	if ($[32] !== isOpen) {
 		t14 = () => setIsOpen(!isOpen);
-		$[30] = isOpen;
-		$[31] = t14;
-	} else t14 = $[31];
-	let t15;
-	if ($[32] !== icon) {
-		t15 = icon && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: icon });
-		$[32] = icon;
-		$[33] = t15;
-	} else t15 = $[33];
+		$[32] = isOpen;
+		$[33] = t14;
+	} else t14 = $[33];
+	const t15 = title ?? (collapseLabel && typeof label === "string" ? label : void 0);
 	let t16;
-	if ($[34] === Symbol.for("react.memo_cache_sentinel")) {
-		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
+	if ($[34] !== collapseLabel || $[35] !== icon) {
+		t16 = icon && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
+			name: icon,
+			className: collapseLabel ? ToolDropdownButton_module_default.noMargin : void 0
+		});
+		$[34] = collapseLabel;
+		$[35] = icon;
+		$[36] = t16;
+	} else t16 = $[36];
+	let t17;
+	if ($[37] !== collapseLabel || $[38] !== label) {
+		t17 = collapseLabel ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: ToolDropdownButton_module_default.collapsibleLabel,
+			children: label
+		}) : label;
+		$[37] = collapseLabel;
+		$[38] = label;
+		$[39] = t17;
+	} else t17 = $[39];
+	let t18;
+	if ($[40] === Symbol.for("react.memo_cache_sentinel")) {
+		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
 			name: "chevronDown",
 			className: ToolDropdownButton_module_default.chevron
 		});
-		$[34] = t16;
-	} else t16 = $[34];
-	let t17;
-	if ($[35] !== isOpen || $[36] !== label || $[37] !== rest || $[38] !== setRef || $[39] !== t13 || $[40] !== t14 || $[41] !== t15) {
-		t17 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+		$[40] = t18;
+	} else t18 = $[40];
+	let t19;
+	if ($[41] !== isOpen || $[42] !== rest || $[43] !== setRef || $[44] !== t13 || $[45] !== t14 || $[46] !== t15 || $[47] !== t16 || $[48] !== t17) {
+		t19 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
 			ref: setRef,
 			type: "button",
 			className: t13,
 			onClick: t14,
 			"aria-haspopup": "menu",
 			"aria-expanded": isOpen,
+			title: t15,
 			...rest,
 			children: [
-				t15,
-				label,
-				t16
+				t16,
+				t17,
+				t18
 			]
 		});
-		$[35] = isOpen;
-		$[36] = label;
-		$[37] = rest;
-		$[38] = setRef;
-		$[39] = t13;
-		$[40] = t14;
-		$[41] = t15;
-		$[42] = t17;
-	} else t17 = $[42];
-	let t18;
-	if ($[43] !== dropdownClassName || $[44] !== footer || $[45] !== heading || $[46] !== isOpen || $[47] !== items || $[48] !== menuPosition) {
-		t18 = isOpen && menuPosition && /*#__PURE__*/ (0, import_react_dom.createPortal)(/*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		$[41] = isOpen;
+		$[42] = rest;
+		$[43] = setRef;
+		$[44] = t13;
+		$[45] = t14;
+		$[46] = t15;
+		$[47] = t16;
+		$[48] = t17;
+		$[49] = t19;
+	} else t19 = $[49];
+	let t20;
+	if ($[50] !== dropdownClassName || $[51] !== footer || $[52] !== heading || $[53] !== isOpen || $[54] !== items || $[55] !== menuPosition) {
+		t20 = isOpen && menuPosition && /*#__PURE__*/ (0, import_react_dom.createPortal)(/*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: ToolDropdownButton_module_default.backdrop,
 			role: "presentation",
 			onClick: () => setIsOpen(false)
@@ -43391,8 +43416,8 @@ var ToolDropdownButton = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) =>
 					className: ToolDropdownButton_module_default.dropdownHeading,
 					children: heading
 				}) : null,
-				Object.entries(items).map((t19) => {
-					const [itemLabel, fn_0] = t19;
+				Object.entries(items).map((t21) => {
+					const [itemLabel, fn_0] = t21;
 					return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 						type: "button",
 						className: ToolDropdownButton_module_default.dropdownItem,
@@ -43411,22 +43436,22 @@ var ToolDropdownButton = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) =>
 				})] }) : null
 			]
 		})] }), document.body);
-		$[43] = dropdownClassName;
-		$[44] = footer;
-		$[45] = heading;
-		$[46] = isOpen;
-		$[47] = items;
-		$[48] = menuPosition;
-		$[49] = t18;
-	} else t18 = $[49];
-	let t19;
-	if ($[50] !== t17 || $[51] !== t18) {
-		t19 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [t17, t18] });
-		$[50] = t17;
-		$[51] = t18;
-		$[52] = t19;
-	} else t19 = $[52];
-	return t19;
+		$[50] = dropdownClassName;
+		$[51] = footer;
+		$[52] = heading;
+		$[53] = isOpen;
+		$[54] = items;
+		$[55] = menuPosition;
+		$[56] = t20;
+	} else t20 = $[56];
+	let t21;
+	if ($[57] !== t19 || $[58] !== t20) {
+		t21 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [t19, t20] });
+		$[57] = t19;
+		$[58] = t20;
+		$[59] = t21;
+	} else t21 = $[59];
+	return t21;
 });
 ToolDropdownButton.displayName = "ToolDropdownButton";
 var NavPills_module_default = {
@@ -43565,18 +43590,18 @@ var NavPill = (t0) => {
 	return t5;
 };
 var TabSet_module_default = {
-	tabs: "_tabs_1ugqd_1",
-	tabContents: "_tabContents_1ugqd_5",
-	scrollable: "_scrollable_1ugqd_13",
-	tab: "_tab_1ugqd_1",
-	linkTab: "_linkTab_1ugqd_35",
-	tabItem: "_tabItem_1ugqd_39",
-	pillSmallContainer: "_pillSmallContainer_1ugqd_43",
-	pillSmall: "_pillSmall_1ugqd_43",
-	tabIcon: "_tabIcon_1ugqd_51",
-	tabSpacer: "_tabSpacer_1ugqd_55",
-	tabTools: "_tabTools_1ugqd_61",
-	tabStyle: "_tabStyle_1ugqd_75"
+	tabs: "_tabs_mmxoy_1",
+	tabContents: "_tabContents_mmxoy_5",
+	scrollable: "_scrollable_mmxoy_13",
+	tab: "_tab_mmxoy_1",
+	linkTab: "_linkTab_mmxoy_35",
+	tabItem: "_tabItem_mmxoy_39",
+	pillSmallContainer: "_pillSmallContainer_mmxoy_43",
+	pillSmall: "_pillSmall_mmxoy_43",
+	tabIcon: "_tabIcon_mmxoy_51",
+	tabSpacer: "_tabSpacer_mmxoy_55",
+	tabTools: "_tabTools_mmxoy_61",
+	tabStyle: "_tabStyle_mmxoy_75"
 };
 //#endregion
 //#region ../../packages/react/src/components/TabSet.tsx
@@ -43771,7 +43796,7 @@ var Tab = (t0) => {
 				"aria-controls": tabContentsId,
 				"aria-selected": isActive,
 				onClick: inAppLinkClick(tab.props.onSelected),
-				onKeyDown: _temp$102,
+				onKeyDown: _temp$103,
 				children: content
 			}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 				id: tabId,
@@ -43901,7 +43926,7 @@ var flattenChildren$1 = (children) => {
 		return [];
 	});
 };
-function _temp$102(e) {
+function _temp$103(e) {
 	if (e.key === " ") {
 		e.preventDefault();
 		e.currentTarget.click();
@@ -43939,7 +43964,7 @@ var FindTargetContext = /*#__PURE__*/ (0, import_react.createContext)(null);
 	const ctx = (0, import_react.useContext)(FindTargetContext);
 	let t0;
 	if ($[0] !== ctx?.setTarget) {
-		t0 = ctx?.setTarget ?? _temp$101;
+		t0 = ctx?.setTarget ?? _temp$102;
 		$[0] = ctx?.setTarget;
 		$[1] = t0;
 	} else t0 = $[1];
@@ -43972,7 +43997,7 @@ var FindTargetProvider = (t0) => {
 	} else t2 = $[4];
 	return t2;
 };
-function _temp$101() {}
+function _temp$102() {}
 //#endregion
 //#region ../../packages/react/src/components/ExpandablePanel.tsx
 var kNestedToggleStep = 24;
@@ -45354,7 +45379,7 @@ var MarkdownDivWithReferences = /*#__PURE__*/ (0, import_react.forwardRef)((prop
 	const [visibleKey, setVisibleKey, clearVisibleKey] = useProperty("popover", "visibleKey");
 	let t0;
 	if ($[0] !== references) {
-		t0 = new Map(references?.map(_temp$100));
+		t0 = new Map(references?.map(_temp$101));
 		$[0] = references;
 		$[1] = t0;
 	} else t0 = $[1];
@@ -45556,7 +45581,7 @@ var findCiteLink = (target) => {
 	}
 	return emitted === 0 ? html : out + html.slice(emitted);
 }
-function _temp$100(r) {
+function _temp$101(r) {
 	return [r.id, r];
 }
 var NextPreviousNav_module_default = {
@@ -50678,7 +50703,7 @@ var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 	let t4;
 	if ($[4] !== expandable) {
 		t4 = () => {
-			if (expandable) setExpanded(_temp$99);
+			if (expandable) setExpanded(_temp$100);
 		};
 		$[4] = expandable;
 		$[5] = t4;
@@ -50819,7 +50844,7 @@ var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 	return t6;
 });
 TreeNode$1.displayName = "TreeNode";
-function _temp$99(e) {
+function _temp$100(e) {
 	return !e;
 }
 function _temp2$58(entry) {
@@ -56940,7 +56965,7 @@ var readLogsListing = async (logDir, prefix, toRow, plan) => {
 	let t2;
 	if ($[3] !== demand || $[4] !== logDir || $[5] !== logFile) {
 		t1 = () => {
-			if (logFile !== void 0) fetchLog(logDir, logFile, { passive: demand !== "active" }).catch(_temp$98);
+			if (logFile !== void 0) fetchLog(logDir, logFile, { passive: demand !== "active" }).catch(_temp$99);
 		};
 		t2 = [
 			logDir,
@@ -57029,7 +57054,7 @@ var readLogsListing = async (logDir, prefix, toRow, plan) => {
 	} else t0 = $[1];
 	return t0;
 };
-function _temp$98() {}
+function _temp$99() {}
 //#endregion
 //#region src/log_data/pendingSamples.ts
 var kDefaultRefreshSeconds = 2;
@@ -57134,7 +57159,7 @@ var logInfoSignature = (info) => `${info.size}:${info.etag ?? ""}`;
 		t4 = {
 			queryKey: t2,
 			queryFn: t3,
-			refetchInterval: _temp$97,
+			refetchInterval: _temp$98,
 			refetchIntervalInBackground: true,
 			staleTime: 0,
 			refetchOnWindowFocus: false,
@@ -57174,7 +57199,7 @@ var logInfoSignature = (info) => `${info.size}:${info.etag ?? ""}`;
 * finalize decision). Returns
 * `undefined` when there's no resolved dir.
 */ var getPendingSamples = (logDir, logFile) => logDir === void 0 ? void 0 : queryClient.getQueryData(pendingSamplesKey(logDir, logFile)) ?? void 0;
-function _temp$97(query) {
+function _temp$98(query) {
 	return query.state.status === "error" ? false : pendingSamplesIntervalMs(query.state.data);
 }
 function _temp2$57(data) {
@@ -58844,11 +58869,11 @@ var mergeSampleSummaries = (logSamples, pendingSamples) => {
 * Non-React snapshot of {@link useSampleSummaries} (for the running-sample
 * query's tick decisions). Empty when there's no resolved dir.
 */ var getSampleSummaries = async (logDir, logFile) => logDir === void 0 ? [] : mergeSampleSummaries(await readSettledSummaries(logDir, resolveLogKey(logDir, logFile)), getPendingSamples(logDir, logFile)?.samples ?? []);
-function _temp$96(row) {
+function _temp$97(row) {
 	return row.summary;
 }
 function _temp2$56(settled) {
-	return mergeSampleSummaries(settled.rows.map(_temp$96), settled.pending?.samples ?? []);
+	return mergeSampleSummaries(settled.rows.map(_temp$97), settled.pending?.samples ?? []);
 }
 //#endregion
 //#region src/log_data/runningSampleQuery.ts
@@ -58987,7 +59012,7 @@ var findLiveSummary = async (logDir, handle) => (await getSampleSummaries(logDir
 			queryKey: t2,
 			queryFn: t3,
 			structuralSharing: false,
-			refetchInterval: _temp$95,
+			refetchInterval: _temp$96,
 			refetchIntervalInBackground: true,
 			gcTime: kSampleGcTimeMs,
 			refetchOnWindowFocus: false,
@@ -58999,7 +59024,7 @@ var findLiveSummary = async (logDir, handle) => (await getSampleSummaries(logDir
 	} else t4 = $[13];
 	return useAsyncDataFromQuery(t4);
 };
-function _temp$95(query) {
+function _temp$96(query) {
 	return query.state.status === "error" || query.state.data?.finalized === true ? false : query.state.data?.catchup === true ? kCatchupIntervalMs : kRunningSampleIntervalMs;
 }
 //#endregion
@@ -62633,7 +62658,7 @@ var isNonEmptyObject = (v) => isRecord(v) && Object.keys(v).length > 0;
 	const depth = t1 === void 0 ? 0 : t1;
 	const baseId = id ?? "metadata-grid";
 	const allEntries = entryRecords(entries);
-	const scalars = allEntries.filter(_temp$94);
+	const scalars = allEntries.filter(_temp$95);
 	const groups = allEntries.filter(_temp2$55);
 	const [expanded, setExpanded] = (0, import_react.useState)(false);
 	const isCollapsible = maxRows != null && scalars.length > maxRows;
@@ -62761,7 +62786,7 @@ var entryRecords = (entries) => {
 	});
 	else return entries;
 };
-function _temp$94(e) {
+function _temp$95(e) {
 	return !isNonEmptyObject(e.value) || isHtmlEscape(e.value);
 }
 function _temp2$55(e_0) {
@@ -62815,7 +62840,7 @@ var isWebSearchValue = (v) => isRecord(v) && isOptionalString(v.query) && Array.
 				$[7] = entry;
 				$[8] = t3;
 			} else t3 = $[8];
-			const renderer_0 = Object.keys(renderers).map((key) => renderers[key]).sort(_temp$93).find(t3);
+			const renderer_0 = Object.keys(renderers).map((key) => renderers[key]).sort(_temp$94).find(t3);
 			if (renderer_0) {
 				const { rendered } = renderer_0.render(id, entry, renderOptions, references);
 				if (rendered !== void 0 && /*#__PURE__*/ (0, import_react.isValidElement)(rendered)) {
@@ -63043,7 +63068,7 @@ var isWebSearchValue = (v) => isRecord(v) && isOptionalString(v.query) && Array.
 	};
 	return contentRenderers;
 };
-function _temp$93(a, b) {
+function _temp$94(a, b) {
 	if (!a || !b) return 0;
 	return a.bucket - b.bucket;
 }
@@ -63532,7 +63557,7 @@ var WebSearchResults$1 = (t0) => {
 	}
 	let t3;
 	if ($[2] !== results) {
-		t3 = results.map(_temp$92);
+		t3 = results.map(_temp$93);
 		$[2] = results;
 		$[3] = t3;
 	} else t3 = $[3];
@@ -63547,7 +63572,7 @@ var WebSearchResults$1 = (t0) => {
 	} else t4 = $[5];
 	return t4;
 };
-function _temp$92(result, index) {
+function _temp$93(result, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("li", {
 		className: clsx(WebSearchResults_module_default.result, "text-style-secondary"),
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExternalLink, {
@@ -63864,7 +63889,7 @@ var MessageCitations = (t0) => {
 	} else t1 = $[0];
 	let t2;
 	if ($[1] !== citations) {
-		t2 = citations.map(_temp$91);
+		t2 = citations.map(_temp$92);
 		$[1] = citations;
 		$[2] = t2;
 	} else t2 = $[2];
@@ -63938,7 +63963,7 @@ var OtherCitation = (t0) => {
 	} else t1 = $[1];
 	return t1;
 };
-function _temp$91(citation, index) {
+function _temp$92(citation, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: index + 1 }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageCitation, { citation })] }, index);
 }
 var MessageContent_module_default = {
@@ -64179,7 +64204,7 @@ var TodoWriteInput = (t0) => {
 			t2 = clsx(TodoWriteInput_module_default.todoList);
 			$[5] = t2;
 		} else t2 = $[5];
-		t3 = todoItems.map(_temp$90);
+		t3 = todoItems.map(_temp$91);
 		$[0] = contents;
 		$[1] = parentRef;
 		$[2] = t1;
@@ -64204,7 +64229,7 @@ var TodoWriteInput = (t0) => {
 	} else t4 = $[9];
 	return t4;
 };
-function _temp$90(todo) {
+function _temp$91(todo) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
 		name: todo.status === "completed" ? "checkboxChecked" : "checkboxUnchecked",
 		className: "text-size-smallest"
@@ -64546,7 +64571,7 @@ var WebSearchResults = (t0) => {
 	const t1 = `${id}-output`;
 	let t2;
 	if ($[0] !== results) {
-		t2 = results.map(_temp$89);
+		t2 = results.map(_temp$90);
 		$[0] = results;
 		$[1] = t2;
 	} else t2 = $[1];
@@ -64727,7 +64752,7 @@ var maybeListTools = (content) => {
 };
 /** Shallow: the list below renders title and url, and skips entries lacking them. */ var isWebResult = (value) => isRecord(value) && typeof value["title"] === "string" && typeof value["url"] === "string";
 /** Shallow: the list below keys on name and renders description. */ var isToolInfo = (value) => isRecord(value) && typeof value["name"] === "string";
-function _temp$89(result, index) {
+function _temp$90(result, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExternalLink, {
 		href: result.url,
 		title: result.url,
@@ -65251,7 +65276,7 @@ function asCoordinate(value) {
 	const { contents, annotation } = t0;
 	let t1;
 	if ($[0] !== contents) {
-		t1 = contents.findLastIndex(_temp$88);
+		t1 = contents.findLastIndex(_temp$89);
 		$[0] = contents;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -65425,7 +65450,7 @@ function renderHtmlAnnotation(annotation) {
 	}
 	return null;
 }
-function _temp$88(c) {
+function _temp$89(c) {
 	return c.type === "image" && isRenderableImageSource(c.image);
 }
 var customToolRendering_module_default = { submitView: "_submitView_1ru17_1" };
@@ -65465,7 +65490,7 @@ var ToolSearchView_module_default = {
 	} else t2 = $[3];
 	return t2;
 };
-function _temp$87(tool, toolIdx) {
+function _temp$88(tool, toolIdx) {
 	return tool.description ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("details", {
 		className: ToolSearchView_module_default.tool,
 		children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("summary", {
@@ -65489,7 +65514,7 @@ function _temp2$54(namespace, nsIdx) {
 		}), namespace.description ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
 			className: ToolSearchView_module_default.namespaceDescription,
 			children: [" — ", namespace.description]
-		}) : null] }) : null, namespace.tools.map(_temp$87)]
+		}) : null] }) : null, namespace.tools.map(_temp$88)]
 	}, `ns-${nsIdx}`);
 }
 var ToolTitle_module_default = {
@@ -65673,7 +65698,7 @@ var ToolCallView_module_default = { toolCallView: "_toolCallView_x6cus_1" };
 	const normalizedContent = t6;
 	let t7;
 	if ($[8] !== normalizedContent) {
-		t7 = normalizedContent.find(_temp$86);
+		t7 = normalizedContent.find(_temp$87);
 		$[8] = normalizedContent;
 		$[9] = t7;
 	} else t7 = $[9];
@@ -65874,7 +65899,7 @@ var normalizeContent = (output) => {
 		}]
 	}];
 };
-function _temp$86(c) {
+function _temp$87(c) {
 	if (c.type === "tool") {
 		for (const t of c.content) if (t.type === "text") {
 			if (t.text) return true;
@@ -66368,7 +66393,7 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 	const t16 = message.role === "tool" ? 30 : message.role === "assistant" ? 25 : 15;
 	let t17;
 	if ($[58] !== id || $[59] !== isNonSubagentTool || $[60] !== message || $[61] !== references || $[62] !== subagentNotifications || $[63] !== toolMarkdown || $[64] !== toolSearchNamespaces) {
-		t17 = isNonSubagentTool ? toolSearchNamespaces ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolSearchView, { namespaces: toolSearchNamespaces }) : toolMarkdown !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: toolMarkdown }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolOutput, { output: typeof message.content === "string" ? message.content : message.content.filter(_temp$85) }) : subagentNotifications !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: subagentNotifications }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContents, {
+		t17 = isNonSubagentTool ? toolSearchNamespaces ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolSearchView, { namespaces: toolSearchNamespaces }) : toolMarkdown !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: toolMarkdown }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolOutput, { output: typeof message.content === "string" ? message.content : message.content.filter(_temp$86) }) : subagentNotifications !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: subagentNotifications }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContents, {
 			message,
 			references
 		}, `${id}-contents`);
@@ -66444,7 +66469,7 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 	}
 	return segments;
 };
-function _temp$85(c) {
+function _temp$86(c) {
 	return c.type === "text" || c.type === "image";
 }
 var RowSelectCheckbox_module_default = {
@@ -66549,7 +66574,7 @@ var RowSelectCheckbox_module_default = {
 			"aria-label": label,
 			title: label,
 			className: t2,
-			onMouseDown: _temp$84,
+			onMouseDown: _temp$85,
 			onClick: t3,
 			children: t4
 		});
@@ -66562,7 +66587,7 @@ var RowSelectCheckbox_module_default = {
 	} else t5 = $[12];
 	return t5;
 };
-function _temp$84(e) {
+function _temp$85(e) {
 	if (e.shiftKey) e.preventDefault();
 }
 var ChatMessageRow_module_default = {
@@ -66815,7 +66840,7 @@ var MessageLabel_module_default = {
 		viewKinds = $[18];
 		views = $[19];
 	}
-	const hasTools = viewKinds.some(_temp$83);
+	const hasTools = viewKinds.some(_temp$84);
 	if (useLabels || hasTools) {
 		let t2;
 		if ($[42] !== hasTools || $[43] !== highlightLabeled || $[44] !== highlightUserMessage || $[45] !== index || $[46] !== messageChip || $[47] !== resolvedMessage || $[48] !== viewChips || $[49] !== viewKinds || $[50] !== views) {
@@ -66978,7 +67003,7 @@ var ToolCallViewCompact = (t0) => {
 	} else t4 = $[5];
 	return t4;
 };
-function _temp$83(k) {
+function _temp$84(k) {
 	return k !== "message";
 }
 //#endregion
@@ -67424,7 +67449,7 @@ var kLoadMoreMarginRows = 20;
 	useListKeyboardNavigation(t5);
 	let t6;
 	if ($[8] !== rows) {
-		t6 = () => rows.map(_temp$82).filter(_temp2$52);
+		t6 = () => rows.map(_temp$83).filter(_temp2$52);
 		$[8] = rows;
 		$[9] = t6;
 	} else t6 = $[9];
@@ -67597,7 +67622,7 @@ var kLoadMoreMarginRows = 20;
 	} else t16 = $[54];
 	return t16;
 });
-function _temp$82(row) {
+function _temp$83(row) {
 	return row.resolved.message.id;
 }
 function _temp2$52(rowId) {
@@ -68037,7 +68062,7 @@ var kLoadingFeed = unpagedFeed(loading$2);
 			queryKey: t4,
 			queryFn: t5,
 			initialPageParam: 0,
-			getNextPageParam: _temp$81,
+			getNextPageParam: _temp$82,
 			gcTime: kSampleGcTimeMs,
 			staleTime: Infinity,
 			retry: false,
@@ -68161,7 +68186,7 @@ var kLoadingFeed = unpagedFeed(loading$2);
 	}
 	return t12;
 };
-function _temp$81(last) {
+function _temp$82(last) {
 	return last.nextCursor?.offset;
 }
 function _temp2$51(page) {
@@ -68392,7 +68417,7 @@ var useScoreSchema = (logDir, scopeDir) => {
 	if ($[0] !== config) {
 		t0 = () => {
 			activateFetchEngine(config);
-			return _temp$80;
+			return _temp$81;
 		};
 		t1 = [config];
 		$[0] = config;
@@ -68405,7 +68430,7 @@ var useScoreSchema = (logDir, scopeDir) => {
 	(0, import_react.useEffect)(t0, t1);
 	return null;
 };
-function _temp$80() {
+function _temp$81() {
 	return deactivateFetchEngine();
 }
 //#endregion
@@ -69700,8 +69725,10 @@ var kWorkspaceTabs = [
 ];
 var kSampleMessagesTabId = `messages`;
 var kSampleTranscriptTabId = `transcript`;
+var kSampleTerminalsTabId = `terminals`;
 var kSampleScoringTabId = `scoring`;
 var kSampleActivityTabId = `activity`;
+var kSampleInfoTabId = `info`;
 var kSampleMetdataTabId = `metadata`;
 var kSampleUsageTabId = `usage`;
 var kSampleErrorTabId = `error`;
@@ -69709,11 +69736,14 @@ var kSampleRetriesTabId = `retries`;
 var kSampleErrorRetriesTabId = `retry-errors`;
 var kSampleJsonTabId = `json`;
 var kSampleEventTabId = `event`;
+/** Resolve a legacy sample tab id to the tab that now shows its content. */ var sampleTabAlias = (tabId) => tabId === kSampleUsageTabId || tabId === kSampleMetdataTabId ? kSampleInfoTabId : tabId;
 var kSampleTabIds = [
 	kSampleMessagesTabId,
 	kSampleTranscriptTabId,
+	kSampleTerminalsTabId,
 	kSampleScoringTabId,
 	kSampleActivityTabId,
+	kSampleInfoTabId,
 	kSampleUsageTabId,
 	kSampleMetdataTabId,
 	kSampleErrorTabId,
@@ -71862,7 +71892,7 @@ function useRouteSelection(pathname) {
 	const { children } = t0;
 	const { pathname } = useLocation();
 	const { logFile, sample } = useRouteSelection(pathname);
-	useMirrorToStore(sample, _temp$79);
+	useMirrorToStore(sample, _temp$80);
 	let t1;
 	if ($[0] !== logFile || $[1] !== sample) {
 		t1 = {
@@ -71885,7 +71915,7 @@ function useRouteSelection(pathname) {
 	} else t2 = $[5];
 	return t2;
 }
-function _temp$79(handle) {
+function _temp$80(handle) {
 	return highlightSample(handle.id, handle.epoch, handle.logFile);
 }
 function useCurrentSelection() {
@@ -73323,7 +73353,7 @@ var kDefaultScorePanelSort = {
 * own default (typically `chips` for ≤ 6 scores, `grid` for 7+).
 */ var useScorePanelView = () => {
 	const $ = (0, import_compiler_runtime.c)(5);
-	const stored = useStore(_temp$78);
+	const stored = useStore(_temp$79);
 	const setPropertyValue = useStore(_temp2$50);
 	let t0;
 	if ($[0] !== setPropertyValue) {
@@ -73845,7 +73875,7 @@ var useLogsListing = () => {
 	} else t0 = $[3];
 	return t0;
 };
-function _temp$78(state) {
+function _temp$79(state) {
 	const value = state.app.propertyBags[kScorePanelViewBag]?.[kScorePanelViewKey];
 	return isScoreView(value) ? value : void 0;
 }
@@ -74168,7 +74198,7 @@ var FlowButton = () => {
 		t2 = {
 			queryKey: t0,
 			queryFn: t1,
-			select: _temp$77,
+			select: _temp$78,
 			staleTime: Infinity
 		};
 		$[6] = t0;
@@ -74177,7 +74207,7 @@ var FlowButton = () => {
 	} else t2 = $[8];
 	return useAsyncDataFromQuery(t2);
 };
-function _temp$77(flow) {
+function _temp$78(flow) {
 	return flow ?? void 0;
 }
 var ThemeToggle_module_default = {
@@ -74467,9 +74497,9 @@ var subscribe = (onChange) => {
 		$[0] = preference;
 		$[1] = t0;
 	} else t0 = $[1];
-	return (0, import_react.useSyncExternalStore)(subscribe, t0, _temp$76);
+	return (0, import_react.useSyncExternalStore)(subscribe, t0, _temp$77);
 };
-function _temp$76() {
+function _temp$77() {
 	return false;
 }
 //#endregion
@@ -75157,7 +75187,7 @@ var ApplicationNavbar = (t0) => {
 	const { currentPath, fnNavigationUrl, backUrl, homeUrl, bordered, children, breadcrumbsEnabled, loading: t1, viewerOptionsError } = t0;
 	const loadingProp = t1 === void 0 ? false : t1;
 	const [optionsEl, setOptionsEl] = (0, import_react.useState)(null);
-	const themePreference = useUserSettings(_temp$75);
+	const themePreference = useUserSettings(_temp$76);
 	const setThemePreference = useUserSettings(_temp2$49);
 	const isDark = useResolvedIsDark(themePreference);
 	const loading = useSelectedLogLoading() || loadingProp;
@@ -75251,7 +75281,7 @@ var ApplicationNavbar = (t0) => {
 	} else t8 = $[29];
 	return t8;
 };
-function _temp$75(s) {
+function _temp$76(s) {
 	return s.themePreference;
 }
 function _temp2$49(s_0) {
@@ -75449,7 +75479,7 @@ var ViewSegmentedControl = (t0) => {
 		t2 = {
 			queryKey: t0,
 			queryFn: t1,
-			select: _temp$74,
+			select: _temp$75,
 			staleTime: Infinity
 		};
 		$[6] = t0;
@@ -75458,7 +75488,7 @@ var ViewSegmentedControl = (t0) => {
 	} else t2 = $[8];
 	return useAsyncDataFromQuery(t2);
 };
-function _temp$74(evalSet) {
+function _temp$75(evalSet) {
 	return evalSet ?? void 0;
 }
 //#endregion
@@ -75567,7 +75597,7 @@ var ColumnSelectorPopover = (t0) => {
 		}
 		let t10;
 		if ($[13] !== columns) {
-			t10 = columns.filter(_temp$73);
+			t10 = columns.filter(_temp$74);
 			$[13] = columns;
 			$[14] = t10;
 		} else t10 = $[14];
@@ -75891,7 +75921,7 @@ var ColumnSelectorPopover = (t0) => {
 	} else t32 = $[88];
 	return t32;
 };
-function _temp$73(col_0) {
+function _temp$74(col_0) {
 	return !isScoreField(getFieldKey(col_0));
 }
 function _temp2$48(col_1) {
@@ -82594,7 +82624,7 @@ var isConditionShaped = (value) => {
 	const t3 = `${columnId}-op${idSuffix}`;
 	let t4;
 	if ($[2] !== operatorOptions) {
-		t4 = operatorOptions.map(_temp$72);
+		t4 = operatorOptions.map(_temp$73);
 		$[2] = operatorOptions;
 		$[3] = t4;
 	} else t4 = $[3];
@@ -82852,7 +82882,7 @@ var ColumnFilterEditor = (t0) => {
 	} else t10 = $[32];
 	return t10;
 };
-function _temp$72(option) {
+function _temp$73(option) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("option", {
 		value: option,
 		children: OPERATOR_LABELS[option]
@@ -84459,7 +84489,7 @@ function GridRowInner(t0) {
 		t18 = columnDef.meta?.filterable && filterType && !hideColumnFilters && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: DataGrid_module_default.rotatedFilter,
 			role: "presentation",
-			onClick: _temp$71,
+			onClick: _temp$72,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ColumnFilterControl, {
 				columnId: header.column.id,
 				filterType,
@@ -84560,7 +84590,7 @@ function GridRowInner(t0) {
 	} else t22 = $[62];
 	return t22;
 }
-function _temp$71(e_2) {
+function _temp$72(e_2) {
 	return e_2.stopPropagation();
 }
 //#endregion
@@ -85143,7 +85173,7 @@ var LogListGrid = (t0) => {
 	const searchColumns = t10;
 	let t11;
 	if ($[26] !== searchColumns) {
-		t11 = searchColumns.map(_temp$70);
+		t11 = searchColumns.map(_temp$71);
 		$[26] = searchColumns;
 		$[27] = t11;
 	} else t11 = $[27];
@@ -85434,7 +85464,7 @@ var LogListGrid = (t0) => {
 	} else t32 = $[108];
 	return t32;
 };
-function _temp$70(col_0) {
+function _temp$71(col_0) {
 	return col_0.id ?? "";
 }
 function _temp2$47(row_2) {
@@ -85563,7 +85593,7 @@ var kNoRows = [];
 	const $ = (0, import_compiler_runtime.c)(45);
 	const { overlayItems, scopeKey, getValue, getComparator, getFilterType, accessorsKey, listing } = t0;
 	const { gridStateByScope } = useLogsListing();
-	const overlayData = useKeyedMemo(overlayItems, _temp$69, _temp2$46, _temp3$31);
+	const overlayData = useKeyedMemo(overlayItems, _temp$70, _temp2$46, _temp3$31);
 	let t1;
 	if ($[0] !== overlayData) {
 		const folders = [];
@@ -85702,7 +85732,7 @@ var kNoRows = [];
 	} else t12 = $[44];
 	return t12;
 };
-function _temp$69(item) {
+function _temp$70(item) {
 	return item.id;
 }
 function _temp2$46(item_0) {
@@ -85879,7 +85909,7 @@ var LogsPanel = (t0) => {
 	const mode = t1 === void 0 ? "logs" : t1;
 	const [showColumnSelector, setShowColumnSelector] = (0, import_react.useState)(false);
 	const [columnButtonEl, setColumnButtonEl] = (0, import_react.useState)(null);
-	const showRetriedLogs = useUserSettings(_temp$68);
+	const showRetriedLogs = useUserSettings(_temp$69);
 	const setShowRetriedLogs = useUserSettings(_temp2$45);
 	const logDir = useLogDir();
 	const { gridStateByScope, patchGridState } = useLogsListing();
@@ -86349,7 +86379,7 @@ var appendPendingItems = (evalSet, tasksWithLogFiles, items) => {
 	items.push(...pendingTasks);
 	return items;
 };
-function _temp$68(state) {
+function _temp$69(state) {
 	return state.showRetriedLogs;
 }
 function _temp2$45(state_0) {
@@ -87846,7 +87876,7 @@ var Grid = (t0) => {
 	const { rows } = t0;
 	let t1;
 	if ($[0] !== rows) {
-		t1 = rows.slice(0, 4).map(_temp$67);
+		t1 = rows.slice(0, 4).map(_temp$68);
 		$[0] = rows;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -89127,7 +89157,7 @@ var CurveBody = (t0) => {
 	} else t3 = $[43];
 	return t3;
 };
-function _temp$67(row) {
+function _temp$68(row) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: ActivityTooltip_module_default.key,
 		children: row.key
@@ -90996,7 +91026,7 @@ var ModelTokenTable = (t0) => {
 								(() => {
 									const cfg = model_configs?.[modelId];
 									const args = model_args?.[modelId];
-									const cfgEntries = cfg ? Object.entries(cfg).filter(_temp$66) : [];
+									const cfgEntries = cfg ? Object.entries(cfg).filter(_temp$67) : [];
 									const argEntries = args ? Object.entries(args).filter(_temp2$43) : [];
 									if (cfgEntries.length === 0 && argEntries.length === 0) return null;
 									const renderSection = _temp4$23;
@@ -91111,7 +91141,7 @@ var ModelTokenTable = (t0) => {
 	} else t11 = $[37];
 	return t11;
 };
-function _temp$66(t0) {
+function _temp$67(t0) {
 	const [, v] = t0;
 	return v != null;
 }
@@ -91289,7 +91319,7 @@ var ModelUsagePanel = (t0) => {
 	let t7;
 	if ($[0] !== className || $[1] !== timing || $[2] !== usage) {
 		const categories = buildCategories(usage);
-		const composeTotal = categories.reduce(_temp$65, 0);
+		const composeTotal = categories.reduce(_temp$66, 0);
 		const total = usage.total_tokens || composeTotal;
 		const inputAll = (usage.input_tokens ?? 0) + (usage.input_tokens_cache_read ?? 0) + (usage.input_tokens_cache_write ?? 0);
 		const denom = inputAll + ((usage.output_tokens ?? 0) + (usage.reasoning_tokens ?? 0)) || total || 1;
@@ -91477,7 +91507,7 @@ var ModelUsagePanel = (t0) => {
 	} else t11 = $[40];
 	return t11;
 };
-function _temp$65(a, c) {
+function _temp$66(a, c) {
 	return a + c.value;
 }
 function _temp2$42(c_1) {
@@ -92140,7 +92170,7 @@ var ProvenanceGrid = (t0) => {
 	} else t4 = $[3];
 	let t5;
 	if ($[4] !== changes) {
-		t5 = changes.map(_temp$64);
+		t5 = changes.map(_temp$65);
 		$[4] = changes;
 		$[5] = t5;
 	} else t5 = $[5];
@@ -92187,7 +92217,7 @@ var ProvenanceGrid = (t0) => {
 	} else t9 = $[17];
 	return t9;
 };
-function _temp$64(change) {
+function _temp$65(change) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [
 		change.name,
 		" ",
@@ -92350,7 +92380,7 @@ var ConnectionLogModal = (t0) => {
 			$[3] = retunes;
 			$[4] = t2;
 		} else t2 = $[4];
-		t1 = [...events.map(_temp$63), ...t2.map(_temp2$41)].sort(_temp3$27);
+		t1 = [...events.map(_temp$64), ...t2.map(_temp2$41)].sort(_temp3$27);
 		$[0] = events;
 		$[1] = retunes;
 		$[2] = t1;
@@ -92489,7 +92519,7 @@ var ConnectionLogModal = (t0) => {
 	} else t12 = $[35];
 	return t12;
 };
-function _temp$63(event) {
+function _temp$64(event) {
 	return {
 		kind: "controller",
 		time: event.timestamp,
@@ -92704,7 +92734,7 @@ var ConnectionsView_module_default = {
 									children: model_0
 								}), roles.length > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
 									className: ConnectionsView_module_default.roles,
-									children: [roles.length > 1 ? "shared by" : "used by", roles.map(_temp$62)]
+									children: [roles.length > 1 ? "shared by" : "used by", roles.map(_temp$63)]
 								})]
 							}),
 							/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
@@ -92982,7 +93012,7 @@ var kBaselineY = 60;
 	} else t2 = $[3];
 	return t2;
 };
-function _temp$62(role) {
+function _temp$63(role) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: ConnectionsView_module_default.roleChip,
 		children: role
@@ -93968,8 +93998,8 @@ var SelectTool_module_default = {
 * `Select` (on, nothing selected) or a latched split `Select · N | ×`, where
 * × clears the selection and exits the mode in one press.
 */ var SelectTool = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(16);
-	const { active, count, onToggle, onClear, item, className } = t0;
+	const $ = (0, import_compiler_runtime.c)(17);
+	const { active, count, onToggle, onClear, item, collapseLabel, className } = t0;
 	const hasSelection = active && count > 0;
 	const title = !active ? `Select ${item}s` : count === 0 ? `Click ${item}s to select · click again to exit` : "Exit select mode";
 	let t1;
@@ -93982,27 +94012,29 @@ var SelectTool_module_default = {
 	const t3 = active ? "selectionSelecting" : "selectionSelect";
 	const t4 = hasSelection ? SelectTool_module_default.splitMain : void 0;
 	let t5;
-	if ($[2] !== active || $[3] !== onToggle || $[4] !== t2 || $[5] !== t3 || $[6] !== t4 || $[7] !== title) {
+	if ($[2] !== active || $[3] !== collapseLabel || $[4] !== onToggle || $[5] !== t2 || $[6] !== t3 || $[7] !== t4 || $[8] !== title) {
 		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolButton, {
 			label: t2,
 			icon: t3,
 			latched: active,
 			subtle: true,
+			collapseLabel,
 			className: t4,
 			title,
 			"aria-pressed": active,
 			onClick: onToggle
 		});
 		$[2] = active;
-		$[3] = onToggle;
-		$[4] = t2;
-		$[5] = t3;
-		$[6] = t4;
-		$[7] = title;
-		$[8] = t5;
-	} else t5 = $[8];
+		$[3] = collapseLabel;
+		$[4] = onToggle;
+		$[5] = t2;
+		$[6] = t3;
+		$[7] = t4;
+		$[8] = title;
+		$[9] = t5;
+	} else t5 = $[9];
 	let t6;
-	if ($[9] !== hasSelection || $[10] !== onClear) {
+	if ($[10] !== hasSelection || $[11] !== onClear) {
 		t6 = hasSelection ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolButton, {
 			icon: "selectionClear",
 			latched: true,
@@ -94012,21 +94044,21 @@ var SelectTool_module_default = {
 			"aria-label": "Clear selection and exit",
 			onClick: onClear
 		}) : null;
-		$[9] = hasSelection;
-		$[10] = onClear;
-		$[11] = t6;
-	} else t6 = $[11];
+		$[10] = hasSelection;
+		$[11] = onClear;
+		$[12] = t6;
+	} else t6 = $[12];
 	let t7;
-	if ($[12] !== t1 || $[13] !== t5 || $[14] !== t6) {
+	if ($[13] !== t1 || $[14] !== t5 || $[15] !== t6) {
 		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
 			className: t1,
 			children: [t5, t6]
 		});
-		$[12] = t1;
-		$[13] = t5;
-		$[14] = t6;
-		$[15] = t7;
-	} else t7 = $[15];
+		$[13] = t1;
+		$[14] = t5;
+		$[15] = t6;
+		$[16] = t7;
+	} else t7 = $[16];
 	return t7;
 };
 //#endregion
@@ -94530,7 +94562,7 @@ var StoreSpecificRenderableTypes = [human_baseline_session];
 	const { toolDefinitions } = t0;
 	let t1;
 	if ($[0] !== toolDefinitions) {
-		t1 = toolDefinitions.map(_temp$61);
+		t1 = toolDefinitions.map(_temp$62);
 		$[0] = toolDefinitions;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -94574,7 +94606,7 @@ var StoreSpecificRenderableTypes = [human_baseline_session];
 	} else t3 = $[5];
 	return t3;
 };
-function _temp$61(toolDefinition, idx) {
+function _temp$62(toolDefinition, idx) {
 	const name = toolDefinition.name;
 	const toolArgs = toolDefinition.parameters?.properties ? Object.keys(toolDefinition.parameters.properties) : [];
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Tool, {
@@ -94859,7 +94891,7 @@ var GoToTurnBar_module_default = {
 			} else if (prefillTurn !== void 0) setValue(String(prefillTurn));
 			openRef.current = true;
 			setOpen(true);
-			setFocusEpoch(_temp$60);
+			setFocusEpoch(_temp$61);
 		};
 		$[0] = t2;
 	} else t2 = $[0];
@@ -95045,7 +95077,7 @@ var GoToTurnBar_module_default = {
 	} else t14 = $[29];
 	return t14;
 });
-function _temp$60(epoch) {
+function _temp$61(epoch) {
 	return epoch + 1;
 }
 var TimelineSelector_module_default = {
@@ -95308,7 +95340,7 @@ var ToolCheckInset_module_default = {
 	} else t6 = $[14];
 	let t7;
 	if ($[15] !== scores) {
-		t7 = scores?.map(_temp$59);
+		t7 = scores?.map(_temp$60);
 		$[15] = scores;
 		$[16] = t7;
 	} else t7 = $[16];
@@ -95507,7 +95539,7 @@ var ToolCheckInset_module_default = {
 	label: ToolCheckInset_module_default.label,
 	mono: ToolCheckInset_module_default.mono
 };
-function _temp$59(score, i) {
+function _temp$60(score, i) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: ToolCheckInset_module_default.scores,
 		children: score
@@ -95661,7 +95693,7 @@ var decisionIcon$1 = (decision) => {
 	const [collapsed, setCollapsed] = useCollapsedState(`${chain[0].id}-approval-chain`, true);
 	const event = final.event;
 	const look = decisionLook(event.decision);
-	const escalated = chain.slice(0, -1).some(_temp$58);
+	const escalated = chain.slice(0, -1).some(_temp$59);
 	let t1;
 	if ($[0] !== chain.length || $[1] !== collapsed || $[2] !== setCollapsed) {
 		t1 = chain.length > 1 ? {
@@ -95727,7 +95759,7 @@ var decisionLook = (decision) => {
 		};
 	}
 };
-function _temp$58(n) {
+function _temp$59(n) {
 	return n.event.decision === "escalate";
 }
 function _temp2$39(node, index) {
@@ -95973,7 +96005,7 @@ var EventNavsPicker_module_default = {
 	let t8;
 	if ($[9] === Symbol.for("react.memo_cache_sentinel")) {
 		t7 = clsx("nav-link", "active", "text-style-label", "text-size-small", EventNavsPicker_module_default.trigger);
-		t8 = () => setOpen(_temp$57);
+		t8 = () => setOpen(_temp$58);
 		$[9] = t7;
 		$[10] = t8;
 	} else {
@@ -96069,7 +96101,7 @@ var EventNavsPicker_module_default = {
 	} else t15 = $[28];
 	return t15;
 };
-function _temp$57(v) {
+function _temp$58(v) {
 	return !v;
 }
 //#endregion
@@ -96163,7 +96195,7 @@ var SWITCH_TOLERANCE = 4;
 	} else t5 = $[10];
 	let t6;
 	if ($[11] !== navs) {
-		t6 = navs.map(_temp$56);
+		t6 = navs.map(_temp$57);
 		$[11] = navs;
 		$[12] = t6;
 	} else t6 = $[12];
@@ -96192,7 +96224,7 @@ var SWITCH_TOLERANCE = 4;
 	} else t8 = $[18];
 	return t8;
 };
-function _temp$56(nav_1) {
+function _temp$57(nav_1) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("li", {
 		className: "nav-item",
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
@@ -97178,7 +97210,7 @@ var Snapshot = (t0) => {
 	if ($[7] !== details.additional_files || $[8] !== details.files) {
 		t4 = details.files && details.files.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: CheckpointEventView_module_default.files,
-			children: [details.files.map(_temp$55), details.additional_files ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			children: [details.files.map(_temp$56), details.additional_files ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 				className: CheckpointEventView_module_default.fileOverflow,
 				children: [
 					"+",
@@ -97333,7 +97365,7 @@ var CheckpointEventView = (t0) => {
 	} else t19 = $[32];
 	return t19;
 };
-function _temp$55(file) {
+function _temp$56(file) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 		className: CheckpointEventView_module_default.file,
 		children: file
@@ -97961,7 +97993,7 @@ var RetryChip = (t0) => {
 	let t8;
 	let t9;
 	if ($[13] === Symbol.for("react.memo_cache_sentinel")) {
-		t8 = () => setOpen(_temp$54);
+		t8 = () => setOpen(_temp$55);
 		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
 			name: "retry",
 			className: RetryChip_module_default.chipIcon
@@ -98065,7 +98097,7 @@ function formatAttemptDuration(event) {
 	const sec = attemptDurationSec(event);
 	return sec != null ? formatTime$1(sec) : null;
 }
-function _temp$54(v) {
+function _temp$55(v) {
 	return !v;
 }
 var StopReasonBadge_module_default = {
@@ -98351,7 +98383,7 @@ var ModelEventView = (t0) => {
 	const callTime = event.output.time;
 	let t4;
 	if ($[6] !== event.output.choices) {
-		t4 = event.output.choices.map(_temp$53);
+		t4 = event.output.choices.map(_temp$54);
 		$[6] = event.output.choices;
 		$[7] = t4;
 	} else t4 = $[7];
@@ -99077,7 +99109,7 @@ var withoutToolCallsIn = (message, toolEventIds) => {
 		tool_calls: toolCalls
 	};
 };
-function _temp$53(choice) {
+function _temp$54(choice) {
 	return choice.message;
 }
 function _temp2$38(m) {
@@ -99260,7 +99292,7 @@ var SampleInitEventView = (t0) => {
 			const t3 = `event-${eventNode.id}`;
 			let t4;
 			if ($[8] !== event.sample.files) {
-				t4 = Object.keys(event.sample.files).map(_temp$52);
+				t4 = Object.keys(event.sample.files).map(_temp$53);
 				$[8] = event.sample.files;
 				$[9] = t4;
 			} else t4 = $[9];
@@ -99399,7 +99431,7 @@ var SampleInitEventView = (t0) => {
 	} else t11 = $[42];
 	return t11;
 };
-function _temp$52(file) {
+function _temp$53(file) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("pre", {
 		className: SampleInitEventView_module_default.noMargin,
 		children: file
@@ -99423,7 +99455,7 @@ function _temp3$25(target) {
 var SampleLimitEventView = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(12);
 	const { eventNode, className } = t0;
-	const resolve_title = _temp$51;
+	const resolve_title = _temp$52;
 	const resolve_icon = _temp2$36;
 	const baseTitle = resolve_title(eventNode.event.type);
 	let t1;
@@ -99468,7 +99500,7 @@ var SampleLimitEventView = (t0) => {
 	} else t5 = $[11];
 	return t5;
 };
-function _temp$51(type) {
+function _temp$52(type) {
 	switch (type) {
 		case "custom": return "Custom Limit Exceeded";
 		case "time": return "Time Limit Exceeded";
@@ -100797,7 +100829,7 @@ var CheckDetail = (t0) => {
 		} else t7 = $[29];
 		t8 = scores ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: SentinelEventView_module_default.scoreGrid,
-			children: scores.map(_temp$50)
+			children: scores.map(_temp$51)
 		}) : null;
 		$[8] = effectTone;
 		$[9] = event.stage;
@@ -101149,7 +101181,7 @@ var decisionClass = (decision) => {
 		case "proceed": return SentinelEventView_module_default.proceed;
 	}
 };
-function _temp$50(t0) {
+function _temp$51(t0) {
 	const [dimension, value] = t0;
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: SentinelEventView_module_default.scoreName,
@@ -101181,7 +101213,7 @@ function _temp$50(t0) {
 	const text = t2;
 	let t3;
 	if ($[4] !== childNodes) {
-		t3 = childNodes.map(_temp$49);
+		t3 = childNodes.map(_temp$50);
 		$[4] = childNodes;
 		$[5] = t3;
 	} else t3 = $[5];
@@ -101247,7 +101279,7 @@ var summarize = (children) => {
 	if (children.length === 1) return "1 event";
 	else return `${children.length} events`;
 };
-function _temp$49(child) {
+function _temp$50(child) {
 	return child.id;
 }
 //#endregion
@@ -101304,7 +101336,7 @@ var DiffChildren = (t0) => {
 	} else t2 = $[1];
 	let t3;
 	if ($[2] !== entry.children) {
-		t3 = entry.children.map(_temp$48);
+		t3 = entry.children.map(_temp$49);
 		$[2] = entry.children;
 		$[3] = t3;
 	} else t3 = $[3];
@@ -101448,7 +101480,7 @@ var DiffValue = (t0) => {
 	} else t2 = $[3];
 	return t2;
 };
-function _temp$48(child) {
+function _temp$49(child) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(DiffRow, { child }, child.id);
 }
 var StateEventView_module_default = {
@@ -101703,7 +101735,7 @@ var SubtaskEventView = (t0) => {
 	} else t4 = $[17];
 	let t5;
 	if ($[18] !== childNodes) {
-		t5 = childNodes.map(_temp$47);
+		t5 = childNodes.map(_temp$48);
 		$[18] = childNodes;
 		$[19] = t5;
 	} else t5 = $[19];
@@ -101852,7 +101884,7 @@ var None = () => {
 	} else t0 = $[0];
 	return t0;
 };
-function _temp$47(child) {
+function _temp$48(child) {
 	return child.id;
 }
 function _temp2$35(val, index) {
@@ -106958,7 +106990,7 @@ var isAutoApprove = (node) => node.event.approver === "auto" && node.event.decis
 			$[88] = goToLane;
 			$[89] = t26;
 		} else t26 = $[89];
-		t25 = lanes.filter(_temp$46).map(t26);
+		t25 = lanes.filter(_temp$47).map(t26);
 		$[85] = goToLane;
 		$[86] = lanes;
 		$[87] = t25;
@@ -107090,7 +107122,7 @@ var isAutoApprove = (node) => node.event.approver === "auto" && node.event.decis
 	} else t37 = $[130];
 	return t37;
 }
-function _temp$46(lane_1) {
+function _temp$47(lane_1) {
 	return lane_1.firstAnchorId;
 }
 //#endregion
@@ -108221,7 +108253,7 @@ function useTranscriptTimeline(options) {
 		t7 = () => {
 			const top = viewStack.at(-1);
 			if (!top) return;
-			setViewStack(_temp$45);
+			setViewStack(_temp$46);
 			timelineProps?.onSelect(top.priorSelected);
 		};
 		$[16] = timelineProps;
@@ -108556,7 +108588,7 @@ function _temp3$24(item_0) {
 function _temp2$34(row) {
 	return row.depth === 0 || rowHasEvents(row);
 }
-function _temp$45(s_0) {
+function _temp$46(s_0) {
 	return s_0.slice(0, -1);
 }
 var kBranchKeyPattern$1 = /\/branch-([^/]*)-(\d+)$/;
@@ -108654,7 +108686,7 @@ var AgentCardView = (t0) => {
 		$[2] = t1;
 	} else t1 = $[2];
 	const handleClick = t1;
-	const stopPropagation = _temp$44;
+	const stopPropagation = _temp$45;
 	let t2;
 	if ($[3] !== span) {
 		t2 = getSpanToolResult(span);
@@ -108872,7 +108904,7 @@ var AgentCardView = (t0) => {
 	} else t23 = $[55];
 	return t23;
 };
-function _temp$44(e) {
+function _temp$45(e) {
 	e.stopPropagation();
 }
 var TimelineMinimap_module_default = {
@@ -109385,7 +109417,7 @@ var TimelineSelector = (t0) => {
 	if (!active) return null;
 	let t4;
 	if ($[4] === Symbol.for("react.memo_cache_sentinel")) {
-		t4 = () => setIsOpen(_temp$43);
+		t4 = () => setIsOpen(_temp$44);
 		$[4] = t4;
 	} else t4 = $[4];
 	let t5;
@@ -109450,7 +109482,7 @@ var TimelineSelector = (t0) => {
 	} else t8 = $[17];
 	return t8;
 };
-function _temp$43(prev) {
+function _temp$44(prev) {
 	return !prev;
 }
 var TimelineSwimLanes_module_default = {
@@ -109576,7 +109608,7 @@ var TimelineSwimLanes = (t0) => {
 	let keys_0;
 	if ($[6] !== layouts || $[7] !== parentKeys) {
 		keys_0 = new Set(parentKeys);
-		for (const layout_0 of layouts) if (layout_0.markers.some(_temp$42)) keys_0.add(layout_0.key);
+		for (const layout_0 of layouts) if (layout_0.markers.some(_temp$43)) keys_0.add(layout_0.key);
 		$[6] = layouts;
 		$[7] = parentKeys;
 		$[8] = keys_0;
@@ -110757,7 +110789,7 @@ var MarkerGlyph = (t0) => {
 	} else t6 = $[24];
 	return t6;
 };
-function _temp$42(m) {
+function _temp$43(m) {
 	return m.kind === "branch";
 }
 function _temp2$33(m_0) {
@@ -110957,7 +110989,7 @@ function _temp3$23(l_1) {
 	if ($[18] !== selected) {
 		t8 = {
 			selected,
-			onSelect: _temp$41
+			onSelect: _temp$42
 		};
 		$[18] = selected;
 		$[19] = t8;
@@ -111025,7 +111057,7 @@ function _temp3$23(l_1) {
 	return t14;
 }
 function _temp2$32() {}
-function _temp$41() {}
+function _temp$42() {}
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/hooks/useListPositionManager.ts
 /** Strip `/branch-…` segments so all selections within a branch tree share
@@ -111597,7 +111629,7 @@ function _temp$41() {}
 	const sidebarsRef = useLatestRef(sidebars);
 	let t0;
 	if ($[0] !== sidebars) {
-		t0 = sidebars.map(_temp$40).join("|");
+		t0 = sidebars.map(_temp$41).join("|");
 		$[0] = sidebars;
 		$[1] = t0;
 	} else t0 = $[1];
@@ -111679,7 +111711,7 @@ function _temp$41() {}
 	} else t4 = $[13];
 	(0, import_react.useEffect)(t3, t4);
 }
-function _temp$40(s) {
+function _temp$41(s) {
 	return String(s.remountKey);
 }
 //#endregion
@@ -111765,7 +111797,7 @@ function _temp$40(s) {
 	const timelinesForBranchDetection = useTimelinesArray(eventsForTimeline, serverTimelines);
 	let t2;
 	if ($[5] !== timelinesForBranchDetection) {
-		t2 = timelinesForBranchDetection.some(_temp$39);
+		t2 = timelinesForBranchDetection.some(_temp$40);
 		$[5] = timelinesForBranchDetection;
 		$[6] = t2;
 	} else t2 = $[6];
@@ -111894,7 +111926,7 @@ function _temp$40(s) {
 	} else t11 = $[35];
 	return t11;
 }
-function _temp$39(tl) {
+function _temp$40(tl) {
 	return spanHasBranches(tl.root);
 }
 //#endregion
@@ -113981,7 +114013,7 @@ var TranscriptLayout = (t0) => {
 	const t14 = timelineSelection?.selected ?? null;
 	let t15;
 	if ($[17] !== timelineSelection?.onSelect) {
-		t15 = timelineSelection?.onSelect ?? _temp$38;
+		t15 = timelineSelection?.onSelect ?? _temp$39;
 		$[17] = timelineSelection?.onSelect;
 		$[18] = t15;
 	} else t15 = $[18];
@@ -114604,7 +114636,7 @@ var TranscriptLayout = (t0) => {
 	} else t63 = $[234];
 	return t63;
 };
-function _temp$38() {}
+function _temp$39() {}
 function _temp2$31(a) {
 	return a.spanType === "agent";
 }
@@ -116345,7 +116377,7 @@ var kNoScoreColorScales$1 = Object.freeze({});
 	const evalDefault = useEvalDefaultSamplesView();
 	const view = useResolvedSamplesView();
 	const logFile = useCurrentLogFile();
-	const setSampleListViewAction = useStore(_temp$37);
+	const setSampleListViewAction = useStore(_temp$38);
 	let t1;
 	if ($[2] !== logFile || $[3] !== setSampleListViewAction) {
 		t1 = (next) => {
@@ -116552,7 +116584,7 @@ function _temp3$21(t0) {
 function _temp2$30(c) {
 	return c.id;
 }
-function _temp$37(state) {
+function _temp$38(state) {
 	return state.logsActions.setSampleListView;
 }
 var ScorePanel_module_default = {
@@ -116936,7 +116968,7 @@ function formatPlainValue(v) {
 			$[10] = t2;
 		} else t2 = $[10];
 		const initial = scores.map(t2);
-		const numbers = initial.map(_temp$36).filter(_temp2$29);
+		const numbers = initial.map(_temp$37).filter(_temp2$29);
 		const min = numbers.length ? Math.min(...numbers) : 0;
 		const range = (numbers.length ? Math.max(...numbers) : 0) - min;
 		t1 = initial.map((s_0) => {
@@ -117287,7 +117319,7 @@ function makeCompare(column) {
 		return as.localeCompare(bs, void 0, { numeric: true });
 	};
 }
-function _temp$36(s) {
+function _temp$37(s) {
 	return typeof s.value === "number" ? s.value : null;
 }
 function _temp2$29(v) {
@@ -117373,7 +117405,7 @@ var MetaLine = (t0) => {
 	} else t1 = $[0];
 	let t2;
 	if ($[1] !== items) {
-		t2 = items.map(_temp$35);
+		t2 = items.map(_temp$36);
 		$[1] = items;
 		$[2] = t2;
 	} else t2 = $[2];
@@ -117865,7 +117897,7 @@ var FieldLabel = (t0) => {
 	} else t6 = $[11];
 	return t6;
 };
-function _temp$35(item, idx) {
+function _temp$36(item, idx) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [idx > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: SampleSummaryView_module_default.metaSep,
 		children: "·"
@@ -119020,7 +119052,7 @@ var SampleScannerPicker = (t0) => {
 	const handleChange = t1;
 	let t2;
 	if ($[2] !== scanners) {
-		t2 = scanners.map(_temp$34);
+		t2 = scanners.map(_temp$35);
 		$[2] = scanners;
 		$[3] = t2;
 	} else t2 = $[3];
@@ -119044,7 +119076,7 @@ var SampleScannerPicker = (t0) => {
 	} else t3 = $[7];
 	return t3;
 };
-function _temp$34(scanner) {
+function _temp$35(scanner) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(VscodeOption, {
 		value: scanner,
 		children: scanner
@@ -119344,7 +119376,7 @@ var ScansSidebarPanel_module_default = {
 * `open` mirrors the scans sidebar's visibility — labels are only computed
 * while the sidebar is showing.
 */ function useSampleScans(opts) {
-	const $ = (0, import_compiler_runtime.c)(15);
+	const $ = (0, import_compiler_runtime.c)(18);
 	const { allScores, sampleId, sampleEpoch, open } = opts;
 	let filtered;
 	if ($[0] !== allScores) {
@@ -119364,57 +119396,73 @@ var ScansSidebarPanel_module_default = {
 	} else t0 = $[3];
 	const scanners = t0;
 	const hasScans = scanners.length > 0;
+	let t1;
+	if ($[4] !== scores) {
+		t1 = hasScanResults(scores);
+		$[4] = scores;
+		$[5] = t1;
+	} else t1 = $[5];
+	const hasResults = t1;
 	const [storedSelection, setSelected] = (0, import_react.useState)("");
 	const selected = scanners.includes(storedSelection) ? storedSelection : scanners[0] ?? "";
-	let t1;
-	if ($[4] !== sampleEpoch || $[5] !== sampleId) {
-		t1 = {
+	let t2;
+	if ($[6] !== sampleEpoch || $[7] !== sampleId) {
+		t2 = {
 			sampleId,
 			sampleEpoch
 		};
-		$[4] = sampleEpoch;
-		$[5] = sampleId;
-		$[6] = t1;
-	} else t1 = $[6];
-	const makeCiteUrl = useMakeCiteUrl(t1);
-	let t2;
+		$[6] = sampleEpoch;
+		$[7] = sampleId;
+		$[8] = t2;
+	} else t2 = $[8];
+	const makeCiteUrl = useMakeCiteUrl(t2);
+	let t3;
 	bb0: {
 		if (!open || !hasScans) {
-			t2 = void 0;
+			t3 = void 0;
 			break bb0;
 		}
 		const score_0 = selected ? scores[selected] : void 0;
-		let t3;
-		if ($[7] !== score_0?.metadata) {
+		let t4;
+		if ($[9] !== score_0?.metadata) {
 			const refs = readScannerReferences(score_0?.metadata);
 			const messageLabels = {};
 			for (const r of refs) if (r.type === "message" && r.id && r.cite) messageLabels[r.id] = r.cite;
-			t3 = Object.keys(messageLabels).length > 0 ? { messageLabels } : void 0;
-			$[7] = score_0?.metadata;
-			$[8] = t3;
-		} else t3 = $[8];
-		t2 = t3;
+			t4 = Object.keys(messageLabels).length > 0 ? { messageLabels } : void 0;
+			$[9] = score_0?.metadata;
+			$[10] = t4;
+		} else t4 = $[10];
+		t3 = t4;
 	}
-	const eventNodeContext = t2;
-	let t3;
-	if ($[9] !== eventNodeContext || $[10] !== hasScans || $[11] !== makeCiteUrl || $[12] !== scores || $[13] !== selected) {
-		t3 = {
+	const eventNodeContext = t3;
+	let t4;
+	if ($[11] !== eventNodeContext || $[12] !== hasResults || $[13] !== hasScans || $[14] !== makeCiteUrl || $[15] !== scores || $[16] !== selected) {
+		t4 = {
 			scores,
 			hasScans,
+			hasResults,
 			selected,
 			setSelected,
 			makeCiteUrl,
 			eventNodeContext
 		};
-		$[9] = eventNodeContext;
-		$[10] = hasScans;
-		$[11] = makeCiteUrl;
-		$[12] = scores;
-		$[13] = selected;
-		$[14] = t3;
-	} else t3 = $[14];
-	return t3;
+		$[11] = eventNodeContext;
+		$[12] = hasResults;
+		$[13] = hasScans;
+		$[14] = makeCiteUrl;
+		$[15] = scores;
+		$[16] = selected;
+		$[17] = t4;
+	} else t4 = $[17];
+	return t4;
 }
+/**
+* Whether any scanner produced a result worth showing. A scanner whose value
+* is falsy (no value/NaN, false, 0, "", or an empty list/dict) and that cites
+* nothing found nothing, so on its own isn't worth opening the Scans panel for
+* by default.
+*/ var hasScanResults = (scores) => Object.values(scores).some((score) => !isFalsyValue(score.value) || readScannerReferences(score.metadata).length > 0);
+var isFalsyValue = (value) => Array.isArray(value) ? value.length === 0 : typeof value === "object" ? Object.keys(value).length === 0 : !value;
 //#endregion
 //#region src/app/samples/scores/SampleScores.tsx
 var SampleScores = ({ scores, scorer }) => {
@@ -119613,7 +119661,7 @@ var SampleScoresView = (t0) => {
 		const scoreInput = inputString(sample.input);
 		if (sample.choices && sample.choices.length > 0) {
 			scoreInput.push("");
-			scoreInput.push(...sample.choices.map(_temp$33));
+			scoreInput.push(...sample.choices.map(_temp$34));
 		}
 		if ($[17] !== className) {
 			t7 = clsx("container-fluid", className, "font-size-base");
@@ -119750,60 +119798,507 @@ var SampleScoresView = (t0) => {
 	} else t15 = $[46];
 	return t15;
 };
-function _temp$33(choice, index) {
+function _temp$34(choice, index) {
 	return `${String.fromCharCode(65 + index)}) ${choice}`;
 }
 var StoreTerminalSessions_module_default = {
-	sessions: "_sessions_ezmbx_1",
-	sessionLabel: "_sessionLabel_ezmbx_7"
+	tiles: "_tiles_gwli1_1",
+	tile: "_tile_gwli1_1",
+	tileHeader: "_tileHeader_gwli1_22",
+	tileName: "_tileName_gwli1_31",
+	tilePreview: "_tilePreview_gwli1_38",
+	tilePlay: "_tilePlay_gwli1_45",
+	tileButton: "_tileButton_gwli1_62",
+	overlay: "_overlay_gwli1_75",
+	overlayHeader: "_overlayHeader_gwli1_84",
+	overlayTitleGroup: "_overlayTitleGroup_gwli1_93",
+	overlayTitle: "_overlayTitle_gwli1_93",
+	overlayNote: "_overlayNote_gwli1_105",
+	overlayNoteDetail: "_overlayNoteDetail_gwli1_109",
+	overlayControls: "_overlayControls_gwli1_113",
+	speedGroup: "_speedGroup_gwli1_120",
+	headerButton: "_headerButton_gwli1_124",
+	headerButtonActive: "_headerButtonActive_gwli1_158",
+	closeButton: "_closeButton_gwli1_163",
+	overlayBody: "_overlayBody_gwli1_182"
 };
 //#endregion
 //#region src/app/samples/StoreTerminalSessions.tsx
 var kAsciicastStorePrefix = "asciinema:";
+var kIdleTimeLimit = 2;
+var kIdleNoteMinGap = 30;
+var kPlaybackSpeeds = [
+	1,
+	2,
+	4
+];
 /** Collect the playable asciicast entries from a sample's store. */ var storeCasts = (store) => Object.entries(store).flatMap(([key, value]) => key.startsWith(kAsciicastStorePrefix) && typeof value === "string" ? [{
 	key,
 	name: key.slice(10),
 	cast: value
 }] : []);
-/** Plays each store asciicast, labeled by session name. */ var StoreTerminalSessions = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(8);
+/**
+* Shows each store asciicast as a paused preview tile; clicking a tile opens
+* it full-viewport, scaled to show the whole terminal, and plays it.
+*/ var StoreTerminalSessions = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(20);
 	const { id, casts } = t0;
+	const [expandedKey, setExpandedKey] = (0, import_react.useState)(null);
+	const [speed, setSpeed] = (0, import_react.useState)(1);
+	let expanded;
 	let t1;
-	if ($[0] !== casts || $[1] !== id) {
-		let t2;
-		if ($[3] !== casts.length || $[4] !== id) {
-			t2 = (storeCast) => {
-				const { rows, cols } = castGeometry(storeCast.cast);
-				return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [casts.length > 1 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-					className: clsx(StoreTerminalSessions_module_default.sessionLabel, "text-style-label"),
-					children: storeCast.name
-				}) : void 0, /*#__PURE__*/ (0, import_jsx_runtime.jsx)(AsciinemaPlayer, {
-					id: `${id}-${storeCast.name}`,
-					cast: storeCast.cast,
-					rows,
-					cols,
-					fit: "width"
-				})] }, storeCast.key);
-			};
-			$[3] = casts.length;
-			$[4] = id;
-			$[5] = t2;
-		} else t2 = $[5];
-		t1 = casts.map(t2);
-		$[0] = casts;
-		$[1] = id;
-		$[2] = t1;
-	} else t1 = $[2];
 	let t2;
-	if ($[6] !== t1) {
-		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: StoreTerminalSessions_module_default.sessions,
-			children: t1
+	if ($[0] !== casts || $[1] !== expandedKey || $[2] !== id) {
+		const displayCasts = casts.map(_temp$33);
+		let t3;
+		if ($[6] !== expandedKey) {
+			t3 = (storeCast_0) => storeCast_0.key === expandedKey;
+			$[6] = expandedKey;
+			$[7] = t3;
+		} else t3 = $[7];
+		expanded = displayCasts.find(t3);
+		t1 = StoreTerminalSessions_module_default.tiles;
+		let t4;
+		if ($[8] !== id) {
+			t4 = (storeCast_1) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TerminalTile, {
+				id: `${id}-${storeCast_1.name}`,
+				buttonId: tilePlayButtonId(storeCast_1.key),
+				storeCast: storeCast_1,
+				onOpen: () => setExpandedKey(storeCast_1.key)
+			}, storeCast_1.key);
+			$[8] = id;
+			$[9] = t4;
+		} else t4 = $[9];
+		t2 = displayCasts.map(t4);
+		$[0] = casts;
+		$[1] = expandedKey;
+		$[2] = id;
+		$[3] = expanded;
+		$[4] = t1;
+		$[5] = t2;
+	} else {
+		expanded = $[3];
+		t1 = $[4];
+		t2 = $[5];
+	}
+	let t3;
+	if ($[10] !== t1 || $[11] !== t2) {
+		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t1,
+			children: t2
 		});
-		$[6] = t1;
-		$[7] = t2;
-	} else t2 = $[7];
-	return t2;
+		$[10] = t1;
+		$[11] = t2;
+		$[12] = t3;
+	} else t3 = $[12];
+	let t4;
+	if ($[13] !== expanded || $[14] !== id || $[15] !== speed) {
+		t4 = expanded ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExpandedTerminal, {
+			id: `${id}-${expanded.name}-expanded`,
+			storeCast: expanded,
+			speed,
+			onSpeedChange: setSpeed,
+			onClose: () => {
+				setExpandedKey(null);
+				document.getElementById(tilePlayButtonId(expanded.key))?.focus();
+			}
+		}) : null;
+		$[13] = expanded;
+		$[14] = id;
+		$[15] = speed;
+		$[16] = t4;
+	} else t4 = $[16];
+	let t5;
+	if ($[17] !== t3 || $[18] !== t4) {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [t3, t4] });
+		$[17] = t3;
+		$[18] = t4;
+		$[19] = t5;
+	} else t5 = $[19];
+	return t5;
+};
+var tilePlayButtonId = (key) => `terminal-tile-play-${key}`;
+var TerminalTile = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(42);
+	const { id, buttonId, storeCast, onOpen } = t0;
+	let t1;
+	if ($[0] !== storeCast.cast) {
+		t1 = castGeometry(storeCast.cast);
+		$[0] = storeCast.cast;
+		$[1] = t1;
+	} else t1 = $[1];
+	const { rows, cols } = t1;
+	let duration;
+	let t2;
+	let t3;
+	let t4;
+	let t5;
+	let t6;
+	let t7;
+	if ($[2] !== storeCast.cast || $[3] !== storeCast.name) {
+		duration = castDuration(storeCast.cast, kIdleTimeLimit);
+		const recorded = castDuration(storeCast.cast);
+		t7 = StoreTerminalSessions_module_default.tile;
+		t5 = StoreTerminalSessions_module_default.tileHeader;
+		let t8;
+		if ($[11] === Symbol.for("react.memo_cache_sentinel")) {
+			t8 = clsx(StoreTerminalSessions_module_default.tileName, "text-size-small");
+			$[11] = t8;
+		} else t8 = $[11];
+		if ($[12] !== storeCast.name) {
+			t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+				className: t8,
+				children: storeCast.name
+			});
+			$[12] = storeCast.name;
+			$[13] = t6;
+		} else t6 = $[13];
+		t2 = "text-size-smallest text-style-secondary";
+		t3 = recorded > duration ? `Plays in ${formatTime$1(duration)} (pauses over ${kIdleTimeLimit}s shortened); recorded over ${formatTime$1(recorded)}` : void 0;
+		t4 = duration > 0 ? formatTime$1(duration) : "";
+		$[2] = storeCast.cast;
+		$[3] = storeCast.name;
+		$[4] = duration;
+		$[5] = t2;
+		$[6] = t3;
+		$[7] = t4;
+		$[8] = t5;
+		$[9] = t6;
+		$[10] = t7;
+	} else {
+		duration = $[4];
+		t2 = $[5];
+		t3 = $[6];
+		t4 = $[7];
+		t5 = $[8];
+		t6 = $[9];
+		t7 = $[10];
+	}
+	let t8;
+	if ($[14] !== t2 || $[15] !== t3 || $[16] !== t4) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: t2,
+			title: t3,
+			children: t4
+		});
+		$[14] = t2;
+		$[15] = t3;
+		$[16] = t4;
+		$[17] = t8;
+	} else t8 = $[17];
+	let t9;
+	if ($[18] !== t5 || $[19] !== t6 || $[20] !== t8) {
+		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t5,
+			children: [t6, t8]
+		});
+		$[18] = t5;
+		$[19] = t6;
+		$[20] = t8;
+		$[21] = t9;
+	} else t9 = $[21];
+	const t10 = `npt:${duration}`;
+	let t11;
+	if ($[22] === Symbol.for("react.memo_cache_sentinel")) {
+		t11 = {
+			width: "100%",
+			height: "100%"
+		};
+		$[22] = t11;
+	} else t11 = $[22];
+	let t12;
+	if ($[23] !== cols || $[24] !== id || $[25] !== rows || $[26] !== storeCast.cast || $[27] !== t10) {
+		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(AsciinemaPlayer, {
+			id,
+			cast: storeCast.cast,
+			rows,
+			cols,
+			fit: "both",
+			autoPlay: false,
+			controls: false,
+			idleTimeLimit: kIdleTimeLimit,
+			poster: t10,
+			style: t11
+		});
+		$[23] = cols;
+		$[24] = id;
+		$[25] = rows;
+		$[26] = storeCast.cast;
+		$[27] = t10;
+		$[28] = t12;
+	} else t12 = $[28];
+	let t13;
+	if ($[29] === Symbol.for("react.memo_cache_sentinel")) {
+		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: StoreTerminalSessions_module_default.tilePlay,
+			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "play" })
+		});
+		$[29] = t13;
+	} else t13 = $[29];
+	let t14;
+	if ($[30] !== t12) {
+		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: StoreTerminalSessions_module_default.tilePreview,
+			inert: true,
+			children: [t12, t13]
+		});
+		$[30] = t12;
+		$[31] = t14;
+	} else t14 = $[31];
+	const t15 = `Play terminal ${storeCast.name}`;
+	const t16 = `Play ${storeCast.name}`;
+	let t17;
+	if ($[32] !== buttonId || $[33] !== onOpen || $[34] !== t15 || $[35] !== t16) {
+		t17 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+			id: buttonId,
+			type: "button",
+			className: StoreTerminalSessions_module_default.tileButton,
+			onClick: onOpen,
+			"aria-label": t15,
+			title: t16
+		});
+		$[32] = buttonId;
+		$[33] = onOpen;
+		$[34] = t15;
+		$[35] = t16;
+		$[36] = t17;
+	} else t17 = $[36];
+	let t18;
+	if ($[37] !== t14 || $[38] !== t17 || $[39] !== t7 || $[40] !== t9) {
+		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t7,
+			children: [
+				t9,
+				t14,
+				t17
+			]
+		});
+		$[37] = t14;
+		$[38] = t17;
+		$[39] = t7;
+		$[40] = t9;
+		$[41] = t18;
+	} else t18 = $[41];
+	return t18;
+};
+var ExpandedTerminal = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(42);
+	const { id, storeCast, speed, onSpeedChange, onClose } = t0;
+	let t1;
+	if ($[0] !== storeCast.cast) {
+		t1 = castGeometry(storeCast.cast);
+		$[0] = storeCast.cast;
+		$[1] = t1;
+	} else t1 = $[1];
+	const { rows, cols } = t1;
+	const duration = castDuration(storeCast.cast, kIdleTimeLimit);
+	const recorded = castDuration(storeCast.cast);
+	let t2;
+	if ($[2] !== storeCast.cast) {
+		t2 = castMarkers(storeCast.cast, kIdleTimeLimit, kIdleNoteMinGap);
+		$[2] = storeCast.cast;
+		$[3] = t2;
+	} else t2 = $[3];
+	const markers = t2;
+	const overlayRef = (0, import_react.useRef)(null);
+	let t3;
+	if ($[4] !== onClose) {
+		t3 = (e) => {
+			if (e.key === "Escape") {
+				e.stopPropagation();
+				onClose();
+			} else if (e.key === "Tab" && overlayRef.current) trapFocus(e, overlayRef.current);
+		};
+		$[4] = onClose;
+		$[5] = t3;
+	} else t3 = $[5];
+	let t4;
+	if ($[6] === Symbol.for("react.memo_cache_sentinel")) {
+		t4 = { capture: true };
+		$[6] = t4;
+	} else t4 = $[6];
+	useEventListener(window, "keydown", t3, t4);
+	const t5 = import_react_dom.createPortal;
+	const t6 = StoreTerminalSessions_module_default;
+	const t7 = "dialog";
+	const t8 = "true";
+	const t9 = `Terminal ${storeCast.name}`;
+	const t10 = StoreTerminalSessions_module_default;
+	const t11 = StoreTerminalSessions_module_default;
+	let t12;
+	if ($[7] !== storeCast.name) {
+		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: StoreTerminalSessions_module_default.overlayTitle,
+			children: storeCast.name
+		});
+		$[7] = storeCast.name;
+		$[8] = t12;
+	} else t12 = $[8];
+	const t13 = recorded - duration >= 1 ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+		className: clsx(StoreTerminalSessions_module_default.overlayNote, "text-size-small"),
+		children: [
+			"Recorded over ",
+			formatTime$1(recorded),
+			" ·",
+			" ",
+			/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+				className: StoreTerminalSessions_module_default.overlayNoteDetail,
+				children: [
+					"pauses longer than ",
+					kIdleTimeLimit,
+					"s shortened"
+				]
+			})
+		]
+	}) : null;
+	let t14;
+	if ($[9] !== t11.overlayTitleGroup || $[10] !== t12 || $[11] !== t13) {
+		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: t11.overlayTitleGroup,
+			children: [t12, t13]
+		});
+		$[9] = t11.overlayTitleGroup;
+		$[10] = t12;
+		$[11] = t13;
+		$[12] = t14;
+	} else t14 = $[12];
+	let t15;
+	if ($[13] !== onSpeedChange || $[14] !== speed) {
+		t15 = kPlaybackSpeeds.map((option) => /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+			type: "button",
+			className: clsx(StoreTerminalSessions_module_default.headerButton, speed === option && StoreTerminalSessions_module_default.headerButtonActive),
+			"aria-pressed": speed === option,
+			onClick: () => onSpeedChange(option),
+			children: [option, "×"]
+		}, option));
+		$[13] = onSpeedChange;
+		$[14] = speed;
+		$[15] = t15;
+	} else t15 = $[15];
+	let t16;
+	if ($[16] !== t15) {
+		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: StoreTerminalSessions_module_default.overlayControls,
+			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+				className: StoreTerminalSessions_module_default.speedGroup,
+				role: "group",
+				"aria-label": "Playback speed",
+				children: t15
+			})
+		});
+		$[16] = t15;
+		$[17] = t16;
+	} else t16 = $[17];
+	let t17;
+	if ($[18] === Symbol.for("react.memo_cache_sentinel")) {
+		t17 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "close" });
+		$[18] = t17;
+	} else t17 = $[18];
+	let t18;
+	if ($[19] !== onClose) {
+		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+			type: "button",
+			className: StoreTerminalSessions_module_default.closeButton,
+			onClick: onClose,
+			title: "Close (Esc)",
+			"aria-label": "Close",
+			children: t17
+		});
+		$[19] = onClose;
+		$[20] = t18;
+	} else t18 = $[20];
+	let t19;
+	if ($[21] !== t10.overlayHeader || $[22] !== t14 || $[23] !== t16 || $[24] !== t18) {
+		t19 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t10.overlayHeader,
+			children: [
+				t14,
+				t16,
+				t18
+			]
+		});
+		$[21] = t10.overlayHeader;
+		$[22] = t14;
+		$[23] = t16;
+		$[24] = t18;
+		$[25] = t19;
+	} else t19 = $[25];
+	let t20;
+	if ($[26] === Symbol.for("react.memo_cache_sentinel")) {
+		t20 = {
+			width: "100%",
+			height: "100%"
+		};
+		$[26] = t20;
+	} else t20 = $[26];
+	let t21;
+	if ($[27] !== cols || $[28] !== id || $[29] !== markers || $[30] !== rows || $[31] !== speed || $[32] !== storeCast.cast) {
+		t21 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: StoreTerminalSessions_module_default.overlayBody,
+			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(AsciinemaPlayer, {
+				id,
+				cast: storeCast.cast,
+				rows,
+				cols,
+				fit: "both",
+				autoPlay: true,
+				autoFocus: true,
+				clickToToggle: true,
+				controls: true,
+				idleTimeLimit: kIdleTimeLimit,
+				markers,
+				speed,
+				style: t20
+			})
+		});
+		$[27] = cols;
+		$[28] = id;
+		$[29] = markers;
+		$[30] = rows;
+		$[31] = speed;
+		$[32] = storeCast.cast;
+		$[33] = t21;
+	} else t21 = $[33];
+	let t22;
+	if ($[34] !== t19 || $[35] !== t21 || $[36] !== t6.overlay || $[37] !== t9) {
+		t22 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			ref: overlayRef,
+			className: t6.overlay,
+			role: t7,
+			"aria-modal": t8,
+			"aria-label": t9,
+			children: [t19, t21]
+		});
+		$[34] = t19;
+		$[35] = t21;
+		$[36] = t6.overlay;
+		$[37] = t9;
+		$[38] = t22;
+	} else t22 = $[38];
+	let t23;
+	if ($[39] !== t22 || $[40] !== t5) {
+		t23 = t5(t22, document.body);
+		$[39] = t22;
+		$[40] = t5;
+		$[41] = t23;
+	} else t23 = $[41];
+	return t23;
+};
+var kTabbableSelector = "a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex=\"-1\"])";
+var trapFocus = (e, container) => {
+	const tabbables = Array.from(container.querySelectorAll(kTabbableSelector));
+	const first = tabbables[0];
+	const last = tabbables.at(-1);
+	if (!first || !last) return;
+	const active = document.activeElement;
+	const inside = active instanceof Node && container.contains(active);
+	if (e.shiftKey && (!inside || active === first)) {
+		e.preventDefault();
+		last.focus();
+	} else if (!e.shiftKey && (!inside || active === last)) {
+		e.preventDefault();
+		first.focus();
+	}
 };
 var castGeometry = (cast) => {
 	let rows = 24;
@@ -119822,6 +120317,140 @@ var castGeometry = (cast) => {
 		cols
 	};
 };
+var castDuration = (cast, idleTimeLimit) => {
+	let duration = 0;
+	let previous = 0;
+	for (const line of cast.split("\n").slice(1)) {
+		const time = eventTime(line);
+		if (time === void 0) continue;
+		const gap = Math.max(0, time - previous);
+		duration += idleTimeLimit === void 0 ? gap : Math.min(gap, idleTimeLimit);
+		previous = time;
+	}
+	return duration;
+};
+var kCommandMarkerOffset = .01;
+/**
+* The cast's own markers, placed on the playback timeline (every gap capped
+* at `idleTimeLimit`) for the player's `markers` option. When the cast has
+* command ("send …") markers, only those are kept, labeled by the command, so
+* the scrubber (and [ / ] jumps) step through commands, not screen reads. Each
+* sits just after the first output that follows it: the recorded marker is
+* stamped when the command is sent, before the terminal echoes it, so seeking
+* there would hide the command. Think time of at least `minGap` seconds before
+* a marker is noted on its label.
+*/ var castMarkers = (cast, idleTimeLimit, minGap) => {
+	const markers = [];
+	let pending;
+	const flushPending = (time) => {
+		if (pending) {
+			markers.push([time, pending.label]);
+			pending = void 0;
+		}
+	};
+	const events = cast.split("\n").slice(1).flatMap((line) => parseEvent(line) ?? []);
+	const commandsOnly = events.some((event) => event.type === "m" && sentCommand(event.data) !== void 0);
+	let playback = 0;
+	let previous = 0;
+	for (const event of events) {
+		const gap = Math.max(0, event.time - previous);
+		const idle = gap >= minGap ? `${formatTime$1(gap)} idle` : void 0;
+		playback += Math.min(gap, idleTimeLimit);
+		previous = event.time;
+		if (event.type === "m") {
+			const command = sentCommand(event.data);
+			if (commandsOnly && command === void 0) continue;
+			const label = command !== void 0 ? commandLabel(command) : event.data;
+			flushPending(pending?.time ?? playback);
+			pending = {
+				time: playback,
+				label: idle ? `${label} (after ${idle})` : label
+			};
+		} else if (event.type === "o") flushPending(playback + kCommandMarkerOffset);
+	}
+	flushPending(pending?.time ?? playback);
+	return markers;
+};
+var kInputStyleStart = "\x1B[1;38;2;130;170;255m";
+var kInputStyleEnd = "\x1B[22;39m";
+/**
+* Styles the terminal's echo of each sent command so input stands out from
+* output. The recording has no input events, but each "send …" marker is
+* followed by output whose first line echoes the command (plus `> `
+* continuation lines for a multi-line command). The echo is styled only when
+* it contains the start of the sent command, so output that doesn't echo it
+* (a key press like C-c, a redrawn screen) is left alone.
+*/ var highlightCommandEchoes = (cast) => {
+	const lines = cast.split("\n");
+	let pendingCommand;
+	for (let i = 1; i < lines.length; i++) {
+		const event = parseEvent(lines[i] ?? "");
+		if (event === void 0) continue;
+		if (event.type === "m") pendingCommand = sentCommand(event.data) ?? pendingCommand;
+		else if (event.type === "o" && pendingCommand !== void 0) {
+			const styled = styleCommandEcho(event.data, pendingCommand);
+			pendingCommand = void 0;
+			if (styled !== event.data) lines[i] = JSON.stringify([
+				event.time,
+				event.type,
+				styled
+			]);
+		}
+	}
+	return lines.join("\n");
+};
+var styleCommandEcho = (output, command) => {
+	if (endsInsideEscape(output)) return output;
+	const probe = (command.split("\n")[0] ?? "").trim().slice(0, 20);
+	const firstEnd = lineEnd(output, 0);
+	if (!probe || !stripAnsi(output.slice(0, firstEnd)).includes(probe)) return output;
+	let styled = styleInput(output.slice(0, firstEnd));
+	let pos = firstEnd;
+	if (command.trimEnd().includes("\n")) while (output.startsWith("\r\n> ", pos)) {
+		const end = lineEnd(output, pos + 2);
+		styled += "\r\n" + styleInput(output.slice(pos + 2, end));
+		pos = end;
+	}
+	return styled + output.slice(pos);
+};
+var endsInsideEscape = (text) => {
+	const lastEscape = text.lastIndexOf("\x1B");
+	return lastEscape !== -1 && stripAnsi(text.slice(lastEscape)).startsWith("\x1B");
+};
+var styleInput = (text) => `${kInputStyleStart}${text}${kInputStyleEnd}`;
+var lineEnd = (text, from) => {
+	const end = text.indexOf("\r\n", from);
+	return end === -1 ? text.length : end;
+};
+var sentCommand = (label) => {
+	const match = /^send [^:]+: (['"])([\s\S]*)$/.exec(label);
+	if (!match) return void 0;
+	const [, quote = "", body = ""] = match;
+	return (body.endsWith(quote) ? body.slice(0, -quote.length) : body).replace(/\\(.)/g, (_, c) => c === "n" ? "\n" : c === "t" ? "	" : c);
+};
+var commandLabel = (command) => {
+	const lines = command.trimEnd().split("\n");
+	const first = (lines[0] ?? "").trim();
+	return lines.length > 1 ? `${first} …` : first;
+};
+var eventTime = (line) => parseEvent(line)?.time;
+var parseEvent = (line) => {
+	if (!line.trim()) return void 0;
+	try {
+		const event = JSON.parse(line);
+		if (Array.isArray(event) && typeof event[0] === "number" && typeof event[1] === "string") return {
+			time: event[0],
+			type: event[1],
+			data: typeof event[2] === "string" ? event[2] : ""
+		};
+	} catch {}
+};
+function _temp$33(storeCast) {
+	return {
+		...storeCast,
+		cast: highlightCommandEchoes(storeCast.cast)
+	};
+}
 //#endregion
 //#region src/app/samples/transcript/chunked/ChunkedRowView.tsx
 /** Stable row identity: event uuid when present, else the sequence ordinal. */ var rowNodeId = (row) => {
@@ -121475,7 +122104,8 @@ var kNoMessageRows = [];
 	useUnmount(() => {
 		clearSampleTab();
 	});
-	const effectiveSelectedTab = sampleTabId || selectedTab;
+	const routedTab = sampleTabId || selectedTab;
+	const effectiveSelectedTab = routedTab ? sampleTabAlias(routedTab) : routedTab;
 	const sampleHandle = useCurrentSampleHandle();
 	const defaultExcludeEvents = (0, import_react.useMemo)(() => dynamicDefaultExcludeEvents(sampleEvents), [sampleEvents]);
 	const messagesTabOpen = effectiveSelectedTab === kSampleMessagesTabId;
@@ -121516,6 +122146,7 @@ var kNoMessageRows = [];
 		getMessageUrl
 	}), [getMessageUrl]);
 	const chatTools = (0, import_react.useMemo)(() => ({ callStyle: kDefaultMessageRowOptions.toolCallStyle }), []);
+	const terminalSessions = sample ? storeCasts(sample.store) : [];
 	const sampleUsages = usageViewsForSample(`${baseId}-${id}`, sample, evalSpec);
 	const sampleMetadatas = metadataViewsForSample(`${baseId}-${id}`, scrollRef, sample);
 	const tabsetId = `task-sample-details-tab-${id}`;
@@ -121611,7 +122242,7 @@ var kNoMessageRows = [];
 		sampleEpoch: sample?.epoch ?? void 0,
 		open: storedDock === void 0 || storedDock === "scans"
 	});
-	const rightDock = storedDock ?? (scans.hasScans ? "scans" : "none");
+	const rightDock = storedDock ?? (scans.hasResults ? "scans" : "none");
 	const setRightDock = (0, import_react.useCallback)((value_0) => setPropertyValue("rail-dock", dockKey, value_0), [setPropertyValue, dockKey]);
 	const searchScope = effectiveSelectedTab === kSampleTranscriptTabId ? "events" : effectiveSelectedTab === kSampleMessagesTabId ? "messages" : void 0;
 	const searchContext = useInspectSearchContext(sample);
@@ -121650,7 +122281,8 @@ var kNoMessageRows = [];
 			label: isCollapsed(collapsedMode) ? "Expand" : "Collapse",
 			icon: isCollapsed(collapsedMode) ? "expandAll" : "collapseAll",
 			onClick: toggleCollapsedMode,
-			subtle: true
+			subtle: true,
+			collapseLabel: true
 		}, "sample-collapse-transcript"));
 	}
 	tools.push(/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolButton, {
@@ -121659,17 +122291,22 @@ var kNoMessageRows = [];
 		onClick: toggleDisplayMode,
 		ref: optionsRef,
 		latched: displayMode === "raw",
-		subtle: true
+		subtle: true,
+		collapseLabel: true
 	}, "options-button"));
 	tools.push(/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: SampleDisplay_module_default.toolSeparator,
 		"aria-hidden": "true"
 	}, "actions-separator"));
-	if (evidence.tool) tools.push(/*#__PURE__*/ (0, import_jsx_runtime.jsx)(SelectTool, { ...evidence.tool }, "sample-select"));
+	if (evidence.tool) tools.push(/*#__PURE__*/ (0, import_jsx_runtime.jsx)(SelectTool, {
+		...evidence.tool,
+		collapseLabel: true
+	}, "sample-select"));
 	tools.push(/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolDropdownButton, {
 		label: "Copy",
 		icon,
 		subtle: true,
+		collapseLabel: true,
 		dropdownClassName: "text-size-smallest",
 		heading: selected?.menu.heading,
 		footer: selected?.menu.footer,
@@ -121696,6 +122333,7 @@ var kNoMessageRows = [];
 			label: "Download",
 			icon: "download",
 			subtle: true,
+			collapseLabel: true,
 			dropdownClassName: "text-size-smallest",
 			heading: selected?.menu.heading,
 			footer: selected?.menu.footer,
@@ -121721,9 +122359,10 @@ var kNoMessageRows = [];
 	if (!isVscode() && printLogPath && printSampleId && printEpoch) tools.push(/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolButton, {
 		label: selected ? `Print · ${selected.count}` : "Print",
 		title: selected ? `Print ${selected.count} selected ${selected.item}${selected.count === 1 ? "" : "s"}` : void 0,
-		icon: "copy",
+		icon: "print",
 		onClick: handlePrintClick,
-		subtle: true
+		subtle: true,
+		collapseLabel: true
 	}, "sample-print-tool"));
 	const scrollToTopOnFinish = !sample?.error && !selectedSampleSummary?.error && logDetails?.status !== "error" && logDetails?.status !== "cancelled";
 	const displayModeContext = (0, import_react.useMemo)(() => ({ displayMode: displayMode ?? "rendered" }), [displayMode]);
@@ -121915,6 +122554,21 @@ var kNoMessageRows = [];
 								}, chatListId)
 							})
 						}, kSampleMessagesTabId),
+						terminalSessions.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TabPanel, {
+							id: kSampleTerminalsTabId,
+							className: "sample-tab",
+							title: "Terminals",
+							onSelected: onSelectedTab,
+							href: sampleTabHref(kSampleTerminalsTabId),
+							selected: effectiveSelectedTab === kSampleTerminalsTabId,
+							children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+								className: clsx(SampleDisplay_module_default.padded, SampleDisplay_module_default.fullWidth),
+								children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(StoreTerminalSessions, {
+									id: `${baseId}-${id}-terminal-sessions`,
+									casts: terminalSessions
+								})
+							})
+						}, kSampleTerminalsTabId) : null,
 						/*#__PURE__*/ (0, import_jsx_runtime.jsx)(TabPanel, {
 							id: kSampleScoringTabId,
 							className: "sample-tab",
@@ -121950,29 +122604,17 @@ var kNoMessageRows = [];
 								})
 							})
 						}, kSampleActivityTabId) : null,
-						sampleUsages.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TabPanel, {
-							id: kSampleUsageTabId,
-							className: clsx("sample-tab"),
-							title: "Usage",
-							onSelected: onSelectedTab,
-							href: sampleTabHref(kSampleUsageTabId),
-							selected: effectiveSelectedTab === kSampleUsageTabId,
-							children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-								className: clsx(SampleDisplay_module_default.padded, SampleDisplay_module_default.fullWidth, SampleDisplay_module_default.metadataPanel),
-								children: sampleUsages
-							})
-						}) : null,
 						/*#__PURE__*/ (0, import_jsx_runtime.jsx)(TabPanel, {
-							id: kSampleMetdataTabId,
+							id: kSampleInfoTabId,
 							className: clsx("sample-tab"),
-							title: "Metadata",
+							title: "Info",
 							onSelected: onSelectedTab,
-							href: sampleTabHref(kSampleMetdataTabId),
-							selected: effectiveSelectedTab === kSampleMetdataTabId,
-							children: sampleMetadatas.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+							href: sampleTabHref(kSampleInfoTabId),
+							selected: effectiveSelectedTab === kSampleInfoTabId,
+							children: sampleUsages.length > 0 || sampleMetadatas.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 								className: clsx(SampleDisplay_module_default.padded, SampleDisplay_module_default.fullWidth, SampleDisplay_module_default.metadataPanel),
-								children: sampleMetadatas
-							}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(NoContentsPanel, { text: "No sample metadata available" })
+								children: [sampleUsages, sampleMetadatas]
+							}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(NoContentsPanel, { text: "No sample usage or metadata available" })
 						}),
 						sample?.error && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TabPanel, {
 							id: kSampleErrorTabId,
@@ -122280,12 +122922,7 @@ var metadataViewsForSample = (id, scrollRef, sample) => {
 			copyButton: true
 		})
 	})] }, `sample-metadata-${id}`));
-	const terminalSessions = storeCasts(sample.store);
-	if (terminalSessions.length > 0) sampleMetadatas.push(/*#__PURE__*/ (0, import_jsx_runtime.jsxs)(Card$1, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardHeader, { label: "Terminal Sessions" }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardBody, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(StoreTerminalSessions, {
-		id: `task-sample-terminal-sessions-${id}`,
-		casts: terminalSessions
-	}) })] }, `sample-terminal-sessions-${id}`));
-	const castKeys = new Set(terminalSessions.map((session) => session.key));
+	const castKeys = new Set(storeCasts(sample.store).map((cast) => cast.key));
 	const storeRecord = Object.fromEntries(Object.entries(sample.store).filter(([key]) => !castKeys.has(key)));
 	if (Object.keys(storeRecord).length > 0) sampleMetadatas.push(/*#__PURE__*/ (0, import_jsx_runtime.jsxs)(Card$1, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardHeader, { label: "Store" }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardBody, {
 		padded: false,
@@ -156405,7 +157042,7 @@ var SamplePrintView_module_default = {
 	const [searchParams] = useSearchParams();
 	let t0;
 	if ($[0] !== searchParams) {
-		t0 = searchParams.get("view") ?? kSampleTranscriptTabId;
+		t0 = sampleTabAlias(searchParams.get("view") ?? kSampleTranscriptTabId);
 		$[0] = searchParams;
 		$[1] = t0;
 	} else t0 = $[1];
@@ -156621,7 +157258,7 @@ var SamplePrintView_module_default = {
 	} else t16 = $[50];
 	let t17;
 	if ($[51] !== sample || $[52] !== view) {
-		t17 = view === kSampleMetdataTabId && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(PrintMetadata, { sample });
+		t17 = view === kSampleInfoTabId && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(PrintMetadata, { sample });
 		$[51] = sample;
 		$[52] = view;
 		$[53] = t17;

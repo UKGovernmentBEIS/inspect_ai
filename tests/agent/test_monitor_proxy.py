@@ -2,8 +2,9 @@
 
 import contextlib
 import json
+import traceback
 from collections.abc import Callable, Iterator
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, NoReturn
 from unittest.mock import AsyncMock
 
 import anyio
@@ -189,3 +190,28 @@ async def test_bridge_user_can_opt_in_to_proxy_poll_recovery(
     with anyio.fail_after(20):
         async with sandbox_agent_bridge(poll_timeout_recovery=60):
             await answered.wait()
+
+
+def _raise_wrapped() -> NoReturn:
+    raise RuntimeError("wrapped")
+
+
+async def test_bridge_error_keeps_its_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An error raised in the bridge's body keeps its own context."""
+    _use_proxy_sandbox(monkeypatch, lambda timeout: _running_poll())
+
+    with pytest.raises(RuntimeError, match="wrapped") as excinfo:
+        with anyio.fail_after(20):
+            async with sandbox_agent_bridge():
+                try:
+                    raise ValueError("context")
+                except ValueError:
+                    _raise_wrapped()
+    error = excinfo.value
+    assert repr(error.__context__) == "ValueError('context')"
+    assert not error.__suppress_context__
+    text = "".join(traceback.format_exception(error))
+    assert "Exception Group Traceback" not in text
+    assert text.count("RuntimeError: wrapped") == 1

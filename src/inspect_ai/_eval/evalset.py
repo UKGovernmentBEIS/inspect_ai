@@ -1573,19 +1573,24 @@ def _recover_crashed_log(
         try:
             try:
                 # the buffer stays as a safety net while resolved samples
-                # re-run; a finalized recovery is the final log, so sweep it
+                # re-run; a finalized recovery is the final log, so sweep it.
+                # Metrics the log can't rebuild untrusted leave it without
+                # results (its samples re-run) rather than failing the set
                 recovered = recover_eval_log(
                     eval_log.location,
                     cleanup="finalized",
                     incomplete_action=incomplete_action,
                     incomplete_max=incomplete_max,
+                    _untrusted_metrics="warn",
                 )
             except RecoveryThresholdExceeded as ex:
                 logger.warning(
                     f"Recovery for {eval_log.location} exceeded incomplete_max; "
                     f"falling back to recover-and-retry: {ex}"
                 )
-                recovered = recover_eval_log(eval_log.location, cleanup=False)
+                recovered = recover_eval_log(
+                    eval_log.location, cleanup=False, _untrusted_metrics="warn"
+                )
             if recovered.location:
                 log_info = log_info.model_copy(update={"name": recovered.location})
             eval_log = recovered
