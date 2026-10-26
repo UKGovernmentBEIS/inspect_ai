@@ -46,8 +46,10 @@ What this defends against:
 
 Residual risks, explicitly out of scope:
 
-- Compromise of the releasing maintainer's build machine. The digests pin
-  what the maintainer built, wherever it came from.
+- Compromise of the CI build or publish pipeline. The digests pin the bytes
+  built and attested by `sandbox-tools-build.yml` and published through
+  `sandbox-tools-publish.yml`; a compromise of that pipeline or of GitHub
+  Actions is out of scope.
 - Malicious commits that merge. The anchor is merge rights.
 - PyInstaller builds are not reproducible, so third parties cannot rebuild
   and compare. The digest binds "the bytes validated by `validate_distros`

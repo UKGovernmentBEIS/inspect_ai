@@ -122,6 +122,85 @@ the calling workflow, so `release.yml` and `npm-publish.yml` each need an npm
 publisher. The `pypi` and `npm` environments must allow deployments from
 `main` (release.yml) and from version tags (break-glass).
 
+## Sandbox tools S3 publishing
+
+The `inspect-sandbox-tools` injectable binaries are published to S3 by
+`.github/workflows/sandbox-tools-publish.yml`, not by a maintainer's machine.
+That workflow is the only path that holds AWS credentials. It assumes an IAM
+role through GitHub's OIDC provider, in its last step, behind the
+`sandbox-tools-s3` environment. The release flow is in
+`src/inspect_sandbox_tools/design/RELEASING.md`; the AWS and GitHub setup is
+recorded here, like the PyPI and npm trusted publishers above.
+
+This setup is done once by an admin. Replace `<AWS_ACCOUNT_ID_PLACEHOLDER>`
+with the real account id in the policies below and in the `role-to-assume` arn
+in the workflow.
+
+### OIDC provider
+
+Add the GitHub Actions OIDC provider to the account:
+`token.actions.githubusercontent.com`, audience `sts.amazonaws.com`.
+
+### Role
+
+`inspect-sandbox-tools-upload`, max session duration 1 hour. Its
+trust policy allows `sts:AssumeRoleWithWebIdentity` only from this repo's
+`sandbox-tools-s3` environment (`StringEquals` on `sub`, not `StringLike`, so
+no wildcard):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::<AWS_ACCOUNT_ID_PLACEHOLDER>:oidc-provider/token.actions.githubusercontent.com"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+          "token.actions.githubusercontent.com:sub": "repo:UKGovernmentBEIS/inspect_ai:environment:sandbox-tools-s3"
+        }
+      }
+    }
+  ]
+}
+```
+
+### Permission policy
+
+Only `PutObject`/`PutObjectAcl`, only on the artifact
+key prefix, and only when the put carries an `If-None-Match` header (the
+`Null` condition requires the key to be present), so the role can never
+overwrite a published object. No Get, List, or Delete:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:PutObjectAcl"],
+      "Resource": "arn:aws:s3:::inspect-sandbox-tools/inspect-sandbox-tools-*",
+      "Condition": {
+        "Null": {
+          "s3:if-none-match": "false"
+        }
+      }
+    }
+  ]
+}
+```
+
+### GitHub environment
+
+`sandbox-tools-s3`, with required reviewers jjallaire,
+dragonstyle and epatey, and the deployment branch rule limited to `main`. Each
+publish run waits for one of those reviewers to approve it before the role is
+assumed.
+
 ## Minor or major release
 
 `"versioning": "always-bump-patch"` makes every release a patch, including
