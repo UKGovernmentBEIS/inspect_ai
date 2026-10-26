@@ -287,8 +287,9 @@ collect recordings for an explicit human user: collection warns and omits the
 logs, and callers can disable recording with `record_session=False`. Falling
 back to a userless read would let a less privileged human redirect a log path
 to a file readable only by the provider's more privileged reader. Skill
-installation retains its existing default-user writes followed by ownership
-and mode changes.
+installation's default-user writes followed by privileged ownership and mode
+changes remain a known pre-existing gap: an agent-controlled destination can
+redirect these operations through symlinks. That gap needs a separate fix.
 
 Docker runs system `tar` inside the container, following symlinks without
 recursing into directories. The bounded archive reader rejects anything

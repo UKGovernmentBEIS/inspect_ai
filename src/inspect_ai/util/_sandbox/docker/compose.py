@@ -27,7 +27,7 @@ from inspect_ai.util._subprocess import (
 )
 
 from .config import is_auto_compose_file
-from .failure import raise_for_unsupported_user
+from .failure import classify_exec_failure, raise_for_unsupported_user
 from .mounts import validate_compose_mounts
 from .prereqs import (
     DOCKER_COMPOSE_REQUIRED_VERSION_PULL_POLICY,
@@ -185,6 +185,9 @@ async def compose_read_archive(
                 "Docker read_file could not execute its required tools "
                 f"(/usr/bin/timeout, /bin/sh and tar): {diagnostic}"
             )
+        failure = classify_exec_failure(result, wrapper=None)
+        if failure is not None:
+            raise failure
         raise RuntimeError(f"Failed to read file '{file}': {stderr}")
     return result.stdout
 

@@ -84,7 +84,7 @@ _WRAPPER_QUOTED = re.compile(r"[‘']([^’']*)[’']:")
 
 
 def classify_exec_failure(
-    result: ExecResult[str], *, wrapper: InjectedWrapper | None
+    result: ExecResult[str] | ExecResult[bytes], *, wrapper: InjectedWrapper | None
 ) -> Exception | None:
     """Classify a `docker compose exec` result that did not succeed.
 
@@ -112,6 +112,8 @@ def classify_exec_failure(
         return None
 
     output = stdout or stderr
+    if isinstance(output, bytes):
+        output = output.decode(errors="replace")
     if not output:
         return None
 

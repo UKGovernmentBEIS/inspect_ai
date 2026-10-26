@@ -328,6 +328,62 @@ async def test_read_file_preserves_execution_machinery_errors(
     assert (stderr or stdout).decode().strip() in str(ex.value)
 
 
+@pytest.mark.parametrize("user", [None, "agent"])
+async def test_read_file_command_preserves_user_and_archive_options(
+    user: str | None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    command_mock = AsyncMock(
+        return_value=ExecResult(
+            success=True,
+            returncode=0,
+            stdout=_archive(("source", tarfile.REGTYPE, b"contents")),
+            stderr=b"",
+        )
+    )
+    monkeypatch.setattr(compose_module, "compose_command", command_mock)
+    file = "/tmp/source with 'quotes'\nand spaces"
+
+    assert await _environment().read_file(file, user=user) == "contents"
+
+    command_mock.assert_awaited_once()
+    assert command_mock.await_args is not None
+    command = command_mock.await_args.args[0]
+    options = command[: command.index("default")]
+    assert options[0] == "exec"
+    assert "-T" in options
+    assert options[options.index("--workdir") + 1] == "/"
+    for setting in ("LC_ALL=C", "TAR_OPTIONS="):
+        assert options[options.index(setting) - 1] == "--env"
+    if user is None:
+        assert "--user" not in options
+    else:
+        assert options[options.index("--user") + 1] == user
+    assert command[-6:] == ["tar", "-chf", "-", "--no-recursion", "--", file]
+    assert command_mock.await_args.kwargs["text"] is False
+
+
+@pytest.mark.parametrize("stream", ["stdout", "stderr"])
+async def test_read_file_reports_stopped_container_as_unavailable(
+    stream: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    diagnostic = b'service "no such file or directory" is not running\r\n'
+    monkeypatch.setattr(
+        compose_module,
+        "compose_command",
+        AsyncMock(
+            return_value=ExecResult(
+                success=False,
+                returncode=1,
+                stdout=diagnostic if stream == "stdout" else b"",
+                stderr=diagnostic if stream == "stderr" else b"",
+            )
+        ),
+    )
+
+    with pytest.raises(SandboxUnavailableError, match="not running"):
+        await _environment().read_file("source")
+
+
 @pytest.mark.parametrize(
     "stderr,expected",
     [
@@ -503,6 +559,22 @@ async def docker_environment(
         await DockerSandboxEnvironment.task_cleanup(
             task_name=task_name, config=config, cleanup=True
         )
+
+
+@pytest.mark.slow
+@skip_if_no_docker
+async def test_docker_read_file_reports_stopped_container_as_unavailable(
+    docker_environment: DockerSandboxEnvironment,
+) -> None:
+    env = docker_environment
+    await env.write_file("/tmp/recording", "contents")
+    result = await compose_module.compose_command(
+        ["stop", env._service], project=env._project, timeout=60
+    )
+    assert result.success, result.stderr
+
+    with pytest.raises(SandboxUnavailableError, match="not running"):
+        await env.read_file("/tmp/recording")
 
 
 @pytest.mark.slow

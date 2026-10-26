@@ -7,7 +7,7 @@ from typing import Awaitable, Callable, Literal
 from pydantic import JsonValue
 
 from inspect_ai._util.ansi import render_text
-from inspect_ai.util._sandbox import sandbox
+from inspect_ai.util._sandbox import SandboxUserUnsupportedError, sandbox
 from inspect_ai.util._sandbox._privileged import privileged_exec
 
 from ..install import RECORD_SESSION_DIR
@@ -28,11 +28,14 @@ class SessionEndCommand(HumanAgentCommand):
         return 1
 
     async def _read_session_logs(self) -> dict[str, str]:
-        # retreive session logs (don't fail)
         sessions_dir = PurePosixPath(RECORD_SESSION_DIR)
-        result = await privileged_exec(
-            sandbox(), ["ls", "-1", sessions_dir.as_posix()], user=self._user
-        )
+        try:
+            result = await privileged_exec(
+                sandbox(), ["ls", "-1", sessions_dir.as_posix()], user=self._user
+            )
+        except Exception as ex:
+            logger.warning(f"Error listing human agent session logs: {ex}")
+            return {}
         if not result.success:
             logger.warning(f"Error listing human agent session logs: {result.stderr}")
             return {}
@@ -46,6 +49,8 @@ class SessionEndCommand(HumanAgentCommand):
                 )
             except Exception as ex:
                 logger.warning(f"Error reading human agent session log: {ex}")
+                if isinstance(ex, SandboxUserUnsupportedError):
+                    break
 
         return session_logs
 

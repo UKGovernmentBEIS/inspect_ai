@@ -122,6 +122,9 @@ execution user. Docker reads previously used privileged copies that could
 bypass that user's permissions; callers that intentionally need privileged
 reads must now pass `user="root"`.
 
+Reads follow kernel permissions, so root can normally read files with no read
+bits (mode `000`). The previous owner-read-bit check no longer applies.
+
 If a root-default container runs agent tools as a different user, specify that
 same user when reading or writing on the agent's behalf. Inspect cannot infer
 it from the tool configuration. Providers that cannot enforce an explicit user
