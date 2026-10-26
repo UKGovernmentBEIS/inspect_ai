@@ -1062,7 +1062,7 @@ def _process_span_as_content(
 class _Fingerprint(NamedTuple):
     """A message as continuity matches it: its role, a hash of its text and the tool calls it makes, by id and function.
 
-    Message ids do not survive a scaffold's round trip, so messages are matched by role and text, as the agent bridge matches them; tool call ids do, since a provider needs them to pair results with calls, and they tell apart turns that make calls with no text.
+    Message ids do not survive a scaffold's round trip, so messages are matched by role and text, as the agent bridge matches them; tool call ids do, since a provider needs them to pair results with calls, and they tell apart turns that make calls with no text (fixture ``continuity_tool_call_ids``). So, unlike the bridge and the design's role and text, a scaffold that sends a tool call back under a new id does not continue the turn that made it (``continuity_renamed_tool_call_id``).
     """
 
     role: str
