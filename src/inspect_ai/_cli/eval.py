@@ -52,6 +52,7 @@ from inspect_ai.log._log import EvalConfig, EvalLog
 from inspect_ai.model import GenerateConfig, GenerateConfigArgs, Model
 from inspect_ai.model._generate_config import (  # noqa: F811
     ResponseSchema,
+    generate_config_dict,
 )
 from inspect_ai.model._model_config import ModelConfig, model_config_to_model
 from inspect_ai.scorer._reducer import create_reducers
@@ -1773,12 +1774,12 @@ class RunConfigInput(BaseModel):
                     params["model_base_url"] = self.model.base_url
                 if self.model.args:
                     params["model_args"] = self.model.args
-                model_gc = self.model.config.model_dump(exclude_none=True)
+                model_gc = generate_config_dict(self.model.config)
                 if model_gc:
                     params.update(model_gc)
 
         # Top-level generate_config overrides any model-level config
-        top_gc = self.generate_config.model_dump(exclude_none=True)
+        top_gc = generate_config_dict(self.generate_config)
         if top_gc:
             params.update(top_gc)
 
