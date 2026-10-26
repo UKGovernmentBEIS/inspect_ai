@@ -454,6 +454,19 @@ class Recorder(abc.ABC):
     ) -> list[EvalSampleSummary]: ...
 
     @classmethod
+    @abc.abstractmethod
+    async def read_log_reductions(
+        cls, location: str
+    ) -> list[EvalSampleReductions] | None:
+        """Read a log's sample reductions.
+
+        A header-only `read_log` is not guaranteed to include reductions (the
+        .json format stores them after the samples), so code that rebuilds a
+        log from its header and streamed samples reads them with this.
+        """
+        ...
+
+    @classmethod
     async def read_log_sample_ids(cls, location: str) -> list[tuple[str | int, int]]:
         return sorted(
             (
