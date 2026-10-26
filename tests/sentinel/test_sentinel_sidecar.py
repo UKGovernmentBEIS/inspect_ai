@@ -10,10 +10,10 @@ from inspect_ai._sentinel._sidecar._endpoint import (
     probe,
     proxy_client,
 )
-from inspect_ai._sentinel._sidecar._task import TaskSidecars
+from inspect_ai._sentinel._sidecar._task import SampleFacts, TaskFacts, TaskSidecars
 from inspect_ai._util._async import tg_collect
 from inspect_ai.dataset import Sample
-from inspect_ai.model import Model, get_model
+from inspect_ai.model import ChatMessageUser, Model, get_model
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 
 _MODELS = {
@@ -134,14 +134,14 @@ async def test_a_sidecar_inspect_cant_work_with_is_an_error(
 
 
 async def test_a_task_that_requires_a_sidecar_fails_without_one() -> None:
-    sidecars = TaskSidecars("required")
+    sidecars = TaskSidecars("required", _FACTS)
 
     with pytest.raises(SentinelProxyError, match="has no sidecar"):
         await sidecars.start(_model(StandInSidecar(info=None)))
 
 
 async def test_a_task_that_requires_a_sidecar_fails_for_a_model_never_probed() -> None:
-    sidecars = TaskSidecars("required")
+    sidecars = TaskSidecars("required", _FACTS)
 
     with pytest.raises(SentinelProxyError, match="base URL was not set"):
         await sidecars.start(_model(StandInSidecar(), base_url=None))
@@ -150,7 +150,7 @@ async def test_a_task_that_requires_a_sidecar_fails_for_a_model_never_probed() -
 async def test_an_endpoint_is_probed_once_for_samples_asking_at_once() -> None:
     stand_in = StandInSidecar()
     model = _model(stand_in)
-    sidecars = TaskSidecars("auto")
+    sidecars = TaskSidecars("auto", _FACTS)
 
     found = await tg_collect([lambda: sidecars.sidecar(model.api)] * 5)
 
@@ -205,3 +205,129 @@ def test_an_eval_told_not_to_look_never_probes() -> None:
 
     assert log.status == "success"
     assert stand_in.probes == []
+
+
+def _registered(stand_in: StandInSidecar, method: str) -> list[dict[str, Any]]:
+    return [call["params"] for call in stand_in.calls if call["method"] == method]
+
+
+def test_an_eval_registers_its_task_with_the_sidecar_it_finds() -> None:
+    stand_in = StandInSidecar()
+    task = Task(
+        dataset=[Sample(input="Hi.", id="a"), Sample(input="Bye.", id="b")],
+        solver=_nothing(),
+        metadata={"desk": "weather"},
+        name="weather_desk",
+    )
+
+    [log] = eval(task, model=_model(stand_in), sample_id="a", epochs=2, display="none")
+
+    assert log.status == "success"
+    # the selected samples' ids and the epochs, and no sample's facts, which
+    # are sent before each sample runs
+    assert _registered(stand_in, "register_task") == [
+        {
+            "eval_id": log.eval.eval_id,
+            "task": "weather_desk",
+            "task_description": None,
+            "metadata": {"desk": "weather"},
+            "sample_ids": ["a"],
+            "epochs": 2,
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    ("error", "says"),
+    [
+        (
+            {"code": -32001, "message": "no runtime registration"},
+            "runs only the tasks its admin registered",
+        ),
+        (
+            {"code": -32008, "message": "already keeps the 1000 tasks"},
+            "couldn't register the task",
+        ),
+    ],
+    ids=["refused", "full"],
+)
+def test_a_task_the_sidecar_wont_register_fails(
+    error: dict[str, Any], says: str
+) -> None:
+    stand_in = StandInSidecar(methods={"register_task": lambda _: {"error": error}})
+
+    [log] = eval(_task(), model=_model(stand_in), display="none")
+
+    assert log.status == "error"
+    assert log.error is not None
+    assert says in log.error.message
+    # under `auto` too: a sidecar was found, so the task needs it
+    assert log.eval.config.sentinel_proxy is None
+
+
+def _sample(sample_id: str | int = 1) -> SampleFacts:
+    return SampleFacts(
+        sample_id=sample_id,
+        sample_description="A rainy day.",
+        sample_input=[ChatMessageUser(content="File the report.")],
+        metadata={"city": "Philadelphia"},
+    )
+
+
+_FACTS = TaskFacts(
+    eval_id="eval_789",
+    task="weather_desk",
+    task_description=None,
+    metadata={},
+    sample_ids=[1],
+    epochs=2,
+)
+
+
+async def test_a_samples_registration_is_completed_once_for_all_its_epochs() -> None:
+    stand_in = StandInSidecar()
+    sidecars = TaskSidecars("auto", _FACTS)
+    sidecar = await sidecars.sidecar(_model(stand_in).api)
+    assert sidecar is not None
+
+    # each epoch's first call, at once
+    await tg_collect([lambda: sidecars.complete_registration(sidecar, _sample())] * 3)
+
+    [completed] = _registered(stand_in, "complete_registration")
+    messages = completed.pop("sample_input")
+    assert completed == {
+        "eval_id": "eval_789",
+        "task": "weather_desk",
+        "sample_id": 1,
+        "sample_description": "A rainy day.",
+        "metadata": {"city": "Philadelphia"},
+    }
+    # chat messages as inspect_ai writes them
+    [message] = messages
+    assert (message["role"], message["content"]) == ("user", "File the report.")
+
+
+async def test_a_sample_the_sidecar_wont_take_is_an_error() -> None:
+    stand_in = StandInSidecar(
+        methods={
+            "complete_registration": lambda _: {
+                "error": {"code": -32009, "message": "no registration"}
+            }
+        }
+    )
+    sidecars = TaskSidecars("auto", _FACTS)
+    sidecar = await sidecars.sidecar(_model(stand_in).api)
+    assert sidecar is not None
+
+    with pytest.raises(SentinelProxyError, match="couldn't register the sample 1"):
+        await sidecars.complete_registration(sidecar, _sample())
+
+
+async def test_a_sidecar_found_after_the_task_started_is_registered_once() -> None:
+    stand_in = StandInSidecar()
+    sidecars = TaskSidecars("auto", _FACTS)
+    model = _model(stand_in)
+
+    await tg_collect([lambda: sidecars.sidecar(model.api)] * 3)
+
+    assert len(_registered(stand_in, "register_task")) == 1
