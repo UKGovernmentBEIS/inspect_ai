@@ -604,3 +604,79 @@ def test_calls_that_continue_nothing_cost_at_most_their_inputs(
     looked_up, _ = _looked_up(events, monkeypatch)
     entries = sum(len(call.input) for call in calls)
     assert looked_up <= entries + 2 * len(calls)
+
+
+def _pooled_lengths(calls: int) -> tuple[list[Any], list[Any]]:
+    """`calls` model calls with inputs of lengths 1 to `calls`, each one range of a shared pool, none continuing another; no origins."""
+    from inspect_ai.event import ModelEvent, SpanBeginEvent, SpanEndEvent
+    from inspect_ai.model import (
+        ChatCompletionChoice,
+        ChatMessageAssistant,
+        ChatMessageUser,
+        GenerateConfig,
+        ModelOutput,
+    )
+
+    pool = [ChatMessageUser(content=f"Note {n}.") for n in range(calls)]
+    events: list[Any] = [SpanBeginEvent(id="main", name="main", type="agent")]
+    for n in range(1, calls + 1):
+        events.append(
+            ModelEvent(
+                span_id="main",
+                model="mockllm/model",
+                input=[],
+                input_refs=[(0, n)],
+                tools=[],
+                tool_choice="auto",
+                config=GenerateConfig(),
+                output=ModelOutput(
+                    model="mockllm/model",
+                    choices=[
+                        ChatCompletionChoice(
+                            message=ChatMessageAssistant(content=f"Answer {n}."),
+                            stop_reason="stop",
+                        )
+                    ],
+                ),
+            )
+        )
+    events.append(SpanEndEvent(id="main"))
+    return events, pool
+
+
+def test_calls_of_many_lengths_in_a_pooled_log_are_looked_up_in_linear_work(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # the log driver's timeline reads inputs as pool ranges, so its lookups
+    # are counted against the log as stored (pool rows and ranges), not the
+    # expanded inputs, which are quadratic here
+    from bisect import bisect_left
+
+    from inspect_ai.event import _timeline as timeline
+
+    fingerprint = timeline._Inputs.fingerprint
+
+    def work(calls: int) -> int:
+        count = 0
+
+        def counting_fingerprint(self: Any, message: Any) -> Any:
+            nonlocal count
+            count += 1
+            return fingerprint(self, message)
+
+        def counting_bisect(*args: Any) -> int:
+            nonlocal count
+            count += 1
+            return bisect_left(*args)
+
+        events, pool = _pooled_lengths(calls)
+        with monkeypatch.context() as patch:
+            patch.setattr(timeline._Inputs, "fingerprint", counting_fingerprint)
+            patch.setattr("inspect_ai.event._timeline.bisect_left", counting_bisect)
+            timeline._timeline_build(events, message_pool=pool)
+        stored = len(pool) + 2 * calls  # pool rows, one range and one output each
+        assert count <= 4 * stored, (count, stored)
+        return count
+
+    small, large = work(200), work(400)
+    assert large <= 2.2 * small + 10, (small, large)

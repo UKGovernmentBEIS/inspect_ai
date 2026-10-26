@@ -1088,6 +1088,8 @@ class _Inputs:
         self._issued: dict[str, tuple[int, int]] | None = None
         # tool call id -> the pool rows answering it
         self._tool_rows: dict[str, list[int]] | None = None
+        # message fingerprint -> the pool rows holding it
+        self._rows_by_fingerprint: dict[_Fingerprint, list[int]] | None = None
         self._agent_spans: AgentSpans | None = None
 
     def of(self, event: ModelEvent) -> Sequence[ChatMessage]:
@@ -1110,6 +1112,15 @@ class _Inputs:
         except ValueError:
             # a parent_id cycle: its calls are taken as one conversation
             return None
+
+    def rows_with(self, fingerprint: _Fingerprint) -> list[int]:
+        """The pool rows holding a message with this fingerprint, each row fingerprinted once; none without a pool."""
+        if self._rows_by_fingerprint is None:
+            rows: dict[_Fingerprint, list[int]] = {}
+            for row, message in enumerate(self._pool or []):
+                rows.setdefault(self.fingerprint(message), []).append(row)
+            self._rows_by_fingerprint = rows
+        return self._rows_by_fingerprint.get(fingerprint, [])
 
     def fingerprint(self, message: ChatMessage) -> _Fingerprint:
         # keyed by identity: inputs read from a pool, or expanded from one,
@@ -1217,9 +1228,13 @@ class _Call(NamedTuple):
 
 
 class _OpenCalls:
-    """Calls a later call may continue, looked up where it would hold their output: at the position of their input's length, by their output's fingerprint.
+    """Calls a later call may continue, looked up where it would hold their output: at the position of their input's length.
 
-    Every call stays open, and every input length among them is looked up, until the thread settles them: a later call is looked up at each open length shorter than its input, a fingerprint each. The thread settles its open calls whenever it advances or compacts, so a lookup's work is the number of distinct input lengths opened since then. Forks of one tip share their input, and so their length, and side calls between two turns are few; the costly case is a long run of calls none of which continues another, each with an input of a new length, whose lookups then read at most the positions their inputs hold (pinned by ``test_calls_that_continue_nothing_cost_at_most_their_inputs``).
+    Every call stays open until the thread settles them, which it does whenever it advances or compacts.
+
+    A later call whose input is stored as ranges of the message pool is looked up by its ranges: a range of rows ``begin..end`` placed at position ``start`` holds, at each position ``L`` it covers, the row ``L + begin - start``. So each open call is indexed by ``row - L`` for every pool row holding its output, and each range of a later call costs one lookup and a bisection, plus one for each open call it continues: linear in the log as stored, however many input lengths are open.
+
+    A later call whose input is a list (the timeline of expanded events, as the viewer and Scout read it) is looked up at each open length shorter than its input, a fingerprint each. Forks of one tip share their input, and so their length, and side calls between two turns are few; the costly case is a long run of calls none of which continues another, each with an input of a new length, whose lookups then read at most the positions their inputs hold (pinned by ``test_calls_that_continue_nothing_cost_at_most_their_inputs``).
     """
 
     def __init__(self, inputs: _Inputs) -> None:
@@ -1229,27 +1244,51 @@ class _OpenCalls:
         self._index: dict[int, dict[_Fingerprint, int]] = {}
         # the input lengths in the index, ascending
         self._lengths: list[int] = []
+        # pool row - input length -> input length -> the latest call's index,
+        # for each pool row holding an open call's output; and each offset's
+        # input lengths, ascending
+        self._by_offset: dict[int, dict[int, int]] = {}
+        self._offset_lengths: dict[int, list[int]] = {}
 
     def add(self, call: _Call) -> None:
         assert call.output is not None
         at = len(call.input)
+        output = self._inputs.fingerprint(call.output)
         by_output = self._index.get(at)
         if by_output is None:
             by_output = self._index[at] = {}
             insort(self._lengths, at)
-        by_output[self._inputs.fingerprint(call.output)] = len(self.calls)
+        by_output[output] = len(self.calls)
+        for row in self._inputs.rows_with(output):
+            by_length = self._by_offset.setdefault(row - at, {})
+            if at not in by_length:
+                insort(self._offset_lengths.setdefault(row - at, []), at)
+            by_length[at] = len(self.calls)
         self.calls.append(call)
 
     def continued_by(self, call: _Call) -> _Call | None:
         """The latest open call that `call` continues."""
         best = -1
-        for at in self._lengths[: bisect_left(self._lengths, len(call.input))]:
-            found = self._index[at].get(self._inputs.fingerprint(call.input[at]), -1)
-            best = max(best, found)
+        if isinstance(call.input, PoolView):
+            for (begin, end), start in zip(call.input.refs, call.input.starts):
+                lengths = self._offset_lengths.get(begin - start)
+                if lengths:
+                    by_length = self._by_offset[begin - start]
+                    first = bisect_left(lengths, start)
+                    last = bisect_left(lengths, start + end - begin)
+                    for at in range(first, last):
+                        best = max(best, by_length[lengths[at]])
+        else:
+            for at in self._lengths[: bisect_left(self._lengths, len(call.input))]:
+                found = self._index[at].get(
+                    self._inputs.fingerprint(call.input[at]), -1
+                )
+                best = max(best, found)
         return self.calls[best] if best >= 0 else None
 
     def clear(self) -> None:
         self.calls, self._index, self._lengths = [], {}, []
+        self._by_offset, self._offset_lengths = {}, {}
 
 
 class _Continuity:

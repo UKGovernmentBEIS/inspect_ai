@@ -223,3 +223,33 @@ def test_timeline_fixture_with_every_call_recorded_as_agent(fixture_name: str) -
     _assert_timeline_matches(
         timeline, fixture.get("expected_recorded_as_agent", fixture["expected"])
     )
+
+
+def _utility_uuids(span: TimelineSpan) -> list[str]:
+    uuids: list[str] = []
+    for item in span.content:
+        if isinstance(item, TimelineSpan):
+            if item.utility:
+                uuids.extend(_all_event_uuids(item))
+            else:
+                uuids.extend(_utility_uuids(item))
+    for branch in span.branches:
+        uuids.extend(_utility_uuids(branch))
+    return uuids
+
+
+@pytest.mark.parametrize("fixture_name", _fixture_names())
+def test_timeline_fixture_reads_pooled_inputs_as_expanded_ones(
+    fixture_name: str,
+) -> None:
+    # the log driver builds the timeline over model inputs stored as ranges
+    # of the message pool, which continuity looks up by range
+    from inspect_ai.event._pool import condense_model_event_inputs
+    from inspect_ai.event._timeline import _timeline_build
+
+    events = _events_adapter.validate_python(_load_fixture(fixture_name)["events"])
+    condensed, _, entries = condense_model_event_inputs(events, 0, {})
+    pool = [message for _, message in entries]
+    expanded = timeline_build(events).root
+    pooled = _timeline_build(condensed, message_pool=pool).root
+    assert _utility_uuids(pooled) == _utility_uuids(expanded)
