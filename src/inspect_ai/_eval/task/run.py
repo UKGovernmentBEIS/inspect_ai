@@ -50,6 +50,7 @@ from inspect_ai._sentinel._config import SentinelRoot
 from inspect_ai._sentinel._context import SentinelFailure
 from inspect_ai._sentinel._scope import sentinel_scope, sentinel_solving
 from inspect_ai._sentinel._sidecar._call import end_sidecar_sample
+from inspect_ai._sentinel._sidecar._state import copy_sidecar_monitor_state
 from inspect_ai._sentinel._sidecar._task import TaskFacts, init_task_sidecars
 from inspect_ai._util._async import Wake, aexit_shielded_when, raise_unwrapped
 from inspect_ai._util.async_zip import AsyncZipReader
@@ -3340,6 +3341,7 @@ async def _task_run_sample_attempt(
 
                     # scoring
                     with anyio.CancelScope(shield=cancelled_error is not None):
+                        await copy_sidecar_monitor_state(state)
                         await emit_sample_scoring(
                             eval_set_id,
                             run_id,

@@ -4,14 +4,17 @@ from collections.abc import Awaitable, Callable, Hashable
 from contextvars import ContextVar
 from logging import getLogger
 from typing import Any, Generic, NamedTuple, TypeVar
+from weakref import WeakValueDictionary
 
 import anyio
 from pydantic_core import to_jsonable_python
 
 from inspect_ai.model._model import Model, ModelAPI
+from inspect_ai.util._store import Store
 
 from .._config import SentinelProxy
 from ._endpoint import (
+    CALL_TIMEOUT,
     SentinelProxyError,
     Sidecar,
     SidecarCallError,
@@ -22,6 +25,12 @@ from ._endpoint import (
 REGISTRATION_REFUSED = -32001
 
 END_SAMPLE_TIMEOUT = 10.0
+
+UNKNOWN_SAMPLE = -32002
+METHOD_NOT_FOUND = -32601
+
+MONITOR_STATE_COPY = "sentinel_sidecar:monitor_state"
+"""The sample store's marker of the latest copy of monitor state from the sidecars: whether it succeeded, and why not."""
 
 logger = getLogger(__name__)
 
@@ -130,6 +139,36 @@ class TaskSidecars:
                         f"The sentinel sidecar at {sidecar.origin} couldn't be told the sample {sample_uuid} ended: {ex}"
                     )
 
+    async def copy_monitor_state(self, sample_uuid: str, store: Store) -> None:
+        """Copy the monitor state each sidecar the sample's calls went through keeps into the sample store, before Inspect's scorers read it.
+
+        Inside Inspect, a monitor's state is in the sample store, where a scorer can read it; through a sidecar, it is kept by the sidecar. After the copy, a marker in the sample store says whether it succeeded, so a scorer never reads a failed copy as a sample in which nothing was flagged.
+        """
+        through = self._through.get(sample_uuid)
+        if not through:
+            return
+        copied: dict[str, Any] = {}
+        failed: str | None = None
+        for sidecar in through.values():
+            with anyio.move_on_after(CALL_TIMEOUT) as scope:
+                try:
+                    result = await sidecar.call(
+                        "sample_result", {"sample_uuid": sample_uuid}
+                    )
+                    copied.update(result.get("store") or {})
+                except SidecarCallError as ex:
+                    failed = _copy_failure(sidecar, ex)
+            if scope.cancel_called:
+                failed = (
+                    f"the sentinel sidecar at {sidecar.origin} didn't answer in time"
+                )
+        for key, value in copied.items():
+            store.set(key, value)
+        store.set(
+            MONITOR_STATE_COPY,
+            {"copied": failed is None, "reason": failed},
+        )
+
     async def _probe(self, api: ModelAPI) -> Sidecar | str:
         client = proxy_client(api)
         if client is None:
@@ -186,9 +225,20 @@ class _Once(Generic[T]):
         return self._done[key]
 
 
+def _copy_failure(sidecar: Sidecar, ex: SidecarCallError) -> str:
+    if ex.code == UNKNOWN_SAMPLE:
+        return f"the sentinel sidecar at {sidecar.origin} holds nothing for the sample"
+    if ex.code == METHOD_NOT_FOUND:
+        return f"the sentinel sidecar at {sidecar.origin} doesn't send results (--no-eval-results)"
+    return f"the sentinel sidecar at {sidecar.origin} couldn't be asked: {ex}"
+
+
 _task_sidecars: ContextVar[TaskSidecars | None] = ContextVar(
     "task_sidecars", default=None
 )
+
+# by eval, for interim scoring, which runs outside the task's context
+_eval_sidecars: "WeakValueDictionary[str, TaskSidecars]" = WeakValueDictionary()
 
 
 async def init_task_sidecars(
@@ -205,7 +255,11 @@ async def init_task_sidecars(
     sidecars = TaskSidecars(mode or "auto", facts)
     await sidecars.start(model)
     _task_sidecars.set(sidecars)
+    _eval_sidecars[facts.eval_id] = sidecars
 
 
-def task_sidecars() -> TaskSidecars | None:
+def task_sidecars(eval_id: str | None = None) -> TaskSidecars | None:
+    """The sidecars of the current task, or of an eval's task by its id."""
+    if eval_id is not None:
+        return _eval_sidecars.get(eval_id)
     return _task_sidecars.get()

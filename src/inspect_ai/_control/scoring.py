@@ -1172,6 +1172,7 @@ async def _score_live_sample(
     ``sample_active()`` stays ``None``, so grader calls neither spend the
     sample's limits nor park at the sample-keyed hold.
     """
+    from inspect_ai._sentinel._sidecar._state import copy_sidecar_monitor_state
     from inspect_ai.log._transcript import init_transcript
     from inspect_ai.util._sandbox.context import (
         sandbox_default_context_var,
@@ -1188,6 +1189,7 @@ async def _score_live_sample(
     _init_pass_scoring_context(handle, target)
     init_transcript(active.transcript)
     init_subtask_store(live_state.store)
+    await copy_sidecar_monitor_state(live_state, eval_id=active.eval_id)
     if active.sandbox_environments:
         sandbox_environments_context_var.set(active.sandbox_environments)
         # mirror sample init: the first environment is the default (without
