@@ -848,7 +848,7 @@ class Model:
     For example:
 
     ```python
-    async with get_model("openai/gpt-4o") as model:
+    async with get_model("openai/gpt-6-luna") as model:
         response = await model.generate("Say hello")
     ```
     """
@@ -2359,7 +2359,7 @@ def get_model(
     to the `Model` class. For example:
 
     ```python
-    async with get_model("openai/gpt-4o") as model:
+    async with get_model("openai/gpt-6-luna") as model:
         response = await model.generate("Say hello")
     ```
 

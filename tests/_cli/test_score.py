@@ -155,7 +155,16 @@ async def test_score_stream_preserves_log_updates(
     )
 
     async def fake_score_async(
-        *, log, scorers, metrics, model, model_roles, action, copy, samples
+        *,
+        log,
+        scorers,
+        metrics,
+        model,
+        model_roles,
+        action,
+        copy,
+        samples,
+        _log_scorers,
     ):
         assert samples is not None
         return log
@@ -179,6 +188,50 @@ async def test_score_stream_preserves_log_updates(
     assert rescored_log.log_updates == log.log_updates
     assert rescored_log.tags == log.tags
     assert rescored_log.metadata == log.metadata
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("stream", [True, False], ids=["stream", "no-stream"])
+@pytest.mark.parametrize("source", ["eval", "json"])
+async def test_score_append_preserves_reductions(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    stream: bool,
+    source: str,
+) -> None:
+    input_file = tmp_path / LOG_SCORED.with_suffix(f".{source}").name
+    output_file = tmp_path / f"rescored.{source}"
+
+    log = await read_eval_log_async(str(LOG_SCORED))
+    assert log.reductions
+    await write_eval_log_async(log, str(input_file))
+
+    monkeypatch.setattr(score_cli, "init_eval_context", lambda *args, **kwargs: None)
+    monkeypatch.setattr(score_cli, "print_results", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        score_cli, "resolve_scorers", lambda *args, **kwargs: [object()]
+    )
+
+    async def fake_score_async(*, log, **kwargs):
+        return log
+
+    monkeypatch.setattr(score_cli, "score_async", fake_score_async)
+
+    await score(
+        log_dir="",
+        log_file=str(input_file),
+        action="append",
+        log_level=None,
+        output_file=str(output_file),
+        overwrite=True,
+        scorer="match",
+        s=(),
+        metric=None,
+        stream=stream,
+    )
+
+    rescored_log = await read_eval_log_async(output_file)
+    assert rescored_log.reductions == log.reductions
 
 
 @pytest.mark.anyio
@@ -217,7 +270,16 @@ async def test_score_stream_flushes_periodically(
     )
 
     async def fake_score_async(
-        *, log, scorers, metrics, model, model_roles, action, copy, samples
+        *,
+        log,
+        scorers,
+        metrics,
+        model,
+        model_roles,
+        action,
+        copy,
+        samples,
+        _log_scorers,
     ):
         assert samples is not None
         for idx in range(10):

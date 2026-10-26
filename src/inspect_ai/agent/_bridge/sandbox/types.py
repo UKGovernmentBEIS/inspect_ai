@@ -8,6 +8,7 @@ import anyio
 from pydantic_core import to_jsonable_python
 from shortuuid import uuid
 
+from inspect_ai._util.json import json_equal
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge.bridge import resolve_forward_client_headers
@@ -253,7 +254,7 @@ class SandboxAgentBridge(AgentBridge):
     ) -> "_ToolExecutionGrant | None":
         """Consume and return the oldest grant binding this exact (server, tool), if any.
 
-        Arguments match by JSON semantics (`_json_equal`): key order and
+        Arguments match by JSON semantics (`json_equal`): key order and
         int/float numeric equality (`5 == 5.0`) don't matter, so a scaffold's
         JSON round-trip cannot turn a proposed call into a denial; any other
         difference (including bool vs number) is denied -- except that, when
@@ -288,7 +289,7 @@ class SandboxAgentBridge(AgentBridge):
             if grant.server == server and grant.tool == tool
         ]
         matched = next(
-            (index for index, granted in pending if _json_equal(granted, arguments)),
+            (index for index, granted in pending if json_equal(granted, arguments)),
             None,
         )
         if matched is None and declared_properties is not None:
@@ -297,7 +298,7 @@ class SandboxAgentBridge(AgentBridge):
                     index
                     for index, granted in pending
                     if isinstance(granted, dict)
-                    and _json_equal(
+                    and json_equal(
                         {
                             key: value
                             for key, value in granted.items()
@@ -384,7 +385,7 @@ class _ToolExecutionGrant(NamedTuple):
     """Tool name within the bridged server."""
 
     arguments: dict[str, Any]
-    """The arguments handed to the scaffold, JSON-normalized and matched via `_json_equal`."""
+    """The arguments handed to the scaffold, JSON-normalized and matched via `json_equal`."""
 
     proposal: _Proposal
     """The proposing call, shared with the other grants it minted."""
@@ -605,16 +606,3 @@ def _dispatched_call(
             dispatch=lambda modified: {**call.arguments, "Arguments": modified},
         )
     return None
-
-
-def _json_equal(a: Any, b: Any) -> bool:
-    """Equality by JSON semantics: 5 == 5.0, but True != 1 (unlike Python `==`)."""
-    if isinstance(a, bool) or isinstance(b, bool):
-        return isinstance(a, bool) and isinstance(b, bool) and a == b
-    if isinstance(a, int | float) and isinstance(b, int | float):
-        return a == b
-    if isinstance(a, dict) and isinstance(b, dict):
-        return a.keys() == b.keys() and all(_json_equal(v, b[k]) for k, v in a.items())
-    if isinstance(a, list) and isinstance(b, list):
-        return len(a) == len(b) and all(_json_equal(x, y) for x, y in zip(a, b))
-    return type(a) is type(b) and bool(a == b)

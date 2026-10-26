@@ -384,6 +384,15 @@ def export_config_command(log_file: str, output: str | None, fmt: str) -> None:
     "is logged) with --incomplete-action retry.",
 )
 @click.option(
+    "--trust-log",
+    type=bool,
+    is_flag=True,
+    default=False,
+    help="Import the log's task file to load metrics that are not registered, "
+    "and rebuild metric options that hold models or other objects. This runs "
+    "the task file's code, so use it only for logs you trust.",
+)
+@click.option(
     "--list",
     "list_mode",
     type=bool,
@@ -408,6 +417,7 @@ def recover_command(
     no_events: bool,
     incomplete_action: IncompleteAction,
     incomplete_max: float | None,
+    trust_log: bool,
     list_mode: bool,
     json_output: bool,
     **common: Unpack[CommonOptions],
@@ -473,6 +483,10 @@ def recover_command(
         if log_file is None:
             raise click.UsageError("LOG_FILE is required when not using --list.")
 
+        from inspect_ai._util.registry import (
+            DisallowedRegistryArg,
+            RegistryNameNotFound,
+        )
         from inspect_ai.log._recover import (
             RecoveryNotAvailable,
             RecoveryStats,
@@ -489,11 +503,16 @@ def recover_command(
                 no_events=no_events,
                 incomplete_action=incomplete_action,
                 incomplete_max=incomplete_max,
+                trust_log=trust_log,
                 _stats=stats,
             )
         except RecoveryNotAvailable as e:
             raise click.UsageError(str(e))
-        except RecoveryThresholdExceeded as e:
+        except (
+            RecoveryThresholdExceeded,
+            RegistryNameNotFound,
+            DisallowedRegistryArg,
+        ) as e:
             raise click.ClickException(str(e))
         output_path = log.location or output
         # keep the historical success line intact (scripts may anchor on its

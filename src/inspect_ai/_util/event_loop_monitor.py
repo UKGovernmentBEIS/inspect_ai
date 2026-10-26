@@ -33,6 +33,7 @@ from typing import AsyncIterator
 
 import anyio
 
+from inspect_ai._util._async import raise_unwrapped
 from inspect_ai.util._anyio import inner_exception
 
 logger = logging.getLogger(__name__)
@@ -105,4 +106,4 @@ async def event_loop_monitor(
     except Exception as ex:
         # anyio task groups wrap body exceptions in an ExceptionGroup;
         # unwrap so callers' `except SpecificError` keeps working
-        raise inner_exception(ex) from None
+        raise_unwrapped(ex, inner_exception(ex))
