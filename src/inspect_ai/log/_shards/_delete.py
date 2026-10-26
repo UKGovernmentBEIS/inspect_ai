@@ -9,10 +9,16 @@ it again, or deleting the directory by hand, finishes it.
 import re
 import shutil
 from contextlib import suppress
+from functools import partial
 
 import anyio
 
-from inspect_ai._util.asyncfiles import AsyncFilesystem, is_s3_filename
+from inspect_ai._util._async import current_async_backend
+from inspect_ai._util.asyncfiles import (
+    AsyncFilesystem,
+    is_s3_filename,
+    s3_bucket_and_key,
+)
 from inspect_ai._util.file import filesystem, local_path
 from inspect_ai._util.log_layout import eval_shards_dir
 
@@ -66,12 +72,11 @@ async def remove_shards_dir(
         filesystem(shards_dir).rm(shards_dir, recursive=True)
     # a bulk delete can report success while objects remain (s3fs ignores
     # the per-object errors of a DeleteObjects response)
-    remaining = await _remaining(fs, shards_dir)
-    if remaining:
+    remnant = await _remnant(fs, shards_dir)
+    if remnant is not None:
         raise ShardSetError(
-            f"Deleting {shards_dir} left {len(remaining)} objects behind (for "
-            f"example {remaining[0]}). Delete them, or merge again with "
-            "delete_shards."
+            f"Deleting {shards_dir} left objects behind (for example "
+            f"{remnant}). Delete them, or merge again with delete_shards."
         )
 
 
@@ -93,23 +98,31 @@ def check_deletable(log: str) -> None:
         )
 
 
-async def _remaining(fs: AsyncFilesystem, shards_dir: str) -> list[str]:
-    """The objects still under a remote `shards_dir`, from a fresh listing."""
+async def _remnant(fs: AsyncFilesystem, shards_dir: str) -> str | None:
+    """An object still under a remote `shards_dir`, from a fresh listing.
+
+    On S3 this is one list-objects call for the prefix, limited to one key and
+    unfiltered, so a folder marker (a key ending in `/`) counts: the
+    `AsyncFilesystem` listings skip markers.
+    """
     if is_s3_filename(shards_dir):
-        found: list[str] = []
-        pending = [shards_dir]
-        while pending:
-            listing = await fs.list_dir(pending.pop())
-            found.extend(info.name for info in listing.files)
-            pending.extend(listing.dirs)
-        return found
+        bucket, prefix = s3_bucket_and_key(shards_dir)
+        list_first = dict(Bucket=bucket, Prefix=prefix.rstrip("/") + "/", MaxKeys=1)
+        if current_async_backend() == "asyncio":
+            client = await fs.s3_client_async()
+            response = await client.list_objects_v2(**list_first)
+        else:
+            response = await anyio.to_thread.run_sync(
+                partial(fs.s3_client().list_objects_v2, **list_first)
+            )
+        keys = [obj["Key"] for obj in response.get("Contents", [])]
+        return f"s3://{bucket}/{keys[0]}" if keys else None
     try:
         # FileSystem.ls drops fsspec's cached listing first
-        return [
-            info.name for info in filesystem(shards_dir).ls(shards_dir, recursive=True)
-        ]
+        listing = filesystem(shards_dir).ls(shards_dir, recursive=True)
     except FileNotFoundError:
-        return []
+        return None
+    return listing[0].name if listing else None
 
 
 def _remove_local_dir(path: str) -> None:

@@ -1426,13 +1426,16 @@ cleanup (removes the merged log too). Both use one routine,
   by their exact path and are not refused. It neither classifies objects
   nor orders the deletes, and a missing companion is not an error.
   With `include_log`, the merged log is deleted first. A remote delete is
-  then checked by a fresh listing (on S3 through `AsyncFilesystem.list_dir`,
-  elsewhere through `FileSystem.ls`, which drops fsspec's cached listing),
-  because a bulk delete can return normally while objects remain: s3fs
-  ignores the per-object errors of a `DeleteObjects` response. Objects
-  left behind raise `ShardSetError` naming one of them, `shards_deleted`
-  is never reported, the merged log is kept, and a re-run finishes the
-  deletion.
+  then checked by a fresh listing, because a bulk delete can return
+  normally while objects remain: s3fs ignores the per-object errors of a
+  `DeleteObjects` response. On S3 the check is one `list_objects_v2` call
+  with prefix `<name>.shards/` and `MaxKeys=1`, made with the
+  `AsyncFilesystem` client, so any key counts, a folder marker included
+  (the `AsyncFilesystem` listings skip keys ending in `/`), and a sibling
+  `<name>.shards-other/` does not. Elsewhere it is `FileSystem.ls`, which
+  drops fsspec's cached listing. An object left behind raises
+  `ShardSetError` naming it, `shards_deleted` is never reported, the
+  merged log is kept, and a re-run finishes the deletion.
 - **No resumption protocol.** An interrupted deletion raises its storage
   error and leaves some objects behind; the user re-runs the command or
   removes the rest by hand. Nothing records that a deletion was in

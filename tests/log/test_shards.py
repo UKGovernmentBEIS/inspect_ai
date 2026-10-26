@@ -3123,30 +3123,66 @@ def test_writers_leave_ordinary_logs_alone(tmp_path: Path, writer: str) -> None:
     _write_with(writer, read_eval_log(log.location))
 
 
-def test_a_partial_remote_delete_is_reported_and_finished_by_a_rerun(
-    s3_shards: tuple[str, str], s3_root: str, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    "left", ["object", "root-marker", "shard-marker", "checkpoint-marker"]
+)
+async def test_a_partial_remote_delete_is_reported_and_finished_by_a_rerun(
+    s3_shards: tuple[str, str],
+    s3_root: str,
+    monkeypatch: pytest.MonkeyPatch,
+    left: str,
 ) -> None:
-    merged, shards = s3_shards
-    merge_eval_log_shards(merged)
-    left = next(
-        k for k in _s3_keys(f"{s3_root}/{NAME}.shards/1/") if k.endswith(".eval")
-    )
+    from inspect_ai.log import merge_eval_log_shards_async
+
+    merged, _ = s3_shards
+    client = boto3.client("s3")
+    shards = f"{s3_root}/{NAME}.shards"
+    markers = [f"{shards}/", f"{shards}/0/", f"{shards}/1/x.checkpoints/"]
+    for key in markers:
+        client.put_object(Bucket="test-bucket", Key=key, Body=b"")
+    await merge_eval_log_shards_async(merged)
+    merged_key = f"{s3_root}/{NAME}.eval"
+    before = client.get_object(Bucket="test-bucket", Key=merged_key)["Body"].read()
+    kept = {
+        "object": next(k for k in _s3_keys(f"{shards}/1/") if k.endswith(".eval")),
+        "root-marker": markers[0],
+        "shard-marker": markers[1],
+        "checkpoint-marker": markers[2],
+    }[left]
 
     def partial_rm(self: Any, path: str, recursive: bool = False) -> None:
         # as s3fs does when DeleteObjects reports a per-object error
-        client = boto3.client("s3")
-        for key in _s3_keys(f"{s3_root}/{NAME}.shards/"):
-            if key != left:
+        for key in _s3_keys(f"{shards}/"):
+            if key != kept:
                 client.delete_object(Bucket="test-bucket", Key=key)
 
     monkeypatch.setattr(FileSystem, "rm", partial_rm)
-    with pytest.raises(ShardSetError, match="left 1 objects behind"):
-        merge_eval_log_shards(merged, delete_shards=True)
+    with pytest.raises(ShardSetError, match="left objects behind") as refused:
+        await merge_eval_log_shards_async(merged, delete_shards=True)
     monkeypatch.undo()
-    assert _s3_keys(f"{s3_root}/") == sorted([f"{s3_root}/{NAME}.eval", left])
-    result = merge_eval_log_shards(merged, delete_shards=True)
+    assert kept in str(refused.value)
+    assert _s3_keys(f"{s3_root}/") == sorted([merged_key, kept])
+    assert (
+        client.get_object(Bucket="test-bucket", Key=merged_key)["Body"].read() == before
+    )
+    result = await merge_eval_log_shards_async(merged, delete_shards=True)
     assert result.shards_deleted and not result.written
-    assert _s3_keys(f"{s3_root}/") == [f"{s3_root}/{NAME}.eval"]
+    assert _s3_keys(f"{s3_root}/") == [merged_key]
+
+
+async def test_a_sibling_prefix_is_not_a_remnant_of_a_remote_delete(
+    s3_shards: tuple[str, str], s3_root: str
+) -> None:
+    from inspect_ai.log import merge_eval_log_shards_async
+
+    merged, _ = s3_shards
+    client = boto3.client("s3")
+    sibling = [f"{s3_root}/{NAME}.shards-other/", f"{s3_root}/{NAME}.shards-other/x"]
+    for key in sibling:
+        client.put_object(Bucket="test-bucket", Key=key, Body=b"")
+    result = await merge_eval_log_shards_async(merged, delete_shards=True)
+    assert result.shards_deleted
+    assert _s3_keys(f"{s3_root}/") == sorted([f"{s3_root}/{NAME}.eval", *sibling])
 
 
 @metric(scores="unreduced")
