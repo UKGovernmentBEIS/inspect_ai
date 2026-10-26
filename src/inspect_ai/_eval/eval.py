@@ -50,7 +50,11 @@ from inspect_ai._sentinel._config import (
     resolve_sentinel_spec,
     sentinel_config,
 )
-from inspect_ai._util._async import current_async_backend, unwrap_exception_group
+from inspect_ai._util._async import (
+    current_async_backend,
+    raise_unwrapped,
+    unwrap_exception_group,
+)
 from inspect_ai._util.asyncfiles import with_async_fs
 from inspect_ai._util.config import parse_cli_args, resolve_args
 from inspect_ai._util.constants import (
@@ -706,7 +710,7 @@ async def eval_async(
         async with anyio.create_task_group() as tg:
             tg.start_soon(run, tg)
     except Exception as ex:
-        raise inner_exception(ex)
+        raise_unwrapped(ex, inner_exception(ex))
     except anyio.get_cancelled_exc_class():
         # Cancelled exceptions are expected and handled by _eval_async_inner
         if result is None:
