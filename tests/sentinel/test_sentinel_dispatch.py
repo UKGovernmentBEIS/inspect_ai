@@ -6721,6 +6721,52 @@ def test_an_on_start_sink_s_call_runs_in_its_span_live_and_in_the_log() -> None:
     assert sink.started == ["Sub-agent turn."]
 
 
+@solver
+def d3_edits_a_sub_agent_s_sent_message_in_place(sink: _StartingSink) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        from inspect_ai.model._model import use_model_event_sink
+        from inspect_ai.util._span import span
+
+        model = get_model()
+        async with span("outer", type="agent", id="outer"):
+            await model.generate("Main turn.")
+            transcript()._event(
+                SpanBeginEvent(
+                    id="sub-agent", parent_id="outer", type="agent", name="sub"
+                )
+            )
+            task = ChatMessageUser(content="Draft question.")
+            with use_model_event_sink(sink):
+                first = await model.generate([_SYSTEM, task])
+                task.content = "Final question."
+                state.output = await model.generate([_SYSTEM, task, first.message])
+            transcript()._event(SpanEndEvent(id="sub-agent"))
+        return state
+
+    return solve
+
+
+def test_an_on_start_sub_agent_s_history_keeps_a_message_edited_in_place_as_sent() -> (
+    None
+):
+    sink = _StartingSink("sub-agent")
+    run = run_sink(d3_edits_a_sub_agent_s_sent_message_in_place(sink))
+    assert run.log.status == "success", run.log.error
+    assert run.live == run.from_spans
+    *_, (conversation, last) = run.seen.values()
+    assert conversation == "sub-agent"
+    assert sent_texts(last)[:3] == [
+        "Be helpful.",
+        "Draft question.",
+        "Final question.",
+    ]
+    # history holds the snapshots the sink's events were given
+    first, second = sink.pending
+    assert last[1] is first.input[1]
+    assert last[2] is second.input[1]
+    assert_history_is_the_fold_of_the_log(run.log, run.seen)
+
+
 def test_an_on_start_sink_that_moves_the_event_keeps_live_in_the_on_start_span() -> (
     None
 ):
