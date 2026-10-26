@@ -291,8 +291,8 @@ class _TimelineWork(NamedTuple):
     """Entries of the model inputs, expanded."""
     fingerprints: int
     """Messages fingerprinted."""
-    compared: int
-    """Continuity's comparisons."""
+    looked_up: int
+    """Fingerprints continuity looked up."""
 
 
 def _timeline_work(
@@ -317,23 +317,23 @@ def _timeline_work(
             else e
             for e in resolve_model_event_inputs(events, pool)
         ]
-    fingerprints = compared = 0
-    continues = timeline._Continuity._continues
+    fingerprints = looked_up = 0
+    fingerprint = timeline._Inputs.fingerprint
 
     def counting_hash(text: str) -> str:
         nonlocal fingerprints
         fingerprints += 1
         return mm3_hash(text)
 
-    def counting_continues(self: Any, call: Any, earlier: Any) -> bool:
-        nonlocal compared
-        compared += 1
-        return continues(self, call, earlier)
+    def counting_fingerprint(self: Any, message: Any) -> Any:
+        nonlocal looked_up
+        looked_up += 1
+        return fingerprint(self, message)
 
     _CountingList.reads = 0
     with monkeypatch.context() as patch:
         patch.setattr("inspect_ai.event._timeline.mm3_hash", counting_hash)
-        patch.setattr(timeline._Continuity, "_continues", counting_continues)
+        patch.setattr(timeline._Inputs, "fingerprint", counting_fingerprint)
         built = timeline._timeline_build(
             events, message_pool=_CountingList(pool) if pooled else None
         )
@@ -359,7 +359,7 @@ def _timeline_work(
     ]
     # the summary call is the only one of the main agent's that is not a turn
     assert utility == ([f"Summary of {turns // 2} turns."] if compaction else [])
-    return _TimelineWork(_CountingList.reads, entries, fingerprints, compared)
+    return _TimelineWork(_CountingList.reads, entries, fingerprints, looked_up)
 
 
 @pytest.mark.parametrize(
@@ -370,7 +370,7 @@ def test_continuity_and_agent_results_are_linear(
 ) -> None:
     small = _timeline_work(50, pooled, compaction, monkeypatch)
     large = _timeline_work(100, pooled, compaction, monkeypatch)
-    for field in ("reads", "fingerprints", "compared"):
+    for field in ("reads", "fingerprints", "looked_up"):
         assert getattr(large, field) <= 2.2 * getattr(small, field) + 10, (
             field,
             small,
@@ -389,7 +389,9 @@ def test_an_agent_result_that_never_follows_its_call_reads_expanded_inputs_once(
     # span
     work = _timeline_work(100, False, True, monkeypatch)
     assert work.reads <= work.entries + 10 * 2 * 100
-    assert (work.fingerprints, work.compared) == (100, 100)
+    # each call fingerprints one new message and looks up a few
+    assert work.fingerprints <= 2 * 100 + 10
+    assert work.looked_up <= 8 * 2 * 100
 
 
 def test_a_fork_at_the_end_goes_to_the_call_in_the_final_messages() -> None:
@@ -416,3 +418,86 @@ def test_a_fork_at_the_end_goes_to_the_call_in_the_final_messages() -> None:
         for event in _model_events(item)
     ]
     assert utility == ["m3"]
+
+
+def _wide_fork(forks: int) -> list[Any]:
+    """A turn, `forks` calls that all continue it with outputs of their own, then a call that carries on the first of them, with no origins."""
+    from inspect_ai.event import ModelEvent, SpanBeginEvent, SpanEndEvent
+    from inspect_ai.model import (
+        ChatCompletionChoice,
+        ChatMessageAssistant,
+        ChatMessageSystem,
+        ChatMessageUser,
+        GenerateConfig,
+        ModelOutput,
+    )
+
+    def model(uuid: str, input: list[Any], output: Any) -> ModelEvent:
+        return ModelEvent(
+            uuid=uuid,
+            span_id="main",
+            model="mockllm/model",
+            input=input,
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=ModelOutput(
+                model="mockllm/model",
+                choices=[ChatCompletionChoice(message=output, stop_reason="stop")],
+            ),
+        )
+
+    opening = [
+        ChatMessageSystem(content="You are the main agent."),
+        ChatMessageUser(content="Pick a number."),
+    ]
+    first = ChatMessageAssistant(content="Thinking.")
+    asked = [*opening, first, ChatMessageUser(content="Go on.")]
+    tries = [ChatMessageAssistant(content=f"Try {n}.") for n in range(forks)]
+    return [
+        SpanBeginEvent(id="main", name="main", type="agent"),
+        model("m0", opening, first),
+        *[model(f"f{n}", asked, tries[n]) for n in range(forks)],
+        model("last", [*asked, tries[0], ChatMessageUser(content="And?")], first),
+        SpanEndEvent(id="main"),
+    ]
+
+
+@pytest.mark.parametrize("forks", [5, 50])
+def test_a_fork_carried_on_is_the_turn_however_many_alternatives_it_has(
+    forks: int,
+) -> None:
+    [main] = [
+        item
+        for item in timeline_build(_wide_fork(forks)).root.content
+        if isinstance(item, TimelineSpan)
+    ]
+    utility = [
+        event.uuid
+        for item in main.content
+        if isinstance(item, TimelineSpan) and item.utility
+        for event in _model_events(item)
+    ]
+    assert utility == [f"f{n}" for n in range(1, forks)]
+
+
+def test_a_wide_fork_s_lookups_are_linear(monkeypatch: pytest.MonkeyPatch) -> None:
+    from inspect_ai.event import _timeline as timeline
+
+    fingerprint = timeline._Inputs.fingerprint
+
+    def looked_up(forks: int) -> int:
+        count = 0
+
+        def counting(self: Any, message: Any) -> Any:
+            nonlocal count
+            count += 1
+            return fingerprint(self, message)
+
+        with monkeypatch.context() as patch:
+            patch.setattr(timeline._Inputs, "fingerprint", counting)
+            timeline_build(_wide_fork(forks))
+        return count
+
+    small, large = looked_up(100), looked_up(200)
+    assert large <= 2.2 * small + 10, (small, large)

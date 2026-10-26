@@ -1215,10 +1215,44 @@ class _Call(NamedTuple):
     output: ChatMessage | None
 
 
-# the calls kept open for a later call to continue or retry, of each kind:
-# beyond it the oldest is settled, so each call is compared with a bounded
-# number of others
-_OPEN = 4
+# the input lengths, most recent first, at which open calls are looked up
+_LENGTHS = 4
+
+
+class _OpenCalls:
+    """Calls a later call may continue, looked up where it would hold their output: at the position of their input's length, by their output's fingerprint.
+
+    Every call stays open until the thread settles it. A lookup probes the input lengths of the most recently opened calls, at most ``_LENGTHS`` of them, so it costs a bounded number of fingerprints however many calls are open: forks of one tip share their input, and so their length.
+    """
+
+    def __init__(self, inputs: _Inputs) -> None:
+        self._inputs = inputs
+        self.calls: list[_Call] = []
+        # input length -> output fingerprint -> the latest such call's index
+        self._index: dict[int, dict[_Fingerprint, int]] = {}
+
+    def add(self, call: _Call) -> None:
+        assert call.output is not None
+        at = len(call.input)
+        by_output = self._index.pop(at, {})
+        by_output[self._inputs.fingerprint(call.output)] = len(self.calls)
+        self._index[at] = by_output
+        if len(self._index) > _LENGTHS:
+            del self._index[next(iter(self._index))]
+        self.calls.append(call)
+
+    def continued_by(self, call: _Call) -> _Call | None:
+        """The latest open call that `call` continues."""
+        best = -1
+        for at, by_output in self._index.items():
+            if at < len(call.input):
+                best = max(
+                    best, by_output.get(self._inputs.fingerprint(call.input[at]), -1)
+                )
+        return self.calls[best] if best >= 0 else None
+
+    def clear(self) -> None:
+        self.calls, self._index = [], {}
 
 
 class _Continuity:
@@ -1226,13 +1260,13 @@ class _Continuity:
 
     An offline form of the agent bridge's thread tracking, for calls that do not record their ``origin``. Calls are taken in order, and the thread's tip is the last turn:
 
-    - A call whose input continues the tip, holding the tip's output at position ``len(tip.input)``, is on the thread, a *head*. Two heads of one tip are a fork: the one a later call continues is the turn, and the other is utility.
-    - A call that continues nothing is a *candidate*; if one of the next calls continues it, the thread moves to it (a compaction the log does not show). The candidates of a thread that moves on are utility.
+    - A call whose input continues the tip, holding the tip's output at position ``len(tip.input)``, is on the thread, a *head*. Two heads of one tip are a fork: the one a later call continues is the turn, and the others are utility.
+    - A call that continues nothing is a *candidate*; if a later call continues it, the thread moves to it (a compaction the log does not show). The candidates of a thread that moves on are utility.
     - A summary ``CompactionEvent`` makes the calls not yet continued utility (the summary call continues the tip, and the next turn's input is the compacted list) and resets the tip; an edit or trim ends the thread as the end of the span does.
     - A failed call is a turn or utility as its retry, the next call with the same input, is; one not retried is a turn.
     - At the end, a fork goes to the head whose output is in the span's final messages, else the later head; with no thread, the last candidate is the turn.
 
-    A span in which no call continues another has no answer (``linked`` is False), so the existing rules decide. Each call is compared at one position against a bounded number of open calls (``_OPEN`` of each kind), so the work is linear in the calls.
+    A span in which no call continues another has no answer (``linked`` is False), so the existing rules decide. Each call is fingerprinted at a bounded number of positions (``_OpenCalls``), so the work is linear in the calls.
     """
 
     def __init__(
@@ -1243,78 +1277,75 @@ class _Continuity:
         self.turns: dict[int, bool] = {}
         self.linked = False
         self._tip: _Call | None = None
-        self._heads: list[_Call] = []
-        self._candidates: list[_Call] = []
-        # failed calls not yet retried, and each retried one with its retry
-        self._failed: list[_Call] = []
+        self._heads = _OpenCalls(inputs)
+        self._candidates = _OpenCalls(inputs)
+        # failed calls not yet retried, by their input, and each retried one
+        # with its retry
+        self._failed: dict[tuple[int, _Fingerprint | None], list[_Call]] = {}
         self._retried: list[tuple[_Call, _Call]] = []
 
     def call(self, event: ModelEvent) -> None:
         call = _Call(event, self._inputs.of(event), _answer(event))
         if call.output is None:
-            self._failed.append(call)
-            if len(self._failed) > _OPEN:
-                self.turns[id(self._failed.pop(0).event)] = True
+            self._failed.setdefault(self._input_key(call), []).append(call)
             return
         if self._failed:
-            waiting: list[_Call] = []
-            for failed in self._failed:
-                if self._same(failed, call):
-                    self._retried.append((failed, call))
-                else:
-                    waiting.append(failed)
-            self._failed = waiting
-        for head in reversed(self._heads):
-            if self._continues(call, head):
-                self._settle(head, self._heads)
-                self._close(self._candidates)
-                self._advance(head, call)
-                return
+            for failed in self._failed.pop(self._input_key(call), []):
+                self._retried.append((failed, call))
+        head = self._heads.continued_by(call)
+        if head is not None:
+            self._settle(head, self._heads.calls)
+            self._close(self._candidates.calls)
+            self._advance(head, call)
+            return
         if self._tip is not None and self._continues(call, self._tip):
-            self._heads.append(call)
-            if len(self._heads) > _OPEN:
-                self._close([self._heads.pop(0)])
+            self._heads.add(call)
             self.linked = True
             return
-        for candidate in reversed(self._candidates):
-            if self._continues(call, candidate):
-                if self._heads:
-                    self._settle(self._heads[-1], self._heads)
-                self._close([c for c in self._candidates if c is not candidate])
-                self._advance(candidate, call)
-                return
-        self._candidates.append(call)
-        if len(self._candidates) > _OPEN:
-            self._close([self._candidates.pop(0)])
+        candidate = self._candidates.continued_by(call)
+        if candidate is not None:
+            if self._heads.calls:
+                self._settle(self._heads.calls[-1], self._heads.calls)
+            self._settle(candidate, self._candidates.calls)
+            self._advance(candidate, call)
+            return
+        self._candidates.add(call)
 
     def compaction(self, event: CompactionEvent) -> None:
         if event.type == "summary":
-            self._close(self._heads)
-            self._close(self._candidates)
+            self._close(self._heads.calls)
+            self._close(self._candidates.calls)
         else:
             self._end(final=False)
-        self._tip, self._heads, self._candidates = None, [], []
+        self._tip = None
+        self._heads.clear()
+        self._candidates.clear()
 
     def finish(self) -> dict[int, bool]:
         self._end(final=True)
         for failed, retry in self._retried:
             self.turns[id(failed.event)] = self.turns.get(id(retry.event), False)
-        for failed in self._failed:
-            self.turns[id(failed.event)] = True
+        for waiting in self._failed.values():
+            for failed in waiting:
+                self.turns[id(failed.event)] = True
         return self.turns
 
     def _end(self, final: bool) -> None:
         """End the thread: a fork goes to the head in the final messages (with `final`), else the later head; with no head, the last candidate is the turn."""
-        if self._heads:
-            found = [h for h in self._heads if final and self._in_final(h)]
-            self._settle((found or self._heads)[-1], self._heads)
-            self._close(self._candidates)
-        elif self._candidates:
-            self._settle(self._candidates[-1], self._candidates)
+        heads, candidates = self._heads.calls, self._candidates.calls
+        if heads:
+            found = [h for h in heads if final and self._in_final(h)]
+            self._settle((found or heads)[-1], heads)
+            self._close(candidates)
+        elif candidates:
+            self._settle(candidates[-1], candidates)
 
     def _advance(self, turn: _Call, call: _Call) -> None:
         self.turns[id(turn.event)] = True
-        self._tip, self._heads, self._candidates = turn, [call], []
+        self._tip = turn
+        self._heads.clear()
+        self._candidates.clear()
+        self._heads.add(call)
         self.linked = True
 
     def _settle(self, turn: _Call, calls: list[_Call]) -> None:
@@ -1334,12 +1365,10 @@ class _Continuity:
             == self._inputs.fingerprint(earlier.output)
         )
 
-    def _same(self, failed: _Call, call: _Call) -> bool:
-        return len(failed.input) == len(call.input) and (
-            not call.input
-            or self._inputs.fingerprint(failed.input[-1])
-            == self._inputs.fingerprint(call.input[-1])
-        )
+    def _input_key(self, call: _Call) -> tuple[int, _Fingerprint | None]:
+        """An input as a retry matches it: its length and its last message."""
+        last = self._inputs.fingerprint(call.input[-1]) if call.input else None
+        return len(call.input), last
 
     def _in_final(self, head: _Call) -> bool:
         at = len(head.input)
