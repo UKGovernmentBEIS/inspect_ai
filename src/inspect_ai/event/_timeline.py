@@ -38,12 +38,14 @@ from inspect_ai.model import (
     ChatMessageTool,
     ChatMessageUser,
 )
+from inspect_ai.util._span import AgentSpans
 
 from ._anchor import AnchorEvent
 from ._branch import BranchEvent
 from ._compaction import CompactionEvent
 from ._event import Event
 from ._model import ModelEvent
+from ._span import SpanBeginEvent
 from ._tool import ToolEvent
 from ._tree import EventTreeSpan, event_sequence, event_tree
 
@@ -424,8 +426,8 @@ def timeline_build(
     - Utility agent classification (single-turn agents with different
       system prompts)
     - Continuity, for model calls that do not record their ``origin``: within
-      a span, the calls that continue the conversation's thread are its turns
-      and the others are utility (see ``_Continuity``)
+      each conversation of a span, the calls that continue the conversation's
+      thread are its turns and the others are utility (see ``_Continuity``)
 
     Args:
         events: Flat list of Events from a transcript.
@@ -1085,6 +1087,7 @@ class _Inputs:
         self._issued: dict[str, tuple[int, int]] | None = None
         # tool call id -> the pool rows answering it
         self._tool_rows: dict[str, list[int]] | None = None
+        self._agent_spans: AgentSpans | None = None
 
     def of(self, event: ModelEvent) -> Sequence[ChatMessage]:
         if event.input_refs is None or self._pool is None:
@@ -1093,6 +1096,19 @@ class _Inputs:
         if found is None:
             found = self._views[id(event)] = PoolView(self._pool, event.input_refs)
         return found
+
+    def conversation(self, event: Event) -> str | None:
+        """The conversation an event is in: its innermost agent span in the span tree."""
+        if self._agent_spans is None:
+            self._agent_spans = AgentSpans()
+            for begin in self._events:
+                if isinstance(begin, SpanBeginEvent):
+                    self._agent_spans.add(begin)
+        try:
+            return self._agent_spans.agent_span(event.span_id)
+        except ValueError:
+            # a parent_id cycle: its calls are taken as one conversation
+            return None
 
     def fingerprint(self, message: ChatMessage) -> _Fingerprint:
         # keyed by identity: inputs read from a pool, or expanded from one,
@@ -1206,7 +1222,7 @@ _OPEN = 4
 
 
 class _Continuity:
-    """The continuity rule: which of a span's model calls are its conversation's turns, by which calls carry on the others' output.
+    """The continuity rule: which of a conversation's model calls in a span are its turns, by which calls carry on the others' output.
 
     An offline form of the agent bridge's thread tracking, for calls that do not record their ``origin``. Calls are taken in order, and the thread's tip is the last turn:
 
@@ -1342,19 +1358,34 @@ def _continuity(
     agent: TimelineSpan,
     inputs: _Inputs,
     final_messages: Sequence[ChatMessage] | None,
-) -> dict[int, bool] | None:
-    """Whether each of the span's calls with no recorded origin is a turn by continuity, by `id()` of its event; None where no call continues another."""
-    thread = _Continuity(inputs, final_messages)
+) -> dict[int, bool]:
+    """Whether each of the span's calls with no recorded origin is a turn by continuity, by `id()` of its event.
+
+    The rule runs over each conversation in the span apart (a span can hold more than one, where the timeline unrolls a solver beside an agent), and a conversation in which no call continues another has no answers, so the existing rules decide its calls.
+    """
+    threads: dict[str | None, _Continuity] = {}
+
+    def thread(event: Event) -> _Continuity:
+        conversation = inputs.conversation(event)
+        found = threads.get(conversation)
+        if found is None:
+            found = threads[conversation] = _Continuity(inputs, final_messages)
+        return found
+
     for item in agent.content:
         if not isinstance(item, TimelineEvent):
             continue
         if isinstance(item.event, ModelEvent):
             if item.event.origin is None and not _is_warmup_call(item.event, inputs):
-                thread.call(item.event)
+                thread(item.event).call(item.event)
         elif isinstance(item.event, CompactionEvent):
-            thread.compaction(item.event)
-    turns = thread.finish()
-    return turns if thread.linked else None
+            thread(item.event).compaction(item.event)
+    turns: dict[int, bool] = {}
+    for found in threads.values():
+        verdicts = found.finish()
+        if found.linked:
+            turns.update(verdicts)
+    return turns
 
 
 # =============================================================================
@@ -1511,9 +1542,10 @@ def _wrap_utility_events(
     rules above, as a call with no ``origin`` does, since a bridged agent's
     warm-ups and helper calls are recorded as ``"agent"``.
 
-    Where calls record no ``origin`` and one of them continues another, the
-    continuity rule decides which of those calls are turns in place of the
-    prompt rules (``_Continuity``); warm-ups stay utility.
+    Where calls record no ``origin`` and one of a conversation's calls
+    continues another, the continuity rule decides which of its calls are
+    turns in place of the prompt rules (``_Continuity``); warm-ups stay
+    utility.
 
     Operates recursively on the entire span tree.
 
@@ -1559,8 +1591,9 @@ def _wrap_utility_events(
                 new_content.append(utility_wrapper(item, index))
                 continue
 
-            if continuity is not None and item.event.origin is None:
-                if not continuity.get(id(item.event), True):
+            turn = continuity.get(id(item.event))
+            if turn is not None:
+                if not turn:
                     new_content.append(utility_wrapper(item, index))
                     continue
             elif primary_prompt is not None and not _has_tool_calls(item.event):
