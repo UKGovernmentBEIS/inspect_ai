@@ -15,7 +15,8 @@ class _Sent:
     A message is new unless the previous input had the same content (`content_key()`) at the position the alignment has reached or later. Each input is aligned against the previous input only: the part that begins as the previous input did is matched whole; past it, a pointer walks the previous input, a message the same as one at or after the pointer is matched and moves the pointer past it, and anything else is new. So a message rebuilt with a fresh id where it was is matched; a message edited, reordered behind a later one, or dropped by one call and restored by a later one is new again; and two equal messages sent at different turns are two messages. Ids play no part, so the fold over a log's inputs is the fold live.
     """
 
-    # every message sent, in the order sent; the scaffold's own objects
+    # every message sent, in the order sent, as the logged snapshots of
+    # the inputs (`_snapshot_messages`)
     messages: list[ChatMessage] = field(default_factory=list)
     # the content key of each message of the previous input, in order
     previous: list[str] = field(default_factory=list)

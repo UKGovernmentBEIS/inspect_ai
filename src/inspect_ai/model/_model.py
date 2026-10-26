@@ -2051,13 +2051,14 @@ class Model:
         # create event and add it to the transcript (or hand off to the
         # installed model-event sink, if any)
         model = str(self)
+        snapshot = _snapshot_messages(input)
         event = ModelEvent(
             uuid=event_uuid,
             model=model,
             role=self.role,
             requested_model=_requested_model.get(),
             origin=current_origin(),
-            input=_snapshot_messages(input),
+            input=snapshot,
             tools=tools,
             tool_choice=tool_choice,
             config=config,
@@ -2066,11 +2067,12 @@ class Model:
             call=call,
             pending=output is None,
         )
-        # at creation, so a request still in flight counts as sent
+        # at creation, so a request still in flight counts as sent; the
+        # snapshot, so history keeps a message as sent, as the log does
         if is_agent_generate():
             from inspect_ai._sentinel._dispatch import record_agent_turn
 
-            record_agent_turn(input)
+            record_agent_turn(snapshot)
         sink = _model_event_sink.get()
         if sink is None:
             transcript()._event(event)

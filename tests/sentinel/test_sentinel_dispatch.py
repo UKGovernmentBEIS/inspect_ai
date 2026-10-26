@@ -1,5 +1,6 @@
 import logging
 import random
+import threading
 from collections import Counter
 from collections.abc import Callable, Iterable, Iterator, Sequence
 from contextlib import contextmanager
@@ -10,7 +11,7 @@ from typing import TYPE_CHECKING, Any, Literal, NamedTuple, cast
 import anyio
 import pytest
 import tenacity
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, PrivateAttr, field_validator
 from test_helpers.transcript import FakeTranscriptHistoryProvider
 from test_helpers.utils import skip_if_no_mcp_package
 from typing_extensions import assert_type
@@ -6344,10 +6345,10 @@ def test_tool_calls_in_a_marked_region_are_not_checked() -> None:
 
 
 @solver
-def d3_edits_a_sent_message_in_place() -> Solver:
+def d3_edits_a_sent_message_in_place(metadata: dict[str, Any] | None = None) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         model = get_model()
-        task = ChatMessageUser(content="Draft question.")
+        task = ChatMessageUser(content="Draft question.", metadata=metadata)
         first = await model.generate([_SYSTEM, task])
         task.content = "Final question."
         state.output = await model.generate([_SYSTEM, task, first.message])
@@ -6357,37 +6358,92 @@ def d3_edits_a_sent_message_in_place() -> Solver:
 
 
 def test_a_message_edited_in_place_in_the_prefix_is_sent_again() -> None:
-    seen: Sent = []
+    seen: dict[str, tuple[str, list[ChatMessage]]] = {}
     task = Task(
         dataset=[Sample(input="What is 2 + 3?")],
         solver=d3_edits_a_sent_message_in_place(),
+        sentinel=[d3_probe(seen)],
+    )
+    log = eval(task, model="mockllm/model")[0]
+    # history holds each send's snapshot, so it keeps the message as sent
+    *_, (_, last) = seen.values()
+    assert sent_texts(last)[:3] == [
+        "Be helpful.",
+        "Draft question.",
+        "Final question.",
+    ]
+    assert_history_is_the_fold_of_the_log(log, seen)
+
+
+class _Uncopyable(BaseModel):
+    _lock: threading.Lock = PrivateAttr(default_factory=threading.Lock)
+
+
+def test_a_message_that_cannot_be_snapshot_is_held_live_in_history() -> None:
+    # the log holds such a message live, and so does history: an in-place
+    # edit shows in both, as before snapshots
+    seen: Sent = []
+    task = Task(
+        dataset=[Sample(input="What is 2 + 3?")],
+        solver=d3_edits_a_sent_message_in_place({"state": _Uncopyable()}),
         sentinel=d3_reads_sent(seen),
     )
     log = eval(task, model="mockllm/model")[0]
     assert log.status == "success", log.error
-    _, (step, last) = sent_afters(seen)
+    _, (_, last) = sent_afters(seen)
     assert last is not None
-    assert sent_texts(last) == [
+    assert sent_texts(last)[:3] == [
         "Be helpful.",
         "Final question.",
         "Final question.",
-        step.input[2].text,
     ]
     assert last[1] is last[2]
-    # a known difference: live history holds the edited object in both
-    # places, while the log snapshots each input, so its fold has the
-    # message as it was sent and then the edited version
-    from inspect_ai._sentinel._sent import _Sent
+    # the log's earlier event held the live message, so it shows the edit too
+    first, _ = agent_events(log)
+    assert first.input[1].text == "Final question."
 
-    fold = _Sent()
-    for event in agent_events(log):
-        fold.record(event.input)
-    assert sent_texts(fold.messages) == [
-        "Be helpful.",
-        "Draft question.",
-        "Final question.",
-        step.input[2].text,
+
+async def d3_elides_sent_tool_results(state: AgentState) -> bool:
+    # as a scaffold that saves context does: a tool result the model has
+    # seen is replaced in place
+    last_assistant = max(
+        index
+        for index, message in enumerate(state.messages)
+        if isinstance(message, ChatMessageAssistant)
+    )
+    for message in state.messages[:last_assistant]:
+        if isinstance(message, ChatMessageTool):
+            message.content = "[elided]"
+    return True
+
+
+def test_a_tool_result_elided_in_place_stays_as_sent_in_history() -> None:
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model", tool_name="addition", tool_arguments={"x": 1, "y": 2}
+            ),
+            ModelOutput.from_content("mockllm/model", content="Noted."),
+            ModelOutput.for_tool_call(
+                "mockllm/model", tool_name="submit", tool_arguments={"answer": "3"}
+            ),
+        ],
+        memoize=False,
+    )
+    seen: dict[str, tuple[str, list[ChatMessage]]] = {}
+    task = Task(
+        dataset=[Sample(input="What is 1 + 2?")],
+        solver=react(tools=[addition()], on_continue=d3_elides_sent_tool_results),
+        sentinel=[d3_probe(seen)],
+    )
+    log = eval(task, model=model)[0]
+    *_, (_, last) = seen.values()
+    assert [m.text for m in last if isinstance(m, ChatMessageTool)] == [
+        "3",
+        "[elided]",
     ]
+    assert_history_is_the_fold_of_the_log(log, seen)
 
 
 # attributes each call to a sub-agent span, as a bridged CLI's event consumer does
