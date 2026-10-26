@@ -532,6 +532,8 @@ AWS_DEFAULT_REGION=eu-west-2
 
 One thing to keep in mind if you are storing logs on S3 is that they will no longer be easily viewable using a local text editor. You will likely want to configure a [FUSE filesystem](https://github.com/s3fs-fuse/s3fs-fuse) so you can easily browse the S3 logs locally.
 
+Large `.eval` logs on S3 use multipart uploads. With the default asyncio backend, later writes can copy existing log data server-side and upload only new data and the ZIP directory. If Inspect is killed during a write, the unfinished upload stays in the bucket, and is billed as storage, until it is removed. We recommend a [lifecycle rule](https://docs.aws.amazon.com/AmazonS3/latest/userguide/mpu-abort-incomplete-mpu-lifecycle-config.html) on the log bucket that aborts incomplete multipart uploads after a day.
+
 ## Hugging Face Storage Buckets {#sec-hugging-face-storage-buckets}
 
 You can store evaluation logs in [Hugging Face Storage Buckets](https://huggingface.co/docs/hub/storage-buckets) using the `hf://buckets/<owner>/<bucket>/<path>` URI scheme. Storage buckets are useful for durable, shared log storage and are accessed through the `huggingface_hub` filesystem integration.

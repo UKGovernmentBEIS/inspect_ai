@@ -1051,9 +1051,10 @@ class ZipLogFile:
         self._etag: str | None = None
         # An S3 object whose leading bytes equal the temp file's
         # [0, length): the next remote flush copies them server-side and
-        # uploads only the rest. Set by a byte-copy seed from an S3 prior;
-        # cleared by any write and by anything that replaces the temp file
-        # (see design/s3-incremental-log-flush.md).
+        # uploads only the rest. Set by a byte-copy seed from an S3 prior and
+        # by every successful S3 flush (the log's own object); cleared by a
+        # failed write and by anything that replaces the temp file (see
+        # design/s3-incremental-log-flush.md).
         self._compose_prefix: ComposeSource | None = None
         # verify mode: the prefix's local digest when it was recorded, and
         # the first mismatch found, which every later flush and close re-raise
@@ -1362,15 +1363,19 @@ class ZipLogFile:
         async with self._lock:
             self._raise_compose_prefix_violation()
 
-            # close the zip file so it is flushed
+            # close the zip file so it is flushed; the closed zip keeps the
+            # end of its member area, the next flush's compose prefix
+            member_end: int | None = None
             if self._zip:
                 self._zip.close()
+                member_end = self._zip.start_dir
 
             # Stream temp file to output using the appropriate backend
             # (atomic local write, native S3 multipart upload, or chunked
             # copy via fsspec).
             written = True
             etag: str | None = None
+            can_compose = False
             try:
                 if self._fs.is_local():
                     with trace_action(logger, "Log Write", self._file):
@@ -1392,10 +1397,13 @@ class ZipLogFile:
                 else:
                     async with AsyncFilesystem() as async_fs:
                         etag = await self._write_remote(async_fs)
-            finally:
-                # only the seed records a prefix, for the first write (a
-                # failed one included: the next write uploads whole)
+                        can_compose = async_fs.can_compose(self._file)
+            except BaseException:
+                # whether the destination still holds the prefix's object is
+                # unknown: the next write uploads whole
                 self._clear_compose_prefix()
+                raise
+            finally:
                 # re-open zip file w/ self.temp_file pointer at end
                 self._open()
 
@@ -1412,6 +1420,13 @@ class ZipLogFile:
                 self._streaming_samples.clear()
                 self._destination_written = True
                 self._etag = etag
+                # the object now holds the temp file's member area, so the
+                # next flush composes onto it and uploads only what follows
+                self._clear_compose_prefix()
+                if etag is not None and can_compose and member_end is not None:
+                    await self._record_compose_prefix(
+                        ComposeSource(self._file, etag, member_end)
+                    )
 
     async def _write_remote(self, async_fs: AsyncFilesystem) -> str | None:
         """Write the closed temp zip to a remote destination; return the ETag.
