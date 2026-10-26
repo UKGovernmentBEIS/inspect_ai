@@ -19,13 +19,14 @@ from test_helpers.service_dispatch import (
     dispatching_service,
     serve_beside_failure_monitor,
 )
-from test_helpers.utils import skip_if_no_docker
+from test_helpers.utils import fail_in_a_group_with_handled_context, skip_if_no_docker
 
 from inspect_ai import Task, eval, task
 from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.agent import BridgedToolsSpec, sandbox_agent_bridge
+from inspect_ai.agent._bridge.sandbox.host_tool import _raised
 from inspect_ai.agent._bridge.sandbox.service import call_tool
 from inspect_ai.dataset import Sample
 from inspect_ai.event._model import ModelEvent
@@ -1405,6 +1406,20 @@ async def test_bridged_tool_failure_through_the_service_dispatcher(
     pre_empted = failure_requested and current_async_library() == "trio"
     assert replies == [reply] or (pre_empted and replies == [])
     assert bridge._failure_requested.is_set() == failure_requested
+
+
+@pytest.mark.parametrize("outer_cause", [False, True])
+async def test_bridged_tool_fatal_group_member_is_not_mapped_from_its_context(
+    outer_cause: bool,
+) -> None:
+    """A handled ToolError in a failing group's context leaves the call fatal."""
+    # the group's member and its context were ordered by a set: try fresh ones
+    for _ in range(20):
+        with pytest.raises(ExceptionGroup) as excinfo:
+            await fail_in_a_group_with_handled_context(outer_cause)
+        outcome = _raised(excinfo.value, "srv_tool", None)
+        assert outcome.error is None
+        assert outcome.fatal is excinfo.value.exceptions[0]
 
 
 class _IdleProxy:

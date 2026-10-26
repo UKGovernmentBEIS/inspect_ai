@@ -308,7 +308,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         multiple=True,
         type=str,
         envvar="INSPECT_EVAL_MODEL_SPEC",
-        help='Model to evaluate along with its own generate config, model args, and base url, as inline YAML or JSON, e.g. --model-spec "{model: openai/gpt-4o, temperature: 0}" (same fields as --model-role, plus base_url). Repeat the option to evaluate several models, each with its own options. Cannot be combined with --model, --model-base-url, --model-config, or -M.',
+        help='Model to evaluate along with its own generate config, model args, and base url, as inline YAML or JSON, e.g. --model-spec "{model: openai/gpt-6-luna, reasoning_effort: low}" (same fields as --model-role, plus base_url). Repeat the option to evaluate several models, each with its own options. Cannot be combined with --model, --model-base-url, --model-config, or -M.',
     )
     @click.option(
         "--run-config",
@@ -321,7 +321,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         multiple=True,
         type=str,
         envvar="INSPECT_EVAL_MODEL_ROLE",
-        help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-4o or --model-role grader="{model: mockllm/model, temperature: 0.5}". Bind multiple models to a role with a comma-separated list of names or a YAML/JSON list of configs, e.g. --model-role grader=openai/gpt-4o,google/gemini-2.0-flash',
+        help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-6-luna or --model-role grader="{model: mockllm/model, temperature: 0.5}". Bind multiple models to a role with a comma-separated list of names or a YAML/JSON list of configs, e.g. --model-role grader=openai/gpt-6-luna,google/gemini-2.0-flash',
     )
     @click.option(
         "-T",

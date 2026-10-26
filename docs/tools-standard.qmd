@@ -435,17 +435,18 @@ Here is an approval policy that requires approval for key combos (e.g. `Enter` o
 ``` {.yaml filename="approval.yaml"}
 approvers:
   - name: human
-    tools:
-      - computer(action='key'
-      - computer(action='left_click'
-      - computer(action='middle_click'
-      - computer(action='double_click'
+    tools: computer
+    arguments: {action: key}
+
+  - name: human
+    tools: computer
+    arguments: {action: "*_click"}
 
   - name: auto
     tools: "*"
 ```
 
-Note that since this is a prefix match and there could be other arguments, we don't end the tool match pattern with a parentheses.
+See [Auto Approver](approval.qmd#auto-approver) for how `arguments` are matched.
 
 You can apply this policy using the `--approval` command line option:
 
