@@ -716,6 +716,47 @@ def test_a_memory_path_replays_canonical_without_approval() -> None:
     ] == [canonical, canonical]
 
 
+@pytest.mark.parametrize("readonly", [False, True], ids=["writable", "readonly"])
+def test_an_unmonitored_log_replays_memory_paths_canonical(readonly: bool) -> None:
+    from inspect_ai.tool import memory
+
+    if readonly:
+        tool = memory(initial_data={"/memories/seed.txt": "seed"}, readonly=True)
+        given = [{"command": "view", "path": "/memories/x/../seed.txt"}]
+        canonical = [{"command": "view", "path": "/memories/seed.txt"}]
+    else:
+        tool = memory()
+        given = [
+            {"command": "create", "path": "/memories/a/../b.txt", "file_text": "x"},
+            {
+                "command": "rename",
+                "old_path": "/memories/a/../b.txt",
+                "new_path": "/memories/c/../d.txt",
+            },
+        ]
+        canonical = [
+            {"command": "create", "path": "/memories/b.txt", "file_text": "x"},
+            {
+                "command": "rename",
+                "old_path": "/memories/b.txt",
+                "new_path": "/memories/d.txt",
+            },
+        ]
+    # no sentinel or approver: the log is written without oversight
+    log = run_logged(
+        tool_loop(tool), outputs(*(call("memory", **args) for args in given), done())
+    )
+    replay = replayed(log)
+    for stage in (BeforeToolCall, AfterToolCall):
+        steps = [step.step for step in replay if isinstance(step.step, stage)]
+        assert [step.call.arguments for step in steps] == canonical
+    assert all(
+        step.step.result.error is None
+        for step in replay
+        if isinstance(step.step, AfterToolCall)
+    )
+
+
 @tool(name="memory")
 def r7_own_memory() -> Tool:
     async def execute(command: str, path: str, file_text: str) -> str:
