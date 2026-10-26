@@ -526,6 +526,30 @@ async def test_truncation_exposing_earlier_eocd_signature_raises(
             await reader.entries()
 
 
+async def test_truncation_exposing_earlier_eocd_with_bad_header_raises(
+    tmp_path: Path,
+) -> None:
+    """A stray EOCD pointing at bytes that aren't central directory headers raises.
+
+    The member's extra field completes the signature in its name into an EOCD
+    describing a 46-byte central directory at offset 0, the local file header.
+    """
+    zip_path = tmp_path / "truncated.zip"
+    info = zipfile.ZipInfo("bPK\x05\x06")
+    info.extra = struct.pack("<HHHHIIH", 0x9999, 14, 1, 1, 46, 0, 0)
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr(info, b"")
+    zip_path.write_bytes(zip_path.read_bytes()[:-19])
+
+    with pytest.raises(zipfile.BadZipFile):
+        zipfile.ZipFile(zip_path)
+
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(zip_path))
+        with pytest.raises(ValueError, match="Bad signature"):
+            await reader.entries()
+
+
 async def test_read_empty_archive(tmp_path: Path) -> None:
     zip_path = tmp_path / "empty.zip"
     with zipfile.ZipFile(zip_path, "w"):
