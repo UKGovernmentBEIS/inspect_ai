@@ -1,0 +1,440 @@
+{
+  "description": "Without origins, Inspect's compaction summary call (the agent's own system prompt, no tool calls) continues the tip and is followed by a summary CompactionEvent before any call continues it, so continuity makes it utility; the first call after the compaction starts the thread again. Recorded as \"agent\", the prompt rules keep it as a turn.",
+  "events": [
+    {
+      "event": "span_begin",
+      "id": "solvers",
+      "name": "solvers",
+      "type": "solvers",
+      "parent_id": null,
+      "timestamp": "2026-01-01T00:00:00Z",
+      "uuid": "sb-solvers"
+    },
+    {
+      "event": "span_begin",
+      "id": "agent",
+      "name": "agent",
+      "type": "agent",
+      "parent_id": "solvers",
+      "timestamp": "2026-01-01T00:00:00Z",
+      "uuid": "sb-agent"
+    },
+    {
+      "event": "model",
+      "uuid": "m1",
+      "span_id": "agent",
+      "timestamp": "2026-01-01T00:00:01Z",
+      "completed": "2026-01-01T00:00:02Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are the main assistant."
+        },
+        {
+          "role": "user",
+          "content": "What is 1 + 1?"
+        }
+      ],
+      "tools": [],
+      "tool_choice": "auto",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "c1",
+                  "function": "addition",
+                  "arguments": {
+                    "x": 1,
+                    "y": 1
+                  }
+                }
+              ]
+            },
+            "stop_reason": "tool_calls"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "tool",
+      "uuid": "t1",
+      "span_id": "agent",
+      "timestamp": "2026-01-01T00:00:03Z",
+      "completed": "2026-01-01T00:00:04Z",
+      "id": "c1",
+      "function": "addition",
+      "arguments": {
+        "x": 1,
+        "y": 1
+      },
+      "result": "2",
+      "events": []
+    },
+    {
+      "event": "model",
+      "uuid": "m2",
+      "span_id": "agent",
+      "timestamp": "2026-01-01T00:00:05Z",
+      "completed": "2026-01-01T00:00:06Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are the main assistant."
+        },
+        {
+          "role": "user",
+          "content": "What is 1 + 1?"
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "tool_calls": [
+            {
+              "id": "c1",
+              "function": "addition",
+              "arguments": {
+                "x": 1,
+                "y": 1
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "content": "2",
+          "tool_call_id": "c1",
+          "function": "addition"
+        }
+      ],
+      "tools": [],
+      "tool_choice": "auto",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "c2",
+                  "function": "addition",
+                  "arguments": {
+                    "x": 1,
+                    "y": 1
+                  }
+                }
+              ]
+            },
+            "stop_reason": "tool_calls"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "tool",
+      "uuid": "t2",
+      "span_id": "agent",
+      "timestamp": "2026-01-01T00:00:07Z",
+      "completed": "2026-01-01T00:00:08Z",
+      "id": "c2",
+      "function": "addition",
+      "arguments": {
+        "x": 1,
+        "y": 1
+      },
+      "result": "2",
+      "events": []
+    },
+    {
+      "event": "model",
+      "uuid": "m3",
+      "span_id": "agent",
+      "timestamp": "2026-01-01T00:00:09Z",
+      "completed": "2026-01-01T00:00:10Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are the main assistant."
+        },
+        {
+          "role": "user",
+          "content": "What is 1 + 1?"
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "tool_calls": [
+            {
+              "id": "c1",
+              "function": "addition",
+              "arguments": {
+                "x": 1,
+                "y": 1
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "content": "2",
+          "tool_call_id": "c1",
+          "function": "addition"
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "tool_calls": [
+            {
+              "id": "c2",
+              "function": "addition",
+              "arguments": {
+                "x": 1,
+                "y": 1
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "content": "2",
+          "tool_call_id": "c2",
+          "function": "addition"
+        },
+        {
+          "role": "user",
+          "content": "Summarize the conversation."
+        }
+      ],
+      "tools": [],
+      "tool_choice": "auto",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "The sum is 2."
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "compaction",
+      "uuid": "cmp",
+      "span_id": "agent",
+      "timestamp": "2026-01-01T00:00:11Z",
+      "type": "summary",
+      "source": "inspect"
+    },
+    {
+      "event": "model",
+      "uuid": "m4",
+      "span_id": "agent",
+      "timestamp": "2026-01-01T00:00:12Z",
+      "completed": "2026-01-01T00:00:13Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are the main assistant."
+        },
+        {
+          "role": "user",
+          "content": "The sum is 2."
+        }
+      ],
+      "tools": [],
+      "tool_choice": "auto",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "c3",
+                  "function": "addition",
+                  "arguments": {
+                    "x": 1,
+                    "y": 1
+                  }
+                }
+              ]
+            },
+            "stop_reason": "tool_calls"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "tool",
+      "uuid": "t3",
+      "span_id": "agent",
+      "timestamp": "2026-01-01T00:00:14Z",
+      "completed": "2026-01-01T00:00:15Z",
+      "id": "c3",
+      "function": "addition",
+      "arguments": {
+        "x": 1,
+        "y": 1
+      },
+      "result": "2",
+      "events": []
+    },
+    {
+      "event": "model",
+      "uuid": "m5",
+      "span_id": "agent",
+      "timestamp": "2026-01-01T00:00:16Z",
+      "completed": "2026-01-01T00:00:17Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are the main assistant."
+        },
+        {
+          "role": "user",
+          "content": "The sum is 2."
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "tool_calls": [
+            {
+              "id": "c3",
+              "function": "addition",
+              "arguments": {
+                "x": 1,
+                "y": 1
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "content": "2",
+          "tool_call_id": "c3",
+          "function": "addition"
+        }
+      ],
+      "tools": [],
+      "tool_choice": "auto",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "2"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "span_end",
+      "id": "agent",
+      "timestamp": "2026-01-01T01:00:00Z",
+      "uuid": "se-agent"
+    },
+    {
+      "event": "span_end",
+      "id": "solvers",
+      "timestamp": "2026-01-01T01:00:00Z",
+      "uuid": "se-solvers"
+    }
+  ],
+  "expected": {
+    "init": null,
+    "agent": {
+      "id": "agent",
+      "name": "main",
+      "event_uuids": [
+        "m1",
+        "t1",
+        "m2",
+        "t2",
+        "cmp",
+        "m4",
+        "t3",
+        "m5"
+      ],
+      "children": [
+        {
+          "id": "utility-m3",
+          "name": "utility",
+          "utility": true,
+          "event_uuids": [
+            "m3"
+          ]
+        }
+      ]
+    },
+    "scoring": null
+  },
+  "expected_recorded_as_agent": {
+    "init": null,
+    "agent": {
+      "id": "agent",
+      "name": "main",
+      "event_uuids": [
+        "m1",
+        "t1",
+        "m2",
+        "t2",
+        "m3",
+        "cmp",
+        "m4",
+        "t3",
+        "m5"
+      ],
+      "children": []
+    },
+    "scoring": null
+  }
+}

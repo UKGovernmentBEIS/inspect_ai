@@ -1,0 +1,439 @@
+{
+  "description": "Bridged sub-agents in spans named agent-{tool call id}: each one's result is the tool message answering that call in a later model call's input, found past a side call whose input does not hold it.",
+  "events": [
+    {
+      "event": "span_begin",
+      "id": "solvers",
+      "name": "solvers",
+      "type": "solvers",
+      "parent_id": null,
+      "timestamp": "2026-01-01T00:00:00Z",
+      "uuid": "sb-solvers"
+    },
+    {
+      "event": "span_begin",
+      "id": "agent",
+      "name": "agent",
+      "type": "agent",
+      "parent_id": "solvers",
+      "timestamp": "2026-01-01T00:00:00Z",
+      "uuid": "sb-agent"
+    },
+    {
+      "event": "model",
+      "uuid": "m1",
+      "span_id": "agent",
+      "timestamp": "2026-01-01T00:00:01Z",
+      "completed": "2026-01-01T00:00:02Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are the main assistant."
+        },
+        {
+          "role": "user",
+          "content": "What is 1 + 1?"
+        }
+      ],
+      "tools": [],
+      "tool_choice": "auto",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "k1",
+                  "function": "task",
+                  "arguments": {
+                    "prompt": "go"
+                  }
+                }
+              ]
+            },
+            "stop_reason": "tool_calls"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "span_begin",
+      "id": "agent-k1",
+      "name": "agent-k1",
+      "type": "agent",
+      "parent_id": "agent",
+      "timestamp": "2026-01-01T00:00:03Z",
+      "uuid": "sb-agent-k1"
+    },
+    {
+      "event": "model",
+      "uuid": "s1",
+      "span_id": "agent-k1",
+      "timestamp": "2026-01-01T00:00:04Z",
+      "completed": "2026-01-01T00:00:05Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are a sub-agent."
+        },
+        {
+          "role": "user",
+          "content": "Find it."
+        }
+      ],
+      "tools": [],
+      "tool_choice": "auto",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "found it"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "span_end",
+      "id": "agent-k1",
+      "timestamp": "2026-01-01T00:00:06Z",
+      "uuid": "se-agent-k1"
+    },
+    {
+      "event": "model",
+      "uuid": "m2",
+      "span_id": "agent",
+      "timestamp": "2026-01-01T00:00:07Z",
+      "completed": "2026-01-01T00:00:08Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are the main assistant."
+        },
+        {
+          "role": "user",
+          "content": "What is 1 + 1?"
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "tool_calls": [
+            {
+              "id": "k1",
+              "function": "task",
+              "arguments": {
+                "prompt": "go"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "content": "found it",
+          "tool_call_id": "k1",
+          "function": "task"
+        }
+      ],
+      "tools": [],
+      "tool_choice": "auto",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "k2",
+                  "function": "task",
+                  "arguments": {
+                    "prompt": "go"
+                  }
+                }
+              ]
+            },
+            "stop_reason": "tool_calls"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "span_begin",
+      "id": "agent-k2",
+      "name": "agent-k2",
+      "type": "agent",
+      "parent_id": "agent",
+      "timestamp": "2026-01-01T00:00:09Z",
+      "uuid": "sb-agent-k2"
+    },
+    {
+      "event": "model",
+      "uuid": "s2",
+      "span_id": "agent-k2",
+      "timestamp": "2026-01-01T00:00:10Z",
+      "completed": "2026-01-01T00:00:11Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are a sub-agent."
+        },
+        {
+          "role": "user",
+          "content": "Check it."
+        }
+      ],
+      "tools": [],
+      "tool_choice": "auto",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "checked"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "span_end",
+      "id": "agent-k2",
+      "timestamp": "2026-01-01T00:00:12Z",
+      "uuid": "se-agent-k2"
+    },
+    {
+      "event": "model",
+      "uuid": "m3",
+      "span_id": "agent",
+      "timestamp": "2026-01-01T00:00:13Z",
+      "completed": "2026-01-01T00:00:14Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are the main assistant."
+        },
+        {
+          "role": "user",
+          "content": "Is `ls` a read-only command? Answer yes or no."
+        }
+      ],
+      "tools": [],
+      "tool_choice": "auto",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "yes"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "model",
+      "uuid": "m4",
+      "span_id": "agent",
+      "timestamp": "2026-01-01T00:00:15Z",
+      "completed": "2026-01-01T00:00:16Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are the main assistant."
+        },
+        {
+          "role": "user",
+          "content": "What is 1 + 1?"
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "tool_calls": [
+            {
+              "id": "k1",
+              "function": "task",
+              "arguments": {
+                "prompt": "go"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "content": "found it",
+          "tool_call_id": "k1",
+          "function": "task"
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "tool_calls": [
+            {
+              "id": "k2",
+              "function": "task",
+              "arguments": {
+                "prompt": "go"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "content": "checked",
+          "tool_call_id": "k2",
+          "function": "task"
+        }
+      ],
+      "tools": [],
+      "tool_choice": "auto",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "2"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "span_end",
+      "id": "agent",
+      "timestamp": "2026-01-01T01:00:00Z",
+      "uuid": "se-agent"
+    },
+    {
+      "event": "span_end",
+      "id": "solvers",
+      "timestamp": "2026-01-01T01:00:00Z",
+      "uuid": "se-solvers"
+    }
+  ],
+  "expected": {
+    "init": null,
+    "agent": {
+      "id": "agent",
+      "name": "main",
+      "event_uuids": [
+        "m1",
+        "m2",
+        "m4"
+      ],
+      "children": [
+        {
+          "id": "agent-k1",
+          "name": "agent-k1",
+          "agent_result": "found it",
+          "event_uuids": [
+            "s1"
+          ]
+        },
+        {
+          "id": "agent-k2",
+          "name": "agent-k2",
+          "agent_result": "checked",
+          "event_uuids": [
+            "s2"
+          ]
+        },
+        {
+          "id": "utility-m3",
+          "name": "utility",
+          "utility": true,
+          "event_uuids": [
+            "m3"
+          ]
+        }
+      ]
+    },
+    "scoring": null
+  },
+  "expected_recorded_as_agent": {
+    "init": null,
+    "agent": {
+      "id": "agent",
+      "name": "main",
+      "event_uuids": [
+        "m1",
+        "m2",
+        "m3",
+        "m4"
+      ],
+      "children": [
+        {
+          "id": "agent-k1",
+          "name": "agent-k1",
+          "agent_result": "found it",
+          "event_uuids": [
+            "s1"
+          ]
+        },
+        {
+          "id": "agent-k2",
+          "name": "agent-k2",
+          "agent_result": "checked",
+          "event_uuids": [
+            "s2"
+          ]
+        }
+      ]
+    },
+    "scoring": null
+  }
+}

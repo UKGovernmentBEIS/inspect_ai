@@ -7,7 +7,9 @@ TypeScript timeline builders consistent without duplicating test logic.
 
 Fixture format: {"description": ..., "events": [...], "expected": {...}}
 with expected sections "init", "agent", and "scoring" (see the assertion
-helpers below for the supported expectation fields).
+helpers below for the supported expectation fields). A fixture whose events
+record no origin also runs with every model call recorded as "agent",
+expecting "expected_recorded_as_agent" where it has one, else "expected".
 """
 
 import json
@@ -213,8 +215,11 @@ def _recorded_as_agent(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
 )
 def test_timeline_fixture_with_every_call_recorded_as_agent(fixture_name: str) -> None:
     # a call recorded as "agent" goes through the same rules as one with no
-    # origin, so a log written with origins keeps its tree
+    # origin, except continuity, which applies only where origin is not
+    # recorded ("expected_recorded_as_agent" where that changes the tree)
     fixture = _load_fixture(fixture_name)
     events = _events_adapter.validate_python(_recorded_as_agent(fixture["events"]))
     timeline = timeline_build(events)
-    _assert_timeline_matches(timeline, fixture["expected"])
+    _assert_timeline_matches(
+        timeline, fixture.get("expected_recorded_as_agent", fixture["expected"])
+    )
