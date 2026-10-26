@@ -18,6 +18,7 @@ from inspect_ai._sentinel._sidecar._field import receiving_field
 from inspect_ai._sentinel._sidecar._state import require_monitor_state
 from inspect_ai._sentinel._sidecar._task import SampleFacts, TaskFacts, TaskSidecars
 from inspect_ai._util._async import tg_collect
+from inspect_ai.agent._bridge.util import bridge_model_generate
 from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
 from inspect_ai.dataset import Sample
 from inspect_ai.event import InfoEvent, SentinelEvent
@@ -28,6 +29,7 @@ from inspect_ai.model import (
     ChatMessageUser,
     GenerateConfig,
     Model,
+    ModelOutput,
     get_model,
 )
 from inspect_ai.scorer import Score, Scorer, Target, mean, score, scorer
@@ -1208,3 +1210,157 @@ def test_two_sidecars_that_keep_the_same_key_fail_the_sample() -> None:
     error = log.samples[0].error
     assert error is not None
     assert "both keep 'Tally:lookups'" in error.message
+
+
+@solver
+def _bridged_turn(seen: list[ModelOutput | Exception]) -> Solver:
+    # a bridged agent's call: it runs whatever calls it is handed itself
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        with bridge_model_generate():
+            try:
+                seen.append(await get_model().generate(state.messages))
+            except Exception as ex:
+                seen.append(ex)
+        return state
+
+    return solve
+
+
+def test_a_bridged_agent_is_never_handed_a_rejected_call() -> None:
+    withheld = {
+        "message": _turn_json(("call_1", "Tokyo")),
+        "results": {"call_1": "Tokyo is not allowed."},
+    }
+    stand_in = StandInSidecar(
+        turns=[Turn(status=400, sentinel={"outcome": "reject", "withheld": withheld})]
+    )
+    seen: list[ModelOutput | Exception] = []
+    task = Task(dataset=[Sample(input="Hi.")], solver=_bridged_turn(seen))
+
+    eval(task, model=_model(stand_in), display="none")
+
+    # the refusal stands, as the provider's error the bridge forwards
+    [handed] = seen
+    assert isinstance(handed, Exception)
+
+
+def test_a_bridged_agent_is_handed_the_turn_as_the_sidecar_left_it() -> None:
+    proposed = {
+        "message": _turn_json(("call_1", "Tokyo"), ("call_2", "Oslo")),
+        "results": {"call_1": "Tokyo is not allowed."},
+    }
+    stand_in = StandInSidecar(
+        turns=[
+            Turn(
+                calls=[("call_2", "weather", {"city": "Oslo"})],
+                sentinel={"outcome": "proceed", "steps": [], "proposed": proposed},
+            )
+        ]
+    )
+    seen: list[ModelOutput | Exception] = []
+    task = Task(dataset=[Sample(input="Hi.")], solver=_bridged_turn(seen))
+
+    eval(task, model=_model(stand_in), display="none")
+
+    [handed] = seen
+    assert isinstance(handed, ModelOutput)
+    assert [c.id for c in handed.message.tool_calls or []] == ["call_2"]
+
+
+def test_an_approver_sees_the_sidecars_change_and_its_own_change_runs() -> None:
+    seen: list[dict[str, Any]] = []
+
+    @approver
+    def to_lima() -> Approver:
+        async def approve(
+            message: str, call: ToolCall, view: Any, history: list[Any]
+        ) -> Approval:
+            seen.append(dict(call.arguments))
+            changed = ToolCall(
+                id=call.id, function=call.function, arguments={"city": "Lima"}
+            )
+            return Approval(decision="modify", modified=changed)
+
+        return approve
+
+    original = {"id": "call_1", "function": "weather", "arguments": {"city": "Tokyo"}}
+    modified = {"id": "call_1", "function": "weather", "arguments": {"city": "Oslo"}}
+    stand_in = StandInSidecar(
+        turns=[
+            Turn(
+                calls=[("call_1", "weather", {"city": "Oslo"})],
+                sentinel={
+                    "outcome": "proceed",
+                    "steps": [
+                        {
+                            "stage": "tool_call",
+                            "call": "call_1",
+                            "original": original,
+                            "decision": {"action": "modify", "modified": modified},
+                        }
+                    ],
+                },
+            ),
+            Turn(),
+        ]
+    )
+
+    _run_agent(stand_in, approval=[ApprovalPolicy(approver=to_lima(), tools="*")])
+
+    # the sidecar judged the turn before Inspect was handed it
+    assert seen == [{"city": "Oslo"}]
+    assert _LOOKED_UP == ["Lima"]
+
+
+def test_a_decision_is_recovered_once_inspect_stops_retrying() -> None:
+    ended = {
+        "outcome": "terminate",
+        "steps": [
+            {
+                "stage": "model_input",
+                "decision": {"action": "terminate", "explanation": "Too far."},
+            }
+        ],
+    }
+    stand_in = StandInSidecar(
+        # a refusal Inspect retries, with the field lost every time
+        turns=[Turn(status=503)] * 10,
+        methods={"request_result": _answers(_decided(ended))},
+    )
+
+    [log] = eval(
+        Task(dataset=[Sample(input="Hi.")], solver=generate()),
+        model=_model(stand_in),
+        max_retries=0,
+        display="none",
+    )
+
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.error is None
+    assert sample.limit is not None
+    assert (sample.limit.type, sample.limit.reason) == ("operator", "Too far.")
+
+
+def test_a_failed_copy_of_monitor_state_still_cleans_up() -> None:
+    cleaned: list[str] = []
+
+    async def cleanup(state: TaskState) -> None:
+        cleaned.append(state.uuid)
+
+    first = StandInSidecar(methods={"sample_result": _kept({"Tally:lookups": 2})})
+    second = StandInSidecar(methods={"sample_result": _kept({"Tally:lookups": 5})})
+    assigned, other = _two_models(first, second)
+    task = Task(
+        dataset=[Sample(input="Hi.")],
+        solver=_asks_both(other),
+        scorer=_reads_monitor_state(),
+        cleanup=cleanup,
+    )
+
+    [log] = eval(task, model=assigned, display="none")
+
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.error is not None
+    assert cleaned == [sample.uuid]
