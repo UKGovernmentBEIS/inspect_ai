@@ -23,6 +23,7 @@ from shortuuid import uuid
 from typing_extensions import TypeIs
 
 from inspect_ai._sentinel._agent_state import bridge_request
+from inspect_ai._util._async import raise_unwrapped
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
@@ -473,7 +474,7 @@ async def _apply_response_filter(
                 while isinstance(inner, ExceptionGroup):
                     inner = inner.exceptions[0]
         if isinstance(inner, control_flow):
-            raise inner
+            raise_unwrapped(ex, inner)
         raise ResponseFilterError(f"{type(inner).__name__}: {inner}") from ex
     if filtered is None:
         return output

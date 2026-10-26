@@ -104,7 +104,10 @@ async def test_write_recovered_eval_log_basic() -> None:
             crashed = _make_crashed_log(temp_dir, samples=flushed)
 
             log = await write_recovered_eval_log(
-                crashed, iter([(sample, False) for sample in buffer]), output
+                crashed,
+                iter([(sample, False) for sample in buffer]),
+                output,
+                metrics=None,
             )
 
             assert log.status == "error"
@@ -125,7 +128,9 @@ async def test_write_recovered_eval_log_stats() -> None:
             samples = [_make_sample(1), _make_sample(2)]
             crashed = _make_crashed_log(temp_dir, samples=samples)
 
-            log = await write_recovered_eval_log(crashed, iter([]), output)
+            log = await write_recovered_eval_log(
+                crashed, iter([]), output, metrics=None
+            )
 
             assert log.stats is not None
             assert log.stats.started_at != ""
@@ -153,7 +158,9 @@ async def test_write_recovered_eval_log_stats_all_usage_fields() -> None:
             samples = [_make_sample(1, usage=usage), _make_sample(2, usage=usage)]
             crashed = _make_crashed_log(temp_dir, samples=samples)
 
-            log = await write_recovered_eval_log(crashed, iter([]), output)
+            log = await write_recovered_eval_log(
+                crashed, iter([]), output, metrics=None
+            )
 
             assert log.stats is not None
             for rollup in (
@@ -180,7 +187,10 @@ async def test_write_recovered_eval_log_mixed_scored() -> None:
             # Buffer has unscored sample
             unscored = [_make_sample(2, scored=False)]
             await write_recovered_eval_log(
-                crashed, iter([(sample, False) for sample in unscored]), output
+                crashed,
+                iter([(sample, False) for sample in unscored]),
+                output,
+                metrics=None,
             )
 
             read_log = await read_eval_log_async(output)
@@ -204,7 +214,9 @@ async def test_write_recovered_eval_log_empty() -> None:
             output = os.path.join(temp_dir, "recovered.eval")
             crashed = _make_crashed_log(temp_dir)
 
-            log = await write_recovered_eval_log(crashed, iter([]), output)
+            log = await write_recovered_eval_log(
+                crashed, iter([]), output, metrics=None
+            )
 
             assert log.status == "error"
             read_log = await read_eval_log_async(output)

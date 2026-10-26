@@ -251,6 +251,7 @@ async def score(
         action=action,
         copy=False,
         samples=read_sample,
+        _log_scorers=scorer is None,
     )
 
     if stream:
