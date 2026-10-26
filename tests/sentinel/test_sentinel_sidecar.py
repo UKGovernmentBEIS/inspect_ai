@@ -1,5 +1,8 @@
+import json
+from pathlib import Path
 from typing import Any
 
+import httpx2
 import pytest
 from test_helpers.stand_in_sidecar import StandInSidecar
 
@@ -14,7 +17,8 @@ from inspect_ai._sentinel._sidecar._task import SampleFacts, TaskFacts, TaskSide
 from inspect_ai._util._async import tg_collect
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessageUser, Model, get_model
-from inspect_ai.solver import Generate, Solver, TaskState, solver
+from inspect_ai.scorer import Score, Scorer, Target, mean, scorer
+from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 
 _MODELS = {
     "anthropic": "anthropic/claude-haiku-4-5",
@@ -331,3 +335,110 @@ async def test_a_sidecar_found_after_the_task_started_is_registered_once() -> No
     await tg_collect([lambda: sidecars.sidecar(model.api)] * 3)
 
     assert len(_registered(stand_in, "register_task")) == 1
+
+
+def _context(request: httpx2.Request) -> dict[str, Any] | None:
+    header = request.headers.get("x-inspect-context")
+    return json.loads(header) if header is not None else None
+
+
+@pytest.mark.parametrize(
+    ("provider", "base_url"),
+    [("anthropic", "http://proxy.test"), ("openai", "http://proxy.test/v1")],
+)
+def test_an_agent_call_names_its_sample(provider: str, base_url: str) -> None:
+    stand_in = StandInSidecar()
+    task = Task(
+        dataset=[Sample(input="Hi.", id="a")], solver=generate(), name="weather_desk"
+    )
+
+    [log] = eval(task, model=_model(stand_in, provider, base_url), display="none")
+
+    assert log.status == "success"
+    assert log.samples is not None
+    [sample] = log.samples
+    [call] = [r for r in stand_in.model_calls if _context(r) is not None]
+    context = _context(call)
+    assert context is not None
+    attempt = context.pop("attempt")
+    assert context == {
+        "version": 1,
+        "eval_id": log.eval.eval_id,
+        "task": "weather_desk",
+        "sample_id": "a",
+        "epoch": 1,
+        "sample_uuid": sample.uuid,
+    }
+    assert attempt
+    # the sample's registration was complete before the sidecar saw its call
+    completed = [
+        i
+        for i, r in enumerate(stand_in.requests)
+        if r.url.path == "/sentinel/v1"
+        and json.loads(r.content)["method"] == "complete_registration"
+    ]
+    assert completed == [completed[0]]
+    assert completed[0] < stand_in.requests.index(call)
+
+
+@scorer(metrics=[mean()])
+def _graded() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        await get_model().generate("Grade it.")
+        return Score(value=1)
+
+    return score
+
+
+def test_only_the_agents_calls_name_their_sample() -> None:
+    stand_in = StandInSidecar()
+    task = Task(dataset=[Sample(input="Hi.")], solver=generate(), scorer=_graded())
+
+    [log] = eval(task, model=_model(stand_in), display="none")
+
+    assert log.status == "success"
+    named = [_context(r) is not None for r in stand_in.model_calls]
+    # the agent's turn, then the grader's, which no sidecar judges in process
+    assert named == [True, False]
+
+
+@solver
+def _asks_twice() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model()
+        await model.generate(state.messages, cache=True)
+        await model.generate(state.messages, cache=True)
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize(
+    ("sentinel_proxy", "calls"),
+    [("auto", 2), ("off", 1)],
+    ids=["through a sidecar", "without one"],
+)
+def test_an_agent_call_through_a_sidecar_is_never_answered_from_the_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, sentinel_proxy: Any, calls: int
+) -> None:
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+    stand_in = StandInSidecar()
+    task = Task(dataset=[Sample(input="Hi.")], solver=_asks_twice())
+
+    [log] = eval(
+        task, model=_model(stand_in), sentinel_proxy=sentinel_proxy, display="none"
+    )
+
+    assert log.status == "success"
+    assert len(stand_in.model_calls) == calls
+
+
+def test_a_call_to_an_endpoint_with_no_sidecar_names_no_sample() -> None:
+    stand_in = StandInSidecar(info=None)
+    task = Task(dataset=[Sample(input="Hi.")], solver=generate())
+
+    [log] = eval(task, model=_model(stand_in), display="none")
+
+    assert log.status == "success"
+    assert [_context(r) for r in stand_in.model_calls] == [None]
+    assert _registered(stand_in, "register_task") == []

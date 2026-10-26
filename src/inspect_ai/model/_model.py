@@ -1068,6 +1068,15 @@ class Model:
                 config=config,
             )
 
+        # after an in-process sentinel, which judges a request before the
+        # proxy does; a cached reply would skip the sidecar's judging
+        from inspect_ai._sentinel._sidecar._call import sidecar_call
+
+        through_sidecar = await sidecar_call(self)
+        if through_sidecar is not None:
+            config = through_sidecar.config(config)
+            cache = False
+
         # enforce concurrency limits
         start_time = datetime.now(timezone.utc)
         working_start = sample_working_time()
