@@ -1,3 +1,4 @@
+import json
 from bisect import bisect_left
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -53,9 +54,24 @@ class _Sent:
         self.previous = keys
 
 
+_EXCLUDED = {"id", "source", "metadata"}
+
+
 def content_key(message: ChatMessage) -> str:
-    """A hash of what the model is sent of a message: all but its id, source and metadata."""
-    return mm3_hash(message.model_dump_json(exclude={"id", "source", "metadata"}))
+    """A hash of what the model is sent of a message: all but its id, source and metadata.
+
+    Text with lone surrogates, which UTF-8 JSON cannot encode, is hashed from JSON with them escaped. A message that cannot be serialized at all (such as a numpy array in its tool arguments) is keyed by identity, so it matches only itself: a rebuilt copy of it is new, and an edit made to it in place is not seen.
+    """
+    try:
+        return mm3_hash(message.model_dump_json(exclude=_EXCLUDED))
+    except ValueError:
+        pass
+    # any value can fail to serialize, in any way; keyed by identity, a
+    # message stays alive while its key can match, since the fold holds it
+    try:
+        return mm3_hash(json.dumps(message.model_dump(mode="json", exclude=_EXCLUDED)))
+    except Exception:
+        return f"object:{id(message)}"
 
 
 _sent: "WeakKeyDictionary[Transcript, dict[str, _Sent]]" = WeakKeyDictionary()

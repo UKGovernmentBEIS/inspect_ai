@@ -6205,6 +6205,46 @@ def test_the_fold_matches_by_content_and_position() -> None:
     }
 
 
+_LONG_WITH_A_LONE_SURROGATE = "word " * 40 + "\udc00"
+
+
+def test_input_with_a_lone_surrogate_generates_with_a_sentinel() -> None:
+    seen: Sent = []
+    task = Task(
+        dataset=[Sample(input=_LONG_WITH_A_LONE_SURROGATE)],
+        solver=generate(),
+        sentinel=d3_reads_sent(seen),
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.status == "success", log.error
+    [(_, sent)] = sent_afters(seen)
+    assert sent_texts(sent) == [_LONG_WITH_A_LONE_SURROGATE]
+
+
+def test_the_fold_compares_messages_with_lone_surrogates_by_content() -> None:
+    first = ChatMessageUser(content=_LONG_WITH_A_LONE_SURROGATE)
+    rebuilt = ChatMessageUser(content=_LONG_WITH_A_LONE_SURROGATE)
+    other = ChatMessageUser(content="word " * 40 + "\udc01")
+    assert fold([first], [rebuilt]) == [first]
+    assert fold([first], [other]) == [first, other]
+
+
+def test_the_fold_matches_a_message_it_cannot_serialize_only_as_itself() -> None:
+    import numpy as np
+
+    def unserializable() -> ChatMessageAssistant:
+        return ChatMessageAssistant(
+            content="",
+            tool_calls=[
+                ToolCall(id="c", function="f", arguments={"x": np.array([1, 2])})
+            ],
+        )
+
+    message, copy = unserializable(), unserializable()
+    assert fold([message], [message]) == [message]
+    assert fold([message], [copy]) == [message, copy]
+
+
 def test_the_fold_ignores_source_and_metadata() -> None:
     question = ChatMessageUser(content="Question.", source="input")
     retagged = ChatMessageUser(
