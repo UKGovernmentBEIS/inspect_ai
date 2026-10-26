@@ -872,7 +872,7 @@ def test_a_span_tree_cycle_no_step_walks_through_fails_the_replay() -> None:
 # react with a summary compaction, run by `inspect eval` with inspect_ai 0.3.285,
 # which records no ModelEvent.origin: the solver and model of
 # test_a_log_from_before_recorded_origins_replays_with_the_timeline_s_turns
-OLD_LOG = Path(__file__).parent / "logs" / "react_compaction_0.3.285.json"
+OLD_LOG = Path(__file__).parent / "fixtures" / "react_compaction_0.3.285.json"
 
 
 def react_with_a_summary_compaction() -> tuple[Solver, Any]:
