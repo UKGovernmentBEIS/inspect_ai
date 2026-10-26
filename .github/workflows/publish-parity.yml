@@ -18,13 +18,6 @@ on:
       - "pyproject.toml"
       - "MANIFEST.in"
       - "requirements.txt"
-  # Called by release-pr-checks.yml on the release PR.
-  workflow_call:
-    inputs:
-      version:
-        description: "Version on PyPI to rebuild (default: latest)"
-        required: false
-        type: string
   workflow_dispatch:
     inputs:
       version:

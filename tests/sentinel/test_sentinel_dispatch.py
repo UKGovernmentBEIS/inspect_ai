@@ -1,6 +1,6 @@
 import logging
 import random
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Literal, NamedTuple, cast
 
 import anyio
 import pytest
+from pydantic import BaseModel, field_validator
 from test_helpers.transcript import FakeTranscriptHistoryProvider
 from test_helpers.utils import skip_if_no_mcp_package
 from typing_extensions import assert_type
@@ -32,6 +33,7 @@ from inspect_ai.agent import run as run_agent
 from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
 from inspect_ai.dataset import Sample
 from inspect_ai.event import (
+    ApprovalEvent,
     Event,
     ModelEvent,
     SentinelAction,
@@ -73,13 +75,15 @@ from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use
 from inspect_ai.tool import (
     Tool,
     ToolCall,
+    ToolCallContent,
     ToolCallView,
+    ToolDef,
     ToolFunction,
     ToolInfo,
     ToolResult,
     tool,
 )
-from inspect_ai.util import StoreModel
+from inspect_ai.util import StoreModel, span
 from inspect_ai.util._limit import LimitExceededError
 
 # mypy checks the tests against inspect_sentinel's API; they run on the fake
@@ -665,7 +669,7 @@ def test_each_step_gets_the_tools_and_tool_choice_of_the_call_that_produced_it(
     )
     for step in steps:
         event = producer(log, step.call.id)
-        assert (step.tools, step.tool_choice) == (event.tools, event.tool_choice)  # type: ignore[union-attr]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
+        assert (step.tools, step.tool_choice) == (event.tools, event.tool_choice)
 
 
 @protocol
@@ -751,6 +755,65 @@ def test_an_approvers_modify_reaches_the_sentinel() -> None:
     assert message.text == "8"
 
 
+def arguments_view(arguments: dict[str, Any]) -> str:
+    return str(sorted(arguments.items()))
+
+
+def arguments_viewer(call: ToolCall) -> ToolCallView:
+    content = arguments_view(call.arguments)
+    return ToolCallView(call=ToolCallContent(format="text", content=content))
+
+
+@reviewer
+def d3_viewing_reviewer(views: list[str | None]) -> Reviewer:
+    async def review_(
+        message: str,
+        call: ToolCall,
+        result: ChatMessageTool,
+        output: ToolResult,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Review:
+        views.append(call.view.content if call.view else None)
+        return Review(decision="continue")
+
+    return review_
+
+
+@pytest.mark.parametrize("modifier", ["approver", "sentinel"])
+async def test_a_modified_call_has_a_view_of_its_arguments(modifier: str) -> None:
+    """A modify built with `replace()` does not keep the view of the call it replaced."""
+    init_transcript(Transcript())
+    call = ToolCall(id="1", function="addition", arguments={"x": 1, "y": 1})
+    messages: list[ChatMessage] = [ChatMessageAssistant(content=[], tool_calls=[call])]
+    tools = [ToolDef(addition(), viewer=arguments_viewer)]
+    views: list[str | None] = []
+    review = [ReviewPolicy(d3_viewing_reviewer(views), "*")]
+    seen: Seen = []
+    if modifier == "approver":
+        selected = {"x": 7, "y": 1}
+        with active([d3_recording(seen)]):
+            result = await execute_tools(
+                messages,
+                tools,
+                approval=[ApprovalPolicy(d3_approver([], "modify", x=7), "*")],
+                review=review,
+            )
+        [(_, step)] = seen
+        assert step.call.view is not None
+        assert step.call.view.content == arguments_view(selected)
+    else:
+        selected = {"x": 10, "y": 20}
+        with active(d3_modify()):
+            result = await execute_tools(messages, tools, review=review)
+
+    [message] = result.messages
+    assert isinstance(message, ChatMessageTool)
+    assert message.error is None
+    assert views == [arguments_view(selected)]
+    assert call.view is None
+
+
 def test_an_approval_reject_skips_the_sentinel() -> None:
     approved: list[ToolCall] = []
     seen: Seen = []
@@ -773,6 +836,476 @@ def test_a_sentinel_modify_is_not_re_approved() -> None:
     assert [call.arguments for call in approved] == [{"x": 1, "y": 1}]
     [message] = tool_messages(log)
     assert message.text == "30"
+
+
+def test_the_sentinel_sees_only_validated_calls() -> None:
+    seen: Seen = []
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=[use_tools(addition()), generate()],
+        sentinel=[d3_recording(seen)],
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model",
+                tool_name="addition",
+                tool_arguments={"x": "one", "y": 1},
+            ),
+            ModelOutput.from_content("mockllm/model", content="done"),
+        ],
+        memoize=False,
+    )
+    log = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+    assert seen == []
+    [message] = tool_messages(log)
+    assert message.error is not None and message.error.type == "parsing"
+
+
+@protocol
+def d3_modify_invalid() -> Protocol:
+    async def rewrite(
+        context: Context,
+        step: BeforeToolCall,
+        escalations: Escalations,
+    ) -> Decision | None:
+        modified = replace(step.call, arguments={"x": "ten", "y": 20})
+        return Decision(action="modify", modified=modified, explanation="words")
+
+    return rewrite
+
+
+def test_a_sentinel_modify_is_validated() -> None:
+    log = run(d3_modify_invalid())
+    assert log.status == "success", log.error
+    [message] = tool_messages(log)
+    assert message.error is not None and message.error.type == "parsing"
+
+    # the failure is logged with the modified arguments that caused it
+    assert log.samples
+    [event] = [e for e in log.samples[0].events if isinstance(e, ToolEvent)]
+    event = ToolEvent.model_validate_json(event.model_dump_json())
+    assert event.arguments == {"x": "ten", "y": 20}
+    assert event.error is not None and event.error.type == "parsing"
+
+
+class Item(BaseModel):
+    name: str
+
+    @field_validator("name")
+    @classmethod
+    def lowercase(cls, name: str) -> str:
+        return name.lower()
+
+
+@tool
+def list_items() -> Tool:
+    async def execute(items: dict[str, Item]) -> str:
+        """List items.
+
+        Args:
+            items: Items by key.
+        """
+        return ",".join(item.name for item in items.values())
+
+    return execute
+
+
+@protocol
+def d3_modify_items(seen: list[ToolCall], items: dict[str, Any]) -> Protocol:
+    async def rewrite(
+        context: Context,
+        step: BeforeToolCall,
+        escalations: Escalations,
+    ) -> Decision | None:
+        seen.append(step.call)
+        modified = replace(step.call, arguments={"items": items})
+        return Decision(action="modify", modified=modified, explanation="rename")
+
+    return rewrite
+
+
+@pytest.mark.parametrize(
+    "name,error", [("b", None), ("B", "approval")], ids=["as-shown", "changes"]
+)
+async def test_a_sentinel_sees_and_modifies_the_converted_call(
+    name: str, error: str | None
+) -> None:
+    init_transcript(Transcript())
+    seen: list[ToolCall] = []
+    call = ToolCall(
+        id="1", function="list_items", arguments={"items": {"a": {"name": "A"}}}
+    )
+    with active(d3_modify_items(seen, {"b": {"name": name}})):
+        result = await execute_tools(
+            [ChatMessageAssistant(content=[], tool_calls=[call])], [list_items()]
+        )
+
+    assert [c.arguments for c in seen] == [{"items": {"a": {"name": "a"}}}]
+    [message] = result.messages
+    assert isinstance(message, ChatMessageTool)
+    [event] = transcript_tool_events()
+    assert event.arguments == {"items": {"b": {"name": name}}}
+    if error is None:
+        assert message.error is None
+        assert message.text == "b"
+    else:
+        assert message.error is not None and message.error.type == error
+
+
+class Nested(BaseModel):
+    """A number the validator turns into lists nested that deep."""
+
+    value: Any
+
+    @field_validator("value")
+    @classmethod
+    def nest(cls, value: Any) -> Any:
+        if not isinstance(value, int):
+            return value
+        nested: list[Any] = []
+        for _ in range(value - 1):
+            nested = [nested]
+        return nested
+
+
+@tool
+def nested_depth() -> Tool:
+    async def execute(nested: Nested) -> str:
+        """Report that it ran.
+
+        Args:
+            nested: A model whose validator can produce deeply nested lists.
+        """
+        return "ran"
+
+    return execute
+
+
+@protocol
+def d3_watching(seen: list[ToolCall]) -> Protocol:
+    async def watch(
+        context: Context,
+        step: BeforeToolCall,
+        escalations: Escalations,
+    ) -> Decision | None:
+        seen.append(step.call)
+        return None
+
+    return watch
+
+
+@pytest.mark.parametrize(
+    "depth,refused", [(98, False), (99, True)], ids=["at-limit", "over-limit"]
+)
+async def test_a_sentinel_sees_converted_nesting_only_within_the_bound(
+    depth: int, refused: bool
+) -> None:
+    seen: list[ToolCall] = []
+    call = ToolCall(
+        id="1", function="nested_depth", arguments={"nested": {"value": depth}}
+    )
+    with active(d3_watching(seen)):
+        result = await execute_tools(
+            [ChatMessageAssistant(content=[], tool_calls=[call])], [nested_depth()]
+        )
+
+    [message] = result.messages
+    assert isinstance(message, ChatMessageTool)
+    if refused:
+        assert message.error is not None and message.error.type == "parsing"
+        assert "maximum supported nesting depth of 100" in message.error.message
+        assert seen == []
+    else:
+        assert message.error is None
+        assert message.text == "ran"
+        assert len(seen) == 1
+
+
+@protocol
+def d3_renaming_modify(rename: bool) -> Protocol:
+    async def rewrite(
+        context: Context,
+        step: BeforeToolCall,
+        escalations: Escalations,
+    ) -> Decision | None:
+        if rename:
+            step.call.function = "other"
+        modified = replace(step.call, arguments={"items": {"b": {"name": "b"}}})
+        return Decision(action="modify", modified=modified, explanation="rename")
+
+    return rewrite
+
+
+async def test_a_sentinel_modify_keeps_the_function_as_shown() -> None:
+    """A sentinel's modify may select only the function shown."""
+    init_transcript(Transcript())
+    call = ToolCall(
+        id="1", function="list_items", arguments={"items": {"a": {"name": "a"}}}
+    )
+    with active(d3_renaming_modify(rename=False)):
+        result = await execute_tools(
+            [ChatMessageAssistant(content=[], tool_calls=[call])], [list_items()]
+        )
+    [message] = result.messages
+    assert isinstance(message, ChatMessageTool)
+    assert message.error is None and message.text == "b"
+
+    init_transcript(Transcript())
+    call = ToolCall(
+        id="1", function="list_items", arguments={"items": {"a": {"name": "a"}}}
+    )
+    with active(d3_renaming_modify(rename=True)):
+        with pytest.raises(RuntimeError, match="may change only the arguments"):
+            await execute_tools(
+                [ChatMessageAssistant(content=[], tool_calls=[call])], [list_items()]
+            )
+    # neither tool ran
+    [event] = transcript_tool_events()
+    assert event.result == ""
+
+
+@protocol
+def d3_reidentifying_modify() -> Protocol:
+    async def rewrite(
+        context: Context,
+        step: BeforeToolCall,
+        escalations: Escalations,
+    ) -> Decision | None:
+        # inspect_sentinel refuses a modify whose id differs from the step's
+        # call, so the id is changed on the step's call as well
+        step.call.id = "other"
+        modified = replace(step.call, arguments={"x": 10, "y": 20})
+        return Decision(action="modify", modified=modified, explanation="new id")
+
+    return rewrite
+
+
+async def test_a_sentinel_modify_keeps_the_id_as_shown() -> None:
+    """A sentinel's modify may not change the call's id: the sample fails."""
+    init_transcript(Transcript())
+    call = ToolCall(id="1", function="addition", arguments={"x": 1, "y": 1})
+    with active(d3_reidentifying_modify()):
+        with pytest.raises(RuntimeError, match="not its id"):
+            await execute_tools(
+                [ChatMessageAssistant(content=[], tool_calls=[call])], [addition()]
+            )
+    [event] = transcript_tool_events()
+    assert event.id == "1"
+    assert event.result == ""
+
+
+@approver
+def d3_items_approver() -> Approver:
+    async def approve(
+        message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
+    ) -> Approval:
+        modified = replace(call, arguments={"items": {"b": {"name": "b"}}})
+        return Approval(decision="modify", modified=modified)
+
+    return approve
+
+
+@protocol
+def d3_edit_then_modify() -> Protocol:
+    async def rewrite(
+        context: Context,
+        step: BeforeToolCall,
+        escalations: Escalations,
+    ) -> Decision | None:
+        step.call.arguments["items"]["b"]["name"] = "z"
+        modified = replace(step.call, arguments={"items": {"c": {"name": "c"}}})
+        return Decision(action="modify", modified=modified, explanation="rename")
+
+    return rewrite
+
+
+async def test_the_approval_event_keeps_the_calls_it_recorded() -> None:
+    """An edit to the call after an approver's modify does not reach its event."""
+    init_transcript(Transcript())
+    call = ToolCall(
+        id="1", function="list_items", arguments={"items": {"a": {"name": "A"}}}
+    )
+    with active(d3_edit_then_modify()):
+        result = await execute_tools(
+            [ChatMessageAssistant(content=[], tool_calls=[call])],
+            [list_items()],
+            approval=[ApprovalPolicy(d3_items_approver(), "*")],
+        )
+
+    [message] = result.messages
+    assert isinstance(message, ChatMessageTool)
+    assert message.error is None and message.text == "c"
+    [event] = [e for e in transcript().events if isinstance(e, ApprovalEvent)]
+    assert event.call.arguments == {"items": {"a": {"name": "a"}}}
+    assert event.modified is not None
+    assert event.modified.arguments == {"items": {"b": {"name": "b"}}}
+
+
+class Lazy(BaseModel):
+    values: Iterable[int]
+
+
+@tool
+def lazy_tool() -> Tool:
+    async def execute(payload: Lazy | None = None) -> str:
+        """Return the payload's values.
+
+        Args:
+            payload: The payload.
+        """
+        return "none" if payload is None else str(list(payload.values))
+
+    return execute
+
+
+@approver
+def d3_lazy_approver() -> Approver:
+    async def approve(
+        message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
+    ) -> Approval:
+        modified = replace(call, arguments={"payload": {"values": [1, 2, 3]}})
+        return Approval(decision="modify", modified=modified)
+
+    return approve
+
+
+@protocol
+def d3_lazy_modify() -> Protocol:
+    async def rewrite(
+        context: Context,
+        step: BeforeToolCall,
+        escalations: Escalations,
+    ) -> Decision | None:
+        modified = replace(step.call, arguments={"payload": {"values": [1, 2, 3]}})
+        return Decision(action="modify", modified=modified, explanation="values")
+
+    return rewrite
+
+
+@pytest.mark.parametrize("modifier", ["approver", "sentinel"])
+async def test_a_modify_that_adds_a_lazy_field_runs_with_its_values(
+    modifier: str,
+) -> None:
+    """The tool gets a fresh build of the selected call, not the one the check used."""
+    init_transcript(Transcript())
+    call = ToolCall(id="1", function="lazy_tool", arguments={})
+    messages: list[ChatMessage] = [ChatMessageAssistant(content=[], tool_calls=[call])]
+    if modifier == "approver":
+        result = await execute_tools(
+            messages,
+            [lazy_tool()],
+            approval=[ApprovalPolicy(d3_lazy_approver(), "*")],
+        )
+    else:
+        with active(d3_lazy_modify()):
+            result = await execute_tools(messages, [lazy_tool()])
+
+    [message] = result.messages
+    assert isinstance(message, ChatMessageTool)
+    assert message.error is None and message.text == "[1, 2, 3]"
+    [event] = transcript_tool_events()
+    assert event.arguments == {"payload": {"values": [1, 2, 3]}}
+
+
+InPlaceEdit = Literal["arguments", "function", "id"]
+
+
+def edit_in_place(call: ToolCall, edit: InPlaceEdit) -> None:
+    if edit == "arguments":
+        call.arguments["items"]["a"]["name"] = "z"
+    elif edit == "function":
+        call.function = "other"
+    else:
+        call.id = "renamed"
+
+
+@protocol
+def d3_edit_before(edit: InPlaceEdit) -> Protocol:
+    async def mutate(
+        context: Context,
+        step: BeforeToolCall,
+        escalations: Escalations,
+    ) -> Decision | None:
+        edit_in_place(step.call, edit)
+        return None
+
+    return mutate
+
+
+@pytest.mark.parametrize("edit", ["arguments", "function", "id"])
+async def test_a_sentinel_cannot_change_the_call_in_place(edit: InPlaceEdit) -> None:
+    """A sentinel changes a call only with a modify decision."""
+    init_transcript(Transcript())
+    call = ToolCall(
+        id="1", function="list_items", arguments={"items": {"a": {"name": "a"}}}
+    )
+    with active(d3_edit_before(edit)):
+        result = await execute_tools(
+            [ChatMessageAssistant(content=[], tool_calls=[call])], [list_items()]
+        )
+
+    [message] = result.messages
+    assert isinstance(message, ChatMessageTool)
+    assert message.error is not None and message.error.type == "approval"
+    assert "changed the tool call in place" in message.error.message
+    assert message.text == ""
+
+
+@protocol
+def d3_edit_after() -> Protocol:
+    async def mutate(
+        context: Context,
+        step: AfterToolCall,
+        escalations: Escalations,
+    ) -> Decision | None:
+        edit_in_place(step.call, "arguments")
+        return None
+
+    return mutate
+
+
+@reviewer
+def d3_editing_reviewer() -> Reviewer:
+    async def review_(
+        message: str,
+        call: ToolCall,
+        result: ChatMessageTool,
+        output: ToolResult,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Review:
+        edit_in_place(call, "arguments")
+        return Review(decision="continue")
+
+    return review_
+
+
+@pytest.mark.parametrize("callback", ["sentinel", "reviewer"])
+async def test_the_log_keeps_the_call_that_ran(callback: str) -> None:
+    """An edit after the tool ran is not checked, but it cannot change the log."""
+    init_transcript(Transcript())
+    call = ToolCall(
+        id="1", function="list_items", arguments={"items": {"a": {"name": "a"}}}
+    )
+    messages: list[ChatMessage] = [ChatMessageAssistant(content=[], tool_calls=[call])]
+    if callback == "sentinel":
+        with active(d3_edit_after()):
+            result = await execute_tools(messages, [list_items()])
+    else:
+        result = await execute_tools(
+            messages,
+            [list_items()],
+            review=[ReviewPolicy(d3_editing_reviewer(), "*")],
+        )
+
+    [message] = result.messages
+    assert isinstance(message, ChatMessageTool)
+    assert message.error is None and message.text == "a"
+    [event] = transcript_tool_events()
+    assert event.arguments == {"items": {"a": {"name": "a"}}}
 
 
 def test_a_review_terminate_skips_the_after_call_sentinel() -> None:
@@ -1000,9 +1533,8 @@ def test_context_and_step_come_from_the_sample(
     assert step.conversation == sample.uuid
     assert step.call.function == "addition"
     assert step.view.call is not None
-    # in-process Inspect always provides the agent's messages
-    assert step.agent_messages is not None
-    assert step.agent_messages[-1].role == "assistant"
+    # a solver calling generate() is not an agent
+    assert step.agent_messages is None
     model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
     assert step.input is not None
     assert [m.text for m in step.input] == [m.text for m in model_events[0].input]
@@ -1642,7 +2174,7 @@ async def test_a_message_no_model_call_produced_has_no_input() -> None:
             [parallel_addition()],
         )
 
-    assert [(step.input, step.tools, step.tool_choice) for _, step in seen] == [  # type: ignore[attr-defined]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
+    assert [(step.input, step.tools, step.tool_choice) for _, step in seen] == [
         (None, None, None)
     ] * 2
 
@@ -1893,7 +2425,7 @@ def test_a_modified_call_on_a_non_modify_decision_is_not_dropped(
 
     init_transcript(Transcript())
     call = addition_call()
-    step = BeforeToolCall(  # type: ignore[call-arg]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
+    step = BeforeToolCall(
         conversation="c",
         message="",
         message_id="m1",
@@ -1917,7 +2449,7 @@ def test_bypassed_and_superseded_layers_are_recorded() -> None:
 
     init_transcript(Transcript())
     call = addition_call()
-    step = BeforeToolCall(  # type: ignore[call-arg]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
+    step = BeforeToolCall(
         conversation="c",
         message="",
         message_id="m1",
@@ -1953,7 +2485,7 @@ def test_a_superseded_human_decision_is_not_kept(
 
     init_transcript(Transcript())
     call = addition_call()
-    step = BeforeToolCall(  # type: ignore[call-arg]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
+    step = BeforeToolCall(
         conversation="c",
         message="",
         message_id="m1",
@@ -2122,8 +2654,8 @@ def test_both_tool_stages_carry_the_id_of_the_message_that_made_the_call() -> No
     }
     assert len(before) == len(after) == 3
     assert (
-        [step.message_id for _, step in before]  # type: ignore[attr-defined]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
-        == [step.message_id for step in after]  # type: ignore[attr-defined]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
+        [step.message_id for _, step in before]
+        == [step.message_id for step in after]
         == [made[step.call.id] for _, step in before]
     )
 
@@ -3718,3 +4250,1306 @@ def test_sent_matches_the_reference_rules() -> None:
 @pytest.mark.slow
 def test_sent_matches_the_reference_rules_at_length() -> None:
     _check_random_cases(seed=1, cases=20_000)
+
+
+def raising_viewer(call: ToolCall) -> ToolCallView:
+    raise KeyError("missing")
+
+
+@tool(viewer=raising_viewer)
+def addition_raising_viewer() -> Tool:
+    async def execute(x: int, y: int) -> str:
+        """Add two numbers.
+
+        Args:
+            x: First number to add.
+            y: Second number to add.
+        """
+        return str(x + y)
+
+    return execute
+
+
+def test_a_raising_viewer_rejects_the_call_before_the_sentinel() -> None:
+    seen: Seen = []
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=[use_tools(addition_raising_viewer()), generate()],
+        sentinel=[d3_recording(seen)],
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model",
+                tool_name="addition_raising_viewer",
+                tool_arguments={"x": 1, "y": 1},
+            ),
+            ModelOutput.from_content("mockllm/model", content="done"),
+        ],
+        memoize=False,
+    )
+    log = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+
+    # no approver is configured, and the sentinel monitor was not asked to
+    # decide on a fallback rendering
+    assert seen == []
+    [message] = tool_messages(log)
+    assert message.error is not None
+    assert message.error.type == "approval"
+    assert "viewer for tool 'addition_raising_viewer' failed" in message.error.message
+
+
+def test_a_raising_viewer_falls_back_after_the_tool_runs() -> None:
+    after: list[AfterToolCall] = []
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=[use_tools(addition_raising_viewer()), generate()],
+        sentinel=[d3_recording_after(after)],
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model",
+                tool_name="addition_raising_viewer",
+                tool_arguments={"x": 1, "y": 1},
+            ),
+            ModelOutput.from_content("mockllm/model", content="done"),
+        ],
+        memoize=False,
+    )
+    log = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+
+    # with no approver and no before-tool monitor the tool runs, and the
+    # after-tool monitor gets the default rendering
+    [message] = tool_messages(log)
+    assert message.error is None
+    assert message.text == "2"
+    [step] = after
+    assert step.view.call is not None
+    assert "addition_raising_viewer" in step.view.call.content
+
+
+@protocol
+def d3_public_memory_only() -> Protocol:
+    async def decide(
+        context: Context,
+        step: BeforeToolCall,
+        escalations: Escalations,
+    ) -> Decision | None:
+        if not step.call.arguments["path"].startswith("/memories/public/"):
+            return Decision.reject("outside /memories/public")
+        return None
+
+    return decide
+
+
+@approver
+def d3_memory_path_approver(path: str) -> Approver:
+    async def approve(
+        message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
+    ) -> Approval:
+        return Approval(
+            decision="modify",
+            modified=replace(call, arguments={**call.arguments, "path": path}),
+        )
+
+    return approve
+
+
+def test_an_approvers_modified_memory_path_reaches_the_sentinel_canonical() -> None:
+    from inspect_ai.tool import memory
+
+    seen: Seen = []
+    task = Task(
+        dataset=[Sample(input="Write a note.", target="ok")],
+        solver=[use_tools(memory()), generate()],
+        sentinel=[d3_recording(seen), d3_public_memory_only()],
+        approval=[
+            ApprovalPolicy(
+                d3_memory_path_approver("/memories/public/../secret.txt"), "*"
+            )
+        ],
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model",
+                tool_name="memory",
+                tool_arguments={
+                    "command": "create",
+                    "path": "/memories/public/note.txt",
+                    "file_text": "x",
+                },
+            ),
+            ModelOutput.from_content("mockllm/model", content="done"),
+        ],
+        memoize=False,
+    )
+    log = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+
+    # the sentinel decides on the path the write would use, and rejects it
+    assert [step.call.arguments["path"] for _, step in seen] == ["/memories/secret.txt"]
+    [message] = tool_messages(log)
+    assert message.error is not None
+    assert message.error.type == "approval"
+    assert log.samples
+    [tool_event] = [e for e in log.samples[0].events if isinstance(e, ToolEvent)]
+    assert tool_event.arguments["path"] == "/memories/secret.txt"
+
+
+@protocol
+def d3_memory_path_modify(path: str) -> Protocol:
+    async def rewrite(
+        context: Context,
+        step: BeforeToolCall,
+        escalations: Escalations,
+    ) -> Decision | None:
+        modified = replace(step.call, arguments={**step.call.arguments, "path": path})
+        return Decision(action="modify", modified=modified, explanation="move")
+
+    return rewrite
+
+
+async def test_a_sentinels_modified_memory_path_runs_canonical() -> None:
+    from inspect_ai.tool import memory
+
+    init_transcript(Transcript())
+    tool = memory()
+    call = ToolCall(
+        id="1",
+        function="memory",
+        arguments={
+            "command": "create",
+            "path": "/memories/public/note.txt",
+            "file_text": "x",
+        },
+    )
+    with active([d3_memory_path_modify("/memories/public/../secret.txt")]):
+        result = await execute_tools(
+            [ChatMessageAssistant(content=[], tool_calls=[call])], [tool]
+        )
+
+    [message] = result.messages
+    assert isinstance(message, ChatMessageTool)
+    assert message.error is None
+    [event] = transcript_tool_events()
+    assert event.arguments["path"] == "/memories/secret.txt"
+    assert "x" in str(await tool(command="view", path="/memories/secret.txt"))
+
+
+@reviewer
+def d3_recording_reviewer(seen: list[ToolCall]) -> Reviewer:
+    async def review_(
+        message: str,
+        call: ToolCall,
+        result: ChatMessageTool,
+        output: ToolResult,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Review:
+        seen.append(call)
+        return Review(decision="continue")
+
+    return review_
+
+
+def test_a_memory_path_is_canonical_without_approval() -> None:
+    from inspect_ai.tool import memory
+
+    before: Seen = []
+    after: list[AfterToolCall] = []
+    reviewed: list[ToolCall] = []
+    task = Task(
+        dataset=[Sample(input="Write a note.", target="ok")],
+        solver=[use_tools(memory()), generate()],
+        sentinel=[d3_recording(before), d3_recording_after(after)],
+        review=[ReviewPolicy(d3_recording_reviewer(reviewed), "*")],
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model",
+                tool_name="memory",
+                tool_arguments={
+                    "command": "create",
+                    "path": "/memories/x/../public/note.txt",
+                    "file_text": "x",
+                },
+            ),
+            ModelOutput.from_content("mockllm/model", content="done"),
+        ],
+        memoize=False,
+    )
+    log = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+
+    [message] = tool_messages(log)
+    assert message.error is None
+    canonical = "/memories/public/note.txt"
+    assert [step.call.arguments["path"] for _, step in before] == [canonical]
+    assert [step.call.arguments["path"] for step in after] == [canonical]
+    assert [call.arguments["path"] for call in reviewed] == [canonical]
+
+
+AnyStep = BeforeGenerate | AfterGenerate | BeforeToolCall | AfterToolCall
+
+
+class StageSeen(NamedTuple):
+    step: AnyStep
+    # agent_messages as it was when the stage ran (the step holds the live list)
+    messages: list[ChatMessage] | None
+
+
+@monitor
+def d3_every_stage(seen: Any) -> MonitorGroup:
+    def see(step: AnyStep) -> None:
+        messages = step.agent_messages
+        seen.append(StageSeen(step, list(messages) if messages is not None else None))
+
+    async def before_generate(
+        context: Context, step: BeforeGenerate
+    ) -> Observation | None:
+        see(step)
+        return None
+
+    async def after_generate(
+        context: Context, step: AfterGenerate
+    ) -> Observation | None:
+        see(step)
+        return None
+
+    async def before_call(context: Context, step: BeforeToolCall) -> Observation | None:
+        see(step)
+        return None
+
+    async def after_call(context: Context, step: AfterToolCall) -> Observation | None:
+        see(step)
+        return None
+
+    return MonitorGroup(before_generate, after_generate, before_call, after_call)
+
+
+def shape(messages: Sequence[ChatMessage] | None) -> list[tuple[str, str]]:
+    assert messages is not None
+    return [(m.role, m.text) for m in messages]
+
+
+def of_stage(seen: list[StageSeen], stage: type[Any]) -> list[Any]:
+    return [s.step for s in seen if isinstance(s.step, stage)]
+
+
+def stages(seen: list[StageSeen]) -> set[type[Any]]:
+    return {type(s.step) for s in seen}
+
+
+ALL_STAGES = {BeforeGenerate, AfterGenerate, BeforeToolCall, AfterToolCall}
+
+HIDDEN = "secret side task"
+REMINDER = "remember the side task"
+
+
+def addition_then_submit() -> Model:
+    return get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model", tool_name="addition", tool_arguments={"x": 1, "y": 1}
+            ),
+            ModelOutput.for_tool_call(
+                "mockllm/model", tool_name="submit", tool_arguments={"answer": "2"}
+            ),
+        ],
+        memoize=False,
+    )
+
+
+def run_solver(solve: Solver | Agent, seen: list[StageSeen], model: Any) -> EvalLog:
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?")],
+        solver=solve,
+        sentinel=[d3_every_stage(seen)],
+    )
+    log = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+    return log
+
+
+@agent
+def hiding_policy(received: Any) -> Agent:
+    async def execute(state: AgentState, tools: list[Tool]) -> AgentState:
+        received.append(state.messages)
+        input = [
+            ChatMessageSystem(content=HIDDEN),
+            *state.messages,
+            ChatMessageUser(content=REMINDER),
+        ]
+        state.output = await get_model().generate(input, tools)
+        state.messages.append(state.output.message)
+        return state
+
+    return execute
+
+
+@solver
+def control_style(policy: Agent) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        # awaited directly, as control_solver does: no run(), no agent span
+        agent_state = await react(model=policy, tools=[addition()])(
+            AgentState(messages=state.messages)
+        )
+        state.messages = agent_state.messages
+        return state
+
+    return solve
+
+
+def test_a_policy_hides_its_instructions_from_agent_messages() -> None:
+    seen: list[StageSeen] = []
+    received: list[list[ChatMessage]] = []
+    run_solver(control_style(hiding_policy(received)), seen, addition_then_submit())
+
+    assert stages(seen) == ALL_STAGES
+    [react_list] = {id(messages): messages for messages in received}.values()
+    for s in seen:
+        assert s.step.agent_messages is react_list, type(s.step).__name__
+        assert s.messages is not None
+        assert HIDDEN not in [m.text for m in s.messages]
+        assert REMINDER not in [m.text for m in s.messages]
+    for step in of_stage(seen, BeforeGenerate) + of_stage(seen, AfterGenerate):
+        assert [m.text for m in step.input][0] == HIDDEN
+        assert [m.text for m in step.input][-1] == REMINDER
+    for step in of_stage(seen, AfterGenerate):
+        assert HIDDEN in [m.text for m in step.history]
+
+
+def test_agent_messages_is_read_when_the_stage_runs() -> None:
+    seen: list[StageSeen] = []
+    received: list[list[ChatMessage]] = []
+    run_solver(control_style(hiding_policy(received)), seen, addition_then_submit())
+
+    first, after, before_call, after_call, *_ = seen
+    assert isinstance(after.step, AfterGenerate)
+    # the policy appends its reply after the generate returns
+    assert shape(after.messages) == shape(first.messages)
+    assert isinstance(before_call.step, BeforeToolCall)
+    assert after_call.messages == before_call.messages
+    assert before_call.messages is not None
+    assert before_call.messages[-1] is after.step.output.message
+    [_, second] = of_stage(seen, BeforeGenerate)
+    [*_, second_messages] = [s.messages for s in seen if s.step is second]
+    assert second_messages is not None
+    result = second_messages[-1]
+    assert isinstance(result, ChatMessageTool)
+    assert result.tool_call_id == before_call.step.call.id
+
+
+@agent
+def generates() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        state.output = await get_model().generate(state.messages)
+        state.messages.append(state.output.message)
+        return state
+
+    return execute
+
+
+@agent
+def model_from_agent() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        # the inner agent gets a fresh state built from the model input, as
+        # ControlArena's AgentToModel does
+        input = [ChatMessageSystem(content=HIDDEN), *state.messages]
+        inner = await generates()(AgentState(messages=list(input)))
+        state.output = inner.output
+        state.messages.append(inner.output.message)
+        return state
+
+    return execute
+
+
+@solver
+def awaits(agent: Agent, states: Any = None) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        agent_state = AgentState(messages=state.messages)
+        returned = await agent(agent_state)
+        if states is not None:
+            states.append((agent_state, returned))
+        return state
+
+    return solve
+
+
+def test_a_nested_agents_own_state_is_not_read() -> None:
+    outer: list[AgentState] = []
+
+    @agent
+    def recording() -> Agent:
+        inner = model_from_agent()
+
+        async def execute(state: AgentState) -> AgentState:
+            outer.append(state)
+            return await inner(state)
+
+        return execute
+
+    seen: list[StageSeen] = []
+    run_solver(awaits(recording()), seen, "mockllm/model")
+
+    [state] = outer
+    assert stages(seen) == {BeforeGenerate, AfterGenerate}
+    for s in seen:
+        assert s.step.agent_messages is state.messages
+        assert shape(s.messages) == [("user", "What is 1 + 1?")]
+    [before] = of_stage(seen, BeforeGenerate)
+    assert before.input[0].text == HIDDEN
+
+
+@agent
+def returns_new_state(name: str, calls: Any) -> Agent:
+    async def execute(state: AgentState, tools: list[Tool]) -> AgentState:
+        output = await get_model().generate(state.messages, tools)
+        replaced = AgentState(messages=[*state.messages, output.message])
+        replaced.output = output
+        calls.append((name, state.messages, replaced.messages))
+        return replaced
+
+    return execute
+
+
+@agent
+def defer_to_trusted(untrusted: Agent, trusted: Agent) -> Agent:
+    async def execute(state: AgentState, tools: list[Tool]) -> AgentState:
+        await untrusted(state, tools)
+        return await trusted(state, tools)
+
+    return execute
+
+
+@agent
+def passes_through(inner: Agent) -> Agent:
+    async def execute(state: AgentState, tools: list[Tool]) -> AgentState:
+        return await inner(state, tools)
+
+    return execute
+
+
+def adds(x: int) -> ModelOutput:
+    return ModelOutput.for_tool_call(
+        "mockllm/model", tool_name="addition", tool_arguments={"x": x, "y": x}
+    )
+
+
+def last_call(messages: Sequence[ChatMessage] | None) -> ToolCall:
+    assert messages is not None
+    assistant = [m for m in messages if isinstance(m, ChatMessageAssistant)][-1]
+    assert assistant.tool_calls
+    return assistant.tool_calls[-1]
+
+
+@pytest.mark.parametrize("wrapped", [False, True])
+def test_a_protocols_discarded_policy_state_is_never_read(wrapped: bool) -> None:
+    # untrusted proposes 1 + 1 and then 9 + 9; both are discarded for trusted's
+    calls: list[tuple[str, list[ChatMessage], list[ChatMessage]]] = []
+    protocol = defer_to_trusted(
+        returns_new_state("untrusted", calls), returns_new_state("trusted", calls)
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            adds(1),
+            adds(2),
+            adds(9),
+            ModelOutput.for_tool_call(
+                "mockllm/model", tool_name="submit", tool_arguments={"answer": "4"}
+            ),
+        ],
+        memoize=False,
+    )
+    seen: list[StageSeen] = []
+    run_solver(
+        as_solver(
+            react(
+                model=passes_through(protocol) if wrapped else protocol,
+                tools=[addition()],
+            )
+        ),
+        seen,
+        model,
+    )
+
+    assert [name for name, _, _ in calls] == [
+        "untrusted",
+        "trusted",
+        "untrusted",
+        "trusted",
+    ]
+    rejected = [returned for name, _, returned in calls if name == "untrusted"]
+    kept = [returned for name, _, returned in calls if name == "trusted"]
+    # each policy's generate stages read the state react passed the protocol,
+    # never a state untrusted returned
+    befores = of_stage(seen, BeforeGenerate)
+    afters = of_stage(seen, AfterGenerate)
+    assert len(befores) == len(afters) == len(calls)
+    for (name, passed, _), before, after in zip(calls, befores, afters):
+        for step in (before, after):
+            assert step.agent_messages is passed, name
+            assert all(step.agent_messages is not r for r in rejected)
+    # react keeps the turns of the state the protocol returned
+    [add, submit] = of_stage(seen, BeforeToolCall)
+    assert add.agent_messages is kept[0]
+    assert last_call(add.agent_messages).id == add.call.id
+    assert last_call(add.agent_messages).arguments == {"x": 2, "y": 2}
+    assert calls[2][1] is kept[0]
+    assert submit.agent_messages is kept[1]
+    assert last_call(submit.agent_messages).function == "submit"
+
+
+def test_react_keeps_its_own_state_when_its_model_agent_returns_a_new_one() -> None:
+    calls: list[tuple[str, list[ChatMessage], list[ChatMessage]]] = []
+    states: list[tuple[AgentState, AgentState]] = []
+    seen: list[StageSeen] = []
+    run_solver(
+        awaits(
+            react(model=returns_new_state("policy", calls), tools=[addition()]), states
+        ),
+        seen,
+        addition_then_submit(),
+    )
+
+    [(entry, returned)] = states
+    assert returned is entry
+    (_, _, first), (_, second_entry, second) = calls
+    assert second_entry is first
+    add, submit = of_stage(seen, BeforeToolCall)
+    assert add.agent_messages is first
+    assert last_call(add.agent_messages).id == add.call.id
+    assert submit.agent_messages is second
+    assert last_call(submit.agent_messages).function == "submit"
+
+
+def test_a_factory_returning_react_shows_its_model_agents_new_turns() -> None:
+    calls: list[tuple[str, list[ChatMessage], list[ChatMessage]]] = []
+    states: list[tuple[AgentState, AgentState]] = []
+
+    @agent
+    def my_agent() -> Agent:
+        return react(model=returns_new_state("policy", calls), tools=[addition()])
+
+    # the factory returns react's wrapped agent rather than wrapping it again
+    assert not hasattr(vars(my_agent())["__wrapped__"], "__wrapped__")
+
+    seen: list[StageSeen] = []
+    run_solver(awaits(my_agent(), states), seen, addition_then_submit())
+
+    [(entry, returned)] = states
+    assert returned is entry
+    (_, _, first), _ = calls
+    add, _ = of_stage(seen, BeforeToolCall)
+    assert add.agent_messages is first
+    assert last_call(add.agent_messages).id == add.call.id
+
+
+def test_react_awaited_in_an_agents_body_shows_its_model_agents_new_turns() -> None:
+    calls: list[tuple[str, list[ChatMessage], list[ChatMessage]]] = []
+    states: list[tuple[AgentState, AgentState]] = []
+    inner = react(model=returns_new_state("policy", calls), tools=[addition()])
+
+    @agent
+    def awaits_react() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            return await inner(state)
+
+        return execute
+
+    seen: list[StageSeen] = []
+    run_solver(awaits(awaits_react(), states), seen, addition_then_submit())
+
+    [(entry, returned)] = states
+    assert returned is entry
+    (_, _, first), _ = calls
+    add, _ = of_stage(seen, BeforeToolCall)
+    assert add.agent_messages is first
+    assert last_call(add.agent_messages).id == add.call.id
+
+
+def test_an_undecorated_model_agents_new_turns_are_shown() -> None:
+    calls: list[tuple[str, list[ChatMessage], list[ChatMessage]]] = []
+
+    async def undecorated(state: AgentState, tools: list[Tool]) -> AgentState:
+        output = await get_model().generate(state.messages, tools)
+        replaced = AgentState(messages=[*state.messages, output.message])
+        replaced.output = output
+        calls.append(("undecorated", state.messages, replaced.messages))
+        return replaced
+
+    seen: list[StageSeen] = []
+    run_solver(
+        as_solver(react(model=undecorated, tools=[addition()])),
+        seen,
+        addition_then_submit(),
+    )
+
+    (_, _, first), (_, second_entry, _) = calls
+    assert second_entry is first
+    add, _ = of_stage(seen, BeforeToolCall)
+    assert add.agent_messages is first
+    assert last_call(add.agent_messages).id == add.call.id
+
+
+def test_an_undecorated_scaffolds_curated_state_is_registered_by_its_policy() -> None:
+    # documented: the hidden instructions stay out only when the scaffold that
+    # owns the conversation is the outermost @agent agent
+    @solver
+    def undecorated_scaffold() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            curated = AgentState(
+                messages=[ChatMessageSystem(content=HIDDEN), *state.messages]
+            )
+            await generates()(curated)
+            return state
+
+        return solve
+
+    seen: list[StageSeen] = []
+    run_solver(undecorated_scaffold(), seen, "mockllm/model")
+
+    assert stages(seen) == {BeforeGenerate, AfterGenerate}
+    for s in seen:
+        assert s.messages is not None
+        assert s.messages[0].text == HIDDEN
+
+
+def test_a_solver_calling_generate_has_no_agent_messages() -> None:
+    seen: list[StageSeen] = []
+    log = run([d3_every_stage(seen)])
+    assert log.status == "success", log.error
+
+    assert stages(seen) == ALL_STAGES
+    assert all(s.messages is None for s in seen)
+
+
+def test_an_undecorated_agent_loop_has_no_agent_messages() -> None:
+    async def loop(state: AgentState) -> AgentState:
+        tools = [addition()]
+        while True:
+            output = await get_model().generate(state.messages, tools)
+            state.messages.append(output.message)
+            if not output.message.tool_calls:
+                return state
+            result = await execute_tools(state.messages, tools)
+            state.messages.extend(result.messages)
+
+    @agent
+    def opens_a_span() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            # its own conversation, so not the decorated agent's
+            async with span(name="loop", type="agent"):
+                await loop(AgentState(messages=list(state.messages)))
+            return state
+
+        return execute
+
+    @solver
+    def runs_it(in_span: bool) -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            agent_state = AgentState(messages=state.messages)
+            if in_span:
+                await opens_a_span()(agent_state)
+            else:
+                await loop(agent_state)
+            return state
+
+        return solve
+
+    for in_span in (False, True):
+        seen: list[StageSeen] = []
+        run_solver(runs_it(in_span), seen, agent_model())
+        assert stages(seen) == ALL_STAGES
+        assert all(s.messages is None for s in seen), in_span
+
+
+async def run_bridge_request(
+    seen: list[StageSeen],
+    *,
+    filter: Any = None,
+    response_filter: Any = None,
+    during: Any = None,
+) -> tuple[AgentState, list[list[ChatMessage] | None]]:
+    """Run one bridge request inside a decorated agent, outside an eval."""
+    from inspect_ai._sentinel._agent_state import agent_messages, current_conversation
+    from inspect_ai._sentinel._scope import sentinel_solving
+    from inspect_ai.agent._bridge.types import AgentBridge
+    from inspect_ai.agent._bridge.util import bridge_generate
+
+    read: list[list[ChatMessage] | None] = []
+
+    @agent
+    def bridged_turn() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            bridge = AgentBridge(state, filter=filter, response_filter=response_filter)
+            request: list[ChatMessage] = [ChatMessageUser(content="rebuilt request")]
+            if during is None:
+                await bridge_generate(
+                    bridge,
+                    model,
+                    request,
+                    [],
+                    None,
+                    GenerateConfig(),
+                    requested_model=None,
+                )
+            else:
+                await during(
+                    bridge_generate(
+                        bridge,
+                        model,
+                        request,
+                        [],
+                        None,
+                        GenerateConfig(),
+                        requested_model=None,
+                    )
+                )
+            read.append(agent_messages(current_conversation()))
+            return state
+
+        return execute
+
+    init_transcript(Transcript())
+    state = AgentState(messages=[ChatMessageUser(content="the agent's own")])
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput.from_content("mockllm/model", "reply")] * 2,
+        memoize=False,
+    )
+    with active([d3_every_stage(seen)]), sentinel_solving():
+        await bridged_turn()(state)
+    return state, read
+
+
+async def model_filter(
+    model: Model,
+    input: list[ChatMessage],
+    tools: list[ToolInfo],
+    tool_choice: Any,
+    config: GenerateConfig,
+) -> ModelOutput:
+    return await model.generate(input, tools, tool_choice, config)
+
+
+async def generating_response_filter(
+    model: Model, output: ModelOutput, generate_input: Any
+) -> ModelOutput:
+    return await model.generate(generate_input.input)
+
+
+@pytest.mark.parametrize("generated_by", ["bridge", "filter", "response_filter"])
+async def test_a_bridge_requests_generates_have_no_agent_messages(
+    generated_by: str,
+) -> None:
+    seen: list[StageSeen] = []
+    state, read = await run_bridge_request(
+        seen,
+        filter=model_filter if generated_by == "filter" else None,
+        response_filter=(
+            generating_response_filter if generated_by == "response_filter" else None
+        ),
+    )
+
+    generates = 2 if generated_by == "response_filter" else 1
+    assert len(of_stage(seen, BeforeGenerate)) == generates
+    assert stages(seen) == {BeforeGenerate, AfterGenerate}
+    assert all(s.messages is None for s in seen)
+    for step in of_stage(seen, BeforeGenerate):
+        assert shape(step.input) == [("user", "rebuilt request")]
+    # the agent's own stages read its state again once the request is done
+    assert read == [state.messages]
+    assert read[0] is state.messages
+
+
+async def test_a_bridge_request_restores_the_agent_state_when_it_raises() -> None:
+    from inspect_ai._sentinel._agent_state import agent_messages, current_conversation
+
+    during_filter: list[list[ChatMessage] | None] = []
+
+    async def raising_filter(*args: Any) -> ModelOutput:
+        during_filter.append(agent_messages(current_conversation()))
+        raise RuntimeError("filter failed")
+
+    async def expect_failure(request: Any) -> None:
+        with pytest.raises(RuntimeError, match="filter failed"):
+            await request
+
+    seen: list[StageSeen] = []
+    state, read = await run_bridge_request(
+        seen, filter=raising_filter, during=expect_failure
+    )
+    assert during_filter == [None]
+    assert read[0] is state.messages
+
+
+async def test_a_bridge_request_restores_the_agent_state_when_cancelled() -> None:
+    from inspect_ai._sentinel._agent_state import agent_messages, current_conversation
+
+    during_filter: list[list[ChatMessage] | None] = []
+    scope = anyio.CancelScope()
+
+    async def cancelled_filter(*args: Any) -> ModelOutput:
+        during_filter.append(agent_messages(current_conversation()))
+        scope.cancel()
+        await anyio.sleep_forever()
+        raise AssertionError("not cancelled")
+
+    async def cancelling(request: Any) -> None:
+        with scope:
+            await request
+        assert scope.cancelled_caught
+
+    seen: list[StageSeen] = []
+    state, read = await run_bridge_request(
+        seen, filter=cancelled_filter, during=cancelling
+    )
+    assert during_filter == [None]
+    assert read[0] is state.messages
+
+
+@pytest.mark.parametrize("via_tool", [False, True])
+def test_each_sub_agent_reads_its_own_state(via_tool: bool) -> None:
+    helper_lists: list[list[ChatMessage]] = []
+    parent_lists: list[list[ChatMessage]] = []
+    helper_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model", tool_name="addition", tool_arguments={"x": 2, "y": 3}
+            ),
+            ModelOutput.from_content("mockllm/model", content="helper done"),
+        ],
+        memoize=False,
+    )
+    helper = react(
+        name="helper",
+        description="A helper agent.",
+        model=hiding_policy(helper_lists),
+        tools=[addition()],
+        submit=False,
+    )
+    parent_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model",
+                tool_name="helper" if via_tool else "transfer_to_helper",
+                tool_arguments={"input": "add 2 and 3"} if via_tool else {},
+            ),
+            ModelOutput.for_tool_call(
+                "mockllm/model", tool_name="submit", tool_arguments={"answer": "5"}
+            ),
+        ],
+        memoize=False,
+    )
+
+    @agent
+    def parent_policy() -> Agent:
+        async def execute(state: AgentState, tools: list[Tool]) -> AgentState:
+            parent_lists.append(state.messages)
+            state.output = await parent_model.generate(state.messages, tools)
+            state.messages.append(state.output.message)
+            return state
+
+        return execute
+
+    with_helper = [as_tool(helper)] if via_tool else [handoff(helper)]
+    seen: list[StageSeen] = []
+    run_solver(
+        as_solver(react(model=parent_policy(), tools=with_helper)),
+        seen,
+        helper_model,
+    )
+
+    [parent_list] = {id(m): m for m in parent_lists}.values()
+    [helper_list] = {id(m): m for m in helper_lists}.values()
+    conversations = {s.step.conversation for s in seen}
+    assert len(conversations) == 2
+    for s in seen:
+        assert s.step.agent_messages is parent_list or (
+            s.step.agent_messages is helper_list
+        )
+    helper_steps = [s for s in seen if s.step.agent_messages is helper_list]
+    assert {type(s.step) for s in helper_steps} == ALL_STAGES
+
+    # the parent's list does not change while the helper runs
+    def parent_call(stage: type[Any]) -> list[ChatMessage] | None:
+        [messages] = [
+            s.messages
+            for s in seen
+            if isinstance(s.step, stage)
+            and s.step.agent_messages is parent_list
+            and s.step.call.function != "submit"
+        ]
+        return messages
+
+    transfer = parent_call(BeforeToolCall)
+    returned = parent_call(AfterToolCall)
+    assert returned == transfer
+    assert ("assistant", "helper done") not in shape(returned)
+    assert ("assistant", "helper done") in shape(helper_list)
+
+
+async def test_the_registration_is_restored_when_an_agent_returns_or_raises() -> None:
+    from inspect_ai._sentinel._agent_state import agent_messages, current_conversation
+
+    inside: list[list[ChatMessage] | None] = []
+
+    @agent
+    def looks(fail: bool) -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            inside.append(agent_messages(current_conversation()))
+            if fail:
+                raise RuntimeError("failed")
+            return state
+
+        return execute
+
+    init_transcript(Transcript())
+    with active([d3_every_stage([])]):
+        for fail in (False, True):
+            state = AgentState(messages=[ChatMessageUser(content="hi")])
+            try:
+                await looks(fail)(state)
+            except RuntimeError:
+                assert fail
+            assert inside[-1] is state.messages
+            assert agent_messages(current_conversation()) is None
+
+
+def test_with_compaction_agent_messages_is_the_whole_list() -> None:
+    from inspect_ai.model._compaction import CompactionTrim
+
+    @tool
+    def verbose() -> Tool:
+        async def execute() -> str:
+            """Return a long result."""
+            return "x" * 500
+
+        return execute
+
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            *[
+                ModelOutput.for_tool_call("mockllm/model", "verbose", {})
+                for _ in range(4)
+            ],
+            ModelOutput.for_tool_call("mockllm/model", "submit", {"answer": "done"}),
+        ],
+        memoize=False,
+    )
+    seen: list[StageSeen] = []
+    run_solver(
+        react(
+            tools=[verbose()],
+            compaction=CompactionTrim(threshold=500, preserve=0.5, memory=False),
+        ),
+        seen,
+        model,
+    )
+
+    *_, last = [s for s in seen if isinstance(s.step, BeforeGenerate)]
+    assert last.messages is not None
+    assert isinstance(last.step, BeforeGenerate)
+    assert len(last.step.input) < len(last.messages)
+    assert shape(last.messages)[1] == ("user", "What is 1 + 1?")
+    results = [m for m in last.messages if isinstance(m, ChatMessageTool)]
+    assert len(results) == 4
+
+
+def fresh(text: str) -> AgentState:
+    return AgentState(messages=[ChatMessageUser(content=text)])
+
+
+@contextmanager
+def watching(seen: list[StageSeen]) -> Iterator[None]:
+    from inspect_ai._sentinel._scope import sentinel_solving
+
+    init_transcript(Transcript())
+    with active([d3_every_stage(seen)]), sentinel_solving():
+        yield
+
+
+def mock_generate(messages: list[ChatMessage]) -> Any:
+    return get_model("mockllm/model").generate(messages)
+
+
+@agent
+def returns_new(text: str) -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        return AgentState(
+            messages=[*state.messages, ChatMessageAssistant(content=text)]
+        )
+
+    return execute
+
+
+def assert_shows_entry(seen: list[StageSeen], entry: AgentState) -> None:
+    assert stages(seen) == {BeforeGenerate, AfterGenerate}
+    for s in seen:
+        assert s.step.agent_messages is entry.messages
+        assert s.messages is not None
+        assert HIDDEN not in [m.text for m in s.messages]
+
+
+async def test_a_scaffold_that_discards_a_callees_state_shows_its_own() -> None:
+    seen: list[StageSeen] = []
+    entry = fresh("task")
+
+    @agent
+    def scaffold() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            for turn in range(2):
+                await returns_new(f"untrusted {turn} (rejected)")(state)
+                state = await returns_new(f"trusted {turn}")(state)
+                await mock_generate(state.messages)
+            return state
+
+        return execute
+
+    with watching(seen):
+        await scaffold()(entry)
+
+    assert len(of_stage(seen, BeforeGenerate)) == 2
+    assert_shows_entry(seen, entry)
+    assert all(shape(s.messages) == [("user", "task")] for s in seen)
+
+
+async def test_a_scaffold_keeping_a_later_siblings_state_shows_its_own() -> None:
+    seen: list[StageSeen] = []
+    entry = fresh("task")
+    first_done = anyio.Event()
+
+    @agent
+    def first() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            return await returns_new("first (discarded)")(state)
+
+        return execute
+
+    @agent
+    def second() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            await first_done.wait()
+            return await returns_new("second (kept)")(state)
+
+        return execute
+
+    @agent
+    def scaffold() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            results: dict[str, AgentState] = {}
+
+            async def run_first() -> None:
+                results["first"] = await first()(state)
+                first_done.set()
+
+            async def run_second() -> None:
+                results["second"] = await second()(state)
+
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(run_second)
+                tg.start_soon(run_first)
+            state = results["second"]
+            await mock_generate(state.messages)
+            return state
+
+        return execute
+
+    with watching(seen):
+        await scaffold()(entry)
+
+    assert len(of_stage(seen, BeforeGenerate)) == 1
+    assert_shows_entry(seen, entry)
+    assert all(shape(s.messages) == [("user", "task")] for s in seen)
+
+
+async def test_a_policys_curated_return_is_not_shown() -> None:
+    seen: list[StageSeen] = []
+    entry = fresh("task")
+
+    @agent
+    def policy() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            curated = AgentState(
+                messages=[ChatMessageSystem(content=HIDDEN), *state.messages]
+            )
+            output = await mock_generate(curated.messages)
+            curated.messages.append(output.message)
+            return curated
+
+        return execute
+
+    @agent
+    def scaffold() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            result = await policy()(state)
+            state.messages.append(result.messages[-1])
+            await mock_generate(state.messages)
+            return state
+
+        return execute
+
+    with watching(seen):
+        await scaffold()(entry)
+
+    policy_generate, scaffold_generate = of_stage(seen, BeforeGenerate)
+    assert policy_generate.input[0].text == HIDDEN
+    assert HIDDEN not in [m.text for m in scaffold_generate.input]
+    assert_shows_entry(seen, entry)
+    assert [m.role for m in seen[-1].messages or []] == ["user", "assistant"]
+
+
+@pytest.mark.parametrize("ending", ["returns", "raises", "cancelled"])
+async def test_a_task_that_outlives_its_agent_reads_no_state(ending: str) -> None:
+    import gc
+    import weakref
+
+    from inspect_ai._sentinel._agent_state import agent_messages, current_conversation
+
+    seen: list[StageSeen] = []
+    started, release, done = anyio.Event(), anyio.Event(), anyio.Event()
+    refs: list[weakref.ref[AgentState]] = []
+    own: list[bool] = []
+    scope = anyio.CancelScope()
+
+    @agent
+    def later() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            own.append(agent_messages(current_conversation()) is state.messages)
+            return state
+
+        return execute
+
+    async def outlives() -> None:
+        started.set()
+        await release.wait()
+        await mock_generate([ChatMessageUser(content="plain traffic")])
+        await later()(fresh("its own state"))
+        done.set()
+
+    with watching(seen):
+        async with anyio.create_task_group() as tg:
+
+            @agent
+            def parent() -> Agent:
+                async def execute(state: AgentState) -> AgentState:
+                    refs.append(weakref.ref(state))
+                    tg.start_soon(outlives)
+                    await started.wait()
+                    if ending == "raises":
+                        raise RuntimeError("agent failed")
+                    if ending == "cancelled":
+                        scope.cancel()
+                        await anyio.sleep_forever()
+                    return state
+
+                return execute
+
+            with scope:
+                try:
+                    await parent()(fresh("the exited agent's state"))
+                except RuntimeError:
+                    assert ending == "raises"
+            assert scope.cancelled_caught == (ending == "cancelled")
+            assert agent_messages(current_conversation()) is None
+            # the event loop holds a cancellation until the task next suspends
+            await anyio.lowlevel.checkpoint()
+            gc.collect()
+            # the task still runs, and no longer holds the agent's state
+            assert refs[0]() is None
+            release.set()
+            await done.wait()
+
+    assert stages(seen) == {BeforeGenerate, AfterGenerate}
+    assert all(s.messages is None for s in seen)
+    assert own == [True]
+
+
+async def test_a_task_that_outlives_a_bridge_request_can_register() -> None:
+    from inspect_ai._sentinel._agent_state import (
+        agent_messages,
+        bridge_request,
+        current_conversation,
+    )
+
+    release, done = anyio.Event(), anyio.Event()
+    own: list[bool] = []
+
+    @agent
+    def later() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            own.append(agent_messages(current_conversation()) is state.messages)
+            return state
+
+        return execute
+
+    async def outlives() -> None:
+        await release.wait()
+        await later()(fresh("its own state"))
+        done.set()
+
+    with watching([]):
+        async with anyio.create_task_group() as tg:
+            with bridge_request():
+                tg.start_soon(outlives)
+            release.set()
+            await done.wait()
+
+    assert own == [True]
+
+
+async def test_a_new_function_wrapping_a_decorated_agent_is_wrapped_too() -> None:
+    from functools import wraps
+
+    seen: list[StageSeen] = []
+
+    @agent
+    def policy() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            await mock_generate(state.messages)
+            return state
+
+        return execute
+
+    @agent
+    def scaffold() -> Agent:
+        inner = policy()
+
+        # functools.wraps copies the decorated agent's attributes to a new function
+        @wraps(inner)
+        async def execute(state: AgentState) -> AgentState:
+            await inner(
+                AgentState(
+                    messages=[ChatMessageSystem(content=HIDDEN), *state.messages]
+                )
+            )
+            return state
+
+        return execute
+
+    curated = fresh("What is 1 + 1?")
+    with watching(seen):
+        await scaffold()(curated)
+
+    assert stages(seen) == {BeforeGenerate, AfterGenerate}
+    for s in seen:
+        assert s.step.agent_messages is curated.messages
+        assert s.messages is not None
+        assert HIDDEN not in [m.text for m in s.messages]
+    [before] = of_stage(seen, BeforeGenerate)
+    assert before.input[0].text == HIDDEN

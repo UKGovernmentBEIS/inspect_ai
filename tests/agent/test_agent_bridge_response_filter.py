@@ -1,12 +1,18 @@
 import json
 import re
+import traceback
 from pathlib import Path
-from typing import Any, Literal, NamedTuple, cast, get_args
+from typing import Any, Callable, Literal, NamedTuple, NoReturn, cast, get_args
 from unittest.mock import AsyncMock
 
 import anyio
 import pytest
 from pydantic import JsonValue
+from test_helpers.service_dispatch import (
+    REQUEST_FILE,
+    REQUEST_ID,
+    dispatching_service,
+)
 from test_helpers.utils import (
     skip_if_no_anthropic,
     skip_if_no_docker,
@@ -15,6 +21,7 @@ from test_helpers.utils import (
 )
 from typing_extensions import assert_never
 
+from inspect_ai._util._async import unwrap_exception_group
 from inspect_ai._util.content import (
     Content,
     ContentReasoning,
@@ -37,7 +44,7 @@ from inspect_ai.agent._bridge.sandbox.service import (
 )
 from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
 from inspect_ai.agent._bridge.types import AgentBridge
-from inspect_ai.agent._bridge.util import bridge_generate
+from inspect_ai.agent._bridge.util import _apply_response_filter, bridge_generate
 from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
 from inspect_ai.event import ModelEvent
 from inspect_ai.log import EvalLog
@@ -989,6 +996,124 @@ async def test_response_filter_error_keeps_the_filter_exception_as_cause() -> No
     assert isinstance(exc_info.value.__cause__, ValueError)
 
 
+def _raise(error: Exception) -> NoReturn:
+    raise error
+
+
+@pytest.mark.parametrize(
+    "make_error",
+    [
+        lambda: LimitExceededError("token", value=2, limit=1),
+        lambda: TerminateSampleError("stop"),
+        lambda: ModelRefusalError(
+            ModelOutput.from_content("mockllm/model", "no"), "mockllm/model"
+        ),
+    ],
+    ids=["limit", "terminate", "refusal"],
+)
+async def test_response_filter_control_flow_keeps_its_context(
+    make_error: Callable[[], Exception],
+) -> None:
+    """Control flow raised from a filter's task group keeps its own context."""
+    error = make_error()
+
+    async def fail() -> None:
+        try:
+            raise ValueError("context")
+        except ValueError:
+            _raise(error)
+
+    async def grouped_filter(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(collect, fail())
+        return None
+
+    model = get_model("mockllm/model")
+    with pytest.raises(type(error)) as exc_info:
+        await _apply_response_filter(
+            grouped_filter,
+            model,
+            ModelOutput.from_content("mockllm/model", "hi"),
+            GenerateInput([], [], "auto", GenerateConfig()),
+        )
+    assert exc_info.value is error
+    assert repr(error.__context__) == "ValueError('context')"
+    assert not error.__suppress_context__
+    text = "".join(traceback.format_exception(error))
+    assert "Exception Group Traceback" not in text
+    assert text.count(f"{type(error).__name__}: ") == 1
+
+
+async def test_response_filter_termination_on_a_wrapper_ends_the_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A termination the filter's group was raised while handling stays sticky."""
+
+    async def grouped_filter(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        try:
+            raise TerminateSampleError("stop now")
+        except TerminateSampleError:
+            _raise(
+                ExceptionGroup(
+                    "cleanup", [LimitExceededError("token", value=2, limit=1)]
+                )
+            )
+
+    async def generate() -> JsonValue:
+        await _apply_response_filter(
+            grouped_filter,
+            get_model("mockllm/model"),
+            ModelOutput.from_content("mockllm/model", "hi"),
+            GenerateInput([], [], "auto", GenerateConfig()),
+        )
+        return None
+
+    replies: list[str | None] = []
+    service = dispatching_service(monkeypatch, "generate", generate, {}, replies)
+    with pytest.raises(TerminateSampleError, match="stop now"):
+        await service._handle_request_tracked(REQUEST_FILE, REQUEST_ID)
+    assert replies == ["Terminating: stop now"]
+
+
+@pytest.mark.parametrize("selected", ["error", "group"])
+async def test_response_filter_termination_on_the_unwrapped_error_ends_the_request(
+    monkeypatch: pytest.MonkeyPatch, selected: Literal["error", "group"]
+) -> None:
+    """A termination in the context of the error a filter unwraps stays sticky."""
+
+    async def grouped_filter(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        limit = LimitExceededError("token", value=2, limit=1)
+        error: Exception = (
+            limit if selected == "error" else ExceptionGroup("inner", [limit])
+        )
+        error.__context__ = TerminateSampleError("stop now")
+        outer = ExceptionGroup("outer", [error])
+        outer.__cause__ = ValueError("outer cause")
+        with unwrap_exception_group():
+            raise outer
+
+    async def generate() -> JsonValue:
+        await _apply_response_filter(
+            grouped_filter,
+            get_model("mockllm/model"),
+            ModelOutput.from_content("mockllm/model", "hi"),
+            GenerateInput([], [], "auto", GenerateConfig()),
+        )
+        return None
+
+    replies: list[str | None] = []
+    service = dispatching_service(monkeypatch, "generate", generate, {}, replies)
+    with pytest.raises(TerminateSampleError, match="stop now"):
+        await service._handle_request_tracked(REQUEST_FILE, REQUEST_ID)
+    assert replies == ["Terminating: stop now"]
+
+
 @skip_if_no_docker
 @pytest.mark.slow
 @pytest.mark.parametrize(
@@ -1014,6 +1139,43 @@ def test_sandbox_response_filter_failure_outcome(
         token_limit=JUDGE_TOKEN_LIMIT,
     )
     _assert_failure_outcome(log, failure)
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_sandbox_response_filter_terminate_survives_the_scaffold_exiting_first(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A termination ends the sample even when the scaffold finishes before it lands.
+
+    The service dispatcher writes the terminating reply before raising. Removing
+    the request file is slowed here so the scaffold always reads that reply and
+    exits, and the agent completes, before the termination is raised: the race
+    that otherwise loses it intermittently. The termination must still end the
+    sample, not be cancelled with the service or logged as a cleanup error.
+    """
+    from inspect_ai.util._sandbox.service import SandboxService
+
+    remove_request_file = SandboxService._remove_request_file
+
+    async def slow_remove_request_file(self: SandboxService, request_file: str) -> None:
+        await remove_request_file(self, request_file)
+        await anyio.sleep(5)
+
+    monkeypatch.setattr(
+        SandboxService, "_remove_request_file", slow_remove_request_file
+    )
+
+    log, results = _run_sandbox_eval_with_response_filter(
+        tmp_path,
+        _failing_response_filter("terminate"),
+        model=_under_limit_model(),
+        token_limit=JUDGE_TOKEN_LIMIT,
+    )
+
+    # the scaffold finished first: the ordering the race needs
+    assert len(results) == 1
+    _assert_failure_outcome(log, "terminate")
 
 
 def _sandbox_bridge(
@@ -1103,12 +1265,17 @@ async def test_sandbox_forwarding_preserves_response_filter_limit() -> None:
 
 
 @pytest.mark.parametrize(
-    "failure", [f for f in get_args(FilterFailure) if _expected_error(f) is not None]
+    "failure",
+    [
+        f
+        for f in get_args(FilterFailure)
+        if _expected_error(f) not in (None, _expected_error("terminate"))
+    ],
 )
 async def test_sandbox_response_filter_ends_sample_through_the_monitor(
     failure: FilterFailure,
 ) -> None:
-    """A filter's termination, refusal or failure reaches the sample runner from the sandbox.
+    """A filter's refusal or failure reaches the sample runner from the sandbox.
 
     A re-raise from a sandbox model method would become an RPC error and never
     reach the sample runner, so the forwarder hands the exception to the
@@ -1126,6 +1293,89 @@ async def test_sandbox_response_filter_ends_sample_through_the_monitor(
     assert bridge._failure_requested.is_set()
     with pytest.raises(expected.error_type, match=re.escape(expected.fragment)):
         await _monitor_failure(bridge)
+
+
+async def test_sandbox_response_filter_termination_is_left_to_the_dispatcher() -> None:
+    """A filter's termination propagates from a sandbox model method.
+
+    The sandbox service dispatcher answers the RPC and propagates the
+    `TerminateSampleError` out of the service task, which ends the sample, so
+    the forwarder re-raises it rather than signalling the bridge's monitor.
+    """
+    bridge = _sandbox_bridge(_failing_response_filter("terminate"))
+    with pytest.raises(TerminateSampleError, match=TERMINATE_REASON):
+        await _forward_provider_errors(generate_completions(bridge), bridge)(
+            CHAT_REQUEST
+        )
+    assert not bridge._failure_requested.is_set()
+
+
+def test_sandbox_response_filter_limit_with_termination_terminates(
+    tmp_path: Path,
+) -> None:
+    """A filter's concurrent limit and termination end the sample as a termination.
+
+    `_apply_response_filter` raises the group's first control-flow leaf (the
+    limit) with the group as its context. The service dispatcher finds the
+    termination in that history before routing the limit to the sample, so it
+    answers the RPC once and propagates the termination: the sample ends with
+    the operator reason, not a token limit, and the monitor is not signalled.
+    """
+    from inspect_ai import Task, eval
+    from inspect_ai.dataset import Sample
+    from inspect_ai.solver import Generate, Solver, TaskState, solver
+
+    replies: list[str | None] = []
+    signalled: list[bool] = []
+
+    async def concurrent_judges(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        raise ExceptionGroup(
+            "concurrent judges",
+            [
+                LimitExceededError("token", value=2, limit=1),
+                TerminateSampleError("stop now"),
+            ],
+        )
+
+    @solver
+    def serve_one_generation() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            bridge = _sandbox_bridge(concurrent_judges)
+            try:
+                with pytest.MonkeyPatch.context() as monkeypatch:
+                    service = dispatching_service(
+                        monkeypatch,
+                        "generate_completions",
+                        _forward_provider_errors(generate_completions(bridge), bridge),
+                        {"json_data": CHAT_REQUEST},
+                        replies,
+                    )
+                    await service._handle_request_tracked(REQUEST_FILE, REQUEST_ID)
+            finally:
+                signalled.append(bridge._failure_requested.is_set())
+            return state
+
+        return solve
+
+    log = eval(
+        Task(dataset=[Sample(input="test")], solver=serve_one_generation()),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        display="none",
+    )[0]
+
+    assert log.status == "success"
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert sample.error is None, sample.error
+    assert sample.limit is not None
+    assert (sample.limit.type, sample.limit.reason) == ("operator", "stop now")
+    limits = [e for e in sample.events if e.event == "sample_limit"]
+    assert [(e.type, e.message) for e in limits] == [("operator", "stop now")]
+    assert replies == ["Terminating: stop now"]
+    assert signalled == [False]
 
 
 @pytest.mark.parametrize("source", get_args(RefusalSource))

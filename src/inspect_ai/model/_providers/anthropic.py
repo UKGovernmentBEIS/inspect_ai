@@ -35,6 +35,7 @@ from anthropic import (
 )
 from anthropic.lib.streaming import AsyncMessageStream
 from anthropic.types import (
+    AssistantMessageParam,
     Base64PDFSourceParam,
     BrowserStateBlockParam,
     CacheControlEphemeralParam,
@@ -48,6 +49,7 @@ from anthropic.types import (
     DocumentBlockParam,
     ImageBlockParam,
     Message,
+    MessageContentParam,
     MessageParam,
     OutputConfigParam,
     PlainTextSourceParam,
@@ -55,6 +57,7 @@ from anthropic.types import (
     RedactedThinkingBlockParam,
     ServerToolUseBlock,
     ServerToolUseBlockParam,
+    SystemMessageParam,
     TextBlock,
     TextBlockParam,
     ThinkingBlock,
@@ -70,6 +73,7 @@ from anthropic.types import (
     ToolTextEditor20250124Param,
     ToolUseBlock,
     ToolUseBlockParam,
+    UserMessageParam,
     WebSearchResultBlock,
     WebSearchTool20250305Param,
     WebSearchTool20260209Param,
@@ -244,13 +248,9 @@ logger = getLogger(__name__)
 ANTHROPIC_API_KEY = "ANTHROPIC_API_KEY"
 AZUREAI_ANTHROPIC_API_KEY = "AZUREAI_ANTHROPIC_API_KEY"
 
-_THINKING_WARNING = (
+_SAMPLING_PARAM_WARNING = (
     "anthropic models do not support the '{parameter}' parameter "
-    "when using extended thinking."
-)
-_ADAPTIVE_ONLY_WARNING = (
-    "anthropic model '{model}' does not support the '{parameter}' parameter "
-    "(adaptive thinking only)."
+    "(removed in API version 2026-10-21)."
 )
 _REASONING_TOKENS_UNSUPPORTED_ERROR = (
     "anthropic model '{model}' does not support 'reasoning_tokens' (extended "
@@ -610,10 +610,8 @@ class AnthropicAPI(ModelAPI):
         else:
             base_url = model_base_url(self.base_url, "ANTHROPIC_BASE_URL")
             # Support OAuth Bearer auth via ANTHROPIC_AUTH_TOKEN. When set,
-            # create the client with auth_token= (sends Authorization: Bearer)
-            # instead of api_key= (sends X-Api-Key). The Anthropic API rejects
-            # requests that have both headers if the X-Api-Key is invalid, so
-            # we must use one or the other — not both.
+            # create the client with auth_token= instead of api_key= (the SDK
+            # rejects passing both).
             auth_token = os.environ.get("ANTHROPIC_AUTH_TOKEN")
             if auth_token:
                 default_headers = self._oauth_default_headers(model_args)
@@ -1314,9 +1312,7 @@ class AnthropicAPI(ModelAPI):
 
         if continuation_required:
             tail_request = dict(request)
-            tail_request["messages"] = request["messages"] + [
-                MessageParam(role=head_message.role, content=head_message.content)
-            ]
+            tail_request["messages"] = request["messages"] + [head_message.to_param()]
             # server tool calls (e.g. web search w/ dynamic filtering) may run
             # inside a code execution container -- reuse it for the continuation
             if head_message.container:
@@ -1427,35 +1423,23 @@ class AnthropicAPI(ModelAPI):
         max_tokens = cast(int, config.max_tokens)
         params = dict(model=self.service_model_name(), max_tokens=max_tokens)
         headers: dict[str, str] = (config.extra_headers or {}).copy()
-        extra_body: dict[str, Any] = {}
+        # anthropic >= 2.0 sends anthropic_version 2026-10-21 in the Bedrock
+        # request body, which Bedrock rejects for some models (Sonnet 4.6);
+        # send the version anthropic 1.x sent
+        extra_body: dict[str, Any] = (
+            {"anthropic_version": "bedrock-2023-05-31"} if self.is_bedrock() else {}
+        )
         betas: list[str] = self.betas + self._pull_betas_from_headers(headers)
 
-        # Claude 4.7+ is always in adaptive thinking and rejects these params
-        # regardless of config; other models only reject them under thinking.
-        forbid_sampling_params = (
-            self.is_claude_4_7_or_later() or self.is_using_thinking(config)
-        )
-
-        def sampling_param_warning(parameter: str) -> str:
-            if self.is_claude_4_7_or_later():
-                return _ADAPTIVE_ONLY_WARNING.format(
-                    parameter=parameter, model=self.service_model_name()
-                )
-            return _THINKING_WARNING.format(parameter=parameter)
-
-        # anthropic >= 1.0 removed temperature/top_p/top_k from the method
-        # signatures (the API still accepts them for models that support
-        # them), so route via extra_body rather than params
+        # API version 2026-10-21 (anthropic >= 2.0) rejects these params on
+        # every model
         for parameter, value in (
             ("temperature", config.temperature),
             ("top_p", config.top_p),
             ("top_k", config.top_k),
         ):
             if value is not None:
-                if forbid_sampling_params:
-                    warn_once(logger, sampling_param_warning(parameter))
-                else:
-                    extra_body[parameter] = value
+                warn_once(logger, _SAMPLING_PARAM_WARNING.format(parameter=parameter))
 
         # effort
         if config.effort is not None:
@@ -1494,7 +1478,6 @@ class AnthropicAPI(ModelAPI):
                 thinking.pop("display", None)
             params["thinking"] = thinking
 
-            headers["anthropic-version"] = "2023-06-01"
             if max_tokens > 8192:
                 betas.append("output-128k-2025-02-19")
 
@@ -3087,23 +3070,23 @@ def consecutive_message_reducer(
 
 def combine_messages(a: MessageParam, b: MessageParam) -> MessageParam:
     # TODO: Fix this code as it currently drops interesting properties when combining
-    role = a["role"]
     a_content = a["content"]
     b_content = b["content"]
+    content: MessageContentParam
     if isinstance(a_content, str) and isinstance(b_content, str):
-        return MessageParam(role=role, content=f"{a_content}\n{b_content}")
+        content = f"{a_content}\n{b_content}"
     elif isinstance(a_content, list) and isinstance(b_content, list):
-        return MessageParam(role=role, content=a_content + b_content)
+        content = a_content + b_content
     elif isinstance(a_content, str) and isinstance(b_content, list):
-        return MessageParam(
-            role=role, content=[TextBlockParam(type="text", text=a_content)] + b_content
-        )
+        content = [TextBlockParam(type="text", text=a_content)] + b_content
     elif isinstance(a_content, list) and isinstance(b_content, str):
-        return MessageParam(
-            role=role, content=a_content + [TextBlockParam(type="text", text=b_content)]
-        )
+        content = a_content + [TextBlockParam(type="text", text=b_content)]
     else:
         raise ValueError(f"Unexpected content types for messages: {a}, {b}")
+    if a["role"] == "assistant":
+        return AssistantMessageParam(role="assistant", content=content)
+    assert a["role"] == "user"
+    return UserMessageParam(role="user", content=content)
 
 
 def message_tool_choice(
@@ -3529,7 +3512,9 @@ async def message_param(
     if message.role == "system":
         assert isinstance(message, ChatMessageSystem)
         if isinstance(message.content, str):
-            return MessageParam(role="system", content=message.content or NO_CONTENT)
+            return SystemMessageParam(
+                role="system", content=message.content or NO_CONTENT
+            )
         text_blocks: list[TextBlockParam] = [
             TextBlockParam(type="text", text=block.text)
             for block in message.content
@@ -3537,7 +3522,7 @@ async def message_param(
         ]
         if not text_blocks:
             text_blocks = [TextBlockParam(type="text", text=NO_CONTENT)]
-        return MessageParam(role="system", content=text_blocks)  # type: ignore[typeddict-item]
+        return SystemMessageParam(role="system", content=text_blocks)
 
     # "tool" means serving a tool call result back to claude
     elif message.role == "tool":
@@ -3567,7 +3552,7 @@ async def message_param(
         )
         if message.tool_call_id in computer_toolset_call_ids:
             tool_result["toolset_name"] = COMPUTER_TOOLSET_NAME
-        return MessageParam(role="user", content=[tool_result])
+        return UserMessageParam(role="user", content=[tool_result])
 
     # tool_calls means claude is attempting to call our tools
     elif message.role == "assistant":
@@ -3575,19 +3560,19 @@ async def message_param(
             message, computer_toolset_call_ids=computer_toolset_call_ids
         )
 
-        return MessageParam(
-            role=message.role,
+        return AssistantMessageParam(
+            role="assistant",
             content=block_params,  # type: ignore[typeddict-item]
         )
 
     # normal text content
     elif isinstance(message.content, str):
-        return MessageParam(role=message.role, content=message.content or NO_CONTENT)
+        return UserMessageParam(role="user", content=message.content or NO_CONTENT)
 
     # mixed text/images
     else:
-        return MessageParam(
-            role=message.role,
+        return UserMessageParam(
+            role="user",
             content=[
                 item  # type: ignore[misc]
                 for content in message.content
@@ -5955,7 +5940,9 @@ def pad_tool_messages_for_token_counting(
                             for tid in orphaned_ids
                         ]
                         result.append(
-                            MessageParam(role="assistant", content=fake_tool_uses)
+                            AssistantMessageParam(
+                                role="assistant", content=fake_tool_uses
+                            )
                         )
 
         result.append(msg)
@@ -5998,7 +5985,7 @@ def pad_tool_messages_for_token_counting(
                             for tid in orphaned_ids
                         ]
                         result.append(
-                            MessageParam(role="user", content=fake_tool_results)
+                            UserMessageParam(role="user", content=fake_tool_results)
                         )
 
     return result
@@ -6065,7 +6052,7 @@ def neutralize_thinking_for_token_counting(
         # never emit an empty assistant message (the API rejects it)
         if not neutralized:
             neutralized = [TextBlockParam(type="text", text=NO_CONTENT)]
-        result.append(MessageParam(role="assistant", content=neutralized))
+        result.append(AssistantMessageParam(role="assistant", content=neutralized))
 
     return result
 

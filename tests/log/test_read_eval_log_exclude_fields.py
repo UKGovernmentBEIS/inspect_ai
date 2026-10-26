@@ -1,6 +1,7 @@
 import math
 import os
 import tempfile
+from zipfile import ZipFile
 
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai.log import (
@@ -12,9 +13,15 @@ from inspect_ai.log import (
     EvalSpec,
     EvalStats,
     read_eval_log,
+    read_eval_log_async,
     write_eval_log,
+    write_eval_log_async,
 )
 from inspect_ai.log._log import EvalSample
+from inspect_ai.log._recorders.eval import (
+    _read_local_sample_excluding,
+    _sample_filename,
+)
 from inspect_ai.model._chat_message import ChatMessageUser
 from inspect_ai.scorer import Score
 
@@ -146,3 +153,60 @@ def test_read_eval_log_exclude_fields_nan_inf_fallback():
     # the NaN value that forced the fallback is preserved
     assert math.isnan(sample.scores["match"].value)
     assert sample.scores["match"].answer == "Yes"
+
+
+async def _write_log_with_float_overflow(path: str) -> None:
+    """Write a log whose sample JSON holds the literal 1e309 in its metadata.
+
+    1e309 is valid JSON but too large for a double; json.loads reads it as inf.
+    """
+    sample = EvalSample(
+        id="s1",
+        epoch=1,
+        input="hello",
+        target="world",
+        messages=[ChatMessageUser(content="hi")],
+        store={"k": "v"},
+        metadata={"large": "FLOAT_OVERFLOW"},
+    )
+    log = _make_log_with_nan_score().model_copy(update={"samples": [sample]})
+    await write_eval_log_async(log, path)
+
+    member = _sample_filename("s1", 1)
+    with ZipFile(path) as source:
+        entries = [(info, source.read(info)) for info in source.infolist()]
+    with ZipFile(path, "w") as output:
+        for info, data in entries:
+            if info.filename == member:
+                data = data.replace(b'"FLOAT_OVERFLOW"', b"1e309")
+            output.writestr(info, data)
+
+
+async def test_read_eval_log_exclude_fields_float_overflow_fallback():
+    """The ijson C backend overflows on floats like 1e309; we fall back to json.loads.
+
+    Covers both the async reader and the local buffered reader.
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = os.path.join(tmpdir, "overflow.eval")
+        await _write_log_with_float_overflow(path)
+
+        full = await read_eval_log_async(path)
+        read_log = await read_eval_log_async(path, exclude_fields={"messages", "store"})
+        with ZipFile(path) as zip:
+            local = _read_local_sample_excluding(
+                zip, _sample_filename("s1", 1), {"messages", "store"}
+            )
+
+    assert full.samples
+    assert full.samples[0].metadata["large"] == float("inf")
+
+    assert read_log.samples
+    sample = read_log.samples[0]
+    assert not sample.messages
+    assert not sample.store
+    assert sample.metadata["large"] == float("inf")
+
+    assert "messages" not in local
+    assert "store" not in local
+    assert local["metadata"]["large"] == float("inf")

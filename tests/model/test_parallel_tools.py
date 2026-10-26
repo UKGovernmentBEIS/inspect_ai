@@ -6,8 +6,12 @@ concurrent stage, while each `parallel=False` call is a one-element stage
 that acts as a barrier preserving the model's declared call ordering.
 """
 
+import traceback
+from typing import NoReturn
+
 import anyio
 import pytest
+from test_helpers.utils import fail_in_a_group_with_handled_context
 
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import Transcript, init_transcript
@@ -16,6 +20,7 @@ from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
 from inspect_ai.tool import ToolError, tool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.util import collect
 
 # -- fixtures ---------------------------------------------------------------
 
@@ -373,6 +378,120 @@ async def test_unhandled_exception_in_parallel_cancels_siblings_and_raises():
     assert "operator" not in sibling_event.error.message
     assert "timeout" not in sibling_event.error.message.lower()
     assert "sibling" in sibling_event.error.message.lower()
+
+
+def _raise_wrapped() -> NoReturn:
+    raise RuntimeError("wrapped")
+
+
+async def _fail_while_handling() -> None:
+    try:
+        raise ValueError("context")
+    except ValueError:
+        _raise_wrapped()
+
+
+@tool
+def grouped_failure():
+    async def grouped_failure() -> str:
+        """Fail from a task group child while handling another error."""
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(collect, _fail_while_handling())
+        return "unreachable"
+
+    return grouped_failure
+
+
+async def test_unhandled_tool_error_keeps_its_context():
+    """The error raised out of a tool's task group keeps its own context."""
+    with pytest.raises(RuntimeError, match="wrapped") as excinfo:
+        await execute_tools(
+            [assistant(call("grouped_failure", "grouped-failure-c0"))],
+            [ToolDef(grouped_failure())],
+        )
+    error = excinfo.value
+    assert repr(error.__context__) == "ValueError('context')"
+    assert not error.__suppress_context__
+    text = "".join(traceback.format_exception(error))
+    assert "Exception Group Traceback" not in text
+    assert text.count("RuntimeError: wrapped") == 1
+
+
+@tool
+def fatal_in_group():
+    async def fatal_in_group(outer_cause: bool) -> str:
+        """Fail from a task group with a recoverable error as the group's context.
+
+        Args:
+            outer_cause: Whether the task group's wrapper has its own cause.
+        """
+        await fail_in_a_group_with_handled_context(outer_cause)
+        return "unreachable"
+
+    return fatal_in_group
+
+
+@pytest.mark.parametrize("outer_cause", [False, True])
+async def test_fatal_group_member_is_not_mapped_from_its_context(outer_cause: bool):
+    """A handled ToolError in a failing group's context does not hide the failure."""
+    # the group's member and its context were ordered by a set: try fresh ones
+    for i in range(20):
+        with pytest.raises(RuntimeError, match="fatal"):
+            await execute_tools(
+                [
+                    assistant(
+                        call("fatal_in_group", f"fatal-c{i}", outer_cause=outer_cause)
+                    )
+                ],
+                [ToolDef(fatal_in_group())],
+            )
+
+
+async def test_stage_error_keeps_a_sibling_failure_in_its_history():
+    """When parallel tools both fail, the raised error keeps the other's."""
+    started = 0
+    all_started = anyio.Event()
+
+    @tool(parallel=True)
+    def fail_together():
+        async def fail_together(label: str) -> str:
+            """Fail once every call has started.
+
+            Args:
+                label: The error message.
+            """
+            nonlocal started
+            # shielded, so a sibling's failure cannot cancel this one first
+            with anyio.CancelScope(shield=True):
+                started += 1
+                if started == 2:
+                    all_started.set()
+                await all_started.wait()
+                raise RuntimeError(label)
+            return label  # not reached: the shielded block raises
+
+        return fail_together
+
+    calls = [
+        call("fail_together", "fail-together-c0", label="first"),
+        call("fail_together", "fail-together-c1", label="second"),
+    ]
+    with pytest.raises(RuntimeError) as excinfo:
+        await execute_tools([assistant(*calls)], [ToolDef(fail_together())])
+    group = excinfo.value.__context__
+    assert isinstance(group, ExceptionGroup)
+    assert excinfo.value.__suppress_context__
+    failed, _ = group.split(RuntimeError)
+    assert failed is not None
+    leaves: list[BaseException] = []
+    pending: list[BaseException] = [failed]
+    while pending:
+        e = pending.pop()
+        if isinstance(e, BaseExceptionGroup):
+            pending.extend(e.exceptions)
+        else:
+            leaves.append(e)
+    assert sorted(str(e) for e in leaves) == ["first", "second"]
 
 
 async def test_per_call_cancel_isolates_to_one_call():

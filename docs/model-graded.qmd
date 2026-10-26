@@ -187,15 +187,20 @@ By default the grader model runs with the provider's default generation settings
 from inspect_ai.model import get_model, GenerateConfig
 from inspect_ai.scorer import model_graded_qa
 
-grader = get_model("openai/gpt-4o", config=GenerateConfig(temperature=0, seed=42))
+grader = get_model(
+    "openai/gpt-6-luna",
+    config=GenerateConfig(reasoning_effort="none", temperature=0),
+)
 
 model_graded_qa(model=grader)
 ```
+
+GPT-6 Luna reasons by default, and Inspect drops `temperature` (with a warning) while an OpenAI model reasons, so the example sets `reasoning_effort="none"`. See [Reasoning Effort](reasoning.qmd#reasoning-effort). The OpenAI Responses API, which Inspect uses by default for GPT-5 and later, does not accept `seed`.
 
 You can apply the same configuration through the `grader` model role instead of the `model` argument — see [Model Roles](models.qmd#model-roles).
 
 For more reproducible grading:
 
-1.  Set `temperature=0` so the grader is as deterministic as the provider allows.
+1.  Set `temperature=0`, where the model accepts it, so the grader is as deterministic as the provider allows.
 2.  Set a `seed` where the provider supports it.
 3.  Run multiple `epochs` and inspect grade variance — setting `temperature=0` reduces, but does not always eliminate, run-to-run disagreement.
