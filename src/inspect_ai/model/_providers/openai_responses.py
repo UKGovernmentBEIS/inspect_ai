@@ -39,6 +39,10 @@ from tenacity import (
     wait_exponential_jitter,
 )
 
+from inspect_ai._sentinel._sidecar._field import (
+    report_sentinel_error,
+    report_sentinel_field,
+)
 from inspect_ai._util.httpx import log_httpx_retry_attempt
 from inspect_ai._util.logger import warn_once
 from inspect_ai.log._samples import set_active_model_event_call
@@ -262,6 +266,7 @@ async def generate_responses(
                 )
             else:
                 model_response = await client.responses.create(**request)
+                report_sentinel_field(model_response)
             # model_response is `Response | Any`. The lazy type inference engine
             # threw up its hands because of the `**request`.
             assert isinstance(model_response, Response)
@@ -311,6 +316,7 @@ async def generate_responses(
                 response_id=model_response.id,
             ), model_call
         except BadRequestError as e:
+            report_sentinel_error(e)
             model_call.set_error(
                 as_error_response(e.body), http_hooks.end_request(request_id)
             )
@@ -319,6 +325,7 @@ async def generate_responses(
             else:
                 return openai_handle_bad_request(model_name, e), model_call
         except (APIError, OpenAIResponseError) as e:
+            report_sentinel_error(e)
             # intentionally also catches the terminal `model_response.error` raise
             # above, so recognized block codes convert on every path (streaming,
             # non-streaming, background, batch); unrecognized codes return None
@@ -389,6 +396,7 @@ async def _generate_responses_stream(
                 # handling as their non-streaming equivalents
                 # (model_response.error checks)
                 model_response = event.response
+                report_sentinel_field(event)
                 report_model_stream_progress(
                     event.response.usage.output_tokens
                     if event.response.usage is not None
