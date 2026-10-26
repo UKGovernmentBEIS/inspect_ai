@@ -87,7 +87,7 @@ async def test_openai_compact_propagates_other_endpoint_errors() -> None:
 @skip_if_no_openai
 async def test_openai_api() -> None:
     model = get_model(
-        "openai/gpt-3.5-turbo",
+        "openai/gpt-4o-mini",
         config=GenerateConfig(
             frequency_penalty=0.0,
             stop_seqs=None,
@@ -162,7 +162,7 @@ async def test_openai_o_series_developer_messages() -> None:
             ]
         )
 
-    await check_developer_messages("openai/o3-mini")
+    await check_developer_messages("openai/o3")
 
 
 @skip_if_no_openai
@@ -176,7 +176,7 @@ async def test_openai_o_series_reasoning_effort() -> None:
         response = await model.generate(input=[message])
         assert len(response.completion) >= 1
 
-    await check_reasoning_effort("openai/o3-mini")
+    await check_reasoning_effort("openai/o3")
     await check_reasoning_effort("openai/gpt-5-mini", "minimal")
 
 
@@ -191,14 +191,14 @@ async def test_openai_o_series_max_tokens() -> None:
         response = await model.generate(input=[message])
         assert len(response.completion) >= 1
 
-    await check_max_tokens("openai/o3-mini")
+    await check_max_tokens("openai/o3")
 
 
 @skip_if_no_openai
 def test_openai_flex_requests():
     log = eval(
         Task(),
-        model="openai/o4-mini",
+        model="openai/gpt-5-mini",
         model_args=dict(service_tier="flex", client_timeout=1200),
     )[0]
     assert log.status == "success"
