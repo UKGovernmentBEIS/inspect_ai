@@ -180,6 +180,23 @@ def records_to_pandas(records: list[dict[str, ColumnType]]) -> "pd.DataFrame":
     import pandas as pd
     import pyarrow as pa
 
+    # Depending on row order, pandas reads ints beyond int64 as lossy float64
+    # or as objects that PyArrow can't convert, so keep those columns as strings.
+    big_int_columns = {
+        k
+        for record in records
+        for k, v in record.items()
+        if type(v) is int and not -(2**63) <= v < 2**63
+    }
+    if big_int_columns:
+        records = [
+            {
+                k: str(v) if k in big_int_columns and v is not None else v
+                for k, v in record.items()
+            }
+            for record in records
+        ]
+
     # arrow backed df w/ our types mapper
     df = pd.DataFrame(records)
 
@@ -190,14 +207,11 @@ def records_to_pandas(records: list[dict[str, ColumnType]]) -> "pd.DataFrame":
             non_null = df[col].dropna()
             if len(non_null) > 0:
                 types = set(type(v).__name__ for v in non_null)
-                # If mixed types (not all str/bytes), convert to string. pandas
-                # leaves an all-int column as object only when the ints fit
-                # neither int64 nor uint64, so convert those to string too.
-                mixed = len(types) > 1 and not types.issubset({"str", "bytes"})
-                if mixed or types == {"int"}:
+                # If mixed types (not all str/bytes), convert to string
+                if len(types) > 1 and not types.issubset({"str", "bytes"}):
                     df[col] = df[col].apply(
                         lambda x: (
-                            str(x) if not pd.isna(x) and not isinstance(x, str) else x
+                            str(x) if x is not None and not isinstance(x, str) else x
                         )
                     )
 

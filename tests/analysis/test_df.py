@@ -498,15 +498,18 @@ def test_samples_df_message_count():
 
 @pytest.mark.parametrize("strict", [True, False])
 def test_samples_df_int_beyond_int64(tmp_path: Path, strict: bool) -> None:
-    """Ints that fit neither int64 nor uint64 become exact strings."""
-    big = [2**70, -(2**63) - 1, None]
+    """A column holding an int beyond int64 becomes exact strings."""
+    # the leading None would otherwise make pandas read the column as float64
+    metadata: list[dict[str, JsonValue]] = [
+        {"big": None},
+        {"big": 2**70},
+        {"big": 2**64 - 1},
+        {"big": -(2**63) - 1},
+        {"big": 1},
+        {},
+    ]
     eval(
-        Task(
-            dataset=[
-                Sample(input="hi", metadata={"big": value} if value else {})
-                for value in big
-            ]
-        ),
+        Task(dataset=[Sample(input="hi", metadata=m) for m in metadata]),
         model="mockllm/model",
         log_dir=str(tmp_path),
         display="none",
@@ -519,8 +522,9 @@ def test_samples_df_int_beyond_int64(tmp_path: Path, strict: bool) -> None:
         assert errors == []
 
     values = df.sort_values("id")["metadata_big"].to_list()
-    assert values[:2] == [str(2**70), str(-(2**63) - 1)]
-    assert pd.isna(values[2])
+    assert pd.isna(values[0])
+    assert values[1:5] == [str(2**70), str(2**64 - 1), str(-(2**63) - 1), "1"]
+    assert pd.isna(values[5])
 
 
 def test_samples_df_eval_log():
