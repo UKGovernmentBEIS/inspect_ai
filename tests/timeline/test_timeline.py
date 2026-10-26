@@ -910,3 +910,108 @@ def test_a_pooled_log_s_lookups_walk_the_smaller_of_lengths_and_rows(
     events, pool = _shared_outputs(200, interleaved=True)
     entries = sum(2 * n for n in range(1, 201))
     assert _pooled_work(events, pool, monkeypatch) <= entries + 20 * len(pool)
+
+
+def _failures(calls: int, retried: bool) -> tuple[list[Any], list[Any]]:
+    """With no origins: a turn, then `calls` failed calls and, with `retried`, one call sending their input again, carried on; else `calls` failed calls each with an input of its own and `calls` side calls ending like them. Events whose inputs are ranges of the returned pool."""
+    from inspect_ai.event import ModelEvent, SpanBeginEvent, SpanEndEvent
+    from inspect_ai.model import (
+        ChatCompletionChoice,
+        ChatMessageAssistant,
+        ChatMessageSystem,
+        ChatMessageUser,
+        GenerateConfig,
+        ModelOutput,
+    )
+
+    system = ChatMessageSystem(content="You are the main agent.")
+    ask = ChatMessageUser(content="Answer in one word.")
+    pool: list[Any] = [system, ask]
+    events: list[Any] = [SpanBeginEvent(id="main", name="main", type="agent")]
+
+    def model(uuid: str, refs: list[tuple[int, int]], text: str | None) -> None:
+        output = ModelOutput(
+            model="mockllm/model",
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(content=text), stop_reason="stop"
+                )
+            ]
+            if text is not None
+            else [],
+        )
+        events.append(
+            ModelEvent(
+                uuid=uuid,
+                span_id="main",
+                model="mockllm/model",
+                input=[],
+                input_refs=refs,
+                tools=[],
+                tool_choice="auto",
+                config=GenerateConfig(),
+                output=output,
+                error=None if text is not None else "overloaded",
+            )
+        )
+
+    def add(message: Any) -> int:
+        pool.append(message)
+        return len(pool) - 1
+
+    model("m0", [(0, 2)], "Thinking.")
+    if retried:
+        nudge = add(ChatMessageUser(content="Go on."))
+        for n in range(calls):
+            model(f"f{n}", [(0, 3), (nudge, nudge + 1)], None)
+        model("r", [(0, 3), (nudge, nudge + 1)], "One.")
+        answer = add(ChatMessageAssistant(content="One."))
+        model("m1", [(0, 3), (nudge, nudge + 1), (answer, answer + 1)], "Two.")
+    else:
+        for n in range(calls):
+            plan = add(ChatMessageUser(content=f"Plan {n}."))
+            model(f"f{n}", [(plan, plan + 1), (1, 2)], None)
+        for n in range(calls):
+            other = add(ChatMessageUser(content=f"Other {n}."))
+            model(f"s{n}", [(other, other + 1), (1, 2)], "yes")
+    events.append(SpanEndEvent(id="main"))
+    return events, pool
+
+
+@pytest.mark.parametrize("retried", [True, False])
+def test_failed_calls_are_matched_to_retries_in_linear_work(
+    retried: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # review pass 4: a run of failures matched by one retry was removed one by
+    # one, and side calls sharing their length and last message were compared
+    # with every failure waiting
+    from inspect_ai.event import _timeline as timeline
+
+    fingerprint = timeline._Inputs.fingerprint
+
+    def work(calls: int) -> int:
+        count = 0
+
+        def counting(self: Any, message: Any) -> Any:
+            nonlocal count
+            count += 1
+            return fingerprint(self, message)
+
+        events, pool = _failures(calls, retried)
+        with monkeypatch.context() as patch:
+            patch.setattr(timeline._Inputs, "fingerprint", counting)
+            built = timeline._timeline_build(events, message_pool=pool)
+        [main] = [item for item in built.root.content if isinstance(item, TimelineSpan)]
+        utility = {
+            event.uuid
+            for item in main.content
+            if isinstance(item, TimelineSpan) and item.utility
+            for event in _model_events(item)
+        }
+        # the retried failures are what their retry is, a turn; failures never
+        # retried are turns
+        assert not utility & {f"f{n}" for n in range(calls)}
+        return count
+
+    small, large = work(200), work(400)
+    assert large <= 2.2 * small + 10, (small, large)
