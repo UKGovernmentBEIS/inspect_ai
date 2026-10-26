@@ -54,7 +54,7 @@ jobs:
               BUILD_CONTEXT=src/inspect_ai/tool/_tools/_computer/_resources
               ;;
             inspect-tool-support)
-              BUILD_CONTEXT=src/inspect_tool_support
+              BUILD_CONTEXT=src/inspect_ai/util/_sandbox/docker
               ;;
             *)
               printf 'Invalid image name: %q\n' "$IMAGE" >&2
