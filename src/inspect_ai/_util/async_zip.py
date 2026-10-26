@@ -49,17 +49,11 @@ def _check_crc(filename: str, entry: ZipEntry, crc: int) -> None:
         )
 
 
-def _check_size(filename: str, entry: ZipEntry, size: int, *, complete: bool) -> None:
-    """Raise ``ValueError`` if a member's decompressed size isn't its declared size.
-
-    With ``complete`` False, ``size`` is the size read so far, and only a size
-    already past the declared one raises.
-    """
-    expected = entry.uncompressed_size
-    if size > expected or (complete and size != expected):
+def _check_size(filename: str, entry: ZipEntry, size: int) -> None:
+    if size != entry.uncompressed_size:
         raise ValueError(
             f"Size mismatch for member {entry.filename} of {filename} "
-            f"(expected {expected} bytes, read {size}{'' if complete else '+'})"
+            f"(expected {entry.uncompressed_size} bytes, read {size})"
         )
 
 
@@ -382,11 +376,9 @@ class _ZipMemberBytes:
             # Pass through raw bytes directly - no decompression needed
             try:
                 async for chunk in byte_stream:
-                    if entry is not None:
-                        size += len(chunk)
-                        _check_size(self._filename, entry, size, complete=False)
-                        if self._verify_crc:
-                            crc = zlib.crc32(chunk, crc)
+                    size += len(chunk)
+                    if self._verify_crc:
+                        crc = zlib.crc32(chunk, crc)
                     yield chunk
             finally:
                 await byte_stream.aclose()
@@ -397,7 +389,6 @@ class _ZipMemberBytes:
             try:
                 async for chunk in stream:
                     size += len(chunk)
-                    _check_size(self._filename, entry, size, complete=False)
                     if self._verify_crc:
                         crc = zlib.crc32(chunk, crc)
                     yield chunk
@@ -409,7 +400,7 @@ class _ZipMemberBytes:
         if entry is not None:
             if self._verify_crc:
                 _check_crc(self._filename, entry, crc)
-            _check_size(self._filename, entry, size, complete=True)
+            _check_size(self._filename, entry, size)
 
     async def __aenter__(self) -> Self:
         return self
@@ -619,7 +610,7 @@ class AsyncZipReader:
         data = decompress_bytes(compressed_data, entry.compression_method)
         if self._verify_crc:
             _check_crc(self._filename, entry, zlib.crc32(data))
-        _check_size(self._filename, entry, len(data), complete=True)
+        _check_size(self._filename, entry, len(data))
         return data
 
     async def _get_member_range_and_method(
