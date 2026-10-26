@@ -47,6 +47,7 @@ from inspect_ai.log import (
 )
 from inspect_ai.model import ChatMessage, ChatMessageUser, ModelOutput, get_model
 from inspect_ai.model._model import requested_model
+from inspect_ai.scorer import Score, Scorer, Target, scorer
 from inspect_ai.solver import Generate, TaskState, generate, solver, use_tools
 from inspect_ai.tool import Tool, tool
 
@@ -527,6 +528,30 @@ def test_samples_df_int_beyond_int64(tmp_path: Path, strict: bool) -> None:
     assert pd.isna(values[0])
     assert values[1:5] == [str(2**70), str(2**64 - 1), str(-(2**63) - 1), "1"]
     assert pd.isna(values[5])
+
+
+def test_samples_df_unscored_nan_in_int_beyond_int64_column(tmp_path: Path) -> None:
+    """A NaN (unscored) value stays null when the column becomes strings."""
+    values: dict[str | int, float | int] = {1: float("nan"), 2: 2**63, 3: 1}
+
+    @scorer(metrics=[])
+    def big_score() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=values[state.sample_id])
+
+        return score
+
+    eval(
+        Task(dataset=[Sample(input="hi") for _ in values], scorer=big_score()),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        display="none",
+    )
+
+    scores = samples_df(tmp_path).sort_values("id")["score_big_score"]
+    assert pd.isna(scores.iloc[0])
+    assert scores.to_list()[1:] == [str(2**63), "1"]
+    assert scores.count() == 2
 
 
 def test_samples_df_eval_log():
