@@ -792,6 +792,101 @@ def test_summary_compactions_are_settled_in_linear_work(
     assert large <= 2.2 * small + 10, (small, large)
 
 
+def _open_at_summary(calls: int) -> tuple[list[Any], list[Any]]:
+    """With no origins: `calls` side calls none continuing another, a summary call, a summary compaction, and a call whose input holds `calls` facts and the summary: events whose inputs are ranges of the returned pool."""
+    from inspect_ai.event import (
+        CompactionEvent,
+        ModelEvent,
+        SpanBeginEvent,
+        SpanEndEvent,
+    )
+    from inspect_ai.model import (
+        ChatCompletionChoice,
+        ChatMessageAssistant,
+        ChatMessageSystem,
+        ChatMessageUser,
+        GenerateConfig,
+        ModelOutput,
+    )
+
+    pool: list[Any] = [
+        ChatMessageSystem(content="You are the main agent."),
+        ChatMessageUser(content="Summarize."),
+        ChatMessageUser(content="[COMPACTED] Facts so far."),
+        *[ChatMessageUser(content=f"Note {n}.") for n in range(calls)],
+        *[ChatMessageUser(content=f"Fact {n}.") for n in range(calls)],
+    ]
+    events: list[Any] = [SpanBeginEvent(id="main", name="main", type="agent")]
+
+    def model(uuid: str, refs: list[tuple[int, int]], text: str) -> None:
+        events.append(
+            ModelEvent(
+                uuid=uuid,
+                span_id="main",
+                model="mockllm/model",
+                input=[],
+                input_refs=refs,
+                tools=[],
+                tool_choice="auto",
+                config=GenerateConfig(),
+                output=ModelOutput(
+                    model="mockllm/model",
+                    choices=[
+                        ChatCompletionChoice(
+                            message=ChatMessageAssistant(content=text),
+                            stop_reason="stop",
+                        )
+                    ],
+                ),
+            )
+        )
+
+    for n in range(calls):
+        model(f"s{n}", [(0, 1), (3 + n, 4 + n)], f"Side {n}.")
+    model("sm", [(0, 2)], "Facts so far.")
+    events.append(CompactionEvent(span_id="main", type="summary"))
+    model("m", [(0, 1), (3 + calls, 3 + 2 * calls), (2, 3)], "Done.")
+    events.append(SpanEndEvent(id="main"))
+    return events, pool
+
+
+def test_a_summary_compaction_reads_the_next_input_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # delta review d1: every call open at the compaction was looked for in
+    # the next input, calls times its messages
+    from inspect_ai.event import _timeline as timeline
+
+    fingerprint = timeline._Inputs.fingerprint
+
+    def work(calls: int) -> int:
+        count = 0
+
+        def counting(self: Any, message: Any) -> Any:
+            nonlocal count
+            count += 1
+            return fingerprint(self, message)
+
+        events, pool = _open_at_summary(calls)
+        counted = _CountingList(pool)
+        _CountingList.reads = 0
+        with monkeypatch.context() as patch:
+            patch.setattr(timeline._Inputs, "fingerprint", counting)
+            built = timeline._timeline_build(events, message_pool=counted)
+        [main] = [item for item in built.root.content if isinstance(item, TimelineSpan)]
+        utility = {
+            event.uuid
+            for item in main.content
+            if isinstance(item, TimelineSpan) and item.utility
+            for event in _model_events(item)
+        }
+        assert utility == {"sm"}
+        return count + _CountingList.reads
+
+    small, large = work(200), work(400)
+    assert large <= 2.2 * small + 10, (small, large)
+
+
 def test_a_row_set_counts_and_lists_rows_by_interval() -> None:
     import random
 
