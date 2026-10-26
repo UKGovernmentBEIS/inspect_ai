@@ -94,7 +94,7 @@ def steps_from_events(
         message_pool: The sample's message pool (`EvalSample.events_data["messages"]`).
         sample_uuid: The sample's uuid: the conversation of calls made outside any agent span.
         eval_info: What the log's header says about the eval.
-        timeline: A stored timeline whose spans define which conversation each event is in (such as Petri's `"target"`), in place of the span tree.
+        timeline: A stored timeline whose spans define which conversation each event is in (such as Petri's `"target"`), in place of the span tree; a log without origins has its turns inferred within those conversations, its events matched to the stored timeline's by UUID.
         human_approvers: The registry names of approvers that are people, whose `ApprovalEvent`s are `human_decisions` in a log from an eval that ran no sentinel.
 
     Returns:
@@ -770,7 +770,14 @@ class _Driver:
     def _infer_origins(self) -> dict[int, str]:
         top = [e for e, nested in zip(self.events, self.nested) if not nested]
         timeline = _timeline_build(
-            top, message_pool=self.pool, final_messages=self.messages
+            top,
+            message_pool=self.pool,
+            final_messages=self.messages,
+            conversations={
+                key: conversation
+                for key, conversation in (self.timeline or {}).items()
+                if isinstance(key, str)
+            },
         )
         utility: set[int] = set()
 

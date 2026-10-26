@@ -17,6 +17,7 @@ from typing import (
     AsyncIterator,
     Callable,
     Literal,
+    Mapping,
     NamedTuple,
     Sequence,
 )
@@ -449,15 +450,16 @@ def _timeline_build(
     description: str | None = None,
     message_pool: Sequence[ChatMessage] | None = None,
     final_messages: Sequence[ChatMessage] | None = None,
+    conversations: Mapping[str, str] | None = None,
 ) -> Timeline:
     """`timeline_build`, also over model inputs stored as ranges of a message pool (`input_refs`), as a log stores them.
 
-    `final_messages` are the main agent's final messages (`EvalSample.messages`), which settle a fork at the end of the main span.
+    `final_messages` are the main agent's final messages (`EvalSample.messages`), which settle a fork at the end of the main span. `conversations` gives the conversation of each event it names, by UUID, in place of its innermost agent span (a stored timeline's spans and branches, such as Petri's rollbacks), so continuity follows each apart.
     """
     # provide defaults
     name = name or "Default"
     description = description or ""
-    inputs = _Inputs(events, message_pool)
+    inputs = _Inputs(events, message_pool, conversations)
 
     # no events
     if not events:
@@ -1084,10 +1086,14 @@ class _Inputs:
     """
 
     def __init__(
-        self, events: Sequence[Event], pool: Sequence[ChatMessage] | None
+        self,
+        events: Sequence[Event],
+        pool: Sequence[ChatMessage] | None,
+        conversations: Mapping[str, str] | None = None,
     ) -> None:
         self._events = events
         self._pool = pool
+        self._conversations = conversations or {}
         self._views: dict[int, Sequence[ChatMessage]] = {}
         self._fingerprints: dict[int, _Fingerprint] = {}
         # tool call id -> (the input position its result follows the call at,
@@ -1112,8 +1118,11 @@ class _Inputs:
             found = self._views[id(event)] = PoolView(self._pool, event.input_refs)
         return found
 
-    def conversation(self, event: Event) -> str | None:
-        """The conversation an event is in: its innermost agent span in the span tree."""
+    def conversation(self, event: Event) -> object:
+        """The conversation an event is in: the one given for its UUID, else its innermost agent span in the span tree."""
+        given = self._conversations.get(event.uuid) if event.uuid else None
+        if given is not None:
+            return ("given", given)
         if self._agent_spans is None:
             self._agent_spans = AgentSpans()
             for begin in self._events:
@@ -1588,7 +1597,7 @@ def _continuity(
 
     The rule runs over each conversation in the span apart (a span can hold more than one, where the timeline unrolls a solver beside an agent), and a conversation in which no call continues another has no answers but its summarizers', so the existing rules decide its other calls.
     """
-    threads: dict[str | None, _Continuity] = {}
+    threads: dict[object, _Continuity] = {}
 
     def thread(event: Event) -> _Continuity:
         conversation = inputs.conversation(event)

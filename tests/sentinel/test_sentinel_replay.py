@@ -1003,6 +1003,70 @@ def test_a_stored_timeline_gives_one_conversation_per_branch() -> None:
     ] == ["target", "rollback"]
 
 
+@solver
+def r7_rolls_back() -> Solver:
+    """A turn, then two alternatives to the next turn, each in a span of its own as Petri's rollbacks are, the second carried on."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model()
+        task = ChatMessageUser(content="What is 1 + 1?")
+        async with span("target", type="trajectory"):
+            first = (await model.generate([task])).message
+        async with span("first", type="trajectory"):
+            await model.generate([task, first, ChatMessageUser(content="Try A.")])
+        async with span("second", type="trajectory"):
+            asked: list[ChatMessage] = [task, first, ChatMessageUser(content="Try B.")]
+            answer = (await model.generate(asked)).message
+            state.output = await model.generate(
+                [*asked, answer, ChatMessageUser(content="Go on.")]
+            )
+        return state
+
+    return solve
+
+
+def test_a_stored_timeline_s_branches_keep_their_turns_without_origins() -> None:
+    # Ransom's review B1: inferred over the span tree, the rollback's
+    # branches are one conversation, so carrying on the second alternative
+    # made the first branch's generate utility
+    log = run_logged(
+        r7_rolls_back(),
+        outputs(done("Two."), done("A."), done("B."), done("Done.")),
+        inferred="without a stored timeline, the branches are one conversation",
+    )
+    events = logged_sample(log).events
+    spans = {e.name: e.id for e in events if isinstance(e, SpanBeginEvent)}
+    target, first, second = [
+        [
+            TimelineEvent(event=e)
+            for e in events
+            if isinstance(e, ModelEvent) and e.span_id == spans[branch]
+        ]
+        for branch in ("target", "first", "second")
+    ]
+    timeline = Timeline(
+        name="target",
+        description="",
+        root=TimelineSpan(
+            id="target",
+            name="target",
+            content=list(target),
+            branches=[
+                TimelineSpan(id="first", name="first", content=list(first)),
+                TimelineSpan(id="second", name="second", content=list(second)),
+            ],
+        ),
+    )
+
+    def steps(steps: Sequence["ReplayStep"]) -> list[Any]:
+        return [(s.stage, s.id, s.segment, comparable(s.step)) for s in steps]
+
+    recorded = replay_events(log, events, timeline=timeline)
+    inferred = replay_events(log, without_origins(events), timeline=timeline)
+    assert len([s for s in recorded if s.stage == "model_input"]) == 4
+    assert steps(inferred) == steps(recorded)
+
+
 def test_a_person_s_approval_is_a_human_decision_without_a_sentinel(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
