@@ -22,29 +22,29 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  UV_VERSION: 0.13.5
+
 jobs:
   suppressions:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # setup-python rather than the runner's system python: Ubuntu 24.04
-      # marks system python externally-managed, so `pip install` there fails.
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      # python-version pins the interpreter `uv run` uses (downloading it if
+      # the runner lacks it) rather than the runner image's, which changes
+      # with image updates. No cache: this job installs no packages, and
+      # saving its near-empty cache would take the key build.yml's 3.11 jobs
+      # restore.
+      - name: Install uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
+          version: ${{ env.UV_VERSION }}
           python-version: "3.11"
+          enable-cache: false
 
-      # The gate is stdlib-only by design: no dependency install needed.
+      # The gate is stdlib-only by design: --no-project runs it without the
+      # project, so no packages are resolved or installed. Its tests
+      # (tests/test_check_suppressions.py) run in build.yml's test job.
       - name: Check suppressions ledger
-        run: python3 .github/scripts/check_suppressions.py
-
-      # --noconftest / addopts="": the gate test is self-contained; skip
-      # tests/conftest.py (imports boto3/moto) and the xdist addopts so
-      # pytest plus markdown-it-py (which the delta-comment tests render
-      # with) suffices, with no project install.
-      - name: Test the gate script
-        run: |
-          python3 -m pip install --quiet pytest "markdown-it-py>=2.2.0"
-          python3 -m pytest --noconftest -o addopts="" -q tests/test_check_suppressions.py
-
+        run: uv run --no-project .github/scripts/check_suppressions.py
