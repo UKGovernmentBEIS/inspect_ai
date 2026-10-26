@@ -2850,6 +2850,7 @@ async def test_responses_streaming_converts_error_event_safeguard_block() -> Non
         ("gpt-6-sol", True),
         ("gpt-6-luna", True),
         ("gpt-6.1-sol", True),
+        ("gpt-6.1-terra", True),
         ("my-gpt-6-deployment", True),
         ("gpt-35-turbo", False),
         ("gpt-4", False),

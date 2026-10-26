@@ -96,17 +96,26 @@ class TestGetModelInfo:
         assert info.knowledge_cutoff_date == knowledge_cutoff
         assert info.release_date == date(2026, 9, 22)
 
-    def test_gpt_6_1_sol_model_info(self):
-        info = get_model_info("openai/gpt-6.1-sol")
+    @pytest.mark.parametrize(
+        "model_name,display_name,knowledge_cutoff,release_date",
+        [
+            ("gpt-6.1-sol", "GPT-6.1 Sol", date(2026, 4, 30), date(2026, 9, 29)),
+            ("gpt-6.1-terra", "GPT-6.1 Terra", date(2026, 6, 1), date(2026, 10, 26)),
+        ],
+    )
+    def test_gpt_6_1_model_info(
+        self, model_name, display_name, knowledge_cutoff, release_date
+    ):
+        info = get_model_info(f"openai/{model_name}")
         assert info is not None
-        assert info.model == "GPT-6.1 Sol"
+        assert info.model == display_name
         assert info.context_length == 1050000
         assert info.output_tokens == 128000
         assert info.input_tokens == 922000
         assert info.reasoning is True
         assert info.reasoning_effort_default == "medium"
-        assert info.knowledge_cutoff_date == date(2026, 4, 30)
-        assert info.release_date == date(2026, 9, 29)
+        assert info.knowledge_cutoff_date == knowledge_cutoff
+        assert info.release_date == release_date
 
     def test_known_kimi_model(self):
         """Test lookup of a known Moonshot AI Kimi model."""
