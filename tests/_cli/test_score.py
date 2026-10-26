@@ -155,7 +155,16 @@ async def test_score_stream_preserves_log_updates(
     )
 
     async def fake_score_async(
-        *, log, scorers, metrics, model, model_roles, action, copy, samples
+        *,
+        log,
+        scorers,
+        metrics,
+        model,
+        model_roles,
+        action,
+        copy,
+        samples,
+        _log_scorers,
     ):
         assert samples is not None
         return log
@@ -263,7 +272,16 @@ async def test_score_stream_flushes_periodically(
     )
 
     async def fake_score_async(
-        *, log, scorers, metrics, model, model_roles, action, copy, samples
+        *,
+        log,
+        scorers,
+        metrics,
+        model,
+        model_roles,
+        action,
+        copy,
+        samples,
+        _log_scorers,
     ):
         assert samples is not None
         for idx in range(10):
