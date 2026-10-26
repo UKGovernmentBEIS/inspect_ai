@@ -81,6 +81,8 @@ from .test_sentinel_dispatch import (
     d3_approver,
     d3_attributes_a_call_to_a_sub_agent,
     d3_edits_a_sent_message_in_place,
+    d3_generate_decides,
+    d3_generate_raises,
     d3_generates_once,
     d3_memory_path_approver,
     d3_modify,
@@ -97,11 +99,15 @@ if TYPE_CHECKING:
         BeforeGenerate,
         BeforeToolCall,
         Context,
+        Decision,
+        Escalations,
         HumanAnswer,
         MonitorGroup,
         Observation,
+        Protocol,
         ReplayStep,
         monitor,
+        protocol,
     )
 else:
     from test_helpers.fake_sentinel import (
@@ -110,11 +116,15 @@ else:
         BeforeGenerate,
         BeforeToolCall,
         Context,
+        Decision,
+        Escalations,
         HumanAnswer,
         MonitorGroup,
         Observation,
+        Protocol,
         ReplayStep,
         monitor,
+        protocol,
     )
 
 pytestmark = pytest.mark.usefixtures("fake_sentinel")
@@ -802,6 +812,42 @@ def test_a_log_without_origins_is_not_replayed_yet() -> None:
         if isinstance(event, ModelEvent):
             event.origin = None
     with pytest.raises(NotImplementedError, match="origin"):
+        replay_events(log, events)
+
+
+@protocol
+def r7_generate_fails() -> Protocol:
+    async def check(
+        context: Context, step: BeforeGenerate, escalations: Escalations
+    ) -> Decision | None:
+        raise PermissionError("sentinel denied")
+
+    return check
+
+
+@pytest.mark.parametrize(
+    "sentinel,status",
+    [
+        (lambda: d3_generate_decides("terminate", False), "success"),
+        # a monitor's failure is recorded, then the protocol's fails the sample
+        (lambda: [d3_generate_raises(), r7_generate_fails()], "error"),
+    ],
+    ids=["terminate", "failure"],
+)
+def test_a_model_input_step_no_model_call_followed_is_not_replayed_yet(
+    sentinel: Callable[[], Any], status: str
+) -> None:
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=tool_loop(addition()),
+        sentinel=sentinel(),
+    )
+    log = eval(task, model=agent_model())[0]
+    assert log.status == status
+    events = logged_sample(log).events
+    assert not [e for e in events if isinstance(e, ModelEvent)]
+    assert [e.stage for e in events if isinstance(e, SentinelEvent)] == ["model_input"]
+    with pytest.raises(NotImplementedError, match="model_input step"):
         replay_events(log, events)
 
 

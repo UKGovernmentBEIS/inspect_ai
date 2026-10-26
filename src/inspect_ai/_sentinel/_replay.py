@@ -95,7 +95,7 @@ def steps_from_events(
 
     Raises:
         MalformedLogError: Two steps of one stage have one step id, the span tree has a `parent_id` cycle, or a model input names rows outside the message pool.
-        NotImplementedError: The log does not record where its model calls were made (`ModelEvent.origin`, written since inspect_ai PR #5990); turns from the timeline come later.
+        NotImplementedError: The log does not record where its model calls were made (`ModelEvent.origin`, written since inspect_ai PR #5990), for which turns from the timeline come later; or a sentinel checked a model_input step that no model call followed (it ended the sample there or failed), whose input the log does not record.
     """
     flat = _flatten(events)
     pool: list[ChatMessage] | Sequence[ChatMessage] = message_pool
@@ -371,6 +371,7 @@ class _Driver:
         ] = {}
         last_turn: dict[str, int] = {}
         candidates: dict[str, list[str]] = {}
+        turn_ids: set[str | None] = set()
         produced: dict[str, tuple[ChatMessageAssistant, ModelEvent, ToolCall]] = {}
         approvals: dict[str, ApprovalEvent] = {}
         calls: list[_Call] = []
@@ -400,6 +401,7 @@ class _Driver:
                         produced[tool_call.id] = (message, event, tool_call)
                 if not is_agent_turn(event.origin):
                     continue
+                turn_ids.add(event.uuid)
                 conversation = self._conversation(event)
                 self._at(index, 2, partial(self._fold, conversation, event))
                 attempt_key = (
@@ -455,6 +457,7 @@ class _Driver:
                 )
                 calls.append(entry)
 
+        self._check_generated(candidates, turn_ids)
         for group in generates:
             self._generate(group)
         for entry in calls:
@@ -484,6 +487,22 @@ class _Driver:
         self.step_spans[key] = span
         if event.stage == "model_input":
             candidates.setdefault(event.conversation, []).append(span)
+
+    def _check_generated(
+        self, candidates: dict[str, list[str]], turn_ids: set[str | None]
+    ) -> None:
+        # a model_input step no agent turn followed: a sentinel ended the
+        # sample there or failed, and the input it was handed is not in the log
+        for spans in candidates.values():
+            for span in spans:
+                step_id = self.span_events[span][0].step_id
+                if step_id not in turn_ids:
+                    raise NotImplementedError(
+                        f"The model_input step {step_id!r} was checked, but no "
+                        "model call followed it (a sentinel ended the sample there "
+                        "or failed): the log does not record the input the step "
+                        "was handed, so replay cannot rebuild it."
+                    )
 
     def _sentinel_span(self, span_id: str | None) -> str | None:
         # the span tree has no cycle (_check_span_tree)
