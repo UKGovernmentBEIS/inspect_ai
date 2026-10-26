@@ -3,7 +3,7 @@ import sys
 import time
 from contextvars import Token
 from copy import copy, deepcopy
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from logging import getLogger
 from pathlib import PurePath
@@ -64,6 +64,7 @@ from inspect_ai._util.error import (
     is_cancellation_message,
 )
 from inspect_ai._util.exception import (
+    SampleRefusedError,
     TaskRetryAbandonedError,
     TerminateSampleError,
     TerminateTaskError,
@@ -2708,10 +2709,17 @@ async def _task_run_sample_attempt(
 
         # helper to handle exceptions (will throw if we've exceeded the limit)
         def handle_error(ex: BaseException) -> tuple[EvalError, BaseException | None]:
+            nonlocal attempt, score_on_error
+
             # report the sentinel's own error, from the solver or scorers
             failure = inner_exception(ex) if isinstance(ex, Exception) else ex
             if isinstance(failure, SentinelFailure):
                 ex = decisive_sentinel_exception(failure.error)
+
+            # a refused sample would be refused again, and never ran
+            if isinstance(failure, SampleRefusedError):
+                attempt = replace(attempt, retry_limit=len(attempt.errors))
+                score_on_error = False
 
             # helper to log sample error
             def log_sample_error() -> None:

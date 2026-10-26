@@ -1,4 +1,5 @@
 import json
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,7 @@ from inspect_ai._sentinel._sidecar._task import SampleFacts, TaskFacts, TaskSide
 from inspect_ai._util._async import tg_collect
 from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
 from inspect_ai.dataset import Sample
+from inspect_ai.event import InfoEvent
 from inspect_ai.log import EvalSample
 from inspect_ai.model import (
     ChatMessageAssistant,
@@ -720,3 +722,182 @@ def test_an_approver_never_sees_a_call_the_sidecar_took_out() -> None:
     _run_agent(stand_in, approval=[ApprovalPolicy(approver=recording(), tools="*")])
 
     assert seen == ["call_2"]
+
+
+def _answers(*results: dict[str, Any]) -> Callable[[dict[str, Any]], dict[str, Any]]:
+    # `request_result`'s answers in turn, then that the call was never seen
+    answers = list(results)
+
+    def answer(params: dict[str, Any]) -> dict[str, Any]:
+        found = answers.pop(0) if answers else {"records": "unknown"}
+        return {"id": params["id"], **found}
+
+    return answer
+
+
+def _decided(field: dict[str, Any]) -> dict[str, Any]:
+    return {"records": "held", "state": "decided", "sentinel": field}
+
+
+def _taken_out() -> dict[str, Any]:
+    return {
+        "outcome": "proceed",
+        "steps": [],
+        "proposed": {
+            "message": _turn_json(("call_1", "Tokyo"), ("call_2", "Oslo")),
+            "results": {"call_1": "Tokyo is not allowed."},
+        },
+    }
+
+
+def _looked_up(stand_in: StandInSidecar) -> list[str]:
+    return [params["id"] for params in _registered(stand_in, "request_result")]
+
+
+def test_a_reply_without_the_field_is_acted_on_as_request_result_says() -> None:
+    stand_in = StandInSidecar(
+        turns=[Turn(calls=[("call_2", "weather", {"city": "Oslo"})]), Turn()],
+        methods={
+            "request_result": _answers(
+                {"records": "held", "state": "judging"}, _decided(_taken_out())
+            )
+        },
+    )
+
+    sample = _run_agent(stand_in)
+
+    # asked again while the sidecar was still judging, under the call's id
+    first_call = stand_in.model_calls[0]
+    assert _looked_up(stand_in)[:2] == [first_call.headers["x-irid"]] * 2
+    assert _tool_messages(sample)["call_1"].error is not None
+    assert _LOOKED_UP == ["Oslo"]
+
+
+@pytest.mark.parametrize(
+    ("result", "judgment"),
+    [
+        ({"records": "held", "state": "not_judged", "reason": "error"}, "not judged"),
+        ({"records": "unknown"}, "unavailable"),
+    ],
+    ids=["not judged", "unknown"],
+)
+def test_a_reply_the_sidecar_didnt_judge_is_used_and_says_so(
+    result: dict[str, Any], judgment: str
+) -> None:
+    stand_in = StandInSidecar(
+        turns=[Turn(text="Sunny.")], methods={"request_result": _answers(result)}
+    )
+
+    sample = _run_agent(stand_in)
+
+    [info] = [
+        e
+        for e in sample.events
+        if isinstance(e, InfoEvent) and e.source == "sentinel sidecar"
+    ]
+    assert isinstance(info.data, dict)
+    assert info.data["judgment"] == judgment
+
+
+def test_a_reply_whose_judgment_is_unavailable_fails_a_sample_that_requires_one() -> (
+    None
+):
+    stand_in = StandInSidecar(
+        turns=[Turn(text="Sunny.")],
+        methods={"request_result": _answers({"records": "dropped"})},
+    )
+    task = Task(dataset=[Sample(input="Hi.")], solver=generate())
+
+    [log] = eval(
+        task, model=_model(stand_in), sentinel_proxy="required", display="none"
+    )
+
+    assert log.samples is not None
+    error = log.samples[0].error
+    assert error is not None
+    assert "judgment of the call" in error.message
+
+
+def test_a_refusal_without_the_field_is_acted_on_as_request_result_says() -> None:
+    rejected = {
+        "outcome": "reject",
+        "withheld": {
+            "message": _turn_json(("call_1", "Tokyo")),
+            "results": {"call_1": "Tokyo is not allowed."},
+        },
+    }
+    stand_in = StandInSidecar(
+        turns=[Turn(status=400), Turn(text="I can't.")],
+        methods={"request_result": _answers(_decided(rejected))},
+    )
+
+    sample = _run_agent(stand_in)
+
+    assert sample.error is None
+    assert _tool_messages(sample)["call_1"].error is not None
+
+
+def test_a_sample_the_sidecar_cant_place_is_never_retried_or_scored() -> None:
+    stand_in = StandInSidecar(
+        turns=[Turn(status=400)] * 3,
+        methods={
+            "request_result": _answers(
+                {"records": "held", "state": "not_judged", "reason": "unregistered"}
+            )
+        },
+    )
+    task = Task(dataset=[Sample(input="Hi.")], solver=generate(), scorer=_graded())
+
+    [log] = eval(
+        task,
+        model=_model(stand_in),
+        retry_on_error=2,
+        score_on_error=True,
+        display="none",
+    )
+
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.error is not None
+    assert "SampleRefusedError" in sample.error.message
+    assert sample.scores is None or sample.scores == {}
+    assert len(stand_in.model_calls) == 1
+
+
+def test_a_refusal_the_sidecar_couldnt_judge_fails_the_sample_with_why() -> None:
+    stand_in = StandInSidecar(
+        turns=[Turn(status=400)],
+        methods={
+            "request_result": _answers(
+                {"records": "held", "state": "not_judged", "reason": "time_limit"}
+            )
+        },
+    )
+
+    [log] = eval(
+        Task(dataset=[Sample(input="Hi.")], solver=generate()),
+        model=_model(stand_in),
+        display="none",
+    )
+
+    assert log.samples is not None
+    error = log.samples[0].error
+    assert error is not None
+    assert "SidecarNotJudgedError" in error.message
+    assert "(time_limit)" in error.message
+
+
+def test_an_error_inspect_retries_is_not_looked_up() -> None:
+    stand_in = StandInSidecar(turns=[Turn(status=529)])
+
+    [log] = eval(
+        Task(dataset=[Sample(input="Hi.")], solver=generate()),
+        model=_model(stand_in),
+        display="none",
+    )
+
+    # retried, as today, under the same id; only the reply that came back is
+    # looked up, once, as it came without the field
+    failed, replied = stand_in.model_calls
+    assert failed.headers["x-irid"] == replied.headers["x-irid"]
+    assert _looked_up(stand_in) == [replied.headers["x-irid"]]
