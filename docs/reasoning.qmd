@@ -14,13 +14,13 @@ The `reasoning_effort` option controls how much reasoning is performed. Inspect 
 For example:
 
 ``` bash
-inspect eval math.py --model openai/gpt-5 --reasoning-effort high
+inspect eval math.py --model openai/gpt-6-luna --reasoning-effort high
 ```
 
 Or from Python:
 
 ```python
-eval("math.py", model="openai/gpt-5", reasoning_effort="high")
+eval("math.py", model="openai/gpt-6-luna", reasoning_effort="high")
 ```
 
 ### Provider Mapping
@@ -219,7 +219,7 @@ eval("math.py", model="openai/gpt-5.6", reasoning_mode="pro")
 
 Reasoning mode is independent of `reasoning_effort` — effort controls how much reasoning occurs within the selected mode.
 
-Since pro mode requests can run for several minutes, Inspect enables [background processing](providers.qmd#openai) by default when `reasoning_mode="pro"` (as it does for the `gpt-5-pro` model line); pass `-M background=false` to override.
+Since pro mode requests can run for several minutes, Inspect enables [background processing](providers.qmd#openai) by default when `reasoning_mode="pro"` (as it does for `-pro` models such as `gpt-5.5-pro`); pass `-M background=false` to override.
 
 Inspect passes `reasoning_mode` through to the API for any OpenAI model: models that can't honor it (those prior to GPT-5.6, other than the `-pro` model line which accepts the redundant `"pro"`) reject the request with an error naming the parameter.
 

@@ -131,7 +131,7 @@ For evals that may run longer than a few minutes, do not run
 $ inspect ctl task
 task_id       task                        model                      solver    samples             started
 ------------  --------------------------  -------------------------  --------  ------------------  --------
-ZByxJpK4bKSz  inspect_evals/gpqa_diamond  openai/gpt-5               react     12/40 (3 running)   14:02:11
+ZByxJpK4bKSz  inspect_evals/gpqa_diamond  openai/gpt-6-sol           react     12/40 (3 running)   14:02:11
 fR8mWn2cQspD  inspect_evals/humaneval     anthropic/claude-sonnet-5  generate  164/164 (complete)  13:58:40
 ```
 
@@ -149,7 +149,7 @@ Commands that operate on one task take a `TASK` argument that selects a task fro
 
 Task ids are stable across retries, so a command keeps working after a task errors and is retried (per-attempt eval ids are not stable, which is why commands don't use them).
 
-One task run against several models (`--model openai/gpt-5,anthropic/claude-fable-5`) makes the task name ambiguous — it matches both rows. Pass `--model` alongside the selector to pick the row running that model (matched at the name start or after a `/`, so `--model gpt-5` matches `openai/gpt-5`): `inspect ctl task cancel my_task --model gpt-5`. The model filter applies within the tasks the selector matches — what other tasks happen to be running can't change the outcome. If the combination is still ambiguous you get the same candidate-table error, and a combination matching nothing the same not-found error — each qualified with the model. An exact task id paired with a `--model` its task isn't running errors by naming the contradiction (the task's actual model) rather than being silently ignored.
+One task run against several models (`--model openai/gpt-6-sol,anthropic/claude-fable-5`) makes the task name ambiguous — it matches both rows. Pass `--model` alongside the selector to pick the row running that model (matched at the name start or after a `/`, so `--model gpt-6-sol` matches `openai/gpt-6-sol`): `inspect ctl task cancel my_task --model gpt-6-sol`. The model filter applies within the tasks the selector matches — what other tasks happen to be running can't change the outcome. If the combination is still ambiguous you get the same candidate-table error, and a combination matching nothing the same not-found error — each qualified with the model. An exact task id paired with a `--model` its task isn't running errors by naming the contradiction (the task's actual model) rather than being silently ignored.
 
 On *reads* (`sample list`, `sample errors`) the selector is a filter: omitting it lists across **all** running tasks (each row carries its `task_id`), which makes "what's erroring anywhere in this eval set?" the zero-argument spelling. On *mutations* (`task log-flush`, the task-scoped `config` knobs) an omitted selector must resolve to exactly one target — the sole running task is the default, and anything ambiguous errors with the candidate list rather than fanning out. Destructive commands (`task cancel`, `task drain`) require the selector outright.
 
@@ -159,7 +159,7 @@ On *reads* (`sample list`, `sample errors`) the selector is a filter: omitting i
 
 ```bash
 $ inspect ctl sample list gpqa
-inspect_evals/gpqa_diamond (ZByxJpK4bKSz)  ·  openai/gpt-5  ·  running  ·  12/40 (3 running)
+inspect_evals/gpqa_diamond (ZByxJpK4bKSz)  ·  openai/gpt-6-sol  ·  running  ·  12/40 (3 running)
 
 sample  epoch  status     time   idle  activity         tokens  messages  turns
 ------  -----  ---------  -----  ----  ---------------  ------  --------  -----
@@ -231,9 +231,9 @@ $ inspect ctl sample show gpqa 9 --traceback
 $ inspect ctl sample events gpqa 17 --content
 time      event  summary
 --------  -----  -------------------------------------------------
-14:09:01  model  openai/gpt-5 · 1840 tok · stop · The compound is...
+14:09:01  model  openai/gpt-6-sol · 1840 tok · stop · The compound is...
 14:09:04  tool   bash(ls /data) → README.md results.csv
-14:09:11  model  openai/gpt-5 · generating 2:31
+14:09:11  model  openai/gpt-6-sol · generating 2:31
 
 3 events  ·  more
 next: eyJuIjoiYWJjMTIzOjAiLCJpIjozfQ  (resume with --cursor)
@@ -437,8 +437,8 @@ Pause is the missing state between "running" and "cancelled": it stops a run fro
 ```bash
 $ inspect ctl process pause                    # pause the whole run (eval or eval-set)
 $ inspect ctl process resume                   # pick up exactly where it left off
-$ inspect ctl model pause openai/gpt-5-nano    # pause just one model's work
-$ inspect ctl model resume openai/gpt-5-nano   # the rest of the run kept going
+$ inspect ctl model pause openai/gpt-6-luna    # pause just one model's work
+$ inspect ctl model resume openai/gpt-6-luna   # the rest of the run kept going
 $ inspect ctl process pause --now              # hard pause: also hold in-flight samples
 ```
 
@@ -470,14 +470,14 @@ Unlike the other reads, this one opens the process's trace file directly rather 
 
 ```bash
 $ inspect ctl config gpqa
-inspect_evals/gpqa_diamond (ZByxJpK4bKSz)  ·  openai/gpt-5  ·  running  ·  12/40
+inspect_evals/gpqa_diamond (ZByxJpK4bKSz)  ·  openai/gpt-6-sol  ·  running  ·  12/40
 
 config:
   max samples [task]:         50 (40 in use, tracking adaptive connections — set to pin)
   max sandboxes [process]:    docker 40 (12 in use)
   max subprocesses [process]: 16 (9 in use)
   adaptive connections [process]:
-    openai/gpt-5: 45 (38 in use), range 10–100, last: 40→45 steady_state_up
+    openai/gpt-6-sol: 45 (38 in use), range 10–100, last: 40→45 steady_state_up
   log buffer [task]:          10 samples (2 pending)
   shared sync [task]:         off
 
