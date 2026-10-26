@@ -790,3 +790,123 @@ def test_summary_compactions_are_settled_in_linear_work(
 
     small, large = work(100), work(200)
     assert large <= 2.2 * small + 10, (small, large)
+
+
+def test_a_row_set_counts_and_lists_rows_by_interval() -> None:
+    import random
+
+    from inspect_ai.event._timeline import _RowSet
+
+    chooser = random.Random(7)
+    for _ in range(300):
+        size = chooser.randint(1, 60)
+        rows = chooser.sample(range(size), chooser.randint(0, size))
+        found = _RowSet(size)
+        for row in rows:
+            found.add(row)
+        begin, end = sorted(chooser.sample(range(size + 1), 2))
+        expected = sorted(row for row in rows if begin <= row < end)
+        assert found.count(begin, end) == len(expected)
+        assert list(found.between(begin, end)) == expected
+
+
+def _shared_outputs(calls: int, interleaved: bool) -> tuple[list[Any], list[Any]]:
+    """`calls` model calls with no origins, none continuing another, all answering "ok", with a pool holding `calls` rows of "ok" told apart by metadata: apart from the inputs, or with `interleaved` between the inputs' notes, never where an open call's output would be."""
+    from inspect_ai.event import ModelEvent, SpanBeginEvent, SpanEndEvent
+    from inspect_ai.model import (
+        ChatCompletionChoice,
+        ChatMessageAssistant,
+        ChatMessageUser,
+        GenerateConfig,
+        ModelOutput,
+    )
+
+    notes = [ChatMessageUser(content=f"Note {n}.") for n in range(calls)]
+    oks = [ChatMessageAssistant(content="ok", metadata={"n": n}) for n in range(calls)]
+    pool: list[Any] = (
+        [m for pair in zip(notes, oks) for m in pair] if interleaved else notes + oks
+    )
+    events: list[Any] = [SpanBeginEvent(id="main", name="main", type="agent")]
+    for n in range(1, calls + 1):
+        events.append(
+            ModelEvent(
+                span_id="main",
+                model="mockllm/model",
+                input=[],
+                # interleaved: notes at even rows, and an input of even length
+                # 2n puts each open call's output position on a note
+                input_refs=[(0, 2 * n if interleaved else n)],
+                tools=[],
+                tool_choice="auto",
+                config=GenerateConfig(),
+                output=ModelOutput(
+                    model="mockllm/model",
+                    choices=[
+                        ChatCompletionChoice(
+                            message=ChatMessageAssistant(content="ok"),
+                            stop_reason="stop",
+                        )
+                    ],
+                ),
+            )
+        )
+    events.append(SpanEndEvent(id="main"))
+    return events, pool
+
+
+def _pooled_work(
+    events: list[Any], pool: list[Any], monkeypatch: pytest.MonkeyPatch
+) -> int:
+    """Fingerprints, bisections, sorted inserts and row-set steps while building."""
+    from bisect import bisect_left, insort
+
+    from inspect_ai.event import _timeline as timeline
+
+    count = 0
+
+    def counted(function: Any) -> Any:
+        def call(*args: Any, **kwargs: Any) -> Any:
+            nonlocal count
+            count += 1
+            return function(*args, **kwargs)
+
+        return call
+
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            timeline._Inputs, "fingerprint", counted(timeline._Inputs.fingerprint)
+        )
+        patch.setattr("inspect_ai.event._timeline.bisect_left", counted(bisect_left))
+        patch.setattr("inspect_ai.event._timeline.insort", counted(insort))
+        row_set = getattr(timeline, "_RowSet", None)
+        for name in ("add", "_below", "_kth") if row_set is not None else ():
+            patch.setattr(row_set, name, counted(getattr(row_set, name)))
+        timeline._timeline_build(events, message_pool=pool)
+    return count
+
+
+def test_an_output_many_pool_rows_hold_is_indexed_in_linear_work(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # review pass 4: every open call was indexed against every pool row
+    # holding its output, calls times rows
+    def work(calls: int) -> int:
+        events, pool = _shared_outputs(calls, interleaved=False)
+        found = _pooled_work(events, pool, monkeypatch)
+        stored = len(pool) + 2 * calls  # pool rows, one range and one output each
+        assert found <= 20 * stored, (found, stored)
+        return found
+
+    small, large = work(200), work(400)
+    assert large <= 2.2 * small + 10, (small, large)
+
+
+def test_a_pooled_log_s_lookups_walk_the_smaller_of_lengths_and_rows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # the known superlinear case: each input covers many open lengths and many
+    # rows holding open outputs, never lined up, so each range walks the
+    # smaller set; within the positions the inputs hold
+    events, pool = _shared_outputs(200, interleaved=True)
+    entries = sum(2 * n for n in range(1, 201))
+    assert _pooled_work(events, pool, monkeypatch) <= entries + 20 * len(pool)

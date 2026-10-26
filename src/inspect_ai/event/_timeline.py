@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import contextlib
 from bisect import bisect_left, insort
+from collections.abc import Iterator
 from datetime import datetime, timezone
 from typing import (
     Annotated,
@@ -1113,6 +1114,14 @@ class _Inputs:
             # a parent_id cycle: its calls are taken as one conversation
             return None
 
+    @property
+    def pool_size(self) -> int:
+        return len(self._pool) if self._pool is not None else 0
+
+    def row(self, row: int) -> ChatMessage:
+        assert self._pool is not None
+        return self._pool[row]
+
     def rows_with(self, fingerprint: _Fingerprint) -> list[int]:
         """The pool rows holding a message with this fingerprint, each row fingerprinted once; none without a pool."""
         if self._rows_by_fingerprint is None:
@@ -1227,14 +1236,58 @@ class _Call(NamedTuple):
     output: ChatMessage | None
 
 
+class _RowSet:
+    """A set of pool rows, counted and listed by interval in logarithmic steps: a Fenwick tree over the pool, kept sparse."""
+
+    def __init__(self, size: int) -> None:
+        self._size = size
+        self._tree: dict[int, int] = {}
+        self._rows: set[int] = set()
+
+    def add(self, row: int) -> None:
+        if row in self._rows:
+            return
+        self._rows.add(row)
+        at = row + 1
+        while at <= self._size:
+            self._tree[at] = self._tree.get(at, 0) + 1
+            at += at & -at
+
+    def count(self, begin: int, end: int) -> int:
+        """The rows in ``begin..end``."""
+        return self._below(end) - self._below(begin)
+
+    def between(self, begin: int, end: int) -> Iterator[int]:
+        """The rows in ``begin..end``, ascending."""
+        for k in range(self._below(begin) + 1, self._below(end) + 1):
+            yield self._kth(k)
+
+    def _below(self, end: int) -> int:
+        total, at = 0, end
+        while at > 0:
+            total += self._tree.get(at, 0)
+            at -= at & -at
+        return total
+
+    def _kth(self, k: int) -> int:
+        at, step = 0, 1 << self._size.bit_length()
+        while step:
+            below = self._tree.get(at + step, 0)
+            if at + step <= self._size and below < k:
+                at += step
+                k -= below
+            step >>= 1
+        return at
+
+
 class _OpenCalls:
     """Calls a later call may continue, looked up where it would hold their output: at the position of their input's length.
 
     Every call stays open until the thread settles them, which it does whenever it advances or compacts.
 
-    A later call whose input is stored as ranges of the message pool is looked up by its ranges: a range of rows ``begin..end`` placed at position ``start`` holds, at each position ``L`` it covers, the row ``L + begin - start``. So each open call is indexed by ``row - L`` for every pool row holding its output, and each range of a later call costs one lookup and a bisection, plus one for each open call it continues: linear in the log as stored, however many input lengths are open.
-
     A later call whose input is a list (the timeline of expanded events, as the viewer and Scout read it) is looked up at each open length shorter than its input, a fingerprint each. Forks of one tip share their input, and so their length, and side calls between two turns are few; the costly case is a long run of calls none of which continues another, each with an input of a new length, whose lookups then read at most the positions their inputs hold (pinned by ``test_calls_that_continue_nothing_cost_at_most_their_inputs``).
+
+    A later call whose input is stored as ranges of the message pool (the log driver's) is looked up range by range. A range of rows ``begin..end`` placed at position ``start`` holds, at each position ``L`` it covers, the row ``L + begin - start``, so it can continue only an open call whose length it covers, at a row holding that call's output. The pool rows holding open calls' outputs are kept in a set listed by interval, each fingerprint's rows added once, and each range walks the smaller of the open lengths it covers and those rows it covers, checking each in constant time. So the work is linear in the log as stored except where a range covers both many open lengths and many rows holding open outputs that never line up with them, pinned by ``test_a_pooled_log_s_lookups_walk_the_smaller_of_lengths_and_rows``.
     """
 
     def __init__(self, inputs: _Inputs) -> None:
@@ -1244,11 +1297,11 @@ class _OpenCalls:
         self._index: dict[int, dict[_Fingerprint, int]] = {}
         # the input lengths in the index, ascending
         self._lengths: list[int] = []
-        # pool row - input length -> input length -> the latest call's index,
-        # for each pool row holding an open call's output; and each offset's
-        # input lengths, ascending
-        self._by_offset: dict[int, dict[int, int]] = {}
-        self._offset_lengths: dict[int, list[int]] = {}
+        # the pool rows holding an output of a call opened here, by the
+        # fingerprints added; never emptied, since a row of an output no
+        # longer open only adds to a range's count
+        self._rows = _RowSet(inputs.pool_size)
+        self._row_fingerprints: set[_Fingerprint] = set()
 
     def add(self, call: _Call) -> None:
         assert call.output is not None
@@ -1259,11 +1312,10 @@ class _OpenCalls:
             by_output = self._index[at] = {}
             insort(self._lengths, at)
         by_output[output] = len(self.calls)
-        for row in self._inputs.rows_with(output):
-            by_length = self._by_offset.setdefault(row - at, {})
-            if at not in by_length:
-                insort(self._offset_lengths.setdefault(row - at, []), at)
-            by_length[at] = len(self.calls)
+        if output not in self._row_fingerprints:
+            self._row_fingerprints.add(output)
+            for row in self._inputs.rows_with(output):
+                self._rows.add(row)
         self.calls.append(call)
 
     def continued_by(self, call: _Call) -> _Call | None:
@@ -1271,13 +1323,19 @@ class _OpenCalls:
         best = -1
         if isinstance(call.input, PoolView):
             for (begin, end), start in zip(call.input.refs, call.input.starts):
-                lengths = self._offset_lengths.get(begin - start)
-                if lengths:
-                    by_length = self._by_offset[begin - start]
-                    first = bisect_left(lengths, start)
-                    last = bisect_left(lengths, start + end - begin)
-                    for at in range(first, last):
-                        best = max(best, by_length[lengths[at]])
+                first = bisect_left(self._lengths, start)
+                last = bisect_left(self._lengths, start + end - begin)
+                if first == last:
+                    continue
+                rows = self._rows.count(begin, end)
+                if rows == 0:
+                    continue
+                if last - first <= rows:
+                    for at in self._lengths[first:last]:
+                        best = max(best, self._open_at(at, begin + at - start))
+                else:
+                    for row in self._rows.between(begin, end):
+                        best = max(best, self._open_at(row - begin + start, row))
         else:
             for at in self._lengths[: bisect_left(self._lengths, len(call.input))]:
                 found = self._index[at].get(
@@ -1286,9 +1344,15 @@ class _OpenCalls:
                 best = max(best, found)
         return self.calls[best] if best >= 0 else None
 
+    def _open_at(self, at: int, row: int) -> int:
+        """The latest open call of input length `at` whose output the pool row holds, else -1."""
+        by_output = self._index.get(at)
+        if by_output is None:
+            return -1
+        return by_output.get(self._inputs.fingerprint(self._inputs.row(row)), -1)
+
     def clear(self) -> None:
         self.calls, self._index, self._lengths = [], {}, []
-        self._by_offset, self._offset_lengths = {}, {}
 
 
 # where a summarizer's summary begins, after any analysis before it
