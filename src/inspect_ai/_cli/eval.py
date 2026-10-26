@@ -23,7 +23,7 @@ from inspect_ai._eval.handoff import (
     set_ctl_pointer_armed,
     set_launch_handoff_listener,
 )
-from inspect_ai._sentinel._config import sentinel_with_args
+from inspect_ai._sentinel._config import SentinelProxy, sentinel_with_args
 from inspect_ai._util.config import parse_cli_args, resolve_args
 from inspect_ai._util.constants import (
     ALL_LOG_LEVELS,
@@ -405,6 +405,13 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_SENTINEL_ARGS",
         hidden=True,
         help="One or more arguments for the registered monitor or protocol named by --sentinel (e.g. --sentinel-arg key=value).",
+    )
+    @click.option(
+        "--sentinel-proxy",
+        type=click.Choice(["auto", "required", "off"]),
+        envvar="INSPECT_EVAL_SENTINEL_PROXY",
+        hidden=True,
+        help="Whether to look for a sentinel sidecar behind each model's proxy: auto (the default) uses one it finds, required fails a task unless one is found, and off never looks. Only a model whose base URL was set is probed.",
     )
     @click.option(
         "--notification",
@@ -1162,6 +1169,7 @@ def _eval_command_impl(
     review: str | None,
     sentinel: str | None,
     sentinel_arg: tuple[str, ...] | None,
+    sentinel_proxy: SentinelProxy | None,
     notification: bool | str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
@@ -1301,6 +1309,7 @@ def _eval_command_impl(
         review=review,
         sentinel=sentinel,
         sentinel_arg=sentinel_arg,
+        sentinel_proxy=sentinel_proxy,
         notification=notification,
         sandbox=sandbox,
         no_sandbox_cleanup=no_sandbox_cleanup,
@@ -1463,6 +1472,7 @@ def eval_set_command(
     review: str | None,
     sentinel: str | None,
     sentinel_arg: tuple[str, ...] | None,
+    sentinel_proxy: SentinelProxy | None,
     notification: bool | str | None,
     model: str | None,
     model_base_url: str | None,
@@ -1648,6 +1658,7 @@ def eval_set_command(
             review=review,
             sentinel=sentinel,
             sentinel_arg=sentinel_arg,
+            sentinel_proxy=sentinel_proxy,
             notification=notification,
             sandbox=sandbox,
             no_sandbox_cleanup=no_sandbox_cleanup,
@@ -1987,6 +1998,7 @@ def eval_exec(
     review: str | None,
     sentinel: str | None,
     sentinel_arg: tuple[str, ...] | None,
+    sentinel_proxy: SentinelProxy | None,
     notification: bool | str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
@@ -2172,6 +2184,7 @@ def eval_exec(
             approval=approval,
             review=review,
             sentinel=eval_sentinel,
+            sentinel_proxy=sentinel_proxy,
             notification=notification,
             sandbox=parse_sandbox(sandbox),
             sandbox_cleanup=sandbox_cleanup,

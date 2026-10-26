@@ -46,6 +46,7 @@ from inspect_ai._display.core.active import active_display as active_task_displa
 from inspect_ai._display.core.active import display as task_display
 from inspect_ai._eval.task.scan import Scanners, scan_context
 from inspect_ai._sentinel._config import (
+    SentinelProxy,
     SentinelSpec,
     resolve_sentinel_spec,
     sentinel_config,
@@ -194,6 +195,7 @@ def eval(
     scan_id: str | None = None,
     task_retry_attempts: int | None = None,
     sentinel: SentinelSpec | None = None,
+    sentinel_proxy: SentinelProxy | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     r"""Evaluate tasks using a Model.
@@ -337,6 +339,7 @@ def eval(
         sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
             A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in `observe_only()` to record without acting.
             Overrides the task's sentinel. Defaults to no sentinel.
+        sentinel_proxy: Whether to look for a sentinel sidecar behind each model's proxy, which then judges the agent's model calls. `auto` (the default) uses a sidecar it finds, `required` fails a task unless one is found, and `off` never looks. Only a model whose base URL was set is probed. Experimental: not yet a stable API; may change without notice.
         **kwargs: Model generation options.
 
     Returns:
@@ -371,6 +374,7 @@ def eval(
                 approval=approval,
                 review=review,
                 sentinel=sentinel,
+                sentinel_proxy=sentinel_proxy,
                 notification=notification,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
@@ -498,6 +502,7 @@ async def eval_async(
     scan_id: str | None = None,
     task_retry_attempts: int | None = None,
     sentinel: SentinelSpec | None = None,
+    sentinel_proxy: SentinelProxy | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     r"""Evaluate tasks using a Model (async).
@@ -611,6 +616,7 @@ async def eval_async(
         sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
             A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in `observe_only()` to record without acting.
             Overrides the task's sentinel. Defaults to no sentinel.
+        sentinel_proxy: Whether to look for a sentinel sidecar behind each model's proxy, which then judges the agent's model calls. `auto` (the default) uses a sidecar it finds, `required` fails a task unless one is found, and `off` never looks. Only a model whose base URL was set is probed. Experimental: not yet a stable API; may change without notice.
         **kwargs: Model generation options.
 
     Returns:
@@ -658,6 +664,7 @@ async def eval_async(
                 approval=approval,
                 review=review,
                 sentinel=sentinel,
+                sentinel_proxy=sentinel_proxy,
                 notification=notification,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
@@ -742,6 +749,7 @@ async def _eval_async_inner(
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     review: str | list[ReviewPolicy] | ReviewPolicyConfig | None = None,
     sentinel: SentinelSpec | None = None,
+    sentinel_proxy: SentinelProxy | None = None,
     notification: bool | str | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
@@ -962,6 +970,7 @@ async def _eval_async_inner(
             sentinel=sentinel_config(eval_sentinel)
             if eval_sentinel is not None
             else None,
+            sentinel_proxy=sentinel_proxy,
             notification=notification,
             fail_on_error=fail_on_error,
             continue_on_fail=continue_on_fail,
@@ -1868,6 +1877,7 @@ async def eval_retry_async(
         approval = eval_log.eval.config.approval
         review = eval_log.eval.config.review
         sentinel = eval_log.eval.config.sentinel
+        sentinel_proxy = eval_log.eval.config.sentinel_proxy
         notification: bool | str | None = eval_log.eval.config.notification
         message_limit = eval_log.eval.config.message_limit
         config_token_limit = eval_log.eval.config.token_limit
@@ -2015,6 +2025,7 @@ async def eval_retry_async(
                 approval=approval,
                 review=review,
                 sentinel=sentinel,
+                sentinel_proxy=sentinel_proxy,
                 notification=notification,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,

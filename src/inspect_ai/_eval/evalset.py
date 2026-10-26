@@ -54,7 +54,11 @@ from inspect_ai._eval.task.scan import (
     serialized_scan,
     verify_selection_scan_dir,
 )
-from inspect_ai._sentinel._config import SentinelSpec, resolve_sentinel_spec
+from inspect_ai._sentinel._config import (
+    SentinelProxy,
+    SentinelSpec,
+    resolve_sentinel_spec,
+)
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.azure import call_with_azure_auth_fallback
 from inspect_ai._util.dotenv import init_dotenv
@@ -305,6 +309,7 @@ def eval_set(
     eval_set_id: str | None = None,
     embed_viewer: bool = False,
     sentinel: SentinelSpec | None = None,
+    sentinel_proxy: SentinelProxy | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> tuple[bool, list[EvalLog]]:
     r"""Evaluate a set of tasks.
@@ -474,6 +479,7 @@ def eval_set(
         sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
             A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in `observe_only()` to record without acting.
             Overrides the task's sentinel. Defaults to no sentinel.
+        sentinel_proxy: Whether to look for a sentinel sidecar behind each model's proxy, which then judges the agent's model calls. `auto` (the default) uses a sidecar it finds, `required` fails a task unless one is found, and `off` never looks. Only a model whose base URL was set is probed. Experimental: not yet a stable API; may change without notice.
         **kwargs: Model generation options.
 
     Returns:
@@ -569,6 +575,7 @@ def eval_set(
             approval=approval,
             review=review,
             sentinel=sentinel,
+            sentinel_proxy=sentinel_proxy,
             notification=notification,
             log_level=log_level,
             log_level_transcript=log_level_transcript,
