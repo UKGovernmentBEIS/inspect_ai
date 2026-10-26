@@ -241,9 +241,13 @@ async def test_exposed_headers_are_not_forwarded_to_provider() -> None:
     assert dict(request_seen.headers) == _EXPOSED
     # ...but the provider did not (none are listed in forward_client_headers)
     [request] = requests
-    for name in {name.lower() for name in _CLIENT_HEADERS} - {"x-api-key"}:
-        assert name not in request.headers, name
-    assert request.headers.get_list("x-api-key") == ["host-key"]
+    sent = {(name.lower(), value) for name, value in request.headers.multi_items()}
+    for name, value in _CLIENT_HEADERS.items():
+        assert (name.lower(), value) not in sent, name
+    # the provider got the host's key (as x-api-key or, in newer SDKs, a bearer token)
+    assert request.headers.get_list("x-api-key") in ([], ["host-key"])
+    auth = request.headers.get("x-api-key") or request.headers.get("authorization")
+    assert auth is not None and "host-key" in auth
 
 
 # --- in-process agent_bridge() ----------------------------------------------
