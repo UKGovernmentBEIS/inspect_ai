@@ -164,7 +164,7 @@ class AgentBridge:
 
     model: str | None
     """Model that serves every request the bridge does not otherwise recognise
-    (e.g. ``"inspect/openai/gpt-4o"``; the ``inspect/`` prefix is optional).
+    (e.g. ``"inspect/openai/gpt-6-luna"``; the ``inspect/`` prefix is optional).
     Aliases, resolver results and the name ``"inspect"`` are not pinned.
     ``None`` (or ``"inspect"``) serves such requests with the eval's active
     model, or with the model the name implies when
@@ -187,7 +187,7 @@ class AgentBridge:
 
     allow_client_model_names: bool
     """Let a requested name the bridge does not otherwise recognise reach the
-    model role or model it names (e.g. ``"inspect/openai/gpt-4o"``).  When
+    model role or model it names (e.g. ``"inspect/openai/gpt-6-luna"``).  When
     ``False`` (the default), such requests are served by the eval's active
     model.  Set by the in-process ``agent_bridge()``, whose agent already has
     the host's credentials.

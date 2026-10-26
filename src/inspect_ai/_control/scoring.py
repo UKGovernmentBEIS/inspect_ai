@@ -1288,7 +1288,7 @@ async def _apply_scorers(
 
     async def apply(scorer: "Scorer", scorer_name: str) -> None:
         try:
-            with sentinel_scope("scorer"):
+            with sentinel_scope("scorer", final=True):
                 result = await scorer(task_state, target)
             if result is None:
                 return

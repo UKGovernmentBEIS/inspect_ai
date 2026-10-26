@@ -7,6 +7,7 @@ import anyio
 from shortuuid import uuid
 
 from inspect_ai._sentinel._context import warn_sentinel_bridged
+from inspect_ai._util._async import raise_unwrapped
 from inspect_ai._util.working import untracked_sandbox_execs
 from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._model import (
@@ -102,7 +103,7 @@ async def sandbox_agent_bridge(
         state: Initial state for agent bridge. Used as a basis for yielding
             an updated state based on traffic over the bridge.
         model: Pin every request the bridge does not otherwise recognise to
-            this model (e.g. "inspect/openai/gpt-4o"; the "inspect/" prefix is
+            this model (e.g. "inspect/openai/gpt-6-luna"; the "inspect/" prefix is
             optional). Aliases, resolver results and the name "inspect" are not
             pinned. Defaults to `None`, which routes unrecognised names to the
             eval's active model ("inspect" means the same); map other names
@@ -330,7 +331,7 @@ async def sandbox_agent_bridge(
             )
         else:
             # Error occurred before or during agent execution
-            raise inner_exception(ex)
+            raise_unwrapped(ex, inner_exception(ex))
 
 
 def _register_bridged_tools(
