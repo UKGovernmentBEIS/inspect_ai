@@ -185,24 +185,27 @@ finish() {
 #
 # Releases the inspect-sandbox-tools injectables: has CI build and validate the
 # four artifacts (amd64/arm64 × glibc/musl) at the PR's head commit, verifies
-# their attestations, uploads them to S3, and commits the pinned digests back
-# to the PR branch. Follows .claude/skills/release-sandbox-tools/SKILL.md and
+# their attestations, has the sandbox-tools-publish.yml workflow upload them to
+# S3 (the upload runs in CI, gated by a required reviewer's approval of the
+# sandbox-tools-s3 deployment, so this machine holds no S3 credentials), and
+# commits the pinned digests back to the PR branch. Follows
+# .claude/skills/release-sandbox-tools/SKILL.md and
 # src/inspect_sandbox_tools/design/RELEASING.md.
 #
 # Run it from a checkout of the PR's head branch:
 #   scripts/release-sandbox-tools.sh [--dry-run]
 #
 # --dry-run: get the CI build and rewrite SHA256SUMS locally (uncommitted,
-# for inspection; includes the credential-free immutability check) — skips
-# the S3 upload and everything downstream of it (digest commit/push,
-# published-artifact verify, CI watch).
+# for inspection; includes the credential-free immutability check). Does not
+# dispatch the publish workflow, and skips everything downstream of it (digest
+# commit/push, published-artifact verify, CI watch).
 #
 # --auto: unattended mode, for agents. Pauses vanish and every confirmation
-# resolves to the safe answer printed at its call site; anything genuinely
-# needing a human mid-run (aws sso login) aborts with instructions instead of
-# assuming. The checks guarding the irreversible step (PR approval,
-# version-vs-main, head commit, attestations, the upload immutability guard)
-# are mechanical and run in both modes.
+# resolves to the safe answer printed at its call site. The deployment approval
+# happens in GitHub (a required reviewer), out of band; the wizard dispatches
+# the publish workflow and waits for it either way. The checks guarding the
+# irreversible step (PR approval, version-vs-main, head commit, attestations,
+# the upload immutability guard) are mechanical and run in both modes.
 
 TOTAL_STAGES=6
 
@@ -242,6 +245,7 @@ BUCKET_BASE_URL="https://inspect-sandbox-tools.s3.us-east-2.amazonaws.com"
 VARIANTS="amd64 arm64 amd64-musl arm64-musl"
 
 BUILD_WORKFLOW="sandbox-tools-build.yml"
+PUBLISH_WORKFLOW="sandbox-tools-publish.yml"
 
 # The build inputs slow-tool-tests-release compares (kept identical to the
 # BUILD_INPUTS list in build.yml, asserted by a test). SHA256SUMS is excluded,
@@ -343,10 +347,6 @@ fi
 
 if [[ ! -x "$PYTHON" ]]; then
   warn "No repo venv at .venv/bin/python — create it and install deps first."
-  exit 1
-fi
-if [[ "$DRY_RUN" == 0 ]] && ! command -v aws >/dev/null 2>&1; then
-  warn "The aws CLI is required for the S3 upload — install it first."
   exit 1
 fi
 
@@ -483,25 +483,13 @@ DOWNLOAD_DIR=$(mktemp -d)
 gh run download "$RUN_ID" --repo "$UPSTREAM_REPO" -n "sandbox-tools-v$V" -D "$DOWNLOAD_DIR"
 mkdir -p src/inspect_ai/binaries
 say "Verifying attestations (built by $BUILD_WORKFLOW from main, in run $RUN_ID):"
+# Same check the publish workflow runs before it uploads; one shared script.
+if ! bash scripts/verify-sandbox-tools-attestations.sh "$RUN_ID" "$V" "$DOWNLOAD_DIR"; then
+  warn "Attestation verification failed. Do not upload. See above."
+  exit 1
+fi
 for f in $VARIANTS; do
   name="inspect-sandbox-tools-$f-v$V"
-  if [[ ! -f "$DOWNLOAD_DIR/$name" ]]; then
-    warn "Run $RUN_ID has no $name — aborting."
-    exit 1
-  fi
-  # The attestation names the run that signed it; the run's title names the
-  # commit it built, so this ties the bytes to $BUILT_COMMIT.
-  INVOCATION=$(gh attestation verify "$DOWNLOAD_DIR/$name" --repo "$UPSTREAM_REPO" \
-    --signer-workflow "$UPSTREAM_REPO/.github/workflows/$BUILD_WORKFLOW" \
-    --source-ref refs/heads/main --format json \
-    --jq '.[0].verificationResult.statement.predicate.runDetails.metadata.invocationId') || {
-    warn "Attestation check failed for $name — do not upload it."
-    exit 1
-  }
-  if [[ "$INVOCATION" != */actions/runs/"$RUN_ID"/attempts/1 ]]; then
-    warn "$name was attested by $INVOCATION, not run $RUN_ID attempt 1 — do not upload it."
-    exit 1
-  fi
   mv "$DOWNLOAD_DIR/$name" "src/inspect_ai/binaries/$name"
   note "✓ $name ($(du -h "src/inspect_ai/binaries/$name" | cut -f1 | tr -d ' '))"
 done
@@ -511,51 +499,74 @@ pause
 
 # ── Stage 3: upload to S3 ─────────────────────────────────────────────────
 stage "Upload to S3"
-say "Uploads all four artifacts to s3://inspect-sandbox-tools/ (public-read),"
-say "rewrites $SUMS_FILE, and round-trip verifies each object."
+say "The $PUBLISH_WORKFLOW workflow re-checks the build run and its"
+say "attestations, then uploads all four artifacts to s3://inspect-sandbox-tools/"
+say "(public-read). The upload runs in CI after a required reviewer approves the"
+say "sandbox-tools-s3 deployment. This machine holds no S3 credentials."
+
+# $1 build run id, $2 version, $3 jq conclusion filter. Matches the publish
+# workflow's run-name (kept identical, asserted by a test), the same way
+# find_run matches the build workflow's.
+find_publish_run() {
+  gh run list --repo "$UPSTREAM_REPO" --workflow "$PUBLISH_WORKFLOW" --branch main \
+    --event workflow_dispatch --limit 50 --json databaseId,displayTitle,conclusion,attempt \
+    --jq "[.[] | select(.displayTitle == \"Publish sandbox tools v$2 from run $1\" and .attempt == 1) $3][0].databaseId // empty"
+}
+
 if [[ "$DRY_RUN" == 1 ]]; then
   say "Dry run — hashing, checking immutability against S3 (public reads, no"
-  say "credentials), and writing $SUMS_FILE locally; no upload."
+  say "credentials), and writing $SUMS_FILE locally; no publish workflow dispatched."
   if ! "$PYTHON" src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py "$V" --dry-run; then
     warn "Dry-run upload checks failed — see above."
     exit 1
   fi
 else
-  if [[ -n "${AWS_PROFILE:-}" ]]; then
-    note "Using AWS_PROFILE=$AWS_PROFILE from your environment."
-  elif [[ "$AUTO" == 1 ]]; then
-    note "No AWS_PROFILE set — using default credentials."
-  else
-    ask AWS_PROFILE_IN "AWS profile for the upload (Enter to use default credentials):"
-    if [[ -n "${AWS_PROFILE_IN:-}" ]]; then
-      export AWS_PROFILE="$AWS_PROFILE_IN"
-    fi
-  fi
-  while ! aws sts get-caller-identity >/dev/null 2>&1; do
-    warn "AWS credentials are missing or stale."
-    if [[ "$AUTO" == 1 ]]; then
-      warn "Run 'aws sso login', then re-run."
-      exit 1
-    fi
-    if confirm "Run 'aws sso login' now?"; then
-      aws sso login || true
-    else
-      pause "Get credentials in another terminal, then press Enter to re-check"
-    fi
-  done
-  say "✓ AWS credentials OK."
-  note "Re-checking upstream main before upload (the CI build took ~10 min)..."
+  note "Re-checking upstream main before publishing (the CI build took ~10 min)..."
   fetch_main
   require_main_merged "$MAIN_SHA"
-  if ! "$PYTHON" src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py "$V"; then
-    warn "Upload aborted. If it hit the immutability guard (v$V already published"
-    warn "with different bytes), never force over it. If a build input changed,"
-    warn "bump the version and publish fresh. If the bytes are from another valid"
-    warn "CI build of these inputs, keep them and finish from that run, no bump."
-    warn "Recovery: src/inspect_sandbox_tools/design/sandbox-tools-release-flow.md."
+
+  # Don't dispatch a duplicate: a publish run for this build may still be
+  # running (e.g. Ctrl-C while it waited for deployment approval, then re-run).
+  PUBLISH_RUN=$(find_publish_run "$RUN_ID" "$V" '| select(.conclusion == "")')
+  if [[ -n "$PUBLISH_RUN" ]]; then
+    say "✓ A publish run for build $RUN_ID is already running; waiting on run $PUBLISH_RUN."
+  else
+    pause "Press Enter to start the publish workflow"
+    gh workflow run "$PUBLISH_WORKFLOW" --repo "$UPSTREAM_REPO" --ref main \
+      -f run_id="$RUN_ID" -f version="$V"
+    note "Waiting for the run to appear..."
+    for _ in $(seq 30); do
+      PUBLISH_RUN=$(find_publish_run "$RUN_ID" "$V" '| select(.conclusion == "")')
+      [[ -n "$PUBLISH_RUN" ]] && break
+      sleep 5
+    done
+    if [[ -z "$PUBLISH_RUN" ]]; then
+      warn "The dispatched publish run didn't appear. Check the Actions tab, then re-run."
+      exit 1
+    fi
+  fi
+  RUN_URL=$(gh run view "$PUBLISH_RUN" --repo "$UPSTREAM_REPO" --json url --jq .url)
+  say "Publish run: $RUN_URL"
+  warn "A required reviewer (jjallaire, dragonstyle, or epatey) must approve the"
+  warn "sandbox-tools-s3 deployment at that URL before the upload runs."
+  if ! gh run watch "$PUBLISH_RUN" --repo "$UPSTREAM_REPO" --exit-status; then
+    warn "Publish run failed, see $RUN_URL. If it hit the immutability guard (v$V"
+    warn "already published with different bytes), never force over it. If a build"
+    warn "input changed, bump the version and publish fresh. If the bytes are from"
+    warn "another valid CI build of these inputs, keep them and finish from that run,"
+    warn "no bump. Recovery: src/inspect_sandbox_tools/design/sandbox-tools-release-flow.md."
     exit 1
   fi
-  say "✓ Uploaded and verified all four artifacts."
+  say "✓ Publish run succeeded; all four artifacts are on S3."
+
+  # The real upload ran in CI, so write the committable SHA256SUMS here from the
+  # stage-2 artifacts. --dry-run hashes them, confirms the now-published objects
+  # have the same bytes, and writes the sums file without publishing.
+  if ! "$PYTHON" src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py "$V" --dry-run; then
+    warn "Could not verify the published artifacts against the local build. See above."
+    exit 1
+  fi
+  say "✓ Wrote $SUMS_FILE from the verified artifacts."
 fi
 pause
 

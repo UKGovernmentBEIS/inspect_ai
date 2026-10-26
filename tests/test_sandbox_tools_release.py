@@ -13,14 +13,22 @@ merge would change the build inputs away from HEAD, since the gate runs on the
 same merge and would reject a build that lacks those changes.
 """
 
+import hashlib
 import os
 import re
 import shlex
 import subprocess
+import sys
 from pathlib import Path
+from typing import Any, Callable
+
+import pytest
+import yaml
 
 REPO = Path(__file__).parents[1]
 WIZARD = REPO / "scripts" / "release-sandbox-tools.sh"
+WORKFLOWS = REPO / ".github" / "workflows"
+PUBLISH_WORKFLOW = WORKFLOWS / "sandbox-tools-publish.yml"
 
 # A file inside the build inputs, and one outside them (the excluded tests dir).
 BUILD_INPUT = "src/inspect_ai/tool/_sandbox_tools_utils/sandbox.py"
@@ -190,3 +198,192 @@ def test_require_main_merged_fails_when_branch_conflicts_with_main(
     result = _run_require_main_merged(repo, main)
     assert result.returncode == 1
     assert "conflicts with main" in result.stderr
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# The sandbox-tools-publish.yml workflow: the only credentialed uploader.
+# ──────────────────────────────────────────────────────────────────────────
+
+FOUR_PERMISSIONS = {
+    "id-token": "write",
+    "actions": "read",
+    "attestations": "read",
+    "contents": "read",
+}
+
+
+def _job_steps(config: dict[str, Any], job: str) -> list[dict[str, Any]]:
+    return config["jobs"][job].get("steps") or []
+
+
+def _uses_aws_credentials(step: dict[str, Any]) -> bool:
+    action = step.get("uses", "").split("@")[0]
+    inputs = step.get("with") or {}
+    return (
+        action == "aws-actions/configure-aws-credentials" or "role-to-assume" in inputs
+    )
+
+
+def test_only_publish_job_assumes_an_aws_role() -> None:
+    """configure-aws-credentials / role-to-assume appears in exactly one job."""
+    found: set[tuple[str, str]] = set()
+    for workflow in sorted(WORKFLOWS.glob("*.yml")):
+        config = yaml.safe_load(workflow.read_text())
+        for job in config.get("jobs", {}):
+            for step in _job_steps(config, job):
+                if _uses_aws_credentials(step):
+                    found.add((workflow.name, job))
+    assert found == {("sandbox-tools-publish.yml", "publish")}
+
+
+def test_publish_workflow_is_locked_down() -> None:
+    config = yaml.safe_load(PUBLISH_WORKFLOW.read_text())
+    # Top-level permissions empty; the job grants exactly the four it needs.
+    assert config["permissions"] == {}
+    job = config["jobs"]["publish"]
+    assert job["permissions"] == FOUR_PERMISSIONS
+    assert job["environment"] == "sandbox-tools-s3"
+    # Concurrency serializes publishes and never cancels one mid-upload.
+    assert config["concurrency"]["group"] == "sandbox-tools-publish"
+    assert config["concurrency"]["cancel-in-progress"] is False
+
+
+def test_publish_job_installs_nothing_and_restores_no_cache() -> None:
+    config = yaml.safe_load(PUBLISH_WORKFLOW.read_text())
+    toolchain = {
+        "actions/setup-python",
+        "astral-sh/setup-uv",
+        "actions/setup-node",
+        "actions/cache",
+        "actions/cache/restore",
+    }
+    for step in _job_steps(config, "publish"):
+        action = step.get("uses", "").split("@")[0]
+        assert action not in toolchain, f"publish must not use {action}"
+        run = step.get("run", "")
+        assert "pip install" not in run
+        assert not re.search(r"\buv\b", run)
+        assert not re.search(r"\bnpm\b", run)
+
+
+def test_wizard_publish_title_matches_workflow_run_name() -> None:
+    run_name = yaml.safe_load(PUBLISH_WORKFLOW.read_text())["run-name"]
+    run_name = run_name.replace("${{ inputs.version }}", "9").replace(
+        "${{ inputs.run_id }}", "123"
+    )
+    match = re.search(
+        r'displayTitle == \\"(Publish sandbox tools[^\\"]*)\\"', WIZARD.read_text()
+    )
+    assert match, "publish run-name match not found in the wizard"
+    title = match.group(1).replace("$2", "9").replace("$1", "123")
+    assert title == run_name
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# upload_to_s3.py: skip matching objects, upload missing, abort on mismatch.
+# ──────────────────────────────────────────────────────────────────────────
+
+ARCH_VARIANTS = ["amd64", "amd64-musl", "arm64", "arm64-musl"]
+
+
+def _make_binaries(tmp_path: Path, version: int) -> tuple[Path, dict[str, str]]:
+    bindir = tmp_path / "binaries"
+    bindir.mkdir()
+    digests: dict[str, str] = {}
+    for variant in ARCH_VARIANTS:
+        name = f"inspect-sandbox-tools-{variant}-v{version}"
+        data = f"bytes-of-{name}".encode()
+        (bindir / name).write_bytes(data)
+        digests[name] = hashlib.sha256(data).hexdigest()
+    return bindir, digests
+
+
+class _FakeS3:
+    """A public-read bucket and `aws s3api put-object`, keyed by object name."""
+
+    def __init__(self, published: dict[str, str]) -> None:
+        self.published = dict(published)  # name -> digest; absent means not published
+        self.puts: list[list[str]] = []
+
+    def hash_obj(self, name: str) -> str | None:
+        return self.published.get(name)
+
+    def run(self, cmd: list[str], check: bool = False) -> subprocess.CompletedProcess:
+        self.puts.append(cmd)
+        key = cmd[cmd.index("--key") + 1]
+        body = cmd[cmd.index("--body") + 1]
+        self.published[key] = hashlib.sha256(Path(body).read_bytes()).hexdigest()
+        return subprocess.CompletedProcess(cmd, 0)
+
+
+def _setup_upload(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    version: int,
+    make_published: Callable[[dict[str, str]], dict[str, str]],
+) -> tuple[Any, _FakeS3, dict[str, str]]:
+    from inspect_ai.tool._sandbox_tools_utils import upload_to_s3
+
+    bindir, digests = _make_binaries(tmp_path, version)
+    version_file = tmp_path / "sandbox_tools_version.txt"
+    version_file.write_text(f"{version}\n")
+    fake = _FakeS3(make_published(digests))
+    monkeypatch.setattr(upload_to_s3, "BINARIES_DIR", bindir)
+    monkeypatch.setattr(upload_to_s3, "VERSION_FILE", version_file)
+    monkeypatch.setattr(upload_to_s3, "_sha256_of_s3_object", fake.hash_obj)
+    # upload_to_s3 calls subprocess.run via this same module object.
+    monkeypatch.setattr(subprocess, "run", fake.run)
+    monkeypatch.setattr(
+        upload_to_s3, "write_sha256sums", lambda entries, path=None: None
+    )
+    monkeypatch.setattr(sys, "argv", ["upload_to_s3.py", str(version)])
+    return upload_to_s3, fake, digests
+
+
+def test_upload_skips_matching_and_uploads_missing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    version = 36
+
+    def make_published(digests: dict[str, str]) -> dict[str, str]:
+        names = list(digests)
+        # Two already published with matching bytes; the other two missing.
+        return {names[0]: digests[names[0]], names[1]: digests[names[1]]}
+
+    mod, fake, digests = _setup_upload(monkeypatch, tmp_path, version, make_published)
+    mod.main()
+
+    names = list(digests)
+    uploaded = {cmd[cmd.index("--key") + 1] for cmd in fake.puts}
+    assert uploaded == {names[2], names[3]}
+    for cmd in fake.puts:
+        assert cmd[:3] == ["aws", "s3api", "put-object"]
+        assert cmd[cmd.index("--bucket") + 1] == "inspect-sandbox-tools"
+        assert cmd[cmd.index("--if-none-match") + 1] == "*"
+        assert cmd[cmd.index("--acl") + 1] == "public-read"
+
+
+def test_upload_is_idempotent_when_all_match(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    version = 36
+    mod, fake, _ = _setup_upload(monkeypatch, tmp_path, version, lambda d: dict(d))
+    mod.main()
+    assert fake.puts == []
+
+
+def test_upload_aborts_on_mismatch_without_uploading(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    version = 36
+
+    def make_published(digests: dict[str, str]) -> dict[str, str]:
+        names = list(digests)
+        # Mismatch on the LAST filename, earlier ones missing (would be queued
+        # for upload): proves every check runs before any upload happens.
+        return {names[3]: "0" * 64}  # published with different bytes
+
+    mod, fake, _ = _setup_upload(monkeypatch, tmp_path, version, make_published)
+    with pytest.raises(SystemExit):
+        mod.main()
+    assert fake.puts == []
