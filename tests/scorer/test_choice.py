@@ -40,6 +40,22 @@ async def test_score_multiple_letters():
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("target", [Target("A, A"), Target(["A", "A"])])
+async def test_score_repeated_target_letter_scores_correct(target: Target):
+    scorer = choice()
+    state = simple_task_state(
+        model_output="ANSWER: A",
+        choices=["choice 1", "choice 2"],
+    )
+    state.choices.mark_choice(0, True)
+    state.choices.mark_choice(1, False)
+
+    result = await scorer(state, target)
+    assert result.text == CORRECT
+    assert result.answer == "A"
+
+
+@pytest.mark.anyio
 @pytest.mark.parametrize("target", ["A,B", "A, B", "AB"])
 async def test_score_multiple_letters_with_separators(target: str):
     # Targets for multi-answer questions are sometimes provided as a single

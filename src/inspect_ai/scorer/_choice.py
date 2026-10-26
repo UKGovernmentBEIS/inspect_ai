@@ -44,7 +44,7 @@ def _score_target(target: Target, choices: Choices) -> tuple[list[int], list[str
 
     answers = [answer_character(choice) for choice in choice_positions]
 
-    return target_positions, answers
+    return list(dict.fromkeys(target_positions)), answers
 
 
 def _shuffled_explanation(choices: Choices) -> str:
