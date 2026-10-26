@@ -568,7 +568,7 @@ async def test_recompute_metrics_when_task_has_no_scorers():
 def test_resolve_scorers_info_loads_task_file_metrics_once(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """Custom scorer metrics from task files should resolve during recompute."""
+    """Trusted recompute imports the task file once for its custom scorer metrics."""
     import inspect_ai._eval.score as score_module
     from inspect_ai._eval.loader import load_file_tasks as real_load_file_tasks
     from inspect_ai._util.registry import _registry, registry_key
@@ -645,7 +645,14 @@ def custom_metric_task():
         )
     )
 
-    infos = score_module.resolve_scorers_info(log)
+    # untrusted (the default) never imports the task file
+    with pytest.raises(LookupError, match=metric_one):
+        score_module.resolve_scorers_info(log)
+    assert load_calls == []
+
+    infos = score_module.resolve_scorers_info(
+        log, task_import=score_module.LogTaskFileImport(log, trust_log=True)
+    )
 
     assert load_calls == [task_file.absolute()]
     metrics = infos[0].metrics

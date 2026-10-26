@@ -1,12 +1,30 @@
+import json
 import logging
+import math
+from collections.abc import Iterable
+from copy import deepcopy
+from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
-from typing import NamedTuple
+from typing import Any, Literal, NamedTuple
 
 import pytest
+from pydantic import (
+    BaseModel,
+    Field,
+    PrivateAttr,
+    SecretStr,
+    computed_field,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentText
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.registry import registry_log_name
+from inspect_ai.agent import Agent, AgentState, agent
 from inspect_ai.approval import (
     Approval,
     ApprovalDecision,
@@ -26,12 +44,24 @@ from inspect_ai.dataset import Sample
 from inspect_ai.event._approval import ApprovalEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._tool import ToolEvent
+from inspect_ai.log import read_eval_log
 from inspect_ai.log._log import EvalLog
-from inspect_ai.model import ChatMessage, ChatMessageTool, Model, ModelOutput, get_model
+from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+from inspect_ai.model import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageTool,
+    ChatMessageUser,
+    Model,
+    ModelOutput,
+    get_model,
+)
+from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.scorer import match
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool._tool import Tool, tool
-from inspect_ai.tool._tool_call import ToolCall, ToolCallView
+from inspect_ai.tool._tool_call import ToolCall, ToolCallContent, ToolCallView
+from inspect_ai.tool._tool_def import ToolDef
 
 
 # define tool
@@ -587,6 +617,1178 @@ def modifying_approver(arguments: dict[str, object], function: str = "") -> Appr
     return approve
 
 
+# --- approval decides on the call that will run ------------------------------
+# (design/tool-approval-arguments.md)
+
+
+@approver
+def recording_approver(
+    calls: list[ToolCall], decision: ApprovalDecision = "approve"
+) -> Approver:
+    """Approver which records the calls it is asked to decide on."""
+
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        calls.append(call)
+        return Approval(decision=decision)
+
+    return approve
+
+
+async def execute_with_approval(
+    call: ToolCall, tools: list[Any], policies: list[ApprovalPolicy] | None
+) -> ChatMessageTool:
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])],
+        tools,
+        approval=policies,
+    )
+    assert isinstance(messages[-1], ChatMessageTool)
+    return messages[-1]
+
+
+def logged_tool_event() -> ToolEvent:
+    (event,) = [e for e in transcript().events if isinstance(e, ToolEvent)]
+    return ToolEvent.model_validate_json(event.model_dump_json())
+
+
+def logged_approval_events() -> list[ApprovalEvent]:
+    return [
+        ApprovalEvent.model_validate_json(e.model_dump_json())
+        for e in transcript().events
+        if isinstance(e, ApprovalEvent)
+    ]
+
+
+def json_viewer(viewed: list[dict[str, Any]]) -> Any:
+    def viewer(call: ToolCall) -> ToolCallView:
+        viewed.append(call.arguments)
+        content = json.dumps(call.arguments, sort_keys=True)
+        return ToolCallView(call=ToolCallContent(format="text", content=content))
+
+    return viewer
+
+
+class Step(BaseModel):
+    name: str
+    status: Literal["pending", "done"] = "pending"
+
+    @field_validator("name")
+    @classmethod
+    def lowercase(cls, name: str) -> str:
+        return name.lower()
+
+
+@dataclass
+class Label:
+    text: str
+
+    def __post_init__(self) -> None:
+        self.text = self.text.strip()
+
+
+class Doubled(BaseModel):
+    n: int
+
+    @field_validator("n")
+    @classmethod
+    def double(cls, n: int) -> int:
+        return n * 2
+
+
+class Lazy(BaseModel):
+    values: Iterable[int]
+
+
+class SplitAlias(BaseModel):
+    value: int = Field(validation_alias="in", serialization_alias="out")
+
+
+class Unserializable(BaseModel):
+    value: str
+
+    @field_serializer("value")
+    def fail(self, value: str) -> str:
+        raise ValueError("cannot serialize")
+
+
+class Rounded(BaseModel):
+    amount: float
+
+    @field_serializer("amount")
+    def round_amount(self, amount: float) -> float:
+        return round(amount, 2)
+
+
+class Secret(BaseModel):
+    key: SecretStr
+
+
+class Privileged(BaseModel):
+    command: str
+    sudo: bool = Field(False, exclude=True)
+
+
+_tokens = iter(range(1_000_000))
+
+
+class Tokened(BaseModel):
+    name: str
+    token: int = Field(default_factory=lambda: next(_tokens))
+
+
+class Capped(BaseModel):
+    """A number the validator turns into infinity beyond 100 either way."""
+
+    x: float
+
+    @field_validator("x")
+    @classmethod
+    def cap(cls, x: float) -> float:
+        return math.copysign(math.inf, x) if abs(x) > 100 else x
+
+
+class Unpaired(BaseModel):
+    """Text whose validator turns `<hi>` into an unpaired surrogate."""
+
+    text: str
+
+    @field_validator("text")
+    @classmethod
+    def unpair(cls, text: str) -> str:
+        return text.replace("<hi>", "\ud800")
+
+
+class Digits(BaseModel):
+    """A number of digits the validator turns into a number that long."""
+
+    n: int = Field(repr=False)
+
+    @field_validator("n")
+    @classmethod
+    def lengthen(cls, n: int) -> int:
+        return 10 ** (n - 1) if 1 < n <= 5000 else n
+
+
+def nested_lists(depth: int) -> list[Any]:
+    """Lists nested `depth` levels deep."""
+    value: list[Any] = []
+    for _ in range(depth - 1):
+        value = [value]
+    return value
+
+
+class Nested(BaseModel):
+    """A number the validator turns into lists nested that deep."""
+
+    value: Any
+
+    @field_validator("value")
+    @classmethod
+    def nest(cls, value: Any) -> Any:
+        return nested_lists(value) if isinstance(value, int) else value
+
+
+class Incomparable:
+    """A value whose equality raises."""
+
+    def __eq__(self, other: object) -> bool:
+        raise RuntimeError("compared")
+
+    __hash__ = object.__hash__
+
+
+class Guarded(BaseModel):
+    name: str
+    _guard: Incomparable = PrivateAttr(default_factory=Incomparable)
+
+
+class Named(BaseModel):
+    file_name: str = Field(alias="fileName")
+
+    @computed_field
+    def stem(self) -> str:
+        return self.file_name.split(".")[0]
+
+
+class Consuming(BaseModel):
+    values: list[int]
+
+    @model_validator(mode="before")
+    @classmethod
+    def consume(cls, data: Any) -> Any:
+        data["values"].append(0)
+        return data
+
+
+@tool
+def step_tool(received: list[dict[str, Any]]) -> Tool:
+    async def execute(
+        step: Step | None = None,
+        steps: dict[str, Step] | None = None,
+        label: Label | None = None,
+        when: date | None = None,
+        doubled: Doubled | None = None,
+        lazy: Lazy | None = None,
+        split: SplitAlias | None = None,
+        unserializable: Unserializable | None = None,
+        named: Named | None = None,
+        consuming: Consuming | None = None,
+        secret: Secret | None = None,
+        privileged: Privileged | None = None,
+        tokened: Tokened | None = None,
+        guarded: Guarded | None = None,
+        capped: Capped | None = None,
+        rounded: Rounded | None = None,
+        unpaired: Unpaired | None = None,
+        digits: Digits | None = None,
+        nested: Nested | None = None,
+    ) -> str:
+        """Record its arguments.
+
+        Args:
+            step: A step.
+            steps: Steps by name.
+            label: A label.
+            when: A date.
+            doubled: A number the validator doubles.
+            lazy: A lazy iterable.
+            split: A model with different validation and serialization aliases.
+            unserializable: A model whose serializer fails.
+            named: A model with an alias and a computed field.
+            consuming: A model whose validator changes its input in place.
+            secret: A model with a secret, which serializes masked.
+            privileged: A model with a field left out of serialization.
+            tokened: A model with a generated default.
+            guarded: A model with a private attribute whose equality raises.
+            capped: A model whose validator turns large numbers into infinity.
+            rounded: A model whose serializer rounds.
+            unpaired: A model whose validator can produce an unpaired surrogate.
+            digits: A model whose validator can produce a very long integer.
+            nested: A model whose validator can produce deeply nested lists.
+        """
+        arguments = {
+            "step": step,
+            "steps": steps,
+            "label": label,
+            "when": when,
+            "doubled": doubled,
+            "lazy": list(lazy.values) if lazy is not None else None,
+            "split": split,
+            "unserializable": unserializable,
+            "named": named,
+            "consuming": consuming,
+            "secret": secret,
+            "privileged": privileged,
+            "tokened": tokened,
+            "guarded": guarded,
+            "capped": capped,
+            "rounded": rounded,
+            "unpaired": unpaired,
+            "digits": digits,
+            "nested": nested,
+        }
+        received.append({k: v for k, v in arguments.items() if v is not None})
+        return "done"
+
+    return execute
+
+
+@pytest.mark.parametrize(
+    "function,arguments",
+    [
+        ("addition", {"x": "one", "y": 1}),
+        ("step_tool", {"when": "not-a-date"}),
+    ],
+    ids=["fails-schema", "fails-conversion"],
+)
+async def test_invalid_call_never_reaches_approver(
+    function: str, arguments: dict[str, Any]
+) -> None:
+    viewed: list[dict[str, Any]] = []
+    calls: list[ToolCall] = []
+    received: list[dict[str, Any]] = []
+    message = await execute_with_approval(
+        ToolCall(id="1", function=function, arguments=arguments),
+        [
+            ToolDef(addition(), viewer=json_viewer(viewed)),
+            ToolDef(step_tool(received), viewer=json_viewer(viewed)),
+        ],
+        [ApprovalPolicy(recording_approver(calls, "reject"), "*")],
+    )
+
+    assert message.error is not None
+    assert message.error.type == "parsing"
+    assert calls == []
+    assert viewed == []
+
+
+async def test_approver_sees_the_arguments_as_converted() -> None:
+    """The approver, the viewer and the log see what the tool gets, defaults included."""
+    init_transcript(Transcript())
+    viewed: list[dict[str, Any]] = []
+    calls: list[ToolCall] = []
+    received: list[dict[str, Any]] = []
+    message = await execute_with_approval(
+        ToolCall(
+            id="1",
+            function="step_tool",
+            arguments={
+                "step": {"name": "WRITE"},
+                "steps": {"b": {"name": "B", "status": "done"}},
+                "label": {"text": " tests "},
+                "when": "2026-10-15",
+            },
+        ),
+        [ToolDef(step_tool(received), viewer=json_viewer(viewed))],
+        [ApprovalPolicy(recording_approver(calls), "*")],
+    )
+
+    shown = {
+        "step": {"name": "write", "status": "pending"},
+        "steps": {"b": {"name": "b", "status": "done"}},
+        "label": {"text": "tests"},
+        "when": "2026-10-15",
+    }
+    assert message.error is None
+    assert [call.arguments for call in calls] == [shown]
+    assert viewed and all(arguments == shown for arguments in viewed)
+    assert received == [
+        {
+            "step": Step(name="write"),
+            "steps": {"b": Step(name="b", status="done")},
+            "label": Label("tests"),
+            "when": date(2026, 10, 15),
+        }
+    ]
+    event = logged_tool_event()
+    assert event.arguments == shown
+    assert event.view is not None
+    assert event.view.content == json.dumps(shown, sort_keys=True)
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"doubled": {"n": 2}},
+        {"split": {"in": 1}},
+        {"unserializable": {"value": "x"}},
+        {"secret": {"key": "k"}},
+        {"privileged": {"command": "ls", "sudo": True}},
+        {"lazy": {"values": [1, 2, 3]}},
+        {"rounded": {"amount": 1.234}},
+    ],
+    ids=[
+        "validator-not-idempotent",
+        "mismatched-alias",
+        "serializer-fails",
+        "masked-secret",
+        "excluded-field",
+        "lazy-iterable",
+        "rounding-serializer",
+    ],
+)
+async def test_arguments_that_do_not_rebuild_are_refused(
+    arguments: dict[str, Any],
+) -> None:
+    calls: list[ToolCall] = []
+    received: list[dict[str, Any]] = []
+    message = await execute_with_approval(
+        ToolCall(id="1", function="step_tool", arguments=arguments),
+        [step_tool(received)],
+        [ApprovalPolicy(recording_approver(calls), "*")],
+    )
+
+    assert message.error is not None
+    assert message.error.type == "parsing"
+    assert "cannot be shown to approvers or monitors" in message.error.message
+    assert calls == []
+    assert received == []
+
+
+async def test_a_value_that_cannot_be_compared_is_refused() -> None:
+    """An argument whose equality raises is a parsing error, not a failed sample."""
+    calls: list[ToolCall] = []
+    received: list[dict[str, Any]] = []
+    message = await execute_with_approval(
+        ToolCall(id="1", function="step_tool", arguments={"guarded": {"name": "a"}}),
+        [step_tool(received)],
+        [ApprovalPolicy(recording_approver(calls), "*")],
+    )
+
+    assert message.error is not None
+    assert message.error.type == "parsing"
+    assert "Argument 'guarded' cannot be shown" in message.error.message
+    assert calls == []
+    assert received == []
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"capped": {"x": 101}},
+        {"capped": {"x": -101}},
+        {"unpaired": {"text": "a<hi>"}},
+        {"digits": {"n": 4301}},
+    ],
+    ids=["infinity", "negative-infinity", "unpaired-surrogate", "unreadable-integer"],
+)
+async def test_a_shown_value_the_log_cannot_store_is_refused(
+    arguments: dict[str, Any],
+) -> None:
+    """A converted value the event writer would change is refused before approval."""
+    calls: list[ToolCall] = []
+    received: list[dict[str, Any]] = []
+    message = await execute_with_approval(
+        ToolCall(id="1", function="step_tool", arguments=arguments),
+        [step_tool(received)],
+        [ApprovalPolicy(recording_approver(calls), "*")],
+    )
+
+    (name,) = arguments
+    assert message.error is not None
+    assert message.error.type == "parsing"
+    assert f"Argument '{name}' cannot be shown" in message.error.message
+    assert "the log cannot store unchanged" in message.error.message
+    assert calls == []
+    assert received == []
+
+
+@pytest.mark.parametrize(
+    "arguments,shown",
+    [
+        ({"capped": {"x": 1}}, {"capped": {"x": 1.0}}),
+        ({"unpaired": {"text": "é 😀"}}, {"unpaired": {"text": "é 😀"}}),
+        ({"unpaired": {"text": "\\ud800"}}, {"unpaired": {"text": "\\ud800"}}),
+        ({"digits": {"n": 4300}}, {"digits": {"n": 10**4299}}),
+    ],
+    ids=["finite", "unicode", "backslash-u-text", "longest-readable-integer"],
+)
+async def test_the_persisted_events_keep_the_shown_arguments(
+    arguments: dict[str, Any], shown: dict[str, Any]
+) -> None:
+    """The ApprovalEvent and ToolEvent as the log writes them reload with the shown call."""
+    init_transcript(Transcript())
+    calls: list[ToolCall] = []
+    received: list[dict[str, Any]] = []
+    message = await execute_with_approval(
+        ToolCall(id="1", function="step_tool", arguments=arguments),
+        [step_tool(received)],
+        [ApprovalPolicy(recording_approver(calls), "*")],
+    )
+
+    assert message.error is None
+    assert [call.arguments for call in calls] == [shown]
+    [approval] = [e for e in transcript().events if isinstance(e, ApprovalEvent)]
+    persisted = ApprovalEvent.model_validate_json(to_json_str_safe(approval))
+    assert persisted.call.arguments == shown
+    [tool_event] = [e for e in transcript().events if isinstance(e, ToolEvent)]
+    assert (
+        ToolEvent.model_validate_json(to_json_str_safe(tool_event)).arguments == shown
+    )
+
+
+@pytest.mark.parametrize(
+    "depth,oversight,refused",
+    [(98, True, False), (99, True, True), (251, True, True), (251, False, False)],
+    ids=["at-limit", "over-limit", "unwritable", "unwritable-without-oversight"],
+)
+async def test_converted_nesting_is_bounded_under_oversight(
+    depth: int, oversight: bool, refused: bool
+) -> None:
+    """Converted arguments get the same nesting bound as the model's arguments."""
+    calls: list[ToolCall] = []
+    received: list[dict[str, Any]] = []
+    message = await execute_with_approval(
+        ToolCall(id="1", function="step_tool", arguments={"nested": {"value": depth}}),
+        [step_tool(received)],
+        [ApprovalPolicy(recording_approver(calls), "*")] if oversight else None,
+    )
+
+    if refused:
+        assert message.error is not None
+        assert message.error.type == "parsing"
+        assert "Argument 'nested' cannot be shown" in message.error.message
+        assert "maximum supported nesting depth of 100" in message.error.message
+        assert calls == []
+        assert received == []
+    else:
+        assert message.error is None
+        assert received == [{"nested": Nested(value=nested_lists(depth))}]
+
+
+def test_converted_nesting_at_the_limit_is_written_and_read_back(
+    tmp_path: Path,
+) -> None:
+    """The deepest accepted converted call is in the log as shown and ran."""
+    shown = {"nested": {"value": nested_lists(98)}}
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model",
+                tool_name="step_tool",
+                tool_arguments={"nested": {"value": 98}},
+            ),
+            ModelOutput.from_content("mockllm/model", content="done"),
+        ],
+        memoize=False,
+    )
+    task = Task(
+        dataset=[Sample(input="go")], solver=[use_tools(step_tool([])), generate()]
+    )
+    [log] = eval(
+        task,
+        model=model,
+        approval=[ApprovalPolicy(auto_approver(), "*")],
+        log_dir=str(tmp_path),
+    )
+    assert log.status == "success", log.error
+
+    log = read_eval_log(log.location)
+    assert log.samples
+    events = log.samples[0].events
+    [approval] = [e for e in events if isinstance(e, ApprovalEvent)]
+    assert approval.call.arguments == shown
+    [tool_event] = [e for e in events if isinstance(e, ToolEvent)]
+    assert tool_event.arguments == shown
+    assert tool_event.error is None
+
+
+async def test_a_generated_default_runs_as_shown() -> None:
+    """A default generated when the model is built is shown and runs unchanged."""
+    calls: list[ToolCall] = []
+    received: list[dict[str, Any]] = []
+    message = await execute_with_approval(
+        ToolCall(id="1", function="step_tool", arguments={"tokened": {"name": "a"}}),
+        [step_tool(received)],
+        [ApprovalPolicy(recording_approver(calls), "*")],
+    )
+
+    assert message.error is None
+    [shown] = [call.arguments for call in calls]
+    token = shown["tokened"]["token"]
+    assert received == [{"tokened": Tokened(name="a", token=token)}]
+
+
+@pytest.mark.parametrize(
+    "modified,error",
+    [
+        ({"step": {"name": "test", "status": "done"}}, None),
+        ({"step": {"name": "test"}}, "approval"),
+        ({"step": {"name": "TEST", "status": "done"}}, "approval"),
+        ({"step": {"name": 5, "status": "done"}}, "parsing"),
+    ],
+    ids=["full", "omits-default", "validator-changes-it", "invalid"],
+)
+async def test_modify_runs_only_as_selected(
+    modified: dict[str, Any], error: str | None
+) -> None:
+    init_transcript(Transcript())
+    viewed: list[dict[str, Any]] = []
+    received: list[dict[str, Any]] = []
+    message = await execute_with_approval(
+        ToolCall(id="1", function="step_tool", arguments={"step": {"name": "write"}}),
+        [ToolDef(step_tool(received), viewer=json_viewer(viewed))],
+        [ApprovalPolicy(modifying_approver(modified), "*")],
+    )
+
+    # the event records the modified call, whether or not it ran
+    event = logged_tool_event()
+    assert event.arguments == modified
+    if error is None:
+        assert message.error is None
+        assert received == [{"step": Step(name="test", status="done")}]
+        assert event.view is not None
+        assert event.view.content == json.dumps(modified, sort_keys=True)
+    else:
+        assert message.error is not None
+        assert message.error.type == error
+        assert event.error is not None
+        assert event.error.type == error
+        assert received == []
+
+
+async def test_a_model_is_shown_by_alias_without_computed_fields() -> None:
+    calls: list[ToolCall] = []
+    received: list[dict[str, Any]] = []
+    shown = {"named": {"fileName": "a.txt"}}
+    message = await execute_with_approval(
+        ToolCall(id="1", function="step_tool", arguments=deepcopy(shown)),
+        [step_tool(received)],
+        [ApprovalPolicy(recording_approver(calls), "*")],
+    )
+    assert message.error is None
+    assert [call.arguments for call in calls] == [shown]
+
+    selected: dict[str, object] = {"named": {"fileName": "b.txt"}}
+    message = await execute_with_approval(
+        ToolCall(id="2", function="step_tool", arguments=deepcopy(shown)),
+        [step_tool(received)],
+        [ApprovalPolicy(modifying_approver(deepcopy(selected)), "*")],
+    )
+    assert message.error is None
+    assert [r["named"].file_name for r in received] == ["a.txt", "b.txt"]
+
+
+@pytest.mark.parametrize("oversight", [True, False], ids=["approval", "no-approval"])
+async def test_a_constructor_cannot_change_the_call(oversight: bool) -> None:
+    """Conversion gets a copy, so a validator that changes its input leaves the call."""
+    init_transcript(Transcript())
+    calls: list[ToolCall] = []
+    received: list[dict[str, Any]] = []
+    arguments = {"consuming": {"values": [1]}}
+    call = ToolCall(id="1", function="step_tool", arguments=deepcopy(arguments))
+    message = await execute_with_approval(
+        call,
+        [step_tool(received)],
+        [ApprovalPolicy(recording_approver(calls), "*")] if oversight else None,
+    )
+
+    assert call.arguments == arguments
+    if oversight:
+        # the shown value [1, 0] would rebuild as [1, 0, 0]
+        assert message.error is not None and message.error.type == "parsing"
+        assert calls == [] and received == []
+    else:
+        assert message.error is None
+        assert [r["consuming"].values for r in received] == [[1, 0]]
+        assert logged_tool_event().arguments == arguments
+
+
+def mutating_viewer(call: ToolCall) -> ToolCallView:
+    call.arguments["step"]["name"] = "changed"
+    return ToolCallView()
+
+
+async def test_a_viewer_cannot_change_the_call_that_runs() -> None:
+    """The viewer for the logged view gets a copy of the call that runs."""
+    init_transcript(Transcript())
+    received: list[dict[str, Any]] = []
+    modified: dict[str, object] = {"step": {"name": "test", "status": "done"}}
+    message = await execute_with_approval(
+        ToolCall(id="1", function="step_tool", arguments={"step": {"name": "write"}}),
+        [ToolDef(step_tool(received), viewer=mutating_viewer)],
+        [ApprovalPolicy(modifying_approver(deepcopy(modified)), "*")],
+    )
+
+    assert message.error is None
+    assert received == [{"step": Step(name="test", status="done")}]
+    assert logged_tool_event().arguments == modified
+
+
+async def test_the_call_shown_has_a_view_of_its_converted_arguments() -> None:
+    """The prepared call's view is rendered from what the approver sees."""
+    viewed: list[dict[str, Any]] = []
+    calls: list[ToolCall] = []
+    viewer = json_viewer(viewed)
+    raw: dict[str, Any] = {"step": {"name": "WRITE"}}
+    call = ToolCall(id="1", function="step_tool", arguments=raw)
+    call.view = viewer(deepcopy(call)).call
+    message = await execute_with_approval(
+        call,
+        [ToolDef(step_tool([]), viewer=viewer)],
+        [ApprovalPolicy(recording_approver(calls), "*")],
+    )
+
+    shown = {"step": {"name": "write", "status": "pending"}}
+    assert message.error is None
+    (approved,) = calls
+    assert approved.arguments == shown
+    assert approved.view is not None
+    assert approved.view.content == json.dumps(shown, sort_keys=True)
+    assert call.view is not None
+    assert call.view.content == json.dumps(raw, sort_keys=True)
+
+
+@approver
+def in_place_approver(
+    edit: Literal["arguments", "function", "id"], decision: ApprovalDecision
+) -> Approver:
+    """Approver which changes the call in place."""
+
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        if edit == "arguments":
+            call.arguments["x"] = 5
+        elif edit == "function":
+            call.function = "other"
+        else:
+            call.id = "renamed"
+        if decision == "modify":
+            arguments = {"x": 7, "y": 1}
+            return Approval(
+                decision="modify",
+                modified=ToolCall(
+                    id=call.id, function=call.function, arguments=arguments
+                ),
+            )
+        return Approval(decision=decision)
+
+    return approve
+
+
+@pytest.mark.parametrize(
+    "edit,decision",
+    [
+        ("arguments", "escalate"),
+        ("arguments", "approve"),
+        ("function", "approve"),
+        ("id", "approve"),
+    ],
+)
+async def test_an_approver_cannot_change_the_call_in_place(
+    edit: Literal["arguments", "function", "id"], decision: ApprovalDecision
+) -> None:
+    """An in-place edit is refused: an approver changes a call with `modify`."""
+    init_transcript(Transcript())
+    seen: list[ToolCall] = []
+    message = await execute_with_approval(
+        ToolCall(id="1", function="addition", arguments={"x": 10, "y": 1}),
+        [addition()],
+        [
+            ApprovalPolicy(in_place_approver(edit, decision), "*"),
+            ApprovalPolicy(recording_approver(seen), "*"),
+        ],
+    )
+
+    assert message.error is not None
+    assert message.error.type == "approval"
+    assert "changed the tool call in place" in message.error.message
+    assert message.text == ""
+    assert len(seen) == (1 if decision == "escalate" else 0)
+    event = logged_tool_event()
+    assert event.error is not None and event.error.type == "approval"
+    # each approval event keeps the call as presented to its approver
+    presented = ToolCall(id="1", function="addition", arguments={"x": 10, "y": 1})
+    approvals = logged_approval_events()
+    assert approvals[0].call == presented
+    assert approvals[0].decision == decision
+    if decision == "escalate":
+        assert approvals[1].call.arguments == {"x": 5, "y": 1}
+
+
+@approver
+def copying_approver() -> Approver:
+    """Approver which modifies a copy of the call it is given."""
+
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        arguments = deepcopy(call.arguments)
+        arguments["x"] = 5
+        return Approval(
+            decision="modify",
+            modified=ToolCall(id=call.id, function=call.function, arguments=arguments),
+        )
+
+    return approve
+
+
+@pytest.mark.parametrize(
+    "policy,result",
+    [(copying_approver(), "6"), (in_place_approver("arguments", "modify"), "8")],
+    ids=["copy", "in-place"],
+)
+async def test_an_approver_changes_a_call_with_modify(
+    policy: Approver, result: str
+) -> None:
+    """A modify runs as selected, whatever happened to the call it was given."""
+    message = await execute_with_approval(
+        ToolCall(id="1", function="addition", arguments={"x": 10, "y": 1}),
+        [addition()],
+        [ApprovalPolicy(policy, "*")],
+    )
+
+    assert message.error is None
+    assert message.text == result
+
+
+@approver
+def approving_with_modified_approver(edit: bool) -> Approver:
+    """Approver which approves, with a `modified` call attached."""
+
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        if edit:
+            call.arguments["x"] = 5
+        modified = ToolCall(
+            id=call.id, function=call.function, arguments={"x": 7, "y": 1}
+        )
+        return Approval(decision="approve", modified=modified)
+
+    return approve
+
+
+@pytest.mark.parametrize("edit", [False, True], ids=["unchanged", "in-place"])
+async def test_an_approve_runs_the_call_as_shown(edit: bool) -> None:
+    """An approve runs the call as shown, even with a `modified` call attached."""
+    message = await execute_with_approval(
+        ToolCall(id="1", function="addition", arguments={"x": 10, "y": 1}),
+        [addition()],
+        [ApprovalPolicy(approving_with_modified_approver(edit), "*")],
+    )
+
+    if edit:
+        assert message.error is not None and message.error.type == "approval"
+        assert "changed the tool call in place" in message.error.message
+        assert message.text == ""
+    else:
+        assert message.error is None
+        assert message.text == "11"
+
+
+@approver
+def renaming_modify_approver(selected: str) -> Approver:
+    """Approver which renames the call it is given, then returns a modify."""
+
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        call.function = "other"
+        return Approval(
+            decision="modify",
+            modified=ToolCall(
+                id=call.id, function=selected, arguments={"x": 7, "y": 1}
+            ),
+        )
+
+    return approve
+
+
+async def test_a_modify_keeps_the_function_as_shown() -> None:
+    """A modify may select only the function shown, whatever the approver renamed."""
+    init_transcript(Transcript())
+    message = await execute_with_approval(
+        ToolCall(id="1", function="addition", arguments={"x": 10, "y": 1}),
+        [addition()],
+        [ApprovalPolicy(renaming_modify_approver("addition"), "*")],
+    )
+    assert message.error is None
+    assert message.text == "8"
+    [approval_event] = logged_approval_events()
+    assert approval_event.call.function == "addition"
+
+    with pytest.raises(RuntimeError, match="may change only the arguments"):
+        await execute_with_approval(
+            ToolCall(id="1", function="addition", arguments={"x": 10, "y": 1}),
+            [addition()],
+            [ApprovalPolicy(renaming_modify_approver("other"), "*")],
+        )
+
+
+@approver
+def reidentifying_approver() -> Approver:
+    """Approver which returns a modify with another call id."""
+
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        return Approval(
+            decision="modify",
+            modified=ToolCall(
+                id="other", function=call.function, arguments={"x": 7, "y": 1}
+            ),
+        )
+
+    return approve
+
+
+async def test_a_modify_keeps_the_id_as_shown() -> None:
+    """A modify that changes the call's id fails the sample, and nothing runs."""
+    init_transcript(Transcript())
+    with pytest.raises(RuntimeError, match="not its id"):
+        await execute_with_approval(
+            ToolCall(id="1", function="addition", arguments={"x": 10, "y": 1}),
+            [addition()],
+            [ApprovalPolicy(reidentifying_approver(), "*")],
+        )
+    event = logged_tool_event()
+    assert event.id == "1"
+    assert event.result == ""
+
+
+@dataclass
+class NonNegative:
+    n: int
+
+    def __post_init__(self) -> None:
+        assert self.n >= 0
+
+
+@tool
+def non_negative_tool(received: list[int]) -> Tool:
+    async def execute(value: NonNegative) -> str:
+        """Record a value.
+
+        Args:
+            value: A value whose constructor asserts it is not negative.
+        """
+        received.append(value.n)
+        return "done"
+
+    return execute
+
+
+@pytest.mark.parametrize(
+    "policy",
+    [None, "approve", "modify"],
+)
+async def test_a_failing_constructor_is_a_parsing_error(policy: str | None) -> None:
+    """Any exception from building an argument (here an assert) goes back to the model."""
+    init_transcript(Transcript())
+    received: list[int] = []
+    arguments = {"value": {"n": 1 if policy == "modify" else -1}}
+    policies = {
+        None: None,
+        "approve": [ApprovalPolicy(recording_approver([]), "*")],
+        "modify": [ApprovalPolicy(modifying_approver({"value": {"n": -1}}), "*")],
+    }[policy]
+    message = await execute_with_approval(
+        ToolCall(id="1", function="non_negative_tool", arguments=arguments),
+        [non_negative_tool(received)],
+        policies,
+    )
+
+    assert message.error is not None
+    assert message.error.type == "parsing"
+    assert "Unable to convert argument 'value'" in message.error.message
+    assert received == []
+    event = logged_tool_event()
+    assert event.arguments == {"value": {"n": -1}}
+    assert event.error is not None and event.error.type == "parsing"
+
+
+async def test_without_oversight_hidden_values_run() -> None:
+    """Values that are refused under oversight run without it."""
+    received: list[dict[str, Any]] = []
+    arguments = {
+        "secret": {"key": "k"},
+        "privileged": {"command": "ls", "sudo": True},
+        "lazy": {"values": [1, 2, 3]},
+        "rounded": {"amount": 1.234},
+        "digits": {"n": 4301},
+    }
+    message = await execute_with_approval(
+        ToolCall(id="1", function="step_tool", arguments=arguments),
+        [step_tool(received)],
+        None,
+    )
+
+    assert message.error is None
+    [args] = received
+    assert args["secret"].key.get_secret_value() == "k"
+    assert args["privileged"].sudo is True
+    assert args["lazy"] == [1, 2, 3]
+    assert args["rounded"].amount == 1.234
+    assert args["digits"].n == 10**4300
+
+
+@tool
+def nan_scale() -> Tool:
+    async def execute(x: float) -> str:
+        """Return a number.
+
+        Args:
+            x: The number.
+        """
+        return str(x)
+
+    return execute
+
+
+@tool
+def nan_default() -> Tool:
+    async def execute(x: int, marker: float = float("nan")) -> str:
+        """Return a number and a marker.
+
+        Args:
+            x: The number.
+            marker: A marker.
+        """
+        return f"{x} {marker}"
+
+    return execute
+
+
+async def test_an_omitted_default_is_not_compared() -> None:
+    """An omitted parameter is not shown, so its default runs whatever its equality."""
+    message = await execute_with_approval(
+        ToolCall(id="1", function="nan_default", arguments={"x": 1}),
+        [nan_default()],
+        [ApprovalPolicy(auto_approver(), "*")],
+    )
+    assert message.error is None
+    assert message.text == "1 nan"
+
+
+async def test_without_oversight_a_nan_argument_runs() -> None:
+    """Without approval or a sentinel, nothing is compared, so NaN runs as on main."""
+    message = await execute_with_approval(
+        ToolCall(id="1", function="nan_scale", arguments={"x": float("nan")}),
+        [nan_scale()],
+        None,
+    )
+    assert message.error is None
+    assert message.text == "nan"
+
+
+async def test_without_oversight_the_call_runs_as_given() -> None:
+    """With no approval or sentinel, nothing is serialized or rebuilt."""
+    init_transcript(Transcript())
+    received: list[dict[str, Any]] = []
+    arguments = {"step": {"name": "WRITE"}, "doubled": {"n": 2}}
+    message = await execute_with_approval(
+        ToolCall(id="1", function="step_tool", arguments=arguments),
+        [step_tool(received)],
+        None,
+    )
+
+    assert message.error is None
+    assert received == [{"step": Step(name="write"), "doubled": Doubled(n=2)}]
+    assert received[0]["doubled"].n == 4
+    assert logged_tool_event().arguments == arguments
+
+
+@agent
+def amount_agent(received: list[dict[str, Any]]) -> Agent:
+    async def execute(
+        state: AgentState, amount: float, note: str = "", tags: list[str] | None = None
+    ) -> AgentState:
+        """Record an amount.
+
+        Args:
+            state: Agent state.
+            amount: An amount.
+            note: A note.
+            tags: Tags.
+        """
+        received.append({"amount": amount, "note": note, "tags": tags})
+        return state
+
+    return execute
+
+
+async def test_curried_handoff_arguments_are_passed_as_given() -> None:
+    """Curried arguments come from the developer, so they are not converted."""
+    from inspect_ai.agent import handoff
+
+    received: list[dict[str, Any]] = []
+    calls: list[ToolCall] = []
+    note, tags = Path("notes.txt"), {"a"}
+    call = ToolCall(
+        id="1", function="transfer_to_amount_agent", arguments={"amount": 5}
+    )
+    messages, _ = await execute_tools(
+        [
+            ChatMessageUser(content="go"),
+            ChatMessageAssistant(content="", tool_calls=[call]),
+        ],
+        [handoff(amount_agent(received), note=note, tags=tags)],
+        approval=[ApprovalPolicy(recording_approver(calls), "*")],
+    )
+    (message,) = [m for m in messages if isinstance(m, ChatMessageTool)]
+
+    assert message.error is None
+    assert [call.arguments for call in calls] == [{"amount": 5.0}]
+    (values,) = received
+    assert values["note"] is note
+    assert values["tags"] is tags
+
+
+class Unprintable:
+    """A developer object that fails if it is formatted or compared."""
+
+    def __str__(self) -> str:
+        raise AssertionError("a developer value was formatted")
+
+    __repr__ = __str__
+
+    def __eq__(self, other: object) -> bool:
+        raise AssertionError("a developer value was compared")
+
+    __hash__ = object.__hash__
+
+
+_HIDDEN_DEFAULT = Unprintable()
+
+
+@agent
+def hidden_default_agent(received: list[dict[str, Any]]) -> Agent:
+    async def execute(
+        state: AgentState, amount: float, note: Any = "", hidden: Any = _HIDDEN_DEFAULT
+    ) -> AgentState:
+        """Record an amount.
+
+        Args:
+            state: Agent state.
+            amount: An amount.
+            note: A note.
+            hidden: A default the model does not set.
+        """
+        received.append({"amount": amount, "note": note, "hidden": hidden})
+        return state
+
+    return execute
+
+
+@pytest.mark.parametrize(
+    "policy",
+    [None, "approve", "modify"],
+    ids=["no-approval", "approval", "modify"],
+)
+async def test_curried_handoff_arguments_are_not_traced(policy: str | None) -> None:
+    """Only the model's handoff arguments are formatted or compared."""
+    from inspect_ai.agent import handoff
+
+    received: list[dict[str, Any]] = []
+    note = Unprintable()
+    call = ToolCall(
+        id="1", function="transfer_to_hidden_default_agent", arguments={"amount": 5}
+    )
+    policies = {
+        None: None,
+        "approve": [ApprovalPolicy(auto_approver(), "*")],
+        "modify": [ApprovalPolicy(modifying_approver({"amount": 6}), "*")],
+    }[policy]
+    messages, _ = await execute_tools(
+        [
+            ChatMessageUser(content="go"),
+            ChatMessageAssistant(content="", tool_calls=[call]),
+        ],
+        [handoff(hidden_default_agent(received), note=note)],
+        approval=policies,
+    )
+    (message,) = [m for m in messages if isinstance(m, ChatMessageTool)]
+
+    assert message.error is None
+    (values,) = received
+    assert values["amount"] == (6 if policy == "modify" else 5)
+    assert values["note"] is note
+    assert values["hidden"] is _HIDDEN_DEFAULT
+
+
 def test_modify_arguments_run_and_are_recorded() -> None:
     """The modified arguments run; the log keeps the model's proposal beside them."""
     policy = ApprovalPolicy(approver=modifying_approver({"x": 2, "y": 3}), tools="*")
@@ -770,24 +1972,6 @@ def test_human_approver_rejects_modify_as_the_only_choice() -> None:
 
 if __name__ == "__main__":
     test_approve_escalate()
-
-
-@approver
-def recording_approver(
-    calls: list[ToolCall], decision: ApprovalDecision = "approve"
-) -> Approver:
-    """Approver which records the calls it is asked to decide on."""
-
-    async def approve(
-        message: str,
-        call: ToolCall,
-        view: ToolCallView,
-        history: list[ChatMessage],
-    ) -> Approval:
-        calls.append(call)
-        return Approval(decision=decision)
-
-    return approve
 
 
 async def test_raising_viewer_rejects_call() -> None:
