@@ -167,7 +167,8 @@ class _Sent:
     """
 
     def __init__(self) -> None:
-        # every message sent, in the order sent; only appended to
+        # every message sent, in the order sent, as the logged snapshots of
+        # the inputs live (`_snapshot_messages`); only appended to
         self.messages: list[ChatMessage] = []
         self._previous: FoldInput | None = None
 

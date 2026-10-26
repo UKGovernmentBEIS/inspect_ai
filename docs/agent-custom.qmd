@@ -350,7 +350,7 @@ supervisor = react(
     tools=[
         addition(), 
         handoff(web_surfer()), 
-        handoff(critic(model="openai/gpt-5-mini"))
+        handoff(critic(model="openai/gpt-6-luna"))
     ]
 )
 ```
@@ -426,7 +426,7 @@ Spans are automatically created for sample initialisation, solvers, scorers, sub
 
 ### Model Call Origins
 
-Each `ModelEvent` records where the call was made in its `origin` field. During the solve a call is `"agent"`, one of its conversation's agent turns, unless it is made by a tool, a compaction, an approver, a reviewer, MCP sampling, a sentinel or a scorer, which Inspect marks itself (`"tool"`, `"compaction"`, `"approval"`, `"review"`, `"sampling"`, `"sentinel"`, `"scorer"`). A call outside the solve that no region marks is `"setup"`. A sentinel checks only agent turns at its generate stages, and the transcript timeline shows other calls as utility.
+Each `ModelEvent` records where the call was made in its `origin` field. During the solve a call is `"agent"`, one of its conversation's agent turns, unless it is made by a tool, a compaction, an approver, a reviewer, MCP sampling, a sentinel or a scorer, which Inspect marks itself (`"tool"`, `"compaction"`, `"approval"`, `"review"`, `"sampling"`, `"sentinel"`, `"scorer"`). A scorer's calls are `"scorer"`, including those of an agent run inside it, and a sentinel does not check a scorer's tool calls. Any other call outside the solve, such as one made at sample init, is `"setup"`. A sentinel checks only agent turns at its generate stages, and the transcript timeline shows other calls as utility.
 
 If your agent makes model calls that are part of the solve but are not the evaluated agent's turns, mark them with `model_origin()`. Use `"environment"` for the setup being evaluated against, such as an auditor model or a simulated user, and `"helper"` for a scaffold's own helper calls, such as its own summarizer:
 
