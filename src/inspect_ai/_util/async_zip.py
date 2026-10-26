@@ -22,9 +22,13 @@ from .zip_common import ZipCompressionMethod, ZipEntry
 # Default chunk size for streaming compressed data (1MB)
 DEFAULT_CHUNK_SIZE = 1024 * 1024
 
-# Maximum archive comment length and minimum EOCD record size per the ZIP format
+# Maximum archive comment length, minimum EOCD record size and fixed local file
+# header size per the ZIP format
 _MAX_ZIP_COMMENT_SIZE = (1 << 16) - 1
 _MIN_EOCD_SIZE = 22
+_LOCAL_HEADER_SIZE = 30
+
+_SUPPORTED_METHODS = frozenset(ZipCompressionMethod)
 
 
 class ZipCrcError(ValueError):
@@ -43,6 +47,49 @@ def _check_crc(filename: str, entry: ZipEntry, crc: int) -> None:
             f"CRC-32 mismatch for member {entry.filename} of {filename} "
             f"(expected {entry.crc32:08x}, read {crc:08x})"
         )
+
+
+def _check_size(filename: str, entry: ZipEntry, size: int, *, complete: bool) -> None:
+    """Raise ``ValueError`` if a member's decompressed size isn't its declared size.
+
+    With ``complete`` False, ``size`` is the size read so far, and only a size
+    already past the declared one raises.
+    """
+    expected = entry.uncompressed_size
+    if size > expected or (complete and size != expected):
+        raise ValueError(
+            f"Size mismatch for member {entry.filename} of {filename} "
+            f"(expected {expected} bytes, read {size}{'' if complete else '+'})"
+        )
+
+
+def _local_data_offset(filename: str, entry: ZipEntry, header: bytes) -> int:
+    """Offset of a member's data from the start of its local file header.
+
+    Like stdlib zipfile, checks the header's signature and that its name is
+    the member's, so a central directory and member bytes from two versions
+    of an archive don't read as another member's data.
+
+    Raises:
+        ValueError: The header is truncated, malformed, or names another member.
+    """
+    if len(header) < _LOCAL_HEADER_SIZE:
+        raise ValueError(
+            f"Truncated local file header for member {entry.filename} of {filename}"
+        )
+    if header[:4] != b"PK\x03\x04":
+        raise ValueError(
+            f"Bad local file header signature for member {entry.filename} of {filename}"
+        )
+    name_len: int
+    extra_len: int
+    name_len, extra_len = struct.unpack_from("<HH", header, 26)
+    name = header[_LOCAL_HEADER_SIZE : _LOCAL_HEADER_SIZE + name_len]
+    if name != entry.filename.encode("utf-8"):
+        raise ValueError(
+            f"Local file header names {name!r}, not member {entry.filename} of {filename}"
+        )
+    return _LOCAL_HEADER_SIZE + name_len + extra_len
 
 
 @dataclass
@@ -311,16 +358,17 @@ class _ZipMemberBytes:
         filename: str,
         range_and_method: tuple[int, int, ZipCompressionMethod],
         *,
-        raw: bool = False,
-        verify: ZipEntry | None = None,
+        entry: ZipEntry | None = None,
+        verify_crc: bool = False,
     ):
         self._filesystem = filesystem
         self._filename = filename
         self._offset, self._end, self._method = range_and_method
-        self._raw = raw
-        # entry whose CRC-32 the decompressed stream is checked against once
-        # fully consumed (never for raw reads, whose bytes are compressed)
-        self._verify = None if raw else verify
+        # entry whose declared size (and with verify_crc, CRC-32) the
+        # decompressed stream is checked against; None for raw reads, whose
+        # bytes are compressed
+        self._entry = entry
+        self._verify_crc = verify_crc
         self._active_streams: set[CompressedToUncompressedStream] = set()
 
     async def __aiter__(self) -> AsyncIterator[bytes]:
@@ -328,13 +376,17 @@ class _ZipMemberBytes:
             self._filename, self._offset, self._end
         )
 
-        crc = 0
-        if self._raw or self._method == ZipCompressionMethod.STORED:
+        entry = self._entry
+        crc = size = 0
+        if entry is None or self._method == ZipCompressionMethod.STORED:
             # Pass through raw bytes directly - no decompression needed
             try:
                 async for chunk in byte_stream:
-                    if self._verify is not None:
-                        crc = zlib.crc32(chunk, crc)
+                    if entry is not None:
+                        size += len(chunk)
+                        _check_size(self._filename, entry, size, complete=False)
+                        if self._verify_crc:
+                            crc = zlib.crc32(chunk, crc)
                     yield chunk
             finally:
                 await byte_stream.aclose()
@@ -344,7 +396,9 @@ class _ZipMemberBytes:
             self._active_streams.add(stream)
             try:
                 async for chunk in stream:
-                    if self._verify is not None:
+                    size += len(chunk)
+                    _check_size(self._filename, entry, size, complete=False)
+                    if self._verify_crc:
                         crc = zlib.crc32(chunk, crc)
                     yield chunk
             finally:
@@ -352,8 +406,10 @@ class _ZipMemberBytes:
                 await stream.aclose()
         # reached only when the stream was consumed to its end: a stream
         # closed early is never treated as verified
-        if self._verify is not None:
-            _check_crc(self._filename, self._verify, crc)
+        if entry is not None:
+            if self._verify_crc:
+                _check_crc(self._filename, entry, crc)
+            _check_size(self._filename, entry, size, complete=True)
 
     async def __aenter__(self) -> Self:
         return self
@@ -462,7 +518,6 @@ class AsyncZipReader:
             self._filesystem,
             self._filename,
             await self._get_member_range_and_method(member),
-            raw=True,
         )
 
     async def open_member(self, member: str | ZipEntry) -> _ZipMemberBytes:
@@ -480,6 +535,9 @@ class AsyncZipReader:
         Raises:
             KeyError: If member_name not found in archive
             NotImplementedError: If compression method is not supported
+            ValueError: If the member's local header or data is malformed,
+                or its data doesn't decompress to its declared size (raised
+                while iterating, except for the local header)
 
         Example:
             async with await zip_reader.open_member("file.json") as stream:
@@ -491,11 +549,16 @@ class AsyncZipReader:
             if isinstance(member, ZipEntry)
             else await self.get_member_entry(member)
         )
+        if entry.compression_method not in _SUPPORTED_METHODS:
+            raise NotImplementedError(
+                f"Unsupported compression method: {entry.compression_method}"
+            )
         return _ZipMemberBytes(
             self._filesystem,
             self._filename,
             await self._get_member_range_and_method(entry),
-            verify=entry if self._verify_crc else None,
+            entry=entry,
+            verify_crc=self._verify_crc,
         )
 
     async def read_member_fully(self, member: str | ZipEntry) -> bytes:
@@ -510,6 +573,12 @@ class AsyncZipReader:
 
         Returns:
             Decompressed member content as bytes
+
+        Raises:
+            KeyError: If member_name not found in archive
+            NotImplementedError: If compression method is not supported
+            ValueError: If the member's local header or data is malformed,
+                or its data doesn't decompress to its declared size
         """
         entry = (
             member
@@ -524,16 +593,17 @@ class AsyncZipReader:
 
         # Read local header + compressed data in one request
         read_start = entry.local_header_offset
-        read_end = read_start + 30 + variable_header_padding + entry.compressed_size
+        read_end = (
+            read_start
+            + _LOCAL_HEADER_SIZE
+            + variable_header_padding
+            + entry.compressed_size
+        )
         buf = await self._filesystem.read_file_bytes_fully(
             self._filename, read_start, read_end
         )
 
-        # Parse local header to find exact data offset
-        _, _, _, _, _, _, _, _, _, name_len, extra_len = struct.unpack_from(
-            "<4sHHHHHIIIHH", buf
-        )
-        data_start = 30 + name_len + extra_len
+        data_start = _local_data_offset(self._filename, entry, buf)
 
         if data_start + entry.compressed_size <= len(buf):
             compressed_data = buf[data_start : data_start + entry.compressed_size]
@@ -549,6 +619,7 @@ class AsyncZipReader:
         data = decompress_bytes(compressed_data, entry.compression_method)
         if self._verify_crc:
             _check_crc(self._filename, entry, zlib.crc32(data))
+        _check_size(self._filename, entry, len(data), complete=True)
         return data
 
     async def _get_member_range_and_method(
@@ -560,16 +631,16 @@ class AsyncZipReader:
             else await self.get_member_entry(member)
         )
 
-        # Read local file header to determine actual data offset
+        # Read local file header (and name) to determine actual data offset
         local_header = await self._filesystem.read_file_bytes_fully(
             self._filename,
             entry.local_header_offset,
-            entry.local_header_offset + 30,
+            entry.local_header_offset
+            + _LOCAL_HEADER_SIZE
+            + len(entry.filename.encode("utf-8")),
         )
-        _, _, _, _, _, _, _, _, _, name_len, extra_len = struct.unpack_from(
-            "<4sHHHHHIIIHH", local_header
+        data_offset = entry.local_header_offset + _local_data_offset(
+            self._filename, entry, local_header
         )
-
-        data_offset = entry.local_header_offset + 30 + name_len + extra_len
         data_end = data_offset + entry.compressed_size
         return (data_offset, data_end, entry.compression_method)
