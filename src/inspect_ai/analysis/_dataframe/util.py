@@ -190,11 +190,14 @@ def records_to_pandas(records: list[dict[str, ColumnType]]) -> "pd.DataFrame":
             non_null = df[col].dropna()
             if len(non_null) > 0:
                 types = set(type(v).__name__ for v in non_null)
-                # If mixed types (not all str/bytes), convert to string
-                if len(types) > 1 and not types.issubset({"str", "bytes"}):
+                # If mixed types (not all str/bytes), convert to string. pandas
+                # leaves an all-int column as object only when the ints fit
+                # neither int64 nor uint64, so convert those to string too.
+                mixed = len(types) > 1 and not types.issubset({"str", "bytes"})
+                if mixed or types == {"int"}:
                     df[col] = df[col].apply(
                         lambda x: (
-                            str(x) if x is not None and not isinstance(x, str) else x
+                            str(x) if not pd.isna(x) and not isinstance(x, str) else x
                         )
                     )
 

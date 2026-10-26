@@ -496,6 +496,33 @@ def test_samples_df_message_count():
     assert any(df["message_count"] > 0)
 
 
+@pytest.mark.parametrize("strict", [True, False])
+def test_samples_df_int_beyond_int64(tmp_path: Path, strict: bool) -> None:
+    """Ints that fit neither int64 nor uint64 become exact strings."""
+    big = [2**70, -(2**63) - 1, None]
+    eval(
+        Task(
+            dataset=[
+                Sample(input="hi", metadata={"big": value} if value else {})
+                for value in big
+            ]
+        ),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        display="none",
+    )
+
+    if strict:
+        df = samples_df(tmp_path, strict=True)
+    else:
+        df, errors = samples_df(tmp_path, strict=False)
+        assert errors == []
+
+    values = df.sort_values("id")["metadata_big"].to_list()
+    assert values[:2] == [str(2**70), str(-(2**63) - 1)]
+    assert pd.isna(values[2])
+
+
 def test_samples_df_eval_log():
     log = read_eval_log(str(SECURITY_GUIDE_LOG))
     df = samples_df(log)
