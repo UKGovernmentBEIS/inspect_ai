@@ -808,6 +808,25 @@ def solver_from_spec(spec: SolverSpec) -> Solver:
                     )
 
 
+def scorer_from_registry(name: str, /, **kwargs: Any) -> Scorer:
+    """Create a registered @scorer or @scanner by name.
+
+    Raises:
+        ValueError: If no scorer or scanner is registered under `name`.
+    """
+    if registry_lookup("scorer", name) is not None:
+        return scorer_create(name, **kwargs)
+    elif registry_lookup("scanner", name) is not None:
+        from inspect_scout import Scanner, Transcript, as_scorer
+
+        scanner = create_registry_object("scanner", name, kwargs)
+        return as_scorer(cast(Scanner[Transcript], scanner))
+    else:
+        raise ValueError(
+            f"Unknown scorer {name} (not registered as a @scorrer or @scanner)"
+        )
+
+
 def scorer_from_spec(spec: ScorerSpec, task_path: Path | None, **kwargs: Any) -> Scorer:
     """
     Load a scorer
@@ -848,20 +867,6 @@ def scorer_from_spec(spec: ScorerSpec, task_path: Path | None, **kwargs: Any) ->
                 f"The function '{scorer_name}' in the file '{scorer_path}' requires a return type annotation. Please add a return type annotation to use this function with scoring."
             )
 
-    def create_scorer(scorer_name: str, /, **kwargs: Any) -> Scorer:
-        # handle scorers and scanners
-        if registry_lookup("scorer", scorer_name) is not None:
-            return scorer_create(scorer_name, **kwargs)
-        elif registry_lookup("scanner", scorer_name) is not None:
-            from inspect_scout import Scanner, Transcript, as_scorer
-
-            scanner = create_registry_object("scanner", scorer_name, kwargs)
-            return as_scorer(cast(Scanner[Transcript], scanner))
-        else:
-            raise ValueError(
-                f"Unknown scorer {scorer_name} (not registered as a @scorrer or @scanner)"
-            )
-
     with create_cm:
         # is there a scorer file being provided? if not, load from registry
         if scorer_file is None:
@@ -869,7 +874,7 @@ def scorer_from_spec(spec: ScorerSpec, task_path: Path | None, **kwargs: Any) ->
                 raise ValueError(f"Unable to resolve scorer name from {spec.scorer}")
 
             try:
-                return create_scorer(scorer_name, **kwargs)
+                return scorer_from_registry(scorer_name, **kwargs)
             except ValueError:
                 # We need a valid path to a scorer file to try to load the scorer from there
                 if not task_path:
@@ -886,7 +891,7 @@ def scorer_from_spec(spec: ScorerSpec, task_path: Path | None, **kwargs: Any) ->
                 # We have the path to a file, so load that and try again
                 try:
                     load_module(task_path)
-                    scorer_fn = create_scorer(scorer_name, **kwargs)
+                    scorer_fn = scorer_from_registry(scorer_name, **kwargs)
                     validate_scorer(scorer_fn, scorer_name, task_pretty_path)
                     return scorer_fn
                 except ValueError:
@@ -926,7 +931,7 @@ def scorer_from_spec(spec: ScorerSpec, task_path: Path | None, **kwargs: Any) ->
                 solver[0] == scorer_name
                 for solver in (scorer_decorators + scanner_decorators)
             ):
-                scorer_fn = create_scorer(scorer_name, **kwargs)
+                scorer_fn = scorer_from_registry(scorer_name, **kwargs)
                 validate_scorer(scorer_fn, scorer_name, pretty_scorer_file or "")
                 return scorer_fn
             else:

@@ -69,6 +69,10 @@ approvers:
 
 Note that since this is a prefix match and there could be other arguments, we don't end the tool match pattern with a parentheses.
 
+For native tool calls, approval sees a call after its arguments pass the tool's schema and are converted to the tool's parameter types, so a call with invalid arguments fails before any approver or sentinel monitor sees it. While approval or a sentinel is active, approvers see the converted arguments serialized as JSON, including Pydantic model field defaults and any value a validator or `__post_init__` changed, and the tool runs what is rebuilt from the approved JSON. Arguments that do not convert back to the same JSON and the same value are a parsing error, for example a `SecretStr`, which serializes masked, or a field with `exclude=True`. A `modify` decision must give each argument in full, as shown: if the modified arguments do not convert back to exactly what was selected (for example, because a field with a default was left out), the call does not run. If a tool's arguments serialize to a form its schema does not accept (for example, a field serializer that turns a number into text), the call can be approved but not modified. Approvers of a bridged agent's calls get the arguments the agent supplies, without this step.
+
+Approvers and sentinel monitors change a call only by returning a `modify` decision with a new `ToolCall`. If one changes the call it was given in place and approves it, the call does not run.
+
 ## Approvers in Code
 
 We've demonstrated configuring approvers via a YAML approval policy file—you can also provide a policy directly in code (useful if it needs to be more dynamic). Here's a pure Python version of the example from the previous section:
@@ -235,7 +239,7 @@ There are five possible approval decisions:
 
 A `modify` decision must carry the modified call in `modified`. Without one, the decision is treated as a rejection: the tool does not run, and the model is told that a modification was chosen but no modified call was supplied. The approval event still records the `modify` decision.
 
-A `modify` decision may change only the arguments of the tool call. If the modified call names a different function, neither tool runs and the sample fails with an error, since this is a bug in the approver rather than something to report to the model. For a modified call, the tool event records the arguments that ran, while the model output and the approval event keep the call the model proposed.
+A `modify` decision may change only the arguments of the tool call. If the modified call names a different function or, for a native call, has a different id, neither tool runs and the sample fails with an error, since this is a bug in the approver rather than something to report to the model. For a modified native call, the tool event records the arguments that ran, the model output keeps the call the model proposed, and the approval event keeps the call as presented for approval, with the modified call in `modified`.
 
 
 Here's a more complicated custom approver that implements an allow list for bash commands. Imagine that we've implemented this approver within a Python package named `evaltools`:
