@@ -1070,6 +1070,7 @@ def test_openai_responses_non_gpt_6_keeps_sampling_params_without_effort(model_n
         "openai.gpt-6-sol",
         "my-gpt-6-luna-deployment",
         "openai.gpt-6.1-terra",
+        "my-gpt-6.1-terra-deployment",
     ],
 )
 def test_openai_responses_gpt_6_none_effort_sends_sampling_params(
@@ -1160,6 +1161,7 @@ def test_openai_compatible_model_info_gpt_6_is_gpt_5_plus(model_name):
         ("my-gpt-6.1-sol-deployment", True),  # azure deployment name
         ("gpt-6.1-terra", False),
         ("openai.gpt-6.1-terra", False),
+        ("my-gpt-6.1-terra-deployment", False),
         ("gpt-6", False),
         ("gpt-5.6-sol", False),
         ("gpt-5.5", False),
