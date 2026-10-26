@@ -1071,6 +1071,12 @@ class _Fingerprint(NamedTuple):
     calls: tuple[tuple[str, str], ...]
 
 
+# an input's identity hashes its messages' fingerprints as a polynomial
+# modulo this prime
+_MODULUS = (1 << 61) - 1
+_BASE = 0x9E3779B97F4A7C15 % _MODULUS
+
+
 class _Inputs:
     """Model inputs as the classification passes read them.
 
@@ -1091,6 +1097,11 @@ class _Inputs:
         self._tool_rows: dict[str, list[int]] | None = None
         # message fingerprint -> the pool rows holding it
         self._rows_by_fingerprint: dict[_Fingerprint, list[int]] | None = None
+        # message fingerprint -> its number in an input's identity; the hash
+        # of the pool's first rows, by count, and the powers of _BASE
+        self._codes: dict[_Fingerprint, int] = {}
+        self._prefix: list[int] | None = None
+        self._powers: list[int] = [1]
         self._agent_spans: AgentSpans | None = None
 
     def of(self, event: ModelEvent) -> Sequence[ChatMessage]:
@@ -1130,6 +1141,36 @@ class _Inputs:
                 rows.setdefault(self.fingerprint(message), []).append(row)
             self._rows_by_fingerprint = rows
         return self._rows_by_fingerprint.get(fingerprint, [])
+
+    def identity(self, input: Sequence[ChatMessage]) -> tuple[int, int]:
+        """An input as a retry matches it: its length and a hash of its messages' fingerprints.
+
+        An input stored as pool ranges is hashed a step per range, from the hashes of the pool's first rows, so the same messages stored at other rows (as the pool keeps messages that differ only in metadata) have the same identity.
+        """
+        hashed = 0
+        if isinstance(input, PoolView):
+            prefix = self._pool_prefix()
+            for begin, end in input.refs:
+                power = self._powers[end - begin]
+                part = (prefix[end] - prefix[begin] * power) % _MODULUS
+                hashed = (hashed * power + part) % _MODULUS
+        else:
+            for message in input:
+                hashed = (hashed * _BASE + self._code(message)) % _MODULUS
+        return len(input), hashed
+
+    def _code(self, message: ChatMessage) -> int:
+        fingerprint = self.fingerprint(message)
+        return self._codes.setdefault(fingerprint, len(self._codes) + 1)
+
+    def _pool_prefix(self) -> list[int]:
+        if self._prefix is None:
+            prefix = [0]
+            for message in self._pool or []:
+                prefix.append((prefix[-1] * _BASE + self._code(message)) % _MODULUS)
+                self._powers.append(self._powers[-1] * _BASE % _MODULUS)
+            self._prefix = prefix
+        return self._prefix
 
     def fingerprint(self, message: ChatMessage) -> _Fingerprint:
         # keyed by identity: inputs read from a pool, or expanded from one,
@@ -1367,7 +1408,7 @@ class _Continuity:
     - A call whose input continues the tip, holding the tip's output at position ``len(tip.input)``, is on the thread, a *head*. Two heads of one tip are a fork: the one a later call continues is the turn, and the others are utility.
     - A call that continues nothing is a *candidate*; if a later call continues it, the thread moves to it (a compaction the log does not show). The candidates a thread goes on without, by advancing or moving to another, are utility; those still open where the thread ends (a scaffold that keeps a window of fixed length, so no later call continues anything) get no answer, and the existing rules decide them.
     - A summary ``CompactionEvent`` resets the tip, and the call just before it is the summarizer, utility, if its output appears in the next call's input (decided by Charles 2026-10-26): Inspect's summary call continues the tip, and the next turn's input holds its summary. The calls still open end the thread as the end of the span does, so a log that records no summary call keeps its last turn. Only the last call is looked for, so each compaction reads the next input once; a summary call followed by another call before the compaction stays a turn. The output appears where a message of that input contains its text, or its text from its last ``<summary>`` tag (Inspect drops the ``<analysis>`` before it); a summary reworded on the way in is not recognized, and its call stays a turn. An edit or trim ends the thread as the end of the span does.
-    - A failed call is a turn or utility as its retry, the next call in its conversation with the same input (the same pool rows, or for expanded inputs the same messages), is; one not retried is a turn.
+    - A failed call is a turn or utility as its retry, the next call in its conversation with the same input (the same messages by fingerprint, wherever the pool stores them), is; one not retried is a turn.
     - Where the thread ends (the end of the span, an edit or trim, or a move to a candidate), a lone head is its last turn, and a fork goes to the head whose output is in the span's final messages; a fork no later call or final message resolves gets no answer, and the existing rules decide its calls (a scaffold that sends one input again and again would otherwise lose all but its last call).
 
     So a call is utility only where the conversation went on without it, or where its output is the summary a compaction put in its place.
@@ -1387,7 +1428,7 @@ class _Continuity:
         self._candidates = _OpenCalls(inputs)
         # failed calls not yet retried, by their input, and each retried one
         # with its retry
-        self._failed: dict[tuple[object, ...], list[_Call]] = {}
+        self._failed: dict[tuple[int, int], list[_Call]] = {}
         self._retried: list[tuple[_Call, _Call]] = []
         # the last call, and the heads open at each summary compaction, until
         # the next call's input shows whether the last call summarized
@@ -1401,10 +1442,10 @@ class _Continuity:
             self._summarizers(call.input)
         self._last = call
         if call.output is None:
-            self._failed.setdefault(self._input_identity(call), []).append(call)
+            self._failed.setdefault(self._inputs.identity(call.input), []).append(call)
             return
         if self._failed:
-            for failed in self._failed.pop(self._input_identity(call), []):
+            for failed in self._failed.pop(self._inputs.identity(call.input), []):
                 self._retried.append((failed, call))
         head = self._heads.continued_by(call)
         if head is not None:
@@ -1520,15 +1561,6 @@ class _Continuity:
             and self._inputs.fingerprint(call.input[at])
             == self._inputs.fingerprint(earlier.output)
         )
-
-    def _input_identity(self, call: _Call) -> tuple[object, ...]:
-        """An input as a retry matches it: the pool rows it names, stored as ranges, else its messages by fingerprint.
-
-        A call's identity is taken only while a failed call waits, so a pooled log pays its ranges, and expanded inputs (which can name no rows) the messages they hold.
-        """
-        if isinstance(call.input, PoolView):
-            return ("rows", *call.input.refs)
-        return ("messages", *(self._inputs.fingerprint(m) for m in call.input))
 
     def _in_final(self, head: _Call) -> bool:
         at = len(head.input)

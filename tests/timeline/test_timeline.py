@@ -1110,3 +1110,40 @@ def test_failed_calls_are_matched_to_retries_in_linear_work(
 
     small, large = work(200), work(400)
     assert large <= 2.2 * small + 10, (small, large)
+
+
+def test_an_input_s_identity_is_the_same_pooled_or_expanded() -> None:
+    # delta review d1: a retry's input stored at other pool rows, as rows
+    # holding equal messages with other metadata, matched no failed call
+    import random
+
+    from inspect_ai._sentinel._steps import PoolView
+    from inspect_ai.event._pool import _compress_refs
+    from inspect_ai.event._timeline import _Inputs
+    from inspect_ai.model import ChatMessageUser
+
+    chooser = random.Random(11)
+    for _ in range(200):
+        pool = [
+            ChatMessageUser(content=f"{chooser.randint(0, 3)}", metadata={"row": row})
+            for row in range(chooser.randint(1, 30))
+        ]
+        inputs = _Inputs([], pool)
+        rows = [chooser.randrange(len(pool)) for _ in range(chooser.randint(0, 20))]
+        other = [
+            chooser.choice([r for r, m in enumerate(pool) if m.text == pool[row].text])
+            for row in rows
+        ]
+        pooled = PoolView(pool, _compress_refs(rows))
+        assert inputs.identity(pooled) == inputs.identity(list(pooled))
+        assert inputs.identity(pooled) == inputs.identity(
+            PoolView(pool, _compress_refs(other))
+        )
+        differing = [
+            r for r, m in enumerate(pool) if rows and m.text != pool[rows[0]].text
+        ]
+        if differing:
+            changed = [differing[0], *rows[1:]]
+            assert inputs.identity(pooled) != inputs.identity(
+                PoolView(pool, _compress_refs(changed))
+            )
