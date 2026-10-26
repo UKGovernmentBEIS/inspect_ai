@@ -1148,3 +1148,63 @@ def test_a_sample_with_no_call_through_a_sidecar_copies_nothing() -> None:
     assert log.samples is not None
     assert (log.samples[0].scores or {})["_reads_monitor_state"].value == -1
     assert _registered(stand_in, "sample_result") == []
+
+
+def _two_models(first: StandInSidecar, second: StandInSidecar) -> tuple[Model, Model]:
+    return (
+        _model(first, base_url="http://proxy-a.test"),
+        _model(second, base_url="http://proxy-b.test"),
+    )
+
+
+@solver
+def _asks_both(other: Model) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        state = await generate(state)
+        # an agent that hands work to a model behind another proxy
+        await other.generate(state.messages)
+        return state
+
+    return solve
+
+
+def _two_proxy_task(other: Model) -> Task:
+    return Task(
+        dataset=[Sample(input="Hi.")],
+        solver=_asks_both(other),
+        scorer=_reads_monitor_state(),
+    )
+
+
+def test_each_sidecar_an_agent_reaches_is_registered_told_and_ended() -> None:
+    first = StandInSidecar(methods={"sample_result": _kept({"Tally:lookups": 2})})
+    second = StandInSidecar(methods={"sample_result": _kept({"Other:seen": 1})})
+    assigned, other = _two_models(first, second)
+
+    [log] = eval(_two_proxy_task(other), model=assigned, display="none")
+
+    assert log.samples is not None
+    [sample] = log.samples
+    for stand_in in (first, second):
+        assert len(_registered(stand_in, "register_task")) == 1
+        assert len(_registered(stand_in, "complete_registration")) == 1
+        assert _ended(stand_in) == [sample.uuid]
+        # each call names its sample to the sidecar it went through
+        [call] = stand_in.model_calls
+        assert _context(call) is not None
+    # the second sidecar was found at the agent's first call to it
+    assert len(second.probes) == 1
+    assert (sample.scores or {})["_reads_monitor_state"].value == 2
+
+
+def test_two_sidecars_that_keep_the_same_key_fail_the_sample() -> None:
+    first = StandInSidecar(methods={"sample_result": _kept({"Tally:lookups": 2})})
+    second = StandInSidecar(methods={"sample_result": _kept({"Tally:lookups": 5})})
+    assigned, other = _two_models(first, second)
+
+    [log] = eval(_two_proxy_task(other), model=assigned, display="none")
+
+    assert log.samples is not None
+    error = log.samples[0].error
+    assert error is not None
+    assert "both keep 'Tally:lookups'" in error.message

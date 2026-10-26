@@ -148,6 +148,7 @@ class TaskSidecars:
         if not through:
             return
         copied: dict[str, Any] = {}
+        written_by: dict[str, str] = {}
         failed: str | None = None
         for sidecar in through.values():
             with anyio.move_on_after(CALL_TIMEOUT) as scope:
@@ -155,9 +156,17 @@ class TaskSidecars:
                     result = await sidecar.call(
                         "sample_result", {"sample_uuid": sample_uuid}
                     )
-                    copied.update(result.get("store") or {})
                 except SidecarCallError as ex:
                     failed = _copy_failure(sidecar, ex)
+                    continue
+                for key, value in (result.get("store") or {}).items():
+                    # which sentinel a scorer reads can't be told
+                    if key in written_by:
+                        raise SentinelProxyError(
+                            f"The sentinels in the sidecars at {written_by[key]} and {sidecar.origin} both keep {key!r} for the sample."
+                        )
+                    written_by[key] = sidecar.origin
+                    copied[key] = value
             if scope.cancel_called:
                 failed = (
                     f"the sentinel sidecar at {sidecar.origin} didn't answer in time"
