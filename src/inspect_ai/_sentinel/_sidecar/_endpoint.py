@@ -37,6 +37,8 @@ class Sidecar:
     origin: str
     release: Literal["whole", "early"]
     client: Any = field(repr=False)
+    version: int = 1
+    """The version of the endpoint for evals Inspect speaks to it."""
     _ids: "count[int]" = field(default_factory=lambda: count(1), repr=False)
 
     async def call(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
@@ -142,7 +144,8 @@ async def probe(client: _Client) -> Sidecar | str:
         raise SentinelProxyError(
             f"The sentinel sidecar at {origin} releases replies early ({release!r}), which Inspect doesn't support yet. Run the sidecar with `--release whole`."
         )
-    return Sidecar(origin, release, client.sdk)
+    version = max(v for v in versions if v in VERSIONS)
+    return Sidecar(origin, release, client.sdk, version)
 
 
 def _origin(base_url: Any) -> str:

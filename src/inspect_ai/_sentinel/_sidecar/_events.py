@@ -1,0 +1,129 @@
+"""The sidecar's reports in Inspect's transcript, as `SentinelEvent`s like an in-process sentinel's."""
+
+from collections.abc import Sequence
+from typing import Any
+
+from inspect_ai.event._sentinel import SentinelEvent, SentinelSidecar
+from inspect_ai.model._chat_message import ChatMessage, ChatMessageAssistant
+
+from .._conversation import current_conversation
+from ._endpoint import Sidecar
+from ._field import SentinelField, SentinelStep
+
+
+def record_sidecar_reports(
+    field: SentinelField,
+    sidecar: Sidecar,
+    request: str | None,
+    input: Sequence[ChatMessage],
+    output: ChatMessageAssistant | None,
+) -> None:
+    """Write each report in the field into the transcript: one event per monitor and protocol report, or, from a sidecar that sends only what Inspect acts on, one per step's decision.
+
+    Each step is tied to Inspect's own ids: a tool stage's to the call's id, `model_output` to the assistant message the reply became, and `model_input` to the last message of the call's input.
+    """
+    from inspect_ai.log._transcript import transcript
+
+    where = SentinelSidecar(
+        proxy=sidecar.origin,
+        version=sidecar.version,
+        release=sidecar.release,
+        request=request,
+        trimmed=bool(field.trimmed),
+    )
+    conversation = current_conversation()
+    for step in field.steps:
+        step_id = _step_id(step, input, output)
+        if field.trimmed or step.recorded is None:
+            # a step without its records holds only what Inspect acts on
+            trimmed = where.model_copy(update={"trimmed": True})
+            transcript()._event(
+                SentinelEvent.model_validate(
+                    {
+                        "factory": "",
+                        "path": "",
+                        "step_id": step_id,
+                        "conversation": conversation,
+                        "stage": step.stage,
+                        "kind": "decision",
+                        "status": "reported",
+                        **_decision(step.decision),
+                        "sidecar": trimmed,
+                    }
+                )
+            )
+            continue
+        for record in step.recorded:
+            transcript()._event(
+                SentinelEvent.model_validate(
+                    {
+                        "factory": record.get("factory", ""),
+                        "path": record.get("path", ""),
+                        "step_id": step_id,
+                        "conversation": conversation,
+                        "stage": step.stage,
+                        **_report(record),
+                        "sidecar": where,
+                    }
+                )
+            )
+
+
+def _step_id(
+    step: SentinelStep,
+    input: Sequence[ChatMessage],
+    output: ChatMessageAssistant | None,
+) -> str:
+    if step.call is not None:
+        return step.call
+    if step.stage == "model_output" and output is not None and output.id:
+        return output.id
+    last = input[-1].id if input else None
+    return last or ""
+
+
+def _report(record: dict[str, Any]) -> dict[str, Any]:
+    kind = record.get("kind")
+    if kind == "failed":
+        return {
+            "kind": "observation",
+            "status": "error",
+            "function": record.get("function"),
+            "error": record.get("error"),
+        }
+    if kind in ("cancelled", "bypassed"):
+        # a protocol is bypassed; a cancelled monitor's kind isn't recorded
+        return {
+            "kind": "decision" if kind == "bypassed" else "observation",
+            "status": kind,
+        }
+    report = record.get("report") or {}
+    if "action" in report:
+        return {
+            "kind": "decision",
+            "status": "superseded" if kind == "superseded" else "reported",
+            "function": record.get("function"),
+            **_decision(report),
+        }
+    return {
+        "kind": "observation",
+        "status": "reported",
+        "function": record.get("function"),
+        "suspicion": report.get("suspicion"),
+        "explanation": report.get("explanation"),
+        "references": report.get("references", []),
+        "metadata": report.get("metadata"),
+    }
+
+
+def _decision(decision: dict[str, Any]) -> dict[str, Any]:
+    action = decision.get("action")
+    return {
+        "action": action,
+        "audit": decision.get("audit", False),
+        "modified": decision.get("modified") if action == "modify" else None,
+        "message": decision.get("message") if action == "reject" else None,
+        "explanation": decision.get("explanation"),
+        "references": decision.get("references", []),
+        "metadata": decision.get("metadata"),
+    }
