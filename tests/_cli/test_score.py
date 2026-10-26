@@ -212,9 +212,7 @@ async def test_score_append_preserves_reductions(
         score_cli, "resolve_scorers", lambda *args, **kwargs: [object()]
     )
 
-    async def fake_score_async(
-        *, log, scorers, metrics, model, model_roles, action, copy, samples
-    ):
+    async def fake_score_async(*, log, **kwargs):
         return log
 
     monkeypatch.setattr(score_cli, "score_async", fake_score_async)
