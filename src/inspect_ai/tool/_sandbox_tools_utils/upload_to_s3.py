@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Upload sandbox tools executables to S3 for a given version.
 
-Runs in the ``sandbox-tools-publish.yml`` CI job (which holds the S3
-credentials); locally only with ``--dry-run`` (no credentials, no upload). It
+Normally runs in the ``sandbox-tools-publish.yml`` CI job (which holds the S3
+credentials); locally with ``--dry-run`` (no credentials, no upload), or for
+real only as the emergency admin path in
+``src/inspect_sandbox_tools/design/RELEASING.md``. It
 is the single writer of the vendored ``SHA256SUMS`` file: computes digests of
 the four local artifacts, refuses to overwrite a published version with
 different bytes, skips objects already published with matching bytes, rewrites
