@@ -850,7 +850,7 @@ def test_release_runs_only_in_the_upstream_repository() -> None:
     for name, job in jobs.items():
         if name != "release-please":
             assert "release-please" in job["needs"], name
-            assert "always()" not in job.get("if", ""), name
+            assert not re.search("always|cancelled|failure", job.get("if", "")), name
 
 
 def test_completeness_check_runs_last_when_nothing_was_resolved() -> None:
