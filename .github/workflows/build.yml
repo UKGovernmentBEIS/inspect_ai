@@ -20,9 +20,11 @@ permissions:
   contents: read
 
 env:
-  # 0.9.30 installs CPython 3.14.3; 0.9.4 installs 3.14.0, which rejects
-  # `typing.Union | "str"` forward references used by inspect_scout (fixed in 3.14.1).
-  UV_VERSION: 0.9.30
+  # Needs >= 0.13.4, which drops the compromised emSign root from uv's
+  # certificate store (GHSA-hq85-5cpj-mr62), and >= 0.11.24 for relative
+  # `exclude-newer` in pyproject.toml (with a stable uv.lock) and
+  # `--exclude-newer false` for the canary jobs.
+  UV_VERSION: 0.13.5
 
 jobs:
   # Keep these check names present on Markdown-only PRs while avoiding source
@@ -94,7 +96,7 @@ jobs:
 
       - name: Install uv
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: ${{ matrix.python-version }}
@@ -103,10 +105,12 @@ jobs:
       # below runs under `uv run`, which syncs the project environment to
       # uv.lock before it executes anything, so an unlocked `uv pip install`
       # is partly undone a step later. Installing the locked set here and
-      # passing --no-sync below reaches the same environment once.
+      # passing --no-sync below reaches the same environment once. --locked
+      # fails on a uv.lock that is out of date with pyproject.toml instead of
+      # re-resolving it.
       - name: Install dependencies
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        run: uv sync
+        run: uv sync --locked
 
       - name: Run mypy
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
@@ -165,6 +169,21 @@ jobs:
               - 'docs/**'
               - 'requirements-doc.txt'
 
+  # Dependency canaries: docs, sandbox-tools-unit and slow-tool-tests-dev
+  # install with `uv pip install --exclude-newer false`, which resolves the
+  # newest releases of everything (ignoring the cooldown in pyproject.toml), so
+  # an upstream release that breaks resolution or installation shows up here
+  # first. The `uv run --locked` steps that follow then sync the project's main
+  # and dev dependencies to uv.lock (failing if uv.lock is out of date rather
+  # than re-resolving it), so the render and tests themselves run against
+  # uv.lock for those and the latest versions of anything outside them, such
+  # as the parts of the docs toolchain and of inspect_sandbox_tools' own
+  # dependencies that the project doesn't also depend on. These jobs
+  # hold no secrets and don't save the uv cache (save-cache: false), so honest
+  # runs don't put unvetted releases into the cache. A malicious package can
+  # still write to the cache directly, so jobs that hold credentials restore
+  # no cache (tests/test_workflow_cache.py).
+  #
   # Validate the Quarto docs site whenever docs change — on docs-only PRs
   # (where the test matrix is skipped) and on mixed docs+code PRs alike.
   # Spell checking (typos, scoped to docs and markdown) already runs
@@ -213,20 +232,13 @@ jobs:
           path: .docs-render-ok
           key: docs-render-${{ hashFiles('docs/**', 'requirements-doc.txt', '.docs-src-delta') }}
 
-      # Own cache scope: setup-uv's default key is shared by every 3.11 job
-      # here, so the first to finish saves its dev cache and this job only ever
-      # logs "cache hit ... not saving cache" — leaving the sdist-built
-      # quarto-cli wheel, 43s of the install step below, uncacheable. Note the
-      # key hashes requirements-doc.txt, not the resolution it produces, so a
-      # quarto release above its `>=` floor still re-pays that build until some
-      # hashed file rotates the key.
       - name: Install uv
         if: steps.render-cache.outputs.cache-hit != 'true'
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"
-          cache-suffix: docs
+          save-cache: false
 
       # The package itself is installed because reference docs are
       # generated from the inspect_ai module (griffe).
@@ -234,12 +246,12 @@ jobs:
         if: steps.render-cache.outputs.cache-hit != 'true'
         run: |-
           uv venv
-          uv pip install -r requirements-doc.txt .
+          uv pip install --exclude-newer false -r requirements-doc.txt .
 
       - name: Render docs
         if: steps.render-cache.outputs.cache-hit != 'true'
         run: |-
-          uv run quarto render docs
+          uv run --locked quarto render docs
           touch .docs-render-ok
 
       - name: Minimize uv cache
@@ -309,18 +321,16 @@ jobs:
 
       - name: Install uv
         if: env.RUN_TESTS == 'true'
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: ${{ matrix.python-version }}
 
       # `uv sync` then `uv run --no-sync`, for the same reason as the mypy job.
-      # The other `uv run` sites below keep their implicit sync on purpose:
-      # for docs and sandbox-tools-unit, dropping it would change which
-      # dependency versions the job tests against, and slow-tool-tests-release
-      # relies on the sync replacing its wheel install with the lockfile's
-      # editable one, so `_binaries_dir()` resolves to the source tree the
-      # published binaries were downloaded into.
+      # The canaries sync in `uv run --locked` instead, because that sync is
+      # what puts uv.lock's versions back over their floating install. The
+      # slow jobs run `uv run --locked` after `uv sync --locked`, which only
+      # re-checks the lock.
       # tests/test_package goes in after the sync (it is not in the lockfile)
       # so ensure_test_package_installed() short-circuits instead of
       # pip-installing it mid-run (~9s on the xdist critical path, paid by
@@ -328,7 +338,7 @@ jobs:
       - name: Install dependencies
         if: env.RUN_TESTS == 'true'
         run: |-
-          uv sync
+          uv sync --locked
           uv pip install --no-deps ./tests/test_package
 
       - name: Test with pytest
@@ -369,7 +379,7 @@ jobs:
   # dependencies; the root `test` job neither installs this package nor
   # collects its tests. Runs on any change to the package — including test-only
   # changes — and needs no Docker or built binary (unlike the
-  # slow-tool-tests-* jobs below).
+  # slow-tool-tests-* jobs below). A dependency canary (see docs).
   sandbox-tools-unit:
     needs: changes
     if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.sandbox_tools == 'true'
@@ -380,18 +390,19 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"
+          save-cache: false
 
       - name: Install sandbox-tools package (with dev deps)
         run: |-
           uv venv
-          uv pip install "./src/inspect_sandbox_tools[dev]"
+          uv pip install --exclude-newer false "./src/inspect_sandbox_tools[dev]"
 
       - name: Test with pytest
-        run: uv run pytest src/inspect_sandbox_tools/tests/ -ra --color=yes
+        run: uv run --locked pytest src/inspect_sandbox_tools/tests/ -ra --color=yes
 
       - name: Minimize uv cache
         if: ${{ !cancelled() }}
@@ -438,7 +449,7 @@ jobs:
               - "!src/inspect_sandbox_tools/**/*.md"
               - "!src/inspect_sandbox_tools/design/**"
       # Generic, growable table of areas whose slow tests run with nothing but
-      # `uv pip install .[dev]` + Docker-on-the-runner. `changes` is a JSON list
+      # `uv sync --locked` + Docker-on-the-runner. `changes` is a JSON list
       # of the keys that matched; the slow-tests matrix fans out over it.
       # Convention: each key is also the tests/<key>/ directory to run.
       # Tests needing an API key self-skip via skip_if_no_* (no secrets here),
@@ -516,6 +527,7 @@ jobs:
   # Developer gate: run the sandbox slow-test suite. When the injectable
   # source or version changed, build a -dev binary first; otherwise let
   # pytest resolve the published v{N} via the runtime's S3 download path.
+  # A dependency canary (see docs).
   slow-tool-tests-dev:
     needs: [detect-slow, check-version-bump]
     if: needs.detect-slow.outputs.tools_changed == 'true'
@@ -534,15 +546,16 @@ jobs:
         run: git branch main origin/main
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"
+          save-cache: false
 
       - name: Install dependencies
         run: |-
           uv venv
-          uv pip install .[dev]
+          uv pip install --exclude-newer false .[dev]
 
       - name: Build sandbox-tools -dev binaries (glibc + musl)
         if: needs.detect-slow.outputs.injectable_src_changed == 'true' || needs.check-version-bump.outputs.version_correctly_bumped == 'true'
@@ -551,8 +564,8 @@ jobs:
           BUILDKIT_PROGRESS: plain
         # Both libc variants: the slow suite includes an Alpine (musl) case.
         run: |
-          uv run python src/inspect_ai/tool/_sandbox_tools_utils/build_within_container.py --arch amd64
-          uv run python src/inspect_ai/tool/_sandbox_tools_utils/build_within_container.py --arch amd64 --musl
+          uv run --locked python src/inspect_ai/tool/_sandbox_tools_utils/build_within_container.py --arch amd64
+          uv run --locked python src/inspect_ai/tool/_sandbox_tools_utils/build_within_container.py --arch amd64 --musl
 
       - name: Run slow tool tests
         env:
@@ -564,7 +577,7 @@ jobs:
           # runner has Compose >= 2.39, together with the same setting in
           # meridianlabs-ai/actions inspect-ai-scheduled-tests.yml (actions#156).
           COMPOSE_BAKE: "false"
-        run: uv run pytest --runslow -m slow tests/tools/ -x -v --durations=0 -n logical
+        run: uv run --locked pytest --runslow -m slow tests/tools/ -x -v --durations=0 -n logical
 
       - name: Minimize uv cache
         if: ${{ !cancelled() }}
@@ -591,15 +604,15 @@ jobs:
           submodules: true
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"
 
+      # The project installs editable, so `_binaries_dir()` resolves to the
+      # source tree the published binaries are downloaded into below.
       - name: Install dependencies
-        run: |-
-          uv venv
-          uv pip install .[dev]
+        run: uv sync --locked
 
       - name: Fetch and verify published non-dev sandbox-tools binaries
         run: |
@@ -658,7 +671,7 @@ jobs:
           INSPECT_SANDBOX_TOOLS_INSTALL_STATE: clean
           # Shared image IDs under Compose 2.38; see "Run slow tool tests".
           COMPOSE_BAKE: "false"
-        run: uv run pytest --runslow -m slow tests/tools/ -x -v --durations=0 -n logical
+        run: uv run --locked pytest --runslow -m slow tests/tools/ -x -v --durations=0 -n logical
 
       - name: Minimize uv cache
         if: ${{ !cancelled() }}
@@ -688,21 +701,19 @@ jobs:
           submodules: true
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"
 
       - name: Install dependencies
-        run: |-
-          uv venv
-          uv pip install .[dev]
+        run: uv sync --locked
 
       - name: Run slow tests
         env:
           # Shared image IDs under Compose 2.38; see "Run slow tool tests".
           COMPOSE_BAKE: "false"
-        run: uv run pytest --runslow -m slow tests/${{ matrix.area }}/ -n logical --durations=0
+        run: uv run --locked pytest --runslow -m slow tests/${{ matrix.area }}/ -n logical --durations=0
 
       - name: Minimize uv cache
         if: ${{ !cancelled() }}

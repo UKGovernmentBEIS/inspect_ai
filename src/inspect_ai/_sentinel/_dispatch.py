@@ -89,9 +89,10 @@ from inspect_ai.util._limit import (
     suspend_turn_limit,
     suspend_working_limit,
 )
-from inspect_ai.util._span import current_agent_span_id, span
+from inspect_ai.util._span import span
 from inspect_ai.util._store import store
 
+from ._agent_state import agent_messages, current_conversation
 from ._context import (
     SentinelFailure,
     active_sentinel,
@@ -124,17 +125,15 @@ async def sentinel_before_tool_call(
     except ToolCallViewError as ex:
         raise ToolApprovalError(str(ex)) from ex
     producer = _producing_event(call, history)
-    conversation = _conversation()
-    # inspect_sentinel 0.1.4, which mypy checks against, has neither
-    # message_id nor tool_choice; _require_message_id() ensures they exist
-    step = BeforeToolCall(  # type: ignore[call-arg]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
+    conversation = current_conversation()
+    step = BeforeToolCall(
         conversation=conversation,
         message=message,
         message_id=_message_id(message_id),
         call=call,
         view=view,
         input=list(producer.input) if producer is not None else None,
-        agent_messages=history,
+        agent_messages=agent_messages(conversation),
         history=sent_messages(conversation),
         human_decisions=_human_decisions(conversation),
         tools=list(producer.tools) if producer is not None else None,
@@ -175,10 +174,8 @@ async def sentinel_after_tool_call(
         return
     _require_message_id()
     producer = _producing_event(call, history)
-    conversation = _conversation()
-    # inspect_sentinel 0.1.4, which mypy checks against, has neither
-    # message_id nor tool_choice; _require_message_id() ensures they exist
-    step = AfterToolCall(  # type: ignore[call-arg]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
+    conversation = current_conversation()
+    step = AfterToolCall(
         conversation=conversation,
         message=message,
         message_id=_message_id(message_id),
@@ -187,7 +184,7 @@ async def sentinel_after_tool_call(
         output=output,
         view=resolve_tool_call_view(call, viewer),
         input=list(producer.input) if producer is not None else None,
-        agent_messages=history,
+        agent_messages=agent_messages(conversation),
         history=sent_messages(conversation),
         human_decisions=_human_decisions(conversation),
         tools=list(producer.tools) if producer is not None else None,
@@ -205,7 +202,6 @@ async def sentinel_before_generate(
     *,
     model: str,
     input: list[ChatMessage],
-    history: list[ChatMessage],
     tools: list[ToolInfo],
     tool_choice: ToolChoice,
     config: GenerateConfig,
@@ -222,12 +218,12 @@ async def sentinel_before_generate(
     root = active_sentinel()
     if root is None or not (watched_stages(root) & {BeforeGenerate, AfterGenerate}):
         return None
-    conversation = _conversation()
+    conversation = current_conversation()
     step = BeforeGenerate(
         model=model,
         conversation=conversation,
         input=input,
-        agent_messages=history,
+        agent_messages=agent_messages(conversation),
         history=sent_messages(conversation),
         human_decisions=_human_decisions(conversation),
         tools=tools,
@@ -249,7 +245,7 @@ async def sentinel_after_generate(before: BeforeGenerate, output: ModelOutput) -
         model=before.model,
         conversation=before.conversation,
         input=before.input,
-        agent_messages=before.agent_messages,
+        agent_messages=agent_messages(before.conversation),
         history=sent_messages(before.conversation),
         human_decisions=_human_decisions(before.conversation),
         tools=before.tools,
@@ -357,16 +353,8 @@ def _eval_context() -> EvalContext | None:
     )
 
 
-def _conversation() -> str:
-    agent_span_id = current_agent_span_id()
-    if agent_span_id is not None:
-        return agent_span_id
-    active = sample_active()
-    return active.sample_uuid if active is not None else ""
-
-
 def record_agent_turn(input: list[ChatMessage]) -> None:
-    record_sent(_conversation(), input)
+    record_sent(current_conversation(), input)
 
 
 def _require_message_id() -> None:
@@ -525,9 +513,9 @@ class _HostNative:
                     f"{', '.join(repr(c) for c in _HUMAN_CHOICES)}."
                 )
             offered.append(cast(ApprovalDecision, choice))
-        # the approval surfaces show the conversation; a step whose host could
-        # not provide the scaffold's history shows what the model saw instead,
-        # and nothing when that is unknown too
+        # the approval surfaces show the conversation; a step with no agent's
+        # list shows what the model saw instead, and nothing when that is
+        # unknown too
         if step.agent_messages is not None:
             conversation = step.agent_messages
         elif step.input is not None:
