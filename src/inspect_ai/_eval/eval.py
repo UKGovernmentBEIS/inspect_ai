@@ -7,7 +7,7 @@ from contextlib import nullcontext
 from contextvars import Token, copy_context
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, Literal, Sequence, cast
 
 import anyio
 import anyio.lowlevel
@@ -96,7 +96,7 @@ from inspect_ai.review._policy import (
     review_policies_from_config,
 )
 from inspect_ai.scorer._reducer import reducer_log_names
-from inspect_ai.solver._chain import chain
+from inspect_ai.solver._chain import chain, is_solver_sequence
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentType
 from inspect_ai.util._checkpoint import CheckpointConfig, normalize_checkpoint
@@ -140,7 +140,7 @@ def eval(
     checkpoint: CheckpointConfig | bool | None = None,
     acp_server: bool | int | str | None = None,
     ctl_server: bool | str | None = None,
-    solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
+    solver: Solver | SolverSpec | Agent | Sequence[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
@@ -446,7 +446,7 @@ async def eval_async(
     checkpoint: CheckpointConfig | bool | None = None,
     acp_server: bool | int | str | None = None,
     ctl_server: bool | str | None = None,
-    solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
+    solver: Solver | SolverSpec | Agent | Sequence[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
@@ -731,7 +731,7 @@ async def _eval_async_inner(
     checkpoint: CheckpointConfig | None = None,
     acp_server: bool | int | str | None = None,
     ctl_server: bool | str | None = None,
-    solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
+    solver: Solver | SolverSpec | Agent | Sequence[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
@@ -917,10 +917,10 @@ async def _eval_async_inner(
             )
 
         # resolve solver
-        if isinstance(solver, list):
-            solver = chain(solver)
-        elif is_agent(solver):
+        if is_agent(solver):
             solver = as_solver(solver)
+        elif is_solver_sequence(solver):
+            solver = chain(solver)
         else:
             solver = cast(Solver | SolverSpec | None, solver)
 

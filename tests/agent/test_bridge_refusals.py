@@ -109,7 +109,7 @@ async def test_filter_refusal_raises_without_calling_model() -> None:
     """A refusal produced by the filter bypasses model.generate(), so the loop raises."""
 
     async def refuse(
-        model: str,
+        model: Model,
         input: list[ChatMessage],
         tools: Any,
         tool_choice: Any,
@@ -133,11 +133,30 @@ async def test_filter_refusal_raises_without_calling_model() -> None:
     assert generations == []
 
 
+async def test_legacy_filter_with_postponed_annotation_receives_model_name() -> None:
+    received: list[str] = []
+
+    async def filter(
+        model: str,
+        input: list[ChatMessage],
+        tools: Any,
+        tool_choice: Any,
+        config: GenerateConfig,
+    ) -> ModelOutput | None:
+        received.append(model)
+        return None
+
+    with pytest.warns(DeprecationWarning, match="first parameter is deprecated"):
+        await _generate([ANSWER], config=GenerateConfig(), filter=filter)
+
+    assert received == [get_model("mockllm/model").name]
+
+
 async def test_filter_refusal_honours_model_config() -> None:
     """The filter path resolves fail_on_refusal from the model, like generate() does."""
 
     async def refuse(
-        model: str,
+        model: Model,
         input: list[ChatMessage],
         tools: Any,
         tool_choice: Any,
@@ -161,7 +180,7 @@ async def test_filter_refusal_honours_model_config() -> None:
 
 async def test_filter_refusal_returned_when_option_off() -> None:
     async def refuse(
-        model: str,
+        model: Model,
         input: list[ChatMessage],
         tools: Any,
         tool_choice: Any,
@@ -180,7 +199,7 @@ async def test_filter_refusal_retries_then_model_answers() -> None:
     calls = 0
 
     async def refuse_once(
-        model: str,
+        model: Model,
         input: list[ChatMessage],
         tools: Any,
         tool_choice: Any,
