@@ -4,7 +4,7 @@ from typing import Any
 
 import httpx2
 import pytest
-from test_helpers.stand_in_sidecar import StandInSidecar
+from test_helpers.stand_in_sidecar import StandInSidecar, Turn
 
 from inspect_ai import Task, eval
 from inspect_ai._sentinel._sidecar._endpoint import (
@@ -13,16 +13,18 @@ from inspect_ai._sentinel._sidecar._endpoint import (
     probe,
     proxy_client,
 )
+from inspect_ai._sentinel._sidecar._field import receiving_field
 from inspect_ai._sentinel._sidecar._task import SampleFacts, TaskFacts, TaskSidecars
 from inspect_ai._util._async import tg_collect
 from inspect_ai.dataset import Sample
-from inspect_ai.model import ChatMessageUser, Model, get_model
+from inspect_ai.model import ChatMessageUser, GenerateConfig, Model, get_model
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 
 _MODELS = {
     "anthropic": "anthropic/claude-haiku-4-5",
-    "openai": "openai/gpt-5-mini",
+    # no reasoning options, so no side request to check for reasoning summaries
+    "openai": "openai/gpt-4.1-mini",
 }
 
 
@@ -442,3 +444,72 @@ def test_a_call_to_an_endpoint_with_no_sidecar_names_no_sample() -> None:
     assert log.status == "success"
     assert [_context(r) for r in stand_in.model_calls] == [None]
     assert _registered(stand_in, "register_task") == []
+
+
+_FIELD = {
+    "version": 1,
+    "outcome": "proceed",
+    "steps": [
+        {"stage": "tool_call", "call": "call_1", "decision": {"action": "proceed"}}
+    ],
+}
+
+_FORMATS: dict[str, tuple[str, str, dict[str, Any]]] = {
+    "anthropic": ("anthropic", "http://proxy.test", {"streaming": False}),
+    "anthropic streamed": ("anthropic", "http://proxy.test", {"streaming": True}),
+    "responses": ("openai", "http://proxy.test/v1", {"streaming": False}),
+    "responses streamed": ("openai", "http://proxy.test/v1", {"streaming": True}),
+    "chat": (
+        "openai",
+        "http://proxy.test/v1",
+        {"streaming": False, "responses_api": False},
+    ),
+    "chat streamed": (
+        "openai",
+        "http://proxy.test/v1",
+        {"streaming": True, "responses_api": False},
+    ),
+}
+
+
+async def _received(name: str, turn: Turn) -> dict[str, Any] | None:
+    provider, base_url, model_args = _FORMATS[name]
+    stand_in = StandInSidecar(turns=[turn])
+    model = get_model(
+        _MODELS[provider],
+        base_url=base_url,
+        api_key="test-key",
+        memoize=False,
+        http_client=stand_in.http_client(),
+        **model_args,
+    )
+    with receiving_field() as received:
+        try:
+            # few tokens, as the Anthropic SDK refuses a long call it isn't streaming
+            await model.generate(
+                "Hi.", config=GenerateConfig(max_retries=0, max_tokens=100)
+            )
+        except Exception:
+            pass
+    assert len(stand_in.model_calls) == 1
+    return received.field
+
+
+@pytest.mark.parametrize("name", list(_FORMATS))
+async def test_the_field_is_read_from_a_reply(name: str) -> None:
+    assert await _received(name, Turn(sentinel=_FIELD)) == _FIELD
+
+
+@pytest.mark.parametrize("name", list(_FORMATS))
+async def test_a_reply_without_the_field_has_none(name: str) -> None:
+    assert await _received(name, Turn()) is None
+
+
+@pytest.mark.parametrize("name", list(_FORMATS))
+@pytest.mark.parametrize("nested", [False, True], ids=["envoy", "litellm"])
+async def test_the_field_is_read_from_a_refusal(name: str, nested: bool) -> None:
+    refused = {**_FIELD, "outcome": "reject"}
+
+    received = await _received(name, Turn(status=400, sentinel=refused, nested=nested))
+
+    assert received == refused
