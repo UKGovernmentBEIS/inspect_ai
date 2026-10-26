@@ -1660,6 +1660,26 @@ def test_a_person_s_approval_decision_reaches_later_steps(
         assert [d.step_id for d in after.step.human_decisions or []][-1:] == [after.id]
 
 
+def test_a_transcript_that_records_no_tools_offered_keeps_its_tool_steps() -> None:
+    # as Scout's importers write one: no origins, and no tools on its model calls
+    log = run_logged(tool_loop(addition()), agent_model(2))
+    sample = logged_sample(log)
+    imported = [
+        e.model_copy(update={"tools": []}) if isinstance(e, ModelEvent) else e
+        for e in without_origins(sample.events)
+    ]
+
+    def tool_steps(events: Sequence[Event]) -> list[tuple[str, str]]:
+        return [
+            (s.stage, s.id)
+            for s in replay_events(log, events)
+            if s.stage.startswith("tool")
+        ]
+
+    assert tool_steps(imported) == tool_steps(sample.events)
+    assert len(tool_steps(imported)) == 4
+
+
 def answers_as_a_person(decision: str, monkeypatch: pytest.MonkeyPatch) -> None:
     """Have the built-in `human` approver's panel decide `decision`; a modify sets x to 7."""
     from inspect_ai.approval._human import acp as acp_module

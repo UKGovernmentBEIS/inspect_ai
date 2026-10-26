@@ -661,6 +661,9 @@ class _Driver:
             and proposal.parse_error is None
             and (
                 call.producer is None
+                # a transcript imported from another source records no tools
+                # offered, so cannot say the function was not offered
+                or not call.producer.tools
                 or any(tool.name == proposal.function for tool in call.producer.tools)
             )
             and (
