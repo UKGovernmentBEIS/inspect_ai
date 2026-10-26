@@ -40,6 +40,8 @@
 | mistral/mistral-medium-2604 | none |
 | mistral/mistral-small-2603 | none |
 | moonshotai/kimi-k3 | max |
+| moonshotai/kimi-k3.1-pro | max |
+| moonshotai/kimi-k3.1-pro-highspeed | max |
 | openai/gpt-5 | medium |
 | openai/gpt-5-mini | medium |
 | openai/gpt-5-nano | medium |
