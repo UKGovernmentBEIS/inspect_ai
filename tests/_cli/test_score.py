@@ -160,7 +160,7 @@ async def test_score_stream_preserves_log_updates(
         assert samples is not None
         return log
 
-    monkeypatch.setattr(score_cli, "score_async", fake_score_async)
+    monkeypatch.setattr(score_cli, "score_checked_log_async", fake_score_async)
 
     await score(
         log_dir="",
@@ -225,7 +225,7 @@ async def test_score_stream_flushes_periodically(
                 pass
         return log
 
-    monkeypatch.setattr(score_cli, "score_async", fake_score_async)
+    monkeypatch.setattr(score_cli, "score_checked_log_async", fake_score_async)
 
     await score(
         log_dir="",
@@ -411,7 +411,7 @@ def test_score_cli_uses_the_pre_score_coverage_when_results_were_overwritten() -
 async def test_score_reads_coverage_before_the_scoring_pass_replaces_it(
     tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Coverage must be captured before `score_async`, not read back after it.
+    """Coverage must be captured before scoring, not read back after it.
 
     `--action overwrite` replaces `results` with counts taken over the samples
     present in the log. Early-stopped samples were never written, so reading
@@ -447,7 +447,7 @@ async def test_score_reads_coverage_before_the_scoring_pass_replaces_it(
         )
         return log
 
-    monkeypatch.setattr(score_cli, "score_async", fake_score_async)
+    monkeypatch.setattr(score_cli, "score_checked_log_async", fake_score_async)
 
     await score(
         log_dir="",
