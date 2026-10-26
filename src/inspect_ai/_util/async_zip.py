@@ -190,6 +190,7 @@ async def _parse_central_directory(
         CentralDirectory with entries and etag.
 
     Raises:
+        ValueError: If the EOCD or central directory is missing or corrupt.
         ObjectChangedError: with ``pin_version``, the object was replaced
             between the suffix read and a later read.
     """
@@ -211,9 +212,15 @@ async def _parse_central_directory(
     pos = 0
     sig = b"PK\x01\x02"
 
-    while pos < len(buf):
-        if pos + 4 > len(buf) or not buf[pos : pos + 4] == sig:
-            break
+    # Like stdlib zipfile, a valid header must start wherever the declared size
+    # says one does. A mismatch usually means the EOCD found isn't this
+    # archive's (e.g. a truncated file whose last signature is inside an
+    # earlier member name or comment).
+    while pos < cd_loc.size:
+        if pos + 46 > len(buf):
+            raise ValueError("Truncated central directory")
+        if buf[pos : pos + 4] != sig:
+            raise ValueError("Bad signature in central directory")
 
         # Parse central directory file header (46 bytes)
         (
