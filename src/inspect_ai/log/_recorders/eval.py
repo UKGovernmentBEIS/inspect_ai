@@ -515,6 +515,14 @@ class EvalRecorder(FileRecorder):
 
     @classmethod
     @override
+    async def read_log_reductions(
+        cls, location: str
+    ) -> list[EvalSampleReductions] | None:
+        log = await cls.read_log(location, header_only=True)
+        return log.reductions
+
+    @classmethod
+    @override
     async def write_log(
         cls,
         location: str,
