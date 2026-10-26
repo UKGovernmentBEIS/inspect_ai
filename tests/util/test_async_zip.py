@@ -942,6 +942,24 @@ async def test_decompressors_reject_a_truncated_stream(
             await decompressor.decompress_next(source)
 
 
+async def test_zstd_decompressor_yields_one_frame_at_a_time() -> None:
+    """Frames that arrive in one input chunk are not inflated together."""
+    parts = [b"a" * 100_000, b"b" * 100_000, b"c" * 100_000]
+    cctx = zstandard.ZstdCompressor()
+    compressed = b"".join(cctx.compress(part) for part in parts)
+
+    async def one_chunk() -> AsyncIterator[bytes]:
+        yield compressed
+
+    decompressor = ZstdDecompressor()
+    source = one_chunk()
+    outputs: list[bytes] = []
+    with pytest.raises(StopAsyncIteration):
+        while True:
+            outputs.append(await decompressor.decompress_next(source))
+    assert outputs == parts
+
+
 @pytest.mark.parametrize("stream", [False, True])
 async def test_local_header_for_another_member_raises(
     tmp_path: Path, stream: bool

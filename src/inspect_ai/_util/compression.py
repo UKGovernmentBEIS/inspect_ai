@@ -36,19 +36,24 @@ class _ZstdFrames:
         self._dctx = zstandard.ZstdDecompressor()
         self._obj = self._dctx.decompressobj()
         self._in_frame = False
+        self.unused_data = b""
+        """Input past the end of the frame the last call completed."""
 
     def decompress(self, data: bytes) -> bytes:
-        out: list[bytes] = []
-        while data:
-            out.append(self._obj.decompress(data))
-            if self._obj.eof:
-                data = self._obj.unused_data
-                self._obj = self._dctx.decompressobj()
-                self._in_frame = False
-            else:
-                self._in_frame = True
-                data = b""
-        return b"".join(out)
+        """Decompress ``data`` up to the end of the current frame.
+
+        Stops at a frame boundary, leaving the rest of ``data`` in
+        ``unused_data``, so one call never inflates more than one frame.
+        """
+        out = self._obj.decompress(data)
+        if self._obj.eof:
+            self.unused_data = self._obj.unused_data
+            self._obj = self._dctx.decompressobj()
+            self._in_frame = False
+        else:
+            self.unused_data = b""
+            self._in_frame = self._in_frame or bool(data)
+        return out
 
     def finish(self) -> None:
         """Raise ``ValueError`` if the input ended inside a frame."""
@@ -78,12 +83,14 @@ class ZstdDecompressor(Decompressor):
         if self._frames is None:
             self._frames = _ZstdFrames()
         while True:
-            try:
-                data = await stream_iterator.__anext__()
-            except StopAsyncIteration:
-                self._exhausted = True
-                self._frames.finish()
-                raise
+            data = self._frames.unused_data
+            if not data:
+                try:
+                    data = await stream_iterator.__anext__()
+                except StopAsyncIteration:
+                    self._exhausted = True
+                    self._frames.finish()
+                    raise
             decompressed = self._frames.decompress(data)
             if decompressed:
                 return decompressed
@@ -143,9 +150,11 @@ def decompress_bytes(data: bytes, method: ZipCompressionMethod) -> bytes:
         return decompressed
     elif method == ZipCompressionMethod.ZSTD:
         frames = _ZstdFrames()
-        decompressed = frames.decompress(data)
+        out = [frames.decompress(data)]
+        while frames.unused_data:
+            out.append(frames.decompress(frames.unused_data))
         frames.finish()
-        return decompressed
+        return b"".join(out)
     else:
         raise NotImplementedError(f"Unsupported compression method: {method}")
 
