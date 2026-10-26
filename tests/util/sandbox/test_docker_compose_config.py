@@ -833,7 +833,6 @@ async def test_mount_validation_cancellation_cleans_up(
 ) -> None:
     ready = anyio.Event()
     cleaned: list[ComposeProject] = []
-    released: list[ComposeProject] = []
 
     async def compose_config(*args: Any, **kwargs: Any) -> ExecResult[str]:
         assert args[0] == ["config"]
@@ -846,14 +845,12 @@ async def test_mount_validation_cancellation_cleans_up(
         await anyio.sleep_forever()
         raise AssertionError("cancelled validation returned")
 
-    async def cleanup(project: ComposeProject, quiet: bool) -> bool:
+    async def cleanup(project: ComposeProject, quiet: bool) -> None:
         cleaned.append(project)
-        return True
 
     monkeypatch.setattr(compose_module, "compose_command", compose_config)
     monkeypatch.setattr(mounts_module, "subprocess", docker_info)
     monkeypatch.setattr(docker_module, "project_cleanup", cleanup)
-    monkeypatch.setattr(docker_module, "project_release", released.append)
     monkeypatch.setattr(docker_module, "project_startup", lambda project: None)
     config = tmp_path / "compose.yaml"
     config.write_text(yaml.safe_dump(read_only_bind))
@@ -868,9 +865,7 @@ async def test_mount_validation_cancellation_cleans_up(
             tg.start_soon(cancel_when_validating)
             await DockerSandboxEnvironment.sample_init("cancel-mount", str(config), {})
     assert scope.cancel_called
-    # validation runs before `up`, so the project is released without a `down`
-    assert cleaned == []
-    assert len(released) == 1
+    assert len(cleaned) == 1
 
 
 @skip_if_no_docker

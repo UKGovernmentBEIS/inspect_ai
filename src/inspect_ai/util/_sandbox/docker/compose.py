@@ -77,20 +77,13 @@ async def compose_up(
     return result
 
 
-async def compose_down(project: ComposeProject, quiet: bool = True) -> bool:
-    """Bring a project down, removing its volumes.
-
-    Returns:
-        Whether ``down`` succeeded. On failure the project may still be
-        running, so callers keep the config another attempt needs.
-    """
+async def compose_down(project: ComposeProject, quiet: bool = True) -> None:
     # set cwd to config file directory
     cwd = os.path.dirname(project.config) if project.config else None
 
     # shut down docker containers. default internal timeout is 10 seconds
     # but we've seen reports of this handing, so add a proess timeout
     TIMEOUT = 300
-    down = False
     try:
         result = await compose_command(
             ["down", "--volumes"],
@@ -101,13 +94,8 @@ async def compose_down(project: ComposeProject, quiet: bool = True) -> bool:
             ansi="never",
         )
 
-        if result.success:
-            down = True
-        else:
-            # without captured output, Compose has already printed the reason
-            msg = f"Failed to stop Docker project '{project.name}'"
-            if result.stderr.strip():
-                msg += f": {result.stderr.strip()}"
+        if not result.success:
+            msg = f"Failed to stop docker service {result.stderr}"
             logger.warning(msg)
 
     except TimeoutError:
@@ -121,8 +109,6 @@ async def compose_down(project: ComposeProject, quiet: bool = True) -> bool:
         logger.warning(
             f"Docker image cleanup for project '{project.name}' timed out after {TIMEOUT} seconds."
         )
-
-    return down
 
 
 async def compose_cp_archive(

@@ -39,7 +39,6 @@ from .cleanup import (
     project_cleanup_startup,
     project_discard_auto_compose,
     project_record_auto_compose,
-    project_release,
     project_startup,
 )
 from .compose import (
@@ -223,13 +222,11 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         # note that the project is running
         project_startup(project)
 
-        up_attempted = False
         try:
             # enumerate the services that will be created
             services = await compose_services(project)
 
             # start the services
-            up_attempted = True
             result = await compose_up(project, services)
 
             # check to ensure that the services are running
@@ -275,10 +272,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             environments = {default_service: default_environment} | environments
 
         except BaseException as ex:
-            if up_attempted:
-                await project_cleanup(project, True)
-            else:
-                project_release(project)
+            await project_cleanup(project, True)
             raise ex
 
         return environments
