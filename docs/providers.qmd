@@ -76,7 +76,7 @@ If you want to manually enable or disable the Responses API you can use the `res
 inspect eval math.py --model openai/gpt-4o -M responses_api=true
 ```
 
-Note that certain models including `o1-pro` and `computer_use_preview` *require* the use of the Responses API. Check the Open AI [models documentation](https://platform.openai.com/docs/models) for details on which models are supported by the respective APIs.
+Note that certain models including `o3-pro` and `computer_use_preview` *require* the use of the Responses API. Check the Open AI [models documentation](https://platform.openai.com/docs/models) for details on which models are supported by the respective APIs.
 
 ### Responses Phase
 
@@ -93,7 +93,7 @@ When enabled, assistant messages with tool calls are labeled `commentary`; other
 By default, Inspect's implementation of the Responses API does not store messages on the server. Reasoning content (which is intended to be opaque to clients) is handled using encrypted payloads (via the "reasoning.encrypted_content" include option). To control this behavior explicitly use the `responses_store` model argument. For example:
 
 ``` bash
-inspect eval math.py --model openai/o4-mini -M responses_store=True
+inspect eval math.py --model openai/gpt-5-mini -M responses_store=True
 ```
 
 ### Responses Metadata
@@ -111,18 +111,18 @@ The `metadata` returned on responses (the echoed request metadata, which some mo
 
 [Flex processing](https://platform.openai.com/docs/guides/flex-processing) provides significantly lower costs for requests in exchange for slower response times and occasional resource unavailability (input and output tokens are priced using [batch API rates](https://platform.openai.com/docs/guides/batch) for flex requests).
 
-Note that flex processing is in beta, and currently **only available for o3 and o4-mini models**.
+Note that flex processing is in beta with limited model availability. The OpenAI [pricing page](https://platform.openai.com/docs/pricing) lists the supported models.
 
 To enable flex processing, use the `service_tier` model argument, setting it to "flex". For example:
 
 ``` bash
-inspect eval math.py --model openai/o4-mini -M service_tier=flex
+inspect eval math.py --model openai/gpt-5-mini -M service_tier=flex
 ```
 
 OpenAI recommends using a [higher client timeout](https://platform.openai.com/docs/guides/flex-processing#api-request-timeouts) when making flex requests (15 minutes rather than the standard 10). Inspect automatically increases the client timeout to 15 minutes (900 seconds) for flex requests. To specify another value, use the `client_timeout` model argument. For example:
 
 ``` bash
-inspect eval math.py --model openai/o4-mini \
+inspect eval math.py --model openai/gpt-5-mini \
     -M service_tier=flex -M client_timeout=1200
 ```
 
