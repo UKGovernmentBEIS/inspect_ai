@@ -29,7 +29,7 @@ def model_info(
 
     Inspect includes built in support for many models (based upon the `model` string in the dataframe). If you are using models for which Inspect does not include model metadata, you may include your own model metadata via the `model_info` argument.
 
-    The `model` string is looked up as written, or by a known alias. No model provider is created to resolve other names, so they get no metadata unless you supply it with the `model_info` argument or `set_model_info()`.
+    The `model` string is looked up in the model database without creating a provider. Names that require provider canonicalization get no metadata unless you supply it with the `model_info` argument or `set_model_info()`.
 
     Args:
         model_info: Additional model info for models not supported directly by Inspect's internal database.
