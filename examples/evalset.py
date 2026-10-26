@@ -58,7 +58,7 @@ def run(log_dir: str, max_tasks: int | None, retry_attempts: int):
     # run eval_set
     return eval_set(
         tasks=[security_guide(), popularity()],
-        model=["openai/gpt-4o-mini", "anthropic/claude-3-5-haiku-latest"],
+        model=["openai/gpt-6-luna", "anthropic/claude-3-5-haiku-latest"],
         log_dir=log_dir,
         max_tasks=max_tasks,
         retry_attempts=retry_attempts,

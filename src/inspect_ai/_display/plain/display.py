@@ -1,11 +1,10 @@
 import contextlib
 from typing import AsyncIterator, Callable, Coroutine, Iterator
 
-import anyio
 import rich
 
 from inspect_ai._display.core.rich import rich_initialise
-from inspect_ai._util._async import configured_async_backend, run_coroutine
+from inspect_ai._util._async import run_coroutine, run_main
 from inspect_ai._util.platform import running_in_notebook
 from inspect_ai._util.text import truncate
 from inspect_ai.util._throttle import throttle
@@ -47,7 +46,7 @@ class PlainDisplay(Display):
         if running_in_notebook():
             return run_coroutine(main())
         else:
-            return anyio.run(main, backend=configured_async_backend())
+            return run_main(main)
 
     @contextlib.contextmanager
     def suspend_task_app(self) -> Iterator[None]:

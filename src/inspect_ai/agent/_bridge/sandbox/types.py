@@ -2,12 +2,13 @@ import inspect
 from collections import deque
 from logging import getLogger
 from os.path import commonprefix
-from typing import TYPE_CHECKING, Any, Mapping, NamedTuple, NoReturn, Sequence
+from typing import TYPE_CHECKING, Any, Mapping, NamedTuple, Sequence
 
 import anyio
 from pydantic_core import to_jsonable_python
+from shortuuid import uuid
 
-from inspect_ai._util.exception import TerminateSampleError
+from inspect_ai._util.json import json_equal
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge.bridge import resolve_forward_client_headers
@@ -140,7 +141,11 @@ class SandboxAgentBridge(AgentBridge):
             self.proposal_exempt_servers.add(server)
 
     def register_tool_execution_grants(
-        self, calls: Sequence[ToolCall], tools: Sequence[ToolInfo | Tool]
+        self,
+        calls: Sequence[ToolCall],
+        tools: Sequence[ToolInfo | Tool],
+        *,
+        span_id: str | None = None,
     ) -> None:
         """Add one-shot host-tool grants for the calls in a response handed to the scaffold.
 
@@ -151,11 +156,18 @@ class SandboxAgentBridge(AgentBridge):
         and the arguments handed to the scaffold, JSON-normalized since the
         scaffold re-sends them as parsed JSON. A call denoting several bridged
         tools (a shared description; `warn_indistinct_tools` names them at setup)
-        gets one grant for each. No grant is stored for a server in
-        `proposal_exempt_servers`.
+        gets one grant for each.
 
-        A grant persists until consumed or evicted (with a warning, once
-        `_MAX_TOOL_EXECUTION_GRANTS` unconsumed grants accumulate), including when
+        Each grant also carries the proposing call (`_Proposal`), so the host
+        tool's `ToolEvent` can pair with it. `span_id` is the span to record
+        executions under when the proposing `ModelEvent` was placed in a span
+        other than the current one (a `ModelEventSink` re-attributed it). Grants
+        are stored for servers in `proposal_exempt_servers` too, only so that a
+        proposed call on them pairs; they execute without one.
+
+        A grant persists until consumed or evicted (with a warning,
+        `_warn_eviction`, once `_MAX_TOOL_EXECUTION_GRANTS` unconsumed grants
+        accumulate, counting those for exempt servers), including when
         the response never reached the scaffold, but only ever authorizes the
         exact proposed action.
         """
@@ -175,27 +187,46 @@ class SandboxAgentBridge(AgentBridge):
                     + ", ".join(f"{t.server}/{t.tool}" for t in targets)
                     + "); an execution grant was registered for each of them.",
                 )
+            proposal = _Proposal(call, span_id)
             for target in targets:
-                if target.server in self.proposal_exempt_servers:
-                    continue
                 if (
                     len(self._tool_execution_grants)
                     == self._tool_execution_grants.maxlen
                 ):
-                    warn_once(
-                        logger,
-                        "Bridged tool execution grants exceeded "
-                        f"{_MAX_TOOL_EXECUTION_GRANTS}; evicting the oldest "
-                        "unconsumed grant. A proposed-but-never-executed call "
-                        "that old can no longer be executed.",
-                    )
+                    self._warn_eviction(self._tool_execution_grants[0])
                 self._tool_execution_grants.append(
                     _ToolExecutionGrant(
                         server=target.server,
                         tool=target.tool,
                         arguments=to_jsonable_python(arguments, fallback=str),
+                        proposal=proposal,
                     )
                 )
+
+    def _warn_eviction(self, evicted: "_ToolExecutionGrant") -> None:
+        """Warn, once per kind, that the store is full and its oldest grant goes.
+
+        Grants for servers registered with `require_proposal=False` share the
+        store, so they can push out a grant a server requiring proposals needs.
+        """
+        if evicted.server in self.proposal_exempt_servers:
+            consequence = (
+                f"The evicted grant is for server '{evicted.server}', registered "
+                "with require_proposal=False: that call still executes, but its "
+                "tool event no longer pairs with the model's proposal."
+            )
+        else:
+            consequence = (
+                f"The evicted grant is for server '{evicted.server}', which "
+                "requires proposals: a proposed-but-never-executed call that "
+                "old can no longer be executed."
+            )
+        warn_once(
+            logger,
+            f"Bridged tool execution grants exceeded {_MAX_TOOL_EXECUTION_GRANTS} "
+            "(grants for require_proposal=False servers count too); evicting the "
+            f"oldest unconsumed grant. {consequence}",
+        )
 
     def warn_indistinct_tools(self) -> None:
         """Warn the eval author about bridged tools a proposal cannot single out.
@@ -220,10 +251,10 @@ class SandboxAgentBridge(AgentBridge):
 
     def consume_tool_execution_grant(
         self, server: str, tool: str, arguments: dict[str, Any]
-    ) -> bool:
-        """Consume one grant binding this exact (server, tool), if present.
+    ) -> "_ToolExecutionGrant | None":
+        """Consume and return the oldest grant binding this exact (server, tool), if any.
 
-        Arguments match by JSON semantics (`_json_equal`): key order and
+        Arguments match by JSON semantics (`json_equal`): key order and
         int/float numeric equality (`5 == 5.0`) don't matter, so a scaffold's
         JSON round-trip cannot turn a proposed call into a denial; any other
         difference (including bool vs number) is denied -- except that, when
@@ -258,7 +289,7 @@ class SandboxAgentBridge(AgentBridge):
             if grant.server == server and grant.tool == tool
         ]
         matched = next(
-            (index for index, granted in pending if _json_equal(granted, arguments)),
+            (index for index, granted in pending if json_equal(granted, arguments)),
             None,
         )
         if matched is None and declared_properties is not None:
@@ -267,7 +298,7 @@ class SandboxAgentBridge(AgentBridge):
                     index
                     for index, granted in pending
                     if isinstance(granted, dict)
-                    and _json_equal(
+                    and json_equal(
                         {
                             key: value
                             for key, value in granted.items()
@@ -279,9 +310,10 @@ class SandboxAgentBridge(AgentBridge):
                 None,
             )
         if matched is None:
-            return False
+            return None
+        grant = self._tool_execution_grants[matched]
         del self._tool_execution_grants[matched]
-        return True
+        return grant
 
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
         """The bridged tool call `call` makes through a dispatcher (`_dispatched_call`)."""
@@ -292,14 +324,16 @@ class SandboxAgentBridge(AgentBridge):
 
         A sandbox bridge's generations and host tool calls run in the sandbox
         service task, where `_handle_request` turns exceptions into RPC error
-        responses rather than letting them propagate (only `LimitExceededError`
-        is special-cased). So raising from one would never reach the sample
-        runner.
+        responses rather than letting them propagate. Only a `LimitExceededError`
+        (routed to the active sample) and a termination (answered, then
+        propagated out of the service task) are special-cased, so a termination
+        is raised rather than requested here (see `request_terminate`). Raising
+        any other error would never reach the sample runner.
 
         Instead, store the error and signal the monitor task in
         `sandbox_agent_bridge`'s task group, which raises it on the agent's side
         and tears the sample down. This does not raise itself: the caller decides
-        how the current RPC unwinds (`request_terminate` raises, and the model
+        how the current RPC unwinds (a host tool call re-raises, and the model
         service returns a provider error payload so the sandboxed agent gets a
         reply rather than blocking on one that will never come). The first error
         requested wins; later requests are ignored.
@@ -308,16 +342,37 @@ class SandboxAgentBridge(AgentBridge):
             self._failure = error
         self._failure_requested.set()
 
-    def request_terminate(self, reason: str) -> NoReturn:
-        """Terminate the sample from a bridged generation.
 
-        Signals the sample failure via `request_fail` (see there for why a plain
-        raise would not reach the sample runner) and raises so the current RPC
-        unwinds with an error response.
+class _Proposal:
+    """One model tool call that minted grants; shared by every grant it minted.
+
+    Referenced only from those grants, so it is dropped with the last of them
+    and no pairing state outlives the bounded grant store.
+    """
+
+    __slots__ = ("call", "span_id", "paired")
+
+    def __init__(self, call: ToolCall, span_id: str | None) -> None:
+        self.call = call
+        """The proposing call, with the function name as the model saw it."""
+
+        self.span_id = span_id
+        """Span to record executions under, or `None` for the span current then."""
+
+        self.paired = False
+        """Whether an execution has already taken `call.id`."""
+
+    def take_id(self) -> str:
+        """The `ToolEvent` id for the next execution of this proposal.
+
+        The proposing call's id the first time; a fresh id after, since a call
+        granted for several indistinguishable tools can execute more than once
+        and consumers key on the event id.
         """
-        error = TerminateSampleError(reason)
-        self.request_fail(error)
-        raise error
+        if self.paired:
+            return uuid()
+        self.paired = True
+        return self.call.id
 
 
 class _ToolExecutionGrant(NamedTuple):
@@ -330,7 +385,10 @@ class _ToolExecutionGrant(NamedTuple):
     """Tool name within the bridged server."""
 
     arguments: dict[str, Any]
-    """The arguments handed to the scaffold, JSON-normalized and matched via `_json_equal`."""
+    """The arguments handed to the scaffold, JSON-normalized and matched via `json_equal`."""
+
+    proposal: _Proposal
+    """The proposing call, shared with the other grants it minted."""
 
 
 class _BridgedToolId(NamedTuple):
@@ -548,16 +606,3 @@ def _dispatched_call(
             dispatch=lambda modified: {**call.arguments, "Arguments": modified},
         )
     return None
-
-
-def _json_equal(a: Any, b: Any) -> bool:
-    """Equality by JSON semantics: 5 == 5.0, but True != 1 (unlike Python `==`)."""
-    if isinstance(a, bool) or isinstance(b, bool):
-        return isinstance(a, bool) and isinstance(b, bool) and a == b
-    if isinstance(a, int | float) and isinstance(b, int | float):
-        return a == b
-    if isinstance(a, dict) and isinstance(b, dict):
-        return a.keys() == b.keys() and all(_json_equal(v, b[k]) for k, v in a.items())
-    if isinstance(a, list) and isinstance(b, list):
-        return len(a) == len(b) and all(_json_equal(x, y) for x, y in zip(a, b))
-    return type(a) is type(b) and bool(a == b)

@@ -2920,6 +2920,16 @@ async def test_event_loop_monitor_propagates_body_exception_bare() -> None:
         async with event_loop_monitor():
             raise ValueError("boom")
 
+    # it keeps its own cause and context
+    with pytest.raises(ValueError) as excinfo:
+        async with event_loop_monitor():
+            try:
+                raise KeyError("context")
+            except KeyError:
+                raise ValueError("boom") from OSError("cause")
+    assert repr(excinfo.value.__cause__) == "OSError('cause')"
+    assert repr(excinfo.value.__context__) == "KeyError('context')"
+
 
 async def _consume(stream: Any) -> bytes:
     chunks = []

@@ -226,9 +226,9 @@ Cost tracking requires cost data for each model present in the eval or eval set.
 ``` python
 from inspect_ai.model import set_model_cost, ModelCost
 
-set_model_cost("openai/gpt-4o", ModelCost(
-    input=2.50, output=10.00,
-    input_cache_write=0, input_cache_read=1.25,
+set_model_cost("openai/gpt-6-luna", ModelCost(
+    input=0.10, output=0.50,
+    input_cache_write=0.125, input_cache_read=0.01,
 ))
 ```
 
@@ -239,11 +239,11 @@ Each model needs a price set for `input`, `output`, `input_cache_write`, and `in
 Below is an example cost config file given in YAML:
 
 ``` yaml
-openai/gpt-4o:
-    input: 2.50
-    output: 10.00
-    input_cache_write: 0
-    input_cache_read: 1.25
+openai/gpt-6-luna:
+    input: 0.10
+    output: 0.50
+    input_cache_write: 0.125
+    input_cache_read: 0.01
 anthropic/claude-sonnet-4-5-20250514:
     input: 3.00
     output: 15.00
@@ -255,7 +255,7 @@ anthropic/claude-sonnet-4-5-20250514:
 
 When model cost data is configured, costs will be tracked for the sample as a whole, as well as any events within the sample that have a ModelUsage field.
 
-A request is priced at the rates of the model that served it, when the provider reports one other than the model requested: a [refusal fallback](fallbacks.qmd), an Azure OpenAI, Azure AI or Microsoft Foundry deployment, an OpenRouter, Bedrock or Fireworks router, or a LiteLLM proxy fallback. A dated snapshot of the requested model is priced at the requested model's rates. If the served model has no cost data, the request is priced at the requested model's rates and a warning names the served model (e.g. `openai/gpt-4o-mini-2024-07-18`). Set cost data under that name. `set_model_cost()` and `--model-cost-config` accept only models in Inspect's model database; for any other model, use `set_model_info()`:
+A request is priced at the rates of the model that served it, when the provider reports one other than the model requested: a [refusal fallback](fallbacks.qmd), an Azure OpenAI, Azure AI or Microsoft Foundry deployment, an OpenRouter, Bedrock or Fireworks router, or a LiteLLM proxy fallback. A dated snapshot of the requested model is priced at the requested model's rates. If the served model has no cost data, the request is priced at the requested model's rates and a warning names the served model (e.g. `openai/gpt-5.4-mini-2026-03-17`). Set cost data under that name. `set_model_cost()` and `--model-cost-config` accept only models in Inspect's model database; for any other model, use `set_model_info()`:
 
 ``` python
 from inspect_ai.model import set_model_info, ModelCost, ModelInfo
@@ -391,7 +391,7 @@ with working_limit(10 * 60):
     await generate()  # counts again
 ```
 
-Unlike `suspend_token_limit()` and `suspend_turn_limit()`, which only affect code inside the block, `suspend_working_limit()` makes the whole sample count as waiting while the block is open, including work done by other tasks in the sample. Only code in the eval process can call it (not agent code running in a sandbox). Inspect already does this for tool approval and review.
+Unlike `suspend_token_limit()` and `suspend_turn_limit()`, which only affect code inside the block, `suspend_working_limit()` makes the whole sample count as waiting while the block is open, unless another task in the sample is running a model call, sandbox command or tool call (not counting commands run with `exec_remote()` or inside `sandbox_agent_bridge()`). Model calls, sandbox commands and tool calls made inside the block are not charged. Only code in the eval process can call it (not agent code running in a sandbox). Inspect already does this for tool approval and review.
 
 
 ### Message Limit
