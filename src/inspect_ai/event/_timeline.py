@@ -1299,7 +1299,7 @@ class _Continuity:
     - A call whose input continues the tip, holding the tip's output at position ``len(tip.input)``, is on the thread, a *head*. Two heads of one tip are a fork: the one a later call continues is the turn, and the others are utility.
     - A call that continues nothing is a *candidate*; if a later call continues it, the thread moves to it (a compaction the log does not show). The candidates a thread goes on without, by advancing or moving to another, are utility; those still open where the thread ends (a scaffold that keeps a window of fixed length, so no later call continues anything) get no answer, and the existing rules decide them.
     - A summary ``CompactionEvent`` makes the calls not yet continued utility (the summary call continues the tip, and the next turn's input is the compacted list) and resets the tip; an edit or trim ends the thread as the end of the span does.
-    - A failed call is a turn or utility as its retry, the next call with the same input, is; one not retried is a turn.
+    - A failed call is a turn or utility as its retry, the next call in its conversation with the same input, message by message, is; one not retried is a turn.
     - Where the thread ends (the end of the span, an edit or trim, or a move to a candidate), a lone head is its last turn, and a fork goes to the head whose output is in the span's final messages; a fork no later call or final message resolves gets no answer, and the existing rules decide its calls (a scaffold that sends one input again and again would otherwise lose all but its last call).
 
     So a call is utility only where the conversation went on without it, or before a summary compaction.
@@ -1327,8 +1327,10 @@ class _Continuity:
         if call.output is None:
             self._failed.setdefault(self._input_key(call), []).append(call)
             return
-        if self._failed:
-            for failed in self._failed.pop(self._input_key(call), []):
+        waiting = self._failed.get(self._input_key(call)) if self._failed else None
+        if waiting:
+            for failed in [f for f in waiting if self._same_input(f, call)]:
+                waiting.remove(failed)
                 self._retried.append((failed, call))
         head = self._heads.continued_by(call)
         if head is not None:
@@ -1403,9 +1405,22 @@ class _Continuity:
         )
 
     def _input_key(self, call: _Call) -> tuple[int, _Fingerprint | None]:
-        """An input as a retry matches it: its length and its last message."""
+        """Where a failed call waits for its retry: its input's length and last message."""
         last = self._inputs.fingerprint(call.input[-1]) if call.input else None
         return len(call.input), last
+
+    def _same_input(self, failed: _Call, call: _Call) -> bool:
+        """Whether `call` sent the failed call's input again: the same rows of the pool, else message by message, stopping at the first that differs.
+
+        Only a call with the input key of a failed call still waiting is compared.
+        """
+        if isinstance(failed.input, PoolView) and isinstance(call.input, PoolView):
+            if list(failed.input.refs) == list(call.input.refs):
+                return True
+        fingerprint = self._inputs.fingerprint
+        return len(failed.input) == len(call.input) and all(
+            fingerprint(a) == fingerprint(b) for a, b in zip(failed.input, call.input)
+        )
 
     def _in_final(self, head: _Call) -> bool:
         at = len(head.input)
