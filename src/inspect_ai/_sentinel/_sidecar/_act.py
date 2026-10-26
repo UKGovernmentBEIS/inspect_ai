@@ -83,13 +83,9 @@ async def refused_output(model: str, retryable: bool) -> ModelOutput | None:
 def act_on_field(
     field: SentinelField, output: ModelOutput, bridged: bool
 ) -> ModelOutput:
-    """Act on what the sidecar decided of an agent call, and return the output the agent is handed.
-
-    Raises:
-        TerminateSampleError: If a sentinel in the sidecar ended the sample.
-    """
+    """Act on what the sidecar decided of an agent call, and return the output the agent is handed. A `terminate` is acted on by `end_if_terminated`, once the reports are in the transcript."""
     if field.outcome == "terminate":
-        raise TerminateSampleError(_explanation(field) or _ENDED)
+        return output
     # A bridged agent runs its own tools, so it is handed the turn as the
     # sidecar left it: a call put back would run.
     if bridged:
@@ -127,6 +123,16 @@ def act_on_field(
         if message.tool_calls:
             output.choices[0].stop_reason = "tool_calls"
     return output
+
+
+def end_if_terminated(field: SentinelField) -> None:
+    """End the sample if a sentinel in the sidecar ended it, as an in-process sentinel's `terminate` does.
+
+    Raises:
+        TerminateSampleError: If the call's outcome is `terminate`.
+    """
+    if field.outcome == "terminate":
+        raise TerminateSampleError(_explanation(field) or _ENDED)
 
 
 def _message(turn: WithheldTurn) -> ChatMessageAssistant:

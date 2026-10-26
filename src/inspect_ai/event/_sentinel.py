@@ -1,6 +1,6 @@
 from typing import Annotated, Any, Literal, TypeAlias
 
-from pydantic import Field, FiniteFloat, field_validator, model_validator
+from pydantic import BaseModel, Field, FiniteFloat, field_validator, model_validator
 from typing_extensions import Self
 
 from inspect_ai.event._base import BaseEvent
@@ -32,6 +32,28 @@ SentinelSuspicion: TypeAlias = (
 
 Experimental: not yet a stable API; may change without notice.
 """
+
+
+class SentinelSidecar(BaseModel):
+    """Where a report a sentinel sidecar made came from: the sidecar behind a model's proxy, and the agent call it came back with.
+
+    Experimental: not yet a stable API; may change without notice.
+    """
+
+    proxy: str
+    """The proxy's address, through which Inspect reached the sidecar."""
+
+    version: int
+    """The version of the sidecar's endpoint for evals."""
+
+    release: Literal["whole", "early"]
+    """How the sidecar passes on a streamed reply."""
+
+    request: str | None = Field(default=None)
+    """The `x-irid` of the agent call the report came back with."""
+
+    trimmed: bool = Field(default=False)
+    """Whether the sidecar sends only what Inspect acts on, so the event records the step's decision without the monitor or protocol that made it, its function, explanation, references or metadata."""
 
 
 class SentinelEvent(BaseEvent):
@@ -93,6 +115,9 @@ class SentinelEvent(BaseEvent):
     error: str | None = Field(default=None)
     """The exception a monitor function raised, or the root raised for the root's `error` event, as its type and message."""
 
+    sidecar: SentinelSidecar | None = Field(default=None)
+    """Where the report came from, when a sentinel sidecar made it; `None` when the sentinel ran inside Inspect."""
+
     @field_validator("action", mode="before")
     @classmethod
     def _read_continue_as_proceed(cls, action: Any) -> Any:
@@ -145,7 +170,8 @@ class SentinelEvent(BaseEvent):
                 raise ValueError(
                     "A 'decision' SentinelEvent requires action and no suspicion."
                 )
-            if self.function is None:
+            trimmed = self.sidecar is not None and self.sidecar.trimmed
+            if self.function is None and not trimmed:
                 raise ValueError(f"A '{self.status}' SentinelEvent requires function.")
         has_decision = self.kind == "decision" and self.status in (
             "reported",

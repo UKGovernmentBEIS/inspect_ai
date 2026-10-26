@@ -45,7 +45,11 @@ from tenacity import (
 from tenacity.wait import WaitBaseT
 
 from inspect_ai._sentinel._context import is_agent_generate
-from inspect_ai._sentinel._sidecar._act import act_on_field, refused_output
+from inspect_ai._sentinel._sidecar._act import (
+    act_on_field,
+    end_if_terminated,
+    refused_output,
+)
 from inspect_ai._sentinel._sidecar._field import (
     begin_attempt,
     parse_field,
@@ -1157,10 +1161,19 @@ class Model:
 
         # before an in-process sentinel, which judges the reply after the
         # proxy did
-        if field is not None:
+        if field is not None and through_sidecar is not None:
+            from inspect_ai._sentinel._sidecar._events import record_sidecar_reports
             from inspect_ai.agent._bridge.util import in_bridge_model_generate
 
             output = act_on_field(field, output, in_bridge_model_generate())
+            record_sidecar_reports(
+                field,
+                through_sidecar.sidecar,
+                receiving.request_id if receiving is not None else None,
+                prepared.input,
+                output.message if output.choices else None,
+            )
+            end_if_terminated(field)
 
         if generate_step is not None:
             from inspect_ai._sentinel._dispatch import sentinel_after_generate

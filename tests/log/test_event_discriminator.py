@@ -11,7 +11,7 @@ import inspect_ai
 from inspect_ai.event._event import DiscriminatedEvent, Event
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
-from inspect_ai.event._sentinel import SentinelEvent
+from inspect_ai.event._sentinel import SentinelEvent, SentinelSidecar
 from inspect_ai.scorer import Reference
 from inspect_ai.tool import ToolCall
 
@@ -101,6 +101,11 @@ _REFERENCES = [
 ]
 
 
+_SIDECAR = SentinelSidecar(
+    proxy="http://proxy.test", version=1, release="whole", request="irid_1"
+)
+
+
 def _observation(**kwargs: Any) -> SentinelEvent:
     fields: dict[str, Any] = dict(kind="observation", action=None, suspicion=0.5)
     fields.update(kwargs)
@@ -123,6 +128,13 @@ def _observation(**kwargs: Any) -> SentinelEvent:
         _observation(references=_REFERENCES),
         _sentinel_event(references=_REFERENCES),
         _observation(status="error", suspicion=None, error="ValueError: no model"),
+        _sentinel_event(sidecar=_SIDECAR),
+        _sentinel_event(
+            factory="",
+            function=None,
+            explanation=None,
+            sidecar=_SIDECAR.model_copy(update={"trimmed": True}),
+        ),
     ],
 )
 def test_sentinel_event_round_trips(event: SentinelEvent) -> None:
@@ -178,6 +190,24 @@ def test_sentinel_observation_requires_suspicion_only(
 ) -> None:
     with pytest.raises(ValidationError):
         _observation(**overrides)
+
+
+def test_sentinel_event_from_a_sidecar_needs_function_unless_trimmed() -> None:
+    # a sidecar that sends only what Inspect acts on doesn't say which
+    # function decided; one that sends results does
+    with pytest.raises(ValidationError, match="requires function"):
+        _sentinel_event(function=None, sidecar=_SIDECAR)
+
+
+def test_sentinel_event_from_an_older_log_has_no_sidecar() -> None:
+    logged = _sentinel_event().model_dump(mode="json")
+    del logged["sidecar"]
+
+    adapter: TypeAdapter[Event] = TypeAdapter(DiscriminatedEvent)
+    restored = adapter.validate_json(json.dumps(logged))
+
+    assert isinstance(restored, SentinelEvent)
+    assert restored.sidecar is None
 
 
 @pytest.mark.parametrize("status", ["reported", "superseded"])

@@ -19,7 +19,7 @@ from inspect_ai._sentinel._sidecar._task import SampleFacts, TaskFacts, TaskSide
 from inspect_ai._util._async import tg_collect
 from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
 from inspect_ai.dataset import Sample
-from inspect_ai.event import InfoEvent
+from inspect_ai.event import InfoEvent, SentinelEvent
 from inspect_ai.log import EvalSample
 from inspect_ai.model import (
     ChatMessageAssistant,
@@ -953,3 +953,99 @@ def test_a_sample_that_will_be_retried_keeps_its_state_in_the_sidecar() -> None:
     # told once, after the attempt that wasn't retried
     assert _ended(stand_in) == [sample.uuid]
     assert len(stand_in.model_calls) == 2
+
+
+def _sentinel_events(sample: EvalSample) -> list[SentinelEvent]:
+    return [e for e in sample.events if isinstance(e, SentinelEvent)]
+
+
+_RECORDED = [
+    {
+        "kind": "record",
+        "path": "weather_watch",
+        "factory": "weather_watch",
+        "name": "weather_watch",
+        "function": "watch",
+        "call": "call_1",
+        "report": {"suspicion": 0.9, "explanation": "Tokyo is far."},
+    },
+    {
+        "kind": "record",
+        "path": "no_tokyo",
+        "factory": "no_tokyo",
+        "name": "no_tokyo",
+        "function": "decide",
+        "call": "call_1",
+        "report": {
+            "action": "reject",
+            "message": "Tokyo is not allowed.",
+            "explanation": "A lookup of Tokyo.",
+        },
+    },
+]
+
+
+@pytest.mark.parametrize("trimmed", [False, True], ids=["full", "trimmed"])
+def test_the_sidecars_reports_are_written_as_sentinel_events(trimmed: bool) -> None:
+    step: dict[str, Any] = {
+        "stage": "tool_call",
+        "call": "call_1",
+        "decision": {"action": "reject", "message": "Tokyo is not allowed."},
+    }
+    if not trimmed:
+        step["recorded"] = _RECORDED
+    field: dict[str, Any] = {
+        "outcome": "proceed",
+        "steps": [step],
+        "proposed": {
+            "message": _turn_json(("call_1", "Tokyo"), ("call_2", "Oslo")),
+            "results": {"call_1": "Tokyo is not allowed."},
+        },
+    }
+    if trimmed:
+        field["trimmed"] = True
+    stand_in = StandInSidecar(
+        turns=[
+            Turn(calls=[("call_2", "weather", {"city": "Oslo"})], sentinel=field),
+            Turn(),
+        ]
+    )
+
+    sample = _run_agent(stand_in)
+
+    events = _sentinel_events(sample)
+    irid = stand_in.model_calls[0].headers["x-irid"]
+    assert all(e.step_id == "call_1" and e.stage == "tool_call" for e in events)
+    assert all(e.sidecar is not None for e in events)
+    where = events[0].sidecar
+    assert where is not None
+    assert (where.proxy, where.version, where.release, where.request) == (
+        "http://proxy.test",
+        1,
+        "whole",
+        irid,
+    )
+    if trimmed:
+        # the step's decision, without the protocol that made it
+        [event] = events
+        assert (event.kind, event.action, event.function) == (
+            "decision",
+            "reject",
+            None,
+        )
+        assert where.trimmed
+    else:
+        # one per report, as in process
+        observed, decided = events
+        assert (observed.path, observed.kind, observed.suspicion) == (
+            "weather_watch",
+            "observation",
+            0.9,
+        )
+        assert (decided.path, decided.action, decided.message) == (
+            "no_tokyo",
+            "reject",
+            "Tokyo is not allowed.",
+        )
+        assert decided.function == "decide"
+        assert not where.trimmed
