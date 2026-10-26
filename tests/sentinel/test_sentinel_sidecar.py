@@ -15,6 +15,7 @@ from inspect_ai._sentinel._sidecar._endpoint import (
     proxy_client,
 )
 from inspect_ai._sentinel._sidecar._field import receiving_field
+from inspect_ai._sentinel._sidecar._state import require_monitor_state
 from inspect_ai._sentinel._sidecar._task import SampleFacts, TaskFacts, TaskSidecars
 from inspect_ai._util._async import tg_collect
 from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
@@ -29,7 +30,7 @@ from inspect_ai.model import (
     Model,
     get_model,
 )
-from inspect_ai.scorer import Score, Scorer, Target, mean, scorer
+from inspect_ai.scorer import Score, Scorer, Target, mean, score, scorer
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
 from inspect_ai.tool import Tool, ToolCall, tool
 
@@ -1049,3 +1050,101 @@ def test_the_sidecars_reports_are_written_as_sentinel_events(trimmed: bool) -> N
         )
         assert decided.function == "decide"
         assert not where.trimmed
+
+
+@scorer(metrics=[mean()])
+def _reads_monitor_state() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        try:
+            require_monitor_state()
+        except RuntimeError as ex:
+            return Score(value=0, explanation=str(ex))
+        return Score(value=state.store.get("Tally:lookups", -1))
+
+    return score
+
+
+def _kept(store: dict[str, Any]) -> Callable[[dict[str, Any]], dict[str, Any]]:
+    def answer(params: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "sample_uuid": params["sample_uuid"],
+            "outcome": "proceed",
+            "store": store,
+        }
+
+    return answer
+
+
+def test_a_scorer_reads_the_monitor_state_the_sidecar_keeps() -> None:
+    stand_in = StandInSidecar(methods={"sample_result": _kept({"Tally:lookups": 3})})
+    task = Task(
+        dataset=[Sample(input="Hi.")], solver=generate(), scorer=_reads_monitor_state()
+    )
+
+    [log] = eval(task, model=_model(stand_in), display="none")
+
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.scores is not None
+    assert sample.scores["_reads_monitor_state"].value == 3
+    assert _registered(stand_in, "sample_result") == [{"sample_uuid": sample.uuid}]
+
+
+@pytest.mark.parametrize(
+    ("error", "says"),
+    [
+        ({"code": -32002, "message": "nothing for the sample"}, "holds nothing"),
+        ({"code": -32601, "message": "no method"}, "doesn't send results"),
+    ],
+    ids=["unknown sample", "no results"],
+)
+def test_a_scorer_can_tell_the_copy_failed(error: dict[str, Any], says: str) -> None:
+    stand_in = StandInSidecar(methods={"sample_result": lambda _: {"error": error}})
+    task = Task(
+        dataset=[Sample(input="Hi.")], solver=generate(), scorer=_reads_monitor_state()
+    )
+
+    [log] = eval(task, model=_model(stand_in), display="none")
+
+    assert log.samples is not None
+    score = (log.samples[0].scores or {})["_reads_monitor_state"]
+    assert score.value == 0
+    assert score.explanation is not None and says in score.explanation
+
+
+@solver
+def _scores_as_it_goes() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        state = await generate(state)
+        await score(state)
+        return state
+
+    return solve
+
+
+def test_monitor_state_is_copied_before_each_scoring() -> None:
+    stand_in = StandInSidecar(methods={"sample_result": _kept({"Tally:lookups": 1})})
+    task = Task(
+        dataset=[Sample(input="Hi.")],
+        solver=_scores_as_it_goes(),
+        scorer=_reads_monitor_state(),
+    )
+
+    [log] = eval(task, model=_model(stand_in), display="none")
+
+    assert log.status == "success"
+    # during the sample, as react scores each answer, and before the final scoring
+    assert len(_registered(stand_in, "sample_result")) == 2
+
+
+def test_a_sample_with_no_call_through_a_sidecar_copies_nothing() -> None:
+    stand_in = StandInSidecar()
+    task = Task(
+        dataset=[Sample(input="Hi.")], solver=_nothing(), scorer=_reads_monitor_state()
+    )
+
+    [log] = eval(task, model=_model(stand_in), display="none")
+
+    assert log.samples is not None
+    assert (log.samples[0].scores or {})["_reads_monitor_state"].value == -1
+    assert _registered(stand_in, "sample_result") == []
