@@ -459,6 +459,8 @@ recompute_metrics(log)
 write_eval_log(log)
 ```
 
+`edit_score()` and `recompute_metrics()` refuse a merged log of [shards](parallelism.qmd#sec-sharding) while its `.shards` directory still exists. Merge with `delete_shards` first.
+
 ### Score Edit Events
 
 When you edit a score, a `ScoreEditEvent` is automatically added to the sample's event log. This provides a complete audit trail of all score modifications that can be viewed in the log viewer.

@@ -32,6 +32,7 @@ from inspect_ai._util.file import filesystem
 from inspect_ai._util.platform import platform_init
 from inspect_ai.log._log import EvalLog, EvalResults, EvalSample
 from inspect_ai.log._recorders import create_recorder_for_location
+from inspect_ai.log._shards._live import check_shards_merged_async
 from inspect_ai.model._model import Model, get_model
 from inspect_ai.scorer._metric import Metric, MetricSpec
 
@@ -184,6 +185,8 @@ async def score(
 
     recorder = create_recorder_for_location(log_file, log_dir)
     eval_log = await recorder.read_log(log_file, header_only=bool(stream))
+    # before a streamed score starts writing the output log
+    await check_shards_merged_async(eval_log, "rescoring")
     num_samples = (
         len(eval_log.samples)
         if eval_log.samples

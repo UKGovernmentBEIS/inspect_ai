@@ -991,17 +991,29 @@ def test_epoch_reducers_sharing_a_name_are_refused(tmp_path: Path) -> None:
     assert _files(shards) == before
 
 
-def test_an_edited_carried_score_refuses_the_next_merge(tmp_path: Path) -> None:
+def _edit_bypassing_the_writer_check(merged: str) -> None:
+    """Edit a score in a merged log whose shards exist, as an outside writer could.
+
+    `edit_score()` refuses such a log (see the writer tests below); one read
+    without its `location` is not checked, which leaves the merge's own
+    edit-history check as the backstop.
+    """
     from inspect_ai.scorer import ScoreEdit
 
+    log = read_eval_log(merged)
+    log.location = ""
+    # edit_score recomputes the reductions with reducers recreated by name
+    edit_score(log, 1, "graded", ScoreEdit(value=0.25), epoch=1)
+    write_eval_log(log, merged)
+
+
+def test_an_edited_carried_score_refuses_the_next_merge(tmp_path: Path) -> None:
     merged, shards = _paths(tmp_path)
     task = _graded_task(Epochs(2, at_least(1, value=0.5)))
     _run(shards, "0", task, sample_id=[1, 2, 3])
     _run(shards, "1", task, sample_id=[4, 5, 6])
     merge_eval_log_shards(merged)
-    log = read_eval_log(merged)
-    edit_score(log, 1, "graded", ScoreEdit(value=0.25), epoch=1)
-    write_eval_log(log, merged)
+    _edit_bypassing_the_writer_check(merged)
     before = Path(merged).read_bytes()
 
     _run(shards, "1", task, sample_id=[4, 5, 6])
@@ -1017,17 +1029,12 @@ def test_an_edited_score_refuses_deleting_unchanged_shards(
 ) -> None:
     import shutil
 
-    from inspect_ai.scorer import ScoreEdit
-
     merged, shards = _paths(tmp_path)
     task = _graded_task(Epochs(2, at_least(1, value=0.5)))
     _run(shards, "0", task, sample_id=[1, 2, 3])
     _run(shards, "1", task, sample_id=[4, 5, 6])
     merge_eval_log_shards(merged)
-    # edit_score recomputes the reductions with reducers recreated by name
-    log = read_eval_log(merged)
-    edit_score(log, 1, "graded", ScoreEdit(value=0.25), epoch=1)
-    write_eval_log(log, merged)
+    _edit_bypassing_the_writer_check(merged)
     if remnant == "interrupted":
         # what an interrupted deletion leaves
         shutil.rmtree(f"{shards}/1")
@@ -3041,3 +3048,69 @@ def test_merge_paths_keep_literal_percent_signs() -> None:
     assert s3.location == "s3://bucket/run%2Drecovered.eval"
     with pytest.raises(ValueError, match="recovered"):
         merge_paths("file:///logs/run%2Drecovered.eval")
+
+
+def _write_with(writer: str, log: EvalLog) -> None:
+    """Run one of the writers that recreate epoch reducers on `log`."""
+    import functools
+
+    from inspect_ai import score_async
+    from inspect_ai._cli.score import score as cli_score
+    from inspect_ai._eval.score import ScoreAction
+    from inspect_ai.log import recompute_metrics
+    from inspect_ai.scorer import ScoreEdit
+
+    if writer == "recompute_metrics":
+        recompute_metrics(log)
+    elif writer in ("score_overwrite", "score_append"):
+        action: ScoreAction = "overwrite" if writer == "score_overwrite" else "append"
+        anyio.run(functools.partial(score_async, log, [graded()], action=action))
+    elif writer == "edit_score":
+        edit_score(log, 1, "graded", ScoreEdit(value=0.25), epoch=1)
+    else:
+        # `inspect score --overwrite --stream`: refused before it writes
+        assert log.location is not None
+        anyio.run(
+            functools.partial(
+                cli_score,
+                log_dir=str(Path(log.location).parent),
+                log_file=log.location,
+                scorer=None,
+                s=None,
+                metric=None,
+                overwrite=True,
+                action="overwrite",
+                log_level=None,
+                stream=True,
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    "writer",
+    ["recompute_metrics", "score_overwrite", "score_append", "edit_score", "cli"],
+)
+def test_writers_refuse_a_merged_log_whose_shards_exist(
+    tmp_path: Path, writer: str
+) -> None:
+    merged, shards = _paths(tmp_path)
+    task = _graded_task(Epochs(2, at_least(1, value=0.5)))
+    _run(shards, "0", task, sample_id=[1, 2, 3])
+    _run(shards, "1", task, sample_id=[4, 5, 6])
+    merge_eval_log_shards(merged)
+    before = Path(merged).read_bytes(), _files(shards)
+
+    log = read_eval_log(merged)
+    with pytest.raises(ShardSetError, match="shards that still exist"):
+        _write_with(writer, log)
+    assert (Path(merged).read_bytes(), _files(shards)) == before
+
+    # once the merge has deleted the shards, the same call is allowed
+    assert merge_eval_log_shards(merged, delete_shards=True).shards_deleted
+    _write_with(writer, read_eval_log(merged))
+
+
+@pytest.mark.parametrize("writer", ["recompute_metrics", "edit_score"])
+def test_writers_leave_ordinary_logs_alone(tmp_path: Path, writer: str) -> None:
+    log = _run(str(tmp_path), "0", _graded_task(Epochs(2, at_least(1, value=0.5))))
+    _write_with(writer, read_eval_log(log.location))

@@ -64,7 +64,8 @@ recursive delete of the location the caller gave, and the merge never
 imports the log's task file, resolving metrics from the registry only.
 Revised on 2026-10-23 (decision: Ransom): the merge does not recreate
 epoch reducers; it carries each sample's reduced scores from the shard
-that ran it.
+that ran it. Revised on 2026-10-26 (decision: Ransom): the writers that
+recreate reducers refuse a merged log whose shards still exist.
 
 This is the follow-on document that [`eval-sharding.md`](eval-sharding.md)
 ("the parent design") names: the public surface, the shape of the stored
@@ -1051,12 +1052,12 @@ Consequences, documented in the API docstring:
   the companion is deleted or the files are restored. Deleting the whole
   companion leaves the merged log as it is (step 10).
 - Edits to the merged log: header edits (`log_updates`, `tags`) are
-  carried to every later pass. Sample edits (for example `edit_score`)
-  survive while the shard holding the sample is unchanged, and are
-  replaced by the shard's copy when that shard changes. Editing a merged
-  log whose shards are still growing is therefore not supported; finish
-  the run first, or edit the shards. With an epoch reducer configured, an
-  edited score refuses any pass that writes ("Metric recomputation").
+  carried to every later pass. `edit_score()`, `recompute_metrics()` and
+  `score()` refuse a merged log while its shards exist ("Writers", under
+  "Metric recomputation"). A sample changed some other way survives while
+  the shard holding the sample is unchanged, and is replaced by the
+  shard's copy when that shard changes; with an epoch reducer configured,
+  an edited score refuses any pass that writes.
   `invalidated` follows the samples: it is true when a merged sample
   carries an `invalidation`, so a sample invalidated in a shard or in the
   merged log sets it, and replacing the last such sample clears it.
@@ -1316,6 +1317,23 @@ A merge that neither writes nor deletes is not checked. Two reducers recorded un
 because their recorded reductions cannot be told apart. The messages name
 the sample, score, reducer and log, and say to re-run the shard or delete
 the merged log so the next merge rebuilds it from the shards.
+
+Writers (decision: Ransom, 2026-10-26). `recompute_metrics()`,
+`score()`/`score_async()` (append and overwrite, and with them `inspect
+score`) and `edit_score()` recreate epoch reducers from their recorded
+names, so on a merged log they would replace the reductions the shards
+recorded, and a later merge or deletion would then trust the rewritten
+ones. Each refuses (`ShardSetError`) a log that has `eval.shards` while the
+`<name>.shards/` directory beside its `location` exists with any entry:
+one shared helper (`log/_shards/_live.py`), a plain listing in the sync
+writers and `AsyncFilesystem.list_dir` in the async ones. `inspect score`
+checks right after reading the log, before a streamed score starts
+writing its output. Once the merge has deleted the shards the check
+passes and the writers behave as before; ordinary logs (no `eval.shards`)
+and logs with no `location` (built in memory) are not checked. The merge
+keeps its edit-history and retained-reduction checks as a backstop for
+changes made without these writers, and the log format gains no
+provenance field.
 
 Memory: the current sample plus every sample's `SampleScore`s, as the
 parent's "Scale" accepts. The baseline parses each sample whole, so peak
@@ -2324,8 +2342,12 @@ Per PR (numbers from "Implementation plan"):
      one directory, and the same after `<name>.eval` is deleted and rebuilt
      from the companion under the same pattern; `merged_log_task_id` is
      tested directly for each pattern in
-     `tests/log/test_log_filename.py`; header edits (`tags`) survive a pass and a
-     sample `edit_score` survives while its shard is unchanged;
+     `tests/log/test_log_filename.py`; header edits (`tags`) survive a pass;
+   - writers: `recompute_metrics`, `score_async` (overwrite and append),
+     `edit_score` and the `inspect score` CLI path (streamed, overwriting)
+     refuse a merged log read while its shards exist, leaving the merged
+     log and shards byte-identical, and succeed on the same log after a
+     merge with `delete_shards=True`; ordinary logs are not affected;
    - fresh equals incremental: after replacing one shard's attempt, after
      adding a shard whose name sorts before the template shard (so the
      template changes), and after a sequence where shard A fails,

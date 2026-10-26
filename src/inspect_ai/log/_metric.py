@@ -4,16 +4,23 @@ from inspect_ai._eval.task.results import eval_results
 from inspect_ai.scorer._metric import SampleScore
 
 from ._log import EvalLog
+from ._shards._live import check_shards_merged
 
 
 def recompute_metrics(log: EvalLog) -> None:
     """Recompute aggregate metrics after score edits.
+
+    A merged log (`merge_eval_log_shards()`) is refused while its
+    `<name>.shards/` directory still exists, since recomputing would replace
+    the reductions its shards recorded; a log with no `location` is not
+    checked.
 
     Args:
         log: The evaluation log to recompute metrics for
 
     Raises:
         ValueError: If log is missing required data for recomputation
+        ShardSetError: The log is a merged log whose shards still exist.
     """
     # Import here to avoid circular imports
     from inspect_ai._eval.score import (
@@ -22,6 +29,7 @@ def recompute_metrics(log: EvalLog) -> None:
         resolve_scorers_info,
     )
 
+    check_shards_merged(log, "recomputing metrics for")
     if log.samples is None:
         raise ValueError("Log contains no samples")
 

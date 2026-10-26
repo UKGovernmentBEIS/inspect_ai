@@ -120,8 +120,8 @@ def merge_eval_log_shards(
     rest of the shards directory is deleted or the files are restored;
     deleting the whole shards directory leaves the merged log as it is.
     Header edits to the merged log (tags, metadata) are kept by later merges.
-    Sample edits (for example `edit_score`) are kept until the shard holding
-    the sample changes, so edit a merged log only once its shards are done.
+    `edit_score()`, `recompute_metrics()` and `score()` refuse a merged log
+    while its shards directory exists: merge with `delete_shards` first.
 
     A local merged log is guarded by a lock file beside it and an S3 one by a
     conditional upload, so a merge that overlaps another is refused. Other
