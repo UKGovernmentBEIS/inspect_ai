@@ -459,6 +459,22 @@ recompute_metrics(log)
 write_eval_log(log)
 ```
 
+Metrics and epoch reducers are rebuilt from the registry. If the eval used a custom metric defined in its task file, import that file before you edit or recompute (in the process that ran the eval this is already done):
+
+``` python
+import my_task  # registers the custom metrics defined in my_task.py
+
+edit_score(log, sample_id, "accuracy", edit)
+```
+
+Otherwise `edit_score()` and `recompute_metrics()` raise a `LookupError` that names the metric, and the log is not changed.
+
+### Logs from Others
+
+Reading, viewing, editing, recomputing and recovering a log do not import any file that the log names. Whoever wrote a log controls every field in it, including the task file it records and the options of its metrics. These operations do not import the task file, and they refuse metric options that would create a model or any object other than a metric or reducer (a `ValueError` naming the option).
+
+If you trust a log, pass `trust_log=True` to `edit_score()`, `recompute_metrics()` or `recover_eval_log()` (`--trust-log` for `inspect log recover`). This imports the task file the log records for metrics that are not registered, and rebuilds metric options as recorded. It runs the task file's code, so use it only for logs you trust.
+
 ### Score Edit Events
 
 When you edit a score, a `ScoreEditEvent` is automatically added to the sample's event log. This provides a complete audit trail of all score modifications that can be viewed in the log viewer.
@@ -515,6 +531,8 @@ AWS_DEFAULT_REGION=eu-west-2
 ```
 
 One thing to keep in mind if you are storing logs on S3 is that they will no longer be easily viewable using a local text editor. You will likely want to configure a [FUSE filesystem](https://github.com/s3fs-fuse/s3fs-fuse) so you can easily browse the S3 logs locally.
+
+Large `.eval` logs on S3 use multipart uploads. With the default asyncio backend, later writes can copy existing log data server-side and upload only new data and the ZIP directory. If Inspect is killed during a write, the unfinished upload stays in the bucket, and is billed as storage, until it is removed. We recommend a [lifecycle rule](https://docs.aws.amazon.com/AmazonS3/latest/userguide/mpu-abort-incomplete-mpu-lifecycle-config.html) on the log bucket that aborts incomplete multipart uploads after a day.
 
 ## Hugging Face Storage Buckets {#sec-hugging-face-storage-buckets}
 

@@ -176,6 +176,73 @@ def test_registry_kwargs() -> None:
         assert isinstance(arg_solver, Solver)
 
 
+def test_create_registry_object_allowed_types() -> None:
+    """An allow-list refuses other objects at any depth, before any factory runs."""
+    from inspect_ai._util.registry import (
+        LOG_METRIC_OPTION_TYPES,
+        DisallowedRegistryArg,
+        create_registry_object,
+    )
+
+    calls: list[object] = []
+
+    @metric
+    def allow_list_metric(option: object = None) -> Metric:
+        calls.append(option)
+
+        def compute(scores: list[SampleScore]) -> float:
+            return 0.0
+
+        return compute
+
+    model: dict[str, object] = {
+        "model": "mockllm/model",
+        "config": {},
+        "base_url": None,
+        "model_args": {},
+    }
+    nested = {"type": "metric", "name": "allow_list_metric", "params": {}}
+    for option, path, kind in (
+        (model, "option", "a model"),
+        ([{"x": model}], "option.0.x", "a model"),
+        (
+            {"type": "solver", "name": "generate", "params": {}},
+            "option",
+            "a solver ('generate')",
+        ),
+        (
+            {**nested, "params": {"option": model}},
+            "option.params.option",
+            "a model",
+        ),
+    ):
+        with pytest.raises(DisallowedRegistryArg) as ex:
+            create_registry_object(
+                "metric",
+                "allow_list_metric",
+                {"option": option},
+                allowed_types=LOG_METRIC_OPTION_TYPES,
+            )
+        assert str(ex.value) == (
+            f"Metric 'allow_list_metric' option '{path}': {kind} cannot be "
+            "created from metric options in an untrusted log."
+        )
+        assert calls == []
+
+    # allowed types are built, at every depth
+    create_registry_object(
+        "metric",
+        "allow_list_metric",
+        {"option": [nested, registry_value(mean_score())]},
+        allowed_types=LOG_METRIC_OPTION_TYPES,
+    )
+    assert len(calls) == 2
+
+    # without an allow-list, anything is built as before
+    create_registry_object("metric", "allow_list_metric", {"option": model})
+    assert len(calls) == 3
+
+
 def test_registry_arg_preserves_ordinary_registry_shaped_dict() -> None:
     """Ordinary user dicts must not be treated as encoded registry objects."""
     from inspect_ai._util.registry import is_registry_dict, registry_arg
