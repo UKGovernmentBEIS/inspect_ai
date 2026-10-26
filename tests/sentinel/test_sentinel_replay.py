@@ -2,6 +2,7 @@
 
 import bisect
 import dataclasses
+import json
 import random
 from collections.abc import Callable, Sequence
 from dataclasses import replace
@@ -22,7 +23,15 @@ from inspect_ai._sentinel._integration import (
 from inspect_ai._sentinel._steps import ListView, PoolView
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.exception import TerminateSampleError
-from inspect_ai.agent import Agent, as_solver, as_tool, handoff, react
+from inspect_ai.agent import (
+    Agent,
+    AgentState,
+    agent,
+    as_solver,
+    as_tool,
+    handoff,
+    react,
+)
 from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
 from inspect_ai.approval._approval import ApprovalDecision
 from inspect_ai.dataset import Sample
@@ -782,6 +791,77 @@ def test_a_custom_memory_tool_replays_its_path_as_given() -> None:
         for step in replay
         if isinstance(step.step, BeforeToolCall | AfterToolCall)
     ] == [path, path]
+
+
+@agent
+def r7_runs_a_bridged_host_tool() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        from inspect_ai.agent._bridge.completions import (
+            inspect_completions_api_request,
+        )
+        from inspect_ai.agent._bridge.sandbox.service import call_tool
+        from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
+
+        bridge = SandboxAgentBridge(
+            state=state,
+            filter=None,
+            retry_refusals=None,
+            compaction=None,
+            port=8080,
+            model=None,
+            bridged_tools={"host": {"addition": addition()}},
+        )
+        [served] = bridge.served_tools.values()
+        # the scaffold declares the tool under its own name, with the
+        # description the bridge served
+        completion = await inspect_completions_api_request(
+            {
+                "model": "inspect",
+                "messages": [{"role": "user", "content": "What is 1 + 1?"}],
+                "tools": [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "mcp__host__addition",
+                            "description": served.description,
+                            "parameters": served.parameters.model_dump(
+                                exclude_none=True
+                            ),
+                        },
+                    }
+                ],
+            },
+            None,
+            bridge,
+        )
+        [proposed] = completion.choices[0].message.tool_calls or []
+        assert proposed.type == "function"
+        await call_tool(bridge)(
+            "host", "addition", json.loads(proposed.function.arguments)
+        )
+        return state
+
+    return execute
+
+
+def test_a_bridged_host_tool_call_has_no_tool_steps() -> None:
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        as_solver(r7_runs_a_bridged_host_tool()),
+        outputs(call("mcp__host__addition", x=1, y=1)),
+        sentinel=[r7_probe(seen)],
+    )
+    events = logged_sample(log).events
+    [turn] = [e for e in events if isinstance(e, ModelEvent)]
+    [ran] = [e for e in events if isinstance(e, ToolEvent)]
+    # the host tool ran the model's call, as a native call would
+    assert ran.metadata is not None and "bridge" in ran.metadata
+    assert [c.id for c in turn.output.message.tool_calls or []] == [ran.id]
+    assert ran.error is None
+    # the host executor runs no tool stage, so live checked only the generate
+    live = [e.stage for e in events if isinstance(e, SentinelEvent)]
+    assert live == ["model_input", "model_output"]
+    assert [step.stage for step in replayed(log)] == live
 
 
 def run_logged(

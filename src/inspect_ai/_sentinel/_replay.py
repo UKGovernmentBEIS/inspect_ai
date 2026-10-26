@@ -649,7 +649,7 @@ class _Driver:
         if proposal is None or call.assistant is None:
             return
         recorded = before_span is not None or after_span is not None
-        if not recorded and not self._checks_tool_calls(call.producer):
+        if not recorded and not self._checks_tool_calls(event, call.producer):
             return
         approver_modified = (
             approval.modified
@@ -755,11 +755,13 @@ class _Driver:
         self._at_point(after_cut, call.seq + 2, build_after)
         self._settle_at_end(after_span)
 
-    def _checks_tool_calls(self, producer: ModelEvent | None) -> bool:
+    def _checks_tool_calls(self, event: ToolEvent, producer: ModelEvent | None) -> bool:
         """Whether live checked the calls a model call produced, inferred from the region the model call was made in.
 
-        Live decides by the region that runs the call (`checks_tool_calls()` in `call_tool`), which the log does not record, so a call run in a region other than the one its producer was made in is replayed by its producer's. A call no model call produced (a pre-filled message) is taken as checked.
+        Live decides by the region that runs the call (`checks_tool_calls()` in `call_tool`), which the log does not record, so a call run in a region other than the one its producer was made in is replayed by its producer's. A call no model call produced (a pre-filled message) is taken as checked. A call a sandbox bridge ran on the host (`metadata["bridge"]`) is not: the host executor runs no tool stage.
         """
+        if event.metadata is not None and "bridge" in event.metadata:
+            return False
         return producer is None or producer.origin in _NON_FINAL
 
     # ---- effects of the second pass
