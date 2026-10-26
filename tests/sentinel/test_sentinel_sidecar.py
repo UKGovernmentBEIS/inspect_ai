@@ -901,3 +901,55 @@ def test_an_error_inspect_retries_is_not_looked_up() -> None:
     failed, replied = stand_in.model_calls
     assert failed.headers["x-irid"] == replied.headers["x-irid"]
     assert _looked_up(stand_in) == [replied.headers["x-irid"]]
+
+
+def _ended(stand_in: StandInSidecar) -> list[str]:
+    return [params["sample_uuid"] for params in _registered(stand_in, "end_sample")]
+
+
+def test_a_sidecar_is_told_when_a_sample_ends_after_its_scoring() -> None:
+    stand_in = StandInSidecar()
+    task = Task(dataset=[Sample(input="Hi.")], solver=generate(), scorer=_graded())
+
+    [log] = eval(task, model=_model(stand_in), display="none")
+
+    assert log.samples is not None
+    assert _ended(stand_in) == [log.samples[0].uuid]
+    # after the grader's call, which is the scoring's
+    methods = [
+        json.loads(r.content).get("method") if r.url.path == "/sentinel/v1" else None
+        for r in stand_in.requests
+    ]
+    last_model_call = max(
+        i for i, r in enumerate(stand_in.requests) if r in stand_in.model_calls
+    )
+    assert methods.index("end_sample") > last_model_call
+
+
+@solver
+def _fails_once() -> Solver:
+    attempts = 0
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        nonlocal attempts
+        attempts += 1
+        state = await generate(state)
+        if attempts == 1:
+            raise RuntimeError("The first attempt fails.")
+        return state
+
+    return solve
+
+
+def test_a_sample_that_will_be_retried_keeps_its_state_in_the_sidecar() -> None:
+    stand_in = StandInSidecar()
+    task = Task(dataset=[Sample(input="Hi.")], solver=_fails_once())
+
+    [log] = eval(task, model=_model(stand_in), retry_on_error=1, display="none")
+
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.error is None
+    # told once, after the attempt that wasn't retried
+    assert _ended(stand_in) == [sample.uuid]
+    assert len(stand_in.model_calls) == 2
