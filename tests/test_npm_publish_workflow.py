@@ -172,17 +172,23 @@ class PackageCheck(NamedTuple):
 
 
 def run_package_check(
-    tmp_path: pathlib.Path, version: str, tag: str, prerelease: str = ""
+    tmp_path: pathlib.Path,
+    version: str,
+    tag: str,
+    prerelease: str = "",
+    name: str = "@meridianlabs/log-viewer",
+    tarballs: int = 1,
 ) -> PackageCheck:
-    """Run the publish job's "Check the package" script on a packed tarball."""
+    """Run the publish job's "Check the package" script on packed tarballs."""
     package = tmp_path / "package"
     package.mkdir()
     (package / "package.json").write_text(
-        json.dumps({"name": "@meridianlabs/log-viewer", "version": version})
+        json.dumps({"name": name, "version": version})
     )
     (tmp_path / "npm-package").mkdir()
-    with tarfile.open(tmp_path / "npm-package" / "pkg.tgz", "w:gz") as tar:
-        tar.add(package, arcname="package")
+    for i in range(tarballs):
+        with tarfile.open(tmp_path / "npm-package" / f"pkg{i}.tgz", "w:gz") as tar:
+            tar.add(package, arcname="package")
     output = tmp_path / "github_output"
     output.touch()
 
@@ -232,3 +238,23 @@ def test_package_check_publishes_only_the_release_version(
 ) -> None:
     check = run_package_check(tmp_path, version, tag, prerelease)
     assert (check.returncode == 0) is ok, check.stdout
+
+
+@pytest.mark.skipif(_no_package_check, reason="needs a POSIX shell and jq")
+@pytest.mark.parametrize(
+    "name,tarballs,error",
+    [
+        ("@meridianlabs/log-viewer", 0, "Expected one package tarball, found 0"),
+        ("@meridianlabs/log-viewer", 2, "Expected one package tarball, found 2"),
+        ("@meridianlabs/other", 1, "Unexpected package name '@meridianlabs/other'"),
+    ],
+)
+def test_package_check_rejects_anything_but_one_log_viewer_tarball(
+    tmp_path: pathlib.Path, name: str, tarballs: int, error: str
+) -> None:
+    check = run_package_check(
+        tmp_path, "0.3.285", "0.3.285", name=name, tarballs=tarballs
+    )
+    assert check.returncode != 0
+    assert f"::error::{error}" in check.stdout
+    assert check.outputs == {}
