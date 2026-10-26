@@ -680,3 +680,113 @@ def test_calls_of_many_lengths_in_a_pooled_log_are_looked_up_in_linear_work(
 
     small, large = work(200), work(400)
     assert large <= 2.2 * small + 10, (small, large)
+
+
+def _summarized_turns(turns: int) -> tuple[list[Any], list[Any]]:
+    """A tool loop with no origins, its summary call and summary compaction every four turns, the next input holding the summary wrapped as Inspect wraps it: events whose inputs are ranges of the returned pool."""
+    from inspect_ai.event import (
+        CompactionEvent,
+        ModelEvent,
+        SpanBeginEvent,
+        SpanEndEvent,
+    )
+    from inspect_ai.event._pool import _compress_refs
+    from inspect_ai.model import (
+        ChatCompletionChoice,
+        ChatMessageAssistant,
+        ChatMessageSystem,
+        ChatMessageTool,
+        ChatMessageUser,
+        GenerateConfig,
+        ModelOutput,
+    )
+    from inspect_ai.tool import ToolCall
+
+    pool: list[Any] = [
+        ChatMessageSystem(content="You are the main agent."),
+        ChatMessageUser(content="Add up the numbers."),
+    ]
+    events: list[Any] = [SpanBeginEvent(id="main", name="main", type="agent")]
+
+    def add(message: Any) -> int:
+        pool.append(message)
+        return len(pool) - 1
+
+    def model(uuid: str, rows: list[int], output: Any) -> None:
+        events.append(
+            ModelEvent(
+                uuid=uuid,
+                span_id="main",
+                model="mockllm/model",
+                input=[],
+                input_refs=_compress_refs(rows),
+                tools=[],
+                tool_choice="auto",
+                config=GenerateConfig(),
+                output=ModelOutput(
+                    model="mockllm/model",
+                    choices=[ChatCompletionChoice(message=output, stop_reason="stop")],
+                ),
+            )
+        )
+
+    history = [0, 1]
+    for turn in range(turns):
+        if turn and turn % 4 == 0:
+            text = (
+                f"<analysis>Turns to {turn}.</analysis>\n<summary>Sum {turn}.</summary>"
+            )
+            model(
+                f"sm{turn}",
+                [*history, add(ChatMessageUser(content="Summarize."))],
+                ChatMessageAssistant(content=text),
+            )
+            events.append(CompactionEvent(span_id="main", type="summary"))
+            wrapped = f"[CONTEXT COMPACTION SUMMARY]\n\n<summary>Sum {turn}.</summary>"
+            history = [0, 1, add(ChatMessageUser(content=wrapped))]
+        call = ToolCall(id=f"c{turn}", function="add", arguments={"n": turn})
+        output = ChatMessageAssistant(content="", tool_calls=[call])
+        model(f"m{turn}", history, output)
+        history = [
+            *history,
+            add(output),
+            add(ChatMessageTool(content="ok", tool_call_id=call.id)),
+        ]
+    model("last", history, ChatMessageAssistant(content="done"))
+    events.append(SpanEndEvent(id="main"))
+    return events, pool
+
+
+def test_summary_compactions_are_settled_in_linear_work(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai.event import _timeline as timeline
+
+    fingerprint = timeline._Inputs.fingerprint
+
+    def work(turns: int) -> int:
+        count = 0
+
+        def counting(self: Any, message: Any) -> Any:
+            nonlocal count
+            count += 1
+            return fingerprint(self, message)
+
+        events, pool = _summarized_turns(turns)
+        counted = _CountingList(pool)
+        _CountingList.reads = 0
+        with monkeypatch.context() as patch:
+            patch.setattr(timeline._Inputs, "fingerprint", counting)
+            built = timeline._timeline_build(events, message_pool=counted)
+        [main] = [item for item in built.root.content if isinstance(item, TimelineSpan)]
+        utility = {
+            event.uuid
+            for item in main.content
+            if isinstance(item, TimelineSpan) and item.utility
+            for event in _model_events(item)
+        }
+        assert utility == {f"sm{turn}" for turn in range(4, turns, 4)}
+        return count + _CountingList.reads
+
+    small, large = work(100), work(200)
+    assert large <= 2.2 * small + 10, (small, large)

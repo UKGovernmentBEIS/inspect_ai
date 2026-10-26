@@ -1291,6 +1291,10 @@ class _OpenCalls:
         self._by_offset, self._offset_lengths = {}, {}
 
 
+# where a summarizer's summary begins, after any analysis before it
+_SUMMARY_TAG = "<summary>"
+
+
 class _Continuity:
     """The continuity rule: which of a conversation's model calls in a span are its turns, by which calls carry on the others' output.
 
@@ -1298,11 +1302,11 @@ class _Continuity:
 
     - A call whose input continues the tip, holding the tip's output at position ``len(tip.input)``, is on the thread, a *head*. Two heads of one tip are a fork: the one a later call continues is the turn, and the others are utility.
     - A call that continues nothing is a *candidate*; if a later call continues it, the thread moves to it (a compaction the log does not show). The candidates a thread goes on without, by advancing or moving to another, are utility; those still open where the thread ends (a scaffold that keeps a window of fixed length, so no later call continues anything) get no answer, and the existing rules decide them.
-    - A summary ``CompactionEvent`` makes the calls not yet continued utility (the summary call continues the tip, and the next turn's input is the compacted list) and resets the tip; an edit or trim ends the thread as the end of the span does.
+    - A summary ``CompactionEvent`` resets the tip, and of the calls not yet continued, the one whose output appears in the next call's input is the summarizer, utility (decided by Charles 2026-10-26): Inspect's summary call continues the tip, and the next turn's input holds its summary. The others end the thread as the end of the span does, so a log that records no summary call keeps its last turn. The output appears where a message of that input contains its text, or its text from its last ``<summary>`` tag (Inspect drops the ``<analysis>`` before it); a summary reworded on the way in is not recognized, and its call stays a turn. An edit or trim ends the thread as the end of the span does.
     - A failed call is a turn or utility as its retry, the next call in its conversation with the same input, message by message, is; one not retried is a turn.
     - Where the thread ends (the end of the span, an edit or trim, or a move to a candidate), a lone head is its last turn, and a fork goes to the head whose output is in the span's final messages; a fork no later call or final message resolves gets no answer, and the existing rules decide its calls (a scaffold that sends one input again and again would otherwise lose all but its last call).
 
-    So a call is utility only where the conversation went on without it, or before a summary compaction.
+    So a call is utility only where the conversation went on without it, or where its output is the summary a compaction put in its place.
 
     A span in which no call continues another has no answer (``linked`` is False), so the existing rules decide. Each call is looked up at the input lengths of the calls still open (``_OpenCalls``), which the thread settles whenever it advances.
     """
@@ -1321,9 +1325,14 @@ class _Continuity:
         # with its retry
         self._failed: dict[tuple[int, _Fingerprint | None], list[_Call]] = {}
         self._retried: list[tuple[_Call, _Call]] = []
+        # the heads and the candidates open at each summary compaction, until
+        # the next call's input shows which summarized
+        self._summarized: list[tuple[list[_Call], list[_Call]]] = []
 
     def call(self, event: ModelEvent) -> None:
         call = _Call(event, self._inputs.of(event), _answer(event))
+        if self._summarized:
+            self._summarizers(call.input)
         if call.output is None:
             self._failed.setdefault(self._input_key(call), []).append(call)
             return
@@ -1352,8 +1361,7 @@ class _Continuity:
 
     def compaction(self, event: CompactionEvent) -> None:
         if event.type == "summary":
-            self._close(self._heads.calls)
-            self._close(self._candidates.calls)
+            self._summarized.append((self._heads.calls, self._candidates.calls))
         else:
             self._end(final=False)
         self._tip = None
@@ -1361,6 +1369,8 @@ class _Continuity:
         self._candidates.clear()
 
     def finish(self) -> dict[int, bool]:
+        if self._summarized:
+            self._summarizers(None)
         self._end(final=True)
         for failed, retry in self._retried:
             if id(retry.event) in self.turns:
@@ -1378,6 +1388,38 @@ class _Continuity:
             self._settle(found[-1], heads)
         elif len(heads) == 1:
             self._settle(heads[0], heads)
+
+    def _summarizers(self, input: Sequence[ChatMessage] | None) -> None:
+        """Settle the calls open at each summary compaction since the last call, given the next call's input (None at the span's end): a call whose output appears in it is the summarizer, utility; of the others, a lone head is the thread's last turn."""
+        for heads, candidates in self._summarized:
+            summarizers = [
+                call
+                for call in [*heads, *candidates]
+                if input is not None and self._summarizes(call, input)
+            ]
+            self._close(summarizers)
+            kept = [h for h in heads if not any(h is s for s in summarizers)]
+            if len(kept) == 1:
+                self._settle(kept[0], kept)
+        self._summarized = []
+
+    def _summarizes(self, call: _Call, input: Sequence[ChatMessage]) -> bool:
+        """Whether `call`'s output appears in `input`: a message of it holds the output's text, or its text from its last ``<summary>`` tag."""
+        if call.output is None or not call.output.text:
+            return False
+        text = call.output.text
+        texts = {self._inputs.fingerprint(call.output).text_hash}
+        needles = [text]
+        if (at := text.rfind(_SUMMARY_TAG)) > 0:
+            needles.append(text[at:])
+        for message in input:
+            # an exact match by the fingerprint each message already has, else
+            # the summary within a message the compaction wrapped it in
+            if self._inputs.fingerprint(message).text_hash in texts:
+                return True
+            if any(needle in message.text for needle in needles):
+                return True
+        return False
 
     def _advance(self, turn: _Call, call: _Call) -> None:
         self.turns[id(turn.event)] = True
