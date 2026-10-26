@@ -304,9 +304,13 @@ class _FakeS3:
     def __init__(self, published: dict[str, str]) -> None:
         self.published = dict(published)  # name -> digest; absent means not published
         self.puts: list[list[str]] = []
+        self.sums_written: dict[str, str] | None = None
 
     def hash_obj(self, name: str) -> str | None:
         return self.published.get(name)
+
+    def record_sums(self, entries: dict[str, str], path: Path | None = None) -> None:
+        self.sums_written = dict(entries)
 
     def run(self, cmd: list[str], check: bool = False) -> subprocess.CompletedProcess:
         self.puts.append(cmd)
@@ -333,9 +337,7 @@ def _setup_upload(
     monkeypatch.setattr(upload_to_s3, "_sha256_of_s3_object", fake.hash_obj)
     # upload_to_s3 calls subprocess.run via this same module object.
     monkeypatch.setattr(subprocess, "run", fake.run)
-    monkeypatch.setattr(
-        upload_to_s3, "write_sha256sums", lambda entries, path=None: None
-    )
+    monkeypatch.setattr(upload_to_s3, "write_sha256sums", fake.record_sums)
     monkeypatch.setattr(sys, "argv", ["upload_to_s3.py", str(version)])
     return upload_to_s3, fake, digests
 
@@ -356,6 +358,8 @@ def test_upload_skips_matching_and_uploads_missing(
     names = list(digests)
     uploaded = {cmd[cmd.index("--key") + 1] for cmd in fake.puts}
     assert uploaded == {names[2], names[3]}
+    # The sums file gets all four local digests, including the skipped objects.
+    assert fake.sums_written == digests
     for cmd in fake.puts:
         assert cmd[:3] == ["aws", "s3api", "put-object"]
         assert cmd[cmd.index("--bucket") + 1] == "inspect-sandbox-tools"
@@ -367,9 +371,13 @@ def test_upload_is_idempotent_when_all_match(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     version = 36
-    mod, fake, _ = _setup_upload(monkeypatch, tmp_path, version, lambda d: dict(d))
+    mod, fake, digests = _setup_upload(
+        monkeypatch, tmp_path, version, lambda d: dict(d)
+    )
     mod.main()
     assert fake.puts == []
+    # Even with nothing to upload, the sums file still gets all four local digests.
+    assert fake.sums_written == digests
 
 
 def test_upload_aborts_on_mismatch_without_uploading(
