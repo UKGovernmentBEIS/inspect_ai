@@ -2257,12 +2257,13 @@ def _sample_filename(id: str | int, epoch: int) -> str:
     return f"{SAMPLES_DIR}/{id}_epoch_{epoch}.json"
 
 
-_SAMPLE_FILENAME_RE = re.compile(rf"^{SAMPLES_DIR}/(.+)_epoch_(\d+)\.json$")
+# DOTALL since an id may contain a newline
+_SAMPLE_FILENAME_RE = re.compile(rf"{SAMPLES_DIR}/(.+)_epoch_(\d+)\.json", re.DOTALL)
 
 
 def _sample_key(filename: str) -> SampleRecordKey | None:
     """The key `_sample_filename` named this member by, or `None` for other members."""
-    match = _SAMPLE_FILENAME_RE.match(filename)
+    match = _SAMPLE_FILENAME_RE.fullmatch(filename)
     return SampleRecordKey(match[1], int(match[2])) if match else None
 
 
