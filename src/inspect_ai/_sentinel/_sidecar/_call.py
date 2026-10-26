@@ -53,6 +53,7 @@ async def sidecar_call(model: "Model") -> SidecarCall | None:
     if sidecar is None:
         return None
 
+    sidecars.called_through(active.sample_uuid, sidecar)
     await sidecars.complete_registration(
         sidecar,
         SampleFacts(
@@ -75,3 +76,10 @@ async def sidecar_call(model: "Model") -> SidecarCall | None:
         }
     )
     return SidecarCall(sidecar, header, sidecars.mode)
+
+
+async def end_sidecar_sample(sample_uuid: str) -> None:
+    """Tell the sidecars a sample's calls went through that it has ended, after its final scoring."""
+    sidecars = task_sidecars()
+    if sidecars is not None:
+        await sidecars.end_sample(sample_uuid)

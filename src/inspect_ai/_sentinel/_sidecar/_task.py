@@ -2,6 +2,7 @@
 
 from collections.abc import Awaitable, Callable, Hashable
 from contextvars import ContextVar
+from logging import getLogger
 from typing import Any, Generic, NamedTuple, TypeVar
 
 import anyio
@@ -19,6 +20,10 @@ from ._endpoint import (
 )
 
 REGISTRATION_REFUSED = -32001
+
+END_SAMPLE_TIMEOUT = 10.0
+
+logger = getLogger(__name__)
 
 _NOT_PROBED = (
     "its base URL was not set, or its provider's calls aren't ones a sidecar reads"
@@ -58,6 +63,8 @@ class TaskSidecars:
         self.facts = facts
         self._found = _Once[Sidecar | str]()
         self._completed = _Once[None]()
+        # the sidecars each sample's calls went through, by the sample's uuid
+        self._through: dict[str, dict[str, Sidecar]] = {}
 
     async def start(self, model: Model) -> None:
         """Probe the endpoint of the task's assigned model, and register the task with a sidecar found there, before any sample runs.
@@ -104,6 +111,24 @@ class TaskSidecars:
                 ) from ex
 
         await self._completed.run((sidecar.origin, sample.sample_id), complete)
+
+    def called_through(self, sample_uuid: str, sidecar: Sidecar) -> None:
+        """Note that a sample's call went through a sidecar, which is told when the sample ends."""
+        self._through.setdefault(sample_uuid, {})[sidecar.origin] = sidecar
+
+    async def end_sample(self, sample_uuid: str) -> None:
+        """Tell each sidecar a sample's calls went through that the sample has ended, after its final scoring, so it drops what it keeps for the sample.
+
+        A sidecar that can't be told drops the sample once no request has named it for its run expiry, so a failure is logged and not raised.
+        """
+        for sidecar in self._through.pop(sample_uuid, {}).values():
+            with anyio.move_on_after(END_SAMPLE_TIMEOUT):
+                try:
+                    await sidecar.call("end_sample", {"sample_uuid": sample_uuid})
+                except SidecarCallError as ex:
+                    logger.warning(
+                        f"The sentinel sidecar at {sidecar.origin} couldn't be told the sample {sample_uuid} ended: {ex}"
+                    )
 
     async def _probe(self, api: ModelAPI) -> Sidecar | str:
         client = proxy_client(api)
