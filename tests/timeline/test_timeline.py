@@ -344,13 +344,8 @@ def _timeline_work(
         if isinstance(item, TimelineSpan) and item.id.startswith("agent-")
     }
     # the result of the task before a compaction reaches only the summary
-    # call, which is utility
-    assert results == {
-        f"agent-task{turn}": None
-        if compaction and turn == turns // 2 - 1
-        else f"result {turn}"
-        for turn in range(turns)
-    }
+    # call, which is utility, and is kept (Ransom's review B3)
+    assert results == {f"agent-task{turn}": f"result {turn}" for turn in range(turns)}
     utility = [
         event.output.message.text
         for item in main.content

@@ -591,10 +591,13 @@ def _classify_spans(
     inputs: _Inputs,
     final_messages: Sequence[ChatMessage] | None = None,
 ) -> None:
-    """Run all span classification passes on a root span."""
+    """Run all span classification passes on a root span.
+
+    Agent results are extracted first, while every model call is still in its span's content: a result can reach only a call that is then wrapped as utility, such as a summary call just after the sub-agent finished.
+    """
+    _extract_agent_results(root, inputs)
     _wrap_utility_events(root, inputs, final_messages)
     _classify_utility_agents(root, inputs)
-    _extract_agent_results(root, inputs)
 
 
 def _unwrap_solver_span(span: EventTreeSpan) -> EventTreeSpan:
