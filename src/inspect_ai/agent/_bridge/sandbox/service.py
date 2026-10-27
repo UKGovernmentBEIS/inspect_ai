@@ -56,12 +56,15 @@ def _forward_provider_errors(
     are signalled through `bridge.request_fail` (raised on the agent's side by
     the bridge's monitor task) while the scaffold still gets an error reply.
 
-    A `LimitExceededError` (message, token, cost or turn limit) is returned as
-    an error reply too, and recorded in `bridge.generation_limits` with every
-    other limit in its history (e.g. the group a response filter's concurrent
-    failures raised it from). Once the agent has unwound, `sandbox_agent_bridge`
-    raises the outermost of them, so the scope that applied it (`run()`, or the
-    sample) handles it, as for a native agent.
+    An exception with a `LimitExceededError` (message, token, cost or turn
+    limit) anywhere in its history, such as a filter's task group or a refusal
+    reduced from a response filter's group, is returned as an error reply too,
+    and its limits are recorded in `bridge.generation_limits`. Once the agent
+    has unwound, `sandbox_agent_bridge` raises the outermost of them, so the
+    scope that applied it (`run()`, or the sample) handles it, as for a native
+    agent. A `ResponseFilterError` keeps the route above even with limits in
+    its history: a response filter's group mixing a limit with another error
+    is a filter failure.
     """
 
     async def generate_forwarding_errors(
@@ -74,12 +77,11 @@ def _forward_provider_errors(
             if find_control_flow(ex) is not None:
                 # the service dispatcher ends the sample with it
                 raise
-            if isinstance(ex, LimitExceededError):
-                bridge.generation_limits.extend(
-                    e
-                    for e in exception_history(ex)
-                    if isinstance(e, LimitExceededError)
-                )
+            limits = [
+                e for e in exception_history(ex) if isinstance(e, LimitExceededError)
+            ]
+            if limits and not isinstance(ex, ResponseFilterError):
+                bridge.generation_limits.extend(limits)
                 return {PROVIDER_ERROR_KEY: cast(JsonValue, provider_error_payload(ex))}
             if isinstance(ex, (ModelRefusalError, ResponseFilterError)):
                 bridge.request_fail(ex)

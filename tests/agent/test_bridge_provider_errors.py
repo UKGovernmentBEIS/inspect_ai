@@ -48,6 +48,7 @@ from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalSample
 from inspect_ai.model import (
+    ChatMessage,
     ChatMessageUser,
     GenerateConfig,
     ModelOutput,
@@ -59,6 +60,7 @@ from inspect_ai.model._model import (
     Model,
     ModelAPI,
     ModelGenerateError,
+    ModelGenerateFilter,
     ModelRefusalError,
     ModelResponseFilter,
 )
@@ -72,6 +74,7 @@ from inspect_ai.model._providers.anthropic import (
 )
 from inspect_ai.model._registry import modelapi
 from inspect_ai.solver import Generate, Solver, TaskState, solver
+from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 from inspect_ai.util import (
@@ -960,11 +963,12 @@ class _Scaffold:
 
     Once every reply has been written, the scaffold exits: cleanly, or with
     `fails` as a CLI wrapper does when the CLI exits unsuccessfully. The
-    bridge applies `response_filter` to its generations.
+    bridge applies `filter` and `response_filter` to its generations.
     """
 
     requests: list[_Request]
     fails: bool = False
+    filter: ModelGenerateFilter | None = None
     response_filter: ModelResponseFilter | None = None
 
     def arm(self) -> None:
@@ -1091,7 +1095,7 @@ def _serve_generations(
 def _bridged_agent(scaffold: _Scaffold) -> Agent:
     async def execute(state: AgentState) -> AgentState:
         async with sandbox_agent_bridge(
-            state, response_filter=scaffold.response_filter
+            state, filter=scaffold.filter, response_filter=scaffold.response_filter
         ) as bridge:
             request = scaffold.during_shutdown
             if request is not None:
@@ -1173,7 +1177,7 @@ def _run_bridged_agent(
             solver=run_bridged(),
             token_limit=sample_token_limit,
         ),
-        model=get_model("mockllm/model", custom_outputs=[output] * 2),
+        model=get_model("mockllm/model", custom_outputs=[output] * 3),
         log_dir=str(tmp_path),
         display="none",
     )[0]
@@ -1198,11 +1202,11 @@ def _assert_agent_limit(outcome: _Outcome, limit: Limit) -> LimitExceededError:
     return error
 
 
-def _assert_sample_token_limit(outcome: _Outcome) -> None:
+def _assert_sample_token_limit(outcome: _Outcome, limit: int = 5) -> None:
     sample = outcome.sample
     assert sample.error is None, sample.error
     assert sample.limit is not None
-    assert (sample.limit.type, sample.limit.limit) == ("token", 5)
+    assert (sample.limit.type, sample.limit.limit) == ("token", limit)
     assert "continued" not in sample.store
     assert outcome.errors == []
 
@@ -1399,6 +1403,86 @@ def test_response_filter_limits_in_a_bridged_generation_raise_the_outermost(
     assert outcome.errors == []
     [error] = outcome.outer_errors
     assert error is not None and error.source is outer
+    _assert_error_replies(outcome.replies)
+
+
+@pytest.mark.parametrize("owner", ["agent", "sample"])
+def test_limit_in_a_bridged_filter_task_group_is_raised(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, owner: str
+) -> None:
+    """A limit a generate filter's task group reaches is raised, though grouped.
+
+    The filter generates in a task group, which raises the generation's token
+    limit in an exception group. The scope that applied the limit handles it.
+    """
+    limit = token_limit(5 if owner == "agent" else 1000)
+
+    async def generates_in_a_task_group(
+        model: Model,
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        outputs: list[ModelOutput] = []
+
+        async def generate() -> None:
+            outputs.append(await model.generate(messages, tools, tool_choice, config))
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(generate)
+        return outputs[0]
+
+    outcome = _run_bridged_agent(
+        tmp_path,
+        monkeypatch,
+        limit,
+        scaffold=_Scaffold([_Request()], filter=generates_in_a_task_group),
+        sample_token_limit=5 if owner == "sample" else None,
+    )
+
+    if owner == "agent":
+        _assert_agent_limit(outcome, limit)
+    else:
+        _assert_sample_token_limit(outcome)
+    _assert_error_replies(outcome.replies)
+
+
+@pytest.mark.parametrize("owner", ["agent", "sample"])
+def test_limit_behind_a_response_filter_refusal_is_raised(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, owner: str
+) -> None:
+    """A limit a response filter's group holds after a refusal is raised.
+
+    The filter's judge generation reaches the token limit, and the filter
+    raises a refusal and that limit together. The bridge reduces the group to
+    the refusal; the limit in its history is still raised, so the scope that
+    applied it handles it.
+    """
+    # 7 tokens each for the agent's generation and the judge's
+    limit = token_limit(10 if owner == "agent" else 1000)
+
+    async def refuses_over_a_limit(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        try:
+            await model.generate("Judge this.")
+        except LimitExceededError as ex:
+            raise ExceptionGroup("judges", [_refusal(), ex])
+        raise AssertionError("The judge's generation is within the limit.")
+
+    outcome = _run_bridged_agent(
+        tmp_path,
+        monkeypatch,
+        limit,
+        scaffold=_Scaffold([_Request()], response_filter=refuses_over_a_limit),
+        sample_token_limit=10 if owner == "sample" else None,
+    )
+
+    if owner == "agent":
+        _assert_agent_limit(outcome, limit)
+    else:
+        _assert_sample_token_limit(outcome, limit=10)
     _assert_error_replies(outcome.replies)
 
 
