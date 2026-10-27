@@ -5,13 +5,14 @@ The `fake_sentinel` fixture in `tests/sentinel` installs this module as both
 inspect_ai imports from them, and enough of the author API (`@monitor`, `@protocol`, groups,
 steps and reports) to write monitors and protocols in tests.
 
-A lone instance runs at the empty path. A list or mapping of instances runs
-each member at its name and returns the most severe decision. Every report,
-monitor failure and cancellation goes to the host's `Recorder`, as
-`inspect_sentinel` records them. A protocol is handed no escalations. There
-are no compositions (`observe_only`, `threshold`, `sequential`, `concurrent`)
-and no final decisions: their behavior is `inspect_sentinel`'s, and its own
-tests cover it.
+A lone protocol function is the root and runs at the empty path. Any other
+lone instance, or a list or mapping of instances, runs each member at its name
+under a root named as `inspect_sentinel`'s `concurrent()`, and returns the most
+severe decision. Every report, monitor failure and cancellation goes to the
+host's `Recorder`, as `inspect_sentinel` records them. A protocol is handed no
+escalations. There are no compositions (`observe_only`, `threshold`,
+`sequential`, `concurrent`) and no final decisions: their behavior is
+`inspect_sentinel`'s, and its own tests cover it.
 """
 
 import inspect
@@ -365,9 +366,14 @@ Sentinels: TypeAlias = Any
 
 @dataclass(frozen=True)
 class Group:
-    """A list or mapping of instances, as `resolve_sentinel` returns it."""
+    """The root `resolve_sentinel` makes of a list or mapping of instances, or of a lone instance that is not a protocol function, named as `inspect_sentinel`'s `concurrent()`."""
 
     members: tuple[tuple[str, object], ...]
+
+    __name__ = "concurrent"
+
+
+registry_add(Group, RegistryInfo(type="protocol", name="inspect_sentinel/concurrent"))
 
 
 def sentinel_from_config(config: str | SentinelConfig | Any) -> Sentinels:
@@ -413,6 +419,11 @@ def resolve_sentinel(sentinels: Sentinels) -> object:
                 (registry_unqualified_name(s), s) for s in cast(list[object], sentinels)
             )
         )
+    if (
+        isinstance(sentinels, MonitorGroup | ProtocolGroup)
+        or registry_info(sentinels).type == "monitor"
+    ):
+        return Group(((registry_unqualified_name(sentinels), sentinels),))
     return sentinels
 
 
@@ -453,11 +464,18 @@ _PRECEDENCE: dict[SentinelAction, int] = {
 
 
 async def run_sentinel(root: object, host: HostContext, step: Step) -> Decision | None:
-    decisions = [
-        decision
-        for name, path, instance in _instances(root)
-        for decision in await _run_instance(name, path, instance, host, step)
-    ]
+    try:
+        decisions = [
+            decision
+            for name, path, instance in _instances(root)
+            for decision in await _run_instance(name, path, instance, host, step)
+        ]
+    except get_cancelled_exc_class():
+        # each layer a cancellation passes is recorded, the root included
+        if isinstance(root, Group):
+            context = Context(path="", host=host.host, store=host.store)
+            host.recorder.cancelled(context, registry_info(root).name, step, "")
+        raise
     return max(decisions, key=lambda d: _PRECEDENCE[d.action], default=None)
 
 

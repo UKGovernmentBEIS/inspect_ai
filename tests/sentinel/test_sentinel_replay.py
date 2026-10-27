@@ -114,6 +114,7 @@ if TYPE_CHECKING:
         MonitorGroup,
         Observation,
         Protocol,
+        ProtocolGroup,
         ReplayStep,
         monitor,
         protocol,
@@ -131,6 +132,7 @@ else:
         MonitorGroup,
         Observation,
         Protocol,
+        ProtocolGroup,
         ReplayStep,
         monitor,
         protocol,
@@ -273,6 +275,13 @@ def assert_replay_equals_live(
     )
     log = eval(task, model=model)[0]
     assert log.status == status, log.error
+    return assert_logged_replay_equals_live(log, seen, differences)
+
+
+def assert_logged_replay_equals_live(
+    log: EvalLog, seen: dict[str, Step], differences: Sequence[str] = ()
+) -> list["ReplayStep"]:
+    """Rebuild the steps of a log that `r7_probe(seen, copies=True)` watched, and compare."""
     assert log.samples
     live = live_steps(log.samples[0], seen)
     replay = replayed(log)
@@ -662,6 +671,172 @@ def test_a_person_s_approval_reaches_the_call_s_result_step(
     assert [d.stage for d in after.step.human_decisions or []] == ["tool_call"]
 
 
+def h_choices(stage: str) -> list[str]:
+    # a turn can only proceed or be terminated
+    return ["approve", "terminate" if stage == "model_output" else "reject"]
+
+
+@protocol
+def r7_fails_after_the_person(stage: str) -> ProtocolGroup:
+    async def tool_call(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        raise PermissionError("sentinel denied")
+
+    async def tool_result(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
+        raise PermissionError("sentinel denied")
+
+    async def model_output(
+        context: Context, step: AfterGenerate, escalations: Escalations
+    ) -> Decision | None:
+        if not step.output.message.tool_calls:
+            return None
+        raise PermissionError("sentinel denied")
+
+    stages: dict[str, Protocol] = {
+        "tool_call": tool_call,
+        "tool_result": tool_result,
+        "model_output": model_output,
+    }
+    return ProtocolGroup(stages[stage])
+
+
+@solver
+def r7_carries_on_after_a_failed_turn() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        try:
+            output = await get_model().generate(state.messages, tools=[addition()])
+            state.messages.append(output.message)
+            result = await execute_tools(state.messages, [addition()])
+            state.messages.extend(result.messages)
+        except Exception:
+            pass
+        state.output = await get_model().generate(state.messages, tools=[addition()])
+        return state
+
+    return solve
+
+
+def root_errors(log: EvalLog) -> list[SentinelEvent]:
+    return [
+        e
+        for e in logged_sample(log).events
+        if isinstance(e, SentinelEvent) and e.status == "error" and e.path == ""
+    ]
+
+
+@pytest.mark.parametrize("stage", ["tool_call", "tool_result", "model_output"])
+def test_a_person_s_answer_reaches_the_conversation_s_next_turn(
+    stage: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    Panel("approve").install(monkeypatch)
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        tool_loop(addition()),
+        agent_model(),
+        sentinel=[r7_probe(seen, copies=True), h_ask(stage, h_choices(stage))],
+    )
+    replay = assert_logged_replay_equals_live(log, seen)
+    last = [step for step in replay if step.stage == "model_input"][-1]
+    assert [d.stage for d in last.step.human_decisions or []] == [stage]
+    assert root_errors(log) == []
+
+
+@pytest.mark.parametrize("stage", ["tool_call", "tool_result", "model_output"])
+def test_a_person_s_answer_before_a_sentinel_failure_the_scaffold_caught_is_not_published(
+    stage: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    Panel("approve").install(monkeypatch)
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        r7_carries_on_after_a_failed_turn(),
+        agent_model(),
+        sentinel=[
+            r7_probe(seen, copies=True),
+            h_ask(stage, h_choices(stage)),
+            r7_fails_after_the_person(stage),
+        ],
+    )
+    [answered] = [
+        e
+        for e in logged_sample(log).events
+        if isinstance(e, SentinelEvent) and e.factory == "inspect_sentinel/human"
+    ]
+    [failed] = root_errors(log)
+    assert (failed.stage, failed.step_id) == (stage, answered.step_id)
+    assert failed.kind == "observation"
+    assert failed.error == "PermissionError: sentinel denied"
+    replay = assert_logged_replay_equals_live(log, seen)
+    last = [step for step in replay if step.stage == "model_input"][-1]
+    assert last.step.human_decisions == ()
+
+
+@protocol
+def r7_cancelled_by_its_operator(started: list[ToolEvent]) -> Protocol:
+    async def check(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        [event] = [e for e in started if e.id == step.call.id]
+        event._cancel()
+        await anyio.sleep(10)
+        return None
+
+    return check
+
+
+def test_a_person_s_answer_before_an_operator_cancel_is_not_published(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    Panel("approve").install(monkeypatch)
+    # the call's event, which is logged only once its review is done
+    started: list[ToolEvent] = []
+    set_cancel_fn = ToolEvent._set_cancel_fn
+
+    def capture(event: ToolEvent, cancel_fn: Callable[[], None]) -> None:
+        started.append(event)
+        set_cancel_fn(event, cancel_fn)
+
+    monkeypatch.setattr(ToolEvent, "_set_cancel_fn", capture)
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        tool_loop(addition()),
+        agent_model(),
+        sentinel=[
+            r7_probe(seen, copies=True),
+            h_ask("tool_call", h_choices("tool_call")),
+            r7_cancelled_by_its_operator(started),
+        ],
+    )
+    sample = logged_sample(log)
+    roots = [e for e in sample.events if isinstance(e, SentinelEvent) and e.path == ""]
+    assert [e.status for e in roots] == ["cancelled"]
+    # the cancelled call's after-stage step is a known difference (design call
+    # 2); what the steps were handed of the person's answer is not
+    live = live_steps(sample, seen)
+    replay: dict[tuple[str, str], Step] = {
+        (step.stage, step.id): step.step for step in replayed(log)
+    }
+    assert any(stage == "model_input" for stage, _ in live)
+    for key, step in live.items():
+        ours, theirs = replay[key].human_decisions, step.human_decisions
+        assert list(ours or []) == list(theirs or []) == [], key
+
+
+def test_a_person_s_answer_before_a_failure_that_ends_the_sample_replays(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    Panel("approve").install(monkeypatch)
+    replay = assert_replay_equals_live(
+        tool_loop(explodes()),
+        outputs(call("explodes"), done()),
+        sentinel=[h_ask("tool_call", h_choices("tool_call"))],
+        status="error",
+    )
+    assert [s.stage for s in replay][-1] == "tool_call"
+
+
 def test_a_hook_that_rewrites_the_input_is_a_known_difference() -> None:
     from inspect_ai._util.registry import _registry
     from inspect_ai.hooks import BeforeModelGenerate, Hooks, hooks
@@ -950,10 +1125,13 @@ def r7_generate_fails() -> Protocol:
     "sentinel,status",
     [
         (lambda: d3_generate_decides("terminate", False), "success"),
-        # a monitor's failure is recorded, then the protocol's fails the sample
+        # a monitor's failure is recorded, then the protocol's, which fails
+        # the sample
         (lambda: [d3_generate_raises(), r7_generate_fails()], "error"),
+        # the protocol's failure alone is recorded
+        (lambda: r7_generate_fails(), "error"),
     ],
-    ids=["terminate", "failure"],
+    ids=["terminate", "failure", "protocol-failure"],
 )
 def test_a_model_input_step_no_model_call_followed_is_not_replayed_yet(
     sentinel: Callable[[], Any], status: str
@@ -967,7 +1145,8 @@ def test_a_model_input_step_no_model_call_followed_is_not_replayed_yet(
     assert log.status == status
     events = logged_sample(log).events
     assert not [e for e in events if isinstance(e, ModelEvent)]
-    assert [e.stage for e in events if isinstance(e, SentinelEvent)] == ["model_input"]
+    checked = {(e.stage, e.step_id) for e in events if isinstance(e, SentinelEvent)}
+    assert [stage for stage, _ in checked] == ["model_input"]
     with pytest.raises(NotImplementedError, match="model_input step"):
         replay_events(log, events)
 
@@ -1030,18 +1209,18 @@ def test_a_model_input_step_without_its_model_call_is_not_replayed_after_a_later
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target="2")],
         solver=r7_generates_again_after_a_failure(),
-        # a monitor's failure is recorded, then the protocol's is caught
+        # a monitor's failure is recorded, then the protocol's, which is caught
         sentinel=[monitor_fails(), r7_first_generate_fails()],
     )
     log = eval(task, model="mockllm/model")[0]
     assert log.status == "success", log.error
     events = logged_sample(log).events
     [turn] = [e for e in events if isinstance(e, ModelEvent)]
-    orphan, *called = [
+    orphan, *called = dict.fromkeys(
         e.step_id
         for e in events
         if isinstance(e, SentinelEvent) and e.stage == "model_input"
-    ]
+    )
     assert len(called) + 1 == recorded
     assert called in ([turn.uuid], []) and orphan != turn.uuid
     with pytest.raises(NotImplementedError, match=f"model_input step {orphan!r}"):

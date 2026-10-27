@@ -346,6 +346,8 @@ class _Driver:
         # (stage, step id) -> the sentinel span of the step
         self.step_spans: dict[tuple[SentinelStage, str], str] = {}
         self.span_events: dict[str, list[SentinelEvent]] = {}
+        # the sentinel spans whose invocation raised or was cancelled
+        self.failed: set[str] = set()
         self.records: dict[str, ConversationRecord] = {}
         self.compactions: dict[str, int] = {}
         self.actions: list[_Action] = []
@@ -476,6 +478,8 @@ class _Driver:
             return
         events = self.span_events.setdefault(span, [])
         events.append(event)
+        if event.path == "" and event.status in ("error", "cancelled"):
+            self.failed.add(span)
         if len(events) > 1:
             return
         key = (event.stage, event.step_id)
@@ -829,7 +833,7 @@ class _Driver:
         )
 
     def _settle_at_end(self, span: str | None) -> None:
-        """Publish the `human()` decisions of the step checked in `span` when the span ends, as live publishes them once the step settles."""
+        """Publish the `human()` decisions of the step checked in `span` when the span ends, as live publishes them once the step settles, unless the invocation raised or was cancelled, which live records as an `error` or `cancelled` event at the root."""
         if span is None or span not in self.ends:
             return
         self._at(self.ends[span], 2, lambda: self._settle(span))
@@ -838,7 +842,7 @@ class _Driver:
         from inspect_sentinel._integration import kept_human_decision, supersedes
 
         built = self.span_steps.get(span)
-        if built is None:
+        if built is None or span in self.failed:
             return
         step, step_id = built
         kept: list["HumanDecision"] = []

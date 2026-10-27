@@ -37,7 +37,7 @@ from shortuuid import uuid as shortuuid
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.format import MARKER_CLOSE, MARKER_OPEN, display_safe
 from inspect_ai._util.logger import warn_once
-from inspect_ai._util.registry import registry_lookup
+from inspect_ai._util.registry import registry_info, registry_lookup
 from inspect_ai.approval._approval import Approval, ApprovalDecision
 from inspect_ai.approval._approver import Approver
 from inspect_ai.approval._human.approver import human_approver
@@ -97,6 +97,7 @@ from inspect_ai.util._span import span
 from inspect_ai.util._store import store
 
 from ._agent_state import agent_messages
+from ._config import SentinelRoot
 from ._context import (
     SentinelFailure,
     active_sentinel,
@@ -292,14 +293,20 @@ async def _run(step: Step, step_id: str) -> Decision | None:
     try:
         try:
             async with span(name="sentinel", type="sentinel"):
-                with (
-                    suspend_token_limit(),
-                    suspend_turn_limit(),
-                    suspend_working_limit(),
-                    sentinel_scope("sentinel", final=True),
-                    suspend_model_event_sink(),
-                ):
-                    decision = await run_sentinel(root, _host_context(recorder), step)
+                try:
+                    with (
+                        suspend_token_limit(),
+                        suspend_turn_limit(),
+                        suspend_working_limit(),
+                        sentinel_scope("sentinel", final=True),
+                        suspend_model_event_sink(),
+                    ):
+                        decision = await run_sentinel(
+                            root, _host_context(recorder), step
+                        )
+                except Exception as ex:
+                    recorder.raised(root, step, ex)
+                    raise
         except TimeoutError as ex:
             # the sample runner treats a bare TimeoutError as benign
             raise RuntimeError(
@@ -776,6 +783,23 @@ class _Recorder:
             "error",
             function=failed.function,
             error=f"{type(failed.error).__name__}: {failed.error}",
+        )
+
+    def raised(self, root: SentinelRoot, step: Step, error: Exception) -> None:
+        # the step's invocation failed, so its human() decisions are not
+        # published; replay reads this event to withhold them too
+        transcript()._event(
+            SentinelEvent(
+                factory=registry_info(root).name,
+                path="",
+                function=root.__name__,
+                step_id=self._step_id,
+                conversation=step.conversation,
+                stage=step_stage(step),
+                kind="observation",
+                status="error",
+                error=f"{type(error).__name__}: {error}",
+            )
         )
 
     def cancelled(self, context: Context, factory: str, step: Step, name: str) -> None:
