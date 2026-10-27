@@ -89,7 +89,7 @@ def steps_from_events(
 
     A log that does not record where a model call was made (`ModelEvent.origin`, written since inspect_ai PR #5990), an older Inspect log or a transcript imported from another source, has its turns inferred: a call made in a tool's span (or nested in its `ToolEvent`) is a tool's, one in the scorers' span a scorer's and one in the init span setup's; of the rest, those the timeline shows as utility (`timeline_build`'s prompt and continuity rules) are not turns, and the others are.
 
-    A transcript imported from another source (`eval_info` is `None`) records a call's run as Inspect does only when a tool span holds its `ToolEvent`. A call its turn made that ran without one (a `ToolEvent` in an agent span or in none) or has no `ToolEvent` with its id has its steps taken from the messages, as sentinel's messages projection takes them: the call as the model made it, and the first tool message answering it as its result, with no `tool_result` step when no tool message answers it (a `ToolEvent`'s result is not taken: the messages projection does not see it). A call with no `ToolEvent` has its steps just after its turn's `model_output` step. A call id a provider reuses gives each call its own steps under that id, each answered by the first tool message after its assistant message; a copy of a model call's output in the messages is the first equal call after those its input holds. A call the sample's messages hold that no model call made (such as one in the first model call's input) has its steps too, before the first turn whose output follows it in the messages.
+    A transcript imported from another source (`eval_info` is `None`) records a call's run as Inspect does only when a tool span holds its `ToolEvent`. A call its turn made that ran without one (a `ToolEvent` in an agent span or in none) or has no `ToolEvent` with its id has its steps taken from the messages, as sentinel's messages projection takes them: the call as the model made it, and the first tool message answering it as its result, with no `tool_result` step when no tool message answers it (a `ToolEvent`'s result is not taken: the messages projection does not see it). A call with no `ToolEvent` has its steps just after its turn's `model_output` step. A call id a provider reuses gives each call its own steps under that id, each answered by the first tool message after its assistant message; a copy of a model call's output in the messages (the output's id differs from the copy's) is the first equal call after those of its input that the messages hold, copies matched from the latest model call back. A call the sample's messages hold that no model call made (such as one in the first model call's input, run by a `ToolEvent` or not) has its steps from the messages too, before the first turn whose output follows it in the messages.
 
     Args:
         messages: The sample's messages (`EvalSample.messages`).
@@ -496,7 +496,7 @@ class _Driver:
         self.calls_made = turn_ids | inferred_other
         self._check_generated(candidates)
         if self.imported:
-            self._locate(occurrences, calls)
+            self._locate(occurrences)
         for group in generates:
             self._generate(group)
         for entry in calls:
@@ -724,6 +724,10 @@ class _Driver:
         if not self.eval_info.sentinel and approval is not None:
             self._approval_decision(call, approval)
         if proposal is None or call.assistant is None:
+            return
+        if self.imported and call.producer is None:
+            # an imported call no model call made has its steps from the
+            # messages (_calls_no_model_call_made), as the projection does
             return
         recorded = before_span is not None or after_span is not None
         if not recorded and not self._checks_tool_calls(event, call.producer):
@@ -1143,36 +1147,33 @@ class _Driver:
     def _locate(
         self,
         occurrences: list[tuple[ChatMessageAssistant, ModelEvent, ToolCall, int]],
-        calls: list[_Call],
     ) -> None:
-        """Find the assistant message making each call of an imported transcript, in log order, in the sample's messages, else in the pool: once for the message, which its sibling calls share."""
+        """Find the assistant message making each call a model call of an imported transcript made, in the sample's messages, else in the pool: once for the message, which its sibling calls share.
+
+        Messages are found by id first, all of them, so a copy found by its call cannot be another model call's own message; then copies, the latest model call's first, each the first equal call not taken after those its model call's input holds in the sample's messages. The messages hold the latest calls' outputs where they hold any, so an earlier call whose output they dropped does not take a later call's copy.
+        """
         messages = _MessageCalls(self.messages)
         pool = _MessageCalls(self.pool)
         self._message_calls = (messages, pool)
-        made: list[tuple[ChatMessageAssistant, ToolCall, Sequence[tuple[int, int]]]] = [
-            (assistant, call, producer.input_refs or [])
-            for assistant, producer, call, _ in occurrences
-        ]
-        # a call no model call made that a ToolEvent ran (a pre-filled message)
-        made += [
-            (entry.assistant, entry.proposal, [])
-            for entry in calls
-            if entry.producer is None
-            and entry.assistant is not None
-            and entry.proposal is not None
-        ]
-        for assistant, call, refs in made:
-            if id(assistant) in self._positions:
+        made: dict[int, tuple[ChatMessageAssistant, ToolCall, ModelEvent]] = {}
+        for assistant, producer, call, _ in occurrences:
+            made.setdefault(id(assistant), (assistant, call, producer))
+        copies = []
+        for assistant, call, producer in made.values():
+            at = messages.by_id(assistant)
+            if at is not None:
+                self._positions[id(assistant)] = (messages, at)
+            else:
+                copies.append((assistant, call, producer.input_refs or []))
+        for assistant, call, refs in reversed(copies):
+            at = messages.by_call(call, pool.held(call, refs, within=messages))
+            if at is not None:
+                self._positions[id(assistant)] = (messages, at)
                 continue
-            held = pool.held(call, refs)
-            self._positions[id(assistant)] = next(
-                (
-                    (found, at)
-                    for found in (messages, pool)
-                    if (at := found.locate(assistant, call, held)) is not None
-                ),
-                None,
-            )
+            at = pool.by_id(assistant)
+            if at is None:
+                at = pool.by_call(call, pool.held(call, refs))
+            self._positions[id(assistant)] = None if at is None else (pool, at)
 
     def _answer(
         self, assistant: ChatMessageAssistant, call: ToolCall
@@ -1346,9 +1347,13 @@ class _MessageCalls:
         self._by_call: dict[str, list[int]] = {}
         self._answers: dict[str, list[int]] = {}
         self._assistants: list[int] = []
-        # each call's next position not yet taken, and the positions taken
-        self._next: dict[str, int] = {}
+        # the positions taken, and per call, from each of its positions, the
+        # next one not taken (a union-find over the call's positions)
         self._taken: set[int] = set()
+        self._untaken: dict[str, list[int]] = {}
+        # per call, how many of its positions up to each hold a message whose
+        # id is in another list of messages (`held`)
+        self._counts: dict[str, list[int]] = {}
         for position, message in enumerate(messages):
             if isinstance(message, ChatMessageAssistant) and message.tool_calls:
                 self._assistants.append(position)
@@ -1359,31 +1364,60 @@ class _MessageCalls:
             elif isinstance(message, ChatMessageTool) and message.tool_call_id:
                 self._answers.setdefault(message.tool_call_id, []).append(position)
 
-    def held(self, call: ToolCall, refs: Sequence[tuple[int, int]]) -> int:
-        """How many messages making a call equal to `call` the pool ranges `refs` hold."""
-        positions = self._by_call.get(_call_key(call), [])
+    def held(
+        self,
+        call: ToolCall,
+        refs: Sequence[tuple[int, int]],
+        within: "_MessageCalls | None" = None,
+    ) -> int:
+        """How many messages making a call equal to `call` the pool ranges `refs` hold, counting only those `within` holds (by id) when given."""
+        key = _call_key(call)
+        positions = self._by_call.get(key, [])
+        if within is None:
+            return sum(
+                bisect_left(positions, end) - bisect_left(positions, start)
+                for start, end in refs
+            )
+        counts = self._counts.get(key)
+        if counts is None:
+            counts = [0]
+            for position in positions:
+                held = self._messages[position].id in within._by_id
+                counts.append(counts[-1] + held)
+            self._counts[key] = counts
         return sum(
-            bisect_left(positions, end) - bisect_left(positions, start)
+            counts[bisect_left(positions, end)] - counts[bisect_left(positions, start)]
             for start, end in refs
         )
 
-    def locate(
-        self, assistant: ChatMessageAssistant, call: ToolCall, held: int
-    ) -> int | None:
-        """The position of the assistant message making `call`, whose model call's input held `held` equal calls."""
+    def by_id(self, assistant: ChatMessageAssistant) -> int | None:
+        """The position of `assistant`, found by its id."""
         at = self._by_id.get(assistant.id) if assistant.id is not None else None
-        if at is None:
-            key = _call_key(call)
-            positions = self._by_call.get(key, [])
-            cursor = max(self._next.get(key, 0), held)
-            while cursor < len(positions) and positions[cursor] in self._taken:
-                cursor += 1
-            if cursor == len(positions):
-                return None
-            at = positions[cursor]
-            self._next[key] = cursor + 1
-        self._taken.add(at)
+        if at is not None:
+            self._taken.add(at)
         return at
+
+    def by_call(self, call: ToolCall, held: int) -> int | None:
+        """The position of a copy of the assistant message making `call`: the first equal call not taken after the `held` ones its model call's input holds."""
+        key = _call_key(call)
+        positions = self._by_call.get(key, [])
+        untaken = self._untaken.get(key)
+        if untaken is None:
+            untaken = self._untaken[key] = list(range(len(positions) + 1))
+            for index, position in enumerate(positions):
+                if position in self._taken:
+                    untaken[index] = index + 1
+        index = min(held, len(positions))
+        root = index
+        while untaken[root] != root:
+            root = untaken[root]
+        while untaken[index] != root:
+            untaken[index], index = root, untaken[index]
+        if root == len(positions):
+            return None
+        untaken[root] = root + 1
+        self._taken.add(positions[root])
+        return positions[root]
 
     def answer(self, position: int, call_id: str) -> ChatMessageTool | None:
         answers = self._answers.get(call_id, [])

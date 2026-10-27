@@ -2413,6 +2413,140 @@ def test_a_reused_call_id_keeps_each_call_and_its_own_answer(copied: bool) -> No
     ]
 
 
+def answers(calls: Sequence[ToolCall], text: str) -> list[ChatMessage]:
+    return [
+        ChatMessageTool(
+            content=f"{text} {call.id}", tool_call_id=call.id, function=call.function
+        )
+        for call in calls
+    ]
+
+
+def replayed_imported(
+    messages: list[ChatMessage], *events: Event
+) -> list["ReplayStep"]:
+    return steps_from_events(
+        messages,
+        [
+            SpanBeginEvent(id="run", name="agent run", type="agent"),
+            *events,
+            SpanEndEvent(id="run"),
+        ],
+        [],
+        sample_uuid="transcript",
+        eval_info=IMPORTED,
+    )
+
+
+@pytest.mark.parametrize("parallel", [False, True])
+def test_an_equal_call_in_the_input_the_messages_lack_leaves_the_copy_found(
+    parallel: bool,
+) -> None:
+    # fresh-context review of 8c0d61601, finding 1: the model call's input
+    # holds an equal call the messages do not (an example the transcript
+    # dropped), so it does not count among those before the output's copy
+    made = [READ, LIST] if parallel else [READ]
+    example = ChatMessageAssistant(id="example", content="", tool_calls=[READ])
+    user = ChatMessageUser(content="Find the config file.")
+    m0 = imported_call("m0", [user, example, *answers([READ], "example")], "run", *made)
+    written = [user, m0.output.message, *answers(made, "result of")]
+    m1 = imported_call("m1", written, "run")
+    messages, (m0, m1) = as_copies([*written, m1.output.message], [m0, m1])
+    replay = replayed_imported(messages, m0, m1)
+
+    assert tool_steps(replay) == projected_tool_steps(messages)
+    assert len(tool_steps(replay)) == 2 * len(made)
+
+
+def prefilled_then_reused(
+    parallel: bool, copied: bool, tool_events: list[ToolCall], span: bool
+) -> tuple[list[ChatMessage], list[Event]]:
+    """A pre-filled assistant message in the first input and the messages, whose calls `tool_events` are run by ToolEvents (in tool spans if `span`), and a turn that makes the same calls again."""
+    made = [READ, LIST] if parallel else [READ]
+    prefilled = ChatMessageAssistant(id="prefilled", content="", tool_calls=made)
+    history = [
+        ChatMessageUser(content="Find the config file."),
+        prefilled,
+        *answers(made, "prefilled answer of"),
+    ]
+    m0 = imported_call("m0", history, "run", *made)
+    written = [*history, m0.output.message, *answers(made, "result of")]
+    m1 = imported_call("m1", written, "run")
+    messages, calls = [*written, m1.output.message], [m0, m1]
+    if copied:
+        messages, calls = as_copies(messages, calls)
+    ran: list[Event] = []
+    for call in tool_events:
+        event = imported_tool_event(call, 0, f"tool-{call.id}" if span else "run")
+        event.result = f"prefilled answer of {call.id}"
+        ran += (
+            [
+                SpanBeginEvent(id=f"tool-{call.id}", name=call.function, type="tool"),
+                event,
+                SpanEndEvent(id=f"tool-{call.id}"),
+            ]
+            if span
+            else [event]
+        )
+    return messages, [*ran, *calls]
+
+
+@pytest.mark.parametrize("span", [False, True])
+@pytest.mark.parametrize("copied", [False, True])
+@pytest.mark.parametrize("parallel", [False, True])
+def test_a_prefilled_call_a_later_turn_reuses_keeps_its_own_answer(
+    parallel: bool, copied: bool, span: bool
+) -> None:
+    # fresh-context review of 8c0d61601, finding 2: a ToolEvent runs a
+    # pre-filled call whose id a later turn reuses; the call no model call
+    # made has its steps from the messages, answered in its place, once
+    made = [READ, LIST] if parallel else [READ]
+    messages, events = prefilled_then_reused(parallel, copied, made, span)
+    replay = replayed_imported(messages, *events)
+
+    assert tool_steps(replay) == projected_tool_steps(messages)
+    assert [s[4] for s in tool_steps(replay) if s[0] == "tool_result"] == [
+        *[f"prefilled answer of {call.id}" for call in made],
+        *[f"result of {call.id}" for call in made],
+    ]
+
+
+@pytest.mark.parametrize("span", [False, True])
+def test_a_prefilled_message_only_some_of_whose_calls_ran_keeps_every_call(
+    span: bool,
+) -> None:
+    # fresh-context review of 8c0d61601, finding 3: a ToolEvent runs one of a
+    # pre-filled message's two calls; the other keeps its steps
+    messages, events = prefilled_then_reused(True, False, [READ], span)
+    replay = replayed_imported(messages, *events)
+
+    assert tool_steps(replay) == projected_tool_steps(messages)
+
+
+@pytest.mark.parametrize("copied", [False, True])
+def test_a_turn_the_messages_dropped_keeps_its_own_answers(copied: bool) -> None:
+    # fresh-context review of 8c0d61601: the messages and the last input drop
+    # the first turn, whose calls the next turn makes again; the dropped turn
+    # is answered from the pool, not with the next turn's answers, and the
+    # rest is the projection
+    written, calls = imported_conversation("run", [READ, LIST], [LIST, READ])
+    if copied:
+        written, calls = as_copies(written, calls)
+    kept = [written[0], *written[4:]]
+    m0, m1, m2 = calls
+    replay = replayed_imported(kept, m0, m1, m2.model_copy(update={"input": kept[:-1]}))
+
+    dropped = [
+        (stage, call.id, call.function, call.arguments, result)
+        for call in (READ, LIST)
+        for stage, result in (
+            ("tool_call", None),
+            ("tool_result", f"result of {call.id} in turn 0"),
+        )
+    ]
+    assert tool_steps(replay) == dropped + projected_tool_steps(kept)
+
+
 def test_a_copied_output_is_not_taken_for_an_equal_call_in_its_input() -> None:
     # the final Codex review's reproduction: the model call's input holds an
     # earlier, equal call with its own answer, and the messages hold a copy of
