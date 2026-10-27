@@ -130,12 +130,14 @@ The merge does not recreate epoch reducers. When the task sets one (for example 
 
 While a merged log's `.shards` directory exists, `inspect score`, `score()`, `edit_score()` and `recompute_metrics()` refuse to change it, because they recreate epoch reducers from their names and would replace the reductions the shards recorded. Merge with `--delete-shards` first; for an incomplete merge, re-run the incomplete shards first, or delete the `.shards` directory by hand to abandon them. A log built in memory, with no location, is not checked.
 
+The merge computes metrics as a fresh, unsharded run does. A scorer's metrics see each sample's metadata from the dataset, as the sample's `sample_init` event records it, not metadata a solver changed. A sample logged without its events (its record could not be serialized) is refused. A task that declares the same scorer twice is refused too, because its later scores are recorded under suffixed names that a fresh run and a retry pass to metrics differently.
+
 A score that a solver sets, with no scorer, is merged with the task's metrics when the task declares them (`Task(metrics=...)`). Without them, the merge supports only the default case: a scalar score for which the shards recorded `accuracy` and `stderr`. Any other such score is refused; declare the task's metrics and re-run the shards.
 
 ### Limitations
 
 -   A merge that runs while a worker is writing its shard can fail with a read error. Nothing is written; run the merge again, or merge after the workers have exited.
--   Delete shards only when every worker has exited and no other merge or deletion of the same log is running. If a deletion is interrupted, run it again or delete the `.shards` directory by hand. Until then, a merge without `--delete-shards` refuses when a shard is missing or left with an older log; if every shard still has the log that was merged, or none has a log, it returns the merged log as it is.
+-   Delete shards only when every worker has exited and no other merge or deletion of the same log is running. If a deletion is interrupted, fails for some objects, or cannot be checked because the `.shards` directory cannot be listed, the merge fails and keeps the merged log; run it again or delete the `.shards` directory by hand. Until then, a merge without `--delete-shards` refuses when a shard is missing or left with an older log; if every shard still has the log that was merged, or none has a log, it returns the merged log as it is.
 -   `eval_retry()` refuses a merged log that was merged with `--sample-id` or `--sample-count`. Re-run the incomplete shards and merge again instead.
 -   Do not change `INSPECT_EVAL_LOG_FILE_PATTERN` while a `.shards` directory exists.
 -   Do not run `inspect log recover` on a shard's log; re-run the shard instead. A shard log recovered with `--overwrite` or to another output path cannot be told apart from a finished log, and when the task sets an epoch reducer with arguments or a value converter, the merged metrics for its samples may be wrong. Default reducers are not affected.

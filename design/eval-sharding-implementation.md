@@ -1182,14 +1182,26 @@ a time plus the metric inputs.
 
 As each planned sample passes through step 11, the merge parses it once and
 keeps `SampleScore(score=..., sample_id=..., sample_metadata=...)` per
-scorer, whether `error` is set, which scores carry an edit history and
-whether the sample has an `invalidation`; everything else in the sample
-is discarded before the next. A declared scorer's scores get
-`SampleScore.scorer` set to the scorer's name from the header (its
-unqualified registry name, as the task runner records it), also when a
-duplicate's score key is suffixed; solver-set scores keep `None`, as live,
-so a raw-score metric that reads the scorer sees what it saw in the
-worker. After the last sample it calls
+scorer, the dataset metadata its `SampleInitEvent` records, whether
+`error` is set, which scores carry an edit history and whether the
+sample has an `invalidation`; everything else in the sample is discarded
+before the next. The metric inputs are those of a fresh run (decision:
+Ransom, 2026-10-27). A declared scorer's scores get the sample's dataset
+metadata, before any solver changed it, as `run.py` passes
+`sample.metadata`, and `SampleScore.scorer` set to the scorer's name from
+the header (its unqualified registry name, as the task runner records
+it). `EvalSample.metadata` is the final `TaskState.metadata`, so the
+dataset metadata is taken from the `SampleInitEvent`, which holds it for
+fresh and retry-reused samples alike. A sample with a declared scorer's
+score and no `SampleInitEvent` (a sample whose record could not be
+serialized is logged without its events) is refused with
+`ShardSetError` before publishing or deleting. Solver-set scores keep the
+final metadata and `None`, as in a fresh run. Reduced views take the
+metadata of the sample's first score, so grouped and clustered metrics see
+the same groups reduced or not. A task that declares one scorer twice
+(score keys `name`, `name1`) is refused in `check_scoring_resolvable`,
+before any sample is read: a fresh run names the suffixed scores' scorer
+`name`, a retry names it `name1`. After the last sample it calls
 `eval_results(samples=..., scores=..., reducers=..., scorers=resolve_scorers_info(h),
 metrics=metrics_from_log_header(h), completed_samples=...,
 headline_metric=h.eval.headline_metric)` with the template header `h`.
@@ -1266,6 +1278,14 @@ it is merged from: a changed shard's current attempt, or for carried
 samples the merged log, which holds what their unchanged shard recorded
 when it was merged. The reductions of a recovered attempt are not used:
 recovery recomputes them with reducers recreated by name.
+
+Known limitation (decision: Ransom, 2026-10-27): native `eval_retry`
+builds the metric inputs of the samples it reuses differently from a
+fresh run: the final metadata (`EvalSample.metadata`) and the stored
+score key as `SampleScore.scorer`. A retried log's metrics can therefore
+differ from a fresh run's when a solver changes metadata a metric reads.
+The merge follows the fresh run; `eval_retry` and the log format are not
+changed.
 
 Known limitation (decision: Ransom, 2026-10-23): a recovered attempt is
 recognised only by the `-recovered` suffix `inspect log recover` gives
@@ -1407,7 +1427,7 @@ cleanup (removes the merged log too). Both use one routine,
   everything in it: shard attempts, buffers, checkpoint directories, scan
   results and any other file. Locally that is one recursive delete of the
   directory by its exact path (`shutil.rmtree`, which does not follow
-  symbolic links). On S3 and other fsspec backends it is one call,
+  symbolic links). On fsspec backends other than S3 it is one call,
   `filesystem(shards_dir).rm(shards_dir, recursive=True)`, on the
   filesystem built from the location the caller gave, so it keeps
   connection details in the URL (an Azure account in
@@ -1415,10 +1435,15 @@ cleanup (removes the merged log too). Both use one routine,
   and user) that names from a listing can lose (decision: Ransom,
   2026-10-22). It runs on the event loop thread, as the non-S3 branch of
   `AsyncFilesystem.delete_file` does, since `to_thread` over remote fsspec
-  work can deadlock. On S3 it removes every object and folder marker
-  under the prefix, a marker-only remnant included, and leaves a sibling
-  `<name>.shards-other/` alone. fsspec expands glob characters in the
-  paths it deletes (`run?.shards` would also delete `run1.shards`), so a
+  work can deadlock. On S3 the merge does not use s3fs, which a configured
+  Trio backend (`INSPECT_ASYNC_BACKEND=trio`) refuses: it lists every key
+  under `<name>.shards/`, folder markers included, with the
+  `AsyncFilesystem` boto3 client (its endpoint and client settings, in a
+  worker thread, which is safe for boto3) and deletes each page of at most
+  1000 keys with one `DeleteObjects` call. A per-object error in the
+  response raises `ShardSetError` naming the key. A marker-only remnant is
+  deleted too, and a sibling `<name>.shards-other/` is left alone.
+  fsspec expands glob characters in the paths it deletes (`run?.shards` would also delete `run1.shards`), so a
   remote log whose URL holds `*`, `?` or `[` anywhere is refused with
   `ValueError` before anything is deleted, by `delete_shards` before the
   merge reads anything and by `remove_shards_dir` itself (for retry
@@ -1432,8 +1457,13 @@ cleanup (removes the merged log too). Both use one routine,
   with prefix `<name>.shards/` and `MaxKeys=1`, made with the
   `AsyncFilesystem` client, so any key counts, a folder marker included
   (the `AsyncFilesystem` listings skip keys ending in `/`), and a sibling
-  `<name>.shards-other/` does not. Elsewhere it is `FileSystem.ls`, which
-  drops fsspec's cached listing. An object left behind raises
+  `<name>.shards-other/` does not. Elsewhere it is one `FileSystem.ls` of
+  the directory itself, which drops fsspec's cached listing: any entry is
+  a remnant, so no subtree needs listing (fsspec's recursive `walk` omits
+  the subtrees it cannot list). A missing directory is deleted; a listing
+  that fails otherwise (`OSError`, `PermissionError`) raises
+  `ShardSetError`, since the deletion cannot be checked. An object left
+  behind raises
   `ShardSetError` naming it, `shards_deleted` is never reported, the
   merged log is kept, and a re-run finishes the deletion.
 - **No resumption protocol.** An interrupted deletion raises its storage
@@ -2373,8 +2403,14 @@ Per PR (numbers from "Implementation plan"):
      check once;
    - scorer identity: an unreduced metric counting the raw scores whose
      `scorer` is the declared scorer gives the unsharded run's value in
-     fresh and incremental merges, with a configured reducer, with
-     reduction disabled (`Epochs(2, [])`) and with a duplicated scorer;
+     fresh and incremental merges, with a configured reducer and with
+     reduction disabled (`Epochs(2, [])`); a scorer declared twice is
+     refused with nothing written or deleted;
+   - metric metadata: a solver that changes the metadata a grouped
+     (reduced view) and an unreduced metric read gives the unsharded run's
+     results, with fresh shards and with a shard finished by `eval_retry`
+     reusing samples; a sample with a declared score and no
+     `SampleInitEvent` is refused with nothing written or deleted;
    - fresh equals incremental: after replacing one shard's attempt, after
      adding a shard whose name sorts before the template shard (so the
      template changes), and after a sequence where shard A fails,
@@ -2447,7 +2483,7 @@ Per PR (numbers from "Implementation plan"):
      per-key metrics, and shards that disagree are refused, with no merged
      log published and the shards intact, and each merges once the task
      declares its metrics; declared scorers whose names collide with a
-     per-key result name (`parts` reporting `other`, then `other` twice)
+     per-key result name (`parts` reporting `other`, then `other`)
      merge to the same results as an unsharded run, with deletion enabled;
      a score with no recorded results (running
      shards only) is refused;
@@ -2496,8 +2532,15 @@ Per PR (numbers from "Implementation plan"):
    subprocess whose metric writes through the C library's buffered
    `printf`. `mock_s3` deletion
    removes directory markers, including a marker-only remnant and on a
-   repeated call; a recording filesystem shows remote deletion is one
-   recursive `rm` of the account-qualified URL the caller gave.
+   repeated call; a delete that leaves an object, the root marker, a
+   shard's marker or a nested checkpoint marker (silently, or reported as
+   a `DeleteObjects` error) raises with the merged log intact, and a
+   re-run finishes; a `<name>.shards-other/` sibling is not a remnant; the
+   deletion succeeds with `INSPECT_ASYNC_BACKEND=trio` set inside a Trio
+   loop; a recording filesystem shows remote deletion is one recursive
+   `rm` of the account-qualified URL the caller gave, then one listing of
+   it; on `memory://`, a root listing that raises `PermissionError` or
+   `OSError`, or a remnant whose own listing is denied, raises.
 6. **Eval-set integration.** `tests/test_eval_set.py`: `log_samples_complete`
    on a `success` merged log is true when its `dataset.sample_ids` equals the
    eval set's selection (for each recorded form: ids, count, neither) and

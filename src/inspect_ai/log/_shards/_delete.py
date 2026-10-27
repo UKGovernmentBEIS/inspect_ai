@@ -10,6 +10,7 @@ import re
 import shutil
 from contextlib import suppress
 from functools import partial
+from typing import Any
 
 import anyio
 
@@ -36,10 +37,12 @@ async def remove_shards_dir(
 
     Everything under ``<name>.shards/`` is deleted: shard attempts, sample
     buffers, checkpoint directories, S3 folder markers and any other object.
-    A remote directory is deleted with one recursive delete on the
-    filesystem built from `log` itself, so connection details in the URL
-    (an Azure account, a WebHDFS host) are kept. A missing directory is not
-    an error.
+    On S3 the objects are listed and deleted with the `AsyncFilesystem`
+    client (s3fs is not supported under a configured Trio backend). Another
+    remote directory is deleted with one recursive delete on the filesystem
+    built from `log` itself, so connection details in the URL (an Azure
+    account, a WebHDFS host) are kept. A remote deletion is then checked by
+    a fresh listing. A missing directory is not an error.
 
     Args:
         log: The merged log ``<dir>/<name>.eval``.
@@ -49,8 +52,9 @@ async def remove_shards_dir(
     Raises:
         ValueError: A remote `log` holds glob characters (see
             :func:`check_deletable`); nothing is deleted.
-        ShardSetError: Objects remain under a remote shards directory after
-            the delete returned.
+        ShardSetError: S3 reported an object it did not delete, objects
+            remain under a remote shards directory after the delete returned,
+            or the directory could not be listed to check.
     """
     check_deletable(log)
     if fs is None:
@@ -67,10 +71,17 @@ async def remove_shards_dir(
     if is_local(shards_dir):
         await anyio.to_thread.run_sync(_remove_local_dir, shards_dir)
         return
-    # on the loop thread: to_thread over remote fsspec work can deadlock
-    with suppress(FileNotFoundError):
-        filesystem(shards_dir).rm(shards_dir, recursive=True)
-    # a bulk delete can report success while objects remain (s3fs ignores
+    if is_s3_filename(shards_dir):
+        bucket, prefix = s3_bucket_and_key(shards_dir)
+        # boto3, not fsspec, so a worker thread is safe
+        await anyio.to_thread.run_sync(
+            _remove_s3_prefix, fs.s3_client(), bucket, prefix.rstrip("/") + "/"
+        )
+    else:
+        # on the loop thread: to_thread over remote fsspec work can deadlock
+        with suppress(FileNotFoundError):
+            filesystem(shards_dir).rm(shards_dir, recursive=True)
+    # a bulk delete can return normally while objects remain (s3fs ignores
     # the per-object errors of a DeleteObjects response)
     remnant = await _remnant(fs, shards_dir)
     if remnant is not None:
@@ -118,11 +129,46 @@ async def _remnant(fs: AsyncFilesystem, shards_dir: str) -> str | None:
         keys = [obj["Key"] for obj in response.get("Contents", [])]
         return f"s3://{bucket}/{keys[0]}" if keys else None
     try:
-        # FileSystem.ls drops fsspec's cached listing first
-        listing = filesystem(shards_dir).ls(shards_dir, recursive=True)
+        # not recursive: fsspec's walk omits the subtrees it cannot list, and
+        # any entry is a remnant. FileSystem.ls drops fsspec's cached listing.
+        listing = filesystem(shards_dir).ls(shards_dir)
     except FileNotFoundError:
         return None
+    except OSError as ex:
+        raise ShardSetError(
+            f"Cannot check that {shards_dir} was deleted: listing it failed "
+            f"({ex}). Delete it by hand, or merge again with delete_shards."
+        ) from ex
     return listing[0].name if listing else None
+
+
+def _remove_s3_prefix(s3: Any, bucket: str, prefix: str) -> None:
+    """Delete every key under `prefix`, folder markers (keys ending in `/`) included.
+
+    Each listed page (at most 1000 keys, the `DeleteObjects` limit) is
+    deleted before the next is listed.
+    """
+    paginator = s3.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+        keys = [obj["Key"] for obj in page.get("Contents", [])]
+        if keys:
+            _delete_s3_keys(s3, bucket, keys)
+
+
+def _delete_s3_keys(s3: Any, bucket: str, keys: list[str]) -> None:
+    """Delete `keys` with one `DeleteObjects` call, raising on a per-object error."""
+    response = s3.delete_objects(
+        Bucket=bucket,
+        Delete={"Objects": [{"Key": key} for key in keys], "Quiet": True},
+    )
+    errors = response.get("Errors", [])
+    if errors:
+        first = errors[0]
+        raise ShardSetError(
+            f"Deleting s3://{bucket}/{first['Key']} failed ({first.get('Code')}: "
+            f"{first.get('Message')}); {len(errors)} objects were not deleted. "
+            "Delete them, or merge again with delete_shards."
+        )
 
 
 def _remove_local_dir(path: str) -> None:

@@ -11,6 +11,7 @@ import anyio
 from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai._util.json import to_json_safe
 from inspect_ai._util.zipfile import zipfile_compress_kwargs
+from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.log._log import (
     EvalLog,
     EvalMetricDefinition,
@@ -40,6 +41,12 @@ class _SampleInputs(NamedTuple):
     """What metric recomputation keeps of a sample."""
 
     scores: dict[str, SampleScore]
+    """The sample's scores, with its final metadata (`EvalSample.metadata`)."""
+    initialized: bool
+    """Whether the sample has a `SampleInitEvent`."""
+    initial_metadata: dict[str, Any] | None
+    """The dataset metadata its `SampleInitEvent` records, before any solver
+    changed it."""
     error: bool
     edited: frozenset[str]
     """Names of the scores that carry an edit history (`edit_score`)."""
@@ -69,7 +76,7 @@ class MergedScoring(NamedTuple):
 
 
 def check_scoring_resolvable(header: EvalLog) -> None:
-    """Refuse metrics the registry cannot resolve, and repeated reducer names.
+    """Refuse metrics the registry cannot resolve, and repeated scorer or reducer names.
 
     The merge never imports the log's `task_file`, so every metric (of a
     scorer or of the task, `eval.metrics`) must already be registered: built
@@ -77,13 +84,26 @@ def check_scoring_resolvable(header: EvalLog) -> None:
     are not recreated (see :func:`_recompute_results`): their recorded
     reductions are told apart by name, so two reducers with one name
     (`at_least(1, value=0.5)` and `at_least(1)` are both `at_least_1`) are
-    refused.
+    refused. A scorer declared twice is refused too (see
+    :func:`_declared_inputs`).
 
     Raises:
         LookupError: A metric is not registered.
-        ShardSetError: Two epoch reducers have the same name.
+        ShardSetError: Two scorers or two epoch reducers have the same name.
     """
     from inspect_ai._util.registry import registry_lookup
+
+    scorers = [scorer.name for scorer in header.eval.scorers or []]
+    duplicated = sorted({name for name in scorers if scorers.count(name) > 1})
+    if duplicated:
+        raise ShardSetError(
+            f"The task declares the scorer {', '.join(duplicated)} more than "
+            "once, so its later scores are recorded under suffixed names "
+            f"('{duplicated[0]}1'). The scorer a metric sees for those scores "
+            "differs between a fresh run and a retry, so the merge cannot "
+            "establish their metric inputs and does not merge such shards. "
+            "Declare each scorer once."
+        )
 
     names = header.eval.config.epochs_reducer or []
     repeated = sorted({name for name in names if names.count(name) > 1})
@@ -213,6 +233,7 @@ def _write_sample(
         )
     zf.writestr(_sample_filename(key.sample_id, key.epoch), data)
     scores = sample.scores or {}
+    init = next((e for e in sample.events if isinstance(e, SampleInitEvent)), None)
     return _SampleInputs(
         scores={
             name: SampleScore(
@@ -220,6 +241,8 @@ def _write_sample(
             )
             for name, score in scores.items()
         },
+        initialized=init is not None,
+        initial_metadata=init.sample.metadata if init is not None else None,
         error=sample.error is not None,
         edited=frozenset(name for name, score in scores.items() if score.history),
         invalidated=sample.invalidation is not None,
@@ -279,9 +302,7 @@ async def _recompute_results(
     check_scoring_resolvable(template)
     metrics = _task_metrics(template)
     declared = resolve_scorers_info(template)
-    scores = _with_scorer_identity(
-        declared, [sample.scores for sample in inputs if sample.scores]
-    )
+    scores = _declared_inputs(declared, inputs, held_reductions.sources)
     others = _other_score_names(declared, scores)
     if metrics is not None:
         other_infos = [ScorerInfo(name=name, metrics=metrics) for name in others]
@@ -347,30 +368,50 @@ async def _recompute_results(
     )
 
 
-def _with_scorer_identity(
-    declared: list["ScorerInfo"], scores: list[dict[str, SampleScore]]
+def _declared_inputs(
+    declared: list["ScorerInfo"],
+    inputs: list[_SampleInputs],
+    sources: Mapping[str, str],
 ) -> list[dict[str, SampleScore]]:
-    """Set `SampleScore.scorer` on declared scorers' scores, as live scoring does.
+    """The samples' scores as a fresh run passes them to metrics.
 
-    The task runner records the scorer's unqualified registry name, which
-    the header keeps as the declared scorer's name, also for a duplicate
-    scorer whose score key is suffixed (`other1`). Solver-set scores keep
-    `None`, as live.
+    A fresh run gives a declared scorer's scores the sample's dataset
+    metadata, before any solver changed it, and the scorer's unqualified
+    registry name, which the header keeps as the declared scorer's name. A
+    retry reusing a sample passes its final metadata and score key instead;
+    the merge follows the fresh run. The dataset metadata is taken from the
+    sample's `SampleInitEvent`. Solver-set scores keep the final metadata and
+    no scorer, as in a fresh run.
+
+    Raises:
+        ShardSetError: A sample with a declared scorer's score has no
+            `SampleInitEvent`.
     """
-    from inspect_ai._eval.task.results import _unique_scorer_names
-
-    identity = dict(
-        zip(_unique_scorer_names(declared), (info.name for info in declared))
-    )
-    return [
-        {
-            name: score.model_copy(update={"scorer": identity[name]})
-            if name in identity
-            else score
-            for name, score in sample_scores.items()
-        }
-        for sample_scores in scores
-    ]
+    names = {info.name for info in declared}
+    scores: list[dict[str, SampleScore]] = []
+    for sample in inputs:
+        if not sample.scores:
+            continue
+        if not sample.initialized and names & sample.scores.keys():
+            id = str(next(iter(sample.scores.values())).sample_id)
+            raise ShardSetError(
+                f"Sample {id!r} in {sources[id]} has no sample_init event, which "
+                "records the dataset metadata a fresh run gives its scorers' "
+                "metrics, so the merge cannot establish their inputs (a sample "
+                "whose record could not be serialized is logged without its "
+                "events). Re-run the shard holding the sample."
+            )
+        scores.append(
+            {
+                name: score.model_copy(
+                    update={"scorer": name, "sample_metadata": sample.initial_metadata}
+                )
+                if name in names
+                else score
+                for name, score in sample.scores.items()
+            }
+        )
+    return scores
 
 
 def check_retained_reductions(
