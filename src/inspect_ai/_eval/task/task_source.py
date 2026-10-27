@@ -61,6 +61,9 @@ class TaskSource:
         ``sample_complete`` / ``task_complete`` notifications of every task so
         far). May ``await`` — for more results or external input — and may block
         indefinitely; return ``None`` to end the run.
+
+        Tasks added while it runs (with ``enqueue_task``, including by code it
+        started) start only after it returns, so it must not wait for them.
         """
         return None
 

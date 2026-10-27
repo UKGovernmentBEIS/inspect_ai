@@ -104,15 +104,18 @@ class TestResolveTaskDistribution:
 
 
 @pytest.mark.anyio
-async def test_eval_run_cleans_initialized_loggers_when_setup_fails(
+async def test_eval_run_discards_loggers_when_setup_fails(
     monkeypatch,
 ) -> None:
-    cleaned_loggers: list[object] = []
+    # the second task's log init fails: both loggers of the group are
+    # discarded, including the failed one (its recorder entry may exist)
+    created_loggers: list[object] = []
+    discarded_loggers: list[object] = []
     init_count = 0
 
     class FakeTaskLogger:
         def __init__(self, *args: object, **kwargs: object) -> None:
-            pass
+            created_loggers.append(self)
 
         async def init(self) -> None:
             nonlocal init_count
@@ -120,8 +123,10 @@ async def test_eval_run_cleans_initialized_loggers_when_setup_fails(
             if init_count == 2:
                 raise RuntimeError("setup failed")
 
-        async def cleanup(self) -> None:
-            cleaned_loggers.append(self)
+        async def discard(
+            self, *, keep_destination: bool = False, keep_buffer: bool = False
+        ) -> None:
+            discarded_loggers.append(self)
 
     monkeypatch.setattr("inspect_ai._eval.run.TaskLogger", FakeTaskLogger)
 
@@ -146,7 +151,8 @@ async def test_eval_run_cleans_initialized_loggers_when_setup_fails(
             run_samples=False,
         )
 
-    assert len(cleaned_loggers) == 1
+    assert len(created_loggers) == 2
+    assert discarded_loggers == created_loggers
 
 
 def _sample() -> EvalSample:

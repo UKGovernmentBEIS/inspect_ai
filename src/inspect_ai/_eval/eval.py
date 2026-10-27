@@ -831,11 +831,11 @@ async def _eval_async_inner(
         )
 
         # A TaskSource drives the run dynamically: its initial_tasks() seed the
-        # run (resolved + validated up front like any task list) and become the
-        # first batch; next_tasks() then feeds subsequent batches (see the eval
-        # loop below). `tasks` may be a TaskSource instance or refer to one (a
-        # @task_source function, a registered name, or a file.py@name spec); any
-        # other task form resolves directly.
+        # run (resolved + validated up front like any task list); next_tasks()
+        # then adds more whenever no task is queued or running (see
+        # TaskEnqueuer.when_idle). `tasks` may be a TaskSource instance or
+        # refer to one (a @task_source function, a registered name, or a
+        # file.py@name spec); any other task form resolves directly.
         task_source = resolve_task_source(tasks, task_args)
 
         # resolve tasks (a TaskSource seeds the run from initial_tasks(),
@@ -869,10 +869,9 @@ async def _eval_async_inner(
 
         # make every resolved task's model addressable by the model pause
         # directives up-front, ahead of the dispatcher's own registration
-        # (which happens as each batch is prepared, so it lags for tasks fed
-        # to later batches). This is also the first dispatch_model_name call,
-        # so the latch's name snapshots are taken here — before any generate
-        # can rewrite a provider's model name
+        # (which happens as each group of tasks is prepared). This is also the
+        # first dispatch_model_name call, so the latch's name snapshots are
+        # taken here — before any generate can rewrite a provider's model name
         note_dispatch_models([dispatch_model_name(t.model) for t in resolved_tasks])
 
         # if there is no max tasks then base it on unique model names

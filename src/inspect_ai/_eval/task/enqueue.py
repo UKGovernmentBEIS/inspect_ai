@@ -3,10 +3,10 @@
 A run can have tasks added to it while it is in progress, under the same
 ``run_id``. Every run has one task dispatcher; an added task joins its queue
 either at once (``start="when_free"``: it starts as soon as there is free task
-capacity) or once the dispatcher is idle (``start="after_batch"``: every task
-already in the run, running or queued, has finished). This module is the
-in-process primitive that makes that possible; higher layers (an RL driver, a
-control-channel directive) build on it.
+capacity) or once the dispatcher is idle (``start="after_batch"``: no task is
+queued or running, including ``when_free`` tasks added after it). This module
+is the in-process primitive that makes that possible; higher layers (an RL
+driver, a control-channel directive) build on it.
 
 The eval runner creates one :class:`TaskEnqueuer` per run: the run's source of
 added tasks, both those passed to :func:`enqueue_task` and those a
@@ -26,7 +26,7 @@ from __future__ import annotations
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from threading import Lock
-from typing import TYPE_CHECKING, Callable, Literal
+from typing import TYPE_CHECKING, Callable, Literal, get_args
 
 if TYPE_CHECKING:
     from inspect_ai._eval.task.resolved import ResolvedTask
@@ -53,7 +53,8 @@ class TaskEnqueuer:
     every cycle and calls :meth:`when_idle` only once it is idle. When
     ``when_idle`` finds nothing more to run it closes the enqueuer (as the
     runner does when a run ends early); later enqueues raise, since nothing
-    would run them.
+    would run them. Call :meth:`enqueue` from the eval's event loop: the
+    dispatcher's wake callback is not thread-safe.
     """
 
     run_id: str
@@ -103,24 +104,24 @@ class TaskEnqueuer:
     async def when_idle(self) -> list["ResolvedTask"] | None:
         """The next tasks to run once the dispatcher is idle, or ``None`` when the run is complete.
 
-        In order: buffered ``after_batch`` tasks; else the ``TaskSource``'s
-        ``next_tasks()``, until it first returns nothing (it is not called
-        again after that); else any tasks enqueued meanwhile. If there are
-        none, closes the enqueuer and returns ``None``.
+        In order: buffered ``when_free`` tasks (enqueued after the dispatcher's
+        last :meth:`ready`); else buffered ``after_batch`` tasks; else the
+        ``TaskSource``'s ``next_tasks()``, until it first returns nothing (it
+        is not called again after that); else tasks enqueued while it ran,
+        ``when_free`` ones first (``after_batch`` ones then wait for the next
+        call). If there are none, closes the enqueuer and returns ``None``.
         """
-        after_batch = self._drain("after_batch")
-        if after_batch:
-            return after_batch
+        queued = self._drain("when_free") or self._drain("after_batch")
+        if queued:
+            return queued
         if self._source is not None and not self._source_ended:
             more = await self._source.next_tasks()
             if more:
                 return self._resolve(more)
             self._source_ended = True
-        # next_tasks() may block, and the source (or code it started) may
-        # enqueue meanwhile
-        late = self._drain("when_free") + self._drain("after_batch")
-        if late:
-            return late
+            late = self._drain("when_free") or self._drain("after_batch")
+            if late:
+                return late
         # the dispatcher finishes without asking again, so a later enqueue
         # could never run
         self.close()
@@ -176,22 +177,40 @@ def enqueue_task(
     which is re-read live, so raising it with ``inspect ctl config --max-tasks``
     lets a waiting task start.
 
+    A task that waits for a ``"when_free"`` task it added needs a free slot for
+    it: ``eval()`` defaults ``max_tasks`` to the number of models (1 for a
+    single model), so without a higher ``max_tasks`` the added task never
+    starts and the run hangs.
+
+    In a :class:`~inspect_ai.TaskSource` run, tasks added while
+    ``next_tasks()`` runs start only after it returns, so ``next_tasks()``
+    must not wait for them.
+
+    Call from the eval's event loop (a solver, scorer, tool or hook), not from
+    another thread.
+
     Args:
         tasks: A ``Task`` (or list of tasks) to add to the running eval.
         run_id: Optionally, the ``run_id`` the caller believes is running; if
             given it must match the active run, else the call is rejected.
         start: When the added tasks start. ``"when_free"``: as soon as there is
-            free task capacity. ``"after_batch"``: once every task already in
-            the run, running or queued, has finished. ``None`` (the default):
-            ``"when_free"`` in a run driven by a :class:`~inspect_ai.TaskSource`,
-            ``"after_batch"`` otherwise.
+            free task capacity. ``"after_batch"``: once no task is queued or
+            running, including tasks added later with ``"when_free"``. ``None``
+            (the default): ``"when_free"`` in a run driven by a
+            :class:`~inspect_ai.TaskSource`, ``"after_batch"`` otherwise.
 
     Raises:
+        ValueError: If ``start`` is not one of the values above, or the tasks
+            can't be resolved (propagated from resolution).
         RuntimeError: If no eval is currently running in this process,
             ``run_id`` doesn't match the active run, or the run has finished
             dispatching tasks.
-        ValueError: If the tasks can't be resolved (propagated from resolution).
     """
+    if start is not None and start not in get_args(TaskStartPolicy):
+        raise ValueError(
+            "enqueue_task(): start must be 'when_free', 'after_batch' or None, "
+            f"not {start!r}."
+        )
     enqueuer = get_task_enqueuer()
     if enqueuer is None:
         raise RuntimeError(

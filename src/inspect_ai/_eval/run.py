@@ -153,10 +153,10 @@ class AddedTasks(Protocol):
 
 @dataclass
 class PreparedFeed:
-    """A live feed of prepared ``TaskRunOptions`` consumed by :func:`run_task_retry_attempts`."""
+    """:class:`AddedTasks` with each group prepared, for :func:`run_task_retry_attempts`."""
 
-    drain: Callable[[], Awaitable[list[TaskRunOptions]]]
-    next: Callable[[], Awaitable[list[TaskRunOptions] | None]]
+    ready: Callable[[], Awaitable[list[TaskRunOptions]]]
+    when_idle: Callable[[], Awaitable[list[TaskRunOptions] | None]]
     set_wake: Callable[[Callable[[], None]], None]
 
 
@@ -191,9 +191,9 @@ async def eval_run(
     eval_wd = os.getcwd()
 
     # names of every task in the run, for resolving `task:id` sample selectors
-    # the same way in every batch: seeded from the enclosing eval set (a retry
-    # runs only a subset of its tasks) and extended as batches are prepared, so
-    # injected tasks see the ones before them
+    # the same way for every task: seeded from the enclosing eval set (a retry
+    # runs only a subset of its tasks) and extended as each group of tasks is
+    # prepared, so added tasks see the ones before them
     task_names: list[str] = list(eval_set_tasks or [])
 
     # resolve solver and solver spec
@@ -214,13 +214,36 @@ async def eval_run(
         eval_config.sandbox_cleanup is not False,
     )
 
-    # track every logger we initialize (seed + injected) so that, if the run
-    # fails before those tasks complete normally, we can tear down their
-    # resources (stale-flush timers, buffer dbs) instead of leaking them
+    # every prepared task (seed + added groups), so that if an error escapes
+    # the run before the dispatcher has discarded or finished their loggers
+    # (for example the task display fails to start), their resources
+    # (stale-flush timers, buffer dbs) are torn down instead of leaked
     prepared_options: list[TaskRunOptions] = []
 
     async def prepare_options(
         resolved_tasks: list[ResolvedTask],
+    ) -> list[TaskRunOptions]:
+        """Prepare a group of tasks for the dispatcher.
+
+        The group's loggers belong to this call until it returns them: if
+        preparing a task fails or is cancelled, the loggers already created
+        (open buffer dbs, recorder entries) are discarded. A cancelled run
+        returns normally (see :func:`_run_task_screen`), so ``eval_run``'s
+        error handler would not reach them.
+        """
+        loggers: list[TaskLogger] = []
+        try:
+            options = await prepare_group(resolved_tasks, loggers)
+        except BaseException:
+            with anyio.CancelScope(shield=True):
+                for logger in loggers:
+                    await logger.discard()
+            raise
+        prepared_options.extend(options)
+        return options
+
+    async def prepare_group(
+        resolved_tasks: list[ResolvedTask], loggers: list[TaskLogger]
     ) -> list[TaskRunOptions]:
         task_names.extend(
             name
@@ -457,6 +480,7 @@ async def eval_run(
                     header_only=header_only,
                     dynamic_dataset=task.sample_source is not None,
                 )
+                loggers.append(logger)
                 await logger.init()
 
                 # samples a SampleSource adds mid-run go through the same
@@ -498,12 +522,10 @@ async def eval_run(
                         input_media_policy=resolved_task.input_media_policy,
                     )
                 )
-                # register the prepared task so a failed run can clean it up
-                prepared_options.append(task_run_options[-1])
         return task_run_options
 
     try:
-        # own the batch's sandbox lifecycle state before any task starts
+        # own the run's sandbox lifecycle state before any task starts
         sandbox_manager.open()
 
         # prepare the initial (seed) tasks
@@ -514,17 +536,17 @@ async def eval_run(
 
         # tasks added while the run is in progress are prepared on the fly as
         # the dispatcher takes them, so they work with or without retries
-        async def feed_drain() -> list[TaskRunOptions]:
+        async def feed_ready() -> list[TaskRunOptions]:
             return await prepare_options(_dispatch_order(added_tasks.ready(), parallel))
 
-        async def feed_next() -> list[TaskRunOptions] | None:
+        async def feed_when_idle() -> list[TaskRunOptions] | None:
             more = await added_tasks.when_idle()
             return (
                 await prepare_options(_dispatch_order(more, parallel)) if more else None
             )
 
         feed = PreparedFeed(
-            drain=feed_drain, next=feed_next, set_wake=added_tasks.set_wake
+            ready=feed_ready, when_idle=feed_when_idle, set_wake=added_tasks.set_wake
         )
 
         # `parallel` is the max concurrent (task × model) units; the
@@ -719,11 +741,12 @@ async def run_task_retry_attempts(
 ) -> list[EvalLog]:
     """Run tasks with bounded, model-balanced concurrency and per-task retries.
 
-    ``tasks`` is the initial set; ``feed`` adds to it: ``feed.drain()``
-    (non-blocking) yields tasks enqueued since the last cycle and ``feed.next()``
-    (blocking) yields the next batch, returning ``None`` when the source is
-    exhausted. The run completes when nothing is pending, nothing is in flight,
-    and the feed is exhausted (at once if it supplies nothing). A task whose log
+    ``tasks`` is the initial set; ``feed`` adds to it: ``feed.ready()``
+    (called every cycle) yields tasks that may start now and
+    ``feed.when_idle()`` (called only when nothing is queued or running, may
+    block) yields more, returning ``None`` when the run is complete. The run
+    completes when nothing is pending, nothing is in flight, and the feed is
+    exhausted (at once if it supplies nothing). A task whose log
     comes back with an error — or which requests a retry via its ``TaskCancel``
     — is re-queued (reusing completed samples) until ``task_retry_attempts`` is
     exhausted; an abort or external cancellation is never retried, and an
@@ -1044,8 +1067,11 @@ async def run_task_retry_attempts(
                     wake.set()
 
                 while True:
-                    # pick up tasks buffered since the last cycle (non-blocking)
-                    injected = await feed.drain()
+                    if cancelled:
+                        break
+
+                    # pick up tasks buffered since the last cycle
+                    injected = await feed.ready()
                     if injected:
                         add(injected)
 
@@ -1100,7 +1126,7 @@ async def run_task_retry_attempts(
                     # when it is exhausted
                     if source_done:
                         break
-                    more = await feed.next()
+                    more = await feed.when_idle()
                     if more is None:
                         source_done = True
                     else:
@@ -1127,19 +1153,20 @@ async def run_task_retry_attempts(
 class SandboxManager:
     """Starts sandbox environments incrementally and tears them all down.
 
-    Tasks injected into a live run — and samples a `SampleSource` adds to a
-    live task — arrive in batches, so startup must be callable repeatedly:
+    Tasks added to a running eval — and samples a `SampleSource` adds to a
+    live task — arrive in groups, so startup must be callable repeatedly:
     :meth:`start` / :meth:`start_for_samples` initialize only sandboxenvs not
     already started and accumulate their cleanups; :meth:`shutdown` runs every
     accumulated cleanup once, at the end of the run.
 
-    The manager also owns the batch's sandbox lifecycle state (the registries
+    The manager also owns the run's sandbox lifecycle state (the registries
     a provider's `task_cleanup` reads: running containers, generated config
     files). :meth:`open` binds a fresh scope in the calling context before any
-    task of the batch is spawned, so a `task_init` that runs late — in a
-    `SampleSource` feeder task, a sibling of the samples — registers on the
-    object every task inherited rather than in its own context; :meth:`shutdown`
-    releases the scope, so a sequential batch after this one starts clean.
+    task of the run is spawned, so a `task_init` that runs late — for an added
+    task, or in a `SampleSource` feeder task, a sibling of the samples —
+    registers on the object every task inherited rather than in its own
+    context; :meth:`shutdown` releases the scope, so a later run in the same
+    process starts clean.
     """
 
     def __init__(
@@ -1162,11 +1189,11 @@ class SandboxManager:
         ] = {}
 
     def open(self) -> None:
-        """Own the batch's sandbox lifecycle state from the calling context.
+        """Own the run's sandbox lifecycle state from the calling context.
 
-        Call before any task or sample of the batch is spawned (and whether or
+        Call before any task or sample of the run is spawned (and whether or
         not any initial sample has a sandbox — the first sandbox may arrive
-        with an added sample). :meth:`shutdown` releases it.
+        with an added task or sample). :meth:`shutdown` releases it.
         """
         if self._lifecycle is None:
             self._lifecycle = ExitStack()
@@ -1175,8 +1202,8 @@ class SandboxManager:
     async def start(self, tasks: list[ResolvedTask], task_names: list[str]) -> None:
         """Start the sandboxenvs of `tasks`' selected samples.
 
-        `task_names` is every task name known to the run so far (not just this
-        batch), so `task:id` sample selectors resolve here exactly as they do
+        `task_names` is every task name known to the run so far (not just
+        `tasks`), so `task:id` sample selectors resolve here exactly as they do
         when the tasks run.
         """
         # find unique sandboxenvs to start
@@ -1301,7 +1328,7 @@ class SandboxManager:
     async def shutdown(self) -> None:
         """Run every accumulated `task_cleanup`, then release the lifecycle state.
 
-        The final cleanup of the batch: it also covers samples whose own
+        The final cleanup of the run: it also covers samples whose own
         cleanup was deferred by an interruption, since their provider state is
         on the scope this manager owns.
         """

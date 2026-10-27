@@ -12,6 +12,7 @@ top and tested separately.
 from contextvars import Context, copy_context
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 import anyio
 import pytest
@@ -26,7 +27,13 @@ from inspect_ai._eval.eval_set_selection import (
     EvalSetSelectionTask,
 )
 from inspect_ai._eval.loader import resolve_tasks
-from inspect_ai._eval.task.enqueue import TaskEnqueuer, TaskStartPolicy, enqueue_task
+from inspect_ai._eval.task.enqueue import (
+    TaskEnqueuer,
+    TaskStartPolicy,
+    clear_task_enqueuer,
+    enqueue_task,
+    register_task_enqueuer,
+)
 from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.tasks import Tasks
@@ -263,6 +270,24 @@ def test_enqueue_task_does_not_leak_active_model() -> None:
 def test_enqueue_task_outside_run_raises() -> None:
     with pytest.raises(RuntimeError, match="while an eval is running"):
         enqueue_task(child())
+
+
+def test_enqueue_task_invalid_start_raises_before_resolving() -> None:
+    resolved: list[Tasks] = []
+
+    def resolve(tasks: Tasks) -> list[ResolvedTask]:
+        resolved.append(tasks)
+        return []
+
+    enqueuer = TaskEnqueuer(run_id="run", _resolve=resolve, _source=None)
+    token = register_task_enqueuer(enqueuer)
+    try:
+        with pytest.raises(ValueError, match="start must be .* not 'now'"):
+            enqueue_task(child(), start=cast(TaskStartPolicy, "now"))
+    finally:
+        clear_task_enqueuer(token)
+    assert resolved == []
+    assert enqueuer.ready() == []
 
 
 def _child_signalling(started: anyio.Event) -> Task:
@@ -804,7 +829,7 @@ async def test_task_enqueuer_idle_rule(case: _IdleCase) -> None:
 
 
 async def test_task_enqueuer_runs_tasks_enqueued_during_next_tasks() -> None:
-    # next_tasks() blocks; tasks enqueued meanwhile are returned when it then
+    # next_tasks() blocks; tasks enqueued meanwhile are returned after it
     # returns None, and the ended source is never asked again
     entered = anyio.Event()
     release = anyio.Event()
@@ -834,11 +859,86 @@ async def test_task_enqueuer_runs_tasks_enqueued_during_next_tasks() -> None:
         enqueuer.enqueue(_named(["a"]), start="after_batch")
         release.set()
 
-    assert first == [["w", "a"]]
+    # each keeps its start policy: the after_batch task waits for the next idle
+    # point, once the when_free task has finished
+    assert first == [["w"]]
+    assert _task_names(await enqueuer.when_idle()) == ["a"]
     assert await enqueuer.when_idle() is None
     assert source.calls == 1
     with pytest.raises(RuntimeError, match="finished dispatching"):
         enqueuer.enqueue(_named(["late"]))
+
+
+async def test_task_enqueuer_when_idle_returns_when_free_tasks_first() -> None:
+    # when_free tasks enqueued after the dispatcher's last ready() (during an
+    # await later in its cycle) are returned before after_batch tasks and
+    # before next_tasks() is asked, which is called only when nothing is queued
+    source = _ScriptedSource([["s1"], None])
+    enqueuer = TaskEnqueuer(run_id="run", _resolve=_resolve_named, _source=source)
+    enqueuer.enqueue(_named(["a"]), start="after_batch")
+    enqueuer.enqueue(_named(["w"]), start="when_free")
+    assert [_task_names(await enqueuer.when_idle()) for _ in range(4)] == [
+        ["w"],
+        ["a"],
+        ["s1"],
+        None,
+    ]
+    assert source.batches == []
+
+
+@pytest.mark.parametrize("start", ["after_batch", "when_free"])
+async def test_enqueue_task_cancel_while_preparing_added_group(
+    monkeypatch: pytest.MonkeyPatch, start: TaskStartPolicy
+) -> None:
+    # the run is cancelled (as by Ctrl-C) while the dispatcher prepares an
+    # added group of two tasks, right after the second one's log init: the
+    # loggers of both are discarded, releasing their realtime buffers
+    loggers: dict[str, TaskLogger] = {}
+    discarded: list[str] = []
+    init = TaskLogger.init
+    discard = TaskLogger.discard
+
+    async def cancelling_init(logger: TaskLogger) -> None:
+        loggers[logger.eval.task] = logger
+        await init(logger)
+        if logger.eval.task == "d":
+            scope.cancel()
+            await anyio.lowlevel.checkpoint()
+
+    async def track_discard(
+        logger: TaskLogger, *, keep_destination: bool = False, keep_buffer: bool = False
+    ) -> None:
+        discarded.append(logger.eval.task)
+        await discard(
+            logger, keep_destination=keep_destination, keep_buffer=keep_buffer
+        )
+
+    monkeypatch.setattr(TaskLogger, "init", cancelling_init)
+    monkeypatch.setattr(TaskLogger, "discard", track_discard)
+
+    @solver
+    def enqueue_group() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            enqueue_task(
+                [
+                    Task(dataset=[Sample(input="x")], name="c"),
+                    Task(dataset=[Sample(input="x")], name="d"),
+                ],
+                start=start,
+            )
+            return state
+
+        return solve
+
+    init_display_type("none")
+    with anyio.fail_after(60):
+        with anyio.CancelScope() as scope:
+            await eval_async(_parent(enqueue_group()), model="mockllm/model")
+
+    assert scope.cancel_called
+    assert loggers["c"].buffer_db is None
+    assert loggers["d"].buffer_db is None
+    assert sorted(name for name in discarded if name in ("c", "d")) == ["c", "d"]
 
 
 async def test_enqueue_task_cancel_while_when_free_child_queued(

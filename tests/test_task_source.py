@@ -648,6 +648,42 @@ def test_task_enqueued_by_final_next_tasks_runs(
     assert calls == ["next_tasks"]
 
 
+def test_after_batch_enqueued_by_final_next_tasks_runs_after_when_free() -> None:
+    # tasks added during the next_tasks() call that ends the source keep their
+    # start policies: at max_tasks=1 the after_batch task starts only once the
+    # when_free tasks enqueued with it have finished
+    starts: list[str] = []
+
+    @solver
+    def record(label: str) -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            starts.append(label)
+            return state
+
+        return solve
+
+    def labelled(label: str) -> Task:
+        return Task(dataset=[Sample(input="x")], solver=[record(label)], name=label)
+
+    class _Src(TaskSource):
+        calls = 0
+
+        def initial_tasks(self) -> list[Task]:
+            return [labelled("seed")]
+
+        async def next_tasks(self) -> list[Task] | None:
+            self.calls += 1
+            if self.calls == 1:
+                enqueue_task([labelled("w1"), labelled("w2")], start="when_free")
+                enqueue_task(labelled("b"), start="after_batch")
+            return None
+
+    logs = eval(tasks=_Src(), model="mockllm/model", max_tasks=1, display="none")
+    assert all(log.status == "success" for log in logs)
+    assert starts == ["seed", "w1", "w2", "b"]
+    assert [log.eval.task for log in logs] == ["seed", "w1", "w2", "b"]
+
+
 def test_task_source_decorator_instance() -> None:
     # calling a @task_source-decorated function yields a tagged TaskSource that
     # eval() drives like any source

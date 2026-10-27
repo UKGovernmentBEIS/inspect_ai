@@ -152,14 +152,14 @@ def spawn_followup():
     return solve
 ```
 
-Enqueued tasks run under the current run id, resolved against the run's models and config. Without a `start` argument (see below), they are handled like tasks returned from `sample_complete` / `task_complete`. `enqueue_task()` raises if no eval is running, and also if the run has already finished starting tasks (for example, when called from a background task that outlives the run), since the added task would never run.
+Enqueued tasks run under the current run id, resolved against the run's models and config. Without a `start` argument (see below), they are handled like tasks returned from `sample_complete` / `task_complete`. `enqueue_task()` raises if no eval is running, and also if the run has already finished starting tasks (for example, when called from a background task that outlives the run), since the added task would never run. Call it from the eval's event loop (a solver, scorer, tool or hook), not from another thread.
 
 ### When an added task starts
 
 The `start` argument controls when an enqueued task starts:
 
 - `start="when_free"`: as soon as there is free task capacity, while the tasks already in the run keep running. Use this when the task that adds it needs it running alongside.
-- `start="after_batch"`: once every task already in the run, running or queued, has finished.
+- `start="after_batch"`: once no task is queued or running, including tasks added later with `start="when_free"`.
 - No `start` (the default): `"when_free"` in a `TaskSource` run, `"after_batch"` otherwise, for example under `eval()` or `eval_set()`.
 
 ```python
@@ -168,11 +168,17 @@ enqueue_task(companion_task(), start="when_free")
 
 Capacity is `max_tasks`, read live: if the running tasks hold every slot (for example at `max_tasks=1`), the added task waits until a slot frees or the limit is raised with `inspect ctl config --max-tasks`.
 
+::: {.callout-warning appearance="simple"}
+A task that waits for a `"when_free"` task it added needs a free slot for it. `eval()` defaults `max_tasks` to the number of models, which is 1 for a single model, so the added task never starts and the run hangs. Set `max_tasks` above the number of task × model units that run at the same time.
+:::
+
 All tasks of a run, including added ones, share one task display and one set of task-level sandbox environments, which are cleaned up when the run ends.
+
+While an added task's task-level sandbox environment starts (its provider's `task_init`, for example a Docker image build), the tasks already running keep running, but the task display is suspended, no other task starts, and the process-wide working directory and the environment variables the provider sets for startup are changed. Subprocesses that running tasks start in that time inherit them.
 
 ## Concurrency
 
-In a `TaskSource` run, a task added mid-run (returned from a callback, or passed to `enqueue_task()` without `start`) starts as soon as there is free capacity, rather than waiting for the tasks already running to finish. `next_tasks()` is called only once no task is queued or running.
+In a `TaskSource` run, a task added mid-run (returned from a callback, or passed to `enqueue_task()` without `start`) starts as soon as there is free capacity, rather than waiting for the tasks already running to finish. `next_tasks()` is called only once no task is queued or running. Tasks added while `next_tasks()` runs start only after it returns, so `next_tasks()` must not wait for them.
 
 Capacity is bounded by `max_tasks` (the number of concurrent task × model units). If the seed fills every slot, a follow-up waits until a slot frees, so to run follow-ups alongside the seed, set `max_tasks` above the number of seed units. A seed of two tasks across two models is four units, so `--max-tasks 6` leaves room:
 
