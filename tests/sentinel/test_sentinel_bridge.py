@@ -1,6 +1,7 @@
 import json
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
+from copy import deepcopy
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any, cast
 from unittest.mock import AsyncMock, patch
@@ -12,7 +13,12 @@ from inspect_ai import Task, eval
 from inspect_ai._sentinel._config import resolve_sentinel_root, resolve_sentinel_spec
 from inspect_ai._sentinel._context import SentinelFailure, init_sentinel
 from inspect_ai._sentinel._scope import sentinel_solving
-from inspect_ai._util.content import ContentImage, ContentReasoning, ContentText
+from inspect_ai._util.content import (
+    Content,
+    ContentImage,
+    ContentReasoning,
+    ContentText,
+)
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent import Agent, AgentState, agent, agent_bridge
 from inspect_ai.agent._bridge.sandbox.service import call_tool as call_host_tool
@@ -324,6 +330,24 @@ def declare_read_file(name: str = "mcp__host__read_file") -> list[ToolInfo]:
     ]
 
 
+def declare_dispatcher() -> list[ToolInfo]:
+    """Antigravity's `call_mcp_tool(ServerName, ToolName, Arguments)`."""
+    return [
+        ToolInfo(
+            name="call_mcp_tool",
+            description="Call a tool on an MCP server.",
+            parameters=ToolParams(
+                properties={
+                    "ServerName": ToolParam(type="string"),
+                    "ToolName": ToolParam(type="string"),
+                    "Arguments": ToolParam(type="object"),
+                },
+                required=["ServerName", "ToolName", "Arguments"],
+            ),
+        )
+    ]
+
+
 def sentinel_events() -> list[SentinelEvent]:
     return [e for e in transcript().events if isinstance(e, SentinelEvent)]
 
@@ -469,6 +493,76 @@ async def test_modify_rewrites_the_arguments_handed_to_the_scaffold() -> None:
     assert decision.action == "modify"
     assert decision.modified is not None
     assert decision.modified.arguments == {"path": "safe.txt"}
+
+
+@monitor
+def edits_in_place(change: str, seen: Any) -> MonitorGroup:
+    """Changes the call it is shown in place, the first time, and returns nothing."""
+
+    async def before(context: Context, step: BeforeToolCall) -> Observation | None:
+        seen.append(step)
+        if len(seen) == 1:
+            if change == "arguments":
+                step.call.arguments["path"] = "/etc/shadow"
+            elif change == "function":
+                step.call.function = "write_file"
+            else:
+                step.call.id = "other"
+        return None
+
+    return MonitorGroup(before)
+
+
+@pytest.mark.parametrize("dispatched", [False, True])
+@pytest.mark.parametrize("change", ["arguments", "function", "id"])
+async def test_a_call_a_monitor_changed_in_place_is_rejected(
+    change: str, dispatched: bool
+) -> None:
+    seen: Steps = []
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge(tool)
+    proposed = (
+        ToolCall(
+            id="d_1",
+            function="call_mcp_tool",
+            arguments={
+                "ServerName": "host",
+                "ToolName": "read_file",
+                "Arguments": {"path": "notes.txt"},
+            },
+        )
+        if dispatched
+        else ToolCall(
+            id="h_1", function="mcp__host__read_file", arguments={"path": "notes.txt"}
+        )
+    )
+    model = Scripted(calls_output(proposed), calls_output(deepcopy(proposed)))
+
+    with active([edits_in_place(change, seen)]):
+        output = await generate(
+            bridge,
+            model,
+            [ChatMessageUser(content=TASK)],
+            declare_dispatcher() if dispatched else declare_read_file(),
+        )
+        # the edited call is denied; the call the model made runs
+        with pytest.raises(PermissionError):
+            await call_host_tool(bridge)("host", "read_file", {"path": "/etc/shadow"})
+        await call_host_tool(bridge)("host", "read_file", {"path": "notes.txt"})
+
+    # the edited response was rejected and the model generated again
+    assert len(model.inputs) == 2
+    [rejection] = [m for m in model.inputs[1] if isinstance(m, ChatMessageTool)]
+    assert rejection.error is not None
+    assert "changed the tool call in place" in rejection.error.message
+    assert output.message.tool_calls == [proposed]
+    tool.assert_awaited_once_with(path="notes.txt")
+    # the second look saw the call as the model made it
+    target = "read_file" if dispatched else proposed.function
+    assert (seen[1].call.function, seen[1].call.arguments) == (
+        target,
+        {"path": "notes.txt"},
+    )
 
 
 @protocol
@@ -1805,8 +1899,14 @@ PATH_SCHEMA: dict[str, Any] = {
 }
 
 
-async def dialect_round_trip(dialect: str, bridge: AgentBridge) -> None:
-    """A scaffold sending one request, then its response and the call's result."""
+async def dialect_round_trip(
+    dialect: str, bridge: AgentBridge, results: Sequence[str] = ("x",)
+) -> None:
+    """A scaffold sending one request, then its response and the call's result.
+
+    With several `results`, a request is sent with each in turn, as a
+    scaffold reporting the call's result again, changed.
+    """
     if dialect == "completions":
         from inspect_ai.agent._bridge.completions import (
             inspect_completions_api_request,
@@ -1831,13 +1931,21 @@ async def dialect_round_trip(dialect: str, bridge: AgentBridge) -> None:
         )
         message = completion.choices[0].message
         assert message.tool_calls
-        messages += [
-            message.model_dump(exclude_none=True),
-            {"role": "tool", "tool_call_id": message.tool_calls[0].id, "content": "x"},
-        ]
-        await inspect_completions_api_request(
-            {"model": "inspect", "messages": messages, "tools": tools}, None, bridge
-        )
+        call_id = message.tool_calls[0].id
+        messages.append(message.model_dump(exclude_none=True))
+        for text in results:
+            await inspect_completions_api_request(
+                {
+                    "model": "inspect",
+                    "messages": [
+                        *messages,
+                        {"role": "tool", "tool_call_id": call_id, "content": text},
+                    ],
+                    "tools": tools,
+                },
+                None,
+                bridge,
+            )
     elif dialect == "anthropic":
         from inspect_ai.agent._bridge.anthropic_api import (
             inspect_anthropic_api_request,
@@ -1866,16 +1974,21 @@ async def dialect_round_trip(dialect: str, bridge: AgentBridge) -> None:
         )
         content = [block.model_dump(exclude_none=True) for block in response.content]
         [use] = [block for block in content if block["type"] == "tool_use"]
-        turns += [
-            {"role": "assistant", "content": content},
-            {
-                "role": "user",
-                "content": [
-                    {"type": "tool_result", "tool_use_id": use["id"], "content": "x"}
-                ],
-            },
-        ]
-        await inspect_anthropic_api_request(request(), None, None, None, bridge)
+        turns.append({"role": "assistant", "content": content})
+        for text in results:
+            turns[2:] = [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": use["id"],
+                            "content": text,
+                        }
+                    ],
+                }
+            ]
+            await inspect_anthropic_api_request(request(), None, None, None, bridge)
     elif dialect == "google":
         from inspect_ai.agent._bridge.google_api import inspect_google_api_request
 
@@ -1905,22 +2018,23 @@ async def dialect_round_trip(dialect: str, bridge: AgentBridge) -> None:
         )
         parts = first["candidates"][0]["content"]["parts"]
         [function_call] = [p["functionCall"] for p in parts if "functionCall" in p]
-        contents += [
-            {"role": "model", "parts": parts},
-            {
-                "role": "user",
-                "parts": [
-                    {
-                        "functionResponse": {
-                            "id": function_call.get("id"),
-                            "name": "read_file",
-                            "response": {"output": "x"},
+        contents.append({"role": "model", "parts": parts})
+        for text in results:
+            contents[2:] = [
+                {
+                    "role": "user",
+                    "parts": [
+                        {
+                            "functionResponse": {
+                                "id": function_call.get("id"),
+                                "name": "read_file",
+                                "response": {"output": text},
+                            }
                         }
-                    }
-                ],
-            },
-        ]
-        await inspect_google_api_request(google_request(), None, None, bridge)
+                    ],
+                }
+            ]
+            await inspect_google_api_request(google_request(), None, None, bridge)
     else:
         from inspect_ai.agent._bridge.responses import inspect_responses_api_request
 
@@ -1947,13 +2061,19 @@ async def dialect_round_trip(dialect: str, bridge: AgentBridge) -> None:
         )
         output = [item.model_dump(exclude_none=True) for item in result.output]
         [call] = [item for item in output if item["type"] == "function_call"]
-        items += [
-            *output,
-            {"type": "function_call_output", "call_id": call["call_id"], "output": "x"},
-        ]
-        await inspect_responses_api_request(
-            responses_request(), None, None, None, bridge
-        )
+        items += output
+        answered = len(items)
+        for text in results:
+            items[answered:] = [
+                {
+                    "type": "function_call_output",
+                    "call_id": call["call_id"],
+                    "output": text,
+                }
+            ]
+            await inspect_responses_api_request(
+                responses_request(), None, None, None, bridge
+            )
 
 
 DIALECTS = ["completions", "anthropic", "responses", "google"]
@@ -2005,13 +2125,14 @@ async def test_each_dialect_sees_what_the_model_was_sent_through_a_sink(
     assert [m.text for m in before.input][:2] == [POLICY, "Be careful."]
 
 
-REWRITES = ["unchanged", "compaction", "whitespace", "split_text", "result_parts"]
+REWRITES = ["unchanged", "compaction", "history_whitespace", "history_parts"]
+CHANGES = ["result_whitespace", "result_parts"]
 
 
-@pytest.mark.parametrize("rewrite", REWRITES)
-async def test_a_result_is_checked_once_however_the_scaffold_rewrites_history(
-    rewrite: str,
-) -> None:
+@pytest.mark.parametrize("rewrite", REWRITES + CHANGES)
+async def test_a_result_is_checked_again_only_if_it_changed(rewrite: str) -> None:
+    # however the scaffold rewrites the rest of its history; any change to the
+    # result itself, down to its whitespace and parts, is checked again
     seen: Steps = []
     model = Scripted(calls_output(READ), calls_output(), calls_output())
     bridge = in_process_bridge([])
@@ -2028,13 +2149,14 @@ async def test_a_result_is_checked_once_however_the_scaffold_rewrites_history(
         await generate(bridge, model, [*history, echoed, result])
         if rewrite == "compaction":
             history = [ChatMessageUser(content="Summary of older turns"), history[-1]]
-        elif rewrite == "whitespace":
+        elif rewrite == "history_whitespace":
             history[0] = ChatMessageUser(content="Old task details ")
-            result = ChatMessageTool(content="same  result\n", tool_call_id=READ.id)
-        elif rewrite == "split_text":
+        elif rewrite == "history_parts":
             history[0] = ChatMessageUser(
                 content=[ContentText(text="Old task"), ContentText(text=" details")]
             )
+        elif rewrite == "result_whitespace":
+            result = ChatMessageTool(content="same  result\n", tool_call_id=READ.id)
         elif rewrite == "result_parts":
             result = ChatMessageTool(
                 content=[ContentText(text="same"), ContentText(text=" result")],
@@ -2042,8 +2164,84 @@ async def test_a_result_is_checked_once_however_the_scaffold_rewrites_history(
             )
         await generate(bridge, model, [*history, echoed, result])
 
-    [after] = [s for s in seen if isinstance(s, AfterToolCall)]
-    assert after.input == model.inputs[0]
+    after = [s for s in seen if isinstance(s, AfterToolCall)]
+    assert len(after) == (2 if rewrite in CHANGES else 1)
+    assert all(step.input == model.inputs[0] for step in after)
+
+
+@pytest.mark.parametrize("dialect", DIALECTS)
+async def test_a_result_changed_only_in_whitespace_is_checked_again(
+    dialect: str,
+) -> None:
+    model = Scripted(calls_output(READ), calls_output(), calls_output())
+    bridge = AgentBridge(
+        AgentState(messages=[]), model_aliases={"inspect": model.model}
+    )
+
+    with active(terminate_on_secret()):
+        with pytest.raises(TerminateSampleError, match="blocked secret"):
+            await dialect_round_trip(dialect, bridge, results=["s e c r e t", "secret"])
+
+    # the first result went on to the model, the second did not
+    assert len(model.inputs) == 2
+
+
+async def test_a_result_whose_text_moved_across_an_image_is_checked_again() -> None:
+    seen: Steps = []
+    model = Scripted(calls_output(READ), calls_output(), calls_output())
+    bridge = in_process_bridge([])
+    caption: Content = ContentText(text="Caption.")
+    image: Content = ContentImage(image=PNG)
+
+    with active([bridge_recording(seen)]):
+        output = await generate(bridge, model, [ChatMessageUser(content=TASK)])
+        for content in ([caption, image], [image, caption]):
+            await generate(
+                bridge,
+                model,
+                [
+                    ChatMessageUser(content=TASK),
+                    output.message,
+                    ChatMessageTool(content=content, tool_call_id=READ.id),
+                ],
+            )
+
+    after = [s for s in seen if isinstance(s, AfterToolCall)]
+    assert [
+        [c.type for c in step.result.content if not isinstance(c, str)]
+        for step in after
+    ] == [
+        ["text", "image"],
+        ["image", "text"],
+    ]
+
+
+async def test_a_scaffold_report_of_a_checked_host_result_changed_only_in_whitespace() -> (
+    None
+):
+    call = replace(READ, function="mcp__host__read_file")
+    model = Scripted(calls_output(call), calls_output())
+    bridge = sandbox_bridge(AsyncMock(return_value="s e c r e t"))
+
+    with active(terminate_on_secret()):
+        output = await generate(
+            bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
+        )
+        assert await call_host_tool(bridge)("host", "read_file", READ.arguments) == (
+            "s e c r e t"
+        )
+        with pytest.raises(TerminateSampleError, match="blocked secret"):
+            await generate(
+                bridge,
+                model,
+                [
+                    ChatMessageUser(content=TASK),
+                    output.message,
+                    ChatMessageTool(content="secret", tool_call_id=call.id),
+                ],
+            )
+
+    assert len(model.inputs) == 1
 
 
 @protocol
@@ -3612,6 +3810,70 @@ async def test_concurrent_bridges_keep_their_own_generations(returned: str) -> N
     for name in ["A", "B"]:
         [step] = seen[name]
         assert step.input == (inputs[name] if returned == "argument" else None)
+
+
+class AnnotatingSink:
+    """A model event sink as inspect_swe's Claude Code and Codex consumers are.
+
+    It attributes each call to a span in `on_pending` (a sub-agent's, with
+    `span_id`), and attaches its own rendering to the logged snapshot's tool
+    calls in `on_complete`, as both consumers do for their built-in tools.
+    """
+
+    def __init__(self, span_id: str | None = None) -> None:
+        self.span_id = span_id
+
+    def on_pending(self, event: ModelEvent) -> None:
+        if self.span_id is not None:
+            event.span_id = self.span_id
+        transcript()._event(event)
+
+    def on_complete(self, event: ModelEvent) -> None:
+        for tool_call in event.output.message.tool_calls or []:
+            if tool_call.view is None:
+                tool_call.view = ToolCallContent(
+                    format="markdown", content=f"**{tool_call.function}**"
+                )
+        transcript()._event_updated(event)
+
+
+@pytest.mark.parametrize("span_id", [None, "sub-agent"])
+@pytest.mark.parametrize("filter", [None, "argument"])
+async def test_a_sinks_display_annotations_keep_the_calls_generation(
+    span_id: str | None, filter: str | None
+) -> None:
+    seen: Steps = []
+    model = Scripted(
+        calls_output(READ), calls_output(), config=GenerateConfig(system_message=POLICY)
+    )
+    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    bridge = in_process_bridge(history)
+    bridge.model_event_sink = AnnotatingSink(span_id)
+
+    async def returns_its_argument(
+        model: Model, output: ModelOutput, input: GenerateInput
+    ) -> ModelOutput | None:
+        return output
+
+    if filter is not None:
+        bridge.response_filter = returns_its_argument
+    with active([bridge_recording(seen)]):
+        output = await generate(bridge, model, history)
+        await generate(
+            bridge,
+            model,
+            [
+                *history,
+                output.message,
+                ChatMessageTool(content="x", tool_call_id=READ.id),
+            ],
+        )
+
+    before, after = seen
+    for step in (before, after):
+        assert step.input == model.inputs[0]
+        assert step.input is not None and step.input[0].text == POLICY
+        assert step.tools is not None and step.tool_choice is not None
 
 
 @pytest.mark.parametrize("executed", [False, True])

@@ -1136,6 +1136,208 @@ def test_a_bridged_host_call_two_model_calls_proposed_replays_with_no_input(
         assert replay_step.input is None
 
 
+def r7_tool_calls(*calls: ToolCall) -> ModelOutput:
+    return ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(content="", tool_calls=list(calls)),
+                stop_reason="tool_calls",
+            )
+        ],
+    )
+
+
+@monitor
+def r7_waits_for_a_cancel(started: Any) -> MonitorGroup:
+    """Waits at its first tool_result step until it is cancelled."""
+
+    async def after(context: Context, step: AfterToolCall) -> Observation | None:
+        if not started.is_set():
+            started.set()
+            await anyio.sleep_forever()
+        return None
+
+    return MonitorGroup(after)
+
+
+@agent
+def r7_bridged_scaffold(case: str, started: Any = None) -> Agent:
+    """A scaffold whose bridge checks one call's results more than once.
+
+    `report`: a host call's result, then the scaffold's report of it as MCP
+    content. `reused_id`: two calls the scaffold runs under one model call id.
+    `reused_by_host`: a call the scaffold runs, then a host call under its id.
+    `retried`: a request whose result check is cancelled, then sent again.
+    """
+
+    async def execute(state: AgentState) -> AgentState:
+        from inspect_ai.agent._bridge.completions import (
+            inspect_completions_api_request,
+        )
+        from inspect_ai.agent._bridge.sandbox.service import call_tool
+        from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
+
+        bridge = SandboxAgentBridge(
+            state=state,
+            filter=None,
+            retry_refusals=None,
+            compaction=None,
+            port=8080,
+            model=None,
+            bridged_tools={"host": {"addition": addition()}},
+        )
+        [served] = bridge.served_tools.values()
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "mcp__host__addition",
+                    "description": served.description,
+                    "parameters": served.parameters.model_dump(exclude_none=True),
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "echo",
+                    "description": "Echo the text.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"text": {"type": "string"}},
+                    },
+                },
+            },
+        ]
+        messages: list[Any] = [{"role": "user", "content": "What is 1 + 1?"}]
+
+        async def request() -> Any:
+            completion = await inspect_completions_api_request(
+                {"model": "inspect", "messages": messages, "tools": tools}, None, bridge
+            )
+            message = completion.choices[0].message
+            messages.append(message.model_dump(exclude_none=True))
+            return message.tool_calls or []
+
+        [proposed] = await request()
+        if case == "report":
+            result = await call_tool(bridge)(
+                "host", "addition", json.loads(proposed.function.arguments)
+            )
+            reported = json.dumps([{"type": "text", "text": str(result)}])
+            messages.append(
+                {"role": "tool", "tool_call_id": proposed.id, "content": reported}
+            )
+            await request()
+        elif case == "reused_id":
+            messages.append(
+                {"role": "tool", "tool_call_id": proposed.id, "content": "one"}
+            )
+            [again] = await request()
+            messages.append(
+                {"role": "tool", "tool_call_id": again.id, "content": "two"}
+            )
+            await request()
+        elif case == "reused_by_host":
+            messages.append(
+                {"role": "tool", "tool_call_id": proposed.id, "content": "one"}
+            )
+            [host] = await request()
+            result = await call_tool(bridge)(
+                "host", "addition", json.loads(host.function.arguments)
+            )
+            messages.append(
+                {"role": "tool", "tool_call_id": host.id, "content": str(result)}
+            )
+            await request()
+        else:
+            messages.append(
+                {"role": "tool", "tool_call_id": proposed.id, "content": "one"}
+            )
+            with anyio.CancelScope() as scope:
+                async with anyio.create_task_group() as tg:
+
+                    async def cancel() -> None:
+                        await started.wait()
+                        scope.cancel()
+
+                    tg.start_soon(cancel)
+                    await request()
+            # the scaffold sends the same request again
+            await request()
+        return state
+
+    return execute
+
+
+@pytest.mark.parametrize("case", ["report", "reused_id", "reused_by_host", "retried"])
+def test_a_bridge_checking_one_call_id_more_than_once_replays(case: str) -> None:
+    echo = ToolCall(id="c1", function="echo", arguments={"text": "one"})
+    model = outputs(
+        *(
+            [
+                r7_tool_calls(
+                    replace(
+                        echo, function="mcp__host__addition", arguments={"x": 1, "y": 1}
+                    )
+                )
+            ]
+            if case == "report"
+            else [r7_tool_calls(echo)]
+        ),
+        *(
+            [r7_tool_calls(replace(echo, arguments={"text": "two"}))]
+            if case == "reused_id"
+            else []
+        ),
+        *(
+            [
+                r7_tool_calls(
+                    replace(
+                        echo, function="mcp__host__addition", arguments={"x": 1, "y": 1}
+                    )
+                )
+            ]
+            if case == "reused_by_host"
+            else []
+        ),
+        done(),
+    )
+    started = anyio.Event()
+    log = run_logged(
+        as_solver(r7_bridged_scaffold(case, started)),
+        model,
+        sentinel=[
+            r7_probe({}),
+            *([r7_waits_for_a_cancel(started)] if case == "retried" else []),
+        ],
+    )
+    events = [e for e in logged_sample(log).events if isinstance(e, SentinelEvent)]
+    # each check of a step records its events in its own sentinel span
+    checks = list(dict.fromkeys((e.stage, e.step_id, e.span_id) for e in events))
+    tool_checks = [(stage, id) for stage, id, _ in checks if stage.startswith("tool")]
+    # the bridge checked a step under the call id more than once
+    assert len(tool_checks) > len(set(tool_checks))
+    steps = replayed(log)
+    generates = [(stage, id) for stage, id, _ in checks if stage.startswith("model")]
+    if case == "report":
+        # the host call's own steps are rebuilt from its ToolEvent; the check
+        # of the scaffold's report has no event to rebuild it from
+        assert [(step.stage, step.id) for step in steps] == [
+            *generates[:2],
+            ("tool_call", "c1"),
+            ("tool_result", "c1"),
+            *generates[2:],
+        ]
+    else:
+        # the scaffold ran these calls: no event to rebuild their steps from.
+        # With `reused_by_host`, a known difference: the bridge re-issued the
+        # model's reused id to the scaffold, and the host call's ToolEvent
+        # carries that id, which the log does not link to the model's, so its
+        # steps are not rebuilt either
+        assert [(step.stage, step.id) for step in steps] == generates
+
+
 def run_logged(
     solver: Solver | list[Solver], model: Any, **task_kwargs: Any
 ) -> EvalLog:

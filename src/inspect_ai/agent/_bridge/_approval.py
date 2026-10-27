@@ -22,6 +22,7 @@ dispatcher call the scaffold receives.
 
 import sys
 from contextlib import AbstractContextManager, nullcontext
+from copy import deepcopy
 from dataclasses import replace
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn, Sequence
@@ -36,7 +37,9 @@ from inspect_ai.agent._bridge._sentinel import (
 )
 from inspect_ai.agent._bridge.types import AgentBridge, DispatchedCall
 from inspect_ai.model._call_tools import (
+    _CHANGED_IN_PLACE,
     _SENTINEL_MODIFIED_FUNCTION,
+    _changed_in_place,
     _modified_id_error,
 )
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
@@ -229,12 +232,16 @@ async def apply_bridge_tool_approval(
             checks = []
             for index, (call, reviewed) in enumerate(zip(tool_calls, reviewed_calls)):
                 viewer = bridge._host_tool_viewer(call, tools)
+                # monitors are handed a copy, so an edit in place can't reach
+                # the calls handed over; as natively, one is a rejection
+                shown = deepcopy(reviewed)
+                offered = deepcopy(reviewed)
                 try:
                     decision = await sentinel_tool_call(
                         bridge,
                         message,
                         output.message.id,
-                        reviewed,
+                        offered,
                         viewer,
                         sentinel_history,
                         producer,
@@ -253,12 +260,25 @@ async def apply_bridge_tool_approval(
                     bridge.request_terminate(
                         decision.explanation or "Sentinel requested termination."
                     )
+                selected = (
+                    decision is not None
+                    and decision.action == "modify"
+                    and decision.modified is not None
+                )
+                if not selected and _changed_in_place(offered, shown):
+                    return BridgeApproval(
+                        output,
+                        rejection_messages(
+                            output, call, ToolApprovalError(_CHANGED_IN_PLACE).message
+                        ),
+                    )
+                reviewed = shown
                 if (
                     decision is not None
                     and decision.action == "modify"
                     and decision.modified is not None
                 ):
-                    error = _sentinel_modify_error(reviewed, decision.modified)
+                    error = _sentinel_modify_error(shown, decision.modified)
                     if error is not None:
                         # as natively: an error in the monitor, failing the sample
                         failure = RuntimeError(error)

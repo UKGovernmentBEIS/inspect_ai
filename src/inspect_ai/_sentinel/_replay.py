@@ -81,7 +81,7 @@ def steps_from_events(
 
     Every step's `agent_messages` is None: the log does not record the agent's own messages, and model input can hold messages the agent kept out of them.
 
-    A call a sandbox bridge ran on the host (`ToolEvent.metadata["bridge"]`) differs from live in two cases, as the log does not record which model call's output the bridge handed over. A response filter that returns a copy of the model's output: live gives the call's tool steps no input, as the bridge cannot tell which generation produced it; replay gives them the model call's input. A call more than one model call proposed (a response filter that regenerates an equal output, which keeps the call's id): replay gives the steps no input, while live gives the input of the generation whose output was handed over.
+    The tool steps of an agent bridge's calls are rebuilt only for the calls a sandbox bridge ran on the host, which have a `ToolEvent`: a call the bridged scaffold ran itself, and a bridge's further check of a result the scaffold reported (a host result reported again, changed, or a check cancelled and run again), leave no event to rebuild a step from, and replay skips them, recorded or not. So does a host call whose model call id the model had used before: the bridge hands the scaffold a new id for it, which its `ToolEvent` carries and the log does not link to the model's. A call a sandbox bridge ran on the host (`ToolEvent.metadata["bridge"]`) differs from live in two cases, as the log does not record which model call's output the bridge handed over. A response filter that returns a copy of the model's output: live gives the call's tool steps no input, as the bridge cannot tell which generation produced it; replay gives them the model call's input. A call more than one model call proposed (a response filter that regenerates an equal output, which keeps the call's id): replay gives the steps no input, while live gives the input of the generation whose output was handed over.
 
     Args:
         messages: The sample's messages (`EvalSample.messages`).
@@ -96,7 +96,7 @@ def steps_from_events(
         The steps, in the order they ran live.
 
     Raises:
-        MalformedLogError: Two steps of one stage have one step id, the span tree has a `parent_id` cycle, or a model input names rows outside the message pool.
+        MalformedLogError: Two generate steps of one stage have one step id, the span tree has a `parent_id` cycle, or a model input names rows outside the message pool.
         NotImplementedError: The log does not record where its model calls were made (`ModelEvent.origin`, written since inspect_ai PR #5990), for which turns from the timeline come later; or a sentinel checked a model_input step whose model call was not made (a sentinel ended the sample there or failed, or a token or cost limit or a cancellation stopped the call before it was recorded), whose input the log does not record.
     """
     flat = _flatten(events)
@@ -345,8 +345,13 @@ class _Driver:
         self.begins: dict[str, tuple[int, SpanBeginEvent]] = {}
         self.ends: dict[str, int] = {}
         self.sentinel_span_of: dict[str, str | None] = {}
-        # (stage, step id) -> the sentinel span of the step
+        # (stage, step id) -> the sentinel span of the step, for generate steps
         self.step_spans: dict[tuple[SentinelStage, str], str] = {}
+        # (stage, call id) -> the sentinel spans of the tool steps with that id,
+        # in log order: a bridge can check one call's result more than once (a
+        # host call's result, then the scaffold's report of it, or a check
+        # cancelled and run again), and a model can reuse a call id
+        self.tool_spans: dict[tuple[SentinelStage, str], list[str]] = {}
         self.span_events: dict[str, list[SentinelEvent]] = {}
         # the sentinel spans whose invocation raised or was cancelled
         self.failed: set[str] = set()
@@ -492,6 +497,9 @@ class _Driver:
         if len(events) > 1:
             return
         key = (event.stage, event.step_id)
+        if event.stage in ("tool_call", "tool_result"):
+            self.tool_spans.setdefault(key, []).append(span)
+            return
         other = self.step_spans.get(key)
         if other is not None and other != span:
             raise MalformedLogError(
@@ -680,8 +688,8 @@ class _Driver:
 
     def _tool_call(self, call: _Call) -> None:
         event = call.event
-        before_span = self.step_spans.get(("tool_call", event.id))
-        after_span = self.step_spans.get(("tool_result", event.id))
+        before_span = self._tool_span_of(("tool_call", event.id))
+        after_span = self._tool_span_of(("tool_result", event.id))
         tool_span = call.tool_span
         proposal = call.proposal
         approval = call.approval
@@ -801,6 +809,16 @@ class _Driver:
         after_cut = self._cut(after_span, (end if end is not None else call.index, 3))
         self._at_point(after_cut, call.seq + 2, build_after)
         self._settle_at_end(after_span)
+
+    def _tool_span_of(self, key: tuple[SentinelStage, str]) -> str | None:
+        """The first sentinel span with this tool step id no call has taken.
+
+        Each `ToolEvent` takes the steps recorded under its id in log order. A
+        span no `ToolEvent` takes is a bridge's check of a result the scaffold
+        reported, which replay does not rebuild.
+        """
+        spans = self.tool_spans.get(key)
+        return spans.pop(0) if spans else None
 
     def _checks_tool_calls(self, event: ToolEvent, producer: ModelEvent | None) -> bool:
         """Whether live checked the calls a model call produced, inferred from the region the model call was made in.

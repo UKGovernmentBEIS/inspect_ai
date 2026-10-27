@@ -55,7 +55,11 @@ from inspect_ai.agent._bridge._sentinel import (
 from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
 from inspect_ai.model._agent_message import validate_agent_message
 from inspect_ai.model._call_tools import get_tools_info
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageUser,
+)
 from inspect_ai.model._generate_config import (
     GenerateConfig,
     ResponseSchema,
@@ -1203,9 +1207,10 @@ class _Generations:
     generation. A response filter's argument is a copy of the generation's
     output, so it is recorded as that generation too.
 
-    An output has a producer only while it is unchanged since its generation
-    (equal to the event's snapshot of it): one a filter edited, or grafted
-    another generation's message or calls into, no longer answers that input.
+    An output has a producer only while its response is unchanged since its
+    generation (`_same_response` to the event's snapshot of it): one a filter
+    edited, or grafted another generation's message or calls into, no longer
+    answers that input.
     Nor does an output that is no recorded generation's (a filter's copy or
     replacement), or one two generations returned, or one whose event kept a
     live message (one it could not serialize), since an edit to that message
@@ -1240,7 +1245,7 @@ class _Generations:
             for ours, theirs in zip(output.choices, logged.choices)
         ):
             return None
-        return produced if output == logged else None
+        return produced if _same_response(output, logged) else None
 
     def tracking(
         self, response_filter: ModelResponseFilter, generated: ModelOutput
@@ -1699,3 +1704,24 @@ def apply_message_ids(bridge: AgentBridge, messages: list[ChatMessage]) -> None:
     # content, but also ensuring that if an id is already used we generate a new one)
     for message in messages:
         message.id = bridge._id_for_message(message, messages)
+
+
+def _same_response(output: ModelOutput, logged: ModelOutput) -> bool:
+    """Whether `output` hands over the response `logged` recorded, as the model gave it.
+
+    Display-only annotations a model event sink may add to the logged snapshot
+    are not compared: a tool call's `view` (inspect_swe's consumers attach
+    their own renderings in `on_complete`), and a message's `metadata` and
+    `source`, which never reach a model. Everything else in each choice's
+    message is: its id, content and tool calls.
+    """
+    return len(output.choices) == len(logged.choices) and all(
+        _handed(ours.message) == _handed(theirs.message)
+        for ours, theirs in zip(output.choices, logged.choices)
+    )
+
+
+def _handed(message: ChatMessageAssistant) -> dict[str, Any]:
+    return message.model_dump(
+        exclude={"metadata": True, "source": True, "tool_calls": {"__all__": {"view"}}}
+    )

@@ -1,6 +1,7 @@
 import json
 from collections import OrderedDict
 from contextlib import AbstractContextManager, nullcontext
+from copy import deepcopy
 from dataclasses import replace
 from functools import partial
 from logging import getLogger
@@ -144,9 +145,9 @@ class _ResultChecks:
     an evicted proposal can never make an older execution match a newer one.
 
     Each execution's result is checked once: a result is identified by its
-    token and its content (`_content_key`, which ignores whitespace and how
-    text is split into parts), so replays are not checked again, while
-    different content for the same execution is. A result under a token gets
+    token and its exact content (`_content_key`), so replays are not checked
+    again, while different content for the same execution, down to its
+    whitespace, is. A result under a token gets
     its proposal's context; once the proposal is evicted, the request's
     conversation and no model input.
 
@@ -353,34 +354,26 @@ def _json_canonical(value: Any) -> Any:
 
 
 def _content_key(result: ChatMessageTool) -> str:
-    """A result's content, as the same whatever its whitespace or text parts.
+    """A result as the model receives it: its content, in order and exactly, and its error.
 
-    Text is compared without whitespace, so re-wrapping, trimming or splitting
-    it into parts differently is not a different result. Other content
-    compares as itself, less fields that never reach a model (`internal`).
+    Whitespace and the order of text and other parts are meaningful (in code,
+    paths and instructions), so any difference is a different result, checked
+    again. Fields that never reach a model (`internal`) are left out; a string
+    and a single text part are the same content.
     """
     content = (
         [ContentText(text=result.content)]
         if isinstance(result.content, str)
         else result.content
     )
-    text = "".join(
-        "".join(part.text.split()) for part in content if isinstance(part, ContentText)
-    )
-    others = [
-        part.model_dump(exclude={"internal"}, exclude_none=True)
-        for part in content
-        if not isinstance(part, ContentText)
+    parts = [
+        part.model_dump(exclude={"internal"}, exclude_none=True) for part in content
     ]
     error = (
-        [result.error.type, "".join(result.error.message.split())]
-        if result.error is not None
-        else None
+        [result.error.type, result.error.message] if result.error is not None else None
     )
     return mm3_hash(
-        json.dumps(
-            to_jsonable_python([text, others, error], fallback=str), sort_keys=True
-        )
+        json.dumps(to_jsonable_python([parts, error], fallback=str), sort_keys=True)
     )
 
 
@@ -557,7 +550,8 @@ async def _tool_result(
                 sentinel_after_tool_call,
                 check.message,
                 check.message_id,
-                check.call,
+                # a copy, so a monitor can't change the call the check keeps
+                deepcopy(check.call),
                 result,
                 output,
                 truncated,
