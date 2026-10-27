@@ -1,7 +1,8 @@
 # Base images are pinned by digest; Dependabot's docker entry for
 # .devcontainer updates them. uv is pinned through ARGs instead, which
 # Dependabot skips, so it moves with the CI pin (tests/test_dependency_cooldown.py
-# checks the version); update the digest with it.
+# checks the version). Docker pulls by digest and ignores the tag, so bump
+# UV_DIGEST with UV_VERSION or the image keeps the old uv.
 ARG UV_VERSION=0.13.5
 ARG UV_DIGEST=sha256:32a7bb39b496babbd997b0a39a4d66c126bdaf5661b302bf6f06abda8deca6ff
 

@@ -269,6 +269,9 @@ def test_devcontainer_base_images_are_pinned_by_digest() -> None:
     ]
     assert images
     for image in images:
-        assert re.search(r"@(sha256:[0-9a-f]{64}|\$\{UV_DIGEST\})$", image), image
+        # The tag tells Dependabot which version to bump; the digest pins it.
+        assert re.fullmatch(
+            r"[^:@\s]+:[^:@\s]+@(sha256:[0-9a-f]{64}|\$\{UV_DIGEST\})", image
+        ), image
     uv_digest = re.search(r"^ARG UV_DIGEST=(\S+)$", dockerfile, re.M)
     assert uv_digest and re.fullmatch(r"sha256:[0-9a-f]{64}", uv_digest[1])

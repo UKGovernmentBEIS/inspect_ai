@@ -115,3 +115,10 @@ updates:
       devcontainer:
         patterns:
           - "*"
+    ignore:
+      # Node 25 dropped corepack, which installs pnpm here; a new Python
+      # minor changes the dev interpreter under uv.lock. Move those by hand.
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
