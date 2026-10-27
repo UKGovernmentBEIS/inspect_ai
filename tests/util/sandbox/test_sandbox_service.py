@@ -655,64 +655,6 @@ async def test_handle_request_bridged_tool_limit_keeps_service_handling(
     assert active.limit_exceeded.call_count == (0 if grouped else 1)
 
 
-@pytest.mark.parametrize("write", ["written", "fails", "cancelled"])
-async def test_raise_after_reply_replies_then_raises_the_error(
-    monkeypatch: pytest.MonkeyPatch, write: str
-) -> None:
-    """A method raising `RaiseAfterReply` gets its reply written, then its error raised.
-
-    The error leaves the request's handler bare (not as an RPC error reply), only
-    after the reply write has completed, so a task that the error unwinds cannot
-    cancel the write. If the write fails, the error is still raised. If the
-    write is cancelled, the cancellation propagates instead: the scope that
-    cancelled it is ending, and the error must not take its place.
-    """
-    from test_helpers.service_dispatch import (
-        REQUEST_FILE,
-        REQUEST_ID,
-        dispatching_service,
-    )
-
-    from inspect_ai.util._limit import LimitExceededError
-    from inspect_ai.util._sandbox.service import RaiseAfterReply
-
-    error = LimitExceededError("token", value=2, limit=1)
-
-    async def method() -> JsonValue:
-        raise RaiseAfterReply({"reply": "limit"}, error)
-
-    service = dispatching_service(monkeypatch, "method", method, {}, [])
-    replies: list[tuple[JsonValue | None, str | None]] = []
-
-    async def write_response(
-        request_file: str,
-        request_id: str,
-        result: JsonValue | None,
-        error: str | None = None,
-    ) -> None:
-        await anyio.sleep(0.01)
-        if write == "fails":
-            raise RuntimeError("write failed")
-        if write == "cancelled":
-            scope.cancel()
-        await anyio.sleep(0.01)
-        replies.append((result, error))
-
-    monkeypatch.setattr(service, "_write_response", write_response)
-
-    with anyio.CancelScope() as scope:
-        if write == "cancelled":
-            await service._handle_request_tracked(REQUEST_FILE, REQUEST_ID)
-        else:
-            with pytest.raises(LimitExceededError) as excinfo:
-                await service._handle_request_tracked(REQUEST_FILE, REQUEST_ID)
-            assert excinfo.value is error
-
-    assert scope.cancelled_caught == (write == "cancelled")
-    assert replies == ([({"reply": "limit"}, None)] if write == "written" else [])
-    assert service._in_flight == set()
-
-
 async def test_write_response_goes_through_the_verified_responses_dir() -> None:
     fake = _RequestReadSandbox()
     service = _service_with_dirs(fake)

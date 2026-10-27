@@ -57,6 +57,19 @@ def find_control_flow(ex: Exception) -> BaseException | None:
     Precedence follows CONTROL_FLOW_EXCEPTIONS order, then traversal
     order.
     """
+    history = exception_history(ex)
+    for control_flow_type in CONTROL_FLOW_EXCEPTIONS:
+        for e in history:
+            if isinstance(e, control_flow_type):
+                return e
+    return None
+
+
+def exception_history(ex: BaseException) -> list[BaseException]:
+    """An exception and its causal history, as `find_control_flow` searches it.
+
+    Group leaves, explicit causes and implicit context, each exception once.
+    """
     seen: set[int] = set()
     stack: list[BaseException] = [ex]
     history: list[BaseException] = []
@@ -72,30 +85,7 @@ def find_control_flow(ex: Exception) -> BaseException | None:
             stack.append(e.__cause__)
         if e.__context__ is not None:
             stack.append(e.__context__)
-    for control_flow_type in CONTROL_FLOW_EXCEPTIONS:
-        for e in history:
-            if isinstance(e, control_flow_type):
-                return e
-    return None
-
-
-class RaiseAfterReply(Exception):
-    """Raised by a service method to reply with `result`, then raise `error`.
-
-    The dispatcher writes `result` as the request's reply, then raises `error`
-    from the request's handler, also when the write fails or times out
-    (`TERMINATING_REPLY_TIMEOUT`). A cancellation of the write propagates
-    instead of `error`. `sandbox_service()`, handling requests itself,
-    propagates `error` to the task running the service, so that task gets the
-    error and the sandbox-side caller still gets its reply. The sandbox agent
-    bridge raises a limit reached in a generation this way, so the scope that
-    applied the limit handles it.
-    """
-
-    def __init__(self, result: JsonValue, error: Exception) -> None:
-        super().__init__(str(error))
-        self.result = result
-        self.error = error
+    return history
 
 
 def raise_if_control_flow(ex: Exception) -> None:
@@ -491,15 +481,6 @@ class SandboxService:
             # tear down the polling loop), but control-flow exceptions raised
             # by service methods must propagate to be enacted
             await self._handle_request(request_file)
-        except RaiseAfterReply as signal:
-            # unlike a termination, a cancellation of the reply (its owner is
-            # ending) is not replaced with the error
-            try:
-                with anyio.move_on_after(TERMINATING_REPLY_TIMEOUT):
-                    await self._write_response(request_file, request_id, signal.result)
-            except Exception as ex:
-                logger.warning(f"Error replying to sandbox service request: {ex}")
-            raise signal.error
         except Exception as ex:
             raise_if_control_flow(ex)
             logger.warning(f"Error handling sandbox service request: {ex}")
@@ -657,9 +638,6 @@ class SandboxService:
                         None,
                         f"Limit exceeded calling method {method_name}: {ex.message}",
                     )
-            except RaiseAfterReply:
-                # answered and raised by _handle_request_tracked
-                raise
             except Exception as err:
                 # sample termination raised by a service method (bare or
                 # wrapped in an ExceptionGroup) must propagate out of the

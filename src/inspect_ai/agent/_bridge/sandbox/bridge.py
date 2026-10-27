@@ -27,7 +27,7 @@ from inspect_ai.tool._tools._web_search._web_search import (
 )
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._checkpoint.checkpointer import Checkpointer
-from inspect_ai.util._limit import LimitExceededError, outermost_limit_error
+from inspect_ai.util._limit import outermost_limit_error
 from inspect_ai.util._sandbox._cli import SANDBOX_CLI
 from inspect_ai.util._sandbox.exec_remote import (
     ExecCompleted,
@@ -325,15 +325,12 @@ async def sandbox_agent_bridge(
         termination = find_control_flow(ex)
         if termination is not None:
             raise termination from ex
-        # Concurrent generations can reach limits of different scopes, and only
-        # the first to be raised ends up in `ex`. Raise the outermost, whose
-        # scope ends the others' too. A limit reached in a generation still in
-        # flight after the agent completed is not a cleanup error either.
-        limits = _limits_reached(bridge, ex)
-        if limits and (
-            agent_completed or isinstance(inner_exception(ex), LimitExceededError)
-        ):
-            raise_unwrapped(ex, outermost_limit_error(limits))
+        # A generation limit takes the place of the error the agent unwound
+        # with (often the scaffold's, after it read the limit's error reply).
+        # A cancellation from an enclosing scope is not an Exception, so it
+        # passes through unchanged for that scope to handle.
+        if bridge is not None and bridge.generation_limits:
+            raise_unwrapped(ex, outermost_limit_error(bridge.generation_limits))
         # If the agent completed successfully but we got an error during cleanup,
         # log the error but don't fail the sample.
         if agent_completed:
@@ -343,7 +340,7 @@ async def sandbox_agent_bridge(
         else:
             # Error occurred before or during agent execution
             raise_unwrapped(ex, inner_exception(ex))
-    # a limit whose reply was cancelled by the bridge's own cleanup
+    # the agent returned after a generation reached a limit
     if bridge is not None and bridge.generation_limits:
         raise outermost_limit_error(bridge.generation_limits)
 
@@ -369,25 +366,6 @@ def _register_bridged_tools(
         url=f"http://localhost:{port}/mcp/{spec.name}",
         tools="all",
     )
-
-
-def _limits_reached(
-    bridge: SandboxAgentBridge | None, ex: BaseException
-) -> list[LimitExceededError]:
-    """The limits `bridge`'s generations reached, and any other limit in `ex`."""
-    limits = list(bridge.generation_limits) if bridge is not None else []
-
-    def collect(error: BaseException) -> None:
-        if isinstance(error, BaseExceptionGroup):
-            for member in error.exceptions:
-                collect(member)
-        elif isinstance(error, LimitExceededError) and all(
-            error is not limit for limit in limits
-        ):
-            limits.append(error)
-
-    collect(ex)
-    return limits
 
 
 async def _monitor_failure(bridge: SandboxAgentBridge) -> None:
