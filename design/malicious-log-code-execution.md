@@ -931,8 +931,10 @@ not a mitigation; nothing waits on it:
   `model_base_url`: `Scoring model openai/gpt-4o from the log, base URL https://...`.
 
 Paths are printed resolved, so a relative `task_file` that resolved to an
-unexpected file in the working directory shows up. `score()` called from
-Python logs the same lines at `INFO`.
+unexpected file in the working directory shows up. Control characters in
+the values a record takes from the log are escaped (`\r`, `\x1b`), so a log
+cannot erase or rewrite the line. `score()` called from Python logs the same
+lines at `INFO`.
 
 `inspect eval-retry` prints no record: the retry's new log stores the task
 file, solver, model and base URL, sandbox, sentinel and ACP settings it used.
