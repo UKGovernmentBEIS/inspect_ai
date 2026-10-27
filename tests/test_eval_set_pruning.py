@@ -19,7 +19,7 @@ from typing import Any
 
 import pytest
 
-from inspect_ai import Task, eval_set, task
+from inspect_ai import Task, enqueue_task, eval_set, task
 from inspect_ai._eval.eval_set_manifest import (
     INSPECT_EVAL_SET_CAPTURE,
     EvalSetCapture,
@@ -37,8 +37,9 @@ from inspect_ai._eval.eval_set_selection import (
     EvalSetSelectionTask,
 )
 from inspect_ai.dataset import Sample
+from inspect_ai.log import read_eval_log
 from inspect_ai.scorer import exact
-from inspect_ai.solver import generate
+from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 
 MODEL = "mockllm/model"
 
@@ -108,6 +109,46 @@ def prune_threaded(difficulty: str = "hard") -> Task:
         return pool.submit(prune_one, difficulty=difficulty).result()
 
 
+@solver
+def answer_hello() -> Solver:
+    """Answers without the model, so the test does not depend on which model an enqueued task gets."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        state.output.completion = "hello"
+        return state
+
+    return solve
+
+
+@task
+def prune_enqueued() -> Task:
+    """Not an eval-set entry: `prune_enqueuer` builds it while running and enqueues it."""
+    CONSTRUCTED.append("prune_enqueued")
+    return Task(
+        dataset=[Sample(input="hello", target="hello")],
+        solver=[answer_hello()],
+        scorer=exact(),
+    )
+
+
+@solver
+def enqueue_prune_enqueued() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        enqueue_task(prune_enqueued())
+        return state
+
+    return solve
+
+
+@task
+def prune_enqueuer() -> Task:
+    CONSTRUCTED.append("prune_enqueuer")
+    return Task(
+        dataset=[Sample(input="1+1", target="2")],
+        solver=[enqueue_prune_enqueued()],
+    )
+
+
 ALL_TASKS = [prune_one(difficulty="hard"), prune_two(), prune_renamed()]
 """Built at import, when no selection is active — so this list is always three real tasks."""
 
@@ -122,13 +163,21 @@ def clean_pruning_state() -> Any:
     reset_pruning()
 
 
-def capture(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> EvalSetCapture:
+def three_tasks() -> list[Task]:
+    return [prune_one(difficulty="hard"), prune_two(), prune_renamed()]
+
+
+def capture(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    build_tasks: Callable[[], list[Task]] = three_tasks,
+) -> EvalSetCapture:
     manifest = tmp_path / "manifest.json"
     monkeypatch.setenv(INSPECT_EVAL_SET_CAPTURE, str(manifest))
     try:
         with pytest.raises(SystemExit):
             eval_set(
-                tasks=[prune_one(difficulty="hard"), prune_two(), prune_renamed()],
+                tasks=build_tasks(),
                 model=MODEL,
                 log_dir=str(tmp_path / "capture-logs"),
                 display="plain",
@@ -169,6 +218,7 @@ def run(
     selection: EvalSetSelection,
     *,
     name: str = "selection",
+    build_tasks: Callable[[], list[Task]] = three_tasks,
 ) -> tuple[bool, list[Any]]:
     path = tmp_path / f"{name}.json"
     path.write_text(selection.model_dump_json())
@@ -176,7 +226,7 @@ def run(
     CONSTRUCTED.clear()
     try:
         return eval_set(
-            tasks=[prune_one(difficulty="hard"), prune_two(), prune_renamed()],
+            tasks=build_tasks(),
             model=MODEL,
             log_dir=str(tmp_path / "logs" / name),
             display="plain",
@@ -290,6 +340,44 @@ def test_no_selection_constructs_everything(tmp_path: Path) -> None:
     assert len(tasks) == 3
     assert CONSTRUCTED == ["prune_one(hard)", "prune_two", "prune_renamed"]
     assert not any(is_placeholder(t) for t in tasks)
+
+
+def test_a_task_enqueued_by_a_running_task_is_not_pruned(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Pruning skips eval-set entries, and stops once the selection is resolved.
+
+    `prune_enqueued` is not in the selection, and its `@task` call happens in a
+    running solver, outside any task construction. A placeholder there would run
+    as a task with one "prompt" sample, no solver and no scorer, and the log
+    would report success. `prune_two`, an unselected eval-set entry, is still
+    pruned.
+    """
+
+    def build_tasks() -> list[Task]:
+        return [prune_enqueuer(), prune_two()]
+
+    manifest = capture(monkeypatch, tmp_path, build_tasks)
+
+    success, logs = run(
+        monkeypatch,
+        tmp_path,
+        selection_naming(manifest, "prune_enqueuer"),
+        build_tasks=build_tasks,
+    )
+
+    assert success
+    assert CONSTRUCTED == ["prune_enqueuer", "prune_enqueued"]
+    by_task = {log.eval.task: log for log in logs}
+    assert sorted(by_task) == ["prune_enqueued", "prune_enqueuer"]
+    child = read_eval_log(by_task["prune_enqueued"].location)
+    assert child.samples is not None
+    assert [sample.input for sample in child.samples] == ["hello"]
+    assert child.samples[0].scores is not None
+    assert child.samples[0].scores["exact"].value == "C"
+
+    # nor is a task the definition builds after eval_set() returns
+    assert not is_placeholder(prune_two())
 
 
 @pytest.mark.parametrize(

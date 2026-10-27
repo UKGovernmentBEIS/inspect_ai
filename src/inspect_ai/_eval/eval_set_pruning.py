@@ -53,6 +53,13 @@ is pruned. A composed task pays for what it composes, which is work it was going
 to do anyway. The counter that tracks this is process-wide rather than
 thread-local, deliberately: see `_constructing`.
 
+**Pruning ends when the selection is resolved.** Once `eval_set()` has picked
+the selected tasks out of the resolved eval set, pruning is off for the rest of
+the process (`disable_pruning`). A `@task` call made after that, such as a task
+a running solver passes to `enqueue_task()`, is work the run asked for rather
+than an eval-set entry. A placeholder there would run and report success with
+none of the task's samples.
+
 **What this assumes of a definition, and cannot check.** Skipping a task body
 skips its side effects. The definition itself still executes in full, so
 module-level and driver-level work — registering models, `set_model_info`,
@@ -169,7 +176,7 @@ class _Pruner:
     def disable(self) -> None:
         """Stop pruning for the rest of this process.
 
-        The undo. A resolution that pruned and then could not match a selected identifier is re-run under this, which is what makes a wrong pruning decision cost time rather than the run. Sticky against the environment-keyed reload below, because it is an explicit decision rather than an observation.
+        Sticky against the environment-keyed reload below, because it is an explicit decision rather than an observation. See `disable_pruning` for when it is called.
         """
         self._disabled = True
         self._facets = set()
@@ -248,7 +255,13 @@ def reset_pruning() -> None:
 
 
 def disable_pruning() -> None:
-    """Stop pruning for the rest of this process, so a resolution can be retried honestly."""
+    """Stop pruning for the rest of this process.
+
+    Called at two points in `eval_set()` selection mode:
+
+    - **After the selection is resolved**, so a `@task` call the run itself makes is never pruned. See the module docstring, *Pruning ends when the selection is resolved*.
+    - **Before a retry.** A resolution that pruned and then could not match a selected identifier is re-run with pruning off, which is what makes a wrong pruning decision cost time rather than the run.
+    """
     _pruner.disable()
 
 
