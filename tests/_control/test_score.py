@@ -722,6 +722,64 @@ async def test_score_pass_held_in_flight_sample(
     assert score_pass.metrics[0]["metrics"]["accuracy"] == 1.0
 
 
+class _CopyingSidecars:
+    """Stands in for a task's sentinel sidecars, whose monitor state a pass copies before scoring."""
+
+    def __init__(self) -> None:
+        self.copied: list[str] = []
+
+    async def copy_monitor_state(self, sample_uuid: str, store: Any) -> None:
+        self.copied.append(sample_uuid)
+        store.set("Watch:count", 3)
+
+
+async def test_score_pass_copies_sidecar_monitor_state_before_scoring(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A pass scores outside the sample, so it copies the monitor state of the eval's sidecars by the eval's id."""
+    from inspect_ai._sentinel._sidecar import _task as sidecar_task
+
+    _speed_up(monkeypatch)
+    monkeypatch.setattr("inspect_ai._control.pause._HELD_CREDIT_INTERVAL", 0.02)
+
+    async def summaries() -> list[EvalSampleSummary]:
+        return []
+
+    register_eval("e1", 1, task_id="t1", live=FakeLiveEvalData(summaries=summaries))
+    active = _active_sample("s1")
+    _patch_active_samples(monkeypatch, [active])
+    sidecars = _CopyingSidecars()
+    monkeypatch.setitem(sidecar_task._eval_sidecars, "e1", sidecars)
+
+    seen: dict[str, Any] = {}
+
+    @scorer(metrics=[accuracy()])
+    def reads_monitor_state():
+        async def score(state: TaskState, target: Target) -> Score:
+            seen["count"] = state.store.get("Watch:count")
+            return Score(value=1.0)
+
+        return score
+
+    handle = _scoring_handle(scorer_obj=reads_monitor_state())
+    model = get_model("mockllm/model", memoize=False)
+    stop = anyio.Event()
+
+    score_pass: ScorePass | None = None
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(_park_solver_loop, active, model, stop)
+        with anyio.fail_after(10):
+            score_pass = await _run_pass("t1", handle)
+        stop.set()
+
+    assert score_pass is not None
+    (row,) = score_pass.rows
+    assert row["outcome"] == "scored"
+    assert active.live_state is not None
+    assert sidecars.copied == [active.live_state.uuid]
+    assert seen["count"] == 3
+
+
 async def test_score_pass_binds_sandbox_context(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
