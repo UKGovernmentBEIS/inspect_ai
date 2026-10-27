@@ -163,6 +163,8 @@ def my_task(cpus: float = 1.0):
 
 The `ComposeConfig` and `ComposeService` classes mirror the structure of Docker Compose files, supporting fields like `image`, `build`, `command`, `environment`, `volumes`, `ports`, `mem_limit`, `cpus`, and more. Extension fields (prefixed with `x-`) are also supported.
 
+Bind-mount sources and `env_file` paths in a `ComposeConfig` must be absolute (or start with `~/`). The generated Compose file is stored outside the task directory, so Inspect rejects a relative bind-mount source or `env_file` rather than let Compose resolve it there. Build such paths from the task file, for example `Path(__file__).parent / "data"`.
+
 ## Sandbox Limits {#sec-sandbox-limits}
 
 By default, sandboxes limit the size of file reads to 100MB and execution output to 10MB. These limits exist to prevent boundary cases of outputs or executions that don't terminate and result in OOM or hung evaluations (i.e. they usually indicate an error by the model).
