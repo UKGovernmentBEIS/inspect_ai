@@ -9,7 +9,7 @@ def score_state_task():
 
 
 @scorer(metrics=[mean()])
-def score_state_scorer(existing_uuid: str):
+def my_scorer(existing_uuid: str):
     async def _scorer(state: TaskState, target: Target):
         return Score(value=1 if existing_uuid == state.uuid else 0)
 
@@ -30,8 +30,8 @@ def test_score_edit_event_span_integration():
     assert len(eval_log.samples) == 1
 
     sample = eval_log.samples[0]
-    eval_log = score(eval_log, scorers=[score_state_scorer(sample.uuid)])
+    eval_log = score(eval_log, scorers=[my_scorer(sample.uuid)])
 
     assert eval_log.samples[0].scores is not None
-    assert "score_state_scorer" in eval_log.samples[0].scores
-    assert eval_log.samples[0].scores["score_state_scorer"].value == 1
+    assert "my_scorer" in eval_log.samples[0].scores
+    assert eval_log.samples[0].scores["my_scorer"].value == 1
