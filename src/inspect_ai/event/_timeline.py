@@ -1102,8 +1102,8 @@ class _Inputs:
         self._views: dict[int, Sequence[ChatMessage]] = {}
         self._fingerprints: dict[int, _Fingerprint] = {}
         # tool call id -> (the input position its result follows the call at,
-        # the number of calls made with it), from the model call making it
-        self._issued: dict[str, tuple[int, int]] | None = None
+        # the number of calls made with it), from each model call making it
+        self._issued: dict[str, list[tuple[int, int]]] | None = None
         # tool call id -> the pool rows answering it
         self._tool_rows: dict[str, list[int]] | None = None
         # message fingerprint -> the pool rows holding it
@@ -1212,17 +1212,19 @@ class _Inputs:
         missing: list[str] = []
         for tool_call_id in tool_call_ids:
             text: str | None = None
-            at = issued.get(tool_call_id)
-            if at is not None:
-                start, count = at
+            last = -1
+            # a reused id was issued by several model calls: the last result
+            # in the input is the one answering the latest
+            for start, count in issued.get(tool_call_id, []):
                 for position in range(start, min(start + count, len(input))):
                     message = input[position]
                     if (
-                        isinstance(message, ChatMessageTool)
+                        position > last
+                        and isinstance(message, ChatMessageTool)
                         and message.tool_call_id == tool_call_id
                         and message.text
                     ):
-                        text = message.text
+                        text, last = message.text, position
             if text is not None:
                 found[tool_call_id] = text
             else:
@@ -1256,15 +1258,15 @@ class _Inputs:
                 found[message.tool_call_id] = message.text
         return found
 
-    def _issued_calls(self) -> dict[str, tuple[int, int]]:
+    def _issued_calls(self) -> dict[str, list[tuple[int, int]]]:
         if self._issued is None:
-            issued: dict[str, tuple[int, int]] = {}
+            issued: dict[str, list[tuple[int, int]]] = {}
             for event in self._events:
                 if isinstance(event, ModelEvent) and event.output.choices:
                     calls = event.output.choices[0].message.tool_calls or []
                     for call in calls:
-                        issued.setdefault(
-                            call.id, (len(self.of(event)) + 1, len(calls))
+                        issued.setdefault(call.id, []).append(
+                            (len(self.of(event)) + 1, len(calls))
                         )
             self._issued = issued
         return self._issued

@@ -391,6 +391,91 @@ def test_an_agent_result_that_never_follows_its_call_reads_expanded_inputs_once(
     assert work.looked_up <= 8 * 2 * 100
 
 
+def _reused_bridge_id() -> list[Any]:
+    """Two bridge tasks with one tool call id, the second's next input holding both results."""
+    from inspect_ai.event import ModelEvent, SpanBeginEvent, SpanEndEvent
+    from inspect_ai.model import (
+        ChatCompletionChoice,
+        ChatMessageAssistant,
+        ChatMessageSystem,
+        ChatMessageTool,
+        ChatMessageUser,
+        GenerateConfig,
+        ModelOutput,
+    )
+    from inspect_ai.tool import ToolCall
+
+    def model(span: str, input: list[Any], output: Any) -> ModelEvent:
+        return ModelEvent(
+            span_id=span,
+            model="mockllm/model",
+            input=input,
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=ModelOutput(
+                model="mockllm/model",
+                choices=[ChatCompletionChoice(message=output, stop_reason="stop")],
+            ),
+        )
+
+    def task() -> ChatMessageAssistant:
+        call = ToolCall(id="task", function="task", arguments={})
+        return ChatMessageAssistant(content="", tool_calls=[call])
+
+    def sub(result: str) -> list[Any]:
+        return [
+            SpanBeginEvent(id="agent-task", name="sub", type="agent", parent_id="main"),
+            model(
+                "agent-task",
+                [ChatMessageUser(content="Do the task.")],
+                ChatMessageAssistant(content=result),
+            ),
+            SpanEndEvent(id="agent-task"),
+        ]
+
+    history: list[Any] = [
+        ChatMessageSystem(content="You are the main agent."),
+        ChatMessageUser(content="Go."),
+    ]
+    first, second = task(), task()
+    events: list[Any] = [SpanBeginEvent(id="main", name="main", type="agent")]
+    events += [model("main", list(history), first), *sub("earlier result")]
+    history += [first, ChatMessageTool(content="earlier result", tool_call_id="task")]
+    events += [model("main", list(history), second), *sub("new result")]
+    history += [second, ChatMessageTool(content="new result", tool_call_id="task")]
+    events += [
+        model("main", list(history), ChatMessageAssistant(content="done")),
+        SpanEndEvent(id="main"),
+    ]
+    return events
+
+
+@pytest.mark.parametrize("pooled", [False, True])
+def test_a_reused_bridge_call_id_keeps_each_task_s_result(pooled: bool) -> None:
+    # Ransom's fifth review B1: the later task's result is the last in the
+    # next input, as on main
+    from inspect_ai.log import condense_events
+
+    events = _reused_bridge_id()
+    if pooled:
+        condensed, data = condense_events(events)
+        root = _timeline_build(condensed, message_pool=data["messages"]).root
+    else:
+        root = timeline_build(events).root
+    results: list[str | None] = []
+
+    def walk(span: TimelineSpan) -> None:
+        for item in span.content:
+            if isinstance(item, TimelineSpan):
+                if item.id == "agent-task":
+                    results.append(item.agent_result)
+                walk(item)
+
+    walk(root)
+    assert results == ["earlier result", "new result"]
+
+
 def test_a_fork_at_the_end_goes_to_the_call_in_the_final_messages() -> None:
     import json
     from pathlib import Path
