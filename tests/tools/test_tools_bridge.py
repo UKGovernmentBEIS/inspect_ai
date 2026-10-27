@@ -1658,6 +1658,45 @@ async def test_bridged_group_with_termination_terminates(
             await _serve_grouped(monkeypatch, _grouped_host_tool(leaves))
 
 
+def _limit_handling_a_termination() -> LimitExceededError:
+    try:
+        raise TerminateSampleError("stop")
+    except TerminateSampleError:
+        try:
+            raise _token_limit()
+        except LimitExceededError as limit:
+            return limit
+
+
+@pytest.mark.parametrize("limit_first", [False, True])
+async def test_bridged_group_decided_by_a_limit_keeps_a_termination_in_its_history(
+    monkeypatch: pytest.MonkeyPatch, limit_first: bool
+) -> None:
+    def leaves() -> list[Exception]:
+        return _ordered(
+            [ToolError("retry"), _limit_handling_a_termination()], limit_first
+        )
+
+    for _ in range(_GROUP_REPEATS):
+        with pytest.raises(TerminateSampleError):
+            await _serve_grouped(monkeypatch, _grouped_host_tool(leaves))
+
+
+async def test_bridged_group_decided_by_a_limit_routes_it_with_its_own_cause(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cause = OSError("quota service")
+
+    def leaves() -> list[Exception]:
+        limit = _token_limit()
+        limit.__cause__ = cause
+        return [ToolError("retry"), limit]
+
+    _, active, _ = await _serve_grouped(monkeypatch, _grouped_host_tool(leaves))
+    (routed,) = active.limit_exceeded.call_args.args
+    assert routed.__cause__ is cause
+
+
 @skip_if_no_docker
 @pytest.mark.slow
 def test_sandbox_bridge_host_tool_exception_ends_the_sample() -> None:

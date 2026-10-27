@@ -6,6 +6,7 @@ from pydantic import JsonValue, TypeAdapter
 from shortuuid import uuid
 
 from inspect_ai._sentinel._scope import sentinel_scope
+from inspect_ai._util._async import raise_unwrapped
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
@@ -326,7 +327,7 @@ async def _execute_granted(
                         outcome = _raised(ex, tool, tool_def.max_output)
                         raised = outcome.raised
                         if raised is not None and raised is not ex:
-                            raise raised from ex
+                            raise_unwrapped(ex, raised)
                         raise
             # `cancel_called`, not `cancelled_caught`: a tool that absorbs the
             # cancellation and returns was still cancelled
@@ -405,7 +406,8 @@ def _raised(ex: Exception, tool: str, max_output: int | None) -> _Outcome:
     A group is handled as its decisive leaf would be if raised bare, but the
     original propagates so the scaffold's error reply is unchanged, except that
     a decided limit is raised itself: the service dispatcher routes a bare
-    LimitExceededError to the sample.
+    LimitExceededError to the sample. A termination anywhere in the group still
+    leaves the original to the dispatcher.
     """
     decisive = decisive_tool_exception(ex)
     mapped = tool_call_error(decisive, tool)
@@ -416,7 +418,9 @@ def _raised(ex: Exception, tool: str, max_output: int | None) -> _Outcome:
     output, truncated = _recorded_result(tool, mapped.result or "", max_output)
     raised = (
         decisive
-        if decisive is not ex and isinstance(decisive, LimitExceededError)
+        if decisive is not ex
+        and isinstance(decisive, LimitExceededError)
+        and find_control_flow(ex) is None
         else ex
     )
     return _Outcome(output, truncated, error=mapped.error, raised=raised)
