@@ -237,6 +237,66 @@ def test_bump_alone_without_content_change_fails(tmp_path: Path) -> None:
     assert "unchanged" in result.bump_output
 
 
+def test_base_advance_after_merge_commit_not_attributed_to_pr(
+    tmp_path: Path,
+) -> None:
+    """A base-only injectable change made after the merge commit isn't the PR's.
+
+    GitHub's refs/pull/N/merge commit is cut from the base tip at generation
+    time. If the base then advances with an injectable change, the three-dot
+    diff (merge-base of base and merge commit .. merge commit) must attribute it
+    to the base, not the PR. The two-dot form (base tip .. merge commit) wrongly
+    flags it and demands a bump the PR never caused.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _write(repo, V_PATH, f"{BASE_VERSION}\n")
+    _write(repo, INJECTABLE_PATHS, (REPO / INJECTABLE_PATHS).read_text())
+    for rel in SEED_FILES:
+        _write(repo, rel, "base\n")
+    base = _commit(repo, "base")
+
+    # PR branch off the base touches only a doc file (not injectable).
+    _git(repo, "checkout", "-q", "-b", "pr", base)
+    _write(repo, "src/inspect_sandbox_tools/README.md", "pr doc\n")
+    pr = _commit(repo, "pr doc change")
+
+    # The base advances with a lock change made after the PR branched.
+    _git(repo, "checkout", "-q", "-b", "newbase", base)
+    _write(repo, f"{UTILS}/requirements.txt", "advanced base lock\n")
+    advanced = _commit(repo, "base advances the lock")
+    _git(repo, "update-ref", "refs/remotes/origin/main", advanced)
+
+    # Reconstruct the PR merge commit Actions checks out: first parent the old
+    # base, second the PR head, cut before the base advanced.
+    _git(repo, "checkout", "-q", "--detach", base)
+    _git(repo, "merge", "-q", "--no-ff", "-m", "merge pr", pr)
+
+    result = _run_gate(repo, tmp_path)
+    assert result.injectable_src == "false"
+    assert result.bump_returncode == 0
+    assert result.correctly_bumped == "false"
+
+
+def test_whitespace_padded_injectable_entry_still_matches(tmp_path: Path) -> None:
+    """A padded pathspec in injectable_paths.txt is trimmed like sandbox.py does.
+
+    The CI step must strip leading and trailing whitespace off each line; a
+    verbatim padded entry would match no path and silently miss its input.
+    """
+    repo = tmp_path / "repo"
+    _seed_repo(repo)
+    req_line = f"{UTILS}/requirements.txt"
+    padded = (
+        (REPO / INJECTABLE_PATHS).read_text().replace(req_line, f"   {req_line}   ")
+    )
+    _change(repo, {INJECTABLE_PATHS: padded, req_line: "edited\n"})
+    result = _run_gate(repo, tmp_path)
+    assert result.injectable_src == "true"
+    assert result.bump_returncode == 1
+    assert "bump it above" in result.bump_output
+
+
 # --- Invariants between injectable_paths.txt, the build, and BUILD_INPUTS -----
 
 
