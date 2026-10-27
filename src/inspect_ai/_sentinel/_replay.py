@@ -57,7 +57,7 @@ class EvalInfo(NamedTuple):
     """What the log driver reads from the log's header."""
 
     inspect_ai_version: str | None
-    """The inspect_ai that wrote the log (`eval.packages["inspect_ai"]`): logs from before 0.3.31 do not record whether a tool's output was cut."""
+    """The inspect_ai that wrote the log (`eval.packages["inspect_ai"]`): logs from before 0.3.31 do not record whether a tool's output was cut. `None` for a transcript imported from another source, whose tool calls without a tool span or a `ToolEvent` of their own have their steps taken from the messages."""
 
     sentinel: bool
     """Whether the eval ran a sentinel (`eval.config.sentinel`): if it did, earlier `human()` decisions come from its `SentinelEvent`s, else from the `ApprovalEvent`s of human approvers."""
@@ -87,6 +87,8 @@ def steps_from_events(
     Every step's `agent_messages` is None: the log does not record the agent's own messages, and model input can hold messages the agent kept out of them.
 
     A log that does not record where a model call was made (`ModelEvent.origin`, written since inspect_ai PR #5990), an older Inspect log or a transcript imported from another source, has its turns inferred: a call made in a tool's span (or nested in its `ToolEvent`) is a tool's, one in the scorers' span a scorer's and one in the init span setup's; of the rest, those the timeline shows as utility (`timeline_build`'s prompt and continuity rules) are not turns, and the others are.
+
+    A transcript imported from another source (`eval_info.inspect_ai_version` is `None`) records a call's run as Inspect does only when a tool span holds its `ToolEvent`. A call its turn made that ran without one (a `ToolEvent` in an agent span or in none) or has no `ToolEvent` with its id has its steps taken from the messages, as sentinel's messages projection takes them: the call as the model made it, and the first tool message answering it as its result (else its `ToolEvent`'s result), with no `tool_result` step when neither holds one. A call with no `ToolEvent` has its steps just after its turn's `model_output` step.
 
     Args:
         messages: The sample's messages (`EvalSample.messages`).
@@ -352,6 +354,7 @@ class _Driver:
         self.pool = pool
         self.keys = _PoolKeys(pool)
         self.eval_info = eval_info
+        self.imported = eval_info.inspect_ai_version is None
         self.human_approvers = set(human_approvers)
         self.spans = SpanConversations(sample_uuid)
         self.timeline = _timeline_conversations(timeline) if timeline else None
@@ -373,6 +376,7 @@ class _Driver:
         self._producers: dict[int, Producer] = {}
         self._assistants: dict[str, tuple[ChatMessageAssistant, ToolCall]] | None = None
         self._messages_by_id: dict[str, ChatMessage] | None = None
+        self._answers: dict[str, ChatMessageTool] | None = None
         # the origins of model calls the log records none for, by id()
         self._inferred: dict[int, str] | None = None
         # span id -> the innermost agent or tool span's type, and the phase
@@ -394,7 +398,7 @@ class _Driver:
         turn_ids: set[str | None] = set()
         # calls made whose origin is inferred, not as turns
         inferred_other: set[str | None] = set()
-        produced: dict[str, tuple[ChatMessageAssistant, ModelEvent, ToolCall]] = {}
+        produced: dict[str, tuple[ChatMessageAssistant, ModelEvent, ToolCall, int]] = {}
         approvals: dict[str, ApprovalEvent] = {}
         calls: list[_Call] = []
 
@@ -413,7 +417,7 @@ class _Driver:
                 if message_id is not None:
                     message = event.output.choices[0].message
                     for tool_call in message.tool_calls or []:
-                        produced[tool_call.id] = (message, event, tool_call)
+                        produced[tool_call.id] = (message, event, tool_call, index)
                 if not is_agent_turn(self._origin(event)):
                     if event.origin is None:
                         inferred_other.add(event.uuid)
@@ -453,7 +457,7 @@ class _Driver:
                 assistant: ChatMessageAssistant | None
                 proposal: ToolCall | None
                 if found is not None:
-                    assistant, producer, proposal = found
+                    assistant, producer, proposal, _ = found
                 else:
                     assistant, proposal = self._assistant(event.id)
                 conversation = (
@@ -479,6 +483,11 @@ class _Driver:
             self._generate(group)
         for entry in calls:
             self._tool_call(entry)
+        if self.imported:
+            with_event = {e.event.id for e in calls if e.proposal is not None}
+            for call_id, (assistant, producer, proposal, at) in produced.items():
+                if call_id not in with_event:
+                    self._call_without_event(assistant, producer, proposal, at)
 
         # the second pass: in log order, each step at its cut
         for action in sorted(self.actions, key=lambda a: (a.position, a.phase, a.seq)):
@@ -689,6 +698,7 @@ class _Driver:
         recorded = before_span is not None or after_span is not None
         if not recorded and not self._checks_tool_calls(event, call.producer):
             return
+        from_messages = self.imported and tool_span is None and not recorded
         approver_modified = (
             approval.modified
             if approval is not None
@@ -697,20 +707,14 @@ class _Driver:
             else None
         )
         checked = before_span is not None or (
-            tool_span is not None
+            (tool_span is not None or from_messages)
             # the call was rejected before its step was built: by validation
             # or a viewer that raised, or with every instance abstaining, by
             # a tool that raised ToolParsingError or ToolApprovalError itself,
             # which reads the same
             and (event.error is None or event.error.type not in ("parsing", "approval"))
             and proposal.parse_error is None
-            and (
-                call.producer is None
-                # a transcript imported from another source records no tools
-                # offered, so cannot say the function was not offered
-                or not call.producer.tools
-                or any(tool.name == proposal.function for tool in call.producer.tools)
-            )
+            and _offered(call.producer, proposal.function)
             and (
                 approval is None
                 or approval.decision == "approve"
@@ -727,6 +731,20 @@ class _Driver:
             and not event.failed
             and not event.pending
         )
+        if from_messages:
+            # a call that ran an agent ends with the agent's span
+            end = self.ends.get(event.agent_span_id or "")
+            self._message_steps(
+                call.assistant,
+                call.producer,
+                proposal,
+                call.conversation,
+                (call.index, 1),
+                (end if end is not None else call.index, 3),
+                call.seq,
+                event if ran else None,
+            )
+            return
 
         modify = self._sentinel_modify(before_span, event)
         approved = approver_modified or proposal
@@ -796,12 +814,98 @@ class _Driver:
         self._at_point(after_cut, call.seq + 2, build_after)
         self._settle_at_end(after_span)
 
-    def _checks_tool_calls(self, event: ToolEvent, producer: ModelEvent | None) -> bool:
+    def _call_without_event(
+        self,
+        assistant: ChatMessageAssistant,
+        producer: ModelEvent,
+        proposal: ToolCall,
+        index: int,
+    ) -> None:
+        if (
+            not self._checks_tool_calls(None, producer)
+            or proposal.parse_error is not None
+            or not _offered(producer, proposal.function)
+        ):
+            return
+        self._message_steps(
+            assistant,
+            producer,
+            proposal,
+            self._conversation(producer),
+            (index, 3),
+            (index, 3),
+            self._next_seq(3),
+            None,
+        )
+
+    def _message_steps(
+        self,
+        assistant: ChatMessageAssistant,
+        producer: ModelEvent | None,
+        proposal: ToolCall,
+        conversation: str,
+        before_at: tuple[int, int],
+        after_at: tuple[int, int],
+        seq: int,
+        ran: ToolEvent | None,
+    ) -> None:
+        """An imported call's steps, taken from the messages: its result is the first tool message answering it, else the result of `ran`, the `ToolEvent` of a call that ran."""
+        result = self._answer(proposal.id)
+        if result is None and ran is not None:
+            result = self._result(ran)
+        call_view = ToolCallView(call=proposal.view or _default_view(proposal))
+        recorded_producer = self._producer(producer)
+        message_id = assistant.id or ""
+
+        def build_before() -> None:
+            step = before_tool_call(
+                conversation=conversation,
+                message=assistant.text,
+                message_id=message_id,
+                call=proposal,
+                view=call_view,
+                producer=recorded_producer,
+                agent_messages=None,
+                record=self._record(conversation),
+            )
+            self._built(proposal.id, "tool_call", step, None)
+
+        self._at_point(before_at, seq, build_before)
+        if result is None:
+            return
+        answer = result
+        truncated = self._truncated(ran) if ran is not None else None
+
+        def build_after() -> None:
+            step = after_tool_call(
+                conversation=conversation,
+                message=assistant.text,
+                message_id=message_id,
+                call=proposal,
+                view=call_view,
+                result=answer,
+                output=None,
+                truncated=truncated,
+                producer=recorded_producer,
+                agent_messages=None,
+                record=self._record(conversation),
+            )
+            self._built(proposal.id, "tool_result", step, None)
+
+        self._at_point(after_at, seq + 2, build_after)
+
+    def _checks_tool_calls(
+        self, event: ToolEvent | None, producer: ModelEvent | None
+    ) -> bool:
         """Whether live checked the calls a model call produced, inferred from the region the model call was made in.
 
         Live decides by the region that runs the call (`checks_tool_calls()` in `call_tool`), which the log does not record, so a call run in a region other than the one its producer was made in is replayed by its producer's. A call no model call produced (a pre-filled message) is taken as checked. A call a sandbox bridge ran on the host (`metadata["bridge"]`) is not: the host executor runs no tool stage.
         """
-        if event.metadata is not None and "bridge" in event.metadata:
+        if (
+            event is not None
+            and event.metadata is not None
+            and "bridge" in event.metadata
+        ):
             return False
         return producer is None or self._origin(producer) in _NON_FINAL
 
@@ -1008,6 +1112,15 @@ class _Driver:
             self._assistants = found
         return self._assistants.get(call_id, (None, None))
 
+    def _answer(self, call_id: str) -> ChatMessageTool | None:
+        if self._answers is None:
+            found: dict[str, ChatMessageTool] = {}
+            for message in [*self.messages, *self.pool]:
+                if isinstance(message, ChatMessageTool) and message.tool_call_id:
+                    found.setdefault(message.tool_call_id, message)
+            self._answers = found
+        return self._answers.get(call_id)
+
     def _sentinel_modify(self, span: str | None, event: ToolEvent) -> ToolCall | None:
         if span is None:
             return None
@@ -1114,6 +1227,16 @@ def _approval_report(approval: ApprovalEvent) -> Any:
         path=approval.approver,
         report=decision,
         function=approval.approver,
+    )
+
+
+def _offered(producer: ModelEvent | None, function: str) -> bool:
+    # a transcript imported from another source records no tools offered, so
+    # cannot say the function was not offered
+    return (
+        producer is None
+        or not producer.tools
+        or any(tool.name == function for tool in producer.tools)
     )
 
 

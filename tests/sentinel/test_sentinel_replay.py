@@ -42,6 +42,7 @@ from inspect_ai.event import (
     ModelEvent,
     SentinelEvent,
     SpanBeginEvent,
+    SpanEndEvent,
     Timeline,
     TimelineEvent,
     TimelineSpan,
@@ -65,7 +66,7 @@ from inspect_ai.model import (
     model_origin,
     modelapi,
 )
-from inspect_ai.model._call_tools import execute_tools
+from inspect_ai.model._call_tools import TOOL_CALLS_FAIL_FAST, execute_tools
 from inspect_ai.model._providers.mockllm import MockLLM
 from inspect_ai.scorer import Score, Scorer, Target, scorer
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
@@ -74,6 +75,7 @@ from inspect_ai.tool import (
     ToolCall,
     ToolCallContent,
     ToolCallView,
+    ToolError,
     ToolInfo,
     tool,
 )
@@ -1327,8 +1329,10 @@ def test_replay_infers_the_turns_of_the_continuity_fixtures(fixture: str) -> Non
     ]
 
     def steps(events: list[Event]) -> list[Any]:
+        # a result the fixtures' ToolEvents give no message id gets a new one
+        # each replay
         return [
-            (s.stage, s.id, s.segment, comparable(s.step))
+            (s.stage, s.id, s.segment, comparable(s.step, ids=False))
             for s in steps_from_events(
                 [],
                 events,
@@ -1998,24 +2002,323 @@ def test_a_person_s_approval_decision_reaches_later_steps(
         assert [d.step_id for d in after.step.human_decisions or []][-1:] == [after.id]
 
 
-def test_a_transcript_that_records_no_tools_offered_keeps_its_tool_steps() -> None:
-    # as Scout's importers write one: no origins, and no tools on its model calls
-    log = run_logged(tool_loop(addition()), agent_model(2))
-    sample = logged_sample(log)
-    imported = [
-        e.model_copy(update={"tools": []}) if isinstance(e, ModelEvent) else e
-        for e in without_origins(sample.events)
+IMPORTED = EvalInfo(inspect_ai_version=None, sentinel=False)
+
+
+def tool_steps(steps: Sequence["ReplayStep"]) -> list[tuple[Any, ...]]:
+    return [
+        (
+            s.stage,
+            s.id,
+            s.step.call.function,
+            s.step.call.arguments,
+            s.step.result.text if isinstance(s.step, AfterToolCall) else None,
+        )
+        for s in steps
+        if isinstance(s.step, BeforeToolCall | AfterToolCall)
     ]
 
-    def tool_steps(events: Sequence[Event]) -> list[tuple[str, str]]:
-        return [
-            (s.stage, s.id)
-            for s in replay_events(log, events)
-            if s.stage.startswith("tool")
-        ]
 
-    assert tool_steps(imported) == tool_steps(sample.events)
-    assert len(tool_steps(imported)) == 4
+def projected_tool_steps(messages: Sequence[ChatMessage]) -> list[tuple[Any, ...]]:
+    """The tool steps sentinel's messages projection takes from `messages`: each assistant message's calls in order, each with a `tool_result` step when a later tool message answers it."""
+    steps: list[tuple[Any, ...]] = []
+    for index, message in enumerate(messages):
+        if not isinstance(message, ChatMessageAssistant):
+            continue
+        for call in message.tool_calls or []:
+            steps.append(("tool_call", call.id, call.function, call.arguments, None))
+            answer = next(
+                (
+                    m
+                    for m in messages[index + 1 :]
+                    if isinstance(m, ChatMessageTool) and m.tool_call_id == call.id
+                ),
+                None,
+            )
+            if answer is not None:
+                steps.append(
+                    ("tool_result", call.id, call.function, call.arguments, answer.text)
+                )
+    return steps
+
+
+def test_a_transcript_that_records_no_tools_offered_keeps_its_tool_steps() -> None:
+    # as Scout's importers write one: no origins, no tools on its model calls
+    # and no tool spans (Ransom's second review)
+    log = run_logged(tool_loop(addition()), agent_model(2))
+    sample = logged_sample(log)
+    tool_spans = {
+        e.id: e.parent_id
+        for e in sample.events
+        if isinstance(e, SpanBeginEvent) and e.type == "tool"
+    }
+    imported: list[Event] = []
+    for event in without_origins(sample.events):
+        if isinstance(event, SpanBeginEvent | SpanEndEvent) and event.id in tool_spans:
+            continue
+        if isinstance(event, ModelEvent):
+            event = event.model_copy(update={"tools": []})
+        elif isinstance(event, ToolEvent) and event.span_id in tool_spans:
+            event = event.model_copy(update={"span_id": tool_spans[event.span_id]})
+        imported.append(event)
+    replay = steps_from_events(
+        sample.messages,
+        imported,
+        [],
+        sample_uuid=sample.uuid or "",
+        eval_info=IMPORTED,
+    )
+
+    assert tool_steps(replay) == projected_tool_steps(sample.messages)
+    assert [s[:2] for s in tool_steps(replay)] == [
+        s[:2] for s in tool_steps(replay_events(log, sample.events))
+    ]
+    assert len(tool_steps(replay)) == 4
+
+
+# transcripts shaped as Scout's importers write them, built by hand: no
+# origins, no tools offered, and model inputs expanded
+
+
+def imported_call(
+    uuid: str, input: Sequence[ChatMessage], span_id: str, *calls: ToolCall
+) -> ModelEvent:
+    return ModelEvent(
+        uuid=uuid,
+        span_id=span_id,
+        model="imported",
+        input=list(input),
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput(
+            model="imported",
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(
+                        content=f"turn {uuid}",
+                        tool_calls=list(calls) or None,
+                        model="imported",
+                    ),
+                    stop_reason="tool_calls" if calls else "stop",
+                )
+            ],
+        ),
+    )
+
+
+def imported_conversation(
+    span_id: str, *turns: list[ToolCall]
+) -> tuple[list[ChatMessage], list[ModelEvent]]:
+    """A model call for each of `turns` and one for the final answer, each call answered by a tool message `result of <id>`."""
+    messages: list[ChatMessage] = [ChatMessageUser(content="Find the config file.")]
+    calls: list[ModelEvent] = []
+    for n, turn in enumerate([*turns, []]):
+        event = imported_call(f"m{n}", messages, span_id, *turn)
+        calls.append(event)
+        messages.append(event.output.message)
+        messages.extend(
+            ChatMessageTool(
+                content=f"result of {call.id}",
+                tool_call_id=call.id,
+                function=call.function,
+            )
+            for call in turn
+        )
+    return messages, calls
+
+
+def imported_tool_event(
+    call: ToolCall, span_id: str, id: str | None = None, function: str | None = None
+) -> ToolEvent:
+    return ToolEvent(
+        id=id or call.id,
+        function=function or call.function,
+        arguments=call.arguments,
+        result=f"result of {call.id}",
+        span_id=span_id,
+    )
+
+
+READ = ToolCall(id="call_read", function="read_file", arguments={"path": "a.cfg"})
+LIST = ToolCall(id="call_list", function="list_dir", arguments={"path": "."})
+GREP = ToolCall(id="call_grep", function="grep", arguments={"pattern": "port"})
+
+
+def claude_code_transcript() -> tuple[list[ChatMessage], list[Event]]:
+    # a Task call is written in the sub-agent's span, with no tool span; a
+    # Bash call in its tool span
+    task = ToolCall(id="toolu_task", function="Task", arguments={"prompt": "Look."})
+    bash = ToolCall(id="toolu_bash", function="Bash", arguments={"command": "ls"})
+    messages, (m0, m1, m2) = imported_conversation("session", [task], [bash])
+    task_event = imported_tool_event(task, "agent-toolu_task")
+    task_event.agent_span_id = "agent-toolu_task"
+    return messages, [
+        SpanBeginEvent(id="session", name="session", type="agent"),
+        m0,
+        SpanBeginEvent(
+            id="agent-toolu_task", name="Explore", type="agent", parent_id="session"
+        ),
+        task_event,
+        imported_call("sub", [ChatMessageUser(content="Look.")], "agent-toolu_task"),
+        SpanEndEvent(id="agent-toolu_task"),
+        m1,
+        SpanBeginEvent(
+            id="tool-toolu_bash", name="Bash", type="tool", parent_id="session"
+        ),
+        imported_tool_event(bash, "tool-toolu_bash"),
+        SpanEndEvent(id="tool-toolu_bash"),
+        m2,
+        SpanEndEvent(id="session"),
+    ]
+
+
+def spanless_transcript(
+    span_type: str | None, tool_event_ids: bool
+) -> tuple[list[ChatMessage], list[Event]]:
+    # ToolEvents in the run's span, with the call's id or with their own
+    messages, (m0, m1, m2) = imported_conversation("run", [READ, LIST], [GREP])
+
+    def tool_event(call: ToolCall) -> ToolEvent:
+        if tool_event_ids:
+            return imported_tool_event(call, "run")
+        return imported_tool_event(
+            call, "run", id=f"run-{call.id}", function=f"tools.{call.function}"
+        )
+
+    return messages, [
+        SpanBeginEvent(id="run", name="agent run", type=span_type),
+        m0,
+        tool_event(READ),
+        tool_event(LIST),
+        m1,
+        tool_event(GREP),
+        m2,
+        SpanEndEvent(id="run"),
+    ]
+
+
+def atif_transcript() -> tuple[list[ChatMessage], list[Event]]:
+    # model calls in an agent span, and no ToolEvents
+    messages, calls = imported_conversation("terminus", [READ, LIST], [GREP])
+    return messages, [
+        SpanBeginEvent(id="terminus", name="terminus_2", type="agent"),
+        *calls,
+        SpanEndEvent(id="terminus"),
+    ]
+
+
+IMPORTERS: dict[str, Callable[[], tuple[list[ChatMessage], list[Event]]]] = {
+    "claude_code": claude_code_transcript,
+    # Phoenix: a chain span of no type, ToolEvents keyed by the call's id
+    "phoenix": partial(spanless_transcript, None, True),
+    # Logfire: an agent span, ToolEvents keyed by the call's id
+    "logfire": partial(spanless_transcript, "agent", True),
+    # LangSmith: an agent span, ToolEvents keyed by their run's id
+    "langsmith": partial(spanless_transcript, "agent", False),
+    # Weave: a span of no type, ToolEvents keyed by their call's id in Weave
+    "weave": partial(spanless_transcript, None, False),
+    "atif": atif_transcript,
+}
+
+
+@pytest.mark.parametrize("importer", IMPORTERS)
+def test_an_imported_transcript_keeps_the_tool_steps_of_its_messages(
+    importer: str,
+) -> None:
+    # Ransom's second review: a call whose ToolEvent no tool span holds, or
+    # that has none, takes its steps from the messages
+    messages, events = IMPORTERS[importer]()
+    replay = steps_from_events(
+        messages, events, [], sample_uuid="transcript", eval_info=IMPORTED
+    )
+
+    assert tool_steps(replay) == projected_tool_steps(messages)
+    assert len(tool_steps(replay)) == (4 if importer == "claude_code" else 6)
+
+
+def test_an_imported_call_s_steps_come_after_its_model_output() -> None:
+    messages, events = atif_transcript()
+    replay = steps_from_events(
+        messages, events, [], sample_uuid="transcript", eval_info=IMPORTED
+    )
+
+    assert [(s.stage, s.id) for s in replay] == [
+        ("model_input", "m0"),
+        ("model_output", "m0"),
+        ("tool_call", "call_read"),
+        ("tool_result", "call_read"),
+        ("tool_call", "call_list"),
+        ("tool_result", "call_list"),
+        ("model_input", "m1"),
+        ("model_output", "m1"),
+        ("tool_call", "call_grep"),
+        ("tool_result", "call_grep"),
+        ("model_input", "m2"),
+        ("model_output", "m2"),
+    ]
+
+
+def test_a_task_s_result_step_comes_after_its_sub_agent() -> None:
+    messages, events = claude_code_transcript()
+    replay = steps_from_events(
+        messages, events, [], sample_uuid="transcript", eval_info=IMPORTED
+    )
+
+    order = [(s.stage, s.id) for s in replay]
+    assert (
+        order.index(("tool_call", "toolu_task"))
+        < order.index(("model_output", "sub"))
+        < order.index(("tool_result", "toolu_task"))
+    )
+
+
+@tool
+def not_found() -> Tool:
+    async def execute() -> str:
+        """Fail with a tool error."""
+        raise ToolError("not found")
+
+    return execute
+
+
+def test_a_call_a_fail_fast_tool_halted_has_no_tool_steps() -> None:
+    # Inspect writes the halted call's ToolEvent without a tool span; live ran
+    # no tool stage for it, so replay of a log Inspect wrote builds none
+    def model() -> Any:
+        halting = calls(("not_found", {}), ("not_found", {}))
+        halting.message.metadata = {TOOL_CALLS_FAIL_FAST: ["not_found"]}
+        return outputs(halting, done())
+
+    replay = assert_replay_equals_live(tool_loop(not_found()), model())
+    events = logged_sample(run_logged(tool_loop(not_found()), model())).events
+    [halted] = [
+        index
+        for index, e in enumerate(events)
+        if isinstance(e, ToolEvent) and e.id == "t0c1"
+    ]
+
+    assert not isinstance(events[halted - 1], SpanBeginEvent)
+    assert [(s.stage, s.id) for s in replay if s.stage.startswith("tool")] == [
+        ("tool_call", "t0c0"),
+        ("tool_result", "t0c0"),
+    ]
+
+
+def test_an_inspect_log_s_calls_without_a_tool_span_keep_no_tool_steps() -> None:
+    # live runs no tool stage for a call it records without a tool span (a
+    # call not executed after an earlier one failed), so a log written by
+    # Inspect keeps reading its calls from events
+    messages, events = spanless_transcript(None, True)
+    replay = steps_from_events(
+        messages,
+        events,
+        [],
+        sample_uuid="transcript",
+        eval_info=EvalInfo(inspect_ai_version="0.3.200", sentinel=False),
+    )
+
+    assert tool_steps(replay) == []
 
 
 def answers_as_a_person(decision: str, monkeypatch: pytest.MonkeyPatch) -> None:
