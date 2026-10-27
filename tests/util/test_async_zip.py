@@ -974,6 +974,34 @@ async def test_local_header_for_another_member_raises(
         await _read(zip_path, "b.json", stream)
 
 
+@pytest.mark.parametrize("read", ["fully", "stream", "raw"])
+@pytest.mark.parametrize("method", [zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED])
+async def test_local_header_name_extending_member_name_raises(
+    tmp_path: Path, method: int, read: str
+) -> None:
+    zip_path = tmp_path / "prefix.zip"
+    with zipfile.ZipFile(zip_path, "w", method) as zf:
+        zf.writestr("m.binx", b'{"id": "AAAA"}')
+    # the central directory names m.bin; its last name byte becomes the comment
+    data = bytearray(zip_path.read_bytes())
+    pos = data.find(b"PK\x01\x02")
+    assert struct.unpack_from("<HHH", data, pos + 28) == (6, 0, 0)
+    struct.pack_into("<HHH", data, pos + 28, 5, 0, 1)
+    zip_path.write_bytes(bytes(data))
+
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(zip_path))
+        with pytest.raises(ValueError, match="m.bin"):
+            if read == "fully":
+                await reader.read_member_fully("m.bin")
+            elif read == "stream":
+                await _stream(reader, "m.bin")
+            else:
+                async with await reader.open_member_raw("m.bin") as raw:
+                    async for _ in raw:
+                        pass
+
+
 @pytest.mark.parametrize("stream", [False, True])
 async def test_local_header_past_end_of_file_raises(
     tmp_path: Path, stream: bool

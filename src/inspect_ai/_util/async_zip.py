@@ -78,8 +78,11 @@ def _local_data_offset(filename: str, entry: ZipEntry, header: bytes) -> int:
     name_len: int
     extra_len: int
     name_len, extra_len = struct.unpack_from("<HH", header, 26)
+    expected = entry.filename.encode("utf-8")
+    # the streaming paths read only len(expected) name bytes, so a longer
+    # name would slice to a matching prefix
     name = header[_LOCAL_HEADER_SIZE : _LOCAL_HEADER_SIZE + name_len]
-    if name != entry.filename.encode("utf-8"):
+    if name_len != len(expected) or name != expected:
         raise ValueError(
             f"Local file header names {name!r}, not member {entry.filename} of {filename}"
         )
