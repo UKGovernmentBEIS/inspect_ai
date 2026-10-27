@@ -1069,6 +1069,8 @@ class Model:
                 if output.time is not None
                 else (completed - start_time).total_seconds()
             )
+            # The completion snapshot deferred its hook delivery for this update.
+            event._defer_sample_hook = False
 
             # re-emit so subscribers (e.g. the sample buffer, which serializes a
             # snapshot at emission time) pick up the timing fields set above
@@ -1737,22 +1739,34 @@ class Model:
             complete(output, call)
 
             # record usage
-            if output.usage:
-                record_and_check_model_usage(
-                    self, output.usage, role=self.role, output=output
-                )
+            try:
+                if output.usage:
+                    record_and_check_model_usage(
+                        self, output.usage, role=self.role, output=output
+                    )
 
-                # send telemetry to hooks
-                await emit_model_usage(
-                    model_name=str(self), usage=output.usage, call_duration=output.time
-                )
-                await send_telemetry_legacy(
-                    "model_usage",
-                    json.dumps(dict(model=str(self), usage=output.usage.model_dump())),
-                )
+                    # send telemetry to hooks
+                    await emit_model_usage(
+                        model_name=str(self),
+                        usage=output.usage,
+                        call_duration=output.time,
+                    )
+                    await send_telemetry_legacy(
+                        "model_usage",
+                        json.dumps(
+                            dict(model=str(self), usage=output.usage.model_dump())
+                        ),
+                    )
 
-            if cache_policy and cache_entry:
-                cache_store(entry=cache_entry, output=output)
+                if cache_policy and cache_entry:
+                    cache_store(entry=cache_entry, output=output)
+            except BaseException:
+                # generate() is the one that clears the defer flag after it
+                # stamps timing. A limit check here aborts before that, so
+                # deliver the completion snapshot once before the error
+                # propagates.
+                _emit_deferred_model_hook(event)
+                raise
 
             return output, event
 
@@ -1787,6 +1801,11 @@ class Model:
         # sees the final count for a sample halted by its turn limit
         try:
             record_turn()
+        except BaseException:
+            # generate() clears the defer flag after it stamps timing. A turn
+            # limit raised here aborts before that.
+            _emit_deferred_model_hook(event)
+            raise
         finally:
             set_active_sample_total_turns(turn_count() or 0)
 
@@ -2052,6 +2071,10 @@ class Model:
 
             record_agent_turn(input)
         sink = _model_event_sink.get()
+        # A cache hit is inserted already complete. Hold its hook delivery for
+        # the timed snapshot, the same way complete() holds a live call.
+        if output is not None:
+            event._defer_sample_hook = True
         if sink is None:
             transcript()._event(event)
         else:
@@ -2105,6 +2128,12 @@ class Model:
                     event.call.response = as_error_response(str(result))
 
             event.pending = None
+            # generate() publishes this event again after it stamps timing.
+            # Hold the hook delivery until that snapshot. An exception is
+            # published only here (generate() does not get the event back),
+            # so hooks still see the failure.
+            if isinstance(result, ModelOutput):
+                event._defer_sample_hook = True
             if sink is None:
                 transcript()._event_updated(event)
             else:
@@ -3197,6 +3226,16 @@ def init_role_usage(initial_usage: dict[str, ModelUsage] | None = None) -> None:
 
 def init_sample_role_usage() -> None:
     sample_role_usage_context_var.set({})
+
+
+def _emit_deferred_model_hook(event: BaseModel) -> None:
+    """Deliver a success snapshot that will not reach generate()'s timing update."""
+    from inspect_ai.event._model import ModelEvent
+    from inspect_ai.log._transcript import transcript
+
+    if isinstance(event, ModelEvent) and event._defer_sample_hook:
+        event._defer_sample_hook = False
+        transcript()._event_updated(event)
 
 
 def _check_limits_before_dispatch() -> None:
