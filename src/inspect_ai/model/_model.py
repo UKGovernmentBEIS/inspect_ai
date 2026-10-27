@@ -1121,6 +1121,16 @@ class Model:
                         receiving, str(self), ex, _bridged()
                     )
                     if recovered is None:
+                        # a refusal that stands as the error, as a bridged
+                        # agent's does, still has its decisions recorded
+                        if through_sidecar is not None:
+                            from inspect_ai._sentinel._sidecar._events import (
+                                record_refusal_reports,
+                            )
+
+                            record_refusal_reports(
+                                receiving, through_sidecar.sidecar, prepared.input
+                            )
                         raise
                     output, event = recovered, None
                 field = received_field()
