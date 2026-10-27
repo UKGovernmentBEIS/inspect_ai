@@ -15,7 +15,6 @@ from inspect_ai._sentinel._sidecar._endpoint import (
     proxy_client,
 )
 from inspect_ai._sentinel._sidecar._field import receiving_field
-from inspect_ai._sentinel._sidecar._state import require_monitor_state
 from inspect_ai._sentinel._sidecar._task import SampleFacts, TaskFacts, TaskSidecars
 from inspect_ai._util._async import tg_collect
 from inspect_ai.agent._bridge.util import bridge_model_generate
@@ -32,7 +31,15 @@ from inspect_ai.model import (
     ModelOutput,
     get_model,
 )
-from inspect_ai.scorer import Score, Scorer, Target, mean, score, scorer
+from inspect_ai.scorer import (
+    Score,
+    Scorer,
+    Target,
+    mean,
+    require_monitor_state,
+    score,
+    scorer,
+)
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
 from inspect_ai.tool import Tool, ToolCall, tool
 
