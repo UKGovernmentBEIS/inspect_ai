@@ -1355,6 +1355,28 @@ def test_a_bridged_agent_ends_at_the_model_call_for_a_terminate_at_a_call() -> N
     assert handed.reason == "Too far."
 
 
+def test_a_bridged_agent_ends_at_the_model_call_for_a_terminate_looked_up() -> None:
+    field = {
+        "outcome": "terminate",
+        "steps": [_ends("tool_call", "call_1")],
+        "withheld": _ended_turn(("call_1", "Tokyo")),
+    }
+    stand_in = StandInSidecar(
+        # the reply came back with its call, and without the field
+        turns=[Turn(calls=[("call_1", "weather", {"city": "Tokyo"})])],
+        methods={"request_result": _answers(_decided(field))},
+    )
+    seen: list[ModelOutput | Exception] = []
+    task = Task(dataset=[Sample(input="Hi.")], solver=_bridged_turn(seen))
+
+    eval(task, model=_model(stand_in), display="none")
+
+    # never handed the call, which it would run itself
+    [handed] = seen
+    assert isinstance(handed, TerminateSampleError)
+    assert handed.reason == "Too far."
+
+
 def test_a_bridged_agent_is_handed_the_turn_as_the_sidecar_left_it() -> None:
     proposed = {
         "message": _turn_json(("call_1", "Tokyo"), ("call_2", "Oslo")),
