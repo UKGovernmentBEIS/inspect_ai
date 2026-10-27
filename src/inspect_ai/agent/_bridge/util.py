@@ -1045,6 +1045,7 @@ async def _bridge_generate_impl(
             await compact.record_output(input_messages, output)
 
         # Inside the refusal-retry loop so a content_filter replacement is retried.
+        generated = output
         if bridge.response_filter is not None:
             # under the bridge's approval policies, as a filter may generate
             with bridge_approval_scope(bridge.approval):
@@ -1086,9 +1087,12 @@ async def _bridge_generate_impl(
                 input_messages,
                 input + replayed,
                 declarations,
-                producer=sink.producing(output.message.id)
+                captured=sink.producing(output.message.id)
                 if sink is not None
                 else None,
+                # the response filter's output, which it may have generated
+                # itself outside the sink
+                filtered=output is not generated,
             )
         if reviewed.rejection is None:
             # with a sentinel, each call is handed over under a token identifying

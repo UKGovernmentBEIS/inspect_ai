@@ -468,6 +468,79 @@ async def test_modify_rewrites_the_arguments_handed_to_the_scaffold() -> None:
     assert decision.modified.arguments == {"path": "safe.txt"}
 
 
+@protocol
+def bridge_retarget() -> Protocol:
+    async def rewrite(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        modified = replace(step.call, function="write_file")
+        return Decision(action="modify", modified=modified, explanation="retargeted")
+
+    return rewrite
+
+
+RETARGETED = (
+    "A sentinel monitor returned a modified call to 'write_file' for a call to "
+    "'read_file'"
+)
+
+
+@pytest.mark.parametrize("sandbox", [False, True])
+async def test_a_modify_that_changes_the_function_fails_the_sample(
+    sandbox: bool,
+) -> None:
+    model = Scripted(calls_output(READ))
+    bridge = sandbox_bridge() if sandbox else in_process_bridge([])
+
+    with active(bridge_retarget()):
+        with pytest.raises(RuntimeError, match=RETARGETED):
+            await generate(bridge, model, [ChatMessageUser(content=TASK)])
+
+    assert len(model.inputs) == 1
+    if sandbox:
+        # raised in the service task, so the bridge's monitor fails the sample
+        assert isinstance(bridge, SandboxAgentBridge)
+        assert isinstance(bridge._failure, RuntimeError)
+        assert str(bridge._failure).startswith(RETARGETED)
+
+
+async def test_a_modify_that_changes_a_dispatched_target_fails_the_sample() -> None:
+    call = ToolCall(
+        id="d_1",
+        function="call_mcp_tool",
+        arguments={
+            "ServerName": "host",
+            "ToolName": "read_file",
+            "Arguments": {"path": "notes.txt"},
+        },
+    )
+    bridge = sandbox_bridge()
+
+    with active(bridge_retarget()):
+        with pytest.raises(RuntimeError, match=RETARGETED):
+            await generate(
+                bridge, Scripted(calls_output(call)), [ChatMessageUser(content=TASK)]
+            )
+
+    assert isinstance(bridge._failure, RuntimeError)
+
+
+@pytest.mark.parametrize("dialect", ["completions", "anthropic", "responses", "google"])
+async def test_a_modify_that_changes_the_function_fails_each_dialect(
+    dialect: str,
+) -> None:
+    model = Scripted(calls_output(READ))
+    bridge = AgentBridge(
+        AgentState(messages=[]), model_aliases={"inspect": model.model}
+    )
+
+    with active(bridge_retarget()):
+        with pytest.raises(RuntimeError, match=RETARGETED):
+            await dialect_round_trip(dialect, bridge)
+
+    assert len(model.inputs) == 1
+
+
 async def test_terminate_ends_the_sample() -> None:
     model = Scripted(calls_output(BASH))
     bridge = in_process_bridge([ChatMessageUser(content=TASK)])
@@ -3064,6 +3137,56 @@ async def test_both_stages_see_the_input_a_response_filter_regenerated_from(
 
     before, after = seen
     assert before.input == after.input == model.inputs[1]
+
+
+@pytest.mark.parametrize("sink", [None, "forwards", "withholds"])
+@pytest.mark.parametrize("regenerates", [False, True])
+async def test_a_response_filter_output_with_the_generations_message_id(
+    sink: str | None, regenerates: bool
+) -> None:
+    seen: Steps = []
+    generated = calls_output(READ)
+    # an equal message keeps its id through the response filter
+    # (`_settle_message_ids`), so the id alone can't tell the two generations apart
+    regenerated = [generated.model_copy(deep=True)] if regenerates else []
+    model = Scripted(generated, *regenerated, calls_output())
+    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    bridge = in_process_bridge(history)
+    filtered: list[bool] = []
+
+    async def returns_equal(
+        model: Model, output: ModelOutput, input: GenerateInput
+    ) -> ModelOutput | None:
+        if filtered:
+            return None
+        filtered.append(True)
+        if not regenerates:
+            return output
+        return await model.generate(
+            input=[ChatMessageSystem(content="Regenerated."), *input.input],
+            tools=input.tools,
+            tool_choice=input.tool_choice,
+            config=input.config,
+        )
+
+    bridge.response_filter = returns_equal
+    bridge.model_event_sink = sink_for(sink)
+    with active([bridge_recording(seen)]):
+        output = await generate(bridge, model, history)
+        await generate(
+            bridge,
+            model,
+            [
+                *history,
+                output.message,
+                ChatMessageTool(content="x", tool_call_id=READ.id),
+            ],
+        )
+
+    assert output.message.id == generated.message.id
+    before, after = seen
+    sent = model.inputs[1] if regenerates else model.inputs[0]
+    assert before.input == after.input == sent
 
 
 @pytest.mark.parametrize("executed", [False, True])

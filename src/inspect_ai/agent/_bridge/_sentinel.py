@@ -398,6 +398,34 @@ async def sentinel_tool_call(
     )
 
 
+async def sentinel_producer(
+    bridge: AgentBridge,
+    message_id: str | None,
+    captured: "ModelEvent | None",
+    filtered: bool,
+) -> "ModelEvent | None":
+    """The generation whose output is the response under review, for both tool stages.
+
+    `captured` is the generation the bridge's model event sink completed with
+    the response's message id. It is the producer unless a response filter
+    returned the response (`filtered`): the filter may have generated it itself,
+    outside the sink, as an equal message that keeps the id. Then the latest
+    such generation in the transcript is the producer, and `captured` only when
+    the transcript has none (a filter that returned the generation's output
+    unchanged, from a sink that withholds events).
+    """
+    from inspect_ai._sentinel._dispatch import produced_event
+
+    if captured is not None and not filtered:
+        return captured
+
+    async def lookup() -> "ModelEvent | None":
+        return produced_event(message_id)
+
+    found = await _guarded(bridge, lookup)
+    return found if found is not None else captured
+
+
 def sentinel_tokens(
     bridge: AgentBridge, output: ModelOutput, checks: Sequence[SentinelCheck]
 ) -> tuple[ModelOutput, list[SentinelCheck]]:

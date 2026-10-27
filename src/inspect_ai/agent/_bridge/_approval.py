@@ -29,8 +29,13 @@ from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn, Sequence
 from inspect_ai._sentinel._context import checks_tool_calls
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.logger import warn_once
-from inspect_ai.agent._bridge._sentinel import SentinelCheck, sentinel_tool_call
+from inspect_ai.agent._bridge._sentinel import (
+    SentinelCheck,
+    sentinel_producer,
+    sentinel_tool_call,
+)
 from inspect_ai.agent._bridge.types import AgentBridge, DispatchedCall
+from inspect_ai.model._call_tools import _SENTINEL_MODIFIED_FUNCTION
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool import Tool, ToolApprovalError
@@ -99,7 +104,8 @@ async def apply_bridge_tool_approval(
     history: list[ChatMessage],
     conversation: list[ChatMessage] | None = None,
     tools: Sequence[ToolInfo | Tool] = (),
-    producer: "ModelEvent | None" = None,
+    captured: "ModelEvent | None" = None,
+    filtered: bool = False,
 ) -> BridgeApproval:
     """Approve the tool calls in a bridged model response.
 
@@ -110,16 +116,16 @@ async def apply_bridge_tool_approval(
 
     When a sentinel is active, once every call is approved each goes through its
     `tool_call` stage in order, as on the native path: its `reject`, `modify` and
-    `terminate` take effect like an approver's. The response carries the
+    `terminate` take effect like an approver's, and a `modify` that changes the
+    function called fails the sample. The response carries the
     `tool_result` check for each call handed to the scaffold (`_sentinel.py`).
     A generation that is an agent turn has already been through the
     `model_input` and `model_output` stages inside `Model.generate()`; the
     tool stages run either way, as on the native path. Like native steps,
     both tool stages take their input from the `ModelEvent` that produced the
-    call, so it is what the model was actually sent: `producer` when the
-    bridge's model event sink received it, else the event found in the
-    transcript, or `None` when there is none (a filter that returned output
-    without generating).
+    call, so it is what the model was actually sent (`sentinel_producer`), or
+    `None` when there is none (a filter that returned output without
+    generating).
 
     A multi-choice response whose alternate choices carry tool calls is reduced to
     the primary choice (with a warning) when approval is active, since only the
@@ -138,9 +144,11 @@ async def apply_bridge_tool_approval(
             `history`). A step's `history` is what the agent has sent.
         tools: The declarations the scaffold made to the model, which identify
             the host tools (and so the registered viewers) the calls denote.
-        producer: The completed `ModelEvent` of the generation that produced
-            `output`, when a model event sink received it (and so may not have
+        captured: The completed `ModelEvent` whose output is `output`'s message,
+            when the bridge's model event sink received it (and so may not have
             put it in the transcript yet).
+        filtered: Whether a response filter returned `output`, rather than
+            passing on the generation's own.
 
     Returns:
         The response for the scaffold, plus the messages to replay to the model when
@@ -219,6 +227,9 @@ async def apply_bridge_tool_approval(
         checks: list[SentinelCheck] | None = None
         if sentinel_active:
             sentinel_history = (conversation or history) + [output.message]
+            producer = await sentinel_producer(
+                bridge, output.message.id, captured, filtered
+            )
             checks = []
             for index, (call, reviewed) in enumerate(zip(tool_calls, reviewed_calls)):
                 viewer = bridge._host_tool_viewer(call, tools)
@@ -251,6 +262,15 @@ async def apply_bridge_tool_approval(
                     and decision.action == "modify"
                     and decision.modified is not None
                 ):
+                    if decision.modified.function != reviewed.function:
+                        # as natively: an error in the monitor, failing the sample
+                        failure = RuntimeError(
+                            _SENTINEL_MODIFIED_FUNCTION.format(
+                                decision.modified.function, reviewed.function
+                            )
+                        )
+                        bridge.request_fail(failure)
+                        raise failure
                     reviewed = decision.modified
                     modified[index] = _handed_arguments(
                         bridge.dispatched_call(call), reviewed
