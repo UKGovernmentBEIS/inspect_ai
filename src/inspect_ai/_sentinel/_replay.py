@@ -501,12 +501,19 @@ class _Driver:
             # the log identifies generates by id, so each step names its call
             orphans = [step_id for step_id in inputs if step_id not in turn_ids]
         else:
-            # ids from before generate ids: a step goes with its conversation's
-            # next turn
-            orphans = [
+            # an id from before generate ids names the last message of the
+            # step's input, and the step goes with its conversation's next
+            # turn; an id naming neither a call nor a message is a generate id
+            # whose call was not made
+            left = {
                 self.span_events[span][0].step_id
                 for spans in candidates.values()
                 for span in spans
+            }
+            orphans = [
+                step_id
+                for step_id in inputs
+                if step_id in left or not self._names_message(step_id)
             ]
         if orphans:
             raise NotImplementedError(
@@ -515,6 +522,13 @@ class _Driver:
                 "the log does not record the input the step was handed, so "
                 "replay cannot rebuild it."
             )
+
+    def _names_message(self, step_id: str) -> bool:
+        # the same input checked again had ":<n>" appended
+        message_id, _, count = step_id.rpartition(":")
+        return self._message_by_id(step_id) is not None or (
+            count.isdigit() and self._message_by_id(message_id) is not None
+        )
 
     def _sentinel_span(self, span_id: str | None) -> str | None:
         # the span tree has no cycle (_check_span_tree)
