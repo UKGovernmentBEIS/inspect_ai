@@ -90,7 +90,7 @@ def steps_from_events(
 
     A log that does not record where a model call was made (`ModelEvent.origin`, written since inspect_ai PR #5990), an older Inspect log or a transcript imported from another source, has its turns inferred: a call made in the scorers' span (in a log from before spans, between a scorer's `StepEvent`s) is a scorer's, whatever tool or agent span holds it (live, the scorers' scope is final); one in a tool's span (or nested in its `ToolEvent`) a tool's, and one in the init span setup's; of the rest, those the timeline shows as utility (`timeline_build`'s prompt and continuity rules) are not turns, and the others are. A final scope no span records reads as the region holding it: a `model_origin()` region, `score()` called by a solver or a tool, an approver's model call; where the timeline does not show such a call as utility, its call is a turn (or, in a tool, its calls are checked), as live it was not.
 
-    A transcript imported from another source (`eval_info` is `None`) has its tool steps from the sample's messages alone, as sentinel's messages projection (`steps_from_messages`) takes them: each call of each assistant message, in order, a `tool_call` step, and a `tool_result` step holding the first tool message with the call's id after that assistant message, none when there is none; step ids, calls, views and results as the projection's, with no input or tools. The steps are in the conversation the messages are, with its record: that of the turn whose input the messages extend (its last message is one of them, by id or content), one whose output is one of them too first, then the longest input, then the latest; else of the latest turn whose output is one of them; else the one with the fewest agent spans enclosing it. An importer can take the messages from a nested agent's model call. Its `ToolEvent`s and model calls do not decide which tool steps there are, what answers them or their conversation, only where they go among that conversation's turns, which decides their order and the record they are built with (`history`, `human_decisions`, segment): a message's steps follow the `model_output` step of the turn whose output is the message (by id, else by content without the model's name, equal outputs in turn), else of the turn before the first turn whose input is longer than the message's position in the messages (the turn that made it, where the messages extend each turn's input), else they precede the first turn. So a call no message holds (a sub-agent's, or one in a turn the messages dropped) has no tool steps, as in the projection.
+    A transcript imported from another source (`eval_info` is `None`) has its tool steps from the sample's messages alone, as sentinel's messages projection (`steps_from_messages`) takes them: each call of each assistant message, in order, a `tool_call` step, and a `tool_result` step holding the first tool message with the call's id after that assistant message, none when there is none; step ids, calls, views and results as the projection's, with no input or tools. An importer takes the messages from one model call and adds its output (Scout's Logfire importer the call with the longest input, its LangSmith importer the last), which can be a nested agent's; so among the turns whose output is one of the messages (by id, or by content without the model's name, as LangSmith copies outputs), the latest wins. The steps are in that turn's conversation, with its record; with no such turn, in that of the turn with the longest input whose last message is one of the messages (of those, the latest), else of the conversation with the fewest agent spans enclosing it. Its `ToolEvent`s and model calls do not decide which tool steps there are or what answers them, only where they go among that conversation's turns, which decides their order and the record they are built with (`history`, `human_decisions`, segment): a message's steps follow the `model_output` step of the latest turn whose output is the message, else of the turn before the first turn whose input is longer than the message's position in the messages (the turn that made it, where the messages extend each turn's input), else they precede the first turn. So a call no message holds (a sub-agent's, or one in a turn the messages dropped) has no tool steps, as in the projection.
 
     Args:
         messages: The sample's messages (`EvalSample.messages`).
@@ -830,17 +830,16 @@ class _Driver:
         longest = list(
             accumulate((len(self._input(g.attempts[0][1])) for g in turns), max)
         )
+        # the latest turn whose output has each id, and each content without
+        # the model's name (a copy, as LangSmith writes them)
         made: dict[str, _Generate] = {}
-        # the turns by their output's content without the model's name, in
-        # log order, for messages that are copies (LangSmith)
-        copied: dict[str, list[_Generate]] = {}
+        copied: dict[str, _Generate] = {}
         for group in turns:
             output = group.attempts[-1][1].output
             if output.choices:
                 if output.message.id is not None:
-                    made.setdefault(output.message.id, group)
-                copied.setdefault(_copy_key(output.message), []).append(group)
-        taken: dict[str, int] = {}
+                    made[output.message.id] = group
+                copied[_copy_key(output.message)] = group
         answers: dict[str, list[int]] = {}
         for position, message in enumerate(self.messages):
             if (
@@ -851,15 +850,11 @@ class _Driver:
         for position, message in enumerate(self.messages):
             if not isinstance(message, ChatMessageAssistant):
                 continue
-            # the turn whose output has the message's id, else the turn before
+            # the latest turn whose output is the message, else the turn before
             # the first whose input is longer than the message's position
-            turn = made.get(message.id) if message.id is not None else None
-            if turn is None:
-                key = _copy_key(message)
-                equal = copied.get(key, [])
-                if taken.get(key, 0) < len(equal):
-                    turn = equal[taken.get(key, 0)]
-                    taken[key] = taken.get(key, 0) + 1
+            turn = (
+                made.get(message.id) if message.id is not None else None
+            ) or copied.get(_copy_key(message))
             later = bisect_right(longest, position)
             if turn is not None or later > 0:
                 at = ((turn or turns[later - 1]).attempts[-1][0], 3)
@@ -878,10 +873,7 @@ class _Driver:
                 self._projected_call(message, position, call, result, conversation, at)
 
     def _main_turns(self, generates: list[_Generate]) -> tuple[str, list[_Generate]]:
-        """The conversation the sample's messages are, and its turns.
-
-        An importer takes the messages from one model call (Scout's Logfire importer the one with the longest input, its LangSmith importer the last), which can be a nested agent's. So the conversation is found from the messages: that of the turn whose input the messages extend (its last message is one of them, by id or content without the model's name), one whose output is one of them too first (an importer adds the output of the call it takes them from), then the longest input, then the latest; else of the latest turn whose output is one of them; else, with no turn in the messages, the conversation with the fewest agent spans enclosing it (of those, the last turn's); else the sample's.
-        """
+        """The conversation the sample's messages are (see `steps_from_events`), and its turns."""
         ids = {m.id for m in self.messages if m.id is not None}
         keys = {_copy_key(m) for m in self.messages}
 
@@ -890,21 +882,17 @@ class _Driver:
                 message
             ) in keys
 
-        extended: tuple[bool, int, int, str] | None = None
         made: str | None = None
-        for index, group in enumerate(generates):
-            input = self._input(group.attempts[0][1])
+        extended: tuple[int, str] | None = None
+        for group in generates:
             output = group.attempts[-1][1].output
-            output_held = bool(output.choices) and held(output.message)
-            if input and held(input[-1]):
-                # an importer adds the output of the call it takes the
-                # messages from, so a held output ranks first
-                rank = (output_held, len(input), index)
-                if extended is None or rank >= extended[:3]:
-                    extended = (*rank, group.conversation)
-            if output_held:
+            if output.choices and held(output.message):
                 made = group.conversation
-        main = extended[3] if extended is not None else made
+            input = self._input(group.attempts[0][1])
+            if input and held(input[-1]):
+                if extended is None or len(input) >= extended[0]:
+                    extended = (len(input), group.conversation)
+        main = made or (extended[1] if extended is not None else None)
         if main is None:
             main = self._shallowest(generates)
         return main, [g for g in generates if g.conversation == main]

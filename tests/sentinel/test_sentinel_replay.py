@@ -3266,6 +3266,60 @@ def test_a_copied_message_s_steps_follow_its_turn_after_a_compaction() -> None:
     assert {s.segment for s in replay if s.stage.startswith("tool")} == {("run", 1)}
 
 
+def test_an_output_repeated_after_a_compaction_places_its_steps_after_the_latest() -> (
+    None
+):
+    # Codex review of 65af6fbb7: two turns make equal outputs (Scout's stable
+    # ids give them one id), and the messages after a compaction hold only
+    # the second's; the latest turn whose output is the message places it
+    from inspect_ai.event import CompactionEvent
+
+    messages, (m0, m1, m2) = equal_outputs_after_compaction(False)
+    replay = replayed_imported(
+        messages, m0, CompactionEvent(type="summary", span_id="run"), m1, m2
+    )
+
+    order = [(s.stage, s.id) for s in replay]
+    made = order.index(("model_output", "m1"))
+    assert order[made + 1 : made + 3] == [
+        ("tool_call", LS.id),
+        ("tool_result", LS.id),
+    ]
+    assert {s.segment for s in replay if s.stage.startswith("tool")} == {("run", 1)}
+
+
+@pytest.mark.parametrize("copied", [False, True])
+def test_an_earlier_equal_output_does_not_take_the_last_call_s_messages(
+    copied: bool,
+) -> None:
+    # Codex review of 65af6fbb7: an earlier sub-agent's call, with a longer
+    # input ending in the same message, makes an output equal to the parent's
+    # last call's, whose input and output the messages are (LangSmith, with a
+    # copy of the output or not); the latest turn's conversation wins
+    call = ToolCall(id="c", function="f", arguments={})
+    user = ChatMessageUser(content="go")
+    sub = imported_call("sub", [ChatMessageUser(content="extra"), user], "sub", call)
+    main = imported_call("main", [user], "run", call)
+    sub.output.choices[0].message.content = "same"
+    main.output.choices[0].message.content = "same"
+    output = main.output.message
+    if copied:
+        output = output.model_copy(update={"id": "copy", "model": None})
+    messages = [user, output, *answers([call], "answer of")]
+    replay = replayed_imported(
+        messages,
+        SpanBeginEvent(id="sub", name="sub", type="agent", parent_id="run"),
+        sub,
+        SpanEndEvent(id="sub"),
+        main,
+    )
+
+    tools = [s for s in replay if s.stage.startswith("tool")]
+    assert tool_steps(replay) == projected_tool_steps(messages)
+    assert [s.step.conversation for s in tools] == ["run", "run"]
+    assert [s.segment for s in tools] == [("run", 0), ("run", 0)]
+
+
 def random_imported(seed: int) -> tuple[list[ChatMessage], list[Event]]:
     """An imported-style transcript: reused ids, parallel calls, pre-filled messages, compaction, sub-agents, ToolEvents of every kind, copies and stable ids, and messages that are the whole history or the last input."""
     from inspect_ai.event import CompactionEvent
