@@ -16,6 +16,10 @@ CREDENTIAL_JOBS = [
     ("release.yml", "build"),
     ("release.yml", "publish-pypi"),
     ("npm-publish.yml", "publish"),
+    # Builds released binaries; attest signs whatever build uploaded.
+    ("sandbox-tools-build.yml", "build"),
+    ("sandbox-tools-build.yml", "attest"),
+    ("sandbox-tools-build.yml", "validate"),
 ]
 
 

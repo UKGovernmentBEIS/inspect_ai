@@ -756,9 +756,13 @@ def eval_set(
                 GenerateConfigArgs,
                 {
                     **kwargs,
-                    **overrides.generate_config.model_dump(
-                        exclude_unset=True, exclude_none=True
-                    ),
+                    # values rather than a dump, which would drop a nested
+                    # null such as a cache `expiry` of None (never expire)
+                    **{
+                        name: value
+                        for name, value in overrides.generate_config
+                        if value is not None
+                    },
                 },
             )
 
