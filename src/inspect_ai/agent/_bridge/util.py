@@ -1174,7 +1174,9 @@ class _Generations:
     (equal to the event's snapshot of it): one a filter edited, or grafted
     another generation's message or calls into, no longer answers that input.
     Nor does an output that is no recorded generation's (a filter's copy or
-    replacement), or one two generations returned.
+    replacement), or one two generations returned, or one whose event kept a
+    live message (one it could not serialize), since an edit to that message
+    changes the snapshot too.
     """
 
     def __init__(self) -> None:
@@ -1194,6 +1196,11 @@ class _Generations:
         if recorded is None or recorded[0] is not output or recorded[1] is None:
             return None
         event = recorded[1]
+        if any(
+            ours.message is logged.message
+            for ours, logged in zip(output.choices, event.output.choices)
+        ):
+            return None
         return event if output == event.output else None
 
     def tracking(

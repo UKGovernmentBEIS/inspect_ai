@@ -3355,6 +3355,71 @@ async def test_a_response_filter_output_changed_since_its_generation_has_no_inpu
     assert before.input is None and after.input is None
 
 
+class Unserializable:
+    """Metadata a message log can't serialize, so its event keeps the live message."""
+
+
+@pytest.mark.parametrize("filter", ["request", "response"])
+async def test_an_edited_output_whose_event_kept_the_live_message_has_no_input(
+    filter: str,
+) -> None:
+    # the event's output shares the message, so an edit changes both sides
+    # and comparing them can't show it
+    seen: Steps = []
+    first = calls_output(READ)
+    first.message.metadata = {"opaque": Unserializable()}
+    second = calls_output(replace(READ, arguments={"path": "/etc/shadow"}))
+    outputs = [first, second, calls_output()]
+    model = Scripted(*(outputs if filter == "request" else [calls_output(), *outputs]))
+    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    bridge = in_process_bridge(history)
+    filtered: list[bool] = []
+
+    async def graft(model: Model, input: GenerateInput) -> ModelOutput:
+        one, two = [
+            await model.generate(
+                input=[ChatMessageSystem(content=name), *input.input],
+                tools=input.tools,
+                tool_choice=input.tool_choice,
+                config=input.config,
+            )
+            for name in ["One.", "Two."]
+        ]
+        one.message.tool_calls = two.message.tool_calls
+        return one
+
+    async def request_filter(
+        model: Model,
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput | GenerateInput | None:
+        if filtered:
+            return None
+        filtered.append(True)
+        return await graft(model, GenerateInput(messages, tools, tool_choice, config))
+
+    async def response_filter(
+        model: Model, output: ModelOutput, input: GenerateInput
+    ) -> ModelOutput | None:
+        if filtered:
+            return None
+        filtered.append(True)
+        return await graft(model, input)
+
+    if filter == "request":
+        bridge.filter = request_filter
+    else:
+        bridge.response_filter = response_filter
+    with active([bridge_recording(seen)]):
+        output = await generate(bridge, model, history)
+
+    assert output.message.tool_calls == second.message.tool_calls
+    [before] = seen
+    assert before.input is None
+
+
 async def test_an_output_two_generations_returned_has_no_input() -> None:
     # a model that returns the same object for two inputs: which one the
     # response answers can't be told
