@@ -1308,6 +1308,28 @@ def test_score_logs_log_model_base_url(
     assert f"base URL {LOG_BASE_URL}" in caplog.text
 
 
+def test_records_escape_control_characters_from_the_log(
+    scorer_file: pathlib.Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    from inspect_ai._eval.score import log_model_record
+    from inspect_ai._util.error import PrerequisiteError
+
+    # a carriage return and an erase-line sequence could overwrite the record
+    control = "\r\x1b[2K"
+    log = _scorer_log(f"evil{control}name", task_file=scorer_file)
+    log.eval.model_base_url = f"https://scoring.invalid/{control}v1"
+
+    assert log_model_record(log) == (
+        "Scoring model mockllm/model from the log, "
+        "base URL https://scoring.invalid/\\r\\x1b[2Kv1."
+    )
+    with caplog.at_level("INFO", logger="inspect_ai._eval.loader"):
+        with pytest.raises(PrerequisiteError):
+            resolve_scorers(log)
+    assert _record(scorer_file, "evil\\r\\x1b[2Kname") in caplog.text
+    assert control not in caplog.text
+
+
 def test_score_command_help_says_trusted_logs_only() -> None:
     from click.testing import CliRunner
 

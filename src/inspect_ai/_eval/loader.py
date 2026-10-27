@@ -26,6 +26,7 @@ from inspect_ai._util.registry import (
     registry_lookup,
     registry_params,
 )
+from inspect_ai._util.rich import escape_control_characters
 from inspect_ai.agent._agent import Agent
 from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.log import EvalLog
@@ -860,7 +861,9 @@ def scorer_from_log_name(name: str, task_path: Path | None, /, **kwargs: Any) ->
                 f"The scorer `{name}` couldn't be loaded. The file '{task_pretty_path}' was not found. Please provide a path to the file containing the scorer using the '--scorer' parameter"
             )
 
-        record = f"Imported task file {task_path.absolute().as_posix()} (recorded in the log) to load scorer '{name}'."
+        record = escape_control_characters(
+            f"Imported task file {task_path.absolute().as_posix()} (recorded in the log) to load scorer '{name}'."
+        )
         print_record(record)
         logger.info(record)
 

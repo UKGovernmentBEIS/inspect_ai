@@ -46,6 +46,7 @@ from inspect_ai._util.registry import (
     registry_params,
     registry_unqualified_name,
 )
+from inspect_ai._util.rich import escape_control_characters
 from inspect_ai.event._event import Event
 from inspect_ai.event._score import ScoreEvent
 from inspect_ai.event._tree import (
@@ -866,7 +867,7 @@ def log_model_record(log: EvalLog) -> str | None:
     """
     if log.eval.model_base_url is None:
         return None
-    return (
+    return escape_control_characters(
         f"Scoring model {log.eval.model} from the log, "
         f"base URL {log.eval.model_base_url}."
     )
