@@ -394,6 +394,7 @@ def test_an_agent_call_names_its_sample(provider: str, base_url: str) -> None:
         "sample_id": "a",
         "epoch": 1,
         "sample_uuid": sample.uuid,
+        "attempt_number": 1,
     }
     assert attempt
     # the sample's registration was complete before the sidecar saw its call
@@ -1023,7 +1024,7 @@ def _fails_once() -> Solver:
     return solve
 
 
-def test_a_sample_that_will_be_retried_keeps_its_state_in_the_sidecar() -> None:
+def test_a_retried_sample_numbers_its_attempts_and_is_ended_once() -> None:
     stand_in = StandInSidecar()
     task = Task(dataset=[Sample(input="Hi.")], solver=_fails_once())
 
@@ -1034,7 +1035,11 @@ def test_a_sample_that_will_be_retried_keeps_its_state_in_the_sidecar() -> None:
     assert sample.error is None
     # told once, after the attempt that wasn't retried
     assert _ended(stand_in) == [sample.uuid]
-    assert len(stand_in.model_calls) == 2
+    # one sample, two attempts, the retry numbered after the first
+    contexts = [_context(call) for call in stand_in.model_calls]
+    assert [c["sample_uuid"] for c in contexts if c] == [sample.uuid] * 2
+    assert [c["attempt_number"] for c in contexts if c] == [1, 2]
+    assert len({c["attempt"] for c in contexts if c}) == 2
 
 
 def _sentinel_events(sample: EvalSample) -> list[SentinelEvent]:
