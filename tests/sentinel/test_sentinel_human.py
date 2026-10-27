@@ -36,8 +36,14 @@ from inspect_ai.approval._human.manager import (
 )
 from inspect_ai.approval._human.util import render_tool_approval
 from inspect_ai.dataset import Sample
-from inspect_ai.event import SentinelEvent, ToolEvent
-from inspect_ai.log import EvalLog
+from inspect_ai.event import (
+    ModelEvent,
+    SentinelEvent,
+    SpanBeginEvent,
+    SpanEndEvent,
+    ToolEvent,
+)
+from inspect_ai.log import EvalLog, transcript
 from inspect_ai.model import (
     ChatCompletionChoice,
     ChatMessage,
@@ -49,10 +55,12 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._display import display_conversation_assistant_message
-from inspect_ai.solver import generate, use_tools
+from inspect_ai.model._model import use_model_event_sink
+from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
 from inspect_ai.tool import Tool, ToolCall, ToolCallContent, ToolCallView, tool
 from inspect_ai.tool._tool_call import substitute_tool_call_content
 from inspect_ai.tool._tools._execute import code_viewer
+from inspect_ai.util._span import span
 
 # mypy checks the tests against inspect_sentinel's API; they run on the fake
 if TYPE_CHECKING:
@@ -1178,8 +1186,13 @@ def test_a_turn_approval_is_seen_at_each_of_its_calls(
         for m in log.samples[0].messages
         if isinstance(m, ChatMessageAssistant) and m.tool_calls
     ]
-    assert turn.id is not None
-    approved = ("model_output", turn.id, ("c1", "c2"), "human", "proceed", None)
+    [generate] = [
+        e
+        for e in log.samples[0].events
+        if isinstance(e, ModelEvent) and e.output.message.id == turn.id
+    ]
+    assert generate.uuid is not None
+    approved = ("model_output", generate.uuid, ("c1", "c2"), "human", "proceed", None)
     assert [
         (s.stage, s.subject, [kept(r) for r in s.decisions or ()]) for s in seen
     ] == [
@@ -1254,6 +1267,78 @@ def test_a_persons_decision_stays_in_its_own_conversation(
     }
     [done] = [s for s in seen if s.subject == "done"]
     assert [r.step_id for r in done.decisions or ()] == [transfer]
+
+
+class StartsInSubAgent:
+    """A model event sink that runs each generate in the span `sub-agent`."""
+
+    def on_start(self, input: list[ChatMessage]) -> str | None:
+        return "sub-agent"
+
+    def on_pending(self, event: ModelEvent) -> None:
+        transcript()._event(event)
+
+    def on_complete(self, event: ModelEvent) -> None:
+        transcript()._event_updated(event)
+
+
+@solver
+def h_sub_agent_turns_then_a_main_turn() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        async with span("outer", type="agent", id="outer"):
+            transcript()._event(
+                SpanBeginEvent(
+                    id="sub-agent", parent_id="outer", type="agent", name="sub"
+                )
+            )
+            with use_model_event_sink(StartsInSubAgent()):
+                await get_model().generate("Sub-agent turn.")
+                await get_model().generate("Sub-agent again.")
+            transcript()._event(SpanEndEvent(id="sub-agent"))
+            state.output = await get_model().generate("Main turn.")
+        return state
+
+    return solve
+
+
+def test_a_persons_decision_on_an_on_start_sink_s_turn_stays_in_its_span(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    Panel("approve").install(monkeypatch)
+    seen: list[Seen] = []
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            turn_output(ADD),
+            ModelOutput.from_content("mockllm/model", content="sub done"),
+            ModelOutput.from_content("mockllm/model", content="main done"),
+        ],
+        memoize=False,
+    )
+    task = Task(
+        dataset=[Sample(input="Hi.")],
+        solver=h_sub_agent_turns_then_a_main_turn(),
+        sentinel=[turn_escalated_to_human(), h_spy(seen)],
+    )
+
+    log = eval(task, model=model)[0]
+
+    assert log.status == "success", log.error
+    assert log.samples
+    [turn] = [
+        e
+        for e in log.samples[0].events
+        if isinstance(e, ModelEvent) and e.output.message.tool_calls
+    ]
+    assert turn.span_id == "sub-agent" and turn.uuid is not None
+    approved = ("model_output", turn.uuid, ("c1",), "human", "proceed", None)
+    assert [
+        (s.conversation, s.subject, [kept(r) for r in s.decisions or ()]) for s in seen
+    ] == [
+        ("sub-agent", "Adding and shouting.", []),
+        ("sub-agent", "sub done", [approved]),
+        ("outer", "main done", []),
+    ]
 
 
 class Answered:

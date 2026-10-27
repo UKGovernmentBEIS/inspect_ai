@@ -2,7 +2,7 @@ from contextvars import ContextVar
 from typing import Any, NamedTuple
 
 from ._config import SentinelRoot
-from ._scope import AgentScope, current_scope, in_final_scope, solving
+from ._scope import current_origin, in_final_scope, is_agent_turn
 
 
 class SentinelFailure(Exception):
@@ -50,9 +50,7 @@ def active_task_description() -> str | None:
 
 
 def is_agent_generate() -> bool:
-    return (
-        active_sentinel() is not None and solving() and current_scope() is AgentScope.ON
-    )
+    return active_sentinel() is not None and is_agent_turn(current_origin())
 
 
 def checks_tool_calls() -> bool:

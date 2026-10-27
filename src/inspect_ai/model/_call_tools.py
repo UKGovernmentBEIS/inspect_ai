@@ -42,7 +42,7 @@ from pydantic import BaseModel, TypeAdapter
 from typing_extensions import is_typeddict
 
 from inspect_ai._sentinel._context import SentinelFailure, checks_tool_calls
-from inspect_ai._sentinel._scope import AgentScope, sentinel_scope
+from inspect_ai._sentinel._scope import sentinel_scope
 from inspect_ai._util._async import raise_unwrapped
 from inspect_ai._util.content import (
     Content,
@@ -928,7 +928,7 @@ async def call_tool(
                 transcript()._event(event)
                 if on_execute is not None:
                     on_execute(call)
-                with sentinel_scope(AgentScope.OFF):
+                with sentinel_scope("tool"):
                     result: ToolResult = await tool_def.tool(**arguments)
                 agent_span_id = getattr(tool_def.tool, "agent_span_id", None)
                 return CalledTool(result, [], None, None, agent_span_id)
