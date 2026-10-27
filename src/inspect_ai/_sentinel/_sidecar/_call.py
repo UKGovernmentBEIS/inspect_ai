@@ -73,6 +73,9 @@ async def sidecar_call(model: "Model") -> SidecarCall | None:
             # the same across the sample's retries, and new for each attempt
             "sample_uuid": active.sample_uuid,
             "attempt": active.id,
+            # higher for each retry, so the sidecar can tell a late call of
+            # an earlier attempt from the current one's
+            "attempt_number": active.retries + 1,
         }
     )
     return SidecarCall(sidecar, header, sidecars.mode)
