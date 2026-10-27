@@ -109,39 +109,6 @@ There are two sandbox environments built in to Inspect and six available as exte
 
 The `local` environment always executes as the current effective user. On POSIX systems, `exec(user=...)` accepts that user's name or UID; other identities raise `SandboxUserUnsupportedError` before execution. On other platforms, omit `user`.
 
-File operations also accept an optional `user`:
-
-```python
-contents = await sandbox().read_file("/home/agent/output.txt", user="agent")
-await sandbox().write_file("/home/agent/input.txt", contents, user="agent")
-```
-
-Docker enforces the requested user's filesystem permissions, including for
-symlink targets. With no `user`, both operations use the container's default
-execution user. Docker reads previously used privileged copies that could
-bypass that user's permissions; callers that intentionally need privileged
-reads must now pass `user="root"`.
-
-Reads follow kernel permissions, so root can normally read files with no read
-bits (mode `000`). The previous owner-read-bit check no longer applies.
-
-If a root-default container runs agent tools as a different user, specify that
-same user when reading or writing on the agent's behalf. Inspect cannot infer
-it from the tool configuration. Providers that cannot enforce an explicit user
-reject the call with `SandboxUserUnsupportedError`; older providers continue
-to support calls without the keyword. The local provider accepts only the
-current effective user, as for `exec()`.
-
-Docker reads require a running Linux container with `tar --no-recursion`,
-in addition to `/bin/sh` and `/usr/bin/timeout` used by existing writes and
-timed commands. Reads of concurrently modified files return best-effort contents
-or fail, including when a file shrinks during the read.
-
-Human CLI session-log reads use their configured user. When `human_cli(user=...)`
-records a session, providers without user-aware reads warn and omit the collected
-logs. Set `record_session=False` until the provider adds support, or omit `user`
-if the sandbox's default execution user is the intended human identity.
-
 Sandbox environment definitions can be bound at the `Sample`, `Task`, or `eval()` level. Binding precedence goes from `eval()`, to `Task` to `Sample`, however sandbox config files defined on the `Sample` always take precedence when the sandbox type for the `Sample` is the same as the enclosing `Task` or `eval()`.
 
 Here is a `Task` that defines a `sandbox`:
@@ -240,6 +207,17 @@ Docker Compose is checked separately: Inspect requires version 2.21.0 or greater
 Inspect's prerequisite checks confirm that Docker supports the features Inspect needs. They do not check whether security updates are installed. You are responsible for using vendor-supported releases and applying security updates to Docker Engine or Docker Desktop, Compose, the container runtime (such as runc), and the Docker host's operating system. This also applies when the Docker host is remote.
 
 If you plan on running evaluations with large numbers of concurrent containers (\> 30) you should also configure Docker's [default address pools](https://straz.to/2021-09-08-docker-address-pools/) to accommodate this.
+
+### File Access
+
+File reads require a running Linux container with `/bin/sh`, `/usr/bin/timeout`
+and `tar` supporting `--no-recursion`. Reads enforce the requested user's
+filesystem permissions, including for symlink targets. Pass `user="root"`
+when privileged access is intended.
+
+Reads follow kernel permissions, so root can normally read files with no read
+bits (mode `000`). Reads of concurrently modified files return best-effort
+contents or fail, including when a file shrinks during the read.
 
 ### Task Configuration
 
