@@ -56,11 +56,12 @@ def _forward_provider_errors(
     are signalled through `bridge.request_fail` (raised on the agent's side by
     the bridge's monitor task) while the scaffold still gets an error reply.
 
-    A `LimitExceededError` (message, token, cost or turn limit) is raised as
-    `RaiseAfterReply`: the dispatcher writes the error reply first, then raises
-    the limit out of the service task into the bridge's task group. It is
-    raised from the agent as from a native agent, so the scope that applied
-    the limit (`run()`, or the sample) handles it.
+    A `LimitExceededError` (message, token, cost or turn limit) is recorded in
+    `bridge.generation_limits` and raised as `RaiseAfterReply`: the dispatcher
+    writes the error reply first, then raises the limit out of the service task
+    into the bridge's task group. `sandbox_agent_bridge` raises it from the
+    agent as from a native agent, so the scope that applied the limit (`run()`,
+    or the sample) handles it.
     """
 
     async def generate_forwarding_errors(
@@ -74,6 +75,7 @@ def _forward_provider_errors(
                 # the service dispatcher ends the sample with it
                 raise
             if isinstance(ex, LimitExceededError):
+                bridge.generation_limits.append(ex)
                 raise RaiseAfterReply(
                     {PROVIDER_ERROR_KEY: cast(JsonValue, provider_error_payload(ex))},
                     ex,

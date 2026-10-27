@@ -13,6 +13,7 @@ from inspect_ai.util._limit import (
     check_message_limit,
     check_token_limit,
     message_limit,
+    outermost_limit_error,
     record_model_usage,
     sample_limits,
     time_limit,
@@ -120,6 +121,25 @@ def test_apply_limits_child_exceeded() -> None:
 
     assert parent_scope.limit_error is None
     assert child_scope.limit_error is not None
+
+
+def test_outermost_limit_error_is_the_first_entered() -> None:
+    """Of nested limits of different types, the outer one's error wins.
+
+    An error with no source counts as innermost.
+    """
+    outer = token_limit(5)
+    inner = message_limit(2)
+    with outer, inner:
+        token_error = LimitExceededError("token", value=7, limit=5, source=outer)
+        message_error = LimitExceededError("message", value=3, limit=2, source=inner)
+        no_source = LimitExceededError("custom", value=1, limit=0)
+        for errors in (
+            [message_error, token_error, no_source],
+            [no_source, token_error, message_error],
+        ):
+            assert outermost_limit_error(errors) is token_error
+        assert outermost_limit_error([no_source, message_error]) is message_error
 
 
 def test_apply_limits_handles_error_without_source() -> None:

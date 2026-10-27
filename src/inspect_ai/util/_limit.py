@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import abc
 import ast
+import itertools
 import logging
 import math
 import operator
@@ -18,6 +19,7 @@ from typing import (
     Literal,
     Mapping,
     NamedTuple,
+    Sequence,
     TypeVar,
 )
 
@@ -36,6 +38,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 TNode = TypeVar("TNode", bound="_Node")
+
+# order in which limits are entered (see `outermost_limit_error`)
+_limit_entries = itertools.count()
 
 
 class LimitExceededError(Exception):
@@ -96,6 +101,7 @@ class Limit(abc.ABC):
         # inspect_ai.util._limit_overrides.sample_limit_override_scope and
         # resolved by the node's `limit` property); None for ordinary nodes
         self._limit_override: Callable[[], int | None] | None = None
+        self._entry: int | None = None
 
     def _limit_override_value(self) -> int | None:
         """The live override for this node, or ``None`` when none applies."""
@@ -146,6 +152,7 @@ class Limit(abc.ABC):
                 "create a new instance of the Limit."
             )
         self._entered = True
+        self._entry = next(_limit_entries)
 
 
 @contextmanager
@@ -185,6 +192,24 @@ def apply_limits(
         limit_scope.limit_error = e
         if not catch_errors:
             raise
+
+
+def outermost_limit_error(errors: Sequence[LimitExceededError]) -> LimitExceededError:
+    """The error of the limit entered first, of limits active in one context.
+
+    Limits active in one context nest in the order they were entered, so the
+    first one belongs to the outermost scope, which ends the others' scopes as
+    well. An error with no entered `source` counts as innermost.
+
+    Args:
+       errors: Errors of limits exceeded in one context (at least one).
+    """
+
+    def entry(error: LimitExceededError) -> float:
+        entered = getattr(error.source, "_entry", None)
+        return math.inf if entered is None else entered
+
+    return min(errors, key=entry)
 
 
 class LimitScope:

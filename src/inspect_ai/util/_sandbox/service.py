@@ -83,12 +83,13 @@ class RaiseAfterReply(Exception):
     """Raised by a service method to reply with `result`, then raise `error`.
 
     The dispatcher writes `result` as the request's reply, then raises `error`
-    from the request's handler however the write ends (bounded by
-    `TERMINATING_REPLY_TIMEOUT`). `sandbox_service()`, handling requests
-    itself, propagates it to the task running the service, so that task gets
-    the error and the sandbox-side caller still gets its reply. The sandbox
-    agent bridge raises a limit reached in a generation this way, so the scope
-    that applied the limit handles it.
+    from the request's handler, also when the write fails or times out
+    (`TERMINATING_REPLY_TIMEOUT`). A cancellation of the write propagates
+    instead of `error`. `sandbox_service()`, handling requests itself,
+    propagates `error` to the task running the service, so that task gets the
+    error and the sandbox-side caller still gets its reply. The sandbox agent
+    bridge raises a limit reached in a generation this way, so the scope that
+    applied the limit handles it.
     """
 
     def __init__(self, result: JsonValue, error: Exception) -> None:
@@ -491,12 +492,14 @@ class SandboxService:
             # by service methods must propagate to be enacted
             await self._handle_request(request_file)
         except RaiseAfterReply as signal:
-            # the error is raised however the reply ends, as for a termination
+            # unlike a termination, a cancellation of the reply (its owner is
+            # ending) is not replaced with the error
             try:
                 with anyio.move_on_after(TERMINATING_REPLY_TIMEOUT):
                     await self._write_response(request_file, request_id, signal.result)
-            finally:
-                raise signal.error
+            except Exception as ex:
+                logger.warning(f"Error replying to sandbox service request: {ex}")
+            raise signal.error
         except Exception as ex:
             raise_if_control_flow(ex)
             logger.warning(f"Error handling sandbox service request: {ex}")

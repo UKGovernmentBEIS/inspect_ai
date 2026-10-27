@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import ast
 from collections.abc import Iterator
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, cast
+from typing import Any, Callable, NamedTuple, cast
 from unittest.mock import AsyncMock
 
 import anyio
@@ -66,9 +67,19 @@ from inspect_ai.model._registry import modelapi
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
-from inspect_ai.util import cost_limit, message_limit, token_limit, turn_limit
+from inspect_ai.util import (
+    cost_limit,
+    message_limit,
+    time_limit,
+    token_limit,
+    turn_limit,
+)
 from inspect_ai.util._limit import Limit, LimitExceededError
-from inspect_ai.util._sandbox.service import RaiseAfterReply, find_control_flow
+from inspect_ai.util._sandbox.service import (
+    RaiseAfterReply,
+    SandboxService,
+    find_control_flow,
+)
 
 
 class _ProviderError(Exception):
@@ -920,29 +931,59 @@ async def test_model_generate_wraps_returned_exception_with_status() -> None:
 # ---------- limits reached in a sandbox-bridged generation ----------
 
 
-class _Shutdown:
-    """Holds a bridged generation until the bridge is shutting down.
+@dataclass
+class _Request:
+    """One chat completion request the scaffold makes, and how it is held.
 
-    The agent returns once its generation has started, and the generation goes
-    on once the bridge is killing the model proxy, which waits for its reply:
-    the limit is reached after the agent completed, during the bridge's cleanup.
+    `messages` is the number of messages it carries. With `after_held`, it
+    waits for the `held` request's reply write to begin before it generates.
+    With `during_shutdown`, the agent returns once it starts and it generates
+    once the bridge is killing the model proxy. A `held` reply write begins
+    and then waits until it is cancelled.
     """
+
+    messages: int = 1
+    after_held: bool = False
+    during_shutdown: bool = False
+    held: bool = False
 
     def arm(self) -> None:
         """Make the events, in the event loop that waits on them."""
         self.generating = anyio.Event()
-        self.killing = anyio.Event()
+        self.writing = anyio.Event()
         self.replied = anyio.Event()
+
+
+class _Scaffold:
+    """The requests a bridged scaffold makes concurrently."""
+
+    def __init__(self, requests: list[_Request]) -> None:
+        self.requests = requests
+
+    def arm(self) -> None:
+        self.killing = anyio.Event()
+        for request in self.requests:
+            request.arm()
+
+    @property
+    def held(self) -> _Request:
+        [held] = [request for request in self.requests if request.held]
+        return held
+
+    @property
+    def during_shutdown(self) -> _Request | None:
+        return next((r for r in self.requests if r.during_shutdown), None)
 
 
 class _ExitedProxy:
     """A model proxy process that has already exited cleanly.
 
-    With a `shutdown`, killing it waits for the held generation's reply.
+    Killing it lets a request held for the bridge's shutdown go on, and waits
+    for its reply to be written or, for a held reply, begun.
     """
 
-    def __init__(self, shutdown: _Shutdown | None) -> None:
-        self._shutdown = shutdown
+    def __init__(self, scaffold: _Scaffold) -> None:
+        self._scaffold = scaffold
 
     def __aiter__(self) -> _ExitedProxy:
         return self
@@ -951,40 +992,39 @@ class _ExitedProxy:
         raise StopAsyncIteration
 
     async def kill(self) -> None:
-        if self._shutdown is not None:
-            self._shutdown.killing.set()
+        request = self._scaffold.during_shutdown
+        if request is not None:
+            self._scaffold.killing.set()
             with anyio.fail_after(10):
-                await self._shutdown.replied.wait()
+                await (request.writing if request.held else request.replied).wait()
 
 
 class _ProxySandbox:
-    def __init__(self, shutdown: _Shutdown | None) -> None:
-        self.exec_remote = AsyncMock(return_value=_ExitedProxy(shutdown))
+    def __init__(self, scaffold: _Scaffold) -> None:
+        self.exec_remote = AsyncMock(return_value=_ExitedProxy(scaffold))
         self._tools_user: str | None = None
 
 
 Reply = tuple[JsonValue | None, str | None]
 
 
-def _serve_one_generation(
-    monkeypatch: pytest.MonkeyPatch,
-    replies: list[Reply],
-    shutdown: _Shutdown | None,
+def _serve_generations(
+    monkeypatch: pytest.MonkeyPatch, scaffold: _Scaffold, replies: list[Reply]
 ) -> None:
-    """Make `sandbox_agent_bridge` serve one chat completion, without a sandbox.
+    """Make `sandbox_agent_bridge` serve the scaffold's requests, without a sandbox.
 
     The bridge, its model service methods and the sandbox service dispatcher
     are real; the sandbox, the model proxy process and the request transport
-    (`dispatching_service`) are faked. Each reply the dispatcher writes, as
+    (`dispatching_service`) are faked. The requests are handled concurrently,
+    as the dispatcher handles them. Each reply the dispatcher writes, as
     (result, error), is appended to `replies` once the write completes; the
     write takes two short waits first, as a sandbox write and request removal
-    do, so a teardown started before it would cancel it. With a `shutdown`,
-    the generation waits for the bridge's cleanup.
+    do, so a teardown started before it would cancel it.
     """
     monkeypatch.setattr(
         sandbox_bridge_module,
         "sandbox_with_injected_tools",
-        AsyncMock(return_value=_ProxySandbox(shutdown)),
+        AsyncMock(return_value=_ProxySandbox(scaffold)),
     )
 
     async def serve(
@@ -993,93 +1033,129 @@ def _serve_one_generation(
         started: anyio.Event,
         **kwargs: Any,
     ) -> None:
-        if shutdown is not None:
-            shutdown.arm()
+        scaffold.arm()
         generate = methods["generate_completions"]
 
-        async def held_generate(**params: Any) -> JsonValue:
-            if shutdown is not None:
-                shutdown.generating.set()
-                await shutdown.killing.wait()
-            return cast(JsonValue, await generate(**params))
+        def service_for(request: _Request) -> SandboxService:
+            async def held_generate(**params: Any) -> JsonValue:
+                if request.after_held:
+                    await scaffold.held.writing.wait()
+                if request.during_shutdown:
+                    request.generating.set()
+                    await scaffold.killing.wait()
+                return cast(JsonValue, await generate(**params))
 
-        service = dispatching_service(
-            monkeypatch,
-            "generate_completions",
-            held_generate,
-            {
-                "json_data": {
-                    "model": "inspect",
-                    "messages": [{"role": "user", "content": "Say hi."}],
-                }
-            },
-            [],
-        )
+            service = dispatching_service(
+                monkeypatch,
+                "generate_completions",
+                held_generate,
+                {
+                    "json_data": {
+                        "model": "inspect",
+                        "messages": [{"role": "user", "content": "Say hi."}]
+                        * request.messages,
+                    }
+                },
+                [],
+            )
 
-        async def write_response(
-            request_file: str,
-            request_id: str,
-            result: JsonValue | None,
-            error: str | None = None,
-        ) -> None:
-            await anyio.sleep(0.01)
-            await anyio.sleep(0.01)
-            replies.append((result, error))
-            if shutdown is not None:
-                shutdown.replied.set()
+            async def write_response(
+                request_file: str,
+                request_id: str,
+                result: JsonValue | None,
+                error: str | None = None,
+            ) -> None:
+                request.writing.set()
+                if request.held:
+                    await anyio.sleep_forever()
+                await anyio.sleep(0.01)
+                await anyio.sleep(0.01)
+                replies.append((result, error))
+                request.replied.set()
 
-        monkeypatch.setattr(service, "_write_response", write_response)
+            monkeypatch.setattr(service, "_write_response", write_response)
+            return service
+
+        services = [service_for(request) for request in scaffold.requests]
         started.set()
-        await service._handle_request_tracked(REQUEST_FILE, REQUEST_ID)
+        async with anyio.create_task_group() as tg:
+            for service in services:
+                tg.start_soon(service._handle_request_tracked, REQUEST_FILE, REQUEST_ID)
         await anyio.sleep_forever()
 
     monkeypatch.setattr(bridge_service, "sandbox_service", serve)
 
 
 @agent
-def _bridged_agent(shutdown: _Shutdown | None) -> Agent:
+def _bridged_agent(scaffold: _Scaffold) -> Agent:
     async def execute(state: AgentState) -> AgentState:
         async with sandbox_agent_bridge(state) as bridge:
-            if shutdown is not None:
-                # complete while the generation is in flight
-                await shutdown.generating.wait()
+            request = scaffold.during_shutdown
+            if request is not None:
+                # complete while that generation is in flight
+                await request.generating.wait()
             else:
-                # the scaffold, waiting on its model request
+                # the scaffold, waiting on its model requests
                 await anyio.sleep_forever()
         return bridge.state
 
     return execute
 
 
+class _Outcome(NamedTuple):
+    sample: EvalSample
+    errors: list[LimitExceededError | None]
+    """The limit errors the `run()` of the bridged agent returned."""
+    outer_errors: list[LimitExceededError | None]
+    """The limit errors an enclosing `run()` returned."""
+    replies: list[Reply]
+
+
 def _run_bridged_agent(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     limit: Limit,
+    scaffold: _Scaffold | None = None,
     sample_token_limit: int | None = None,
-    during_shutdown: bool = False,
-) -> tuple[EvalSample, list[LimitExceededError | None], list[Reply]]:
+    outer_limit: Limit | None = None,
+) -> _Outcome:
     """Run a bridged agent under `run(limits=[limit])` in a one-sample eval.
 
-    The agent's generation reaches its limit while the agent waits on it, or,
-    `during_shutdown`, after the agent completed while the bridge shuts down.
-    Returns the sample, the limit errors `run()` returned and the replies the
-    dispatcher wrote. The solver marks the sample's store once `run()` returns,
-    so a sample that continued past the agent has `store["continued"]` set.
+    The agent's scaffold makes one request by default. With `outer_limit`,
+    that `run()` is inside another `run()` applying it. The solver marks the
+    sample's store once the outermost `run()` returns, so a sample that
+    continued past the agent has `store["continued"]` set.
     """
+    scaffold = scaffold or _Scaffold([_Request()])
     replies: list[Reply] = []
-    shutdown = _Shutdown() if during_shutdown else None
-    _serve_one_generation(monkeypatch, replies, shutdown)
+    _serve_generations(monkeypatch, scaffold, replies)
     output = ModelOutput.from_content(model="mockllm/model", content="hi")
     output.usage = ModelUsage(input_tokens=3, output_tokens=4, total_tokens=7)
     errors: list[LimitExceededError | None] = []
+    outer_errors: list[LimitExceededError | None] = []
+
+    @agent
+    def outer_agent() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            state, error = await run(_bridged_agent(scaffold), state, limits=[limit])
+            errors.append(error)
+            return state
+
+        return execute
 
     @solver
     def run_bridged() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            _, error = await run(
-                _bridged_agent(shutdown), state.messages, limits=[limit]
-            )
-            errors.append(error)
+            if outer_limit is None:
+                _, error = await run(
+                    _bridged_agent(scaffold), state.messages, limits=[limit]
+                )
+                errors.append(error)
+            else:
+                _, error = await run(
+                    outer_agent(), state.messages, limits=[outer_limit]
+                )
+                outer_errors.append(error)
             state.store.set("continued", True)
             return state
 
@@ -1096,13 +1172,22 @@ def _run_bridged_agent(
         display="none",
     )[0]
     assert log.samples is not None
-    return log.samples[0], errors, replies
+    return _Outcome(log.samples[0], errors, outer_errors, replies)
 
 
 def _assert_error_reply(replies: list[Reply]) -> None:
     [(result, error)] = replies
     assert error is None
     assert isinstance(result, dict) and PROVIDER_ERROR_KEY in result
+
+
+def _assert_sample_token_limit(outcome: _Outcome) -> None:
+    sample = outcome.sample
+    assert sample.error is None, sample.error
+    assert sample.limit is not None
+    assert (sample.limit.type, sample.limit.limit) == ("token", 5)
+    assert "continued" not in sample.store
+    assert outcome.errors == []
 
 
 @pytest.fixture
@@ -1146,16 +1231,17 @@ def test_agent_limit_in_a_bridged_generation_ends_only_the_agent(
     """
     limit = make_limit()
 
-    sample, errors, replies = _run_bridged_agent(tmp_path, monkeypatch, limit)
+    outcome = _run_bridged_agent(tmp_path, monkeypatch, limit)
 
+    sample = outcome.sample
     assert sample.error is None, sample.error
     assert sample.limit is None
     assert sample.store.get("continued") is True
-    [error] = errors
+    [error] = outcome.errors
     assert error is not None
     assert error.type == limit_type
     assert error.source is limit
-    _assert_error_reply(replies)
+    _assert_error_reply(outcome.replies)
 
 
 def test_sample_limit_in_a_bridged_generation_ends_the_sample(
@@ -1166,46 +1252,107 @@ def test_sample_limit_in_a_bridged_generation_ends_the_sample(
     The error propagates out of the agent, past the `run()` limits that do not
     own it, to the sample runner, which records it as for a native agent.
     """
-    sample, errors, replies = _run_bridged_agent(
+    outcome = _run_bridged_agent(
         tmp_path, monkeypatch, token_limit(1000), sample_token_limit=5
     )
 
-    assert sample.error is None, sample.error
-    assert sample.limit is not None
-    assert (sample.limit.type, sample.limit.limit) == ("token", 5)
-    assert "continued" not in sample.store
-    assert errors == []
-    _assert_error_reply(replies)
+    _assert_sample_token_limit(outcome)
+    _assert_error_reply(outcome.replies)
 
 
+@pytest.mark.parametrize("reply", ["written", "cancelled"])
 @pytest.mark.parametrize("owner", ["agent", "sample"])
 def test_limit_in_a_bridged_generation_during_shutdown_is_raised(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, owner: str
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, owner: str, reply: str
 ) -> None:
     """A limit reached after the agent completed, while the bridge shuts down, is raised.
 
     It is not a cleanup error to log: the scope that applied it handles it, as
     when the agent is still running. A `run()` limit ends the agent; a sample
-    limit ends the sample.
+    limit ends the sample. This holds when the bridge's own cleanup cancels
+    the reply too.
     """
     limit = token_limit(5 if owner == "agent" else 1000)
+    request = _Request(during_shutdown=True, held=reply == "cancelled")
 
-    sample, errors, replies = _run_bridged_agent(
+    outcome = _run_bridged_agent(
         tmp_path,
         monkeypatch,
         limit,
+        scaffold=_Scaffold([request]),
         sample_token_limit=5 if owner == "sample" else None,
-        during_shutdown=True,
     )
 
-    assert sample.error is None, sample.error
     if owner == "agent":
+        sample = outcome.sample
+        assert sample.error is None, sample.error
         assert sample.limit is None
         assert sample.store.get("continued") is True
-        [error] = errors
+        [error] = outcome.errors
         assert error is not None and error.source is limit
     else:
-        assert sample.limit is not None
-        assert (sample.limit.type, sample.limit.limit) == ("token", 5)
-        assert errors == []
-    _assert_error_reply(replies)
+        _assert_sample_token_limit(outcome)
+    if reply == "written":
+        _assert_error_reply(outcome.replies)
+    else:
+        assert outcome.replies == []
+
+
+@pytest.mark.parametrize("during_shutdown", [False, True], ids=["running", "shutdown"])
+def test_concurrent_bridged_generations_raise_the_outermost_limit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, during_shutdown: bool
+) -> None:
+    """Of limits reached by concurrent bridged generations, the outermost is raised.
+
+    One request reaches the sample's token limit and its reply is still being
+    written when another reaches the `run()` message limit and its reply
+    completes. The sample limit ends the sample, which ends the agent too,
+    rather than `run()` handling its own limit and the sample going on.
+    """
+    scaffold = _Scaffold(
+        [
+            # 7 tokens: over the sample's token limit
+            _Request(held=True),
+            # 2 messages: no room for a reply under the run() limit
+            _Request(messages=2, after_held=True, during_shutdown=during_shutdown),
+        ]
+    )
+
+    outcome = _run_bridged_agent(
+        tmp_path,
+        monkeypatch,
+        message_limit(2),
+        scaffold=scaffold,
+        sample_token_limit=5,
+    )
+
+    _assert_sample_token_limit(outcome)
+    _assert_error_reply(outcome.replies)
+
+
+def test_enclosing_time_limit_during_a_bridged_limit_reply_wins(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An enclosing time limit that cancels a limit's reply ends its own scope.
+
+    The generation reaches the inner `run()` token limit, but the enclosing
+    `run()` time limit expires while the reply is being written. As for any
+    cancellation, the enclosing `run()` returns its time limit error; the
+    inner limit is not raised in its place.
+    """
+    outcome = _run_bridged_agent(
+        tmp_path,
+        monkeypatch,
+        token_limit(5),
+        scaffold=_Scaffold([_Request(held=True)]),
+        outer_limit=time_limit(0.5),
+    )
+
+    sample = outcome.sample
+    assert sample.error is None, sample.error
+    assert sample.limit is None
+    assert sample.store.get("continued") is True
+    assert outcome.errors == []
+    [error] = outcome.outer_errors
+    assert error is not None and error.type == "time"
+    assert outcome.replies == []
