@@ -58,7 +58,7 @@ class EvalInfo(NamedTuple):
     """What the log driver reads from the log's header."""
 
     inspect_ai_version: str | None
-    """The inspect_ai that wrote the log (`eval.packages["inspect_ai"]`): logs from before 0.3.31 do not record whether a tool's output was cut. `None` for a transcript imported from another source, whose tool calls without a tool span or a `ToolEvent` of their own have their steps taken from the messages."""
+    """The inspect_ai that wrote the log (`eval.packages["inspect_ai"]`): logs from before 0.3.31 do not record whether a tool's output was cut."""
 
     sentinel: bool
     """Whether the eval ran a sentinel (`eval.config.sentinel`): if it did, earlier `human()` decisions come from its `SentinelEvent`s, else from the `ApprovalEvent`s of human approvers."""
@@ -77,7 +77,7 @@ def steps_from_events(
     message_pool: Sequence[ChatMessage],
     *,
     sample_uuid: str,
-    eval_info: EvalInfo,
+    eval_info: EvalInfo | None,
     timeline: Timeline | None = None,
     human_approvers: Sequence[str] = (),
 ) -> list["ReplayStep"]:
@@ -89,14 +89,14 @@ def steps_from_events(
 
     A log that does not record where a model call was made (`ModelEvent.origin`, written since inspect_ai PR #5990), an older Inspect log or a transcript imported from another source, has its turns inferred: a call made in a tool's span (or nested in its `ToolEvent`) is a tool's, one in the scorers' span a scorer's and one in the init span setup's; of the rest, those the timeline shows as utility (`timeline_build`'s prompt and continuity rules) are not turns, and the others are.
 
-    A transcript imported from another source (`eval_info.inspect_ai_version` is `None`) records a call's run as Inspect does only when a tool span holds its `ToolEvent`. A call its turn made that ran without one (a `ToolEvent` in an agent span or in none) or has no `ToolEvent` with its id has its steps taken from the messages, as sentinel's messages projection takes them: the call as the model made it, and the first tool message answering it as its result, with no `tool_result` step when no tool message answers it (a `ToolEvent`'s result is not taken: the messages projection does not see it). A call with no `ToolEvent` has its steps just after its turn's `model_output` step. A call id a provider reuses gives each call its own steps under that id, each answered by the first tool message after its assistant message.
+    A transcript imported from another source (`eval_info` is `None`) records a call's run as Inspect does only when a tool span holds its `ToolEvent`. A call its turn made that ran without one (a `ToolEvent` in an agent span or in none) or has no `ToolEvent` with its id has its steps taken from the messages, as sentinel's messages projection takes them: the call as the model made it, and the first tool message answering it as its result, with no `tool_result` step when no tool message answers it (a `ToolEvent`'s result is not taken: the messages projection does not see it). A call with no `ToolEvent` has its steps just after its turn's `model_output` step. A call id a provider reuses gives each call its own steps under that id, each answered by the first tool message after its assistant message.
 
     Args:
         messages: The sample's messages (`EvalSample.messages`).
         events: The sample's events, with model inputs condensed (`input_refs` into `message_pool`), as the log stores them; inputs given expanded are condensed first. Attachments must be resolved (`resolve_attachments`), or monitors are handed `attachment://` references.
         message_pool: The sample's message pool (`EvalSample.events_data["messages"]`).
         sample_uuid: The sample's uuid: the conversation of calls made outside any agent span.
-        eval_info: What the log's header says about the eval.
+        eval_info: What the log's header says about the eval (`EvalInfo.from_eval`), or `None` for a transcript imported from another source, which has no header.
         timeline: A stored timeline whose spans define which conversation each event is in (such as Petri's `"target"`), in place of the span tree; a log without origins has its turns inferred within those conversations, its events matched to the stored timeline's by UUID.
         human_approvers: The registry names of approvers that are people, whose `ApprovalEvent`s are `human_decisions` in a log from an eval that ran no sentinel.
 
@@ -345,7 +345,7 @@ class _Driver:
         nested: list[bool],
         pool: Sequence[ChatMessage],
         sample_uuid: str,
-        eval_info: EvalInfo,
+        eval_info: EvalInfo | None,
         timeline: Timeline | None,
         human_approvers: Sequence[str],
     ) -> None:
@@ -354,8 +354,8 @@ class _Driver:
         self.nested = nested
         self.pool = pool
         self.keys = _PoolKeys(pool)
-        self.eval_info = eval_info
-        self.imported = eval_info.inspect_ai_version is None
+        self.imported = eval_info is None
+        self.eval_info = eval_info or EvalInfo(inspect_ai_version=None, sentinel=False)
         self.human_approvers = set(human_approvers)
         self.spans = SpanConversations(sample_uuid)
         self.timeline = _timeline_conversations(timeline) if timeline else None

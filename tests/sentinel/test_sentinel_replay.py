@@ -2075,7 +2075,8 @@ def test_a_person_s_approval_decision_reaches_later_steps(
         assert [d.step_id for d in after.step.human_decisions or []][-1:] == [after.id]
 
 
-IMPORTED = EvalInfo(inspect_ai_version=None, sentinel=False)
+# a transcript imported from another source has no log header
+IMPORTED = None
 
 
 def tool_steps(steps: Sequence["ReplayStep"]) -> list[tuple[Any, ...]]:
@@ -2422,31 +2423,45 @@ def test_a_call_a_fail_fast_tool_halted_has_no_tool_steps() -> None:
         return outputs(halting, done())
 
     replay = assert_replay_equals_live(tool_loop(not_found()), model())
-    events = logged_sample(run_logged(tool_loop(not_found()), model())).events
+    log = run_logged(tool_loop(not_found()), model())
+    sample = logged_sample(log)
     [halted] = [
         index
-        for index, e in enumerate(events)
+        for index, e in enumerate(sample.events)
         if isinstance(e, ToolEvent) and e.id == "t0c1"
     ]
+    # a log whose header records no inspect_ai version is still Inspect's
+    unversioned = steps_from_events(
+        sample.messages,
+        sample.events,
+        [],
+        sample_uuid=sample.uuid or "",
+        eval_info=EvalInfo.from_eval(log.eval.model_copy(update={"packages": {}})),
+    )
 
-    assert not isinstance(events[halted - 1], SpanBeginEvent)
-    assert [(s.stage, s.id) for s in replay if s.stage.startswith("tool")] == [
-        ("tool_call", "t0c0"),
-        ("tool_result", "t0c0"),
-    ]
+    assert not isinstance(sample.events[halted - 1], SpanBeginEvent)
+    for steps in (replay, unversioned):
+        assert [(s.stage, s.id) for s in steps if s.stage.startswith("tool")] == [
+            ("tool_call", "t0c0"),
+            ("tool_result", "t0c0"),
+        ]
 
 
-def test_an_inspect_log_s_calls_without_a_tool_span_keep_no_tool_steps() -> None:
+@pytest.mark.parametrize("version", ["0.3.200", None])
+def test_an_inspect_log_s_calls_without_a_tool_span_keep_no_tool_steps(
+    version: str | None,
+) -> None:
     # live runs no tool stage for a call it records without a tool span (a
     # call not executed after an earlier one failed), so a log written by
-    # Inspect keeps reading its calls from events
+    # Inspect, with or without a version in its header, keeps reading its
+    # calls from events
     messages, events = spanless_transcript(None, True)
     replay = steps_from_events(
         messages,
         events,
         [],
         sample_uuid="transcript",
-        eval_info=EvalInfo(inspect_ai_version="0.3.200", sentinel=False),
+        eval_info=EvalInfo(inspect_ai_version=version, sentinel=False),
     )
 
     assert tool_steps(replay) == []
