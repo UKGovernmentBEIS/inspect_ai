@@ -167,13 +167,15 @@ PyPI or conda-forge serve that day. Everything below lives in
   the base image's pip 23 and its legacy `setup.py install` path). The
   binaries are released rarely, so there is no Dependabot entry for this file:
   GitHub's security alerts flag vulnerable pins in it, and updates are made by
-  hand, as a fix for an alert or when preparing a release:
+  hand, as a fix for an alert or when preparing a release. `--no-config`
+  skips the root `pyproject.toml`, so the command repeats its cooldown
+  exemption for certifi, whose releases remove compromised CA roots:
 
   ```bash
   cd src/inspect_ai/tool/_sandbox_tools_utils
   uv pip compile --no-config --universal --python-version 3.10 --generate-hashes \
-    --exclude-newer "7 days" --upgrade ../../../inspect_sandbox_tools/pyproject.toml \
-    requirements.in -o requirements.txt
+    --exclude-newer "7 days" --exclude-newer-package certifi=false --upgrade \
+    ../../../inspect_sandbox_tools/pyproject.toml requirements.in -o requirements.txt
   ```
 
 ### 4. Validate across distros
