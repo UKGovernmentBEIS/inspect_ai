@@ -3,12 +3,15 @@ import json
 import os
 import subprocess
 import sys
+import tomllib
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, get_type_hints
 
 import pytest
+import semver
 from pydantic import ValidationError
+from test_helpers.fake_sentinel import report_version
 
 from inspect_ai import (
     Task,
@@ -24,7 +27,7 @@ from inspect_ai._display.core.config import task_config_str
 from inspect_ai._display.core.display import TaskProfile
 from inspect_ai._eval.eval_set_manifest import INSPECT_EVAL_SET_CAPTURE, EvalSetCapture
 from inspect_ai._eval.eval_set_overrides import INSPECT_EVAL_SET_OVERRIDES
-from inspect_ai._sentinel._config import sentinel_with_args
+from inspect_ai._sentinel._config import SENTINEL_MIN_VERSION, sentinel_with_args
 from inspect_ai._sentinel._context import active_sentinel
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.registry import is_registry_object, registry_info
@@ -571,6 +574,94 @@ def test_missing_package_error(monkeypatch: pytest.MonkeyPatch) -> None:
     assert active_root(log) is None
 
 
+# 0.1.4's tool steps lack message_id; 0.2.0 has no ReplayStep
+@pytest.mark.parametrize("reported", ["0.1.4", "0.2.0", f"{SENTINEL_MIN_VERSION}.dev3"])
+def test_older_package_error(
+    monkeypatch: pytest.MonkeyPatch, reported: str, tmp_path: Path
+) -> None:
+    global ran
+    ran = False
+    report_version(monkeypatch, reported)
+    with pytest.raises(PrerequisiteError) as raised:
+        sentinel_task(RULE_CONFIG)
+    message = str(raised.value.message)
+    assert f"inspect-sentinel>={SENTINEL_MIN_VERSION}" in message
+    assert f"you have version {reported} installed" in message
+    assert (
+        f'pip install --upgrade "inspect-sentinel>={SENTINEL_MIN_VERSION}"' in message
+    )
+    with pytest.raises(PrerequisiteError, match="inspect-sentinel>="):
+        eval(
+            Task(dataset=[Sample(input="x")], solver=mark_ran()),
+            model="mockllm/model",
+            sentinel="d2_rule",
+            log_dir=str(tmp_path),
+        )
+    assert not ran
+    assert not list(tmp_path.glob("*.eval"))
+    log = eval(sentinel_task(), model="mockllm/model", log_dir=str(tmp_path))[0]
+    assert active_root(log) is None
+
+
+def test_package_without_metadata_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    from importlib.metadata import PackageNotFoundError, version
+
+    def fake_version(package: str) -> str:
+        if package == "inspect-sentinel":
+            raise PackageNotFoundError(package)
+        return version(package)
+
+    monkeypatch.setattr("inspect_ai._util.version.version", fake_version)
+    monkeypatch.setattr("inspect_ai._sentinel._config.version", fake_version)
+    with pytest.raises(PrerequisiteError) as raised:
+        sentinel_task(RULE_CONFIG)
+    message = str(raised.value.message)
+    assert "has no package metadata" in message
+    assert f'pip install "inspect-sentinel>={SENTINEL_MIN_VERSION}"' in message
+
+
+REPO = Path(__file__).parents[2]
+
+
+def test_dev_requirements_floor_is_the_minimum_version() -> None:
+    [floor] = [
+        line.removeprefix("inspect-sentinel")
+        for line in (REPO / "requirements-dev.txt").read_text().splitlines()
+        if line.startswith("inspect-sentinel")
+    ]
+    assert floor == f">={SENTINEL_MIN_VERSION}"
+
+
+def test_uv_lock_floor_is_the_minimum_version() -> None:
+    lock = tomllib.loads((REPO / "uv.lock").read_text())
+    packages = {package["name"]: package for package in lock["package"]}
+    [requirement] = [
+        requirement
+        for requirement in packages["inspect-ai"]["metadata"]["requires-dist"]
+        if requirement["name"] == "inspect-sentinel"
+    ]
+    assert requirement["specifier"] == f">={SENTINEL_MIN_VERSION}"
+    locked = semver.Version.parse(packages["inspect-sentinel"]["version"])
+    assert locked >= semver.Version.parse(SENTINEL_MIN_VERSION)
+
+
+# a git install of sentinel main reports a dev build of the next release
+@pytest.mark.parametrize(
+    "reported",
+    [
+        SENTINEL_MIN_VERSION,
+        f"{semver.Version.parse(SENTINEL_MIN_VERSION).bump_patch()}.dev1",
+        str(semver.Version.parse(SENTINEL_MIN_VERSION).bump_minor()),
+    ],
+)
+def test_supported_package_versions(
+    monkeypatch: pytest.MonkeyPatch, reported: str
+) -> None:
+    report_version(monkeypatch, reported)
+    log = eval(sentinel_task(), model="mockllm/model", sentinel="d2_rule")[0]
+    assert active_root(log) == "d2_rule"
+
+
 @pytest.mark.parametrize(
     "config,shown",
     [
@@ -652,8 +743,11 @@ import sys
 sys.path.insert(0, {str(Path(__file__).parents[1])!r})
 from test_helpers import fake_sentinel
 
+import pytest
+
 sys.modules["inspect_sentinel"] = fake_sentinel
 sys.modules["inspect_sentinel._integration"] = fake_sentinel
+fake_sentinel.report_version(pytest.MonkeyPatch())
 
 from inspect_ai._cli.main import main
 
