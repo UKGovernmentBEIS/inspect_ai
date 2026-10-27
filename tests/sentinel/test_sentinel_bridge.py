@@ -27,7 +27,7 @@ from inspect_ai.approval import (
     auto_approver,
 )
 from inspect_ai.dataset import Sample
-from inspect_ai.event import ModelEvent, SentinelEvent
+from inspect_ai.event import ModelEvent, SentinelEvent, SpanBeginEvent, SpanEndEvent
 from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 from inspect_ai.model import (
     ChatMessage,
@@ -42,6 +42,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._model import GenerateFilter, GenerateInput
 from inspect_ai.model._model_output import ChatCompletionChoice
+from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.tool import (
     Tool,
     ToolCall,
@@ -54,6 +55,7 @@ from inspect_ai.tool import (
 from inspect_ai.tool._tool import ToolParsingError
 from inspect_ai.tool._tool_call import default_tool_call_viewer
 from inspect_ai.tool._tool_params import ToolParam, ToolParams
+from inspect_ai.util._span import span
 
 # mypy checks the tests against inspect_sentinel's API; they run on the fake
 if TYPE_CHECKING:
@@ -512,6 +514,126 @@ async def test_a_modify_that_changes_the_id_fails_the_sample(sandbox: bool) -> N
     if sandbox:
         assert isinstance(bridge, SandboxAgentBridge)
         assert isinstance(bridge._failure, RuntimeError)
+
+
+@monitor
+def conversations(seen: Any) -> MonitorGroup:
+    """Records the conversation each stage runs in."""
+
+    async def before_generate(
+        context: Context, step: BeforeGenerate
+    ) -> Observation | None:
+        seen.append(("generate", step.conversation))
+        return None
+
+    async def tool_call(context: Context, step: BeforeToolCall) -> Observation | None:
+        seen.append(("tool_call", step.conversation))
+        return None
+
+    async def tool_result(context: Context, step: AfterToolCall) -> Observation | None:
+        seen.append(("tool_result", step.conversation))
+        return None
+
+    return MonitorGroup(before_generate, tool_call, tool_result)
+
+
+class SubAgentSink:
+    """A model event sink whose `on_start` runs each generate in the span `sub-agent`."""
+
+    def on_start(self, input: list[ChatMessage]) -> str | None:
+        return "sub-agent"
+
+    def on_pending(self, event: ModelEvent) -> None:
+        transcript()._event(event)
+
+    def on_complete(self, event: ModelEvent) -> None:
+        transcript()._event_updated(event)
+
+
+@pytest.mark.parametrize("sink", [False, True])
+def test_a_bridged_calls_stages_are_in_its_generations_conversation(
+    sink: bool,
+) -> None:
+    seen: list[tuple[str, str]] = []
+    # the solver's own argument is named generate
+    bridged_generate = generate
+
+    @solver
+    def bridged() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            async with span("outer", type="agent", id="outer"):
+                transcript()._event(
+                    SpanBeginEvent(
+                        id="sub-agent", parent_id="outer", type="agent", name="sub"
+                    )
+                )
+                model = Scripted(calls_output(READ), calls_output())
+                history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+                bridge = in_process_bridge(history)
+                if sink:
+                    bridge.model_event_sink = SubAgentSink()
+                output = await bridged_generate(bridge, model, history)
+                await bridged_generate(
+                    bridge,
+                    model,
+                    [
+                        *history,
+                        output.message,
+                        ChatMessageTool(content="x", tool_call_id=READ.id),
+                    ],
+                )
+                transcript()._event(SpanEndEvent(id="sub-agent"))
+            return state
+
+        return solve
+
+    [log] = eval(
+        Task(
+            dataset=[Sample(input="Hi.")],
+            solver=bridged(),
+            sentinel=[conversations(seen)],
+        ),
+        model="mockllm/model",
+    )
+
+    assert log.status == "success", log.error
+    expected = "sub-agent" if sink else "outer"
+    assert seen == [
+        ("generate", expected),
+        ("tool_call", expected),
+        ("tool_result", expected),
+        ("generate", expected),
+    ]
+
+
+async def test_a_bridged_calls_stages_do_not_see_the_enclosing_agents_messages() -> (
+    None
+):
+    # the call belongs to the bridged scaffold, whose list the bridge rebuilds
+    # from its requests, at the host tool's result stage too
+    seen: Steps = []
+    call = replace(READ, function="mcp__host__read_file")
+
+    @agent(name="bridge_enclosing")
+    def enclosing() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            bridge = sandbox_bridge(AsyncMock(return_value="contents"))
+            await generate(
+                bridge,
+                Scripted(calls_output(call)),
+                [ChatMessageUser(content=TASK)],
+                declare_read_file(),
+            )
+            await call_host_tool(bridge)("host", "read_file", READ.arguments)
+            return state
+
+        return execute
+
+    with active([bridge_recording(seen)]):
+        await enclosing()(AgentState(messages=[ChatMessageUser(content="Outer.")]))
+
+    assert [type(step) for step in seen] == [BeforeToolCall, AfterToolCall]
+    assert [step.agent_messages for step in seen] == [None, None]
 
 
 @pytest.mark.parametrize("sandbox", [False, True])

@@ -47,7 +47,11 @@ from inspect_ai.agent._bridge._approval import (
     terminate_for_repeated_rejections,
 )
 from inspect_ai.agent._bridge._errors import BridgePolicyError, ResponseFilterError
-from inspect_ai.agent._bridge._sentinel import sentinel_tokens, sentinel_tool_results
+from inspect_ai.agent._bridge._sentinel import (
+    Produced,
+    sentinel_tokens,
+    sentinel_tool_results,
+)
 from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
 from inspect_ai.model._agent_message import validate_agent_message
 from inspect_ai.model._call_tools import get_tools_info
@@ -87,7 +91,7 @@ from inspect_ai.tool._tools._web_search._web_search import (
 )
 from inspect_ai.util._json import JSONSchema
 from inspect_ai.util._limit import LimitExceededError
-from inspect_ai.util._span import current_span_id
+from inspect_ai.util._span import current_agent_span_id, current_span_id
 
 if TYPE_CHECKING:
     from inspect_ai.event._model import ModelEvent
@@ -1105,7 +1109,7 @@ async def _bridge_generate_impl(
                 input_messages,
                 input + replayed,
                 declarations,
-                producer=generations.event(produced),
+                producer=generations.producer(produced),
             )
         if reviewed.rejection is None:
             # with a sentinel, each call is handed over under a token identifying
@@ -1206,31 +1210,37 @@ class _Generations:
     replacement), or one two generations returned, or one whose event kept a
     live message (one it could not serialize), since an edit to that message
     changes the snapshot too.
+
+    Each generation is recorded with the agent span current while it ran (a
+    model event sink's `on_start` can choose it), so the call's steps are in
+    the conversation its generation's stages were.
     """
 
     def __init__(self) -> None:
         # the outputs are held, so their ids are not reused while recorded; an
-        # output two generations returned is recorded without an event
-        self._events: dict[int, tuple[ModelOutput, "ModelEvent | None"]] = {}
+        # output two generations returned is recorded without a producer
+        self._producers: dict[int, tuple[ModelOutput, Produced | None]] = {}
         self.returned: ModelOutput | None = None
         """What the response filter last returned, before it is validated."""
 
     def record(self, output: ModelOutput, event: "ModelEvent") -> None:
-        recorded = self._events.get(id(output))
+        recorded = self._producers.get(id(output))
         twice = recorded is not None and recorded[0] is output
-        self._events[id(output)] = (output, None if twice else event)
+        produced = Produced(event, current_agent_span_id())
+        self._producers[id(output)] = (output, None if twice else produced)
 
-    def event(self, output: ModelOutput | None) -> "ModelEvent | None":
-        recorded = self._events.get(id(output)) if output is not None else None
+    def producer(self, output: ModelOutput | None) -> Produced | None:
+        recorded = self._producers.get(id(output)) if output is not None else None
         if recorded is None or recorded[0] is not output or recorded[1] is None:
             return None
-        event = recorded[1]
+        produced = recorded[1]
+        logged = produced.event.output
         if any(
-            ours.message is logged.message
-            for ours, logged in zip(output.choices, event.output.choices)
+            ours.message is theirs.message
+            for ours, theirs in zip(output.choices, logged.choices)
         ):
             return None
-        return event if output == event.output else None
+        return produced if output == logged else None
 
     def tracking(
         self, response_filter: ModelResponseFilter, generated: ModelOutput
@@ -1240,9 +1250,9 @@ class _Generations:
         async def tracked(
             model: Model, output: ModelOutput, input: GenerateInput
         ) -> ModelOutput | None:
-            event = self.event(generated)
-            if event is not None:
-                self._events[id(output)] = (output, event)
+            produced = self.producer(generated)
+            if produced is not None:
+                self._producers[id(output)] = (output, produced)
             self.returned = None
             self.returned = await response_filter(model, output, input)
             return self.returned

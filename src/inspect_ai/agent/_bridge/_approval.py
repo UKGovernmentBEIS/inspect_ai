@@ -29,7 +29,11 @@ from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn, Sequence
 from inspect_ai._sentinel._context import checks_tool_calls
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.logger import warn_once
-from inspect_ai.agent._bridge._sentinel import SentinelCheck, sentinel_tool_call
+from inspect_ai.agent._bridge._sentinel import (
+    Produced,
+    SentinelCheck,
+    sentinel_tool_call,
+)
 from inspect_ai.agent._bridge.types import AgentBridge, DispatchedCall
 from inspect_ai.model._call_tools import (
     _SENTINEL_MODIFIED_FUNCTION,
@@ -43,7 +47,6 @@ from inspect_ai.tool._tool_info import ToolInfo
 
 if TYPE_CHECKING:
     from inspect_ai.approval._policy import ApprovalPolicy
-    from inspect_ai.event._model import ModelEvent
 
 logger = getLogger(__name__)
 
@@ -103,7 +106,7 @@ async def apply_bridge_tool_approval(
     history: list[ChatMessage],
     conversation: list[ChatMessage] | None = None,
     tools: Sequence[ToolInfo | Tool] = (),
-    producer: "ModelEvent | None" = None,
+    producer: Produced | None = None,
 ) -> BridgeApproval:
     """Approve the tool calls in a bridged model response.
 
@@ -142,8 +145,9 @@ async def apply_bridge_tool_approval(
             `history`). A step's `history` is what the agent has sent.
         tools: The declarations the scaffold made to the model, which identify
             the host tools (and so the registered viewers) the calls denote.
-        producer: The completed `ModelEvent` of the generation whose output
-            object `output` is (`util._Generations`), if any.
+        producer: The generation whose output object `output` is, if known
+            (`util._Generations`): its `ModelEvent`, and the agent span it ran
+            in, whose conversation the call's steps are in.
 
     Returns:
         The response for the scaffold, plus the messages to replay to the model when

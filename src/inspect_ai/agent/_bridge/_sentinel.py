@@ -1,5 +1,6 @@
 import json
 from collections import OrderedDict
+from contextlib import AbstractContextManager, nullcontext
 from dataclasses import replace
 from functools import partial
 from logging import getLogger
@@ -18,6 +19,7 @@ import anyio
 from pydantic_core import to_jsonable_python
 from shortuuid import uuid
 
+from inspect_ai._sentinel._agent_state import bridge_request
 from inspect_ai._sentinel._context import SentinelFailure, checks_tool_calls
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.content import (
@@ -43,6 +45,7 @@ from inspect_ai.tool._tool_call import ToolCall, ToolCallError, ToolCallViewer
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._limit import LimitExceededError
+from inspect_ai.util._span import in_agent_span
 
 if TYPE_CHECKING:
     from inspect_sentinel import Decision
@@ -60,6 +63,19 @@ _MAX_PROPOSALS = 1000
 _NO_MESSAGE_ID = ""
 
 
+class Produced(NamedTuple):
+    """The generation that produced a bridged call, and the agent span it ran in."""
+
+    event: "ModelEvent"
+    """What the model was sent (`input`, `tools`, `tool_choice`)."""
+
+    agent_span_id: str | None
+    """The agent span current during the generation: the call's conversation."""
+
+    def scope(self) -> AbstractContextManager[None]:
+        return in_agent_span(self.agent_span_id)
+
+
 class SentinelCheck(NamedTuple):
     handed: ToolCall
     """The call as handed to the scaffold (the model's id, the approved arguments)."""
@@ -75,9 +91,10 @@ class SentinelCheck(NamedTuple):
 
     history: list[ChatMessage]
 
-    producer: "ModelEvent | None" = None
+    producer: Produced | None = None
     """The generation that produced the call, if the bridge knows it; the steps
-    take what the model was sent from it, and have no input without it."""
+    take what the model was sent from it, and its conversation, and without it
+    have no input and the bridge's current conversation."""
 
     token: str | None = None
     """The id the scaffold was handed for the call (`sentinel_tokens`), or None
@@ -380,23 +397,24 @@ async def sentinel_tool_call(
     call: ToolCall,
     viewer: ToolCallViewer | None,
     history: list[ChatMessage],
-    producer: "ModelEvent | None",
+    producer: Produced | None,
 ) -> "Decision | None":
     from inspect_ai._sentinel._dispatch import sentinel_before_tool_call
 
-    return await _guarded(
-        bridge,
-        partial(
-            sentinel_before_tool_call,
-            message,
-            message_id,
-            call,
-            viewer,
-            history,
-            producer,
-            find_producer=False,
-        ),
-    )
+    with producer.scope() if producer is not None else nullcontext():
+        return await _guarded(
+            bridge,
+            partial(
+                sentinel_before_tool_call,
+                message,
+                message_id,
+                call,
+                viewer,
+                history,
+                producer.event if producer is not None else None,
+                find_producer=False,
+            ),
+        )
 
 
 def sentinel_tokens(
@@ -452,6 +470,10 @@ async def sentinel_host_tool_result(
     can't tell which execution it is), under each of theirs, so the scaffold
     reporting it is not checked again. A host call no proposal accounts for has
     no token, so no result the scaffold reports can match it.
+
+    The call is the bridged scaffold's, so the check does not see the enclosing
+    agent's messages, as the stages of a bridge request don't
+    (`bridge_request()`).
     """
     result = ChatMessageTool(
         content=content,
@@ -469,9 +491,10 @@ async def sentinel_host_tool_result(
             mm3_hash(f"call:{_call_key(execution.handed)}:{content_key}"),
         ]
     ] or [f"unproposed:{uuid()}"]
-    await _result_checks(bridge).check_running(
-        bridge, _Result(keys, check, result), output, truncated
-    )
+    with bridge_request():
+        await _result_checks(bridge).check_running(
+            bridge, _Result(keys, check, result), output, truncated
+        )
 
 
 async def sentinel_tool_results(bridge: AgentBridge, input: list[ChatMessage]) -> None:
@@ -526,22 +549,24 @@ async def _tool_result(
 ) -> None:
     from inspect_ai._sentinel._dispatch import sentinel_after_tool_call
 
-    await _guarded(
-        bridge,
-        partial(
-            sentinel_after_tool_call,
-            check.message,
-            check.message_id,
-            check.call,
-            result,
-            output,
-            truncated,
-            check.viewer,
-            check.history,
-            check.producer,
-            find_producer=False,
-        ),
-    )
+    producer = check.producer
+    with producer.scope() if producer is not None else nullcontext():
+        await _guarded(
+            bridge,
+            partial(
+                sentinel_after_tool_call,
+                check.message,
+                check.message_id,
+                check.call,
+                result,
+                output,
+                truncated,
+                check.viewer,
+                check.history,
+                producer.event if producer is not None else None,
+                find_producer=False,
+            ),
+        )
 
 
 async def _guarded(bridge: AgentBridge, run: Callable[[], Awaitable[T]]) -> T:
