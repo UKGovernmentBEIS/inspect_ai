@@ -3149,6 +3149,60 @@ def host_errors() -> list[Exception]:
     ]
 
 
+@pytest.mark.parametrize("decided_by", ["defect", "limit", "tool_errors"])
+async def test_a_host_tool_exception_group_is_decided_before_its_result_check(
+    decided_by: str,
+) -> None:
+    # the group is classified by its decisive leaf (a defect, then a limit,
+    # before an expected tool error), whatever its order, before the
+    # tool_result stage decides whether the model sees an error to check
+    from inspect_ai.tool import ToolError
+    from inspect_ai.util._limit import LimitExceededError
+
+    bug = RuntimeError("tool bug")
+    limit = LimitExceededError("message", value=2, limit=1)
+    second: Exception = {
+        "defect": bug,
+        "limit": limit,
+        "tool_errors": ToolError("another"),
+    }[decided_by]
+    group = ExceptionGroup("secret group", [ToolError("secret token"), second])
+    seen: Steps = []
+    call = replace(READ, function="mcp__host__read_file")
+    bridge = sandbox_bridge(AsyncMock(side_effect=group))
+
+    with active([bridge_recording(seen)]):
+        await generate(
+            bridge,
+            Scripted(calls_output(call)),
+            [ChatMessageUser(content=TASK)],
+            declare_read_file(),
+        )
+        with pytest.raises(Exception) as raised:
+            await call_host_tool(bridge)("host", "read_file", READ.arguments)
+
+    after = [step for step in seen if isinstance(step, AfterToolCall)]
+    if decided_by == "defect":
+        # a bug in the eval's tool fails the sample; the model sees no error
+        assert after == []
+        assert bridge._failure is bug
+        assert raised.value is group
+    elif decided_by == "limit":
+        # the limit ends the sample
+        assert after == []
+        assert bridge._failure is None
+        assert raised.value is limit
+    else:
+        # the scaffold receives the group's error, which is checked as such
+        [checked] = after
+        assert checked.result.error is not None
+        assert checked.result.error.message == (
+            "Error calling method call_tool: secret group (2 sub-exceptions)"
+        )
+        assert bridge._failure is None
+        assert raised.value is group
+
+
 @protocol
 def terminate_on_secret_text() -> Protocol:
     async def after(
