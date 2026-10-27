@@ -168,7 +168,7 @@ async def sentinel_after_tool_call(
     call: ToolCall,
     result: ChatMessageTool,
     output: ToolResult,
-    truncated: tuple[int, int] | None,
+    truncated: tuple[int, int] | Literal[False] | None,
     viewer: ToolCallViewer | None,
     history: list[ChatMessage],
     producer: ModelEvent | None = None,
@@ -193,7 +193,8 @@ async def sentinel_after_tool_call(
         human_decisions=_human_decisions(conversation),
         tools=list(producer.tools) if producer is not None else None,
         tool_choice=producer.tool_choice if producer is not None else None,
-        truncated=Truncation(*truncated) if truncated is not None else False,
+        # None when the host cannot tell (a scaffold-run tool under a bridge)
+        truncated=Truncation(*truncated) if truncated else truncated,
     )
     decision = await _run(step)
     if decision is not None and decision.action == "terminate":

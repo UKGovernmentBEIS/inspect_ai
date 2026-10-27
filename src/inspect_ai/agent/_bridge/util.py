@@ -1086,7 +1086,9 @@ async def _bridge_generate_impl(
                 input_messages,
                 input + replayed,
                 declarations,
-                producer=sink.event if sink is not None else None,
+                producer=sink.producing(output.message.id)
+                if sink is not None
+                else None,
             )
         if reviewed.rejection is None:
             # with a sentinel, each call is handed over under a token identifying
@@ -1117,7 +1119,7 @@ async def _bridge_generate_impl(
 
 
 class _SpanCapturingSink:
-    """Forward to a bridge's `ModelEventSink`, remembering the event and its span.
+    """Forward to a bridge's `ModelEventSink`, remembering the events and the span it chose.
 
     A sink can attribute a generation to a span other than the current one (a
     sub-agent's). Host tool events pair with their proposing `ModelEvent` by
@@ -1126,26 +1128,47 @@ class _SpanCapturingSink:
     the event is in the span current during generation: decided here, since a
     checkpoint span can rotate while the calls await approval.
 
-    `event` is the completed event, whose input is what the model was sent
-    after `Model.generate` normalized it. A sink may hold it back from the
-    transcript, so the sentinel's tool steps take their input from it here.
+    A sink may also hold events back from the transcript, so the sentinel's
+    tool steps take what the model was sent from the completed event that
+    produced the response (`producing`).
     """
 
     def __init__(self, inner: ModelEventSink) -> None:
         self.inner = inner
         self.span_id: str | None = None
-        self.event: ModelEvent | None = None
         self._current: str | None = None
+        # every generation under the sink, including a monitor's at the
+        # model_output stage
+        self._completed: list[ModelEvent] = []
 
     def on_pending(self, event: "ModelEvent") -> None:
         self._current = current_span_id()
         self.inner.on_pending(event)
 
     def on_complete(self, event: "ModelEvent") -> None:
-        self.event = event
+        self._completed.append(event)
         self.inner.on_complete(event)
         current = (self._current, current_span_id())
         self.span_id = event.span_id if event.span_id not in current else None
+
+    def producing(self, message_id: str | None) -> "ModelEvent | None":
+        """The completed generation whose output is the message `message_id`, if any.
+
+        None when the response came from elsewhere (a filter's or response
+        filter's own generation, or a replacement), which the steps then look
+        for in the transcript.
+        """
+        return next(
+            (
+                event
+                for event in reversed(self._completed)
+                if message_id is not None
+                and event.role != "monitor"
+                and event.output.choices
+                and event.output.choices[0].message.id == message_id
+            ),
+            None,
+        )
 
 
 def resolve_generate_config(

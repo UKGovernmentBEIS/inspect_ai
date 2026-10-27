@@ -425,12 +425,17 @@ class _Outcome(NamedTuple):
 def _checked(outcome: _Outcome) -> bool:
     """Whether the sentinel checks this outcome: a result, or a model-facing error.
 
-    Not a failure, a cancellation or a bare `LimitExceededError`, which end
-    the sample or the call without the model seeing an error.
+    Not a failure, a cancellation, a bare `LimitExceededError` or an error
+    carrying a termination, which end the sample or the call without the model
+    seeing an error.
     """
     if outcome.failed or outcome.error == _CANCELLED:
         return False
-    return not isinstance(outcome.raised, LimitExceededError)
+    if isinstance(outcome.raised, LimitExceededError):
+        return False
+    return not isinstance(outcome.raised, Exception) or (
+        find_control_flow(outcome.raised) is None
+    )
 
 
 async def _check_result(
@@ -455,7 +460,13 @@ async def _check_result(
     else:
         content = to_json_str_safe(outcome.reply)
     await sentinel_host_tool_result(
-        bridge, check, content, outcome.output, error, outcome.truncated, candidates
+        bridge,
+        check,
+        content,
+        outcome.output,
+        error,
+        outcome.truncated or False,
+        candidates,
     )
 
 

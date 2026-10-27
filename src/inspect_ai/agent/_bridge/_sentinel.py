@@ -8,6 +8,7 @@ from typing import (
     Any,
     Awaitable,
     Callable,
+    Literal,
     NamedTuple,
     Sequence,
     TypeVar,
@@ -268,7 +269,7 @@ class _ResultChecks:
         bridge: AgentBridge,
         result: _Result,
         output: ToolResult,
-        truncated: tuple[int, int] | None = None,
+        truncated: tuple[int, int] | Literal[False] | None = None,
     ) -> None:
         try:
             await _tool_result(bridge, result.check, result.message, output, truncated)
@@ -283,7 +284,7 @@ class _ResultChecks:
         bridge: AgentBridge,
         result: _Result,
         output: ToolResult,
-        truncated: tuple[int, int] | None,
+        truncated: tuple[int, int] | Literal[False] | None,
     ) -> None:
         """Check a result claimed outside a request (a host call's), as running."""
         event = anyio.Event()
@@ -440,7 +441,7 @@ async def sentinel_host_tool_result(
     content: str | list[Content],
     output: ToolResult,
     error: ToolCallError | None = None,
-    truncated: tuple[int, int] | None = None,
+    truncated: tuple[int, int] | Literal[False] = False,
     candidates: Sequence[SentinelCheck] = (),
 ) -> None:
     """Check a host call's result as delivered, recording it for its executions.
@@ -520,7 +521,7 @@ async def _tool_result(
     check: SentinelCheck,
     result: ChatMessageTool,
     output: ToolResult,
-    truncated: tuple[int, int] | None,
+    truncated: tuple[int, int] | Literal[False] | None,
 ) -> None:
     from inspect_ai._sentinel._dispatch import sentinel_after_tool_call
 

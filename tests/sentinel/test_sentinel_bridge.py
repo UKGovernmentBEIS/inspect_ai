@@ -11,6 +11,7 @@ import pytest
 from inspect_ai import Task, eval
 from inspect_ai._sentinel._config import resolve_sentinel_root, resolve_sentinel_spec
 from inspect_ai._sentinel._context import SentinelFailure, init_sentinel
+from inspect_ai._sentinel._scope import sentinel_solving
 from inspect_ai._util.content import ContentImage, ContentReasoning, ContentText
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent import Agent, AgentState, agent, agent_bridge
@@ -540,6 +541,8 @@ async def test_tool_result_stage_runs_when_the_result_reaches_the_bridge() -> No
     assert after.call == READ
     assert after.result == result
     assert after.output == "file contents"
+    # the scaffold ran the tool, so whether it cut the output is unknown
+    assert after.truncated is None
     assert after.message == "Reading."
     assert after.input == model.inputs[0]
     assert after.message_id == before.message_id
@@ -693,6 +696,7 @@ async def test_host_tool_result_is_checked_in_the_service() -> None:
     assert isinstance(after, AfterToolCall)
     assert after.call == read
     assert after.output == "host contents"
+    assert after.truncated is False
     assert after.result.tool_call_id == read.id
     assert after.result.function == read.function
     assert after.result.text == "host contents"
@@ -2971,6 +2975,95 @@ async def test_both_stages_see_the_input_the_model_was_sent(
         assert reasoning
     else:
         assert not reasoning
+
+
+@monitor
+def judging_output(seen: Any, judge: Model) -> MonitorGroup:
+    """Records the tool steps, and asks a judge model about each model output."""
+
+    async def judged(context: Context, step: AfterGenerate) -> Observation | None:
+        await judge.generate([ChatMessageUser(content="Judge this.")])
+        return None
+
+    async def before(context: Context, step: BeforeToolCall) -> Observation | None:
+        seen.append(step)
+        return None
+
+    async def after(context: Context, step: AfterToolCall) -> Observation | None:
+        seen.append(step)
+        return None
+
+    return MonitorGroup(judged, before, after)
+
+
+@pytest.mark.parametrize("sink", ["forwards", "withholds"])
+async def test_a_monitors_generation_is_not_taken_for_the_proposal(sink: str) -> None:
+    seen: Steps = []
+    judge = get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput.from_content("mockllm/model", "Fine.")] * 4,
+        memoize=False,
+    )
+    model = Scripted(calls_output(READ), calls_output())
+    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    bridge = in_process_bridge(history)
+    bridge.model_event_sink = sink_for(sink)
+
+    # an agent turn, so the model_output stage runs inside Model.generate,
+    # under the bridge's sink
+    with sentinel_solving(), active([judging_output(seen, judge)]):
+        output = await generate(bridge, model, history)
+        await generate(
+            bridge,
+            model,
+            [
+                *history,
+                output.message,
+                ChatMessageTool(content="x", tool_call_id=READ.id),
+            ],
+        )
+
+    before, after = seen
+    assert before.input == after.input == model.inputs[0]
+
+
+@pytest.mark.parametrize("sink", [None, "forwards", "withholds"])
+async def test_both_stages_see_the_input_a_response_filter_regenerated_from(
+    sink: str | None,
+) -> None:
+    seen: Steps = []
+    model = Scripted(calls_output(), calls_output(READ), calls_output())
+    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    bridge = in_process_bridge(history)
+
+    async def regenerate(
+        model: Model, output: ModelOutput, input: GenerateInput
+    ) -> ModelOutput | None:
+        if output.message.tool_calls:
+            return None
+        return await model.generate(
+            input=[ChatMessageSystem(content="Regenerated."), *input.input],
+            tools=input.tools,
+            tool_choice=input.tool_choice,
+            config=input.config,
+        )
+
+    bridge.response_filter = regenerate
+    bridge.model_event_sink = sink_for(sink)
+    with active([bridge_recording(seen)]):
+        output = await generate(bridge, model, history)
+        await generate(
+            bridge,
+            model,
+            [
+                *history,
+                output.message,
+                ChatMessageTool(content="x", tool_call_id=READ.id),
+            ],
+        )
+
+    before, after = seen
+    assert before.input == after.input == model.inputs[1]
 
 
 @pytest.mark.parametrize("executed", [False, True])
