@@ -137,6 +137,7 @@ from inspect_ai.model import (
     ModelName,
 )
 from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+from inspect_ai.model._call_tools import decisive_sentinel_exception
 from inspect_ai.model._model import (
     init_model_usage,
     init_role_usage,
@@ -2537,7 +2538,7 @@ async def _task_run_sample_attempt(
             # report the sentinel's own error, from the solver or scorers
             failure = inner_exception(ex) if isinstance(ex, Exception) else ex
             if isinstance(failure, SentinelFailure):
-                ex = inner_exception(failure.error)
+                ex = decisive_sentinel_exception(failure.error)
 
             # helper to log sample error
             def log_sample_error() -> None:
