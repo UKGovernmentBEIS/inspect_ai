@@ -96,7 +96,7 @@ from inspect_ai.model._model_config import (
 )
 from inspect_ai.model._model_data.model_data import ModelCost
 from inspect_ai.review._policy import ReviewPolicy, ReviewPolicyConfig
-from inspect_ai.scorer._reducer import reducer_log_name
+from inspect_ai.scorer._reducer import ReducerSpec, reducer_log_name, reducer_specs
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import DisplayType, SandboxEnvironmentType
@@ -1949,7 +1949,44 @@ def epochs_changed(epochs: Epochs | None, config: EvalConfig) -> bool:
         if epochs.reducer is not None
         else None
     )
-    return canonical(requested) != canonical(config.epochs_reducer)
+    if canonical(requested) != canonical(config.epochs_reducer):
+        return True
+
+    # Names alone do not identify a reducer: `at_least(2, value=0.5)` and
+    # `at_least(2, value=0.7)` both log as "at_least_2" (only `k` is folded into
+    # the name), so a name match can hide a change that produces different
+    # metrics. Compare the recorded arguments as well.
+    #
+    # Only when *both* sides recorded arguments. A log written before reducer
+    # arguments were recorded has no `epochs_reducer_specs`, and comparing a
+    # fresh request against it would report a change for every log in an
+    # existing log dir — re-running the whole eval set — so those logs keep the
+    # name-only comparison above. Their metrics are unaffected either way: the
+    # arguments used to recompute a log are read from that log's own recorded
+    # specs (recompute_metrics -> reducers_from_log_header), never from here.
+    # This comparison only decides whether a task is re-run.
+    requested_args = reducer_specs(epochs.reducer)
+    recorded_args = (
+        [
+            ReducerSpec(name=spec.name, args=spec.options or {})
+            for spec in config.epochs_reducer_specs
+        ]
+        if config.epochs_reducer_specs is not None
+        else None
+    )
+    if requested_args is not None and recorded_args is not None:
+        # Limitation: arguments are compared as recorded, i.e. after the
+        # registry has rendered them for the log. An argument the log cannot
+        # represent faithfully is therefore invisible to this comparison.
+        # Callables (e.g. `value_to_float`) are no longer such a case — they
+        # are dropped at capture time rather than stringified — but the
+        # limitation is why this stays a comment rather than a guarantee: a
+        # future unfaithfully-rendered argument would compare equal to a
+        # different value. That is tolerable here for the reason above (the
+        # worst case is a stale task not being re-run, never a wrong metric).
+        return requested_args != recorded_args
+
+    return False
 
 
 # cleanup logs that aren't the latest

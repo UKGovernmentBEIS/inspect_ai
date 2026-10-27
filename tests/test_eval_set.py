@@ -63,7 +63,12 @@ from inspect_ai.log._file import (
     write_log_dir_manifest,
     write_log_listing,
 )
-from inspect_ai.log._log import EvalConfig, EvalLog, EvalSampleSummary
+from inspect_ai.log._log import (
+    EvalConfig,
+    EvalLog,
+    EvalReducerDefinition,
+    EvalSampleSummary,
+)
 from inspect_ai.log._recorders.buffer import database as database_module
 from inspect_ai.log._recorders.buffer.database import (
     SampleBufferDatabase,
@@ -80,6 +85,7 @@ from inspect_ai.scorer import (
     Score,
     Scorer,
     Target,
+    at_least,
     exact,
     mean,
     metric,
@@ -2428,6 +2434,120 @@ def test_epochs_changed_same_reducer():
     config = EvalConfig(epochs=2, epochs_reducer=["mean"])
     assert not epochs_changed(epochs_obj, config), (
         "epochs_changed should return False when reducer object matches log name"
+    )
+
+
+def _logged_reducer_config(
+    epochs: int,
+    names: list[str],
+    specs: list[EvalReducerDefinition] | None,
+) -> EvalConfig:
+    return EvalConfig(epochs=epochs, epochs_reducer=names, epochs_reducer_specs=specs)
+
+
+def test_epochs_changed_compares_reducer_args():
+    """epochs_changed must compare recorded reducer arguments, not just names.
+
+    Reducer *names* fold only `k` into the log name (`at_least(2, value=0.5)`
+    logs as "at_least_2"), so two different `value` settings are indistinguishable
+    by name alone and would leave a stale log looking current.
+    """
+    from inspect_ai._eval.task.epochs import Epochs
+
+    # same name, same args -> unchanged
+    assert not epochs_changed(
+        Epochs(3, [at_least(2, value=0.5)]),
+        _logged_reducer_config(
+            3,
+            ["at_least_2"],
+            [EvalReducerDefinition(name="at_least", options={"k": 2, "value": 0.5})],
+        ),
+    )
+
+    # same *name*, different non-k arg -> changed (this is the case names miss)
+    assert epochs_changed(
+        Epochs(3, [at_least(2, value=0.7)]),
+        _logged_reducer_config(
+            3,
+            ["at_least_2"],
+            [EvalReducerDefinition(name="at_least", options={"k": 2, "value": 0.5})],
+        ),
+    )
+
+    # same name and non-k args, different k -> changed (also caught by the name)
+    assert epochs_changed(
+        Epochs(3, [at_least(3, value=0.5)]),
+        _logged_reducer_config(
+            3,
+            ["at_least_2"],
+            [EvalReducerDefinition(name="at_least", options={"k": 2, "value": 0.5})],
+        ),
+    )
+
+    # arg removed (explicit arg -> reducer default) -> changed
+    assert epochs_changed(
+        Epochs(3, [at_least(2)]),
+        _logged_reducer_config(
+            3,
+            ["at_least_2"],
+            [EvalReducerDefinition(name="at_least", options={"k": 2, "value": 0.5})],
+        ),
+    )
+
+    # no non-k arg on either side -> unchanged
+    assert not epochs_changed(
+        Epochs(3, [at_least(2)]),
+        _logged_reducer_config(
+            3,
+            ["at_least_2"],
+            [EvalReducerDefinition(name="at_least", options={"k": 2})],
+        ),
+    )
+
+    # different args AND a name the comparison would not reach
+    assert epochs_changed(
+        Epochs(3, [at_least(2, value=0.9)]),
+        _logged_reducer_config(
+            3,
+            ["at_least_2"],
+            [EvalReducerDefinition(name="at_least", options={"k": 2, "value": 0.1})],
+        ),
+    )
+
+    # default reducer (no reducer at all) unchanged
+    assert not epochs_changed(Epochs(3), _logged_reducer_config(3, None, None))
+
+
+def test_epochs_changed_reducer_args_old_log_without_specs():
+    """A log predating reducer-argument records falls back to name comparison.
+
+    Comparing a fresh request's arguments against a log that cannot record them
+    would report a change for every existing log and re-run the whole eval set.
+    """
+    from inspect_ai._eval.task.epochs import Epochs
+
+    # old log: names only, no epochs_reducer_specs -> not changed despite args
+    assert not epochs_changed(
+        Epochs(3, [at_least(2, value=0.5)]),
+        _logged_reducer_config(3, ["at_least_2"], None),
+    )
+
+    # old log that really does differ by name is still detected
+    assert epochs_changed(
+        Epochs(3, [at_least(2, value=0.5)]),
+        _logged_reducer_config(3, ["at_least_3"], None),
+    )
+
+
+def test_epochs_changed_reducer_args_no_reducer_requested():
+    """No reducer requested + names agreeing on the mean default stays unchanged."""
+    from inspect_ai._eval.task.epochs import Epochs
+
+    assert not epochs_changed(
+        Epochs(2),
+        _logged_reducer_config(
+            2, ["mean"], [EvalReducerDefinition(name="mean", options=None)]
+        ),
     )
 
 
