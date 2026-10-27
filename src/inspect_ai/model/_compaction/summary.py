@@ -389,10 +389,11 @@ def _output_reserve(
 
     Mirrors the `max_tokens` resolution in `Model.generate()` (explicit config,
     then provider defaults), capped at half the window so that small-window
-    models keep room for input. When `config` is given, it is merged over
-    `model.config` first, as `Model.generate` resolves `max_tokens`.
+    models keep room for input. When `config` is given, it is the resolved
+    config used in place of `model.config` (callers pass `model._resolve_config`
+    to match what `Model.generate` reads); when omitted, `model.config` is used.
     """
-    effective = model.config.merge(config) if config is not None else model.config
+    effective = config if config is not None else model.config
     max_tokens = (
         effective.max_tokens
         or model.api.max_tokens_for_config(effective)

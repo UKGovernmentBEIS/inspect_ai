@@ -435,10 +435,12 @@ def get_model_input_budget(model: Model, config: GenerateConfig | None = None) -
     """Input tokens a generate can use after inspect_ai's output reserve.
 
     The model's context window (`get_model_input_tokens`) minus the output
-    headroom inspect_ai reserves for a `generate` with this `config` (`config`
-    merged over `model.config`, as `Model.generate` resolves `max_tokens`).
-    When the window is unknown, falls back to `DEFAULT_CONTEXT_WINDOW` and warns
-    once for the model.
+    headroom inspect_ai reserves for a `generate` with this `config`. The
+    reserve follows the `max_tokens` that `Model.generate` would use, so the
+    config is resolved with `model._resolve_config(config)` (which merges the
+    active generate config when the model is the active model). When the window
+    is unknown, falls back to `DEFAULT_CONTEXT_WINDOW` and warns once for the
+    model.
     """
     from inspect_ai._util.logger import warn_once
     from inspect_ai.model._compaction._compaction import DEFAULT_CONTEXT_WINDOW
@@ -451,7 +453,9 @@ def get_model_input_budget(model: Model, config: GenerateConfig | None = None) -
             f"Unable to determine context window for {model} (falling back to default of {DEFAULT_CONTEXT_WINDOW})",
         )
         context_window = DEFAULT_CONTEXT_WINDOW
-    return context_window - _output_reserve(model, context_window, config)
+    return context_window - _output_reserve(
+        model, context_window, model._resolve_config(config)
+    )
 
 
 def set_model_info(model: str, info: ModelInfo) -> None:

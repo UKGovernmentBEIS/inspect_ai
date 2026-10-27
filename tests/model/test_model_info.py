@@ -868,6 +868,34 @@ class TestGetModelInputBudget:
             == 200_000 // 2
         )
 
+    def test_active_model_generate_config_follows_into_the_reserve(self):
+        """The reserve follows the active generate config, as generate does.
+
+        The monitor role falls back to active_model() and the eval's
+        --max-tokens reaches generate through _resolve_config, so the budget
+        must reserve that max_tokens even when no config is passed here.
+        """
+        from inspect_ai.model._generate_config import (
+            active_generate_config_context_var,
+        )
+        from inspect_ai.model._model import (
+            active_model_context_var,
+            init_active_model,
+        )
+
+        set_model_info("mockllm/model", ModelInfo(context_length=200_000))
+        model = get_model("mockllm/model")
+        model_token = active_model_context_var.set(active_model_context_var.get(None))
+        config_token = active_generate_config_context_var.set(
+            active_generate_config_context_var.get()
+        )
+        try:
+            init_active_model(model, GenerateConfig(max_tokens=20_000))
+            assert get_model_input_budget(model) == 200_000 - 20_000
+        finally:
+            active_model_context_var.reset(model_token)
+            active_generate_config_context_var.reset(config_token)
+
     def test_unknown_window_falls_back_to_default_and_warns_once(
         self, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
     ):
