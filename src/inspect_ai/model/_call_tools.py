@@ -911,6 +911,16 @@ async def call_tool(
         event.arguments = shown.arguments
         return shown
 
+    # A sentinel sidecar that ended the sample at a call of this turn ends it
+    # before any of the turn's calls runs, as an in-process sentinel's
+    # terminate at a call does, whatever the call holds.
+    from inspect_ai._sentinel._sidecar._act import take_call_decision
+
+    decided = take_call_decision(call.id)
+    if decided is not None and decided.action == "terminate":
+        await record_pending_tool_event()
+        raise TerminateSampleError(decided.message or "Sentinel requested termination.")
+
     # if there was an error parsing the ToolCall, raise that
     if call.parse_error:
         raise await record_tool_parsing_error(call.parse_error)
@@ -952,9 +962,6 @@ async def call_tool(
     # A call a sentinel sidecar rejected is answered as an in-process
     # sentinel's rejection is. No approver sees it: the sidecar judged the
     # turn before Inspect was handed it.
-    from inspect_ai._sentinel._sidecar._act import take_call_decision
-
-    decided = take_call_decision(call.id)
     if decided is not None and decided.action == "reject":
         await record_pending_tool_event()
         raise ToolApprovalError(decided.message)
