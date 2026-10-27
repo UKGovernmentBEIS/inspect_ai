@@ -4,6 +4,7 @@ import json
 import logging
 import math
 import os
+import re
 import shutil
 import tempfile
 import warnings
@@ -512,6 +513,15 @@ class EvalRecorder(FileRecorder):
             reader = AsyncZipReader(fs, location)
             summaries, _ = await _read_all_summaries_async(reader)
             return summaries
+
+    @classmethod
+    @override
+    async def read_log_sample_keys(cls, location: str) -> list[SampleRecordKey]:
+        async with AsyncFilesystem() as fs:
+            cd = await AsyncZipReader(fs, location).entries()
+        keys = (_sample_key(entry.filename) for entry in cd.entries)
+        # a re-logged sample repeats its member name
+        return list(dict.fromkeys(key for key in keys if key is not None))
 
     @classmethod
     @override
@@ -2253,6 +2263,16 @@ def _read_header(zip: ZipFile, location: str) -> EvalLog:
 
 def _sample_filename(id: str | int, epoch: int) -> str:
     return f"{SAMPLES_DIR}/{id}_epoch_{epoch}.json"
+
+
+# an id may be empty or contain a newline
+_SAMPLE_FILENAME_RE = re.compile(rf"{SAMPLES_DIR}/(.*)_epoch_(\d+)\.json", re.DOTALL)
+
+
+def _sample_key(filename: str) -> SampleRecordKey | None:
+    """The key `_sample_filename` named this member by, or `None` for other members."""
+    match = _SAMPLE_FILENAME_RE.fullmatch(filename)
+    return SampleRecordKey(match[1], int(match[2])) if match else None
 
 
 def _journal_path(file: str) -> str:
