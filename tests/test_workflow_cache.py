@@ -1,4 +1,9 @@
-"""Jobs that hold credentials restore no cache (see the canary comment in build.yml)."""
+"""Jobs that hold credentials restore no cache.
+
+A malicious package installed by any job can write to the shared Actions
+cache, so a job holding secrets, an id-token or write permissions must not
+restore one.
+"""
 
 from pathlib import Path
 from typing import Any
