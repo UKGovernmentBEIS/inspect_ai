@@ -116,6 +116,14 @@ uppercase); that is how the 0.3.279 publish failed.
 (a second checkout into `.ci/`), not from the tag, so a recovery dispatch on
 `main` publishes an older tag with the current publish steps.
 
+Both registries build in a job without `id-token`, so the dependencies and
+build tools never run where they could publish. The PyPI `build` job uploads
+the sdist and wheel; `npm-publish.yml`'s `build` job installs the ts-mono
+workspace, runs the viewer's checks and `prepublishOnly`, and uploads the
+packed tarball. Each publish job only checks the downloaded files against the
+release tag and uploads them; neither builds anything or installs the
+project's dependencies. A tarball publish runs no npm lifecycle scripts.
+
 Trusted publishers: PyPI matches the workflow file that runs the publishing
 job, so `release.yml` and `publish.yml` each need a PyPI publisher. npm matches
 the calling workflow, so `release.yml` and `npm-publish.yml` each need an npm
@@ -200,7 +208,7 @@ Re-running the Release workflow is safe at any point.
   broken (such as 0.3.279); use the recovery dispatch of `release.yml`. Dispatch `npm-publish.yml` on the tag
   with dry-run unchecked.
 - **Local:** `python scripts/pypi-release.py release X.Y.Z` (PyPI only; its
-  tag push no longer triggers npm, so dispatch `npm-publish.yml`).
+  tag push no longer triggers npm, so dispatch `npm-publish.yml` on the tag).
 
 After any release made outside the release PR, open a PR that sets
 `.release-please-manifest.json` to the released version; otherwise the next
