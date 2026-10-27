@@ -972,6 +972,58 @@ def test_a_model_input_step_no_model_call_followed_is_not_replayed_yet(
         replay_events(log, events)
 
 
+@protocol
+def r7_first_generate_fails() -> Protocol:
+    failed = False
+
+    async def check(
+        context: Context, step: BeforeGenerate, escalations: Escalations
+    ) -> Decision | None:
+        nonlocal failed
+        if not failed:
+            failed = True
+            raise PermissionError("sentinel denied")
+        return None
+
+    return check
+
+
+@solver
+def r7_generates_again_after_a_failure() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        try:
+            await get_model().generate(state.messages)
+        except Exception:
+            pass
+        state.output = await get_model().generate(state.messages)
+        return state
+
+    return solve
+
+
+def test_a_model_input_step_without_its_model_call_is_not_replayed_after_a_later_turn() -> (
+    None
+):
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=r7_generates_again_after_a_failure(),
+        # a monitor's failure is recorded, then the protocol's is caught
+        sentinel=[d3_generate_raises(), r7_first_generate_fails()],
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    [turn] = [e for e in events if isinstance(e, ModelEvent)]
+    orphan, called = [
+        e.step_id
+        for e in events
+        if isinstance(e, SentinelEvent) and e.stage == "model_input"
+    ]
+    assert called == turn.uuid and orphan != turn.uuid
+    with pytest.raises(NotImplementedError, match=f"model_input step {orphan!r}"):
+        replay_events(log, events)
+
+
 def test_a_log_with_message_based_generate_ids_keeps_its_recorded_ids() -> None:
     seen: dict[str, Step] = {}
     log = run_logged(tool_loop(addition()), agent_model(), sentinel=[r7_probe(seen)])
