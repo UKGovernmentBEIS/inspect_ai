@@ -1101,6 +1101,20 @@ def test_a_model_input_step_no_model_call_followed_is_not_replayed_yet(
         replay_events(log, events)
 
 
+@monitor
+def r7_first_generate_raises() -> MonitorGroup:
+    failed = False
+
+    async def check(context: Context, step: BeforeGenerate) -> Observation | None:
+        nonlocal failed
+        if not failed:
+            failed = True
+            raise ValueError("monitor broke")
+        return None
+
+    return MonitorGroup(check)
+
+
 @protocol
 def r7_first_generate_fails() -> Protocol:
     failed = False
@@ -1130,25 +1144,35 @@ def r7_generates_again_after_a_failure() -> Solver:
     return solve
 
 
-def test_a_model_input_step_without_its_model_call_is_not_replayed_after_a_later_turn() -> (
-    None
-):
+@pytest.mark.parametrize(
+    "monitor_fails,recorded",
+    [
+        (d3_generate_raises, 2),
+        # the later check records nothing, so no step id names the turn
+        (r7_first_generate_raises, 1),
+    ],
+    ids=["later-check-recorded", "later-check-abstains"],
+)
+def test_a_model_input_step_without_its_model_call_is_not_replayed_after_a_later_turn(
+    monitor_fails: Callable[[], Any], recorded: int
+) -> None:
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target="2")],
         solver=r7_generates_again_after_a_failure(),
         # a monitor's failure is recorded, then the protocol's is caught
-        sentinel=[d3_generate_raises(), r7_first_generate_fails()],
+        sentinel=[monitor_fails(), r7_first_generate_fails()],
     )
     log = eval(task, model="mockllm/model")[0]
     assert log.status == "success", log.error
     events = logged_sample(log).events
     [turn] = [e for e in events if isinstance(e, ModelEvent)]
-    orphan, called = [
+    orphan, *called = [
         e.step_id
         for e in events
         if isinstance(e, SentinelEvent) and e.stage == "model_input"
     ]
-    assert called == turn.uuid and orphan != turn.uuid
+    assert len(called) + 1 == recorded
+    assert called in ([turn.uuid], []) and orphan != turn.uuid
     with pytest.raises(NotImplementedError, match=f"model_input step {orphan!r}"):
         replay_events(log, events)
 
@@ -1158,11 +1182,15 @@ def test_a_log_with_message_based_generate_ids_keeps_its_recorded_ids() -> None:
     log = run_logged(tool_loop(addition()), agent_model(), sentinel=[r7_probe(seen)])
     events = logged_sample(log).events
     # rewrite the generate stages' ids as sentinel 0.1.x recorded them: the
-    # last input message's id before, and the output message's id after
+    # last input message's id before (with ":<n>" when the same input was
+    # checked again, here the second), and the output message's id after
     turns = [e for e in events if isinstance(e, ModelEvent)]
     old: dict[str, tuple[str, str]] = {
-        turn.uuid or "": (f"{turn.input[-1].id}:old", turn.output.message.id or "")
-        for turn in turns
+        turn.uuid or "": (
+            f"{turn.input[-1].id}{':2' if n else ''}",
+            turn.output.message.id or "",
+        )
+        for n, turn in enumerate(turns)
     }
     for event in events:
         if isinstance(event, SentinelEvent) and event.step_id in old:
@@ -1343,6 +1371,53 @@ def test_replay_infers_the_turns_of_the_continuity_fixtures(fixture: str) -> Non
         ]
 
     assert steps(events) == steps(recorded)
+
+
+def test_a_checked_call_inferred_not_a_turn_has_no_steps() -> None:
+    # a log with generate ids whose only checked model_input step is a call
+    # inferred as utility (where inference differs from live): the call was
+    # made, so the check is not an orphan, and the conversation's next turn
+    # keeps its own id
+    import json
+
+    from pydantic import TypeAdapter
+
+    data = json.loads((CONTINUITY_FIXTURES / "continuity_none.json").read_text())
+    events: list[Event] = []
+    for event in TypeAdapter(list[Event]).validate_python(data["events"]):
+        if isinstance(event, ModelEvent) and event.uuid == "m3":
+            events += [
+                SpanBeginEvent(
+                    id="check", name="probe", type="sentinel", span_id=event.span_id
+                ),
+                SentinelEvent(
+                    factory="probe",
+                    path="probe",
+                    function="check",
+                    step_id="m3",
+                    conversation="agent",
+                    stage="model_input",
+                    kind="observation",
+                    status="reported",
+                    suspicion=0.1,
+                    span_id="check",
+                ),
+                SpanEndEvent(id="check", span_id=event.span_id),
+            ]
+        events.append(event)
+    replay = steps_from_events(
+        [],
+        events,
+        [],
+        sample_uuid="sample",
+        eval_info=EvalInfo(inspect_ai_version="0.3.200", sentinel=True),
+    )
+
+    assert [(s.stage, s.id) for s in replay if s.stage == "model_input"] == [
+        ("model_input", "m1"),
+        ("model_input", "m2"),
+        ("model_input", "m4"),
+    ]
 
 
 def test_a_person_s_approval_is_a_human_decision_without_a_sentinel(

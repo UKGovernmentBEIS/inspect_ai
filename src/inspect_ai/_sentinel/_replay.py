@@ -104,7 +104,7 @@ def steps_from_events(
 
     Raises:
         MalformedLogError: Two steps of one stage have one step id, the span tree has a `parent_id` cycle, or a model input names rows outside the message pool.
-        NotImplementedError: A sentinel checked a model_input step whose model call was not made (it ended the sample there or failed), whose input the log does not record.
+        NotImplementedError: A sentinel checked a model_input step whose model call was not made (a sentinel ended the sample there or failed, or a token or cost limit or a cancellation stopped the call before it was recorded), whose input the log does not record.
     """
     flat, nested = _flatten(events)
     pool: list[ChatMessage] | Sequence[ChatMessage] = message_pool
@@ -379,6 +379,8 @@ class _Driver:
         self._answers: dict[str, ChatMessageTool] | None = None
         # the origins of model calls the log records none for, by id()
         self._inferred: dict[int, str] | None = None
+        # the uuids of the model calls made outside sentinel spans
+        self.calls_made: set[str | None] = set()
         # span id -> the innermost agent or tool span's type, and the phase
         # span ("init", "scorers") holding it
         self._regions: dict[str | None, tuple[str | None, str | None]] = {}
@@ -478,7 +480,8 @@ class _Driver:
                 )
                 calls.append(entry)
 
-        self._check_generated(candidates, turn_ids, inferred_other)
+        self.calls_made = turn_ids | inferred_other
+        self._check_generated(candidates)
         for group in generates:
             self._generate(group)
         for entry in calls:
@@ -514,42 +517,49 @@ class _Driver:
         if event.stage == "model_input":
             candidates.setdefault(event.conversation, []).append(span)
 
-    def _check_generated(
-        self,
-        candidates: dict[str, list[str]],
-        turn_ids: set[str | None],
-        inferred_other: set[str | None],
-    ) -> None:
+    def _check_generated(self, candidates: dict[str, list[str]]) -> None:
         # a model_input step without its model call (a sentinel ended the
-        # sample there, or failed and the scaffold carried on): the input it
-        # was handed is not in the log. A step whose call was made but whose
-        # inferred origin is not a turn is where inference differs from what
-        # was recorded live; it has no step, as the other calls inferred so
+        # sample there, or failed and the scaffold carried on, or a limit or
+        # cancellation stopped the call): the input it was handed is not in
+        # the log. A step whose call was made but whose inferred origin is not
+        # a turn is where inference differs from what was recorded live; it
+        # has no step, as the other calls inferred so
         inputs = [
             step_id for stage, step_id in self.step_spans if stage == "model_input"
         ]
-        if any(step_id in turn_ids for step_id in inputs):
+        if any(step_id in self.calls_made for step_id in inputs):
             # the log identifies generates by id, so each step names its call
-            orphans = [
-                step_id
-                for step_id in inputs
-                if step_id not in turn_ids and step_id not in inferred_other
-            ]
+            orphans = [step_id for step_id in inputs if step_id not in self.calls_made]
         else:
-            # ids from before generate ids: a step goes with its conversation's
-            # next turn
-            orphans = [
+            # an id from before generate ids names the last message of the
+            # step's input, and the step goes with its conversation's next
+            # turn; an id naming neither a call nor a message is a generate id
+            # whose call was not made
+            left = {
                 self.span_events[span][0].step_id
                 for spans in candidates.values()
                 for span in spans
+            }
+            orphans = [
+                step_id
+                for step_id in inputs
+                if step_id in left or not self._names_message(step_id)
             ]
         if orphans:
             raise NotImplementedError(
                 f"The model_input step {orphans[0]!r} was checked, but its model "
-                "call was not made (a sentinel ended the sample there or failed): "
+                "call was not made (a sentinel ended the sample there or failed, or "
+                "a limit or cancellation stopped the call before it was recorded): "
                 "the log does not record the input the step was handed, so "
                 "replay cannot rebuild it."
             )
+
+    def _names_message(self, step_id: str) -> bool:
+        # the same input checked again had ":<n>" appended
+        message_id, _, count = step_id.rpartition(":")
+        return self._message_by_id(step_id) is not None or (
+            count.isdigit() and self._message_by_id(message_id) is not None
+        )
 
     def _sentinel_span(self, span_id: str | None) -> str | None:
         # the span tree has no cycle (_check_span_tree)
@@ -623,9 +633,14 @@ class _Driver:
             # a log from before generate ids: the only model_input step of
             # the conversation since its previous turn
             candidate = group.candidates[0]
-            if self.begins[candidate][0] > group.previous:
+            step_id = self.span_events[candidate][0].step_id
+            if (
+                self.begins[candidate][0] > group.previous
+                # a generate id names its own call, one inferred not a turn
+                and step_id not in self.calls_made
+            ):
                 before_span = candidate
-                before_id = self.span_events[candidate][0].step_id
+                before_id = step_id
         if before_id is None:
             before_id = f"{conversation}:{first_index}"
         input = self._input(first)
