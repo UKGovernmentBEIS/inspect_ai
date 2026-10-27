@@ -44,10 +44,7 @@ def _forward_provider_errors(
     channel. This lets the model proxy emit a provider-dialect error response
     and stay up, instead of the RPC `error` channel triggering a fatal exit.
 
-    `LimitExceededError` is deliberately excluded so message/token/cost limit
-    hit during generation properly end the sample.
-
-    A termination is also re-raised: a `TerminateSampleError` (from an approver's
+    A termination is re-raised: a `TerminateSampleError` (from an approver's
     `terminate` decision, too many consecutive rejections, or a request or
     response filter), bare or anywhere in the exception as `find_control_flow`
     finds it. The sandbox service dispatcher answers the RPC and propagates the
@@ -58,6 +55,10 @@ def _forward_provider_errors(
     sample, but the dispatcher would turn a re-raise into an RPC error, so they
     are signalled through `bridge.request_fail` (raised on the agent's side by
     the bridge's monitor task) while the scaffold still gets an error reply.
+
+    A `LimitExceededError` (message, token, cost or turn limit) takes the same
+    route, so it is raised from the agent as it would be from a native agent:
+    the scope that applied the limit (`run()`, or the sample) handles it.
     """
 
     async def generate_forwarding_errors(
@@ -66,16 +67,16 @@ def _forward_provider_errors(
     ) -> dict[str, JsonValue]:
         try:
             return await generate(json_data, headers)
-        except LimitExceededError:
-            raise
         except Exception as ex:
             if find_control_flow(ex) is not None:
                 # the service dispatcher ends the sample with it
                 raise
-            if isinstance(ex, (ModelRefusalError, ResponseFilterError)):
+            if isinstance(
+                ex, (ModelRefusalError, ResponseFilterError, LimitExceededError)
+            ):
                 bridge.request_fail(ex)
                 # no non-provider-error warning: the failure is reported once,
-                # by the sample error the monitor task raises
+                # by the error the monitor task raises
                 return {PROVIDER_ERROR_KEY: cast(JsonValue, provider_error_payload(ex))}
             payload = provider_error_payload(ex)
             # A payload with no recoverable HTTP status almost always means the

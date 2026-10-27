@@ -320,7 +320,7 @@ class SandboxAgentBridge(AgentBridge):
         return _dispatched_call(self.bridged_tools, call)
 
     def request_fail(self, error: Exception) -> None:
-        """Fail the sample with `error` from a bridged generation or tool call.
+        """Raise `error` from a bridged generation or tool call on the agent's side.
 
         A sandbox bridge's generations and host tool calls run in the sandbox
         service task, where `_handle_request` turns exceptions into RPC error
@@ -328,15 +328,18 @@ class SandboxAgentBridge(AgentBridge):
         (routed to the active sample) and a termination (answered, then
         propagated out of the service task) are special-cased, so a termination
         is raised rather than requested here (see `request_terminate`). Raising
-        any other error would never reach the sample runner.
+        any other error would never reach the sample runner, and a limit raised
+        there would end the sample even when the limit belongs to the agent.
 
         Instead, store the error and signal the monitor task in
-        `sandbox_agent_bridge`'s task group, which raises it on the agent's side
-        and tears the sample down. This does not raise itself: the caller decides
-        how the current RPC unwinds (a host tool call re-raises, and the model
-        service returns a provider error payload so the sandboxed agent gets a
-        reply rather than blocking on one that will never come). The first error
-        requested wins; later requests are ignored.
+        `sandbox_agent_bridge`'s task group, which raises it on the agent's side.
+        A `LimitExceededError` is then handled by the scope that applied the
+        limit (`run()`, or the sample); any other error fails the sample. This
+        does not raise itself: the caller decides how the current RPC unwinds (a
+        host tool call re-raises, and the model service returns a provider error
+        payload so the sandboxed agent gets a reply rather than blocking on one
+        that will never come). The first error requested wins; later requests
+        are ignored.
         """
         if self._failure is None:
             self._failure = error

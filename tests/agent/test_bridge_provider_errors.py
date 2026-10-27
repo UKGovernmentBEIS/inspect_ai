@@ -10,18 +10,28 @@ extractors, and the `service.py` wrapper that turns an exception into a
 from __future__ import annotations
 
 import ast
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, Callable, cast
+from unittest.mock import AsyncMock
 
+import anyio
 import httpx2
 import pytest
 from anthropic import APIStatusError
 from pydantic import JsonValue
+from test_helpers.service_dispatch import (
+    REQUEST_FILE,
+    REQUEST_ID,
+    dispatching_service,
+)
 
 import inspect_ai
+from inspect_ai import Task, eval
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.http import status_code_of
 from inspect_ai._util.registry import _registry
+from inspect_ai.agent import Agent, agent, run
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge import bridge as bridge_module
 from inspect_ai.agent._bridge._errors import (
@@ -29,11 +39,23 @@ from inspect_ai.agent._bridge._errors import (
     ResponseFilterError,
     provider_error_payload,
 )
+from inspect_ai.agent._bridge.sandbox import bridge as sandbox_bridge_module
 from inspect_ai.agent._bridge.sandbox import service as bridge_service
+from inspect_ai.agent._bridge.sandbox.bridge import sandbox_agent_bridge
 from inspect_ai.agent._bridge.sandbox.service import _forward_provider_errors
 from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
-from inspect_ai.model import ChatMessageUser, GenerateConfig, ModelOutput, get_model
+from inspect_ai.dataset import Sample
+from inspect_ai.log import EvalSample
+from inspect_ai.model import (
+    ChatMessageUser,
+    GenerateConfig,
+    ModelOutput,
+    ModelUsage,
+    get_model,
+)
 from inspect_ai.model._model import ModelAPI, ModelGenerateError, ModelRefusalError
+from inspect_ai.model._model_data.model_data import ModelCost, ModelInfo
+from inspect_ai.model._model_info import clear_model_info_cache, set_model_info
 from inspect_ai.model._providers.anthropic import (
     _ANTHROPIC_ERROR_TYPE_STATUS,
     AnthropicAPI,
@@ -41,9 +63,11 @@ from inspect_ai.model._providers.anthropic import (
     _UnclassifiedStreamError,
 )
 from inspect_ai.model._registry import modelapi
+from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
-from inspect_ai.util._limit import LimitExceededError
+from inspect_ai.util import cost_limit, message_limit, token_limit, turn_limit
+from inspect_ai.util._limit import Limit, LimitExceededError
 from inspect_ai.util._sandbox.service import find_control_flow
 
 
@@ -664,23 +688,6 @@ async def test_sandbox_google_generation_accepts_service_headers(
     assert result == {"id": "completion"}
 
 
-async def test_forward_provider_errors_reraises_limit_exceeded_error() -> None:
-    """A message/token/cost limit hit during generation must end the sample.
-
-    Previously swallowed into a normal-looking provider-error response, which
-    meant a sandboxed bridge's limit hits during model generation silently
-    never terminated the sample.
-    """
-
-    async def boom(
-        json_data: dict[str, Any], headers: dict[str, str] | None = None
-    ) -> dict[str, Any]:
-        raise LimitExceededError("message", value=2, limit=1)
-
-    with pytest.raises(LimitExceededError):
-        await _forward_provider_errors(boom, _bridge())({})
-
-
 def _refusal() -> ModelRefusalError:
     return ModelRefusalError(
         ModelOutput.from_content(
@@ -698,19 +705,23 @@ def _refusal() -> ModelRefusalError:
             lambda: ResponseFilterError("ValueError: filter is broken"),
             id="response_filter",
         ),
+        pytest.param(
+            lambda: LimitExceededError("message", value=2, limit=1), id="limit"
+        ),
     ],
 )
 async def test_forward_provider_errors_signals_sample_failure_to_bridge(
     monkeypatch: pytest.MonkeyPatch, make_error: Callable[[], Exception]
 ) -> None:
-    """An error that must end the sample does so via the bridge, not via a raise.
+    """An error that must unwind the agent does so via the bridge, not via a raise.
 
-    Covers a fail_on_refusal refusal and a `ResponseFilterError`. The sandbox
-    service dispatcher would turn a re-raise into an RPC error, so the wrapper
-    hands the error to `bridge.request_fail` (raised on the agent's side by the
-    bridge's monitor task) and still answers the scaffold with a provider error
-    payload. It is not logged as a non-provider error, since the sample error is
-    the report.
+    Covers a fail_on_refusal refusal, a `ResponseFilterError` and a limit. A
+    re-raise would leave the generation in the sandbox service task (an RPC
+    error, or for a limit the dispatcher ending the sample whoever owns the
+    limit), so the wrapper hands the error to `bridge.request_fail` (raised on
+    the agent's side by the bridge's monitor task) and still answers the
+    scaffold with a provider error payload. It is not logged as a non-provider
+    error, since the raised error is the report.
     """
     warnings: list[tuple[Any, Any]] = []
     monkeypatch.setattr(
@@ -731,27 +742,32 @@ async def test_forward_provider_errors_signals_sample_failure_to_bridge(
     assert warnings == []
 
 
-@pytest.mark.parametrize("grouped", [False, True], ids=["bare", "grouped"])
+@pytest.mark.parametrize("wrapper", ["bare", "grouped", "limit"])
 async def test_forward_provider_errors_leaves_termination_to_the_dispatcher(
-    grouped: bool,
+    wrapper: str,
 ) -> None:
     """A `TerminateSampleError` (e.g. from a request or response filter) is re-raised.
 
     The sandbox service dispatcher answers the RPC and propagates a termination
     out of the service task, which ends the sample, so the wrapper neither
-    forwards it as a provider error nor signals the bridge's monitor task.
+    forwards it as a provider error nor signals the bridge's monitor task. This
+    holds for a termination in a group or in the history of a limit too.
     """
     error = TerminateSampleError("Judge said stop.")
 
     async def boom(
         json_data: dict[str, Any], headers: dict[str, str] | None = None
     ) -> dict[str, Any]:
-        if grouped:
+        if wrapper == "grouped":
             raise ExceptionGroup("judge", [error])
+        if wrapper == "limit":
+            raise LimitExceededError("token", value=2, limit=1) from error
         raise error
 
     bridge = _bridge()
-    with pytest.raises((TerminateSampleError, ExceptionGroup)) as excinfo:
+    with pytest.raises(
+        (TerminateSampleError, ExceptionGroup, LimitExceededError)
+    ) as excinfo:
         await _forward_provider_errors(boom, bridge)({})
     assert find_control_flow(excinfo.value) is error
     assert not bridge._failure_requested.is_set()
@@ -872,3 +888,200 @@ async def test_model_generate_wraps_returned_exception_with_status() -> None:
         assert excinfo.value.__cause__ is not None
     finally:
         del _registry["modelapi:returnsexc"]
+
+
+# ---------- limits reached in a sandbox-bridged generation ----------
+
+
+class _ExitedProxy:
+    """A model proxy process that has already exited cleanly."""
+
+    def __aiter__(self) -> _ExitedProxy:
+        return self
+
+    async def __anext__(self) -> object:
+        raise StopAsyncIteration
+
+    async def kill(self) -> None:
+        pass
+
+
+class _ProxySandbox:
+    def __init__(self) -> None:
+        self.exec_remote = AsyncMock(return_value=_ExitedProxy())
+        self._tools_user: str | None = None
+
+
+def _serve_one_generation(
+    monkeypatch: pytest.MonkeyPatch, replies: list[JsonValue]
+) -> None:
+    """Make `sandbox_agent_bridge` serve one chat completion, without a sandbox.
+
+    The bridge, its model service methods, the sandbox service dispatcher and
+    the failure monitor are real; the sandbox, the model proxy process and the
+    request transport (`dispatching_service`) are faked. Each value the
+    generate method returns to the dispatcher is appended to `replies`.
+    """
+    monkeypatch.setattr(
+        sandbox_bridge_module,
+        "sandbox_with_injected_tools",
+        AsyncMock(return_value=_ProxySandbox()),
+    )
+
+    async def serve(
+        *,
+        methods: dict[str, Callable[..., Any]],
+        started: anyio.Event,
+        **kwargs: Any,
+    ) -> None:
+        generate = methods["generate_completions"]
+
+        async def recording_generate(**params: Any) -> JsonValue:
+            reply = await generate(**params)
+            replies.append(reply)
+            return reply
+
+        service = dispatching_service(
+            monkeypatch,
+            "generate_completions",
+            recording_generate,
+            {
+                "json_data": {
+                    "model": "inspect",
+                    "messages": [{"role": "user", "content": "Say hi."}],
+                }
+            },
+            [],
+        )
+        started.set()
+        await service._handle_request_tracked(REQUEST_FILE, REQUEST_ID)
+        await anyio.sleep_forever()
+
+    monkeypatch.setattr(bridge_service, "sandbox_service", serve)
+
+
+@agent
+def _bridged_agent() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        async with sandbox_agent_bridge(state) as bridge:
+            # the scaffold, waiting on its model request
+            await anyio.sleep_forever()
+        return bridge.state
+
+    return execute
+
+
+def _run_bridged_agent(
+    tmp_path: Path, limit: Limit, sample_token_limit: int | None = None
+) -> tuple[EvalSample, list[LimitExceededError | None]]:
+    """Run `_bridged_agent` under `run(limits=[limit])` in a one-sample eval.
+
+    Returns the sample and the limit errors `run()` returned. The solver marks
+    the sample's store once `run()` returns, so a sample that continued past
+    the agent has `store["continued"]` set.
+    """
+    output = ModelOutput.from_content(model="mockllm/model", content="hi")
+    output.usage = ModelUsage(input_tokens=3, output_tokens=4, total_tokens=7)
+    errors: list[LimitExceededError | None] = []
+
+    @solver
+    def run_bridged() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            _, error = await run(_bridged_agent(), state.messages, limits=[limit])
+            errors.append(error)
+            state.store.set("continued", True)
+            return state
+
+        return solve
+
+    log = eval(
+        Task(
+            dataset=[Sample(input="Say hi.")],
+            solver=run_bridged(),
+            token_limit=sample_token_limit,
+        ),
+        model=get_model("mockllm/model", custom_outputs=[output]),
+        log_dir=str(tmp_path),
+        display="none",
+    )[0]
+    assert log.samples is not None
+    return log.samples[0], errors
+
+
+@pytest.fixture
+def _model_cost() -> Iterator[None]:
+    set_model_info(
+        "model",
+        ModelInfo(
+            cost=ModelCost(
+                input=1000.0, output=1000.0, input_cache_write=0.0, input_cache_read=0.0
+            )
+        ),
+    )
+    yield
+    clear_model_info_cache()
+
+
+@pytest.mark.parametrize(
+    ("make_limit", "limit_type"),
+    [
+        # one generation of 7 tokens
+        pytest.param(lambda: token_limit(5), "token", id="token"),
+        # $0.007 at $1000 per million tokens
+        pytest.param(lambda: cost_limit(0.001), "cost", id="cost"),
+        # the request carries one message: no room for the reply
+        pytest.param(lambda: message_limit(1), "message", id="message"),
+        pytest.param(lambda: turn_limit(0), "turn", id="turn"),
+    ],
+)
+@pytest.mark.usefixtures("_model_cost")
+def test_agent_limit_in_a_bridged_generation_ends_only_the_agent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    make_limit: Callable[[], Limit],
+    limit_type: str,
+) -> None:
+    """A limit `run()` applied, reached in a bridged generation, ends only the agent.
+
+    As for a native agent, `run()` returns the limit error and the sample
+    continues without a limit. The scaffold's request still gets an error reply.
+    """
+    replies: list[JsonValue] = []
+    _serve_one_generation(monkeypatch, replies)
+    limit = make_limit()
+
+    sample, errors = _run_bridged_agent(tmp_path, limit)
+
+    assert sample.error is None, sample.error
+    assert sample.limit is None
+    assert sample.store.get("continued") is True
+    [error] = errors
+    assert error is not None
+    assert error.type == limit_type
+    assert error.source is limit
+    [reply] = replies
+    assert isinstance(reply, dict) and PROVIDER_ERROR_KEY in reply
+
+
+def test_sample_limit_in_a_bridged_generation_ends_the_sample(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A sample limit reached in a bridged generation ends the sample with that limit.
+
+    The error propagates out of the agent, past the `run()` limits that do not
+    own it, to the sample runner, which records it as for a native agent.
+    """
+    replies: list[JsonValue] = []
+    _serve_one_generation(monkeypatch, replies)
+
+    sample, errors = _run_bridged_agent(
+        tmp_path, token_limit(1000), sample_token_limit=5
+    )
+
+    assert sample.error is None, sample.error
+    assert sample.limit is not None
+    assert (sample.limit.type, sample.limit.limit) == ("token", 5)
+    assert "continued" not in sample.store
+    assert errors == []
+    [reply] = replies
+    assert isinstance(reply, dict) and PROVIDER_ERROR_KEY in reply

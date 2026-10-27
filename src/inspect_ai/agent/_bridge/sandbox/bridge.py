@@ -298,10 +298,11 @@ async def sandbox_agent_bridge(
             # monitor proxy for unexpected death
             tg.start_soon(_monitor_proxy, proxy)
 
-            # monitor for a sample failure requested from the service task
-            # (fail_on_refusal, a response filter failure, an invalid approver
-            # modification, a host tool bug). A termination needs no monitor:
-            # the service dispatcher propagates it out of run_model_service.
+            # monitor for a failure requested from the service task
+            # (fail_on_refusal, a response filter failure, a limit reached in a
+            # generation, an invalid approver modification, a host tool bug).
+            # A termination needs no monitor: the service dispatcher propagates
+            # it out of run_model_service.
             tg.start_soon(_monitor_failure, bridge)
 
             # main agent
@@ -358,13 +359,14 @@ def _register_bridged_tools(
 
 
 async def _monitor_failure(bridge: SandboxAgentBridge) -> None:
-    """Raise the error a bridged generation or tool call asked the sample to fail with.
+    """Raise the error a bridged generation or tool call asked to raise.
 
     Bridged generations and host tool calls run in the sandbox service task,
     whose dispatcher turns their exceptions into RPC error responses, except a
     limit or a termination (see `SandboxAgentBridge.request_fail`). Raising here
     instead puts the error in the bridge's own task group, so it unwinds the
-    agent and reaches the sample runner.
+    agent: a limit reaches the scope that applied it, any other error the
+    sample runner.
     """
     await bridge._failure_requested.wait()
     assert bridge._failure is not None
