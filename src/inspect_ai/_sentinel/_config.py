@@ -152,7 +152,7 @@ def sentinel_with_args(
     return SentinelConfig.model_validate({"name": sentinel, "params": params})
 
 
-SENTINEL_MIN_VERSION = "0.1.3"
+SENTINEL_MIN_VERSION = "0.2.0"
 """The oldest inspect_sentinel that this inspect_ai works with."""
 
 
