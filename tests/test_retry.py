@@ -1,7 +1,10 @@
 import logging
 import os
+import subprocess
+import sys
 import tempfile
 from pathlib import Path
+from typing import Any
 
 import pytest
 from test_helpers.utils import (
@@ -849,7 +852,6 @@ def test_retry_record_lists_log_settings() -> None:
     log.location = "logs/retry.eval"
     config = log.eval.config.model_copy(
         update={
-            "acp_server": 8123,
             "sentinel": SentinelConfig.model_validate(
                 {
                     "name": "threshold",
@@ -870,7 +872,7 @@ def test_retry_record_lists_log_settings() -> None:
             "config": config,
         }
     )
-    record = retry_record(log.model_copy(update={"eval": spec}), None)
+    record = retry_record(log.model_copy(update={"eval": spec}), 8123)
 
     cwd = Path.cwd()
     assert record.splitlines() == [
@@ -882,9 +884,6 @@ def test_retry_record_lists_log_settings() -> None:
         "  Sentinel: threshold, monitor_a, monitor_b, deep",
         "  ACP server: TCP port 8123",
     ]
-
-    # an explicit acp_server replaces the log's binding
-    assert "ACP server" not in retry_record(log.model_copy(update={"eval": spec}), True)
 
     hf_spec = spec.model_copy(
         update={
@@ -906,3 +905,146 @@ def test_retry_record_lists_log_settings() -> None:
         "  Model: mockllm/model",
         "  Sandbox: docker, inline config",
     ]
+
+    # a task within a multi-task repo; a relative config with no task file
+    # resolves against the working directory, as the sandbox resolves it
+    hf_task_spec = hf_spec.model_copy(
+        update={
+            "task": "hf/org/dataset/subtask@v2",
+            "sandbox": SandboxEnvironmentSpec("docker", "compose.yaml"),
+        }
+    )
+    assert retry_record(
+        log.model_copy(update={"eval": hf_task_spec}), None
+    ).splitlines()[1:] == [
+        "  Task: eval.yaml from Hugging Face dataset org/dataset (revision v2), task subtask",
+        "  Model: mockllm/model",
+        f"  Sandbox: docker, config {(cwd / 'compose.yaml').as_posix()}",
+    ]
+
+
+@pytest.mark.parametrize(
+    "recorded,override,acp_lines,executed",
+    [
+        ([None, 8123], None, [[], ["TCP port 8123"]], [None, 8123]),
+        ([False, 8123], None, [[], []], [False, False]),
+        ([8123, "/tmp/acp.sock"], None, [["TCP port 8123"]] * 2, [8123, 8123]),
+        ([8123, None], True, [[], []], [True, True]),
+    ],
+)
+def test_retry_records_the_acp_server_the_retry_uses(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    recorded: list[bool | int | str | None],
+    override: bool | None,
+    acp_lines: list[list[str]],
+    executed: list[bool | int | str | None],
+) -> None:
+    import inspect_ai._eval.eval as eval_module
+
+    logs = []
+    for acp_server in recorded:
+        log = eval(mytask(), model="mockllm/model")[0]
+        config = log.eval.config.model_copy(update={"acp_server": acp_server})
+        logs.append(
+            log.model_copy(
+                update={"eval": log.eval.model_copy(update={"config": config})}
+            )
+        )
+
+    used: list[bool | int | str | None] = []
+
+    async def eval_async(**kwargs: Any) -> list[Any]:
+        used.append(kwargs["acp_server"])
+        return [kwargs["tasks"].log]
+
+    monkeypatch.setattr(eval_module, "eval_async", eval_async)
+    with caplog.at_level(logging.INFO, logger="inspect_ai._eval.eval"):
+        eval_retry(logs, acp_server=override)
+
+    records = [r.getMessage() for r in caplog.records if "Retrying" in r.getMessage()]
+    assert [
+        [
+            line.removeprefix("  ACP server: ")
+            for line in record.splitlines()
+            if "ACP server" in line
+        ]
+        for record in records
+    ] == acp_lines
+    assert used == executed
+
+
+_FAILING_TASK = """
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.solver import solver
+
+
+@solver
+def fail():
+    async def solve(state, generate):
+        raise RuntimeError("fail")
+
+    return solve
+
+
+@task
+def failing():
+    return Task(dataset=[Sample(input="x", target="y")], solver=fail())
+"""
+
+_RETRY_SCRIPT = """
+import sys
+
+from inspect_ai import eval_retry
+
+eval_retry(
+    sys.argv[1],
+    display=sys.argv[2],
+    log_level=sys.argv[3] or None,
+    log_dir=sys.argv[4],
+)
+"""
+
+
+@pytest.mark.parametrize(
+    "display,log_level,stdout,stderr",
+    [
+        # printed by the display and logged at INFO
+        ("plain", "info", 1, 1),
+        # the log display prints through logging, so it shows the record once
+        ("log", "info", 0, 1),
+        # nothing from a silent display at the default log level
+        ("none", "", 0, 0),
+    ],
+)
+def test_eval_retry_records_in_a_fresh_process(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    display: str,
+    log_level: str,
+    stdout: int,
+    stderr: int,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "task.py").write_text(_FAILING_TASK)
+    log = eval("task.py", model="mockllm/model", log_dir="logs")[0]
+    assert log.status == "error" and log.location is not None
+
+    # plain log lines are not wrapped to the terminal width
+    env = {**os.environ, "INSPECT_PY_LOGGER_FORMAT": "plain"}
+    env.pop("INSPECT_LOG_LEVEL", None)
+    env.pop("INSPECT_DISPLAY", None)
+    result = subprocess.run(
+        [sys.executable, "-c", _RETRY_SCRIPT, log.location, display, log_level, "logs"],
+        env=env,
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=180,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    record = f"Task: failing in {(tmp_path / 'task.py').as_posix()}"
+    assert result.stdout.count(record) == stdout, result.stdout
+    assert result.stderr.count(record) == stderr, result.stderr

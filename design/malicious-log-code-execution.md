@@ -936,8 +936,9 @@ waits on it:
   `eval.config.acp_server` is set.
 
 Paths are printed resolved, so a relative `task_file` that resolved to an
-unexpected file in the working directory shows up. `score()`/`eval_retry()`
-called from Python log the same lines at `INFO`.
+unexpected file in the working directory shows up. `score()` called from
+Python logs the same lines at `INFO`. `eval_retry()` called from Python prints
+and logs the retry block as `inspect eval-retry` does.
 
 ### Path resolution
 
