@@ -1193,7 +1193,7 @@ class Model:
                 prepared.input,
                 output.message if output.choices else None,
             )
-            end_if_terminated(field, output)
+            end_if_terminated(field, output, _bridged())
 
         if generate_step is not None:
             from inspect_ai._sentinel._dispatch import sentinel_after_generate

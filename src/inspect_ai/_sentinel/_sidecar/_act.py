@@ -123,7 +123,7 @@ def act_on_field(
 ) -> ModelOutput:
     """Act on what the sidecar decided of an agent call, and return the output the agent is handed. A `terminate` is acted on by `end_if_terminated`, once the reports are in the transcript, unless it ends the sample at the turn's calls."""
     if field.outcome == "terminate":
-        if _ends_at_calls(field, output):
+        if _ends_at_calls(field, output, bridged):
             # every call of the turn ends the sample, so whichever Inspect
             # would run first ends it before any runs
             ended = CallDecision("terminate", message=_explanation(field) or _ENDED)
@@ -163,7 +163,7 @@ def act_on_field(
     return output
 
 
-def end_if_terminated(field: SentinelField, output: ModelOutput) -> None:
+def end_if_terminated(field: SentinelField, output: ModelOutput, bridged: bool) -> None:
     """End the sample if a sentinel in the sidecar ended it, as an in-process sentinel's `terminate` does.
 
     A sentinel that ended the sample at a call of the model's turn ends it when Inspect would run the turn's calls, as in process, so the turn is the agent's, as an in-process sentinel leaves it.
@@ -171,16 +171,17 @@ def end_if_terminated(field: SentinelField, output: ModelOutput) -> None:
     Raises:
         TerminateSampleError: If the call's outcome is `terminate`, and it doesn't end the sample at the turn's calls.
     """
-    if field.outcome == "terminate" and not _ends_at_calls(field, output):
+    if field.outcome == "terminate" and not _ends_at_calls(field, output, bridged):
         raise TerminateSampleError(_explanation(field) or _ENDED)
 
 
-def _ends_at_calls(field: SentinelField, output: ModelOutput) -> bool:
-    # A bridged agent, which runs its own tools out of Inspect's sight, is
-    # handed no turn, so its sample ends at the model call. So does one the
-    # sidecar ended for a reason of its own, with no sentinel's terminate at a
-    # call.
-    if not output.choices or not output.message.tool_calls:
+def _ends_at_calls(field: SentinelField, output: ModelOutput, bridged: bool) -> bool:
+    # A bridged agent runs its own tools, out of Inspect's sight, so its
+    # sample ends at the model call, even for a reply whose calls came back
+    # with it, when `request_result` says the run ended at one. A sidecar that
+    # ended the run for a reason of its own, with no sentinel's terminate at a
+    # call, ends it there too.
+    if bridged or not output.choices or not output.message.tool_calls:
         return False
     ended = next(
         (s for s in reversed(field.steps) if s.decision.get("action") == "terminate"),
