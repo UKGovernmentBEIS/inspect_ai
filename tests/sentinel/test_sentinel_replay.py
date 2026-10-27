@@ -2857,6 +2857,56 @@ def test_the_reviewed_imported_shapes_give_the_projection_s_tool_steps(
     )
 
 
+def test_an_imported_call_with_an_empty_id_keeps_its_result() -> None:
+    # review of 9277c1fad: an importer can write "" for an id its source
+    # lacks, which the projection answers like any other
+    call = ToolCall(id="", function="f", arguments={})
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="go"),
+        ChatMessageAssistant(content="", tool_calls=[call]),
+        ChatMessageTool(content="r", tool_call_id="", function="f"),
+    ]
+    replay = steps_from_events(
+        messages, [], [], sample_uuid="transcript", eval_info=IMPORTED
+    )
+
+    assert tool_steps(replay) == projected_tool_steps(messages)
+    assert [s.stage for s in replay] == ["tool_call", "tool_result"]
+
+
+def test_an_imported_message_s_steps_follow_the_turn_whose_output_it_is() -> None:
+    # review of 9277c1fad: after a compaction, the messages are the last
+    # input, so a message's position does not say which turn made it; a turn
+    # whose output has its id does
+    from inspect_ai.event import CompactionEvent
+
+    user = ChatMessageUser(content="go")
+    summary = ChatMessageUser(content="summary")
+    t0 = imported_call("t0", [user], "run", READ)
+    t1 = imported_call(
+        "t1", [user, t0.output.message, *answers([READ], "r")], "run", LIST
+    )
+    t2 = imported_call("t2", [user, summary], "run", FIND)
+    later = [user, summary, t2.output.message, *answers([FIND], "r")]
+    t3 = imported_call("t3", later, "run", GREP)
+    final = imported_call(
+        "final", [*later, t3.output.message, *answers([GREP], "r")], "run"
+    )
+    messages = [*final.input, final.output.message]
+    replay = replayed_imported(
+        messages, t0, t1, CompactionEvent(type="summary"), t2, t3, final
+    )
+
+    order = [(s.stage, s.id) for s in replay]
+    assert tool_steps(replay) == projected_tool_steps(messages)
+    for turn, call in (("t2", FIND), ("t3", GREP)):
+        made = order.index(("model_output", turn))
+        assert order[made + 1 : made + 3] == [
+            ("tool_call", call.id),
+            ("tool_result", call.id),
+        ]
+
+
 def random_imported(seed: int) -> tuple[list[ChatMessage], list[Event]]:
     """An imported-style transcript: reused ids, parallel calls, pre-filled messages, compaction, sub-agents, ToolEvents of every kind, copies and stable ids, and messages that are the whole history or the last input."""
     from inspect_ai.event import CompactionEvent

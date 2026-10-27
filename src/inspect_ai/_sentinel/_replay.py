@@ -89,7 +89,7 @@ def steps_from_events(
 
     A log that does not record where a model call was made (`ModelEvent.origin`, written since inspect_ai PR #5990), an older Inspect log or a transcript imported from another source, has its turns inferred: a call made in a tool's span (or nested in its `ToolEvent`) is a tool's, one in the scorers' span a scorer's and one in the init span setup's; of the rest, those the timeline shows as utility (`timeline_build`'s prompt and continuity rules) are not turns, and the others are.
 
-    A transcript imported from another source (`eval_info` is `None`) has its tool steps from the sample's messages alone, as sentinel's messages projection (`steps_from_messages`) takes them: each call of each assistant message, in order, a `tool_call` step, and a `tool_result` step holding the first tool message with the call's id after that assistant message, none when there is none; step ids, calls, views and results as the projection's, with no input or tools. Its `ToolEvent`s and model calls do not decide which tool steps there are or what answers them, only where they go: a message's steps follow the `model_output` step of the last turn whose input is no longer than the message's position in the messages (the turn that made it, where the messages extend each turn's input), else precede the first turn, among the turns whose input opens with the messages' first message (else all turns). So a call no message holds (a sub-agent's, or one in a turn the messages dropped) has no tool steps, as in the projection.
+    A transcript imported from another source (`eval_info` is `None`) has its tool steps from the sample's messages alone, as sentinel's messages projection (`steps_from_messages`) takes them: each call of each assistant message, in order, a `tool_call` step, and a `tool_result` step holding the first tool message with the call's id after that assistant message, none when there is none; step ids, calls, views and results as the projection's, with no input or tools. Its `ToolEvent`s and model calls do not decide which tool steps there are or what answers them, only where they go, among the turns whose input opens with the messages' first message (else all turns): a message's steps follow the `model_output` step of the turn whose output has the message's id, else of the turn before the first turn whose input is longer than the message's position in the messages (the turn that made it, where the messages extend each turn's input), else they precede the first turn. So a call no message holds (a sub-agent's, or one in a turn the messages dropped) has no tool steps, as in the projection.
 
     Args:
         messages: The sample's messages (`EvalSample.messages`).
@@ -729,9 +729,6 @@ class _Driver:
             and proposal.parse_error is None
             and (
                 call.producer is None
-                # a transcript imported from another source records no tools
-                # offered, so cannot say the function was not offered
-                or not call.producer.tools
                 or any(tool.name == proposal.function for tool in call.producer.tools)
             )
             and (
@@ -832,17 +829,27 @@ class _Driver:
         longest = list(
             accumulate((len(self._input(g.attempts[0][1])) for g in turns), max)
         )
+        made: dict[str, _Generate] = {}
+        for group in turns:
+            output = group.attempts[-1][1].output
+            if output.choices and output.message.id is not None:
+                made.setdefault(output.message.id, group)
         answers: dict[str, list[int]] = {}
         for position, message in enumerate(self.messages):
-            if isinstance(message, ChatMessageTool) and message.tool_call_id:
+            if (
+                isinstance(message, ChatMessageTool)
+                and message.tool_call_id is not None
+            ):
                 answers.setdefault(message.tool_call_id, []).append(position)
         for position, message in enumerate(self.messages):
             if not isinstance(message, ChatMessageAssistant):
                 continue
-            # the first turn whose input is longer than the message's position
+            # the turn whose output has the message's id, else the turn before
+            # the first whose input is longer than the message's position
+            turn = made.get(message.id) if message.id is not None else None
             later = bisect_right(longest, position)
-            if later > 0:
-                turn = turns[later - 1]
+            if turn is not None or later > 0:
+                turn = turn or turns[later - 1]
                 at, conversation = (turn.attempts[-1][0], 3), turn.conversation
             elif turns:
                 at, conversation = (turns[0].attempts[0][0], 0), turns[0].conversation
