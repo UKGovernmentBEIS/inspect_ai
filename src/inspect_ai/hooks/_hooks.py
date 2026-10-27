@@ -7,7 +7,6 @@ import anyio
 from anyio.streams.memory import MemoryObjectReceiveStream
 
 from inspect_ai._eval.eval import EvalLogs
-from inspect_ai._eval.task.enqueue import not_task_code
 from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._util.error import EvalError
@@ -1046,8 +1045,7 @@ def override_api_key(env_var_name: str, value: str) -> str | None:
         if not hook.enabled():
             continue
         try:
-            with not_task_code():
-                overridden = hook.override_api_key(data)
+            overridden = hook.override_api_key(data)
             if overridden is not None:
                 return overridden
         except Exception as ex:
@@ -1098,8 +1096,7 @@ async def _emit_to_all(callable: Callable[[Hooks], Awaitable[None]]) -> None:
         if not hook.enabled():
             continue
         try:
-            with not_task_code():
-                await callable(hook)
+            await callable(hook)
         # We propagate LimitExceededError so that limits can be enforced via hooks.
         except LimitExceededError:
             raise

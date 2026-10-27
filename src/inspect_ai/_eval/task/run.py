@@ -68,6 +68,7 @@ from inspect_ai._util.registry import (
     registry_params,
     registry_unqualified_name,
 )
+from inspect_ai._util.task import active_task
 from inspect_ai._util.working import (
     init_sample_working_time,
     sample_clock,
@@ -199,12 +200,7 @@ from inspect_ai.util._store import init_subtask_store
 
 from ..context import init_task_context
 from ..task import Task
-from .enqueue import (
-    clear_running_task,
-    get_task_enqueuer,
-    not_task_code,
-    register_running_task,
-)
+from .enqueue import get_task_enqueuer
 from .error import SampleErrorHandler, _should_eval_fail
 from .generate import task_generate
 from .images import (
@@ -736,6 +732,19 @@ def _enqueue_source_samples(samples: list[Sample] | None) -> None:
 
 
 async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> EvalLog:
+    """Run a task, as the active task (``task_active()``) throughout."""
+    spec = options.logger.eval
+    with active_task(
+        run_id=spec.run_id,
+        eval_id=spec.eval_id,
+        task_id=spec.task_id,
+        task=spec.task,
+        log_location=options.logger.location,
+    ):
+        return await _task_run(options, task_cancel)
+
+
+async def _task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> EvalLog:
     from inspect_ai.hooks._hooks import (
         emit_task_end,
         emit_task_start,
@@ -1130,10 +1139,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         eval_plan = plan_to_eval_plan(plan, generate_config)
         await logger.log_start(eval_plan)
 
-        # reset in the finally below
-        running_task_token = register_running_task(
-            logger.eval.eval_id, logger.eval.task_id
-        )
         try:
             # return immediately if we are not running samples
             if not options.run_samples:
@@ -1626,12 +1631,11 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                 await sample_feed.sample_abandoned(abandoned, epoch)
                             )
                         if options.task_source is not None:
-                            with not_task_code():
-                                _enqueue_source_tasks(
-                                    await options.task_source.sample_abandoned(
-                                        abandoned, epoch, task
-                                    )
+                            _enqueue_source_tasks(
+                                await options.task_source.sample_abandoned(
+                                    abandoned, epoch, task
                                 )
+                            )
                     return result
 
                 async def run_samples_dynamic(
@@ -2107,7 +2111,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         finally:
             if sample_enqueuer_token is not None:
                 clear_sample_enqueuer(sample_enqueuer_token)
-            clear_running_task(running_task_token)
 
             # every sample task has exited by here (the try encloses the task
             # group), so any still-unaccounted samples can no longer record
@@ -2143,8 +2146,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     # notify a TaskSource (if the run has one) that this task is complete
     # (it may return follow-up tasks to add to the run)
     if options.task_source is not None:
-        with not_task_code():
-            _enqueue_source_tasks(await options.task_source.task_complete(eval_log))
+        _enqueue_source_tasks(await options.task_source.task_complete(eval_log))
 
     # return eval log
     return eval_log
@@ -3349,10 +3351,9 @@ async def _task_run_sample_attempt(
                         await sample_feed.sample_complete(source_sample)
                     )
                 if task_source is not None:
-                    with not_task_code():
-                        _enqueue_source_tasks(
-                            await task_source.sample_complete(source_sample, task)
-                        )
+                    _enqueue_source_tasks(
+                        await task_source.sample_complete(source_sample, task)
+                    )
 
     # error that should be retried (we return the retry signal outside of the
     # semaphore scope above so the retry re-acquires the semaphore -- it will

@@ -17,7 +17,7 @@ from inspect_ai._eval.task.enqueue import enqueue_task
 from inspect_ai._util.content import ContentImage
 from inspect_ai._util.registry import _registry
 from inspect_ai.dataset import Sample
-from inspect_ai.hooks import Hooks, SampleEnd, TaskEnd, hooks
+from inspect_ai.hooks import Hooks, SampleEnd, TaskEnd, TaskStart, hooks
 from inspect_ai.log import (
     EnqueueTaskOrigin,
     EvalLog,
@@ -417,7 +417,11 @@ def test_enqueued_task_records_creator_per_model() -> None:
 
 
 class _EnqueueFromHooks(Hooks):
-    """Adds a task from a sample hook and a task hook (of the `parent` task)."""
+    """Adds a task from sample and task hooks (of the `parent` task)."""
+
+    async def on_task_start(self, data: TaskStart) -> None:
+        if data.spec.task == "parent":
+            enqueue_task(Task(dataset=[Sample(input="hi")], name="from-on-task-start"))
 
     async def on_sample_end(self, data: SampleEnd) -> None:
         if data.sample.id == "parent-sample":
@@ -428,7 +432,7 @@ class _EnqueueFromHooks(Hooks):
             enqueue_task(Task(dataset=[Sample(input="hi")], name="from-on-task-end"))
 
 
-async def test_enqueue_task_from_hooks_records_no_origin() -> None:
+async def test_enqueue_task_from_hooks_records_task() -> None:
     @hooks("enqueue_from_hooks", description="enqueue_task() from hooks")
     def enqueue_from_hooks() -> type[_EnqueueFromHooks]:
         return _EnqueueFromHooks
@@ -444,13 +448,15 @@ async def test_enqueue_task_from_hooks_records_no_origin() -> None:
     finally:
         del _registry["hooks:enqueue_from_hooks"]
 
-    assert logs["from-on-sample-end"].eval.origin is None
-    assert logs["from-on-task-end"].eval.origin is None
-    # the parent's own solver, in the same sample, still records it
-    assert logs["child"].eval.origin == EnqueueTaskOrigin(
-        eval_id=logs["parent"].eval.eval_id,
-        task_id=logs["parent"].eval.task_id,
+    # hooks Inspect calls within the parent's context record it, as its own
+    # solver does
+    parent_origin = EnqueueTaskOrigin(
+        eval_id=logs["parent"].eval.eval_id, task_id=logs["parent"].eval.task_id
     )
+    assert logs["from-on-task-start"].eval.origin == parent_origin
+    assert logs["from-on-sample-end"].eval.origin == parent_origin
+    assert logs["from-on-task-end"].eval.origin == parent_origin
+    assert logs["child"].eval.origin == parent_origin
 
 
 @solver
@@ -473,6 +479,54 @@ def fail_first_run() -> Solver:
 @task
 def flaky_child() -> Task:
     return Task(dataset=[Sample(id="c", input="hi")], solver=[fail_first_run()])
+
+
+def test_retried_creating_task_records_each_attempt(tmp_path: Path) -> None:
+    # each attempt of a task retried within the run is its own eval; a task an
+    # attempt adds records that attempt's eval_id and the shared task_id
+    marker = tmp_path / "failed-once"
+
+    @solver
+    def enqueue_then_fail_first_run() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            attempt = 2 if marker.exists() else 1
+            enqueue_task(
+                Task(dataset=[Sample(input="hi")], name=f"child-of-attempt-{attempt}")
+            )
+            if attempt == 1:
+                marker.touch()
+                raise RuntimeError("first run fails")
+            return state
+
+        return solve
+
+    parent = Task(
+        dataset=[Sample(id="p", input="hi")],
+        solver=[enqueue_then_fail_first_run()],
+        name="parent",
+    )
+    log_dir = tmp_path / "logs"
+    eval(
+        parent,
+        model="mockllm/model",
+        display="none",
+        log_dir=str(log_dir),
+        task_retry_attempts=1,
+    )
+
+    headers = [
+        read_eval_log(info, header_only=True) for info in list_eval_logs(str(log_dir))
+    ]
+    parents = {log.status: log.eval for log in headers if log.eval.task == "parent"}
+    children = {log.eval.task: log.eval for log in headers if log.eval.task != "parent"}
+    assert sorted(parents) == ["error", "success"]
+    assert parents["error"].task_id == parents["success"].task_id
+    assert children["child-of-attempt-1"].origin == EnqueueTaskOrigin(
+        eval_id=parents["error"].eval_id, task_id=parents["error"].task_id
+    )
+    assert children["child-of-attempt-2"].origin == EnqueueTaskOrigin(
+        eval_id=parents["success"].eval_id, task_id=parents["success"].task_id
+    )
 
 
 def test_task_retry_in_run_keeps_origin(

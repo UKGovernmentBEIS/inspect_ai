@@ -1111,7 +1111,7 @@ class EvalShards(BaseModel):
 
 
 class EnqueueTaskOrigin(BaseModel):
-    """Origin of a task that a running task added with `enqueue_task()`.
+    """Origin of a task added with `enqueue_task()` within a running task.
 
     The creating task ran in the run that first added this task (a retry of
     this task runs under a new `run_id`). Find its log by `eval_id`, or by
@@ -1249,10 +1249,11 @@ class EvalSpec(BaseModel):
     origin: EvalOrigin | None = Field(default=None)
     """How the task came to be in its run, when the run was not asked to run it.
 
-    `EnqueueTaskOrigin` for a task that a running task's code added with
-    `enqueue_task()`. `None` for tasks the run was given, including those a
-    `TaskSource` provides, and for tasks added by a hook, a `TaskSource`
-    callback, or code outside any task. Kept when the task is retried."""
+    `EnqueueTaskOrigin` for a task added with `enqueue_task()` within a running
+    task's context (including hooks and `TaskSource` callbacks run within it).
+    `None` for tasks the run was given, for tasks a `TaskSource` provides or
+    returns, and for `enqueue_task()` calls outside any task. Kept when the
+    task is retried."""
 
     # allow field model_args
     model_config = ConfigDict(protected_namespaces=())

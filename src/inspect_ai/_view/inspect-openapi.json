@@ -2360,7 +2360,7 @@
         "type": "object"
       },
       "EnqueueTaskOrigin": {
-        "description": "Origin of a task that a running task added with `enqueue_task()`.\n\nThe creating task ran in the run that first added this task (a retry of\nthis task runs under a new `run_id`). Find its log by `eval_id`, or by\n`task_id` if that task was retried.",
+        "description": "Origin of a task added with `enqueue_task()` within a running task.\n\nThe creating task ran in the run that first added this task (a retry of\nthis task runs under a new `run_id`). Find its log by `eval_id`, or by\n`task_id` if that task was retried.",
         "properties": {
           "eval_id": {
             "title": "Eval Id",

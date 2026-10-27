@@ -179,6 +179,88 @@ def test_dynamic_token_limit_updates_active_sample() -> None:
     ]
 
 
+async def test_task_active_identifies_the_running_task() -> None:
+    # task_active() is set for a task's whole run (its SampleSource feeder,
+    # samples and scoring), is None outside tasks, and concurrent and enqueued
+    # tasks each see their own
+    from inspect_ai import SampleSource, eval_async
+    from inspect_ai._eval.task.enqueue import enqueue_task
+    from inspect_ai._util.task import ActiveTask, task_active
+    from inspect_ai.scorer import Score, Target, scorer
+    from inspect_ai.util._display import init_display_type
+
+    seen: list[tuple[str, str, ActiveTask | None]] = []
+    both_started = anyio.Event()
+    started = 0
+
+    @solver
+    def observe(name: str) -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            nonlocal started
+            seen.append((name, "solver", task_active()))
+            if name != "child":
+                # hold both seed tasks running at once
+                started += 1
+                if started == 2:
+                    both_started.set()
+                with anyio.fail_after(10):
+                    await both_started.wait()
+                seen.append((name, "solver after wait", task_active()))
+                if name == "t1":
+                    enqueue_task(observed_task("child"))
+            return state
+
+        return solve
+
+    @scorer(metrics=[])
+    def observe_scorer(name: str):
+        async def score(state: TaskState, target: Target) -> Score:
+            seen.append((name, "scorer", task_active()))
+            return Score(value=1)
+
+        return score
+
+    def observed_task(name: str) -> Task:
+        async def next_samples() -> list[Sample] | None:
+            seen.append((name, "next_samples", task_active()))
+            return None
+
+        return Task(
+            dataset=SampleSource.from_samples(
+                [Sample(id=1, input="hi")], next_samples=next_samples
+            ),
+            solver=observe(name),
+            scorer=observe_scorer(name),
+            name=name,
+        )
+
+    assert task_active() is None
+    init_display_type("none")
+    logs = await eval_async(
+        [observed_task("t1"), observed_task("t2")],
+        model="mockllm/model",
+        max_tasks=2,
+    )
+    assert task_active() is None
+
+    by_name = {log.eval.task: log for log in logs}
+    assert sorted(by_name) == ["child", "t1", "t2"]
+    assert {(name, where) for name, where, _ in seen} == {
+        (name, where)
+        for name in ("t1", "t2", "child")
+        for where in ("solver", "scorer", "next_samples")
+    } | {("t1", "solver after wait"), ("t2", "solver after wait")}
+    for name, where, active in seen:
+        log = by_name[name]
+        assert active == ActiveTask(
+            run_id=log.eval.run_id,
+            eval_id=log.eval.eval_id,
+            task_id=log.eval.task_id,
+            task=name,
+            log_location=log.location,
+        ), (name, where)
+
+
 def test_eval_sample_limit_values_reflect_final_retry_attempt() -> None:
     from typing import Generator
 

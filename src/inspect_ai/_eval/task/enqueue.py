@@ -17,12 +17,12 @@ caller can't enqueue into the wrong (or torn-down) run.
 
 from __future__ import annotations
 
-from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field, replace
 from threading import Lock
-from typing import TYPE_CHECKING, Callable, Iterator
+from typing import TYPE_CHECKING, Callable
 
+from inspect_ai._util.task import task_active
 from inspect_ai.log._log import EnqueueTaskOrigin, EvalOrigin
 
 if TYPE_CHECKING:
@@ -99,42 +99,6 @@ def clear_task_enqueuer(token: Token[TaskEnqueuer | None]) -> None:
     _enqueuer.reset(token)
 
 
-# The origin that :func:`enqueue_task` records for tasks added by the task whose
-# code runs in this context. Set by ``task_run`` for the task's lifetime (so it
-# propagates to the task's samples) and cleared by :func:`not_task_code` for
-# code Inspect runs in that context on the run's behalf.
-_running_task: ContextVar[EnqueueTaskOrigin | None] = ContextVar(
-    "running_task", default=None
-)
-
-
-def register_running_task(
-    eval_id: str, task_id: str
-) -> Token[EnqueueTaskOrigin | None]:
-    """Record the task running in this context; returns a token to restore with."""
-    return _running_task.set(EnqueueTaskOrigin(eval_id=eval_id, task_id=task_id))
-
-
-def clear_running_task(token: Token[EnqueueTaskOrigin | None]) -> None:
-    """Restore the running task in scope before the matching ``register`` call."""
-    _running_task.reset(token)
-
-
-@contextmanager
-def not_task_code() -> Iterator[None]:
-    """Run code that is not a task's own (a hook, the run's ``TaskSource``).
-
-    Tasks such code adds with :func:`enqueue_task` record no origin, as the
-    run was given them rather than a task creating them. Needed because hooks
-    and ``TaskSource`` callbacks can run within a task's (or sample's) context.
-    """
-    token = _running_task.set(None)
-    try:
-        yield
-    finally:
-        _running_task.reset(token)
-
-
 def enqueue_task(tasks: "Tasks", *, run_id: str | None = None) -> None:
     """Add one or more tasks to the running eval.
 
@@ -142,12 +106,16 @@ def enqueue_task(tasks: "Tasks", *, run_id: str | None = None) -> None:
     ``eval_id``/``task_id`` each, their own log files), resolved against the
     run's models and config.
 
-    When called from code that runs as part of a task (in one of its samples,
-    such as a solver, scorer, tool or agent, or in the task's ``SampleSource``),
-    each added task's log records that task in ``EvalSpec.origin``, as an
-    ``EnqueueTaskOrigin``. When called from a hook, a ``TaskSource`` or code
-    outside any task, ``origin`` is ``None``, as it is for tasks the run was
-    given.
+    When called in a task's context, each added task's log records that task
+    in ``EvalSpec.origin``, as an ``EnqueueTaskOrigin``. A task's context is
+    everything that runs while the task runs: its samples (solvers, scorers,
+    tools, agents), its ``SampleSource``, and hooks and ``TaskSource``
+    callbacks that Inspect calls within it (such as ``on_sample_end`` or
+    ``TaskSource.sample_complete``). Called outside any task (for example from
+    ``TaskSource.next_tasks()`` or code outside the eval's tasks), ``origin`` is
+    ``None``. Tasks a ``TaskSource`` *returns* (from ``initial_tasks()``,
+    ``next_tasks()`` or a callback) always record ``None``, even when the same
+    callback calling ``enqueue_task()`` would record the task.
 
     When the run is driven by a :class:`~inspect_ai.TaskSource`, added tasks are
     *live*: they start as soon as there is free capacity. Otherwise they run as a
@@ -174,4 +142,10 @@ def enqueue_task(tasks: "Tasks", *, run_id: str | None = None) -> None:
             f"enqueue_task() run_id '{run_id}' does not match the running eval "
             f"'{enqueuer.run_id}'."
         )
-    enqueuer.enqueue(tasks, origin=_running_task.get())
+    active = task_active()
+    enqueuer.enqueue(
+        tasks,
+        origin=EnqueueTaskOrigin(eval_id=active.eval_id, task_id=active.task_id)
+        if active is not None
+        else None,
+    )

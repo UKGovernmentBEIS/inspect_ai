@@ -230,9 +230,9 @@ def test_sample_abandoned_fires_for_queued_sample_cancel() -> None:
     With one slot, whichever seed wins it cancels the parked sibling before it
     starts. Nothing is ever logged for the sibling, so the source hears about
     it via `sample_abandoned` (with the sample, epoch and task) rather than
-    `sample_complete`, which fires only for the sample that ran. Tasks the
-    callback adds, returned or with `enqueue_task()`, record no origin, though
-    it runs in the task's context.
+    `sample_complete`, which fires only for the sample that ran. The callback
+    runs in the task's context, so a task it adds with `enqueue_task()`
+    records the task as its origin, while a task it returns records none.
     """
     from inspect_ai._control.cancel import cancel_sample
     from inspect_ai._control.eval_state import get_eval_states
@@ -292,7 +292,9 @@ def test_sample_abandoned_fires_for_queued_sample_cancel() -> None:
     assert abandoned == [(parked, 1, "queued_cancel")]
     assert [str(s.id) for s in (seed.samples or [])] == [running]
     assert {log.eval.task: log.eval.origin for log in logs if log is not seed} == {
-        "enqueued-in-sample-abandoned": None,
+        "enqueued-in-sample-abandoned": EnqueueTaskOrigin(
+            eval_id=seed.eval.eval_id, task_id=seed.eval.task_id
+        ),
         "returned-from-sample-abandoned": None,
     }
 
@@ -663,12 +665,11 @@ def test_task_source_name_rejected_outside_eval() -> None:
 
 
 @pytest.mark.parametrize("max_tasks", [1, 3])
-async def test_task_source_tasks_record_no_origin(max_tasks: int) -> None:
-    # tasks a TaskSource provides, returns from its callbacks, or adds with
-    # enqueue_task() from them are the run's own; only the seed's solver
-    # (task code) records an origin. sample_complete() runs in the seed's
-    # sample context, so it checks that the source runs as not_task_code();
-    # task_complete() and next_tasks() run outside any task.
+async def test_task_source_origin_follows_calling_context(max_tasks: int) -> None:
+    # tasks a TaskSource provides or returns record no origin; enqueue_task()
+    # records the task in whose context it runs: the seed's solver and the
+    # callbacks Inspect calls within the seed (sample_complete, task_complete),
+    # but not next_tasks(), which runs outside any task
     @solver
     def enqueue_from_sample() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
@@ -717,14 +718,15 @@ async def test_task_source_tasks_record_no_origin(max_tasks: int) -> None:
     origins = {log.eval.task: log.eval.origin for log in logs}
     assert len(origins) == len(logs)
     seed = next(log for log in logs if log.eval.task == "seed")
+    seed_origin = EnqueueTaskOrigin(
+        eval_id=seed.eval.eval_id, task_id=seed.eval.task_id
+    )
     assert origins == {
         "seed": None,
-        "from-seed-solver": EnqueueTaskOrigin(
-            eval_id=seed.eval.eval_id, task_id=seed.eval.task_id
-        ),
-        "enqueued-in-sample-complete": None,
+        "from-seed-solver": seed_origin,
+        "enqueued-in-sample-complete": seed_origin,
         "returned-from-sample-complete": None,
-        "enqueued-in-task-complete": None,
+        "enqueued-in-task-complete": seed_origin,
         "returned-from-task-complete": None,
         "enqueued-in-next-tasks": None,
         "from-next-tasks": None,
