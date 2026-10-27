@@ -188,6 +188,16 @@ async def compose_read_archive(
         failure = classify_exec_failure(result, wrapper=None)
         if failure is not None:
             raise failure
+        if result.returncode > 128:
+            # Diagnostics uses compose commands, so import it after module loading.
+            from .diagnostics import service_dead
+
+            if await service_dead(service, project):
+                raise SandboxUnavailableError(
+                    "The sandbox is not running: Docker read_file exited with code "
+                    f'{result.returncode} and the container for service "{service}" '
+                    "has exited."
+                )
         raise RuntimeError(f"Failed to read file '{file}': {stderr}")
     return result.stdout
 

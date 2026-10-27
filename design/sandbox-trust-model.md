@@ -289,7 +289,8 @@ back to a userless read would let a less privileged human redirect a log path
 to a file readable only by the provider's more privileged reader. Skill
 installation's default-user writes followed by privileged ownership and mode
 changes remain a known pre-existing gap: an agent-controlled destination can
-redirect these operations through symlinks. That gap needs a separate fix.
+redirect these operations through symlinks. That gap is tracked separately in
+[meridianlabs-ai/inspect_ai#590](https://github.com/meridianlabs-ai/inspect_ai/issues/590).
 
 Docker runs system `tar` inside the container, following symlinks without
 recursing into directories. The bounded archive reader rejects anything
