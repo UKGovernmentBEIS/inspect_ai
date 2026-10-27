@@ -2082,6 +2082,10 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 # collect eval data
                 collect_eval_data(stats)
 
+                # display it ahead of the unshielded log write, so a task
+                # abort that interrupts the write still completes the display
+                td.complete(TaskError(logger.samples_completed, type, value, traceback))
+
                 # finish with error status
                 eval_log = await finish_task_log(
                     status="error",
@@ -2090,9 +2094,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     reductions=reductions,
                     error=error,
                 )
-
-                # display it
-                td.complete(TaskError(logger.samples_completed, type, value, traceback))
 
         finally:
             if sample_enqueuer_token is not None:

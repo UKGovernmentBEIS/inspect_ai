@@ -65,7 +65,7 @@ from inspect_ai._display.core.display import (
 from inspect_ai._eval.task.scan import Scanners
 from inspect_ai._sentinel._config import resolve_sentinel_root, sentinel_config
 from inspect_ai._util.error import PrerequisiteError, exception_message
-from inspect_ai._util.exception import TaskRetryAbandonedError
+from inspect_ai._util.exception import TaskRetryAbandonedError, TerminateTaskError
 from inspect_ai._util.path import chdir
 from inspect_ai.approval._policy import ApprovalPolicy, config_from_approval_policies
 from inspect_ai.dataset._dataset import Dataset, Sample
@@ -575,7 +575,8 @@ def _empty_feed() -> PreparedFeed:
 
 class TaskRunResult(NamedTuple):
     log: EvalLog | None
-    """The task's log, or ``None`` if it was cancelled before producing one."""
+    """The task's log, or ``None`` if a run-level cancellation (e.g. ctrl+c)
+    ended it before it produced one."""
 
     cancel_type: CancelType
     """How the task was cancelled (``None`` if it ran to completion)."""
@@ -595,8 +596,9 @@ class TaskRunResult(NamedTuple):
 async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRunResult:
     """Run one task in its own cancel scope so cancelling it can't affect siblings.
 
-    Returns the task's :class:`EvalLog` (``None`` if it was cancelled before
-    producing one) together with the ``CancelType`` it was cancelled with, so a
+    Returns the task's :class:`EvalLog` (``None`` if a run-level cancellation
+    ended it before it produced one) together with the ``CancelType`` it was
+    cancelled with, so a
     caller managing retries can distinguish a retry/abort request from an
     ordinary error. ``can_retry`` is surfaced to the task (via ``TaskCancel``) so
     it knows whether requesting a retry will be honoured. The rare error that
@@ -604,6 +606,16 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
     header flush) — is converted into an errored :class:`EvalLog` so the
     dispatcher can retry the task rather than tearing down the run; it is
     re-raised only when ``debug_errors`` is set.
+
+    A task's own abort or retry request cancels its scope, which can also
+    interrupt the task's final log write (it is not shielded, so a stuck
+    write stays interruptible) or the awaits after it, and leave no log.
+    That attempt is reported with an errored :class:`EvalLog` naming the
+    cancel (the attempt's header only: no results, samples or stats), so the
+    dispatcher ends (or retries) only this task instead of reading a missing
+    log as a run-level cancellation. Its file keeps what the task wrote:
+    normally the ``started`` header of the interrupted write, or the final
+    log when the cancel landed after the write.
     """
     result: EvalLog | None = None
     cancel_type: CancelType = None
@@ -660,6 +672,14 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                 task_tg.start_soon(run)
         if abandoned:
             return TaskRunResult(None, None, abandoned=True)
+        if result is None and cancel_type in ("abort", "retry"):
+            cancel_ex = TerminateTaskError(f"Task cancelled by user ({cancel_type})")
+            result = EvalLog(
+                status="error",
+                eval=options.logger.eval,
+                error=eval_error(cancel_ex, TerminateTaskError, cancel_ex, None),
+                location=options.logger.location,
+            )
     except Exception as ex:
         # errors generally don't escape from tasks -- the exception is a
         # failure to write the log itself (e.g. the log_start() header flush,
