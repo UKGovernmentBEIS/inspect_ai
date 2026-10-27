@@ -55,7 +55,7 @@ class SentinelEvent(BaseEvent):
     """Name of the function that produced the report, or that raised for an `error` event, which tells apart the functions of an instance whose factory returned several. `None` for `cancelled` and `bypassed` events."""
 
     step_id: str
-    """The step examined: the triggering message id (`model_input`), the assistant message id (`model_output`), or the tool call id (tool stages)."""
+    """The step examined: at the generate stages (`model_input`, `model_output`) the generate's id, the `uuid` of its first `ModelEvent`, shared by both stages and by the generate's retried attempts; at the tool stages the tool call id."""
 
     conversation: str
     """The agent conversation this step belongs to."""
