@@ -354,18 +354,36 @@ def _dump(messages: list[ChatMessage] | None) -> list[dict[str, object]]:
 
 
 @pytest.mark.parametrize(
-    ("make_messages", "collapse", "replay_documents", "transformed"),
+    ("make_messages", "collapse", "replay_documents", "expected_roles"),
     [
-        pytest.param(_consecutive_messages, True, True, True, id="collapse"),
-        pytest.param(_consecutive_messages, False, True, False, id="no-collapse"),
-        pytest.param(_document_tool_result, False, False, True, id="media-replay"),
+        pytest.param(
+            _consecutive_messages,
+            True,
+            True,
+            ["user", "assistant", "user"],
+            id="collapse",
+        ),
+        pytest.param(
+            _consecutive_messages,
+            False,
+            True,
+            ["user", "assistant", "assistant", "user", "user"],
+            id="no-collapse",
+        ),
+        pytest.param(
+            _document_tool_result,
+            False,
+            False,
+            ["tool", "user"],
+            id="media-replay",
+        ),
     ],
 )
 async def test_compact_prepares_input_like_generate(
     make_messages: Callable[[], list[ChatMessage]],
     collapse: bool,
     replay_documents: bool,
-    transformed: bool,
+    expected_roles: list[str],
 ) -> None:
     """compact() sends the provider the same messages generate() does."""
     api = _CaptureAPI(collapse=collapse, replay_documents=replay_documents)
@@ -375,6 +393,6 @@ async def test_compact_prepares_input_like_generate(
     await model.generate(messages)
     await model.compact(messages, [])
 
-    # guards against passing because neither path prepared the input
-    assert (_dump(api.generate_input) != _dump(messages)) == transformed
+    assert api.generate_input is not None
+    assert [message.role for message in api.generate_input] == expected_roles
     assert _dump(api.compact_input) == _dump(api.generate_input)
