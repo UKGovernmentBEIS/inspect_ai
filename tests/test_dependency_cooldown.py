@@ -59,10 +59,11 @@ def build_job(name: str) -> dict[str, Any]:
 
 
 def run_lines(job: dict[str, Any]) -> list[str]:
+    # Joins backslash continuations so a command's flags stay on one line.
     return [
         line.strip()
         for step in job.get("steps", [])
-        for line in step.get("run", "").splitlines()
+        for line in step.get("run", "").replace("\\\n", " ").splitlines()
         if line.strip()
     ]
 
@@ -206,12 +207,16 @@ def test_sandbox_tools_unit_installs_from_its_hashed_lock() -> None:
 
 
 def workflow_run_lines() -> list[tuple[str, str]]:
-    return [
+    lines = [
         (f"{path.name}:{name}", line)
         for path in sorted(WORKFLOWS.glob("*.yml"))
         for name, job in yaml.safe_load(path.read_text())["jobs"].items()
         for line in run_lines(job)
     ]
+    for path in sorted((REPO / ".github" / "actions").glob("*/action.yml")):
+        runs = yaml.safe_load(path.read_text())["runs"]
+        lines += [(f"{path.parent.name}/action.yml", line) for line in run_lines(runs)]
+    return lines
 
 
 # A bare `uv run` or `uv sync` re-resolves an out-of-date uv.lock and installs
@@ -231,13 +236,16 @@ def test_uv_never_relocks() -> None:
 
 
 # pip installs skip uv.lock, so they may only add local packages without their
-# dependencies, or sync a venv to a hashed lock.
+# dependencies, or install a hashed lock (`-r` or `uv pip sync`).
 def test_pip_installs_are_dependency_free_or_hashed() -> None:
     unlocked = [
         (where, line)
         for where, line in workflow_run_lines()
         if (re.search(r"\bpip3? install\b", line) and "--no-deps" not in line.split())
-        or (re.search(r"\bpip sync\b", line) and "--require-hashes" not in line.split())
+        or (
+            re.search(r"\bpip sync\b|\bpip3? install\b.* -r\b", line)
+            and "--require-hashes" not in line.split()
+        )
     ]
     assert unlocked == []
 
@@ -246,6 +254,6 @@ def test_no_workflow_opts_out_of_the_cooldown() -> None:
     floating = [
         (where, line)
         for where, line in workflow_run_lines()
-        if re.search(r"--exclude-newer[ =]false", line)
+        if re.search(r"--exclude-newer(=|\s+)false", line)
     ]
     assert floating == []

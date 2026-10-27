@@ -167,6 +167,7 @@ jobs:
             docs:
               - 'docs/**'
               - 'requirements-doc.txt'
+              - 'uv.lock'
 
   # Validate the Quarto docs site whenever docs change — on docs-only PRs
   # (where the test matrix is skipped) and on mixed docs+code PRs alike.
