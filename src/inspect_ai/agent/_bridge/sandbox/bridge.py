@@ -1,7 +1,7 @@
 import contextlib
 from collections.abc import Mapping, Sequence
 from logging import getLogger
-from typing import TYPE_CHECKING, AsyncIterator
+from typing import TYPE_CHECKING, AsyncIterator, cast
 
 import anyio
 from shortuuid import uuid
@@ -27,6 +27,7 @@ from inspect_ai.tool._tools._web_search._web_search import (
 )
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._checkpoint.checkpointer import Checkpointer
+from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox._cli import SANDBOX_CLI
 from inspect_ai.util._sandbox.exec_remote import (
     ExecCompleted,
@@ -298,11 +299,10 @@ async def sandbox_agent_bridge(
             # monitor proxy for unexpected death
             tg.start_soon(_monitor_proxy, proxy)
 
-            # monitor for a failure requested from the service task
-            # (fail_on_refusal, a response filter failure, a limit reached in a
-            # generation, an invalid approver modification, a host tool bug).
-            # A termination needs no monitor: the service dispatcher propagates
-            # it out of run_model_service.
+            # monitor for a sample failure requested from the service task
+            # (fail_on_refusal, a response filter failure, an invalid approver
+            # modification, a host tool bug). A termination needs no monitor:
+            # the service dispatcher propagates it out of run_model_service.
             tg.start_soon(_monitor_failure, bridge)
 
             # main agent
@@ -327,6 +327,11 @@ async def sandbox_agent_bridge(
         # If the agent completed successfully but we got an error during cleanup,
         # log the error but don't fail the sample.
         if agent_completed:
+            # a limit reached in a generation still in flight is not a cleanup
+            # error: the scope that applied it handles it
+            limit = _limit_exceeded(ex)
+            if limit is not None:
+                raise_unwrapped(ex, limit)
             logger.warning(
                 f"Error during sandbox_agent_bridge cleanup (agent completed successfully): {inner_exception(ex)}"
             )
@@ -358,15 +363,26 @@ def _register_bridged_tools(
     )
 
 
+def _limit_exceeded(ex: Exception) -> LimitExceededError | None:
+    """The first `LimitExceededError` in `ex` or its groups, if any."""
+    if isinstance(ex, ExceptionGroup):
+        limits = ex.subgroup(LimitExceededError)
+        return (
+            None
+            if limits is None
+            else cast(LimitExceededError, inner_exception(limits))
+        )
+    return ex if isinstance(ex, LimitExceededError) else None
+
+
 async def _monitor_failure(bridge: SandboxAgentBridge) -> None:
-    """Raise the error a bridged generation or tool call asked to raise.
+    """Raise the error a bridged generation or tool call asked the sample to fail with.
 
     Bridged generations and host tool calls run in the sandbox service task,
     whose dispatcher turns their exceptions into RPC error responses, except a
     limit or a termination (see `SandboxAgentBridge.request_fail`). Raising here
     instead puts the error in the bridge's own task group, so it unwinds the
-    agent: a limit reaches the scope that applied it, any other error the
-    sample runner.
+    agent and reaches the sample runner.
     """
     await bridge._failure_requested.wait()
     assert bridge._failure is not None

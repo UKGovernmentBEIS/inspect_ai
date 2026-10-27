@@ -10,7 +10,7 @@ from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
-from inspect_ai.util._sandbox.service import find_control_flow
+from inspect_ai.util._sandbox.service import RaiseAfterReply, find_control_flow
 
 from .._errors import PROVIDER_ERROR_KEY, ResponseFilterError, provider_error_payload
 from ..anthropic_api import inspect_anthropic_api_request
@@ -56,9 +56,11 @@ def _forward_provider_errors(
     are signalled through `bridge.request_fail` (raised on the agent's side by
     the bridge's monitor task) while the scaffold still gets an error reply.
 
-    A `LimitExceededError` (message, token, cost or turn limit) takes the same
-    route, so it is raised from the agent as it would be from a native agent:
-    the scope that applied the limit (`run()`, or the sample) handles it.
+    A `LimitExceededError` (message, token, cost or turn limit) is raised as
+    `RaiseAfterReply`: the dispatcher writes the error reply first, then raises
+    the limit out of the service task into the bridge's task group. It is
+    raised from the agent as from a native agent, so the scope that applied
+    the limit (`run()`, or the sample) handles it.
     """
 
     async def generate_forwarding_errors(
@@ -71,12 +73,15 @@ def _forward_provider_errors(
             if find_control_flow(ex) is not None:
                 # the service dispatcher ends the sample with it
                 raise
-            if isinstance(
-                ex, (ModelRefusalError, ResponseFilterError, LimitExceededError)
-            ):
+            if isinstance(ex, LimitExceededError):
+                raise RaiseAfterReply(
+                    {PROVIDER_ERROR_KEY: cast(JsonValue, provider_error_payload(ex))},
+                    ex,
+                )
+            if isinstance(ex, (ModelRefusalError, ResponseFilterError)):
                 bridge.request_fail(ex)
                 # no non-provider-error warning: the failure is reported once,
-                # by the error the monitor task raises
+                # by the sample error the monitor task raises
                 return {PROVIDER_ERROR_KEY: cast(JsonValue, provider_error_payload(ex))}
             payload = provider_error_payload(ex)
             # A payload with no recoverable HTTP status almost always means the

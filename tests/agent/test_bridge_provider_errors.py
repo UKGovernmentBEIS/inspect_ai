@@ -68,7 +68,7 @@ from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 from inspect_ai.util import cost_limit, message_limit, token_limit, turn_limit
 from inspect_ai.util._limit import Limit, LimitExceededError
-from inspect_ai.util._sandbox.service import find_control_flow
+from inspect_ai.util._sandbox.service import RaiseAfterReply, find_control_flow
 
 
 class _ProviderError(Exception):
@@ -705,23 +705,19 @@ def _refusal() -> ModelRefusalError:
             lambda: ResponseFilterError("ValueError: filter is broken"),
             id="response_filter",
         ),
-        pytest.param(
-            lambda: LimitExceededError("message", value=2, limit=1), id="limit"
-        ),
     ],
 )
 async def test_forward_provider_errors_signals_sample_failure_to_bridge(
     monkeypatch: pytest.MonkeyPatch, make_error: Callable[[], Exception]
 ) -> None:
-    """An error that must unwind the agent does so via the bridge, not via a raise.
+    """An error that must end the sample does so via the bridge, not via a raise.
 
-    Covers a fail_on_refusal refusal, a `ResponseFilterError` and a limit. A
-    re-raise would leave the generation in the sandbox service task (an RPC
-    error, or for a limit the dispatcher ending the sample whoever owns the
-    limit), so the wrapper hands the error to `bridge.request_fail` (raised on
-    the agent's side by the bridge's monitor task) and still answers the
-    scaffold with a provider error payload. It is not logged as a non-provider
-    error, since the raised error is the report.
+    Covers a fail_on_refusal refusal and a `ResponseFilterError`. The sandbox
+    service dispatcher would turn a re-raise into an RPC error, so the wrapper
+    hands the error to `bridge.request_fail` (raised on the agent's side by the
+    bridge's monitor task) and still answers the scaffold with a provider error
+    payload. It is not logged as a non-provider error, since the sample error is
+    the report.
     """
     warnings: list[tuple[Any, Any]] = []
     monkeypatch.setattr(
@@ -739,6 +735,37 @@ async def test_forward_provider_errors_signals_sample_failure_to_bridge(
     assert result == {PROVIDER_ERROR_KEY: {"status": None, "message": str(error)}}
     assert bridge._failure_requested.is_set()
     assert bridge._failure is error
+    assert warnings == []
+
+
+async def test_forward_provider_errors_raises_a_limit_after_the_reply(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A limit is handed to the dispatcher to raise once it has replied.
+
+    The dispatcher writes the provider error payload as the reply, then raises
+    the limit from the service task, so the scope that applied it handles it.
+    The bridge's monitor is not signalled, and nothing is logged.
+    """
+    warnings: list[tuple[Any, Any]] = []
+    monkeypatch.setattr(
+        bridge_service.logger, "warning", lambda *a, **k: warnings.append((a, k))
+    )
+    error = LimitExceededError("message", value=2, limit=1)
+
+    async def boom(
+        json_data: dict[str, Any], headers: dict[str, str] | None = None
+    ) -> dict[str, Any]:
+        raise error
+
+    bridge = _bridge()
+    with pytest.raises(RaiseAfterReply) as excinfo:
+        await _forward_provider_errors(boom, bridge)({})
+    assert excinfo.value.error is error
+    assert excinfo.value.result == {
+        PROVIDER_ERROR_KEY: {"status": None, "message": str(error)}
+    }
+    assert not bridge._failure_requested.is_set()
     assert warnings == []
 
 
@@ -893,8 +920,29 @@ async def test_model_generate_wraps_returned_exception_with_status() -> None:
 # ---------- limits reached in a sandbox-bridged generation ----------
 
 
+class _Shutdown:
+    """Holds a bridged generation until the bridge is shutting down.
+
+    The agent returns once its generation has started, and the generation goes
+    on once the bridge is killing the model proxy, which waits for its reply:
+    the limit is reached after the agent completed, during the bridge's cleanup.
+    """
+
+    def arm(self) -> None:
+        """Make the events, in the event loop that waits on them."""
+        self.generating = anyio.Event()
+        self.killing = anyio.Event()
+        self.replied = anyio.Event()
+
+
 class _ExitedProxy:
-    """A model proxy process that has already exited cleanly."""
+    """A model proxy process that has already exited cleanly.
+
+    With a `shutdown`, killing it waits for the held generation's reply.
+    """
+
+    def __init__(self, shutdown: _Shutdown | None) -> None:
+        self._shutdown = shutdown
 
     def __aiter__(self) -> _ExitedProxy:
         return self
@@ -903,29 +951,40 @@ class _ExitedProxy:
         raise StopAsyncIteration
 
     async def kill(self) -> None:
-        pass
+        if self._shutdown is not None:
+            self._shutdown.killing.set()
+            with anyio.fail_after(10):
+                await self._shutdown.replied.wait()
 
 
 class _ProxySandbox:
-    def __init__(self) -> None:
-        self.exec_remote = AsyncMock(return_value=_ExitedProxy())
+    def __init__(self, shutdown: _Shutdown | None) -> None:
+        self.exec_remote = AsyncMock(return_value=_ExitedProxy(shutdown))
         self._tools_user: str | None = None
 
 
+Reply = tuple[JsonValue | None, str | None]
+
+
 def _serve_one_generation(
-    monkeypatch: pytest.MonkeyPatch, replies: list[JsonValue]
+    monkeypatch: pytest.MonkeyPatch,
+    replies: list[Reply],
+    shutdown: _Shutdown | None,
 ) -> None:
     """Make `sandbox_agent_bridge` serve one chat completion, without a sandbox.
 
-    The bridge, its model service methods, the sandbox service dispatcher and
-    the failure monitor are real; the sandbox, the model proxy process and the
-    request transport (`dispatching_service`) are faked. Each value the
-    generate method returns to the dispatcher is appended to `replies`.
+    The bridge, its model service methods and the sandbox service dispatcher
+    are real; the sandbox, the model proxy process and the request transport
+    (`dispatching_service`) are faked. Each reply the dispatcher writes, as
+    (result, error), is appended to `replies` once the write completes; the
+    write takes two short waits first, as a sandbox write and request removal
+    do, so a teardown started before it would cancel it. With a `shutdown`,
+    the generation waits for the bridge's cleanup.
     """
     monkeypatch.setattr(
         sandbox_bridge_module,
         "sandbox_with_injected_tools",
-        AsyncMock(return_value=_ProxySandbox()),
+        AsyncMock(return_value=_ProxySandbox(shutdown)),
     )
 
     async def serve(
@@ -934,17 +993,20 @@ def _serve_one_generation(
         started: anyio.Event,
         **kwargs: Any,
     ) -> None:
+        if shutdown is not None:
+            shutdown.arm()
         generate = methods["generate_completions"]
 
-        async def recording_generate(**params: Any) -> JsonValue:
-            reply = await generate(**params)
-            replies.append(reply)
-            return reply
+        async def held_generate(**params: Any) -> JsonValue:
+            if shutdown is not None:
+                shutdown.generating.set()
+                await shutdown.killing.wait()
+            return cast(JsonValue, await generate(**params))
 
         service = dispatching_service(
             monkeypatch,
             "generate_completions",
-            recording_generate,
+            held_generate,
             {
                 "json_data": {
                     "model": "inspect",
@@ -953,6 +1015,20 @@ def _serve_one_generation(
             },
             [],
         )
+
+        async def write_response(
+            request_file: str,
+            request_id: str,
+            result: JsonValue | None,
+            error: str | None = None,
+        ) -> None:
+            await anyio.sleep(0.01)
+            await anyio.sleep(0.01)
+            replies.append((result, error))
+            if shutdown is not None:
+                shutdown.replied.set()
+
+        monkeypatch.setattr(service, "_write_response", write_response)
         started.set()
         await service._handle_request_tracked(REQUEST_FILE, REQUEST_ID)
         await anyio.sleep_forever()
@@ -961,25 +1037,38 @@ def _serve_one_generation(
 
 
 @agent
-def _bridged_agent() -> Agent:
+def _bridged_agent(shutdown: _Shutdown | None) -> Agent:
     async def execute(state: AgentState) -> AgentState:
         async with sandbox_agent_bridge(state) as bridge:
-            # the scaffold, waiting on its model request
-            await anyio.sleep_forever()
+            if shutdown is not None:
+                # complete while the generation is in flight
+                await shutdown.generating.wait()
+            else:
+                # the scaffold, waiting on its model request
+                await anyio.sleep_forever()
         return bridge.state
 
     return execute
 
 
 def _run_bridged_agent(
-    tmp_path: Path, limit: Limit, sample_token_limit: int | None = None
-) -> tuple[EvalSample, list[LimitExceededError | None]]:
-    """Run `_bridged_agent` under `run(limits=[limit])` in a one-sample eval.
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    limit: Limit,
+    sample_token_limit: int | None = None,
+    during_shutdown: bool = False,
+) -> tuple[EvalSample, list[LimitExceededError | None], list[Reply]]:
+    """Run a bridged agent under `run(limits=[limit])` in a one-sample eval.
 
-    Returns the sample and the limit errors `run()` returned. The solver marks
-    the sample's store once `run()` returns, so a sample that continued past
-    the agent has `store["continued"]` set.
+    The agent's generation reaches its limit while the agent waits on it, or,
+    `during_shutdown`, after the agent completed while the bridge shuts down.
+    Returns the sample, the limit errors `run()` returned and the replies the
+    dispatcher wrote. The solver marks the sample's store once `run()` returns,
+    so a sample that continued past the agent has `store["continued"]` set.
     """
+    replies: list[Reply] = []
+    shutdown = _Shutdown() if during_shutdown else None
+    _serve_one_generation(monkeypatch, replies, shutdown)
     output = ModelOutput.from_content(model="mockllm/model", content="hi")
     output.usage = ModelUsage(input_tokens=3, output_tokens=4, total_tokens=7)
     errors: list[LimitExceededError | None] = []
@@ -987,7 +1076,9 @@ def _run_bridged_agent(
     @solver
     def run_bridged() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            _, error = await run(_bridged_agent(), state.messages, limits=[limit])
+            _, error = await run(
+                _bridged_agent(shutdown), state.messages, limits=[limit]
+            )
             errors.append(error)
             state.store.set("continued", True)
             return state
@@ -1005,7 +1096,13 @@ def _run_bridged_agent(
         display="none",
     )[0]
     assert log.samples is not None
-    return log.samples[0], errors
+    return log.samples[0], errors, replies
+
+
+def _assert_error_reply(replies: list[Reply]) -> None:
+    [(result, error)] = replies
+    assert error is None
+    assert isinstance(result, dict) and PROVIDER_ERROR_KEY in result
 
 
 @pytest.fixture
@@ -1044,13 +1141,12 @@ def test_agent_limit_in_a_bridged_generation_ends_only_the_agent(
     """A limit `run()` applied, reached in a bridged generation, ends only the agent.
 
     As for a native agent, `run()` returns the limit error and the sample
-    continues without a limit. The scaffold's request still gets an error reply.
+    continues without a limit. The scaffold's request gets an error reply,
+    written before the limit ends the agent.
     """
-    replies: list[JsonValue] = []
-    _serve_one_generation(monkeypatch, replies)
     limit = make_limit()
 
-    sample, errors = _run_bridged_agent(tmp_path, limit)
+    sample, errors, replies = _run_bridged_agent(tmp_path, monkeypatch, limit)
 
     assert sample.error is None, sample.error
     assert sample.limit is None
@@ -1059,8 +1155,7 @@ def test_agent_limit_in_a_bridged_generation_ends_only_the_agent(
     assert error is not None
     assert error.type == limit_type
     assert error.source is limit
-    [reply] = replies
-    assert isinstance(reply, dict) and PROVIDER_ERROR_KEY in reply
+    _assert_error_reply(replies)
 
 
 def test_sample_limit_in_a_bridged_generation_ends_the_sample(
@@ -1071,11 +1166,8 @@ def test_sample_limit_in_a_bridged_generation_ends_the_sample(
     The error propagates out of the agent, past the `run()` limits that do not
     own it, to the sample runner, which records it as for a native agent.
     """
-    replies: list[JsonValue] = []
-    _serve_one_generation(monkeypatch, replies)
-
-    sample, errors = _run_bridged_agent(
-        tmp_path, token_limit(1000), sample_token_limit=5
+    sample, errors, replies = _run_bridged_agent(
+        tmp_path, monkeypatch, token_limit(1000), sample_token_limit=5
     )
 
     assert sample.error is None, sample.error
@@ -1083,5 +1175,37 @@ def test_sample_limit_in_a_bridged_generation_ends_the_sample(
     assert (sample.limit.type, sample.limit.limit) == ("token", 5)
     assert "continued" not in sample.store
     assert errors == []
-    [reply] = replies
-    assert isinstance(reply, dict) and PROVIDER_ERROR_KEY in reply
+    _assert_error_reply(replies)
+
+
+@pytest.mark.parametrize("owner", ["agent", "sample"])
+def test_limit_in_a_bridged_generation_during_shutdown_is_raised(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, owner: str
+) -> None:
+    """A limit reached after the agent completed, while the bridge shuts down, is raised.
+
+    It is not a cleanup error to log: the scope that applied it handles it, as
+    when the agent is still running. A `run()` limit ends the agent; a sample
+    limit ends the sample.
+    """
+    limit = token_limit(5 if owner == "agent" else 1000)
+
+    sample, errors, replies = _run_bridged_agent(
+        tmp_path,
+        monkeypatch,
+        limit,
+        sample_token_limit=5 if owner == "sample" else None,
+        during_shutdown=True,
+    )
+
+    assert sample.error is None, sample.error
+    if owner == "agent":
+        assert sample.limit is None
+        assert sample.store.get("continued") is True
+        [error] = errors
+        assert error is not None and error.source is limit
+    else:
+        assert sample.limit is not None
+        assert (sample.limit.type, sample.limit.limit) == ("token", 5)
+        assert errors == []
+    _assert_error_reply(replies)

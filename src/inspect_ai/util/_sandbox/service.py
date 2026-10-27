@@ -79,6 +79,24 @@ def find_control_flow(ex: Exception) -> BaseException | None:
     return None
 
 
+class RaiseAfterReply(Exception):
+    """Raised by a service method to reply with `result`, then raise `error`.
+
+    The dispatcher writes `result` as the request's reply, then raises `error`
+    from the request's handler however the write ends (bounded by
+    `TERMINATING_REPLY_TIMEOUT`). `sandbox_service()`, handling requests
+    itself, propagates it to the task running the service, so that task gets
+    the error and the sandbox-side caller still gets its reply. The sandbox
+    agent bridge raises a limit reached in a generation this way, so the scope
+    that applied the limit handles it.
+    """
+
+    def __init__(self, result: JsonValue, error: Exception) -> None:
+        super().__init__(str(error))
+        self.result = result
+        self.error = error
+
+
 def raise_if_control_flow(ex: Exception) -> None:
     """Re-raise a contained control-flow exception (no-op otherwise).
 
@@ -472,6 +490,13 @@ class SandboxService:
             # tear down the polling loop), but control-flow exceptions raised
             # by service methods must propagate to be enacted
             await self._handle_request(request_file)
+        except RaiseAfterReply as signal:
+            # the error is raised however the reply ends, as for a termination
+            try:
+                with anyio.move_on_after(TERMINATING_REPLY_TIMEOUT):
+                    await self._write_response(request_file, request_id, signal.result)
+            finally:
+                raise signal.error
         except Exception as ex:
             raise_if_control_flow(ex)
             logger.warning(f"Error handling sandbox service request: {ex}")
@@ -629,6 +654,9 @@ class SandboxService:
                         None,
                         f"Limit exceeded calling method {method_name}: {ex.message}",
                     )
+            except RaiseAfterReply:
+                # answered and raised by _handle_request_tracked
+                raise
             except Exception as err:
                 # sample termination raised by a service method (bare or
                 # wrapped in an ExceptionGroup) must propagate out of the
