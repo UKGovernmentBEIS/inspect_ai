@@ -163,6 +163,8 @@ def my_task(cpus: float = 1.0):
 
 The `ComposeConfig` and `ComposeService` classes mirror the structure of Docker Compose files, supporting fields like `image`, `build`, `command`, `environment`, `volumes`, `ports`, `mem_limit`, `cpus`, and more. Extension fields (prefixed with `x-`) are also supported.
 
+Bind-mount sources and `env_file` paths in a `ComposeConfig` must be absolute (or start with `~/`). The generated Compose file is stored outside the task directory, so Inspect rejects a relative bind-mount source or `env_file` rather than let Compose resolve it there. Build such paths from the task file, for example `Path(__file__).parent / "data"`.
+
 ## Sandbox Limits {#sec-sandbox-limits}
 
 By default, sandboxes limit the size of file reads to 100MB and execution output to 10MB. These limits exist to prevent boundary cases of outputs or executions that don't terminate and result in OOM or hung evaluations (i.e. they usually indicate an error by the model).
@@ -203,6 +205,8 @@ If there is a Sample `setup` bash script it will be executed within the default 
 Before using Docker sandbox environments, please be sure to install [Docker Engine](https://docs.docker.com/engine/install/). Inspect checks the connected Docker daemon and requires version 24.0.6 or greater.
 
 Docker Compose is checked separately: Inspect requires version 2.21.0 or greater, and version 2.22.0 or greater when Inspect pulls sandbox images from a registry.
+
+Inspect's prerequisite checks confirm that Docker supports the features Inspect needs. They do not check whether security updates are installed. You are responsible for using vendor-supported releases and applying security updates to Docker Engine or Docker Desktop, Compose, the container runtime (such as runc), and the Docker host's operating system. This also applies when the Docker host is remote.
 
 If you plan on running evaluations with large numbers of concurrent containers (\> 30) you should also configure Docker's [default address pools](https://straz.to/2021-09-08-docker-address-pools/) to accommodate this.
 

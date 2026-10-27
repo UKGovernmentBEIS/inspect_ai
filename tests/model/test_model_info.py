@@ -96,17 +96,26 @@ class TestGetModelInfo:
         assert info.knowledge_cutoff_date == knowledge_cutoff
         assert info.release_date == date(2026, 9, 22)
 
-    def test_gpt_6_1_sol_model_info(self):
-        info = get_model_info("openai/gpt-6.1-sol")
+    @pytest.mark.parametrize(
+        "model_name,display_name,knowledge_cutoff,release_date",
+        [
+            ("gpt-6.1-sol", "GPT-6.1 Sol", date(2026, 4, 30), date(2026, 9, 29)),
+            ("gpt-6.1-terra", "GPT-6.1 Terra", date(2026, 6, 1), date(2026, 10, 26)),
+        ],
+    )
+    def test_gpt_6_1_model_info(
+        self, model_name, display_name, knowledge_cutoff, release_date
+    ):
+        info = get_model_info(f"openai/{model_name}")
         assert info is not None
-        assert info.model == "GPT-6.1 Sol"
+        assert info.model == display_name
         assert info.context_length == 1050000
         assert info.output_tokens == 128000
         assert info.input_tokens == 922000
         assert info.reasoning is True
         assert info.reasoning_effort_default == "medium"
-        assert info.knowledge_cutoff_date == date(2026, 4, 30)
-        assert info.release_date == date(2026, 9, 29)
+        assert info.knowledge_cutoff_date == knowledge_cutoff
+        assert info.release_date == release_date
 
     def test_known_kimi_model(self):
         """Test lookup of a known Moonshot AI Kimi model."""
@@ -124,6 +133,24 @@ class TestGetModelInfo:
         assert info is not None
         assert info.organization == "Moonshot AI"
         assert info.context_length == 1048576
+
+    @pytest.mark.parametrize(
+        "model,display_name",
+        [
+            ("kimi-k3.1-pro", "Kimi K3.1 Pro"),
+            ("kimi-k3.1-pro-highspeed", "Kimi K3.1 Pro Highspeed"),
+        ],
+    )
+    def test_known_kimi_k3_1_pro_models(self, model, display_name):
+        """Test lookup of Kimi K3.1 Pro and its highspeed variant."""
+        info = get_model_info(f"moonshot/{model}")
+        assert info is not None
+        assert info.organization == "Moonshot AI"
+        assert info.model == display_name
+        assert info.context_length == 1048576
+        assert info.output_tokens == 1048576
+        assert info.reasoning is True
+        assert info.reasoning_effort_default == "max"
 
     def test_kimi_org_detection_on_hosting_provider(self):
         """Test kimi-* org detection for hosting providers (e.g. azureai)."""

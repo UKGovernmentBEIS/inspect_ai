@@ -10,9 +10,10 @@ from shutil import rmtree
 from typing import Any, Optional
 
 from dateutil.relativedelta import relativedelta
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationInfo, model_validator
 
 from inspect_ai._util.appdirs import inspect_cache_dir
+from inspect_ai._util.constants import DESERIALIZING
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
 from inspect_ai.tool import ToolChoice, ToolInfo
@@ -118,6 +119,23 @@ class CachePolicy(BaseModel):
     """A dictionary of additional metadata that should
     be included in the cache key. This allows for more fine-grained
     control over the cache key generation."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _missing_expiry_is_none(cls, data: Any, info: ValidationInfo) -> Any:
+        """Read an ``expiry`` missing from a persisted policy as None, not "1W".
+
+        Logs are written with ``exclude_none``, which drops a None ``expiry``,
+        while the "1W" default is always written out. So when deserializing a
+        log, a missing ``expiry`` can only have been None (never expire).
+        """
+        if (
+            isinstance(data, dict)
+            and isinstance(info.context, dict)
+            and info.context.get(DESERIALIZING, False)
+        ):
+            return {"expiry": None} | data
+        return data
 
     @staticmethod
     def from_string(expiry: str) -> Optional["CachePolicy"]:

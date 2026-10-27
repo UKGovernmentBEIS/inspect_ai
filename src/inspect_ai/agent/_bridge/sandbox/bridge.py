@@ -7,6 +7,8 @@ import anyio
 from shortuuid import uuid
 
 from inspect_ai._sentinel._context import warn_sentinel_bridged
+from inspect_ai._util._async import raise_unwrapped
+from inspect_ai._util.working import untracked_sandbox_execs
 from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._model import (
     GenerateFilter,
@@ -90,11 +92,18 @@ async def sandbox_agent_bridge(
     headers only `Accept-Encoding` and those listed in `forward_client_headers`
     are forwarded.
 
+    Sandbox commands run inside the block, such as the one that launches the
+    agent, are not known work, because Inspect cannot see when a bridged agent
+    is working: they do not count as working while a known wait (such as a
+    model retry) is in progress. Otherwise their time counts as working, as
+    any time does. The agent's model requests and bridged tool calls are
+    known work.
+
     Args:
         state: Initial state for agent bridge. Used as a basis for yielding
             an updated state based on traffic over the bridge.
         model: Pin every request the bridge does not otherwise recognise to
-            this model (e.g. "inspect/openai/gpt-4o"; the "inspect/" prefix is
+            this model (e.g. "inspect/openai/gpt-6-luna"; the "inspect/" prefix is
             optional). Aliases, resolver results and the name "inspect" are not
             pinned. Defaults to `None`, which routes unrecognised names to the
             eval's active model ("inspect" means the same); map other names
@@ -154,8 +163,13 @@ async def sandbox_agent_bridge(
             to pass to CLI agents are available via bridge.mcp_server_configs.
         model_event_sink: Optional sink that takes ownership of `ModelEvent`
             emission for calls routed through the bridge. When set, the bridge
-            installs it around `model.generate()` so the sink decides when and
-            under which span each event is emitted to the transcript.
+            installs it around `model.generate()`. The sink decides under which
+            span each generation runs (its optional `on_start`) and when each
+            event is emitted to the transcript (`on_pending`/`on_complete`); see
+            `ModelEventSink`. A host tool call the model proposed is recorded in the span the sink set
+            on the proposing `ModelEvent` by the time `on_complete` returns,
+            and is recorded right away: a span set later, or a `ModelEvent`
+            the sink emits later, is not matched up with it.
         forward_generation_config: Forward client generation parameters (e.g.
             `max_tokens`, `temperature`, reasoning effort) to the model. Defaults
             to `False`, in which case those parameters are dropped and the resolved
@@ -292,7 +306,8 @@ async def sandbox_agent_bridge(
 
             # main agent
             try:
-                yield bridge
+                with untracked_sandbox_execs():
+                    yield bridge
                 agent_completed = True
             finally:
                 with anyio.CancelScope(shield=True):
@@ -316,7 +331,7 @@ async def sandbox_agent_bridge(
             )
         else:
             # Error occurred before or during agent execution
-            raise inner_exception(ex)
+            raise_unwrapped(ex, inner_exception(ex))
 
 
 def _register_bridged_tools(

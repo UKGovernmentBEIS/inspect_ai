@@ -1,5 +1,5 @@
 import { t as __commonJSMin } from "./rolldown-runtime.js";
-//#region ../../node_modules/.pnpm/react@19.3.0/node_modules/react/cjs/react-jsx-runtime.production.js
+//#region ../../node_modules/.pnpm/react@19.3.1/node_modules/react/cjs/react-jsx-runtime.production.js
 /**
 * @license React
 * react-jsx-runtime.production.js
@@ -34,12 +34,12 @@ var require_react_jsx_runtime_production = /* @__PURE__ */ __commonJSMin(((expor
 	exports.jsxs = jsxProd;
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/react@19.3.0/node_modules/react/jsx-runtime.js
+//#region ../../node_modules/.pnpm/react@19.3.1/node_modules/react/jsx-runtime.js
 var require_jsx_runtime = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = require_react_jsx_runtime_production();
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/react@19.3.0/node_modules/react/cjs/react.production.js
+//#region ../../node_modules/.pnpm/react@19.3.1/node_modules/react/cjs/react.production.js
 /**
 * @license React
 * react.production.js
@@ -423,15 +423,15 @@ var require_react_production = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.useTransition = function() {
 		return ReactSharedInternals.H.useTransition();
 	};
-	exports.version = "19.3.0";
+	exports.version = "19.3.1";
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/react@19.3.0/node_modules/react/index.js
+//#region ../../node_modules/.pnpm/react@19.3.1/node_modules/react/index.js
 var require_react = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = require_react_production();
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/react@19.3.0/node_modules/react/cjs/react-compiler-runtime.production.js
+//#region ../../node_modules/.pnpm/react@19.3.1/node_modules/react/cjs/react-compiler-runtime.production.js
 /**
 * @license React
 * react-compiler-runtime.production.js
@@ -448,7 +448,7 @@ var require_react_compiler_runtime_production = /* @__PURE__ */ __commonJSMin(((
 	};
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/react@19.3.0/node_modules/react/compiler-runtime.js
+//#region ../../node_modules/.pnpm/react@19.3.1/node_modules/react/compiler-runtime.js
 /**
 * Copyright (c) Meta Platforms, Inc. and affiliates.
 *

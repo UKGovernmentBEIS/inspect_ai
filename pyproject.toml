@@ -32,6 +32,8 @@ include = ["inspect_ai*"]
 # node_modules. The viewer ships prebuilt as _view/dist.
 [tool.setuptools.exclude-package-data]
 inspect_ai = ["_view/ts-mono*"]
+# Docker image build inputs are not needed at runtime.
+"inspect_ai.util._sandbox.docker" = ["Dockerfile*", "kali-archive-keyring.gpg"]
 
 [tool.setuptools.package-data]
 inspect_ai = [
@@ -122,7 +124,6 @@ exclude = [
   "examples/evals_in_eval",
   "examples/hooks",
   "examples/http_proxy",
-  "src/inspect_tool_support",
   "src/inspect_sandbox_tools",
 ]
 warn_unused_ignores = true
@@ -199,3 +200,35 @@ dev = ["inspect_ai[dev]"]
 [tool.uv]
 cache-keys = [{ git = { commit = true } }, { file = "pyproject.toml" }]
 default-groups = ["dev"]
+# 0.11.8 is the first uv that keeps uv.lock stable with a relative exclude-newer.
+required-version = ">=0.11.8"
+# Only resolve releases at least 7 days old (see CONTRIBUTING.md).
+exclude-newer = "7 days"
+
+# Exempt from the cooldown, so a new release can be adopted the day it ships:
+# each model provider's own SDK or integration package (and the AWS SDKs
+# Bedrock and SageMaker use), but not infrastructure such as torch; Inspect's
+# own packages, which are released together with inspect_ai; and the CA
+# bundle (certifi), whose releases usually remove compromised roots.
+[tool.uv.exclude-newer-package]
+aiobotocore = false
+anthropic = false
+aws-bedrock-token-generator = false
+azure-ai-inference = false
+boto3 = false
+botocore = false
+certifi = false
+google-genai = false
+groq = false
+huggingface-hub = false
+inspect-scout = false
+inspect-sentinel = false
+mistralai = false
+nnterp = false
+openai = false
+sglang = false
+together = false
+transformer-lens = false
+transformers = false
+vllm = false
+xai-sdk = false

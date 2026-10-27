@@ -20,9 +20,11 @@ permissions:
   contents: read
 
 env:
-  # 0.9.30 installs CPython 3.14.3; 0.9.4 installs 3.14.0, which rejects
-  # `typing.Union | "str"` forward references used by inspect_scout (fixed in 3.14.1).
-  UV_VERSION: 0.9.30
+  # Needs >= 0.13.4, which drops the compromised emSign root from uv's
+  # certificate store (GHSA-hq85-5cpj-mr62), and >= 0.11.24 for relative
+  # `exclude-newer` in pyproject.toml (with a stable uv.lock) and
+  # `--exclude-newer false` for the canary jobs.
+  UV_VERSION: 0.13.5
 
 jobs:
   # Keep these check names present on Markdown-only PRs while avoiding source
@@ -94,7 +96,7 @@ jobs:
 
       - name: Install uv
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: ${{ matrix.python-version }}
@@ -103,18 +105,12 @@ jobs:
       # below runs under `uv run`, which syncs the project environment to
       # uv.lock before it executes anything, so an unlocked `uv pip install`
       # is partly undone a step later. Installing the locked set here and
-      # passing --no-sync below reaches the same environment once.
+      # passing --no-sync below reaches the same environment once. --locked
+      # fails on a uv.lock that is out of date with pyproject.toml instead of
+      # re-resolving it.
       - name: Install dependencies
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        run: uv sync
-
-      # TEMPORARY: the dispatcher requires inspect_sentinel with
-      # meridianlabs-ai/inspect_sentinel#87 (Host wraps HostNative), installed from
-      # sentinel main. Remove when a release with it
-      # is on PyPI and requirements-dev.txt requires it.
-      - name: Install inspect_sentinel (TEMPORARY)
-        if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@main"
+        run: uv sync --locked
 
       - name: Run mypy
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
@@ -173,6 +169,21 @@ jobs:
               - 'docs/**'
               - 'requirements-doc.txt'
 
+  # Dependency canaries: docs, sandbox-tools-unit and slow-tool-tests-dev
+  # install with `uv pip install --exclude-newer false`, which resolves the
+  # newest releases of everything (ignoring the cooldown in pyproject.toml), so
+  # an upstream release that breaks resolution or installation shows up here
+  # first. The `uv run --locked` steps that follow then sync the project's main
+  # and dev dependencies to uv.lock (failing if uv.lock is out of date rather
+  # than re-resolving it), so the render and tests themselves run against
+  # uv.lock for those and the latest versions of anything outside them, such
+  # as the parts of the docs toolchain and of inspect_sandbox_tools' own
+  # dependencies that the project doesn't also depend on. These jobs
+  # hold no secrets and don't save the uv cache (save-cache: false), so honest
+  # runs don't put unvetted releases into the cache. A malicious package can
+  # still write to the cache directly, so jobs that hold credentials restore
+  # no cache (tests/test_workflow_cache.py).
+  #
   # Validate the Quarto docs site whenever docs change — on docs-only PRs
   # (where the test matrix is skipped) and on mixed docs+code PRs alike.
   # Spell checking (typos, scoped to docs and markdown) already runs
@@ -221,20 +232,13 @@ jobs:
           path: .docs-render-ok
           key: docs-render-${{ hashFiles('docs/**', 'requirements-doc.txt', '.docs-src-delta') }}
 
-      # Own cache scope: setup-uv's default key is shared by every 3.11 job
-      # here, so the first to finish saves its dev cache and this job only ever
-      # logs "cache hit ... not saving cache" — leaving the sdist-built
-      # quarto-cli wheel, 43s of the install step below, uncacheable. Note the
-      # key hashes requirements-doc.txt, not the resolution it produces, so a
-      # quarto release above its `>=` floor still re-pays that build until some
-      # hashed file rotates the key.
       - name: Install uv
         if: steps.render-cache.outputs.cache-hit != 'true'
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"
-          cache-suffix: docs
+          save-cache: false
 
       # The package itself is installed because reference docs are
       # generated from the inspect_ai module (griffe).
@@ -242,12 +246,12 @@ jobs:
         if: steps.render-cache.outputs.cache-hit != 'true'
         run: |-
           uv venv
-          uv pip install -r requirements-doc.txt .
+          uv pip install --exclude-newer false -r requirements-doc.txt .
 
       - name: Render docs
         if: steps.render-cache.outputs.cache-hit != 'true'
         run: |-
-          uv run quarto render docs
+          uv run --locked quarto render docs
           touch .docs-render-ok
 
       - name: Minimize uv cache
@@ -317,18 +321,16 @@ jobs:
 
       - name: Install uv
         if: env.RUN_TESTS == 'true'
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: ${{ matrix.python-version }}
 
       # `uv sync` then `uv run --no-sync`, for the same reason as the mypy job.
-      # The other `uv run` sites below keep their implicit sync on purpose:
-      # for docs and sandbox-tools-unit, dropping it would change which
-      # dependency versions the job tests against, and slow-tool-tests-release
-      # relies on the sync replacing its wheel install with the lockfile's
-      # editable one, so `_binaries_dir()` resolves to the source tree the
-      # published binaries were downloaded into.
+      # The canaries sync in `uv run --locked` instead, because that sync is
+      # what puts uv.lock's versions back over their floating install. The
+      # slow jobs run `uv run --locked` after `uv sync --locked`, which only
+      # re-checks the lock.
       # tests/test_package goes in after the sync (it is not in the lockfile)
       # so ensure_test_package_installed() short-circuits instead of
       # pip-installing it mid-run (~9s on the xdist critical path, paid by
@@ -336,16 +338,8 @@ jobs:
       - name: Install dependencies
         if: env.RUN_TESTS == 'true'
         run: |-
-          uv sync
+          uv sync --locked
           uv pip install --no-deps ./tests/test_package
-
-      # TEMPORARY: the dispatcher requires inspect_sentinel with
-      # meridianlabs-ai/inspect_sentinel#87 (Host wraps HostNative), installed from
-      # sentinel main. Remove when a release with it
-      # is on PyPI and requirements-dev.txt requires it.
-      - name: Install inspect_sentinel (TEMPORARY)
-        if: env.RUN_TESTS == 'true'
-        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@main"
 
       - name: Test with pytest
         if: env.RUN_TESTS == 'true'
@@ -385,7 +379,7 @@ jobs:
   # dependencies; the root `test` job neither installs this package nor
   # collects its tests. Runs on any change to the package — including test-only
   # changes — and needs no Docker or built binary (unlike the
-  # slow-tool-tests-* jobs below).
+  # slow-tool-tests-* jobs below). A dependency canary (see docs).
   sandbox-tools-unit:
     needs: changes
     if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.sandbox_tools == 'true'
@@ -396,18 +390,19 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"
+          save-cache: false
 
       - name: Install sandbox-tools package (with dev deps)
         run: |-
           uv venv
-          uv pip install "./src/inspect_sandbox_tools[dev]"
+          uv pip install --exclude-newer false "./src/inspect_sandbox_tools[dev]"
 
       - name: Test with pytest
-        run: uv run pytest src/inspect_sandbox_tools/tests/ -ra --color=yes
+        run: uv run --locked pytest src/inspect_sandbox_tools/tests/ -ra --color=yes
 
       - name: Minimize uv cache
         if: ${{ !cancelled() }}
@@ -454,7 +449,7 @@ jobs:
               - "!src/inspect_sandbox_tools/**/*.md"
               - "!src/inspect_sandbox_tools/design/**"
       # Generic, growable table of areas whose slow tests run with nothing but
-      # `uv pip install .[dev]` + Docker-on-the-runner. `changes` is a JSON list
+      # `uv sync --locked` + Docker-on-the-runner. `changes` is a JSON list
       # of the keys that matched; the slow-tests matrix fans out over it.
       # Convention: each key is also the tests/<key>/ directory to run.
       # Tests needing an API key self-skip via skip_if_no_* (no secrets here),
@@ -470,8 +465,8 @@ jobs:
               - "src/inspect_ai/util/_restic/**"
               - "tests/checkpoint/**"
 
-  # Fast gate: confirm sandbox_tools_version.txt is bumped to exactly N+1
-  # when the injectable source changed. Blocks downstream slow jobs on
+  # Fast gate: confirm sandbox_tools_version.txt is bumped above N (normally
+  # N+1) when the injectable source changed. Blocks downstream slow jobs on
   # failure so PR contributors don't wait on a Docker build to learn they
   # forgot the bump.
   check-version-bump:
@@ -495,14 +490,34 @@ jobs:
         run: |
           VERSION_PATH="src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt"
           BASE_VERSION=$(git show "origin/${BASE_REF}:${VERSION_PATH}" | tr -d '[:space:]')
-          PR_VERSION=$(tr -d '[:space:]' < "${VERSION_PATH}")
+          # Read and validate the version the way upload_to_s3.py does: strip only
+          # surrounding whitespace (not internal, so "3 7" can't pass as 37, which
+          # the uploader's .strip() rejects), and require canonical digits before
+          # the numeric compare below. The PR file is attacker-controlled on fork
+          # PRs. Single-bracket test -gt doesn't run a[$(cmd)] (that's a [[ ]]/(( ))
+          # behavior), but a non-canonical value still needs a clear, early
+          # failure: it would break artifact naming (v+36) or, unbounded, overflow
+          # the integer compare. The digit bound keeps it in range.
+          PR_VERSION=$(< "${VERSION_PATH}")
+          if ! [[ "$PR_VERSION" =~ ^[[:space:]]*([1-9][0-9]{0,8})[[:space:]]*$ ]]; then
+            echo "::error::${VERSION_PATH} must be a positive integer of up to 9 digits, not v${PR_VERSION}."
+            exit 1
+          fi
+          PR_VERSION=${BASH_REMATCH[1]}
           EXPECTED=$((BASE_VERSION + 1))
-          echo "Base (${BASE_REF}): v${BASE_VERSION}; PR: v${PR_VERSION}; expected on bump: v${EXPECTED}; injectable_src_changed=${INJECTABLE_SRC_CHANGED}"
+          echo "Base (${BASE_REF}): v${BASE_VERSION}; PR: v${PR_VERSION}; expected on bump: v${EXPECTED} or higher; injectable_src_changed=${INJECTABLE_SRC_CHANGED}"
           if [ "$INJECTABLE_SRC_CHANGED" = "true" ]; then
-            if [ "$PR_VERSION" = "$EXPECTED" ]; then
+            # Any version above main, not only N+1. If a published version is
+            # burned (its S3 bytes can no longer match the PR, because a build
+            # input changed after upload), it can't be re-used (S3 objects are
+            # immutable) and recovery is to bump past it. The version is only an
+            # artifact label: gaps are harmless at runtime (sandbox.py reads it
+            # to name the object to fetch), and provenance is proved by
+            # slow-tool-tests-release, not by the number. Normally this is N+1.
+            if [ "$PR_VERSION" -gt "$BASE_VERSION" ]; then
               echo "correctly_bumped=true" >> "$GITHUB_OUTPUT"
             else
-              echo "::error::src/inspect_sandbox_tools/ changed but ${VERSION_PATH} is v${PR_VERSION}; bump it to v${EXPECTED}."
+              echo "::error::src/inspect_sandbox_tools/ changed but ${VERSION_PATH} is v${PR_VERSION}; bump it above v${BASE_VERSION} (normally v${EXPECTED})."
               exit 1
             fi
           else
@@ -532,6 +547,7 @@ jobs:
   # Developer gate: run the sandbox slow-test suite. When the injectable
   # source or version changed, build a -dev binary first; otherwise let
   # pytest resolve the published v{N} via the runtime's S3 download path.
+  # A dependency canary (see docs).
   slow-tool-tests-dev:
     needs: [detect-slow, check-version-bump]
     if: needs.detect-slow.outputs.tools_changed == 'true'
@@ -550,15 +566,16 @@ jobs:
         run: git branch main origin/main
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"
+          save-cache: false
 
       - name: Install dependencies
         run: |-
           uv venv
-          uv pip install .[dev]
+          uv pip install --exclude-newer false .[dev]
 
       - name: Build sandbox-tools -dev binaries (glibc + musl)
         if: needs.detect-slow.outputs.injectable_src_changed == 'true' || needs.check-version-bump.outputs.version_correctly_bumped == 'true'
@@ -567,21 +584,27 @@ jobs:
           BUILDKIT_PROGRESS: plain
         # Both libc variants: the slow suite includes an Alpine (musl) case.
         run: |
-          uv run python src/inspect_ai/tool/_sandbox_tools_utils/build_within_container.py --arch amd64
-          uv run python src/inspect_ai/tool/_sandbox_tools_utils/build_within_container.py --arch amd64 --musl
+          uv run --locked python src/inspect_ai/tool/_sandbox_tools_utils/build_within_container.py --arch amd64
+          uv run --locked python src/inspect_ai/tool/_sandbox_tools_utils/build_within_container.py --arch amd64 --musl
 
       - name: Run slow tool tests
         env:
           DOCKER_BUILDKIT: 1
           BUILDKIT_PROGRESS: plain
-        run: uv run pytest --runslow -m slow tests/tools/ -x -v --durations=0 -n logical
+          # Compose 2.38's bake builder gives every project that builds the
+          # same Dockerfile one image ID, so a parallel test's `docker rmi`
+          # can delete it mid-build ("failed to get digest"). Drop once the
+          # runner has Compose >= 2.39, together with the same setting in
+          # meridianlabs-ai/actions inspect-ai-scheduled-tests.yml (actions#156).
+          COMPOSE_BAKE: "false"
+        run: uv run --locked pytest --runslow -m slow tests/tools/ -x -v --durations=0 -n logical
 
       - name: Minimize uv cache
         if: ${{ !cancelled() }}
         run: uv cache prune --ci
 
-  # Release gate: runs only when the version bumped to N+1. Verifies the
-  # new v{N+1} artifact is published to S3 (fails fast with upload_to_s3.py
+  # Release gate: runs only when the version was bumped. Verifies the bumped
+  # version's artifacts are published to S3 (fails fast with a release-wizard
   # hint if not), then re-runs the slow tests against it. Maintainer reruns
   # from the Actions UI after uploading. Runs in parallel with
   # slow-tool-tests-dev: it consumes only the published S3 artifacts,
@@ -591,6 +614,11 @@ jobs:
     if: needs.detect-slow.outputs.tools_changed == 'true' && needs.check-version-bump.outputs.version_correctly_bumped == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    # attestations/actions: read the build provenance and its run's title.
+    permissions:
+      contents: read
+      attestations: read
+      actions: read
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -601,15 +629,15 @@ jobs:
           submodules: true
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"
 
+      # The project installs editable, so `_binaries_dir()` resolves to the
+      # source tree the published binaries are downloaded into below.
       - name: Install dependencies
-        run: |-
-          uv venv
-          uv pip install .[dev]
+        run: uv sync --locked
 
       - name: Fetch and verify published non-dev sandbox-tools binaries
         run: |
@@ -622,7 +650,7 @@ jobs:
           # exit: `exit 1` in the awk body jumps to END, whose own exit would
           # override the status.
           if ! awk -v v="v${VERSION}" 'NF { n++; if ($2 !~ ("-" v "$")) bad = 1 } END { exit (bad || n != 4) }' "$SUMS"; then
-            echo "::error::${SUMS} is not updated for v${VERSION}. Build+upload the artifacts (upload_to_s3.py rewrites it) and commit it in this PR."
+            echo "::error::${SUMS} is not updated for v${VERSION}. Publish the CI-built artifacts with scripts/release-sandbox-tools.sh, which commits it (src/inspect_sandbox_tools/design/RELEASING.md)."
             exit 1
           fi
           # All four artifacts are fetched and digest-checked, not just the amd64
@@ -640,7 +668,7 @@ jobs:
             # Keep today's explicit not-yet-uploaded error (a bare curl -f 404 is
             # terse and carries no ::error annotation).
             if ! curl -fsI "$URL" >/dev/null; then
-              echo "::error::Published binary ${FILENAME} not found at ${URL}. Run: python src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py ${VERSION}, commit the rewritten SHA256SUMS, then rerun this job."
+              echo "::error::Published binary ${FILENAME} not found at ${URL}. Publish the CI-built artifacts with scripts/release-sandbox-tools.sh (src/inspect_sandbox_tools/design/RELEASING.md), then rerun this job."
               exit 1
             fi
             curl -fSL -o "src/inspect_ai/binaries/${FILENAME}" "$URL"
@@ -658,6 +686,85 @@ jobs:
             chmod +x "src/inspect_ai/binaries/${FILENAME}"
           done
 
+      # The published bytes must come from a sandbox-tools-build.yml run on
+      # main that succeeded (its attestation names the run, and the run title
+      # names the commit it built), and that commit's build inputs must match
+      # this PR's.
+      # The built commit itself needn't land on main (squash merges), so its
+      # build inputs are compared instead. A failure here comes after upload:
+      # the published bytes are burned, so bump the version past the burned
+      # number and publish fresh artifacts rather than re-uploading.
+      # check-version-bump accepts any bump above main, so the skip is allowed.
+      - name: Check published binaries were built in CI from this PR's code
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(tr -d '[:space:]' < src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt)
+          # Attestations exist only on the upstream repo (also when this runs in a fork).
+          REPO=UKGovernmentBEIS/inspect_ai
+          # Whole directories, not a file list: the build scripts run with their
+          # own directory first on sys.path, so any file there can change the
+          # bytes. binaries/ is gitignored, but a force-added file there would be
+          # uploaded with the build's output. design/ and tests/ are outside
+          # the package's src/, so the wheel never contains them.
+          BUILD_INPUTS=(
+            src/inspect_sandbox_tools
+            ":(exclude)src/inspect_sandbox_tools/design"
+            ":(exclude)src/inspect_sandbox_tools/tests"
+            src/inspect_ai/tool/_sandbox_tools_utils
+            ":(exclude)src/inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS"
+            src/inspect_ai/binaries
+          )
+          # The diff below compares a symlink's target path, not the target's
+          # content, and the build follows symlinks; so allow none.
+          if git ls-files -s -- "${BUILD_INPUTS[@]}" | awk '$1 == "120000" { print; found = 1 } END { exit !found }'; then
+            echo "::error::Symlinks in the sandbox tools build inputs (above) aren't allowed: the build-input comparison can't see changes to their targets."
+            exit 1
+          fi
+          for VARIANT in amd64 amd64-musl arm64 arm64-musl; do
+            FILENAME="inspect-sandbox-tools-${VARIANT}-v${VERSION}"
+            INVOCATION=$(gh attestation verify "src/inspect_ai/binaries/${FILENAME}" \
+              --repo "$REPO" \
+              --signer-workflow "$REPO/.github/workflows/sandbox-tools-build.yml" \
+              --source-ref refs/heads/main --format json \
+              --jq '.[0].verificationResult.statement.predicate.runDetails.metadata.invocationId') || {
+              echo "::error::${FILENAME} on S3 has no valid attestation from sandbox-tools-build.yml on main. Release binaries must be built in CI (RELEASING.md step 3); bump the version and publish CI-built artifacts."
+              exit 1
+            }
+            # Only a first attempt counts: a re-run's conclusion can come from a
+            # different attempt than the one that signed these bytes.
+            RUN_ID=$(sed -nE 's#.*/actions/runs/([0-9]+)/attempts/1$#\1#p' <<< "$INVOCATION")
+            if [ -z "$RUN_ID" ]; then
+              echo "::error::${FILENAME} wasn't signed by the first attempt of a run (invocationId: ${INVOCATION}). Publish artifacts from a fresh run."
+              exit 1
+            fi
+            # Validation runs after signing, so only a successful run counts.
+            CONCLUSION=$(gh run view "$RUN_ID" --repo "$REPO" --json conclusion --jq .conclusion)
+            LATEST=$(gh run view "$RUN_ID" --repo "$REPO" --json attempt --jq .attempt)
+            TITLE=$(gh run view "$RUN_ID" --repo "$REPO" --json displayTitle --jq .displayTitle)
+            if [ "$CONCLUSION" != "success" ]; then
+              echo "::error::${FILENAME} comes from run ${RUN_ID}, which did not succeed (${CONCLUSION:-in progress}); its validation may have failed."
+              exit 1
+            fi
+            if [ "$LATEST" != "1" ]; then
+              echo "::error::Run ${RUN_ID}, which built ${FILENAME}, was re-run (attempt ${LATEST}); only a run that succeeded on its first attempt counts. Publish artifacts from a fresh run."
+              exit 1
+            fi
+            BUILT=${TITLE#Build sandbox tools at }
+            if ! [[ "$BUILT" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "::error::Can't read the built commit from run ${RUN_ID} (title: ${TITLE})."
+              exit 1
+            fi
+            git fetch --quiet --no-tags origin "$BUILT"
+            if ! git diff --quiet "$BUILT" HEAD -- "${BUILD_INPUTS[@]}"; then
+              echo "::error::${FILENAME} was built from ${BUILT} (run ${RUN_ID}), whose build inputs differ from this PR:"
+              git diff --stat "$BUILT" HEAD -- "${BUILD_INPUTS[@]}"
+              echo "::error::Bump the version (past the burned one; any bump above main is accepted) and publish artifacts built at the PR's current head."
+              exit 1
+            fi
+            echo "${FILENAME}: built in run ${RUN_ID} from ${BUILT}; build inputs match"
+          done
+
       - name: Run slow tool tests against published artifact
         env:
           DOCKER_BUILDKIT: 1
@@ -666,7 +773,9 @@ jobs:
           # the non-dev name; _check_main_divergence would otherwise return
           # "edited" on this PR (version.txt differs from main).
           INSPECT_SANDBOX_TOOLS_INSTALL_STATE: clean
-        run: uv run pytest --runslow -m slow tests/tools/ -x -v --durations=0 -n logical
+          # Shared image IDs under Compose 2.38; see "Run slow tool tests".
+          COMPOSE_BAKE: "false"
+        run: uv run --locked pytest --runslow -m slow tests/tools/ -x -v --durations=0 -n logical
 
       - name: Minimize uv cache
         if: ${{ !cancelled() }}
@@ -696,18 +805,19 @@ jobs:
           submodules: true
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"
 
       - name: Install dependencies
-        run: |-
-          uv venv
-          uv pip install .[dev]
+        run: uv sync --locked
 
       - name: Run slow tests
-        run: uv run pytest --runslow -m slow tests/${{ matrix.area }}/ -n logical --durations=0
+        env:
+          # Shared image IDs under Compose 2.38; see "Run slow tool tests".
+          COMPOSE_BAKE: "false"
+        run: uv run --locked pytest --runslow -m slow tests/${{ matrix.area }}/ -n logical --durations=0
 
       - name: Minimize uv cache
         if: ${{ !cancelled() }}

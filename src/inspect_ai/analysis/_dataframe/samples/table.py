@@ -34,7 +34,7 @@ from ..columns import Column, ColumnError, ColumnType
 from ..evals.columns import EvalColumn
 from ..evals.table import EVAL_ID, EVAL_SUFFIX, _read_evals_df, ensure_eval_data
 from ..events.columns import EventColumn
-from ..extract import message_as_str
+from ..extract import message_as_str, message_render_cache
 from ..messages.columns import MessageColumn
 from ..record import import_record, resolve_duplicate_columns
 from ..util import (
@@ -212,7 +212,10 @@ def _read_samples_df(
             executor.shutdown(wait=False, cancel_futures=True)
 
         # recombine df
-        df = pd.concat(df_results, ignore_index=True)
+        df = pd.concat(
+            _reconcile_string_columns(cast(list[pd.DataFrame], df_results)),
+            ignore_index=True,
+        )
         subset = f"{detail.name}_id" if detail else SAMPLE_ID
         try:
             df.drop_duplicates(subset=subset, ignore_index=True, inplace=True)
@@ -389,38 +392,39 @@ def _read_samples_df_serial(
                         detail_items = []
 
                     # read detail records (provide auto-ids)
-                    for index, item in enumerate(detail_items):
-                        if strict:
-                            detail_record = import_record(
-                                eval_log,
-                                item,
-                                columns_detail,
-                                strict=True,
-                            )
-                        else:
-                            detail_record, errors = import_record(
-                                eval_log,
-                                item,
-                                columns_detail,
-                                strict=False,
-                            )
-                            all_errors.extend(errors)
+                    with message_render_cache():
+                        for index, item in enumerate(detail_items):
+                            if strict:
+                                detail_record = import_record(
+                                    eval_log,
+                                    item,
+                                    columns_detail,
+                                    strict=True,
+                                )
+                            else:
+                                detail_record, errors = import_record(
+                                    eval_log,
+                                    item,
+                                    columns_detail,
+                                    strict=False,
+                                )
+                                all_errors.extend(errors)
 
-                        # ensure ids
-                        detail_id_field = f"{detail.name}_id"
-                        detail_id = detail_record.get(detail_id_field, None)
-                        if detail_id is None:
-                            detail_record[detail_id_field] = auto_detail_id(
-                                sample_id, detail.name, index
-                            )
-                        ids = {SAMPLE_ID: sample_id}
-                        detail_record = ids | detail_record
+                            # ensure ids
+                            detail_id_field = f"{detail.name}_id"
+                            detail_id = detail_record.get(detail_id_field, None)
+                            if detail_id is None:
+                                detail_record[detail_id_field] = auto_detail_id(
+                                    sample_id, detail.name, index
+                                )
+                            ids = {SAMPLE_ID: sample_id}
+                            detail_record = ids | detail_record
 
-                        # inject order
-                        detail_record["order"] = index + 1
+                            # inject order
+                            detail_record["order"] = index + 1
 
-                        # append detail record
-                        detail_records.append(detail_record)
+                            # append detail record
+                            detail_records.append(detail_record)
 
                 # record sample record
                 sample_records.append(record)
@@ -582,6 +586,51 @@ def reorder_samples_df_columns(
 
     # reorder the DataFrame
     return df[ordered_columns]
+
+
+def _reconcile_string_columns(dfs: list["pd.DataFrame"]) -> list["pd.DataFrame"]:
+    """Convert a column to strings in every frame if any frame has strings in it.
+
+    Each parallel worker types its columns from its own log, so one worker can
+    read a column as strings (mixed types, or an int beyond int64) while another
+    reads it as numbers. A serial read of the same logs makes the whole column
+    strings, so do the same here, keeping nulls.
+    """
+    import pandas as pd
+    import pyarrow as pa
+
+    def is_string(series: pd.Series) -> bool:
+        dtype = series.dtype
+        return isinstance(dtype, pd.ArrowDtype) and (
+            pa.types.is_string(dtype.pyarrow_dtype)
+            or pa.types.is_large_string(dtype.pyarrow_dtype)
+        )
+
+    # an all-null column is typed as strings, so it doesn't decide the dtype
+    string_dtypes = {
+        col: df[col].dtype
+        for df in dfs
+        for col in df.columns
+        if is_string(df[col]) and df[col].notna().any()
+    }
+
+    reconciled: list[pd.DataFrame] = []
+    for df in dfs:
+        mismatched = [
+            col
+            for col in df.columns
+            if col in string_dtypes and df[col].dtype != string_dtypes[col]
+        ]
+        if mismatched:
+            df = df.copy()
+            for col in mismatched:
+                df[col] = (
+                    df[col]
+                    .map(lambda v: v if pd.isna(v) else str(v))
+                    .astype(string_dtypes[col])
+                )
+        reconciled.append(df)
+    return reconciled
 
 
 def _convert_to_large_string(df: "pd.DataFrame") -> "pd.DataFrame":

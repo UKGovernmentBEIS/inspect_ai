@@ -258,9 +258,9 @@ async def test_mcp_tool_call_timeout_becomes_tool_error() -> None:
 
 
 _MCP_GROUP_REPEATS = 50
-"""Order-sensitive group cases repeat with fresh exceptions: reducing a group
-to one leaf picked in set (address) order chose the decisive leaf only some
-of the time."""
+"""Order-sensitive group cases repeat with fresh exceptions: a group's leaves
+were once ordered by a set (object addresses), so one order could pass by
+chance."""
 
 
 class _RaisingSession:

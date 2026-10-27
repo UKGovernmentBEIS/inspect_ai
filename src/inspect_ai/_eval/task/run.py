@@ -39,8 +39,8 @@ from inspect_ai._display.core.display import TaskCancel, TaskDisplayMetric
 from inspect_ai._eval.task.scan import Scanners
 from inspect_ai._sentinel._config import SentinelRoot
 from inspect_ai._sentinel._context import SentinelFailure
-from inspect_ai._sentinel._scope import sentinel_solving
-from inspect_ai._util._async import Wake, aexit_shielded_when
+from inspect_ai._sentinel._scope import sentinel_scope, sentinel_solving
+from inspect_ai._util._async import Wake, aexit_shielded_when, raise_unwrapped
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import get_async_filesystem
 from inspect_ai._util.constants import (
@@ -2985,7 +2985,7 @@ async def _task_run_sample_attempt(
                                         "interrupt, or an eval cancel)"
                                     ) from solver_cancel
                             except Exception as ex:
-                                raise inner_exception(ex)
+                                raise_unwrapped(ex, inner_exception(ex))
                             finally:
                                 # capture sample limits
                                 record_sample_limit_data(
@@ -3091,9 +3091,12 @@ async def _task_run_sample_attempt(
                                             ):
                                                 if not scorer:
                                                     continue
-                                                score_result = await scorer(
-                                                    state, Target(sample.target)
-                                                )
+                                                with sentinel_scope(
+                                                    "scorer", final=True
+                                                ):
+                                                    score_result = await scorer(
+                                                        state, Target(sample.target)
+                                                    )
                                                 if scorer_name in state.scores:
                                                     raise RuntimeError(
                                                         f"Scorer {scorer_name} has modified state.scores"

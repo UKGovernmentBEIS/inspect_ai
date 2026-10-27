@@ -62,7 +62,7 @@ class WebSearchProviders(TypedDict, total=False):
     """Use Anthropic internal provider. For available options see <https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool>."""
 
     grok: dict[str, Any] | bool
-    """Use Grok internal provider. For available options see <https://docs.x.ai/docs/guides/tools/search-tools#web-search-parameters>."""
+    """Use Grok internal provider. For available options see <https://docs.x.ai/developers/tools/web-search>."""
 
     gemini: dict[str, Any] | bool
     """Use Gemini internal provider. For available options see <https://ai.google.dev/gemini-api/docs/google-search>."""
@@ -71,7 +71,7 @@ class WebSearchProviders(TypedDict, total=False):
     """Use Mistral internal provider. For available options see <https://docs.mistral.ai/agents/tools/built-in/websearch>."""
 
     perplexity: dict[str, Any] | bool
-    """Use Perplexity internal provider. For available options see <https://docs.perplexity.ai/api-reference/chat-completions-post>"""
+    """Use Perplexity internal provider. For available options see <https://docs.perplexity.ai/docs/agent-api/tools/web-search>"""
 
     tavily: dict[str, Any] | bool
     """Use Tavili external provider. For available options see <Use Exa external provider. For available options see <https://inspect.aisi.org.uk/tools-standard.html#tavili-options>."""
@@ -178,8 +178,8 @@ def web_search(
         - anthropic: Supports Anthropic's web search parameters.
           See https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool#tool-definition
 
-        - perplexity: Supports Perplexity's web search parameters.
-          See https://docs.perplexity.ai/api-reference/chat-completions-post
+        - perplexity: Supports the fields of Perplexity's web_search tool.
+          See https://docs.perplexity.ai/docs/agent-api/tools/web-search
 
         - tavily: Supports options like `max_results`, `search_depth`, etc.
           See https://docs.tavily.com/documentation/api-reference/endpoint/search
@@ -190,8 +190,9 @@ def web_search(
         - google: Supports options like `num_results`, `max_provider_calls`,
           `max_connections`, and `model`
 
-        - grok: Supports X-AI's live search parameters.
-          See https://docs.x.ai/docs/guides/live-search#live-search
+        - grok: Supports the options of xAI's web search tool, such as
+          `allowed_domains` and `excluded_domains` (Grok 4 and later).
+          See https://docs.x.ai/developers/tools/web-search
 
       **deprecated: Deprecated arguments.
 

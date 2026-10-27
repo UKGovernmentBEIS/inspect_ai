@@ -217,9 +217,9 @@ def test_scalar_stringified():
 
 
 _GROUP_REPEATS = 50
-"""Order-sensitive group cases repeat with fresh exceptions: reducing a group
-to one leaf picked in set (address) order chose the decisive leaf only some
-of the time."""
+"""Order-sensitive group cases repeat with fresh exceptions: a group's leaves
+were once ordered by a set (object addresses), so one order could pass by
+chance."""
 
 
 def _token_limit() -> LimitExceededError:

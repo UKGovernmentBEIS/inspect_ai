@@ -11,7 +11,7 @@ permissions:
   pull-requests: write
 
 env:
-  UV_VERSION: 0.9.4
+  UV_VERSION: 0.13.5
 
 jobs:
   sync-models:
@@ -22,22 +22,27 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"
+          # This job holds API keys and write permissions, so it restores no
+          # cache (tests/test_workflow_cache.py).
+          enable-cache: false
 
       # The script is self-contained (no inspect_ai imports), so run the file
       # directly with just its two dependencies rather than installing the
-      # whole package. It validates every source's credentials before fetching,
-      # so a missing key fails before either file is written.
+      # whole package. Its dependencies come from its committed script lockfile
+      # (--locked fails rather than re-resolving), since this step holds API
+      # keys. It validates every source's credentials before fetching, so a
+      # missing key fails before either file is written.
       - name: Sync model data
         env:
           TOGETHER_API_KEY: ${{ secrets.TOGETHER_API_KEY }}
           FIREWORKS_API_KEY: ${{ secrets.FIREWORKS_API_KEY }}
         run: |
-          uv run --no-project --with requests --with pyyaml \
-            python src/inspect_ai/model/_model_data/sync_models.py --source all
+          uv run --no-config --locked --script \
+            src/inspect_ai/model/_model_data/sync_models.py --source all
 
       # The generated header embeds a run timestamp, so each file is dirty
       # after every run even when no model data changed; revert in that case
