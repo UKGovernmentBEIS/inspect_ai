@@ -1251,3 +1251,291 @@ def test_an_input_s_identity_is_the_same_pooled_or_expanded() -> None:
             assert inputs.identity(pooled) != inputs.identity(
                 PoolView(pool, _compress_refs(changed))
             )
+
+
+# Fresh-context review of fc19f0412: public parity of agent results, and
+# continuity's conversations within the tree
+
+
+def _model(uuid: str, span: str | None, input: list[Any], output: Any) -> Any:
+    from inspect_ai.event import ModelEvent
+    from inspect_ai.model import ChatCompletionChoice, GenerateConfig, ModelOutput
+
+    return ModelEvent(
+        uuid=uuid,
+        span_id=span,
+        model="mockllm/model",
+        input=list(input),
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput(
+            model="mockllm/model",
+            choices=[ChatCompletionChoice(message=output, stop_reason="stop")],
+        ),
+    )
+
+
+def _assistant(text: str = "", *calls: str) -> Any:
+    from inspect_ai.model import ChatMessageAssistant
+    from inspect_ai.tool import ToolCall
+
+    return ChatMessageAssistant(
+        content=text,
+        tool_calls=[ToolCall(id=c, function="f", arguments={}) for c in calls] or None,
+    )
+
+
+def _utility(root: TimelineSpan) -> list[str | None]:
+    from inspect_ai.event import ModelEvent
+    from inspect_ai.event._timeline import TimelineEvent
+
+    found: list[str | None] = []
+
+    def walk(span: TimelineSpan, inside: bool) -> None:
+        for item in span.content:
+            if isinstance(item, TimelineEvent):
+                if inside and isinstance(item.event, ModelEvent):
+                    found.append(item.event.uuid)
+            else:
+                walk(item, inside or item.utility)
+        for branch in span.branches:
+            walk(branch, inside or branch.utility)
+
+    walk(root, root.utility)
+    return found
+
+
+@pytest.mark.parametrize("pooled", [False, True])
+@pytest.mark.parametrize("reminder", [False, True])
+def test_a_bridge_task_s_result_is_the_last_in_the_input(
+    pooled: bool, reminder: bool
+) -> None:
+    # the input holds a result where the issuing call puts it and a later one
+    # elsewhere (a reminder inserted before it, or a rewrite): as on main, the
+    # last is the task's
+    from inspect_ai.event import SpanBeginEvent, SpanEndEvent
+    from inspect_ai.log import condense_events
+    from inspect_ai.model import ChatMessageSystem, ChatMessageTool, ChatMessageUser
+
+    system, go = ChatMessageSystem(content="main"), ChatMessageUser(content="Go.")
+    first, again = _assistant("", "x"), _assistant("", "x")
+    history = [system, go, first, ChatMessageTool(content="A", tool_call_id="x")]
+    history += [ChatMessageUser(content="again")]
+    if reminder:
+        history += [ChatMessageUser(content="<reminder>")]
+    history += [again, ChatMessageTool(content="B", tool_call_id="x")]
+    events: list[Any] = [
+        SpanBeginEvent(id="main", name="main", type="agent"),
+        _model("m1", "main", [system, go], first),
+        SpanBeginEvent(id="agent-x", name="sub", type="agent", parent_id="main"),
+        _model("s1", "agent-x", [ChatMessageUser(content="do")], _assistant("r")),
+        SpanEndEvent(id="agent-x"),
+        _model("m2", "main", history, _assistant("done")),
+        SpanEndEvent(id="main"),
+    ]
+    if pooled:
+        condensed, data = condense_events(events)
+        root = _timeline_build(condensed, message_pool=data["messages"]).root
+    else:
+        root = timeline_build(events).root
+    results: list[str | None] = []
+
+    def walk(span: TimelineSpan) -> None:
+        for item in span.content:
+            if isinstance(item, TimelineSpan):
+                if item.id == "agent-x":
+                    results.append(item.agent_result)
+                walk(item)
+
+    walk(root)
+    assert results == ["B"]
+
+
+def _tool_span_sub_agent(fork: bool) -> tuple[list[Any], list[Any]]:
+    """A main agent whose call's tool runs a two-call loop of its own in a tool span, then carries on (with `fork`, after a fork of two calls)."""
+    from inspect_ai.event import SpanBeginEvent, SpanEndEvent
+    from inspect_ai.model import ChatMessageSystem, ChatMessageTool, ChatMessageUser
+
+    system, go = ChatMessageSystem(content="main"), ChatMessageUser(content="Go.")
+    events: list[Any] = [SpanBeginEvent(id="main", name="main", type="agent")]
+    input: list[Any] = [system, go]
+    if fork:
+        first = _assistant("one", "c0")
+        events.append(_model("t1", "main", input, first))
+        input = [*input, first, ChatMessageTool(content="r0", tool_call_id="c0")]
+    asked = _assistant("", "c1")
+    events.append(_model("h1", "main", input, asked))
+    if fork:
+        events.append(_model("h2", "main", input, _assistant("", "c9")))
+    helper = [ChatMessageSystem(content="helper"), ChatMessageUser(content="q")]
+    searched = _assistant("", "k")
+    events += [
+        SpanBeginEvent(id="tool-c1", name="research", type="tool", parent_id="main"),
+        _model("s1", "tool-c1", helper, searched),
+        _model(
+            "s2",
+            "tool-c1",
+            [*helper, searched, ChatMessageTool(content="hits", tool_call_id="k")],
+            _assistant("answer"),
+        ),
+        SpanEndEvent(id="tool-c1"),
+    ]
+    final = [*input, asked, ChatMessageTool(content="answer", tool_call_id="c1")]
+    events += [_model("t3", "main", final, _assistant("done")), SpanEndEvent(id="main")]
+    return events, [*final, _assistant("done")]
+
+
+@pytest.mark.parametrize("fork", [False, True])
+def test_a_tool_s_own_calls_do_not_move_the_agent_s_thread(fork: bool) -> None:
+    # fc19f0412 grouped a tool's own model calls with the agent's (its
+    # conversation by agent span), so their chain made the agent's first turn
+    # utility, or kept an unused alternative; the tool's span is its own
+    events, final = _tool_span_sub_agent(fork)
+    root = _timeline_build(events, final_messages=final, continuity=True).root
+    assert _utility(root) == (["h2"] if fork else [])
+
+
+def test_an_older_log_s_nested_calls_do_not_end_the_agent_s_thread() -> None:
+    # a log from before spans nests a handoff's calls in its ToolEvent; they
+    # are a sub-agent's, and the fork at the end the final messages settle is
+    # the main agent's
+    from inspect_ai.event import ToolEvent
+    from inspect_ai.model import ChatMessageSystem, ChatMessageTool, ChatMessageUser
+
+    system, go = ChatMessageSystem(content="main"), ChatMessageUser(content="Go.")
+    transfer = _assistant("", "c1")
+    second = [system, go, transfer, ChatMessageTool(content="done", tool_call_id="c1")]
+    thought = _assistant("let me think")
+    last = [*second, thought, ChatMessageUser(content="continue")]
+    kept, dropped = _assistant("answer one"), _assistant("answer two")
+    sub = [ChatMessageSystem(content="sub"), ChatMessageUser(content="task")]
+    searched = _assistant("", "k")
+    nested = [
+        _model("s1", None, sub, searched),
+        _model(
+            "s2",
+            None,
+            [*sub, searched, ChatMessageTool(content="x", tool_call_id="k")],
+            _assistant("done"),
+        ),
+    ]
+    events: list[Any] = [
+        _model("t1", None, [system, go], transfer),
+        ToolEvent(
+            id="c1",
+            function="transfer",
+            arguments={},
+            agent="sub",
+            events=nested,
+            result="done",
+        ),
+        _model("t2", None, second, thought),
+        _model("h1", None, last, kept),
+        _model("h2", None, last, dropped),
+    ]
+    root = _timeline_build(events, final_messages=[*last, kept], continuity=True).root
+    assert _utility(root) == ["h2"]
+
+
+def test_a_rollback_branch_does_not_join_the_trunk_s_thread() -> None:
+    # without a stored timeline, a timeline_branch span is a conversation of
+    # its own: its calls do not settle the trunk's fork against the turn the
+    # final messages carry on
+    from inspect_ai.event import (
+        AnchorEvent,
+        BranchEvent,
+        SpanBeginEvent,
+        SpanEndEvent,
+    )
+    from inspect_ai.model import ChatMessageSystem, ChatMessageTool, ChatMessageUser
+
+    system, go = ChatMessageSystem(content="main"), ChatMessageUser(content="Go.")
+    o1, o2, o3 = _assistant("one", "c1"), _assistant("two", "c2"), _assistant("three")
+    i1 = [system, go]
+    i2 = [*i1, o1, ChatMessageTool(content="r1", tool_call_id="c1")]
+    i3 = [*i2, o2, ChatMessageTool(content="r2", tool_call_id="c2")]
+    b3 = _assistant("three-b", "c3")
+    events: list[Any] = [
+        SpanBeginEvent(id="main", name="main", type="agent"),
+        _model("t1", "main", i1, o1),
+        _model("t2", "main", i2, o2),
+        AnchorEvent(anchor_id="a2"),
+        _model("t3", "main", i3, o3),
+        SpanBeginEvent(id="branch", name="rollback", type="branch", parent_id="main"),
+        BranchEvent(from_anchor="a2", span_id="branch"),
+        _model("b3", "branch", i3, b3),
+        _model(
+            "b4",
+            "branch",
+            [*i3, b3, ChatMessageTool(content="r3", tool_call_id="c3")],
+            _assistant("four-b"),
+        ),
+        SpanEndEvent(id="branch"),
+        SpanEndEvent(id="main"),
+    ]
+    root = _timeline_build(events, final_messages=[*i3, o3], continuity=True).root
+    assert _utility(root) == []
+
+
+def test_conversations_sharing_an_output_add_its_rows_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # each continuity thread added every pool row of an output it opened, so
+    # n sub-agents answering alike cost n * n; the rows are shared
+    from inspect_ai.event import SpanBeginEvent, SpanEndEvent
+    from inspect_ai.event import _timeline as timeline
+    from inspect_ai.log import condense_events
+    from inspect_ai.model import (
+        ChatMessageAssistant,
+        ChatMessageSystem,
+        ChatMessageTool,
+        ChatMessageUser,
+    )
+
+    def added(n: int) -> int:
+        history: list[Any] = [
+            ChatMessageSystem(content="main"),
+            ChatMessageUser(content="Go."),
+        ]
+        events: list[Any] = [SpanBeginEvent(id="main", name="main", type="agent")]
+        for k in range(n):
+            task = _assistant("", f"t{k}")
+            events.append(_model(f"m{k}", "main", list(history), task))
+            history.append(task)
+            asked = [ChatMessageSystem(content="sub"), ChatMessageUser(content=f"{k}")]
+            done = ChatMessageAssistant(content="Done.", metadata={"k": k})
+            events += [
+                SpanBeginEvent(
+                    id=f"agent-t{k}", name="sub", type="agent", parent_id="main"
+                ),
+                _model(f"s{k}", f"agent-t{k}", asked, done),
+                _model(
+                    f"z{k}",
+                    f"agent-t{k}",
+                    [*asked, done, ChatMessageUser(content="sure?")],
+                    _assistant("Yes."),
+                ),
+                SpanEndEvent(id=f"agent-t{k}"),
+            ]
+            history.append(ChatMessageTool(content="Done.", tool_call_id=f"t{k}"))
+        events += [
+            _model("end", "main", list(history), _assistant("fin")),
+            SpanEndEvent(id="main"),
+        ]
+        condensed, data = condense_events(events)
+        count = 0
+        add = timeline._RowSet.add
+
+        def counting(self: Any, row: int) -> None:
+            nonlocal count
+            count += 1
+            add(self, row)
+
+        with monkeypatch.context() as patch:
+            patch.setattr(timeline._RowSet, "add", counting)
+            _timeline_build(condensed, message_pool=data["messages"], continuity=True)
+        return count
+
+    small, large = added(100), added(200)
+    assert large <= 2.2 * small + 10, (small, large)

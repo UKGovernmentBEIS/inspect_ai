@@ -1107,6 +1107,10 @@ class _Inputs:
         self._issued: dict[str, list[tuple[int, int]]] | None = None
         # tool call id -> the pool rows answering it
         self._tool_rows: dict[str, list[int]] | None = None
+        # the pool rows holding an output of an open call, of any continuity
+        # thread, by the output fingerprints added, each added once
+        self._open_rows: _RowSet | None = None
+        self._open_fingerprints: set[_Fingerprint] = set()
         # message fingerprint -> the pool rows holding it
         self._rows_by_fingerprint: dict[_Fingerprint, list[int]] | None = None
         # message fingerprint -> its number in an input's identity; the hash
@@ -1127,6 +1131,23 @@ class _Inputs:
     @property
     def events(self) -> Sequence[Event]:
         return self._events
+
+    def given(self, event: Event) -> str | None:
+        """The conversation given for the event's UUID, if any."""
+        return self._conversations.get(event.uuid) if event.uuid else None
+
+    def open_rows(self) -> "_RowSet":
+        if self._open_rows is None:
+            self._open_rows = _RowSet(self.pool_size)
+        return self._open_rows
+
+    def open_output(self, output: _Fingerprint) -> None:
+        """Add the pool rows holding `output` to `open_rows()`, once."""
+        if output not in self._open_fingerprints:
+            self._open_fingerprints.add(output)
+            rows = self.open_rows()
+            for row in self.rows_with(output):
+                rows.add(row)
 
     def conversation(self, event: Event) -> object:
         """The conversation an event is in: the one given for its UUID, else its innermost agent span in the span tree."""
@@ -1209,7 +1230,7 @@ class _Inputs:
     ) -> list[tuple[str, str]]:
         """The non-empty results in `event`'s input of the tool calls named, the last for each.
 
-        A result is looked for first where it follows its call, just after the output of the model call that made it; failing that, in the pool rows answering the call, else by scanning the input.
+        A result is looked for first where it follows its call, just after the output of each model call that made it, and then after the last found; failing that, in the pool rows answering the call, else by scanning the input.
         """
         input = self.of(event)
         issued = self._issued_calls()
@@ -1231,6 +1252,15 @@ class _Inputs:
                     ):
                         text, last = message.text, position
             if text is not None:
+                # the last result in the input, wherever it is, as a scan finds
+                for position in range(last + 1, len(input)):
+                    message = input[position]
+                    if (
+                        isinstance(message, ChatMessageTool)
+                        and message.tool_call_id == tool_call_id
+                        and message.text
+                    ):
+                        text = message.text
                 found[tool_call_id] = text
             else:
                 missing.append(tool_call_id)
@@ -1359,11 +1389,9 @@ class _OpenCalls:
         self._index: dict[int, dict[_Fingerprint, int]] = {}
         # the input lengths in the index, ascending
         self._lengths: list[int] = []
-        # the pool rows holding an output of a call opened here, by the
-        # fingerprints added; never emptied, since a row of an output no
-        # longer open only adds to a range's count
-        self._rows = _RowSet(inputs.pool_size)
-        self._row_fingerprints: set[_Fingerprint] = set()
+        # the pool rows holding an output of a call opened in any thread
+        # (`_Inputs.open_rows`): a row of another's only adds to a range's count
+        self._rows = inputs.open_rows()
 
     def add(self, call: _Call) -> None:
         assert call.output is not None
@@ -1374,10 +1402,7 @@ class _OpenCalls:
             by_output = self._index[at] = {}
             insort(self._lengths, at)
         by_output[output] = len(self.calls)
-        if output not in self._row_fingerprints:
-            self._row_fingerprints.add(output)
-            for row in self._inputs.rows_with(output):
-                self._rows.add(row)
+        self._inputs.open_output(output)
         self.calls.append(call)
 
     def continued_by(self, call: _Call) -> _Call | None:
@@ -1607,39 +1632,50 @@ def _continuity(
 ) -> dict[int, bool]:
     """Whether each call with no recorded origin under `root` is a turn by continuity, by `id()` of its event.
 
-    The rule runs over each conversation's calls in log order, wherever the tree puts them: a span can hold more than one conversation (where the timeline unrolls a solver beside an agent), and a conversation given for events (a stored timeline's) can span several. A conversation in which no call continues another has no answers but its summarizers', so the existing rules decide its other calls. The final messages settle a fork at the end of the conversation they are from: that of the latest call whose output is one of them.
+    The rule runs over each conversation's calls in log order: within each span of the tree, its conversations apart (a span can hold more than one, where the timeline unrolls a solver beside an agent; a tool's sub-agent and a branch are spans of their own); and a conversation given for events (a stored timeline's) across every span it reaches. A conversation in which no call continues another has no answers but its summarizers', so the existing rules decide its other calls. The final messages settle a fork at the end of the conversation they are from: that of the latest call whose output is one of them.
     """
-    found: list[Event] = []
+    order = {id(event): index for index, event in enumerate(inputs.events)}
+    # (position in the log, position in the tree, conversation, event): a call
+    # the log does not list at the top (nested in a ToolEvent) takes the
+    # position of the event before it in the tree
+    found: list[tuple[int, int, object, Event]] = []
+    at = -1
 
     def walk(span: TimelineSpan) -> None:
+        nonlocal at
         for item in span.content:
             if isinstance(item, TimelineSpan):
                 walk(item)
-            elif isinstance(item.event, ModelEvent):
-                if item.event.origin is None and not _is_warmup_call(
-                    item.event, inputs
-                ):
-                    found.append(item.event)
-            elif isinstance(item.event, CompactionEvent):
-                found.append(item.event)
+                continue
+            at = order.get(id(item.event), at)
+            if isinstance(item.event, ModelEvent):
+                if item.event.origin is not None or _is_warmup_call(item.event, inputs):
+                    continue
+            elif not isinstance(item.event, CompactionEvent):
+                continue
+            given = inputs.given(item.event)
+            conversation = (
+                ("given", given)
+                if given is not None
+                else (id(span), inputs.conversation(item.event))
+            )
+            found.append((at, len(found), conversation, item.event))
         for branch in span.branches:
             walk(branch)
 
     walk(root)
-    order = {id(event): index for index, event in enumerate(inputs.events)}
-    found.sort(key=lambda event: order.get(id(event), len(order)))
+    found.sort(key=lambda entry: entry[:2])
 
     owner: object = None
     if final_messages:
         final = {inputs.fingerprint(message) for message in final_messages}
-        for event in found:
+        for _, _, conversation, event in found:
             answer = _answer(event) if isinstance(event, ModelEvent) else None
             if answer is not None and inputs.fingerprint(answer) in final:
-                owner = inputs.conversation(event)
+                owner = conversation
 
     threads: dict[object, _Continuity] = {}
-    for event in found:
-        conversation = inputs.conversation(event)
+    for _, _, conversation, event in found:
         thread = threads.get(conversation)
         if thread is None:
             thread = threads[conversation] = _Continuity(
