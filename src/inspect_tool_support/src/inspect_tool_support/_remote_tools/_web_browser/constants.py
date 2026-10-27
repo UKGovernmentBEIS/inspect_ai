@@ -1,1 +1,0 @@
-DEFAULT_SESSION_NAME = "WebBrowser"

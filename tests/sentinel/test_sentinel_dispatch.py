@@ -1622,8 +1622,10 @@ async def test_sample_cancellation_during_the_sentinel_propagates() -> None:
     assert scope.cancelled_caught
     assert cleaned_up.is_set()
     events = [e for e in transcript().events if isinstance(e, SentinelEvent)]
+    # each layer is recorded as cancelled, the root's too, and no error is
     assert [(e.path, e.kind, e.status) for e in events] == [
         ("d3_waiting", "observation", "cancelled"),
+        ("", "decision", "cancelled"),
     ]
     assert transcript_tool_events() == []
     [span_id] = sentinel_span_ids(transcript().events)
@@ -1645,6 +1647,7 @@ def test_sample_time_limit_during_the_sentinel_ends_the_sample() -> None:
     assert cleaned_up.is_set()
     assert [(e.path, e.kind, e.status) for e in sentinel_events(log)] == [
         ("d3_waiting", "observation", "cancelled"),
+        ("", "decision", "cancelled"),
     ]
     assert tool_messages(log) == []
 
@@ -1672,6 +1675,12 @@ async def test_operator_cancel_during_the_after_call_sentinel() -> None:
     assert event.result == "2"
     assert event.pending is None
     assert cleaned_up.is_set()
+    # an operator's cancel is recorded as such, not as the root's failure
+    events = [e for e in transcript().events if isinstance(e, SentinelEvent)]
+    assert [(e.path, e.status) for e in events] == [
+        ("d3_waiting", "cancelled"),
+        ("", "cancelled"),
+    ]
 
 
 async def test_parallel_calls_run_their_sentinels_concurrently() -> None:
@@ -1788,6 +1797,13 @@ def test_sentinel_errors_fail_the_sample_rather_than_the_call(
     events = log.samples[0].events
     ended = {e.id for e in events if isinstance(e, SpanEndEvent)}
     assert sentinel_span_ids(events) and set(sentinel_span_ids(events)) <= ended
+    # the root's failure is recorded in the step's sentinel span
+    [failed] = sentinel_events(log)
+    assert summary([failed]) == [
+        ("inspect_sentinel/concurrent", "", "concurrent", "observation", "error", None)
+    ]
+    assert failed.error == f"{type(error).__name__}: {error}"
+    assert failed.span_id in sentinel_span_ids(events)
 
 
 @protocol
