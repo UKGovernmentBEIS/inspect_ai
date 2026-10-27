@@ -2,15 +2,16 @@
 
 Pass a :class:`TaskSource` instance as the ``tasks`` argument to ``eval()`` to
 drive the run from code rather than a fixed task list. The run starts with
-``initial_tasks()`` and, after each batch of tasks completes, calls
+``initial_tasks()`` and, whenever no task is queued or running, calls
 ``next_tasks()`` for the next batch — until it returns ``None``.
 
 The simplest sources spawn follow-up work straight from results: override
 ``sample_complete`` / ``task_complete`` and **return** the tasks to run next
 (e.g. an RL loop that spawns tasks from scores). A returned list is added to the
-run exactly as ``enqueue_task`` would — it runs after the current batch, before
-the next ``next_tasks()`` — so a source can be driven entirely by these
-callbacks, with ``next_tasks()`` reserved for the blocking / explicit-pull case.
+run exactly as ``enqueue_task`` would — its tasks start as soon as there is free
+task capacity, and always before the next ``next_tasks()`` — so a source can be
+driven entirely by these callbacks, with ``next_tasks()`` reserved for the
+blocking / explicit-pull case.
 
 ``next_tasks()`` is async and may block — awaiting external input or more
 results — and returns ``None`` to end the run, so an open-ended "keep producing
@@ -56,10 +57,10 @@ class TaskSource:
     async def next_tasks(self) -> list["Task"] | None:
         """The next batch of tasks to run, or ``None`` when the run is complete.
 
-        Called after each batch finishes (after that batch's ``sample_complete``
-        / ``task_complete`` notifications). May ``await`` — for more results or
-        external input — and may block indefinitely; return ``None`` to end the
-        run.
+        Called whenever no task is queued or running (so after the
+        ``sample_complete`` / ``task_complete`` notifications of every task so
+        far). May ``await`` — for more results or external input — and may block
+        indefinitely; return ``None`` to end the run.
         """
         return None
 
@@ -71,8 +72,8 @@ class TaskSource:
         ``sample`` is the completed sample and ``task`` is the task it ran under
         (the sample alone doesn't identify its task). Return a list of tasks to
         add to the run (equivalent to calling ``enqueue_task`` with them): they
-        run after the current batch, before the next ``next_tasks()``. Return
-        ``None`` (the default) to add nothing.
+        start as soon as there is free task capacity, and always before the
+        next ``next_tasks()``. Return ``None`` (the default) to add nothing.
 
         Fires for every sample the task logs, including one cancelled
         individually by an operator (its ``error`` is then the cancellation,
@@ -118,8 +119,9 @@ class TaskSource:
     async def task_complete(self, log: "EvalLog") -> list["Task"] | None:
         """A task finished — observe its log and optionally return follow-up tasks.
 
-        Return a list of tasks to add to the run (like ``enqueue_task``): they run
-        after the current batch. Return ``None`` (the default) to add nothing.
+        Return a list of tasks to add to the run (like ``enqueue_task``): they
+        start as soon as there is free task capacity. Return ``None`` (the
+        default) to add nothing.
         """
         return None
 

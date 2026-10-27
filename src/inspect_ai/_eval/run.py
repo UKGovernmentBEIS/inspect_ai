@@ -12,6 +12,7 @@ from typing import (
     Callable,
     Iterable,
     NamedTuple,
+    Protocol,
     Set,
     cast,
 )
@@ -122,24 +123,32 @@ from .task.util import resolve_task_sample_ids, slice_dataset, task_run_dir
 log = logging.getLogger(__name__)
 
 
-@dataclass
-class TaskInjection:
-    """Source of additional tasks for a live (TaskSource-driven) eval run.
+class AddedTasks(Protocol):
+    """Tasks added to an eval run while it is in progress.
 
-    Built by ``eval_async`` from the run's enqueuer + ``TaskSource``; consumed by
-    :func:`eval_run`, which wraps it with task preparation (``TaskRunOptions`` +
-    incremental sandbox startup) before handing a prepared feed to
-    :func:`run_task_retry_attempts`.
+    Implemented by the run's ``TaskEnqueuer``; consumed by :func:`eval_run`,
+    which prepares each group of tasks (``TaskRunOptions`` + incremental
+    sandbox startup) before handing them to :func:`run_task_retry_attempts`.
     """
 
-    drain: Callable[[], list["ResolvedTask"]]
-    """Non-blocking: resolved tasks buffered (enqueued) since the last call."""
+    def ready(self) -> list[ResolvedTask]:
+        """Tasks that may start now (empty if none).
 
-    next: Callable[[], Awaitable[list["ResolvedTask"] | None]]
-    """Blocking: the next batch of resolved tasks, or ``None`` when complete."""
+        Non-blocking; called on every dispatch cycle.
+        """
+        ...
 
-    set_wake: Callable[[Callable[[], None]], None]
-    """Register a callback fired when new tasks are enqueued (wakes dispatch)."""
+    async def when_idle(self) -> list[ResolvedTask] | None:
+        """More tasks to run, or ``None`` when the run is complete.
+
+        Called only when no task is queued or running; may block. After it
+        returns ``None`` it is not called again and the run ends.
+        """
+        ...
+
+    def set_wake(self, wake: Callable[[], None]) -> None:
+        """Register a callback to fire when tasks become ready (wakes dispatch)."""
+        ...
 
 
 @dataclass
@@ -160,6 +169,7 @@ async def eval_run(
     eval_checkpoint: CheckpointConfig | None,
     recorder: Recorder,
     header_only: bool,
+    added_tasks: AddedTasks,
     epochs_reducer: list[ScoreReducer] | None = None,
     approval: list[ApprovalPolicy] | None = None,
     review: list[ReviewPolicy] | None = None,
@@ -174,7 +184,6 @@ async def eval_run(
     score: bool = True,
     task_retry_attempts: int | None = 0,
     task_source: "TaskSource | None" = None,
-    inject: TaskInjection | None = None,
     eval_set_tasks: list[str] | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
@@ -498,28 +507,25 @@ async def eval_run(
         sandbox_manager.open()
 
         # prepare the initial (seed) tasks
-        initial_options = await prepare_options(tasks)
-        assert initial_options or inject is not None, "Must encounter a task"
+        initial_options = await prepare_options(_dispatch_order(tasks, parallel))
 
         # running multiple task definitions requires some smart
         # scheduling to ensure that we spread work among models
 
-        # a live (TaskSource-driven) run feeds additional tasks while it is in
-        # progress; prepare each injected batch on the fly. The dispatcher
-        # accepts this feed, so a TaskSource works with or without retries.
-        feed: PreparedFeed | None = None
-        if inject is not None:
+        # tasks added while the run is in progress are prepared on the fly as
+        # the dispatcher takes them, so they work with or without retries
+        async def feed_drain() -> list[TaskRunOptions]:
+            return await prepare_options(_dispatch_order(added_tasks.ready(), parallel))
 
-            async def feed_drain() -> list[TaskRunOptions]:
-                return await prepare_options(inject.drain())
-
-            async def feed_next() -> list[TaskRunOptions] | None:
-                more = await inject.next()
-                return await prepare_options(more) if more else None
-
-            feed = PreparedFeed(
-                drain=feed_drain, next=feed_next, set_wake=inject.set_wake
+        async def feed_next() -> list[TaskRunOptions] | None:
+            more = await added_tasks.when_idle()
+            return (
+                await prepare_options(_dispatch_order(more, parallel)) if more else None
             )
+
+        feed = PreparedFeed(
+            drain=feed_drain, next=feed_next, set_wake=added_tasks.set_wake
+        )
 
         # `parallel` is the max concurrent (task × model) units; the
         # scheduler spreads work across models and caps concurrency there,
@@ -558,19 +564,14 @@ async def eval_run(
             log.warning(f"Error cleaning up S3 sessions: {exception_message(ex)}")
 
 
-def _empty_feed() -> PreparedFeed:
-    """A feed that supplies nothing — turns the dispatcher into a fixed-set run."""
+def _dispatch_order(tasks: list[ResolvedTask], parallel: int) -> list[ResolvedTask]:
+    """Order a group of tasks for the dispatcher's queue.
 
-    async def drain() -> list[TaskRunOptions]:
-        return []
-
-    async def next() -> list[TaskRunOptions] | None:
-        return None
-
-    def set_wake(_: Callable[[], None]) -> None:
-        pass
-
-    return PreparedFeed(drain=drain, next=next, set_wake=set_wake)
+    At a launch limit of 1, sequence-major: the dispatcher breaks ties by queue
+    order, so all of a task's model fan-outs run before the next task's (the
+    order passing the tasks to ``eval()`` gives). Otherwise resolution order.
+    """
+    return sorted(tasks, key=lambda t: t.sequence) if parallel == 1 else tasks
 
 
 class TaskRunResult(NamedTuple):
@@ -704,33 +705,31 @@ class PendingTask(NamedTuple):
 
 
 # run multiple logical tasks with bounded, model-balanced concurrency and
-# per-task retries, optionally fed additional tasks while in progress (a live
-# TaskSource-driven run). A central dispatcher re-queues a task that errors (or
-# requests a retry) under its original index — a fresh log entry, completed
-# samples reused — until its retries are exhausted; task_retry_attempts==0 is
-# a plain multi-task run with no retries.
+# per-task retries, optionally fed additional tasks while in progress (tasks
+# added with enqueue_task or by a TaskSource). A central dispatcher re-queues a
+# task that errors (or requests a retry) under its original index — a fresh log
+# entry, completed samples reused — until its retries are exhausted;
+# task_retry_attempts==0 is a plain multi-task run with no retries.
 async def run_task_retry_attempts(
     tasks: list[TaskRunOptions],
     parallel: int,
     task_retry_attempts: int,
+    feed: PreparedFeed,
     debug_errors: bool = False,
-    feed: PreparedFeed | None = None,
 ) -> list[EvalLog]:
     """Run tasks with bounded, model-balanced concurrency and per-task retries.
 
-    The set may be fixed (``feed is None``) or open: ``feed.drain()``
+    ``tasks`` is the initial set; ``feed`` adds to it: ``feed.drain()``
     (non-blocking) yields tasks enqueued since the last cycle and ``feed.next()``
     (blocking) yields the next batch, returning ``None`` when the source is
     exhausted. The run completes when nothing is pending, nothing is in flight,
-    and the feed is exhausted (immediately so for a fixed set). A task whose log
+    and the feed is exhausted (at once if it supplies nothing). A task whose log
     comes back with an error — or which requests a retry via its ``TaskCancel``
     — is re-queued (reusing completed samples) until ``task_retry_attempts`` is
     exhausted; an abort or external cancellation is never retried, and an
     external cancellation ends the run (an abort resolves to an errored log
     and the run continues).
     """
-    feed = feed or _empty_feed()
-
     # model-balancing state (grows as tasks are injected). Keyed by the Model
     # object (identity), not str(model): a provider may rewrite its model name
     # mid-run (e.g. vLLM resolving a "base:adapter" LoRA spec to "base" on the
@@ -1114,6 +1113,12 @@ async def run_task_retry_attempts(
             remove_dispatch_waker(wake.set)
             remove_task_dispatcher(dispatcher_stats)
             clear_task_screen()
+            # tasks still queued when dispatch stops (a cancelled run; a
+            # normal exit leaves none) never start: discard their
+            # never-started log entries, as for an abandoned retry
+            with anyio.CancelScope(shield=True):
+                for item in pending:
+                    await item.options.logger.discard()
 
     # sort results by index and return just the values
     return [v for _, v in sorted(results.items())]

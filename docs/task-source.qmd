@@ -63,13 +63,13 @@ from inspect_ai import eval
 eval(MySource(), model="openai/gpt-4o", limit=10)
 ```
 
-`initial_tasks()` is synchronous and returns the seed. It is resolved up front like any task list, so it must return immediately rather than `await`. `next_tasks()` is async, called after each batch completes, and may block (for example, awaiting external input); return `None` to end the run.
+`initial_tasks()` is synchronous and returns the seed. It is resolved up front like any task list, so it must return immediately rather than `await`. `next_tasks()` is async, called whenever no task is queued or running, and may block (for example, awaiting external input); return `None` to end the run.
 
 Each task gets its own `eval_id`, `task_id`, and log file; all share one run id.
 
 ## Returning follow-up tasks
 
-`sample_complete` and `task_complete` fire as work completes. Besides observing results, they can return tasks to add to the run, which run after the current batch. `sample_complete` also receives the `Task` the sample ran under (the sample alone doesn't identify its task):
+`sample_complete` and `task_complete` fire as work completes. Besides observing results, they can return tasks to add to the run, which start as soon as there is free task capacity (see [Concurrency](#concurrency)). `sample_complete` also receives the `Task` the sample ran under (the sample alone doesn't identify its task):
 
 ```python
 class Curriculum(TaskSource):
@@ -152,11 +152,27 @@ def spawn_followup():
     return solve
 ```
 
-Enqueued tasks run under the current run id, resolved against the run's models and config, and share a buffer with tasks returned from `sample_complete` / `task_complete`. `enqueue_task()` raises if no eval is running.
+Enqueued tasks run under the current run id, resolved against the run's models and config. Without a `start` argument (see below), they are handled like tasks returned from `sample_complete` / `task_complete`. `enqueue_task()` raises if no eval is running, and also if the run has already finished starting tasks (for example, when called from a background task that outlives the run), since the added task would never run.
+
+### When an added task starts
+
+The `start` argument controls when an enqueued task starts:
+
+- `start="when_free"`: as soon as there is free task capacity, while the tasks already in the run keep running. Use this when the task that adds it needs it running alongside.
+- `start="after_batch"`: once every task already in the run, running or queued, has finished.
+- No `start` (the default): `"when_free"` in a `TaskSource` run, `"after_batch"` otherwise, for example under `eval()` or `eval_set()`.
+
+```python
+enqueue_task(companion_task(), start="when_free")
+```
+
+Capacity is `max_tasks`, read live: if the running tasks hold every slot (for example at `max_tasks=1`), the added task waits until a slot frees or the limit is raised with `inspect ctl config --max-tasks`.
+
+All tasks of a run, including added ones, share one task display and one set of task-level sandbox environments, which are cleaned up when the run ends.
 
 ## Concurrency
 
-A `TaskSource` run is live: a task added mid-run starts as soon as there is free capacity, rather than waiting for a batch boundary.
+In a `TaskSource` run, a task added mid-run (returned from a callback, or passed to `enqueue_task()` without `start`) starts as soon as there is free capacity, rather than waiting for the tasks already running to finish. `next_tasks()` is called only once no task is queued or running.
 
 Capacity is bounded by `max_tasks` (the number of concurrent task × model units). If the seed fills every slot, a follow-up waits until a slot frees, so to run follow-ups alongside the seed, set `max_tasks` above the number of seed units. A seed of two tasks across two models is four units, so `--max-tasks 6` leaves room:
 

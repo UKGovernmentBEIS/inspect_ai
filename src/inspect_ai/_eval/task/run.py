@@ -706,9 +706,9 @@ def eval_plan_agent_name(plan: EvalPlan) -> str | None:
 def _enqueue_source_tasks(tasks: list[Task] | None) -> None:
     """Add tasks a TaskSource callback returned to the running eval's queue.
 
-    Routes through the run's enqueuer (the same buffer ``enqueue_task`` feeds), so
-    the eval loop drains them as the next batch. A no-op if the callback returned
-    nothing or there is no active enqueuer.
+    Routes through the run's enqueuer like a default ``enqueue_task`` call, so in
+    a ``TaskSource`` run they start as soon as there is free task capacity. A
+    no-op if the callback returned nothing or there is no active enqueuer.
     """
     if tasks:
         enqueuer = get_task_enqueuer()
