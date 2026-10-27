@@ -89,7 +89,7 @@ def steps_from_events(
 
     A log that does not record where a model call was made (`ModelEvent.origin`, written since inspect_ai PR #5990), an older Inspect log or a transcript imported from another source, has its turns inferred: a call made in a tool's span (or nested in its `ToolEvent`) is a tool's, one in the scorers' span a scorer's and one in the init span setup's; of the rest, those the timeline shows as utility (`timeline_build`'s prompt and continuity rules) are not turns, and the others are.
 
-    A transcript imported from another source (`eval_info.inspect_ai_version` is `None`) records a call's run as Inspect does only when a tool span holds its `ToolEvent`. A call its turn made that ran without one (a `ToolEvent` in an agent span or in none) or has no `ToolEvent` with its id has its steps taken from the messages, as sentinel's messages projection takes them: the call as the model made it, and the first tool message answering it as its result (else its `ToolEvent`'s result), with no `tool_result` step when neither holds one. A call with no `ToolEvent` has its steps just after its turn's `model_output` step. A call id a provider reuses gives each call its own steps under that id, each answered by the first tool message after its assistant message.
+    A transcript imported from another source (`eval_info.inspect_ai_version` is `None`) records a call's run as Inspect does only when a tool span holds its `ToolEvent`. A call its turn made that ran without one (a `ToolEvent` in an agent span or in none) or has no `ToolEvent` with its id has its steps taken from the messages, as sentinel's messages projection takes them: the call as the model made it, and the first tool message answering it as its result, with no `tool_result` step when no tool message answers it (a `ToolEvent`'s result is not taken: the messages projection does not see it). A call with no `ToolEvent` has its steps just after its turn's `model_output` step. A call id a provider reuses gives each call its own steps under that id, each answered by the first tool message after its assistant message.
 
     Args:
         messages: The sample's messages (`EvalSample.messages`).
@@ -748,11 +748,6 @@ class _Driver:
         )
         if not checked:
             return
-        ran = after_span is not None or (
-            (event.error is None or event.error.type not in ("parsing", "approval"))
-            and not event.failed
-            and not event.pending
-        )
         if from_messages:
             # a call that ran an agent ends with the agent's span
             end = self.ends.get(event.agent_span_id or "")
@@ -764,9 +759,13 @@ class _Driver:
                 (call.index, 1),
                 (end if end is not None else call.index, 3),
                 call.seq,
-                event if ran else None,
             )
             return
+        ran = after_span is not None or (
+            (event.error is None or event.error.type not in ("parsing", "approval"))
+            and not event.failed
+            and not event.pending
+        )
 
         modify = self._sentinel_modify(before_span, event)
         approved = approver_modified or proposal
@@ -857,7 +856,6 @@ class _Driver:
             (index, 3),
             (index, 3),
             self._next_seq(3),
-            None,
         )
 
     def _message_steps(
@@ -869,9 +867,8 @@ class _Driver:
         before_at: tuple[int, int],
         after_at: tuple[int, int],
         seq: int,
-        ran: ToolEvent | None,
     ) -> None:
-        """An imported call's steps, taken from the messages: its result is the first tool message answering it, else the result of `ran`, the `ToolEvent` of a call that ran."""
+        """An imported call's steps, taken from the messages: its result is the first tool message answering it, and it has no `tool_result` step without one."""
         call_view = ToolCallView(call=proposal.view or _default_view(proposal))
         recorded_producer = self._producer(producer)
         message_id = assistant.id or ""
@@ -882,8 +879,6 @@ class _Driver:
             # answers are found in log order, so a reused call id is answered
             # in turn
             result = self._answer(assistant, proposal)
-            if result is None and ran is not None:
-                result = self._result(ran)
             if result is not None:
                 answered.append(result)
             step = before_tool_call(
@@ -899,7 +894,6 @@ class _Driver:
             self._built(proposal.id, "tool_call", step, None, unique=False)
 
         self._at_point(before_at, seq, build_before)
-        truncated = self._truncated(ran) if ran is not None else None
 
         def build_after() -> None:
             if not answered:
@@ -913,7 +907,7 @@ class _Driver:
                 view=call_view,
                 result=answer,
                 output=None,
-                truncated=truncated,
+                truncated=None,
                 producer=recorded_producer,
                 agent_messages=None,
                 record=self._record(conversation),
@@ -1151,8 +1145,8 @@ class _Driver:
         if self._answers is None:
             self._answers = (_Answers(self.messages), _Answers(self.pool))
         messages, pool = self._answers
-        found = messages.answer(assistant, call)
-        return found if found is not None else pool.answer(assistant, call)
+        held, found = messages.answer(assistant, call)
+        return found if held else pool.answer(assistant, call)[1]
 
     def _sentinel_modify(self, span: str | None, event: ToolEvent) -> ToolCall | None:
         if span is None:
@@ -1288,7 +1282,8 @@ class _Answers:
 
     def answer(
         self, assistant: ChatMessageAssistant, call: ToolCall
-    ) -> ChatMessageTool | None:
+    ) -> tuple[bool, ChatMessageTool | None]:
+        """Whether the messages hold the call, and the tool message answering it."""
         at = self._by_id.get(assistant.id) if assistant.id is not None else None
         if at is not None:
             self._taken.add(at)
@@ -1299,14 +1294,14 @@ class _Answers:
             while cursor < len(positions) and positions[cursor] in self._taken:
                 cursor += 1
             if cursor == len(positions):
-                return None
+                return False, None
             at = positions[cursor]
             self._next[key] = cursor + 1
         answers = self._answers.get(call.id, [])
         after = bisect_right(answers, at)
         if after == len(answers):
-            return None
-        return cast(ChatMessageTool, self._messages[answers[after]])
+            return True, None
+        return True, cast(ChatMessageTool, self._messages[answers[after]])
 
 
 def _call_key(call: ToolCall) -> str:

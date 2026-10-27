@@ -1357,10 +1357,8 @@ def test_replay_infers_the_turns_of_the_continuity_fixtures(fixture: str) -> Non
     ]
 
     def steps(events: list[Event]) -> list[Any]:
-        # a result the fixtures' ToolEvents give no message id gets a new one
-        # each replay
         return [
-            (s.stage, s.id, s.segment, comparable(s.step, ids=False))
+            (s.stage, s.id, s.segment, comparable(s.step))
             for s in steps_from_events(
                 [],
                 events,
@@ -2347,6 +2345,27 @@ def test_a_reused_call_id_keeps_each_call_and_its_own_answer(copied: bool) -> No
         "result of call_read in turn 0",
         "result of call_read in turn 1",
     ]
+
+
+@pytest.mark.parametrize("cut", ["ended", "answered_later"])
+def test_an_imported_call_no_message_answers_has_no_result_step(cut: str) -> None:
+    # as the projection: a ToolEvent's result is not taken, whether the
+    # transcript ended before the answer ("ended") or its messages stop before
+    # an answer only a later model call's input holds ("answered_later")
+    messages, (m0, m1) = imported_conversation("run", [READ])
+    events: list[Event] = [
+        SpanBeginEvent(id="run", name="agent run"),
+        m0,
+        imported_tool_event(READ, 0, "run"),
+        *([m1] if cut == "answered_later" else []),
+        SpanEndEvent(id="run"),
+    ]
+    replay = steps_from_events(
+        messages[:2], events, [], sample_uuid="transcript", eval_info=IMPORTED
+    )
+
+    assert tool_steps(replay) == projected_tool_steps(messages[:2])
+    assert [s[:2] for s in tool_steps(replay)] == [("tool_call", "call_read")]
 
 
 def test_an_imported_call_s_steps_come_after_its_model_output() -> None:
