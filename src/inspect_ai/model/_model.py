@@ -239,8 +239,8 @@ class _PreparedInput(NamedTuple):
     tool_choice: ToolChoice
     rebuilt: list[ChatMessage]
     """Messages of `input` built for this call rather than by the caller."""
-    caller_ids: set[str | None]
-    """Ids of the caller's messages, including those combined or replaced."""
+    rebuilt_keys: list[bytes | None]
+    """Content key each message of `rebuilt` was given its id for."""
 
 
 @dataclasses.dataclass(frozen=True)
@@ -1421,8 +1421,9 @@ class Model:
         input = collapse_consecutive_messages_for_api(input, self.api)
         _validate_model_input_media(input)
         rebuilt = [message for message in input if message.id not in caller_ids]
+        rebuilt_keys = _reuse_rebuilt_message_ids(rebuilt, caller_ids)
         return _PreparedInput(
-            input, tdefs, base_tools, tool_choice, rebuilt, caller_ids
+            input, tdefs, base_tools, tool_choice, rebuilt, rebuilt_keys
         )
 
     async def _generate(
@@ -1447,7 +1448,7 @@ class Model:
             track_active_model_event,
         )
 
-        input, tdefs, base_tools, tool_choice, rebuilt, caller_ids = prepared
+        input, tdefs, base_tools, tool_choice, rebuilt, rebuilt_keys = prepared
 
         # resolve cache policy
         if isinstance(cache, NotGiven):
@@ -1510,8 +1511,8 @@ class Model:
                 config=config,
                 cache=cache_mode,
             )
-            # after the hooks, which may edit the input
-            _reuse_rebuilt_message_ids(input, rebuilt, caller_ids)
+            if hooks_enabled:
+                _retire_hook_edited_message_ids(rebuilt, rebuilt_keys)
             _validate_model_input_media(input)
 
             event_tools = (
@@ -3136,47 +3137,44 @@ def init_sample_rebuilt_message_ids() -> None:
 
 
 def _reuse_rebuilt_message_ids(
-    messages: list[ChatMessage],
     rebuilt: list[ChatMessage],
     reserved: set[str | None],
-) -> None:
+) -> list[bytes | None]:
     """Give each message rebuilt for this generate the sample's id for its content.
 
-    `rebuilt` holds the messages of `messages` that were built for this call
-    rather than by the caller (the configured system message,
+    `rebuilt` holds the messages of a call's input that were built for the
+    call rather than by the caller (the configured system message,
     reasoning-history filtering, tool `model_input` rewriting, media
     extraction, collapsing consecutive messages), which otherwise get a fresh
     id on every call. Within a sample, the nth occurrence of a content (every
     field but the id) in a call is given that content's nth id, so unchanged
     rebuilt messages, duplicates included, keep their ids across calls and
-    their event snapshots and message pool entries are reused. Run again after
-    an edit (e.g. by a hook), a message is given an id of its new content.
-    Messages with different content never share an id, a message never takes
-    an id held by another message in `messages` or listed in `reserved`, and
-    outside a sample the ids are left as they are. A collapsed message records
-    the ids of the messages it combines, so it keeps its id only when those
-    are the caller's.
+    their event snapshots and message pool entries are reused. Messages with
+    different content never share an id, a message never takes an id listed
+    in `reserved`, and outside a sample the ids are left as they are. A
+    collapsed message records the ids of the messages it combines, so it keeps
+    its id only when those are the caller's.
 
-    Rebuilt messages are new objects, so setting their id changes nothing the
-    caller holds.
+    This runs when the input is prepared, before a sentinel or a hook sees it,
+    so the ids they see are the ids recorded. Rebuilt messages are new
+    objects, so setting their id changes nothing the caller holds.
 
     Args:
-        messages: The call's input.
-        rebuilt: The messages of `messages` built for the call.
+        rebuilt: The messages of the input built for the call, in order.
         reserved: Ids no rebuilt message may take: those of the caller's
             messages, including ones a collapsed message combines.
+
+    Returns:
+        The content key each message of `rebuilt` was given its id for (`None`
+        when it was given a fresh id), for `_retire_hook_edited_message_ids`.
     """
     rebuilt_ids = _sample_rebuilt_message_ids.get()
     if rebuilt_ids is None:
-        return
+        return [None] * len(rebuilt)
     occurrences: dict[bytes, int] = {}
-    rebuilt_objects = {id(message) for message in rebuilt}
-    used = reserved | {
-        message.id for message in messages if id(message) not in rebuilt_objects
-    }
-    for message in messages:
-        if id(message) not in rebuilt_objects:
-            continue
+    used = set(reserved)
+    keys: list[bytes | None] = []
+    for message in rebuilt:
         key = _rebuilt_message_key(message)
         if key is None:
             message_id = uuid()
@@ -3191,6 +3189,35 @@ def _reuse_rebuilt_message_ids(
             message_id = ids[index]
         message.id = message_id
         used.add(message_id)
+        keys.append(key)
+    return keys
+
+
+def _retire_hook_edited_message_ids(
+    rebuilt: list[ChatMessage], keys: list[bytes | None]
+) -> None:
+    """Stop reusing the id of each rebuilt message a hook has edited.
+
+    A message a hook edits keeps the id it was given, which a sentinel may
+    already have cited, so the id is no longer handed to its original
+    content: an edited message gets a new id on each call, as it does when
+    ids are not reused, and its id never names different content in two
+    calls.
+
+    Args:
+        rebuilt: The messages built for the call.
+        keys: The content key each was given its id for
+            (`_reuse_rebuilt_message_ids`).
+    """
+    rebuilt_ids = _sample_rebuilt_message_ids.get()
+    if rebuilt_ids is None:
+        return
+    for message, key in zip(rebuilt, keys):
+        if key is None or _rebuilt_message_key(message) == key:
+            continue
+        ids = rebuilt_ids.get(key, [])
+        if message.id in ids:
+            ids[ids.index(message.id)] = uuid()
 
 
 def _rebuilt_message_key(message: ChatMessage) -> bytes | None:

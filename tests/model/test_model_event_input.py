@@ -426,52 +426,59 @@ async def test_model_event_input_rebuilt_messages_keep_ids(
 
 
 class _EditSystemMessage(Hooks):
-    edits: list[str] = []
+    edits: list[str | None] = []
+    seen_ids: list[str | None] = []
 
     def __init__(self) -> None:
         self.calls = 0
 
     async def on_before_model_generate(self, data: BeforeModelGenerate) -> None:
-        data.input[0].content = self.edits[self.calls]
+        self.seen_ids.append(data.input[0].id)
+        edit = self.edits[self.calls]
+        if edit is not None:
+            data.input[0].content = edit
         self.calls += 1
 
 
 @contextmanager
-def _edit_system_message(edits: list[str]) -> Iterator[None]:
+def _edit_system_message(edits: list[str | None]) -> Iterator[list[str | None]]:
     name = "test_model_event_input_edit_system_message"
     _EditSystemMessage.edits = edits
+    _EditSystemMessage.seen_ids = []
 
     @hooks(name, description="Edit the system message.")
     def edit_system_message() -> type[Hooks]:
         return _EditSystemMessage
 
     try:
-        yield
+        yield _EditSystemMessage.seen_ids
     finally:
         del _registry[f"hooks:{name}"]
 
 
-@pytest.mark.parametrize("edits", [["one", "two"], ["one", "one"]])
-async def test_model_event_input_rebuilt_ids_follow_hook_edits(
-    edits: list[str],
+@pytest.mark.parametrize("edits", [["one", "two", None], ["one", "one", None]])
+async def test_model_event_input_hook_edited_rebuilt_messages_get_new_ids(
+    edits: list[str | None],
 ) -> None:
     init_transcript(Transcript())
     init_sample_rebuilt_message_ids()
     model = get_model("mockllm/model")
     messages: list[ChatMessage] = [ChatMessageUser(content="hi")]
 
-    with _edit_system_message(edits):
+    with _edit_system_message(edits) as seen_ids:
         for _ in edits:
             await model.generate(messages, config=GenerateConfig(system_message="x"))
 
-    first, second = _model_events()
-    assert [first.input[0].text, second.input[0].text] == edits
-    assert (first.input[0].id == second.input[0].id) == (edits[0] == edits[1])
+    events = _model_events()
+    assert [event.input[0].text for event in events] == ["one", edits[1], "x"]
+    # the id the hook saw is the id recorded, and no id names two contents
+    assert [event.input[0].id for event in events] == seen_ids
+    assert len(set(seen_ids)) == len(seen_ids)
 
 
 @pytest.mark.parametrize("edits", [["one", "two"], ["one", "one"]])
-async def test_model_event_input_rebuilt_ids_follow_hook_edits_on_retry(
-    monkeypatch: pytest.MonkeyPatch, edits: list[str]
+async def test_model_event_input_hook_edited_rebuilt_messages_keep_id_on_retry(
+    monkeypatch: pytest.MonkeyPatch, edits: list[str | None]
 ) -> None:
     init_transcript(Transcript())
     init_sample_rebuilt_message_ids()
@@ -492,14 +499,15 @@ async def test_model_event_input_rebuilt_ids_follow_hook_edits_on_retry(
     monkeypatch.setattr(model.api, "should_retry", lambda ex: True)
     monkeypatch.setattr(model.api, "retry_wait", lambda: wait_none())
 
-    with _edit_system_message(edits):
+    with _edit_system_message(edits) as seen_ids:
         await model.generate(
             [ChatMessageUser(content="hi")],
             config=GenerateConfig(system_message="x", max_retries=2),
         )
 
     assert [message.text for message in sent] == edits
-    assert (sent[0].id == sent[1].id) == (edits[0] == edits[1])
+    # as without reuse, the message keeps the id it had before the hooks
+    assert [message.id for message in sent] == seen_ids == seen_ids[:1] * 2
 
 
 async def test_model_event_input_changed_system_message_gets_new_id() -> None:

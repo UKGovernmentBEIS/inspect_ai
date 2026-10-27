@@ -5553,3 +5553,109 @@ async def test_a_new_function_wrapping_a_decorated_agent_is_wrapped_too() -> Non
         assert HIDDEN not in [m.text for m in s.messages]
     [before] = of_stage(seen, BeforeGenerate)
     assert before.input[0].text == HIDDEN
+
+
+@monitor
+def d3_cites_input() -> Monitor:
+    async def check(context: Context, step: BeforeGenerate) -> Observation | None:
+        return Observation.score(
+            0.1,
+            references=[
+                Reference(type="message", id=m.id or "", cite=f"[M{i}]")
+                for i, m in enumerate(step.input)
+            ],
+        )
+
+    return check
+
+
+_PNG = (
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4"
+    "nGNgYGD4DwABBAEAwS2OUAAAAABJRU5ErkJggg=="
+)
+
+
+@tool
+def read_result() -> Tool:
+    async def execute() -> str:
+        """Read a result."""
+        return "result"
+
+    return execute
+
+
+@pytest.mark.parametrize(
+    "path", ["system_message", "reasoning", "model_input", "media", "collapse"]
+)
+async def test_generate_input_citations_resolve_with_rebuilt_messages(
+    monkeypatch: pytest.MonkeyPatch, path: str
+) -> None:
+    from inspect_ai._sentinel._scope import sentinel_solving
+    from inspect_ai.model import ContentImage, ContentReasoning
+    from inspect_ai.model._model import init_sample_rebuilt_message_ids
+    from inspect_ai.tool import tool_with
+
+    init_transcript(Transcript())
+    init_sample_rebuilt_message_ids()
+    model = get_model("mockllm/model", memoize=False)
+    monkeypatch.setattr(model.api, "tool_result_images", lambda: path != "media")
+    monkeypatch.setattr(model.api, "collapse_user_messages", lambda: path == "collapse")
+    messages: list[ChatMessage] = [ChatMessageUser(content="hi")]
+    config = GenerateConfig()
+    tools: list[Tool] = []
+    if path == "system_message":
+        config = GenerateConfig(system_message="configured")
+    elif path == "reasoning":
+        messages.append(
+            ChatMessageAssistant(
+                content=[
+                    ContentReasoning(reasoning="thought"),
+                    ContentText(text="answer"),
+                ]
+            )
+        )
+        messages.append(ChatMessageUser(content="go on"))
+        config = GenerateConfig(reasoning_history="none")
+    elif path in ["model_input", "media"]:
+        messages.append(
+            ChatMessageAssistant(
+                content="",
+                tool_calls=[ToolCall(id="c1", function="read_result", arguments={})],
+            )
+        )
+        # media extraction puts the image in a new trailing user message
+        messages.append(
+            ChatMessageTool(
+                content=[ContentText(text="image"), ContentImage(image=_PNG)]
+                if path == "media"
+                else "original",
+                tool_call_id="c1",
+                function="read_result",
+            )
+        )
+        tools = (
+            [tool_with(read_result(), model_input=lambda *_: "rewritten")]
+            if path == "model_input"
+            else [read_result()]
+        )
+    else:
+        messages.append(ChatMessageUser(content="again"))
+
+    with active([d3_cites_input()]), sentinel_solving():
+        for _ in range(2):
+            await model.generate(messages, tools=tools, config=config)
+
+    events = transcript().events
+    model_events = [e for e in events if isinstance(e, ModelEvent)]
+    sentinel_events = [e for e in events if isinstance(e, SentinelEvent)]
+    assert len(model_events) == len(sentinel_events) == 2
+    assert any(m.id not in {c.id for c in messages} for m in model_events[0].input)
+    for model_event, sentinel_event in zip(model_events, sentinel_events):
+        ids = [m.id for m in model_event.input]
+        assert [r.id for r in sentinel_event.references] == ids
+        # a request generated again is the step id with a count
+        assert sentinel_event.step_id.split(":")[0] == ids[-1]
+    # rebuilt messages still keep their ids across calls
+    assert [m.id for m in model_events[0].input] == [
+        m.id for m in model_events[1].input
+    ]
