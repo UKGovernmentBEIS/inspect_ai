@@ -2,6 +2,7 @@
 
 import bisect
 import dataclasses
+import json
 import random
 from collections.abc import Callable, Sequence
 from dataclasses import replace
@@ -23,7 +24,15 @@ from inspect_ai._sentinel._integration import (
 from inspect_ai._sentinel._steps import ListView, PoolView
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.exception import TerminateSampleError
-from inspect_ai.agent import Agent, as_solver, as_tool, handoff, react
+from inspect_ai.agent import (
+    Agent,
+    AgentState,
+    agent,
+    as_solver,
+    as_tool,
+    handoff,
+    react,
+)
 from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
 from inspect_ai.approval._approval import ApprovalDecision
 from inspect_ai.dataset import Sample
@@ -82,6 +91,8 @@ from .test_sentinel_dispatch import (
     d3_approver,
     d3_attributes_a_call_to_a_sub_agent,
     d3_edits_a_sent_message_in_place,
+    d3_generate_decides,
+    d3_generate_raises,
     d3_generates_once,
     d3_memory_path_approver,
     d3_modify,
@@ -98,11 +109,15 @@ if TYPE_CHECKING:
         BeforeGenerate,
         BeforeToolCall,
         Context,
+        Decision,
+        Escalations,
         HumanAnswer,
         MonitorGroup,
         Observation,
+        Protocol,
         ReplayStep,
         monitor,
+        protocol,
     )
 else:
     from test_helpers.fake_sentinel import (
@@ -111,11 +126,15 @@ else:
         BeforeGenerate,
         BeforeToolCall,
         Context,
+        Decision,
+        Escalations,
         HumanAnswer,
         MonitorGroup,
         Observation,
+        Protocol,
         ReplayStep,
         monitor,
+        protocol,
     )
 
 pytestmark = pytest.mark.usefixtures("fake_sentinel")
@@ -774,6 +793,47 @@ def test_a_memory_path_replays_canonical_without_approval() -> None:
     ] == [canonical, canonical]
 
 
+@pytest.mark.parametrize("readonly", [False, True], ids=["writable", "readonly"])
+def test_an_unmonitored_log_replays_memory_paths_canonical(readonly: bool) -> None:
+    from inspect_ai.tool import memory
+
+    if readonly:
+        tool = memory(initial_data={"/memories/seed.txt": "seed"}, readonly=True)
+        given = [{"command": "view", "path": "/memories/x/../seed.txt"}]
+        canonical = [{"command": "view", "path": "/memories/seed.txt"}]
+    else:
+        tool = memory()
+        given = [
+            {"command": "create", "path": "/memories/a/../b.txt", "file_text": "x"},
+            {
+                "command": "rename",
+                "old_path": "/memories/a/../b.txt",
+                "new_path": "/memories/c/../d.txt",
+            },
+        ]
+        canonical = [
+            {"command": "create", "path": "/memories/b.txt", "file_text": "x"},
+            {
+                "command": "rename",
+                "old_path": "/memories/b.txt",
+                "new_path": "/memories/d.txt",
+            },
+        ]
+    # no sentinel or approver: the log is written without oversight
+    log = run_logged(
+        tool_loop(tool), outputs(*(call("memory", **args) for args in given), done())
+    )
+    replay = replayed(log)
+    for stage in (BeforeToolCall, AfterToolCall):
+        steps = [step.step for step in replay if isinstance(step.step, stage)]
+        assert [step.call.arguments for step in steps] == canonical
+    assert all(
+        step.step.result.error is None
+        for step in replay
+        if isinstance(step.step, AfterToolCall)
+    )
+
+
 @tool(name="memory")
 def r7_own_memory() -> Tool:
     async def execute(command: str, path: str, file_text: str) -> str:
@@ -799,6 +859,77 @@ def test_a_custom_memory_tool_replays_its_path_as_given() -> None:
         for step in replay
         if isinstance(step.step, BeforeToolCall | AfterToolCall)
     ] == [path, path]
+
+
+@agent
+def r7_runs_a_bridged_host_tool() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        from inspect_ai.agent._bridge.completions import (
+            inspect_completions_api_request,
+        )
+        from inspect_ai.agent._bridge.sandbox.service import call_tool
+        from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
+
+        bridge = SandboxAgentBridge(
+            state=state,
+            filter=None,
+            retry_refusals=None,
+            compaction=None,
+            port=8080,
+            model=None,
+            bridged_tools={"host": {"addition": addition()}},
+        )
+        [served] = bridge.served_tools.values()
+        # the scaffold declares the tool under its own name, with the
+        # description the bridge served
+        completion = await inspect_completions_api_request(
+            {
+                "model": "inspect",
+                "messages": [{"role": "user", "content": "What is 1 + 1?"}],
+                "tools": [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "mcp__host__addition",
+                            "description": served.description,
+                            "parameters": served.parameters.model_dump(
+                                exclude_none=True
+                            ),
+                        },
+                    }
+                ],
+            },
+            None,
+            bridge,
+        )
+        [proposed] = completion.choices[0].message.tool_calls or []
+        assert proposed.type == "function"
+        await call_tool(bridge)(
+            "host", "addition", json.loads(proposed.function.arguments)
+        )
+        return state
+
+    return execute
+
+
+def test_a_bridged_host_tool_call_has_no_tool_steps() -> None:
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        as_solver(r7_runs_a_bridged_host_tool()),
+        outputs(call("mcp__host__addition", x=1, y=1)),
+        sentinel=[r7_probe(seen)],
+    )
+    events = logged_sample(log).events
+    [turn] = [e for e in events if isinstance(e, ModelEvent)]
+    [ran] = [e for e in events if isinstance(e, ToolEvent)]
+    # the host tool ran the model's call, as a native call would
+    assert ran.metadata is not None and "bridge" in ran.metadata
+    assert [c.id for c in turn.output.message.tool_calls or []] == [ran.id]
+    assert ran.error is None
+    # the host executor runs no tool stage, so live checked only the generate
+    live = [e.stage for e in events if isinstance(e, SentinelEvent)]
+    assert live == ["model_input", "model_output"]
+    assert [step.stage for step in replayed(log)] == live
 
 
 def run_logged(
@@ -930,6 +1061,94 @@ def test_a_log_from_before_recorded_origins_replays_with_the_timeline_s_turns() 
     generates = {s.id for s in inferred if s.stage == "model_input"}
     assert len(generates) == len(models) - 2
     assert max(s.segment[1] for s in inferred) == 2
+
+
+@protocol
+def r7_generate_fails() -> Protocol:
+    async def check(
+        context: Context, step: BeforeGenerate, escalations: Escalations
+    ) -> Decision | None:
+        raise PermissionError("sentinel denied")
+
+    return check
+
+
+@pytest.mark.parametrize(
+    "sentinel,status",
+    [
+        (lambda: d3_generate_decides("terminate", False), "success"),
+        # a monitor's failure is recorded, then the protocol's fails the sample
+        (lambda: [d3_generate_raises(), r7_generate_fails()], "error"),
+    ],
+    ids=["terminate", "failure"],
+)
+def test_a_model_input_step_no_model_call_followed_is_not_replayed_yet(
+    sentinel: Callable[[], Any], status: str
+) -> None:
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=tool_loop(addition()),
+        sentinel=sentinel(),
+    )
+    log = eval(task, model=agent_model())[0]
+    assert log.status == status
+    events = logged_sample(log).events
+    assert not [e for e in events if isinstance(e, ModelEvent)]
+    assert [e.stage for e in events if isinstance(e, SentinelEvent)] == ["model_input"]
+    with pytest.raises(NotImplementedError, match="model_input step"):
+        replay_events(log, events)
+
+
+@protocol
+def r7_first_generate_fails() -> Protocol:
+    failed = False
+
+    async def check(
+        context: Context, step: BeforeGenerate, escalations: Escalations
+    ) -> Decision | None:
+        nonlocal failed
+        if not failed:
+            failed = True
+            raise PermissionError("sentinel denied")
+        return None
+
+    return check
+
+
+@solver
+def r7_generates_again_after_a_failure() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        try:
+            await get_model().generate(state.messages)
+        except Exception:
+            pass
+        state.output = await get_model().generate(state.messages)
+        return state
+
+    return solve
+
+
+def test_a_model_input_step_without_its_model_call_is_not_replayed_after_a_later_turn() -> (
+    None
+):
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=r7_generates_again_after_a_failure(),
+        # a monitor's failure is recorded, then the protocol's is caught
+        sentinel=[d3_generate_raises(), r7_first_generate_fails()],
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    [turn] = [e for e in events if isinstance(e, ModelEvent)]
+    orphan, called = [
+        e.step_id
+        for e in events
+        if isinstance(e, SentinelEvent) and e.stage == "model_input"
+    ]
+    assert called == turn.uuid and orphan != turn.uuid
+    with pytest.raises(NotImplementedError, match=f"model_input step {orphan!r}"):
+        replay_events(log, events)
 
 
 def test_a_log_with_message_based_generate_ids_keeps_its_recorded_ids() -> None:
@@ -2130,9 +2349,21 @@ def test_a_superseded_human_decision_is_withdrawn(
     "version,truncated",
     [
         ("0.3.30", None),
+        ("0.3.31.dev1", None),
+        ("0.3.31rc1", None),
+        ("0.3.31a1.post1", None),
         ("0.3.31", False),
+        ("0.3.31.0", False),
+        ("0.3.31+g5ea5c5ce1", False),
+        ("0.3.31.post1.dev1", False),
+        ("0.3.4", None),
+        ("0.4", False),
+        ("1!0.1", False),
         ("0.3.262.dev32+g5ea5c5ce1", False),
+        # a version that does not parse is taken as current, as packaging's
+        # InvalidVersion was
         ("unknown", False),
+        ("0.3.30garbage", False),
     ],
 )
 def test_a_log_from_before_the_record_of_cuts_says_it_cannot_tell(

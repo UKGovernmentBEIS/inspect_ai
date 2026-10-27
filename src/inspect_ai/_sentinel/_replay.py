@@ -102,6 +102,7 @@ def steps_from_events(
 
     Raises:
         MalformedLogError: Two steps of one stage have one step id, the span tree has a `parent_id` cycle, or a model input names rows outside the message pool.
+        NotImplementedError: A sentinel checked a model_input step whose model call was not made (it ended the sample there or failed), whose input the log does not record.
     """
     flat, nested = _flatten(events)
     pool: list[ChatMessage] | Sequence[ChatMessage] = message_pool
@@ -390,6 +391,9 @@ class _Driver:
         ] = {}
         last_turn: dict[str, int] = {}
         candidates: dict[str, list[str]] = {}
+        turn_ids: set[str | None] = set()
+        # calls made whose origin is inferred, not as turns
+        inferred_other: set[str | None] = set()
         produced: dict[str, tuple[ChatMessageAssistant, ModelEvent, ToolCall]] = {}
         approvals: dict[str, ApprovalEvent] = {}
         calls: list[_Call] = []
@@ -411,7 +415,10 @@ class _Driver:
                     for tool_call in message.tool_calls or []:
                         produced[tool_call.id] = (message, event, tool_call)
                 if not is_agent_turn(self._origin(event)):
+                    if event.origin is None:
+                        inferred_other.add(event.uuid)
                     continue
+                turn_ids.add(event.uuid)
                 conversation = self._conversation(event)
                 self._at(index, 2, partial(self._fold, conversation, event))
                 attempt_key = (
@@ -467,6 +474,7 @@ class _Driver:
                 )
                 calls.append(entry)
 
+        self._check_generated(candidates, turn_ids, inferred_other)
         for group in generates:
             self._generate(group)
         for entry in calls:
@@ -496,6 +504,43 @@ class _Driver:
         self.step_spans[key] = span
         if event.stage == "model_input":
             candidates.setdefault(event.conversation, []).append(span)
+
+    def _check_generated(
+        self,
+        candidates: dict[str, list[str]],
+        turn_ids: set[str | None],
+        inferred_other: set[str | None],
+    ) -> None:
+        # a model_input step without its model call (a sentinel ended the
+        # sample there, or failed and the scaffold carried on): the input it
+        # was handed is not in the log. A step whose call was made but whose
+        # inferred origin is not a turn is where inference differs from what
+        # was recorded live; it has no step, as the other calls inferred so
+        inputs = [
+            step_id for stage, step_id in self.step_spans if stage == "model_input"
+        ]
+        if any(step_id in turn_ids for step_id in inputs):
+            # the log identifies generates by id, so each step names its call
+            orphans = [
+                step_id
+                for step_id in inputs
+                if step_id not in turn_ids and step_id not in inferred_other
+            ]
+        else:
+            # ids from before generate ids: a step goes with its conversation's
+            # next turn
+            orphans = [
+                self.span_events[span][0].step_id
+                for spans in candidates.values()
+                for span in spans
+            ]
+        if orphans:
+            raise NotImplementedError(
+                f"The model_input step {orphans[0]!r} was checked, but its model "
+                "call was not made (a sentinel ended the sample there or failed): "
+                "the log does not record the input the step was handed, so "
+                "replay cannot rebuild it."
+            )
 
     def _sentinel_span(self, span_id: str | None) -> str | None:
         # the span tree has no cycle (_check_span_tree)
@@ -642,7 +687,7 @@ class _Driver:
         if proposal is None or call.assistant is None:
             return
         recorded = before_span is not None or after_span is not None
-        if not recorded and not self._checks_tool_calls(call.producer):
+        if not recorded and not self._checks_tool_calls(event, call.producer):
             return
         approver_modified = (
             approval.modified
@@ -751,11 +796,13 @@ class _Driver:
         self._at_point(after_cut, call.seq + 2, build_after)
         self._settle_at_end(after_span)
 
-    def _checks_tool_calls(self, producer: ModelEvent | None) -> bool:
+    def _checks_tool_calls(self, event: ToolEvent, producer: ModelEvent | None) -> bool:
         """Whether live checked the calls a model call produced, inferred from the region the model call was made in.
 
-        Live decides by the region that runs the call (`checks_tool_calls()` in `call_tool`), which the log does not record, so a call run in a region other than the one its producer was made in is replayed by its producer's. A call no model call produced (a pre-filled message) is taken as checked.
+        Live decides by the region that runs the call (`checks_tool_calls()` in `call_tool`), which the log does not record, so a call run in a region other than the one its producer was made in is replayed by its producer's. A call no model call produced (a pre-filled message) is taken as checked. A call a sandbox bridge ran on the host (`metadata["bridge"]`) is not: the host executor runs no tool stage.
         """
+        if event.metadata is not None and "bridge" in event.metadata:
+            return False
         return producer is None or self._origin(producer) in _NON_FINAL
 
     # ---- origins the log does not record
@@ -1074,14 +1121,36 @@ def _default_view(call: ToolCall) -> Any:
     return default_tool_call_viewer(call).call
 
 
+# a PEP 440 version, as `packaging` parses it (not an inspect_ai dependency)
+_VERSION = re.compile(
+    r"v?(?:(?P<epoch>\d+)!)?(?P<release>\d+(?:\.\d+)*)"
+    r"(?P<pre>[-_.]?(?:a|b|c|rc|alpha|beta|pre|preview)[-_.]?\d*)?"
+    r"(?P<post>-\d+|[-_.]?(?:post|rev|r)[-_.]?\d*)?"
+    r"(?P<dev>[-_.]?dev[-_.]?\d*)?"
+    r"(?:\+[a-z0-9]+(?:[-_.][a-z0-9]+)*)?",
+    re.IGNORECASE,
+)
+
+
 def _records_truncation(version: str | None) -> bool:
-    # ToolEvent.truncated exists since inspect_ai 0.3.31 (max_tool_output)
+    # ToolEvent.truncated exists since inspect_ai 0.3.31 (max_tool_output);
+    # PEP 440 orders 0.3.31's dev and pre-releases before it, and a version
+    # that does not parse is taken as recording it
     if version is None:
         return False
-    release = re.match(r"(\d+)\.(\d+)\.(\d+)", version)
-    if release is None:
+    parsed = _VERSION.fullmatch(version.strip())
+    if parsed is None:
         return True
-    return tuple(int(part) for part in release.groups()) >= (0, 3, 31)
+    if int(parsed["epoch"] or 0) > 0:
+        return True
+    release = [int(part) for part in parsed["release"].split(".")]
+    while len(release) > 1 and release[-1] == 0:
+        release.pop()
+    if release != [0, 3, 31]:
+        return release > [0, 3, 31]
+    if parsed["pre"]:
+        return False
+    return bool(parsed["post"]) or not parsed["dev"]
 
 
 def _event_key(event: Event) -> object:
