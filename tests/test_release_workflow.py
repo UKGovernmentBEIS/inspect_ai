@@ -840,6 +840,19 @@ def test_release_jobs_follow_the_resolved_tag() -> None:
     assert "tag" in workflow[True]["workflow_dispatch"]["inputs"]
 
 
+def test_release_runs_only_in_the_upstream_repository() -> None:
+    # Every later job needs release-please's tag, so guarding it skips them all.
+    jobs = _load(".github/workflows/release.yml")["jobs"]
+    assert jobs["release-please"]["if"] == (
+        "github.repository == 'UKGovernmentBEIS/inspect_ai' "
+        "&& github.ref == 'refs/heads/main'"
+    )
+    for name, job in jobs.items():
+        if name != "release-please":
+            assert "release-please" in job["needs"], name
+            assert not re.search("always|cancelled|failure", job.get("if", "")), name
+
+
 def test_completeness_check_runs_last_when_nothing_was_resolved() -> None:
     steps = _load(".github/workflows/release.yml")["jobs"]["release-please"]["steps"]
     last = steps[-1]
