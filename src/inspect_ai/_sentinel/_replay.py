@@ -16,6 +16,7 @@ from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._pool import _build_msg_index, condense_model_event_inputs
 from inspect_ai.event._sentinel import SentinelEvent, SentinelStage
 from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
+from inspect_ai.event._step import StepEvent
 from inspect_ai.event._timeline import (
     Timeline,
     TimelineEvent,
@@ -87,9 +88,9 @@ def steps_from_events(
 
     Every step's `agent_messages` is None: the log does not record the agent's own messages, and model input can hold messages the agent kept out of them.
 
-    A log that does not record where a model call was made (`ModelEvent.origin`, written since inspect_ai PR #5990), an older Inspect log or a transcript imported from another source, has its turns inferred: a call made in the scorers' span is a scorer's, whatever tool or agent span holds it (live, the scorers' scope is final); one in a tool's span (or nested in its `ToolEvent`) a tool's, and one in the init span setup's; of the rest, those the timeline shows as utility (`timeline_build`'s prompt and continuity rules) are not turns, and the others are.
+    A log that does not record where a model call was made (`ModelEvent.origin`, written since inspect_ai PR #5990), an older Inspect log or a transcript imported from another source, has its turns inferred: a call made in the scorers' span (in a log from before spans, between a scorer's `StepEvent`s) is a scorer's, whatever tool or agent span holds it (live, the scorers' scope is final); one in a tool's span (or nested in its `ToolEvent`) a tool's, and one in the init span setup's; of the rest, those the timeline shows as utility (`timeline_build`'s prompt and continuity rules) are not turns, and the others are. A final scope no span records reads as the region holding it: a `model_origin()` region, `score()` called by a solver or a tool, an approver's model call; where the timeline does not show such a call as utility, its call is a turn (or, in a tool, its calls are checked), as live it was not.
 
-    A transcript imported from another source (`eval_info` is `None`) has its tool steps from the sample's messages alone, as sentinel's messages projection (`steps_from_messages`) takes them: each call of each assistant message, in order, a `tool_call` step, and a `tool_result` step holding the first tool message with the call's id after that assistant message, none when there is none; step ids, calls, views and results as the projection's, with no input or tools. The steps are in the conversation the messages are, with its record: that of the turn whose input the messages extend (its last message is one of them, by id or content; the longest input, then the latest), else of the latest turn whose output is one of them, else the one with the fewest agent spans enclosing it. An importer can take the messages from a nested agent's model call. Its `ToolEvent`s and model calls do not decide which tool steps there are, what answers them or their conversation, only where they go among that conversation's turns: a message's steps follow the `model_output` step of the turn whose output has the message's id, else of the turn before the first turn whose input is longer than the message's position in the messages (the turn that made it, where the messages extend each turn's input), else they precede the first turn. A placement mistake changes their order only. So a call no message holds (a sub-agent's, or one in a turn the messages dropped) has no tool steps, as in the projection.
+    A transcript imported from another source (`eval_info` is `None`) has its tool steps from the sample's messages alone, as sentinel's messages projection (`steps_from_messages`) takes them: each call of each assistant message, in order, a `tool_call` step, and a `tool_result` step holding the first tool message with the call's id after that assistant message, none when there is none; step ids, calls, views and results as the projection's, with no input or tools. The steps are in the conversation the messages are, with its record: that of the turn whose input the messages extend (its last message is one of them, by id or content), one whose output is one of them too first, then the longest input, then the latest; else of the latest turn whose output is one of them; else the one with the fewest agent spans enclosing it. An importer can take the messages from a nested agent's model call. Its `ToolEvent`s and model calls do not decide which tool steps there are, what answers them or their conversation, only where they go among that conversation's turns, which decides their order and the record they are built with (`history`, `human_decisions`, segment): a message's steps follow the `model_output` step of the turn whose output is the message (by id, else by content without the model's name, equal outputs in turn), else of the turn before the first turn whose input is longer than the message's position in the messages (the turn that made it, where the messages extend each turn's input), else they precede the first turn. So a call no message holds (a sub-agent's, or one in a turn the messages dropped) has no tool steps, as in the projection.
 
     Args:
         messages: The sample's messages (`EvalSample.messages`).
@@ -387,6 +388,9 @@ class _Driver:
         # span id -> the innermost agent or tool span's type, and the phase
         # span ("init", "scorers") holding it
         self._regions: dict[str | None, tuple[str | None, str | None]] = {}
+        self._span_begins: dict[str, SpanBeginEvent] | None = None
+        # id() of the events in a scorer's StepEvents (logs from before spans)
+        self._scored: set[int] | None = None
 
     # ---- the first pass: read the events in log order
 
@@ -827,10 +831,16 @@ class _Driver:
             accumulate((len(self._input(g.attempts[0][1])) for g in turns), max)
         )
         made: dict[str, _Generate] = {}
+        # the turns by their output's content without the model's name, in
+        # log order, for messages that are copies (LangSmith)
+        copied: dict[str, list[_Generate]] = {}
         for group in turns:
             output = group.attempts[-1][1].output
-            if output.choices and output.message.id is not None:
-                made.setdefault(output.message.id, group)
+            if output.choices:
+                if output.message.id is not None:
+                    made.setdefault(output.message.id, group)
+                copied.setdefault(_copy_key(output.message), []).append(group)
+        taken: dict[str, int] = {}
         answers: dict[str, list[int]] = {}
         for position, message in enumerate(self.messages):
             if (
@@ -844,6 +854,12 @@ class _Driver:
             # the turn whose output has the message's id, else the turn before
             # the first whose input is longer than the message's position
             turn = made.get(message.id) if message.id is not None else None
+            if turn is None:
+                key = _copy_key(message)
+                equal = copied.get(key, [])
+                if taken.get(key, 0) < len(equal):
+                    turn = equal[taken.get(key, 0)]
+                    taken[key] = taken.get(key, 0) + 1
             later = bisect_right(longest, position)
             if turn is not None or later > 0:
                 at = ((turn or turns[later - 1]).attempts[-1][0], 3)
@@ -864,24 +880,26 @@ class _Driver:
     def _main_turns(self, generates: list[_Generate]) -> tuple[str, list[_Generate]]:
         """The conversation the sample's messages are, and its turns.
 
-        An importer takes the messages from one model call (Scout's Logfire importer the one with the longest input, its LangSmith importer the last), which can be a nested agent's. So the conversation is found from the messages: that of the turn whose input the messages extend (its last message is one of them, by id or content), the longest input, then one whose output is one of them too, then the latest; else of the latest turn whose output is one of them; else, with no turn in the messages, the conversation with the fewest agent spans enclosing it (of those, the last turn's); else the sample's.
+        An importer takes the messages from one model call (Scout's Logfire importer the one with the longest input, its LangSmith importer the last), which can be a nested agent's. So the conversation is found from the messages: that of the turn whose input the messages extend (its last message is one of them, by id or content without the model's name), one whose output is one of them too first (an importer adds the output of the call it takes them from), then the longest input, then the latest; else of the latest turn whose output is one of them; else, with no turn in the messages, the conversation with the fewest agent spans enclosing it (of those, the last turn's); else the sample's.
         """
         ids = {m.id for m in self.messages if m.id is not None}
-        keys = {content_key(m) for m in self.messages}
+        keys = {_copy_key(m) for m in self.messages}
 
         def held(message: ChatMessage) -> bool:
-            return (message.id is not None and message.id in ids) or content_key(
+            return (message.id is not None and message.id in ids) or _copy_key(
                 message
             ) in keys
 
-        extended: tuple[int, bool, int, str] | None = None
+        extended: tuple[bool, int, int, str] | None = None
         made: str | None = None
         for index, group in enumerate(generates):
             input = self._input(group.attempts[0][1])
             output = group.attempts[-1][1].output
             output_held = bool(output.choices) and held(output.message)
             if input and held(input[-1]):
-                rank = (len(input), output_held, index)
+                # an importer adds the output of the call it takes the
+                # messages from, so a held output ranks first
+                rank = (output_held, len(input), index)
                 if extended is None or rank >= extended[:3]:
                     extended = (*rank, group.conversation)
             if output_held:
@@ -961,11 +979,13 @@ class _Driver:
     def _checks_tool_calls(self, event: ToolEvent, producer: ModelEvent | None) -> bool:
         """Whether live checked the calls a model call produced, inferred from the region the model call was made in.
 
-        Live decides by the region that runs the call (`checks_tool_calls()` in `call_tool`), which the log does not record, so a call run in a region other than the one its producer was made in is replayed by its producer's. A call no model call produced (a pre-filled message) is taken as checked. A call a sandbox bridge ran on the host (`metadata["bridge"]`) is not: the host executor runs no tool stage.
+        Live decides by the region that runs the call (`checks_tool_calls()` in `call_tool`), which the log does not record, so a call run in a region other than the one its producer was made in is replayed by its producer's. A call no model call produced (a pre-filled message) is taken as checked, unless it ran in the scorers' phase, whose scope is final live. A call a sandbox bridge ran on the host (`metadata["bridge"]`) is not: the host executor runs no tool stage.
         """
         if event.metadata is not None and "bridge" in event.metadata:
             return False
-        return producer is None or self._origin(producer) in _NON_FINAL
+        if producer is None:
+            return not self._scoring(event)
+        return self._origin(producer) in _NON_FINAL
 
     # ---- origins the log does not record
 
@@ -1002,13 +1022,12 @@ class _Driver:
                 walk(branch, inside or branch.utility)
 
         walk(timeline.root, timeline.root.utility)
-        spans = {e.id: e for e in self.events if isinstance(e, SpanBeginEvent)}
         inferred: dict[int, str] = {}
         for event, nested in zip(self.events, self.nested):
             if not isinstance(event, ModelEvent) or event.origin is not None:
                 continue
-            kind, phase = self._region(event.span_id, spans)
-            if phase == "scorers":
+            kind, phase = self._region(event.span_id)
+            if self._scoring(event):
                 # live, the scorers' scope is final: nothing inside it, a tool
                 # or an agent, changes it
                 inferred[id(event)] = "scorer"
@@ -1022,18 +1041,33 @@ class _Driver:
                 inferred[id(event)] = "agent"
         return inferred
 
-    def _region(
-        self, span_id: str | None, spans: dict[str, SpanBeginEvent]
-    ) -> tuple[str | None, str | None]:
+    def _scoring(self, event: Event) -> bool:
+        """Whether `event` was recorded in the scorers' phase: under the top-level `scorers` span, or, in a log from before spans, between a scorer's `StepEvent`s."""
+        if self._scored is None:
+            scored: set[int] = set()
+            steps = 0
+            for each in self.events:
+                if isinstance(each, StepEvent) and each.type == "scorer":
+                    steps = steps + 1 if each.action == "begin" else max(steps - 1, 0)
+                elif steps > 0:
+                    scored.add(id(each))
+            self._scored = scored
+        return id(event) in self._scored or self._region(event.span_id)[1] == "scorers"
+
+    def _region(self, span_id: str | None) -> tuple[str | None, str | None]:
         """The type of the innermost agent or tool span holding `span_id`, and the phase span above it."""
         found = self._regions.get(span_id)
         if found is not None:
             return found
-        begin = spans.get(span_id) if span_id is not None else None
+        if self._span_begins is None:
+            self._span_begins = {
+                e.id: e for e in self.events if isinstance(e, SpanBeginEvent)
+            }
+        begin = self._span_begins.get(span_id) if span_id is not None else None
         if begin is None:
             found = (None, None)
         else:
-            kind, phase = self._region(begin.parent_id, spans)
+            kind, phase = self._region(begin.parent_id)
             if begin.type in (AGENT_SPAN_TYPE, "tool"):
                 kind = begin.type
             if begin.parent_id is None and begin.name in ("init", "scorers"):
@@ -1283,6 +1317,14 @@ def _approval_report(approval: ApprovalEvent) -> Any:
         report=decision,
         function=approval.approver,
     )
+
+
+def _copy_key(message: ChatMessage) -> str:
+    # an importer can write an output's copy into later inputs without the
+    # model's name (LangSmith)
+    if isinstance(message, ChatMessageAssistant) and message.model is not None:
+        message = message.model_copy(update={"model": None})
+    return content_key(message)
 
 
 def _default_view(call: ToolCall) -> Any:

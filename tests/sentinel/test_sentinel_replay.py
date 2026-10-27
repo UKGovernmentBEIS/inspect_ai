@@ -3183,6 +3183,89 @@ def test_an_imported_nested_agent_s_messages_keep_its_conversation(
     assert order.index(("model_input", "s1")) == made + 3
 
 
+def test_a_longer_input_elsewhere_does_not_take_the_messages_conversation() -> None:
+    # review of 06bf969be: a nested agent's longer input ends with a message
+    # the messages hold too (the same nudge); the messages are the parent's
+    # last call's, with its output, so its conversation has the steps
+    delegate = ToolCall(id="call_delegate", function="delegate", arguments={})
+    task = ChatMessageUser(content="Parent task.")
+    p0 = imported_call("p0", [task], "run", delegate)
+    asked = ChatMessageUser(content="Sub task.")
+    s0 = imported_call("s0", [asked], "sub", READ)
+    in1 = [asked, s0.output.message, *answers([READ], "r")]
+    s1 = imported_call("s1", in1, "sub", FIND)
+    in2 = [*in1, s1.output.message, *answers([FIND], "r")]
+    s2 = imported_call("s2", in2, "sub")
+    s3 = imported_call(
+        "s3", [*in2, s2.output.message, ChatMessageUser(content="Continue.")], "sub"
+    )
+    pin1 = [task, p0.output.message, *answers([delegate], "sub said")]
+    p1 = imported_call("p1", pin1, "run")
+    p2 = imported_call(
+        "p2", [*pin1, p1.output.message, ChatMessageUser(content="Continue.")], "run"
+    )
+    messages = [m.model_copy(deep=True) for m in [*p2.input, p2.output.message]]
+    stable_ids(messages, p0, s0, s1, s2, s3, p1, p2)
+    replay = replayed_imported(
+        messages,
+        p0,
+        SpanBeginEvent(id="sub", name="sub", type="agent", parent_id="run"),
+        s0,
+        s1,
+        s2,
+        s3,
+        SpanEndEvent(id="sub"),
+        p1,
+        p2,
+    )
+
+    tools = [s for s in replay if s.stage.startswith("tool")]
+    assert tool_steps(replay) == projected_tool_steps(messages)
+    assert [s.step.conversation for s in tools] == ["run", "run"]
+    assert [[m.text for m in s.step.history or []] for s in tools] == [
+        ["Parent task."],
+        ["Parent task."],
+    ]
+
+
+def test_a_copied_message_s_steps_follow_its_turn_after_a_compaction() -> None:
+    # review of 06bf969be: with LangSmith's copies (no id or model in common
+    # with the outputs) the turn that made a message is found by its content,
+    # so after a compaction its steps follow that turn, in its segment
+    from inspect_ai.event import CompactionEvent
+
+    user = ChatMessageUser(content="go")
+    summary = ChatMessageUser(content="summary")
+    t0 = imported_call("t0", [user], "run", READ)
+    t1 = imported_call(
+        "t1", [user, t0.output.message, *answers([READ], "r")], "run", LIST
+    )
+    t2 = imported_call("t2", [user, summary], "run", FIND)
+    later = [user, summary, t2.output.message, *answers([FIND], "r")]
+    t3 = imported_call("t3", later, "run", GREP)
+    final = imported_call(
+        "final", [*later, t3.output.message, *answers([GREP], "r")], "run"
+    )
+    messages, calls = as_copies(
+        [*final.input, final.output.message], [t0, t1, t2, t3, final]
+    )
+    stable_ids(messages, *calls)
+    t0, t1, t2, t3, final = calls
+    replay = replayed_imported(
+        messages, t0, t1, CompactionEvent(type="summary", span_id="run"), t2, t3, final
+    )
+
+    order = [(s.stage, s.id) for s in replay]
+    assert tool_steps(replay) == projected_tool_steps(messages)
+    for turn, call in (("t2", FIND), ("t3", GREP)):
+        made = order.index(("model_output", turn))
+        assert order[made + 1 : made + 3] == [
+            ("tool_call", call.id),
+            ("tool_result", call.id),
+        ]
+    assert {s.segment for s in replay if s.stage.startswith("tool")} == {("run", 1)}
+
+
 def random_imported(seed: int) -> tuple[list[ChatMessage], list[Event]]:
     """An imported-style transcript: reused ids, parallel calls, pre-filled messages, compaction, sub-agents, ToolEvents of every kind, copies and stable ids, and messages that are the whole history or the last input."""
     from inspect_ai.event import CompactionEvent
@@ -3756,6 +3839,53 @@ def test_a_task_scorer_s_nested_calls_have_no_tool_steps_without_origins(
         else r7_scores_in_an_agent_span(),
     )
     assert [s.stage for s in replay] == ["model_input", "model_output"]
+
+
+@scorer(metrics=[])
+def r7_scores_with_a_prefilled_call() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        prefilled = ChatMessageAssistant(content="", tool_calls=[addition_call("p")])
+        asked: list[ChatMessage] = [ChatMessageUser(content="Check."), prefilled]
+        result = await execute_tools(asked, [addition()])
+        await get_model().generate([*asked, *result.messages])
+        return Score(value=1)
+
+    return score
+
+
+def test_a_pre_filled_call_a_scorer_runs_has_no_tool_steps() -> None:
+    # review of 06bf969be: a call no model call made, run in the scorers'
+    # final scope, was taken as checked, with origins recorded or not
+    replay = assert_replay_equals_live(
+        generate(),
+        outputs(done(), done("ok")),
+        scorer=r7_scores_with_a_prefilled_call(),
+    )
+    assert [s.stage for s in replay] == ["model_input", "model_output"]
+
+
+def test_a_log_from_before_spans_keeps_its_scorer_s_call_from_the_turns() -> None:
+    # review of 06bf969be: inspect_ai 0.3.43 marks the scorers' phase with
+    # StepEvents, not spans; the grader's call there is a scorer's
+    log = read_eval_log(
+        str(Path(__file__).parent.parent / "log" / "test_list_logs" / "custom.eval"),
+        resolve_attachments="full",
+    )
+    [sample] = log.samples or []
+    replay = steps_from_events(
+        sample.messages,
+        sample.events,
+        [],
+        sample_uuid=sample.uuid or "sample",
+        eval_info=EvalInfo.from_eval(log.eval),
+    )
+
+    assert [s.stage for s in replay] == ["model_input", "model_output"]
+    assert not any(
+        "comparing a submitted answer" in m.text
+        for s in replay
+        for m in s.step.input or []
+    )
 
 
 @solver
