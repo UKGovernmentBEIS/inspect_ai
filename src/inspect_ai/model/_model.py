@@ -239,6 +239,8 @@ class _PreparedInput(NamedTuple):
     tool_choice: ToolChoice
     rebuilt: list[ChatMessage]
     """Messages of `input` built for this call rather than by the caller."""
+    caller_ids: set[str | None]
+    """Ids of the caller's messages, including those combined or replaced."""
 
 
 @dataclasses.dataclass(frozen=True)
@@ -1419,7 +1421,9 @@ class Model:
         input = collapse_consecutive_messages_for_api(input, self.api)
         _validate_model_input_media(input)
         rebuilt = [message for message in input if message.id not in caller_ids]
-        return _PreparedInput(input, tdefs, base_tools, tool_choice, rebuilt)
+        return _PreparedInput(
+            input, tdefs, base_tools, tool_choice, rebuilt, caller_ids
+        )
 
     async def _generate(
         self,
@@ -1443,7 +1447,7 @@ class Model:
             track_active_model_event,
         )
 
-        input, tdefs, base_tools, tool_choice, rebuilt = prepared
+        input, tdefs, base_tools, tool_choice, rebuilt, caller_ids = prepared
 
         # resolve cache policy
         if isinstance(cache, NotGiven):
@@ -1507,7 +1511,7 @@ class Model:
                 cache=cache_mode,
             )
             # after the hooks, which may edit the input
-            _reuse_rebuilt_message_ids(input, rebuilt)
+            _reuse_rebuilt_message_ids(input, rebuilt, caller_ids)
             _validate_model_input_media(input)
 
             event_tools = (
@@ -3134,6 +3138,7 @@ def init_sample_rebuilt_message_ids() -> None:
 def _reuse_rebuilt_message_ids(
     messages: list[ChatMessage],
     rebuilt: list[ChatMessage],
+    reserved: set[str | None],
 ) -> None:
     """Give each message rebuilt for this generate the sample's id for its content.
 
@@ -3147,9 +3152,10 @@ def _reuse_rebuilt_message_ids(
     their event snapshots and message pool entries are reused. Run again after
     an edit (e.g. by a hook), a message is given an id of its new content.
     Messages with different content never share an id, a message never takes
-    an id held by another message in `messages`, and outside a sample the ids
-    are left as they are. A collapsed message records the ids of the messages
-    it combines, so it keeps its id only when those are the caller's.
+    an id held by another message in `messages` or listed in `reserved`, and
+    outside a sample the ids are left as they are. A collapsed message records
+    the ids of the messages it combines, so it keeps its id only when those
+    are the caller's.
 
     Rebuilt messages are new objects, so setting their id changes nothing the
     caller holds.
@@ -3157,13 +3163,17 @@ def _reuse_rebuilt_message_ids(
     Args:
         messages: The call's input.
         rebuilt: The messages of `messages` built for the call.
+        reserved: Ids no rebuilt message may take: those of the caller's
+            messages, including ones a collapsed message combines.
     """
     rebuilt_ids = _sample_rebuilt_message_ids.get()
     if rebuilt_ids is None:
         return
     occurrences: dict[bytes, int] = {}
     rebuilt_objects = {id(message) for message in rebuilt}
-    used = {message.id for message in messages if id(message) not in rebuilt_objects}
+    used = reserved | {
+        message.id for message in messages if id(message) not in rebuilt_objects
+    }
     for message in messages:
         if id(message) not in rebuilt_objects:
             continue

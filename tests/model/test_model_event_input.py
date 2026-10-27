@@ -552,6 +552,41 @@ async def test_model_event_input_identical_rebuilt_messages_keep_distinct_ids(
         assert all(a is b for a, b in zip(event.input, first.input))
 
 
+@pytest.mark.parametrize("role", ["user", "assistant"])
+async def test_model_event_input_rebuilt_ids_avoid_combined_caller_ids(
+    monkeypatch: pytest.MonkeyPatch, role: Literal["user", "assistant"]
+) -> None:
+    init_transcript(Transcript())
+    init_sample_rebuilt_message_ids()
+    model = get_model("mockllm/model")
+    monkeypatch.setattr(model.api, f"collapse_{role}_messages", lambda: True)
+    message_type = ChatMessageUser if role == "user" else ChatMessageAssistant
+    separator_type = ChatMessageAssistant if role == "user" else ChatMessageUser
+    pair: list[ChatMessage] = [message_type(content="one"), message_type(content="two")]
+    await model.generate(pair)
+    # the caller keeps the combined message's id but changes its content
+    edited = _model_events()[0].input[0].model_copy(update={"content": "edited"})
+    messages: list[ChatMessage] = [
+        *pair,
+        separator_type(content="separator"),
+        edited,
+        message_type(content="three"),
+    ]
+    before = deepcopy(messages)
+
+    await model.generate(messages)
+    await model.generate(messages)
+
+    assert [m.model_dump() for m in messages] == [m.model_dump() for m in before]
+    _, second, third = _model_events()
+    assert second.input[2].metadata is not None
+    assert second.input[2].metadata["combined_from"][0] == edited.id
+    assert second.input[0].id != edited.id
+    assert [m.id for m in second.input] == [m.id for m in third.input]
+    for a, b in zip(second.input, third.input):
+        assert a is b
+
+
 def test_model_event_input_rebuilt_ids_not_shared_across_samples() -> None:
     system_ids: list[list[str | None]] = []
 
