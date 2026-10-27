@@ -92,10 +92,12 @@ ACCEPTED_MOUNTS = [
     "named:/data",
     "/data",
     "${DATA_DIR}:/data:ro",
+    "C:${HOMEPATH}:/data:ro",
     ComposeVolumeMount(
         type="bind", source="/host/data", target="/data", read_only=True
     ),
     ComposeVolumeMount(type="bind", source="${DATA_DIR}/data", target="/data"),
+    ComposeVolumeMount(type="bind", source="C:${HOMEPATH}", target="/data"),
     ComposeVolumeMount(type="volume", source="named", target="/data"),
     ComposeVolumeMount(type="tmpfs", target="/scratch"),
 ]

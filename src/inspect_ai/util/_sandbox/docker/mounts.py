@@ -266,8 +266,12 @@ def _is_relative_bind(mount: Any) -> bool:
 
 
 def _is_relative_host_path(path: str) -> bool:
-    """A literal relative path: not absolute, home-relative or interpolated."""
-    if path.startswith(("~", "$")):
+    """A literal relative path: not absolute, home-relative or interpolated.
+
+    Any ``$`` counts as interpolation (``C:${HOMEPATH}`` is absolute once
+    expanded); the backstop checks such paths after Compose resolves them.
+    """
+    if path.startswith("~") or "$" in path:
         return False
     return not (
         PurePosixPath(path).is_absolute() or PureWindowsPath(path).is_absolute()
