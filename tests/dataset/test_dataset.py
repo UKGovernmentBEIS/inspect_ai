@@ -30,6 +30,8 @@ from inspect_ai.util import (
     ArchiveSnapshots,
     CheckpointConfig,
     CheckpointSampleConfig,
+    ComposeConfig,
+    ComposeService,
     Manual,
     SandboxEnvironmentSpec,
     SandboxEnvironmentType,
@@ -66,6 +68,16 @@ def test_sample_description_is_keyword_only() -> None:
         (
             SandboxEnvironmentSpec("docker", "compose.yaml"),
             SandboxEnvironmentSpec("docker", "compose.yaml"),
+        ),
+        (
+            SandboxEnvironmentSpec(
+                "docker",
+                ComposeConfig(services={"default": ComposeService(image="python")}),
+            ),
+            SandboxEnvironmentSpec(
+                "docker",
+                ComposeConfig(services={"default": ComposeService(image="python")}),
+            ),
         ),
         (None, None),
     ],
