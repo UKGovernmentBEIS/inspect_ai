@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 import anyio
 import mmh3
 from pydantic import BaseModel
-from pydantic_core import to_jsonable_python
+from pydantic_core import to_json, to_jsonable_python
 from shortuuid import uuid
 from tenacity import (
     RetryCallState,
@@ -237,8 +237,8 @@ class _PreparedInput(NamedTuple):
     tdefs: list[ToolDef]
     tools: list[ToolInfo]
     tool_choice: ToolChoice
-    rebuilt_keys: dict[str, bytes]
-    """Content key of each rebuilt message given an id in this generate, by that id."""
+    caller_ids: set[str | None]
+    """Ids of the caller's messages."""
 
 
 @dataclasses.dataclass(frozen=True)
@@ -1419,8 +1419,8 @@ class Model:
         input = collapse_consecutive_messages_for_api(input, self.api)
         _validate_model_input_media(input)
         rebuilt = [message for message in input if message.id not in caller_ids]
-        rebuilt_keys = _reuse_rebuilt_message_ids(rebuilt, caller_ids)
-        return _PreparedInput(input, tdefs, base_tools, tool_choice, rebuilt_keys)
+        _reuse_rebuilt_message_ids(rebuilt, caller_ids)
+        return _PreparedInput(input, tdefs, base_tools, tool_choice, caller_ids)
 
     async def _generate(
         self,
@@ -1444,7 +1444,7 @@ class Model:
             track_active_model_event,
         )
 
-        input, tdefs, base_tools, tool_choice, rebuilt_keys = prepared
+        input, tdefs, base_tools, tool_choice, caller_ids = prepared
 
         # resolve cache policy
         if isinstance(cache, NotGiven):
@@ -1508,7 +1508,7 @@ class Model:
                 cache=cache_mode,
             )
             if hooks_called:
-                _renew_hook_edited_message_ids(input, rebuilt_keys)
+                _renew_hook_edited_message_ids(input, caller_ids)
             _validate_model_input_media(input)
 
             event_tools = (
@@ -3119,23 +3119,28 @@ def _snapshot_message(message: _MessageT) -> _MessageT:
     return copied
 
 
-_sample_rebuilt_message_ids: ContextVar[dict[bytes, list[str]] | None] = ContextVar(
+@dataclasses.dataclass
+class _RebuiltMessageIds:
+    ids: dict[bytes, list[str]] = dataclasses.field(default_factory=dict)
+    """Ids of each content key; the nth occurrence in one call takes the nth."""
+    keys: dict[str, bytes] = dataclasses.field(default_factory=dict)
+    """Content key of every id given out, including renewed ids."""
+
+
+_sample_rebuilt_message_ids: ContextVar[_RebuiltMessageIds | None] = ContextVar(
     "sample_rebuilt_message_ids", default=None
 )
-"""Ids of each message content rebuilt by `Model.generate()` in the sample.
-
-The nth occurrence of a content in one call takes the nth id.
-"""
+"""Ids of the messages rebuilt by `Model.generate()` in the sample."""
 
 
 def init_sample_rebuilt_message_ids() -> None:
-    _sample_rebuilt_message_ids.set({})
+    _sample_rebuilt_message_ids.set(_RebuiltMessageIds())
 
 
 def _reuse_rebuilt_message_ids(
     rebuilt: list[ChatMessage],
     reserved: set[str | None],
-) -> dict[str, bytes]:
+) -> None:
     """Give each message rebuilt for this generate the sample's id for its content.
 
     `rebuilt` holds the messages of a call's input that were built for the
@@ -3160,23 +3165,18 @@ def _reuse_rebuilt_message_ids(
         rebuilt: The messages of the input built for the call, in order.
         reserved: Ids no rebuilt message may take: those of the caller's
             messages, including ones a collapsed message combines.
-
-    Returns:
-        The content key of each message given a sample id, by that id, for
-        `_renew_hook_edited_message_ids`.
     """
     rebuilt_ids = _sample_rebuilt_message_ids.get()
     if rebuilt_ids is None:
-        return {}
+        return
     occurrences: dict[bytes, int] = {}
     used = set(reserved)
-    keys: dict[str, bytes] = {}
     for message in rebuilt:
         key = _rebuilt_message_key(message)
         if key is None:
             message_id = uuid()
         else:
-            ids = rebuilt_ids.setdefault(key, [])
+            ids = rebuilt_ids.ids.setdefault(key, [])
             index = occurrences.get(key, 0)
             while index < len(ids) and ids[index] in used:
                 index += 1
@@ -3184,54 +3184,68 @@ def _reuse_rebuilt_message_ids(
                 ids.append(uuid())
             occurrences[key] = index + 1
             message_id = ids[index]
-            keys[message_id] = key
+            rebuilt_ids.keys[message_id] = key
         message.id = message_id
         used.add(message_id)
-    return keys
 
 
 def _renew_hook_edited_message_ids(
-    input: list[ChatMessage], keys: dict[str, bytes]
+    input: list[ChatMessage], caller_ids: set[str | None]
 ) -> None:
     """Give a fresh id to each rebuilt message a hook has edited or copied.
 
-    A message in `input` holding an id given to rebuilt content in this
-    generate (the original object or a hook's copy of it) gets a new id when
-    it no longer has that content, or when an earlier message of the input
-    holds the same id. The new id is added to `keys`, so a later retry
-    attempt renews it again only if the content changes again, but it is
-    never stored for reuse. A sample id thus never names different content,
-    and ids stay unique in the input. The sentinel saw the input before the
-    hooks, so its citations and step id naming a renewed message do not
-    resolve. Other messages, and rebuilt messages a hook left unchanged,
-    keep their ids.
+    A message in `input` holding an id given out for rebuilt content in the
+    sample (in this call or an earlier one, the original object or a hook's
+    copy of it) gets a new id when it no longer has that content, or when an
+    earlier message of the input holds the same id. A repeated object is
+    copied first, so the earlier entry keeps its id. The new id is recorded
+    with the message's content, so a later pass renews it again only if the
+    content changes, but it is never given to rebuilt content. A sample id
+    thus never names different content, and ids stay unique in the input.
+    The sentinel saw the input before the hooks, so its citations and step
+    id naming a renewed message do not resolve. The caller's messages, other
+    messages a hook built, and rebuilt messages a hook left unchanged keep
+    their ids.
 
     Args:
         input: The input after the hooks ran.
-        keys: The content key of each rebuilt message, by the id it was
-            given (`_reuse_rebuilt_message_ids`), updated in place.
+        caller_ids: Ids of the caller's messages.
     """
-    if not keys:
+    rebuilt_ids = _sample_rebuilt_message_ids.get()
+    if rebuilt_ids is None:
         return
     seen: set[str] = set()
-    for message in input:
-        if message.id is None or message.id not in keys:
+    for i, message in enumerate(input):
+        message_id = message.id
+        if (
+            message_id is None
+            or message_id in caller_ids
+            or message_id not in rebuilt_ids.keys
+        ):
             continue
         key = _rebuilt_message_key(message)
-        if message.id in seen or key != keys[message.id]:
-            message.id = uuid()
-            if key is not None:
-                keys[message.id] = key
-        seen.add(message.id)
+        if message_id in seen:
+            message = input[i] = message.model_copy()
+        elif key == rebuilt_ids.keys[message_id]:
+            seen.add(message_id)
+            continue
+        message_id = message.id = uuid()
+        if key is not None:
+            rebuilt_ids.keys[message_id] = key
+        seen.add(message_id)
 
 
 def _rebuilt_message_key(message: ChatMessage) -> bytes | None:
-    # a cryptographic hash, since content (e.g. model output) is untrusted
-    # and a collision would give different content the same id
+    # metadata that serializes differently each time (e.g. an iterator,
+    # which serializing consumes) is not keyed, so it is never reused
     try:
+        if message.metadata and to_json(message.metadata) != to_json(message.metadata):
+            return None
         logged = logged_json(message, exclude_id=True)
     except Exception:
         return None
+    # a cryptographic hash, since content (e.g. model output) is untrusted
+    # and a collision would give different content the same id
     return hashlib.sha256(logged).digest() if logged is not None else None
 
 

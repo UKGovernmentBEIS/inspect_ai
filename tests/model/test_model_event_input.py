@@ -613,33 +613,94 @@ async def test_model_event_input_hook_enabled_on_retry_renews_edited_id(
     assert [e.input[0].id for e in _model_events()] == [m.id for m in sent]
 
 
-class _AppendSavedCopy(Hooks):
-    saved: ChatMessage | None = None
+class _ReintroduceSystemMessage(Hooks):
+    case = "copy"
+    seen_ids: list[str | None] = []
+
+    def __init__(self) -> None:
+        self.calls = 0
+        self.saved: ChatMessage | None = None
 
     async def on_before_model_generate(self, data: BeforeModelGenerate) -> None:
-        if self.saved is None:
+        self.seen_ids.append(data.input[0].id)
+        self.calls += 1
+        if self.case == "alias":
+            data.input.append(data.input[0])
+        elif self.calls == 1 and self.case == "copy":
             self.saved = data.input[0].model_copy()
-        else:
+        elif self.calls == 1:
+            self.saved = data.input.pop(0)
+        elif self.calls == 2:
+            assert self.saved is not None
+            if self.case == "earlier_call":
+                self.saved.content = "edited"
             data.input.append(self.saved)
 
 
-async def test_model_event_input_hook_copied_rebuilt_message_gets_new_id() -> None:
+@pytest.mark.parametrize("case", ["copy", "alias", "earlier_call"])
+async def test_model_event_input_hook_reintroduced_rebuilt_message_gets_new_id(
+    case: str,
+) -> None:
     init_transcript(Transcript())
     init_sample_rebuilt_message_ids()
     model = get_model("mockllm/model")
     messages: list[ChatMessage] = [ChatMessageUser(content="hi")]
     before = deepcopy(messages)
+    _ReintroduceSystemMessage.case = case
+    _ReintroduceSystemMessage.seen_ids = []
 
-    with _registered_hook(_AppendSavedCopy):
-        for _ in range(2):
-            await model.generate(messages, config=GenerateConfig(system_message="x"))
+    with _registered_hook(_ReintroduceSystemMessage):
+        for system_message in (
+            ["one", "two", "one"] if case == "earlier_call" else ["one", "one"]
+        ):
+            await model.generate(
+                messages, config=GenerateConfig(system_message=system_message)
+            )
 
-    first, second = _model_events()
-    assert second.input[-1].text == "x"
-    # the system message keeps its id, and the copy gets its own
-    assert second.input[0].id == first.input[0].id
-    assert len({m.id for m in second.input}) == len(second.input)
+    events = _model_events()
+    assert events[1].input[-1].text == ("edited" if case == "earlier_call" else "one")
+    # ids are unique in each input, and each id names one content
+    texts: dict[str | None, str] = {}
+    for event in events:
+        ids = [m.id for m in event.input]
+        assert len(set(ids)) == len(ids)
+        for message in event.input:
+            assert texts.setdefault(message.id, message.text) == message.text
+    # the system message keeps the id the hook saw
+    if case != "earlier_call":
+        assert [e.input[0].id for e in events] == _ReintroduceSystemMessage.seen_ids
     assert [m.model_dump() for m in messages] == [m.model_dump() for m in before]
+
+
+async def test_model_event_input_rebuilt_message_with_consumed_metadata_gets_new_id() -> (
+    None
+):
+    init_transcript(Transcript())
+    init_sample_rebuilt_message_ids()
+    model = get_model("mockllm/model")
+
+    for items in [iter([1, 2]), [1, 2]]:
+        await model.generate(
+            [
+                ChatMessageUser(id="user", content="hi"),
+                ChatMessageAssistant(
+                    id="assistant",
+                    content=[
+                        ContentReasoning(reasoning="thought"),
+                        ContentText(text="answer"),
+                    ],
+                    metadata={"items": items},
+                ),
+            ],
+            config=GenerateConfig(reasoning_history="none"),
+        )
+
+    # serializing consumes the iterator, so its message is not given the id
+    # of the content it had when keyed
+    first, second = _model_events()
+    assert second.input[1].metadata == {"items": [1, 2]}
+    assert first.input[1].metadata != second.input[1].metadata
+    assert first.input[1].id != second.input[1].id
 
 
 async def test_model_event_input_changed_system_message_gets_new_id() -> None:
