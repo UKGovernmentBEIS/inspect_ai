@@ -838,17 +838,24 @@ like any other name and is never imported; Inspect never writes such names
 the task file, it reports the import itself, just before `load_module()`:
 it prints
 `Imported task file /abs/path/evals/task.py (recorded in the log) to load scorer 'my_scorer'.`
-with `display().print()` (`inspect_ai._display`, imported inside the
-function as `loader.py` already does for `inspect_scout`) and logs the
-same line at `INFO`. The path is `task_path.absolute()`, computed when the
-line is built, because `resolve_scorers()` passes the recorded relative
+with `print_record()` and logs the same line at `INFO`. `print_record()`
+(in `loader.py`, importing `inspect_ai._display` inside the function as
+`loader.py` already does for `inspect_scout`) prints with
+`display().print()` only once a display type has been chosen, as the CLI
+does at startup, and not under `--display none`. It never creates the
+display early: a quiet console would hide `inspect score`'s later
+prompts, and a library caller such as `resolve_scorers()` followed by
+`score_async(display=...)` keeps its choice of display. The path is
+`task_path.absolute()`, computed when the line is built, because `resolve_scorers()` passes the recorded relative
 path (`Path(log.eval.task_file)`, `score.py:613`). Nothing is returned to
 or threaded through `resolve_scorers()` (decision: Ransom, 2026-10-21,
 keeping the 2026-10-16 decision of no tracker): `resolve_scorers()` is the
-only caller that passes a `task_path` (`results.py:76` and `hf.py:196`
-pass `None`), so the line is printed only by `inspect score`, as part of
-its step 7 record. This covers both a recorded scorer and a bare
-`--scorer NAME`. Like today's fallback, it runs once per scorer the
+only caller in Inspect that passes a `task_path` (`results.py:76` and
+`hf.py:196` pass `None`), so the line is printed by `inspect score`, as
+part of its step 7 record. Other callers of `resolve_scorers()`, such as
+inspect-action's sample editor, get the `INFO` line, and the printed line
+only if they have chosen a display. This covers both a recorded scorer and
+a bare `--scorer NAME`. Like today's fallback, it runs once per scorer the
 registry cannot build, and each import prints its line.
 
 **The log's metrics resolve before scoring, trusted only with the log's
@@ -913,8 +920,8 @@ what those commands do:
   passed.
 
 `inspect score` also prints a record of what it loaded, with
-`display().print()`. It is a record for the user to check afterwards, not a
-mitigation; nothing waits on it:
+`print_record()` (step 6). It is a record for the user to check afterwards,
+not a mitigation; nothing waits on it:
 
 - When the scorer fallback imports the task file (step 6), one line per
   import, naming the scorer and printed by

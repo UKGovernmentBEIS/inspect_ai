@@ -1046,6 +1046,23 @@ def _scorer_log(
     )
 
 
+@pytest.fixture
+def fresh_display(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Start with no display, display type or Rich console, as a new process does.
+
+    Earlier tests leave these set (a quiet console, a cached display), which
+    would hide or redirect the output these tests capture.
+    """
+    import rich
+
+    from inspect_ai._display.core import active
+    from inspect_ai.util import _display
+
+    monkeypatch.setattr(active, "_active_display", None)
+    monkeypatch.setattr(_display, "_display_type", None)
+    monkeypatch.setattr(rich, "_console", None)
+
+
 def _printed(capsys: pytest.CaptureFixture[str]) -> str:
     # undo the console's line wrapping
     return capsys.readouterr().out.replace("\n", "")
@@ -1078,9 +1095,13 @@ def test_unregistered_scorer_loads_from_recorded_task_file(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
     caplog: pytest.LogCaptureFixture,
+    fresh_display: None,
 ) -> None:
     from inspect_ai._util.registry import registry_info
+    from inspect_ai.util._display import init_display_type
 
+    # the CLI chooses the display at startup
+    init_display_type("plain")
     # the log records the task file relative to the working directory
     monkeypatch.chdir(scorer_file.parent)
     if source == "recorded":
@@ -1115,9 +1136,12 @@ def test_registered_scorer_rejecting_options_falls_back_to_task_file(
     scorer_file: pathlib.Path,
     imports: pathlib.Path,
     capsys: pytest.CaptureFixture[str],
+    fresh_display: None,
 ) -> None:
     from inspect_ai._util.error import PrerequisiteError
+    from inspect_ai.util._display import init_display_type
 
+    init_display_type("plain")
     log = _scorer_log("value_error_scorer", scorer_file, options={"mode": "bad"})
     with pytest.raises(PrerequisiteError, match="in the file"):
         resolve_scorers(log)
@@ -1176,7 +1200,7 @@ def base_url_log(tmp_path: pathlib.Path) -> pathlib.Path:
 
 
 def test_score_command_prints_log_model_base_url(
-    base_url_log: pathlib.Path, tmp_path: pathlib.Path
+    base_url_log: pathlib.Path, tmp_path: pathlib.Path, fresh_display: None
 ) -> None:
     from click.testing import CliRunner
 
@@ -1202,6 +1226,75 @@ def test_score_command_prints_log_model_base_url(
     )
     assert result.exit_code == 0, result.output
     assert "Scoring model" not in result.output
+
+
+@pytest.mark.parametrize("display", [None, "none"])
+async def test_fallback_record_leaves_the_scoring_display_to_the_caller(
+    base_url_log: pathlib.Path,
+    scorer_file: pathlib.Path,
+    caplog: pytest.LogCaptureFixture,
+    display: Any,
+    fresh_display: None,
+) -> None:
+    from inspect_ai._display.core.active import active_display
+    from inspect_ai.util._display import display_type, display_type_initialized
+
+    with caplog.at_level("INFO", logger="inspect_ai._eval.loader"):
+        scorers = resolve_scorers(_scorer_log(FILE_SCORER, task_file=scorer_file))
+    assert _record(scorer_file, FILE_SCORER) in caplog.text
+    # nothing printed, so no display was chosen or created
+    assert not display_type_initialized() and active_display() is None
+
+    await score_async(
+        await read_eval_log_async(base_url_log),
+        scorers,
+        action="append",
+        display=display,
+    )
+    assert display_type() == (display or "plain")
+
+
+def _prompting_log(
+    base_url_log: pathlib.Path, scorer_file: pathlib.Path, trigger: str
+) -> pathlib.Path:
+    """A scored log whose rescoring prints a record of the given kind."""
+    from inspect_ai.log import write_eval_log
+    from inspect_ai.log._log import EvalScorer
+
+    log = read_eval_log(base_url_log)
+    if trigger == "fallback":
+        log.eval.model_base_url = None
+        log.eval.task_file = str(scorer_file)
+        log.eval.scorers = [EvalScorer(name=FILE_SCORER)]
+    path = base_url_log.parent / f"{trigger}.eval"
+    write_eval_log(log, str(path))
+    return path
+
+
+@pytest.mark.parametrize("trigger", ["base_url", "fallback"])
+def test_score_command_prompts_stay_visible_with_display_none(
+    base_url_log: pathlib.Path,
+    scorer_file: pathlib.Path,
+    trigger: str,
+    fresh_display: None,
+) -> None:
+    from click.testing import CliRunner
+
+    from inspect_ai._cli.score import score_command
+
+    log_file = _prompting_log(base_url_log, scorer_file, trigger)
+    args = [str(log_file), "--display", "none"]
+    if trigger == "base_url":
+        args += ["--scorer", "match"]
+    # append to the scores, create a new file, accept the suggested name
+    result = CliRunner().invoke(score_command, args, input="append\ncreate\n\n")
+    assert result.exit_code == 0, result.output
+
+    output = result.output.replace("\n", "")
+    assert "Overwrite existing scores or append as additional scores?" in output
+    assert f"Overwrite {log_file} or create new file?" in output
+    assert "Output file name?" in output
+    assert "Scoring model" not in output and "Imported task file" not in output
 
 
 def test_score_logs_log_model_base_url(

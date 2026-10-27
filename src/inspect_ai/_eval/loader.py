@@ -860,10 +860,8 @@ def scorer_from_log_name(name: str, task_path: Path | None, /, **kwargs: Any) ->
                 f"The scorer `{name}` couldn't be loaded. The file '{task_pretty_path}' was not found. Please provide a path to the file containing the scorer using the '--scorer' parameter"
             )
 
-        from inspect_ai._display import display
-
         record = f"Imported task file {task_path.absolute().as_posix()} (recorded in the log) to load scorer '{name}'."
-        display().print(record)
+        print_record(record)
         logger.info(record)
 
         # We have the path to a file, so load that and try again
@@ -882,6 +880,24 @@ def scorer_from_log_name(name: str, task_path: Path | None, /, **kwargs: Any) ->
             raise PrerequisiteError(
                 f"The scorer '{name}' in the file '{task_pretty_path}' couldn't be loaded. Please provide a path to the file containing the scorer using the '--scorer' parameter."
             )
+
+
+def print_record(record: str) -> None:
+    """Print a record of what a run operation took from a log.
+
+    Prints with the display once a display type has been chosen (as the CLI
+    does at startup), unless it is `none`. Nothing is printed before then, so
+    the display is not created early and a library caller's later choice of
+    display still applies.
+
+    Args:
+        record: Line to print.
+    """
+    from inspect_ai._display import display
+    from inspect_ai.util._display import display_type, display_type_initialized
+
+    if display_type_initialized() and display_type() != "none":
+        display().print(record)
 
 
 # See if the scorer doesn't have type annotations. Currently the registry will not load

@@ -20,7 +20,7 @@ from inspect_ai._display import display
 from inspect_ai._display.core.results import sample_coverage_messages, task_scores
 from inspect_ai._display.core.rich import rich_theme
 from inspect_ai._eval.context import init_eval_context
-from inspect_ai._eval.loader import metric_from_spec
+from inspect_ai._eval.loader import metric_from_spec, print_record
 from inspect_ai._eval.score import (
     ScoreAction,
     log_model_record,
@@ -216,7 +216,7 @@ async def score(
             "Unable to resolve any scorers for this log. Please specify a scorer using the '--scorer' param."
         )
     if override_model is None and (record := log_model_record(eval_log)) is not None:
-        display().print(record)
+        print_record(record)
 
     metrics = resolve_metrics(metric)
 
