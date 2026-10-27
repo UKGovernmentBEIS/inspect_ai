@@ -28,6 +28,7 @@ from inspect_ai._display import display as display_manager
 from inspect_ai._eval.context import init_task_context
 from inspect_ai._eval.loader import load_file_tasks, scorer_from_spec
 from inspect_ai._eval.task.task import resolve_scorer, resolve_scorer_metrics
+from inspect_ai._sentinel._scope import sentinel_scope
 from inspect_ai._util._async import configured_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.platform import platform_init, running_in_notebook
 from inspect_ai._util.registry import (
@@ -542,7 +543,8 @@ async def _run_score_task(
             )
             scorer_names.append(scorer_name)
             async with span(name=scorer_name, type=SCORER_SPAN_TYPE):
-                score_result = await scorer(state, target)
+                with sentinel_scope("scorer", final=True):
+                    score_result = await scorer(state, target)
                 if scorer_name in state.scores:
                     raise RuntimeError(
                         f"Scorer {scorer_name} has modified state.scores"
