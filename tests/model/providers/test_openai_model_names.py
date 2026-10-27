@@ -112,7 +112,7 @@ def test_is_latest_model_helper_handles_bedrock_prefix() -> None:
     assert is_latest_model("openai.gpt-5.5") is False
 
 
-# -- GPT-6 (gpt-6-astra, gpt-6-sol, gpt-6-luna, gpt-6.1-sol) --
+# -- GPT-6 (gpt-6-astra, gpt-6-sol, gpt-6-luna, gpt-6.1-sol, gpt-6.1-terra) --
 #
 # Family detection is version-based ("gpt-5 or greater"), so a new major version
 # inherits frontier behavior without a code change per release.
@@ -123,6 +123,7 @@ GPT_6_MODELS = [
     "gpt-6-sol",
     "gpt-6-luna",
     "gpt-6.1-sol",
+    "gpt-6.1-terra",
     "gpt-6",
     "GPT-6-Astra",
     "gpt-7",
@@ -182,10 +183,12 @@ def test_gpt_5_helpers_are_version_based() -> None:
     assert is_gpt_6_model("gpt-6.1-sol") is True
     assert openai_gpt_version("gpt-6.1-sol") == (6, 1)
     assert openai_gpt_version("openai.gpt-6.1-sol") == (6, 1)
+    assert is_gpt_6_model("gpt-6.1-terra") is True
+    assert openai_gpt_version("gpt-6.1-terra") == (6, 1)
 
 
 # -- always_reasons_model: o-series, gpt-5.0, GPT-6 Astra, and GPT-6.1 Sol can't
-# turn reasoning off with `none`; GPT-6 Sol and Luna can. OpenAIAPI / ModelInfo
+# turn reasoning off with `none`; GPT-6 Sol, Luna, and GPT-6.1 Terra can. OpenAIAPI / ModelInfo
 # .always_reasons() delegate to it (covered in tests/model/test_reasoning_effort.py) --
 
 
@@ -212,6 +215,9 @@ def test_gpt_5_helpers_are_version_based() -> None:
         ("GPT-6.1-Sol", True),
         ("openai.gpt-6.1-sol", True),  # bedrock api_model_name prefix
         ("my-gpt-6.1-sol-deployment", True),  # azure deployment name
+        ("gpt-6.1-terra", False),
+        ("openai.gpt-6.1-terra", False),
+        ("my-gpt-6.1-terra-deployment", False),
         ("gpt-6", False),
         ("gpt-7", False),
         ("gpt-5.6-sol", False),

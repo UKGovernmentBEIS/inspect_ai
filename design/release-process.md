@@ -7,23 +7,31 @@ and published to PyPI and npm by GitHub Actions with trusted publishing.
 
 1. **PR titles set the version.** PRs are squash-merged and their titles follow
    Conventional Commits (enforced by `pr-title-lint.yml`). Since the last
-   release, any `fix`, `feat`, `perf` or `revert` makes the next release a patch
-   (0.3.x); a breaking change (`feat!:`) makes it a minor (0.x.0). Other types
-   make no release on their own. Config: `.release-please-config.json`; the
-   last released version: `.release-please-manifest.json`.
+   release, any `fix`, `feat`, `perf` or `revert`, or any breaking change (`!`
+   on any type, including `chore!:`), makes the next release a patch (0.3.x).
+   Other types make no release on their own, except a commit whose message ends
+   with a `Release-As: X.Y.Z` footer, which makes a release of that version. A
+   breaking change is listed under "Breaking Changes" but still makes a
+   patch: the config sets `"versioning": "always-bump-patch"`, which ignores
+   breaking changes when choosing the version (see [Minor or major
+   release](#minor-or-major-release)). Config: `.release-please-config.json`;
+   the last released version: `.release-please-manifest.json`.
 2. **Release PR.** On every push to `main`, `release.yml` runs Release Please,
    which opens or updates the release PR (branch
    `release-please--branches--main`, title `chore(main): release X.Y.Z`). The
    PR bumps the manifest and adds the version's section to `CHANGELOG.md` (see
-   [Changelog](#changelog)). `release.yml` then dispatches `build.yml`,
+   [Changelog](#changelog)). `release.yml` then renames the breaking changes
+   heading (see [Changelog](#changelog)) and dispatches `build.yml`,
    `changelog-lint.yml` and `release-pr-checks.yml` on the branch. `build.yml`
    and `changelog-lint.yml` provide `main`'s required status checks, which
    every release PR needs.
 3. **Checks.** `release-pr-checks.yml` fails the release PR if the version is
    not newer than PyPI's latest or is already tagged, if any sandbox-tools
-   artifact pinned in `SHA256SUMS` is not on S3 with its digest, if the PR head
-   fails the build gates (`build-dist`), or if rebuilding PyPI's latest version
-   no longer matches PyPI (`publish-parity.yml`).
+   artifact pinned in `SHA256SUMS` is not on S3 with its digest, or if the PR
+   head fails the build gates (`build-dist`). `publish-parity.yml`, which
+   rebuilds PyPI's latest version and compares it with PyPI, runs on PRs that
+   change the build or publish files, not on the release PR, which does not
+   change the build.
 4. **Merge on Monday** by default; merge sooner for an urgent fix. To refresh
    the changelog date first, run the Release workflow from the Actions tab. The
    release PR changes `.release-please-manifest.json`, which
@@ -53,7 +61,7 @@ as in `inspect_scout`), so the commit title is the linted PR title and the
 body is the PR description. With GitHub's default, a single-commit PR squashes
 to its commit message instead. With the setting:
 
-- a `BREAKING CHANGE:` paragraph is listed under "⚠ BREAKING CHANGES"; it
+- a `BREAKING CHANGE:` paragraph is listed under "Breaking Changes"; it
   runs to the next blank line, so it needs a blank line after it;
 - a line that starts with a Conventional Commits header (`fix: ...`) right
   after a blank line adds an entry of its own. The parser splits on a blank
@@ -73,6 +81,17 @@ except the release PR (head branch `release-please--branches--main` in this
 repository, or a dispatched run on that branch). Its check is required on
 `main`. Edits made to the release
 PR's `CHANGELOG.md` are lost the next time Release Please updates the PR.
+
+Release Please's template titles breaking changes "### ⚠ BREAKING CHANGES",
+and no config option changes it. After each Release Please run, `release.yml`
+renames that heading to "### Breaking Changes" in the release PR's body and
+in the newest section of `CHANGELOG.md` on its branch
+(`release_workflow.py breaking-changes-heading`); Release Please takes the
+GitHub Release notes from the merged PR's body. Once the body is edited,
+Release Please no longer finds the PR unchanged, so while the release has a
+breaking change every push to `main` rewrites the release PR and its checks
+run again. The step continues on error so it never blocks a publish; the next
+run renames what it missed.
 
 ## Why everything runs in `release.yml`
 
@@ -102,6 +121,19 @@ job, so `release.yml` and `publish.yml` each need a PyPI publisher. npm matches
 the calling workflow, so `release.yml` and `npm-publish.yml` each need an npm
 publisher. The `pypi` and `npm` environments must allow deployments from
 `main` (release.yml) and from version tags (break-glass).
+
+## Minor or major release
+
+`"versioning": "always-bump-patch"` makes every release a patch, including
+releases with breaking changes, so a minor or major release must be set
+explicitly. Merge a PR that adds `"release-as": "X.Y.0"` to the `"."` package
+in `.release-please-config.json`; the release PR then proposes that version.
+`release-as` sets the version but does not create a release: if nothing that
+makes a release (step 1) has merged since the last release, there is no release
+PR until something does. After it is released, merge a PR that removes
+`release-as`; otherwise every later release PR proposes the same version again.
+(Temporarily switching `versioning` back to `default` makes a minor release
+only if a breaking change has merged since the last release.)
 
 ## Retries and recovery
 
@@ -148,7 +180,8 @@ Re-running the Release workflow is safe at any point.
   for a rebuild (archive metadata such as timestamps differs between builds),
   the same members with the same contents under the parity rules
   (`compare_archives`, which ignores only the sdist's recorded checkout
-  branch). A same-named file with different contents fails the job, since
+  branch and the wheel's build tool: the `Generator` line in WHEEL and
+  WHEEL's hash and size in RECORD). A same-named file with different contents fails the job, since
   PyPI never replaces a file. npm skips a version it already has.
 - **A queued Release run can be replaced by a newer push**, so the run that
   creates a release may be on a later commit than the release PR merge. If

@@ -34,7 +34,7 @@ from ..columns import Column, ColumnError, ColumnType
 from ..evals.columns import EvalColumn
 from ..evals.table import EVAL_ID, EVAL_SUFFIX, _read_evals_df, ensure_eval_data
 from ..events.columns import EventColumn
-from ..extract import message_as_str
+from ..extract import message_as_str, message_render_cache
 from ..messages.columns import MessageColumn
 from ..record import import_record, resolve_duplicate_columns
 from ..util import (
@@ -389,38 +389,39 @@ def _read_samples_df_serial(
                         detail_items = []
 
                     # read detail records (provide auto-ids)
-                    for index, item in enumerate(detail_items):
-                        if strict:
-                            detail_record = import_record(
-                                eval_log,
-                                item,
-                                columns_detail,
-                                strict=True,
-                            )
-                        else:
-                            detail_record, errors = import_record(
-                                eval_log,
-                                item,
-                                columns_detail,
-                                strict=False,
-                            )
-                            all_errors.extend(errors)
+                    with message_render_cache():
+                        for index, item in enumerate(detail_items):
+                            if strict:
+                                detail_record = import_record(
+                                    eval_log,
+                                    item,
+                                    columns_detail,
+                                    strict=True,
+                                )
+                            else:
+                                detail_record, errors = import_record(
+                                    eval_log,
+                                    item,
+                                    columns_detail,
+                                    strict=False,
+                                )
+                                all_errors.extend(errors)
 
-                        # ensure ids
-                        detail_id_field = f"{detail.name}_id"
-                        detail_id = detail_record.get(detail_id_field, None)
-                        if detail_id is None:
-                            detail_record[detail_id_field] = auto_detail_id(
-                                sample_id, detail.name, index
-                            )
-                        ids = {SAMPLE_ID: sample_id}
-                        detail_record = ids | detail_record
+                            # ensure ids
+                            detail_id_field = f"{detail.name}_id"
+                            detail_id = detail_record.get(detail_id_field, None)
+                            if detail_id is None:
+                                detail_record[detail_id_field] = auto_detail_id(
+                                    sample_id, detail.name, index
+                                )
+                            ids = {SAMPLE_ID: sample_id}
+                            detail_record = ids | detail_record
 
-                        # inject order
-                        detail_record["order"] = index + 1
+                            # inject order
+                            detail_record["order"] = index + 1
 
-                        # append detail record
-                        detail_records.append(detail_record)
+                            # append detail record
+                            detail_records.append(detail_record)
 
                 # record sample record
                 sample_records.append(record)

@@ -26,7 +26,7 @@ from dataclasses import replace
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn, Sequence
 
-from inspect_ai._sentinel._context import active_sentinel
+from inspect_ai._sentinel._context import checks_tool_calls
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._bridge._sentinel import SentinelCheck, sentinel_tool_call
@@ -130,8 +130,9 @@ async def apply_bridge_tool_approval(
         bridge: Bridge whose `approval` policies (if any) apply for this call.
         output: Model output about to be handed to the scaffold.
         history: Conversation that produced `output`: the model's input.
-        conversation: The scaffold's conversation before compaction, for the
-            sentinel's step history (defaults to `history`).
+        conversation: The scaffold's conversation before compaction, in which the
+            sentinel's steps find the call's assistant message (defaults to
+            `history`). A step's `history` is what the agent has sent.
         tools: The declarations the scaffold made to the model, which identify
             the host tools (and so the registered viewers) the calls denote.
 
@@ -147,7 +148,7 @@ async def apply_bridge_tool_approval(
 
     with bridge_approval_scope(bridge.approval):
         approval_active = have_tool_approval()
-        sentinel_active = active_sentinel() is not None
+        sentinel_active = checks_tool_calls()
         if (approval_active or sentinel_active or bridge.grants_tool_execution) and any(
             choice.message.tool_calls for choice in output.choices[1:]
         ):
@@ -215,9 +216,20 @@ async def apply_bridge_tool_approval(
             checks = []
             for index, (call, reviewed) in enumerate(zip(tool_calls, reviewed_calls)):
                 viewer = bridge._host_tool_viewer(call, tools)
-                decision = await sentinel_tool_call(
-                    bridge, message, reviewed, viewer, sentinel_history
-                )
+                try:
+                    decision = await sentinel_tool_call(
+                        bridge,
+                        message,
+                        output.message.id,
+                        reviewed,
+                        viewer,
+                        sentinel_history,
+                    )
+                except ToolApprovalError as ex:
+                    # the call's viewer failed, which rejects it, as natively
+                    return BridgeApproval(
+                        output, rejection_messages(output, call, ex.message)
+                    )
                 if decision is not None and decision.action == "reject":
                     explanation = ToolApprovalError(decision.message).message
                     return BridgeApproval(
@@ -244,6 +256,7 @@ async def apply_bridge_tool_approval(
                         call=reviewed,
                         viewer=viewer,
                         message=message,
+                        message_id=output.message.id,
                         history=sentinel_history,
                     )
                 )

@@ -8,11 +8,17 @@ from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.tool._tool_call import (
     ToolCall,
     ToolCallViewer,
+    ToolCallViewError,
     resolve_tool_call_view,
 )
-from inspect_ai.util._limit import suspend_token_limit, suspend_turn_limit
+from inspect_ai.util._limit import (
+    suspend_token_limit,
+    suspend_turn_limit,
+    suspend_working_limit,
+)
 
 from ._approver import Approver
+from ._call import record_approval
 from ._policy import ApprovalPolicy, policy_approver
 
 MODIFY_WITHOUT_CALL = (
@@ -27,15 +33,28 @@ async def apply_tool_approval(
     viewer: ToolCallViewer | None,
     history: list[ChatMessage],
 ) -> tuple[bool, Approval | None]:
+    """Apply the active approval policy to a tool call.
+
+    If the tool's viewer raises, the call is rejected without consulting the
+    approvers: an approver deciding on a fallback rendering might approve an
+    action that the tool's own view would have shown differently.
+    """
     approver = _tool_approver.get(None)
     if approver:
-        view = resolve_tool_call_view(call, viewer)
+        try:
+            view = resolve_tool_call_view(call, viewer, reject_on_error=True)
+        except ToolCallViewError as ex:
+            rejection = Approval(decision="reject", explanation=str(ex))
+            record_approval("policy", message, call, None, rejection)
+            return False, rejection
 
         # call approver (approvers which use model inference — e.g. LLM monitors —
-        # shouldn't have that inference charged to the agent's own budget)
+        # shouldn't have that inference charged to the agent's own budget, and
+        # time spent approving, by a person or a model, counts as waiting)
         with (
             suspend_token_limit(),
             suspend_turn_limit(),
+            suspend_working_limit(),
             sentinel_scope(AgentScope.OFF, final=True),
         ):
             approval = await approver(

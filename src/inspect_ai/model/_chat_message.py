@@ -3,7 +3,14 @@ import json
 from logging import getLogger
 from typing import Any, Literal, Type, Union
 
-from pydantic import BaseModel, Field, ModelWrapValidatorHandler, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ModelWrapValidatorHandler,
+    TypeAdapter,
+    model_validator,
+)
 from pydantic_core.core_schema import ValidationInfo
 from shortuuid import uuid
 
@@ -222,3 +229,22 @@ ChatMessage = Union[
     ChatMessageSystem, ChatMessageUser, ChatMessageAssistant, ChatMessageTool
 ]
 """Message in a chat conversation"""
+
+
+_logged_json_adapter: TypeAdapter[ChatMessage] = TypeAdapter(
+    ChatMessage, config=ConfigDict(ser_json_inf_nan="constants")
+)
+
+
+def logged_json(message: ChatMessage) -> bytes | None:
+    """JSON for comparing message versions, or None if it can't be serialized.
+
+    Uses `EvalSample`'s non-finite encoding: `model_dump_json()` writes NaN,
+    infinities and None all as null, which would hide an edit from one to
+    another. The message pool can still merge NaN, None and infinities in
+    saved logs. Values such as numpy arrays can't be serialized.
+    """
+    try:
+        return _logged_json_adapter.dump_json(message)
+    except ValueError:
+        return None

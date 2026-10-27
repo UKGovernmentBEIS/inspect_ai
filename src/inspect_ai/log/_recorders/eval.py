@@ -1,12 +1,14 @@
 import copy
+import hashlib
 import json
 import logging
 import math
 import os
+import re
 import shutil
 import tempfile
 import warnings
-from collections.abc import Generator, Iterable, Sequence
+from collections.abc import Awaitable, Callable, Generator, Iterable, Sequence
 from contextlib import contextmanager
 from functools import partial
 from io import BytesIO
@@ -44,7 +46,13 @@ from typing_extensions import override
 from inspect_ai._util._async import current_async_backend, tg_collect
 from inspect_ai._util.async_bytes_reader import adapt_to_reader
 from inspect_ai._util.async_zip import AsyncZipReader
-from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util.asyncfiles import (
+    S3_COMPOSE_MIN_PREFIX,
+    AsyncFilesystem,
+    ComposeSource,
+    ComposeSourceChangedError,
+    is_s3_filename,
+)
 from inspect_ai._util.atomic_write import atomic_write
 from inspect_ai._util.constants import (
     LOG_SCHEMA_VERSION,
@@ -54,6 +62,7 @@ from inspect_ai._util.error import EvalError, WriteConflictError
 from inspect_ai._util.file import FileSystem, dirname, file, filesystem, local_path
 from inspect_ai._util.json import (
     ExcludingObjectBuilder,
+    is_ijson_float_overflow_error,
     is_ijson_int_overflow_error,
     is_ijson_nan_inf_error,
     jsonable_dict,
@@ -507,6 +516,23 @@ class EvalRecorder(FileRecorder):
 
     @classmethod
     @override
+    async def read_log_sample_keys(cls, location: str) -> list[SampleRecordKey]:
+        async with AsyncFilesystem() as fs:
+            cd = await AsyncZipReader(fs, location).entries()
+        keys = (_sample_key(entry.filename) for entry in cd.entries)
+        # a re-logged sample repeats its member name
+        return list(dict.fromkeys(key for key in keys if key is not None))
+
+    @classmethod
+    @override
+    async def read_log_reductions(
+        cls, location: str
+    ) -> list[EvalSampleReductions] | None:
+        log = await cls.read_log(location, header_only=True)
+        return log.reductions
+
+    @classmethod
+    @override
     async def write_log(
         cls,
         location: str,
@@ -648,7 +674,8 @@ def _read_local_sample_excluding(
     """Stream a local member's included JSON fields in a worker thread.
 
     Like the async disk reader, retain the stdlib fallback for Python's
-    non-finite numbers and integers too large for the streaming parser.
+    non-finite numbers and integers or floats too large for the streaming
+    parser.
     """
     from inspect_ai._util.json import get_ijson_backend
 
@@ -661,7 +688,11 @@ def _read_local_sample_excluding(
                 builder.event(event, value)
         return builder.data
     except (ValueError, IncompleteJSONError, UnexpectedSymbol) as ex:
-        if not (is_ijson_nan_inf_error(ex) or is_ijson_int_overflow_error(ex)):
+        if not (
+            is_ijson_nan_inf_error(ex)
+            or is_ijson_int_overflow_error(ex)
+            or is_ijson_float_overflow_error(ex)
+        ):
             raise
         with zip.open(member) as stream:
             data: dict[str, Any] = json.load(stream)
@@ -694,7 +725,11 @@ async def _read_member_json_excluding(
         IncompleteJSONError,
         UnexpectedSymbol,
     ) as ex:
-        if is_ijson_nan_inf_error(ex) or is_ijson_int_overflow_error(ex):
+        if (
+            is_ijson_nan_inf_error(ex)
+            or is_ijson_int_overflow_error(ex)
+            or is_ijson_float_overflow_error(ex)
+        ):
             data = json.loads(await reader.read_member_fully(member))
             for field in exclude_fields:
                 data.pop(field, None)
@@ -843,7 +878,7 @@ SEED_COPY_BACKOFF_SECONDS = 1.0
 _SEED_COPY_CHUNK_SIZE = 1024 * 1024
 
 
-async def _copy_prior_log(prior_log: str, dest: BinaryIO) -> None:
+async def _copy_prior_log(prior_log: str, dest: BinaryIO) -> str | None:
     """Copy a prior log's bytes into ``dest`` (empty, positioned at 0).
 
     ``AsyncFilesystem.read_file_into`` does the copy (``dest`` is an
@@ -851,6 +886,9 @@ async def _copy_prior_log(prior_log: str, dest: BinaryIO) -> None:
     target). Transient failures are retried with backoff (the same
     ``AsyncRetrying`` idiom as the S3 put retry in ``asyncfiles``); a
     missing prior log raises ``FileNotFoundError`` immediately.
+
+    Returns the ETag ``read_file_into`` returned for the copy that landed
+    in ``dest`` (S3 under asyncio; otherwise ``None``).
     """
 
     def is_transient_failure(exception: BaseException) -> bool:
@@ -872,6 +910,7 @@ async def _copy_prior_log(prior_log: str, dest: BinaryIO) -> None:
             f"{outcome.exception() if outcome is not None else 'unknown error'}"
         )
 
+    etag: str | None = None
     async for attempt in AsyncRetrying(
         retry=retry_if_exception(is_transient_failure),
         wait=wait_exponential_jitter(
@@ -884,7 +923,10 @@ async def _copy_prior_log(prior_log: str, dest: BinaryIO) -> None:
     ):
         with attempt:
             async with AsyncFilesystem() as async_fs:
-                await async_fs.read_file_into(prior_log, dest, _SEED_COPY_CHUNK_SIZE)
+                etag = await async_fs.read_file_into(
+                    prior_log, dest, _SEED_COPY_CHUNK_SIZE
+                )
+    return etag
 
 
 def _read_prior_summaries(prior: BinaryIO) -> list[EvalSampleSummary]:
@@ -935,6 +977,51 @@ def _parse_sample_data(data: bytes | dict[str, Any]) -> EvalSample:
     return rebind_sample_timelines(resolve_sample_events_data(sample))
 
 
+class ComposePrefixInvariantError(RuntimeError):
+    """The temp file's compose prefix changed after it was recorded.
+
+    Raised only in verify mode (``INSPECT_VERIFY_COMPOSE_PREFIX``). Composing
+    would have written an object that differs from the temp file.
+    """
+
+
+_VERIFY_COMPOSE_PREFIX_ENV = "INSPECT_VERIFY_COMPOSE_PREFIX"
+
+
+def _verify_compose_prefix() -> bool:
+    """Whether verify mode is on (``INSPECT_VERIFY_COMPOSE_PREFIX`` is truthy).
+
+    Read on every call, so a test can change it. The test suite turns it on
+    (``tests/conftest.py``); production leaves it off.
+    """
+    return os.environ.get(_VERIFY_COMPOSE_PREFIX_ENV, "").strip().lower() in (
+        "1",
+        "true",
+        "t",
+        "yes",
+        "y",
+        "on",
+    )
+
+
+def _digest_prefix(file: BinaryIO, length: int) -> bytes:
+    """Digest ``file``'s bytes ``[0, length)``, restoring its position. Blocking."""
+    position = file.tell()
+    try:
+        file.seek(0)
+        digest = hashlib.blake2b()
+        remaining = length
+        while remaining > 0:
+            chunk = file.read(min(remaining, 1024 * 1024))
+            if not chunk:
+                break
+            digest.update(chunk)
+            remaining -= len(chunk)
+        return digest.digest()
+    finally:
+        file.seek(position)
+
+
 class _BufferedSample(NamedTuple):
     """A buffered sample paired with its summary, computed once at buffer time.
 
@@ -980,6 +1067,19 @@ class ZipLogFile:
         # than deferring to the destination log
         self._local_sample_names: set[str] = set()
         self._etag: str | None = None
+        # An S3 object whose leading bytes equal the temp file's
+        # [0, length): the next remote flush copies them server-side and
+        # uploads only the rest. Set by a byte-copy seed from an S3 prior and
+        # by every successful S3 flush (the log's own object); cleared by a
+        # failed write and by anything that replaces the temp file (see
+        # design/s3-incremental-log-flush.md).
+        self._compose_prefix: ComposeSource | None = None
+        # verify mode: the prefix's local digest when it was recorded, and
+        # the first mismatch found, which every later flush and close re-raise
+        self._compose_prefix_digest: bytes | None = None
+        self._compose_prefix_violation: ComposePrefixInvariantError | None = None
+        # an S3 failure other than a changed source: upload whole logs from now on
+        self._compose_disabled = False
 
     async def init(
         self,
@@ -1279,18 +1379,24 @@ class ZipLogFile:
                 ``write_local_snapshot``). Local paths only.
         """
         async with self._lock:
-            # close the zip file so it is flushed
+            self._raise_compose_prefix_violation()
+
+            # close the zip file so it is flushed; the closed zip keeps the
+            # end of its member area, the next flush's compose prefix
+            member_end: int | None = None
             if self._zip:
                 self._zip.close()
+                member_end = self._zip.start_dir
 
             # Stream temp file to output using the appropriate backend
             # (atomic local write, native S3 multipart upload, or chunked
             # copy via fsspec).
             written = True
             etag: str | None = None
-            with trace_action(logger, "Log Write", self._file):
-                try:
-                    if self._fs.is_local():
+            can_compose = False
+            try:
+                if self._fs.is_local():
+                    with trace_action(logger, "Log Write", self._file):
                         # Safe under self._lock: nothing else touches
                         # _temp_file until we return, and the helper waits
                         # for the thread on cancellation, so the finally
@@ -1306,15 +1412,18 @@ class ZipLogFile:
                                 fsync,
                             ),
                         )
-                    else:
-                        self._temp_file.seek(0)
-                        async with AsyncFilesystem() as async_fs:
-                            etag = await async_fs.write_file_streaming(
-                                self._file, self._temp_file
-                            )
-                finally:
-                    # re-open zip file w/ self.temp_file pointer at end
-                    self._open()
+                else:
+                    async with AsyncFilesystem() as async_fs:
+                        etag = await self._write_remote(async_fs)
+                        can_compose = async_fs.can_compose(self._file)
+            except BaseException:
+                # whether the destination still holds the prefix's object is
+                # unknown: the next write uploads whole
+                self._clear_compose_prefix()
+                raise
+            finally:
+                # re-open zip file w/ self.temp_file pointer at end
+                self._open()
 
             # Everything written so far is now in the uploaded file's central
             # directory and readable from disk, so the streaming-path samples no
@@ -1329,6 +1438,109 @@ class ZipLogFile:
                 self._streaming_samples.clear()
                 self._destination_written = True
                 self._etag = etag
+                # the object now holds the temp file's member area, so the
+                # next flush composes onto it and uploads only what follows
+                self._clear_compose_prefix()
+                if etag is not None and can_compose and member_end is not None:
+                    await self._record_compose_prefix(
+                        ComposeSource(self._file, etag, member_end)
+                    )
+
+    async def _write_remote(self, async_fs: AsyncFilesystem) -> str | None:
+        """Write the closed temp zip to a remote destination; return the ETag.
+
+        Composes the object from the compose prefix plus the temp file's
+        bytes after it when that is possible, and otherwise uploads the
+        whole file. A changed prefix source falls back to the whole upload
+        once; any other S3 failure of the compose also disables composing
+        for the rest of this log (the store likely does not support it).
+        Caller holds ``_lock``.
+        """
+        from botocore.exceptions import ClientError
+
+        prefix = self._compose_prefix
+        if (
+            prefix is not None
+            and not self._compose_disabled
+            and prefix.length >= S3_COMPOSE_MIN_PREFIX
+            and async_fs.can_compose(self._file)
+        ):
+            await self._check_compose_prefix(prefix)
+            size = self._temp_file.seek(0, os.SEEK_END)
+            self._temp_file.seek(prefix.length)
+            try:
+                with trace_action(
+                    logger,
+                    "Log Write",
+                    f"{self._file} (compose: copy {prefix.length} bytes + "
+                    f"upload {size - prefix.length} bytes)",
+                ):
+                    return await async_fs.compose_file(
+                        self._file, prefix, self._temp_file
+                    )
+            except ComposeSourceChangedError as ex:
+                logger.warning(
+                    f"Log {self._file}: compose source changed ({ex}); "
+                    "uploading the whole log"
+                )
+            except ClientError as ex:
+                logger.warning(
+                    f"Log {self._file}: server-side compose failed ({ex}); "
+                    "uploading whole logs from now on"
+                )
+                self._compose_disabled = True
+        self._temp_file.seek(0)
+        with trace_action(logger, "Log Write", self._file):
+            return await async_fs.write_file_streaming(self._file, self._temp_file)
+
+    async def _record_compose_prefix(self, prefix: ComposeSource) -> None:
+        """Set the compose prefix; in verify mode, digest the bytes it covers.
+
+        Caller holds ``_lock``.
+        """
+        digest = (
+            await anyio.to_thread.run_sync(
+                _digest_prefix, self._temp_file, prefix.length
+            )
+            if _verify_compose_prefix()
+            else None
+        )
+        self._compose_prefix = prefix
+        self._compose_prefix_digest = digest
+
+    def _clear_compose_prefix(self) -> None:
+        self._compose_prefix = None
+        self._compose_prefix_digest = None
+
+    async def _check_compose_prefix(self, prefix: ComposeSource) -> None:
+        """Fail if the temp file's prefix bytes changed since they were recorded.
+
+        Runs when the prefix was recorded in verify mode. A mismatch means a
+        write rewrote the temp file's leading bytes without clearing the
+        prefix: composing would write an object that differs from the temp
+        file. The violation is kept, so every later flush and close fail
+        too, including after the stale-flush timer swallows this one.
+        Caller holds ``_lock``.
+        """
+        recorded = self._compose_prefix_digest
+        if recorded is None:
+            return
+        digest = await anyio.to_thread.run_sync(
+            _digest_prefix, self._temp_file, prefix.length
+        )
+        if digest != recorded:
+            self._compose_prefix_violation = ComposePrefixInvariantError(
+                f"compose prefix of {self._file} changed since it was recorded: "
+                f"source={prefix.filename} length={prefix.length} "
+                f"recorded={recorded.hex()} now={digest.hex()}"
+            )
+            raise self._compose_prefix_violation
+
+    def _raise_compose_prefix_violation(self) -> None:
+        violation = self._compose_prefix_violation
+        if violation is not None:
+            # a fresh instance, so one traceback does not grow per re-raise
+            raise ComposePrefixInvariantError(str(violation)) from violation
 
     async def discard(self, *, keep_destination: bool = False) -> None:
         """Release this never-finished log's resources without writing.
@@ -1369,6 +1581,12 @@ class ZipLogFile:
     async def close(self, header_only: bool) -> EvalLog:
         async with self._lock:
             try:
+                if self._compose_prefix_violation is not None:
+                    # not read: close the zip before the finally closes its file
+                    if self._zip:
+                        self._zip.close()
+                        self._zip = None
+                    self._raise_compose_prefix_violation()
                 self._temp_file.seek(0)
                 # Under trio, read the full log eagerly from the temp file
                 # bytes: LazyList materialization goes through the sync
@@ -1452,8 +1670,9 @@ class ZipLogFile:
         ):
             raise RuntimeError("An eval log can only be seeded before it starts")
         seeded: BinaryIO = tempfile.TemporaryFile()
+        rewritten = False
         try:
-            await _copy_prior_log(prior_log, seeded)
+            prior_etag = await _copy_prior_log(prior_log, seeded)
             summaries = await anyio.to_thread.run_sync(_read_prior_summaries, seeded)
             if keep is not None:
                 keep_names = {_sample_filename(id, epoch) for id, epoch in keep}
@@ -1480,6 +1699,7 @@ class ZipLogFile:
                     )
                     seeded.close()
                     seeded = restricted
+                    rewritten = True
         except BaseException:
             seeded.close()
             raise
@@ -1493,8 +1713,24 @@ class ZipLogFile:
             self._zip = None
             self._temp_file.close()
             self._temp_file = seeded
+            # a prefix from an earlier seed describes the replaced file
+            self._clear_compose_prefix()
             self._open()
             assert self._zip is not None
+
+            # an unrewritten copy is the prior object byte for byte, so its
+            # member area (everything before the central directory, which the
+            # writes below overwrite) can be copied server-side by the first
+            # flush instead of uploaded
+            if (
+                prior_etag is not None
+                and not rewritten
+                and is_s3_filename(prior_log)
+                and is_s3_filename(self._file)
+            ):
+                await self._record_compose_prefix(
+                    ComposeSource(prior_log, prior_etag, self._zip.start_dir)
+                )
 
             kept_names = {_sample_filename(s.id, s.epoch) for s in summaries}
             self._prune_prior_members(kept_names)
@@ -1675,6 +1911,7 @@ class ZipLogFile:
                 if compacted is not None:
                     self._temp_file.close()
                     self._temp_file = compacted
+                    self._clear_compose_prefix()
                     self._open()
                 else:
                     self._open()
@@ -1937,9 +2174,28 @@ def _dedupe_summaries(
     return list(by_key.values())
 
 
+JournalSummaryReader = Callable[
+    [AsyncZipReader, str], Awaitable[list[EvalSampleSummary]]
+]
+"""Reads one journal summary member (by its path in the archive)."""
+
+
+async def _read_journal_summaries(
+    reader: AsyncZipReader, path: str
+) -> list[EvalSampleSummary]:
+    return _parse_summaries(await _read_member_json(reader, path), path.split("/")[-1])
+
+
 async def _read_all_summaries_async(
     reader: AsyncZipReader,
+    read_journal_summaries: JournalSummaryReader = _read_journal_summaries,
 ) -> tuple[list[EvalSampleSummary], int]:
+    """Every sample summary, with the journal summary counter.
+
+    ``read_journal_summaries`` reads each journal member of a running log
+    (no ``summaries.json``); a caller can pass one that serves unchanged
+    members from a cache.
+    """
     cd = await reader.entries()
     entry_names = {e.filename for e in cd.entries}
     count = await _read_summary_counter(reader)
@@ -1958,12 +2214,10 @@ async def _read_all_summaries_async(
         semaphore = anyio.Semaphore(25)
 
         async def read_summary_file(i: int) -> list[EvalSampleSummary]:
-            summary_file = _journal_summary_file(i)
             async with semaphore:
-                data = await _read_member_json(
-                    reader, _journal_summary_path(summary_file)
+                return await read_journal_summaries(
+                    reader, _journal_summary_path(_journal_summary_file(i))
                 )
-            return _parse_summaries(data, summary_file)
 
         per_file = await tg_collect(
             [partial(read_summary_file, i) for i in range(1, count + 1)]
@@ -2009,6 +2263,16 @@ def _read_header(zip: ZipFile, location: str) -> EvalLog:
 
 def _sample_filename(id: str | int, epoch: int) -> str:
     return f"{SAMPLES_DIR}/{id}_epoch_{epoch}.json"
+
+
+# an id may be empty or contain a newline
+_SAMPLE_FILENAME_RE = re.compile(rf"{SAMPLES_DIR}/(.*)_epoch_(\d+)\.json", re.DOTALL)
+
+
+def _sample_key(filename: str) -> SampleRecordKey | None:
+    """The key `_sample_filename` named this member by, or `None` for other members."""
+    match = _SAMPLE_FILENAME_RE.fullmatch(filename)
+    return SampleRecordKey(match[1], int(match[2])) if match else None
 
 
 def _journal_path(file: str) -> str:

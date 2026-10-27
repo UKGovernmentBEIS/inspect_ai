@@ -1,6 +1,7 @@
 import contextlib
 import inspect
 import shlex
+from contextvars import ContextVar
 from datetime import datetime, timezone
 from typing import Any, Iterator, Literal, Type, Union, overload
 
@@ -9,6 +10,7 @@ from pydantic_core import to_jsonable_python
 from typing_extensions import override
 
 from inspect_ai._util.text import truncate_lines, truncate_string_to_bytes
+from inspect_ai._util.working import sandbox_exec_work, untracked_sandbox_execs
 from inspect_ai.util._subprocess import ExecResult
 
 from .environment import (
@@ -34,7 +36,6 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
     def __init__(self, sandbox: SandboxEnvironment) -> None:
         super().__init__()
         self._sandbox = sandbox
-        self._events = True
 
     @override
     async def exec(
@@ -71,7 +72,8 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
 
         # make call
         try:
-            result = await self._sandbox.exec(**params)
+            with sandbox_exec_work():
+                result = await self._sandbox.exec(**params)
         except TimeoutError as ex:
             raise SandboxTimeoutError(
                 str(ex), truncated_output=getattr(ex, "truncated_output", None)
@@ -94,7 +96,7 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
         if timeout_retry is not True:
             options["timeout_retry"] = timeout_retry
 
-        if self._events:
+        if self._events_enabled():
             transcript()._event(
                 SandboxEvent(
                     timestamp=timestamp,
@@ -151,7 +153,7 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
             raise SandboxTimeoutError(str(ex)) from ex
 
         # yield event
-        if self._events:
+        if self._events_enabled():
             transcript()._event(
                 SandboxEvent(
                     timestamp=timestamp,
@@ -185,7 +187,7 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
             raise SandboxTimeoutError(str(ex)) from ex
 
         # yield event
-        if self._events:
+        if self._events_enabled():
             transcript()._event(
                 SandboxEvent(
                     timestamp=timestamp,
@@ -217,13 +219,22 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
     def default_polling_interval(self) -> float:
         return self._sandbox.default_polling_interval()
 
+    def _events_enabled(self) -> bool:
+        return self not in _no_events_proxies.get()
+
     @contextlib.contextmanager
     def no_events(self) -> Iterator[None]:
-        self._events = False
+        """Record no events for calls made inside the block.
+
+        Applies to the current task and tasks it starts inside the block;
+        other tasks using this sandbox still record theirs.
+        """
+        token = _no_events_proxies.set(_no_events_proxies.get() | {self})
         try:
-            yield
+            with untracked_sandbox_execs():
+                yield
         finally:
-            self._events = True
+            _no_events_proxies.reset(token)
 
     @classmethod
     async def sample_cleanup(
@@ -234,6 +245,12 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
         interrupted: bool,
     ) -> None:
         pass
+
+
+# proxies inside `no_events()` in the current context
+_no_events_proxies: ContextVar[frozenset[SandboxEnvironmentProxy]] = ContextVar(
+    "sandbox_no_events_proxies", default=frozenset()
+)
 
 
 def content_display(content: str | bytes) -> str:

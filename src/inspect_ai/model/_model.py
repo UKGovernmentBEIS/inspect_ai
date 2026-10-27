@@ -5,7 +5,7 @@ import functools
 import json
 import logging
 import os
-import time
+import weakref
 from contextvars import ContextVar
 from copy import copy, deepcopy
 from datetime import datetime, timezone
@@ -24,6 +24,7 @@ from typing import (
     Sequence,
     Type,
     TypeAlias,
+    TypeVar,
     cast,
 )
 
@@ -32,6 +33,7 @@ if TYPE_CHECKING:
     from inspect_ai.tool import ToolInfo
 
 import anyio
+import mmh3
 from pydantic import BaseModel
 from pydantic_core import to_jsonable_python
 from shortuuid import uuid
@@ -72,8 +74,10 @@ from inspect_ai._util.retry import report_http_retry
 from inspect_ai._util.rich import format_traceback
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.working import (
-    report_sample_waiting_time,
-    sample_waiting,
+    ModelAttempts,
+    add_sample_wait,
+    sample_clock,
+    sample_wait,
     sample_working_time,
 )
 from inspect_ai.model._generate_overrides import generate_config_override_for_attempt
@@ -111,6 +115,7 @@ from ._chat_message import (
     ChatMessageSystem,
     ChatMessageTool,
     ChatMessageUser,
+    logged_json,
 )
 from ._display import (
     display_conversation_assistant,
@@ -123,7 +128,13 @@ from ._generate_config import (
 )
 from ._model_call import ModelCall, as_error_response
 from ._model_data.model_data import ModelCost, ModelInfo
-from ._model_output import ModelFallback, ModelOutput, ModelUsage, ServedModelUsage
+from ._model_output import (
+    ModelFallback,
+    ModelOutput,
+    ModelUsage,
+    ServedModelUsage,
+    usage_input_tokens,
+)
 from ._response_headers import ResponseHeaders, track_response_headers
 from ._stream import (
     ModelStreamObserver,
@@ -799,7 +810,7 @@ class ConnectionSlot:
     async def acquire(self) -> None:
         """Acquire the slot, tracking the wait as sample waiting time."""
         if not self._held:
-            async with sample_waiting():
+            with sample_wait():
                 await self._semaphore.__aenter__()
             self._held = True
 
@@ -837,7 +848,7 @@ class Model:
     For example:
 
     ```python
-    async with get_model("openai/gpt-4o") as model:
+    async with get_model("openai/gpt-6-luna") as model:
         response = await model.generate("Say hello")
     ```
     """
@@ -1007,7 +1018,6 @@ class Model:
         # normalize input to chat
         if isinstance(input, str):
             input = [ChatMessageUser(content=input)]
-        history = input
 
         # insert any system message provided in config
         if config.system_message:
@@ -1023,7 +1033,6 @@ class Model:
             generate_step = await sentinel_before_generate(
                 model=str(self),
                 input=prepared.input,
-                history=history,
                 tools=prepared.tools,
                 tool_choice=prepared.tool_choice,
                 config=config,
@@ -1154,6 +1163,8 @@ class Model:
 
         config = self._resolve_config(config)
 
+        attempts = ModelAttempts()
+
         # Retry handler for token counting (429/timeouts retried with the
         # same backoff as `generate`). Count-token calls still need a
         # concurrency bound -- a caller can fan out many counts inside one
@@ -1171,15 +1182,25 @@ class Model:
                     log_model_retry,
                     qualified_model_name=self.api.qualified_model_name,
                 ),
-                report_sample_waiting_time,
-                self.api.retry_wait(),
+                sample_waits=True,
+                wait=self.api.retry_wait(),
                 qualified_model_name=self.api.qualified_model_name,
+                attempts=attempts,
             )
         )
+        async def _count_tokens_retried(
+            input: str | list[ChatMessage], config: GenerateConfig | None
+        ) -> int:
+            with attempts.attempt():
+                return await self.api.count_tokens(input, config)
+
         async def _count_tokens(
             input: str | list[ChatMessage], config: GenerateConfig | None
         ) -> int:
-            return await self.api.count_tokens(input, config)
+            try:
+                return await _count_tokens_retried(input, config)
+            finally:
+                attempts.commit()
 
         model_name = ModelName(self)
         key = f"ModelCountTokens({_connection_pool_key(self.api)})"
@@ -1300,6 +1321,7 @@ class Model:
             f"{model_name}_compact", 10, key, False
         )
         async with _held_connection_slot(compact_sem.semaphore) as slot:
+            attempts = ModelAttempts()
 
             @retry(
                 **model_retry_config(
@@ -1312,24 +1334,27 @@ class Model:
                         log_model_retry,
                         qualified_model_name=self.api.qualified_model_name,
                     ),
-                    report_sample_waiting_time,
-                    self.api.retry_wait(),
+                    sample_waits=True,
+                    wait=self.api.retry_wait(),
                     qualified_model_name=self.api.qualified_model_name,
+                    attempts=attempts,
                 )
             )
             async def _compact(
                 messages: list[ChatMessage],
             ) -> tuple[list[ChatMessage], ModelUsage | None]:
-                # report_sample_waiting_time directly: unlike generate,
-                # compact has no post-call waiting reconciliation to feed
-                await wait_generate_dispatch(self, report_sample_waiting_time, slot)
-                return await self.api.compact(messages, tools, config, instructions)
+                await wait_generate_dispatch(self, slot)
+                with attempts.attempt():
+                    return await self.api.compact(messages, tools, config, instructions)
 
             from inspect_ai.log._samples import cleared_retry_wait
 
             # Call compact with retry handling
             with cleared_retry_wait():
-                compacted_messages, usage = await _compact(input)
+                try:
+                    compacted_messages, usage = await _compact(input)
+                finally:
+                    attempts.commit()
 
             # Record and check usage
             if usage:
@@ -1362,22 +1387,9 @@ class Model:
 
         _check_remote_mcp_approval(base_tools)
 
-        # if we have a specific tool selected then filter out the others
-        if isinstance(tool_choice, ToolFunction):
-            base_tools = [tool for tool in base_tools if tool.name == tool_choice.name]
-
-        # if tool_choice is "none" or if there are no tools then fully purge
-        # the tools (as some models (e.g. openai and mistral) get confused
-        # if you pass them tool definitions along with tool_choice == "none"
-        # (they both 'semi' use the tool by placing the arguments in JSON
-        # in their output!). on the other hand, anthropic actually errors if
-        # there are tools anywhere in the message stream and no tools defined.
-        if tool_choice == "none" or len(base_tools) == 0:
-            # allow model providers to implement a tools_required() method to
-            # force tools to be passed (we need this for anthropic)
-            if not self.api.tools_required():
-                base_tools = []
-            tool_choice = "none"
+        base_tools, tool_choice = tools_for_tool_choice(
+            self.api, base_tools, tool_choice
+        )
 
         # handle reasoning history
         input = resolve_reasoning_history(input, config, self.api)
@@ -1449,17 +1461,11 @@ class Model:
             publish_partial=_model_event_sink.get() is None,
         )
 
-        # track reported waiting time during this generate call
-        reported_waiting_time = 0.0
-
-        def report_waiting_time(waiting_time: float) -> None:
-            nonlocal reported_waiting_time
-            report_sample_waiting_time(waiting_time)
-            reported_waiting_time += waiting_time
-
         # Local import: model is imported very early and the pause gate is
         # only consulted per attempt (see wait_generate_dispatch's fast path).
         from inspect_ai._control.pause import wait_generate_dispatch
+
+        attempts = ModelAttempts()
 
         @retry(
             **model_retry_config(
@@ -1472,15 +1478,14 @@ class Model:
                     log_model_retry,
                     qualified_model_name=self.api.qualified_model_name,
                 ),
-                report_waiting_time,
-                self.api.retry_wait(),
+                sample_waits=True,
+                wait=self.api.retry_wait(),
                 qualified_model_name=self.api.qualified_model_name,
+                attempts=attempts,
             )
         )
         async def generate() -> tuple[ModelOutput, BaseModel]:
-            # report_waiting_time (not report_sample_waiting_time): held time
-            # must also accumulate into this call's reconciliation below
-            await wait_generate_dispatch(self, report_waiting_time, connection)
+            await wait_generate_dispatch(self, connection)
 
             # type-checker can't see that we made sure tool_choice is not none in the outer frame
             assert tool_choice is not None
@@ -1590,8 +1595,11 @@ class Model:
             idle_cm = idle_scope if idle_scope is not None else contextlib.nullcontext()
             response_headers = ResponseHeaders()
 
-            with trace_action(logger, "Model", f"generate ({str(self)})"):
-                time_start = time.monotonic()
+            with (
+                trace_action(logger, "Model", f"generate ({str(self)})"),
+                attempts.attempt(),
+            ):
+                time_start = sample_clock()
                 try:
                     assert isinstance(event, ModelEvent)
                     # Local import to avoid an import cycle (agent → model → agent).
@@ -1666,7 +1674,8 @@ class Model:
                     stream_observer.discard_partial_output()
                     raise
                 finally:
-                    time_elapsed = time.monotonic() - time_start
+                    time_end = sample_clock()
+                    time_elapsed = time_end - time_start
 
             if isinstance(result, tuple):
                 output, call = result
@@ -1701,10 +1710,21 @@ class Model:
                     provider_message=str(output),
                 ) from output
 
+            # a provider whose generate makes one request leaves the context
+            # size to be read from its usage
+            if output.input_context_tokens is None:
+                output.input_context_tokens = usage_input_tokens(output.usage)
+
             # update output with time (call.time captures time spent
             # on the actual request that succeeds w/ status 200)
             if call and call.time is not None:
                 output.time = call.time
+                # the attempt's time before its successful request went to
+                # the provider SDK's own failed requests and retry sleeps
+                # (zero means the provider did not measure the request)
+                if call.time > 0:
+                    add_sample_wait(time_start, time_end - call.time, completed=False)
+                    attempts.exclude_before(time_end - call.time)
             else:
                 output.time = time_elapsed
 
@@ -1736,12 +1756,13 @@ class Model:
 
             return output, event
 
-        # call the model (this will do retries, etc., so report waiting time
-        # as elapsed time - actual time for successful model call)
-        time_start = time.monotonic()
+        # call the model (this will do retries, etc.)
         with cleared_retry_wait():
-            model_output, event = await generate()
-        total_time = time.monotonic() - time_start
+            try:
+                model_output, event = await generate()
+            finally:
+                # the last attempt, successful or failed without a retry
+                attempts.commit()
 
         # record any model fallback against the active sample (here in the
         # outer frame rather than alongside usage recording so that cache
@@ -1786,14 +1807,6 @@ class Model:
             and not _request_was_cache_hit.get()
         ):
             controller.notify_success()
-        if model_output.time:
-            # we've already reported some of the waiting time in tenacity callbacks
-            # any remaining waiting time will have been due to internal retry within
-            # model providers, which we can get from:
-            #    total_time - reported_waiting_time - model_call_time
-            report_sample_waiting_time(
-                total_time - reported_waiting_time - model_output.time
-            )
 
         # report refusal
         if not model_output.empty and model_output.stop_reason == "content_filter":
@@ -2024,7 +2037,7 @@ class Model:
             model=model,
             role=self.role,
             requested_model=_requested_model.get(),
-            input=input,
+            input=_snapshot_messages(input),
             tools=tools,
             tool_choice=tool_choice,
             config=config,
@@ -2033,6 +2046,11 @@ class Model:
             call=call,
             pending=output is None,
         )
+        # at creation, so a request still in flight counts as sent
+        if is_agent_generate():
+            from inspect_ai._sentinel._dispatch import record_agent_turn
+
+            record_agent_turn(input)
         sink = _model_event_sink.get()
         if sink is None:
             transcript()._event(event)
@@ -2058,7 +2076,7 @@ class Model:
             if isinstance(result, ModelOutput):
                 if result.choices:
                     display_conversation_assistant(input, result.choices[0].message)
-                event.output = result
+                event.output = _snapshot_output(result)
             else:
                 display_conversation_assistant_error(result)
                 event.error = exception_message(result)
@@ -2121,6 +2139,53 @@ deprecated and will receive ``model.name`` instead.
 A filter may substitute for the default model generation by returning a
 ``ModelOutput``, modify the input parameters by returning a ``GenerateInput``,
 or return ``None`` to allow default processing to continue.
+"""
+
+
+ModelResponseFilter: TypeAlias = Callable[
+    [Model, ModelOutput, GenerateInput], Awaitable[ModelOutput | None]
+]
+"""Filter that can replace a model's output after generation.
+
+Receives the resolved ``Model``, a deep copy of the attempt's ``ModelOutput``,
+and a ``GenerateInput`` with the messages, tools, tool choice and config sent to
+the model. The output comes from ``model.generate()``, or is the one a request
+``filter`` substituted (then there is no ``model.generate()`` call and no
+``ModelEvent``). The ``GenerateInput`` holds the bridge's live objects, which are
+recorded in the ``ModelEvent`` and bridge state: do not mutate them.
+
+Return ``None`` to keep the output, or a ``ModelOutput`` with at least one choice
+to replace it. A replacement is rebuilt from its ``model_dump()`` and validated,
+including values edited in place: valid plain dicts become models, models or
+dataclasses stored in ``metadata`` or tool-call ``arguments`` come back as plain
+dicts, and ``completion`` is re-derived from the message. Reasoning
+(``ContentReasoning``) and server tool items (``ContentToolUse``) can only be
+kept unchanged or removed, and server tool items are kept all or none. A tool
+call that keeps an original call's ``id`` keeps its ``function``; give a call to
+a different function a new ``id``. Server work still pending at the end of the
+turn (Anthropic) goes with the server tool items: a message that keeps them
+takes the ``id`` of the message they came from and keeps that work, and a changed
+message that keeps none gets a new ``id`` and drops it. The
+filter also receives a model refusal
+under ``fail_on_refusal`` (from the default generation or a request ``filter``
+that generates), before it is retried or raised, and can replace it. An output
+still ``stop_reason="content_filter"``
+after the filter is handled like a model refusal (``retry_refusals``,
+``fail_on_refusal``). The ``ModelEvent`` keeps the model's
+own output; the replacement is what the agent, bridge state and later turns see.
+Model calls the filter makes run under the bridge's approval policies.
+
+An exception fails the sample as a ``ResponseFilterError``, except that a
+``LimitExceededError``, ``TerminateSampleError`` or ``ModelRefusalError`` keeps
+its normal outcome. A task group raising only such errors ends the sample with the
+first; one mixing them with any other exception is a ``ResponseFilterError``. A
+replacement is also a ``ResponseFilterError`` if it fails ``ModelOutput``
+validation, has no choices, has tool-call ``arguments`` the filter changed that
+are not JSON-serializable, or breaks the rules above for reasoning, server tool
+items and tool-call functions. Other failures to render a replacement for the agent
+behave as they would without a filter: on the sandbox bridge they reach the agent
+as an error reply it may retry, and in-process they raise from the agent's model
+call.
 """
 
 
@@ -2294,7 +2359,7 @@ def get_model(
     to the `Model` class. For example:
 
     ```python
-    async with get_model("openai/gpt-4o") as model:
+    async with get_model("openai/gpt-6-luna") as model:
         response = await model.generate("Say hello")
     ```
 
@@ -2695,6 +2760,27 @@ def _make_content_reducer(
 
 
 # Functions to reduce consecutive user messages to a single user message -> required for some models
+def tools_for_tool_choice(
+    api: ModelAPI, tools: list[ToolInfo], tool_choice: ToolChoice
+) -> tuple[list[ToolInfo], ToolChoice]:
+    """The tools and tool choice `Model.generate()` sends to the provider.
+
+    A `ToolFunction` choice keeps only the selected tool. With `"none"`, or no
+    tools left, the tools are purged (unless the provider's `tools_required()`
+    says otherwise) and the choice becomes `"none"`: some models (e.g. OpenAI
+    and Mistral) get confused by tool definitions alongside `"none"` and 'semi'
+    use them by placing the arguments in JSON in their output, while Anthropic
+    errors if there are tools anywhere in the message stream and none defined.
+    """
+    if isinstance(tool_choice, ToolFunction):
+        tools = [tool for tool in tools if tool.name == tool_choice.name]
+    if tool_choice == "none" or len(tools) == 0:
+        if not api.tools_required():
+            tools = []
+        tool_choice = "none"
+    return tools, tool_choice
+
+
 def collapse_consecutive_messages_for_api(
     messages: list[ChatMessage], api: ModelAPI
 ) -> list[ChatMessage]:
@@ -2940,6 +3026,99 @@ class ModelEventSink(Protocol):
 _model_event_sink: ContextVar[ModelEventSink | None] = ContextVar(
     "_model_event_sink", default=None
 )
+
+
+class _Snapshot(NamedTuple):
+    message: weakref.ReferenceType[ChatMessage]
+    hash: bytes
+    """Hash of the message's `logged_json()`."""
+
+
+_message_snapshots: dict[str | int, _Snapshot] = {}
+"""Latest snapshot of each message, held while a logged event holds it.
+
+Keyed by message id, or by `id()` of the live message when it has none.
+Each hit is confirmed against the serialization hash, so an address reused
+by another message can only find a copy that serializes the same.
+"""
+
+
+def _snapshot_messages(messages: list[ChatMessage]) -> list[ChatMessage]:
+    """Copy messages so later in-place edits do not change a logged input.
+
+    Each message is deep copied unless the last copy made for it still
+    serializes the same (as the log records it), in which case that copy is
+    reused. Successive events then share the objects of unchanged messages,
+    which keeps memory proportional to message versions and lets the log's
+    message pool dedup them by identity. A completed event's output messages
+    are copied the same way (`_snapshot_output`), so an agent that edits the
+    assistant message it appended does not change the earlier event's
+    output, and the next input reuses that copy. This holds while a message
+    keeps its id (or, without one, is the same live object); preparation
+    that creates new messages with fresh ids each generation
+    (reasoning-history filtering, tool `model_input` rewriting, media
+    extraction) still copies them every time. Only the latest copy for an id
+    is reused, so alternating different versions with the same id (handoff
+    filters, concurrent epochs) copies on each switch. The comparison
+    serializes every message on each call, so its cost grows with the inline
+    media (base64 data URIs) in the history and can exceed deep copying,
+    which shares those strings.
+
+    A message that can't be serialized or deep copied (a numpy array or a
+    lock in its metadata, nesting past the recursion limit) is logged as the
+    live message, as before snapshots, so later edits to it still show in
+    the event. Serializing must leave values unchanged: an iterator in a
+    message is consumed by the comparison, as writing the log consumes it.
+    """
+    return [_snapshot_message(message) for message in messages]
+
+
+def _snapshot_output(output: ModelOutput) -> ModelOutput:
+    """Copy of `output` whose choice messages are snapshots (`_snapshot_messages`)."""
+    return output.model_copy(
+        update={
+            "choices": [
+                choice.model_copy(update={"message": _snapshot_message(choice.message)})
+                for choice in output.choices
+            ]
+        }
+    )
+
+
+_MessageT = TypeVar("_MessageT", bound=ChatMessage)
+
+
+def _snapshot_message(message: _MessageT) -> _MessageT:
+    key = message.id if message.id is not None else id(message)
+    # any value can fail to serialize or copy, in any way: log it live
+    try:
+        logged = logged_json(message)
+        if logged is None:
+            return message
+        digest = mmh3.hash_bytes(logged)
+        entry = _message_snapshots.get(key)
+        snapshot = entry.message() if entry and entry.hash == digest else None
+        # the logged JSON includes the role, so a hit has the message's type
+        if isinstance(snapshot, type(message)):
+            return snapshot
+        copied = deepcopy(message)
+    except Exception:
+        return message
+    _message_snapshots[key] = _Snapshot(
+        weakref.ref(copied, _forget_snapshot(key)), digest
+    )
+    return copied
+
+
+def _forget_snapshot(
+    key: str | int,
+) -> Callable[[weakref.ReferenceType[ChatMessage]], None]:
+    def forget(ref: weakref.ReferenceType[ChatMessage]) -> None:
+        entry = _message_snapshots.get(key)
+        if entry is not None and entry.message is ref:
+            del _message_snapshots[key]
+
+    return forget
 
 
 @contextlib.contextmanager

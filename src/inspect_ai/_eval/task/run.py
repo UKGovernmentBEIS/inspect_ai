@@ -40,7 +40,7 @@ from inspect_ai._eval.task.scan import Scanners
 from inspect_ai._sentinel._config import SentinelRoot
 from inspect_ai._sentinel._context import SentinelFailure
 from inspect_ai._sentinel._scope import sentinel_solving
-from inspect_ai._util._async import Wake, aexit_shielded_when
+from inspect_ai._util._async import Wake, aexit_shielded_when, raise_unwrapped
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import get_async_filesystem
 from inspect_ai._util.constants import (
@@ -70,6 +70,7 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai._util.working import (
     init_sample_working_time,
+    sample_clock,
     sample_start_datetime,
     sample_waiting_time,
 )
@@ -2984,7 +2985,7 @@ async def _task_run_sample_attempt(
                                         "interrupt, or an eval cancel)"
                                     ) from solver_cancel
                             except Exception as ex:
-                                raise inner_exception(ex)
+                                raise_unwrapped(ex, inner_exception(ex))
                             finally:
                                 # capture sample limits
                                 record_sample_limit_data(
@@ -3468,7 +3469,8 @@ def create_eval_sample(
     # construct sample for logging
 
     # compute total time if we can
-    total_time = time.monotonic() - start_time if start_time is not None else None
+    end_time = sample_clock()
+    total_time = end_time - start_time if start_time is not None else None
 
     return EvalSample(
         id=id,
@@ -3503,7 +3505,7 @@ def create_eval_sample(
         started_at=started_at.isoformat() if started_at is not None else None,
         completed_at=datetime.now(timezone.utc).isoformat(),
         total_time=round(total_time, 3) if total_time is not None else None,
-        working_time=round(total_time - sample_waiting_time(), 3)
+        working_time=round(total_time - sample_waiting_time(start_time, end_time), 3)
         if total_time is not None
         else None,
         error=error,

@@ -1,9 +1,8 @@
 import json
-import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import replace
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 from unittest.mock import AsyncMock, patch
 
 import anyio
@@ -55,7 +54,8 @@ from inspect_ai.tool._tool import ToolParsingError
 from inspect_ai.tool._tool_call import default_tool_call_viewer
 from inspect_ai.tool._tool_params import ToolParam, ToolParams
 
-try:
+# mypy checks the tests against inspect_sentinel's API; they run on the fake
+if TYPE_CHECKING:
     from inspect_sentinel import (
         AfterGenerate,
         AfterToolCall,
@@ -63,20 +63,32 @@ try:
         BeforeToolCall,
         Context,
         Decision,
+        Escalations,
         MonitorGroup,
         Observation,
         Protocol,
         ProtocolGroup,
         monitor,
-        observe_only,
         protocol,
     )
-    from inspect_sentinel._rules import result_text
-except ImportError:
-    pytest.skip("inspect_sentinel is not installed", allow_module_level=True)
+else:
+    from test_helpers.fake_sentinel import (
+        AfterGenerate,
+        AfterToolCall,
+        BeforeGenerate,
+        BeforeToolCall,
+        Context,
+        Decision,
+        Escalations,
+        MonitorGroup,
+        Observation,
+        Protocol,
+        ProtocolGroup,
+        monitor,
+        protocol,
+    )
 
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
+pytestmark = pytest.mark.usefixtures("fake_sentinel")
 
 
 TASK = "Tidy up the working directory."
@@ -101,12 +113,16 @@ def bridge_recording(seen: Any) -> MonitorGroup:
 def bridge_reject(
     message: str | None = "Use a safer command.", seen: Any = None
 ) -> ProtocolGroup:
-    async def decide(context: Context, step: BeforeToolCall) -> Decision | None:
+    async def decide(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
         if step.call.function == "bash":
             return Decision.reject("risky", message=message)
         return None
 
-    async def later(context: Context, step: AfterToolCall) -> Decision | None:
+    async def later(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
         if seen is not None:
             seen.append(step)
         return None
@@ -116,7 +132,9 @@ def bridge_reject(
 
 @protocol
 def bridge_modify() -> Protocol:
-    async def rewrite(context: Context, step: BeforeToolCall) -> Decision | None:
+    async def rewrite(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
         modified = replace(step.call, arguments={"path": "safe.txt"})
         return Decision(action="modify", modified=modified, explanation="narrowed")
 
@@ -125,10 +143,14 @@ def bridge_modify() -> Protocol:
 
 @protocol
 def bridge_terminate(after: bool = False) -> ProtocolGroup:
-    async def before(context: Context, step: BeforeToolCall) -> Decision | None:
+    async def before(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
         return None if after else Decision.terminate("too risky")
 
-    async def later(context: Context, step: AfterToolCall) -> Decision | None:
+    async def later(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
         return Decision.terminate(f"saw {step.result.text}") if after else None
 
     return ProtocolGroup(before, later)
@@ -136,12 +158,16 @@ def bridge_terminate(after: bool = False) -> ProtocolGroup:
 
 @protocol
 def bridge_raising(after: bool = False) -> ProtocolGroup:
-    async def before(context: Context, step: BeforeToolCall) -> Decision | None:
+    async def before(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
         if not after:
             raise PermissionError("sentinel denied")
         return None
 
-    async def later(context: Context, step: AfterToolCall) -> Decision | None:
+    async def later(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
         if after:
             raise PermissionError("sentinel denied")
         return None
@@ -307,6 +333,12 @@ def root_decisions() -> list[tuple[str, str, str | None]]:
     ]
 
 
+def produced_message_ids() -> list[str | None]:
+    return [
+        e.output.message.id for e in transcript().events if isinstance(e, ModelEvent)
+    ]
+
+
 def observations() -> list[tuple[str, str]]:
     return [(e.step_id, e.stage) for e in sentinel_events() if e.kind == "observation"]
 
@@ -356,7 +388,7 @@ async def test_tool_call_stage_sees_the_call_and_what_the_model_was_sent() -> No
         )
 
     bridge.filter = add_system_message
-    with active(observe_only([bridge_recording(seen)])):
+    with active([bridge_recording(seen)]):
         output = await generate(bridge, model, scaffold)
 
     assert output.message.tool_calls == [BASH]
@@ -366,7 +398,7 @@ async def test_tool_call_stage_sees_the_call_and_what_the_model_was_sent() -> No
     assert step.message == "Fetching."
     assert step.input == model.inputs[0]
     assert [m.text for m in step.input] == ["Be careful.", TASK]
-    assert [m.text for m in step.history] == [TASK, "Fetching."]
+    assert step.message_id == output.message.id
     events = sentinel_events()
     assert {(e.step_id, e.stage, e.conversation) for e in events} == {
         (BASH.id, "tool_call", step.conversation)
@@ -444,17 +476,16 @@ async def test_terminate_ends_the_sample() -> None:
             await generate(bridge, model, [ChatMessageUser(content=TASK)])
 
 
-async def test_sandbox_terminate_signals_the_monitor() -> None:
+async def test_sandbox_terminate_propagates_without_signalling_the_monitor() -> None:
     model = Scripted(calls_output(BASH))
     bridge = sandbox_bridge()
 
+    # the service dispatcher answers the RPC and propagates the termination
     with active(bridge_terminate()):
-        with pytest.raises(TerminateSampleError):
+        with pytest.raises(TerminateSampleError, match="too risky"):
             await generate(bridge, model, [ChatMessageUser(content=TASK)])
 
-    assert bridge._failure_requested.is_set()
-    assert isinstance(bridge._failure, TerminateSampleError)
-    assert bridge._failure.reason == "too risky"
+    assert not bridge._failure_requested.is_set()
 
 
 async def test_an_approvers_modify_reaches_the_sentinel() -> None:
@@ -463,7 +494,7 @@ async def test_an_approvers_modify_reaches_the_sentinel() -> None:
     bridge = in_process_bridge([ChatMessageUser(content=TASK)])
     bridge.approval = [ApprovalPolicy(modifying_approver(), "*")]
 
-    with active(observe_only([bridge_recording(seen)])):
+    with active([bridge_recording(seen)]):
         output = await generate(bridge, model, [ChatMessageUser(content=TASK)])
 
     [step] = seen
@@ -480,7 +511,7 @@ async def test_an_approval_reject_skips_the_sentinel() -> None:
         ApprovalPolicy(auto_approver("approve"), "*"),
     ]
 
-    with active(observe_only([bridge_recording(seen)])):
+    with active([bridge_recording(seen)]):
         output = await generate(bridge, model, [ChatMessageUser(content=TASK)])
 
     assert output.message.tool_calls == [READ]
@@ -493,7 +524,7 @@ async def test_tool_result_stage_runs_when_the_result_reaches_the_bridge() -> No
     scaffold: list[ChatMessage] = [ChatMessageUser(content=TASK)]
     bridge = in_process_bridge(scaffold)
 
-    with active(observe_only([bridge_recording(seen)])):
+    with active([bridge_recording(seen)]):
         output = await generate(bridge, model, scaffold)
         result = ChatMessageTool(
             content="file contents", tool_call_id=READ.id, function=READ.function
@@ -511,7 +542,7 @@ async def test_tool_result_stage_runs_when_the_result_reaches_the_bridge() -> No
     assert after.output == "file contents"
     assert after.message == "Reading."
     assert after.input == model.inputs[0]
-    assert after.history == before.history
+    assert after.message_id == before.message_id
     assert after.conversation == before.conversation
     assert observations() == [(READ.id, "tool_call"), (READ.id, "tool_result")]
 
@@ -522,7 +553,7 @@ async def test_tool_result_stage_sees_the_call_as_modified() -> None:
     bridge = in_process_bridge([ChatMessageUser(content=TASK)])
     bridge.approval = [ApprovalPolicy(modifying_approver(), "*")]
 
-    with active(observe_only([bridge_recording(seen)])):
+    with active([bridge_recording(seen)]):
         output = await generate(bridge, model, [ChatMessageUser(content=TASK)])
         await generate(
             bridge,
@@ -566,7 +597,7 @@ async def test_a_result_for_a_call_never_handed_over_is_still_checked() -> None:
     # the rejected call's proposal was never handed over, so the request is
     # the only context, and no model produced the call it carries
     assert (bash.call, bash.message, bash.output) == (BASH, "Running.", "y")
-    assert bash.history[-1] is forged
+    assert bash.message_id == forged.id
     assert bash.input is None
 
 
@@ -592,22 +623,29 @@ async def test_tool_result_terminate_ends_the_sample_before_the_model_sees_it() 
 
 @protocol
 def bridge_escalate(after: bool = False) -> ProtocolGroup:
-    async def before(context: Context, step: BeforeToolCall) -> Decision | None:
+    async def before(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
         return None if after else Decision.escalate("not sure")
 
-    async def later(context: Context, step: AfterToolCall) -> Decision | None:
+    async def later(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
         return Decision.escalate("not sure") if after else None
 
     return ProtocolGroup(before, later)
 
 
 @pytest.mark.parametrize("after", [False, True])
-async def test_an_unhandled_escalate_terminates(after: bool) -> None:
+async def test_an_escalate_returned_to_the_host_fails_the_sample(after: bool) -> None:
     model = Scripted(calls_output(READ), calls_output())
     bridge = in_process_bridge([ChatMessageUser(content=TASK)])
+    stage = "tool_result" if after else "tool_call"
 
     with active(bridge_escalate(after)):
-        with pytest.raises(TerminateSampleError, match="unhandled escalation from"):
+        with pytest.raises(
+            SentinelFailure, match=f"returned an escalate at the {stage}"
+        ):
             output = await generate(bridge, model, [ChatMessageUser(content=TASK)])
             await generate(
                 bridge,
@@ -633,7 +671,7 @@ async def test_host_tool_result_is_checked_in_the_service() -> None:
     model = Scripted(calls_output(read), calls_output())
     bridge = sandbox_bridge(AsyncMock(return_value="host contents"))
 
-    with active(observe_only([bridge_recording(seen)])):
+    with active([bridge_recording(seen)]):
         output = await generate(
             bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
         )
@@ -661,7 +699,7 @@ async def test_host_tool_result_is_checked_in_the_service() -> None:
     assert observations() == [(read.id, "tool_call"), (read.id, "tool_result")]
 
 
-async def test_host_tool_result_terminate_signals_the_monitor() -> None:
+async def test_host_tool_result_terminate_propagates_from_the_service() -> None:
     read = ToolCall(
         id="host_1", function="mcp__host__read_file", arguments=READ.arguments
     )
@@ -675,7 +713,8 @@ async def test_host_tool_result_terminate_signals_the_monitor() -> None:
         with pytest.raises(TerminateSampleError, match="saw secret"):
             await call_host_tool(bridge)("host", "read_file", READ.arguments)
 
-    assert isinstance(bridge._failure, TerminateSampleError)
+    # the service dispatcher answers the RPC and propagates the termination
+    assert not bridge._failure_requested.is_set()
 
 
 @pytest.mark.parametrize("after", [False, True])
@@ -707,7 +746,7 @@ async def test_cancellation_during_the_tool_call_stage_propagates() -> None:
     bridge = in_process_bridge([ChatMessageUser(content=TASK)])
     outputs: list[ModelOutput] = []
 
-    with active(observe_only([bridge_waiting(started, cleaned_up)])):
+    with active([bridge_waiting(started, cleaned_up)]):
         with anyio.CancelScope() as scope:
 
             async def cancel() -> None:
@@ -724,8 +763,7 @@ async def test_cancellation_during_the_tool_call_stage_propagates() -> None:
     assert cleaned_up.is_set()
     assert outputs == []
     assert [(e.path, e.status) for e in sentinel_events()] == [
-        ("bridge_waiting", "cancelled"),
-        ("", "cancelled"),
+        ("bridge_waiting", "cancelled")
     ]
 
 
@@ -793,7 +831,7 @@ def test_an_in_process_bridged_agent_runs_both_stages() -> None:
         Task(
             dataset=[Sample(input=TASK)],
             solver=openai_scaffold(),
-            sentinel=observe_only([bridge_recording(seen)]),
+            sentinel=[bridge_recording(seen)],
         ),
         model=model,
     )[0]
@@ -849,7 +887,7 @@ def test_a_bridged_agent_runs_every_stage_once_in_order() -> None:
         Task(
             dataset=[Sample(input=TASK)],
             solver=openai_scaffold(),
-            sentinel=observe_only([every_stage(seen)]),
+            sentinel=[every_stage(seen)],
         ),
         model=model,
     )[0]
@@ -886,7 +924,7 @@ async def test_a_dispatched_call_is_checked_as_its_target() -> None:
     model = Scripted(calls_output(call))
     bridge = sandbox_bridge()
 
-    with active([bridge_modify(), observe_only([bridge_recording(seen)])]):
+    with active([bridge_modify(), bridge_recording(seen)]):
         output = await generate(bridge, model, [ChatMessageUser(content=TASK)])
 
     [step] = seen
@@ -913,7 +951,7 @@ async def test_an_approval_reject_of_a_sibling_runs_no_sentinel() -> None:
         ApprovalPolicy(auto_approver("approve"), "*"),
     ]
 
-    with active(observe_only([bridge_recording(seen)])):
+    with active([bridge_recording(seen)]):
         await generate(bridge, model, [ChatMessageUser(content=TASK)])
 
     # only the regenerated response reached the sentinel
@@ -944,7 +982,7 @@ async def test_a_google_result_is_matched_to_the_call_handed_over() -> None:
     ]
     user: Any = {"role": "user", "parts": [{"text": TASK}]}
 
-    with active(observe_only([bridge_recording(seen)])):
+    with active([bridge_recording(seen)]):
         first = await inspect_google_api_request(
             {"model": "inspect", "contents": [user], "tools": tools},
             None,
@@ -985,7 +1023,7 @@ async def test_a_host_call_that_fails_validation_has_no_tool_result_stage() -> N
     tool = AsyncMock(return_value="x")
     bridge = sandbox_bridge(tool)
 
-    with active(observe_only([bridge_recording(seen)])):
+    with active([bridge_recording(seen)]):
         output = await generate(
             bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
         )
@@ -1021,7 +1059,7 @@ async def test_a_host_call_matching_several_proposals_gets_no_proposal_context()
     model = Scripted(calls_output(stale), calls_output(fresh))
     bridge = sandbox_bridge(AsyncMock(return_value="contents"))
 
-    with active(observe_only([bridge_recording(seen)])):
+    with active([bridge_recording(seen)]):
         # the scaffold never ran the first response's call
         await generate(
             bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
@@ -1083,7 +1121,7 @@ async def test_a_host_tool_is_viewed_with_its_registered_viewer() -> None:
         tools={"viewed_read_file": viewed_read_file(AsyncMock(return_value="contents"))}
     )
 
-    with active(observe_only([bridge_recording(seen)])):
+    with active([bridge_recording(seen)]):
         output = await generate(
             bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
         )
@@ -1123,7 +1161,7 @@ async def test_a_dispatched_call_is_viewed_with_its_targets_viewer() -> None:
     model = Scripted(calls_output(call))
     bridge = sandbox_bridge(tools={"viewed_read_file": viewed_read_file(AsyncMock())})
 
-    with active(observe_only([bridge_recording(seen)])):
+    with active([bridge_recording(seen)]):
         await generate(bridge, model, [ChatMessageUser(content=TASK)])
 
     [step] = seen
@@ -1141,7 +1179,7 @@ def test_dropping_old_proposals_warns_once(
     monkeypatch.setattr(inspect_logger, "_warned", [])
     bridge = in_process_bridge([])
     checks = [
-        _sentinel.SentinelCheck(call, call, None, "", [])
+        _sentinel.SentinelCheck(call, call, None, "", "message_1", [])
         for call in [replace(READ, id=f"read_{i}") for i in range(4)]
     ]
 
@@ -1186,7 +1224,9 @@ async def test_a_result_whose_proposal_was_dropped_is_still_checked(
 
 @protocol
 def terminate_on_secret() -> Protocol:
-    async def after(context: Context, step: AfterToolCall) -> Decision | None:
+    async def after(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
         if "secret" in step.result.text:
             return Decision.terminate("blocked secret")
         return None
@@ -1235,7 +1275,7 @@ async def test_repeated_calls_are_checked_with_their_own_results(
     history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
     bridge = sandbox_bridge() if sandbox else in_process_bridge(history)
 
-    with active(observe_only([bridge_recording(seen)])):
+    with active([bridge_recording(seen)]):
         for index, call in enumerate(calls):
             output = await generate(bridge, model, history)
             history += [
@@ -1305,7 +1345,7 @@ async def test_google_results_of_repeated_calls_are_each_checked() -> None:
         AgentState(messages=[]), model_aliases={"inspect": model.model}
     )
 
-    with active(observe_only([bridge_recording(seen)])):
+    with active([bridge_recording(seen)]):
         await google_round_trips(bridge, model, ["same", "same", "new"])
 
     # Google mints the same id for each call, but each is its own execution
@@ -1324,7 +1364,7 @@ async def test_google_identical_results_of_repeated_calls_are_each_checked() -> 
         AgentState(messages=[]), model_aliases={"inspect": model.model}
     )
 
-    with active(observe_only([bridge_recording(seen)])):
+    with active([bridge_recording(seen)]):
         await google_round_trips(bridge, model, ["same", "same", "same"])
 
     afters = [s for s in seen if isinstance(s, AfterToolCall)]
@@ -1373,7 +1413,7 @@ async def test_google_overlapping_requests_keep_their_own_context() -> None:
         )
 
     old_user = {"role": "user", "parts": [{"text": OLD_REQUEST}]}
-    with active(observe_only([bridge_recording(seen)])):
+    with active([bridge_recording(seen)]):
         old = await request([old_user])
         await request([{"role": "user", "parts": [{"text": NEW_REQUEST}]}])
         # the same call, made with the same arguments in both conversations,
@@ -1399,7 +1439,7 @@ async def test_google_overlapping_requests_keep_their_own_context() -> None:
     [after] = [s for s in seen if isinstance(s, AfterToolCall)]
     assert after.call.id == "old"
     assert after.input == model.inputs[0]
-    assert [m.text for m in after.history] == [OLD_REQUEST, "On it."]
+    assert after.message_id == produced_message_ids()[0]
 
 
 @pytest.mark.parametrize("same_id", [False, True])
@@ -1413,7 +1453,7 @@ async def test_a_result_never_takes_another_outstanding_calls_context(
     bridge = in_process_bridge([])
     old_history: list[ChatMessage] = [ChatMessageUser(content=OLD_REQUEST)]
 
-    with active(observe_only([bridge_recording(seen)])):
+    with active([bridge_recording(seen)]):
         old = await generate(bridge, model, old_history)
         await generate(bridge, model, [ChatMessageUser(content=NEW_REQUEST)])
         await generate(
@@ -1429,7 +1469,7 @@ async def test_a_result_never_takes_another_outstanding_calls_context(
     [after] = [s for s in seen if isinstance(s, AfterToolCall)]
     assert after.call == old_call
     assert after.input == model.inputs[0]
-    assert [m.text for m in after.history] == [OLD_REQUEST, "On it."]
+    assert after.message_id == old.message.id
 
 
 async def test_a_result_whose_proposal_was_evicted_gets_no_other_context(
@@ -1444,7 +1484,7 @@ async def test_a_result_whose_proposal_was_evicted_gets_no_other_context(
     bridge = in_process_bridge([])
     old_history: list[ChatMessage] = [ChatMessageUser(content=OLD_REQUEST)]
 
-    with active(observe_only([bridge_recording(seen)])):
+    with active([bridge_recording(seen)]):
         old = await generate(bridge, model, old_history)
         await generate(bridge, model, [ChatMessageUser(content=NEW_REQUEST)])
         # as parsed back from a dialect: the scaffold's message has a new id
@@ -1461,7 +1501,7 @@ async def test_a_result_whose_proposal_was_evicted_gets_no_other_context(
 
     [after] = [s for s in seen if isinstance(s, AfterToolCall)]
     assert after.call == old_call
-    assert [m.text for m in after.history] == [OLD_REQUEST, "On it."]
+    assert after.message_id == echoed.id
     assert after.input is None
 
 
@@ -1476,7 +1516,7 @@ async def test_an_evicted_execution_never_matches_a_newer_one(
     bridge = in_process_bridge([])
     history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
 
-    with active(observe_only([bridge_recording(seen)])):
+    with active([bridge_recording(seen)]):
         older = await generate(bridge, model, history)
         newer = await generate(bridge, model, history)
         # the newer execution's result, then the older one's, identical
@@ -1507,7 +1547,7 @@ async def test_a_result_keeps_its_proposal_when_the_system_prompt_changes() -> N
     history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
     bridge = in_process_bridge(history)
 
-    with active(observe_only([bridge_recording(seen)])):
+    with active([bridge_recording(seen)]):
         output = await generate(
             bridge, model, [ChatMessageSystem(content="Monday."), *history]
         )
@@ -1525,7 +1565,7 @@ async def test_a_result_keeps_its_proposal_when_the_system_prompt_changes() -> N
 
     before, after = seen
     assert isinstance(after, AfterToolCall)
-    assert after.history == before.history
+    assert after.message_id == before.message_id
     assert after.input == model.inputs[0]
 
 
@@ -1649,13 +1689,13 @@ async def test_a_result_takes_its_proposal_through_each_dialect(dialect: str) ->
         AgentState(messages=[]), model_aliases={"inspect": model.model}
     )
 
-    with active(observe_only([bridge_recording(seen)])):
+    with active([bridge_recording(seen)]):
         await dialect_round_trip(dialect, bridge)
 
     before, after = seen
     assert isinstance(before, BeforeToolCall) and isinstance(after, AfterToolCall)
     assert after.call == before.call
-    assert after.history == before.history
+    assert after.message_id == before.message_id
     assert after.input == before.input == model.inputs[0]
     assert after.input is not None and after.input[0].text == "Be careful."
 
@@ -1676,7 +1716,7 @@ async def test_a_result_is_checked_once_however_the_scaffold_rewrites_history(
         ChatMessageUser(content="Read it"),
     ]
 
-    with active(observe_only([bridge_recording(seen)])):
+    with active([bridge_recording(seen)]):
         output = await generate(bridge, model, history)
         echoed = output.message.model_copy(update={"id": "echoed"})
         result = ChatMessageTool(content="same result", tool_call_id=READ.id)
@@ -1703,7 +1743,9 @@ async def test_a_result_is_checked_once_however_the_scaffold_rewrites_history(
 
 @protocol
 def terminate_on_a_second_result(seen: Any) -> Protocol:
-    async def after(context: Context, step: AfterToolCall) -> Decision | None:
+    async def after(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
         seen.append(step)
         if len(seen) > 1:
             return Decision.terminate("an execution was checked twice")
@@ -1756,7 +1798,7 @@ async def test_equal_calls_in_equal_looking_conversations_are_separate_execution
 
     old_history = conversation("Old instructions", "data:image/png;base64,aGVsbG8=")
     new_history = conversation("New instructions", "data:image/png;base64,d29ybGQ=")
-    with active(observe_only([bridge_recording(seen)])):
+    with active([bridge_recording(seen)]):
         old = await generate(bridge, model, old_history)
         new = await generate(bridge, model, new_history)
         for history, output, call in [
@@ -1788,7 +1830,7 @@ async def test_calls_sharing_a_model_id_are_handed_over_under_their_own_tokens()
     bridge = in_process_bridge([])
     history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
 
-    with active(observe_only([bridge_recording(seen)])):
+    with active([bridge_recording(seen)]):
         first = await generate(bridge, model, history)
         second = await generate(bridge, model, history)
         [first_call] = first.message.tool_calls or []
@@ -1823,7 +1865,7 @@ async def test_a_result_under_an_id_never_handed_out_is_checked_once() -> None:
     bridge = in_process_bridge([])
     history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
 
-    with active(observe_only([bridge_recording(seen)])):
+    with active([bridge_recording(seen)]):
         output = await generate(bridge, model, history)
         # a scaffold that mints its own id for the call on every request
         for id in ["scaffold_1", "scaffold_2"]:
@@ -1935,7 +1977,7 @@ async def test_gemini_cli_results_are_matched_by_the_ids_it_echoes(
         AgentState(messages=[]), model_aliases={"inspect": model.model}
     )
 
-    with active(observe_only([bridge_recording(seen)])):
+    with active([bridge_recording(seen)]):
         await gemini_cli_round_trips(bridge, ["same"] * 3, compact=compact)
 
     afters = [s for s in seen if isinstance(s, AfterToolCall)]
@@ -1954,7 +1996,7 @@ async def test_google_results_without_ids_are_checked_once_per_call_and_result()
         AgentState(messages=[]), model_aliases={"inspect": model.model}
     )
 
-    with active(observe_only([bridge_recording(seen)])):
+    with active([bridge_recording(seen)]):
         await gemini_cli_round_trips(
             bridge, ["same", "same", "new"], keep_ids=False, compact=True
         )
@@ -2021,7 +2063,9 @@ class Hold:
 
 @protocol
 def held_terminate(hold: Any) -> Protocol:
-    async def after(context: Context, step: AfterToolCall) -> Decision | None:
+    async def after(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
         hold.started.append(step.call.id)
         if len(hold.started) >= hold.calls:
             hold.ready.set()
@@ -2171,7 +2215,9 @@ async def test_a_changed_result_is_checked_again() -> None:
 
 @protocol
 def held_benign(started: Any, release: Any) -> Protocol:
-    async def after(context: Context, step: AfterToolCall) -> Decision | None:
+    async def after(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
         if "secret" in step.result.text:
             return Decision.terminate("blocked secret")
         started.set()
@@ -2183,7 +2229,9 @@ def held_benign(started: Any, release: Any) -> Protocol:
 
 @protocol
 def counted_held(seen: Any, started: Any, release: Any) -> Protocol:
-    async def after(context: Context, step: AfterToolCall) -> Decision | None:
+    async def after(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
         seen.append(step)
         started.set()
         await release.wait()
@@ -2340,7 +2388,7 @@ async def test_a_result_is_checked_with_its_proposal_once_its_call_is_compacted(
     history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
     bridge = in_process_bridge(history)
 
-    with active(observe_only([bridge_recording(seen)])):
+    with active([bridge_recording(seen)]):
         await generate(bridge, model, history)
         await generate(
             bridge,
@@ -2356,7 +2404,7 @@ async def test_a_result_is_checked_with_its_proposal_once_its_call_is_compacted(
     assert isinstance(after, AfterToolCall)
     assert (after.call, after.message, after.output) == (READ, "Reading.", "contents")
     assert after.input == model.inputs[0]
-    assert after.history == before.history
+    assert after.message_id == before.message_id
 
 
 async def test_a_cancelled_host_result_check_consumes_the_grant() -> None:
@@ -2398,7 +2446,7 @@ async def test_a_cancelled_tool_call_stage_registers_nothing() -> None:
     model = Scripted(calls_output(replace(READ, function="mcp__host__read_file")))
     handed: list[ModelOutput] = []
 
-    with active(observe_only([bridge_waiting(started, cleaned)])):
+    with active([bridge_waiting(started, cleaned)]):
         with anyio.CancelScope() as scope:
 
             async def cancel() -> None:
@@ -2437,7 +2485,7 @@ async def test_calls_sharing_an_id_keep_their_own_result_checks(
     history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
     bridge = in_process_bridge(history)
 
-    with active(observe_only([bridge_recording(seen)])):
+    with active([bridge_recording(seen)]):
         output = await generate(bridge, model, history)
         await generate(
             bridge,
@@ -2472,7 +2520,9 @@ async def test_calls_sharing_an_id_keep_their_own_modifications() -> None:
 
     @protocol
     def modify_other() -> Protocol:
-        async def rewrite(context: Context, step: BeforeToolCall) -> Decision | None:
+        async def rewrite(
+            context: Context, step: BeforeToolCall, escalations: Escalations
+        ) -> Decision | None:
             if step.call.arguments["path"] != "other":
                 return None
             modified = replace(step.call, arguments={"path": "safe.txt"})
@@ -2557,7 +2607,7 @@ async def test_a_host_tool_error_is_checked_before_it_is_returned() -> None:
         with pytest.raises(TerminateSampleError):
             await call_host_tool(bridge)("host", "read_file", READ.arguments)
 
-    assert isinstance(bridge._failure, TerminateSampleError)
+    assert not bridge._failure_requested.is_set()
 
 
 async def test_a_host_tool_error_reaches_the_scaffold_once_checked() -> None:
@@ -2568,7 +2618,7 @@ async def test_a_host_tool_error_reaches_the_scaffold_once_checked() -> None:
     bridge = sandbox_bridge(AsyncMock(side_effect=ToolError("secret error text")))
     model = Scripted(calls_output(call))
 
-    with active(observe_only([bridge_recording(seen)])):
+    with active([bridge_recording(seen)]):
         await generate(
             bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
         )
@@ -2598,12 +2648,20 @@ def host_errors() -> list[Exception]:
 
 @protocol
 def terminate_on_secret_text() -> Protocol:
-    async def after(context: Context, step: AfterToolCall) -> Decision | None:
+    async def after(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
         if "secret" in result_text(step):
             return Decision.terminate("blocked secret")
         return None
 
     return after
+
+
+def result_text(step: AfterToolCall) -> str:
+    """The result's text and its error's message, as rules read a result."""
+    error = step.result.error
+    return step.result.text + (f"\n{error.message}" if error is not None else "")
 
 
 async def deliver_host_call(bridge: SandboxAgentBridge) -> str | None:
@@ -2644,7 +2702,7 @@ async def test_a_host_tool_error_is_checked_as_the_scaffold_receives_it(
     bridge = sandbox_bridge(AsyncMock(side_effect=error))
     model = Scripted(calls_output(call))
 
-    with active(observe_only([bridge_recording(seen)])):
+    with active([bridge_recording(seen)]):
         await generate(
             bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
         )
@@ -2674,14 +2732,16 @@ async def test_a_host_tool_error_terminates_on_what_the_scaffold_receives(
         await generate(
             bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
         )
-        delivered = await deliver_host_call(bridge)
-
-    # a group's message, not its members', is what the scaffold receives
-    assert isinstance(bridge._failure, TerminateSampleError) == terminates
-    if not terminates:
-        assert (
-            delivered == "Error calling method call_tool: tool failed (1 sub-exception)"
-        )
+        if terminates:
+            with pytest.raises(TerminateSampleError, match="blocked secret"):
+                await deliver_host_call(bridge)
+        else:
+            # a group's message, not its members', is what the scaffold receives
+            assert (
+                await deliver_host_call(bridge)
+                == "Error calling method call_tool: tool failed (1 sub-exception)"
+            )
+    assert bridge._failure is None
 
 
 @pytest.mark.parametrize("generates", [False, True])
@@ -2706,7 +2766,7 @@ async def test_both_stages_see_the_input_a_filter_sent(generates: bool) -> None:
         return GenerateInput(input, tools, tool_choice, config)
 
     bridge.filter = add_system_message
-    with active(observe_only([bridge_recording(seen)])):
+    with active([bridge_recording(seen)]):
         output = await generate(bridge, model, history)
         await generate(
             bridge,
@@ -2770,7 +2830,7 @@ async def test_both_stages_see_the_input_the_model_was_sent(
 
     if filter is not None:
         bridge.filter = passes_through
-    with active(observe_only([bridge_recording(seen)])):
+    with active([bridge_recording(seen)]):
         output = await generate(bridge, model, history)
         await generate(
             bridge,
@@ -2825,7 +2885,7 @@ async def test_step_input_with_a_model_event_sink(forward: bool) -> None:
     sink = RecordingSink(forward)
     bridge.model_event_sink = sink
 
-    with active(observe_only([bridge_recording(seen)])):
+    with active([bridge_recording(seen)]):
         output = await generate(bridge, model, history)
         await generate(
             bridge,
@@ -2951,7 +3011,9 @@ async def test_a_scaffold_result_during_the_host_check_is_checked() -> None:
 
 @protocol
 def recording_terminate_on_secret(seen: Any) -> Protocol:
-    async def after(context: Context, step: AfterToolCall) -> Decision | None:
+    async def after(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
         seen.append(step)
         if "secret" in step.result.text:
             return Decision.terminate("blocked secret")
@@ -3008,7 +3070,8 @@ async def test_a_responses_result_without_an_id_is_checked(
                 request("benign"), None, None, None, bridge
             )
         assert [step.result.text for step in seen] == ["benign"]
-        assert [m.text for m in seen[0].history] == [TASK]
+        # no assistant message in the request made the call
+        assert seen[0].message_id == ""
         assert seen[0].input is None
         with pytest.raises(TerminateSampleError, match="blocked secret"):
             await inspect_responses_api_request(
@@ -3046,7 +3109,7 @@ async def test_host_content_is_checked_as_delivered(result: Any, checked: Any) -
     model = Scripted(calls_output(call))
     bridge = sandbox_bridge(AsyncMock(return_value=result))
 
-    with active(observe_only([bridge_recording(seen)])):
+    with active([bridge_recording(seen)]):
         await generate(
             bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
         )
@@ -3094,13 +3157,16 @@ async def test_an_exempt_host_result_is_checked(proposed: bool) -> None:
     bridge.state.messages = [ChatMessageUser(content=TASK)]
 
     with active(recording_terminate_on_secret(seen)):
-        if proposed:
+        output = (
             await generate(
                 bridge,
                 Scripted(calls_output(call)),
                 [ChatMessageUser(content=TASK)],
                 declare_read_file(),
             )
+            if proposed
+            else None
+        )
         with pytest.raises(TerminateSampleError, match="blocked secret"):
             await call_host_tool(bridge)("host", "read_file", READ.arguments)
 
@@ -3108,7 +3174,7 @@ async def test_an_exempt_host_result_is_checked(proposed: bool) -> None:
     assert isinstance(after, AfterToolCall)
     assert after.call.function == (call.function if proposed else "read_file")
     assert after.call.arguments == READ.arguments
-    assert [m.text for m in after.history] == ([TASK, "On it."] if proposed else [TASK])
+    assert after.message_id == (output.message.id if output is not None else "")
     # what the model was sent when it proposed the call, else nothing
     assert (after.input is not None) is proposed
     assert after.result.text == "secret"

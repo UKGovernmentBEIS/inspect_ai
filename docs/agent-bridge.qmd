@@ -135,6 +135,20 @@ Ordinary function tools are never withheld — those are executed by the bridged
 
 For the same reason, all media content (images, audio, video, and documents) in a request to a sandbox bridge must be an inline `data:` URI. A remote URL or host path would otherwise be dereferenced outside the sandbox, on the agent's behalf.
 
+Request headers are granted the same way. Apart from `Accept-Encoding`, `sandbox_agent_bridge()` drops every header the agent's SDK sends, since a header can change the billing, limits, or behavior of the host's requests (for example `anthropic-beta`, which turns on Anthropic beta features). To forward one, list the header and the values the agent may send for it:
+
+``` python
+async with sandbox_agent_bridge(
+    state,
+    forward_client_headers={"anthropic-beta": ["context-management-2025-06-27"]},
+) as bridge:
+    ...
+```
+
+Header names are case-insensitive. A comma-separated value is checked one item at a time, so list each item separately (a listed value cannot contain a comma). Items you did not list are dropped with a warning, and the header is dropped if none remain. A header you did not list is logged once by name. `Accept-Encoding` cannot be listed. Credentials (such as `Authorization`, `x-api-key`, `api-key`, `x-goog-api-key`, and AWS `x-amz-` headers) and transport headers (such as `Host` and `Content-Type`) cannot be forwarded. On both bridges, a forwarded `Accept-Encoding` keeps only the encodings Inspect can decode (`br` needs the `brotli` package, and `zstd` needs Python 3.14 or the `backports.zstd` package).
+
+Headers configured on the Inspect model itself (e.g. the Anthropic `betas` model arg or `extra_headers`) are always sent. When the model or eval sets `extra_headers`, they are merged with the forwarded headers: their value wins for a header both set, except that `anthropic-beta` values are combined.
+
 None of this restricts the in-process `agent_bridge()`, where the scaffold
 already runs with the host's network and filesystem and there is no boundary to
 defend. Inspect explicitly materializes its non-inline media before model
@@ -195,6 +209,8 @@ The bridge handles:
 - Writing an MCP server script to the sandbox that forwards tool calls to the host
 - Returning `MCPServerConfigStdio` configs that CLI agents can use to connect
 
+Bridged tool arguments are checked as for other tool calls: arguments nested more than 100 levels deep, or that do not match the tool's parameters, are rejected with a parsing error the agent returns to the model. The nesting check comes first; a call the model did not propose is then denied before its arguments are checked against the tool's parameters.
+
 Bridged tool results are truncated in the same way as other tool results: at the tool's own `max_output` if it declares one, otherwise at `max_tool_output` from the generate config (16KB by default). Results returned as content (e.g. `list[ContentText]`) are not truncated, as for other tools.
 
 ### Execution Contract {#bridged-tools-execution}
@@ -205,6 +221,8 @@ Two consequences follow:
 
 - An agent that retries a `tools/call` after a transport failure is denied, since the proposal has already executed once. The agent should return the error to the model, which re-proposes the call.
 - Only the primary choice of a multi-choice response is granted; alternate choices that carry tool calls are dropped (with a warning). Request a single choice (`n=1`) from a bridged agent.
+
+If a tool's parameters do not allow additional properties, the call may leave out proposed arguments the tool does not declare. Some agents add such fields for their own use and drop them before calling the tool; the tool could not accept them anyway.
 
 An agent that legitimately calls a host tool programmatically, outside a model turn, can opt a server out with `require_proposal=False`. That server's tools then execute for any `tools/call` it receives, and the bridge no longer guarantees that they run only for calls the model made:
 
@@ -241,7 +259,7 @@ The `sandbox_agent_bridge()` serves only models the eval chose. A request is rou
 3.  `"inspect"`, and the eval's own model name (e.g. `claude-sonnet-4-5` for an eval on `anthropic/claude-sonnet-4-5`), go to the eval's model.
 4.  Any other name, including `inspect/<model>` names and model role names, also goes to the eval's model. The bridge logs a warning once for each such name, and the `requested_model` field of the model event in the transcript records the name the agent sent.
 
-Pass `model` to send unmatched names (and the eval's own model name) to another model instead, e.g. `model="inspect/openai/gpt-4o"`.
+Pass `model` to send unmatched names (and the eval's own model name) to another model instead, e.g. `model="inspect/openai/gpt-6-luna"`.
 
 Agents often call more than one model: Claude Code, for example, makes background calls to a smaller model. These calls are served by the eval's model unless you map the names. To send a name to another model, add it to `model_aliases`. Keys are the exact names the agent sends, as shown in the warning. To send a sub-agent tier to a model role you define for it, map the name to `get_model(role=...)`:
 
@@ -268,7 +286,7 @@ Bridged agents typically tune their requests (e.g. `max_tokens`, `temperature`, 
 
 For this reason, by default the bridge does not forward client generation parameters. Instead, the resolved Inspect model configuration and the provider's defaults govern generation. Structural parameters that express the agent's intent — the system prompt, tools, tool choice, response format, `stop` sequences, and `seed` — are always forwarded.
 
-The generation parameters dropped by default are: `max_tokens`, `temperature`, `top_p`, `top_k`, `frequency_penalty`, `presence_penalty`, `n`/`num_choices`, `logprobs`, `top_logprobs`, `logit_bias`, and reasoning effort/tokens/summary.
+The generation parameters dropped by default are: `max_tokens`, `temperature`, `top_p`, `top_k`, `frequency_penalty`, `presence_penalty`, `n`/`num_choices`, `logprobs`, `top_logprobs`, `logit_bias`, and reasoning effort/tokens/summary/mode.
 
 If you want the bridge to act as a faithful proxy where the agent's generation parameters are authoritative, pass `forward_generation_config=True`:
 
@@ -277,7 +295,7 @@ async with agent_bridge(state, forward_generation_config=True) as bridge:
     ...
 ```
 
-This option is available on both `agent_bridge()` and `sandbox_agent_bridge()`.
+This option is available on both `agent_bridge()` and `sandbox_agent_bridge()`. Values set in the Inspect model's own configuration still take precedence over the agent's. When the model uses the OpenAI Responses API, `reasoning` fields that Inspect does not model (e.g. `context`) are passed through as the agent sent them. They go only on the bridge's own generation: a bridge `filter` that calls `generate()` itself gets the effort, summary, and mode in `config` but not these fields, so return `GenerateInput` from the filter to have them sent.
 
 ## Request Settings
 
@@ -301,7 +319,7 @@ Some request fields and tool options change billing, storage at the model provid
 
 OpenAI Chat Completions and Google requests forward none of these fields, and Google tool declarations carry no options into the request.
 
-HTTP headers an agent sends to the sandbox bridge's proxy are not forwarded; only the request body reaches the model provider. The in-process `agent_bridge()` forwards the agent's headers other than credentials and SDK-managed ones.
+HTTP headers an agent sends to the sandbox bridge's proxy are forwarded only as described in [Sandbox Bridge](#sandbox-bridge): `Accept-Encoding` and the headers listed in `forward_client_headers`. In-process, request body settings follow the eval as above, while the agent's headers are forwarded as before, apart from credential, transport and SDK headers.
 
 ## Tool Approval
 
@@ -360,6 +378,10 @@ Model requests carry one additional ambient fact: `current_bridge_request()` exp
 ## Transcript
 
 Custom agents run through a bridge still get most of the benefit of the Inspect transcript and log viewer. All model calls are captured and produce the same transcript output as when using conventional agents.
+
+Tools the agent runs itself (e.g. its own shell or file tools) appear only in the model calls. [Bridged tools](#bridged-tools) run by Inspect are recorded as tool events, like other tool calls, including calls that were denied or rejected. A call the model proposed takes the id of the model's tool call, so the log viewer shows it with that call. Each event's `metadata["bridge"]` records the server and tool, the name the model called it by, the id of the proposing call, and whether a proposal matched (`grant`: `"consumed"`, `"denied"`, `"exempt"` for a `require_proposal=False` server, or `None` for a request rejected before that check). Counts of tool events in a bridged sample (e.g. from `events_df()`) include bridged tool calls but not the agent's own tools.
+
+On a `require_proposal=False` server, a call is paired with the oldest pending proposal for the same tool and arguments, whichever call arrives first. A call the model did not propose (for example, one made from code the model wrote) with the same arguments as a pending proposal takes that proposal's id, and the proposed call is then recorded as `"exempt"` with a fresh id. Both calls run as usual; only the pairing in the log is wrong.
 
 If you want to use additional features of Inspect transcripts (e.g. spans, markdown output, etc.) you can still import and use the `transcript` function as normal. For example:
 

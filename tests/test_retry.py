@@ -2,6 +2,7 @@ import logging
 import os
 import tempfile
 from pathlib import Path
+from typing import Literal
 
 import pytest
 from test_helpers.utils import (
@@ -17,6 +18,7 @@ from inspect_ai.log import (
     invalidate_samples,
     list_eval_logs,
     read_eval_log,
+    read_eval_log_samples,
     retryable_eval_logs,
     write_eval_log,
 )
@@ -24,6 +26,7 @@ from inspect_ai.model import GenerateConfig, get_model
 from inspect_ai.model._providers.mockllm import MockLLM
 from inspect_ai.scorer import exact
 from inspect_ai.solver import TaskState, generate, solver
+from inspect_ai.util import SandboxEnvironmentSpec
 from inspect_ai.viewer import TaskSamplesView, ViewerConfig
 
 
@@ -67,6 +70,17 @@ def mytask():
 def test_eval_retry_with_task_name():
     log = eval(mytask())[0]
     log = eval_retry(log)[0]
+
+
+def test_eval_retry_keeps_logged_sandbox_override():
+    log = eval(
+        failing_task_deterministic([True]), sandbox="local", model="mockllm/model"
+    )[0]
+    assert log.status == "error"
+
+    retried = eval_retry(log)[0]
+
+    assert retried.eval.sandbox == SandboxEnvironmentSpec("local")
 
 
 @task
@@ -804,3 +818,33 @@ def test_eval_retry_keeps_untrusted_content_and_task_viewer() -> None:
     assert log2.eval.viewer is not None
     assert log2.eval.viewer.trust_content is False
     assert log2.eval.viewer.task_samples_view == TaskSamplesView(name="Custom")
+
+
+@task
+def retry_sample_id_task() -> Task:
+    sample_id: int | str = os.environ.get("RETRY_SAMPLE_ID", 1)
+    return Task(dataset=[Sample(id=sample_id, input="hi")])
+
+
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_read_eval_log_samples_after_retry_changes_id_type(
+    log_format: Literal["eval", "json"],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # the retried log's header records the new "1" while the reused sample
+    # keeps its stored 1; reading it back must yield that sample once
+    log = eval(
+        retry_sample_id_task(),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        log_format=log_format,
+    )[0]
+    monkeypatch.setenv("RETRY_SAMPLE_ID", "1")
+    retried = eval_retry(log, log_dir=str(tmp_path), log_format=log_format)[0]
+    assert retried.status == "success"
+    assert retried.eval.dataset.sample_ids == ["1"]
+    assert [sample.id for sample in retried.samples or []] == [1]
+
+    samples = list(read_eval_log_samples(retried.location))
+    assert [(sample.id, sample.epoch) for sample in samples] == [(1, 1)]

@@ -56,7 +56,7 @@ jobs:
       # Release builds resolve every dependency from the lockfile and the
       # registry; they never restore or save a shared dependency cache.
       - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22.x"
           registry-url: "https://registry.npmjs.org"
@@ -65,7 +65,9 @@ jobs:
       - name: Upgrade npm (for Trusted Publishing)
         run: |
           # Install via prefix to avoid npm self-upgrade rebuild bug on Node 22.
-          npm install --prefix "$RUNNER_TEMP/npm-upgrade" --no-audit --no-fund npm@^11.5.1
+          # An exact version (Trusted Publishing needs >= 11.5.1) without install
+          # scripts, since this job holds the publishing id-token.
+          npm install --prefix "$RUNNER_TEMP/npm-upgrade" --no-audit --no-fund --ignore-scripts npm@11.21.0
           echo "$RUNNER_TEMP/npm-upgrade/node_modules/.bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/npm-upgrade/node_modules/.bin/npm" --version
 

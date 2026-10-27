@@ -1,16 +1,17 @@
 adlfs>=2025.8.0
-anthropic>=1.0.0
+anthropic>=2.0.0
 antlr4-python3-runtime>=4.9.3,<=4.13.2,!=4.10.*,!=4.12.*,!=4.13.0,!=4.13.1
 apprise
 aws-bedrock-token-generator
 azure-ai-inference
 azure-identity
+brotli # tests decode the agent bridge's forwarded Accept-Encoding: br; not a runtime dependency, since it makes httpx advertise br on every request
 google-genai>=2.14.0
 griffe>=2
 groq>=0.28.0
 huggingface_hub>=1.6.0
-inspect-scout>=0.4.37
-inspect-sentinel>=0.1.1
+inspect-scout>=0.5.5
+inspect-sentinel>=0.2.0
 ipython
 jsonpath-ng
 latex2sympy2-extended==1.11.0

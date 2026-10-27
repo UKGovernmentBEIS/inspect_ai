@@ -17,7 +17,7 @@ import anyio
 from pydantic_core import to_jsonable_python
 from shortuuid import uuid
 
-from inspect_ai._sentinel._context import SentinelFailure, active_sentinel
+from inspect_ai._sentinel._context import SentinelFailure, checks_tool_calls
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.content import (
     Content,
@@ -52,6 +52,10 @@ T = TypeVar("T")
 
 _MAX_PROPOSALS = 1000
 
+# a result no assistant message in the request accounts for, or a host call no
+# proposal does, has no message that made the call
+_NO_MESSAGE_ID = ""
+
 
 class SentinelCheck(NamedTuple):
     handed: ToolCall
@@ -62,6 +66,10 @@ class SentinelCheck(NamedTuple):
 
     viewer: ToolCallViewer | None
     message: str
+
+    message_id: str | None
+    """The id of the assistant message that made the call."""
+
     history: list[ChatMessage]
 
     token: str | None = None
@@ -240,15 +248,24 @@ class _ResultChecks:
         # path; a result answering no call in the request has none
         history = input[: found.position + 1 if found is not None else index]
         check = SentinelCheck(
-            call, call, None, found.text if found is not None else "", history
+            call,
+            call,
+            None,
+            found.text if found is not None else "",
+            input[found.position].id if found is not None else _NO_MESSAGE_ID,
+            history,
         )
         return _Result(keys, check, message)
 
     async def check(
-        self, bridge: AgentBridge, result: _Result, output: ToolResult
+        self,
+        bridge: AgentBridge,
+        result: _Result,
+        output: ToolResult,
+        truncated: tuple[int, int] | None = None,
     ) -> None:
         try:
-            await _tool_result(bridge, result.check, result.message, output)
+            await _tool_result(bridge, result.check, result.message, output, truncated)
         except Exception as ex:
             for key in result.keys:
                 self.failed.setdefault(key, ex)
@@ -256,14 +273,18 @@ class _ResultChecks:
         self.checked.update(result.keys)
 
     async def check_running(
-        self, bridge: AgentBridge, result: _Result, output: ToolResult
+        self,
+        bridge: AgentBridge,
+        result: _Result,
+        output: ToolResult,
+        truncated: tuple[int, int] | None,
     ) -> None:
         """Check a result claimed outside a request (a host call's), as running."""
         event = anyio.Event()
         for key in result.keys:
             self.running.setdefault(key, event)
         try:
-            await self.check(bridge, result, output)
+            await self.check(bridge, result, output, truncated)
         finally:
             for key in result.keys:
                 if self.running.get(key) is event:
@@ -348,6 +369,7 @@ def _result_checks(bridge: AgentBridge) -> _ResultChecks:
 async def sentinel_tool_call(
     bridge: AgentBridge,
     message: str,
+    message_id: str | None,
     call: ToolCall,
     viewer: ToolCallViewer | None,
     history: list[ChatMessage],
@@ -355,7 +377,8 @@ async def sentinel_tool_call(
     from inspect_ai._sentinel._dispatch import sentinel_before_tool_call
 
     return await _guarded(
-        bridge, partial(sentinel_before_tool_call, message, call, viewer, history)
+        bridge,
+        partial(sentinel_before_tool_call, message, message_id, call, viewer, history),
     )
 
 
@@ -383,11 +406,16 @@ def sentinel_unproposed_host_check(
 ) -> SentinelCheck | None:
     # a host call no proposal accounts for is checked with the conversation the
     # bridge last saw, as a scaffold-reported result without a proposal is
-    if active_sentinel() is None:
+    if not checks_tool_calls():
         return None
     call = ToolCall(id=f"call_{tool}_{uuid()[:8]}", function=tool, arguments=arguments)
     return SentinelCheck(
-        call, call, ToolDef(tool_fn).viewer, "", list(bridge.state.messages)
+        call,
+        call,
+        ToolDef(tool_fn).viewer,
+        "",
+        _NO_MESSAGE_ID,
+        list(bridge.state.messages),
     )
 
 
@@ -397,6 +425,7 @@ async def sentinel_host_tool_result(
     content: str | list[Content],
     output: ToolResult,
     error: ToolCallError | None = None,
+    truncated: tuple[int, int] | None = None,
     candidates: Sequence[SentinelCheck] = (),
 ) -> None:
     """Check a host call's result as delivered, recording it for its executions.
@@ -424,12 +453,12 @@ async def sentinel_host_tool_result(
         ]
     ] or [f"unproposed:{uuid()}"]
     await _result_checks(bridge).check_running(
-        bridge, _Result(keys, check, result), output
+        bridge, _Result(keys, check, result), output, truncated
     )
 
 
 async def sentinel_tool_results(bridge: AgentBridge, input: list[ChatMessage]) -> None:
-    if active_sentinel() is None:
+    if not checks_tool_calls():
         return
     result_checks = _result_checks(bridge)
     while True:
@@ -476,6 +505,7 @@ async def _tool_result(
     check: SentinelCheck,
     result: ChatMessageTool,
     output: ToolResult,
+    truncated: tuple[int, int] | None,
 ) -> None:
     from inspect_ai._sentinel._dispatch import sentinel_after_tool_call
 
@@ -484,9 +514,11 @@ async def _tool_result(
         partial(
             sentinel_after_tool_call,
             check.message,
+            check.message_id,
             check.call,
             result,
             output,
+            truncated,
             check.viewer,
             check.history,
         ),
