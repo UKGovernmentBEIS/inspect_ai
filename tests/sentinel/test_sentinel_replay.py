@@ -2348,6 +2348,45 @@ def test_a_reused_call_id_keeps_each_call_and_its_own_answer(copied: bool) -> No
     ]
 
 
+def test_a_copied_output_is_not_taken_for_an_equal_call_in_its_input() -> None:
+    # the final Codex review's reproduction: the model call's input holds an
+    # earlier, equal call with its own answer, and the messages hold a copy of
+    # its output without its id or model, as LangSmith writes them. As the
+    # projection, the earlier call has its steps, before the turn, and each
+    # call has its own answer
+    earlier = ChatMessageAssistant(id="earlier", content="", tool_calls=[READ])
+    old = ChatMessageTool(
+        content="old answer", tool_call_id=READ.id, function=READ.function
+    )
+    written, (m0, m1) = imported_conversation("run", [READ])
+    history = [written[0], earlier, old]
+    copy = written[1].model_copy(update={"id": "copy", "model": None})
+    messages = [*history, copy, *written[2:]]
+    replay = steps_from_events(
+        messages,
+        [
+            SpanBeginEvent(id="run", name="agent run", type="agent"),
+            m0.model_copy(update={"input": history}),
+            m1.model_copy(update={"input": [*history, copy, written[2]]}),
+            SpanEndEvent(id="run"),
+        ],
+        [],
+        sample_uuid="transcript",
+        eval_info=IMPORTED,
+    )
+
+    assert tool_steps(replay) == projected_tool_steps(messages)
+    assert [s[4] for s in tool_steps(replay) if s[0] == "tool_result"] == [
+        "old answer",
+        "result of call_read in turn 0",
+    ]
+    assert [(s.stage, s.id) for s in replay][:3] == [
+        ("tool_call", "call_read"),
+        ("tool_result", "call_read"),
+        ("model_input", "m0"),
+    ]
+
+
 @pytest.mark.parametrize("cut", ["ended", "answered_later"])
 def test_an_imported_call_no_message_answers_has_no_result_step(cut: str) -> None:
     # as the projection: a ToolEvent's result is not taken, whether the
