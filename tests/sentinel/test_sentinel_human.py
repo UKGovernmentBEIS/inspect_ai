@@ -1,6 +1,6 @@
 import asyncio
 import io
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any, NamedTuple
 from unittest.mock import MagicMock
@@ -1078,7 +1078,7 @@ class Seen(NamedTuple):
     stage: str
     conversation: str
     subject: str
-    decisions: tuple[HumanDecision, ...] | None
+    decisions: Sequence[HumanDecision] | None
 
 
 @monitor
