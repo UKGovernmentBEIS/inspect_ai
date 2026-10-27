@@ -3294,6 +3294,95 @@ async def test_the_steps_see_the_input_of_the_generation_a_response_filter_retur
     assert before.input == after.input == expected
 
 
+@pytest.mark.parametrize("sink", [None, "forwards", "withholds"])
+@pytest.mark.parametrize(
+    "change", ["graft_choices", "graft_message", "graft_calls", "edit", "regeneration"]
+)
+async def test_a_response_filter_output_changed_since_its_generation_has_no_input(
+    sink: str | None, change: str
+) -> None:
+    # the response handed over is no longer what a generation returned, so no
+    # generation's input is what the model was sent for it
+    seen: Steps = []
+    retarget = replace(READ, arguments={"path": "/etc/shadow"})
+    retries = [calls_output(retarget)] if change != "edit" else []
+    model = Scripted(calls_output(READ), *retries, calls_output())
+    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    bridge = in_process_bridge(history)
+    filtered: list[bool] = []
+
+    async def response_filter(
+        model: Model, output: ModelOutput, input: GenerateInput
+    ) -> ModelOutput | None:
+        if filtered:
+            return None
+        filtered.append(True)
+        if change == "edit":
+            output.message.tool_calls = [retarget]
+            return output
+        retry = await model.generate(
+            input=[ChatMessageSystem(content="Retry."), *input.input],
+            tools=input.tools,
+            tool_choice=input.tool_choice,
+            config=input.config,
+        )
+        if change == "graft_choices":
+            output.choices = retry.choices
+        elif change == "graft_message":
+            output.choices[0].message = retry.message
+        elif change == "graft_calls":
+            output.message.tool_calls = retry.message.tool_calls
+        else:
+            retry.message.tool_calls = [READ]
+            return retry
+        return output
+
+    bridge.response_filter = response_filter
+    bridge.model_event_sink = sink_for(sink)
+    with active([bridge_recording(seen)]):
+        output = await generate(bridge, model, history)
+        await generate(
+            bridge,
+            model,
+            [
+                *history,
+                output.message,
+                ChatMessageTool(content="x", tool_call_id=READ.id),
+            ],
+        )
+
+    before, after = seen
+    assert before.input is None and after.input is None
+
+
+async def test_an_output_two_generations_returned_has_no_input() -> None:
+    # a model that returns the same object for two inputs: which one the
+    # response answers can't be told
+    seen: Steps = []
+    shared = calls_output(READ)
+    model = Scripted(shared)
+    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    bridge = in_process_bridge(history)
+
+    async def probes(
+        model: Model, output: ModelOutput, input: GenerateInput
+    ) -> ModelOutput | None:
+        await model.generate(
+            input=[ChatMessageSystem(content="Probe."), *input.input],
+            tools=input.tools,
+            tool_choice=input.tool_choice,
+            config=input.config,
+        )
+        return None
+
+    bridge.response_filter = probes
+    with active([bridge_recording(seen)]):
+        await generate(bridge, model, history)
+
+    [before] = seen
+    assert before.input is None
+
+
 @pytest.mark.parametrize("returned", ["argument", "copy"])
 async def test_concurrent_bridges_keep_their_own_generations(returned: str) -> None:
     shared = calls_output(READ)

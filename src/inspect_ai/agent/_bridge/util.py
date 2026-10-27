@@ -1168,22 +1168,33 @@ class _Generations:
     generations can be equal and share an id (a response filter that
     regenerates, or concurrent bridges), so only the object identifies the
     generation. A response filter's argument is a copy of the generation's
-    output, so it is recorded as that generation too. An output that is no
-    recorded generation's (a filter's copy or replacement) has no producer.
+    output, so it is recorded as that generation too.
+
+    An output has a producer only while it is unchanged since its generation
+    (equal to the event's snapshot of it): one a filter edited, or grafted
+    another generation's message or calls into, no longer answers that input.
+    Nor does an output that is no recorded generation's (a filter's copy or
+    replacement), or one two generations returned.
     """
 
     def __init__(self) -> None:
-        # the outputs are held, so their ids are not reused while recorded
-        self._events: dict[int, tuple[ModelOutput, "ModelEvent"]] = {}
+        # the outputs are held, so their ids are not reused while recorded; an
+        # output two generations returned is recorded without an event
+        self._events: dict[int, tuple[ModelOutput, "ModelEvent | None"]] = {}
         self.returned: ModelOutput | None = None
         """What the response filter last returned, before it is validated."""
 
     def record(self, output: ModelOutput, event: "ModelEvent") -> None:
-        self._events[id(output)] = (output, event)
+        recorded = self._events.get(id(output))
+        twice = recorded is not None and recorded[0] is output
+        self._events[id(output)] = (output, None if twice else event)
 
     def event(self, output: ModelOutput | None) -> "ModelEvent | None":
         recorded = self._events.get(id(output)) if output is not None else None
-        return recorded[1] if recorded is not None and recorded[0] is output else None
+        if recorded is None or recorded[0] is not output or recorded[1] is None:
+            return None
+        event = recorded[1]
+        return event if output == event.output else None
 
     def tracking(
         self, response_filter: ModelResponseFilter, generated: ModelOutput
@@ -1195,7 +1206,7 @@ class _Generations:
         ) -> ModelOutput | None:
             event = self.event(generated)
             if event is not None:
-                self.record(output, event)
+                self._events[id(output)] = (output, event)
             self.returned = None
             self.returned = await response_filter(model, output, input)
             return self.returned
