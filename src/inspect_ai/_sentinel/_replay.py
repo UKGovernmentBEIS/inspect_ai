@@ -95,7 +95,7 @@ def steps_from_events(
 
     Raises:
         MalformedLogError: Two steps of one stage have one step id, the span tree has a `parent_id` cycle, or a model input names rows outside the message pool.
-        NotImplementedError: The log does not record where its model calls were made (`ModelEvent.origin`, written since inspect_ai PR #5990), for which turns from the timeline come later; or a sentinel checked a model_input step whose model call was not made (it ended the sample there or failed), whose input the log does not record.
+        NotImplementedError: The log does not record where its model calls were made (`ModelEvent.origin`, written since inspect_ai PR #5990), for which turns from the timeline come later; or a sentinel checked a model_input step whose model call was not made (a sentinel ended the sample there or failed, or a token or cost limit or a cancellation stopped the call before it was recorded), whose input the log does not record.
     """
     flat = _flatten(events)
     pool: list[ChatMessage] | Sequence[ChatMessage] = message_pool
@@ -492,8 +492,9 @@ class _Driver:
         self, candidates: dict[str, list[str]], turn_ids: set[str | None]
     ) -> None:
         # a model_input step without its model call (a sentinel ended the
-        # sample there, or failed and the scaffold carried on): the input it
-        # was handed is not in the log
+        # sample there, or failed and the scaffold carried on, or a limit or
+        # cancellation stopped the call): the input it was handed is not in
+        # the log
         inputs = [
             step_id for stage, step_id in self.step_spans if stage == "model_input"
         ]
@@ -518,7 +519,8 @@ class _Driver:
         if orphans:
             raise NotImplementedError(
                 f"The model_input step {orphans[0]!r} was checked, but its model "
-                "call was not made (a sentinel ended the sample there or failed): "
+                "call was not made (a sentinel ended the sample there or failed, or "
+                "a limit or cancellation stopped the call before it was recorded): "
                 "the log does not record the input the step was handed, so "
                 "replay cannot rebuild it."
             )
