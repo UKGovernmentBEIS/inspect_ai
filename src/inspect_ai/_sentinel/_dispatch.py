@@ -117,6 +117,8 @@ async def sentinel_before_tool_call(
     viewer: ToolCallViewer | None,
     history: list[ChatMessage],
     producer: ModelEvent | None = None,
+    *,
+    find_producer: bool = True,
 ) -> Decision | None:
     if not _watches(BeforeToolCall):
         return None
@@ -125,7 +127,7 @@ async def sentinel_before_tool_call(
         view = resolve_tool_call_view(call, viewer, reject_on_error=True)
     except ToolCallViewError as ex:
         raise ToolApprovalError(str(ex)) from ex
-    if producer is None:
+    if producer is None and find_producer:
         producer = _producing_event(call, history)
     conversation = current_conversation()
     step = BeforeToolCall(
@@ -172,11 +174,13 @@ async def sentinel_after_tool_call(
     viewer: ToolCallViewer | None,
     history: list[ChatMessage],
     producer: ModelEvent | None = None,
+    *,
+    find_producer: bool = True,
 ) -> None:
     if not _watches(AfterToolCall):
         return
     _require_message_id()
-    if producer is None:
+    if producer is None and find_producer:
         producer = _producing_event(call, history)
     conversation = current_conversation()
     step = AfterToolCall(

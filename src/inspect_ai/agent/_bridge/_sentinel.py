@@ -76,8 +76,11 @@ class SentinelCheck(NamedTuple):
     history: list[ChatMessage]
 
     producer: "ModelEvent | None" = None
-    """The generation that proposed the call, when the bridge captured it from a
-    model event sink; otherwise the steps find it in the transcript."""
+    """The generation that proposed the call (`sentinel_producer`)."""
+
+    producer_resolved: bool = False
+    """Whether `producer` is resolved, even to None; if not, the steps look for
+    the call's generation in the transcript."""
 
     token: str | None = None
     """The id the scaffold was handed for the call (`sentinel_tokens`), or None
@@ -394,8 +397,18 @@ async def sentinel_tool_call(
             viewer,
             history,
             producer,
+            find_producer=False,
         ),
     )
+
+
+async def sentinel_generation(
+    bridge: AgentBridge, message_id: str | None
+) -> "ModelEvent | None":
+    """The transcript's latest generation of `message_id`, when tool calls are checked."""
+    if not checks_tool_calls():
+        return None
+    return await _produced_event(bridge, message_id)
 
 
 async def sentinel_producer(
@@ -406,24 +419,34 @@ async def sentinel_producer(
 ) -> "ModelEvent | None":
     """The generation whose output is the response under review, for both tool stages.
 
-    `captured` is the generation the bridge's model event sink completed with
-    the response's message id. It is the producer unless a response filter
-    returned the response (`filtered`): the filter may have generated it itself,
-    outside the sink, as an equal message that keeps the id. Then the latest
-    such generation in the transcript is the producer, and `captured` only when
-    the transcript has none (a filter that returned the generation's output
+    `captured` is the bridge's generation, taken before any response filter
+    ran: from the bridge's model event sink, or from the transcript. It is the
+    producer unless a response filter returned the response (`filtered`): the
+    filter may have generated it itself, outside the sink, as an equal message
+    that keeps the id. Then the latest such generation in the transcript is the
+    producer, and `captured` only when the transcript has none and it has the
+    response's message id (a filter that returned the generation's output
     unchanged, from a sink that withholds events).
     """
-    from inspect_ai._sentinel._dispatch import produced_event
-
-    if captured is not None and not filtered:
+    if not filtered and captured is not None:
         return captured
+    found = await _produced_event(bridge, message_id)
+    if found is not None:
+        return found
+    if captured is not None and captured.output.message.id == message_id:
+        return captured
+    return None
+
+
+async def _produced_event(
+    bridge: AgentBridge, message_id: str | None
+) -> "ModelEvent | None":
+    from inspect_ai._sentinel._dispatch import produced_event
 
     async def lookup() -> "ModelEvent | None":
         return produced_event(message_id)
 
-    found = await _guarded(bridge, lookup)
-    return found if found is not None else captured
+    return await _guarded(bridge, lookup)
 
 
 def sentinel_tokens(
@@ -566,6 +589,7 @@ async def _tool_result(
             check.viewer,
             check.history,
             check.producer,
+            find_producer=not check.producer_resolved,
         ),
     )
 

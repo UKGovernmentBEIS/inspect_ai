@@ -485,6 +485,35 @@ RETARGETED = (
 )
 
 
+@protocol
+def bridge_new_id() -> Protocol:
+    async def rewrite(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        modified = replace(step.call, id="other", arguments={"path": "safe.txt"})
+        return Decision(action="modify", modified=modified, explanation="new id")
+
+    return rewrite
+
+
+@pytest.mark.parametrize("sandbox", [False, True])
+async def test_a_modify_that_changes_the_id_fails_the_sample(sandbox: bool) -> None:
+    model = Scripted(calls_output(READ))
+    bridge = sandbox_bridge() if sandbox else in_process_bridge([])
+
+    with active(bridge_new_id()):
+        with pytest.raises(
+            RuntimeError,
+            match="A sentinel monitor returned a modified call with id 'other' for "
+            f"the call with id '{READ.id}'",
+        ):
+            await generate(bridge, model, [ChatMessageUser(content=TASK)])
+
+    if sandbox:
+        assert isinstance(bridge, SandboxAgentBridge)
+        assert isinstance(bridge._failure, RuntimeError)
+
+
 @pytest.mark.parametrize("sandbox", [False, True])
 async def test_a_modify_that_changes_the_function_fails_the_sample(
     sandbox: bool,
@@ -3140,15 +3169,17 @@ async def test_both_stages_see_the_input_a_response_filter_regenerated_from(
 
 
 @pytest.mark.parametrize("sink", [None, "forwards", "withholds"])
-@pytest.mark.parametrize("regenerates", [False, True])
+@pytest.mark.parametrize("filter", ["returns", "regenerates", "discards"])
 async def test_a_response_filter_output_with_the_generations_message_id(
-    sink: str | None, regenerates: bool
+    sink: str | None, filter: str
 ) -> None:
+    # the filter returns the generation's output, or regenerates an equal one
+    # and returns or discards it
     seen: Steps = []
     generated = calls_output(READ)
     # an equal message keeps its id through the response filter
     # (`_settle_message_ids`), so the id alone can't tell the two generations apart
-    regenerated = [generated.model_copy(deep=True)] if regenerates else []
+    regenerated = [generated.model_copy(deep=True)] if filter != "returns" else []
     model = Scripted(generated, *regenerated, calls_output())
     history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
     bridge = in_process_bridge(history)
@@ -3160,14 +3191,15 @@ async def test_a_response_filter_output_with_the_generations_message_id(
         if filtered:
             return None
         filtered.append(True)
-        if not regenerates:
+        if filter == "returns":
             return output
-        return await model.generate(
+        regeneration = await model.generate(
             input=[ChatMessageSystem(content="Regenerated."), *input.input],
             tools=input.tools,
             tool_choice=input.tool_choice,
             config=input.config,
         )
+        return regeneration if filter == "regenerates" else None
 
     bridge.response_filter = returns_equal
     bridge.model_event_sink = sink_for(sink)
@@ -3185,7 +3217,7 @@ async def test_a_response_filter_output_with_the_generations_message_id(
 
     assert output.message.id == generated.message.id
     before, after = seen
-    sent = model.inputs[1] if regenerates else model.inputs[0]
+    sent = model.inputs[1] if filter == "regenerates" else model.inputs[0]
     assert before.input == after.input == sent
 
 

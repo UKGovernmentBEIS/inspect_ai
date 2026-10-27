@@ -35,7 +35,10 @@ from inspect_ai.agent._bridge._sentinel import (
     sentinel_tool_call,
 )
 from inspect_ai.agent._bridge.types import AgentBridge, DispatchedCall
-from inspect_ai.model._call_tools import _SENTINEL_MODIFIED_FUNCTION
+from inspect_ai.model._call_tools import (
+    _SENTINEL_MODIFIED_FUNCTION,
+    _modified_id_error,
+)
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool import Tool, ToolApprovalError
@@ -117,7 +120,7 @@ async def apply_bridge_tool_approval(
     When a sentinel is active, once every call is approved each goes through its
     `tool_call` stage in order, as on the native path: its `reject`, `modify` and
     `terminate` take effect like an approver's, and a `modify` that changes the
-    function called fails the sample. The response carries the
+    function called or the call's id fails the sample. The response carries the
     `tool_result` check for each call handed to the scaffold (`_sentinel.py`).
     A generation that is an agent turn has already been through the
     `model_input` and `model_output` stages inside `Model.generate()`; the
@@ -262,13 +265,10 @@ async def apply_bridge_tool_approval(
                     and decision.action == "modify"
                     and decision.modified is not None
                 ):
-                    if decision.modified.function != reviewed.function:
+                    error = _sentinel_modify_error(reviewed, decision.modified)
+                    if error is not None:
                         # as natively: an error in the monitor, failing the sample
-                        failure = RuntimeError(
-                            _SENTINEL_MODIFIED_FUNCTION.format(
-                                decision.modified.function, reviewed.function
-                            )
-                        )
+                        failure = RuntimeError(error)
                         bridge.request_fail(failure)
                         raise failure
                     reviewed = decision.modified
@@ -286,6 +286,7 @@ async def apply_bridge_tool_approval(
                         message_id=output.message.id,
                         history=sentinel_history,
                         producer=producer,
+                        producer_resolved=True,
                     )
                 )
 
@@ -296,6 +297,13 @@ async def apply_bridge_tool_approval(
         output = with_modified_arguments(output, modified)
 
     return BridgeApproval(output, None, checks)
+
+
+def _sentinel_modify_error(shown: ToolCall, modified: ToolCall) -> str | None:
+    """The native error for a sentinel `modify` that changes the function or id."""
+    if modified.function != shown.function:
+        return _SENTINEL_MODIFIED_FUNCTION.format(modified.function, shown.function)
+    return _modified_id_error("A sentinel monitor", shown, modified)
 
 
 def _handed_arguments(

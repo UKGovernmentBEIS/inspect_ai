@@ -46,7 +46,11 @@ from inspect_ai.agent._bridge._approval import (
     terminate_for_repeated_rejections,
 )
 from inspect_ai.agent._bridge._errors import BridgePolicyError, ResponseFilterError
-from inspect_ai.agent._bridge._sentinel import sentinel_tokens, sentinel_tool_results
+from inspect_ai.agent._bridge._sentinel import (
+    sentinel_generation,
+    sentinel_tokens,
+    sentinel_tool_results,
+)
 from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
 from inspect_ai.model._agent_message import validate_agent_message
 from inspect_ai.model._call_tools import get_tools_info
@@ -1045,7 +1049,16 @@ async def _bridge_generate_impl(
             await compact.record_output(input_messages, output)
 
         # Inside the refusal-retry loop so a content_filter replacement is retried.
+        # the generation's own event, taken before a response filter can make
+        # another with an equal message (and so the same id)
         generated = output
+        captured = (
+            sink.producing(output.message.id)
+            if sink is not None
+            else await sentinel_generation(bridge, output.message.id)
+            if bridge.response_filter is not None
+            else None
+        )
         if bridge.response_filter is not None:
             # under the bridge's approval policies, as a filter may generate
             with bridge_approval_scope(bridge.approval):
@@ -1087,9 +1100,7 @@ async def _bridge_generate_impl(
                 input_messages,
                 input + replayed,
                 declarations,
-                captured=sink.producing(output.message.id)
-                if sink is not None
-                else None,
+                captured=captured,
                 # the response filter's output, which it may have generated
                 # itself outside the sink
                 filtered=output is not generated,
