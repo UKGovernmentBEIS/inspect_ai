@@ -420,11 +420,7 @@ def _assistant_index(call: ToolCall, history: list[ChatMessage]) -> int | None:
 
 def _producing_event(call: ToolCall, history: list[ChatMessage]) -> ModelEvent | None:
     index = _assistant_index(call, history)
-    return produced_event(history[index].id if index is not None else None)
-
-
-def produced_event(message_id: str | None) -> ModelEvent | None:
-    """The latest completed generation in the transcript whose output is `message_id`."""
+    message_id = history[index].id if index is not None else None
     if message_id is None:
         return None
     try:

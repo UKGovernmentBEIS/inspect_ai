@@ -23,6 +23,7 @@ from shortuuid import uuid
 from typing_extensions import TypeIs
 
 from inspect_ai._sentinel._agent_state import bridge_request
+from inspect_ai._sentinel._context import checks_tool_calls
 from inspect_ai._util._async import raise_unwrapped
 from inspect_ai._util.content import (
     Content,
@@ -46,11 +47,7 @@ from inspect_ai.agent._bridge._approval import (
     terminate_for_repeated_rejections,
 )
 from inspect_ai.agent._bridge._errors import BridgePolicyError, ResponseFilterError
-from inspect_ai.agent._bridge._sentinel import (
-    sentinel_generation,
-    sentinel_tokens,
-    sentinel_tool_results,
-)
+from inspect_ai.agent._bridge._sentinel import sentinel_tokens, sentinel_tool_results
 from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
 from inspect_ai.model._agent_message import validate_agent_message
 from inspect_ai.model._call_tools import get_tools_info
@@ -73,6 +70,7 @@ from inspect_ai.model._model import (
     active_model,
     get_model,
     model_roles,
+    observe_generations,
     requested_model,
     use_model_event_sink,
 )
@@ -893,7 +891,15 @@ async def bridge_generate(
     if routing is not None and routing.redirected:
         _warn_redirect(routing, bridge.model)
 
-    with bridged_request_scope(requested_model), bridge_request():
+    generations = _Generations()
+    with (
+        bridged_request_scope(requested_model),
+        bridge_request(),
+        # only the sentinel's tool steps need to know what produced the response
+        observe_generations(generations.record)
+        if checks_tool_calls()
+        else nullcontext(),
+    ):
         return await _bridge_generate_impl(
             bridge,
             model,
@@ -904,6 +910,7 @@ async def bridge_generate(
             declared_in_input,
             routing,
             finalize_config,
+            generations,
         )
 
 
@@ -921,6 +928,7 @@ async def _bridge_generate_impl(
         GenerateConfig,
     ]
     | None,
+    generations: "_Generations",
 ) -> tuple[ModelOutput, ChatMessageUser | None]:
     """Implementation of bridge_generate (see wrapper)."""
     # restore operator provenance lost to a bridged scaffold's round-trip (e.g.
@@ -1049,27 +1057,23 @@ async def _bridge_generate_impl(
             await compact.record_output(input_messages, output)
 
         # Inside the refusal-retry loop so a content_filter replacement is retried.
-        # the generation's own event, taken before a response filter can make
-        # another with an equal message (and so the same id)
-        generated = output
-        captured = (
-            sink.producing(output.message.id)
-            if sink is not None
-            else await sentinel_generation(bridge, output.message.id)
-            if bridge.response_filter is not None
-            else None
-        )
+        # what produced the response, by the object handed over: the
+        # generation's output, or what the response filter returned
+        produced: ModelOutput | None = output
         if bridge.response_filter is not None:
             # under the bridge's approval policies, as a filter may generate
             with bridge_approval_scope(bridge.approval):
-                output = await _apply_response_filter(
-                    bridge.response_filter,
+                filtered = await _apply_response_filter(
+                    generations.tracking(bridge.response_filter, output),
                     model,
                     output,
                     GenerateInput(
                         input_messages, get_tools_info(tools), tool_choice, config
                     ),
                 )
+            if filtered is not output:
+                produced = generations.returned
+            output = filtered
 
         # Check for refusal and retry if needed
         if not output.empty and output.stop_reason == "content_filter":
@@ -1100,10 +1104,7 @@ async def _bridge_generate_impl(
                 input_messages,
                 input + replayed,
                 declarations,
-                captured=captured,
-                # the response filter's output, which it may have generated
-                # itself outside the sink
-                filtered=output is not generated,
+                producer=generations.event(produced),
             )
         if reviewed.rejection is None:
             # with a sentinel, each call is handed over under a token identifying
@@ -1134,7 +1135,7 @@ async def _bridge_generate_impl(
 
 
 class _SpanCapturingSink:
-    """Forward to a bridge's `ModelEventSink`, remembering the events and the span it chose.
+    """Forward to a bridge's `ModelEventSink`, remembering the span it placed the event in.
 
     A sink can attribute a generation to a span other than the current one (a
     sub-agent's). Host tool events pair with their proposing `ModelEvent` by
@@ -1142,48 +1143,64 @@ class _SpanCapturingSink:
     without widening the sink protocol. `span_id` is that span, or `None` when
     the event is in the span current during generation: decided here, since a
     checkpoint span can rotate while the calls await approval.
-
-    A sink may also hold events back from the transcript, so the sentinel's
-    tool steps take what the model was sent from the completed event that
-    produced the response (`producing`).
     """
 
     def __init__(self, inner: ModelEventSink) -> None:
         self.inner = inner
         self.span_id: str | None = None
         self._current: str | None = None
-        # every generation under the sink, including a monitor's at the
-        # model_output stage
-        self._completed: list[ModelEvent] = []
 
     def on_pending(self, event: "ModelEvent") -> None:
         self._current = current_span_id()
         self.inner.on_pending(event)
 
     def on_complete(self, event: "ModelEvent") -> None:
-        self._completed.append(event)
         self.inner.on_complete(event)
         current = (self._current, current_span_id())
         self.span_id = event.span_id if event.span_id not in current else None
 
-    def producing(self, message_id: str | None) -> "ModelEvent | None":
-        """The completed generation whose output is the message `message_id`, if any.
 
-        None when the response came from elsewhere (a filter's or response
-        filter's own generation, or a replacement), which the steps then look
-        for in the transcript.
-        """
-        return next(
-            (
-                event
-                for event in reversed(self._completed)
-                if message_id is not None
-                and event.role != "monitor"
-                and event.output.choices
-                and event.output.choices[0].message.id == message_id
-            ),
-            None,
-        )
+class _Generations:
+    """The generations of one bridged request, by the output object each returned.
+
+    The sentinel's tool steps take what the model was sent from the generation
+    that produced the response handed over. Messages from different
+    generations can be equal and share an id (a response filter that
+    regenerates, or concurrent bridges), so only the object identifies the
+    generation. A response filter's argument is a copy of the generation's
+    output, so it is recorded as that generation too. An output that is no
+    recorded generation's (a filter's copy or replacement) has no producer.
+    """
+
+    def __init__(self) -> None:
+        # the outputs are held, so their ids are not reused while recorded
+        self._events: dict[int, tuple[ModelOutput, "ModelEvent"]] = {}
+        self.returned: ModelOutput | None = None
+        """What the response filter last returned, before it is validated."""
+
+    def record(self, output: ModelOutput, event: "ModelEvent") -> None:
+        self._events[id(output)] = (output, event)
+
+    def event(self, output: ModelOutput | None) -> "ModelEvent | None":
+        recorded = self._events.get(id(output)) if output is not None else None
+        return recorded[1] if recorded is not None and recorded[0] is output else None
+
+    def tracking(
+        self, response_filter: ModelResponseFilter, generated: ModelOutput
+    ) -> ModelResponseFilter:
+        """`response_filter`, recording its argument as `generated` and what it returns."""
+
+        async def tracked(
+            model: Model, output: ModelOutput, input: GenerateInput
+        ) -> ModelOutput | None:
+            event = self.event(generated)
+            if event is not None:
+                self.record(output, event)
+            self.returned = None
+            self.returned = await response_filter(model, output, input)
+            return self.returned
+
+        return tracked
 
 
 def resolve_generate_config(

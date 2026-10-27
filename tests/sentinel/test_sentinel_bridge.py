@@ -3221,6 +3221,121 @@ async def test_a_response_filter_output_with_the_generations_message_id(
     assert before.input == after.input == sent
 
 
+@pytest.mark.parametrize("sink", [None, "forwards", "withholds"])
+@pytest.mark.parametrize(
+    "returned,sent",
+    [
+        ("argument", 0),
+        ("first", 1),
+        ("second", 2),
+        ("copy", None),
+        ("copy_after_both", None),
+    ],
+)
+async def test_the_steps_see_the_input_of_the_generation_a_response_filter_returned(
+    sink: str | None, returned: str, sent: int | None
+) -> None:
+    # every generation has an equal message with the same id, so only the
+    # object the filter returned says which one produced the response; a copy
+    # of one is from no generation the bridge saw
+    seen: Steps = []
+    generated = calls_output(READ)
+    regenerations = (
+        [generated.model_copy(deep=True) for _ in range(2)]
+        if returned not in ["argument", "copy"]
+        else []
+    )
+    model = Scripted(generated, *regenerations, calls_output())
+    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    bridge = in_process_bridge(history)
+    filtered: list[bool] = []
+
+    async def response_filter(
+        model: Model, output: ModelOutput, input: GenerateInput
+    ) -> ModelOutput | None:
+        if filtered:
+            return None
+        filtered.append(True)
+        if returned == "argument":
+            return output
+        if returned == "copy":
+            return output.model_copy(deep=True)
+        first, second = [
+            await model.generate(
+                input=[ChatMessageSystem(content=name), *input.input],
+                tools=input.tools,
+                tool_choice=input.tool_choice,
+                config=input.config,
+            )
+            for name in ["First.", "Second."]
+        ]
+        if returned == "first":
+            return first
+        if returned == "second":
+            return second
+        return output.model_copy(deep=True)
+
+    bridge.response_filter = response_filter
+    bridge.model_event_sink = sink_for(sink)
+    with active([bridge_recording(seen)]):
+        output = await generate(bridge, model, history)
+        await generate(
+            bridge,
+            model,
+            [
+                *history,
+                output.message,
+                ChatMessageTool(content="x", tool_call_id=READ.id),
+            ],
+        )
+
+    before, after = seen
+    expected = model.inputs[sent] if sent is not None else None
+    assert before.input == after.input == expected
+
+
+@pytest.mark.parametrize("returned", ["argument", "copy"])
+async def test_concurrent_bridges_keep_their_own_generations(returned: str) -> None:
+    shared = calls_output(READ)
+    both_filtering = anyio.Event()
+    filtering: list[str] = []
+    seen: dict[str, Steps] = {}
+    inputs: dict[str, list[ChatMessage]] = {}
+
+    async def run(name: str) -> None:
+        seen[name] = []
+        # both bridges' generations have the same message id
+        model = Scripted(shared.model_copy(deep=True))
+        bridge = in_process_bridge([])
+        bridge.model_event_sink = sink_for("forwards")
+
+        async def response_filter(
+            model: Model, output: ModelOutput, input: GenerateInput
+        ) -> ModelOutput | None:
+            filtering.append(name)
+            if len(filtering) == 2:
+                both_filtering.set()
+            await both_filtering.wait()
+            return output if returned == "argument" else output.model_copy(deep=True)
+
+        bridge.response_filter = response_filter
+        with active([bridge_recording(seen[name])]):
+            await generate(
+                bridge,
+                model,
+                [ChatMessageSystem(content=name), ChatMessageUser(content=TASK)],
+            )
+        inputs[name] = model.inputs[0]
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(run, "A")
+        tg.start_soon(run, "B")
+
+    for name in ["A", "B"]:
+        [step] = seen[name]
+        assert step.input == (inputs[name] if returned == "argument" else None)
+
+
 @pytest.mark.parametrize("executed", [False, True])
 async def test_a_scaffold_result_for_a_host_call_is_checked(executed: bool) -> None:
     call = replace(READ, function="mcp__host__read_file")
