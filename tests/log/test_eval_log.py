@@ -15,7 +15,7 @@ from zipfile import ZipFile
 
 import anyio
 import pytest
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, ValidationError
 from pydantic_core import PydanticSerializationError
 from test_helpers.utils import skip_if_trio
 from typing_extensions import override
@@ -42,7 +42,7 @@ from inspect_ai.event._subtask import SubtaskEvent
 from inspect_ai.event._timeline import TimelineEvent, timeline_build
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log import (
-    EvalCreatedBy,
+    EnqueueTaskOrigin,
     EvalError,
     EvalShardEntry,
     EvalShards,
@@ -709,44 +709,64 @@ def test_eval_log_header_without_shards_has_no_shards_key(tmp_path: Path) -> Non
 log_formats_json = os.path.join("tests", "log", "test_eval_log", "log_formats.json")
 
 
-@pytest.mark.parametrize(
-    "created_by",
-    [
-        EvalCreatedBy(eval_id="e1", task_id="t1", sample_id=3, epoch=2),
-        EvalCreatedBy(eval_id="e1", task_id="t1", sample_id="s", epoch=1),
-        EvalCreatedBy(eval_id="e1", task_id="t1"),
-    ],
-)
 @pytest.mark.parametrize("format", ["eval", "json"])
-def test_eval_log_round_trips_created_by(
-    tmp_path: Path, format: Literal["eval", "json"], created_by: EvalCreatedBy
+def test_eval_log_round_trips_origin(
+    tmp_path: Path, format: Literal["eval", "json"]
 ) -> None:
+    origin = EnqueueTaskOrigin(eval_id="e1", task_id="t1")
     log = read_eval_log(log_formats_eval)
-    log.eval.created_by = created_by
+    log.eval.origin = origin
     location = str(tmp_path / f"2026-10-27T10-00-00+00-00_child_abc.{format}")
     write_eval_log(log, location)
 
-    assert read_eval_log(location).eval.created_by == created_by
-    assert read_eval_log(location, header_only=True).eval.created_by == created_by
+    assert read_eval_log(location).eval.origin == origin
+    assert read_eval_log(location, header_only=True).eval.origin == origin
     [info] = list_eval_logs(str(tmp_path))
     [header] = read_eval_log_headers([info])
-    assert header.eval.created_by == created_by
-    # an int sample id stays an int
-    assert type(header.eval.created_by.sample_id) is type(created_by.sample_id)
+    assert header.eval.origin == origin
+
+
+def test_eval_log_origin_is_tagged_with_its_type(tmp_path: Path) -> None:
+    log = read_eval_log(log_formats_eval, header_only=True)
+    log.eval.origin = EnqueueTaskOrigin(eval_id="e1", task_id="t1")
+    location = str(tmp_path / "enqueued.eval")
+    write_eval_log(log, location)
+
+    assert _eval_log_header_json(location)["eval"]["origin"] == {
+        "type": "enqueue_task",
+        "eval_id": "e1",
+        "task_id": "t1",
+    }
+    # the discriminator selects the member when reading
+    spec = EvalSpec.model_validate(
+        _eval_log_header_json(location)["eval"], context=get_deserializing_context()
+    )
+    assert isinstance(spec.origin, EnqueueTaskOrigin)
+
+
+def test_eval_log_origin_with_unknown_type_is_rejected(tmp_path: Path) -> None:
+    # an origin kind this version does not know (e.g. from a newer writer) is a
+    # validation error, not read as another kind or dropped
+    log = read_eval_log(log_formats_eval, header_only=True)
+    log.eval.origin = EnqueueTaskOrigin(eval_id="e1", task_id="t1")
+    header = json.loads(log.model_dump_json(exclude_none=True))["eval"]
+    header["origin"]["type"] = "future_kind"
+    with pytest.raises(ValidationError, match="future_kind"):
+        EvalSpec.model_validate(header, context=get_deserializing_context())
 
 
 @pytest.mark.parametrize("location", [log_formats_eval, log_formats_json])
-def test_eval_log_without_created_by_reads_and_writes_none(
+def test_eval_log_without_origin_reads_and_writes_none(
     tmp_path: Path, location: str
 ) -> None:
-    # logs written before `created_by` existed (and logs of tasks the run was
+    # logs written before `origin` existed (and logs of tasks the run was
     # given) have no key; it reads as None and is not written back
     log = read_eval_log(location, header_only=True)
-    assert log.eval.created_by is None
+    assert log.eval.origin is None
     written = str(tmp_path / "plain.eval")
     write_eval_log(log, written)
-    assert "created_by" not in _eval_log_header_json(written)["eval"]
-    assert read_eval_log(written, header_only=True).eval.created_by is None
+    assert "origin" not in _eval_log_header_json(written)["eval"]
+    assert read_eval_log(written, header_only=True).eval.origin is None
 
 
 def test_eval_log_header_with_unknown_keys_validates(tmp_path: Path) -> None:

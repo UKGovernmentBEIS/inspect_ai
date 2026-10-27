@@ -2359,6 +2359,32 @@
         "title": "EarlyStoppingSummary",
         "type": "object"
       },
+      "EnqueueTaskOrigin": {
+        "description": "Origin of a task that a running task added with `enqueue_task()`.\n\nThe creating task ran in the run that first added this task (a retry of\nthis task runs under a new `run_id`). Find its log by `eval_id`, or by\n`task_id` if that task was retried.",
+        "properties": {
+          "eval_id": {
+            "title": "Eval Id",
+            "type": "string"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "enqueue_task",
+            "default": "enqueue_task",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "eval_id",
+          "task_id"
+        ],
+        "title": "EnqueueTaskOrigin",
+        "type": "object"
+      },
       "ErrorEvent": {
         "description": "Event with sample error.",
         "properties": {
@@ -2880,50 +2906,6 @@
           }
         },
         "title": "EvalConfig",
-        "type": "object"
-      },
-      "EvalCreatedBy": {
-        "description": "The task that added this eval's task to its run with `enqueue_task()`.\n\nThe creating task ran in the run that first added this task (a retry of\nthis task runs under a new `run_id`); find its log by `eval_id`, or by\n`task_id` if that task was retried.",
-        "properties": {
-          "epoch": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Epoch"
-          },
-          "eval_id": {
-            "title": "Eval Id",
-            "type": "string"
-          },
-          "sample_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Sample Id"
-          },
-          "task_id": {
-            "title": "Task Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "eval_id",
-          "task_id"
-        ],
-        "title": "EvalCreatedBy",
         "type": "object"
       },
       "EvalDataset": {
@@ -5059,16 +5041,6 @@
             "title": "Created",
             "type": "string"
           },
-          "created_by": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/EvalCreatedBy"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "dataset": {
             "$ref": "#/components/schemas/EvalDataset"
           },
@@ -5191,6 +5163,27 @@
               }
             ],
             "title": "Model Roles"
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "discriminator": {
+                  "mapping": {
+                    "enqueue_task": "#/components/schemas/EnqueueTaskOrigin"
+                  },
+                  "propertyName": "type"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/EnqueueTaskOrigin"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin"
           },
           "packages": {
             "additionalProperties": {

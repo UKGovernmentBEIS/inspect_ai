@@ -19,7 +19,7 @@ from inspect_ai._util.registry import _registry
 from inspect_ai.dataset import Sample
 from inspect_ai.hooks import Hooks, SampleEnd, TaskEnd, hooks
 from inspect_ai.log import (
-    EvalCreatedBy,
+    EnqueueTaskOrigin,
     EvalLog,
     EvalSample,
     list_eval_logs,
@@ -264,7 +264,7 @@ def _logs_by_task(logs: list[EvalLog]) -> dict[str, EvalLog]:
     return by_task
 
 
-async def test_enqueued_task_records_creating_sample() -> None:
+async def test_enqueued_task_records_creating_task() -> None:
     @solver
     def enqueue_named_child():
         async def solve(state: TaskState, generate: Generate) -> TaskState:
@@ -289,20 +289,21 @@ async def test_enqueued_task_records_creating_sample() -> None:
     logs = _logs_by_task(await eval_async(parent, model="mockllm/model"))
 
     parent_spec = logs.pop("parent").eval
-    assert parent_spec.created_by is None
-    assert {name: log.eval.created_by for name, log in logs.items()} == {
-        f"child-{sample_id}-{epoch}": EvalCreatedBy(
+    assert parent_spec.origin is None
+    assert {name: log.eval.origin for name, log in logs.items()} == {
+        f"child-{sample_id}-{epoch}": EnqueueTaskOrigin(
             eval_id=parent_spec.eval_id,
             task_id=parent_spec.task_id,
-            sample_id=sample_id,
-            epoch=epoch,
         )
         for sample_id in (1, "b")
         for epoch in (1, 2)
     }
+    assert {
+        log.eval.origin.type for log in logs.values() if log.eval.origin is not None
+    } == {"enqueue_task"}
 
 
-def test_enqueued_task_records_creating_scorer_sample() -> None:
+def test_enqueue_task_from_scorer_records_task() -> None:
     @scorer(metrics=[])
     def enqueue_from_scorer():
         async def score(state: TaskState, target: Target) -> Score:
@@ -318,11 +319,9 @@ def test_enqueued_task_records_creating_scorer_sample() -> None:
     )
 
     logs = _logs_by_task(eval(parent, model="mockllm/model", display="none"))
-    assert logs["child"].eval.created_by == EvalCreatedBy(
+    assert logs["child"].eval.origin == EnqueueTaskOrigin(
         eval_id=logs["parent"].eval.eval_id,
         task_id=logs["parent"].eval.task_id,
-        sample_id="s",
-        epoch=1,
     )
 
 
@@ -349,17 +348,17 @@ def test_nested_enqueued_tasks_record_their_own_creator() -> None:
     )
 
     logs = _logs_by_task(eval(parent, model="mockllm/model", display="none"))
-    assert logs["parent"].eval.created_by is None
+    assert logs["parent"].eval.origin is None
     for name, creator in (("gen1", "parent"), ("gen0", "gen1")):
-        created_by = logs[name].eval.created_by
-        assert created_by is not None
-        assert created_by.eval_id == logs[creator].eval.eval_id
-        assert created_by.task_id == logs[creator].eval.task_id
+        origin = logs[name].eval.origin
+        assert origin is not None
+        assert origin.eval_id == logs[creator].eval.eval_id
+        assert origin.task_id == logs[creator].eval.task_id
 
 
 def test_enqueue_task_from_sample_source_records_task() -> None:
-    # next_samples() runs in the task outside any sample; sample_complete()
-    # runs in the completed sample's context
+    # next_samples() runs in the task outside any sample, sample_complete() in
+    # the completed sample's context; both are the task's own code
     enqueued = False
 
     async def next_samples() -> list[Sample] | None:
@@ -384,14 +383,11 @@ def test_enqueue_task_from_sample_source_records_task() -> None:
 
     logs = _logs_by_task(eval(parent, model="mockllm/model", display="none"))
     parent_spec = logs["parent"].eval
-    assert logs["from-next-samples"].eval.created_by == EvalCreatedBy(
+    assert logs["from-next-samples"].eval.origin == EnqueueTaskOrigin(
         eval_id=parent_spec.eval_id, task_id=parent_spec.task_id
     )
-    assert logs["from-sample-complete"].eval.created_by == EvalCreatedBy(
-        eval_id=parent_spec.eval_id,
-        task_id=parent_spec.task_id,
-        sample_id="seed",
-        epoch=1,
+    assert logs["from-sample-complete"].eval.origin == EnqueueTaskOrigin(
+        eval_id=parent_spec.eval_id, task_id=parent_spec.task_id
     )
 
 
@@ -408,11 +404,11 @@ def test_enqueued_task_records_creator_per_model() -> None:
     children = [log.eval for log in logs if log.eval.task == "child"]
     assert len(parents) == 2
     # the creating sample adds the child for every model in the run; each
-    # child records the parent eval whose sample added it
+    # child records the parent eval that added it
     creators = sorted(
-        (spec.model, spec.created_by.eval_id)
+        (spec.model, spec.origin.eval_id)
         for spec in children
-        if spec.created_by is not None
+        if spec.origin is not None
     )
     assert len(creators) == len(children) == 4
     assert {eval_id for _, eval_id in creators} == {
@@ -432,7 +428,7 @@ class _EnqueueFromHooks(Hooks):
             enqueue_task(Task(dataset=[Sample(input="hi")], name="from-on-task-end"))
 
 
-async def test_enqueue_task_from_hooks_records_no_creator() -> None:
+async def test_enqueue_task_from_hooks_records_no_origin() -> None:
     @hooks("enqueue_from_hooks", description="enqueue_task() from hooks")
     def enqueue_from_hooks() -> type[_EnqueueFromHooks]:
         return _EnqueueFromHooks
@@ -448,14 +444,12 @@ async def test_enqueue_task_from_hooks_records_no_creator() -> None:
     finally:
         del _registry["hooks:enqueue_from_hooks"]
 
-    assert logs["from-on-sample-end"].eval.created_by is None
-    assert logs["from-on-task-end"].eval.created_by is None
+    assert logs["from-on-sample-end"].eval.origin is None
+    assert logs["from-on-task-end"].eval.origin is None
     # the parent's own solver, in the same sample, still records it
-    assert logs["child"].eval.created_by == EvalCreatedBy(
+    assert logs["child"].eval.origin == EnqueueTaskOrigin(
         eval_id=logs["parent"].eval.eval_id,
         task_id=logs["parent"].eval.task_id,
-        sample_id="parent-sample",
-        epoch=1,
     )
 
 
@@ -481,7 +475,7 @@ def flaky_child() -> Task:
     return Task(dataset=[Sample(id="c", input="hi")], solver=[fail_first_run()])
 
 
-def test_task_retry_in_run_keeps_created_by(
+def test_task_retry_in_run_keeps_origin(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("FLAKY_CHILD_MARKER", str(tmp_path / "failed-once"))
@@ -510,24 +504,22 @@ def test_task_retry_in_run_keeps_created_by(
         )
     )
 
-    expected = EvalCreatedBy(
+    expected = EnqueueTaskOrigin(
         eval_id=logs["parent"].eval.eval_id,
         task_id=logs["parent"].eval.task_id,
-        sample_id="p",
-        epoch=1,
     )
     assert logs["flaky_child"].status == "success"
-    assert logs["flaky_child"].eval.created_by == expected
+    assert logs["flaky_child"].eval.origin == expected
     # the failed attempt's log records the same creator
     attempts = [
         read_eval_log(info, header_only=True) for info in list_eval_logs(str(log_dir))
     ]
     child_attempts = [log for log in attempts if log.eval.task == "flaky_child"]
     assert sorted(log.status for log in child_attempts) == ["error", "success"]
-    assert all(log.eval.created_by == expected for log in child_attempts)
+    assert all(log.eval.origin == expected for log in child_attempts)
 
 
-def test_eval_retry_keeps_created_by(
+def test_eval_retry_keeps_origin(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("FLAKY_CHILD_MARKER", str(tmp_path / "failed-once"))
@@ -555,14 +547,12 @@ def test_eval_retry_keeps_created_by(
     )
     failed = logs["flaky_child"]
     assert failed.status == "error"
-    assert failed.eval.created_by == EvalCreatedBy(
+    assert failed.eval.origin == EnqueueTaskOrigin(
         eval_id=logs["parent"].eval.eval_id,
         task_id=logs["parent"].eval.task_id,
-        sample_id="p",
-        epoch=1,
     )
 
     retried = eval_retry(failed, display="none", log_dir=str(tmp_path / "logs"))[0]
     assert retried.status == "success", retried.error
     assert retried.eval.run_id != failed.eval.run_id
-    assert retried.eval.created_by == failed.eval.created_by
+    assert retried.eval.origin == failed.eval.origin

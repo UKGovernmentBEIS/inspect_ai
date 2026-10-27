@@ -154,15 +154,16 @@ def spawn_followup():
 
 Enqueued tasks run under the current run id, resolved against the run's models and config, and share a buffer with tasks returned from `sample_complete` / `task_complete`. `enqueue_task()` raises if no eval is running.
 
-The log of a task added with `enqueue_task()` records which task added it, in `eval.created_by`: the creating task's `eval_id` and `task_id`, and the `sample_id` and `epoch` of the sample that added it (both `None` when it was added from task code outside a sample, such as a `SampleSource`'s `next_samples()`). `created_by` is `None` for tasks the run was given, including those a `TaskSource` provides, and for tasks added with `enqueue_task()` from a `TaskSource` callback, a hook, or code outside any task. A retried task keeps its `created_by`.
+The log of a task added with `enqueue_task()` records where it came from, in `eval.origin`: an `EnqueueTaskOrigin` (`type` is `"enqueue_task"`) holding the creating task's `eval_id` and `task_id`. `origin` is `None` for tasks the run was given, including those a `TaskSource` provides, and for tasks added with `enqueue_task()` from a `TaskSource` callback, a hook, or code outside any task. Retries keep `origin`, and the creating task's `task_id` stays the same when it is retried.
 
 ```python
 from inspect_ai.log import list_eval_logs, read_eval_log
 
 for info in list_eval_logs("logs"):
     log = read_eval_log(info, header_only=True)
-    if log.eval.created_by is not None:
-        print(log.eval.task, "added by eval", log.eval.created_by.eval_id)
+    origin = log.eval.origin
+    if origin is not None and origin.type == "enqueue_task":
+        print(log.eval.task, "added by eval", origin.eval_id)
 ```
 
 ## Concurrency

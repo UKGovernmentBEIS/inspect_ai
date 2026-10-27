@@ -444,7 +444,7 @@ async def eval_run(
                     eval_config=task_eval_config,
                     metadata=((metadata or {}) | (task.metadata or {})) or None,
                     viewer=task.viewer,
-                    created_by=resolved_task.created_by,
+                    origin=resolved_task.origin,
                     recorder=recorder,
                     header_only=header_only,
                     dynamic_dataset=task.sample_source is not None,

@@ -41,9 +41,9 @@ from inspect_ai.log import (
     HeadlineMetric,
 )
 from inspect_ai.log._log import (
-    EvalCreatedBy,
     EvalLog,
     EvalMetricDefinition,
+    EvalOrigin,
     EvalSampleReductions,
     EvalSampleSummary,
     EvalScorer,
@@ -219,7 +219,7 @@ class TaskLogger:
         eval_config: EvalConfig,
         metadata: dict[str, Any] | None,
         viewer: ViewerConfig | None,
-        created_by: EvalCreatedBy | None,
+        origin: EvalOrigin | None,
         recorder: Recorder,
         header_only: bool,
         dynamic_dataset: bool = False,
@@ -320,7 +320,7 @@ class TaskLogger:
             packages=packages,
             metadata=metadata,
             viewer=viewer,
-            created_by=created_by,
+            origin=origin,
         )
 
         # stack recorder and location

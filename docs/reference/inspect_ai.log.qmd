@@ -58,7 +58,8 @@ description: List, read, write, and analyse logs.
 ### EvalStatus
 ### EvalLog
 ### EvalSpec
-### EvalCreatedBy
+### EvalOrigin
+### EnqueueTaskOrigin
 ### EvalDataset
 ### EvalConfig
 ### EvalRevision
