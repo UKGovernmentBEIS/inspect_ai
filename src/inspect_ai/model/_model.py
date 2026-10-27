@@ -239,8 +239,6 @@ class _PreparedInput(NamedTuple):
     tool_choice: ToolChoice
     rebuilt: list[ChatMessage]
     """Messages of `input` built for this call rather than by the caller."""
-    combined_occurrences: dict[bytes, int]
-    """Occurrences of each rebuilt content given an id while collapsing."""
 
 
 @dataclasses.dataclass(frozen=True)
@@ -1418,21 +1416,10 @@ class Model:
         if extract_types:
             input = tool_result_media_as_user_message(input, tuple(extract_types))
 
-        combined_occurrences: dict[bytes, int] = {}
-
-        def reuse_combined_id(message: ChatMessage) -> None:
-            # a combination records the ids of the messages it combines
-            if message.id not in caller_ids:
-                _reuse_rebuilt_message_ids([message], [message], combined_occurrences)
-
-        input = collapse_consecutive_messages_for_api(
-            input, self.api, before_combine=reuse_combined_id
-        )
+        input = collapse_consecutive_messages_for_api(input, self.api)
         _validate_model_input_media(input)
         rebuilt = [message for message in input if message.id not in caller_ids]
-        return _PreparedInput(
-            input, tdefs, base_tools, tool_choice, rebuilt, combined_occurrences
-        )
+        return _PreparedInput(input, tdefs, base_tools, tool_choice, rebuilt)
 
     async def _generate(
         self,
@@ -1456,7 +1443,7 @@ class Model:
             track_active_model_event,
         )
 
-        input, tdefs, base_tools, tool_choice, rebuilt, combined_occurrences = prepared
+        input, tdefs, base_tools, tool_choice, rebuilt = prepared
 
         # resolve cache policy
         if isinstance(cache, NotGiven):
@@ -1520,7 +1507,7 @@ class Model:
                 cache=cache_mode,
             )
             # after the hooks, which may edit the input
-            _reuse_rebuilt_message_ids(input, rebuilt, dict(combined_occurrences))
+            _reuse_rebuilt_message_ids(input, rebuilt)
             _validate_model_input_media(input)
 
             event_tools = (
@@ -2803,54 +2790,33 @@ def tools_for_tool_choice(
 
 
 def collapse_consecutive_messages_for_api(
-    messages: list[ChatMessage],
-    api: ModelAPI,
-    before_combine: Callable[[ChatMessage], None] | None = None,
+    messages: list[ChatMessage], api: ModelAPI
 ) -> list[ChatMessage]:
-    """Collapse consecutive messages of the roles the api requires.
-
-    Args:
-        messages: Messages to collapse.
-        api: Model api whose requirements apply.
-        before_combine: Called with each message just before it is combined
-            with another (including earlier combinations in a run of three or
-            more), since the combination records its id.
-    """
     # optionally collapse *consecutive* messages into one -
     # (some apis e.g. anthropic require this)
     if api.collapse_user_messages():
-        messages = collapse_consecutive_user_messages(messages, before_combine)
+        messages = collapse_consecutive_user_messages(messages)
 
     if api.collapse_assistant_messages():
-        messages = collapse_consecutive_assistant_messages(messages, before_combine)
+        messages = collapse_consecutive_assistant_messages(messages)
 
     if api.collapse_system_messages():
-        messages = collapse_consecutive_system_messages(messages, before_combine)
+        messages = collapse_consecutive_system_messages(messages)
 
     return messages
 
 
 def collapse_consecutive_user_messages(
     messages: list[ChatMessage],
-    before_combine: Callable[[ChatMessage], None] | None = None,
 ) -> list[ChatMessage]:
-    return functools.reduce(
-        functools.partial(user_message_reducer, before_combine=before_combine),
-        messages,
-        [],
-    )
+    return functools.reduce(user_message_reducer, messages, [])
 
 
 # Functions to reduce consecutive assistant messages to a single user message -> required for some models
 def collapse_consecutive_assistant_messages(
     messages: list[ChatMessage],
-    before_combine: Callable[[ChatMessage], None] | None = None,
 ) -> list[ChatMessage]:
-    return functools.reduce(
-        functools.partial(assistant_message_reducer, before_combine=before_combine),
-        messages,
-        [],
-    )
+    return functools.reduce(assistant_message_reducer, messages, [])
 
 
 # Functions to reduce consecutive system messages to a single system message ->
@@ -2858,59 +2824,41 @@ def collapse_consecutive_assistant_messages(
 # reject requests containing more than one system message.
 def collapse_consecutive_system_messages(
     messages: list[ChatMessage],
-    before_combine: Callable[[ChatMessage], None] | None = None,
 ) -> list[ChatMessage]:
-    return functools.reduce(
-        functools.partial(system_message_reducer, before_combine=before_combine),
-        messages,
-        [],
-    )
+    return functools.reduce(system_message_reducer, messages, [])
 
 
 def user_message_reducer(
     messages: list[ChatMessage],
     message: ChatMessage,
-    before_combine: Callable[[ChatMessage], None] | None = None,
 ) -> list[ChatMessage]:
-    return consecutive_message_reducer(
-        messages, message, ChatMessageUser, before_combine
-    )
+    return consecutive_message_reducer(messages, message, ChatMessageUser)
 
 
 def assistant_message_reducer(
     messages: list[ChatMessage],
     message: ChatMessage,
-    before_combine: Callable[[ChatMessage], None] | None = None,
 ) -> list[ChatMessage]:
-    return consecutive_message_reducer(
-        messages, message, ChatMessageAssistant, before_combine
-    )
+    return consecutive_message_reducer(messages, message, ChatMessageAssistant)
 
 
 def system_message_reducer(
     messages: list[ChatMessage],
     message: ChatMessage,
-    before_combine: Callable[[ChatMessage], None] | None = None,
 ) -> list[ChatMessage]:
-    return consecutive_message_reducer(
-        messages, message, ChatMessageSystem, before_combine
-    )
+    return consecutive_message_reducer(messages, message, ChatMessageSystem)
 
 
 def consecutive_message_reducer(
     messages: list[ChatMessage],
     message: ChatMessage,
     message_type: Type[ChatMessage],
-    before_combine: Callable[[ChatMessage], None] | None = None,
 ) -> list[ChatMessage]:
     if (
         isinstance(message, message_type)
         and len(messages) > 0
         and isinstance(messages[-1], message_type)
     ):
-        if before_combine is not None:
-            before_combine(messages[-1])
-            before_combine(message)
         messages[-1] = combine_messages(messages[-1], message, message_type)
     else:
         messages.append(message)
@@ -3186,7 +3134,6 @@ def init_sample_rebuilt_message_ids() -> None:
 def _reuse_rebuilt_message_ids(
     messages: list[ChatMessage],
     rebuilt: list[ChatMessage],
-    occurrences: dict[bytes, int] | None = None,
 ) -> None:
     """Give each message rebuilt for this generate the sample's id for its content.
 
@@ -3201,7 +3148,8 @@ def _reuse_rebuilt_message_ids(
     an edit (e.g. by a hook), a message is given an id of its new content.
     Messages with different content never share an id, a message never takes
     an id held by another message in `messages`, and outside a sample the ids
-    are left as they are.
+    are left as they are. A collapsed message records the ids of the messages
+    it combines, so it keeps its id only when those are the caller's.
 
     Rebuilt messages are new objects, so setting their id changes nothing the
     caller holds.
@@ -3209,14 +3157,11 @@ def _reuse_rebuilt_message_ids(
     Args:
         messages: The call's input.
         rebuilt: The messages of `messages` built for the call.
-        occurrences: Occurrences of each content already given an id in this
-            call (updated); by default none.
     """
     rebuilt_ids = _sample_rebuilt_message_ids.get()
     if rebuilt_ids is None:
         return
-    if occurrences is None:
-        occurrences = {}
+    occurrences: dict[bytes, int] = {}
     rebuilt_objects = {id(message) for message in rebuilt}
     used = {message.id for message in messages if id(message) not in rebuilt_objects}
     for message in messages:

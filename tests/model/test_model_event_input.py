@@ -7,7 +7,7 @@ from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Iterator, Literal
+from typing import Any, Iterator, Literal
 
 import numpy as np
 import pytest
@@ -30,7 +30,6 @@ from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
-    ChatMessageSystem,
     ChatMessageTool,
     ChatMessageUser,
     GenerateConfig,
@@ -384,16 +383,11 @@ async def _generate_twice(
     init_sample_rebuilt_message_ids()
     model = get_model("mockllm/model")
     monkeypatch.setattr(model.api, "tool_result_images", lambda: path != "media")
-    monkeypatch.setattr(model.api, "collapse_user_messages", lambda: path == "collapse")
     messages = [
         ChatMessageUser(content="Do the steps."),
         *_step_call(1),
         *_step_call(2),
     ]
-    if path == "collapse":
-        messages.append(ChatMessageUser(content="Continue."))
-        messages.append(ChatMessageUser(content="Please."))
-        messages.append(ChatMessageUser(content="Thanks."))
     tools = (
         [tool_with(step(), model_input=_truncate_older)]
         if path == "model_input"
@@ -414,7 +408,7 @@ async def _generate_twice(
 
 
 @pytest.mark.parametrize(
-    "path", ["system_message", "reasoning", "model_input", "media", "collapse"]
+    "path", ["system_message", "reasoning", "model_input", "media"]
 )
 async def test_model_event_input_rebuilt_messages_keep_ids(
     monkeypatch: pytest.MonkeyPatch, path: str
@@ -429,41 +423,6 @@ async def test_model_event_input_rebuilt_messages_keep_ids(
     for i in rebuilt:
         # the unchanged rebuilt message reuses the first event's snapshot
         assert first.input[i] is second.input[i]
-
-
-@pytest.mark.parametrize(
-    "flag",
-    [
-        "collapse_user_messages",
-        "collapse_assistant_messages",
-        "collapse_system_messages",
-    ],
-)
-async def test_model_event_input_collapsed_runs_keep_ids(
-    monkeypatch: pytest.MonkeyPatch, flag: str
-) -> None:
-    init_transcript(Transcript())
-    init_sample_rebuilt_message_ids()
-    model = get_model("mockllm/model")
-    monkeypatch.setattr(model.api, flag, lambda: True)
-    builders: dict[str, Callable[[str], ChatMessage]] = {
-        "collapse_user_messages": lambda text: ChatMessageUser(content=text),
-        "collapse_assistant_messages": lambda text: ChatMessageAssistant(content=text),
-        "collapse_system_messages": lambda text: ChatMessageSystem(content=text),
-    }
-    message = builders[flag]
-    messages = [message(f"part {i}") for i in range(3)]
-    messages.append(ChatMessageUser(content="Go."))
-
-    await model.generate(messages)
-    await model.generate(messages)
-
-    first, second = _model_events()
-    # the run combines an earlier combination, whose id it records
-    assert first.input[0].metadata is not None
-    assert first.input[0].metadata["combined_from"][0] not in {m.id for m in messages}
-    assert first.input[0].id == second.input[0].id
-    assert first.input[0] is second.input[0]
 
 
 class _EditSystemMessage(Hooks):
@@ -559,21 +518,16 @@ async def test_model_event_input_changed_system_message_gets_new_id() -> None:
     assert ids[0] == ids[2]
 
 
-@pytest.mark.parametrize(
-    "reasoning_history,collapse", [("none", False), ("last", False), ("none", True)]
-)
+@pytest.mark.parametrize("reasoning_history", ["none", "last"])
 async def test_model_event_input_identical_rebuilt_messages_keep_distinct_ids(
-    monkeypatch: pytest.MonkeyPatch,
     reasoning_history: Literal["none", "last"],
-    collapse: bool,
 ) -> None:
     init_transcript(Transcript())
     init_sample_rebuilt_message_ids()
     model = get_model("mockllm/model")
-    monkeypatch.setattr(model.api, "collapse_assistant_messages", lambda: collapse)
     messages: list[ChatMessage] = [ChatMessageUser(content="hi")]
-    # identical once their reasoning is removed (collapsed in pairs)
-    for n in range(2 if collapse else 3):
+    # identical once their reasoning is removed
+    for n in range(3):
         messages.append(
             ChatMessageAssistant(
                 content=[
@@ -582,8 +536,7 @@ async def test_model_event_input_identical_rebuilt_messages_keep_distinct_ids(
                 ]
             )
         )
-        if not collapse:
-            messages.append(ChatMessageUser(content="go on"))
+        messages.append(ChatMessageUser(content="go on"))
     before = deepcopy(messages)
 
     for _ in range(3):
@@ -593,10 +546,6 @@ async def test_model_event_input_identical_rebuilt_messages_keep_distinct_ids(
 
     assert [m.model_dump() for m in messages] == [m.model_dump() for m in before]
     first, *rest = _model_events()
-    if collapse:
-        assert first.input[1].metadata is not None
-        parts = first.input[1].metadata["combined_from"]
-        assert len(set(parts)) == len(parts)
     assert len({m.id for m in first.input}) == len(first.input)
     for event in rest:
         assert [m.id for m in event.input] == [m.id for m in first.input]
