@@ -1,4 +1,5 @@
 import logging
+import math
 import random
 import threading
 from collections import Counter
@@ -6311,6 +6312,85 @@ def test_the_fold_matches_by_content_and_position() -> None:
             "continue",
         ],
     }
+
+
+_LONG_WITH_A_LONE_SURROGATE = "word " * 40 + "\udc00"
+
+
+def test_input_with_a_lone_surrogate_generates_with_a_sentinel() -> None:
+    seen: Sent = []
+    task = Task(
+        dataset=[Sample(input=_LONG_WITH_A_LONE_SURROGATE)],
+        solver=generate(),
+        sentinel=d3_reads_sent(seen),
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.status == "success", log.error
+    [(_, sent)] = sent_afters(seen)
+    assert sent_texts(sent) == [_LONG_WITH_A_LONE_SURROGATE]
+
+
+def test_the_fold_compares_messages_with_lone_surrogates_by_content() -> None:
+    first = ChatMessageUser(content=_LONG_WITH_A_LONE_SURROGATE)
+    rebuilt = ChatMessageUser(content=_LONG_WITH_A_LONE_SURROGATE)
+    other = ChatMessageUser(content="word " * 40 + "\udc01")
+    assert fold([first], [rebuilt]) == [first]
+    assert fold([first], [other]) == [first, other]
+
+
+def test_the_fold_matches_a_message_it_cannot_serialize_only_as_itself() -> None:
+    import numpy as np
+
+    def unserializable() -> ChatMessageAssistant:
+        return ChatMessageAssistant(
+            content="",
+            tool_calls=[
+                ToolCall(id="c", function="f", arguments={"x": np.array([1, 2])})
+            ],
+        )
+
+    message, copy = unserializable(), unserializable()
+    assert fold([message], [message]) == [message]
+    assert fold([message], [copy]) == [message, copy]
+
+
+def _calls_with(x: Any, content: str = "") -> ChatMessageAssistant:
+    return ChatMessageAssistant(
+        content=content,
+        tool_calls=[ToolCall(id="c", function="f", arguments={"x": x})],
+    )
+
+
+@pytest.mark.parametrize("content", ["", _LONG_WITH_A_LONE_SURROGATE])
+@pytest.mark.parametrize(
+    "before,after",
+    [
+        (None, math.nan),
+        (math.nan, math.inf),
+        (math.inf, -math.inf),
+        (-math.inf, None),
+    ],
+)
+def test_the_fold_tells_non_finite_tool_arguments_apart(
+    before: float | None, after: float | None, content: str
+) -> None:
+    first, second = _calls_with(before, content), _calls_with(after, content)
+    assert fold([first], [second]) == [first, second]
+    assert fold([first], [_calls_with(before, content)]) == [first]
+
+
+def test_history_keeps_each_non_finite_tool_argument_sent() -> None:
+    values = [None, math.nan, math.inf, -math.inf]
+    inputs: list[list[ChatMessage]] = [[_calls_with(x)] for x in values]
+    seen = run_reading_sent(d3_sends(*inputs))
+    *_, (_, last) = sent_afters(seen)
+    assert last is not None
+    arguments = [
+        m.tool_calls[0].arguments["x"]
+        for m in last
+        if isinstance(m, ChatMessageAssistant) and m.tool_calls
+    ]
+    assert repr(arguments) == repr(values)
 
 
 def test_the_fold_ignores_source_and_metadata() -> None:
