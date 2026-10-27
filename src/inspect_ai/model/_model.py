@@ -26,6 +26,7 @@ from typing import (
     TypeAlias,
     TypeVar,
     cast,
+    runtime_checkable,
 )
 
 if TYPE_CHECKING:
@@ -97,6 +98,12 @@ from inspect_ai.util._limit import (
     record_turn,
     token_limit_usage,
     turn_count,
+)
+from inspect_ai.util._span import (
+    current_agent_span_id,
+    current_span_id,
+    in_agent_span,
+    in_span,
 )
 
 from ._agent_message import validate_agent_message
@@ -848,7 +855,7 @@ class Model:
     For example:
 
     ```python
-    async with get_model("openai/gpt-4o") as model:
+    async with get_model("openai/gpt-6-luna") as model:
         response = await model.generate("Say hello")
     ```
     """
@@ -1025,12 +1032,27 @@ class Model:
 
         prepared = await self._prepare_input(input, tools, tool_choice, config)
 
+        with _model_event_sink_span(prepared.input):
+            return await self._generate_prepared(prepared, config, cache, on_stream)
+
+    async def _generate_prepared(
+        self,
+        prepared: "_PreparedInput",
+        config: GenerateConfig,
+        cache: bool | CachePolicy | NotGiven,
+        on_stream: StreamHandler | None,
+    ) -> ModelOutput:
+        # the uuid of this generate's first ModelEvent, minted before the
+        # sentinel runs so that its generate stages are identified by it
+        generate_id = uuid()
+
         # outside the connection slot, since a monitor may call this model too
         generate_step = None
         if is_agent_generate():
             from inspect_ai._sentinel._dispatch import sentinel_before_generate
 
             generate_step = await sentinel_before_generate(
+                generate_id=generate_id,
                 model=str(self),
                 input=prepared.input,
                 tools=prepared.tools,
@@ -1049,6 +1071,7 @@ class Model:
                 cache=cache,
                 connection=connection,
                 on_stream=on_stream,
+                event_uuid=generate_id,
             )
 
             # update the most recent ModelEvent with the actual start/completed
@@ -1087,7 +1110,7 @@ class Model:
         if generate_step is not None:
             from inspect_ai._sentinel._dispatch import sentinel_after_generate
 
-            await sentinel_after_generate(generate_step, output)
+            await sentinel_after_generate(generate_step, output, generate_id)
 
         return output
 
@@ -1422,6 +1445,7 @@ class Model:
         cache: bool | CachePolicy | NotGiven = NOT_GIVEN,
         connection: ConnectionSlot | None = None,
         on_stream: StreamHandler | None = None,
+        event_uuid: str | None = None,
     ) -> tuple[ModelOutput, BaseModel]:
         from inspect_ai.event._model import ModelEvent
         from inspect_ai.hooks._hooks import (
@@ -1466,6 +1490,13 @@ class Model:
         from inspect_ai._control.pause import wait_generate_dispatch
 
         attempts = ModelAttempts()
+
+        # the first attempt's event takes event_uuid; a retry's mints its own
+        first_uuid = [event_uuid]
+
+        def attempt_uuid() -> str | None:
+            minted, first_uuid[0] = first_uuid[0], None
+            return minted
 
         @retry(
             **model_retry_config(
@@ -1534,6 +1565,7 @@ class Model:
                         cache="read",
                         output=existing,
                         call=None,
+                        event_uuid=attempt_uuid(),
                     )
                     # announce the attempt even though no provider call runs:
                     # a cache hit on a *retry* attempt (a concurrent identical
@@ -1570,6 +1602,7 @@ class Model:
                 tool_choice=tool_choice,
                 config=config,
                 cache=cache_mode,
+                event_uuid=attempt_uuid(),
             )
 
             # create timeout context manager if we have an attempt timeout
@@ -2023,21 +2056,26 @@ class Model:
         cache: Literal["read", "write"] | None,
         output: ModelOutput | None = None,
         call: ModelCall | None = None,
+        event_uuid: str | None = None,
     ) -> tuple[
         Callable[[ModelOutput | Exception, ModelCall | None], None],
         BaseModel,
     ]:
+        from inspect_ai._sentinel._scope import current_origin
         from inspect_ai.event._model import ModelEvent
         from inspect_ai.log._transcript import transcript
 
         # create event and add it to the transcript (or hand off to the
         # installed model-event sink, if any)
         model = str(self)
+        snapshot = _snapshot_messages(input)
         event = ModelEvent(
+            uuid=event_uuid,
             model=model,
             role=self.role,
             requested_model=_requested_model.get(),
-            input=_snapshot_messages(input),
+            origin=current_origin(),
+            input=snapshot,
             tools=tools,
             tool_choice=tool_choice,
             config=config,
@@ -2046,11 +2084,12 @@ class Model:
             call=call,
             pending=output is None,
         )
-        # at creation, so a request still in flight counts as sent
+        # at creation, so a request still in flight counts as sent; the
+        # snapshot, so history keeps a message as sent, as the log does
         if is_agent_generate():
             from inspect_ai._sentinel._dispatch import record_agent_turn
 
-            record_agent_turn(input)
+            record_agent_turn(snapshot)
         sink = _model_event_sink.get()
         if sink is None:
             transcript()._event(event)
@@ -2359,7 +2398,7 @@ def get_model(
     to the `Model` class. For example:
 
     ```python
-    async with get_model("openai/gpt-4o") as model:
+    async with get_model("openai/gpt-6-luna") as model:
         response = await model.generate("Say hello")
     ```
 
@@ -3006,12 +3045,14 @@ _model_roles: ContextVar[dict[str, Model | list[Model]]] = ContextVar(
 class ModelEventSink(Protocol):
     """Recipient of `ModelEvent` emissions when installed via `use_model_event_sink`.
 
-    When a sink is active, `_record_model_interaction` routes the event to the
-    sink instead of emitting it to the transcript directly. The sink can decide
-    *when* and *under which span* the event ultimately reaches the transcript.
+    A sink decides under which span each `generate()` runs, and when each of its `ModelEvent`s reaches the transcript:
 
-    All other `_record_model_interaction` behavior (call recording, usage
-    accounting, retry handling, the active-model-event context) is unaffected.
+    - `on_start(input) -> str | None` (optional): called once per `generate()`, after its input is prepared and before a sentinel's `BeforeGenerate` stage. It returns the span the whole generate runs under (`None` for the current span, which then gives the conversation as the current span's id would). The span's `SpanBeginEvent` must already be in the transcript when `on_start` returns; an unknown span, or a value that is neither `None` nor a span id, fails the generate with a `ValueError` before any event is recorded. Each attempt's `ModelEvent` is created in that span, and a live sentinel takes the generate's conversation from it: the innermost `agent` span at or above it, as replay does from the log. Bookkeeping a sink does once per generate (rather than once per attempt) belongs here.
+    - `on_pending(event)` and `on_complete(event)`: called once per attempt (retries included), when its event is created and when it completes. The sink emits the event to the transcript (`_event` and `_event_updated`) when it chooses.
+
+    A sink may still place an event in another span by setting `event.span_id` in `on_pending`. The log keeps that placement, but a live sentinel follows the `on_start` span (or the span current when `generate()` was called, without `on_start`), so its history can differ from what replay rebuilds from the log. To keep the two consistent, implement `on_start` and do not move the event afterwards.
+
+    A sentinel's own model calls (its monitors, while a generate stage runs) are not routed to the sink. All other `_record_model_interaction` behavior (call recording, usage accounting, retry handling, the active-model-event context) is unaffected.
     """
 
     def on_pending(self, event: "ModelEvent") -> None:
@@ -3021,6 +3062,11 @@ class ModelEventSink(Protocol):
     def on_complete(self, event: "ModelEvent") -> None:
         """Called after generation completes (output / error / call populated, `pending=None`)."""
         ...
+
+
+@runtime_checkable
+class _StartingModelEventSink(ModelEventSink, Protocol):
+    def on_start(self, input: list[ChatMessage]) -> str | None: ...
 
 
 _model_event_sink: ContextVar[ModelEventSink | None] = ContextVar(
@@ -3135,6 +3181,44 @@ def use_model_event_sink(sink: ModelEventSink | None) -> Iterator[None]:
         yield
     finally:
         _model_event_sink.reset(token)
+
+
+@contextlib.contextmanager
+def suspend_model_event_sink() -> Iterator[None]:
+    """Emit `ModelEvent`s straight to the transcript for the block, whatever sink is installed."""
+    token = _model_event_sink.set(None)
+    try:
+        yield
+    finally:
+        _model_event_sink.reset(token)
+
+
+@contextlib.contextmanager
+def _model_event_sink_span(input: list[ChatMessage]) -> Iterator[None]:
+    sink = _model_event_sink.get()
+    if not isinstance(sink, _StartingModelEventSink):
+        yield
+        return
+    span_id = sink.on_start(input)
+    if span_id is not None and (not isinstance(span_id, str) or not span_id):
+        raise ValueError(
+            f"ModelEventSink.on_start must return None or a span id, not {span_id!r}."
+        )
+    from inspect_ai.log._transcript import transcript
+
+    current = current_span_id()
+    named = span_id if span_id is not None else current
+    agent_span_id = transcript()._agent_span(named) if named is not None else None
+    if span_id is not None and span_id != current:
+        with in_span(span_id, agent_span_id):
+            yield
+    elif agent_span_id != current_agent_span_id():
+        # the current span can be set apart from its agent span (`parent_span()`);
+        # keeping it keeps a rotating checkpoint span followed
+        with in_agent_span(agent_span_id):
+            yield
+    else:
+        yield
 
 
 _requested_model: ContextVar[str | None] = ContextVar("_requested_model", default=None)

@@ -1275,6 +1275,7 @@ async def _apply_scorers(
     """
     import functools
 
+    from inspect_ai._sentinel._scope import sentinel_scope
     from inspect_ai._util._async import tg_collect
     from inspect_ai._util.registry import (
         has_registry_params,
@@ -1287,7 +1288,8 @@ async def _apply_scorers(
 
     async def apply(scorer: "Scorer", scorer_name: str) -> None:
         try:
-            result = await scorer(task_state, target)
+            with sentinel_scope("scorer", final=True):
+                result = await scorer(task_state, target)
             if result is None:
                 return
             if not should_record():

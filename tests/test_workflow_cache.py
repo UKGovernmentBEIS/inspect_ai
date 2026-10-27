@@ -1,4 +1,9 @@
-"""Jobs that hold credentials restore no cache (see the canary comment in build.yml)."""
+"""Jobs that hold credentials restore no cache.
+
+A malicious package installed by any job can write to the shared Actions
+cache, so a job holding secrets, an id-token or write permissions must not
+restore one.
+"""
 
 from pathlib import Path
 from typing import Any
@@ -15,7 +20,12 @@ CREDENTIAL_JOBS = [
     ("publish.yml", "publish"),
     ("release.yml", "build"),
     ("release.yml", "publish-pypi"),
+    ("npm-publish.yml", "build"),
     ("npm-publish.yml", "publish"),
+    # Builds released binaries; attest signs whatever build uploaded.
+    ("sandbox-tools-build.yml", "build"),
+    ("sandbox-tools-build.yml", "attest"),
+    ("sandbox-tools-build.yml", "validate"),
 ]
 
 
