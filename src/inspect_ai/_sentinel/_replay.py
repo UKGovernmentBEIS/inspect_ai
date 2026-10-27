@@ -778,6 +778,7 @@ class _Driver:
                 for key, conversation in (self.timeline or {}).items()
                 if isinstance(key, str)
             },
+            continuity=True,
         )
         utility: set[int] = set()
 

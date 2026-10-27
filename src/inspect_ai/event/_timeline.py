@@ -428,9 +428,6 @@ def timeline_build(
 
     - Utility agent classification (single-turn agents with different
       system prompts)
-    - Continuity, for model calls that do not record their ``origin``: within
-      each conversation of a span, the calls that continue the conversation's
-      thread are its turns and the others are utility (see ``_Continuity``)
 
     Args:
         events: Flat list of Events from a transcript.
@@ -451,10 +448,11 @@ def _timeline_build(
     message_pool: Sequence[ChatMessage] | None = None,
     final_messages: Sequence[ChatMessage] | None = None,
     conversations: Mapping[str, str] | None = None,
+    continuity: bool = False,
 ) -> Timeline:
     """`timeline_build`, also over model inputs stored as ranges of a message pool (`input_refs`), as a log stores them.
 
-    `final_messages` are the main agent's final messages (`EvalSample.messages`), which settle a fork at the end of the main span. `conversations` gives the conversation of each event it names, by UUID, in place of its innermost agent span (a stored timeline's spans and branches, such as Petri's rollbacks), so continuity follows each apart.
+    With `continuity` (replay's log driver, inferring the turns of a log that does not record ``origin``), the continuity rule decides which calls without an origin are turns (``_Continuity``); the public `timeline_build`, which the viewer and Scout use, keeps the prompt rules (decided by Charles 2026-10-26). `final_messages` are the main agent's final messages (`EvalSample.messages`), which settle a fork at the end of the main span. `conversations` gives the conversation of each event it names, by UUID, in place of its innermost agent span (a stored timeline's spans and branches, such as Petri's rollbacks), so continuity follows each apart.
     """
     # provide defaults
     name = name or "Default"
@@ -531,7 +529,7 @@ def _timeline_build(
         if agent_node is not None:
             agent_node.name = "main"
 
-            _classify_spans(agent_node, inputs, final_messages)
+            _classify_spans(agent_node, inputs, final_messages, continuity)
 
             # Prepend init span to agent content
             if init_span_obj:
@@ -559,7 +557,7 @@ def _timeline_build(
     else:
         # No phase spans - treat entire tree as agent
         root = _build_agent_from_tree(tree)
-        _classify_spans(root, inputs, final_messages)
+        _classify_spans(root, inputs, final_messages, continuity)
 
     return Timeline(name=name, description=description, root=root)
 
@@ -590,14 +588,18 @@ def _classify_spans(
     root: TimelineSpan,
     inputs: _Inputs,
     final_messages: Sequence[ChatMessage] | None = None,
+    continuity: bool = False,
 ) -> None:
     """Run all span classification passes on a root span.
 
-    Agent results are extracted first, while every model call is still in its span's content: a result can reach only a call that is then wrapped as utility, such as a summary call just after the sub-agent finished.
+    With `continuity`, agent results are extracted first, while every model call is still in its span's content: a result can reach only a call continuity then wraps as utility, such as a summary call just after the sub-agent finished.
     """
-    _extract_agent_results(root, inputs)
-    _wrap_utility_events(root, inputs, final_messages)
+    if continuity:
+        _extract_agent_results(root, inputs)
+    _wrap_utility_events(root, inputs, final_messages, continuity)
     _classify_utility_agents(root, inputs)
+    if not continuity:
+        _extract_agent_results(root, inputs)
 
 
 def _unwrap_solver_span(span: EventTreeSpan) -> EventTreeSpan:
@@ -1683,7 +1685,11 @@ def _extract_agent_results(parent: TimelineSpan, inputs: _Inputs) -> None:
                     item.agent_result = result_text
 
             # Flow 2: the bridge flow's span id is "agent-{tool_call_id}"
-            if item.agent_result is None and item.id.startswith("agent-"):
+            if (
+                item.agent_result is None
+                and len(item.id) > 6
+                and item.id.startswith("agent-")
+            ):
                 waiting.setdefault(item.id[6:], []).append(item)
 
         # Recurse into child spans
@@ -1757,6 +1763,7 @@ def _wrap_utility_events(
     agent: TimelineSpan,
     inputs: _Inputs,
     final_messages: Sequence[ChatMessage] | None = None,
+    continuity: bool = False,
 ) -> None:
     """Wrap foreign-prompt model calls as synthetic utility spans.
 
@@ -1777,10 +1784,10 @@ def _wrap_utility_events(
     rules above, as a call with no ``origin`` does, since a bridged agent's
     warm-ups and helper calls are recorded as ``"agent"``.
 
-    Where calls record no ``origin`` and one of a conversation's calls
-    continues another, the continuity rule decides which of its calls are
-    turns in place of the prompt rules (``_Continuity``); warm-ups stay
-    utility.
+    With `continuity` (replay's log driver only), where calls record no
+    ``origin`` and one of a conversation's calls continues another, the
+    continuity rule decides which of its calls are turns in place of the
+    prompt rules (``_Continuity``); warm-ups stay utility.
 
     Operates recursively on the entire span tree.
 
@@ -1788,6 +1795,7 @@ def _wrap_utility_events(
         agent: The span node to process (mutated in place).
         inputs: The model inputs.
         final_messages: The span's final messages, which settle a fork at its end.
+        continuity: Whether to apply the continuity rule.
     """
     # The primary prompt comes only from a tool-calling ModelEvent: without
     # an agentic loop there is no primary trajectory (see docstring).
@@ -1810,7 +1818,7 @@ def _wrap_utility_events(
         wrapper.utility = True
         return wrapper
 
-    continuity = _continuity(agent, inputs, final_messages)
+    turns = _continuity(agent, inputs, final_messages) if continuity else {}
 
     # --- Scan and wrap utility candidates ---
     original_spans = [item for item in agent.content if isinstance(item, TimelineSpan)]
@@ -1826,7 +1834,7 @@ def _wrap_utility_events(
                 new_content.append(utility_wrapper(item, index))
                 continue
 
-            turn = continuity.get(id(item.event))
+            turn = turns.get(id(item.event))
             if turn is not None:
                 if not turn:
                     new_content.append(utility_wrapper(item, index))
@@ -1846,9 +1854,9 @@ def _wrap_utility_events(
     # Branches are trajectories like any span: process their own direct
     # events too (mirrors the TS port), which also covers their children.
     for item in original_spans:
-        _wrap_utility_events(item, inputs)
+        _wrap_utility_events(item, inputs, continuity=continuity)
     for branch in agent.branches:
-        _wrap_utility_events(branch, inputs)
+        _wrap_utility_events(branch, inputs, continuity=continuity)
 
 
 def _may_be_turn(event: ModelEvent) -> bool:

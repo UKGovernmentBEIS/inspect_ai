@@ -373,6 +373,38 @@
       "event_uuids": [
         "m1",
         "m2",
+        "m3",
+        "m4"
+      ],
+      "children": [
+        {
+          "id": "agent-k1",
+          "name": "agent-k1",
+          "agent_result": "found it",
+          "event_uuids": [
+            "s1"
+          ]
+        },
+        {
+          "id": "agent-k2",
+          "name": "agent-k2",
+          "agent_result": "checked",
+          "event_uuids": [
+            "s2"
+          ]
+        }
+      ]
+    },
+    "scoring": null
+  },
+  "expected_continuity": {
+    "init": null,
+    "agent": {
+      "id": "agent",
+      "name": "main",
+      "event_uuids": [
+        "m1",
+        "m2",
         "m4"
       ],
       "children": [
@@ -398,38 +430,6 @@
           "utility": true,
           "event_uuids": [
             "m3"
-          ]
-        }
-      ]
-    },
-    "scoring": null
-  },
-  "expected_recorded_as_agent": {
-    "init": null,
-    "agent": {
-      "id": "agent",
-      "name": "main",
-      "event_uuids": [
-        "m1",
-        "m2",
-        "m3",
-        "m4"
-      ],
-      "children": [
-        {
-          "id": "agent-k1",
-          "name": "agent-k1",
-          "agent_result": "found it",
-          "event_uuids": [
-            "s1"
-          ]
-        },
-        {
-          "id": "agent-k2",
-          "name": "agent-k2",
-          "agent_result": "checked",
-          "event_uuids": [
-            "s2"
           ]
         }
       ]

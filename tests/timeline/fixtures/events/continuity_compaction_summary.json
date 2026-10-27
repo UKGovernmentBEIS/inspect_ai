@@ -399,6 +399,26 @@
         "t1",
         "m2",
         "t2",
+        "m3",
+        "cmp",
+        "m4",
+        "t3",
+        "m5"
+      ],
+      "children": []
+    },
+    "scoring": null
+  },
+  "expected_continuity": {
+    "init": null,
+    "agent": {
+      "id": "agent",
+      "name": "main",
+      "event_uuids": [
+        "m1",
+        "t1",
+        "m2",
+        "t2",
         "cmp",
         "m4",
         "t3",
@@ -414,26 +434,6 @@
           ]
         }
       ]
-    },
-    "scoring": null
-  },
-  "expected_recorded_as_agent": {
-    "init": null,
-    "agent": {
-      "id": "agent",
-      "name": "main",
-      "event_uuids": [
-        "m1",
-        "t1",
-        "m2",
-        "t2",
-        "m3",
-        "cmp",
-        "m4",
-        "t3",
-        "m5"
-      ],
-      "children": []
     },
     "scoring": null
   }

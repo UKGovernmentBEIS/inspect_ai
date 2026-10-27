@@ -355,6 +355,32 @@
         "m1",
         "t1",
         "m2",
+        "sm",
+        "cmp",
+        "m3"
+      ],
+      "children": [
+        {
+          "id": "agent-k1",
+          "name": "agent-k1",
+          "agent_result": "found it",
+          "event_uuids": [
+            "s1"
+          ]
+        }
+      ]
+    },
+    "scoring": null
+  },
+  "expected_continuity": {
+    "init": null,
+    "agent": {
+      "id": "agent",
+      "name": "main",
+      "event_uuids": [
+        "m1",
+        "t1",
+        "m2",
         "cmp",
         "m3"
       ],
@@ -373,32 +399,6 @@
           "utility": true,
           "event_uuids": [
             "sm"
-          ]
-        }
-      ]
-    },
-    "scoring": null
-  },
-  "expected_recorded_as_agent": {
-    "init": null,
-    "agent": {
-      "id": "agent",
-      "name": "main",
-      "event_uuids": [
-        "m1",
-        "t1",
-        "m2",
-        "sm",
-        "cmp",
-        "m3"
-      ],
-      "children": [
-        {
-          "id": "agent-k1",
-          "name": "agent-k1",
-          "agent_result": "found it",
-          "event_uuids": [
-            "s1"
           ]
         }
       ]

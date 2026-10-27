@@ -1067,6 +1067,61 @@ def test_a_stored_timeline_s_branches_keep_their_turns_without_origins() -> None
     assert steps(inferred) == steps(recorded)
 
 
+# the shared continuity fixtures, whose "expected_continuity" (else
+# "expected") gives the turns replay's log driver infers
+CONTINUITY_FIXTURES = Path(__file__).parent.parent / "timeline" / "fixtures" / "events"
+
+
+@pytest.mark.parametrize(
+    "fixture",
+    sorted(
+        path.stem
+        for path in CONTINUITY_FIXTURES.glob("*.json")
+        if path.stem.startswith(("continuity_", "agent_result_"))
+    ),
+)
+def test_replay_infers_the_turns_of_the_continuity_fixtures(fixture: str) -> None:
+    # continuity applies only in replay's log driver (decided by Charles
+    # 2026-10-26): a log without origins replays as one recording, for the
+    # main agent's calls, the origins its continuity tree shows
+    import json
+
+    from pydantic import TypeAdapter
+
+    data = json.loads((CONTINUITY_FIXTURES / f"{fixture}.json").read_text())
+    events = TypeAdapter(list[Event]).validate_python(data["events"])
+    main = data.get("expected_continuity", data["expected"])["agent"]
+    turns = set(main["event_uuids"])
+    utility = {
+        uuid
+        for child in main.get("children", [])
+        if child.get("utility")
+        for uuid in child["event_uuids"]
+    }
+    recorded = [
+        event.model_copy(
+            update={"origin": "agent" if event.uuid in turns else "helper"}
+        )
+        if isinstance(event, ModelEvent) and event.uuid in turns | utility
+        else event
+        for event in events
+    ]
+
+    def steps(events: list[Event]) -> list[Any]:
+        return [
+            (s.stage, s.id, s.segment, comparable(s.step))
+            for s in steps_from_events(
+                [],
+                events,
+                [],
+                sample_uuid="sample",
+                eval_info=EvalInfo(inspect_ai_version=None, sentinel=False),
+            )
+        ]
+
+    assert steps(events) == steps(recorded)
+
+
 def test_a_person_s_approval_is_a_human_decision_without_a_sentinel(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

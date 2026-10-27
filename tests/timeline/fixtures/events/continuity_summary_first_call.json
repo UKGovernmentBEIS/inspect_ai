@@ -130,6 +130,20 @@
       "id": "agent",
       "name": "main",
       "event_uuids": [
+        "sm",
+        "cmp",
+        "m1"
+      ],
+      "children": []
+    },
+    "scoring": null
+  },
+  "expected_continuity": {
+    "init": null,
+    "agent": {
+      "id": "agent",
+      "name": "main",
+      "event_uuids": [
         "cmp",
         "m1"
       ],
@@ -143,20 +157,6 @@
           ]
         }
       ]
-    },
-    "scoring": null
-  },
-  "expected_recorded_as_agent": {
-    "init": null,
-    "agent": {
-      "id": "agent",
-      "name": "main",
-      "event_uuids": [
-        "sm",
-        "cmp",
-        "m1"
-      ],
-      "children": []
     },
     "scoring": null
   }

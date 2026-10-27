@@ -333,6 +333,23 @@
         "m1",
         "t1",
         "f1",
+        "f2",
+        "tk1",
+        "m2"
+      ],
+      "children": []
+    },
+    "scoring": null
+  },
+  "expected_continuity": {
+    "init": null,
+    "agent": {
+      "id": "agent",
+      "name": "main",
+      "event_uuids": [
+        "m1",
+        "t1",
+        "f1",
         "tk1",
         "m2"
       ],
@@ -346,23 +363,6 @@
           ]
         }
       ]
-    },
-    "scoring": null
-  },
-  "expected_recorded_as_agent": {
-    "init": null,
-    "agent": {
-      "id": "agent",
-      "name": "main",
-      "event_uuids": [
-        "m1",
-        "t1",
-        "f1",
-        "f2",
-        "tk1",
-        "m2"
-      ],
-      "children": []
     },
     "scoring": null
   }

@@ -199,6 +199,21 @@
       "event_uuids": [
         "m1",
         "t1",
+        "m2",
+        "m3"
+      ],
+      "children": []
+    },
+    "scoring": null
+  },
+  "expected_continuity": {
+    "init": null,
+    "agent": {
+      "id": "agent",
+      "name": "main",
+      "event_uuids": [
+        "m1",
+        "t1",
         "m3"
       ],
       "children": [
@@ -211,21 +226,6 @@
           ]
         }
       ]
-    },
-    "scoring": null
-  },
-  "expected_recorded_as_agent": {
-    "init": null,
-    "agent": {
-      "id": "agent",
-      "name": "main",
-      "event_uuids": [
-        "m1",
-        "t1",
-        "m2",
-        "m3"
-      ],
-      "children": []
     },
     "scoring": null
   }

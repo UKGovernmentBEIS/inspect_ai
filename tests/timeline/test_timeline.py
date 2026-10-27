@@ -9,7 +9,7 @@ import pytest
 
 from inspect_ai import eval
 from inspect_ai.event import Timeline, timeline_build
-from inspect_ai.event._timeline import TimelineSpan
+from inspect_ai.event._timeline import TimelineSpan, _timeline_build
 
 from .generate import (
     scenario_deep_nesting,
@@ -335,7 +335,9 @@ def _timeline_work(
         patch.setattr("inspect_ai.event._timeline.mm3_hash", counting_hash)
         patch.setattr(timeline._Inputs, "fingerprint", counting_fingerprint)
         built = timeline._timeline_build(
-            events, message_pool=_CountingList(pool) if pooled else None
+            events,
+            message_pool=_CountingList(pool) if pooled else None,
+            continuity=True,
         )
     main = built.root
     results = {
@@ -405,7 +407,7 @@ def test_a_fork_at_the_end_goes_to_the_call_in_the_final_messages() -> None:
     m2 = next(e for e in events if isinstance(e, ModelEvent) and e.uuid == "m2")
     # the main agent's final messages carry on the earlier call of the fork
     final = [*m2.input, m2.output.message]
-    root = _timeline_build(events, final_messages=final).root
+    root = _timeline_build(events, final_messages=final, continuity=True).root
     utility = [
         event.uuid
         for item in root.content
@@ -464,7 +466,7 @@ def test_a_fork_carried_on_is_the_turn_however_many_alternatives_it_has(
 ) -> None:
     [main] = [
         item
-        for item in timeline_build(_wide_fork(forks)).root.content
+        for item in _timeline_build(_wide_fork(forks), continuity=True).root.content
         if isinstance(item, TimelineSpan)
     ]
     utility = [
@@ -491,7 +493,7 @@ def test_a_wide_fork_s_lookups_are_linear(monkeypatch: pytest.MonkeyPatch) -> No
 
         with monkeypatch.context() as patch:
             patch.setattr(timeline._Inputs, "fingerprint", counting)
-            timeline_build(_wide_fork(forks))
+            timeline._timeline_build(_wide_fork(forks), continuity=True)
         return count
 
     small, large = looked_up(100), looked_up(200)
@@ -556,7 +558,7 @@ def _looked_up(events: list[Any], monkeypatch: pytest.MonkeyPatch) -> tuple[int,
 
     with monkeypatch.context() as patch:
         patch.setattr(timeline._Inputs, "fingerprint", counting)
-        built = timeline_build(events)
+        built = timeline._timeline_build(events, continuity=True)
     return count, built
 
 
@@ -668,7 +670,7 @@ def test_calls_of_many_lengths_in_a_pooled_log_are_looked_up_in_linear_work(
         with monkeypatch.context() as patch:
             patch.setattr(timeline._Inputs, "fingerprint", counting_fingerprint)
             patch.setattr("inspect_ai.event._timeline.bisect_left", counting_bisect)
-            timeline._timeline_build(events, message_pool=pool)
+            timeline._timeline_build(events, message_pool=pool, continuity=True)
         stored = len(pool) + 2 * calls  # pool rows, one range and one output each
         assert count <= 4 * stored, (count, stored)
         return count
@@ -772,7 +774,9 @@ def test_summary_compactions_are_settled_in_linear_work(
         _CountingList.reads = 0
         with monkeypatch.context() as patch:
             patch.setattr(timeline._Inputs, "fingerprint", counting)
-            built = timeline._timeline_build(events, message_pool=counted)
+            built = timeline._timeline_build(
+                events, message_pool=counted, continuity=True
+            )
         [main] = [item for item in built.root.content if isinstance(item, TimelineSpan)]
         utility = {
             event.uuid
@@ -867,7 +871,9 @@ def test_a_summary_compaction_reads_the_next_input_once(
         _CountingList.reads = 0
         with monkeypatch.context() as patch:
             patch.setattr(timeline._Inputs, "fingerprint", counting)
-            built = timeline._timeline_build(events, message_pool=counted)
+            built = timeline._timeline_build(
+                events, message_pool=counted, continuity=True
+            )
         [main] = [item for item in built.root.content if isinstance(item, TimelineSpan)]
         utility = {
             event.uuid
@@ -971,7 +977,7 @@ def _pooled_work(
         row_set = getattr(timeline, "_RowSet", None)
         for name in ("add", "_below", "_kth") if row_set is not None else ():
             patch.setattr(row_set, name, counted(getattr(row_set, name)))
-        timeline._timeline_build(events, message_pool=pool)
+        timeline._timeline_build(events, message_pool=pool, continuity=True)
     return count
 
 
@@ -1090,7 +1096,7 @@ def test_failed_calls_are_matched_to_retries_in_linear_work(
         events, pool = _failures(calls, retried)
         with monkeypatch.context() as patch:
             patch.setattr(timeline._Inputs, "fingerprint", counting)
-            built = timeline._timeline_build(events, message_pool=pool)
+            built = timeline._timeline_build(events, message_pool=pool, continuity=True)
         [main] = [item for item in built.root.content if isinstance(item, TimelineSpan)]
         utility = {
             event.uuid

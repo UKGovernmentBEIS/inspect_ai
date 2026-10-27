@@ -518,6 +518,26 @@
         "m1",
         "t1",
         "f0",
+        "f1",
+        "f2",
+        "f3",
+        "f4",
+        "f5",
+        "m2"
+      ],
+      "children": []
+    },
+    "scoring": null
+  },
+  "expected_continuity": {
+    "init": null,
+    "agent": {
+      "id": "agent",
+      "name": "main",
+      "event_uuids": [
+        "m1",
+        "t1",
+        "f0",
         "m2"
       ],
       "children": [
@@ -562,26 +582,6 @@
           ]
         }
       ]
-    },
-    "scoring": null
-  },
-  "expected_recorded_as_agent": {
-    "init": null,
-    "agent": {
-      "id": "agent",
-      "name": "main",
-      "event_uuids": [
-        "m1",
-        "t1",
-        "f0",
-        "f1",
-        "f2",
-        "f3",
-        "f4",
-        "f5",
-        "m2"
-      ],
-      "children": []
     },
     "scoring": null
   }
