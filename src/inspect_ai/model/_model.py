@@ -238,7 +238,7 @@ class _PreparedInput(NamedTuple):
     tools: list[ToolInfo]
     tool_choice: ToolChoice
     rebuilt_keys: dict[str, bytes]
-    """Content key of each rebuilt message given a reused id, by that id."""
+    """Content key of each rebuilt message given an id in this generate, by that id."""
 
 
 @dataclasses.dataclass(frozen=True)
@@ -1499,7 +1499,7 @@ class Model:
 
             call_tools = copy_tools_info(base_tools)
 
-            await emit_before_model_generate(
+            hooks_called = await emit_before_model_generate(
                 model_name=str(self),
                 input=input,
                 tools=call_tools,
@@ -1507,7 +1507,7 @@ class Model:
                 config=config,
                 cache=cache_mode,
             )
-            if hooks_enabled:
+            if hooks_called:
                 _renew_hook_edited_message_ids(input, rebuilt_keys)
             _validate_model_input_media(input)
 
@@ -3193,26 +3193,36 @@ def _reuse_rebuilt_message_ids(
 def _renew_hook_edited_message_ids(
     input: list[ChatMessage], keys: dict[str, bytes]
 ) -> None:
-    """Give a fresh id to each rebuilt message a hook has edited or replaced.
+    """Give a fresh id to each rebuilt message a hook has edited or copied.
 
-    A message in `input` that holds a sample id given to rebuilt content
-    (the original object or a hook's copy of it) but no longer has that
-    content gets a new id, which is not stored for reuse, so a sample id
-    never names different content. The sentinel saw the input before the
-    hooks, so its references to the edited message no longer resolve. Other
-    messages, and rebuilt messages a hook left unchanged, keep their ids.
+    A message in `input` holding an id given to rebuilt content in this
+    generate (the original object or a hook's copy of it) gets a new id when
+    it no longer has that content, or when an earlier message of the input
+    holds the same id. The new id is added to `keys`, so a later retry
+    attempt renews it again only if the content changes again, but it is
+    never stored for reuse. A sample id thus never names different content,
+    and ids stay unique in the input. The sentinel saw the input before the
+    hooks, so its citations and step id naming a renewed message do not
+    resolve. Other messages, and rebuilt messages a hook left unchanged,
+    keep their ids.
 
     Args:
         input: The input after the hooks ran.
         keys: The content key of each rebuilt message, by the id it was
-            given (`_reuse_rebuilt_message_ids`).
+            given (`_reuse_rebuilt_message_ids`), updated in place.
     """
     if not keys:
         return
+    seen: set[str] = set()
     for message in input:
-        key = keys.get(message.id) if message.id is not None else None
-        if key is not None and _rebuilt_message_key(message) != key:
+        if message.id is None or message.id not in keys:
+            continue
+        key = _rebuilt_message_key(message)
+        if message.id in seen or key != keys[message.id]:
             message.id = uuid()
+            if key is not None:
+                keys[message.id] = key
+        seen.add(message.id)
 
 
 def _rebuilt_message_key(message: ChatMessage) -> bytes | None:
