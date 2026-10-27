@@ -33,6 +33,17 @@
     ]
   },
   {
+    "id": "lizard-sandboxes",
+    "name": "Lizard Sandboxes",
+    "url": "https://github.com/lizard-build/integrations/tree/main/packages/inspect-lizard",
+    "desc": "Run Inspect tasks in Firecracker microVMs on Lizard (lizard.build).",
+    "author": "Lizard",
+    "author_url": "https://github.com/lizard-build",
+    "categories": [
+      "Sandboxes"
+    ]
+  },
+  {
     "id": "ec2-sandbox",
     "name": "EC2 Sandbox",
     "url": "https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox",
@@ -94,6 +105,17 @@
     "desc": "Sandbox wrapper that allows fine grained control over command execution and file I/O.",
     "author": "Arnab Mitra",
     "author_url": "https://github.com/Dedulus",
+    "categories": [
+      "Sandboxes"
+    ]
+  },
+  {
+    "id": "runtime-sandbox",
+    "name": "Runtime Sandbox",
+    "url": "https://withruntime.com/docs/inspect",
+    "desc": "Runs each sample in a Firecracker microVM on Runtime Cloud, from the same Dockerfile or single-service compose file as the Docker sandbox.",
+    "author": "Runtime",
+    "author_url": "https://github.com/withruntime/runtime",
     "categories": [
       "Sandboxes"
     ]
@@ -352,6 +374,17 @@
     ]
   },
   {
+    "id": "transect",
+    "name": "Transect",
+    "url": "https://www.aisi.gov.uk/blog/transect-making-large-scale-agentic-evaluations-easier-to-understand",
+    "desc": "Transcript analysis for long-horizon agent evaluations, built on Inspect Scout.",
+    "author": "UK AISI",
+    "author_url": "https://github.com/AI-Safety-Institute/transect",
+    "categories": [
+      "Tooling"
+    ]
+  },
+  {
     "id": "inspect-flow",
     "name": "Inspect Flow",
     "url": "https://meridianlabs-ai.github.io/inspect_flow/",
@@ -369,6 +402,17 @@
     "desc": "Platform for running Inspect AI evaluations on cloud infrastructure.",
     "author": "METR",
     "author_url": "https://github.com/METR/hawk",
+    "categories": [
+      "Tooling"
+    ]
+  },
+  {
+    "id": "inspect-steward",
+    "name": "Inspect Steward",
+    "url": "https://meridianlabs-ai.github.io/inspect_steward/",
+    "desc": "Automated execution and supervision of long-running evaluations.",
+    "author": "Meridian",
+    "author_url": "https://github.com/meridianlabs-ai/inspect_steward",
     "categories": [
       "Tooling"
     ]
