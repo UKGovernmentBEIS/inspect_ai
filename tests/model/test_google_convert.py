@@ -17,7 +17,12 @@ from google.genai.types import (
 )
 from test_helpers.utils import skip_if_no_mcp_package
 
-from inspect_ai._util.content import ContentImage, ContentReasoning, ContentText
+from inspect_ai._util.content import (
+    ContentAudio,
+    ContentImage,
+    ContentReasoning,
+    ContentText,
+)
 from inspect_ai.model import (
     messages_from_google,
     model_output_from_google,
@@ -806,14 +811,67 @@ async def test_messages_from_google_inline_data_without_mime_type(
     )
 
 
-async def test_messages_from_google_inline_data_non_image_skipped(
+async def test_messages_from_google_inline_audio_mapped() -> None:
+    """Test inline_data audio is mapped to ContentAudio like the streaming path.
+
+    The streaming converter in `_providers/google.py` turns inline wav/mp3 bytes
+    into a data-URI `ContentAudio`; the convert path must agree for the same
+    response, otherwise a caller that reconstructs messages from a Google
+    response sees different content than a streaming caller.
+    """
+    contents = [
+        Content(
+            role="model",
+            parts=[
+                Part(
+                    inline_data=Blob(
+                        mime_type="audio/wav",
+                        data=b"RIFF\x24\x00\x00\x00WAVEfmt \x10\x00\x00\x00",
+                    )
+                ),
+                Part(
+                    inline_data=Blob(
+                        mime_type="audio/mp3",
+                        data=b"\xff\xfb\x90D\x00\x00\x00\x00\x00\x00",
+                    )
+                ),
+                Part(
+                    inline_data=Blob(
+                        mime_type="audio/mpeg",
+                        data=b"ID3data",
+                    )
+                ),
+            ],
+        ),
+    ]
+
+    result = await messages_from_google(contents)
+
+    message = result[0]
+    assert isinstance(message, ChatMessageAssistant)
+    assert isinstance(message.content, list)
+    assert len(message.content) == 3
+    wav = message.content[0]
+    assert isinstance(wav, ContentAudio)
+    assert wav.format == "wav"
+    assert wav.audio == "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAA="
+    mp3 = message.content[1]
+    assert isinstance(mp3, ContentAudio)
+    assert mp3.format == "mp3"
+    assert mp3.audio == "data:audio/mp3;base64,//uQRAAAAAAAAA=="
+    mpeg = message.content[2]
+    assert isinstance(mpeg, ContentAudio)
+    assert mpeg.format == "mp3"
+    assert mpeg.audio == "data:audio/mpeg;base64,SUQzZGF0YQ=="
+
+
+async def test_messages_from_google_inline_audio_unsupported_skipped(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Test non-image inline_data (e.g. audio) is skipped with a warning.
+    """Test inline audio without a representable format is skipped with a warning.
 
-    The convert path only knows how to build a ContentImage from inline
-    bytes, so inline data with a non-image MIME type must be dropped with
-    a warning rather than wrapped in a ContentImage.
+    ContentAudio only carries wav and mp3, so other audio subtypes must be
+    dropped rather than mislabelled, matching the streaming converter.
     """
     contents = [
         Content(
@@ -822,8 +880,8 @@ async def test_messages_from_google_inline_data_non_image_skipped(
                 Part(text="Here is the audio:"),
                 Part(
                     inline_data=Blob(
-                        mime_type="audio/mp3",
-                        data=b"\xff\xfb\x90D\x00\x00\x00\x00\x00\x00",
+                        mime_type="audio/ogg",
+                        data=b"OggS\x00\x02\x00\x00\x00\x00\x00\x00",
                     )
                 ),
             ],
@@ -840,4 +898,44 @@ async def test_messages_from_google_inline_data_non_image_skipped(
     assert isinstance(message.content[0], ContentText)
     assert message.content[0].text == "Here is the audio:"
 
-    assert any("audio/mp3" in record.getMessage() for record in caplog.records)
+    assert any(
+        "Unsupported audio MIME type" in record.getMessage()
+        for record in caplog.records
+    )
+
+
+async def test_messages_from_google_inline_data_non_image_skipped(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test non-image, non-audio inline_data is skipped with a warning.
+
+    The convert path only builds ContentImage for image bytes and ContentAudio
+    for wav/mp3, so inline data with any other MIME type must be dropped with
+    a warning rather than mis-typed.
+    """
+    contents = [
+        Content(
+            role="model",
+            parts=[
+                Part(text="Here is the document:"),
+                Part(
+                    inline_data=Blob(
+                        mime_type="application/pdf",
+                        data=b"%PDF-1.4\n%fake\n",
+                    )
+                ),
+            ],
+        ),
+    ]
+
+    with caplog.at_level(logging.WARNING, logger="inspect_ai.model._google_convert"):
+        result = await messages_from_google(contents)
+
+    message = result[0]
+    assert isinstance(message, ChatMessageAssistant)
+    assert isinstance(message.content, list)
+    assert len(message.content) == 1
+    assert isinstance(message.content[0], ContentText)
+    assert message.content[0].text == "Here is the document:"
+
+    assert any("application/pdf" in record.getMessage() for record in caplog.records)

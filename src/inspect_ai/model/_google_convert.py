@@ -246,7 +246,7 @@ async def content_from_google_parts(
                     )
                 )
 
-        # Handle inline data (images)
+        # Handle inline data (images and audio)
         elif part.inline_data and part.inline_data.data:
             inline_mime_type = part.inline_data.mime_type or ""
             if inline_mime_type.startswith("image/"):
@@ -259,6 +259,30 @@ async def content_from_google_parts(
                     )
                 )
                 working_reasoning_block = None
+            elif inline_mime_type.startswith("audio/"):
+                # Mirror the streaming converter in _providers/google.py, which
+                # only has a format to represent wav and mp3 inline audio.
+                inline_audio_format: Literal["mp3", "wav"] | None = None
+                if "wav" in inline_mime_type:
+                    inline_audio_format = "wav"
+                elif "mp3" in inline_mime_type or "mpeg" in inline_mime_type:
+                    inline_audio_format = "mp3"
+                if inline_audio_format is None:
+                    logger.warning(
+                        f"Unsupported audio MIME type '{inline_mime_type}', "
+                        f"skipping audio content."
+                    )
+                else:
+                    content.append(
+                        ContentAudio(
+                            audio=as_data_uri(
+                                inline_mime_type,
+                                base64.b64encode(part.inline_data.data).decode(),
+                            ),
+                            format=inline_audio_format,
+                        )
+                    )
+                    working_reasoning_block = None
             elif inline_mime_type:
                 logger.warning(
                     f"Unsupported inline_data MIME type '{inline_mime_type}', "
