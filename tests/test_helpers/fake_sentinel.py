@@ -19,6 +19,7 @@ import inspect
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from functools import wraps
+from importlib import metadata
 from typing import (
     Any,
     Generic,
@@ -30,9 +31,14 @@ from typing import (
     overload,
 )
 
+import pytest
 from anyio import get_cancelled_exc_class
 
-from inspect_ai._sentinel._config import SentinelConfig, SentinelEntry
+from inspect_ai._sentinel._config import (
+    SENTINEL_MIN_VERSION,
+    SentinelConfig,
+    SentinelEntry,
+)
 from inspect_ai._util.registry import (
     RegistryInfo,
     is_registry_object,
@@ -545,3 +551,19 @@ def supersedes(path: str, reported: Reported[Decision], kept: HumanDecision) -> 
     own = kept.decided.path
     above = path == "" or own == path or own.startswith(path + "/")
     return above and kept.decided.report.action == reported.report.action
+
+
+def report_version(
+    monkeypatch: pytest.MonkeyPatch, reported: str = SENTINEL_MIN_VERSION
+) -> None:
+    """Report `reported` as the installed inspect-sentinel to inspect_ai's version check.
+
+    The fake has no package metadata, so without this the check reads the
+    version of whichever inspect-sentinel is installed.
+    """
+
+    def version(package: str) -> str:
+        return reported if package == "inspect-sentinel" else metadata.version(package)
+
+    monkeypatch.setattr("inspect_ai._util.version.version", version)
+    monkeypatch.setattr("inspect_ai._sentinel._config.version", version)

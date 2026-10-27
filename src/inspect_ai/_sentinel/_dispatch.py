@@ -97,7 +97,7 @@ from inspect_ai.util._span import span
 from inspect_ai.util._store import store
 
 from ._agent_state import agent_messages
-from ._config import SentinelRoot
+from ._config import SENTINEL_MIN_VERSION, SentinelRoot
 from ._context import (
     SentinelFailure,
     active_sentinel,
@@ -119,8 +119,7 @@ from ._steps import (
 
 logger = getLogger(__name__)
 
-# the oldest inspect_sentinel this inspect_ai works with
-_UPGRADE = "inspect_ai requires inspect_sentinel 0.2.0 or later: pip install --upgrade inspect-sentinel"
+_UPGRADE = f"inspect_ai requires inspect_sentinel {SENTINEL_MIN_VERSION} or later: pip install --upgrade inspect-sentinel"
 
 _Kind = Literal["observation", "decision"]
 
