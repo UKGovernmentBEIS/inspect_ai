@@ -169,8 +169,9 @@ def always_reasons_model(model_name: str) -> bool:
 
     The API rejects `none` and, since reasoning is always on, rejects sampling
     params (`temperature`, `top_p`, logprobs) outright: o-series, gpt-5.0,
-    GPT-6 Astra, and GPT-6.1 Sol. GPT-6 Sol and Luna accept `none` like gpt-5.1+
-    (see https://developers.openai.com/api/docs/guides/latest-model). The GPT-6
+    GPT-6 Astra, and GPT-6.1 Sol. GPT-6 Sol, GPT-6 Luna, and GPT-6.1 Terra
+    accept `none` like gpt-5.1+ (see
+    https://developers.openai.com/api/docs/guides/latest-model). The GPT-6
     checks are substring matches so hosting prefixes and Azure deployment names
     resolve. Codenames don't match, so they keep the gpt-5.x sampling-param
     behavior.

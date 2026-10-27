@@ -65,6 +65,7 @@
 | openai/gpt-6-luna | medium |
 | openai/gpt-6-sol | medium |
 | openai/gpt-6.1-sol | medium |
+| openai/gpt-6.1-terra | medium |
 | z-ai/glm-5.3 | max |
 | z-ai/glm-5.3-flash | max |
 | zai-org/GLM-5.3-FP8 | max |

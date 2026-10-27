@@ -39,7 +39,7 @@ from inspect_ai._display.core.display import TaskCancel, TaskDisplayMetric
 from inspect_ai._eval.task.scan import Scanners
 from inspect_ai._sentinel._config import SentinelRoot
 from inspect_ai._sentinel._context import SentinelFailure
-from inspect_ai._sentinel._scope import sentinel_solving
+from inspect_ai._sentinel._scope import sentinel_scope, sentinel_solving
 from inspect_ai._util._async import Wake, aexit_shielded_when, raise_unwrapped
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import get_async_filesystem
@@ -137,6 +137,7 @@ from inspect_ai.model import (
     ModelName,
 )
 from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+from inspect_ai.model._call_tools import decisive_sentinel_exception
 from inspect_ai.model._model import (
     init_model_usage,
     init_role_usage,
@@ -2537,7 +2538,7 @@ async def _task_run_sample_attempt(
             # report the sentinel's own error, from the solver or scorers
             failure = inner_exception(ex) if isinstance(ex, Exception) else ex
             if isinstance(failure, SentinelFailure):
-                ex = inner_exception(failure.error)
+                ex = decisive_sentinel_exception(failure.error)
 
             # helper to log sample error
             def log_sample_error() -> None:
@@ -3091,9 +3092,12 @@ async def _task_run_sample_attempt(
                                             ):
                                                 if not scorer:
                                                     continue
-                                                score_result = await scorer(
-                                                    state, Target(sample.target)
-                                                )
+                                                with sentinel_scope(
+                                                    "scorer", final=True
+                                                ):
+                                                    score_result = await scorer(
+                                                        state, Target(sample.target)
+                                                    )
                                                 if scorer_name in state.scores:
                                                     raise RuntimeError(
                                                         f"Scorer {scorer_name} has modified state.scores"
