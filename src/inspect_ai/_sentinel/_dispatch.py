@@ -62,7 +62,13 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
 )
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.model._model import Model, active_model, get_model, model_roles
+from inspect_ai.model._model import (
+    Model,
+    active_model,
+    get_model,
+    model_roles,
+    suspend_model_event_sink,
+)
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.review._human import (
     escape_placeholders,
@@ -294,6 +300,7 @@ async def _run(step: Step, step_id: str) -> Decision | None:
                     suspend_turn_limit(),
                     suspend_working_limit(),
                     sentinel_scope("sentinel", final=True),
+                    suspend_model_event_sink(),
                 ):
                     decision = await run_sentinel(root, _host_context(recorder), step)
         except TimeoutError as ex:
