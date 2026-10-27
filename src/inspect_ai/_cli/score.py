@@ -184,6 +184,8 @@ async def score(
 
     recorder = create_recorder_for_location(log_file, log_dir)
     eval_log = await recorder.read_log(log_file, header_only=bool(stream))
+    if stream:
+        eval_log.reductions = await recorder.read_log_reductions(log_file)
     num_samples = (
         len(eval_log.samples)
         if eval_log.samples

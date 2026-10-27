@@ -6,8 +6,6 @@ hooks:
 ruff:
 	ruff check --fix
 	ruff format
-	cd src/inspect_tool_support/src && ruff check --fix
-	cd src/inspect_tool_support/src && ruff format
 
 .PHONY: mypy
 mypy:
