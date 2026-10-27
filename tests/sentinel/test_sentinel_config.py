@@ -204,7 +204,7 @@ def test_eval_sentinel_overrides_the_task() -> None:
         {"name": "d2_suspicion", "params": {"score": 0.7}},
         {"name": "d2_rule", "params": {"reason": "eval"}},
     ]
-    assert active_root(log) == "Group"
+    assert active_root(log) == "inspect_sentinel/concurrent"
 
 
 @protocol
@@ -371,7 +371,7 @@ def test_eval_retry_rebuilds_the_sentinel(tmp_path: Path) -> None:
     assert config_data(retried) == {
         "block": {"name": "d2_rule", "params": {"reason": "retry"}}
     }
-    assert active_root(retried) == "Group"
+    assert active_root(retried) == "inspect_sentinel/concurrent"
 
 
 def test_cli_sentinel_args_become_the_entry_params() -> None:
@@ -471,7 +471,7 @@ def test_eval_set_sentinel(tmp_path: Path) -> None:
     assert success
     log = read_eval_log(logs[0].location)
     assert config_data(log) == RULE_CONFIG
-    assert active_root(log) == "Group"
+    assert active_root(log) == "inspect_sentinel/concurrent"
 
 
 def test_eval_set_bad_config_fails_before_running(tmp_path: Path) -> None:
