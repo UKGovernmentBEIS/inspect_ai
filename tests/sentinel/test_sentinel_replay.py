@@ -2185,7 +2185,7 @@ def imported_call(
 def imported_conversation(
     span_id: str, *turns: list[ToolCall]
 ) -> tuple[list[ChatMessage], list[ModelEvent]]:
-    """A model call for each of `turns` and one for the final answer, each call answered by a tool message `result of <id>`."""
+    """A model call for each of `turns` and one for the final answer, each call answered by a tool message `result of <id> in turn <n>`."""
     messages: list[ChatMessage] = [ChatMessageUser(content="Find the config file.")]
     calls: list[ModelEvent] = []
     for n, turn in enumerate([*turns, []]):
@@ -2194,7 +2194,7 @@ def imported_conversation(
         messages.append(event.output.message)
         messages.extend(
             ChatMessageTool(
-                content=f"result of {call.id}",
+                content=f"result of {call.id} in turn {n}",
                 tool_call_id=call.id,
                 function=call.function,
             )
@@ -2204,13 +2204,17 @@ def imported_conversation(
 
 
 def imported_tool_event(
-    call: ToolCall, span_id: str, id: str | None = None, function: str | None = None
+    call: ToolCall,
+    turn: int,
+    span_id: str,
+    id: str | None = None,
+    function: str | None = None,
 ) -> ToolEvent:
     return ToolEvent(
         id=id or call.id,
         function=function or call.function,
         arguments=call.arguments,
-        result=f"result of {call.id}",
+        result=f"result of {call.id} in turn {turn}",
         span_id=span_id,
     )
 
@@ -2226,7 +2230,7 @@ def claude_code_transcript() -> tuple[list[ChatMessage], list[Event]]:
     task = ToolCall(id="toolu_task", function="Task", arguments={"prompt": "Look."})
     bash = ToolCall(id="toolu_bash", function="Bash", arguments={"command": "ls"})
     messages, (m0, m1, m2) = imported_conversation("session", [task], [bash])
-    task_event = imported_tool_event(task, "agent-toolu_task")
+    task_event = imported_tool_event(task, 0, "agent-toolu_task")
     task_event.agent_span_id = "agent-toolu_task"
     return messages, [
         SpanBeginEvent(id="session", name="session", type="agent"),
@@ -2241,7 +2245,7 @@ def claude_code_transcript() -> tuple[list[ChatMessage], list[Event]]:
         SpanBeginEvent(
             id="tool-toolu_bash", name="Bash", type="tool", parent_id="session"
         ),
-        imported_tool_event(bash, "tool-toolu_bash"),
+        imported_tool_event(bash, 1, "tool-toolu_bash"),
         SpanEndEvent(id="tool-toolu_bash"),
         m2,
         SpanEndEvent(id="session"),
@@ -2254,20 +2258,20 @@ def spanless_transcript(
     # ToolEvents in the run's span, with the call's id or with their own
     messages, (m0, m1, m2) = imported_conversation("run", [READ, LIST], [GREP])
 
-    def tool_event(call: ToolCall) -> ToolEvent:
+    def tool_event(call: ToolCall, turn: int) -> ToolEvent:
         if tool_event_ids:
-            return imported_tool_event(call, "run")
+            return imported_tool_event(call, turn, "run")
         return imported_tool_event(
-            call, "run", id=f"run-{call.id}", function=f"tools.{call.function}"
+            call, turn, "run", id=f"run-{call.id}", function=f"tools.{call.function}"
         )
 
     return messages, [
         SpanBeginEvent(id="run", name="agent run", type=span_type),
         m0,
-        tool_event(READ),
-        tool_event(LIST),
+        tool_event(READ, 0),
+        tool_event(LIST, 0),
         m1,
-        tool_event(GREP),
+        tool_event(GREP, 1),
         m2,
         SpanEndEvent(id="run"),
     ]
@@ -2310,6 +2314,39 @@ def test_an_imported_transcript_keeps_the_tool_steps_of_its_messages(
 
     assert tool_steps(replay) == projected_tool_steps(messages)
     assert len(tool_steps(replay)) == (4 if importer == "claude_code" else 6)
+
+
+@pytest.mark.parametrize("copied", [False, True])
+def test_a_reused_call_id_keeps_each_call_and_its_own_answer(copied: bool) -> None:
+    # a provider can reuse a call's id: as the projection, each call has its
+    # steps, answered by the first tool message after it; `copied` writes the
+    # messages as LangSmith does, a copy of each assistant message without
+    # its id or model
+    messages, calls = imported_conversation("terminus", [READ], [READ])
+    if copied:
+        messages = [
+            m.model_copy(update={"id": f"copy-{n}", "model": None})
+            if isinstance(m, ChatMessageAssistant)
+            else m
+            for n, m in enumerate(messages)
+        ]
+    replay = steps_from_events(
+        messages,
+        [
+            SpanBeginEvent(id="terminus", name="terminus_2", type="agent"),
+            *calls,
+            SpanEndEvent(id="terminus"),
+        ],
+        [],
+        sample_uuid="transcript",
+        eval_info=IMPORTED,
+    )
+
+    assert tool_steps(replay) == projected_tool_steps(messages)
+    assert [s[4] for s in tool_steps(replay) if s[0] == "tool_result"] == [
+        "result of call_read in turn 0",
+        "result of call_read in turn 1",
+    ]
 
 
 def test_an_imported_call_s_steps_come_after_its_model_output() -> None:

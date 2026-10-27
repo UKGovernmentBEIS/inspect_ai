@@ -1,5 +1,6 @@
 """The log driver: a sample's steps rebuilt from its events, with the builders the live dispatcher uses (`_steps.py`)."""
 
+import json
 import re
 from bisect import bisect_left, bisect_right
 from collections.abc import Callable, Iterator, Sequence
@@ -88,7 +89,7 @@ def steps_from_events(
 
     A log that does not record where a model call was made (`ModelEvent.origin`, written since inspect_ai PR #5990), an older Inspect log or a transcript imported from another source, has its turns inferred: a call made in a tool's span (or nested in its `ToolEvent`) is a tool's, one in the scorers' span a scorer's and one in the init span setup's; of the rest, those the timeline shows as utility (`timeline_build`'s prompt and continuity rules) are not turns, and the others are.
 
-    A transcript imported from another source (`eval_info.inspect_ai_version` is `None`) records a call's run as Inspect does only when a tool span holds its `ToolEvent`. A call its turn made that ran without one (a `ToolEvent` in an agent span or in none) or has no `ToolEvent` with its id has its steps taken from the messages, as sentinel's messages projection takes them: the call as the model made it, and the first tool message answering it as its result (else its `ToolEvent`'s result), with no `tool_result` step when neither holds one. A call with no `ToolEvent` has its steps just after its turn's `model_output` step.
+    A transcript imported from another source (`eval_info.inspect_ai_version` is `None`) records a call's run as Inspect does only when a tool span holds its `ToolEvent`. A call its turn made that ran without one (a `ToolEvent` in an agent span or in none) or has no `ToolEvent` with its id has its steps taken from the messages, as sentinel's messages projection takes them: the call as the model made it, and the first tool message answering it as its result (else its `ToolEvent`'s result), with no `tool_result` step when neither holds one. A call with no `ToolEvent` has its steps just after its turn's `model_output` step. A call id a provider reuses gives each call its own steps under that id, each answered by the first tool message after its assistant message.
 
     Args:
         messages: The sample's messages (`EvalSample.messages`).
@@ -103,7 +104,7 @@ def steps_from_events(
         The steps, in the order they ran live.
 
     Raises:
-        MalformedLogError: Two steps of one stage have one step id, the span tree has a `parent_id` cycle, or a model input names rows outside the message pool.
+        MalformedLogError: Two steps of one stage have one step id (other than steps taken from an imported transcript's messages), the span tree has a `parent_id` cycle, or a model input names rows outside the message pool.
         NotImplementedError: A sentinel checked a model_input step whose model call was not made (a sentinel ended the sample there or failed, or a token or cost limit or a cancellation stopped the call before it was recorded), whose input the log does not record.
     """
     flat, nested = _flatten(events)
@@ -376,7 +377,7 @@ class _Driver:
         self._producers: dict[int, Producer] = {}
         self._assistants: dict[str, tuple[ChatMessageAssistant, ToolCall]] | None = None
         self._messages_by_id: dict[str, ChatMessage] | None = None
-        self._answers: dict[str, ChatMessageTool] | None = None
+        self._answers: tuple[_Answers, _Answers] | None = None
         # the origins of model calls the log records none for, by id()
         self._inferred: dict[int, str] | None = None
         # the uuids of the model calls made outside sentinel spans
@@ -401,6 +402,10 @@ class _Driver:
         # calls made whose origin is inferred, not as turns
         inferred_other: set[str | None] = set()
         produced: dict[str, tuple[ChatMessageAssistant, ModelEvent, ToolCall, int]] = {}
+        # every call a model call produced, in log order, and those a
+        # ToolEvent ran, by id(): a provider can reuse a call's id
+        occurrences: list[tuple[ChatMessageAssistant, ModelEvent, ToolCall, int]] = []
+        with_event: set[int] = set()
         approvals: dict[str, ApprovalEvent] = {}
         calls: list[_Call] = []
 
@@ -419,7 +424,9 @@ class _Driver:
                 if message_id is not None:
                     message = event.output.choices[0].message
                     for tool_call in message.tool_calls or []:
-                        produced[tool_call.id] = (message, event, tool_call, index)
+                        occurrence = (message, event, tool_call, index)
+                        produced[tool_call.id] = occurrence
+                        occurrences.append(occurrence)
                 if not is_agent_turn(self._origin(event)):
                     if event.origin is None:
                         inferred_other.add(event.uuid)
@@ -460,6 +467,7 @@ class _Driver:
                 proposal: ToolCall | None
                 if found is not None:
                     assistant, producer, proposal, _ = found
+                    with_event.add(id(found))
                 else:
                     assistant, proposal = self._assistant(event.id)
                 conversation = (
@@ -487,10 +495,9 @@ class _Driver:
         for entry in calls:
             self._tool_call(entry)
         if self.imported:
-            with_event = {e.event.id for e in calls if e.proposal is not None}
-            for call_id, (assistant, producer, proposal, at) in produced.items():
-                if call_id not in with_event:
-                    self._call_without_event(assistant, producer, proposal, at)
+            for occurrence in occurrences:
+                if id(occurrence) not in with_event:
+                    self._call_without_event(*occurrence)
 
         # the second pass: in log order, each step at its cut
         for action in sorted(self.actions, key=lambda a: (a.position, a.phase, a.seq)):
@@ -865,14 +872,20 @@ class _Driver:
         ran: ToolEvent | None,
     ) -> None:
         """An imported call's steps, taken from the messages: its result is the first tool message answering it, else the result of `ran`, the `ToolEvent` of a call that ran."""
-        result = self._answer(proposal.id)
-        if result is None and ran is not None:
-            result = self._result(ran)
         call_view = ToolCallView(call=proposal.view or _default_view(proposal))
         recorded_producer = self._producer(producer)
         message_id = assistant.id or ""
 
+        answered: list[ChatMessageTool] = []
+
         def build_before() -> None:
+            # answers are found in log order, so a reused call id is answered
+            # in turn
+            result = self._answer(assistant, proposal)
+            if result is None and ran is not None:
+                result = self._result(ran)
+            if result is not None:
+                answered.append(result)
             step = before_tool_call(
                 conversation=conversation,
                 message=assistant.text,
@@ -883,15 +896,15 @@ class _Driver:
                 agent_messages=None,
                 record=self._record(conversation),
             )
-            self._built(proposal.id, "tool_call", step, None)
+            self._built(proposal.id, "tool_call", step, None, unique=False)
 
         self._at_point(before_at, seq, build_before)
-        if result is None:
-            return
-        answer = result
         truncated = self._truncated(ran) if ran is not None else None
 
         def build_after() -> None:
+            if not answered:
+                return
+            [answer] = answered
             step = after_tool_call(
                 conversation=conversation,
                 message=assistant.text,
@@ -905,7 +918,7 @@ class _Driver:
                 agent_messages=None,
                 record=self._record(conversation),
             )
-            self._built(proposal.id, "tool_result", step, None)
+            self._built(proposal.id, "tool_result", step, None, unique=False)
 
         self._at_point(after_at, seq + 2, build_after)
 
@@ -1013,12 +1026,16 @@ class _Driver:
         stage: SentinelStage,
         step: "Step",
         span: str | None,
+        unique: bool = True,
     ) -> None:
         from inspect_sentinel import ReplayStep
 
-        if (stage, step_id) in self.ids:
-            raise MalformedLogError(f"Two {stage} steps have the step id {step_id!r}.")
-        self.ids.add((stage, step_id))
+        if unique:
+            if (stage, step_id) in self.ids:
+                raise MalformedLogError(
+                    f"Two {stage} steps have the step id {step_id!r}."
+                )
+            self.ids.add((stage, step_id))
         answers: dict[str, "HumanAnswer"] = {}
         if span is not None:
             answers = self._recorded_answers(span)
@@ -1127,14 +1144,15 @@ class _Driver:
             self._assistants = found
         return self._assistants.get(call_id, (None, None))
 
-    def _answer(self, call_id: str) -> ChatMessageTool | None:
+    def _answer(
+        self, assistant: ChatMessageAssistant, call: ToolCall
+    ) -> ChatMessageTool | None:
+        """The tool message answering a call, in the sample's messages where they hold the call, else in the pool."""
         if self._answers is None:
-            found: dict[str, ChatMessageTool] = {}
-            for message in [*self.messages, *self.pool]:
-                if isinstance(message, ChatMessageTool) and message.tool_call_id:
-                    found.setdefault(message.tool_call_id, message)
-            self._answers = found
-        return self._answers.get(call_id)
+            self._answers = (_Answers(self.messages), _Answers(self.pool))
+        messages, pool = self._answers
+        found = messages.answer(assistant, call)
+        return found if found is not None else pool.answer(assistant, call)
 
     def _sentinel_modify(self, span: str | None, event: ToolEvent) -> ToolCall | None:
         if span is None:
@@ -1243,6 +1261,56 @@ def _approval_report(approval: ApprovalEvent) -> Any:
         report=decision,
         function=approval.approver,
     )
+
+
+class _Answers:
+    """The answers to calls in a list of messages, as sentinel's messages projection finds them: the first tool message with the call's id after the assistant message making the call.
+
+    The assistant message is found by its id, else by the call itself (an importer can write a copy of the message, without the model's name, into later inputs), equal calls taken in the order they are asked for.
+    """
+
+    def __init__(self, messages: Sequence[ChatMessage]) -> None:
+        self._messages = messages
+        self._by_id: dict[str, int] = {}
+        self._by_call: dict[str, list[int]] = {}
+        self._answers: dict[str, list[int]] = {}
+        # each call's next position not yet taken, and positions taken by id
+        self._next: dict[str, int] = {}
+        self._taken: set[int] = set()
+        for position, message in enumerate(messages):
+            if isinstance(message, ChatMessageAssistant) and message.tool_calls:
+                if message.id is not None:
+                    self._by_id.setdefault(message.id, position)
+                for call in message.tool_calls:
+                    self._by_call.setdefault(_call_key(call), []).append(position)
+            elif isinstance(message, ChatMessageTool) and message.tool_call_id:
+                self._answers.setdefault(message.tool_call_id, []).append(position)
+
+    def answer(
+        self, assistant: ChatMessageAssistant, call: ToolCall
+    ) -> ChatMessageTool | None:
+        at = self._by_id.get(assistant.id) if assistant.id is not None else None
+        if at is not None:
+            self._taken.add(at)
+        else:
+            key = _call_key(call)
+            positions = self._by_call.get(key, [])
+            cursor = self._next.get(key, 0)
+            while cursor < len(positions) and positions[cursor] in self._taken:
+                cursor += 1
+            if cursor == len(positions):
+                return None
+            at = positions[cursor]
+            self._next[key] = cursor + 1
+        answers = self._answers.get(call.id, [])
+        after = bisect_right(answers, at)
+        if after == len(answers):
+            return None
+        return cast(ChatMessageTool, self._messages[answers[after]])
+
+
+def _call_key(call: ToolCall) -> str:
+    return json.dumps([call.id, call.function, call.arguments], default=str)
 
 
 def _offered(producer: ModelEvent | None, function: str) -> bool:
