@@ -2907,6 +2907,46 @@ def test_an_imported_message_s_steps_follow_the_turn_whose_output_it_is() -> Non
         ]
 
 
+@pytest.mark.parametrize("nested", [True, False])
+def test_a_sub_agent_sharing_stable_ids_does_not_take_the_main_steps(
+    nested: bool,
+) -> None:
+    # Codex review of be3766bd0: a sub-agent run first, whose input opens and
+    # whose output has the ids of the main turn's (Scout's stable ids), does
+    # not give the messages' tool steps its conversation
+    call = ToolCall(id="c", function="f", arguments={})
+    opening = ChatMessageUser(id="same-opening", content="go")
+    sub = imported_call("sub", [opening], "sub", GREP)
+    sub.output.choices[0].message.id = "same-output"
+    main = imported_call("main", [opening], "run", call)
+    main.output.choices[0].message.id = "same-output"
+    messages = [opening, main.output.message, *answers([call], "answer of")]
+    replay = steps_from_events(
+        messages,
+        [
+            SpanBeginEvent(id="run", name="main", type="agent"),
+            SpanBeginEvent(
+                id="sub",
+                name="sub",
+                type="agent",
+                parent_id="run" if nested else None,
+            ),
+            sub,
+            SpanEndEvent(id="sub"),
+            main,
+            SpanEndEvent(id="run"),
+        ],
+        [],
+        sample_uuid="transcript",
+        eval_info=IMPORTED,
+    )
+
+    steps = [s for s in replay if s.stage.startswith("tool")]
+    assert tool_steps(replay) == projected_tool_steps(messages)
+    assert [s.step.conversation for s in steps] == ["run", "run"]
+    assert [s.segment for s in steps] == [("run", 0), ("run", 0)]
+
+
 def random_imported(seed: int) -> tuple[list[ChatMessage], list[Event]]:
     """An imported-style transcript: reused ids, parallel calls, pre-filled messages, compaction, sub-agents, ToolEvents of every kind, copies and stable ids, and messages that are the whole history or the last input."""
     from inspect_ai.event import CompactionEvent

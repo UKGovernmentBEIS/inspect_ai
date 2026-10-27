@@ -89,7 +89,7 @@ def steps_from_events(
 
     A log that does not record where a model call was made (`ModelEvent.origin`, written since inspect_ai PR #5990), an older Inspect log or a transcript imported from another source, has its turns inferred: a call made in a tool's span (or nested in its `ToolEvent`) is a tool's, one in the scorers' span a scorer's and one in the init span setup's; of the rest, those the timeline shows as utility (`timeline_build`'s prompt and continuity rules) are not turns, and the others are.
 
-    A transcript imported from another source (`eval_info` is `None`) has its tool steps from the sample's messages alone, as sentinel's messages projection (`steps_from_messages`) takes them: each call of each assistant message, in order, a `tool_call` step, and a `tool_result` step holding the first tool message with the call's id after that assistant message, none when there is none; step ids, calls, views and results as the projection's, with no input or tools. Its `ToolEvent`s and model calls do not decide which tool steps there are or what answers them, only where they go, among the turns whose input opens with the messages' first message (else all turns): a message's steps follow the `model_output` step of the turn whose output has the message's id, else of the turn before the first turn whose input is longer than the message's position in the messages (the turn that made it, where the messages extend each turn's input), else they precede the first turn. So a call no message holds (a sub-agent's, or one in a turn the messages dropped) has no tool steps, as in the projection.
+    A transcript imported from another source (`eval_info` is `None`) has its tool steps from the sample's messages alone, as sentinel's messages projection (`steps_from_messages`) takes them: each call of each assistant message, in order, a `tool_call` step, and a `tool_result` step holding the first tool message with the call's id after that assistant message, none when there is none; step ids, calls, views and results as the projection's, with no input or tools. The steps are in the main conversation, the one the messages are (the conversation with the fewest agent spans enclosing it), with its record. Its `ToolEvent`s and model calls do not decide which tool steps there are, what answers them or their conversation, only where they go among the main conversation's turns: a message's steps follow the `model_output` step of the turn whose output has the message's id, else of the turn before the first turn whose input is longer than the message's position in the messages (the turn that made it, where the messages extend each turn's input), else they precede the first turn. A placement mistake changes their order only. So a call no message holds (a sub-agent's, or one in a turn the messages dropped) has no tool steps, as in the projection.
 
     Args:
         messages: The sample's messages (`EvalSample.messages`).
@@ -817,15 +817,8 @@ class _Driver:
         self._settle_at_end(after_span)
 
     def _projected_tool_steps(self, generates: list[_Generate]) -> None:
-        """An imported transcript's tool steps, as sentinel's messages projection takes them from the sample's messages (see `steps_from_events`), placed among the turns' steps."""
-        # the turns of the messages' own conversation: those whose input opens
-        # with the messages' first message, else every turn
-        opening = self.messages[0].id if self.messages else None
-        turns = [
-            group
-            for group in generates
-            if (input := self._input(group.attempts[0][1])) and input[0].id == opening
-        ] or generates
+        """An imported transcript's tool steps, as sentinel's messages projection takes them from the sample's messages (see `steps_from_events`), placed among the main conversation's turns."""
+        conversation, turns = self._main_turns(generates)
         longest = list(
             accumulate((len(self._input(g.attempts[0][1])) for g in turns), max)
         )
@@ -849,12 +842,11 @@ class _Driver:
             turn = made.get(message.id) if message.id is not None else None
             later = bisect_right(longest, position)
             if turn is not None or later > 0:
-                turn = turn or turns[later - 1]
-                at, conversation = (turn.attempts[-1][0], 3), turn.conversation
+                at = ((turn or turns[later - 1]).attempts[-1][0], 3)
             elif turns:
-                at, conversation = (turns[0].attempts[0][0], 0), turns[0].conversation
+                at = (turns[0].attempts[0][0], 0)
             else:
-                at, conversation = (len(self.events), 1), self.spans.conversation(None)
+                at = (len(self.events), 1)
             for call in message.tool_calls or []:
                 found = answers.get(call.id, [])
                 after = bisect_right(found, position)
@@ -864,6 +856,26 @@ class _Driver:
                     else None
                 )
                 self._projected_call(message, position, call, result, conversation, at)
+
+    def _main_turns(self, generates: list[_Generate]) -> tuple[str, list[_Generate]]:
+        """The main conversation, the one the sample's messages are, and its turns: the conversation with the fewest agent spans enclosing it (of those, the last turn's), else the sample's."""
+        depths: dict[str, int] = {}
+        for group in generates:
+            if group.conversation not in depths:
+                depth = 0
+                span_id: str | None = group.conversation
+                while span_id is not None and span_id in self.begins:
+                    begin = self.begins[span_id][1]
+                    depth += begin.type == AGENT_SPAN_TYPE
+                    span_id = begin.parent_id
+                depths[group.conversation] = depth
+        if not depths:
+            return self.spans.conversation(None), []
+        least = min(depths.values())
+        main = [g for g in generates if depths[g.conversation] == least][
+            -1
+        ].conversation
+        return main, [g for g in generates if g.conversation == main]
 
     def _projected_call(
         self,
