@@ -513,7 +513,7 @@ def _parse_chinese_integer_with_units(s: str) -> Optional[int]:
 
         d = _char_to_ascii_digit(ch)
         if d is not None:
-            number = int(d)
+            number = number * 10 + int(d)
             continue
 
         if ch in _CH_SMALL_UNITS:

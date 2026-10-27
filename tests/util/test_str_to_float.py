@@ -232,6 +232,20 @@ def test_chinese_numerals_basic() -> None:
     assert unicode_number_to_float("卌六") == 46.0
 
 
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("12万", 120_000.0),
+        ("10万", 100_000.0),
+        ("25億", 2_500_000_000.0),
+        ("３０万", 300_000.0),
+        ("十二万", 120_000.0),
+    ],
+)
+def test_arabic_digits_before_chinese_large_unit(value: str, expected: float) -> None:
+    assert unicode_number_to_float(value) == expected
+
+
 def test_chinese_with_decimal_and_fraction() -> None:
     assert unicode_number_to_float("一百二十三点四五") == pytest.approx(123.45)
     assert unicode_number_to_float("十二⅓") == pytest.approx(12 + 1 / 3)
