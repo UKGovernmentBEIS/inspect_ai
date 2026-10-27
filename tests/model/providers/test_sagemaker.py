@@ -31,6 +31,7 @@ from inspect_ai.model import (
     ChatMessageAssistant,
     ChatMessageUser,
     GenerateConfig,
+    ModelCall,
     ModelOutput,
 )
 from inspect_ai.model._chat_message import (
@@ -1882,6 +1883,85 @@ class TestStreamingReasoning:
         model_output, _ = result
 
         assert model_output.completion == "δE"
+
+    @staticmethod
+    def _jsonlines_chunks() -> list[dict[str, Any]]:
+        def chunk(
+            delta: dict[str, str], finish_reason: str | None = None
+        ) -> dict[str, Any]:
+            return {
+                "id": "chatcmpl-lmi",
+                "object": "chat.completion.chunk",
+                "created": 1700000000,
+                "model": "lmi",
+                "choices": [
+                    {"index": 0, "delta": delta, "finish_reason": finish_reason}
+                ],
+            }
+
+        return [
+            chunk({"role": "assistant", "content": ""}),
+            chunk({"reasoning": "17 * 23"}),
+            chunk({"reasoning": " = 391"}),
+            chunk({"content": "391"}),
+            chunk({}, "stop"),
+        ]
+
+    async def _generate_from_payload(
+        self, payload: bytes, part_size: int
+    ) -> tuple[ModelOutput, ModelCall]:
+        api = _make_api(stream=True)
+        parts = [payload[i : i + part_size] for i in range(0, len(payload), part_size)]
+
+        async def mock_event_stream():
+            for part in parts:
+                yield {"PayloadPart": {"Bytes": part}}
+
+        mock_client = AsyncMock()
+        mock_client.invoke_endpoint_with_response_stream = AsyncMock(
+            return_value={"Body": mock_event_stream()}
+        )
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        result = await api.generate(
+            [ChatMessageUser(content="Hi")],
+            [],
+            "auto",
+            GenerateConfig(max_tokens=100, temperature=0),
+        )
+        model_output, model_call = result
+        return model_output, model_call
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("part_size", [4096, 7], ids=["one-part", "7-byte-parts"])
+    async def test_streaming_jsonlines_without_data_prefix(self, part_size: int):
+        """application/jsonlines streams (one chunk object per line, no "data:") are parsed."""
+        payload = "".join(
+            json.dumps(c) + "\n" for c in self._jsonlines_chunks()
+        ).encode()
+
+        model_output, model_call = await self._generate_from_payload(payload, part_size)
+
+        assert model_output.completion == "391"
+        assert model_output.stop_reason == "stop"
+        response: Any = model_call.response
+        assert (
+            response["choices"][0]["message"].get("reasoning_content")
+            == "17 * 23 = 391"
+        )
+
+    @pytest.mark.anyio
+    async def test_streaming_jsonlines_without_trailing_newline(self):
+        """The last JSON line is parsed when the stream ends without a newline."""
+        payload = "\n".join(json.dumps(c) for c in self._jsonlines_chunks()).encode()
+
+        model_output, _ = await self._generate_from_payload(payload, 4096)
+
+        assert model_output.completion == "391"
+        assert model_output.stop_reason == "stop"
 
     @pytest.mark.anyio
     async def test_streaming_includes_stream_options(self):
