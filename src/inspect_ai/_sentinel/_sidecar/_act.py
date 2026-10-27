@@ -1,6 +1,6 @@
 """Acting on a sidecar's protocol decisions, as Inspect acts on an in-process sentinel's.
 
-A sidecar judges a whole turn before Inspect is handed it. A call it rejected is put back into the model's turn and answered with an approval error when Inspect would run it; a call it changed runs with its new arguments, while the model's turn keeps the call the model made; a `terminate` ends the sample.
+A sidecar judges a whole turn before Inspect is handed it. A call it rejected is put back into the model's turn and answered with an approval error when Inspect would run it; a call it changed runs with its new arguments, while the model's turn keeps the call the model made; a `terminate` ends the sample where an in-process sentinel's would, at the model call or before the turn's calls run.
 """
 
 from typing import Any, Literal, NamedTuple
@@ -31,9 +31,9 @@ _TOOL_CALL = TypeAdapter(ToolCall)
 class CallDecision(NamedTuple):
     """What the sidecar decided of one call of the model's turn, for Inspect to act on when it would run the call."""
 
-    action: Literal["reject", "modify"]
+    action: Literal["reject", "modify", "terminate"]
     message: str | None = None
-    """What the model is told of a rejected call."""
+    """What the model is told of a rejected call, or why a sentinel ended the sample."""
     modified: ToolCall | None = None
     """The call to run in place of the model's."""
 
@@ -121,8 +121,13 @@ def _refusal(
 def act_on_field(
     field: SentinelField, output: ModelOutput, bridged: bool
 ) -> ModelOutput:
-    """Act on what the sidecar decided of an agent call, and return the output the agent is handed. A `terminate` is acted on by `end_if_terminated`, once the reports are in the transcript."""
+    """Act on what the sidecar decided of an agent call, and return the output the agent is handed. A `terminate` is acted on by `end_if_terminated`, once the reports are in the transcript, unless it ends the sample at the turn's calls."""
     if field.outcome == "terminate":
+        if _ends_at_calls(field, output):
+            # every call of the turn ends the sample, so whichever Inspect
+            # would run first ends it before any runs
+            ended = CallDecision("terminate", message=_explanation(field) or _ENDED)
+            _decide({call.id: ended for call in output.message.tool_calls or []})
         return output
     # A bridged agent runs its own tools, so it is handed the turn as the
     # sidecar left it: a call put back would run.
@@ -144,12 +149,7 @@ def act_on_field(
             if step.original is not None:
                 originals[step.call] = _TOOL_CALL.validate_python(step.original)
 
-    if decisions:
-        from inspect_ai.log._samples import sample_active
-
-        active = sample_active()
-        if active is not None:
-            _decisions.setdefault(active, {}).update(decisions)
+    _decide(decisions)
     if field.outcome == "proceed" and output.choices:
         # the model's own turn, as it made it
         message = (
@@ -163,14 +163,40 @@ def act_on_field(
     return output
 
 
-def end_if_terminated(field: SentinelField) -> None:
+def end_if_terminated(field: SentinelField, output: ModelOutput) -> None:
     """End the sample if a sentinel in the sidecar ended it, as an in-process sentinel's `terminate` does.
 
+    A sentinel that ended the sample at a call of the model's turn ends it when Inspect would run the turn's calls, as in process, so the turn is the agent's, as an in-process sentinel leaves it.
+
     Raises:
-        TerminateSampleError: If the call's outcome is `terminate`.
+        TerminateSampleError: If the call's outcome is `terminate`, and it doesn't end the sample at the turn's calls.
     """
-    if field.outcome == "terminate":
+    if field.outcome == "terminate" and not _ends_at_calls(field, output):
         raise TerminateSampleError(_explanation(field) or _ENDED)
+
+
+def _ends_at_calls(field: SentinelField, output: ModelOutput) -> bool:
+    # A bridged agent, which runs its own tools out of Inspect's sight, is
+    # handed no turn, so its sample ends at the model call. So does one the
+    # sidecar ended for a reason of its own, with no sentinel's terminate at a
+    # call.
+    if not output.choices or not output.message.tool_calls:
+        return False
+    ended = next(
+        (s for s in reversed(field.steps) if s.decision.get("action") == "terminate"),
+        None,
+    )
+    return ended is not None and ended.stage == "tool_call"
+
+
+def _decide(decisions: dict[str, CallDecision]) -> None:
+    if not decisions:
+        return
+    from inspect_ai.log._samples import sample_active
+
+    active = sample_active()
+    if active is not None:
+        _decisions.setdefault(active, {}).update(decisions)
 
 
 def _message(turn: WithheldTurn) -> ChatMessageAssistant:

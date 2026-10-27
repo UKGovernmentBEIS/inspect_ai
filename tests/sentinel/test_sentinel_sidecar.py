@@ -17,10 +17,12 @@ from inspect_ai._sentinel._sidecar._endpoint import (
 from inspect_ai._sentinel._sidecar._field import receiving_field
 from inspect_ai._sentinel._sidecar._task import SampleFacts, TaskFacts, TaskSidecars
 from inspect_ai._util._async import tg_collect
+from inspect_ai._util.exception import TerminateSampleError
+from inspect_ai.agent import react
 from inspect_ai.agent._bridge.util import bridge_model_generate
 from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
 from inspect_ai.dataset import Sample
-from inspect_ai.event import InfoEvent, SentinelEvent
+from inspect_ai.event import InfoEvent, SentinelEvent, ToolEvent
 from inspect_ai.log import EvalSample
 from inspect_ai.model import (
     ChatMessageAssistant,
@@ -567,12 +569,18 @@ def _turn_json(*calls: tuple[str, str]) -> dict[str, Any]:
 
 
 def _run_agent(
-    stand_in: StandInSidecar, approval: list[ApprovalPolicy] | None = None
+    stand_in: StandInSidecar,
+    approval: list[ApprovalPolicy] | None = None,
+    agent: str = "generate",
 ) -> EvalSample:
     _LOOKED_UP.clear()
     task = Task(
         dataset=[Sample(input="What's the weather?")],
-        solver=[use_tools(weather()), generate()],
+        solver=(
+            react(tools=[weather()])
+            if agent == "react"
+            else [use_tools(weather()), generate()]
+        ),
         approval=approval,
     )
     [log] = eval(task, model=_model(stand_in), display="none")
@@ -678,28 +686,92 @@ def test_a_turn_the_sidecar_rejected_whole_goes_on_as_the_models_turn() -> None:
     assert _turns(sample)[-1].text == "I can't look that up."
 
 
-@pytest.mark.parametrize("withheld", [True, False], ids=["a reply", "a request"])
-def test_a_terminate_ends_the_sample_as_an_operator_limit(withheld: bool) -> None:
-    field: dict[str, Any] = {
-        "outcome": "terminate",
-        "steps": [
-            {
-                "stage": "tool_call" if withheld else "model_input",
-                "call": "call_1" if withheld else None,
-                "decision": {"action": "terminate", "explanation": "Too far."},
-            }
-        ],
+def _ends(stage: str, call: str | None = None) -> dict[str, Any]:
+    # a sentinel's terminate, as the field reports it
+    return {
+        "stage": stage,
+        "call": call,
+        "decision": {"action": "terminate", "explanation": "Too far."},
     }
-    if withheld:
-        field["withheld"] = {"message": _turn_json(("call_1", "Tokyo")), "results": {}}
+
+
+def _ended_turn(*calls: tuple[str, str]) -> dict[str, Any]:
+    # the turn the run ended at, none of whose calls runs
+    return {
+        "message": _turn_json(*calls),
+        "results": {id: "This call was not run." for id, _ in calls},
+    }
+
+
+def _ended_as_operator(sample: EvalSample, reason: str = "Too far.") -> None:
+    assert sample.error is None
+    assert sample.limit is not None
+    assert (sample.limit.type, sample.limit.reason) == ("operator", reason)
+
+
+@pytest.mark.parametrize("agent", ["generate", "react"])
+def test_a_terminate_at_a_call_ends_the_sample_with_the_turn_kept(agent: str) -> None:
+    calls = (("call_1", "Tokyo"), ("call_2", "Oslo"))
+    field = {
+        "outcome": "terminate",
+        "steps": [_ends("tool_call", "call_2")],
+        "withheld": _ended_turn(*calls),
+    }
+    stand_in = StandInSidecar(turns=[Turn(status=400, sentinel=field)])
+
+    sample = _run_agent(stand_in, agent=agent)
+
+    # the turn is the agent's, as an in-process sentinel leaves it, and the
+    # sample ends before any of its calls runs
+    _ended_as_operator(sample)
+    assert [c.id for c in _turns(sample)[-1].tool_calls or []] == ["call_1", "call_2"]
+    assert _tool_messages(sample) == {}
+    assert _LOOKED_UP == []
+    tool_events = [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert tool_events
+    assert all(e.failed for e in tool_events)
+
+
+@pytest.mark.parametrize(
+    "step",
+    [_ends("model_input"), _ends("model_output")],
+    ids=["a request", "a reply"],
+)
+def test_a_terminate_before_the_calls_ends_the_sample_at_the_model_call(
+    step: dict[str, Any],
+) -> None:
+    field: dict[str, Any] = {"outcome": "terminate", "steps": [step]}
+    if step["stage"] == "model_output":
+        field["withheld"] = _ended_turn(("call_1", "Tokyo"))
     stand_in = StandInSidecar(turns=[Turn(status=400, sentinel=field)])
 
     sample = _run_agent(stand_in)
 
-    assert sample.error is None
-    assert sample.limit is not None
-    assert (sample.limit.type, sample.limit.reason) == ("operator", "Too far.")
+    # as in process, the agent is never handed the turn
+    _ended_as_operator(sample)
+    assert _turns(sample) == []
     assert _LOOKED_UP == []
+
+
+def test_an_agent_that_doesnt_run_the_turns_calls_ends_at_its_next_call() -> None:
+    field = {
+        "outcome": "terminate",
+        "steps": [_ends("tool_call", "call_1")],
+        "withheld": _ended_turn(("call_1", "Tokyo")),
+    }
+    stand_in = StandInSidecar(
+        turns=[
+            Turn(status=400, sentinel=field),
+            # the sidecar refuses every later call of a run it ended
+            Turn(status=400, sentinel={"outcome": "terminate", "steps": []}),
+        ]
+    )
+    task = Task(dataset=[Sample(input="Hi.")], solver=_asks_twice())
+
+    [log] = eval(task, model=_model(stand_in), display="none")
+
+    assert log.samples is not None
+    _ended_as_operator(log.samples[0], "A sentinel in the sidecar ended the sample.")
 
 
 def test_an_approver_never_sees_a_call_the_sidecar_took_out() -> None:
@@ -1263,6 +1335,24 @@ def test_a_bridged_agent_is_never_handed_a_rejected_call() -> None:
     assert log.samples is not None
     [event] = _sentinel_events(log.samples[0])
     assert (event.step_id, event.action) == ("call_1", "reject")
+
+
+def test_a_bridged_agent_ends_at_the_model_call_for_a_terminate_at_a_call() -> None:
+    field = {
+        "outcome": "terminate",
+        "steps": [_ends("tool_call", "call_1")],
+        "withheld": _ended_turn(("call_1", "Tokyo")),
+    }
+    stand_in = StandInSidecar(turns=[Turn(status=400, sentinel=field)])
+    seen: list[ModelOutput | Exception] = []
+    task = Task(dataset=[Sample(input="Hi.")], solver=_bridged_turn(seen))
+
+    eval(task, model=_model(stand_in), display="none")
+
+    # it runs its own tools, so it is never handed the turn
+    [handed] = seen
+    assert isinstance(handed, TerminateSampleError)
+    assert handed.reason == "Too far."
 
 
 def test_a_bridged_agent_is_handed_the_turn_as_the_sidecar_left_it() -> None:
