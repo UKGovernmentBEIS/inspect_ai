@@ -1,6 +1,9 @@
 import contextvars
 import dataclasses
+import gc
 import json
+import tracemalloc
+import weakref
 from typing import Any, NoReturn, Sequence, TypeGuard, cast
 from unittest.mock import patch
 
@@ -15,6 +18,7 @@ from inspect_ai.event._event import Event
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sample_init import SampleInitEvent
+from inspect_ai.event._span import SpanBeginEvent
 from inspect_ai.log._condense import (
     WalkContext,
     attachment_refs_from_object,
@@ -1654,3 +1658,27 @@ def test_find_last_is_not_unavailable_when_eviction_starts_during_the_search() -
     assert transcript.history.find_last(append_until_evicting) is None
     assert transcript.history.resident_events_truncated
     assert visited == [2, 1, 0]
+
+
+def test_an_evicted_span_begin_is_released_and_its_agent_span_still_known() -> None:
+    tracemalloc.start()
+    try:
+        bounded = Transcript(bounded=True, resident_tail=1)
+        begin = SpanBeginEvent(
+            id="large",
+            type="agent",
+            name="agent",
+            metadata={"description": "x" * 10_000_000},
+        )
+        released = weakref.ref(begin)
+        bounded._event(begin)
+        bounded._event(InfoEvent(data="tail"))
+        del begin
+        gc.collect()
+        retained, _ = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    assert [event.event for event in bounded._events] == ["info"]
+    assert released() is None
+    assert retained < 1_000_000
+    assert bounded._agent_span("large") == "large"
