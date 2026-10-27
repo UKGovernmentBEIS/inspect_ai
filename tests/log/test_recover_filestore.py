@@ -1540,13 +1540,7 @@ async def test_streaming_recovery_marks_summary_completed(
 
 
 async def test_streaming_recovery_carries_sample_init_fields() -> None:
-    """Per-sample files/setup propagate from SampleInitEvent.
-
-    Note: sandbox propagation from SampleInitEvent through JSON round-trip
-    is broken by a pre-existing ``Sample.__init__`` issue (dict form of
-    sandbox resolves to None). Recovery still populates ``sandbox`` from
-    the eval-level spec -- see ``test_streaming_recovery_inherits_eval_sandbox``.
-    """
+    """Per-sample sandbox/files/setup propagate from SampleInitEvent."""
     async with AsyncFilesystem():
         with tempfile.TemporaryDirectory() as temp_dir:
             eval_path = os.path.join(temp_dir, "test.eval")
@@ -1557,6 +1551,7 @@ async def test_streaming_recovery_carries_sample_init_fields() -> None:
                 Sample(
                     input="hello",
                     target="hi",
+                    sandbox=("docker", "compose.yaml"),
                     files={"a.txt": "contents"},
                     setup="echo hi",
                 )
@@ -1575,7 +1570,7 @@ async def test_streaming_recovery_carries_sample_init_fields() -> None:
             with open(os.path.join(buffer_dir, ".keep"), "w") as f:
                 pass
 
-            _write_crashed_eval(eval_path)
+            _write_crashed_eval(eval_path, sandbox=SandboxEnvironmentSpec("local"))
             db_dir = os.path.join(temp_dir, "empty_db_dir")
             output_path = os.path.join(temp_dir, "test-recovered.eval")
 
@@ -1591,6 +1586,7 @@ async def test_streaming_recovery_carries_sample_init_fields() -> None:
                 ]
                 raw = json.loads(zf.read(sample_names[0]))
 
+            assert raw["sandbox"] == {"type": "docker", "config": "compose.yaml"}
             assert raw["files"] == ["a.txt"]
             assert raw["setup"] == "echo hi"
 

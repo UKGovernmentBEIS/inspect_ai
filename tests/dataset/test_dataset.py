@@ -9,7 +9,7 @@ from unittest.mock import Mock
 
 import numpy as np
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from test_helpers.utils import skip_if_github_action
 
 from inspect_ai._eval.task.hf import HFFieldSpec
@@ -31,6 +31,8 @@ from inspect_ai.util import (
     CheckpointConfig,
     CheckpointSampleConfig,
     Manual,
+    SandboxEnvironmentSpec,
+    SandboxEnvironmentType,
     SandboxSnapshotConfig,
     TokenInterval,
     TurnInterval,
@@ -54,6 +56,42 @@ def test_sample_description_is_keyword_only() -> None:
         inspect.signature(Sample).parameters["description"].kind
         == inspect.Parameter.KEYWORD_ONLY
     )
+
+
+@pytest.mark.parametrize(
+    "sandbox,expected",
+    [
+        ("docker", SandboxEnvironmentSpec("docker")),
+        (("docker", "compose.yaml"), SandboxEnvironmentSpec("docker", "compose.yaml")),
+        (
+            SandboxEnvironmentSpec("docker", "compose.yaml"),
+            SandboxEnvironmentSpec("docker", "compose.yaml"),
+        ),
+        (None, None),
+    ],
+)
+def test_sample_sandbox_round_trip(
+    sandbox: SandboxEnvironmentType | None, expected: SandboxEnvironmentSpec | None
+) -> None:
+    sample = Sample(input="x", sandbox=sandbox)
+
+    assert sample.sandbox == expected
+    assert Sample.model_validate(sample.model_dump()).sandbox == expected
+    assert Sample.model_validate_json(sample.model_dump_json()).sandbox == expected
+
+
+def test_sample_sandbox_reads_legacy_list_form() -> None:
+    # logs written while SandboxEnvironmentSpec was a NamedTuple store a list
+    sample = Sample.model_validate(
+        {"input": "x", "sandbox": ["docker", "compose.yaml"]}
+    )
+
+    assert sample.sandbox == SandboxEnvironmentSpec("docker", "compose.yaml")
+
+
+def test_sample_sandbox_unresolvable_value_raises() -> None:
+    with pytest.raises(ValidationError):
+        Sample.model_validate({"input": "x", "sandbox": 1})
 
 
 def test_field_spec_positional_metadata_compatibility() -> None:
