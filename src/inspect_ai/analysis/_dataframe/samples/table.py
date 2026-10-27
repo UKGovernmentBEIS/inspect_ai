@@ -606,7 +606,7 @@ def _reconcile_string_columns(dfs: list["pd.DataFrame"]) -> list["pd.DataFrame"]
             or pa.types.is_large_string(dtype.pyarrow_dtype)
         )
 
-    # an all-null column is typed as strings, so it doesn't count
+    # an all-null column is typed as strings, so it doesn't decide the dtype
     string_dtypes = {
         col: df[col].dtype
         for df in dfs
@@ -617,7 +617,9 @@ def _reconcile_string_columns(dfs: list["pd.DataFrame"]) -> list["pd.DataFrame"]
     reconciled: list[pd.DataFrame] = []
     for df in dfs:
         mismatched = [
-            col for col in df.columns if col in string_dtypes and not is_string(df[col])
+            col
+            for col in df.columns
+            if col in string_dtypes and df[col].dtype != string_dtypes[col]
         ]
         if mismatched:
             df = df.copy()

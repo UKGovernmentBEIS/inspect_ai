@@ -53,7 +53,7 @@ def test_samples_df_parallel_reconciles_string_columns(tmp_path: Path) -> None:
     """A column read as strings from one log is strings for every log."""
     logs: list[list[dict[str, JsonValue]]] = [
         [{"big": 1, "mixed": "C"}],
-        [{}, {"big": 2**63 + 1, "mixed": 0.5}],
+        [{}, {"big": 2**63 + 1, "mixed": 0.5, "note": "x"}],
     ]
     for metadata in logs:
         eval(
@@ -62,14 +62,17 @@ def test_samples_df_parallel_reconciles_string_columns(tmp_path: Path) -> None:
             log_dir=str(tmp_path),
             display="none",
         )
-    columns = SampleSummary + [SampleColumn("big", path="metadata.big")]
+    columns = SampleSummary + [
+        SampleColumn("big", path="metadata.big"),
+        SampleColumn("note", path="metadata.note"),
+    ]
 
     def read(parallel: bool | int) -> pd.DataFrame:
         df = samples_df(tmp_path, columns=columns, parallel=parallel)
         return df.sort_values(SAMPLE_ID, ignore_index=True)
 
     serial, parallel = read(False), read(2)
-    for column in ["big", "metadata_big", "metadata_mixed"]:
+    for column in ["big", "note", "metadata_big", "metadata_mixed"]:
         pd.testing.assert_series_equal(parallel[column], serial[column])
     assert sorted(parallel["big"].dropna()) == ["1", str(2**63 + 1)]
     assert sorted(serial["metadata_mixed"].dropna()) == ["0.5", "C"]
