@@ -202,9 +202,10 @@ field inspection is added to detect it.
 With no approval policy and no sentinel, the arguments are validated and
 converted before the tool runs, as before this change, and nothing is
 serialized or rebuilt. The tool gets the converted values, and the ToolEvent
-records the model's arguments, before canonicalization (step 1), as on
-`main`. The only differences from earlier releases
-are that validation and conversion happen before the approval step, a
+records the model's arguments in canonical form (step 1), the arguments the
+tool acts on, which sentinel replay reads back. The only differences from
+earlier releases are that the ToolEvent records canonical arguments,
+validation and conversion happen before the approval step, a
 conversion error is a parsing error to the model, curried handoff arguments
 are not converted, and conversion works on a copy of the arguments, so a
 constructor that changes its input cannot change the call or the log. The

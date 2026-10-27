@@ -1,11 +1,13 @@
 import logging
 import math
 import random
+import re
 import threading
 from collections import Counter
-from collections.abc import Callable, Iterable, Iterator, Sequence
+from collections.abc import Awaitable, Callable, Iterable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple, cast
 
@@ -18,7 +20,11 @@ from test_helpers.utils import skip_if_no_mcp_package
 from typing_extensions import assert_type
 
 from inspect_ai import Task, eval
-from inspect_ai._sentinel._config import resolve_sentinel_root, resolve_sentinel_spec
+from inspect_ai._sentinel._config import (
+    SENTINEL_MIN_VERSION,
+    resolve_sentinel_root,
+    resolve_sentinel_spec,
+)
 from inspect_ai._sentinel._context import init_sentinel
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent import (
@@ -1385,7 +1391,7 @@ def test_an_escalate_returned_to_the_host_fails_the_sample(stage: str) -> None:
     assert sample.limit is None
     assert sample.error is not None
     assert f"returned an escalate at the {stage} stage" in sample.error.message
-    assert "inspect_sentinel 0.2.0 or later" in sample.error.message
+    assert f"inspect_sentinel {SENTINEL_MIN_VERSION} or later" in sample.error.message
     assert tool_messages(log) == []
     [event] = [e for e in sample.events if isinstance(e, ToolEvent)]
     assert event.failed is True
@@ -1621,8 +1627,10 @@ async def test_sample_cancellation_during_the_sentinel_propagates() -> None:
     assert scope.cancelled_caught
     assert cleaned_up.is_set()
     events = [e for e in transcript().events if isinstance(e, SentinelEvent)]
+    # each layer is recorded as cancelled, the root's too, and no error is
     assert [(e.path, e.kind, e.status) for e in events] == [
         ("d3_waiting", "observation", "cancelled"),
+        ("", "decision", "cancelled"),
     ]
     assert transcript_tool_events() == []
     [span_id] = sentinel_span_ids(transcript().events)
@@ -1644,6 +1652,7 @@ def test_sample_time_limit_during_the_sentinel_ends_the_sample() -> None:
     assert cleaned_up.is_set()
     assert [(e.path, e.kind, e.status) for e in sentinel_events(log)] == [
         ("d3_waiting", "observation", "cancelled"),
+        ("", "decision", "cancelled"),
     ]
     assert tool_messages(log) == []
 
@@ -1671,6 +1680,12 @@ async def test_operator_cancel_during_the_after_call_sentinel() -> None:
     assert event.result == "2"
     assert event.pending is None
     assert cleaned_up.is_set()
+    # an operator's cancel is recorded as such, not as the root's failure
+    events = [e for e in transcript().events if isinstance(e, SentinelEvent)]
+    assert [(e.path, e.status) for e in events] == [
+        ("d3_waiting", "cancelled"),
+        ("", "cancelled"),
+    ]
 
 
 async def test_parallel_calls_run_their_sentinels_concurrently() -> None:
@@ -1787,6 +1802,13 @@ def test_sentinel_errors_fail_the_sample_rather_than_the_call(
     events = log.samples[0].events
     ended = {e.id for e in events if isinstance(e, SpanEndEvent)}
     assert sentinel_span_ids(events) and set(sentinel_span_ids(events)) <= ended
+    # the root's failure is recorded in the step's sentinel span
+    [failed] = sentinel_events(log)
+    assert summary([failed]) == [
+        ("inspect_sentinel/concurrent", "", "concurrent", "observation", "error", None)
+    ]
+    assert failed.error == f"{type(error).__name__}: {error}"
+    assert failed.span_id in sentinel_span_ids(events)
 
 
 @protocol
@@ -2323,7 +2345,7 @@ def test_a_history_read_error_fails_the_sentinel() -> None:
 
 
 def test_produced_by_narrows_find_last_to_a_model_event() -> None:
-    from inspect_ai._sentinel._dispatch import _produced_by
+    from inspect_ai._sentinel._steps import produced_by
 
     current = Transcript()
     init_transcript(current)
@@ -2331,7 +2353,7 @@ def test_produced_by_narrows_find_last_to_a_model_event() -> None:
     current._event(agent)
     message_id = agent.output.choices[0].message.id
     assert message_id is not None
-    found = current.history.find_last(_produced_by(message_id))
+    found = current.history.find_last(produced_by(message_id))
     assert_type(found, ModelEvent | None)
     assert found is agent
 
@@ -2666,7 +2688,10 @@ def test_a_sentinel_whose_tool_steps_lack_message_id_asks_for_an_upgrade(
     monkeypatch.setattr(dispatch, "BeforeToolCall", _ToolStepWithoutMessageId)
     with pytest.raises(
         SentinelFailure,
-        match=r"requires inspect_sentinel 0\.2\.0 or later: pip install --upgrade inspect-sentinel",
+        match=re.escape(
+            f"requires inspect_sentinel {SENTINEL_MIN_VERSION} or later: "
+            "pip install --upgrade inspect-sentinel"
+        ),
     ):
         dispatch._require_message_id()
 
@@ -3897,7 +3922,7 @@ _REBUILT_TURNS = 20
 @solver
 def d3_rebuilds_every_message(remembered: dict[str, int]) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        from inspect_ai._sentinel._sent import _sent
+        from inspect_ai._sentinel._dispatch import _records
 
         model = get_model()
         turns: list[tuple[str, str]] = [("user", "Begin.")]
@@ -3912,9 +3937,10 @@ def d3_rebuilds_every_message(remembered: dict[str, int]) -> Solver:
             ]
             output = await model.generate(input)
             turns += [("assistant", output.completion), ("user", f"Turn {turn}.")]
-        [record] = _sent[transcript()].values()
-        remembered["messages"] = len(record.messages)
-        remembered["previous"] = len(record.previous)
+        [record] = _records[transcript()].values()
+        remembered["messages"] = len(record.sent.messages)
+        previous = record.sent._previous
+        remembered["previous"] = len(previous) if previous is not None else 0
         remembered["last_input"] = len(input)
         return state
 
@@ -4051,10 +4077,10 @@ def test_tool_stages_carry_what_was_sent_for_the_call() -> None:
 @solver
 def d3_generates_and_checks_nothing_was_recorded() -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        from inspect_ai._sentinel._sent import _sent
+        from inspect_ai._sentinel._dispatch import _records
 
         state.output = await get_model().generate(state.messages)
-        assert transcript() not in _sent
+        assert transcript() not in _records
         return state
 
     return solve
@@ -4069,7 +4095,7 @@ def test_nothing_is_recorded_without_a_sentinel() -> None:
     assert log.status == "success", log.error
 
 
-# A reference model of step.history's rules, checked against _sent.py on random
+# A reference model of step.history's rules, checked against _steps.py on random
 # request sequences. The reference refolds the whole sequence for every
 # request, with no incremental state, no index and no prefix shortcut.
 
@@ -4202,9 +4228,9 @@ def _random_case(rng: random.Random, requests: int) -> _Case:
 
 
 def _first_divergence(case: _Case) -> str | None:
-    from inspect_ai._sentinel._sent import record_sent, sent_messages
+    from inspect_ai._sentinel._steps import ConversationRecord
 
-    init_transcript(Transcript())
+    record = ConversationRecord()
     objects = [_message(spec) for spec in case.specs]
     snapshots: list[list[ChatMessage]] = []
     passed: list[ChatMessage] = []
@@ -4215,8 +4241,8 @@ def _first_divergence(case: _Case) -> str | None:
         else:
             passed = messages
         snapshots.append(list(messages))
-        record_sent("conversation", passed)
-        actual = sent_messages("conversation")
+        record.sent.record(passed)
+        actual = list(record.history())
         expected = reference_sent(snapshots)
         if len(actual) != len(expected) or any(
             a is not e for a, e in zip(actual, expected)
@@ -5015,6 +5041,7 @@ async def run_bridge_request(
     filter: Any = None,
     response_filter: Any = None,
     during: Any = None,
+    sink: Any = None,
 ) -> tuple[AgentState, list[list[ChatMessage] | None]]:
     """Run one bridge request inside a decorated agent, outside an eval."""
     from inspect_ai._sentinel._agent_state import agent_messages
@@ -5028,7 +5055,12 @@ async def run_bridge_request(
     @agent
     def bridged_turn() -> Agent:
         async def execute(state: AgentState) -> AgentState:
-            bridge = AgentBridge(state, filter=filter, response_filter=response_filter)
+            bridge = AgentBridge(
+                state,
+                filter=filter,
+                response_filter=response_filter,
+                model_event_sink=sink,
+            )
             request: list[ChatMessage] = [ChatMessageUser(content="rebuilt request")]
             if during is None:
                 await bridge_generate(
@@ -6002,6 +6034,107 @@ def test_a_span_tree_cycle_is_an_error() -> None:
         conversations.conversation("a")
 
 
+class _CountingSpans(dict[str, Any]):
+    def __init__(self) -> None:
+        super().__init__()
+        self.gets = 0
+
+    def get(self, key: str, default: Any = None) -> Any:
+        self.gets += 1
+        return super().get(key, default)
+
+
+def chain_lookup_work(n: int, late_root: bool) -> int:
+    """Index reads to add a chain of `n` spans below an agent root, looking up each as it is added."""
+    from inspect_ai.util._span import AgentSpans
+
+    spans = AgentSpans()
+    counted = _CountingSpans()
+    spans._spans = counted
+    root = SpanBeginEvent(id="root", type="agent", name="root")
+    if not late_root:
+        spans.add(root)
+    for i in range(n):
+        parent = str(i - 1) if i else "root"
+        spans.add(SpanBeginEvent(id=str(i), parent_id=parent, name="child"))
+        assert spans.agent_span(str(i)) == (None if late_root else "root")
+    if late_root:
+        spans.add(root)
+        assert spans.agent_span(str(n - 1)) == "root"
+        assert spans.agent_span("0") == "root"
+    return counted.gets
+
+
+@pytest.mark.parametrize("late_root", [False, True], ids=["known-root", "late-root"])
+def test_agent_span_lookups_are_linear_in_the_spans_added(late_root: bool) -> None:
+    n = 2_000
+    work = chain_lookup_work(n, late_root)
+    assert work <= n + 3
+    assert chain_lookup_work(2 * n, late_root) <= 2 * work
+
+
+def test_a_cycle_closed_after_a_lookup_is_an_error() -> None:
+    from inspect_ai._sentinel._conversation import SpanConversations
+
+    conversations = SpanConversations("sample")
+    conversations.add(SpanBeginEvent(id="a", parent_id="b", name="a"))
+    assert conversations.conversation("a") == "sample"
+    conversations.add(SpanBeginEvent(id="b", parent_id="a", name="b"))
+    for _ in range(2):
+        with pytest.raises(ValueError, match="cycle"):
+            conversations.conversation("a")
+
+
+def naive_agent_span(
+    spans: dict[str, tuple[str | None, bool]], span_id: str
+) -> str | None:
+    seen: set[str] = set()
+    current: str | None = span_id
+    while current is not None:
+        if current in seen:
+            raise ValueError("cycle")
+        seen.add(current)
+        if current not in spans:
+            return None
+        parent, is_agent = spans[current]
+        if is_agent:
+            return current
+        current = parent
+    return None
+
+
+def test_agent_spans_match_a_full_walk_whatever_the_order_spans_are_added() -> None:
+    from inspect_ai.util._span import AgentSpans
+
+    rng = random.Random(5990)
+    for _ in range(300):
+        size = rng.randint(1, 12)
+        ids = [f"s{i}" for i in range(size)]
+        tree = {id: (rng.choice([None, *ids]), rng.random() < 0.3) for id in ids}
+        index = AgentSpans()
+        added: dict[str, tuple[str | None, bool]] = {}
+        for id in rng.sample(ids, size):
+            parent, is_agent = tree[id]
+            index.add(
+                SpanBeginEvent(
+                    id=id, parent_id=parent, type="agent" if is_agent else None, name=id
+                )
+            )
+            added[id] = tree[id]
+            for looked_up in rng.sample(list(added), min(3, len(added))):
+                try:
+                    expected: str | None | type[ValueError] = naive_agent_span(
+                        added, looked_up
+                    )
+                except ValueError:
+                    expected = ValueError
+                try:
+                    found: str | None | type[ValueError] = index.agent_span(looked_up)
+                except ValueError:
+                    found = ValueError
+                assert found == expected, (tree, list(added), looked_up)
+
+
 # every live step.history is the fold of the inputs of its conversation's
 # "agent" calls before the step's sentinel span, in log order
 
@@ -6044,7 +6177,7 @@ def assert_history_is_the_fold_of_the_log(
     # each call's conversation is from the span tree unless given by event uuid
     from inspect_ai._sentinel._conversation import SpanConversations
     from inspect_ai._sentinel._scope import is_agent_turn
-    from inspect_ai._sentinel._sent import _Sent
+    from inspect_ai._sentinel._steps import _Sent
 
     assert log.status == "success", log.error
     assert log.location
@@ -6177,7 +6310,7 @@ def test_parallel_sub_agents_histories_are_the_folds_of_their_calls() -> None:
 
 
 def fold(*inputs: list[ChatMessage]) -> list[ChatMessage]:
-    from inspect_ai._sentinel._sent import _Sent
+    from inspect_ai._sentinel._steps import _Sent
 
     sent = _Sent()
     for input in inputs:
@@ -6294,7 +6427,7 @@ def test_the_fold_ignores_source_and_metadata() -> None:
 
 
 def test_a_message_changed_in_place_and_sent_again_is_new() -> None:
-    from inspect_ai._sentinel._sent import _Sent
+    from inspect_ai._sentinel._steps import _Sent
 
     sent = _Sent()
     message = _u("A")
@@ -6526,7 +6659,9 @@ def test_a_tool_result_elided_in_place_stays_as_sent_in_history() -> None:
     assert_history_is_the_fold_of_the_log(log, seen)
 
 
-# attributes each call to a sub-agent span, as a bridged CLI's event consumer does
+# a model event sink, as a bridged CLI's event consumer is: one without
+# on_start moves each call into a sub-agent span in on_pending; one with
+# on_start names the span the generate runs under
 class _SubAgentSink:
     def on_pending(self, event: Any) -> None:
         event.span_id = "sub-agent"
@@ -6536,23 +6671,257 @@ class _SubAgentSink:
         transcript()._event_updated(event)
 
 
+class _StartingSink:
+    def __init__(
+        self,
+        span_id: str | Callable[[list[ChatMessage]], str | None] | None,
+        *,
+        move_to: str | None = None,
+        raises: bool = False,
+    ) -> None:
+        self.span_id = span_id
+        self.move_to = move_to
+        self.raises = raises
+        self.started: list[str] = []
+        self.pending: list[ModelEvent] = []
+
+    def on_start(self, input: list[ChatMessage]) -> str | None:
+        if self.raises:
+            raise RuntimeError("The sink could not start the generate.")
+        self.started.append(input[-1].text)
+        return self.span_id(input) if callable(self.span_id) else self.span_id
+
+    def on_pending(self, event: ModelEvent) -> None:
+        self.pending.append(event)
+        if self.move_to is not None:
+            event.span_id = self.move_to
+        transcript()._event(event)
+
+    def on_complete(self, event: ModelEvent) -> None:
+        transcript()._event_updated(event)
+
+
 @solver
-def d3_attributes_a_call_to_a_sub_agent() -> Solver:
+def d3_attributes_a_call_to_a_sub_agent(
+    sink: Any = None,
+    calls: Sequence[str] = ("Sub-agent turn.",),
+    *,
+    parallel: bool = False,
+    retry: bool = False,
+    cache: bool = False,
+) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        from inspect_ai._util._async import tg_collect
+        from inspect_ai.model._model import use_model_event_sink
+        from inspect_ai.util._span import span
+
+        async def call(text: str) -> ModelOutput:
+            return await get_model().generate(text, cache=cache)
+
+        async with span("outer", type="agent", id="outer"):
+            await get_model().generate("Main turn.")
+            begins = [
+                SpanBeginEvent(
+                    id="sub-agent", parent_id="outer", type="agent", name="sub"
+                ),
+                SpanBeginEvent(
+                    id="sub-tool", parent_id="sub-agent", type="tool", name="t"
+                ),
+                SpanBeginEvent(
+                    id="sub-agent-2", parent_id="outer", type="agent", name="sub 2"
+                ),
+            ]
+            for begin in begins:
+                transcript()._event(begin)
+            with use_model_event_sink(sink or _SubAgentSink()):
+                if retry:
+                    _RetryingMockLLM.failures = 1
+                if parallel:
+                    outputs = await tg_collect([partial(call, text) for text in calls])
+                else:
+                    outputs = [await call(text) for text in calls]
+            for begin in reversed(begins):
+                transcript()._event(SpanEndEvent(id=begin.id))
+        state.output = outputs[-1]
+        return state
+
+    return solve
+
+
+class _SinkRun(NamedTuple):
+    log: EvalLog
+    seen: dict[str, tuple[str, list[ChatMessage]]]
+    live: dict[str, str]
+    from_spans: dict[str, str]
+    events: list[Event]
+
+
+def run_sink(
+    solver: Solver, sentinel: Any = None, model: str = "mockllm/model"
+) -> _SinkRun:
+    seen: dict[str, tuple[str, list[ChatMessage]]] = {}
+    with live_conversations() as live:
+        log = eval(
+            Task(
+                dataset=[Sample(input="Hi.")],
+                solver=solver,
+                sentinel=sentinel if sentinel is not None else [d3_probe(seen)],
+            ),
+            model=model,
+        )[0]
+    assert log.location
+    [sample] = read_eval_log(log.location).samples or []
+    events = list(sample.events)
+    return _SinkRun(
+        log, seen, live, span_tree_conversations(events, sample.uuid or ""), events
+    )
+
+
+def sentinel_span_parents(events: list[Event], step_id: str) -> set[str | None]:
+    """The parent of each sentinel span holding a SentinelEvent with `step_id`."""
+    spans = {e.id: e for e in events if isinstance(e, SpanBeginEvent)}
+    parents: set[str | None] = set()
+    for event in events:
+        if isinstance(event, SentinelEvent) and event.step_id == step_id:
+            span_id = event.span_id
+            while span_id is not None and spans[span_id].type != "sentinel":
+                span_id = spans[span_id].parent_id
+            assert span_id is not None
+            parents.add(spans[span_id].parent_id)
+    return parents
+
+
+def test_a_sink_without_on_start_keeps_live_in_the_generating_task_s_span() -> None:
+    # the documented difference: the log keeps the span on_pending gave the
+    # call, while live follows the span current when generate() was called
+    run = run_sink(d3_attributes_a_call_to_a_sub_agent())
+    assert run.log.status == "success", run.log.error
+    main, sub = agent_events_by_origin(run.log)
+    assert main.uuid is not None and sub.uuid is not None
+    assert run.live[sub.uuid] == run.live[main.uuid] == run.from_spans[main.uuid]
+    assert run.from_spans[sub.uuid] == "sub-agent"
+
+    # live history is the fold by live conversation, not by the span tree
+    assert_history_is_the_fold_of_the_log(run.log, run.seen, run.live)
+    with pytest.raises(AssertionError):
+        assert_history_is_the_fold_of_the_log(run.log, run.seen)
+
+
+def test_an_on_start_sink_s_call_runs_in_its_span_live_and_in_the_log() -> None:
+    sink = _StartingSink("sub-agent")
+    run = run_sink(d3_attributes_a_call_to_a_sub_agent(sink))
+    assert run.log.status == "success", run.log.error
+    main, sub = agent_events_by_origin(run.log)
+    assert main.uuid is not None and sub.uuid is not None
+    assert sub.span_id == "sub-agent"
+    assert run.live == run.from_spans
+    assert run.live[sub.uuid] == "sub-agent" != run.live[main.uuid]
+    assert_history_is_the_fold_of_the_log(run.log, run.seen)
+
+    # the generate's sentinel steps are the sub-agent's, in its span
+    [*_, inputs, outputs] = sentinel_events(run.log)
+    assert inputs.step_id == outputs.step_id == sub.uuid
+    assert inputs.conversation == outputs.conversation == "sub-agent"
+    assert sentinel_span_parents(run.events, sub.uuid) == {"sub-agent"}
+    assert sink.started == ["Sub-agent turn."]
+
+
+@solver
+def d3_edits_a_sub_agent_s_sent_message_in_place(sink: _StartingSink) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         from inspect_ai.model._model import use_model_event_sink
-        from inspect_ai.util._span import current_span_id, span
+        from inspect_ai.util._span import span
 
-        async with span("outer", type="agent"):
+        model = get_model()
+        async with span("outer", type="agent", id="outer"):
+            await model.generate("Main turn.")
+            transcript()._event(
+                SpanBeginEvent(
+                    id="sub-agent", parent_id="outer", type="agent", name="sub"
+                )
+            )
+            task = ChatMessageUser(content="Draft question.")
+            with use_model_event_sink(sink):
+                first = await model.generate([_SYSTEM, task])
+                task.content = "Final question."
+                state.output = await model.generate([_SYSTEM, task, first.message])
+            transcript()._event(SpanEndEvent(id="sub-agent"))
+        return state
+
+    return solve
+
+
+def test_an_on_start_sub_agent_s_history_keeps_a_message_edited_in_place_as_sent() -> (
+    None
+):
+    sink = _StartingSink("sub-agent")
+    run = run_sink(d3_edits_a_sub_agent_s_sent_message_in_place(sink))
+    assert run.log.status == "success", run.log.error
+    assert run.live == run.from_spans
+    *_, (conversation, last) = run.seen.values()
+    assert conversation == "sub-agent"
+    assert sent_texts(last)[:3] == [
+        "Be helpful.",
+        "Draft question.",
+        "Final question.",
+    ]
+    # history holds the snapshots the sink's events were given
+    first, second = sink.pending
+    assert last[1] is first.input[1]
+    assert last[2] is second.input[1]
+    assert_history_is_the_fold_of_the_log(run.log, run.seen)
+
+
+def test_an_on_start_sink_that_moves_the_event_keeps_live_in_the_on_start_span() -> (
+    None
+):
+    # the documented difference: the log keeps on_pending's placement, live
+    # follows on_start
+    run = run_sink(
+        d3_attributes_a_call_to_a_sub_agent(_StartingSink("sub-agent", move_to="outer"))
+    )
+    assert run.log.status == "success", run.log.error
+    main, sub = agent_events_by_origin(run.log)
+    assert main.uuid is not None and sub.uuid is not None
+    assert sub.span_id == "outer"
+    assert run.live[sub.uuid] == "sub-agent"
+    assert run.from_spans[sub.uuid] == run.from_spans[main.uuid] == "outer"
+    [*_, inputs, _] = sentinel_events(run.log)
+    assert inputs.conversation == "sub-agent"
+    assert_history_is_the_fold_of_the_log(run.log, run.seen, run.live)
+    with pytest.raises(AssertionError):
+        assert_history_is_the_fold_of_the_log(run.log, run.seen)
+
+
+@pytest.mark.parametrize("span_id", [None, "outer"])
+def test_an_on_start_sink_naming_no_other_span_changes_nothing(
+    span_id: str | None,
+) -> None:
+    run = run_sink(d3_attributes_a_call_to_a_sub_agent(_StartingSink(span_id)))
+    assert run.log.status == "success", run.log.error
+    main, sub = agent_events_by_origin(run.log)
+    assert main.uuid is not None and sub.uuid is not None
+    assert sub.span_id == "outer"
+    assert run.live == run.from_spans
+    assert run.live[sub.uuid] == run.live[main.uuid] == "outer"
+    assert_history_is_the_fold_of_the_log(run.log, run.seen)
+
+
+@solver
+def d3_generates_under_a_parent_span(sink: Any) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        from inspect_ai.model._model import use_model_event_sink
+        from inspect_ai.util._span import parent_span, span
+
+        async with span("outer", type="agent", id="outer"):
             await get_model().generate("Main turn.")
             transcript()._event(
                 SpanBeginEvent(
-                    id="sub-agent",
-                    parent_id=current_span_id(),
-                    type="agent",
-                    name="sub",
+                    id="sub-agent", parent_id="outer", type="agent", name="sub"
                 )
             )
-            with use_model_event_sink(_SubAgentSink()):
+            # the current span is the sub-agent's, the current agent span the outer's
+            with parent_span("sub-agent"), use_model_event_sink(sink):
                 state.output = await get_model().generate("Sub-agent turn.")
             transcript()._event(SpanEndEvent(id="sub-agent"))
         return state
@@ -6560,30 +6929,420 @@ def d3_attributes_a_call_to_a_sub_agent() -> Solver:
     return solve
 
 
-def test_a_sink_attributed_call_s_span_tree_conversation_differs_from_live() -> None:
-    # a known difference, pending a decision: live puts a call in the
-    # generating task's agent span, the span tree in the span the event sink
-    # gave it
-    seen: dict[str, tuple[str, list[ChatMessage]]] = {}
-    with live_conversations() as live:
-        log = eval(
-            Task(
-                dataset=[Sample(input="Hi.")],
-                solver=d3_attributes_a_call_to_a_sub_agent(),
-                sentinel=[d3_probe(seen)],
-            ),
-            model="mockllm/model",
-        )[0]
-    assert log.status == "success", log.error
-    assert log.location
-    [sample] = read_eval_log(log.location).samples or []
-    from_spans = span_tree_conversations(sample.events, sample.uuid or "")
-    main, sub = agent_events_by_origin(log)
-    assert main.uuid is not None and sub.uuid is not None
-    assert live[sub.uuid] == live[main.uuid] == from_spans[main.uuid]
-    assert from_spans[sub.uuid] == "sub-agent"
+def _names_the_current_span(input: list[ChatMessage]) -> str | None:
+    from inspect_ai.util._span import current_span_id
 
-    # live history is the fold by live conversation, not by the span tree
-    assert_history_is_the_fold_of_the_log(log, seen, live)
-    with pytest.raises(AssertionError):
-        assert_history_is_the_fold_of_the_log(log, seen)
+    return current_span_id()
+
+
+# on_start's None is the current span, as is naming it
+CURRENT_SPAN_RESULTS = {"none": None, "current": _names_the_current_span}
+
+
+@pytest.mark.parametrize("result", CURRENT_SPAN_RESULTS)
+def test_an_on_start_sink_naming_the_current_span_gives_that_span_s_agent(
+    result: str,
+) -> None:
+    run = run_sink(
+        d3_generates_under_a_parent_span(_StartingSink(CURRENT_SPAN_RESULTS[result]))
+    )
+    assert run.log.status == "success", run.log.error
+    main, sub = agent_events_by_origin(run.log)
+    assert main.uuid is not None and sub.uuid is not None
+    assert sub.span_id == "sub-agent"
+    assert run.live == run.from_spans
+    assert run.live[sub.uuid] == "sub-agent" != run.live[main.uuid]
+    assert_history_is_the_fold_of_the_log(run.log, run.seen)
+
+
+def test_an_on_start_span_that_is_not_an_agent_s_gives_the_enclosing_agent() -> None:
+    run = run_sink(d3_attributes_a_call_to_a_sub_agent(_StartingSink("sub-tool")))
+    assert run.log.status == "success", run.log.error
+    _, sub = agent_events_by_origin(run.log)
+    assert sub.uuid is not None
+    assert sub.span_id == "sub-tool"
+    assert run.live == run.from_spans
+    assert run.live[sub.uuid] == "sub-agent"
+    assert_history_is_the_fold_of_the_log(run.log, run.seen)
+
+
+class _LateBeginSink(_StartingSink):
+    # names a span whose begin it records only once the call is pending
+    def on_pending(self, event: ModelEvent) -> None:
+        transcript()._event(
+            SpanBeginEvent(id="late", parent_id="outer", type="agent", name="late")
+        )
+        super().on_pending(event)
+
+
+@pytest.mark.parametrize(
+    "sink,error",
+    [
+        (_StartingSink("unknown"), "'unknown' was not begun in this transcript"),
+        (_LateBeginSink("late"), "'late' was not begun in this transcript"),
+        (_StartingSink(lambda input: ""), "must return None or a span id, not ''"),
+        (_StartingSink(lambda input: cast(str, 3)), "must return None or a span id"),
+    ],
+    ids=["unknown", "late-begin", "empty", "not-a-str"],
+)
+def test_an_on_start_span_not_yet_begun_or_not_a_span_id_fails_the_generate(
+    sink: _StartingSink, error: str
+) -> None:
+    run = run_sink(d3_attributes_a_call_to_a_sub_agent(sink))
+    assert run.log.status == "error"
+    assert run.log.error is not None
+    assert error in run.log.error.message
+    # the generate failed before any of its events
+    [main] = agent_events_by_origin(run.log)
+    assert main.uuid is not None
+    assert set(generate_step_ids(run.log)) == {main.uuid}
+    assert not [
+        e for e in run.events if isinstance(e, SpanBeginEvent) and e.id == "late"
+    ]
+
+
+def test_on_start_runs_once_per_generate_across_retries() -> None:
+    sink = _StartingSink("sub-agent")
+    run = run_sink(
+        d3_attributes_a_call_to_a_sub_agent(sink, retry=True),
+        model="d3_retrying/model",
+    )
+    assert run.log.status == "success", run.log.error
+    _, failed, retried = agent_events_by_origin(run.log)
+    assert failed.error is not None and retried.error is None
+    assert sink.started == ["Sub-agent turn."]
+    assert sink.pending == [failed, retried]
+    assert failed.span_id == retried.span_id == "sub-agent"
+    assert failed.uuid is not None
+    assert generate_step_ids(run.log)[failed.uuid] == ["model_input", "model_output"]
+    assert sentinel_span_parents(run.events, failed.uuid) == {"sub-agent"}
+    assert_history_is_the_fold_of_the_log(run.log, run.seen)
+
+
+def test_on_start_runs_for_a_cache_hit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+    sink = _StartingSink("sub-agent")
+    run = run_sink(
+        d3_attributes_a_call_to_a_sub_agent(
+            sink, ["Sub-agent turn.", "Sub-agent turn."], cache=True
+        )
+    )
+    assert run.log.status == "success", run.log.error
+    _, written, read = agent_events_by_origin(run.log)
+    assert (written.cache, read.cache) == ("write", "read")
+    assert sink.started == ["Sub-agent turn.", "Sub-agent turn."]
+    assert written.span_id == read.span_id == "sub-agent"
+    assert run.live == run.from_spans
+    assert_history_is_the_fold_of_the_log(run.log, run.seen)
+
+
+def test_parallel_generates_in_different_on_start_spans_keep_their_histories() -> None:
+    def by_input(input: list[ChatMessage]) -> str:
+        return "sub-agent" if input[-1].text == "Sub A." else "sub-agent-2"
+
+    run = run_sink(
+        d3_attributes_a_call_to_a_sub_agent(
+            _StartingSink(by_input), ["Sub A.", "Sub B."], parallel=True
+        )
+    )
+    assert run.log.status == "success", run.log.error
+    assert run.live == run.from_spans
+    assert {
+        e.input[-1].text: run.live[e.uuid or ""]
+        for e in agent_events_by_origin(run.log)
+    } == {"Main turn.": "outer", "Sub A.": "sub-agent", "Sub B.": "sub-agent-2"}
+    assert_history_is_the_fold_of_the_log(run.log, run.seen)
+
+
+def test_an_on_start_failure_fails_the_generate_before_any_event() -> None:
+    run = run_sink(
+        d3_attributes_a_call_to_a_sub_agent(_StartingSink(None, raises=True))
+    )
+    assert run.log.status == "error"
+    assert run.log.error is not None
+    assert "could not start the generate" in run.log.error.message
+    [main] = agent_events_by_origin(run.log)
+    assert main.uuid is not None
+    assert set(generate_step_ids(run.log)) == {main.uuid}
+
+
+def test_a_monitor_s_own_calls_do_not_reach_the_sink() -> None:
+    sink = _StartingSink("sub-agent")
+    seen: list[Any] = []
+    run = run_sink(
+        d3_attributes_a_call_to_a_sub_agent(sink),
+        sentinel=[d3_generates(seen, ask=True)],
+    )
+    assert run.log.status == "success", run.log.error
+    assert origin_counts(run.log) == {"agent": 2, "sentinel": 2}
+    _, sub = agent_events_by_origin(run.log)
+    assert sink.pending == [sub]
+
+
+async def test_a_bridged_generate_under_an_on_start_span_has_no_agent_messages() -> (
+    None
+):
+    from inspect_ai.util._span import current_span_id
+
+    def open_sub_agent(input: list[ChatMessage]) -> str:
+        transcript()._event(
+            SpanBeginEvent(
+                id="sub-agent", parent_id=current_span_id(), type="agent", name="sub"
+            )
+        )
+        return "sub-agent"
+
+    seen: list[StageSeen] = []
+    await run_bridge_request(seen, sink=_StartingSink(open_sub_agent))
+    assert stages(seen) == {BeforeGenerate, AfterGenerate}
+    assert {s.step.conversation for s in seen} == {"sub-agent"}
+    assert all(s.messages is None for s in seen)
+
+
+def test_acp_filters_an_on_start_sub_agent_s_sentinel_steps_with_its_events() -> None:
+    from inspect_ai.agent._acp.event_mapping import SubagentDepthTracker
+
+    run = run_sink(d3_attributes_a_call_to_a_sub_agent(_StartingSink("sub-agent")))
+    assert run.log.status == "success", run.log.error
+    tracker = SubagentDepthTracker()
+    actions = [(event, tracker.process(event)) for event in run.events]
+    main, sub = (
+        e for e in run.events if isinstance(e, ModelEvent) and e.origin == "agent"
+    )
+    kept = {
+        (event.stage, event.step_id == sub.uuid): action
+        for event, action in actions
+        if isinstance(event, SentinelEvent)
+    }
+    assert kept == {
+        ("model_input", False): "emit",
+        ("model_output", False): "emit",
+        ("model_input", True): "skip",
+        ("model_output", True): "skip",
+    }
+    assert dict((id(e), a) for e, a in actions)[id(sub)] == "skip"
+    assert dict((id(e), a) for e, a in actions)[id(main)] == "emit"
+
+
+async def test_an_on_start_sink_naming_the_current_span_follows_a_checkpoint_rotation() -> (
+    None
+):
+    from inspect_ai._sentinel._conversation import current_conversation
+    from inspect_ai.model._model import use_model_event_sink
+    from inspect_ai.util._span import SpanRotationScope, current_span_id, span
+
+    init_transcript(Transcript())
+    live: dict[str, str] = {}
+    model = get_model("mockllm/model")
+    sink = _StartingSink(lambda input: current_span_id())
+
+    async def call() -> None:
+        with use_model_event_sink(sink):
+            await model.generate("Hello.")
+        event = sink.pending[-1]
+        assert event.uuid is not None
+        live[event.uuid] = current_conversation()
+
+    async with span("agent", type="agent"):
+        checkpoints = SpanRotationScope(type="checkpoint")
+        await checkpoints.open("checkpoint 1")
+        first = current_span_id()
+        rotated = anyio.Event()
+
+        async def spawned_before_the_rotation() -> None:
+            await rotated.wait()
+            await call()
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(spawned_before_the_rotation)
+            await call()
+            await checkpoints.end_span()
+            await checkpoints.begin_span("checkpoint 2")
+            second = current_span_id()
+            rotated.set()
+        await checkpoints.close()
+
+    assert [e.span_id for e in sink.pending] == [first, second]
+    assert span_tree_conversations(transcript().events, "") == live
+
+
+def test_a_transcript_knows_the_agent_spans_of_seeded_restored_and_new_spans() -> None:
+    seeded = Transcript(
+        [SpanBeginEvent(id="seeded", type="agent", name="seeded")], bounded=True
+    )
+    seeded._extend_restored_events(
+        [SpanBeginEvent(id="restored", parent_id="seeded", type="tool", name="t")], {}
+    )
+    seeded._event(
+        SpanBeginEvent(id="new", parent_id="restored", type="solver", name="s")
+    )
+    assert seeded._agent_span("new") == "seeded"
+    with pytest.raises(ValueError, match="'unknown' was not begun"):
+        seeded._agent_span("unknown")
+
+
+class _RotatingMockLLM(_RetryingMockLLM):
+    # the first attempt rotates the checkpoint span, then fails and is retried
+    rotate: Callable[[], Awaitable[None]] | None = None
+
+    async def generate(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: Any,
+        config: GenerateConfig,
+    ) -> Any:
+        rotate, _RotatingMockLLM.rotate = _RotatingMockLLM.rotate, None
+        if rotate is not None:
+            await rotate()
+            raise _RetriedError("try again")
+        return await super().generate(input, tools, tool_choice, config)
+
+
+@modelapi(name="d3_rotating")
+def d3_rotating() -> type[ModelAPI]:
+    return _RotatingMockLLM
+
+
+async def test_a_checkpoint_rotating_mid_generate_is_followed_under_the_current_span() -> (
+    None
+):
+    from inspect_ai._sentinel._scope import sentinel_solving
+    from inspect_ai.model._model import use_model_event_sink
+    from inspect_ai.util._span import SpanRotationScope, current_span_id, span
+
+    init_transcript(Transcript())
+    sink = _StartingSink(lambda input: current_span_id())
+    seen: list[StageSeen] = []
+    async with span("agent", type="agent"):
+        checkpoints = SpanRotationScope(type="checkpoint")
+        await checkpoints.open("checkpoint 1")
+        first = current_span_id()
+
+        async def rotate() -> None:
+            await checkpoints.end_span()
+            await checkpoints.begin_span("checkpoint 2")
+
+        _RotatingMockLLM.rotate = rotate
+        with active([d3_every_stage(seen)]), sentinel_solving():
+            with use_model_event_sink(sink):
+                await get_model("d3_rotating/model").generate("Hello.")
+        second = current_span_id()
+        await checkpoints.close()
+
+    assert first is not None and second is not None and first != second
+    failed, retried = sink.pending
+    assert (failed.span_id, retried.span_id) == (first, second)
+    # the BeforeGenerate stage ran before the rotation, AfterGenerate after it
+    assert [type(s.step) for s in seen] == [BeforeGenerate, AfterGenerate]
+    sentinel_spans = [
+        e.parent_id
+        for e in transcript().events
+        if isinstance(e, SpanBeginEvent) and e.type == "sentinel"
+    ]
+    assert sentinel_spans == [first, second]
+
+
+class _BlockingMockLLM(MockLLM):
+    started: anyio.Event | None = None
+
+    async def generate(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: Any,
+        config: GenerateConfig,
+    ) -> Any:
+        assert _BlockingMockLLM.started is not None
+        _BlockingMockLLM.started.set()
+        await anyio.sleep_forever()
+
+
+@modelapi(name="d3_blocking")
+def d3_blocking() -> type[ModelAPI]:
+    return _BlockingMockLLM
+
+
+async def test_a_generate_cancelled_under_an_on_start_span_restores_the_caller_s_spans() -> (
+    None
+):
+    from inspect_ai.event import InfoEvent
+    from inspect_ai.model._model import use_model_event_sink
+    from inspect_ai.util._span import current_agent_span_id, current_span_id, span
+
+    init_transcript(Transcript())
+    _BlockingMockLLM.started = anyio.Event()
+    started = _BlockingMockLLM.started
+    sink = _StartingSink("sub-agent")
+    async with span("outer", type="agent", id="outer"):
+        transcript()._event(
+            SpanBeginEvent(id="sub-agent", parent_id="outer", type="agent", name="sub")
+        )
+        async with anyio.create_task_group() as tg:
+
+            async def cancel_once_started() -> None:
+                await started.wait()
+                tg.cancel_scope.cancel()
+
+            tg.start_soon(cancel_once_started)
+            with use_model_event_sink(sink):
+                await get_model("d3_blocking/model").generate("Hello.")
+        assert (current_span_id(), current_agent_span_id()) == ("outer", "outer")
+        transcript()._event(InfoEvent(data="after"))
+        await get_model("mockllm/model").generate("Hello again.")
+
+    [cancelled] = sink.pending
+    assert cancelled.span_id == "sub-agent"
+    events = list(transcript().events)
+    after = events[events.index(cancelled) + 1 :]
+    assert [e.event for e in after if e.span_id == "sub-agent"] == []
+    assert {e.event for e in after if e.span_id == "outer"} >= {"info", "model"}
+
+
+@pytest.mark.parametrize("result", CURRENT_SPAN_RESULTS)
+async def test_an_on_start_sink_under_a_parent_span_gives_that_span_s_agent(
+    result: str,
+) -> None:
+    # as the eval test above, in-process, so it runs under asyncio and trio
+    from inspect_ai._sentinel._scope import sentinel_solving
+    from inspect_ai.model._model import use_model_event_sink
+    from inspect_ai.util._span import parent_span, span
+
+    init_transcript(Transcript())
+    seen: list[StageSeen] = []
+    sink = _StartingSink(CURRENT_SPAN_RESULTS[result])
+    with live_conversations() as live:
+        async with span("outer", type="agent", id="outer"):
+            transcript()._event(
+                SpanBeginEvent(
+                    id="sub-agent", parent_id="outer", type="agent", name="sub"
+                )
+            )
+            with active([d3_every_stage(seen)]), sentinel_solving():
+                with parent_span("sub-agent"), use_model_event_sink(sink):
+                    await get_model("mockllm/model").generate("Sub-agent turn.")
+    [event] = sink.pending
+    assert event.span_id == "sub-agent"
+    assert live == span_tree_conversations(transcript().events, "")
+    assert set(live.values()) == {"sub-agent"}
+    assert {s.step.conversation for s in seen} == {"sub-agent"}
+
+
+async def test_an_on_start_sink_with_no_current_span_gives_the_sample_s_conversation() -> (
+    None
+):
+    from inspect_ai.model._model import use_model_event_sink
+    from inspect_ai.util._span import current_span_id
+
+    init_transcript(Transcript())
+    sink = _StartingSink(None)
+    assert current_span_id() is None
+    with live_conversations() as live:
+        with use_model_event_sink(sink):
+            await get_model("mockllm/model").generate("Turn.")
+    [event] = sink.pending
+    assert event.span_id is None
+    # outside an eval the sample's conversation is ""
+    assert list(live.values()) == [""]

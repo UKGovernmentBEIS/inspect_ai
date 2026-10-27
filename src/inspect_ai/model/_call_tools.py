@@ -814,10 +814,12 @@ async def call_tool(
     if tool_def is None:
         raise await record_tool_parsing_error(f"Tool {call.function} not found")
 
-    model_call = call
     canonical_arguments = tool_canonical_arguments(tool_def.tool)
     if canonical_arguments is not None:
         call = replace(call, arguments=canonical_arguments(call.arguments))
+        # the log records the arguments as checked, which replay reads back
+        event.arguments = call.arguments
+        event.view = tool_call_view(call, tools)
 
     # approvers and sentinel monitors see the validated call, so an invalid
     # call is never presented for approval
@@ -831,8 +833,8 @@ async def call_tool(
         event.view = tool_call_view(deepcopy(validated.call), tools)
         validated.call.view = deepcopy(event.view)
     call, arguments = validated
-    # without oversight the event records the model's arguments, as on main
-    shown = shown_to_callbacks(call if overseen else model_call)
+    # without oversight the event records the model's arguments, canonical
+    shown = shown_to_callbacks(call)
 
     # if we have a tool approver, apply it now
     from inspect_ai.approval._apply import (
