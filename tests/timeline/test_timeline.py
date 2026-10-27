@@ -476,29 +476,47 @@ def test_a_reused_bridge_call_id_keeps_each_task_s_result(pooled: bool) -> None:
     assert results == ["earlier result", "new result"]
 
 
-def test_a_fork_at_the_end_goes_to_the_call_in_the_final_messages() -> None:
+@pytest.mark.parametrize("phases", [True, False])
+def test_a_fork_at_the_end_goes_to_the_call_in_the_final_messages(
+    phases: bool,
+) -> None:
+    # without phase spans (Ransom's fifth review B5), the timeline's root is a
+    # synthetic span around the agent's, which the final messages still reach
     import json
     from pathlib import Path
 
     from pydantic import TypeAdapter
 
-    from inspect_ai.event import Event, ModelEvent
+    from inspect_ai.event import Event, ModelEvent, SpanBeginEvent, SpanEndEvent
     from inspect_ai.event._timeline import _timeline_build
 
     fixture = Path(__file__).parent / "fixtures/events/continuity_fork_at_end.json"
     events = TypeAdapter(list[Event]).validate_python(
         json.loads(fixture.read_text())["events"]
     )
+    if not phases:
+        events = [
+            e.model_copy(update={"parent_id": None})
+            if isinstance(e, SpanBeginEvent) and e.parent_id == "solvers"
+            else e
+            for e in events
+            if not (isinstance(e, SpanBeginEvent | SpanEndEvent) and e.id == "solvers")
+        ]
     m2 = next(e for e in events if isinstance(e, ModelEvent) and e.uuid == "m2")
     # the main agent's final messages carry on the earlier call of the fork
     final = [*m2.input, m2.output.message]
     root = _timeline_build(events, final_messages=final, continuity=True).root
-    utility = [
-        event.uuid
-        for item in root.content
-        if isinstance(item, TimelineSpan) and item.utility
-        for event in _model_events(item)
-    ]
+    utility: list[str | None] = []
+
+    def walk(span: TimelineSpan) -> None:
+        for item in span.content:
+            if isinstance(item, TimelineSpan):
+                if item.utility:
+                    utility.extend(event.uuid for event in _model_events(item))
+                else:
+                    walk(item)
+
+    walk(root)
     assert utility == ["m3"]
 
 

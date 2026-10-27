@@ -596,7 +596,8 @@ def _classify_spans(
     """
     if continuity:
         _extract_agent_results(root, inputs)
-    _wrap_utility_events(root, inputs, final_messages, continuity)
+    turns = _continuity(root, inputs, final_messages) if continuity else None
+    _wrap_utility_events(root, inputs, turns)
     _classify_utility_agents(root, inputs)
     if not continuity:
         _extract_agent_results(root, inputs)
@@ -1123,6 +1124,10 @@ class _Inputs:
             found = self._views[id(event)] = PoolView(self._pool, event.input_refs)
         return found
 
+    @property
+    def events(self) -> Sequence[Event]:
+        return self._events
+
     def conversation(self, event: Event) -> object:
         """The conversation an event is in: the one given for its UUID, else its innermost agent span in the span tree."""
         given = self._conversations.get(event.uuid) if event.uuid else None
@@ -1596,34 +1601,58 @@ def _answer(event: ModelEvent) -> ChatMessage | None:
 
 
 def _continuity(
-    agent: TimelineSpan,
+    root: TimelineSpan,
     inputs: _Inputs,
     final_messages: Sequence[ChatMessage] | None,
 ) -> dict[int, bool]:
-    """Whether each of the span's calls with no recorded origin is a turn by continuity, by `id()` of its event.
+    """Whether each call with no recorded origin under `root` is a turn by continuity, by `id()` of its event.
 
-    The rule runs over each conversation in the span apart (a span can hold more than one, where the timeline unrolls a solver beside an agent), and a conversation in which no call continues another has no answers but its summarizers', so the existing rules decide its other calls.
+    The rule runs over each conversation's calls in log order, wherever the tree puts them: a span can hold more than one conversation (where the timeline unrolls a solver beside an agent), and a conversation given for events (a stored timeline's) can span several. A conversation in which no call continues another has no answers but its summarizers', so the existing rules decide its other calls. The final messages settle a fork at the end of the conversation they are from: that of the latest call whose output is one of them.
     """
+    found: list[Event] = []
+
+    def walk(span: TimelineSpan) -> None:
+        for item in span.content:
+            if isinstance(item, TimelineSpan):
+                walk(item)
+            elif isinstance(item.event, ModelEvent):
+                if item.event.origin is None and not _is_warmup_call(
+                    item.event, inputs
+                ):
+                    found.append(item.event)
+            elif isinstance(item.event, CompactionEvent):
+                found.append(item.event)
+        for branch in span.branches:
+            walk(branch)
+
+    walk(root)
+    order = {id(event): index for index, event in enumerate(inputs.events)}
+    found.sort(key=lambda event: order.get(id(event), len(order)))
+
+    owner: object = None
+    if final_messages:
+        final = {inputs.fingerprint(message) for message in final_messages}
+        for event in found:
+            answer = _answer(event) if isinstance(event, ModelEvent) else None
+            if answer is not None and inputs.fingerprint(answer) in final:
+                owner = inputs.conversation(event)
+
     threads: dict[object, _Continuity] = {}
-
-    def thread(event: Event) -> _Continuity:
+    for event in found:
         conversation = inputs.conversation(event)
-        found = threads.get(conversation)
-        if found is None:
-            found = threads[conversation] = _Continuity(inputs, final_messages)
-        return found
-
-    for item in agent.content:
-        if not isinstance(item, TimelineEvent):
-            continue
-        if isinstance(item.event, ModelEvent):
-            if item.event.origin is None and not _is_warmup_call(item.event, inputs):
-                thread(item.event).call(item.event)
-        elif isinstance(item.event, CompactionEvent):
-            thread(item.event).compaction(item.event)
+        thread = threads.get(conversation)
+        if thread is None:
+            thread = threads[conversation] = _Continuity(
+                inputs, final_messages if conversation == owner else None
+            )
+        if isinstance(event, ModelEvent):
+            thread.call(event)
+        else:
+            assert isinstance(event, CompactionEvent)
+            thread.compaction(event)
     turns: dict[int, bool] = {}
-    for found in threads.values():
-        turns.update(found.finish())
+    for thread in threads.values():
+        turns.update(thread.finish())
     return turns
 
 
@@ -1764,8 +1793,7 @@ def _has_tool_calls(event: ModelEvent) -> bool:
 def _wrap_utility_events(
     agent: TimelineSpan,
     inputs: _Inputs,
-    final_messages: Sequence[ChatMessage] | None = None,
-    continuity: bool = False,
+    turns: Mapping[int, bool] | None = None,
 ) -> None:
     """Wrap foreign-prompt model calls as synthetic utility spans.
 
@@ -1786,9 +1814,9 @@ def _wrap_utility_events(
     rules above, as a call with no ``origin`` does, since a bridged agent's
     warm-ups and helper calls are recorded as ``"agent"``.
 
-    With `continuity` (replay's log driver only), where calls record no
-    ``origin`` and one of a conversation's calls continues another, the
-    continuity rule decides which of its calls are turns in place of the
+    With `turns` (replay's log driver only: `_continuity`), where calls
+    record no ``origin`` and one of a conversation's calls continues another,
+    the continuity rule decides which of its calls are turns in place of the
     prompt rules (``_Continuity``); warm-ups stay utility.
 
     Operates recursively on the entire span tree.
@@ -1796,8 +1824,7 @@ def _wrap_utility_events(
     Args:
         agent: The span node to process (mutated in place).
         inputs: The model inputs.
-        final_messages: The span's final messages, which settle a fork at its end.
-        continuity: Whether to apply the continuity rule.
+        turns: Whether each call with no recorded origin is a turn by continuity, by `id()` of its event.
     """
     # The primary prompt comes only from a tool-calling ModelEvent: without
     # an agentic loop there is no primary trajectory (see docstring).
@@ -1820,7 +1847,7 @@ def _wrap_utility_events(
         wrapper.utility = True
         return wrapper
 
-    turns = _continuity(agent, inputs, final_messages) if continuity else {}
+    turns = turns or {}
 
     # --- Scan and wrap utility candidates ---
     original_spans = [item for item in agent.content if isinstance(item, TimelineSpan)]
@@ -1856,9 +1883,9 @@ def _wrap_utility_events(
     # Branches are trajectories like any span: process their own direct
     # events too (mirrors the TS port), which also covers their children.
     for item in original_spans:
-        _wrap_utility_events(item, inputs, continuity=continuity)
+        _wrap_utility_events(item, inputs, turns)
     for branch in agent.branches:
-        _wrap_utility_events(branch, inputs, continuity=continuity)
+        _wrap_utility_events(branch, inputs, turns)
 
 
 def _may_be_turn(event: ModelEvent) -> bool:

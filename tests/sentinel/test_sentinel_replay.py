@@ -1600,6 +1600,102 @@ def test_a_checked_call_inferred_not_a_turn_has_no_steps() -> None:
     ]
 
 
+def test_a_fork_at_the_end_without_phase_spans_keeps_the_final_messages_call() -> None:
+    # Ransom's fifth review B5: an imported transcript has no phase spans, so
+    # the timeline's root is a synthetic span around the agent's; the final
+    # messages, which carry on the earlier call of the fork, reach it
+    import json
+
+    from pydantic import TypeAdapter
+
+    data = json.loads((CONTINUITY_FIXTURES / "continuity_fork_at_end.json").read_text())
+    events = [
+        e.model_copy(update={"parent_id": None})
+        if isinstance(e, SpanBeginEvent) and e.parent_id == "solvers"
+        else e
+        for e in TypeAdapter(list[Event]).validate_python(data["events"])
+        if not (isinstance(e, SpanBeginEvent | SpanEndEvent) and e.id == "solvers")
+    ]
+    m2 = next(e for e in events if isinstance(e, ModelEvent) and e.uuid == "m2")
+    replay = steps_from_events(
+        [*m2.input, m2.output.message],
+        events,
+        [],
+        sample_uuid="sample",
+        eval_info=IMPORTED,
+    )
+
+    assert [s.id for s in replay if s.stage == "model_input"] == ["m1", "m2"]
+
+
+def test_a_stored_conversation_across_source_agent_spans_drops_the_unused_alternative() -> (
+    None
+):
+    # Ransom's fifth review B6: one stored span (as Petri groups a target's
+    # trajectory) holds a first turn and two alternatives to the next in one
+    # source agent span, and a continuation of the second in another;
+    # continuity follows the stored conversation across them
+    system = ChatMessageSystem(content="You are the target.")
+    user = ChatMessageUser(content="Begin.")
+
+    def turn(uuid: str, span: str, input: list[ChatMessage], text: str) -> ModelEvent:
+        return ModelEvent(
+            uuid=uuid,
+            span_id=span,
+            model="mockllm/model",
+            input=input,
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=ModelOutput.from_content("mockllm/model", text),
+        )
+
+    m1 = turn("m1", "a1", [system, user], "First.")
+    asked: list[ChatMessage] = [
+        system,
+        user,
+        m1.output.message,
+        ChatMessageUser(content="Next?"),
+    ]
+    m2 = turn("m2", "a1", asked, "Alternative A.")
+    m3 = turn("m3", "a1", asked, "Alternative B.")
+    m4 = turn(
+        "m4",
+        "a2",
+        [*asked, m3.output.message, ChatMessageUser(content="Go on.")],
+        "Carried on.",
+    )
+    events: list[Event] = [
+        SpanBeginEvent(id="a1", name="target", type="agent"),
+        m1,
+        m2,
+        m3,
+        SpanEndEvent(id="a1"),
+        SpanBeginEvent(id="a2", name="target", type="agent"),
+        m4,
+        SpanEndEvent(id="a2"),
+    ]
+    stored = Timeline(
+        name="target",
+        description="",
+        root=TimelineSpan(
+            id="target",
+            name="target",
+            content=[TimelineEvent(event=e) for e in (m1, m2, m3, m4)],
+        ),
+    )
+    replay = steps_from_events(
+        [],
+        events,
+        [],
+        sample_uuid="sample",
+        eval_info=EvalInfo(inspect_ai_version=None, sentinel=False),
+        timeline=stored,
+    )
+
+    assert [s.id for s in replay if s.stage == "model_input"] == ["m1", "m3", "m4"]
+
+
 def test_a_person_s_approval_is_a_human_decision_without_a_sentinel(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
