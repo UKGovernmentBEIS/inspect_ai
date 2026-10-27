@@ -6,6 +6,7 @@ open PRs. The job that can is separate, holds no keys and installs nothing.
 """
 
 import pathlib
+import re
 from typing import Any
 
 import yaml
@@ -49,7 +50,9 @@ def test_open_pr_job_holds_no_secrets_and_installs_nothing() -> None:
     # Workflow-level env reaches every job, so only the generate job may
     # mention a secret.
     outside_generate = {k: v for k, v in workflow().items() if k != "jobs"}
-    assert "secrets." not in yaml.safe_dump([outside_generate, open_pr])
+    # Any mention, in any case: secrets.NAME, secrets['NAME'], toJSON(secrets).
+    dumped = yaml.safe_dump([outside_generate, open_pr])
+    assert not re.search(r"\bsecrets\b", dumped, re.IGNORECASE)
     actions = [s["uses"].split("@")[0] for s in open_pr["steps"] if "uses" in s]
     assert actions == [
         "actions/checkout",
