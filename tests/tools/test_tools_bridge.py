@@ -1196,7 +1196,7 @@ def test_sandbox_bridge_runs_the_sentinel_for_a_host_tool(terminate: bool) -> No
     assert {e.step_id for e in events} == {"proposed"}
     if terminate:
         assert completed == []
-        assert [(e.stage, e.action) for e in events if e.path == ""] == [
+        assert [(e.stage, e.action) for e in events if e.kind == "decision"] == [
             ("tool_result", "terminate")
         ]
         assert events[-1].explanation == "saw 8"
