@@ -1058,22 +1058,6 @@
       "undescribed": 2
     }
   },
-  "src/inspect_tool_support/src/inspect_tool_support/_remote_tools/_web_browser/scale_factor.py": {
-    "noqa:PLC0415": {
-      "count": 2,
-      "undescribed": 2
-    },
-    "type: ignore": {
-      "count": 1,
-      "undescribed": 1
-    }
-  },
-  "src/inspect_tool_support/src/inspect_tool_support/_remote_tools/_web_browser/test_scale_factor.py": {
-    "type: ignore[attr-defined]": {
-      "count": 1,
-      "undescribed": 1
-    }
-  },
   "tests/_control/conftest.py": {
     "type: ignore[call-arg]": {
       "count": 1,

@@ -910,6 +910,29 @@ async def test_openai_gpt_6_1_sol_max_reasoning_effort() -> None:
     await _gpt_6_max_effort("gpt-6.1-sol")
 
 
+# -- GPT-6.1 Terra (live) --
+#
+# Unlike GPT-6.1 Sol, Terra accepts `none` like GPT-6 Sol and Luna.
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.1-terra")
+async def test_openai_gpt_6_1_terra_generate() -> None:
+    await _gpt_6_generate("gpt-6.1-terra")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.1-terra")
+async def test_openai_gpt_6_1_terra_none_effort_with_temperature() -> None:
+    await _gpt_6_none_effort_with_temperature("gpt-6.1-terra")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.1-terra")
+async def test_openai_gpt_6_1_terra_max_reasoning_effort() -> None:
+    await _gpt_6_max_effort("gpt-6.1-terra")
+
+
 # -- skip_if_no_openai_model gate (no network) --
 
 
