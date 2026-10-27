@@ -1,10 +1,12 @@
 *
 
 !pyproject.toml
-!requirements.txt
+!requirements*.txt
 !uv.lock
+!.release-please-manifest.json
 
 !LICENSE
 !README.md
 
-!src/**/*.py
+!src/
+**/node_modules

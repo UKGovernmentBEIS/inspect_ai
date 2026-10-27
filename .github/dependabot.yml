@@ -102,3 +102,16 @@ updates:
       build-toolchain:
         patterns:
           - "*"
+  # Bumps the devcontainer's base images, which are pinned by digest. uv's
+  # image is pinned through ARGs, which Dependabot skips, so it moves with the
+  # CI pin instead.
+  - package-ecosystem: docker
+    directory: "/.devcontainer"
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      devcontainer:
+        patterns:
+          - "*"

@@ -257,3 +257,18 @@ def test_no_workflow_opts_out_of_the_cooldown() -> None:
         if re.search(r"--exclude-newer(=|\s+)false", line)
     ]
     assert floating == []
+
+
+def test_devcontainer_base_images_are_pinned_by_digest() -> None:
+    dockerfile = (REPO / ".devcontainer" / "Dockerfile").read_text()
+    stages = set(re.findall(r"^FROM \S+ AS (\S+)$", dockerfile, re.M))
+    images = [
+        image
+        for image in re.findall(r"^FROM (\S+)", dockerfile, re.M)
+        if image not in stages
+    ]
+    assert images
+    for image in images:
+        assert re.search(r"@(sha256:[0-9a-f]{64}|\$\{UV_DIGEST\})$", image), image
+    uv_digest = re.search(r"^ARG UV_DIGEST=(\S+)$", dockerfile, re.M)
+    assert uv_digest and re.fullmatch(r"sha256:[0-9a-f]{64}", uv_digest[1])
