@@ -2,6 +2,7 @@ import abc
 import contextlib
 import dataclasses
 import functools
+import hashlib
 import json
 import logging
 import os
@@ -1021,7 +1022,9 @@ class Model:
 
         # insert any system message provided in config
         if config.system_message:
+            caller_ids = {message.id for message in input}
             input = [ChatMessageSystem(content=config.system_message)] + input
+            _reuse_rebuilt_message_ids(input, caller_ids)
 
         prepared = await self._prepare_input(input, tools, tool_choice, config)
 
@@ -1369,6 +1372,8 @@ class Model:
         tool_choice: ToolChoice | None,
         config: GenerateConfig,
     ) -> "_PreparedInput":
+        caller_ids = {message.id for message in input}
+
         # default to 'auto' for tool_choice (same as underlying model apis)
         tool_choice = tool_choice if tool_choice is not None else "auto"
 
@@ -1411,7 +1416,11 @@ class Model:
         if extract_types:
             input = tool_result_media_as_user_message(input, tuple(extract_types))
 
+        # before collapsing, which records the ids of the messages it combines
+        _reuse_rebuilt_message_ids(input, caller_ids)
+        uncollapsed_ids = {message.id for message in input}
         input = collapse_consecutive_messages_for_api(input, self.api)
+        _reuse_rebuilt_message_ids(input, uncollapsed_ids)
         _validate_model_input_media(input)
         return _PreparedInput(input, tdefs, base_tools, tool_choice)
 
@@ -3054,10 +3063,10 @@ def _snapshot_messages(messages: list[ChatMessage]) -> list[ChatMessage]:
     are copied the same way (`_snapshot_output`), so an agent that edits the
     assistant message it appended does not change the earlier event's
     output, and the next input reuses that copy. This holds while a message
-    keeps its id (or, without one, is the same live object); preparation
-    that creates new messages with fresh ids each generation
-    (reasoning-history filtering, tool `model_input` rewriting, media
-    extraction) still copies them every time. Only the latest copy for an id
+    keeps its id (or, without one, is the same live object); messages that
+    generation rebuilds on each call keep their id within a sample while
+    they are unchanged (`_reuse_rebuilt_message_ids`), and are copied every
+    time outside a sample. Only the latest copy for an id
     is reused, so alternating different versions with the same id (handoff
     filters, concurrent epochs) copies on each switch. The comparison
     serializes every message on each call, so its cost grows with the inline
@@ -3108,6 +3117,60 @@ def _snapshot_message(message: _MessageT) -> _MessageT:
         weakref.ref(copied, _forget_snapshot(key)), digest
     )
     return copied
+
+
+_sample_rebuilt_message_ids: ContextVar[dict[bytes, str] | None] = ContextVar(
+    "sample_rebuilt_message_ids", default=None
+)
+"""Id of each message content rebuilt by `Model.generate()` in the sample."""
+
+
+def init_sample_rebuilt_message_ids() -> None:
+    _sample_rebuilt_message_ids.set({})
+
+
+def _reuse_rebuilt_message_ids(
+    messages: list[ChatMessage], caller_ids: set[str | None]
+) -> None:
+    """Give each message rebuilt for this generate the id of an identical earlier one.
+
+    Messages whose id is not in `caller_ids` were built for this call (the
+    configured system message, reasoning-history filtering, tool
+    `model_input` rewriting, media extraction, collapsing consecutive
+    messages), so they get a fresh id on every call. Within a sample, a
+    rebuilt message takes the id of the first rebuilt message with the same
+    content (every field but the id), so an unchanged one keeps one id across
+    calls and its event snapshot and message pool entry are reused. Messages
+    with different content never share an id, two messages in one input
+    never share an id, and outside a sample the fresh ids are kept.
+
+    Rebuilt messages are new objects, so setting their id changes nothing the
+    caller holds.
+    """
+    rebuilt_ids = _sample_rebuilt_message_ids.get()
+    if rebuilt_ids is None:
+        return
+    used = {message.id for message in messages if message.id in caller_ids}
+    for message in messages:
+        if message.id is None or message.id in caller_ids:
+            continue
+        key = _rebuilt_message_key(message)
+        if key is None:
+            continue
+        message_id = rebuilt_ids.setdefault(key, message.id)
+        if message_id not in used:
+            message.id = message_id
+        used.add(message.id)
+
+
+def _rebuilt_message_key(message: ChatMessage) -> bytes | None:
+    # a cryptographic hash, since content (e.g. model output) is untrusted
+    # and a collision would give different content the same id
+    try:
+        logged = logged_json(message, exclude_id=True)
+    except Exception:
+        return None
+    return hashlib.sha256(logged).digest() if logged is not None else None
 
 
 def _forget_snapshot(
@@ -3178,10 +3241,11 @@ def init_sample_model_usage() -> None:
 
 
 def init_sample_model_data() -> None:
-    """Initialize all per-sample model accumulators (usage, role usage, fallbacks)."""
+    """Initialize all per-sample model state (usage, role usage, fallbacks, rebuilt message ids)."""
     init_sample_model_usage()
     init_sample_role_usage()
     init_sample_model_fallbacks()
+    init_sample_rebuilt_message_ids()
 
 
 def init_sample_model_fallbacks() -> None:

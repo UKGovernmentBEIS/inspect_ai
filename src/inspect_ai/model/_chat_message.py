@@ -236,15 +236,21 @@ _logged_json_adapter: TypeAdapter[ChatMessage] = TypeAdapter(
 )
 
 
-def logged_json(message: ChatMessage) -> bytes | None:
+def logged_json(message: ChatMessage, *, exclude_id: bool = False) -> bytes | None:
     """JSON for comparing message versions, or None if it can't be serialized.
 
     Uses `EvalSample`'s non-finite encoding: `model_dump_json()` writes NaN,
     infinities and None all as null, which would hide an edit from one to
     another. The message pool can still merge NaN, None and infinities in
     saved logs. Values such as numpy arrays can't be serialized.
+
+    Args:
+        message: Message to serialize.
+        exclude_id: Leave out the message id, to compare content only.
     """
     try:
-        return _logged_json_adapter.dump_json(message)
+        return _logged_json_adapter.dump_json(
+            message, exclude={"id"} if exclude_id else None
+        )
     except ValueError:
         return None

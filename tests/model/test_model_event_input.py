@@ -12,7 +12,15 @@ import numpy as np
 import pytest
 from pydantic import BaseModel, PrivateAttr
 
+from inspect_ai import Task, eval
 from inspect_ai._util.constants import get_deserializing_context
+from inspect_ai._util.content import (
+    Content,
+    ContentImage,
+    ContentReasoning,
+    ContentText,
+)
+from inspect_ai.dataset import Sample
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 from inspect_ai.model import (
@@ -20,13 +28,19 @@ from inspect_ai.model import (
     ChatMessageAssistant,
     ChatMessageTool,
     ChatMessageUser,
+    GenerateConfig,
     ModelOutput,
     ModelUsage,
     get_model,
 )
 from inspect_ai.model._chat_message import logged_json
-from inspect_ai.model._model import _snapshot_messages, use_model_event_sink
-from inspect_ai.tool import ToolCall, ToolCallError
+from inspect_ai.model._model import (
+    _snapshot_messages,
+    init_sample_rebuilt_message_ids,
+    use_model_event_sink,
+)
+from inspect_ai.solver import Generate, Solver, TaskState, solver
+from inspect_ai.tool import Tool, ToolCall, ToolCallError, tool, tool_with
 
 
 def _conversation() -> list[ChatMessage]:
@@ -309,3 +323,165 @@ async def test_model_event_input_reuses_deeply_nested_metadata() -> None:
 
     first, second = _model_events()
     assert first.input[0] is second.input[0]
+
+
+_PNG = "data:image/png;base64,iVBORw0KGgo="
+
+
+@tool
+def step() -> Tool:
+    async def execute(n: int) -> str:
+        """Run a step.
+
+        Args:
+          n: Step number.
+        """
+        return f"output {n}"
+
+    return execute
+
+
+def _step_call(n: int) -> list[ChatMessage]:
+    return [
+        ChatMessageAssistant(
+            content=[
+                ContentReasoning(reasoning=f"thinking {n}"),
+                ContentText(text=f"step {n}"),
+            ],
+            tool_calls=[ToolCall(id=f"c{n}", function="step", arguments={"n": n})],
+        ),
+        ChatMessageTool(
+            content=[ContentText(text=f"output {n}"), ContentImage(image=_PNG)],
+            tool_call_id=f"c{n}",
+            function="step",
+        ),
+    ]
+
+
+def _truncate_older(
+    index: int, total: int, content: str | list[Content], hints: Any
+) -> str | list[Content]:
+    return content if index == total - 1 else "[removed]"
+
+
+async def _generate_twice(
+    monkeypatch: pytest.MonkeyPatch, path: str
+) -> tuple[list[ChatMessage], list[ModelEvent]]:
+    init_transcript(Transcript())
+    init_sample_rebuilt_message_ids()
+    model = get_model("mockllm/model")
+    monkeypatch.setattr(model.api, "tool_result_images", lambda: path != "media")
+    monkeypatch.setattr(model.api, "collapse_user_messages", lambda: path == "collapse")
+    messages = [
+        ChatMessageUser(content="Do the steps."),
+        *_step_call(1),
+        *_step_call(2),
+    ]
+    if path == "collapse":
+        messages.append(ChatMessageUser(content="Continue."))
+        messages.append(ChatMessageUser(content="Please."))
+    tools = (
+        [tool_with(step(), model_input=_truncate_older)]
+        if path == "model_input"
+        else []
+    )
+    config = GenerateConfig(
+        system_message="Be careful." if path == "system_message" else None,
+        reasoning_history="last" if path == "reasoning" else None,
+    )
+    before = deepcopy(messages)
+
+    await model.generate(messages, tools=tools, config=config)
+    await model.generate(messages, tools=tools, config=config)
+
+    # the caller's messages are not changed
+    assert [m.model_dump() for m in messages] == [m.model_dump() for m in before]
+    return messages, _model_events()
+
+
+@pytest.mark.parametrize(
+    "path", ["system_message", "reasoning", "model_input", "media", "collapse"]
+)
+async def test_model_event_input_rebuilt_messages_keep_ids(
+    monkeypatch: pytest.MonkeyPatch, path: str
+) -> None:
+    messages, (first, second) = await _generate_twice(monkeypatch, path)
+
+    caller_ids = {m.id for m in messages}
+    rebuilt = [i for i, m in enumerate(first.input) if m.id not in caller_ids]
+    assert rebuilt
+    assert [m.id for m in first.input] == [m.id for m in second.input]
+    assert len({m.id for m in first.input}) == len(first.input)
+    for i in rebuilt:
+        # the unchanged rebuilt message reuses the first event's snapshot
+        assert first.input[i] is second.input[i]
+
+
+async def test_model_event_input_changed_system_message_gets_new_id() -> None:
+    init_transcript(Transcript())
+    init_sample_rebuilt_message_ids()
+    model = get_model("mockllm/model")
+    messages: list[ChatMessage] = [ChatMessageUser(content="hi")]
+
+    for system_message in ["one", "two", "one"]:
+        await model.generate(
+            messages, config=GenerateConfig(system_message=system_message)
+        )
+
+    ids = [event.input[0].id for event in _model_events()]
+    assert ids[0] != ids[1]
+    assert ids[0] == ids[2]
+
+
+async def test_model_event_input_identical_rebuilt_messages_get_distinct_ids() -> None:
+    init_transcript(Transcript())
+    init_sample_rebuilt_message_ids()
+    model = get_model("mockllm/model")
+    assistant: list[Content] = [
+        ContentReasoning(reasoning="hmm"),
+        ContentText(text="Thinking."),
+    ]
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="hi"),
+        ChatMessageAssistant(content=list(assistant)),
+        ChatMessageUser(content="go on"),
+        ChatMessageAssistant(content=list(assistant)),
+        ChatMessageUser(content="go on"),
+    ]
+
+    await model.generate(messages, config=GenerateConfig(reasoning_history="none"))
+
+    (event,) = _model_events()
+    assert event.input[1] == event.input[3].model_copy(update={"id": event.input[1].id})
+    assert event.input[1].id != event.input[3].id
+
+
+def test_model_event_input_rebuilt_ids_not_shared_across_samples() -> None:
+    system_ids: list[list[str | None]] = []
+
+    @solver
+    def generate_twice() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            state = await generate(state)
+            state.messages.append(ChatMessageUser(content="again"))
+            state = await generate(state)
+            system_ids.append([event.input[0].id for event in _model_events()])
+            return state
+
+        return solve
+
+    log = eval(
+        Task(
+            dataset=[Sample(input="one"), Sample(input="two")],
+            solver=generate_twice(),
+            config=GenerateConfig(system_message="Be careful."),
+            epochs=2,
+        ),
+        model="mockllm/model",
+        display="none",
+    )[0]
+
+    assert log.status == "success"
+    assert len(system_ids) == 4
+    assert all(first == second for first, second in system_ids)
+    assert len({first for first, _ in system_ids}) == 4
