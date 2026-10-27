@@ -39,6 +39,7 @@ from inspect_ai.tool._tool_info import ToolInfo
 
 if TYPE_CHECKING:
     from inspect_ai.approval._policy import ApprovalPolicy
+    from inspect_ai.event._model import ModelEvent
 
 logger = getLogger(__name__)
 
@@ -98,6 +99,7 @@ async def apply_bridge_tool_approval(
     history: list[ChatMessage],
     conversation: list[ChatMessage] | None = None,
     tools: Sequence[ToolInfo | Tool] = (),
+    producer: "ModelEvent | None" = None,
 ) -> BridgeApproval:
     """Approve the tool calls in a bridged model response.
 
@@ -114,9 +116,10 @@ async def apply_bridge_tool_approval(
     `model_input` and `model_output` stages inside `Model.generate()`; the
     tool stages run either way, as on the native path. Like native steps,
     both tool stages take their input from the `ModelEvent` that produced the
-    call, so it is what the model was actually sent, or `None` when no such
-    event is in the transcript (a filter that returned output without
-    generating, or a model event sink that withholds events).
+    call, so it is what the model was actually sent: `producer` when the
+    bridge's model event sink received it, else the event found in the
+    transcript, or `None` when there is none (a filter that returned output
+    without generating).
 
     A multi-choice response whose alternate choices carry tool calls is reduced to
     the primary choice (with a warning) when approval is active, since only the
@@ -135,6 +138,9 @@ async def apply_bridge_tool_approval(
             `history`). A step's `history` is what the agent has sent.
         tools: The declarations the scaffold made to the model, which identify
             the host tools (and so the registered viewers) the calls denote.
+        producer: The completed `ModelEvent` of the generation that produced
+            `output`, when a model event sink received it (and so may not have
+            put it in the transcript yet).
 
     Returns:
         The response for the scaffold, plus the messages to replay to the model when
@@ -224,6 +230,7 @@ async def apply_bridge_tool_approval(
                         reviewed,
                         viewer,
                         sentinel_history,
+                        producer,
                     )
                 except ToolApprovalError as ex:
                     # the call's viewer failed, which rejects it, as natively
@@ -258,6 +265,7 @@ async def apply_bridge_tool_approval(
                         message=message,
                         message_id=output.message.id,
                         history=sentinel_history,
+                        producer=producer,
                     )
                 )
 

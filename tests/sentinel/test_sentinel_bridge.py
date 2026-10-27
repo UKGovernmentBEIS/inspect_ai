@@ -39,7 +39,7 @@ from inspect_ai.model import (
     ModelOutput,
     get_model,
 )
-from inspect_ai.model._model import GenerateInput
+from inspect_ai.model._model import GenerateFilter, GenerateInput
 from inspect_ai.model._model_output import ChatCompletionChoice
 from inspect_ai.tool import (
     Tool,
@@ -1646,6 +1646,51 @@ async def dialect_round_trip(dialect: str, bridge: AgentBridge) -> None:
             },
         ]
         await inspect_anthropic_api_request(request(), None, None, None, bridge)
+    elif dialect == "google":
+        from inspect_ai.agent._bridge.google_api import inspect_google_api_request
+
+        contents: list[Any] = [{"role": "user", "parts": [{"text": TASK}]}]
+        google_tools: Any = [
+            {
+                "functionDeclarations": [
+                    {
+                        "name": "read_file",
+                        "description": "Read a file.",
+                        "parameters": PATH_SCHEMA,
+                    }
+                ]
+            }
+        ]
+
+        def google_request() -> dict[str, Any]:
+            return {
+                "model": "inspect",
+                "systemInstruction": {"parts": [{"text": "Be careful."}]},
+                "contents": contents,
+                "tools": google_tools,
+            }
+
+        first: Any = await inspect_google_api_request(
+            google_request(), None, None, bridge
+        )
+        parts = first["candidates"][0]["content"]["parts"]
+        [function_call] = [p["functionCall"] for p in parts if "functionCall" in p]
+        contents += [
+            {"role": "model", "parts": parts},
+            {
+                "role": "user",
+                "parts": [
+                    {
+                        "functionResponse": {
+                            "id": function_call.get("id"),
+                            "name": "read_file",
+                            "response": {"output": "x"},
+                        }
+                    }
+                ],
+            },
+        ]
+        await inspect_google_api_request(google_request(), None, None, bridge)
     else:
         from inspect_ai.agent._bridge.responses import inspect_responses_api_request
 
@@ -1681,7 +1726,10 @@ async def dialect_round_trip(dialect: str, bridge: AgentBridge) -> None:
         )
 
 
-@pytest.mark.parametrize("dialect", ["completions", "anthropic", "responses"])
+DIALECTS = ["completions", "anthropic", "responses", "google"]
+
+
+@pytest.mark.parametrize("dialect", DIALECTS)
 async def test_a_result_takes_its_proposal_through_each_dialect(dialect: str) -> None:
     seen: Steps = []
     model = Scripted(calls_output(READ, content="Reading."), calls_output())
@@ -1698,6 +1746,33 @@ async def test_a_result_takes_its_proposal_through_each_dialect(dialect: str) ->
     assert after.message_id == before.message_id
     assert after.input == before.input == model.inputs[0]
     assert after.input is not None and after.input[0].text == "Be careful."
+
+
+@pytest.mark.parametrize("filter", [None, "rewrites"])
+@pytest.mark.parametrize("dialect", DIALECTS)
+async def test_each_dialect_sees_what_the_model_was_sent_through_a_sink(
+    dialect: str, filter: str | None
+) -> None:
+    seen: Steps = []
+    model = Scripted(
+        calls_output(READ, content="Reading."),
+        calls_output(),
+        config=GenerateConfig(system_message=POLICY),
+    )
+    bridge = AgentBridge(
+        AgentState(messages=[]),
+        model_aliases={"inspect": model.model},
+        filter=passing_filter(filter),
+    )
+    sink = RecordingSink(forward=False)
+    bridge.model_event_sink = sink
+
+    with active([bridge_recording(seen)]):
+        await dialect_round_trip(dialect, bridge)
+
+    before, after = seen
+    assert before.input == after.input == sink.events[0].input == model.inputs[0]
+    assert [m.text for m in before.input][:2] == [POLICY, "Be careful."]
 
 
 REWRITES = ["unchanged", "compaction", "whitespace", "split_text", "result_parts"]
@@ -2800,63 +2875,6 @@ def reasoned_history() -> list[ChatMessage]:
     ]
 
 
-@pytest.mark.parametrize("filter", [None, "rewrites", "generates"])
-async def test_both_stages_see_the_input_the_model_was_sent(
-    filter: str | None,
-) -> None:
-    seen: Steps = []
-    # Model.generate adds the configured system message and drops reasoning
-    # history after the bridge hands over its input
-    model = Scripted(
-        calls_output(READ),
-        calls_output(),
-        config=GenerateConfig(system_message=POLICY, reasoning_history="none"),
-    )
-    history = reasoned_history()
-    bridge = in_process_bridge(history)
-
-    async def passes_through(
-        model: Model,
-        input: list[ChatMessage],
-        tools: list[ToolInfo],
-        tool_choice: ToolChoice | None,
-        config: GenerateConfig,
-    ) -> ModelOutput | GenerateInput:
-        if filter == "generates":
-            return await model.generate(
-                input=input, tools=tools, tool_choice=tool_choice, config=config
-            )
-        return GenerateInput(input, tools, tool_choice, config)
-
-    if filter is not None:
-        bridge.filter = passes_through
-    with active([bridge_recording(seen)]):
-        output = await generate(bridge, model, history)
-        await generate(
-            bridge,
-            model,
-            [
-                *history,
-                output.message,
-                ChatMessageTool(content="x", tool_call_id=READ.id),
-            ],
-        )
-
-    before, after = seen
-    model_event = next(e for e in transcript().events if isinstance(e, ModelEvent))
-    assert before.input == model_event.input == model.inputs[0]
-    assert after.input == before.input
-    assert before.input is not None
-    assert isinstance(before.input[0], ChatMessageSystem)
-    assert before.input[0].text == POLICY
-    assert not any(
-        isinstance(content, ContentReasoning)
-        for message in before.input
-        if not isinstance(message.content, str)
-        for content in message.content
-    )
-
-
 class RecordingSink:
     """A model event sink that keeps events, emitting them only if `forward`."""
 
@@ -2874,16 +2892,56 @@ class RecordingSink:
             transcript()._event_updated(event)
 
 
-@pytest.mark.parametrize("forward", [True, False])
-async def test_step_input_with_a_model_event_sink(forward: bool) -> None:
+def sink_for(sink: str | None) -> RecordingSink | None:
+    return RecordingSink(forward=sink == "forwards") if sink is not None else None
+
+
+def model_events(sink: RecordingSink | None) -> list[ModelEvent]:
+    """Every `ModelEvent`, whether the transcript or a withholding sink holds it."""
+    recorded = [e for e in transcript().events if isinstance(e, ModelEvent)]
+    held = [e for e in sink.events if e not in recorded] if sink is not None else []
+    return recorded + held
+
+
+def passing_filter(filter: str | None) -> GenerateFilter | None:
+    """A filter that hands back its input (`rewrites`) or generates it (`generates`)."""
+
+    async def passes_through(
+        model: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput | GenerateInput:
+        if filter == "generates":
+            return await model.generate(
+                input=input, tools=tools, tool_choice=tool_choice, config=config
+            )
+        return GenerateInput(input, tools, tool_choice, config)
+
+    return passes_through if filter is not None else None
+
+
+@pytest.mark.parametrize("sink", [None, "forwards", "withholds"])
+@pytest.mark.parametrize("filter", [None, "rewrites", "generates"])
+@pytest.mark.parametrize("normalized", ["system_message", "reasoning_history"])
+async def test_both_stages_see_the_input_the_model_was_sent(
+    normalized: str, filter: str | None, sink: str | None
+) -> None:
     seen: Steps = []
+    # Model.generate adds the configured system message or drops reasoning
+    # history after the bridge hands over its input
     model = Scripted(
-        calls_output(READ), calls_output(), config=GenerateConfig(system_message=POLICY)
+        calls_output(READ),
+        calls_output(),
+        config=GenerateConfig(system_message=POLICY)
+        if normalized == "system_message"
+        else GenerateConfig(reasoning_history="none"),
     )
-    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    history = reasoned_history()
     bridge = in_process_bridge(history)
-    sink = RecordingSink(forward)
-    bridge.model_event_sink = sink
+    bridge.filter = passing_filter(filter)
+    bridge.model_event_sink = sink_for(sink)
 
     with active([bridge_recording(seen)]):
         output = await generate(bridge, model, history)
@@ -2898,13 +2956,21 @@ async def test_step_input_with_a_model_event_sink(forward: bool) -> None:
         )
 
     before, after = seen
-    if forward:
-        # a sink that emits the event (as inspect_swe's do) leaves it findable
-        assert before.input == sink.events[0].input == model.inputs[0]
-        assert after.input == before.input
+    sent = model_events(bridge.model_event_sink)[0].input
+    assert before.input == sent == model.inputs[0]
+    assert after.input == sent
+    reasoning = [
+        content
+        for message in sent
+        if not isinstance(message.content, str)
+        for content in message.content
+        if isinstance(content, ContentReasoning)
+    ]
+    if normalized == "system_message":
+        assert isinstance(sent[0], ChatMessageSystem) and sent[0].text == POLICY
+        assert reasoning
     else:
-        # one that withholds it leaves no record of what the model was sent
-        assert before.input is None and after.input is None
+        assert not reasoning
 
 
 @pytest.mark.parametrize("executed", [False, True])

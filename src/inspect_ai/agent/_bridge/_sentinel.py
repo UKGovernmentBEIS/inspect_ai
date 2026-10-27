@@ -46,6 +46,8 @@ from inspect_ai.util._limit import LimitExceededError
 if TYPE_CHECKING:
     from inspect_sentinel import Decision
 
+    from inspect_ai.event._model import ModelEvent
+
 logger = getLogger(__name__)
 
 T = TypeVar("T")
@@ -71,6 +73,10 @@ class SentinelCheck(NamedTuple):
     """The id of the assistant message that made the call."""
 
     history: list[ChatMessage]
+
+    producer: "ModelEvent | None" = None
+    """The generation that proposed the call, when the bridge captured it from a
+    model event sink; otherwise the steps find it in the transcript."""
 
     token: str | None = None
     """The id the scaffold was handed for the call (`sentinel_tokens`), or None
@@ -373,12 +379,21 @@ async def sentinel_tool_call(
     call: ToolCall,
     viewer: ToolCallViewer | None,
     history: list[ChatMessage],
+    producer: "ModelEvent | None",
 ) -> "Decision | None":
     from inspect_ai._sentinel._dispatch import sentinel_before_tool_call
 
     return await _guarded(
         bridge,
-        partial(sentinel_before_tool_call, message, message_id, call, viewer, history),
+        partial(
+            sentinel_before_tool_call,
+            message,
+            message_id,
+            call,
+            viewer,
+            history,
+            producer,
+        ),
     )
 
 
@@ -521,6 +536,7 @@ async def _tool_result(
             truncated,
             check.viewer,
             check.history,
+            check.producer,
         ),
     )
 

@@ -1086,6 +1086,7 @@ async def _bridge_generate_impl(
                 input_messages,
                 input + replayed,
                 declarations,
+                producer=sink.event if sink is not None else None,
             )
         if reviewed.rejection is None:
             # with a sentinel, each call is handed over under a token identifying
@@ -1116,7 +1117,7 @@ async def _bridge_generate_impl(
 
 
 class _SpanCapturingSink:
-    """Forward to a bridge's `ModelEventSink`, remembering the span it placed the event in.
+    """Forward to a bridge's `ModelEventSink`, remembering the event and its span.
 
     A sink can attribute a generation to a span other than the current one (a
     sub-agent's). Host tool events pair with their proposing `ModelEvent` by
@@ -1124,11 +1125,16 @@ class _SpanCapturingSink:
     without widening the sink protocol. `span_id` is that span, or `None` when
     the event is in the span current during generation: decided here, since a
     checkpoint span can rotate while the calls await approval.
+
+    `event` is the completed event, whose input is what the model was sent
+    after `Model.generate` normalized it. A sink may hold it back from the
+    transcript, so the sentinel's tool steps take their input from it here.
     """
 
     def __init__(self, inner: ModelEventSink) -> None:
         self.inner = inner
         self.span_id: str | None = None
+        self.event: ModelEvent | None = None
         self._current: str | None = None
 
     def on_pending(self, event: "ModelEvent") -> None:
@@ -1136,6 +1142,7 @@ class _SpanCapturingSink:
         self.inner.on_pending(event)
 
     def on_complete(self, event: "ModelEvent") -> None:
+        self.event = event
         self.inner.on_complete(event)
         current = (self._current, current_span_id())
         self.span_id = event.span_id if event.span_id not in current else None
