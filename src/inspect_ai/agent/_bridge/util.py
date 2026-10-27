@@ -5,6 +5,7 @@ from contextlib import AbstractContextManager, contextmanager, nullcontext
 from contextvars import ContextVar
 from logging import getLogger
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Collection,
@@ -21,6 +22,8 @@ from pydantic_core import PydanticSerializationError
 from shortuuid import uuid
 from typing_extensions import TypeIs
 
+from inspect_ai._sentinel._agent_state import bridge_request
+from inspect_ai._util._async import raise_unwrapped
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
@@ -56,11 +59,13 @@ from inspect_ai.model._model import (
     GenerateFilter,
     GenerateInput,
     Model,
+    ModelEventSink,
     ModelGenerateFilter,
     ModelName,
     ModelRefusalError,
     ModelResolver,
     ModelResponseFilter,
+    _StartingModelEventSink,
     active_model,
     get_model,
     model_roles,
@@ -79,6 +84,10 @@ from inspect_ai.tool._tools._web_search._web_search import (
 )
 from inspect_ai.util._json import JSONSchema
 from inspect_ai.util._limit import LimitExceededError
+from inspect_ai.util._span import current_span_id
+
+if TYPE_CHECKING:
+    from inspect_ai.event._model import ModelEvent
 
 from .context import (
     _UNKNOWN_CONTEXT,
@@ -391,11 +400,13 @@ def in_bridge_model_generate() -> bool:
     a subscriber (e.g. the ACP live router) and `False` for ordinary
     react-style generation.
 
-    Bridged scaffolds run their own tool calls, so no `ToolEvent` is ever
-    emitted for them — tool calls live only on
-    `ModelEvent.output.message.tool_calls`. Consumers that render tool calls use
-    this to decide whether they must synthesize tool-call cards from the
-    `ModelEvent` (rather than wait for a `ToolEvent` that will never arrive).
+    Bridged scaffolds run their own tool calls, so no `ToolEvent` is emitted
+    for them — tool calls live only on `ModelEvent.output.message.tool_calls`.
+    Consumers that render tool calls use this to decide whether they must
+    synthesize tool-call cards from the `ModelEvent` (rather than wait for a
+    `ToolEvent` that will never arrive). The exception is a host tool a sandbox
+    bridge runs for the scaffold (`bridged_tools`): Inspect records a
+    `ToolEvent` for it, with the proposing call's id when the call was proposed.
 
     Covers every bridge configuration: in-process `agent_bridge()` and
     `sandbox_agent_bridge()`, with or without a `ModelEventSink`, since all
@@ -413,7 +424,8 @@ def _is_model_filter(fn: GenerateFilter) -> TypeIs[ModelGenerateFilter]:
     """
     sig = inspect.signature(fn)  # type: ignore[arg-type]
     first = next(iter(sig.parameters.values()), None)
-    if first is not None and first.annotation is str:
+    annotation = first.annotation if first is not None else None
+    if annotation is str or (isinstance(annotation, str) and annotation == "str"):
         warnings.warn(
             "GenerateFilter with 'str' as the first parameter is "
             "deprecated. Update your filter to accept a 'Model' "
@@ -463,7 +475,7 @@ async def _apply_response_filter(
                 while isinstance(inner, ExceptionGroup):
                     inner = inner.exceptions[0]
         if isinstance(inner, control_flow):
-            raise inner
+            raise_unwrapped(ex, inner)
         raise ResponseFilterError(f"{type(inner).__name__}: {inner}") from ex
     if filtered is None:
         return output
@@ -874,7 +886,7 @@ async def bridge_generate(
     if routing is not None and routing.redirected:
         _warn_redirect(routing, bridge.model)
 
-    with bridged_request_scope(requested_model):
+    with bridged_request_scope(requested_model), bridge_request():
         return await _bridge_generate_impl(
             bridge,
             model,
@@ -942,6 +954,11 @@ async def _bridge_generate_impl(
         tool_choice = original_tool_choice
         config = original_config
 
+        sink = (
+            _span_capturing_sink(bridge.model_event_sink)
+            if bridge.model_event_sink is not None
+            else None
+        )
         with _routing_context(routing):
             # Apply filter if we have it (can either return output or alternate inputs)
             output: ModelOutput | None = None
@@ -986,7 +1003,7 @@ async def _bridge_generate_impl(
                 # under the bridge's approval policies, so remote MCP servers are refused
                 with (
                     bridge_model_generate(),
-                    use_model_event_sink(bridge.model_event_sink),
+                    use_model_event_sink(sink),
                     bridge_approval_scope(bridge.approval),
                 ):
                     # with fail_on_refusal set a refusal raises rather than
@@ -1059,8 +1076,12 @@ async def _bridge_generate_impl(
             declarations: list[ToolInfo | Tool] = list(tools)
             if declared_in_input is not None:
                 declarations.extend(declared_in_input(input_messages))
+            # executions are placed in the proposing ModelEvent's span; only one
+            # a sink chose is stored, so a rotating checkpoint span is followed
             bridge.register_tool_execution_grants(
-                reviewed.output.message.tool_calls or [], declarations
+                reviewed.output.message.tool_calls or [],
+                declarations,
+                span_id=sink.span_id if sink is not None else None,
             )
             return reviewed.output, c_message
 
@@ -1071,6 +1092,60 @@ async def _bridge_generate_impl(
         # accumulate onto original_input (rather than input_messages) since that is
         # what the top of the loop resets to, and any filter rewrite is per-attempt
         original_input = original_input + reviewed.rejection
+
+
+class _SpanCapturingSink:
+    """Forward to a bridge's `ModelEventSink`, remembering the span it placed the event in.
+
+    A sink can place a generation in a span other than the current one (a
+    sub-agent's), through `on_start` or by moving the event in `on_pending`.
+    Host tool events pair with their proposing `ModelEvent` by being recorded
+    in that same span, so `bridge_generate` reads it here. `span_id` is that
+    span, or `None` when the event is in the span current outside the
+    generation: decided here, since a checkpoint span can rotate while the
+    calls await approval. That span is read per attempt, and when the
+    generation starts for a sink with `on_start` (`_StartingSpanCapturingSink`)
+    unless `on_start` chose another span, which the attempts then run in. A sink
+    without `on_start` is wrapped without one, so the generation is run as that
+    sink would have it.
+    """
+
+    def __init__(self, inner: ModelEventSink) -> None:
+        self.inner = inner
+        self.span_id: str | None = None
+        self._current: str | None = None
+        self._started: str | None = None
+
+    def on_pending(self, event: "ModelEvent") -> None:
+        if self._started is None:
+            self._current = current_span_id()
+        self.inner.on_pending(event)
+
+    def on_complete(self, event: "ModelEvent") -> None:
+        self.inner.on_complete(event)
+        if self._started is not None and event.span_id == self._started:
+            self.span_id = self._started
+        else:
+            current = (self._current, current_span_id())
+            self.span_id = event.span_id if event.span_id not in current else None
+
+
+class _StartingSpanCapturingSink(_SpanCapturingSink):
+    def __init__(self, inner: _StartingModelEventSink) -> None:
+        super().__init__(inner)
+        self.starting = inner
+
+    def on_start(self, input: list[ChatMessage]) -> str | None:
+        self._current = current_span_id()
+        span_id = self.starting.on_start(input)
+        self._started = span_id if span_id != self._current else None
+        return span_id
+
+
+def _span_capturing_sink(inner: ModelEventSink) -> _SpanCapturingSink:
+    if isinstance(inner, _StartingModelEventSink):
+        return _StartingSpanCapturingSink(inner)
+    return _SpanCapturingSink(inner)
 
 
 def resolve_generate_config(

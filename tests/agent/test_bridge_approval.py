@@ -9,15 +9,29 @@ than by editing the response the scaffold sees.
 import inspect
 import json
 import logging
+import re
+from collections import deque
+from contextlib import contextmanager
 from pathlib import PurePosixPath
-from typing import Any, Awaitable, Callable, Iterator
-from unittest.mock import AsyncMock
+from typing import Any, Awaitable, Callable, Iterator, Literal, NamedTuple, cast
+from unittest.mock import AsyncMock, MagicMock
 
+import anyio
 import pytest
+from acp.schema import SessionNotification, ToolCallProgress, ToolCallStart
+from pydantic import JsonValue
+from test_helpers.service_dispatch import (
+    dispatching_service,
+    serve_beside_failure_monitor,
+)
 
 import inspect_ai._util.logger as inspect_logger
 from inspect_ai import Task, eval
+from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai._util.exception import TerminateSampleError
+from inspect_ai.agent._acp.event_mapping import _AcpEventRouter, replay_transcript
+from inspect_ai.agent._acp.transport import AcpUpdate
+from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 from inspect_ai.agent._agent import Agent, AgentState, agent
 from inspect_ai.agent._bridge._approval import MAX_CONSECUTIVE_REJECTIONS
 from inspect_ai.agent._bridge.anthropic_api import inspect_anthropic_api_request
@@ -25,7 +39,11 @@ from inspect_ai.agent._bridge.bridge import agent_bridge
 from inspect_ai.agent._bridge.completions import inspect_completions_api_request
 from inspect_ai.agent._bridge.google_api import inspect_google_api_request
 from inspect_ai.agent._bridge.responses import inspect_responses_api_request
-from inspect_ai.agent._bridge.sandbox.bridge import _monitor_failure
+from inspect_ai.agent._bridge.sandbox.host_tool import execute_host_tool
+from inspect_ai.agent._bridge.sandbox.service import (
+    _forward_provider_errors,
+    generate_completions,
+)
 from inspect_ai.agent._bridge.sandbox.service import call_tool as call_host_tool
 from inspect_ai.agent._bridge.sandbox.types import (
     _MAX_TOOL_EXECUTION_GRANTS,
@@ -45,7 +63,19 @@ from inspect_ai.approval import (
     auto_approver,
 )
 from inspect_ai.dataset import Sample
+from inspect_ai.event import Event
 from inspect_ai.event._approval import ApprovalEvent
+from inspect_ai.event._info import InfoEvent
+from inspect_ai.event._logger import LoggerEvent
+from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
+from inspect_ai.event._tool import ToolEvent
+from inspect_ai.event._tree import EventTreeSpan, event_tree
+from inspect_ai.log._condense import condense_sample
+from inspect_ai.log._log import EvalSample
+from inspect_ai.log._samples import _sample_active
+from inspect_ai.log._transcript import Transcript, _transcript, transcript
+from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -53,19 +83,33 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.model._compaction import CompactionTrim
-from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._generate_config import (
+    GenerateConfig,
+    active_generate_config_context_var,
+)
 from inspect_ai.model._model import GenerateInput, Model, get_model
 from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
 from inspect_ai.model._openai_responses import (
     TOOL_SEARCH_NAME,
     tool_search_output_tools,
 )
-from inspect_ai.tool import Tool, tool
-from inspect_ai.tool._tool_call import ToolCall, ToolCallView
+from inspect_ai.tool import Tool, ToolError, tool
+from inspect_ai.tool._tool import ToolParsingError, ToolResult
+from inspect_ai.tool._tool_call import ToolCall, ToolCallError, ToolCallView
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParam, ToolParams
+from inspect_ai.util._limit import LimitExceededError
+from inspect_ai.util._sandbox.events import SandboxTimeoutError
+from inspect_ai.util._span import (
+    SpanRotationScope,
+    current_span_id,
+    parent_span,
+    span,
+    span_id_provider,
+)
+from inspect_ai.util._store import Store, _subtask_store
 
 TASK = "Tidy up the working directory."
 
@@ -451,7 +495,7 @@ async def test_modify_without_a_modified_call_is_rejected() -> None:
     run = await run_bridge(
         [tool_calls_output(original), tool_calls_output(replacement)],
         approval=[
-            ApprovalPolicy(auto_approver("modify"), "bash(cmd='rm"),
+            ApprovalPolicy(auto_approver("modify"), "bash", arguments={"cmd": "rm*"}),
             ApprovalPolicy(auto_approver("approve"), "*"),
         ],
     )
@@ -471,7 +515,9 @@ async def test_sandbox_modify_without_a_modified_call_grants_nothing() -> None:
     bridge = sandbox_bridge_with_tool(
         tool,
         [
-            ApprovalPolicy(auto_approver("modify"), "read_file(path='secret"),
+            ApprovalPolicy(
+                auto_approver("modify"), "read_file", arguments={"path": "secret*"}
+            ),
             ApprovalPolicy(auto_approver("approve"), "*"),
         ],
     )
@@ -504,7 +550,7 @@ async def test_reject_regenerates_and_hides_the_rejected_call() -> None:
     run = await run_bridge(
         [tool_calls_output(rejected), tool_calls_output(replacement)],
         approval=[
-            ApprovalPolicy(reject_approver(), "bash(cmd='rm"),
+            ApprovalPolicy(reject_approver(), "bash", arguments={"cmd": "rm*"}),
             ApprovalPolicy(auto_approver("approve"), "*"),
         ],
     )
@@ -522,7 +568,11 @@ async def test_reject_replays_the_rejection_to_the_model() -> None:
             ModelOutput.from_content(model="mockllm/model", content="understood"),
         ],
         approval=[
-            ApprovalPolicy(reject_approver("Destructive command."), "bash(cmd='rm"),
+            ApprovalPolicy(
+                reject_approver("Destructive command."),
+                "bash",
+                arguments={"cmd": "rm*"},
+            ),
             ApprovalPolicy(auto_approver("approve"), "*"),
         ],
     )
@@ -554,7 +604,11 @@ async def test_reject_all_gives_every_call_a_result_naming_the_culprit() -> None
             ModelOutput.from_content(model="mockllm/model", content="understood"),
         ],
         approval=[
-            ApprovalPolicy(reject_approver("Destructive command."), "bash(cmd='rm"),
+            ApprovalPolicy(
+                reject_approver("Destructive command."),
+                "bash",
+                arguments={"cmd": "rm*"},
+            ),
             ApprovalPolicy(auto_approver("approve"), "*"),
         ],
     )
@@ -661,32 +715,12 @@ async def test_terminate_decision_terminates_immediately() -> None:
         )
 
 
-def test_sandbox_bridge_terminate_signals_the_monitor() -> None:
-    """Sandbox generations run where exceptions can't propagate, so also signal."""
-    bridge = SandboxAgentBridge(
-        state=AgentState(messages=[]),
-        filter=None,
-        retry_refusals=None,
-        compaction=None,
-        port=13131,
-        model=None,
-    )
+def test_sandbox_bridge_terminate_raises_for_the_service_dispatcher() -> None:
+    """A sandbox bridge terminates by raising, as an in-process bridge does.
 
-    assert not bridge._failure_requested.is_set()
-    with pytest.raises(TerminateSampleError):
-        bridge.request_terminate("approver said stop")
-
-    assert bridge._failure_requested.is_set()
-    assert isinstance(bridge._failure, TerminateSampleError)
-    assert bridge._failure.reason == "approver said stop"
-
-
-async def test_sandbox_terminate_monitor_raises_for_the_task_group() -> None:
-    """The monitor is what actually reaches the sample runner.
-
-    `request_terminate`'s own raise is swallowed by the sandbox service (which turns
-    exceptions into RPC error responses), so the monitor running in the bridge's task
-    group is the path that unwinds the agent.
+    The sandbox service dispatcher answers the RPC and propagates the
+    `TerminateSampleError` out of the service task, so the monitor task is not
+    signalled as well.
     """
     bridge = SandboxAgentBridge(
         state=AgentState(messages=[]),
@@ -696,10 +730,65 @@ async def test_sandbox_terminate_monitor_raises_for_the_task_group() -> None:
         port=13131,
         model=None,
     )
-    bridge.request_fail(TerminateSampleError("approver said stop"))
 
     with pytest.raises(TerminateSampleError, match="approver said stop"):
-        await _monitor_failure(bridge)
+        bridge.request_terminate("approver said stop")
+
+    assert not bridge._failure_requested.is_set()
+
+
+@pytest.mark.parametrize("repeated", [False, True], ids=["terminate", "rejections"])
+async def test_sandbox_approver_termination_ends_the_sample_once(
+    monkeypatch: pytest.MonkeyPatch, repeated: bool
+) -> None:
+    """An approver's termination in a sandbox generation ends the sample once.
+
+    The generation runs in the sandbox service task. `_forward_provider_errors`
+    lets the `TerminateSampleError` through to the service dispatcher, which
+    answers the RPC once and propagates it out of the service task: that unwinds
+    the bridge's task group. The monitor task is not signalled, so the group
+    unwinds with the one termination. Covers a `terminate` decision and too many
+    consecutive rejections.
+    """
+    unsafe = ToolCall(id="1", function="bash", arguments={"cmd": "rm -rf /"})
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[tool_calls_output(unsafe)] * (MAX_CONSECUTIVE_REJECTIONS + 1),
+    )
+    policy = ApprovalPolicy(
+        reject_approver() if repeated else auto_approver("terminate"), "*"
+    )
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={BRIDGE_MODEL: model},
+        approval=[policy],
+    )
+    replies: list[str | None] = []
+    service = dispatching_service(
+        monkeypatch,
+        "generate_completions",
+        _forward_provider_errors(generate_completions(bridge), bridge),
+        {
+            "json_data": {
+                "model": BRIDGE_MODEL,
+                "messages": [{"role": "user", "content": TASK}],
+            },
+        },
+        replies,
+    )
+
+    unwound = await serve_beside_failure_monitor(service, bridge)
+
+    assert [type(ex) for ex in unwound] == [TerminateSampleError]
+    reason = cast(TerminateSampleError, unwound[0]).reason
+    assert reason.startswith("Tool call approver ")
+    assert replies == [f"Terminating: {reason}"]
+    assert not bridge._failure_requested.is_set()
 
 
 # ---------------------------------------------------------------------------
@@ -1048,7 +1137,7 @@ def capture_host_tool_warnings(
     same tool would otherwise suppress the warning.
     """
     monkeypatch.setattr(inspect_logger, "_warned", [])
-    yield from capture_module_warnings(caplog, call_host_tool.__module__)
+    yield from capture_module_warnings(caplog, execute_host_tool.__module__)
 
 
 @pytest.mark.usefixtures("capture_bridge_warnings")
@@ -2047,8 +2136,12 @@ async def test_opted_out_server_executes_without_a_proposal() -> None:
     tool.assert_awaited_once_with(path="notes.txt")
 
 
-async def test_opted_out_server_stores_no_grants() -> None:
-    """Grants nothing will consume must not fill the bounded store."""
+async def test_opted_out_server_stores_grants_for_attribution() -> None:
+    """A proposed call on an opted-out server still pairs with its proposal.
+
+    The grant is not required to execute; it only lets the host tool's event
+    carry the proposing call's id.
+    """
     tool = AsyncMock(return_value="contents")
     bridge = sandbox_bridge_with_tool(tool, None, require_proposal=False)
 
@@ -2057,7 +2150,10 @@ async def test_opted_out_server_stores_no_grants() -> None:
         declare("read_file"),
     )
 
-    assert len(bridge._tool_execution_grants) == 0
+    assert len(bridge._tool_execution_grants) == 1
+    grant = bridge.consume_tool_execution_grant("host", "read_file", {"path": "a"})
+    assert grant is not None
+    assert grant.proposal.call.id == "proposed"
 
 
 @pytest.mark.usefixtures("capture_host_tool_warnings")
@@ -2183,6 +2279,34 @@ async def test_multi_choice_alternates_pass_through_for_in_process_bridge() -> N
     run = await run_bridge([multi_choice_output_with_tool_call_alternate()])
 
     assert len(run.output.choices) == 2
+
+
+@pytest.mark.usefixtures("capture_bridge_warnings")
+@pytest.mark.parametrize("exempt", [False, True], ids=["required", "exempt"])
+def test_eviction_warning_says_what_the_evicted_grant_loses(
+    exempt: bool, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An exempt server's grant only loses pairing; a required server's loses execution."""
+    monkeypatch.setattr(inspect_logger, "_warned", [])
+    bridge = sandbox_bridge_with_tool(
+        AsyncMock(return_value="contents"), None, require_proposal=not exempt
+    )
+
+    bridge.register_tool_execution_grants(
+        [
+            ToolCall(id=str(index), function="read_file", arguments={"path": "a"})
+            for index in range(_MAX_TOOL_EXECUTION_GRANTS + 1)
+        ],
+        declare("read_file"),
+    )
+
+    [warning] = [r.getMessage() for r in caplog.records]
+    assert "require_proposal=False servers count too" in warning
+    if exempt:
+        assert "that call still executes" in warning
+        assert "no longer pairs" in warning
+    else:
+        assert "can no longer be executed" in warning
 
 
 async def test_host_tool_execution_grants_are_bounded() -> None:
@@ -2449,6 +2573,33 @@ async def test_unmatched_tool_is_rejected_by_the_policy_approver() -> None:
     results = run.tool_results(1)
     assert results[0].error is not None
     assert "No approvers registered for tool bash" in results[0].error.message
+
+
+async def test_parsed_key_collision_raises_instead_of_approving() -> None:
+    """An argument whose keys convert to one key is not matched on the lossy text."""
+    tools = [
+        ToolInfo(
+            name="f",
+            description="f",
+            parameters=ToolParams(properties={"value": ToolParam(type="object")}),
+        )
+    ]
+    call = parse_tool_call(
+        "1", "f", '2024-01-01: blocked\n"2024-01-01": allowed', tools
+    )
+    assert call.parse_error is None
+    with pytest.raises(ValueError, match="two object keys"):
+        await run_bridge(
+            [tool_calls_output(call)],
+            approval=[
+                ApprovalPolicy(
+                    auto_approver(),
+                    "f",
+                    arguments={"value": '{"2024-01-01": "allowed"}'},
+                ),
+                ApprovalPolicy(reject_approver(), "*"),
+            ],
+        )
 
 
 async def test_track_state_is_unaffected_by_the_round_trip() -> None:
@@ -3162,3 +3313,1361 @@ async def test_rejection_replay_survives_compaction() -> None:
     assert len(results) == 1
     assert results[0].error is not None
     assert "Destructive command." in results[0].error.message
+
+
+# ---------------------------------------------------------------------------
+# host tool events: every `call_tool` request is recorded as one `ToolEvent`
+# ---------------------------------------------------------------------------
+
+
+class RecordedTranscript:
+    """A fresh sample transcript and every emission a subscriber saw."""
+
+    def __init__(self, transcript: Transcript) -> None:
+        self.transcript = transcript
+        self.emissions: list[tuple[Event, bool | None]] = []
+        transcript._subscribe(lambda e: self.emissions.append((e, e.pending)))
+
+    @property
+    def events(self) -> list[Event]:
+        return list(self.transcript.events)
+
+    @property
+    def tool_events(self) -> list[ToolEvent]:
+        return [e for e in self.events if isinstance(e, ToolEvent)]
+
+    def completions(self, event: ToolEvent) -> int:
+        """How many times `event` was published as no longer pending."""
+        return sum(1 for e, pending in self.emissions if e is event and not pending)
+
+
+@contextmanager
+def recorded_transcript() -> Iterator[RecordedTranscript]:
+    """A fresh transcript, and a fresh store so spans record no store changes."""
+    transcript = Transcript()
+    token = _transcript.set(transcript)
+    store_token = _subtask_store.set(Store())
+    try:
+        yield RecordedTranscript(transcript)
+    finally:
+        _subtask_store.reset(store_token)
+        _transcript.reset(token)
+
+
+def bridge_metadata(event: ToolEvent) -> dict[str, Any]:
+    assert event.metadata is not None
+    metadata: dict[str, Any] = event.metadata["bridge"]
+    return metadata
+
+
+async def propose(
+    bridge: SandboxAgentBridge, *calls: ToolCall, function: str = "read_file"
+) -> None:
+    """Run a bridged generation proposing `calls`, as the scaffold declared them."""
+    await run_bridge(
+        [tool_calls_output(*calls)], bridge=bridge, tools=declare(function)
+    )
+
+
+@pytest.mark.parametrize("approval", [True, False], ids=["policy", "no-policy"])
+async def test_proposed_host_tool_call_is_recorded_with_the_proposing_id(
+    approval: bool,
+) -> None:
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(
+        tool, [ApprovalPolicy(auto_approver("approve"), "*")] if approval else None
+    )
+    call = ToolCall(
+        id="proposed",
+        function="mcp__host__read_file",
+        arguments={"path": "notes.txt", "mode": "r"},
+    )
+
+    with recorded_transcript() as recorded:
+        await propose(bridge, call, function=call.function)
+        result = await call_host_tool(bridge)(
+            "host", "read_file", {"mode": "r", "path": "notes.txt"}
+        )
+
+    assert result == "contents"
+    [event] = recorded.tool_events
+    assert event.id == "proposed"
+    assert event.function == "read_file"
+    assert list(event.arguments.items()) == [("mode", "r"), ("path", "notes.txt")]
+    assert event.result == "contents"
+    assert event.error is None
+    assert event.failed is None
+    assert event.pending is None
+    assert event.completed is not None
+    assert event.working_time is not None
+    assert event.truncated is None
+    assert bridge_metadata(event) == {
+        "server": "host",
+        "tool": "read_file",
+        "function": "mcp__host__read_file",
+        "proposal_id": "proposed",
+        "grant": "consumed",
+    }
+    assert recorded.completions(event) == 1
+
+
+async def test_host_tool_event_has_the_native_span_layout() -> None:
+    """The event sits beside its `tool` span, with the tool's own events inside it."""
+
+    async def read(**kwargs: Any) -> str:
+        transcript().info("reading")
+        return "contents"
+
+    bridge = sandbox_bridge_with_tool(AsyncMock(side_effect=read), None)
+    call = ToolCall(id="proposed", function="read_file", arguments={"path": "a"})
+
+    with recorded_transcript() as recorded:
+        async with span("outer"):
+            outer = current_span_id()
+            await propose(bridge, call)
+            start = len(recorded.events)
+            await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+        events = recorded.events[start:]
+
+    begin, event, info, end = events[:4]
+    assert isinstance(begin, SpanBeginEvent) and begin.type == "tool"
+    assert isinstance(event, ToolEvent)
+    assert isinstance(info, InfoEvent)
+    assert isinstance(end, SpanEndEvent) and end.id == begin.id
+    assert event.span_id == outer
+    assert begin.parent_id == outer
+    assert info.span_id == begin.id
+
+
+async def test_denied_host_tool_call_is_recorded_in_its_own_tool_span() -> None:
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(tool, None)
+
+    with recorded_transcript() as recorded:
+        async with span("outer"):
+            outer = current_span_id()
+            with pytest.raises(PermissionError) as raised:
+                await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+        # The denial's warn_once becomes a LoggerEvent only on the process's
+        # first denial of host/read_file, and only once an earlier eval has
+        # installed Inspect's log handler, so it depends on test order.
+        events = [e for e in recorded.events if not isinstance(e, LoggerEvent)]
+
+    assert str(raised.value) == (
+        "Host tool call 'host/read_file' was not proposed by the model in a "
+        "bridged generation (a bridged host tool runs once per proposed call)"
+    )
+    tool.assert_not_awaited()
+    begin, event, end = events[1:4]
+    assert isinstance(begin, SpanBeginEvent) and begin.type == "tool"
+    assert begin.parent_id == outer
+    assert isinstance(event, ToolEvent) and event.span_id == outer
+    assert isinstance(end, SpanEndEvent) and end.id == begin.id
+    assert event.id != "proposed"
+    assert event.function == "read_file"
+    assert event.arguments == {"path": "a"}
+    assert event.error is not None
+    assert event.error.type == "permission"
+    assert event.error.message == str(raised.value)
+    assert event.failed is None
+    assert event.pending is None
+    assert bridge_metadata(event)["grant"] == "denied"
+    assert bridge_metadata(event)["function"] is None
+    assert bridge_metadata(event)["proposal_id"] is None
+    assert recorded.completions(event) == 1
+
+
+class StampingSink:
+    """A `ModelEventSink` that attributes generations to a sub-agent span.
+
+    `script` names what each generation's sink calls do, in order: `stamp`
+    places the event in `agent-sub` (as inspect_swe's sinks do in
+    `on_pending`), `current` leaves it in the current span, `open` emits the
+    span's begin in `on_complete`, and `close` emits its end in `on_pending`
+    (the codex_cli lifecycle).
+    """
+
+    def __init__(self, *script: set[str]) -> None:
+        self.script = list(script)
+        self.actions: set[str] = set()
+        self.opened = False
+
+    def on_pending(self, event: ModelEvent) -> None:
+        self.actions = self.script.pop(0)
+        if "close" in self.actions:
+            transcript()._event(SpanEndEvent(id="agent-sub"))
+        if "stamp" in self.actions:
+            event.span_id = "agent-sub"
+
+    def on_complete(self, event: ModelEvent) -> None:
+        transcript()._event(event)
+        if "open" in self.actions:
+            self.opened = True
+            transcript()._event(
+                SpanBeginEvent(
+                    id="agent-sub",
+                    parent_id=current_span_id(),
+                    type="agent",
+                    name="sub",
+                )
+            )
+
+
+class StartingStampingSink(StampingSink):
+    """As `StampingSink`, but the script runs once per generation, in `on_start`.
+
+    `stamp` names `agent-sub` as the span the generation runs under, as
+    inspect_swe's sinks do with `on_start` (beginning it first if no `open`
+    has), and `close` emits the span's end there (the per-generation
+    bookkeeping codex_cli does). `current` leaves the generation in the
+    current span by returning `None`.
+    """
+
+    def on_start(self, input: list[ChatMessage]) -> str | None:
+        self.actions = self.script.pop(0)
+        if "close" in self.actions:
+            transcript()._event(SpanEndEvent(id="agent-sub"))
+        if "stamp" in self.actions:
+            if not self.opened:
+                self.opened = True
+                transcript()._event(
+                    SpanBeginEvent(
+                        id="agent-sub",
+                        parent_id=current_span_id(),
+                        type="agent",
+                        name="sub",
+                    )
+                )
+            return "agent-sub"
+        return self.current()
+
+    def current(self) -> str | None:
+        return None
+
+    def on_pending(self, event: ModelEvent) -> None:
+        pass
+
+
+class CurrentStartingSink(StartingStampingSink):
+    """As `StartingStampingSink`, but `current` names the current span explicitly.
+
+    inspect_swe's sinks attribute a main-thread call to `current_span_id()`.
+    """
+
+    def current(self) -> str | None:
+        return current_span_id()
+
+
+SINKS = {
+    "on-pending": StampingSink,
+    "on-start": StartingStampingSink,
+    "on-start-current": CurrentStartingSink,
+}
+
+
+def sandbox_bridge_with_sink(tool: AsyncMock, sink: StampingSink) -> SandboxAgentBridge:
+    bridge = sandbox_bridge_with_tool(tool, None)
+    bridge.model_event_sink = sink
+    return bridge
+
+
+@pytest.mark.parametrize("sink", SINKS)
+async def test_execution_is_placed_in_the_span_a_sink_gave_its_proposal(
+    sink: str,
+) -> None:
+    bridge = sandbox_bridge_with_sink(
+        AsyncMock(return_value="contents"), SINKS[sink]({"stamp"})
+    )
+    call = ToolCall(id="proposed", function="read_file", arguments={"path": "a"})
+
+    with recorded_transcript() as recorded:
+        async with span("outer"):
+            await propose(bridge, call)
+            assert bridge._tool_execution_grants[0].proposal.span_id == "agent-sub"
+            await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+
+    [event] = recorded.tool_events
+    assert event.span_id == "agent-sub"
+    [tool_span] = [
+        e for e in recorded.events if isinstance(e, SpanBeginEvent) and e.type == "tool"
+    ]
+    assert tool_span.parent_id == "agent-sub"
+
+
+class MovesBackSink(StartingStampingSink):
+    """Runs the generation under `agent-sub`, then moves its event back to the span current at `on_start`."""
+
+    def on_start(self, input: list[ChatMessage]) -> str | None:
+        self.started_in = current_span_id()
+        return super().on_start(input)
+
+    def on_pending(self, event: ModelEvent) -> None:
+        event.span_id = self.started_in
+
+
+class MovingStartingSink(StartingStampingSink):
+    """Runs the generation under `agent-sub`, then moves its event to `agent-other`."""
+
+    def on_pending(self, event: ModelEvent) -> None:
+        event.span_id = "agent-other"
+
+
+async def test_execution_follows_an_on_start_sink_s_later_move_of_its_proposal() -> (
+    None
+):
+    """The grant carries the span the proposing event is logged in."""
+    bridge = sandbox_bridge_with_sink(
+        AsyncMock(return_value="contents"), MovingStartingSink({"stamp"})
+    )
+    call = ToolCall(id="proposed", function="read_file", arguments={"path": "a"})
+
+    with recorded_transcript() as recorded:
+        async with span("outer"):
+            await propose(bridge, call)
+            assert bridge._tool_execution_grants[0].proposal.span_id == "agent-other"
+            await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+
+    [model_event] = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    assert model_event.span_id == "agent-other"
+    [event] = recorded.tool_events
+    assert event.span_id == "agent-other"
+
+
+async def test_a_sink_without_on_start_is_wrapped_without_one() -> None:
+    """The bridge runs such a sink's generation as before: no span lookup at all."""
+    from inspect_ai.agent._bridge.util import _span_capturing_sink
+    from inspect_ai.model._model import _StartingModelEventSink
+
+    assert not isinstance(_span_capturing_sink(StampingSink()), _StartingModelEventSink)
+    assert isinstance(
+        _span_capturing_sink(StartingStampingSink()), _StartingModelEventSink
+    )
+    bridge = sandbox_bridge_with_sink(
+        AsyncMock(return_value="contents"), StampingSink({"current"})
+    )
+    call = ToolCall(id="proposed", function="read_file", arguments={"path": "a"})
+    with recorded_transcript() as recorded:
+        # a current span this transcript has no begin for
+        with parent_span("elsewhere"):
+            await propose(bridge, call)
+    [model_event] = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    assert model_event.span_id == "elsewhere"
+
+
+@pytest.mark.parametrize("sink", SINKS)
+async def test_sink_attributing_to_the_current_span_stores_none(sink: str) -> None:
+    """The span current at execution is followed (a checkpoint span may rotate)."""
+    bridge = sandbox_bridge_with_sink(
+        AsyncMock(return_value="contents"), SINKS[sink]({"current"})
+    )
+    call = ToolCall(id="proposed", function="read_file", arguments={"path": "a"})
+
+    with recorded_transcript() as recorded:
+        async with span("proposed in"):
+            await propose(bridge, call)
+        assert bridge._tool_execution_grants[0].proposal.span_id is None
+        async with span("executed in"):
+            executed_in = current_span_id()
+            await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+
+    [event] = recorded.tool_events
+    assert event.span_id == executed_in
+
+
+@approver(name="test_bridge_pausing")
+def pausing_approver(approving: anyio.Event, resume: anyio.Event) -> Approver:
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        approving.set()
+        await resume.wait()
+        return Approval(decision="approve")
+
+    return approve
+
+
+@pytest.mark.parametrize("sink", [*SINKS, "on-start-moves-back", None])
+async def test_a_checkpoint_rotating_during_approval_is_followed(
+    sink: str | None,
+) -> None:
+    """A rotation while the call awaits approval is not taken for a sink's own span."""
+    approving, rotated = anyio.Event(), anyio.Event()
+    bridge = sandbox_bridge_with_tool(
+        AsyncMock(return_value="contents"),
+        [ApprovalPolicy(pausing_approver(approving, rotated), "*")],
+    )
+    if sink == "on-start-moves-back":
+        bridge.model_event_sink = MovesBackSink({"stamp"})
+    elif sink is not None:
+        bridge.model_event_sink = SINKS[sink]({"current"})
+    call = ToolCall(id="proposed", function="read_file", arguments={"path": "a"})
+    checkpoints = SpanRotationScope(type="checkpoint")
+
+    async def rotate() -> None:
+        await approving.wait()
+        await checkpoints.end_span()
+        await checkpoints.begin_span("checkpoint 2")
+        rotated.set()
+
+    with recorded_transcript() as recorded:
+        await checkpoints.open("checkpoint 1")
+        first = current_span_id()
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(rotate)
+            await propose(bridge, call)
+        second = current_span_id()
+        assert second is not None and second != first
+        assert bridge._tool_execution_grants[0].proposal.span_id is None
+        await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+        await checkpoints.close()
+
+    [model_event] = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    assert model_event.span_id == first
+    [event] = recorded.tool_events
+    assert event.span_id == second
+
+
+@pytest.mark.parametrize("sink", SINKS)
+async def test_execution_after_its_proposal_span_closed_still_nests_under_it(
+    sink: str,
+) -> None:
+    """codex_cli closes a sub-agent span in a later generation's `on_pending` (or `on_start`)."""
+    bridge = sandbox_bridge_with_sink(
+        AsyncMock(return_value="contents"),
+        SINKS[sink]({"open"}, {"stamp"}, {"close"}),
+    )
+    call = ToolCall(id="proposed", function="read_file", arguments={"path": "a"})
+
+    with recorded_transcript() as recorded:
+        await run_bridge(
+            [ModelOutput.from_content("mockllm/model", "spawn")], bridge=bridge
+        )
+        await propose(bridge, call)
+        await run_bridge(
+            [ModelOutput.from_content("mockllm/model", "done")], bridge=bridge
+        )
+        await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+
+    events = recorded.events
+    [event] = recorded.tool_events
+    [span_end] = [e for e in events if isinstance(e, SpanEndEvent)][:1]
+    assert span_end.id == "agent-sub"
+    assert events.index(span_end) < events.index(event)
+    assert event.span_id == "agent-sub"
+    [sub] = [
+        node
+        for node in event_tree(events)
+        if isinstance(node, EventTreeSpan) and node.id == "agent-sub"
+    ]
+    assert event in sub.children
+
+
+class RecordingAcpTransport(LiveAcpTransport):
+    """An ACP transport that keeps the session notifications it publishes."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.published: list[SessionNotification] = []
+
+    def publish(self, update: AcpUpdate) -> None:
+        if isinstance(update, SessionNotification):
+            self.published.append(update)
+
+
+@pytest.mark.parametrize("sink", SINKS)
+@pytest.mark.parametrize("filtered", [True, False], ids=["filtered", "unfiltered"])
+async def test_acp_keeps_a_closed_sub_agent_spans_host_call_out_of_the_conversation(
+    filtered: bool, sink: str
+) -> None:
+    """ACP filters the late execution by its attributed span, live and on replay."""
+    bridge = sandbox_bridge_with_sink(
+        AsyncMock(return_value="contents"),
+        SINKS[sink]({"open"}, {"stamp"}, {"close"}),
+    )
+    call = ToolCall(id="proposed", function="read_file", arguments={"path": "a"})
+
+    with recorded_transcript() as recorded:
+        session = RecordingAcpTransport()
+        session._attachable_override = True
+        session._filter_subagent_events = filtered
+        published = session.published
+        _AcpEventRouter(session).attach()
+        async with span("main", type="agent"):
+            await run_bridge(
+                [ModelOutput.from_content("mockllm/model", "spawn")], bridge=bridge
+            )
+            await propose(bridge, call)
+            await run_bridge(
+                [ModelOutput.from_content("mockllm/model", "done")], bridge=bridge
+            )
+            await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+        replayed = list(
+            replay_transcript(recorded.events, "s", filter_subagents=filtered)
+        )
+
+    def cards(notifications: list[SessionNotification]) -> list[str]:
+        return [
+            n.update.tool_call_id
+            for n in notifications
+            if isinstance(n.update, (ToolCallStart, ToolCallProgress))
+        ]
+
+    for notifications in (published, replayed):
+        if filtered:
+            assert cards(notifications) == []
+        else:
+            assert "proposed" in cards(notifications)
+
+
+async def test_opted_out_server_pairs_a_proposed_call() -> None:
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(tool, None, require_proposal=False)
+    call = ToolCall(id="proposed", function="read_file", arguments={"path": "a"})
+
+    with recorded_transcript() as recorded:
+        await propose(bridge, call)
+        await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+        await call_host_tool(bridge)("host", "read_file", {"path": "b"})
+
+    paired, unproposed = recorded.tool_events
+    assert paired.id == "proposed"
+    assert bridge_metadata(paired)["grant"] == "consumed"
+    assert unproposed.id not in ("proposed", paired.id)
+    assert unproposed.error is None
+    assert unproposed.result == "contents"
+    assert bridge_metadata(unproposed)["grant"] == "exempt"
+    assert bridge_metadata(unproposed)["proposal_id"] is None
+
+
+async def test_opted_out_server_pairs_the_first_matching_call() -> None:
+    """A documented limitation: matching is by arguments, first come first served.
+
+    An unproposed call (e.g. from model-written code) with the same arguments
+    as a pending proposal takes its id; the proposed call then runs exempt.
+    """
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(tool, None, require_proposal=False)
+    call = ToolCall(id="proposed", function="read_file", arguments={"path": "a"})
+
+    with recorded_transcript() as recorded:
+        await propose(bridge, call)
+        await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+        await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+
+    assert tool.await_count == 2
+    first, second = recorded.tool_events
+    assert first.id == "proposed"
+    assert bridge_metadata(first)["grant"] == "consumed"
+    assert bridge_metadata(first)["proposal_id"] == "proposed"
+    assert second.id != "proposed"
+    assert second.error is None
+    assert bridge_metadata(second)["grant"] == "exempt"
+    assert bridge_metadata(second)["proposal_id"] is None
+
+
+@tool
+def sized_output() -> Tool:
+    async def execute(size: int) -> ToolResult:
+        """Return `size` bytes of text (as content when `size` is negative).
+
+        Args:
+            size: Number of bytes to return.
+        """
+        if size < 0:
+            return [ContentText(text="x" * -size)]
+        return "x" * size
+
+    return execute
+
+
+def sized_output_bridge(max_output: int | None = None) -> SandboxAgentBridge:
+    tool = sized_output()
+    if max_output is not None:
+        tool = ToolDef(tool, max_output=max_output).as_tool()
+    return SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        bridged_tools={"host": {"sized_output": tool}},
+        proposal_exempt_servers={"host"},
+    )
+
+
+@pytest.mark.parametrize(
+    "max_tool_output,max_output,limit",
+    [(None, None, 16 * 1024), (1024, None, 1024), (None, 64, 64)],
+    ids=["default", "max_tool_output", "max_output"],
+)
+async def test_truncated_result_is_recorded_as_delivered(
+    max_tool_output: int | None, max_output: int | None, limit: int
+) -> None:
+    bridge = sized_output_bridge(max_output)
+    token = active_generate_config_context_var.set(
+        GenerateConfig(max_tool_output=max_tool_output)
+    )
+    try:
+        with recorded_transcript() as recorded:
+            result = await call_host_tool(bridge)(
+                "host", "sized_output", {"size": 20 * 1024}
+            )
+    finally:
+        active_generate_config_context_var.reset(token)
+
+    assert isinstance(result, str)
+    assert result.startswith("\nThe output of your call to sized_output was too long")
+    [event] = recorded.tool_events
+    assert event.result == result
+    assert event.truncated == (20 * 1024, limit)
+
+
+async def test_content_result_is_recorded_whole() -> None:
+    bridge = sized_output_bridge(64)
+
+    with recorded_transcript() as recorded:
+        await call_host_tool(bridge)("host", "sized_output", {"size": -20 * 1024})
+
+    [event] = recorded.tool_events
+    assert event.result == [ContentText(text="x" * 20 * 1024)]
+    assert event.truncated is None
+
+
+async def test_unknown_server_is_recorded_as_a_parsing_error() -> None:
+    bridge = sandbox_bridge_with_tool(AsyncMock(), None)
+
+    with recorded_transcript() as recorded:
+        with pytest.raises(ValueError) as raised:
+            await call_host_tool(bridge)("nowhere", "read_file", {"path": "a"})
+
+    assert str(raised.value) == "Unknown bridged tools server: nowhere"
+    [event] = recorded.tool_events
+    assert event.function == "read_file"
+    assert event.arguments == {"path": "a"}
+    assert event.error == ToolCallError("parsing", str(raised.value))
+    assert bridge_metadata(event) == {
+        "server": "nowhere",
+        "tool": "read_file",
+        "function": None,
+        "proposal_id": None,
+        "grant": None,
+    }
+
+
+async def test_unknown_tool_is_recorded_as_a_parsing_error() -> None:
+    bridge = sandbox_bridge_with_tool(AsyncMock(), None)
+
+    with recorded_transcript() as recorded:
+        with pytest.raises(ValueError) as raised:
+            await call_host_tool(bridge)("host", "write_file", {"path": "a"})
+
+    assert str(raised.value) == "Unknown tool 'write_file' in server 'host'"
+    [event] = recorded.tool_events
+    assert event.function == "write_file"
+    assert event.error == ToolCallError("parsing", str(raised.value))
+
+
+def nested(depth: int) -> dict[str, Any]:
+    """An object `depth` containers deep (counting itself)."""
+    value: dict[str, Any] = {}
+    for _ in range(depth - 1):
+        value = {"v": value}
+    return value
+
+
+@pytest.mark.parametrize("depth,executes", [(101, False), (100, True)])
+async def test_arguments_deeper_than_the_native_bound_are_rejected(
+    depth: int, executes: bool
+) -> None:
+    received: list[Any] = []
+
+    async def echo(**arguments: Any) -> str:
+        received.append(arguments)
+        return "ok"
+
+    echo_tool = ToolDef(
+        echo,
+        name="echo",
+        description="Echo.",
+        parameters=ToolParams(
+            properties={"v": ToolParam(type="object", description="Value.")}
+        ),
+    ).as_tool()
+    bridge = sandbox_bridge_with_servers({"host": {"echo": echo_tool}})
+    bridge.proposal_exempt_servers.add("host")
+    arguments = nested(depth)
+
+    with recorded_transcript() as recorded:
+        if executes:
+            assert await call_host_tool(bridge)("host", "echo", arguments) == "ok"
+        else:
+            with pytest.raises(ToolParsingError, match="maximum supported nesting"):
+                await call_host_tool(bridge)("host", "echo", arguments)
+
+    [event] = recorded.tool_events
+    assert len(received) == (1 if executes else 0)
+    if executes:
+        assert event.error is None
+        assert event.arguments == arguments
+    else:
+        assert event.error is not None
+        assert event.error.type == "parsing"
+        assert "maximum supported nesting depth of 100" in event.error.message
+        assert event.arguments == {}
+        assert bridge_metadata(event)["grant"] is None
+
+
+async def test_arguments_failing_validation_are_recorded_as_sent() -> None:
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(tool, None, require_proposal=False)
+
+    with recorded_transcript() as recorded:
+        with pytest.raises(ToolParsingError) as raised:
+            await call_host_tool(bridge)("host", "read_file", {"offset": "three"})
+
+    tool.assert_not_awaited()
+    [event] = recorded.tool_events
+    assert event.arguments == {"offset": "three"}
+    assert event.error == ToolCallError("parsing", raised.value.message)
+    assert bridge_metadata(event)["grant"] == "exempt"
+
+
+async def test_proposed_call_failing_validation_pairs_with_its_proposal() -> None:
+    """The grant is consumed before validation, as for an execution."""
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(tool, None)
+    call = ToolCall(id="proposed", function="read_file", arguments={"offset": "x"})
+
+    with recorded_transcript() as recorded:
+        await propose(bridge, call)
+        with pytest.raises(ToolParsingError):
+            await call_host_tool(bridge)("host", "read_file", {"offset": "x"})
+
+    tool.assert_not_awaited()
+    [event] = recorded.tool_events
+    assert event.id == "proposed"
+    assert event.error is not None and event.error.type == "parsing"
+    assert bridge_metadata(event)["grant"] == "consumed"
+
+
+async def test_non_object_arguments_are_recorded_as_empty() -> None:
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(tool, None, require_proposal=False)
+
+    with recorded_transcript() as recorded:
+        with pytest.raises(ValueError, match="Unknown bridged tools server"):
+            await call_host_tool(bridge)("nowhere", "read_file", ["a"])
+        with pytest.raises(ToolParsingError, match="is not of type 'object'"):
+            await call_host_tool(bridge)("host", "read_file", ["a"])
+
+    tool.assert_not_awaited()
+    unknown, invalid = recorded.tool_events
+    assert unknown.arguments == {}
+    assert unknown.error is not None and "Unknown bridged" in unknown.error.message
+    assert invalid.arguments == {}
+    assert invalid.error is not None
+    assert "is not of type 'object'" in invalid.error.message
+
+
+async def test_non_object_arguments_on_a_server_requiring_proposals_are_denied() -> (
+    None
+):
+    """Grants bind objects, so nothing matches; the denial is recorded as usual."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(), None)
+
+    with recorded_transcript() as recorded:
+        with pytest.raises(PermissionError):
+            await call_host_tool(bridge)("host", "read_file", ["a"])
+
+    [event] = recorded.tool_events
+    assert event.arguments == {}
+    assert bridge_metadata(event)["grant"] == "denied"
+
+
+async def test_identical_proposals_pair_in_proposal_order() -> None:
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+    first = ToolCall(id="a", function="read_file", arguments={"path": "x"})
+    second = ToolCall(id="b", function="read_file", arguments={"path": "x"})
+
+    with recorded_transcript() as recorded:
+        await propose(bridge, first, second)
+        execute = call_host_tool(bridge)
+        await execute("host", "read_file", {"path": "x"})
+        await execute("host", "read_file", {"path": "x"})
+
+    assert [e.id for e in recorded.tool_events] == ["a", "b"]
+
+
+async def test_proposal_executed_on_two_indistinct_tools_takes_its_id_once() -> None:
+    """The second execution of one proposal gets a fresh id but names the proposal.
+
+    The tools' schemas differ, which resolution ignores (only the served
+    description counts).
+    """
+
+    async def read(**kwargs: Any) -> str:
+        return "b"
+
+    with_encoding = ToolParams(
+        properties={
+            "path": ToolParam(type="string", description="path"),
+            "encoding": ToolParam(type="string", description="encoding"),
+        },
+        required=["path"],
+    )
+    bridge = sandbox_bridge_with_servers(
+        {
+            "a": {"read_file": served_tool(AsyncMock(return_value="a"))},
+            "b": {
+                "read_file": ToolDef(
+                    read,
+                    name="read_file",
+                    description=READ_FILE,
+                    parameters=with_encoding,
+                ).as_tool()
+            },
+        }
+    )
+    call = ToolCall(id="p", function="read_file", arguments={"path": "x"})
+
+    with recorded_transcript() as recorded:
+        async with span("outer"):
+            outer = current_span_id()
+            await propose(bridge, call)
+            await call_host_tool(bridge)("a", "read_file", {"path": "x"})
+            await call_host_tool(bridge)("b", "read_file", {"path": "x"})
+
+    first, second = recorded.tool_events
+    assert first.id == "p"
+    assert second.id != "p"
+    for event in (first, second):
+        assert bridge_metadata(event)["proposal_id"] == "p"
+        assert bridge_metadata(event)["grant"] == "consumed"
+        assert event.span_id == outer
+
+
+async def test_tool_discovered_through_tool_search_pairs_its_execution() -> None:
+    tool = AsyncMock(return_value="contents")
+    call = ToolCall(id="c1", function="read_file", arguments={"path": "notes.txt"})
+    bridge = sandbox_responses_bridge(tool, [tool_calls_output(call)])
+
+    with recorded_transcript() as recorded:
+        await inspect_responses_api_request(
+            responses_request_with_tool_search([discovered_read_file_namespace()]),
+            None,
+            internal_web_search_providers(),
+            default_code_execution_providers(),
+            bridge,
+        )
+        await call_host_tool(bridge)("host", "read_file", {"path": "notes.txt"})
+
+    [event] = recorded.tool_events
+    assert event.id == "c1"
+    assert bridge_metadata(event)["function"] == "read_file"
+    assert bridge_metadata(event)["grant"] == "consumed"
+
+
+async def test_call_naming_a_bridged_tool_in_its_arguments_is_recorded_denied() -> None:
+    tool = AsyncMock(return_value="secret")
+    bridge = sandbox_bridge_with_tool(tool, None)
+    call = ToolCall(
+        id="proposed",
+        function="bash",
+        arguments={
+            "cmd": "ls",
+            "ServerName": "host",
+            "ToolName": "read_file",
+            "Arguments": {"path": "/secret"},
+        },
+    )
+
+    with recorded_transcript() as recorded:
+        await run_bridge(
+            [tool_calls_output(call)],
+            bridge=bridge,
+            tools=declare(
+                "bash", description="Run a shell command.", parameters=("cmd",)
+            ),
+        )
+        with pytest.raises(PermissionError):
+            await call_host_tool(bridge)("host", "read_file", {"path": "/secret"})
+
+    [event] = recorded.tool_events
+    assert event.id != "proposed"
+    assert bridge_metadata(event)["grant"] == "denied"
+
+
+def container_sizes(bridge: SandboxAgentBridge) -> dict[str, int]:
+    return {
+        name: len(value)
+        for name, value in vars(bridge).items()
+        if isinstance(value, (list, dict, set, deque))
+    }
+
+
+async def test_pairing_state_does_not_grow_with_executions() -> None:
+    """No per-proposal state outlives its grants, over more proposals than the store holds."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+    sizes = container_sizes(bridge)
+    execute = call_host_tool(bridge)
+    count = _MAX_TOOL_EXECUTION_GRANTS + 76
+
+    with recorded_transcript() as recorded:
+        for index in range(count):
+            bridge.register_tool_execution_grants(
+                [
+                    ToolCall(
+                        # ids recur, as a later proposal may reuse an earlier id
+                        id=f"c{index % 3}",
+                        function="read_file",
+                        arguments={"path": str(index)},
+                    )
+                ],
+                declare("read_file"),
+            )
+            await execute("host", "read_file", {"path": str(index)})
+            assert container_sizes(bridge) == sizes
+
+    assert [e.id for e in recorded.tool_events] == [
+        f"c{index % 3}" for index in range(count)
+    ]
+
+
+async def test_reused_call_id_pairs_again() -> None:
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+    call = ToolCall(id="same", function="read_file", arguments={"path": "a"})
+
+    with recorded_transcript() as recorded:
+        for _ in range(2):
+            await propose(bridge, call)
+            await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+
+    assert [e.id for e in recorded.tool_events] == ["same", "same"]
+
+
+async def test_large_arguments_on_a_denied_call_are_condensed() -> None:
+    bridge = sandbox_bridge_with_tool(AsyncMock(), None)
+    path = "x" * (1024 * 1024)
+
+    with recorded_transcript() as recorded:
+        with pytest.raises(PermissionError):
+            await call_host_tool(bridge)("host", "read_file", {"path": path})
+
+    [event] = recorded.tool_events
+    assert event.arguments == {"path": path}
+    sample = EvalSample(
+        id="sample", epoch=1, input="input", target="target", events=[event]
+    )
+    condensed = condense_sample(sample)
+    [condensed_event] = [e for e in condensed.events if isinstance(e, ToolEvent)]
+    reference = condensed_event.arguments["path"]
+    assert isinstance(reference, str) and reference.startswith("attachment://")
+    assert condensed.attachments[reference.removeprefix("attachment://")] == path
+
+
+async def run_failing(
+    error: BaseException | Callable[..., Awaitable[str]],
+) -> tuple[SandboxAgentBridge, ToolEvent, BaseException]:
+    """Execute an exempt host call whose tool raises `error`; the event and what was raised."""
+    mock = AsyncMock(side_effect=error)
+    bridge = sandbox_bridge_with_tool(mock, None, require_proposal=False)
+    with recorded_transcript() as recorded:
+        try:
+            await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+        except BaseException as ex:
+            raised = ex
+        else:
+            raise AssertionError("the host call did not raise")
+    [event] = recorded.tool_events
+    assert recorded.completions(event) == 1
+    return bridge, event, raised
+
+
+@pytest.mark.parametrize(
+    "error,expected",
+    [
+        (ToolError("tool says no"), ToolCallError("unknown", "tool says no")),
+        (
+            PermissionError("not allowed"),
+            ToolCallError("permission", "not allowed."),
+        ),
+        (
+            TimeoutError("tool-specific timeout"),
+            ToolCallError("timeout", "Command timed out before completing."),
+        ),
+        (
+            LimitExceededError("token", value=2, limit=1),
+            ToolCallError("limit", "The tool exceeded its token limit of 1."),
+        ),
+    ],
+    ids=lambda v: type(v).__name__,
+)
+async def test_mapped_tool_exception_is_recorded_and_propagates_unchanged(
+    error: Exception, expected: ToolCallError
+) -> None:
+    bridge, event, raised = await run_failing(error)
+
+    assert raised is error
+    assert event.error == expected
+    assert event.failed is None
+    assert event.result == ""
+    assert not bridge._failure_requested.is_set()
+
+
+async def test_sandbox_timeout_records_its_truncated_output() -> None:
+    error = SandboxTimeoutError("sandbox timeout", truncated_output="partial")
+
+    _, event, raised = await run_failing(error)
+
+    assert raised is error
+    assert str(raised) == "sandbox timeout"
+    assert event.error is not None and event.error.type == "timeout"
+    assert event.result == "partial"
+
+
+@pytest.mark.parametrize("require_proposal", [True, False], ids=["required", "exempt"])
+async def test_a_schema_that_cannot_be_checked_fails_the_sample_and_is_recorded(
+    require_proposal: bool,
+) -> None:
+    """An error checking the arguments is a programming error, as in the tool body."""
+    mock = AsyncMock(return_value="contents")
+
+    async def execute(**kwargs: Any) -> str:
+        return await mock(**kwargs)
+
+    invalid_pattern = ToolParams(
+        properties={"path": ToolParam(type="string", description="path", pattern="[")},
+        required=["path"],
+    )
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        bridged_tools={
+            "host": {
+                "read_file": ToolDef(
+                    execute,
+                    name="read_file",
+                    description=READ_FILE,
+                    parameters=invalid_pattern,
+                ).as_tool()
+            }
+        },
+        proposal_exempt_servers=set() if require_proposal else {"host"},
+    )
+    call = ToolCall(id="proposed", function="read_file", arguments={"path": "a"})
+
+    with recorded_transcript() as recorded:
+        if require_proposal:
+            await propose(bridge, call)
+        with pytest.raises(re.error) as raised:
+            await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+
+    mock.assert_not_awaited()
+    assert bridge._failure is raised.value
+    [event] = recorded.tool_events
+    assert recorded.completions(event) == 1
+    assert event.failed is True
+    assert event.error is None
+    assert event.arguments == {"path": "a"}
+    if require_proposal:
+        assert event.id == "proposed"
+        assert bridge_metadata(event)["grant"] == "consumed"
+        assert bridge_metadata(event)["proposal_id"] == "proposed"
+    else:
+        assert bridge_metadata(event)["grant"] == "exempt"
+
+
+async def test_tool_error_from_a_task_group_is_classified_unwrapped() -> None:
+    async def raise_in_group(**kwargs: Any) -> str:
+        async def child() -> None:
+            raise ToolError("recoverable")
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(child)
+        return "unreachable"
+
+    bridge, event, raised = await run_failing(raise_in_group)
+
+    assert isinstance(raised, ExceptionGroup)
+    assert event.error == ToolCallError("unknown", "recoverable")
+    assert not bridge._failure_requested.is_set()
+
+
+async def read_a(bridge: SandboxAgentBridge) -> None:
+    await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+
+
+def blocking_tool() -> tuple[AsyncMock, anyio.Event, anyio.Event]:
+    """A tool mock that signals `started` and then waits for `release`."""
+    started = anyio.Event()
+    release = anyio.Event()
+
+    async def block(**kwargs: Any) -> str:
+        started.set()
+        await release.wait()
+        return "released"
+
+    return AsyncMock(side_effect=block), started, release
+
+
+PNG = "data:image/png;base64,iVBORw0KGgo="
+
+
+class ChildRaises(NamedTuple):
+    """A tool whose task group child raises `error` when it is cancelled."""
+
+    error: Exception
+
+
+async def run_child_raising(error: Exception, started: anyio.Event) -> None:
+    """Wait in a task group whose child raises `error` when cancelled."""
+    child_started = anyio.Event()
+
+    async def child() -> None:
+        child_started.set()
+        try:
+            await anyio.sleep_forever()
+        except anyio.get_cancelled_exc_class():
+            raise error from None
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(child)
+        await child_started.wait()
+        started.set()
+        await anyio.sleep_forever()
+
+
+# how each ending is produced: what the tool does (or None for the span-ID
+# provider endings) and what interrupts the call once it has started
+ENDINGS: dict[str, tuple[Any, Literal["operator", "outer"] | None]] = {
+    "text": ("contents", None),
+    "content": ([ContentText(text="contents")], None),
+    "image": (ContentImage(image=PNG), None),
+    "structured": ({"a": 1}, None),
+    # 255 levels pass ContentText validation but not serialization
+    "content-unserializable": (ContentText(text="x", internal=nested(255)), None),
+    "structured-unserializable": (nested(301), None),
+    "mapped-error": (ToolError("tool says no"), None),
+    "unexpected-error": (KeyError("missing"), None),
+    "operator-cancel-propagates": ("propagates", "operator"),
+    "operator-cancel-returns": (None, "operator"),
+    "operator-cancel-raises": (RuntimeError("cleanup failed"), "operator"),
+    "operator-cancel-raises-group": (
+        ExceptionGroup("cleanup", [RuntimeError("cleanup failed")]),
+        "operator",
+    ),
+    # a task group child that raises while being cancelled (Trio then raises
+    # a group mixing that error with the cancellation)
+    "operator-cancel-child-raises": (
+        ChildRaises(RuntimeError("cleanup failed")),
+        "operator",
+    ),
+    "operator-cancel-child-raises-tool-error": (
+        ChildRaises(ToolError("cleanup failed")),
+        "operator",
+    ),
+    "operator-cancel-raises-tool-error": (ToolError("cleanup failed"), "operator"),
+    "outer-cancel": ("propagates", "outer"),
+    "span-allocation-fails": (None, None),
+    "span-allocation-cancelled": (None, "outer"),
+}
+
+# what the scaffold gets ("result", "error" or "cancelled"), the recorded
+# error type, and whether the sample fails
+EXPECTED: dict[str, tuple[str, str | None, bool]] = {
+    "text": ("result", None, False),
+    "content": ("result", None, False),
+    "image": ("result", None, False),
+    "structured": ("result", None, False),
+    "content-unserializable": ("error", None, True),
+    "structured-unserializable": ("error", None, True),
+    "mapped-error": ("error", "unknown", False),
+    "unexpected-error": ("error", None, True),
+    "operator-cancel-propagates": ("error", "timeout", False),
+    "operator-cancel-returns": ("error", "timeout", False),
+    "operator-cancel-raises": ("error", "timeout", False),
+    "operator-cancel-raises-group": ("error", "timeout", False),
+    "operator-cancel-child-raises": ("error", "timeout", False),
+    "operator-cancel-child-raises-tool-error": ("error", "timeout", False),
+    "operator-cancel-raises-tool-error": ("error", "timeout", False),
+    "outer-cancel": ("cancelled", "cancelled", False),
+    "span-allocation-fails": ("error", None, True),
+    "span-allocation-cancelled": ("cancelled", "cancelled", False),
+}
+
+
+@pytest.mark.parametrize("require_proposal", [True, False], ids=["required", "exempt"])
+@pytest.mark.parametrize("ending", list(ENDINGS))
+async def test_every_ending_records_one_event_matching_the_reply(
+    ending: str, require_proposal: bool
+) -> None:
+    """However a host call ends, one terminal event records what the scaffold got."""
+    behaviour, interrupt = ENDINGS[ending]
+    rpc, error_type, fatal = EXPECTED[ending]
+    started = anyio.Event()
+
+    async def run_tool(**kwargs: Any) -> Any:
+        if isinstance(behaviour, ChildRaises):
+            await run_child_raising(behaviour.error, started)
+        started.set()
+        if interrupt is not None:
+            try:
+                await anyio.sleep_forever()
+            except anyio.get_cancelled_exc_class():
+                if behaviour == "propagates":
+                    raise
+        if isinstance(behaviour, BaseException):
+            raise behaviour
+        return behaviour
+
+    async def provider(
+        name: str, parent_id: str | None, requested_id: str | None
+    ) -> str:
+        started.set()
+        if interrupt is None:
+            raise RuntimeError("no span id")
+        await anyio.sleep_forever()
+        raise AssertionError("unreachable")
+
+    tool = AsyncMock(side_effect=run_tool)
+    bridge = sandbox_bridge_with_tool(tool, None, require_proposal=require_proposal)
+    returned: list[JsonValue] = []
+    raised: list[Exception] = []
+
+    async def call() -> None:
+        try:
+            returned.append(
+                await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+            )
+        except Exception as ex:
+            raised.append(ex)
+
+    with recorded_transcript() as recorded:
+        if require_proposal:
+            await propose(
+                bridge,
+                ToolCall(id="proposed", function="read_file", arguments={"path": "a"}),
+            )
+        allocating = ending.startswith("span-allocation")
+        with span_id_provider(provider if allocating else None):
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(call)
+                if interrupt is not None:
+                    await started.wait()
+                    if interrupt == "operator":
+                        [running] = recorded.tool_events
+                        running._cancel()
+                    else:
+                        tg.cancel_scope.cancel()
+
+    [event] = recorded.tool_events
+    assert recorded.completions(event) == 1
+    assert event.pending is None
+    assert len(returned) == (rpc == "result")
+    assert len(raised) == (rpc == "error")
+    assert (event.error.type if event.error else None) == error_type
+    assert (event.failed is True) == fatal
+    assert bridge._failure_requested.is_set() == fatal
+    if fatal:
+        assert bridge._failure is raised[0]
+    if rpc == "error" and not fatal:
+        assert event.error is not None
+    if error_type == "timeout":
+        assert isinstance(raised[0], ToolError)
+        assert raised[0].message == "Command timed out before completing."
+    if require_proposal:
+        assert event.id == "proposed"
+        assert bridge_metadata(event)["grant"] == "consumed"
+    else:
+        assert bridge_metadata(event)["grant"] == "exempt"
+
+
+async def test_execution_observer_tracks_the_running_call() -> None:
+    mock, started, release = blocking_tool()
+    bridge = sandbox_bridge_with_tool(mock, None)
+    call = ToolCall(id="proposed", function="read_file", arguments={"path": "a"})
+    tracked: list[tuple[str, ToolEvent | None]] = []
+
+    class Observer:
+        @contextmanager
+        def track_tool_call(
+            self, tool_call_id: str, event: ToolEvent | None = None
+        ) -> Iterator[None]:
+            tracked.append((tool_call_id, event))
+            yield
+
+    sample = MagicMock()
+    sample.execution_observer = Observer()
+    with recorded_transcript() as recorded:
+        await propose(bridge, call)
+        token = _sample_active.set(sample)
+        try:
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(read_a, bridge)
+                await started.wait()
+                release.set()
+        finally:
+            _sample_active.reset(token)
+
+    [event] = recorded.tool_events
+    assert tracked == [("proposed", event)]
+
+
+@pytest.mark.parametrize("allocation", ["fails", "cancelled"])
+@pytest.mark.parametrize("request_kind", ["denied", "rejected"])
+async def test_a_rejection_is_recorded_when_its_span_cannot_be_allocated(
+    request_kind: str, allocation: str
+) -> None:
+    """A rejected request is still recorded as decided; a provider error fails the sample."""
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(tool, None)
+    allocating = anyio.Event()
+    failure = RuntimeError("no span id")
+
+    async def provider(
+        name: str, parent_id: str | None, requested_id: str | None
+    ) -> str:
+        allocating.set()
+        if allocation == "fails":
+            raise failure
+        await anyio.sleep_forever()
+        raise AssertionError("unreachable")
+
+    server = "nowhere" if request_kind == "rejected" else "host"
+    raised: list[BaseException] = []
+
+    async def request() -> None:
+        with span_id_provider(provider):
+            try:
+                await call_host_tool(bridge)(server, "read_file", {"path": "a"})
+            except Exception as ex:
+                raised.append(ex)
+
+    with recorded_transcript() as recorded:
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(request)
+            await allocating.wait()
+            if allocation == "cancelled":
+                tg.cancel_scope.cancel()
+
+    tool.assert_not_awaited()
+    [event] = recorded.tool_events
+    assert recorded.completions(event) == 1
+    assert event.error is not None
+    assert event.error.type == (
+        "parsing" if request_kind == "rejected" else "permission"
+    )
+    if allocation == "fails":
+        assert raised == [failure]
+        assert bridge._failure is failure
+    else:
+        assert raised == []
+        assert not bridge._failure_requested.is_set()

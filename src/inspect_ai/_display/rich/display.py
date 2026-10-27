@@ -11,7 +11,7 @@ from rich.progress import Progress as RProgress
 from rich.table import Table
 from typing_extensions import override
 
-from inspect_ai._util._async import configured_async_backend, run_coroutine
+from inspect_ai._util._async import run_coroutine, run_main
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH
 from inspect_ai._util.platform import running_in_notebook
 from inspect_ai.event._input import InputEvent
@@ -81,7 +81,7 @@ class RichDisplay(Display):
         if running_in_notebook():
             return run_coroutine(main())
         else:
-            return anyio.run(main, backend=configured_async_backend())
+            return run_main(main)
 
     @override
     @contextlib.contextmanager

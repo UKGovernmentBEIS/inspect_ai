@@ -13,7 +13,7 @@
 # that provides a *shared* libpython at the 2.17 floor. miniforge3 is a multi-arch
 # manifest defaulting to the conda-forge channel, so --platform selects the arch and no
 # Anaconda channel ToS acceptance is required.
-FROM condaforge/miniforge3 AS final
+FROM condaforge/miniforge3:26.7.2-0@sha256:569afc65b5338d35e276adf9a860025cd37a677659d19dcb71fc1d4c2063a94e AS final
 
 # PyInstaller shells out to objdump (binutils) to analyze ELF dependencies; the base
 # image doesn't ship it. It's a build-time tool only — nothing from apt is bundled.
@@ -25,17 +25,22 @@ RUN apt-get update \
 # libstdcxx-ng supplies a glibc-2.17 libstdc++ (libgcc_s comes from python's libgcc-ng
 # dep); without it PyInstaller would bundle the debian *host's* libstdc++/libgcc_s,
 # which reference glibc 2.35+ and would raise the floor back above Ubuntu 16.04.
-RUN conda create -y -n build python=3.10 libstdcxx-ng && conda clean -afy
+# The env is installed from an explicit per-arch lockfile (exact URLs and sha256
+# digests, no solving); regenerate it with lock_conda_env.py.
+ARG TARGETARCH
+COPY conda-${TARGETARCH}.lock /tmp/conda.lock
+RUN conda create -y -n build --file /tmp/conda.lock && conda clean -afy
 ENV PATH="/opt/conda/envs/build/bin:${PATH}"
 # Make PyInstaller's ldd-based dependency analysis resolve libstdc++/libgcc_s from the
 # conda env (glibc 2.17/2.14) rather than the debian host (glibc 2.35+).
 ENV LD_LIBRARY_PATH="/opt/conda/envs/build/lib"
 
-RUN python -m pip install --no-cache-dir --upgrade pip setuptools wheel
-RUN python -m pip install --no-cache-dir \
-        pyinstaller \
-        psutil \
-        jsonrpcserver \
-        pydantic
+# Build tools and the package's runtime deps, from the hashed lockfile only.
+# jsonrpcserver publishes no wheel, so it alone builds from its (hash-checked)
+# sdist, using the image's setuptools rather than fetching one.
+COPY requirements.txt /tmp/requirements.txt
+RUN python -m pip install --no-cache-dir --require-hashes --no-deps \
+        --only-binary :all: --no-binary jsonrpcserver --no-build-isolation \
+        -r /tmp/requirements.txt
 
 CMD ["tail", "-f", "/dev/null"]

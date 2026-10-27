@@ -8,7 +8,7 @@ Covers:
   produce a `budget_tokens` / `thinking_budget` via the fixed-table translation.
 - Clamp tests: Groq/Ollama/SageMaker/SambaNova/Together should map extended
   effort values (`minimal`/`xhigh`/`max`) down to the `low`/`medium`/`high` tier;
-  Perplexity keeps `minimal` and clamps only `xhigh`/`max` down to `high`.
+  Perplexity's Agent API takes every effort value as given.
 - Fireworks is model-conditional (superset schema): `minimal`->`low` on all
   models; `none` is dropped and `xhigh`/`max` clamped to `high` only for gpt-oss and
   MiniMax M2 (which reject them), while other models (deepseek/glm/kimi and MiniMax
@@ -536,34 +536,35 @@ def test_fireworks_non_restrictive_models_preserve_extended(
     assert params.get("reasoning_effort") == expected
 
 
-# -- Perplexity clamping (keeps minimal, clamps only xhigh/max) --
+# -- Perplexity (the Agent API accepts every effort value) --
 
 
 @pytest.mark.parametrize(
-    "effort,expected",
-    [
-        ("minimal", "minimal"),
-        ("low", "low"),
-        ("medium", "medium"),
-        ("high", "high"),
-        ("xhigh", "high"),
-        ("max", "high"),
-    ],
+    "effort", ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
 )
-def test_perplexity_clamps_only_extended_top_end(effort, expected):
+def test_perplexity_passes_effort_through(effort):
+    from openai._types import NOT_GIVEN
+
+    from inspect_ai.model._providers.openai_responses import (
+        completion_params_responses,
+    )
     from inspect_ai.model._providers.perplexity import PerplexityAPI
 
-    api = PerplexityAPI(model_name="sonar-reasoning-pro", api_key="test-key")
-    params = api.completion_params(GenerateConfig(reasoning_effort=effort), tools=False)
-    assert params.get("reasoning_effort") == expected
-
-
-def test_perplexity_effort_none_omitted():
-    from inspect_ai.model._providers.perplexity import PerplexityAPI
-
-    api = PerplexityAPI(model_name="sonar-reasoning-pro", api_key="test-key")
-    params = api.completion_params(GenerateConfig(reasoning_effort="none"), tools=False)
-    assert "reasoning_effort" not in params
+    api = PerplexityAPI(model_name="sonar", api_key="test-key")
+    params = completion_params_responses(
+        api.service_model_name(),
+        model_info=api.responses_model_info(),
+        config=GenerateConfig(reasoning_effort=effort),
+        service_tier=None,
+        prompt_cache_key=NOT_GIVEN,
+        prompt_cache_retention=NOT_GIVEN,
+        safety_identifier=NOT_GIVEN,
+        responses_store=None,
+        tools=False,
+        tool_params=[],
+        has_computer_tool=False,
+    )
+    assert params["reasoning"]["effort"] == effort
 
 
 # -- OpenAI Responses path max -> xhigh clamp --
@@ -667,6 +668,7 @@ def _responses_params_for(model_name, config):
         ("gpt-6-sol", "max"),
         ("gpt-6-luna", "max"),
         ("gpt-6.1-sol", "max"),
+        ("gpt-6.1-terra", "max"),
     ],
 )
 def test_openai_responses_max_effort_by_model(model_name, expected):
@@ -793,6 +795,7 @@ def test_openai_responses_explicit_none_effort_keeps_sampling_params():
         ("gpt-6-sol", True, True),
         ("gpt-6-luna", True, True),
         ("gpt-6.1-sol", True, True),
+        ("gpt-6.1-terra", True, True),
         ("gpt-5.6-chat", False, False),  # -chat variants don't reason
         ("gpt-4o", False, False),
         ("o3", False, False),
@@ -1043,7 +1046,8 @@ def _assert_sampling_params_sent(params):
 
 
 @pytest.mark.parametrize(
-    "model_name", ["gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-6.1-sol", "gpt-6"]
+    "model_name",
+    ["gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-6.1-sol", "gpt-6.1-terra", "gpt-6"],
 )
 def test_openai_responses_gpt_6_drops_sampling_params_without_effort(model_name):
     params = _responses_params_for(model_name, _SAMPLING_CONFIG)
@@ -1059,9 +1063,17 @@ def test_openai_responses_non_gpt_6_keeps_sampling_params_without_effort(model_n
 
 @pytest.mark.parametrize(
     "model_name",
-    ["gpt-6-sol", "gpt-6-luna", "openai.gpt-6-sol", "my-gpt-6-luna-deployment"],
+    [
+        "gpt-6-sol",
+        "gpt-6-luna",
+        "gpt-6.1-terra",
+        "openai.gpt-6-sol",
+        "my-gpt-6-luna-deployment",
+        "openai.gpt-6.1-terra",
+        "my-gpt-6.1-terra-deployment",
+    ],
 )
-def test_openai_responses_gpt_6_sol_luna_none_effort_sends_sampling_params(
+def test_openai_responses_gpt_6_none_effort_sends_sampling_params(
     model_name,
 ):
     # `none` is sent through as-is (not clamped or dropped) and, as for
@@ -1073,11 +1085,9 @@ def test_openai_responses_gpt_6_sol_luna_none_effort_sends_sampling_params(
     _assert_sampling_params_sent(params)
 
 
-@pytest.mark.parametrize("model_name", ["gpt-6-sol", "gpt-6-luna"])
+@pytest.mark.parametrize("model_name", ["gpt-6-sol", "gpt-6-luna", "gpt-6.1-terra"])
 @pytest.mark.parametrize("effort", ["low", "medium", "high", "xhigh", "max"])
-def test_openai_responses_gpt_6_sol_luna_effort_drops_sampling_params(
-    model_name, effort
-):
+def test_openai_responses_gpt_6_effort_drops_sampling_params(model_name, effort):
     params = _responses_params_for(
         model_name, _SAMPLING_CONFIG.merge(GenerateConfig(reasoning_effort=effort))
     )
@@ -1124,7 +1134,8 @@ def test_openai_responses_always_reasoning_gpt_6_drops_sampling_params_regardles
 
 
 @pytest.mark.parametrize(
-    "model_name", ["gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-6.1-sol"]
+    "model_name",
+    ["gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-6.1-sol", "gpt-6.1-terra"],
 )
 def test_openai_compatible_model_info_gpt_6_is_gpt_5_plus(model_name):
     from inspect_ai.model._providers.openai_compatible import ModelInfo
@@ -1148,6 +1159,9 @@ def test_openai_compatible_model_info_gpt_6_is_gpt_5_plus(model_name):
         ("gpt-6.1-sol", True),
         ("openai.gpt-6.1-sol", True),  # bedrock api_model_name prefix
         ("my-gpt-6.1-sol-deployment", True),  # azure deployment name
+        ("gpt-6.1-terra", False),
+        ("openai.gpt-6.1-terra", False),
+        ("my-gpt-6.1-terra-deployment", False),
         ("gpt-6", False),
         ("gpt-5.6-sol", False),
         ("gpt-5.5", False),

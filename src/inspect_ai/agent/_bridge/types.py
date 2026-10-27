@@ -164,7 +164,7 @@ class AgentBridge:
 
     model: str | None
     """Model that serves every request the bridge does not otherwise recognise
-    (e.g. ``"inspect/openai/gpt-4o"``; the ``inspect/`` prefix is optional).
+    (e.g. ``"inspect/openai/gpt-6-luna"``; the ``inspect/`` prefix is optional).
     Aliases, resolver results and the name ``"inspect"`` are not pinned.
     ``None`` (or ``"inspect"``) serves such requests with the eval's active
     model, or with the model the name implies when
@@ -187,7 +187,7 @@ class AgentBridge:
 
     allow_client_model_names: bool
     """Let a requested name the bridge does not otherwise recognise reach the
-    model role or model it names (e.g. ``"inspect/openai/gpt-4o"``).  When
+    model role or model it names (e.g. ``"inspect/openai/gpt-6-luna"``).  When
     ``False`` (the default), such requests are served by the eval's active
     model.  Set by the in-process ``agent_bridge()``, whose agent already has
     the host's credentials.
@@ -196,10 +196,12 @@ class AgentBridge:
     model_event_sink: ModelEventSink | None
     """Optional sink that takes ownership of `ModelEvent` emission for calls
     routed through the bridge. When set, the bridge installs it around
-    `model.generate()`; `_record_model_interaction` then dispatches pending /
-    complete events to the sink instead of emitting them to the transcript.
-    Use this to attribute bridge model events to externally-managed agent
-    spans (e.g. spans driven by a side-channel event stream).
+    `model.generate()`. The sink's optional `on_start` decides under which span
+    each generation runs, which a live sentinel's conversation follows;
+    `_record_model_interaction` dispatches pending / complete events to the
+    sink, which decides when each is emitted to the transcript. Use this to
+    attribute bridge model events to externally-managed agent spans (e.g.
+    spans driven by a side-channel event stream). See `ModelEventSink`.
     """
 
     forward_generation_config: bool
@@ -231,9 +233,10 @@ class AgentBridge:
         """Terminate the sample from a bridged generation.
 
         Raises `TerminateSampleError`, which propagates out through the agent to the
-        sample runner. `SandboxAgentBridge` overrides this: its generations run in
-        the sandbox service task, where exceptions become RPC error responses instead
-        of propagating.
+        sample runner. A `SandboxAgentBridge`'s generations run in the sandbox
+        service task: there the raise reaches the service dispatcher, which answers
+        the RPC and propagates the termination out of the service task, unwinding
+        the bridge's task group.
         """
         raise TerminateSampleError(reason)
 
@@ -242,8 +245,9 @@ class AgentBridge:
 
         The caller then raises `error`, which propagates out through the agent to
         the sample runner, so an in-process bridge has nothing to do here.
-        `SandboxAgentBridge` overrides this to signal its monitor task, since a
-        raise in the sandbox service task never reaches the sample runner.
+        `SandboxAgentBridge` overrides this to signal its monitor task, since the
+        sandbox service dispatcher turns a raise (other than a limit or a
+        termination) into an RPC error that never reaches the sample runner.
         """
 
     grants_tool_execution: bool = False
@@ -256,17 +260,24 @@ class AgentBridge:
     """
 
     def register_tool_execution_grants(
-        self, calls: Sequence[ToolCall], tools: Sequence[ToolInfo | Tool]
+        self,
+        calls: Sequence[ToolCall],
+        tools: Sequence[ToolInfo | Tool],
+        *,
+        span_id: str | None = None,
     ) -> None:
         """Register the calls in a response handed to the scaffold for execution-edge checks.
 
         `tools` are the declarations the scaffold made to the model in the request
         that produced the response; a subclass overriding this hook must accept
         them (the parameter is new, and required, since the calls cannot be
-        resolved without it). In-process bridges execute no host tools through a
-        separate service, so the base implementation has nothing to register.
-        Sandbox bridges override this to bind later service requests to the calls
-        the model actually made.
+        resolved without it). `span_id` is the span the proposing `ModelEvent`
+        was placed in when a `ModelEventSink` put it somewhere other than the
+        current span, else `None`; an override must accept it too, as
+        `bridge_generate` passes it for every generation. In-process bridges
+        execute no host tools through a separate service, so the base
+        implementation has nothing to register. Sandbox bridges override this to
+        bind later service requests to the calls the model actually made.
         """
 
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
