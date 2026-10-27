@@ -66,6 +66,7 @@ from inspect_ai.dataset import Sample
 from inspect_ai.event import Event
 from inspect_ai.event._approval import ApprovalEvent
 from inspect_ai.event._info import InfoEvent
+from inspect_ai.event._logger import LoggerEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
 from inspect_ai.event._tool import ToolEvent
@@ -3446,7 +3447,10 @@ async def test_denied_host_tool_call_is_recorded_in_its_own_tool_span() -> None:
             outer = current_span_id()
             with pytest.raises(PermissionError) as raised:
                 await call_host_tool(bridge)("host", "read_file", {"path": "a"})
-        events = recorded.events
+        # The denial's warn_once becomes a LoggerEvent only on the process's
+        # first denial of host/read_file, and only once an earlier eval has
+        # installed Inspect's log handler, so it depends on test order.
+        events = [e for e in recorded.events if not isinstance(e, LoggerEvent)]
 
     assert str(raised.value) == (
         "Host tool call 'host/read_file' was not proposed by the model in a "
