@@ -20,7 +20,6 @@ from .environment import (
     SandboxEnvironmentConfigType,
 )
 from .limits import OutputLimitExceededError, SandboxEnvironmentLimits
-from .service import is_sandbox_service_command
 
 
 class SandboxTimeoutError(TimeoutError):
@@ -78,10 +77,6 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
             raise SandboxTimeoutError(
                 str(ex), truncated_output=getattr(ex, "truncated_output", None)
             ) from ex
-
-        # skip sandbox service events
-        if is_sandbox_service_command(cmd):
-            return result
 
         # yield event
         options: dict[str, JsonValue] = {}
@@ -251,6 +246,19 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
 _no_events_proxies: ContextVar[frozenset[SandboxEnvironmentProxy]] = ContextVar(
     "sandbox_no_events_proxies", default=frozenset()
 )
+
+
+def _without_sandbox_events(
+    sandbox: SandboxEnvironment,
+) -> contextlib.AbstractContextManager[None]:
+    """Suppress transcript events for commands run on ``sandbox`` inside the block.
+
+    Only the event-recording proxy that wraps sample sandboxes emits events; any
+    other sandbox object (a provider used directly, or a test fake) needs nothing.
+    """
+    if isinstance(sandbox, SandboxEnvironmentProxy):
+        return sandbox.no_events()
+    return contextlib.nullcontext()
 
 
 def content_display(content: str | bytes) -> str:
