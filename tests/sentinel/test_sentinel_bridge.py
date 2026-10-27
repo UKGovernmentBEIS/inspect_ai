@@ -329,10 +329,11 @@ def sentinel_events() -> list[SentinelEvent]:
 
 
 def root_decisions() -> list[tuple[str, str, str | None]]:
+    # each test runs one protocol, whose decision is the one that takes effect
     return [
         (e.step_id, e.stage, e.action)
         for e in sentinel_events()
-        if e.path == "" and e.kind == "decision"
+        if e.kind == "decision"
     ]
 
 
@@ -991,7 +992,8 @@ async def test_cancellation_during_the_tool_call_stage_propagates() -> None:
     assert cleaned_up.is_set()
     assert outputs == []
     assert [(e.path, e.status) for e in sentinel_events()] == [
-        ("bridge_waiting", "cancelled")
+        ("bridge_waiting", "cancelled"),
+        ("", "cancelled"),
     ]
 
 
