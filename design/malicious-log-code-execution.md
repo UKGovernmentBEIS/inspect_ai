@@ -464,7 +464,7 @@ When the trusted import runs, the tracker logs
 at `INFO`, once per tracker. Nothing prints it: the tracker is local to
 metric resolution and returns nothing to its callers, and the user who
 passes `trust_log=True` or `--trust-log` asked for the import (step 7's
-printed records are for run operations, where the log chooses what runs).
+printed records are for `inspect score`, where the log chooses what runs).
 `inspect log recover --log-level info` shows it.
 
 `trust_log=True` means the caller trusts the log's code-selecting fields. It
@@ -887,7 +887,7 @@ rescoring with the log's scorers imports it by design, and a bare
 expect to find there, it is the same file, and `inspect score --help` says
 to use the command only on trusted logs (step 7).
 
-### 7. Run operations record what they loaded, and the docs say they run the log's code
+### 7. The docs say run operations run the log's code, and `inspect score` records what it loaded
 
 Decision: Ransom, 2026-10-06. The protection in this design is that read
 operations no longer execute anything a log selects. For run operations the
@@ -912,33 +912,23 @@ what those commands do:
   recomputing and recovering a log do not run its code unless `trust_log` is
   passed.
 
-The CLI also prints a record of what it loaded, with `display().print()`. It
-is a record for the user to check afterwards, not a mitigation; nothing
-waits on it:
+`inspect score` also prints a record of what it loaded, with
+`display().print()`. It is a record for the user to check afterwards, not a
+mitigation; nothing waits on it:
 
-- `inspect score`, when the scorer fallback imports the task file (step 6),
-  one line per import, naming the scorer and printed by
+- When the scorer fallback imports the task file (step 6), one line per
+  import, naming the scorer and printed by
   `scorer_from_log_name()` in `loader.py` at the import:
   `Imported task file /abs/path/evals/task.py (recorded in the log) to load scorer 'my_scorer'.`
   When the log's model is used (no `--model`) and the log records a
   `model_base_url`: `Scoring model openai/gpt-4o from the log, base URL https://...`.
-- `inspect eval-retry` (`eval_retry_async()`, one block per log, before
-  recovery): the task file (absolute path) and task name, or for a log with
-  no task file and an `hf/` task name, the Hugging Face repo and revision
-  whose `eval.yaml` will define the task; the solver file if `eval.solver`
-  is a file spec; the model and its base URL if recorded; the sandbox type
-  and its config file (or "inline config"); the sentinel monitors and
-  protocols (their registry names) if `eval.config.sentinel` is set, which
-  the retry forwards to `eval_async()` (`eval.py:1831`, `:1975`) and
-  `resolve_sentinel_spec()` builds from installed `inspect_sentinel`
-  factories with their recorded parameters (`eval.py:856-858`,
-  `_sentinel/_config.py:120-129`); and the ACP server binding if
-  `eval.config.acp_server` is set.
 
 Paths are printed resolved, so a relative `task_file` that resolved to an
 unexpected file in the working directory shows up. `score()` called from
-Python logs the same lines at `INFO`. `eval_retry()` called from Python prints
-and logs the retry block as `inspect eval-retry` does.
+Python logs the same lines at `INFO`.
+
+`inspect eval-retry` prints no record: the retry's new log stores the task
+file, solver, model and base URL, sandbox, sentinel and ACP settings it used.
 
 ### Path resolution
 
@@ -948,8 +938,8 @@ construction, and a retry or rescore is run from the original project
 directory. Resolving against the log's location would break every log kept
 in a `logs/` subdirectory; requiring a match against a user-supplied path
 adds a flag to every retry for no gain once the read operations import
-nothing. The record in step 7 shows the resolved path. Confining paths was
-considered and rejected (see Alternatives considered).
+nothing. For `inspect score`, the record in step 7 shows the resolved path.
+Confining paths was considered and rejected (see Alternatives considered).
 
 ### Registry names
 
@@ -1105,7 +1095,7 @@ Behaviour changes, by user:
   and eval-set recovery keeps warning instead. A metric that raises while
   computing is handled as today (recovered without results, with a
   warning).
-- **`eval-retry`**: no change apart from the printed record and help text;
+- **`eval-retry`**: no change apart from the help text;
   its recovery passes `trust_log=True`, so it imports the task file and
   rebuilds metric options as today.
 - **`inspect score` without `--scorer`** (the log's scorers): unchanged
@@ -1206,8 +1196,8 @@ an eval set resumes from. After this design:
   monitor and protocol factories, built with the log's parameters), and the
   ACP binding. The docs and `--help`
   say these commands should only be run on trusted logs; step 7's printed
-  record shows what was used but is not a safeguard. The credential and
-  network items are under "Not this design".
+  records for `inspect score` show what was used but are not a safeguard.
+  The credential and network items are under "Not this design".
 
 The `@task` decorator filter in `load_file_tasks()` is not a security
 boundary (any file can contain a decorated function); it only avoids
@@ -1325,10 +1315,7 @@ What the tests must prove:
   `--sandbox` wins, and eval-retry keeps the log's; `model_info()` still
   fills metadata from the database, `set_model_info()` and `model_info=`;
   `inspect score --help` and `inspect eval-retry --help` carry the
-  trusted-logs sentence, and the retry record lists what it loads,
-  including the sentinel entries of a log that records
-  `eval.config.sentinel` (with `resolve_sentinel_spec()` mocked, so the
-  test needs no `inspect_sentinel`).
+  trusted-logs sentence.
 
 Tests go next to the existing ones for each area (`tests/scorer/`,
 `tests/log/test_recover_*.py`, `tests/test_retry.py`,
@@ -1369,12 +1356,11 @@ PRs open, as the repo requires.
    (`PreviousTask.sandbox`), `src/inspect_ai/_eval/loader.py`,
    `src/inspect_ai/_eval/evalset.py`, `src/inspect_ai/_eval/eval.py`,
    `tests/test_eval_set.py`, `tests/test_retry.py`.
-3. **Recorded scorer names, run-operation help text and records** (steps 6,
-   7). `src/inspect_ai/_eval/loader.py` (`scorer_from_log_name()`, the
-   record line), `src/inspect_ai/_eval/score.py` (`resolve_scorers()`),
+3. **Recorded scorer names, run-operation help text and scoring records**
+   (steps 6, 7). `src/inspect_ai/_eval/loader.py` (`scorer_from_log_name()`,
+   the record line), `src/inspect_ai/_eval/score.py` (`resolve_scorers()`),
    `src/inspect_ai/_cli/score.py` (help, record),
    `src/inspect_ai/_cli/eval.py` (`eval_retry_command` help),
-   `src/inspect_ai/_eval/eval.py` (retry record),
    `docs/scoring-workflow.qmd` and the eval-retry docs,
    `tests/_eval/test_score.py`, `tests/test_retry.py`.
 4. **`model_info()` direct lookup** (step 5).
@@ -1393,7 +1379,8 @@ rescoring metric change).
 None open. Ransom settled the three earlier questions on 2026-10-06: break
 now (Alternatives considered), `model_info()` direct lookup only (step 5),
 and a printed record plus a plain statement in the docs and `--help` rather
-than a confirmation (step 7). He settled rescoring trust on 2026-10-14: the
+than a confirmation (step 7); on 2026-10-27 he limited the record to
+`inspect score`. He settled rescoring trust on 2026-10-14: the
 log is trusted only when its own scorers are used. Also on 2026-10-14 he
 kept the bare unregistered `--scorer NAME` fallback to the recorded task
 file (step 6). On 2026-10-16 he cut step 6 to its essentials and chose
@@ -1415,7 +1402,7 @@ Noticed while tracing, left for separate issues:
 - **Retry sandbox from the log.** A retry keeps the log's sandbox type and
   config, including inline compose configs. Intended under the trust model,
   but a retry of an untrusted log then runs the log's containers with the
-  log's mounts; step 7 only shows it.
+  log's mounts; the docs and `--help` only warn about it.
 - **Parse-time plugin code.** Reading any log calls the sandbox plugin named
   by a sandbox type with a non-empty config dict and may load every installed
   entry point (`environment.py:637-709`).

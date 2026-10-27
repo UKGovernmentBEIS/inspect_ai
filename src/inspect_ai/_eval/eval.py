@@ -46,8 +46,6 @@ from inspect_ai._display.core.active import active_display as active_task_displa
 from inspect_ai._display.core.active import display as task_display
 from inspect_ai._eval.task.scan import Scanners, scan_context
 from inspect_ai._sentinel._config import (
-    SentinelConfig,
-    SentinelEntry,
     SentinelSpec,
     resolve_sentinel_spec,
     sentinel_config,
@@ -65,11 +63,10 @@ from inspect_ai._util.constants import (
     DEFAULT_LOG_SHARED,
     JSON_LOG_FORMAT,
 )
-from inspect_ai._util.dotenv import init_dotenv
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import absolute_file_path, filesystem
 from inspect_ai._util.log_context import set_run_shape
-from inspect_ai._util.logger import init_logger, warn_once
+from inspect_ai._util.logger import warn_once
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import registry_lookup, registry_package_name
 from inspect_ai.approval._apply import init_tool_approval
@@ -118,12 +115,7 @@ from inspect_ai.util._limit import TokenLimit, token_limit_fields
 from inspect_ai.util._notify import build_apprise, init_apprise
 
 from .context import init_eval_context
-from .loader import (
-    parse_spec_str,
-    resolve_task_file_sandbox,
-    resolve_task_source,
-    resolve_tasks,
-)
+from .loader import resolve_task_file_sandbox, resolve_task_source, resolve_tasks
 from .run import TaskInjection, eval_run
 from .task import Epochs, PreviousTask, Task, TaskSource
 from .task.enqueue import (
@@ -132,11 +124,9 @@ from .task.enqueue import (
     create_task_enqueuer,
     register_task_enqueuer,
 )
-from .task.hf import parse_task_spec
 from .task.images import InputMediaPolicy
 from .task.resolved import ResolvedTask, resolved_model_names, resolved_task_names
 from .task.tasks import Tasks
-from .task.util import split_spec
 
 log = logging.getLogger(__name__)
 
@@ -1587,117 +1577,6 @@ def _requalify_sample_ids(
         return sample_id
 
 
-def retry_record(eval_log: EvalLog, acp_server: bool | int | str | None) -> str:
-    """Record of the code and settings a retry takes from the log.
-
-    Lists the task file (or the Hugging Face repo for an `hf/` task), the
-    solver file, the model and base URL, the sandbox, the sentinel monitors
-    and protocols, and the ACP server binding. Paths are resolved against the
-    working directory, as the retry resolves them.
-
-    Args:
-        eval_log: Log being retried.
-        acp_server: The ACP server binding the retry takes from the logs, or
-            `None` when it takes none (no binding, or an explicit override).
-    """
-    spec = eval_log.eval
-    task_name = spec.task_registry_name or spec.task
-    lines = [
-        f"Retrying {eval_log.location or task_name} with settings recorded in the log:"
-    ]
-    if spec.task_file:
-        lines.append(
-            f"  Task: {task_name} in {Path(spec.task_file).absolute().as_posix()}"
-        )
-    elif task_name.startswith("hf/"):
-        hf_spec, revision = split_spec(task_name.replace("hf/", ""))
-        revision = revision or spec.task_args_passed.get("revision", "main")
-        repo, hf_task = parse_task_spec(hf_spec)
-        hf_line = (
-            f"  Task: eval.yaml from Hugging Face dataset {repo} (revision {revision})"
-        )
-        if hf_task is not None:
-            hf_line += f", task {hf_task}"
-        lines.append(hf_line)
-    else:
-        lines.append(f"  Task: {task_name}")
-    if spec.solver:
-        solver_file, _ = parse_spec_str(spec.solver)
-        if solver_file is not None:
-            lines.append(f"  Solver file: {solver_file.as_posix()}")
-    model = f"  Model: {spec.model}"
-    if spec.model_base_url:
-        model += f", base URL {spec.model_base_url}"
-    lines.append(model)
-    sandbox = resolve_task_file_sandbox(spec.task_file, spec.sandbox)
-    if sandbox is not None:
-        if isinstance(sandbox.config, str):
-            config_file = Path(sandbox.config).absolute().as_posix()
-            lines.append(f"  Sandbox: {sandbox.type}, config {config_file}")
-        elif sandbox.config is not None:
-            lines.append(f"  Sandbox: {sandbox.type}, inline config")
-        else:
-            lines.append(f"  Sandbox: {sandbox.type}")
-    if spec.config.sentinel is not None:
-        names = ", ".join(_sentinel_names(spec.config.sentinel))
-        lines.append(f"  Sentinel: {names}")
-    acp = _acp_server_description(acp_server)
-    if acp is not None:
-        lines.append(f"  ACP server: {acp}")
-    return "\n".join(lines)
-
-
-def _acp_server_description(acp_server: bool | int | str | None) -> str | None:
-    if isinstance(acp_server, bool):
-        return "default UNIX socket" if acp_server else None
-    elif isinstance(acp_server, int):
-        return f"TCP port {acp_server}"
-    elif isinstance(acp_server, str):
-        return f"UNIX socket {acp_server}"
-    return None
-
-
-def _emit_retry_record(record: str) -> None:
-    task_display().print(record)
-    # the log display prints through logging.info()
-    if display_type() != "log":
-        log.info(record)
-
-
-def _retry_acp_servers(
-    acp_server: bool | int | str | None, eval_logs: list[EvalLog], skip: set[int]
-) -> list[bool | int | str | None]:
-    """ACP server binding each retried log runs with.
-
-    An explicit retry-time value wins. Otherwise the first binding recorded by
-    a retried log carries over to the logs after it. Logs in `skip` are not
-    retried, so their bindings do not carry over.
-    """
-    bindings: list[bool | int | str | None] = []
-    for i, eval_log in enumerate(eval_logs):
-        if i not in skip and acp_server is None:
-            acp_server = eval_log.eval.config.acp_server
-        bindings.append(acp_server)
-    return bindings
-
-
-def _sentinel_names(config: SentinelConfig) -> list[str]:
-    layer = config.root
-    entries = (
-        [layer]
-        if isinstance(layer, SentinelEntry)
-        else list(layer.values())
-        if isinstance(layer, dict)
-        else layer
-    )
-    names: list[str] = []
-    for entry in entries:
-        names.append(entry.name)
-        for nested in entry.nested.values():
-            names.extend(_sentinel_names(nested))
-    return names
-
-
 async def eval_retry_async(
     tasks: str | EvalLogInfo | EvalLog | list[str] | list[EvalLogInfo] | list[EvalLog],
     log_level: str | None = None,
@@ -1842,19 +1721,6 @@ async def eval_retry_async(
         )
         for task in tasks
     ]
-    # eval_async() initializes logging (after loading .env) only later,
-    # after recovery
-    init_dotenv()
-    init_logger(log_level, log_level_transcript)
-    log_acp_servers = _retry_acp_servers(acp_server, retry_eval_logs, set())
-    record_names = [
-        eval_log.location or eval_log.eval.task for eval_log in retry_eval_logs
-    ]
-    for eval_log, log_acp_server in zip(retry_eval_logs, log_acp_servers):
-        _emit_retry_record(
-            retry_record(eval_log, log_acp_server if acp_server is None else None)
-        )
-
     # opportunistically recover crashed logs before retrying
     from inspect_ai.log._recover import (
         RecoveryNotAvailable,
@@ -1903,19 +1769,6 @@ async def eval_retry_async(
 
     # eval them in turn
     eval_logs: list[EvalLog] = []
-    acp_servers = _retry_acp_servers(acp_server, retry_eval_logs, finalized_indexes)
-    # bindings carry over only from retried logs, so a log that recovery
-    # finalized can change what a later log runs with
-    if acp_server is None:
-        for i, name in enumerate(record_names):
-            acp = _acp_server_description(acp_servers[i])
-            if i not in finalized_indexes and acp != _acp_server_description(
-                log_acp_servers[i]
-            ):
-                _emit_retry_record(
-                    f"Retrying {name} with ACP server {acp or 'off'}, as recovery "
-                    "finalized an earlier log."
-                )
     for i, eval_log in enumerate(retry_eval_logs):
         # don't start another retry once the caller is cancelled (under trio
         # a Ctrl-C leaves the scope cancelled after the interrupted eval)
@@ -2081,6 +1934,12 @@ async def eval_retry_async(
             if score_display is not None
             else eval_log.eval.config.score_display
         )
+        # ACP server: explicit retry-time value wins; otherwise replay
+        # whatever transport the original eval used.
+        acp_server = (
+            acp_server if acp_server is not None else eval_log.eval.config.acp_server
+        )
+
         config = eval_log.plan.config
         config.max_retries = (
             max_retries if max_retries is not None else config.max_retries
@@ -2170,7 +2029,7 @@ async def eval_retry_async(
                 score=score,
                 score_display=score_display,
                 checkpoint=checkpoint,
-                acp_server=acp_servers[i],
+                acp_server=acp_server,
                 ctl_server=ctl_server,
                 **dict(config),
             )
