@@ -21,6 +21,7 @@ from inspect_ai.scorer import (
     mean,
     pass_at,
     scorer,
+    value_to_float,
 )
 from inspect_ai.scorer._metric import ScoreEdit
 from inspect_ai.scorer._scorer import Scorer
@@ -375,6 +376,116 @@ async def test_retry_preserves_reducer_arguments():
         if s.reducer is not None
     }
     assert metrics == pytest.approx({"at_least_2": 2 / 3, "pass_at_1": 5 / 9})
+
+
+def _converter_reducer_task(fail_on_error_flag: bool):
+    # per-sample scores for epochs 1..3; the custom converter maps
+    # "correct" -> 1.0 and "wrong" -> 0.0, while the default converter
+    # maps both to 0.0, so the metrics only match if the converter is
+    # preserved across reconstruction
+    plan: dict[int | str, list[str]] = {
+        1: ["correct", "correct", "wrong"],
+        2: ["correct", "wrong", "wrong"],
+        3: ["correct", "correct", "correct"],
+    }
+
+    @scorer(metrics=[accuracy()])
+    def scripted_scorer() -> Scorer:
+        async def score(state: TaskState, target: Target):
+            return Score(value=plan[state.sample_id][state.epoch - 1])
+
+        return score
+
+    plan_solvers: list[Solver] = []
+    if fail_on_error_flag:
+
+        @solver
+        def fail_when_flagged() -> Solver:
+            async def solve(state: TaskState, generate: Generate):
+                if (
+                    state.sample_id == 1
+                    and state.epoch == 1
+                    and os.environ.get("INSPECT_TEST_RETRY_FAIL") == "1"
+                ):
+                    raise RuntimeError("transient sample failure")
+                return state
+
+            return solve
+
+        plan_solvers = [fail_when_flagged()]
+
+    return Task(
+        dataset=MemoryDataset([Sample(input="q", id=i) for i in plan]),
+        plan=plan_solvers,
+        scorer=scripted_scorer(),
+        epochs=Epochs(
+            3,
+            [
+                at_least(
+                    2,
+                    value_to_float=value_to_float(correct="correct", incorrect="wrong"),
+                )
+            ],
+        ),
+    )
+
+
+def _converter_metrics(lg):
+    return {
+        s.reducer: s.metrics["accuracy"].value
+        for s in lg.results.scores
+        if s.reducer is not None
+    }
+
+
+@pytest.mark.anyio
+async def test_recompute_preserves_value_to_float_argument():
+    """Recomputing metrics rebuilds the reducer's value_to_float converter."""
+    log = (await eval_async(_converter_reducer_task(False)))[0]
+
+    # the converter is recorded as its constructor arguments
+    specs = log.eval.config.epochs_reducer_specs
+    assert [(s.name, s.options) for s in specs or []] == [
+        (
+            "at_least",
+            {
+                "k": 2,
+                "value_to_float": {
+                    "__value_to_float__": {
+                        "correct": "correct",
+                        "incorrect": "wrong",
+                        "partial": "P",
+                        "noanswer": "N",
+                    }
+                },
+            },
+        )
+    ]
+    assert _converter_metrics(log) == pytest.approx({"at_least_2": 2 / 3})
+
+    recomputed = copy.deepcopy(log)
+    recompute_metrics(recomputed)
+    assert _converter_metrics(recomputed) == _converter_metrics(log)
+
+
+@task
+def retry_converter_task():
+    return _converter_reducer_task(True)
+
+
+@pytest.mark.anyio
+async def test_retry_preserves_value_to_float_argument():
+    """Retrying a failed eval rebuilds the reducer's value_to_float converter."""
+    os.environ["INSPECT_TEST_RETRY_FAIL"] = "1"
+    try:
+        error_log = (await eval_async(retry_converter_task(), fail_on_error=True))[0]
+    finally:
+        os.environ.pop("INSPECT_TEST_RETRY_FAIL", None)
+    assert error_log.status == "error"
+
+    retried = (await eval_retry_async(error_log))[0]
+    assert retried.status == "success"
+    assert _converter_metrics(retried) == pytest.approx({"at_least_2": 2 / 3})
 
 
 @pytest.mark.anyio

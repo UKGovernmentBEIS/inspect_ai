@@ -6,6 +6,7 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.registry import (
     RegistryInfo,
     create_registry_object,
+    is_registry_object,
     registry_add,
     registry_info,
     registry_log_name,
@@ -16,6 +17,7 @@ from inspect_ai._util.registry import (
     set_registry_info,
 )
 
+from .._metric import value_to_float, value_to_float_params
 from .types import ScoreReducer, ScoreReducers
 
 ScoreReducerType = TypeVar("ScoreReducerType", bound=Callable[..., ScoreReducer])
@@ -59,7 +61,10 @@ def score_reducer(
         def wrapper(*w_args: Any, **w_kwargs: Any) -> ScoreReducer:
             # create the task
             score_reducer = reducer_type(*w_args, **w_kwargs)
-            # tag it
+            # tag it (callable arguments are recorded in a form that
+            # create_reducers_from_specs can rebuild or reject explicitly;
+            # the original calling convention is preserved so positional
+            # and variadic factories tag exactly as before)
             registry_tag(
                 reducer_type,
                 score_reducer,
@@ -67,8 +72,8 @@ def score_reducer(
                     type="score_reducer",
                     name=reducer_name,
                 ),
-                *w_args,
-                **w_kwargs,
+                *[_taggable_value(arg) for arg in w_args],
+                **{k: _taggable_value(v) for k, v in w_kwargs.items()},
             )
             # return it
             return score_reducer
@@ -81,6 +86,36 @@ def score_reducer(
         return create_reducer_wrapper(func)
     else:
         return create_reducer_wrapper
+
+
+def _taggable_value(value: Any) -> Any:
+    """A creation argument in a form `registry_tag` records faithfully.
+
+    A callable that cannot describe how to rebuild itself is replaced
+    with an unsupported-callable marker under a reserved key, so
+    reconstruction from recorded specs fails explicitly instead of
+    replaying the callable's name as a string argument. Converters
+    created by `value_to_float()` are replaced with their constructor
+    arguments under a reserved key. Callables with `_repr_params_` and
+    registry objects are passed through for `registry_tag` to record.
+    Containers are recursed into so nested callables are handled the
+    same way.
+    """
+    if is_registry_object(value) or hasattr(value, "_repr_params_"):
+        return value
+    if callable(value):
+        converter_params = value_to_float_params(value)
+        if converter_params is not None:
+            return {"__value_to_float__": converter_params}
+        return {
+            "__unsupported_callable__": getattr(value, "__name__", None)
+            or getattr(type(value), "__name__", "<unknown>")
+        }
+    if isinstance(value, dict):
+        return {k: _taggable_value(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_taggable_value(v) for v in value]
+    return value
 
 
 def reducer_register(score_reducer: ScoreReducerType, name: str) -> ScoreReducerType:
@@ -137,9 +172,11 @@ class ReducerSpec:
 def reducer_specs(
     reducer: ScoreReducer | list[ScoreReducer] | None,
 ) -> list[ReducerSpec] | None:
-    # Arguments are recorded in the eval log, so only JSON-serializable values
-    # round-trip; non-serializable values (e.g. callables) do not. This is the
-    # same limitation as metric options (EvalMetricDefinition).
+    # Arguments are recorded in the eval log, so only JSON-serializable
+    # values round-trip. Callable arguments are recorded as their
+    # constructor arguments when they support it (e.g. `value_to_float()`)
+    # and as an unsupported-callable marker otherwise; see
+    # create_reducers_from_specs for how each form is handled on rebuild.
     reducer = [reducer] if isinstance(reducer, ScoreReducer) else reducer
     if reducer is not None:
         return [
@@ -154,10 +191,55 @@ def create_reducers_from_specs(specs: list[ReducerSpec]) -> list[ScoreReducer]:
     return [
         cast(
             ScoreReducer,
-            create_registry_object("score_reducer", spec.name, dict(spec.args)),
+            create_registry_object("score_reducer", spec.name, _rebuild_args(spec)),
         )
         for spec in specs
     ]
+
+
+def _rebuild_args(spec: ReducerSpec) -> dict[str, Any]:
+    args: dict[str, Any] = {}
+    for arg_name, value in spec.args.items():
+        if arg_name == "value_to_float" and isinstance(value, str):
+            # Logs written before callable arguments were recorded hold
+            # only the callable's name; there is nothing faithful to
+            # rebuild, so fail explicitly rather than pass the string
+            # through as the converter.
+            raise PrerequisiteError(
+                f"Cannot rebuild reducer '{spec.name}' from the eval log: "
+                "argument 'value_to_float' was recorded as a name only "
+                "by an earlier version and cannot be reconstructed. "
+                "Re-run the eval or score with a reducer whose arguments "
+                "are serializable."
+            )
+        args[arg_name] = _rebuild_value(spec.name, arg_name, value)
+    return args
+
+
+def _rebuild_value(spec_name: str, arg_name: str, value: Any) -> Any:
+    if isinstance(value, dict):
+        if set(value) == {"__value_to_float__"}:
+            record = value["__value_to_float__"]
+            # Only the recorded keys are passed, so a partial record
+            # falls back to the value_to_float() defaults for the rest.
+            converter_args = {
+                key: record[key]
+                for key in ("correct", "incorrect", "partial", "noanswer")
+                if isinstance(record, dict) and key in record
+            }
+            return value_to_float(**converter_args)
+        if set(value) == {"__unsupported_callable__"}:
+            raise PrerequisiteError(
+                f"Cannot rebuild reducer '{spec_name}' from the eval log: "
+                f"argument '{arg_name}' was a callable "
+                f"('{value['__unsupported_callable__']}') that cannot be "
+                "recorded in a log. Re-run the eval or score with a "
+                "reducer whose arguments are serializable."
+            )
+        return {k: _rebuild_value(spec_name, arg_name, v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_rebuild_value(spec_name, arg_name, v) for v in value]
+    return value
 
 
 @overload

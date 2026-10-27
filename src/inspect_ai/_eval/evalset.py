@@ -1976,14 +1976,13 @@ def epochs_changed(epochs: Epochs | None, config: EvalConfig) -> bool:
     )
     if requested_args is not None and recorded_args is not None:
         # Limitation: arguments are compared as recorded, i.e. after the
-        # registry has rendered them for the log. An argument the log cannot
-        # represent faithfully is therefore invisible to this comparison.
-        # Callables (e.g. `value_to_float`) are no longer such a case — they
-        # are dropped at capture time rather than stringified — but the
-        # limitation is why this stays a comment rather than a guarantee: a
-        # future unfaithfully-rendered argument would compare equal to a
-        # different value. That is tolerable here for the reason above (the
-        # worst case is a stale task not being re-run, never a wrong metric).
+        # registry has rendered them for the log. A `value_to_float()`
+        # converter is recorded as its constructor arguments and compares
+        # exactly, but an unsupported callable is recorded as a name-only
+        # marker, so two different unsupported callables with the same
+        # name compare equal here. That is tolerable for the reason above
+        # (the worst case is a stale task not being re-run, never a wrong
+        # metric: rebuilding a reducer from such a log fails explicitly).
         return requested_args != recorded_args
 
     return False

@@ -10,6 +10,7 @@ import pytest
 
 from inspect_ai import Epochs, Task, eval
 from inspect_ai._eval.score import score
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.registry import registry_info
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import (
@@ -30,7 +31,12 @@ from inspect_ai.scorer import (
 )
 from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.scorer._reducer.reducer import pass_at, pass_k
-from inspect_ai.scorer._reducer.registry import reducer_log_name
+from inspect_ai.scorer._reducer.registry import (
+    ReducerSpec,
+    create_reducers_from_specs,
+    reducer_log_name,
+    reducer_specs,
+)
 
 avg_reducer = mean_score()
 median_reducer = median_score()
@@ -999,6 +1005,172 @@ def test_collect_preserve_metadata() -> None:
     assert reduced.answer == "1"
     assert reduced.explanation == "An explanation"
     assert reduced.metadata == {"foo": "bar"}
+
+
+@score_reducer(name="labelled_first")
+def labelled_first(label: str = "first") -> ScoreReducer:
+    def reduce(scores: list[Score]) -> Score:
+        return Score(value=f"{label}:{scores[0].value}")
+
+    return reduce
+
+
+def _specs_for(reducer: ScoreReducer) -> list[ReducerSpec]:
+    specs = reducer_specs(reducer)
+    assert specs is not None
+    return specs
+
+
+@pytest.mark.parametrize(
+    "make_reducer",
+    [
+        lambda conv: at_least(2, value_to_float=conv),
+        lambda conv: pass_at(2, value_to_float=conv),
+        lambda conv: pass_k(2, value_to_float=conv),
+        lambda conv: mean_score(value_to_float=conv),
+        lambda conv: median_score(value_to_float=conv),
+        lambda conv: max_score(value_to_float=conv),
+    ],
+)
+def test_reducer_value_to_float_round_trip(make_reducer) -> None:
+    # A converter created by value_to_float() is recorded as its
+    # constructor arguments and rebuilt with them, not as the
+    # string "to_float" (which crashes when the reducer is applied).
+    converter = value_to_float(correct="yes", incorrect="no")
+    reducer = make_reducer(converter)
+    specs = _specs_for(reducer)
+    assert specs[0].args["value_to_float"] == {
+        "__value_to_float__": {
+            "correct": "yes",
+            "incorrect": "no",
+            "partial": "P",
+            "noanswer": "N",
+        }
+    }
+    scores = [Score(value="yes"), Score(value="yes"), Score(value="no")]
+    rebuilt = create_reducers_from_specs(specs)[0]
+    assert rebuilt(scores).value == reducer(scores).value
+
+
+def test_reducer_unsupported_callable_arg_fails_explicitly() -> None:
+    # An arbitrary callable cannot be recorded in a log; rebuilding
+    # must fail with an explicit error rather than pass the
+    # callable's name through as a string argument.
+    def custom_converter(value: Value) -> float:
+        return 1.0
+
+    specs = _specs_for(mean_score(value_to_float=custom_converter))
+    assert specs[0].args["value_to_float"] == {
+        "__unsupported_callable__": "custom_converter"
+    }
+    with pytest.raises(PrerequisiteError, match="Cannot rebuild reducer"):
+        create_reducers_from_specs(specs)
+
+
+def test_reducer_legacy_string_value_to_float_fails_explicitly() -> None:
+    # Specs recorded before callable arguments were handled hold the
+    # string "to_float"; rebuilding must fail explicitly, not with a
+    # TypeError when the reducer is applied.
+    specs = [ReducerSpec(name="at_least", args={"k": 2, "value_to_float": "to_float"})]
+    with pytest.raises(PrerequisiteError, match="recorded as a name only"):
+        create_reducers_from_specs(specs)
+
+
+def test_reducer_string_arg_round_trip() -> None:
+    # A genuine string argument is data, not a callable: it must be
+    # recorded and rebuilt unchanged.
+    specs = _specs_for(labelled_first("keepme"))
+    assert specs[0].args == {"label": "keepme"}
+    rebuilt = create_reducers_from_specs(specs)[0]
+    assert rebuilt([Score(value=1)]).value == "keepme:1"
+
+
+@score_reducer(name="positional_only")
+def positional_only(x: int, /, scale: int = 2) -> ScoreReducer:
+    def reduce(scores: list[Score]) -> Score:
+        return Score(value=x * scale)
+
+    return reduce
+
+
+def test_reducer_positional_only_factory_recording() -> None:
+    # Creation and recording must work for positional-only factories
+    # (rebuilding any registry object passes arguments as keywords,
+    # so only the recording is pinned here).
+    reducer = positional_only(3)
+    assert reducer([Score(value=0)]).value == 6
+    specs = _specs_for(reducer)
+    assert specs[0].args == {"x": 3}
+
+
+@score_reducer(name="sum_args")
+def sum_args(*vals: int) -> ScoreReducer:
+    def reduce(scores: list[Score]) -> Score:
+        total = 0
+        for val in vals:
+            total += val
+        return Score(value=total)
+
+    return reduce
+
+
+def test_reducer_var_positional_factory_recording() -> None:
+    specs = _specs_for(sum_args(1, 2))
+    assert specs[0].args == {"vals": [1, 2]}
+
+
+@score_reducer(name="kwargs_total")
+def kwargs_total(**opts: int) -> ScoreReducer:
+    def reduce(scores: list[Score]) -> Score:
+        total = 0
+        for val in opts.values():
+            total += val
+        return Score(value=total)
+
+    return reduce
+
+
+def test_reducer_var_keyword_factory_round_trip() -> None:
+    # **kwargs arguments are recorded flattened (not nested under the
+    # variadic parameter name), so the rebuilt reducer sees the
+    # same options as the original.
+    specs = _specs_for(kwargs_total(x=5, y=1))
+    assert specs[0].args == {"x": 5, "y": 1}
+    rebuilt = create_reducers_from_specs(specs)[0]
+    assert rebuilt([Score(value=0)]).value == 6
+
+
+@score_reducer(name="convert_first")
+def convert_first(converters: list[ValueToFloat]) -> ScoreReducer:
+    def reduce(scores: list[Score]) -> Score:
+        return Score(value=converters[0](scores[0].value))
+
+    return reduce
+
+
+def test_reducer_nested_value_to_float_round_trip() -> None:
+    # Callables nested inside container arguments are recorded and
+    # rebuilt the same way as top-level ones.
+    specs = _specs_for(convert_first([value_to_float(correct="yes", incorrect="no")]))
+    rebuilt = create_reducers_from_specs(specs)[0]
+    assert rebuilt([Score(value="yes")]).value == 1.0
+
+
+def test_reducer_partial_value_to_float_record_uses_defaults() -> None:
+    # A record holding only some converter arguments rebuilds with
+    # the value_to_float() defaults for the rest, not None.
+    specs = [
+        ReducerSpec(
+            name="at_least",
+            args={
+                "k": 2,
+                "value_to_float": {"__value_to_float__": {"incorrect": "no"}},
+            },
+        )
+    ]
+    rebuilt = create_reducers_from_specs(specs)[0]
+    scores = [Score(value="C"), Score(value="C"), Score(value="no")]
+    assert rebuilt(scores).value == 1
 
 
 def _is_nan(x: Any) -> bool:

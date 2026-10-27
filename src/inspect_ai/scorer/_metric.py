@@ -324,6 +324,27 @@ def value_to_float(
     return to_float
 
 
+def value_to_float_params(fn: ValueToFloat) -> dict[str, Any] | None:
+    """Constructor arguments for a converter created by `value_to_float()`.
+
+    Returns the arguments `value_to_float(**params)` rebuilds an
+    equivalent converter from, or None if `fn` was not created by
+    `value_to_float()` (an arbitrary callable cannot be recorded).
+    """
+    if getattr(fn, "__module__", None) != __name__:
+        return None
+    if getattr(fn, "__qualname__", None) != "value_to_float.<locals>.to_float":
+        return None
+    closure = getattr(fn, "__closure__", None) or ()
+    code = getattr(fn, "__code__", None)
+    if code is None:
+        return None
+    params = {name: cell.cell_contents for name, cell in zip(code.co_freevars, closure)}
+    if set(params) != {"correct", "incorrect", "partial", "noanswer"}:
+        return None
+    return params
+
+
 @runtime_checkable
 class MetricDeprecated(Protocol):
     def __call__(self, scores: list[Score]) -> Value: ...
