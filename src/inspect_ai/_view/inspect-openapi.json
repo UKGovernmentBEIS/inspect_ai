@@ -1903,7 +1903,7 @@
         "type": "object"
       },
       "ContentReasoning": {
-        "description": "Reasoning content.\n\nSee the specification for [thinking blocks](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#understanding-thinking-blocks) for Claude models.",
+        "description": "Reasoning content.\n\nSee the specification for [thinking blocks](https://platform.claude.com/docs/en/build-with-claude/extended-thinking) for Claude models.",
         "properties": {
           "internal": {
             "anyOf": [
@@ -2880,6 +2880,50 @@
           }
         },
         "title": "EvalConfig",
+        "type": "object"
+      },
+      "EvalCreatedBy": {
+        "description": "The task that added this eval's task to its run with `enqueue_task()`.\n\nThe creating task ran in the run that first added this task (a retry of\nthis task runs under a new `run_id`); find its log by `eval_id`, or by\n`task_id` if that task was retried.",
+        "properties": {
+          "epoch": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Epoch"
+          },
+          "eval_id": {
+            "title": "Eval Id",
+            "type": "string"
+          },
+          "sample_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sample Id"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "eval_id",
+          "task_id"
+        ],
+        "title": "EvalCreatedBy",
         "type": "object"
       },
       "EvalDataset": {
@@ -5014,6 +5058,16 @@
           "created": {
             "title": "Created",
             "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvalCreatedBy"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "dataset": {
             "$ref": "#/components/schemas/EvalDataset"

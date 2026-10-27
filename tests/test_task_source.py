@@ -14,7 +14,7 @@ from inspect_ai import Task, TaskSource, eval, eval_async, task_source
 from inspect_ai._eval.loader import resolve_tasks
 from inspect_ai._eval.task.enqueue import enqueue_task
 from inspect_ai.dataset import Sample
-from inspect_ai.log import EvalLog, EvalSample
+from inspect_ai.log import EvalCreatedBy, EvalLog, EvalSample
 from inspect_ai.model import get_model
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 from inspect_ai.util._display import init_display_type
@@ -650,3 +650,75 @@ def test_task_source_name_rejected_outside_eval() -> None:
         resolve_tasks(
             "decorated_generations", {}, get_model("mockllm/model"), None, None, None
         )
+
+
+@pytest.mark.parametrize("max_tasks", [1, 3])
+async def test_task_source_tasks_record_no_creator(max_tasks: int) -> None:
+    # tasks a TaskSource provides, returns from its callbacks, or adds with
+    # enqueue_task() from them are the run's own; only the seed's solver
+    # (task code) records a creator. sample_complete() runs in the completed
+    # sample's context, so it checks that the source runs as not_task_code();
+    # task_complete() and next_tasks() run outside any task.
+    @solver
+    def enqueue_from_sample() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            enqueue_task(_task("from-seed-solver"))
+            return state
+
+        return solve
+
+    class _Source(TaskSource):
+        def __init__(self) -> None:
+            self.next_called = False
+
+        def initial_tasks(self) -> list[Task]:
+            return [
+                Task(
+                    dataset=[Sample(id="s", input="hi")],
+                    solver=[enqueue_from_sample()],
+                    name="seed",
+                )
+            ]
+
+        async def sample_complete(
+            self, sample: EvalSample, task: Task
+        ) -> list[Task] | None:
+            if task.name != "seed":
+                return None
+            enqueue_task(_task("enqueued-in-sample-complete"))
+            return [_task("returned-from-sample-complete")]
+
+        async def task_complete(self, log: EvalLog) -> list[Task] | None:
+            if log.eval.task != "seed":
+                return None
+            enqueue_task(_task("enqueued-in-task-complete"))
+            return [_task("returned-from-task-complete")]
+
+        async def next_tasks(self) -> list[Task] | None:
+            if self.next_called:
+                return None
+            self.next_called = True
+            enqueue_task(_task("enqueued-in-next-tasks"))
+            return [_task("from-next-tasks")]
+
+    init_display_type("none")
+    logs = await eval_async(_Source(), model="mockllm/model", max_tasks=max_tasks)
+
+    created_by = {log.eval.task: log.eval.created_by for log in logs}
+    assert len(created_by) == len(logs)
+    seed = next(log for log in logs if log.eval.task == "seed")
+    assert created_by == {
+        "seed": None,
+        "from-seed-solver": EvalCreatedBy(
+            eval_id=seed.eval.eval_id,
+            task_id=seed.eval.task_id,
+            sample_id="s",
+            epoch=1,
+        ),
+        "enqueued-in-sample-complete": None,
+        "returned-from-sample-complete": None,
+        "enqueued-in-task-complete": None,
+        "returned-from-task-complete": None,
+        "enqueued-in-next-tasks": None,
+        "from-next-tasks": None,
+    }

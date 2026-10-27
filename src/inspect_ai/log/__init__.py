@@ -49,6 +49,7 @@ from ._headline import ResolvedHeadlineMetric, headline_metric
 from ._log import (
     ConnectionLimitChange,
     EvalConfig,
+    EvalCreatedBy,
     EvalDataset,
     EvalLog,
     EvalMetric,
@@ -97,6 +98,7 @@ __all__ = [
     "effective_eval_config",
     "effective_generate_config",
     "EvalConfig",
+    "EvalCreatedBy",
     "SentinelConfig",
     "SentinelEntry",
     "EvalError",

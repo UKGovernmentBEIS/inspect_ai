@@ -17,10 +17,14 @@ caller can't enqueue into the wrong (or torn-down) run.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from contextvars import ContextVar, Token
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from threading import Lock
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Callable, Iterator
+
+from inspect_ai.log._log import EvalCreatedBy
+from inspect_ai.log._samples import sample_active
 
 if TYPE_CHECKING:
     from inspect_ai._eval.task.resolved import ResolvedTask
@@ -48,9 +52,17 @@ class TaskEnqueuer:
     on_enqueue: Callable[[], None] | None = None
     """Fired after tasks are buffered — used by a live run to wake dispatch."""
 
-    def enqueue(self, tasks: "Tasks") -> list["ResolvedTask"]:
-        """Resolve ``tasks`` and queue them to run; returns the resolved tasks."""
-        resolved = self._resolve(tasks)
+    def enqueue(
+        self, tasks: "Tasks", *, created_by: EvalCreatedBy | None = None
+    ) -> list["ResolvedTask"]:
+        """Resolve ``tasks`` and queue them to run; returns the resolved tasks.
+
+        ``created_by`` is recorded in each resolved task's log header.
+        """
+        resolved = [
+            replace(resolved_task, created_by=created_by)
+            for resolved_task in self._resolve(tasks)
+        ]
         with self._lock:
             self._pending.extend(resolved)
         if self.on_enqueue is not None:
@@ -88,12 +100,67 @@ def clear_task_enqueuer(token: Token[TaskEnqueuer | None]) -> None:
     _enqueuer.reset(token)
 
 
+# The task whose own code runs in this context, as ``EvalSpec.created_by``
+# records it before the sample fields are filled in. Set by ``task_run`` for
+# the task's lifetime (so it propagates to the task's samples) and cleared by
+# :func:`not_task_code` for code Inspect runs in that context on the run's
+# behalf.
+_running_task: ContextVar[EvalCreatedBy | None] = ContextVar(
+    "running_task", default=None
+)
+
+
+def register_running_task(eval_id: str, task_id: str) -> Token[EvalCreatedBy | None]:
+    """Record the task running in this context; returns a token to restore with."""
+    return _running_task.set(EvalCreatedBy(eval_id=eval_id, task_id=task_id))
+
+
+def clear_running_task(token: Token[EvalCreatedBy | None]) -> None:
+    """Restore the running task in scope before the matching ``register`` call."""
+    _running_task.reset(token)
+
+
+@contextmanager
+def not_task_code() -> Iterator[None]:
+    """Run code that is not a task's own (a hook, the run's ``TaskSource``).
+
+    Tasks such code adds with :func:`enqueue_task` record no creator, as the
+    run was given them rather than a task creating them, even when the code
+    runs within a task's context.
+    """
+    token = _running_task.set(None)
+    try:
+        yield
+    finally:
+        _running_task.reset(token)
+
+
+def task_creator() -> EvalCreatedBy | None:
+    """The task (and sample, if any) whose code is running in this context."""
+    running = _running_task.get()
+    if running is None:
+        return None
+    active = sample_active()
+    if active is None:
+        return running
+    return running.model_copy(
+        update={"sample_id": active.sample.id, "epoch": active.epoch}
+    )
+
+
 def enqueue_task(tasks: "Tasks", *, run_id: str | None = None) -> None:
     """Add one or more tasks to the running eval.
 
     The tasks run in this process under the current run's ``run_id`` (a fresh
     ``eval_id``/``task_id`` each, their own log files), resolved against the
     run's models and config.
+
+    When called from code that runs as part of a task (in one of its samples,
+    such as a solver, scorer, tool or agent, or in the task's ``SampleSource``),
+    each added task's log records that task in ``EvalSpec.created_by``, with the
+    sample's id and epoch when called from a sample. When called from a hook, a
+    ``TaskSource`` or code outside any task, ``created_by`` is ``None``, as it is
+    for tasks the run was given.
 
     When the run is driven by a :class:`~inspect_ai.TaskSource`, added tasks are
     *live*: they start as soon as there is free capacity. Otherwise they run as a
@@ -120,4 +187,4 @@ def enqueue_task(tasks: "Tasks", *, run_id: str | None = None) -> None:
             f"enqueue_task() run_id '{run_id}' does not match the running eval "
             f"'{enqueuer.run_id}'."
         )
-    enqueuer.enqueue(tasks)
+    enqueuer.enqueue(tasks, created_by=task_creator())

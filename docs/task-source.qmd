@@ -154,6 +154,17 @@ def spawn_followup():
 
 Enqueued tasks run under the current run id, resolved against the run's models and config, and share a buffer with tasks returned from `sample_complete` / `task_complete`. `enqueue_task()` raises if no eval is running.
 
+The log of a task added with `enqueue_task()` records which task added it, in `eval.created_by`: the creating task's `eval_id` and `task_id`, and the `sample_id` and `epoch` of the sample that added it (both `None` when it was added from task code outside a sample, such as a `SampleSource`'s `next_samples()`). `created_by` is `None` for tasks the run was given, including those a `TaskSource` provides, and for tasks added with `enqueue_task()` from a `TaskSource` callback, a hook, or code outside any task. A retried task keeps its `created_by`.
+
+```python
+from inspect_ai.log import list_eval_logs, read_eval_log
+
+for info in list_eval_logs("logs"):
+    log = read_eval_log(info, header_only=True)
+    if log.eval.created_by is not None:
+        print(log.eval.task, "added by eval", log.eval.created_by.eval_id)
+```
+
 ## Concurrency
 
 A `TaskSource` run is live: a task added mid-run starts as soon as there is free capacity, rather than waiting for a batch boundary.

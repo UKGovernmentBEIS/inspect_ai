@@ -1110,6 +1110,27 @@ class EvalShards(BaseModel):
     """One entry per shard with a current attempt, in shard order."""
 
 
+class EvalCreatedBy(BaseModel):
+    """The task that added this eval's task to its run with `enqueue_task()`.
+
+    The creating task ran in the run that first added this task (a retry of
+    this task runs under a new `run_id`); find its log by `eval_id`, or by
+    `task_id` if that task was retried.
+    """
+
+    eval_id: str
+    """`eval_id` of the creating task's eval (the attempt that added the task)."""
+
+    task_id: str
+    """`task_id` of the creating task (unchanged when that task is retried)."""
+
+    sample_id: int | str | None = Field(default=None)
+    """Id of the creating task's sample that added the task (`None` if added outside a sample)."""
+
+    epoch: int | None = Field(default=None)
+    """Epoch of the creating sample (`None` if added outside a sample)."""
+
+
 class EvalSpec(BaseModel):
     """Eval target and configuration."""
 
@@ -1221,6 +1242,13 @@ class EvalSpec(BaseModel):
 
     shards: EvalShards | None = Field(default=None)
     """Shards merged into this log (merged logs only)."""
+
+    created_by: EvalCreatedBy | None = Field(default=None)
+    """The task whose code added this task to the run with `enqueue_task()`.
+
+    `None` for tasks the run was given, including those a `TaskSource`
+    provides, and for tasks added by a hook, a `TaskSource` callback, or code
+    outside any task. Kept when the task is retried."""
 
     # allow field model_args
     model_config = ConfigDict(protected_namespaces=())

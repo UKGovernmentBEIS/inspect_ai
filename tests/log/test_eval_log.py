@@ -42,6 +42,7 @@ from inspect_ai.event._subtask import SubtaskEvent
 from inspect_ai.event._timeline import TimelineEvent, timeline_build
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log import (
+    EvalCreatedBy,
     EvalError,
     EvalShardEntry,
     EvalShards,
@@ -703,6 +704,49 @@ def test_eval_log_header_without_shards_has_no_shards_key(tmp_path: Path) -> Non
 
     assert "shards" not in _eval_log_header_json(location)["eval"]
     assert read_eval_log(location, header_only=True).eval.shards is None
+
+
+log_formats_json = os.path.join("tests", "log", "test_eval_log", "log_formats.json")
+
+
+@pytest.mark.parametrize(
+    "created_by",
+    [
+        EvalCreatedBy(eval_id="e1", task_id="t1", sample_id=3, epoch=2),
+        EvalCreatedBy(eval_id="e1", task_id="t1", sample_id="s", epoch=1),
+        EvalCreatedBy(eval_id="e1", task_id="t1"),
+    ],
+)
+@pytest.mark.parametrize("format", ["eval", "json"])
+def test_eval_log_round_trips_created_by(
+    tmp_path: Path, format: Literal["eval", "json"], created_by: EvalCreatedBy
+) -> None:
+    log = read_eval_log(log_formats_eval)
+    log.eval.created_by = created_by
+    location = str(tmp_path / f"2026-10-27T10-00-00+00-00_child_abc.{format}")
+    write_eval_log(log, location)
+
+    assert read_eval_log(location).eval.created_by == created_by
+    assert read_eval_log(location, header_only=True).eval.created_by == created_by
+    [info] = list_eval_logs(str(tmp_path))
+    [header] = read_eval_log_headers([info])
+    assert header.eval.created_by == created_by
+    # an int sample id stays an int
+    assert type(header.eval.created_by.sample_id) is type(created_by.sample_id)
+
+
+@pytest.mark.parametrize("location", [log_formats_eval, log_formats_json])
+def test_eval_log_without_created_by_reads_and_writes_none(
+    tmp_path: Path, location: str
+) -> None:
+    # logs written before `created_by` existed (and logs of tasks the run was
+    # given) have no key; it reads as None and is not written back
+    log = read_eval_log(location, header_only=True)
+    assert log.eval.created_by is None
+    written = str(tmp_path / "plain.eval")
+    write_eval_log(log, written)
+    assert "created_by" not in _eval_log_header_json(written)["eval"]
+    assert read_eval_log(written, header_only=True).eval.created_by is None
 
 
 def test_eval_log_header_with_unknown_keys_validates(tmp_path: Path) -> None:

@@ -24,7 +24,7 @@ from inspect_ai.analysis import (
     samples_df,
 )
 from inspect_ai.analysis._dataframe import extract
-from inspect_ai.analysis._dataframe.evals.columns import EvalTask
+from inspect_ai.analysis._dataframe.evals.columns import EvalColumn, EvalTask
 from inspect_ai.analysis._dataframe.extract import (
     message_as_str,
     message_render_cache,
@@ -36,6 +36,7 @@ from inspect_ai.analysis._dataframe.util import resolve_logs
 from inspect_ai.dataset import Sample
 from inspect_ai.event import ModelEvent
 from inspect_ai.log import (
+    EvalCreatedBy,
     EvalLog,
     MetadataEdit,
     ProvenanceData,
@@ -300,6 +301,25 @@ def test_evals_df_columns():
     )
     assert "eval_id" in df.columns
     assert "task_display_name" in df.columns
+
+
+def test_evals_df_created_by_columns() -> None:
+    # `eval.created_by` paths are valid column paths; logs without it give None
+    columns = EvalInfo + [
+        EvalColumn("created_by_eval_id", path="eval.created_by.eval_id"),
+        EvalColumn("created_by_sample_id", path="eval.created_by.sample_id"),
+    ]
+    enqueued = read_eval_log(SECURITY_GUIDE_LOG)
+    enqueued.eval.created_by = EvalCreatedBy(
+        eval_id="creator", task_id="creator-task", sample_id="s", epoch=1
+    )
+    given = read_eval_log(LOGS_DIR / "2025-05-12T20-28-13-04-00_popularity.json")
+
+    df = evals_df([enqueued, given], columns=columns, quiet=True).set_index("eval_id")
+
+    assert df.loc[enqueued.eval.eval_id, "created_by_eval_id"] == "creator"
+    assert df.loc[enqueued.eval.eval_id, "created_by_sample_id"] == "s"
+    assert pd.isna(df.loc[given.eval.eval_id, "created_by_eval_id"])
 
 
 def test_evals_df_strict():
