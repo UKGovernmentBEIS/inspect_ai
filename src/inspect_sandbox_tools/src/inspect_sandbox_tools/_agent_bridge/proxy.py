@@ -812,12 +812,23 @@ async def model_proxy_server(
 
                     seq_num = 0
 
+                    # Like the real API, created/in_progress carry no results yet:
+                    # items arrive via output_item.added (openai >= 3.31 rejects
+                    # an added index that the snapshot already holds).
+                    in_progress_resp = {
+                        **resp,
+                        "status": "in_progress",
+                        "output": [],
+                        "usage": None,
+                        "incomplete_details": None,
+                    }
+
                     # 1. response.created event
                     seq_num += 1
                     yield _sse_event(
                         "response.created",
                         {
-                            "response": resp,
+                            "response": in_progress_resp,
                             "sequence_number": seq_num,
                             "type": "response.created",
                         },
@@ -826,8 +837,6 @@ async def model_proxy_server(
 
                     # 2. response.in_progress event
                     seq_num += 1
-                    in_progress_resp = dict(resp)
-                    in_progress_resp["status"] = "in_progress"
                     yield _sse_event(
                         "response.in_progress",
                         {
