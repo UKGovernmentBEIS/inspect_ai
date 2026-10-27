@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import subprocess
@@ -974,6 +975,81 @@ def test_retry_records_the_acp_server_the_retry_uses(
     assert used == executed
 
 
+@pytest.mark.parametrize(
+    "recorded,acp_lines,correction,executed",
+    [
+        ([False, 8123], [[], []], "TCP port 8123", [8123]),
+        (
+            [8123, "/tmp/acp.sock"],
+            [["TCP port 8123"]] * 2,
+            "UNIX socket /tmp/acp.sock",
+            ["/tmp/acp.sock"],
+        ),
+        ([8123, None], [["TCP port 8123"]] * 2, "off", [None]),
+        ([None, 8123], [[], ["TCP port 8123"]], None, [8123]),
+    ],
+)
+def test_retry_records_the_acp_server_after_recovery_finalizes_a_log(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    recorded: list[bool | int | str | None],
+    acp_lines: list[list[str]],
+    correction: str | None,
+    executed: list[bool | int | str | None],
+) -> None:
+    import inspect_ai._eval.eval as eval_module
+    import inspect_ai.log._recover as recover_module
+
+    logs = []
+    for acp_server in recorded:
+        log = eval(mytask(), model="mockllm/model")[0]
+        config = log.eval.config.model_copy(update={"acp_server": acp_server})
+        logs.append(
+            log.model_copy(
+                update={"eval": log.eval.model_copy(update={"config": config})}
+            )
+        )
+    # recovery finalizes the first log, so only the second is retried
+    logs[0] = logs[0].model_copy(update={"status": "started"})
+
+    async def recover_eval_log_async(location: str, **kwargs: Any) -> Any:
+        assert location == logs[0].location
+        return logs[0].model_copy(update={"status": "success"})
+
+    used: list[bool | int | str | None] = []
+
+    async def eval_async(**kwargs: Any) -> list[Any]:
+        used.append(kwargs["acp_server"])
+        return [kwargs["tasks"].log]
+
+    monkeypatch.setattr(
+        recover_module, "recover_eval_log_async", recover_eval_log_async
+    )
+    monkeypatch.setattr(eval_module, "eval_async", eval_async)
+    with caplog.at_level(logging.INFO, logger="inspect_ai._eval.eval"):
+        eval_retry(logs)
+
+    records = [r.getMessage() for r in caplog.records if "Retrying" in r.getMessage()]
+    assert [
+        [
+            line.removeprefix("  ACP server: ")
+            for line in record.splitlines()
+            if line.startswith("  ACP server: ")
+        ]
+        for record in records[:2]
+    ] == acp_lines
+    corrections = records[2:]
+    assert corrections == (
+        []
+        if correction is None
+        else [
+            f"Retrying {logs[1].location} with ACP server {correction}, as "
+            "recovery finalized an earlier log."
+        ]
+    )
+    assert used == executed
+
+
 _FAILING_TASK = """
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
@@ -1048,3 +1124,39 @@ def test_eval_retry_records_in_a_fresh_process(
     record = f"Task: failing in {(tmp_path / 'task.py').as_posix()}"
     assert result.stdout.count(record) == stdout, result.stdout
     assert result.stderr.count(record) == stderr, result.stderr
+
+
+def test_eval_retry_reads_logging_settings_from_dotenv(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "task.py").write_text(_FAILING_TASK)
+    log = eval("task.py", model="mockllm/model", log_dir="logs")[0]
+    assert log.status == "error" and log.location is not None
+
+    # written after the eval above, which would load it into this process
+    (tmp_path / ".env").write_text(
+        "INSPECT_LOG_LEVEL=info\nINSPECT_PY_LOGGER_FORMAT=json\n"
+    )
+    env = {**os.environ}
+    for name in ["INSPECT_LOG_LEVEL", "INSPECT_PY_LOGGER_FORMAT", "INSPECT_DISPLAY"]:
+        env.pop(name, None)
+    result = subprocess.run(
+        [sys.executable, "-c", _RETRY_SCRIPT, log.location, "none", "", "logs"],
+        env=env,
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=180,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    records = [
+        record
+        for line in result.stderr.splitlines()
+        if line.startswith("{")
+        and (record := json.loads(line))["msg"].startswith("Retrying")
+    ]
+    assert len(records) == 1, result.stderr
+    assert records[0]["level"] == "INFO"
+    assert f"Task: failing in {(tmp_path / 'task.py').as_posix()}" in records[0]["msg"]

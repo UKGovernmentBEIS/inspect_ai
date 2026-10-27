@@ -65,6 +65,7 @@ from inspect_ai._util.constants import (
     DEFAULT_LOG_SHARED,
     JSON_LOG_FORMAT,
 )
+from inspect_ai._util.dotenv import init_dotenv
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import absolute_file_path, filesystem
 from inspect_ai._util.log_context import set_run_shape
@@ -1640,14 +1641,27 @@ def retry_record(eval_log: EvalLog, acp_server: bool | int | str | None) -> str:
     if spec.config.sentinel is not None:
         names = ", ".join(_sentinel_names(spec.config.sentinel))
         lines.append(f"  Sentinel: {names}")
-    if isinstance(acp_server, bool):
-        if acp_server:
-            lines.append("  ACP server: default UNIX socket")
-    elif isinstance(acp_server, int):
-        lines.append(f"  ACP server: TCP port {acp_server}")
-    elif isinstance(acp_server, str):
-        lines.append(f"  ACP server: UNIX socket {acp_server}")
+    acp = _acp_server_description(acp_server)
+    if acp is not None:
+        lines.append(f"  ACP server: {acp}")
     return "\n".join(lines)
+
+
+def _acp_server_description(acp_server: bool | int | str | None) -> str | None:
+    if isinstance(acp_server, bool):
+        return "default UNIX socket" if acp_server else None
+    elif isinstance(acp_server, int):
+        return f"TCP port {acp_server}"
+    elif isinstance(acp_server, str):
+        return f"UNIX socket {acp_server}"
+    return None
+
+
+def _emit_retry_record(record: str) -> None:
+    task_display().print(record)
+    # the log display prints through logging.info()
+    if display_type() != "log":
+        log.info(record)
 
 
 def _retry_acp_servers(
@@ -1828,15 +1842,18 @@ async def eval_retry_async(
         )
         for task in tasks
     ]
-    # eval_async() initializes logging only later, after recovery
+    # eval_async() initializes logging (after loading .env) only later,
+    # after recovery
+    init_dotenv()
     init_logger(log_level, log_level_transcript)
     log_acp_servers = _retry_acp_servers(acp_server, retry_eval_logs, set())
+    record_names = [
+        eval_log.location or eval_log.eval.task for eval_log in retry_eval_logs
+    ]
     for eval_log, log_acp_server in zip(retry_eval_logs, log_acp_servers):
-        record = retry_record(eval_log, log_acp_server if acp_server is None else None)
-        task_display().print(record)
-        # the log display prints through logging.info()
-        if display_type() != "log":
-            log.info(record)
+        _emit_retry_record(
+            retry_record(eval_log, log_acp_server if acp_server is None else None)
+        )
 
     # opportunistically recover crashed logs before retrying
     from inspect_ai.log._recover import (
@@ -1887,6 +1904,18 @@ async def eval_retry_async(
     # eval them in turn
     eval_logs: list[EvalLog] = []
     acp_servers = _retry_acp_servers(acp_server, retry_eval_logs, finalized_indexes)
+    # bindings carry over only from retried logs, so a log that recovery
+    # finalized can change what a later log runs with
+    if acp_server is None:
+        for i, name in enumerate(record_names):
+            acp = _acp_server_description(acp_servers[i])
+            if i not in finalized_indexes and acp != _acp_server_description(
+                log_acp_servers[i]
+            ):
+                _emit_retry_record(
+                    f"Retrying {name} with ACP server {acp or 'off'}, as recovery "
+                    "finalized an earlier log."
+                )
     for i, eval_log in enumerate(retry_eval_logs):
         # don't start another retry once the caller is cancelled (under trio
         # a Ctrl-C leaves the scope cancelled after the interrupted eval)
