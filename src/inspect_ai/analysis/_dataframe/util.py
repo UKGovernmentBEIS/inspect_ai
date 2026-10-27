@@ -212,7 +212,9 @@ def records_to_pandas(records: list[dict[str, ColumnType]]) -> "pd.DataFrame":
                 if len(types) > 1 and not types.issubset({"str", "bytes"}):
                     df[col] = df[col].apply(
                         lambda x: (
-                            str(x) if x is not None and not isinstance(x, str) else x
+                            str(x)
+                            if not _is_missing(x) and not isinstance(x, str)
+                            else x
                         )
                     )
 
