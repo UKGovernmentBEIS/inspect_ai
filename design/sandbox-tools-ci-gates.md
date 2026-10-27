@@ -18,7 +18,7 @@ The CI gates exist to prevent two failure modes:
 
 ## Package test gate
 
-Separate from the slow integration gates below, the **`sandbox-tools-unit`** job runs the package's complete test suite (`src/inspect_sandbox_tools/tests/`) on any change under `src/inspect_sandbox_tools/**` — including test-only changes. The root `test` job neither collects these tests (`testpaths` is limited to `tests/`) nor installs the `inspect_sandbox_tools` package. The dedicated job installs the package with its test dependencies, including `pytest-asyncio`; targeting the nested test path makes pytest load the package's config (`asyncio_mode=auto`). It needs no Docker or built binary, so it gives earlier feedback than the Docker-based integration gates.
+Separate from the slow integration gates below, the **`sandbox-tools-unit`** job runs the package's complete test suite (`src/inspect_sandbox_tools/tests/`) on any change under `src/inspect_sandbox_tools/**` — including test-only changes. The root `test` job neither collects these tests (`testpaths` is limited to `tests/`) nor installs the `inspect_sandbox_tools` package. The dedicated job installs the package with its test dependencies, including `pytest-asyncio`, into its own venv from a hashed lock (`src/inspect_sandbox_tools/tests/requirements.txt`, whose header is the command that regenerates it); targeting the nested test path makes pytest load the package's config (`asyncio_mode=auto`). It needs no Docker or built binary, so it gives earlier feedback than the Docker-based integration gates.
 
 ## Gates
 

@@ -21,6 +21,7 @@ from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai._util.exception import TerminateSampleError, TerminateTaskError
 from inspect_ai.model._call_tools import (
     classify_tool_exception,
+    decisive_tool_exception,
     resolve_tool_content,
     tool_call_error,
 )
@@ -208,6 +209,138 @@ def test_scalar_stringified():
     content, truncated = resolve_tool_content(42, "t", None)
     assert content == "42"
     assert truncated is None
+
+
+# ---------------------------------------------------------------------------
+# decisive_tool_exception (exception groups)
+# ---------------------------------------------------------------------------
+
+
+_GROUP_REPEATS = 50
+"""Order-sensitive group cases repeat with fresh exceptions: a group's leaves
+were once ordered by a set (object addresses), so one order could pass by
+chance."""
+
+
+def _token_limit() -> LimitExceededError:
+    return LimitExceededError("token", value=1001, limit=1000)
+
+
+def _ordered(leaves: list[Exception], reverse: bool) -> list[Exception]:
+    return leaves[::-1] if reverse else leaves
+
+
+@pytest.mark.parametrize(
+    "ex",
+    [
+        ToolError("retry"),
+        RuntimeError("defect"),
+        _token_limit(),
+        TerminateSampleError("x"),
+    ],
+    ids=lambda ex: type(ex).__name__,
+)
+def test_single_exception_is_its_own_decision(ex: Exception) -> None:
+    assert decisive_tool_exception(ex) is ex
+
+
+def test_single_exception_context_is_not_followed() -> None:
+    """Only the group structure is walked; a handled cause or context is history."""
+    try:
+        try:
+            raise RuntimeError("handled")
+        except RuntimeError:
+            raise ToolError("retry")
+    except ToolError as ex:
+        assert decisive_tool_exception(ex) is ex
+
+
+@pytest.mark.parametrize("fatal_first", [False, True])
+def test_unexpected_leaf_wins_over_expected(fatal_first: bool) -> None:
+    for _ in range(_GROUP_REPEATS):
+        fatal = RuntimeError("fatal defect")
+        group = ExceptionGroup(
+            "tool errors", _ordered([ToolError("retry"), fatal], fatal_first)
+        )
+        assert decisive_tool_exception(group) is fatal
+
+
+@pytest.mark.parametrize("limit_first", [False, True])
+def test_limit_leaf_wins_over_expected(limit_first: bool) -> None:
+    for _ in range(_GROUP_REPEATS):
+        limit = _token_limit()
+        group = ExceptionGroup(
+            "tool errors", _ordered([ToolError("retry"), limit], limit_first)
+        )
+        assert decisive_tool_exception(group) is limit
+
+
+@pytest.mark.parametrize("limit_first", [False, True])
+def test_unexpected_leaf_wins_over_limit(limit_first: bool) -> None:
+    for _ in range(_GROUP_REPEATS):
+        fatal = RuntimeError("fatal defect")
+        group = ExceptionGroup(
+            "tool errors", _ordered([fatal, _token_limit()], limit_first)
+        )
+        assert decisive_tool_exception(group) is fatal
+
+
+def test_output_limit_is_an_expected_error() -> None:
+    """An output limit is the tool's own (it carries partial output), not a sample limit."""
+    first = ToolError("retry")
+    group = ExceptionGroup(
+        "tool errors", [first, OutputLimitExceededError("1 KiB", "partial")]
+    )
+    assert decisive_tool_exception(group) is first
+
+
+def test_all_expected_leaves_decide_by_the_first() -> None:
+    for _ in range(_GROUP_REPEATS):
+        first = ToolError("first")
+        group = ExceptionGroup("tool errors", [first, ToolError("second")])
+        assert decisive_tool_exception(group) is first
+
+
+def test_nested_groups_are_walked_in_order() -> None:
+    for _ in range(_GROUP_REPEATS):
+        fatal = RuntimeError("fatal defect")
+        group = ExceptionGroup(
+            "outer",
+            [
+                ExceptionGroup("a", [ToolError("retry")]),
+                ExceptionGroup(
+                    "b",
+                    [ToolError("again"), ExceptionGroup("c", [_token_limit(), fatal])],
+                ),
+            ],
+        )
+        assert decisive_tool_exception(group) is fatal
+
+
+@pytest.mark.parametrize("terminate_first", [False, True])
+def test_termination_wins_over_every_other_leaf(terminate_first: bool) -> None:
+    for _ in range(_GROUP_REPEATS):
+        terminate = TerminateSampleError("stop")
+        group = ExceptionGroup(
+            "tool errors",
+            _ordered(
+                [ToolError("retry"), RuntimeError("defect"), _token_limit(), terminate],
+                terminate_first,
+            ),
+        )
+        assert decisive_tool_exception(group) is terminate
+
+
+def test_group_context_is_not_followed() -> None:
+    """A group raised while handling an exception is decided by its leaves alone."""
+    try:
+        try:
+            raise RuntimeError("handled")
+        except RuntimeError:
+            raise ExceptionGroup("tool errors", [ToolError("retry")])
+    except ExceptionGroup as group:
+        decided = decisive_tool_exception(group)
+    assert isinstance(decided, ToolError)
 
 
 # ---------------------------------------------------------------------------

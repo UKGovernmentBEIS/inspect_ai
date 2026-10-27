@@ -579,13 +579,12 @@ async def test_handle_request_oversized_raise_writes_error_and_removes_file() ->
 async def test_handle_request_bridged_tool_limit_keeps_service_handling(
     grouped: bool,
 ) -> None:
-    """A bridged host tool's `LimitExceededError` reaches the dispatcher unchanged.
+    """A bridged host tool's `LimitExceededError` ends the sample, grouped or not.
 
-    The dispatcher ends the sample for a bare `LimitExceededError` (pre-existing
-    behaviour) and treats anything else, including a task-group
-    `ExceptionGroup` wrapping one, as a plain RPC error. The bridge's `call_tool`
-    classifies the unwrapped exception but must re-raise the original, or a
-    grouped limit would newly end the sample.
+    The dispatcher ends the sample for a bare `LimitExceededError` and treats
+    anything else, including a task-group `ExceptionGroup`, as a plain RPC
+    error. The bridge's `call_tool` raises the limit that decides a group, so a
+    limit from a tool's child task is not lost as an RPC error.
     """
     from inspect_ai.agent._agent import AgentState
     from inspect_ai.agent._bridge.sandbox.service import call_tool
@@ -652,7 +651,7 @@ async def test_handle_request_bridged_tool_limit_keeps_service_handling(
     assert response["result"] is None
     assert response["error"] is not None
     assert not bridge._failure_requested.is_set()
-    assert active.limit_exceeded.call_count == (0 if grouped else 1)
+    assert active.limit_exceeded.call_count == 1
 
 
 async def test_write_response_goes_through_the_verified_responses_dir() -> None:
