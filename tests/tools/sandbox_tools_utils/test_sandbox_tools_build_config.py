@@ -1,3 +1,7 @@
+import re
+import tomllib
+from pathlib import Path
+
 import pytest
 
 from inspect_ai.tool._sandbox_tools_utils._build_config import (
@@ -133,3 +137,69 @@ def test_roundtrip_conversion(filename):
     config = filename_to_config(filename)
     reconstructed = config_to_filename(config)
     assert reconstructed == filename
+
+
+# The release builders install only pinned, hashed inputs (see RELEASING.md).
+REPO = Path(__file__).parents[3]
+UTILS = REPO / "src" / "inspect_ai" / "tool" / "_sandbox_tools_utils"
+DOCKERFILES = ["Dockerfile.pyinstaller", "Dockerfile.pyinstaller.musl"]
+
+
+def from_images(dockerfile: str) -> list[str]:
+    """External images in FROM lines, skipping references to earlier stages."""
+    text = (UTILS / dockerfile).read_text()
+    stages = re.findall(r"^FROM \S+ AS (\S+)$", text, re.MULTILINE)
+    images = re.findall(r"^FROM (\S+)", text, re.MULTILINE)
+    return [i for i in images if i not in stages and "${" not in i]
+
+
+@pytest.mark.parametrize("dockerfile", DOCKERFILES)
+def test_builder_base_images_are_pinned_by_digest(dockerfile: str) -> None:
+    images = from_images(dockerfile)
+    assert images
+    assert all(re.fullmatch(r"\S+:\S+@sha256:[0-9a-f]{64}", i) for i in images)
+
+
+@pytest.mark.parametrize("dockerfile", DOCKERFILES)
+def test_builders_pip_install_only_the_hashed_lock(dockerfile: str) -> None:
+    text = (UTILS / dockerfile).read_text().replace("\\\n", " ")
+    installs = [line for line in text.splitlines() if "pip install" in line]
+    assert len(installs) == 1
+    assert {
+        "--require-hashes",
+        "--no-deps",
+        "--only-binary",
+        "--no-build-isolation",
+    } <= set(installs[0].split())
+    assert installs[0].split()[-1] == "/tmp/requirements.txt"
+
+
+def test_build_lock_covers_the_package_dependencies() -> None:
+    # Hashes are enforced at install time by --require-hashes (test above).
+    pyproject = tomllib.loads(
+        (REPO / "src" / "inspect_sandbox_tools" / "pyproject.toml").read_text()
+    )
+    requirements = (UTILS / "requirements.txt").read_text()
+    pins = set(re.findall(r"^([a-z0-9-]+)==", requirements, re.MULTILINE))
+    names = {
+        re.split(r"[<>=\[ ;]", dep)[0].lower()
+        for dep in pyproject["project"]["dependencies"]
+    }
+    assert names | {"pyinstaller", "setuptools", "wheel"} <= pins
+
+
+@pytest.mark.parametrize("arch", ["amd64", "arm64"])
+def test_conda_lock_is_explicit_and_matches_the_base_image(arch: str) -> None:
+    lines = (UTILS / f"conda-{arch}.lock").read_text().splitlines()
+    (image,) = from_images("Dockerfile.pyinstaller")
+    assert f"# from {image}" in lines
+    packages = lines[lines.index("@EXPLICIT") + 1 :]
+    assert packages
+    assert all(
+        re.fullmatch(
+            r"https://conda\.anaconda\.org/conda-forge/\S+\.conda#sha256:[0-9a-f]{64}",
+            p,
+        )
+        for p in packages
+    )
+    assert any("/python-3.10." in p for p in packages)

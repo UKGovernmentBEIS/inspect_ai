@@ -19,7 +19,7 @@ from typing_extensions import override
 from inspect_ai import SampleSource, Task, enqueue_sample, eval, eval_set, task
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
-from inspect_ai.log import EvalLog, EvalSample, read_eval_log
+from inspect_ai.log import EvalLog, EvalSample, read_eval_log, read_eval_log_samples
 from inspect_ai.scorer import (
     CORRECT,
     SampleScore,
@@ -356,6 +356,33 @@ def test_enqueue_sample_epoch_runs_one_id_as_distinct_epochs() -> None:
     assert log.results is not None
     assert log.results.total_samples == 6
     assert log.results.scores[0].metrics["accuracy"].value == 1.0
+
+
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_read_eval_log_samples_includes_added_samples(
+    log_format: Literal["eval", "json"], tmp_path: Path
+) -> None:
+    # the header's sample_ids stay seed-sized, so samples the source added
+    # (including an explicit epoch above `epochs` and an empty id) must still
+    # be read back
+    source = _EpochAdds(
+        [("rerun", 3)],
+        seed=["seed"],
+        then={("seed", 1): [("followup", None), ("", None)]},
+    )
+    log = eval(
+        Task(dataset=source, solver=[generate()]),
+        model="mockllm/model",
+        display="none",
+        log_dir=str(tmp_path),
+        log_format=log_format,
+    )[0]
+    assert log.status == "success"
+    assert log.eval.dataset.sample_ids == ["seed"]
+    expected = [("", 1), ("followup", 1), ("rerun", 3), ("seed", 1)]
+    assert _runs(log) == expected
+    samples = read_eval_log_samples(log.location)
+    assert sorted((str(sample.id), sample.epoch) for sample in samples) == expected
 
 
 @pytest.mark.parametrize(
