@@ -688,8 +688,8 @@ class _Driver:
 
     def _tool_call(self, call: _Call) -> None:
         event = call.event
-        before_span = self._tool_span_of(("tool_call", event.id))
-        after_span = self._tool_span_of(("tool_result", event.id))
+        before_span = self._tool_span_of(("tool_call", event.id), call)
+        after_span = self._tool_span_of(("tool_result", event.id), call)
         tool_span = call.tool_span
         proposal = call.proposal
         approval = call.approval
@@ -768,7 +768,9 @@ class _Driver:
                 agent_messages=None,
                 record=self._record(conversation),
             )
-            self._built(event.id, "tool_call", step, before_span)
+            self._built(
+                event.id, "tool_call", step, before_span, unique=not _bridged(event)
+            )
 
         begin = self.begins[tool_span][0] if tool_span else call.index
         self._at_point(self._cut(before_span, (begin, 1)), call.seq, build_before)
@@ -803,22 +805,43 @@ class _Driver:
                 agent_messages=None,
                 record=self._record(conversation),
             )
-            self._built(event.id, "tool_result", step, after_span)
+            self._built(
+                event.id, "tool_result", step, after_span, unique=not _bridged(event)
+            )
 
         end = self.ends.get(tool_span) if tool_span is not None else None
         after_cut = self._cut(after_span, (end if end is not None else call.index, 3))
         self._at_point(after_cut, call.seq + 2, build_after)
         self._settle_at_end(after_span)
 
-    def _tool_span_of(self, key: tuple[SentinelStage, str]) -> str | None:
-        """The first sentinel span with this tool step id no call has taken.
+    def _tool_span_of(self, key: tuple[SentinelStage, str], call: _Call) -> str | None:
+        """The sentinel span of this call's step, which no other call has taken.
 
-        Each `ToolEvent` takes the steps recorded under its id in log order. A
-        span no `ToolEvent` takes is a bridge's check of a result the scaffold
-        reported, which replay does not rebuild.
+        A native call takes the steps recorded under its id in log order. A
+        sandbox bridge's host call takes only checks of its own execution: its
+        `tool_call` check is the latest before its `ToolEvent` (the bridge
+        checks a call before handing the response over, and an earlier check
+        under the id can be of a call it rejected), and its `tool_result` check
+        the first after its `tool` span ends (the bridge checks the result once
+        the call has run). A span no `ToolEvent` takes is a bridge's check of a
+        result the scaffold reported, which replay does not rebuild.
         """
         spans = self.tool_spans.get(key)
-        return spans.pop(0) if spans else None
+        if not spans:
+            return None
+        if not _bridged(call.event):
+            return spans.pop(0)
+        if key[0] == "tool_call":
+            before = [span for span in spans if self.begins[span][0] < call.index]
+            span = before[-1] if before else None
+        else:
+            end = self.ends.get(call.tool_span) if call.tool_span else None
+            ran = end if end is not None else call.index
+            after = [span for span in spans if self.begins[span][0] > ran]
+            span = after[0] if after else None
+        if span is not None:
+            spans.remove(span)
+        return span
 
     def _checks_tool_calls(self, event: ToolEvent, producer: ModelEvent | None) -> bool:
         """Whether live checked the calls a model call produced, inferred from the region the model call was made in.
@@ -845,10 +868,14 @@ class _Driver:
         stage: SentinelStage,
         step: "Step",
         span: str | None,
+        *,
+        unique: bool = True,
     ) -> None:
         from inspect_sentinel import ReplayStep
 
-        if (stage, step_id) in self.ids:
+        # a host call's id is the model's, which agent bridges in one sample
+        # can each hand over, as live checked them; any other step id is unique
+        if unique and (stage, step_id) in self.ids:
             raise MalformedLogError(f"Two {stage} steps have the step id {step_id!r}.")
         self.ids.add((stage, step_id))
         answers: dict[str, "HumanAnswer"] = {}
