@@ -60,14 +60,13 @@ contents = await sandbox().read_file("/home/agent/output.txt", user="agent")
 await sandbox().write_file("/home/agent/input.txt", contents, user="agent")
 ```
 
-Older providers remain usable for calls without `user`; their existing default
-behavior is retained. Explicit-user calls through `sandbox()` are rejected
-until the provider implements this contract. Checkpoint export alone retains
-the old call for providers without the parameter; providers that declare it
-receive `user="root"`, and their errors propagate without a fallback.
+Older sandbox providers remain usable for calls without `user`; their existing
+default behavior is retained. Explicit-user calls through `sandbox()` are rejected
+until the sandbox provider implements this contract. Checkpoint export requests
+`user="root"` from sandbox providers that accept the parameter.
 
-Provider authors must update override signatures to type-check against the new
-base class, even though existing calls remain usable at runtime.
+Sandbox provider authors must update override signatures to type-check against
+the new base class, even though existing calls remain usable at runtime.
 
 ### connection()
 
