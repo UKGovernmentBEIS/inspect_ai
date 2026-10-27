@@ -574,8 +574,8 @@ def test_missing_package_error(monkeypatch: pytest.MonkeyPatch) -> None:
     assert active_root(log) is None
 
 
-# 0.1.4 is the last release whose tool steps lack message_id
-@pytest.mark.parametrize("reported", ["0.1.4", f"{SENTINEL_MIN_VERSION}.dev3"])
+# 0.1.4's tool steps lack message_id; 0.2.0 has no ReplayStep
+@pytest.mark.parametrize("reported", ["0.1.4", "0.2.0", f"{SENTINEL_MIN_VERSION}.dev3"])
 def test_older_package_error(
     monkeypatch: pytest.MonkeyPatch, reported: str, tmp_path: Path
 ) -> None:
