@@ -188,6 +188,24 @@ def test_build_lock_covers_the_package_dependencies() -> None:
     assert names | {"pyinstaller", "setuptools", "wheel"} <= pins
 
 
+def test_test_lock_covers_the_package_and_dev_dependencies() -> None:
+    # Hashes are enforced at install time by `uv pip sync --require-hashes`
+    # (tests/test_dependency_cooldown.py).
+    pyproject = tomllib.loads(
+        (REPO / "src" / "inspect_sandbox_tools" / "pyproject.toml").read_text()
+    )
+    requirements = (
+        REPO / "src" / "inspect_sandbox_tools" / "tests" / "requirements.txt"
+    ).read_text()
+    pins = set(re.findall(r"^([a-z0-9-]+)==", requirements, re.MULTILINE))
+    names = {
+        re.split(r"[<>=\[ ;]", dep)[0].lower()
+        for dep in pyproject["project"]["dependencies"]
+        + pyproject["project"]["optional-dependencies"]["dev"]
+    }
+    assert names <= pins
+
+
 @pytest.mark.parametrize("arch", ["amd64", "arm64"])
 def test_conda_lock_is_explicit_and_matches_the_base_image(arch: str) -> None:
     lines = (UTILS / f"conda-{arch}.lock").read_text().splitlines()
