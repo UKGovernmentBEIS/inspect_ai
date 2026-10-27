@@ -280,6 +280,10 @@ async def eval_run(
         # create run tasks
         task_run_options: list[TaskRunOptions] = []
         for resolved_task in resolved_tasks:
+            # configure the task in its run directory (the logger records the
+            # git revision and paths relative to it). chdir is process-wide,
+            # so nothing under it may await: samples of tasks already running
+            # would see this task's directory as their working directory
             with chdir(task_run_dir(resolved_task.task)):
                 # tasks can provide their epochs, message_limit,
                 # token_limit, time_limit, and fail_on_error so broadcast these
@@ -481,47 +485,46 @@ async def eval_run(
                     dynamic_dataset=task.sample_source is not None,
                 )
                 loggers.append(logger)
-                await logger.init()
 
-                # samples a SampleSource adds mid-run go through the same
-                # incremental sandbox startup pass as the seed dataset above
-                startup_sandboxes: Callable[[list[Sample]], Awaitable[None]] | None = (
-                    None
-                )
-                if run_samples and task.sample_source is not None:
-                    startup_sandboxes = functools.partial(
-                        sandbox_manager.start_for_samples, resolved_task
-                    )
+            await logger.init()
 
-                # append task
-                task_run_options.append(
-                    TaskRunOptions(
-                        task=task,
-                        model=resolved_task.model,
-                        model_roles=resolved_task.model_roles,
-                        sandbox=resolved_task.sandbox,
-                        checkpoint=resolved_task.checkpoint,
-                        eval_checkpoint=eval_checkpoint,
-                        logger=logger,
-                        eval_wd=eval_wd,
-                        config=task_eval_config,
-                        sentinel=sentinel_root,
-                        solver=eval_solver,
-                        scanner=scanner,
-                        scan_id=scan_id,
-                        tags=merged_tags,
-                        run_samples=run_samples,
-                        score=score,
-                        debug_errors=debug_errors,
-                        sample_source=resolved_task.sample_source,
-                        kwargs=kwargs,
-                        initial_model_usage=resolved_task.initial_model_usage,
-                        initial_role_usage=resolved_task.initial_role_usage,
-                        task_source=task_source,
-                        startup_sandboxes=startup_sandboxes,
-                        input_media_policy=resolved_task.input_media_policy,
-                    )
+            # samples a SampleSource adds mid-run go through the same
+            # incremental sandbox startup pass as the seed dataset above
+            startup_sandboxes: Callable[[list[Sample]], Awaitable[None]] | None = None
+            if run_samples and task.sample_source is not None:
+                startup_sandboxes = functools.partial(
+                    sandbox_manager.start_for_samples, resolved_task
                 )
+
+            # append task
+            task_run_options.append(
+                TaskRunOptions(
+                    task=task,
+                    model=resolved_task.model,
+                    model_roles=resolved_task.model_roles,
+                    sandbox=resolved_task.sandbox,
+                    checkpoint=resolved_task.checkpoint,
+                    eval_checkpoint=eval_checkpoint,
+                    logger=logger,
+                    eval_wd=eval_wd,
+                    config=task_eval_config,
+                    sentinel=sentinel_root,
+                    solver=eval_solver,
+                    scanner=scanner,
+                    scan_id=scan_id,
+                    tags=merged_tags,
+                    run_samples=run_samples,
+                    score=score,
+                    debug_errors=debug_errors,
+                    sample_source=resolved_task.sample_source,
+                    kwargs=kwargs,
+                    initial_model_usage=resolved_task.initial_model_usage,
+                    initial_role_usage=resolved_task.initial_role_usage,
+                    task_source=task_source,
+                    startup_sandboxes=startup_sandboxes,
+                    input_media_policy=resolved_task.input_media_policy,
+                )
+            )
         return task_run_options
 
     try:

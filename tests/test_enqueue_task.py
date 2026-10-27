@@ -9,6 +9,7 @@ caller); the ergonomic trigger surface — hooks, a callback, etc. — is layere
 top and tested separately.
 """
 
+import os
 from contextvars import Context, copy_context
 from dataclasses import dataclass
 from pathlib import Path
@@ -985,3 +986,57 @@ async def test_enqueue_task_cancel_while_when_free_child_queued(
     assert task_dispatcher_stats() is None
     with pytest.raises(RuntimeError, match="finished dispatching"):
         contexts[0].run(enqueue_task, child())
+
+
+async def test_enqueue_task_when_free_file_task_log_init_keeps_running_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # a task loaded from a file is configured in its file's directory; its
+    # log init (which awaits) must run outside that chdir, since chdir is
+    # process-wide and a sample of a task already running would see it
+    task_dir = tmp_path / "filetask"
+    task_dir.mkdir()
+    (task_dir / "filetask.py").write_text(
+        "from inspect_ai import Task, task\n"
+        "from inspect_ai.dataset import Sample\n\n\n"
+        "@task\n"
+        "def filetask():\n"
+        '    return Task(dataset=[Sample(input="x")])\n'
+    )
+    init_started = anyio.Event()
+    init_release = anyio.Event()
+    init = TaskLogger.init
+
+    async def held_init(logger: TaskLogger) -> None:
+        if logger.eval.task == "filetask":
+            init_started.set()
+            await init_release.wait()
+        await init(logger)
+
+    monkeypatch.setattr(TaskLogger, "init", held_init)
+    cwds: list[str] = []
+
+    @solver
+    def enqueue_file_task_and_watch_cwd() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            cwds.append(os.getcwd())
+            enqueue_task(f"{task_dir / 'filetask.py'}@filetask", start="when_free")
+            await init_started.wait()
+            cwds.append(os.getcwd())
+            init_release.set()
+            return state
+
+        return solve
+
+    init_display_type("none")
+    with anyio.fail_after(60):
+        logs = await eval_async(
+            _parent(enqueue_file_task_and_watch_cwd()),
+            model="mockllm/model",
+            max_tasks=2,
+            log_dir=str(tmp_path / "logs"),
+        )
+
+    assert sorted(log.eval.task for log in logs) == ["filetask", "parent"]
+    assert all(log.status == "success" for log in logs)
+    assert cwds[1] == cwds[0]
