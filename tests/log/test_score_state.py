@@ -4,12 +4,12 @@ from inspect_ai.solver import TaskState
 
 
 @task
-def my_task():
+def score_state_task():
     return Task()
 
 
 @scorer(metrics=[mean()])
-def my_scorer(existing_uuid: str):
+def score_state_scorer(existing_uuid: str):
     async def _scorer(state: TaskState, target: Target):
         return Score(value=1 if existing_uuid == state.uuid else 0)
 
@@ -18,7 +18,7 @@ def my_scorer(existing_uuid: str):
 
 def test_score_edit_event_span_integration():
     eval_logs = eval(
-        tasks=[my_task],
+        tasks=[score_state_task],
         model="mockllm/model",
     )
 
@@ -30,8 +30,8 @@ def test_score_edit_event_span_integration():
     assert len(eval_log.samples) == 1
 
     sample = eval_log.samples[0]
-    eval_log = score(eval_log, scorers=[my_scorer(sample.uuid)])
+    eval_log = score(eval_log, scorers=[score_state_scorer(sample.uuid)])
 
     assert eval_log.samples[0].scores is not None
-    assert "my_scorer" in eval_log.samples[0].scores
-    assert eval_log.samples[0].scores["my_scorer"].value == 1
+    assert "score_state_scorer" in eval_log.samples[0].scores
+    assert eval_log.samples[0].scores["score_state_scorer"].value == 1
