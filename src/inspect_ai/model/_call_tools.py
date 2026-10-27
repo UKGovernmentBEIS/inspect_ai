@@ -79,7 +79,6 @@ from inspect_ai.tool._tool_def import ToolDef, tool_def_fields, tool_defs
 from inspect_ai.tool._tool_info import parse_docstring
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util import OutputLimitExceededError
-from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._json import dataclass_fields
 from inspect_ai.util._limit import LimitExceededError, apply_limits
 from inspect_ai.util._sandbox.environment import SandboxUnavailableError
@@ -138,10 +137,23 @@ def _sentinel_exception(ex: SentinelFailure) -> Exception:
     # A limit keeps its meaning. Any other sentinel error must fail the sample
     # rather than become a tool error the model sees, so it stays wrapped through
     # enclosing agents' tool calls until the sample unwraps it.
-    inner = inner_exception(ex.error)
-    if isinstance(inner, (LimitExceededError, TerminateSampleError)):
-        return inner
+    decisive = decisive_sentinel_exception(ex.error)
+    if isinstance(decisive, (LimitExceededError, TerminateSampleError)):
+        return decisive
     return ex
+
+
+def decisive_sentinel_exception(error: Exception) -> Exception:
+    # in a group, a termination decides, then any error that fails the sample,
+    # then a limit
+    leaves = _group_leaves(error)
+    for leaf in leaves:
+        if isinstance(leaf, TerminateSampleError):
+            return leaf
+    for leaf in leaves:
+        if not isinstance(leaf, LimitExceededError):
+            return leaf
+    return leaves[0]
 
 
 async def execute_tools(
