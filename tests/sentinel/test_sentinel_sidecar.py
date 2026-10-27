@@ -1238,17 +1238,31 @@ def test_a_bridged_agent_is_never_handed_a_rejected_call() -> None:
         "message": _turn_json(("call_1", "Tokyo")),
         "results": {"call_1": "Tokyo is not allowed."},
     }
+    step = {
+        "stage": "tool_call",
+        "call": "call_1",
+        "decision": {"action": "reject", "message": "Tokyo is not allowed."},
+    }
     stand_in = StandInSidecar(
-        turns=[Turn(status=400, sentinel={"outcome": "reject", "withheld": withheld})]
+        turns=[
+            Turn(
+                status=400,
+                sentinel={"outcome": "reject", "steps": [step], "withheld": withheld},
+            )
+        ]
     )
     seen: list[ModelOutput | Exception] = []
     task = Task(dataset=[Sample(input="Hi.")], solver=_bridged_turn(seen))
 
-    eval(task, model=_model(stand_in), display="none")
+    [log] = eval(task, model=_model(stand_in), display="none")
 
     # the refusal stands, as the provider's error the bridge forwards
     [handed] = seen
     assert isinstance(handed, Exception)
+    # and the rejection is in the transcript, as for an agent Inspect runs
+    assert log.samples is not None
+    [event] = _sentinel_events(log.samples[0])
+    assert (event.step_id, event.action) == ("call_1", "reject")
 
 
 def test_a_bridged_agent_is_handed_the_turn_as_the_sidecar_left_it() -> None:

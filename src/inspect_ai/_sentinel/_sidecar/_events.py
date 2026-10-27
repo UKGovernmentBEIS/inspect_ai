@@ -8,7 +8,7 @@ from inspect_ai.model._chat_message import ChatMessage, ChatMessageAssistant
 
 from .._conversation import current_conversation
 from ._endpoint import Sidecar
-from ._field import SentinelField, SentinelStep
+from ._field import ReceivedField, SentinelField, SentinelStep, parse_field
 
 
 def record_sidecar_reports(
@@ -67,6 +67,16 @@ def record_sidecar_reports(
                     }
                 )
             )
+
+
+def record_refusal_reports(
+    received: ReceivedField, sidecar: Sidecar, input: Sequence[ChatMessage]
+) -> None:
+    """Write the reports of a refusal that stands as the call's error into the transcript, as a bridged agent's rejected turn does: the agent is handed the error, and the transcript still shows what the sidecar decided."""
+    if received.field is not None:
+        record_sidecar_reports(
+            parse_field(received.field), sidecar, received.request_id, input, None
+        )
 
 
 def _step_id(
