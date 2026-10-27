@@ -204,7 +204,7 @@ def test_pre_commit_hooks_run_locked_tools() -> None:
             if hook["id"] == "uv-lock":
                 assert hook["entry"] == "uv lock"
             else:
-                assert hook["entry"].startswith("uv run --no-sync "), hook["id"]
+                assert hook["entry"].startswith("uv run --frozen "), hook["id"]
     requirements = (REPO / "requirements-dev.txt").read_text().splitlines()
     for tool in ["pre-commit-hooks", "ruff", "typos"]:
         assert any(re.fullmatch(rf"{tool}==[\d.]+", line) for line in requirements)

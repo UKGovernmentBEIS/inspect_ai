@@ -2,8 +2,10 @@
 #
 # Every hook runs a tool from the project environment, so its version comes
 # from uv.lock (with the 7-day cooldown) rather than from a hook repo that
-# pre-commit would install on its own. Run `uv sync` first. Each definition
-# mirrors the upstream hook at the version pinned in requirements-dev.txt.
+# pre-commit would install on its own. `uv run --frozen` syncs the
+# environment to uv.lock first, so a fresh worktree works, without checking
+# the lock is current; the uv-lock hook does that. Each definition mirrors
+# the upstream hook at the version pinned in requirements-dev.txt.
 minimum_pre_commit_version: "4.4.0"
 repos:
   - repo: local
@@ -11,7 +13,7 @@ repos:
       # Run the linter.
       - id: ruff
         name: ruff
-        entry: uv run --no-sync ruff check --force-exclude
+        entry: uv run --frozen ruff check --force-exclude
         language: unsupported
         types_or: [python, pyi, jupyter]
         args: [--fix]
@@ -19,7 +21,7 @@ repos:
       # Run the formatter.
       - id: ruff-format
         name: ruff-format
-        entry: uv run --no-sync ruff format --force-exclude
+        entry: uv run --frozen ruff format --force-exclude
         language: unsupported
         types_or: [python, pyi, jupyter]
         require_serial: true
@@ -32,39 +34,39 @@ repos:
         pass_filenames: false
       - id: check-added-large-files
         name: check for added large files
-        entry: uv run --no-sync check-added-large-files
+        entry: uv run --frozen check-added-large-files
         language: unsupported
         stages: [pre-commit, pre-push, manual]
       - id: check-json
         name: check json
-        entry: uv run --no-sync check-json
+        entry: uv run --frozen check-json
         language: unsupported
         types: [json]
         # The following are JSONC files.
         exclude: '(^\.vscode/|^tools/vscode/|jsconfig\.json$|tsconfig\.json$)'
       - id: check-yaml
         name: check yaml
-        entry: uv run --no-sync check-yaml
+        entry: uv run --frozen check-yaml
         language: unsupported
         types: [yaml]
       - id: debug-statements
         name: debug statements (python)
-        entry: uv run --no-sync debug-statement-hook
+        entry: uv run --frozen debug-statement-hook
         language: unsupported
         types: [python]
       - id: detect-private-key
         name: detect private key
-        entry: uv run --no-sync detect-private-key
+        entry: uv run --frozen detect-private-key
         language: unsupported
         types: [text]
       - id: requirements-txt-fixer
         name: fix requirements.txt
-        entry: uv run --no-sync requirements-txt-fixer
+        entry: uv run --frozen requirements-txt-fixer
         language: unsupported
         files: (requirements|constraints).*\.txt$
       - id: typos
         name: typos
-        entry: uv run --no-sync typos
+        entry: uv run --frozen typos
         language: unsupported
         args: [--write-changes, --force-exclude]
         types: [text]
