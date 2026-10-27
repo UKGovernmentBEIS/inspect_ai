@@ -3129,6 +3129,60 @@ def test_a_sub_agent_sharing_stable_ids_does_not_take_the_main_steps(
     assert [s.segment for s in steps] == [("run", 0), ("run", 0)]
 
 
+def nested_agent_messages(
+    importer: str,
+) -> tuple[list[ChatMessage], list[Event]]:
+    """A parent's one model call, then a nested agent's tool loop, with the messages one model call's, as an importer takes them: Logfire's the longest input (with its output), LangSmith's the last call's (with copies of outputs in later inputs)."""
+    parent = imported_call("parent", [ChatMessageUser(content="Parent task.")], "run")
+    asked = ChatMessageUser(content="Read the sub-agent config.")
+    s0 = imported_call("s0", [asked], "sub", READ)
+    s1 = imported_call(
+        "s1", [asked, s0.output.message, *answers([READ], "config of")], "sub"
+    )
+    calls = [s0, s1]
+    if importer == "langsmith":
+        _, calls = as_copies([], calls)
+    s0, s1 = calls
+    messages = [*s1.input, s1.output.message]
+    return messages, [
+        SpanBeginEvent(id="run", name="parent", type="agent"),
+        parent,
+        SpanBeginEvent(id="sub", name="reader", type="agent", parent_id="run"),
+        s0,
+        s1,
+        SpanEndEvent(id="sub"),
+        SpanEndEvent(id="run"),
+    ]
+
+
+@pytest.mark.parametrize("importer", ["logfire", "langsmith"])
+def test_an_imported_nested_agent_s_messages_keep_its_conversation(
+    importer: str,
+) -> None:
+    # Ransom's fourth review: the messages are the nested agent's, so its tool
+    # steps are in its conversation, with its history, after its turn
+    messages, events = nested_agent_messages(importer)
+    replay = steps_from_events(
+        messages, events, [], sample_uuid="transcript", eval_info=IMPORTED
+    )
+
+    assert tool_steps(replay) == projected_tool_steps(messages)
+    tools = [s for s in replay if s.stage.startswith("tool")]
+    assert [s.step.conversation for s in tools] == ["sub", "sub"]
+    assert [s.segment for s in tools] == [("sub", 0), ("sub", 0)]
+    assert [[m.text for m in s.step.history or []] for s in tools] == [
+        ["Read the sub-agent config."],
+        ["Read the sub-agent config."],
+    ]
+    order = [(s.stage, s.id) for s in replay]
+    made = order.index(("model_output", "s0"))
+    assert order[made + 1 : made + 3] == [
+        ("tool_call", READ.id),
+        ("tool_result", READ.id),
+    ]
+    assert order.index(("model_input", "s1")) == made + 3
+
+
 def random_imported(seed: int) -> tuple[list[ChatMessage], list[Event]]:
     """An imported-style transcript: reused ids, parallel calls, pre-filled messages, compaction, sub-agents, ToolEvents of every kind, copies and stable ids, and messages that are the whole history or the last input."""
     from inspect_ai.event import CompactionEvent

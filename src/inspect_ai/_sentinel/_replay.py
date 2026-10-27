@@ -89,7 +89,7 @@ def steps_from_events(
 
     A log that does not record where a model call was made (`ModelEvent.origin`, written since inspect_ai PR #5990), an older Inspect log or a transcript imported from another source, has its turns inferred: a call made in the scorers' span is a scorer's, whatever tool or agent span holds it (live, the scorers' scope is final); one in a tool's span (or nested in its `ToolEvent`) a tool's, and one in the init span setup's; of the rest, those the timeline shows as utility (`timeline_build`'s prompt and continuity rules) are not turns, and the others are.
 
-    A transcript imported from another source (`eval_info` is `None`) has its tool steps from the sample's messages alone, as sentinel's messages projection (`steps_from_messages`) takes them: each call of each assistant message, in order, a `tool_call` step, and a `tool_result` step holding the first tool message with the call's id after that assistant message, none when there is none; step ids, calls, views and results as the projection's, with no input or tools. The steps are in the main conversation, the one the messages are (the conversation with the fewest agent spans enclosing it), with its record. Its `ToolEvent`s and model calls do not decide which tool steps there are, what answers them or their conversation, only where they go among the main conversation's turns: a message's steps follow the `model_output` step of the turn whose output has the message's id, else of the turn before the first turn whose input is longer than the message's position in the messages (the turn that made it, where the messages extend each turn's input), else they precede the first turn. A placement mistake changes their order only. So a call no message holds (a sub-agent's, or one in a turn the messages dropped) has no tool steps, as in the projection.
+    A transcript imported from another source (`eval_info` is `None`) has its tool steps from the sample's messages alone, as sentinel's messages projection (`steps_from_messages`) takes them: each call of each assistant message, in order, a `tool_call` step, and a `tool_result` step holding the first tool message with the call's id after that assistant message, none when there is none; step ids, calls, views and results as the projection's, with no input or tools. The steps are in the conversation the messages are, with its record: that of the turn whose input the messages extend (its last message is one of them, by id or content; the longest input, then the latest), else of the latest turn whose output is one of them, else the one with the fewest agent spans enclosing it. An importer can take the messages from a nested agent's model call. Its `ToolEvent`s and model calls do not decide which tool steps there are, what answers them or their conversation, only where they go among that conversation's turns: a message's steps follow the `model_output` step of the turn whose output has the message's id, else of the turn before the first turn whose input is longer than the message's position in the messages (the turn that made it, where the messages extend each turn's input), else they precede the first turn. A placement mistake changes their order only. So a call no message holds (a sub-agent's, or one in a turn the messages dropped) has no tool steps, as in the projection.
 
     Args:
         messages: The sample's messages (`EvalSample.messages`).
@@ -862,7 +862,36 @@ class _Driver:
                 self._projected_call(message, position, call, result, conversation, at)
 
     def _main_turns(self, generates: list[_Generate]) -> tuple[str, list[_Generate]]:
-        """The main conversation, the one the sample's messages are, and its turns: the conversation with the fewest agent spans enclosing it (of those, the last turn's), else the sample's."""
+        """The conversation the sample's messages are, and its turns.
+
+        An importer takes the messages from one model call (Scout's Logfire importer the one with the longest input, its LangSmith importer the last), which can be a nested agent's. So the conversation is found from the messages: that of the turn whose input the messages extend (its last message is one of them, by id or content), the longest input, then one whose output is one of them too, then the latest; else of the latest turn whose output is one of them; else, with no turn in the messages, the conversation with the fewest agent spans enclosing it (of those, the last turn's); else the sample's.
+        """
+        ids = {m.id for m in self.messages if m.id is not None}
+        keys = {content_key(m) for m in self.messages}
+
+        def held(message: ChatMessage) -> bool:
+            return (message.id is not None and message.id in ids) or content_key(
+                message
+            ) in keys
+
+        extended: tuple[int, bool, int, str] | None = None
+        made: str | None = None
+        for index, group in enumerate(generates):
+            input = self._input(group.attempts[0][1])
+            output = group.attempts[-1][1].output
+            output_held = bool(output.choices) and held(output.message)
+            if input and held(input[-1]):
+                rank = (len(input), output_held, index)
+                if extended is None or rank >= extended[:3]:
+                    extended = (*rank, group.conversation)
+            if output_held:
+                made = group.conversation
+        main = extended[3] if extended is not None else made
+        if main is None:
+            main = self._shallowest(generates)
+        return main, [g for g in generates if g.conversation == main]
+
+    def _shallowest(self, generates: list[_Generate]) -> str:
         depths: dict[str, int] = {}
         for group in generates:
             if group.conversation not in depths:
@@ -874,12 +903,11 @@ class _Driver:
                     span_id = begin.parent_id
                 depths[group.conversation] = depth
         if not depths:
-            return self.spans.conversation(None), []
+            return self.spans.conversation(None)
         least = min(depths.values())
-        main = [g for g in generates if depths[g.conversation] == least][
+        return [g for g in generates if depths[g.conversation] == least][
             -1
         ].conversation
-        return main, [g for g in generates if g.conversation == main]
 
     def _projected_call(
         self,
