@@ -36,7 +36,7 @@ from inspect_ai.approval._human.manager import (
 )
 from inspect_ai.approval._human.util import render_tool_approval
 from inspect_ai.dataset import Sample
-from inspect_ai.event import SentinelEvent, ToolEvent
+from inspect_ai.event import ModelEvent, SentinelEvent, ToolEvent
 from inspect_ai.log import EvalLog
 from inspect_ai.model import (
     ChatCompletionChoice,
@@ -1178,8 +1178,13 @@ def test_a_turn_approval_is_seen_at_each_of_its_calls(
         for m in log.samples[0].messages
         if isinstance(m, ChatMessageAssistant) and m.tool_calls
     ]
-    assert turn.id is not None
-    approved = ("model_output", turn.id, ("c1", "c2"), "human", "proceed", None)
+    [generate] = [
+        e
+        for e in log.samples[0].events
+        if isinstance(e, ModelEvent) and e.output.message.id == turn.id
+    ]
+    assert generate.uuid is not None
+    approved = ("model_output", generate.uuid, ("c1", "c2"), "human", "proceed", None)
     assert [
         (s.stage, s.subject, [kept(r) for r in s.decisions or ()]) for s in seen
     ] == [
