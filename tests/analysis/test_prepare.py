@@ -72,6 +72,7 @@ def test_score_to_float_with_na():
     assert df["score_match"].isna().any()
 
     out = prepare(df, score_to_float("score_match"))
+    assert out["score_match"].dtype == "float64"
 
     # NA inputs map to NaN, real values convert to float
     for original, converted in zip(df["score_match"], out["score_match"]):

@@ -42,7 +42,7 @@ async def generate_with_logprobs(
 
 @skip_if_no_openai
 async def test_openai_logprobs() -> None:
-    response = await generate_with_logprobs("openai/gpt-3.5-turbo")
+    response = await generate_with_logprobs("openai/gpt-4o-mini")
     assert response.choices[0].logprobs is not None
     assert response.choices[0].logprobs.content[0].top_logprobs is not None
     assert len(response.choices[0].logprobs.content[0].top_logprobs) == 2

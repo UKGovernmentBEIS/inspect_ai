@@ -34,6 +34,7 @@ from inspect_ai._eval.eval_set_overrides import (
 )
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
+from inspect_ai.model._cache import CachePolicy
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.scorer import exact
 from inspect_ai.solver import generate
@@ -390,6 +391,23 @@ def test_a_worker_can_still_replace_one_generate_config_setting() -> None:
 
     assert merged is not None and merged.generate_config is not None
     assert merged.generate_config.timeout == 10
+
+
+def test_a_workers_cache_that_never_expires_merges_as_a_cache_policy() -> None:
+    # round-tripped like a real worker container, which spells out every
+    # member of the cache policy
+    merged = merge_eval_set_overrides(
+        EvalSetOverrides(generate_config=GenerateConfig(timeout=60)),
+        _round_tripped(
+            EvalSetOverrides(
+                generate_config=GenerateConfig(cache=CachePolicy(expiry=None))
+            )
+        ),
+    )
+
+    assert merged is not None and merged.generate_config is not None
+    assert merged.generate_config.cache == CachePolicy(expiry=None)
+    assert merged.generate_config.timeout == 60
 
 
 @pytest.mark.parametrize(

@@ -62,7 +62,13 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
 )
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.model._model import Model, active_model, get_model, model_roles
+from inspect_ai.model._model import (
+    Model,
+    active_model,
+    get_model,
+    model_roles,
+    suspend_model_event_sink,
+)
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.review._human import (
     escape_placeholders,
@@ -89,16 +95,18 @@ from inspect_ai.util._limit import (
     suspend_turn_limit,
     suspend_working_limit,
 )
-from inspect_ai.util._span import current_agent_span_id, span
+from inspect_ai.util._span import span
 from inspect_ai.util._store import store
 
+from ._agent_state import agent_messages
 from ._context import (
     SentinelFailure,
     active_sentinel,
     active_task_description,
     active_task_metadata,
 )
-from ._scope import AgentScope, sentinel_scope
+from ._conversation import current_conversation
+from ._scope import sentinel_scope
 from ._sent import record_sent, sent_messages
 
 logger = getLogger(__name__)
@@ -124,23 +132,21 @@ async def sentinel_before_tool_call(
     except ToolCallViewError as ex:
         raise ToolApprovalError(str(ex)) from ex
     producer = _producing_event(call, history)
-    conversation = _conversation()
-    # inspect_sentinel 0.1.4, which mypy checks against, has neither
-    # message_id nor tool_choice; _require_message_id() ensures they exist
-    step = BeforeToolCall(  # type: ignore[call-arg]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
+    conversation = current_conversation()
+    step = BeforeToolCall(
         conversation=conversation,
         message=message,
         message_id=_message_id(message_id),
         call=call,
         view=view,
         input=list(producer.input) if producer is not None else None,
-        agent_messages=history,
+        agent_messages=agent_messages(conversation),
         history=sent_messages(conversation),
         human_decisions=_human_decisions(conversation),
         tools=list(producer.tools) if producer is not None else None,
         tool_choice=producer.tool_choice if producer is not None else None,
     )
-    return await _run(step)
+    return await _run(step, call.id)
 
 
 def apply_sentinel_decision(decision: Decision | None, call: ToolCall) -> ToolCall:
@@ -175,10 +181,8 @@ async def sentinel_after_tool_call(
         return
     _require_message_id()
     producer = _producing_event(call, history)
-    conversation = _conversation()
-    # inspect_sentinel 0.1.4, which mypy checks against, has neither
-    # message_id nor tool_choice; _require_message_id() ensures they exist
-    step = AfterToolCall(  # type: ignore[call-arg]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
+    conversation = current_conversation()
+    step = AfterToolCall(
         conversation=conversation,
         message=message,
         message_id=_message_id(message_id),
@@ -187,14 +191,14 @@ async def sentinel_after_tool_call(
         output=output,
         view=resolve_tool_call_view(call, viewer),
         input=list(producer.input) if producer is not None else None,
-        agent_messages=history,
+        agent_messages=agent_messages(conversation),
         history=sent_messages(conversation),
         human_decisions=_human_decisions(conversation),
         tools=list(producer.tools) if producer is not None else None,
         tool_choice=producer.tool_choice if producer is not None else None,
         truncated=Truncation(*truncated) if truncated is not None else False,
     )
-    decision = await _run(step)
+    decision = await _run(step, call.id)
     if decision is not None and decision.action == "terminate":
         raise TerminateSampleError(
             decision.explanation or "Sentinel requested termination."
@@ -203,14 +207,22 @@ async def sentinel_after_tool_call(
 
 async def sentinel_before_generate(
     *,
+    generate_id: str,
     model: str,
     input: list[ChatMessage],
-    history: list[ChatMessage],
     tools: list[ToolInfo],
     tool_choice: ToolChoice,
     config: GenerateConfig,
 ) -> BeforeGenerate | None:
     """Run the sentinel before one of the agent's generates.
+
+    Args:
+        generate_id: The generate's id, the `uuid` its first `ModelEvent` is created with: the step id of both generate stages.
+        model: The model's name.
+        input: The input as prepared for the model.
+        tools: The tools as prepared for the model.
+        tool_choice: The tool choice as prepared for the model.
+        config: The generate config.
 
     Returns:
         The step, for `sentinel_after_generate`, or None when nothing in the sentinel watches either generate stage.
@@ -222,23 +234,25 @@ async def sentinel_before_generate(
     root = active_sentinel()
     if root is None or not (watched_stages(root) & {BeforeGenerate, AfterGenerate}):
         return None
-    conversation = _conversation()
+    conversation = current_conversation()
     step = BeforeGenerate(
         model=model,
         conversation=conversation,
         input=input,
-        agent_messages=history,
+        agent_messages=agent_messages(conversation),
         history=sent_messages(conversation),
         human_decisions=_human_decisions(conversation),
         tools=tools,
         tool_choice=tool_choice,
         config=config,
     )
-    await _run_generate(step)
+    await _run_generate(step, generate_id)
     return step
 
 
-async def sentinel_after_generate(before: BeforeGenerate, output: ModelOutput) -> None:
+async def sentinel_after_generate(
+    before: BeforeGenerate, output: ModelOutput, generate_id: str
+) -> None:
     """Run the sentinel after one of the agent's generates, before its output reaches the agent.
 
     Raises:
@@ -249,7 +263,7 @@ async def sentinel_after_generate(before: BeforeGenerate, output: ModelOutput) -
         model=before.model,
         conversation=before.conversation,
         input=before.input,
-        agent_messages=before.agent_messages,
+        agent_messages=agent_messages(before.conversation),
         history=sent_messages(before.conversation),
         human_decisions=_human_decisions(before.conversation),
         tools=before.tools,
@@ -257,11 +271,11 @@ async def sentinel_after_generate(before: BeforeGenerate, output: ModelOutput) -
         config=before.config,
         output=output,
     )
-    await _run_generate(step)
+    await _run_generate(step, generate_id)
 
 
-async def _run_generate(step: BeforeGenerate | AfterGenerate) -> None:
-    decision = await _run(step)
+async def _run_generate(step: BeforeGenerate | AfterGenerate, step_id: str) -> None:
+    decision = await _run(step, step_id)
     if decision is not None and decision.action == "terminate":
         raise TerminateSampleError(
             decision.explanation or "Sentinel requested termination."
@@ -273,11 +287,11 @@ def _watches(stage: type[Step]) -> bool:
     return root is not None and stage in watched_stages(root)
 
 
-async def _run(step: Step) -> Decision | None:
+async def _run(step: Step, step_id: str) -> Decision | None:
     root = active_sentinel()
     if root is None or type(step) not in watched_stages(root):
         return None
-    recorder = _Recorder(_step_id(step))
+    recorder = _Recorder(step_id)
     try:
         try:
             async with span(name="sentinel", type="sentinel"):
@@ -285,7 +299,8 @@ async def _run(step: Step) -> Decision | None:
                     suspend_token_limit(),
                     suspend_turn_limit(),
                     suspend_working_limit(),
-                    sentinel_scope(AgentScope.OFF, final=True),
+                    sentinel_scope("sentinel", final=True),
+                    suspend_model_event_sink(),
                 ):
                     decision = await run_sentinel(root, _host_context(recorder), step)
         except TimeoutError as ex:
@@ -316,23 +331,6 @@ def _stage(step: Step) -> SentinelStage:
     return "tool_result"
 
 
-def _step_id(step: Step) -> str:
-    if isinstance(step, AfterGenerate):
-        choices = step.output.choices
-        return (choices[0].message.id if choices else None) or ""
-    elif isinstance(step, BeforeGenerate):
-        # the same request generated again (a retried refusal) is a new step
-        message_id = (step.input[-1].id if step.input else None) or ""
-        seen = _model_inputs.setdefault(transcript(), Counter[str]())
-        seen[message_id] += 1
-        count = seen[message_id]
-        return message_id if count == 1 else f"{message_id}:{count}"
-    return step.call.id
-
-
-_model_inputs: "WeakKeyDictionary[Transcript, Counter[str]]" = WeakKeyDictionary()
-
-
 def _host_context(recorder: "_Recorder") -> HostContext:
     return HostContext(
         host=_HostNative(_eval_context()),
@@ -357,16 +355,8 @@ def _eval_context() -> EvalContext | None:
     )
 
 
-def _conversation() -> str:
-    agent_span_id = current_agent_span_id()
-    if agent_span_id is not None:
-        return agent_span_id
-    active = sample_active()
-    return active.sample_uuid if active is not None else ""
-
-
 def record_agent_turn(input: list[ChatMessage]) -> None:
-    record_sent(_conversation(), input)
+    record_sent(current_conversation(), input)
 
 
 def _require_message_id() -> None:
@@ -525,9 +515,9 @@ class _HostNative:
                     f"{', '.join(repr(c) for c in _HUMAN_CHOICES)}."
                 )
             offered.append(cast(ApprovalDecision, choice))
-        # the approval surfaces show the conversation; a step whose host could
-        # not provide the scaffold's history shows what the model saw instead,
-        # and nothing when that is unknown too
+        # the approval surfaces show the conversation; a step with no agent's
+        # list shows what the model saw instead, and nothing when that is
+        # unknown too
         if step.agent_messages is not None:
             conversation = step.agent_messages
         elif step.input is not None:

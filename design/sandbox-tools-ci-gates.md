@@ -29,9 +29,9 @@ detect-slow ──► check-version-bump ──► slow-tool-tests-dev ──►
 ```
 
 - **`detect-slow`** — detects whether the PR touches tool-related paths relative to the PR base branch. Emits `tools_changed` and `injectable_src_changed`. Documentation under the injectable tree (`*.md`, `design/`) doesn't ship in the built binary, so it counts toward `tools_changed` but not `injectable_src_changed`.
-- **`check-version-bump`** — fast, cheap. Reads `sandbox_tools_version.txt` on the PR and on the base branch. Enforces the invariant "injectable source and version move together": fails when the injectable source changed without a correct `N+1` bump, and also when the version was bumped without an injectable change.
+- **`check-version-bump`** — fast, cheap. Reads `sandbox_tools_version.txt` on the PR and on the base branch. Enforces the invariant "injectable source and version move together": fails when the injectable source changed without a version above the base (normally `N+1`; any bump above `N` is accepted so a burned version can be skipped; see `src/inspect_sandbox_tools/design/RELEASING.md`), and also when the version was bumped without an injectable change.
 - **`slow-tool-tests-dev`** — runs `pytest --runslow -m slow tests/tools/`. Green = "your code works from a developer perspective." Conditionally builds a `-dev` binary in CI when the PR changed the injected code; otherwise uses the published `v{N}` via the runtime's normal S3 download path.
-- **`slow-tool-tests-release`** — runs only when a version bump is present. Prechecks S3 for the new `v{N+1}`; on 404 fails fast with a message telling the maintainer to run `upload_to_s3.py`. On success, downloads the published artifact and re-runs the slow tests against it. Maintainer reruns this job manually from the Actions UI after publishing.
+- **`slow-tool-tests-release`** — runs only when a version bump is present. Prechecks S3 for the bumped version's artifacts; on 404 fails fast with a message telling the maintainer to run `scripts/release-sandbox-tools.sh`. On success, downloads the published artifacts, checks each was attested by a successful `sandbox-tools-build.yml` run on `main` whose built commit has the same build inputs as the PR (see RELEASING.md step 3), and re-runs the slow tests against them. Maintainer reruns this job manually from the Actions UI after publishing.
 
 ## Behavior matrix
 
@@ -41,15 +41,15 @@ When `detect-slow` returns false, none of the downstream gates execute. The tabl
 |---|---|---|---|---|---|
 | Tool changes unrelated&nbsp;to&nbsp;the&nbsp;injectable | unchanged | unchanged | pass | **run** — no build; pytest resolves `v{N}` via normal S3 download path | skip |
 | Same as above with mistaken&nbsp;version.txt&nbsp;change | unchanged | any change | **fail** — "unexpected version bump" | skip | skip |
-| Injectable change with&nbsp;correct&nbsp;bump | changed | bumped to N+1 | pass | **run** — conditional build; pytest uses freshly-built `-dev v{N+1}` | **run** — precheck `v{N+1}`; download; pytest with `INSTALL_STATE = clean` |
-| Injectable change, bump&nbsp;missing&nbsp;or&nbsp;wrong | changed | unchanged OR changed to anything ≠ N+1 | **fail** — "missing or incorrect version bump" | skip | skip |
+| Injectable change with&nbsp;correct&nbsp;bump | changed | bumped above N (normally N+1) | pass | **run** — conditional build; pytest uses the freshly-built `-dev` binary | **run** — precheck the bumped version; download; pytest with `INSTALL_STATE = clean` |
+| Injectable change, bump&nbsp;missing&nbsp;or&nbsp;wrong | changed | not bumped above N | **fail** — "missing or incorrect version bump" | skip | skip |
 
 ## Gate conditions
 
-- `check-version-bump`: `needs: detect-slow`; `if: tools_changed == 'true'`. Enforces that injectable source and version move together — passes when both changed (injectable edit + N→N+1 bump) or neither changed; fails otherwise. Emits `version_correctly_bumped` for downstream jobs.
+- `check-version-bump`: `needs: detect-slow`; `if: tools_changed == 'true'`. Enforces that injectable source and version move together — passes when both changed (injectable edit + a bump above N) or neither changed; fails otherwise. Emits `version_correctly_bumped` for downstream jobs.
 - `slow-tool-tests-dev`: `needs: [detect-slow, check-version-bump]`; `if: tools_changed == 'true'`; build step conditional on `injectable_src_changed || version_correctly_bumped`.
 - `slow-tool-tests-release`: `needs: [detect-slow, check-version-bump, slow-tool-tests-dev]`; `if: tools_changed == 'true' && version_correctly_bumped == 'true'`.
 
 ## `INSPECT_SANDBOX_TOOLS_INSTALL_STATE` escape hatch
 
-`slow-tool-tests-release` tests against the downloaded non-dev `v{N+1}`, but the runtime's install-state check would return `edited` on a release PR (because `sandbox_tools_version.txt` differs from main) and resolve the `-dev` name. To avoid duplicating the divergence logic, the release gate sets `INSPECT_SANDBOX_TOOLS_INSTALL_STATE=clean`, forcing the non-dev resolution. The dev gate does not set it — the host-side-change case relies on the natural `clean` classification to exercise the real S3 download path.
+`slow-tool-tests-release` tests against the downloaded non-dev bumped version, but the runtime's install-state check would return `edited` on a release PR (because `sandbox_tools_version.txt` differs from main) and resolve the `-dev` name. To avoid duplicating the divergence logic, the release gate sets `INSPECT_SANDBOX_TOOLS_INSTALL_STATE=clean`, forcing the non-dev resolution. The dev gate does not set it — the host-side-change case relies on the natural `clean` classification to exercise the real S3 download path.

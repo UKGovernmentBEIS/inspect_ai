@@ -296,7 +296,7 @@ var require_scheduler = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = require_scheduler_production();
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/react-dom@19.3.0_react@19.3.0/node_modules/react-dom/cjs/react-dom.production.js
+//#region ../../node_modules/.pnpm/react-dom@19.3.1_react@19.3.1/node_modules/react-dom/cjs/react-dom.production.js
 /**
 * @license React
 * react-dom.production.js
@@ -446,10 +446,10 @@ var require_react_dom_production = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.useFormStatus = function() {
 		return ReactSharedInternals.H.useHostTransitionStatus();
 	};
-	exports.version = "19.3.0";
+	exports.version = "19.3.1";
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/react-dom@19.3.0_react@19.3.0/node_modules/react-dom/index.js
+//#region ../../node_modules/.pnpm/react-dom@19.3.1_react@19.3.1/node_modules/react-dom/index.js
 var require_react_dom = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	function checkDCE() {
 		if (typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ === "undefined" || typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.checkDCE !== "function") return;
@@ -463,7 +463,7 @@ var require_react_dom = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = require_react_dom_production();
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/react-dom@19.3.0_react@19.3.0/node_modules/react-dom/cjs/react-dom-client.production.js
+//#region ../../node_modules/.pnpm/react-dom@19.3.1_react@19.3.1/node_modules/react-dom/cjs/react-dom-client.production.js
 /**
 * @license React
 * react-dom-client.production.js
@@ -11001,7 +11001,7 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		}
 	};
 	var isomorphicReactPackageVersion$jscomp$inline_2043 = React.version;
-	if ("19.3.0" !== isomorphicReactPackageVersion$jscomp$inline_2043) throw Error(formatProdErrorMessage(527, isomorphicReactPackageVersion$jscomp$inline_2043, "19.3.0"));
+	if ("19.3.1" !== isomorphicReactPackageVersion$jscomp$inline_2043) throw Error(formatProdErrorMessage(527, isomorphicReactPackageVersion$jscomp$inline_2043, "19.3.1"));
 	ReactDOMSharedInternals.findDOMNode = function(componentOrElement) {
 		var fiber = componentOrElement._reactInternals;
 		if (void 0 === fiber) {
@@ -11016,10 +11016,10 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 	};
 	var internals$jscomp$inline_2586 = {
 		bundleType: 0,
-		version: "19.3.0",
+		version: "19.3.1",
 		rendererPackageName: "react-dom",
 		currentDispatcherRef: ReactSharedInternals,
-		reconcilerVersion: "19.3.0"
+		reconcilerVersion: "19.3.1"
 	};
 	if ("undefined" !== typeof __REACT_DEVTOOLS_GLOBAL_HOOK__) {
 		var hook$jscomp$inline_2587 = __REACT_DEVTOOLS_GLOBAL_HOOK__;
@@ -11038,7 +11038,7 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 	};
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/react-dom@19.3.0_react@19.3.0/node_modules/react-dom/client.js
+//#region ../../node_modules/.pnpm/react-dom@19.3.1_react@19.3.1/node_modules/react-dom/client.js
 var require_client = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	function checkDCE() {
 		if (typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ === "undefined" || typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.checkDCE !== "function") return;
@@ -13629,18 +13629,18 @@ var json_parse_worker_default = new URL("json-parse.worker.js", import.meta.url)
 //#region src/client/jsonParseWorker.ts
 configureJsonParseWorker(json_parse_worker_default);
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.1_react@19.3.0/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.5_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js
 /**
 * The context that `useQueryClient` reads from. `QueryClientProvider` is the normal way to set it.
 */
 var QueryClientContext = import_react.createContext(void 0);
 /**
 * The `useQueryClient` hook returns the current `QueryClient` instance.
-*
 * @param queryClient - Use this to use a custom `QueryClient`. Otherwise, the one from the nearest context will
 * be used.
 * @returns The current `QueryClient` instance.
-* @throws If no `queryClient` argument is passed and no `QueryClientProvider` is found in the component tree.
+* @throws {Error} If no `queryClient` argument is passed and no `QueryClientProvider` is found in the
+* component tree.
 */
 var useQueryClient = (queryClient) => {
 	const client = import_react.useContext(QueryClientContext);
@@ -13653,9 +13653,8 @@ var useQueryClient = (queryClient) => {
 * calls `client.mount()`/`client.unmount()` as this component mounts/unmounts, which subscribes the client to
 * focus/online events (resuming any paused mutations and refetching as needed when the app regains focus or
 * comes back online).
-*
+* @param props - The `client` to provide, and the `children` that get access to it.
 * @returns The provided `children`, wrapped so they can read the `QueryClient` via `useQueryClient`.
-*
 * @example
 * ```tsx
 * import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -13680,7 +13679,7 @@ var QueryClientProvider = ({ client, children }) => {
 	});
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/timeoutManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/timeoutManager.js
 var defaultTimeoutProvider = {
 	setTimeout: (callback, delay) => setTimeout(callback, delay),
 	clearTimeout: (timeoutId) => clearTimeout(timeoutId),
@@ -13690,7 +13689,7 @@ var defaultTimeoutProvider = {
 /**
 * Allows customization of how timeouts are created.
 *
-* @tanstack/query-core makes liberal use of timeouts to implement `staleTime`
+* `@tanstack/query-core` makes liberal use of timeouts to implement `staleTime`
 * and `gcTime`. The default TimeoutManager provider uses the platform's global
 * `setTimeout` implementation, which is known to have scalability issues with
 * thousands of timeouts on the event loop.
@@ -13715,7 +13714,7 @@ var TimeoutManager = class {
 	* QueryClient or queries, so that the same provider is used consistently
 	* for all timers in the application, since different TimeoutProviders
 	* cannot cancel each others' timers.
-	*
+	* @param provider - The `TimeoutProvider` to use for all timers from now on.
 	* @example
 	* ```ts
 	* import { timeoutManager, QueryClient } from '@tanstack/query-core'
@@ -13736,7 +13735,9 @@ var TimeoutManager = class {
 	*
 	* It returns a timer ID, which may be a number or an object that can be
 	* coerced to a number via `Symbol.toPrimitive`.
-	*
+	* @param callback - The function to call when the timeout elapses.
+	* @param delay - The time to wait before calling `callback`, in milliseconds.
+	* @returns The timer ID, to pass to {@link TimeoutManager#clearTimeout}.
 	* @example
 	* ```ts
 	* import { timeoutManager } from '@tanstack/query-core'
@@ -13756,7 +13757,7 @@ var TimeoutManager = class {
 	* `clearTimeout` cancels a timeout callback scheduled with `setTimeout`,
 	* like the global `clearTimeout` function. It should be called with a
 	* timer ID returned by `setTimeout`.
-	*
+	* @param timeoutId - The timer ID returned by `setTimeout`, or `undefined`.
 	* @example
 	* ```ts
 	* import { timeoutManager } from '@tanstack/query-core'
@@ -13778,7 +13779,9 @@ var TimeoutManager = class {
 	*
 	* Like `setTimeout`, it returns a timer ID, which may be a number or an
 	* object that can be coerced to a number via `Symbol.toPrimitive`.
-	*
+	* @param callback - The function to call on every interval.
+	* @param delay - The time between calls, in milliseconds.
+	* @returns The timer ID, to pass to {@link TimeoutManager#clearInterval}.
 	* @example
 	* ```ts
 	* import { timeoutManager } from '@tanstack/query-core'
@@ -13796,7 +13799,7 @@ var TimeoutManager = class {
 	* `clearInterval` can be used to cancel an interval, like the global
 	* `clearInterval` function. It should be called with an interval ID
 	* returned by `setInterval`.
-	*
+	* @param intervalId - The timer ID returned by `setInterval`, or `undefined`.
 	* @example
 	* ```ts
 	* import { timeoutManager } from '@tanstack/query-core'
@@ -13823,33 +13826,62 @@ var timeoutManager = new TimeoutManager();
 *
 * This function is provided to make auditing the `tanstack/query-core` for
 * incorrect use of system `setTimeout` easier.
+* @param callback - The function to call on the next event loop tick.
 */
 function systemSetTimeoutZero(callback) {
 	setTimeout(callback, 0);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/utils.js
-/** @deprecated
-* use `environmentManager.isServer()` instead.
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/utils.js
+/**
+* @deprecated use `environmentManager.isServer()` instead.
 */
 var isServer$1 = typeof window === "undefined" || "Deno" in globalThis;
 function noop() {}
+/**
+* Resolves an {@link Updater}: calls it with `input` if it is a function, otherwise returns it as
+* is.
+* @param updater - The new value, or a function that receives `input` and returns the new value.
+* @param input - The current value, passed to `updater` if it is a function.
+* @returns The new value.
+*/
 function functionalUpdate$1(updater, input) {
 	return typeof updater === "function" ? updater(input) : updater;
 }
+/**
+* Checks whether a value can be used as a timeout: a non-negative, finite number.
+* @param value - The value to check.
+* @returns `true` if `value` is a number that is `>= 0` and not `Infinity`.
+*/
 function isValidTimeout(value) {
 	return typeof value === "number" && value >= 0 && value !== Infinity;
 }
+/**
+* Calculates how long until data updated at `updatedAt` becomes stale.
+* @param updatedAt - The timestamp, in milliseconds, at which the data was last updated.
+* @param staleTime - The time, in milliseconds, after which data is considered stale. Defaults to
+* `0`.
+* @returns The remaining time in milliseconds, or `0` if the data is already stale.
+*/
 function timeUntilStale(updatedAt, staleTime) {
 	return Math.max(updatedAt + (staleTime || 0) - Date.now(), 0);
 }
+/**
+* Resolves an option that can be given either as a value or as a function of the query, such as
+* `staleTime`.
+* @param value - The option value, or a function that receives `query` and returns the value.
+* @param query - The query passed to `value` if it is a function.
+* @returns The resolved value, or `undefined` if `value` is `undefined`.
+*/
 function resolveQueryValue(value, query) {
 	return typeof value === "function" ? value(query) : value;
 }
 /**
 * Checks whether a query matches the given {@link QueryFilters}.
 * Every filter that is specified must match; filters that are left unspecified are ignored.
-*
+* @param filters - The filters to check the query against.
+* @param query - The query to check.
+* @returns `true` if the query matches every specified filter.
 * @example
 * ```ts
 * const queryCache = queryClient.getQueryCache()
@@ -13880,7 +13912,9 @@ function matchQuery(filters, query) {
 * Checks whether a mutation matches the given {@link MutationFilters}.
 * Every filter that is specified must match; filters that are left unspecified are ignored.
 * If a `mutationKey` filter is provided but the mutation has no `mutationKey` of its own, it does not match.
-*
+* @param filters - The filters to check the mutation against.
+* @param mutation - The mutation to check.
+* @returns `true` if the mutation matches every specified filter.
 * @example
 * ```ts
 * const mutationCache = queryClient.getMutationCache()
@@ -13902,13 +13936,20 @@ function matchMutation(filters, mutation) {
 	if (predicate && !predicate(mutation)) return false;
 	return true;
 }
+/**
+* Hashes a query key with the query's `queryKeyHashFn` option, falling back to {@link hashKey}.
+* @param queryKey - The query key to hash.
+* @param options - The query options that may provide a custom `queryKeyHashFn`.
+* @returns The query hash, a string that identifies the query in the cache.
+*/
 function hashQueryKeyByOptions(queryKey, options) {
 	return (options?.queryKeyHashFn || hashKey)(queryKey);
 }
 /**
 * Default query & mutation keys hash function.
 * Hashes the value into a stable hash.
-*
+* @param queryKey - The query or mutation key to hash.
+* @returns The stable hash of the key, as a JSON string.
 * @example
 * ```ts
 * // Object keys are sorted, so key order doesn't affect the hash:
@@ -13968,15 +14009,29 @@ function replaceEqualDeep(a, b, depth = 0) {
 }
 /**
 * Shallow compare objects.
+* @param a - The first object.
+* @param b - The second object, or `undefined`.
+* @returns `true` if both objects have the same keys, with strictly equal values for each key.
 */
 function shallowEqualObjects(a, b) {
 	if (!b || Object.keys(a).length !== Object.keys(b).length) return false;
 	for (const key in a) if (a[key] !== b[key]) return false;
 	return true;
 }
+/**
+* Checks whether a value is an array with no holes and no extra properties.
+* @param value - The value to check.
+* @returns `true` if `value` is an array whose number of own keys equals its `length`.
+*/
 function isPlainArray(value) {
 	return Array.isArray(value) && value.length === Object.keys(value).length;
 }
+/**
+* Checks whether a value is a plain object, e.g. created with an object literal or
+* `Object.create(null)`.
+* @param o - The value to check.
+* @returns `true` if `o` is a plain object.
+*/
 function isPlainObject$1(o) {
 	if (!hasObjectPrototype(o)) return false;
 	const objectPrototype = Object.getPrototypeOf(o);
@@ -13989,14 +14044,34 @@ function isPlainObject$1(o) {
 	if (objectPrototype !== Object.prototype) return false;
 	return true;
 }
+/**
+* Checks whether a value's `Object.prototype.toString` tag is `[object Object]`.
+* @param o - The value to check.
+* @returns `true` if the tag is `[object Object]`.
+*/
 function hasObjectPrototype(o) {
 	return Object.prototype.toString.call(o) === "[object Object]";
 }
+/**
+* Waits for the given time, using the configured {@link timeoutManager}.
+* @param timeout - The time to wait, in milliseconds.
+* @returns A promise that resolves after `timeout` milliseconds.
+*/
 function sleep(timeout) {
 	return new Promise((resolve) => {
 		timeoutManager.setTimeout(resolve, timeout);
 	});
 }
+/**
+* Applies a query's `structuralSharing` option when writing new data.
+* @param prevData - The previously cached data.
+* @param data - The new data.
+* @param options - The query options, whose `structuralSharing` decides how the data is merged.
+* @returns The result of a custom `structuralSharing` function, `data` with its unchanged parts
+* replaced by those of `prevData` by default, or `data` as is if `structuralSharing` is `false`.
+* @throws {Error} The error from the default structural sharing, e.g. when the data is not JSON serializable.
+* Outside production, it is also logged to the console.
+*/
 function replaceData(prevData, data, options) {
 	if (typeof options.structuralSharing === "function") return options.structuralSharing(prevData, data);
 	else if (options.structuralSharing !== false) return replaceEqualDeep(prevData, data);
@@ -14006,7 +14081,8 @@ function replaceData(prevData, data, options) {
 * Intended to be passed as a query's `placeholderData` option, for example
 * `placeholderData: keepPreviousData`. Instead of resetting the query's data to `undefined` while a new
 * query key is fetching, it keeps displaying the previously fetched data until the new data arrives.
-*
+* @param previousData - The data of the previous query key, passed by the observer.
+* @returns The previous data, unchanged.
 * @example
 * ```ts
 * new QueryObserver(queryClient, {
@@ -14019,10 +14095,28 @@ function replaceData(prevData, data, options) {
 function keepPreviousData(previousData) {
 	return previousData;
 }
+/**
+* Returns a new array with `item` added at the end. If that makes the array longer than `max`,
+* the first item is dropped. Only one item is dropped, so the result can still exceed `max` if
+* `items` already did.
+* @param items - The current items.
+* @param item - The value to append.
+* @param max - The length above which an item is dropped. `0` (the default) means no limit.
+* @returns A new array with `item` added.
+*/
 function addToEnd(items, item, max = 0) {
 	const newItems = [...items, item];
 	return max && newItems.length > max ? newItems.slice(1) : newItems;
 }
+/**
+* Returns a new array with `item` added at the start. If that makes the array longer than `max`,
+* the last item is dropped. Only one item is dropped, so the result can still exceed `max` if
+* `items` already did.
+* @param items - The current items.
+* @param item - The value to prepend.
+* @param max - The length above which an item is dropped. `0` (the default) means no limit.
+* @returns A new array with `item` added.
+*/
 function addToStart(items, item, max = 0) {
 	const newItems = [item, ...items];
 	return max && newItems.length > max ? newItems.slice(0, -1) : newItems;
@@ -14031,7 +14125,6 @@ function addToStart(items, item, max = 0) {
 * Sentinel value that can be passed as a query's `queryFn` to conditionally disable the query (equivalent
 * to `enabled: false`) while preserving full type inference for the query's data. Unlike `enabled: false`,
 * a query disabled via `skipToken` cannot be triggered with `refetch`.
-*
 * @example
 * ```ts
 * new QueryObserver(queryClient, {
@@ -14041,6 +14134,14 @@ function addToStart(items, item, max = 0) {
 * ```
 */
 var skipToken = Symbol();
+/**
+* Returns the function to call for a fetch. If there is no `queryFn` but the fetch was started from
+* an `initialPromise`, that promise is returned instead. If there is no usable `queryFn` (missing or
+* {@link skipToken}), the returned function rejects with a `Missing queryFn` error.
+* @param options - The query options with the `queryFn`, and the `queryHash` used in error messages.
+* @param fetchOptions - The fetch options, which may carry an `initialPromise`.
+* @returns The function to call for the fetch.
+*/
 function ensureQueryFn(options, fetchOptions) {
 	if (!options.queryFn && fetchOptions?.initialPromise) return () => fetchOptions.initialPromise;
 	if (!options.queryFn || options.queryFn === skipToken) return () => Promise.reject(/* @__PURE__ */ new Error(`Missing queryFn: '${options.queryHash}'`));
@@ -14052,7 +14153,10 @@ function ensureQueryFn(options, fetchOptions) {
 * additional context such as the query or mutation) and its result is returned, allowing the throwing
 * behavior to be decided per error. Otherwise, `throwOnError` itself is coerced to a boolean (`undefined`
 * resolves to `false`).
-*
+* @param throwOnError - The `throwOnError` option: a boolean, a function that decides per error, or
+* `undefined`.
+* @param params - The arguments passed to `throwOnError` if it is a function.
+* @returns Whether the error should be thrown.
 * @example
 * ```ts
 * const throwOnError =
@@ -14065,6 +14169,15 @@ function shouldThrowError(throwOnError, params) {
 	if (typeof throwOnError === "function") return throwOnError(...params);
 	return !!throwOnError;
 }
+/**
+* Adds a lazy `signal` getter to an object, such as a query function context. The first time
+* `signal` is read, `onCancelled` is registered for the signal's `abort` event (or called right
+* away if it is already aborted), so cancellation is only tracked when the signal is actually used.
+* @param object - The object to add the `signal` property to.
+* @param getSignal - Returns the `AbortSignal`. Called once, when `signal` is first read.
+* @param onCancelled - Called when the signal is aborted, if `signal` was read.
+* @returns The same object, with the `signal` property added.
+*/
 function addConsumeAwareSignal(object, getSignal, onCancelled) {
 	let consumed = false;
 	let signal;
@@ -14082,14 +14195,15 @@ function addConsumeAwareSignal(object, getSignal, onCancelled) {
 	return object;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/environmentManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/environmentManager.js
 var isServerFn = () => isServer$1;
 /**
 * Returns whether the current runtime should be treated as a server environment.
+* @returns `true` if the runtime is treated as a server.
 */
 var isServer = () => isServerFn();
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/subscribable.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/subscribable.js
 /**
 * The base class behind everything in Query that you can subscribe to: `QueryCache`, `MutationCache`,
 * the observers, and the `FocusManager`/`OnlineManager` behind `focusManager` and `onlineManager`.
@@ -14105,6 +14219,7 @@ var Subscribable = class {
 	* that removes the listener again — call it to stop listening. The base class never drops a listener
 	* on its own, though some subclasses clear all of theirs in `destroy()`.
 	* @param listener - Called on each update, with whatever the subclass passes to its subscribers.
+	* @returns A function that removes the listener.
 	* @example
 	* ```ts
 	* const unsubscribe = subscribable.subscribe(() => {
@@ -14124,15 +14239,24 @@ var Subscribable = class {
 	}
 	/**
 	* Returns `true` while at least one listener is registered, `false` once they have all unsubscribed.
+	* @returns `true` if at least one listener is registered.
 	*/
 	hasListeners() {
 		return this.listeners.size > 0;
 	}
+	/**
+	* Called after a listener is added. Does nothing here; subclasses override it, e.g. to start
+	* tracking what they observe once the first listener subscribes.
+	*/
 	onSubscribe() {}
+	/**
+	* Called after a listener is removed. Does nothing here; subclasses override it, e.g. to clean up
+	* once the last listener unsubscribes.
+	*/
 	onUnsubscribe() {}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/focusManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/focusManager.js
 /**
 * The `FocusManager` manages the focus state within TanStack Query.
 *
@@ -14169,7 +14293,8 @@ var FocusManager = class extends Subscribable {
 	* receives a `setFocused` callback: call it with a `boolean` to manually
 	* set the focus state, or with no arguments to re-evaluate the current
 	* focus state and notify subscribers.
-	*
+	* @param setup - Receives the `setFocused` callback, registers the event listener, and may return
+	* a cleanup function that is called when the listener is replaced or no longer needed.
 	* @example
 	* ```ts
 	* import { focusManager } from '@tanstack/query-core'
@@ -14199,7 +14324,7 @@ var FocusManager = class extends Subscribable {
 	/**
 	* `setFocused` can be used to manually set the focus state. Set `undefined`
 	* to fall back to the default focus check.
-	*
+	* @param focused - The focus state, or `undefined` to use the default focus check.
 	* @example
 	* ```ts
 	* import { focusManager } from '@tanstack/query-core'
@@ -14231,6 +14356,7 @@ var FocusManager = class extends Subscribable {
 	}
 	/**
 	* `isFocused` can be used to get the current focus state.
+	* @returns The focus state set with `setFocused`, or otherwise whether the document is visible.
 	*/
 	isFocused() {
 		if (typeof this.#focused === "boolean") return this.#focused;
@@ -14242,12 +14368,17 @@ var FocusManager = class extends Subscribable {
 */
 var focusManager = new FocusManager();
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/notifyManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/notifyManager.js
 /**
 * Default scheduling function used by the notify manager.
 * Schedules the callback with the system's `setTimeout(callback, 0)`.
 */
 var defaultScheduler = systemSetTimeoutZero;
+/**
+* Creates a notify manager, which schedules and batches notifications to subscribers. Query uses a
+* single instance of it, exported as {@link notifyManager}.
+* @returns A new notify manager.
+*/
 function createNotifyManager() {
 	let queue = [];
 	let transactions = 0;
@@ -14281,6 +14412,8 @@ function createNotifyManager() {
 		* This is mainly used internally to optimize query client updating.
 		* Batches can be nested; the queue is only flushed once the outermost `batch` call finishes.
 		* The return value of `callback` is passed through.
+		* @param callback - The function to run in the batch.
+		* @returns The return value of `callback`.
 		*/
 		batch: (callback) => {
 			let result;
@@ -14295,6 +14428,8 @@ function createNotifyManager() {
 		},
 		/**
 		* All calls to the wrapped function will be batched.
+		* @param callback - The function to wrap.
+		* @returns A function that schedules a call to `callback` with the given arguments.
 		*/
 		batchCalls: (callback) => {
 			return (...args) => {
@@ -14311,6 +14446,7 @@ function createNotifyManager() {
 		/**
 		* Use this method to set a custom notify function.
 		* This can be used to for example wrap notifications with `React.act` while running tests.
+		* @param fn - Receives each notification callback and must call it.
 		*/
 		setNotifyFunction: (fn) => {
 			notifyFn = fn;
@@ -14319,7 +14455,7 @@ function createNotifyManager() {
 		* Use this method to set a custom function to batch notifications together into a single tick.
 		* Framework adapters use this to plug in their own batching primitive, so that a single query
 		* update only triggers one re-render instead of one per subscriber.
-		*
+		* @param fn - Receives a function that runs a batch of notifications and must call it.
 		* @example
 		* ```ts
 		* import { notifyManager } from '@tanstack/query-core'
@@ -14334,7 +14470,7 @@ function createNotifyManager() {
 		/**
 		* Configures a custom callback that schedules when the next batch runs.
 		* The default behavior is `setTimeout(callback, 0)`.
-		*
+		* @param fn - Receives a callback that runs the next batch, and schedules it.
 		* @example
 		* ```ts
 		* import { notifyManager } from '@tanstack/query-core'
@@ -14359,7 +14495,7 @@ function createNotifyManager() {
 */
 var notifyManager = createNotifyManager();
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/onlineManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/onlineManager.js
 /**
 * The `OnlineManager` manages the online state within TanStack Query. It can
 * be used to change the default event listeners or to manually change the
@@ -14402,7 +14538,8 @@ var OnlineManager = class extends Subscribable {
 	* be used to determine the online state. The provided `setup` function
 	* receives a `setOnline` callback that should be called with a `boolean`
 	* whenever the online state changes.
-	*
+	* @param setup - Receives the `setOnline` callback, registers the event listener, and may return
+	* a cleanup function that is called when the listener is replaced or no longer needed.
 	* @example
 	* ```ts
 	* import NetInfo from '@react-native-community/netinfo'
@@ -14422,7 +14559,7 @@ var OnlineManager = class extends Subscribable {
 	}
 	/**
 	* `setOnline` can be used to manually set the online state.
-	*
+	* @param online - The online state.
 	* @example
 	* ```ts
 	* import { onlineManager } from '@tanstack/query-core'
@@ -14444,6 +14581,7 @@ var OnlineManager = class extends Subscribable {
 	}
 	/**
 	* `isOnline` can be used to get the current online state.
+	* @returns `true` if online.
 	*/
 	isOnline() {
 		return this.#online;
@@ -14454,10 +14592,20 @@ var OnlineManager = class extends Subscribable {
 */
 var onlineManager = new OnlineManager();
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/retryer.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/retryer.js
+/**
+* The default `retryDelay`: doubles with every failure, starting at 1 second, up to 30 seconds.
+* @param failureCount - The number of failures so far.
+* @returns The delay before the next retry, in milliseconds.
+*/
 function defaultRetryDelay(failureCount) {
 	return Math.min(1e3 * 2 ** failureCount, 3e4);
 }
+/**
+* Checks whether a fetch can run for the given network mode.
+* @param networkMode - The `networkMode` option. Defaults to `'online'`.
+* @returns `true` if the network mode is not `'online'`, or if it is and the client is online.
+*/
 function canFetch(networkMode) {
 	return (networkMode ?? "online") === "online" ? onlineManager.isOnline() : true;
 }
@@ -14486,6 +14634,15 @@ var CancelledError = class extends Error {
 		this.silent = options?.silent;
 	}
 };
+/**
+* Creates a retryer, which runs a function and retries it on failure according to the `retry` and
+* `retryDelay` options. It pauses while the network mode doesn't allow fetching or `canRun` returns
+* `false`, and can be cancelled. Queries and mutations use it to run their `queryFn` and
+* `mutationFn`.
+* @param config - The function to run, the retry options, and the callbacks for failures, pausing,
+* continuing, and cancellation.
+* @returns The retryer, whose `promise` settles with the result of the function.
+*/
 function createRetryer(config) {
 	let isRetryCancelled = false;
 	let failureCount = 0;
@@ -14528,10 +14685,10 @@ function createRetryer(config) {
 			promiseReject(value);
 		}
 	};
-	const pause = () => {
+	const pause = (canResume) => {
 		return new Promise((continueResolve) => {
 			continueFn = (value) => {
-				if (isResolved() || canContinue()) continueResolve(value);
+				if (isResolved() || canResume()) continueResolve(value);
 			};
 			config.onPause?.();
 		}).then(() => {
@@ -14561,7 +14718,7 @@ function createRetryer(config) {
 			failureCount++;
 			config.onFail?.(failureCount, error);
 			sleep(delay).then(() => {
-				return canContinue() ? void 0 : pause();
+				return canContinue() ? void 0 : pause(canContinue);
 			}).then(() => {
 				if (isRetryCancelled) reject(error);
 				else run();
@@ -14581,13 +14738,13 @@ function createRetryer(config) {
 		canStart,
 		start: () => {
 			if (canStart()) run();
-			else pause().then(run);
+			else pause(canStart).then(run);
 			return promise;
 		}
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/removable.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/removable.js
 /**
 * The base class for cache entries that are garbage collected once nothing is using them —
 * `Query` and `Mutation` both extend it. `gcTime` controls how long an unused entry is kept.
@@ -14602,15 +14759,27 @@ var Removable = class {
 	destroy() {
 		this.clearGcTimeout();
 	}
+	/**
+	* Schedules the entry to be removed from its cache after `gcTime`, replacing any timeout scheduled
+	* before. Nothing is scheduled if `gcTime` is `Infinity`.
+	*/
 	scheduleGc() {
 		this.clearGcTimeout();
 		if (isValidTimeout(this.gcTime)) this.#gcTimeout = timeoutManager.setTimeout(() => {
 			this.optionalRemove();
 		}, this.gcTime);
 	}
+	/**
+	* Updates `gcTime`, keeping the longest one seen so far. Without a value, it defaults to 5 minutes
+	* on the client and `Infinity` on the server.
+	* @param newGcTime - The `gcTime` from the latest options, if any.
+	*/
 	updateGcTime(newGcTime) {
 		this.gcTime = Math.max(this.gcTime || 0, newGcTime ?? (isServer() ? Infinity : 3e5));
 	}
+	/**
+	* Cancels the scheduled removal, if there is one.
+	*/
 	clearGcTimeout() {
 		if (this.#gcTimeout !== void 0) {
 			timeoutManager.clearTimeout(this.#gcTimeout);
@@ -14619,7 +14788,15 @@ var Removable = class {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/infiniteQueryBehavior.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/infiniteQueryBehavior.js
+/**
+* Creates the behavior that fetches the pages of an infinite query: the next or previous page for
+* `fetchNextPage`/`fetchPreviousPage`, or all pages again from the start on a refetch.
+* @param pages - The number of pages to fetch from the start when all pages are fetched again,
+* e.g. from the `pages` option of `queryClient.infiniteQuery`. Defaults to the number of cached
+* pages.
+* @returns The query behavior to set on an infinite query.
+*/
 function infiniteQueryBehavior(pages) {
 	return { onFetch: (context, query) => {
 		const options = context.options;
@@ -14671,7 +14848,7 @@ function infiniteQueryBehavior(pages) {
 			} else {
 				const remainingPages = pages ?? oldPages.length;
 				do {
-					const param = currentPage === 0 ? oldPageParams[0] ?? options.initialPageParam : getNextPageParam(options, result);
+					const param = currentPage === 0 ? oldPageParams[0] === void 0 ? options.initialPageParam : oldPageParams[0] : getNextPageParam(options, result);
 					if (currentPage > 0 && param == null) break;
 					result = await fetchPage(result, param);
 					currentPage++;
@@ -14690,15 +14867,32 @@ function infiniteQueryBehavior(pages) {
 		else context.fetchFn = fetchFn;
 	} };
 }
+/**
+* Computes the page param of the page after the last one, with the `getNextPageParam` option.
+* @param options - The infinite query options.
+* @param data - The current pages and page params.
+* @returns The next page param, or `undefined` if there are no pages yet.
+*/
 function getNextPageParam(options, { pages, pageParams }) {
 	const lastIndex = pages.length - 1;
 	return pages.length > 0 ? options.getNextPageParam(pages[lastIndex], pages, pageParams[lastIndex], pageParams) : void 0;
 }
+/**
+* Computes the page param of the page before the first one, with the `getPreviousPageParam`
+* option.
+* @param options - The infinite query options.
+* @param data - The current pages and page params.
+* @returns The previous page param, or `undefined` if there are no pages yet or no
+* `getPreviousPageParam` option.
+*/
 function getPreviousPageParam(options, { pages, pageParams }) {
 	return pages.length > 0 ? options.getPreviousPageParam?.(pages[0], pages, pageParams[0], pageParams) : void 0;
 }
 /**
 * Checks if there is a next page.
+* @param options - The infinite query options with `getNextPageParam`.
+* @param data - The current pages and page params.
+* @returns `true` if `getNextPageParam` returns a value other than `null` or `undefined`.
 */
 function hasNextPage(options, data) {
 	if (!data) return false;
@@ -14706,13 +14900,17 @@ function hasNextPage(options, data) {
 }
 /**
 * Checks if there is a previous page.
+* @param options - The infinite query options with `getPreviousPageParam`.
+* @param data - The current pages and page params.
+* @returns `true` if `getPreviousPageParam` is set and returns a value other than `null` or
+* `undefined`.
 */
 function hasPreviousPage(options, data) {
 	if (!data || !options.getPreviousPageParam) return false;
 	return getPreviousPageParam(options, data) != null;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/query.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/query.js
 /**
 * Represents a single cached query. A `Query` holds the query's key, options,
 * state (data/error/status), and the observers currently subscribed to it.
@@ -14721,7 +14919,6 @@ function hasPreviousPage(options, data) {
 * code typically interacts with queries indirectly through `QueryClient` or
 * a framework hook like `useQuery`. Direct access to a `Query` instance is
 * possible via `queryCache.find()`/`findAll()` for inspecting cache state.
-*
 * @example
 * ```ts
 * const queryCache = queryClient.getQueryCache()
@@ -14757,22 +14954,33 @@ var Query = class extends Removable {
 	}
 	/**
 	* The `meta` object passed in the query's options, if any.
+	* @returns The query's `meta`, or `undefined` if none was set.
 	*/
 	get meta() {
 		return this.options.meta;
 	}
-	/** @internal */
+	/**
+	* `'infinite'` for an infinite query, otherwise `undefined`.
+	* @internal
+	* @returns The type of the query, set from the `_type` option (e.g. `'infinite'`).
+	*/
 	get queryType() {
 		return this.#queryType;
 	}
 	/**
 	* The promise for the currently in-flight fetch, if the query is fetching.
 	* `undefined` when the query is not fetching.
+	* @returns The promise of the in-flight fetch, or `undefined`.
 	*/
 	get promise() {
 		return this.#retryer?.promise;
 	}
-	/** @internal */
+	/**
+	* Replaces the query's options and applies their `gcTime`. If the query has no data yet, it gets
+	* the `initialData` from the new options, if any.
+	* @internal
+	* @param options - The new query options, merged on top of the query's default options.
+	*/
 	setOptions(options) {
 		this.options = {
 			...this.#defaultOptions,
@@ -14791,7 +14999,14 @@ var Query = class extends Removable {
 	optionalRemove() {
 		if (!this.observers.length && this.state.fetchStatus === "idle") this.#cache.remove(this);
 	}
-	/** @internal */
+	/**
+	* Writes new data to the query and marks it as successfully fetched.
+	* @internal
+	* @param newData - The data to write. Structural sharing with the current data is applied.
+	* @param options - Set `updatedAt` to override the timestamp, and `manual` to mark the write as
+	* manual (e.g. from `queryClient.setQueryData`).
+	* @returns The data that was written.
+	*/
 	setData(newData, options) {
 		const data = replaceData(this.state.data, newData, this.options);
 		this.#dispatch({
@@ -14806,6 +15021,7 @@ var Query = class extends Removable {
 	* Merges the given partial state directly into this query's state, notifying observers. Used
 	* by persistence and broadcast plugins to restore a state snapshot, and by devtools to let a
 	* user manually trigger a loading/error state or edit the cached data.
+	* @param state - The partial state to merge into the query's state.
 	*/
 	setState(state) {
 		this.#dispatch({
@@ -14817,7 +15033,9 @@ var Query = class extends Removable {
 	* Cancels the query's currently in-flight fetch, if any.
 	* - Returns a promise that resolves once the cancellation has settled.
 	* - If no fetch is in progress, resolves immediately.
-	*
+	* @param options - Set `revert` to restore the state from before the fetch started, and `silent`
+	* to suppress the cancellation error when a new fetch replaces the cancelled one.
+	* @returns A promise that resolves once the cancellation has settled.
 	* @example
 	* ```ts
 	* await query.cancel()
@@ -14832,14 +15050,17 @@ var Query = class extends Removable {
 	* Clears the query's garbage collection timeout and silently cancels any
 	* in-flight fetch. Called by `QueryCache` when the query is removed from
 	* the cache.
-	*
 	* @see {@link Query#cancel}
 	*/
 	destroy() {
 		super.destroy();
 		this.cancel({ silent: true });
 	}
-	/** @internal */
+	/**
+	* The state the query was created with.
+	* @internal
+	* @returns The state the query had when it was first created, used by {@link Query#reset}.
+	*/
 	get resetState() {
 		return this.#initialState;
 	}
@@ -14855,6 +15076,7 @@ var Query = class extends Removable {
 	/**
 	* Returns `true` if the query has at least one observer for which `enabled`
 	* does not resolve to `false`.
+	* @returns `true` if the query has an enabled observer.
 	*/
 	isActive() {
 		return this.observers.some((observer) => resolveQueryValue(observer.options.enabled, this) !== false);
@@ -14866,6 +15088,7 @@ var Query = class extends Removable {
 	*   (see `isActive`).
 	* - If the query has no observers, it is disabled when its `queryFn` is
 	*   `skipToken` or it has never been fetched.
+	* @returns `true` if the query is disabled.
 	*/
 	isDisabled() {
 		if (this.getObserversCount() > 0) return !this.isActive();
@@ -14874,6 +15097,7 @@ var Query = class extends Removable {
 	/**
 	* Returns `true` if the query has been fetched, i.e. it has resolved with
 	* either data or an error at least once.
+	* @returns `true` if the query has been fetched.
 	*/
 	isFetched() {
 		return this.state.dataUpdateCount + this.state.errorUpdateCount > 0;
@@ -14881,6 +15105,7 @@ var Query = class extends Removable {
 	/**
 	* Returns `true` if the query has at least one observer configured with
 	* `staleTime: 'static'`, meaning it is treated as never stale.
+	* @returns `true` if the query is static.
 	*/
 	isStatic() {
 		if (this.getObserversCount() > 0) return this.observers.some((observer) => resolveQueryValue(observer.options.staleTime, this) === "static");
@@ -14893,7 +15118,7 @@ var Query = class extends Removable {
 	*   `staleTime` and `enabled` state).
 	* - If the query has no observers, it is considered stale when it has no
 	*   data or has been invalidated.
-	*
+	* @returns `true` if the query is stale.
 	* @see {@link Query#isStaleByTime}
 	* @example
 	* ```ts
@@ -14913,7 +15138,9 @@ var Query = class extends Removable {
 	* - `staleTime: 'static'` is never stale.
 	* - An invalidated query is always stale.
 	* - Otherwise, staleness is based on elapsed time since `dataUpdatedAt`.
-	*
+	* @param staleTime - The time, in milliseconds, after which data is considered stale, or
+	* `'static'` to never treat existing data as stale. A query without data is stale either way.
+	* @returns `true` if the query's data is stale.
 	* @see {@link Query#isStale}
 	* @example
 	* ```ts
@@ -14926,17 +15153,30 @@ var Query = class extends Removable {
 		if (this.state.isInvalidated) return true;
 		return !timeUntilStale(this.state.dataUpdatedAt, staleTime);
 	}
-	/** @internal */
+	/**
+	* Refetches the query when the window regains focus, if an observer wants that, and continues a
+	* paused fetch.
+	* @internal
+	*/
 	onFocus() {
 		this.observers.find((x) => x.shouldFetchOnWindowFocus())?.refetch({ cancelRefetch: false });
 		this.#retryer?.continue();
 	}
-	/** @internal */
+	/**
+	* Refetches the query when the app reconnects, if an observer wants that, and continues a paused
+	* fetch.
+	* @internal
+	*/
 	onOnline() {
 		this.observers.find((x) => x.shouldFetchOnReconnect())?.refetch({ cancelRefetch: false });
 		this.#retryer?.continue();
 	}
-	/** @internal */
+	/**
+	* Subscribes an observer to the query and stops its garbage collection.
+	* @internal
+	* @param observer - The observer to add. Adding an observer that is already subscribed does
+	* nothing.
+	*/
 	addObserver(observer) {
 		if (!this.observers.includes(observer)) {
 			this.observers.push(observer);
@@ -14948,7 +15188,13 @@ var Query = class extends Removable {
 			});
 		}
 	}
-	/** @internal */
+	/**
+	* Unsubscribes an observer from the query.
+	* @internal
+	* @param observer - The observer to remove. When the last observer is removed, the in-flight
+	* fetch is cancelled if its abort signal was consumed (otherwise only its retries are stopped),
+	* and garbage collection is scheduled.
+	*/
 	removeObserver(observer) {
 		const index = this.observers.indexOf(observer);
 		if (index !== -1) {
@@ -14969,7 +15215,7 @@ var Query = class extends Removable {
 	}
 	/**
 	* Returns the number of observers currently subscribed to this query.
-	*
+	* @returns The number of observers.
 	* @example
 	* ```ts
 	* if (query.getObserversCount() === 0) {
@@ -14984,7 +15230,6 @@ var Query = class extends Removable {
 	* Marks the query as invalidated, unless it is already invalidated. This
 	* updates `state.isInvalidated` and notifies observers, but does not by
 	* itself trigger a refetch.
-	*
 	* @example
 	* ```ts
 	* query.invalidate()
@@ -15002,6 +15247,13 @@ var Query = class extends Removable {
 	*   cancelled first.
 	* - If `options` is passed, it replaces the query's current options
 	*   before fetching.
+	* @param options - Query options that replace the query's current options before fetching. They
+	* are not applied when an in-flight fetch is reused.
+	* @param fetchOptions - Set `cancelRefetch` to cancel an in-flight fetch first (only if the query
+	* already has data), and `meta` to pass extra information to the query's behavior.
+	* @returns A promise that resolves with the fetched data, or rejects with the fetch error. If the
+	* fetch is cancelled with `revert` while the query has data, it resolves with the restored data
+	* instead.
 	*/
 	async fetch(options, fetchOptions) {
 		if (this.state.fetchStatus !== "idle" && this.#retryer?.status() !== "rejected") {
@@ -15186,6 +15438,14 @@ var Query = class extends Removable {
 		});
 	}
 };
+/**
+* Returns the state changes applied when a query starts fetching.
+* @param data - The query's current data. If it is `undefined`, the query is also reset to
+* `'pending'` with no error.
+* @param options - The query options, whose `networkMode` decides whether the query is `'fetching'`
+* or `'paused'`.
+* @returns The partial query state for a starting fetch.
+*/
 function fetchState(data, options) {
 	return {
 		fetchFailureCount: 0,
@@ -15197,6 +15457,12 @@ function fetchState(data, options) {
 		}
 	};
 }
+/**
+* Returns the state changes applied when a query receives data.
+* @param data - The new data.
+* @param dataUpdatedAt - The timestamp the data is recorded with. Defaults to the current time.
+* @returns The partial query state for a successful update.
+*/
 function successState(data, dataUpdatedAt) {
 	return {
 		data,
@@ -15206,6 +15472,12 @@ function successState(data, dataUpdatedAt) {
 		status: "success"
 	};
 }
+/**
+* Returns the initial state of a query, based on its `initialData` and `initialDataUpdatedAt`
+* options.
+* @param options - The query options.
+* @returns The initial query state: `'success'` if `initialData` is set, otherwise `'pending'`.
+*/
 function getDefaultState$1(options) {
 	const data = typeof options.initialData === "function" ? options.initialData() : options.initialData;
 	const hasData = data !== void 0;
@@ -15226,7 +15498,7 @@ function getDefaultState$1(options) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/queryObserver.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/queryObserver.js
 /**
 * A `QueryObserver` watches a single query in the `QueryCache` and computes a
 * `QueryObserverResult` from its state, recomputing and notifying subscribers
@@ -15234,7 +15506,6 @@ function getDefaultState$1(options) {
 * the primitive that framework adapters (e.g. `useQuery`) build their hooks
 * on top of, but it can also be used directly to observe and switch between
 * queries outside of any framework.
-*
 * @example
 * ```ts
 * const observer = new QueryObserver(queryClient, {
@@ -15270,6 +15541,10 @@ var QueryObserver = class extends Subscribable {
 		this.bindMethods();
 		this.setOptions(options);
 	}
+	/**
+	* Binds the methods of the result (`refetch`) to the observer, so they keep working when destructured
+	* from it. Subclasses override it to bind their own result methods as well.
+	*/
 	bindMethods() {
 		this.refetch = this.refetch.bind(this);
 	}
@@ -15288,6 +15563,7 @@ var QueryObserver = class extends Subscribable {
 	* Returns whether the observed query is currently stale and configured
 	* (via the `refetchOnReconnect` option) to refetch when the network
 	* reconnects.
+	* @returns `true` if the observer should refetch the query on reconnect.
 	*/
 	shouldFetchOnReconnect() {
 		return shouldFetchOn(this.#currentQuery, this.options, this.options.refetchOnReconnect);
@@ -15296,6 +15572,7 @@ var QueryObserver = class extends Subscribable {
 	* Returns whether the observed query is currently stale and configured
 	* (via the `refetchOnWindowFocus` option) to refetch when the window
 	* regains focus.
+	* @returns `true` if the observer should refetch the query on window focus.
 	*/
 	shouldFetchOnWindowFocus() {
 		return shouldFetchOn(this.#currentQuery, this.options, this.options.refetchOnWindowFocus);
@@ -15317,7 +15594,9 @@ var QueryObserver = class extends Subscribable {
 	* trigger a fetch if the new options require one and the observer has
 	* subscribers, recompute the current result, and reschedule the stale and
 	* refetch-interval timers as needed.
-	*
+	* @param options - The new observer options. They are defaulted with {@link
+	* QueryClient#defaultQueryOptions} before being applied.
+	* @throws {Error} If `enabled` is neither a boolean nor a function.
 	* @example
 	* ```ts
 	* observer.setOptions({ queryKey: ['posts', 1], queryFn: () => fetchPost(1) })
@@ -15349,6 +15628,8 @@ var QueryObserver = class extends Subscribable {
 	* right now, building the underlying `Query` if it doesn't exist yet, without waiting for a
 	* subscription callback. Called by framework adapters on every render (e.g. `useQuery`) so the
 	* returned value is available synchronously, ahead of `setOptions` triggering an actual fetch.
+	* @param options - The defaulted observer options to compute the result for.
+	* @returns The result for the given options.
 	*/
 	getOptimisticResult(options) {
 		const query = this.#client.getQueryCache().build(this.#client, options);
@@ -15365,7 +15646,7 @@ var QueryObserver = class extends Subscribable {
 	* observed query. This is a point-in-time read; to be notified of updates
 	* as they happen, subscribe to the observer instead (its inherited
 	* `subscribe` method).
-	*
+	* @returns The observer's latest result.
 	* @example
 	* ```ts
 	* const result = observer.getCurrentResult()
@@ -15380,6 +15661,9 @@ var QueryObserver = class extends Subscribable {
 	* {@link QueryObserver#trackProp} (and an optional `onPropTracked` callback). Used by framework
 	* adapters when `notifyOnChangeProps` is not set, to implement its default "only re-render on
 	* properties you actually read" behavior.
+	* @param result - The result to wrap.
+	* @param onPropTracked - Called with the name of each property that is read.
+	* @returns A proxy of `result` that tracks property reads.
 	*/
 	trackResult(result, onPropTracked) {
 		return new Proxy(result, { get: (target, key) => {
@@ -15393,12 +15677,14 @@ var QueryObserver = class extends Subscribable {
 	* notifies this observer if a tracked property actually changed. Normally called indirectly via
 	* {@link QueryObserver#trackResult}'s proxy; exposed directly for adapters that track property
 	* access themselves (e.g. through their own reactivity system) instead of via the proxy.
+	* @param key - The name of the property that was read.
 	*/
 	trackProp(key) {
 		this.#trackedProps.add(key);
 	}
 	/**
 	* Returns the `Query` instance this observer is currently observing.
+	* @returns The observed query.
 	*/
 	getCurrentQuery() {
 		return this.#currentQuery;
@@ -15406,7 +15692,9 @@ var QueryObserver = class extends Subscribable {
 	/**
 	* Refetches the observed query and returns a promise that resolves with
 	* the resulting `QueryObserverResult`.
-	*
+	* @param options - Set `cancelRefetch` to `false` to keep a running fetch instead of cancelling
+	* it, and `throwOnError` to `true` to reject when the refetch fails.
+	* @returns A promise that resolves with the result after the refetch.
 	* @example
 	* ```ts
 	* const result = await observer.refetch({ cancelRefetch: false })
@@ -15422,7 +15710,8 @@ var QueryObserver = class extends Subscribable {
 	* resolves with the `QueryObserverResult` for that fetch. This is useful
 	* for prefetching data that another observer (e.g. a query about to be
 	* navigated to) will need, ahead of time.
-	*
+	* @param options - The observer options of the query to fetch.
+	* @returns A promise that resolves with the result for the fetched query.
 	* @example
 	* ```ts
 	* const result = await observer.fetchOptimistic({
@@ -15446,7 +15735,7 @@ var QueryObserver = class extends Subscribable {
 				}
 			});
 		});
-		return Promise.race([query.fetch().then(() => {
+		return Promise.race([query.fetch(defaultedOptions).then(() => {
 			const result = this.createResult(query, defaultedOptions);
 			resolveEarly?.(result);
 			return result;
@@ -15454,6 +15743,12 @@ var QueryObserver = class extends Subscribable {
 			unsubscribe();
 		}), cachePromise]);
 	}
+	/**
+	* Fetches the observed query and updates the result once the fetch settles. Used by `refetch` and,
+	* in `InfiniteQueryObserver`, to fetch more pages.
+	* @param fetchOptions - Options for this fetch. `cancelRefetch` defaults to `true`.
+	* @returns A promise that resolves with the updated result.
+	*/
 	fetch(fetchOptions) {
 		return this.#executeFetch({
 			...fetchOptions,
@@ -15508,6 +15803,13 @@ var QueryObserver = class extends Subscribable {
 			this.#refetchIntervalId = void 0;
 		}
 	}
+	/**
+	* Computes the result for a query and options from the query's state, applying `select`,
+	* `placeholderData`, and the derived flags. Subclasses override it to add their own fields.
+	* @param query - The query to compute the result for.
+	* @param options - The observer options to compute the result with.
+	* @returns The computed result.
+	*/
 	createResult(query, options) {
 		const prevQuery = this.#currentQuery;
 		const prevOptions = this.options;
@@ -15643,18 +15945,45 @@ var QueryObserver = class extends Subscribable {
 			query.addObserver(this);
 		}
 	}
-	/** @internal */
+	/**
+	* Updates the observer's result when the observed query changes, and reschedules its timers if it
+	* has listeners.
+	* @internal
+	*/
 	onQueryUpdate() {
 		this.updateResult();
 		if (this.hasListeners()) this.#updateTimers();
 	}
 };
+/**
+* Checks whether a query has no data yet and should do its initial load when an observer mounts.
+* @param query - The query to check.
+* @param options - The observer options.
+* @returns `true` if the query is enabled, has no data, and isn't in an error state with
+* `retryOnMount: false`.
+*/
 function shouldLoadOnMount(query, options) {
 	return resolveQueryValue(options.enabled, query) !== false && query.state.data === void 0 && !(query.state.status === "error" && resolveQueryValue(options.retryOnMount, query) === false);
 }
+/**
+* Checks whether a query should fetch when an observer mounts: either for its initial load, or
+* because it has data and `refetchOnMount` asks for a refetch.
+* @param query - The query to check.
+* @param options - The observer options.
+* @returns `true` if the query should fetch on mount.
+*/
 function shouldFetchOnMount(query, options) {
 	return shouldLoadOnMount(query, options) || query.state.data !== void 0 && shouldFetchOn(query, options, options.refetchOnMount);
 }
+/**
+* Checks whether a query should fetch for a `refetchOnMount`, `refetchOnWindowFocus`, or
+* `refetchOnReconnect` option.
+* @param query - The query to check.
+* @param options - The observer options.
+* @param field - The value of the option to check.
+* @returns `true` if the query is enabled, not static, and the option is `'always'`, or is not
+* `false` and the query is stale.
+*/
 function shouldFetchOn(query, options, field) {
 	if (resolveQueryValue(options.enabled, query) !== false && resolveQueryValue(options.staleTime, query) !== "static") {
 		const value = resolveQueryValue(field, query);
@@ -15662,21 +15991,35 @@ function shouldFetchOn(query, options, field) {
 	}
 	return false;
 }
+/**
+* Checks whether a query should fetch after the observer's options change.
+* @param query - The query observed with the new options.
+* @param prevQuery - The query observed with the previous options.
+* @param options - The new observer options.
+* @param prevOptions - The previous observer options.
+* @returns `true` if the query changed or was disabled before, it isn't a suspense query in an
+* error state, and it is stale.
+*/
 function shouldFetchOptionally(query, prevQuery, options, prevOptions) {
 	return (query !== prevQuery || resolveQueryValue(prevOptions.enabled, query) === false) && (!options.suspense || query.state.status !== "error") && isStale(query, options);
 }
+/**
+* Checks whether a query is stale for the given observer options.
+* @param query - The query to check.
+* @param options - The observer options, whose `enabled` and `staleTime` are used.
+* @returns `true` if the query is enabled and its data is stale for `staleTime`.
+*/
 function isStale(query, options) {
 	return resolveQueryValue(options.enabled, query) !== false && query.isStaleByTime(resolveQueryValue(options.staleTime, query));
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/infiniteQueryObserver.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/infiniteQueryObserver.js
 /**
 * An `InfiniteQueryObserver` extends `QueryObserver` to observe and switch
 * between infinite queries. It augments the base `QueryObserverResult` with
 * infinite-query-specific fields and methods, such as `hasNextPage` and
 * `fetchNextPage`, and is the primitive that framework adapters (e.g.
 * `useInfiniteQuery`) build their hooks on top of.
-*
 * @example
 * ```ts
 * const observer = new InfiniteQueryObserver(queryClient, {
@@ -15703,6 +16046,7 @@ var InfiniteQueryObserver = class extends QueryObserver {
 	* `QueryObserver.setOptions`, additionally marking the options as
 	* belonging to an infinite query before delegating to the base
 	* implementation.
+	* @param options - The new infinite query observer options.
 	*/
 	setOptions(options) {
 		options._type = "infinite";
@@ -15713,6 +16057,8 @@ var InfiniteQueryObserver = class extends QueryObserver {
 	* options as an infinite query before delegating to it. Called by framework adapters (e.g.
 	* `useInfiniteQuery`) ahead of subscribing, to compute the current `InfiniteQueryObserverResult`
 	* synchronously.
+	* @param options - The defaulted infinite query observer options to compute the result for.
+	* @returns The result for the given options.
 	*/
 	getOptimisticResult(options) {
 		options._type = "infinite";
@@ -15724,7 +16070,11 @@ var InfiniteQueryObserver = class extends QueryObserver {
 	* param used for the fetch is determined by `getNextPageParam`, which
 	* receives the current pages/page params and whose result also determines
 	* `hasNextPage`.
-	*
+	* @param options - Set `cancelRefetch` to `false` to ignore the call while a fetch is running,
+	* and `throwOnError` to `true` to reject when the fetch fails.
+	* @returns A promise that resolves with the result after the next page is fetched. With
+	* `cancelRefetch: false`, a running fetch is reused instead, so the next page may not be fetched.
+	* @see {@link InfiniteQueryObserver#fetchPreviousPage}
 	* @example
 	* ```ts
 	* const { hasNextPage } = observer.getCurrentResult()
@@ -15733,8 +16083,6 @@ var InfiniteQueryObserver = class extends QueryObserver {
 	*   await observer.fetchNextPage()
 	* }
 	* ```
-	*
-	* @see {@link InfiniteQueryObserver#fetchPreviousPage}
 	*/
 	fetchNextPage(options) {
 		return this.fetch({
@@ -15748,7 +16096,11 @@ var InfiniteQueryObserver = class extends QueryObserver {
 	* param used for the fetch is determined by `getPreviousPageParam`, which
 	* receives the current pages/page params and whose result also determines
 	* `hasPreviousPage`.
-	*
+	* @param options - Set `cancelRefetch` to `false` to ignore the call while a fetch is running,
+	* and `throwOnError` to `true` to reject when the fetch fails.
+	* @returns A promise that resolves with the result after the previous page is fetched. With
+	* `cancelRefetch: false`, a running fetch is reused instead, so the previous page may not be fetched.
+	* @see {@link InfiniteQueryObserver#fetchNextPage}
 	* @example
 	* ```ts
 	* const { hasPreviousPage } = observer.getCurrentResult()
@@ -15757,8 +16109,6 @@ var InfiniteQueryObserver = class extends QueryObserver {
 	*   await observer.fetchPreviousPage()
 	* }
 	* ```
-	*
-	* @see {@link InfiniteQueryObserver#fetchNextPage}
 	*/
 	fetchPreviousPage(options) {
 		return this.fetch({
@@ -15791,7 +16141,7 @@ var InfiniteQueryObserver = class extends QueryObserver {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/mutation.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/mutation.js
 /**
 * Represents a single mutation attempt. A `Mutation` holds the mutation's
 * options, state (data/error/status), and the `MutationObserver`s currently
@@ -15801,7 +16151,6 @@ var InfiniteQueryObserver = class extends QueryObserver {
 * code typically interacts with mutations indirectly through `QueryClient` or
 * a framework hook like `useMutation`. Direct access to a `Mutation` instance
 * is possible via `mutationCache.find()`/`getAll()` for inspecting cache state.
-*
 * @example
 * ```ts
 * const mutationCache = queryClient.getMutationCache()
@@ -15824,18 +16173,28 @@ var Mutation = class extends Removable {
 		this.setOptions(config.options);
 		this.scheduleGc();
 	}
-	/** @internal */
+	/**
+	* Replaces the mutation's options and applies their `gcTime`.
+	* @internal
+	* @param options - The new mutation options.
+	*/
 	setOptions(options) {
 		this.options = options;
 		this.updateGcTime(this.options.gcTime);
 	}
 	/**
 	* The `meta` object passed in the mutation's options, if any.
+	* @returns The mutation's `meta`, or `undefined` if none was set.
 	*/
 	get meta() {
 		return this.options.meta;
 	}
-	/** @internal */
+	/**
+	* Subscribes an observer to the mutation and stops its garbage collection.
+	* @internal
+	* @param observer - The observer to add. Adding an observer that is already subscribed does
+	* nothing.
+	*/
 	addObserver(observer) {
 		if (!this.#observers.includes(observer)) {
 			this.#observers.push(observer);
@@ -15847,7 +16206,11 @@ var Mutation = class extends Removable {
 			});
 		}
 	}
-	/** @internal */
+	/**
+	* Unsubscribes an observer from the mutation.
+	* @internal
+	* @param observer - The observer to remove. Garbage collection is scheduled afterwards.
+	*/
 	removeObserver(observer) {
 		this.#observers = this.#observers.filter((x) => x !== observer);
 		this.scheduleGc();
@@ -15874,15 +16237,15 @@ var Mutation = class extends Removable {
 	*   this instance), `execute` is called again with the last known variables.
 	* - Otherwise the mutation has already settled and this resolves immediately
 	*   without running anything again.
-	*
+	* @returns A promise that settles with the resumed mutation: it rejects if the mutation fails.
+	* It resolves immediately if the mutation has already settled.
+	* @see {@link Mutation#execute}
 	* @example
 	* ```ts
 	* // typically driven by reconnect handling, e.g. queryClient.resumePausedMutations()
 	* const mutation = mutationCache.find({ mutationKey: ['addPost'] })
 	* await mutation?.continue()
 	* ```
-	*
-	* @see {@link Mutation#execute}
 	*/
 	continue() {
 		return this.#retryer?.continue() ?? (this.state.status === "pending" ? this.execute(this.state.variables) : Promise.resolve());
@@ -15907,15 +16270,15 @@ var Mutation = class extends Removable {
 	* those four callbacks is individually caught so that a throwing callback
 	* cannot mask the original error; an `error` action is then dispatched and
 	* the original error is re-thrown.
-	*
+	* @param variables - The variables passed to the `mutationFn`.
+	* @returns A promise that resolves with the mutation's data, or rejects with its error.
+	* @see {@link Mutation#continue}
 	* @example
 	* ```ts
 	* // Called internally by `MutationObserver.mutate` and `Mutation.continue` —
 	* // applications normally trigger mutations through those, not this method.
 	* const data = await mutation.execute(variables)
 	* ```
-	*
-	* @see {@link Mutation#continue}
 	*/
 	async execute(variables) {
 		const onContinue = () => {
@@ -16068,6 +16431,10 @@ var Mutation = class extends Removable {
 		});
 	}
 };
+/**
+* Returns the initial state of a mutation: `'idle'`, with no data, error, or variables.
+* @returns The initial mutation state.
+*/
 function getDefaultState() {
 	return {
 		context: void 0,
@@ -16082,14 +16449,13 @@ function getDefaultState() {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/mutationCache.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/mutationCache.js
 /**
 * The `MutationCache` is the storage for mutations.
 *
 * Normally, you will not interact with the `MutationCache` directly and instead use a
 * `QueryClient`. You can subscribe to it (inherited from `Subscribable`) to be informed of
 * safe/known updates to the cache, such as mutations being added, removed, or updated.
-*
 * @example
 * ```ts
 * const unsubscribe = mutationCache.subscribe((event) => {
@@ -16108,7 +16474,15 @@ var MutationCache = class extends Subscribable {
 		this.#scopes = /* @__PURE__ */ new Map();
 		this.#mutationId = 0;
 	}
-	/** @internal */
+	/**
+	* Creates a mutation and adds it to the cache.
+	* @internal
+	* @param client - The client the mutation belongs to, used to default its options.
+	* @param options - The mutation options. They are defaulted with {@link
+	* QueryClient#defaultMutationOptions}.
+	* @param state - The initial state of the mutation, e.g. when restoring a dehydrated mutation.
+	* @returns The new mutation, already added to the cache.
+	*/
 	build(client, options, state) {
 		const mutation = new Mutation({
 			client,
@@ -16120,7 +16494,11 @@ var MutationCache = class extends Subscribable {
 		this.add(mutation);
 		return mutation;
 	}
-	/** @internal */
+	/**
+	* Adds a mutation to the cache.
+	* @internal
+	* @param mutation - The mutation to add. If it has a `scope`, it is queued in that scope.
+	*/
 	add(mutation) {
 		this.#mutations.add(mutation);
 		const scope = scopeFor(mutation);
@@ -16134,7 +16512,11 @@ var MutationCache = class extends Subscribable {
 			mutation
 		});
 	}
-	/** @internal */
+	/**
+	* Removes a mutation from the cache.
+	* @internal
+	* @param mutation - The mutation to remove, also from its scope's queue.
+	*/
 	remove(mutation) {
 		if (this.#mutations.delete(mutation)) {
 			const scope = scopeFor(mutation);
@@ -16153,7 +16535,13 @@ var MutationCache = class extends Subscribable {
 			mutation
 		});
 	}
-	/** @internal */
+	/**
+	* Checks whether a mutation can run now, given the other mutations in its `scope`.
+	* @internal
+	* @param mutation - The mutation to check.
+	* @returns `true` if the mutation has no `scope`, or no other mutation in its scope is pending
+	* ahead of it.
+	*/
 	canRun(mutation) {
 		const scope = scopeFor(mutation);
 		if (typeof scope === "string") {
@@ -16161,7 +16549,13 @@ var MutationCache = class extends Subscribable {
 			return !firstPendingMutation || firstPendingMutation === mutation;
 		} else return true;
 	}
-	/** @internal */
+	/**
+	* Continues the next paused mutation in the same `scope` after a mutation finishes.
+	* @internal
+	* @param mutation - The mutation that finished.
+	* @returns A promise that resolves once the next paused mutation in the same scope has continued,
+	* or immediately if there is none.
+	*/
 	runNext(mutation) {
 		const scope = scopeFor(mutation);
 		if (typeof scope === "string") return (this.#scopes.get(scope)?.find((m) => m !== mutation && m.state.isPaused))?.continue() ?? Promise.resolve();
@@ -16169,7 +16563,6 @@ var MutationCache = class extends Subscribable {
 	}
 	/**
 	* Removes all mutations from the cache.
-	*
 	* @example
 	* ```ts
 	* const mutationCache = queryClient.getMutationCache()
@@ -16179,14 +16572,15 @@ var MutationCache = class extends Subscribable {
 	*/
 	clear() {
 		notifyManager.batch(() => {
-			this.#mutations.forEach((mutation) => {
+			const mutations = this.getAll();
+			this.#mutations.clear();
+			this.#scopes.clear();
+			mutations.forEach((mutation) => {
 				this.notify({
 					type: "removed",
 					mutation
 				});
 			});
-			this.#mutations.clear();
-			this.#scopes.clear();
 		});
 	}
 	/**
@@ -16194,7 +16588,7 @@ var MutationCache = class extends Subscribable {
 	*
 	* This is not typically needed for most applications, but can come in handy when needing more
 	* information about a mutation in rare scenarios.
-	*
+	* @returns Every mutation in the cache.
 	* @example
 	* ```ts
 	* const mutationCache = queryClient.getMutationCache()
@@ -16211,7 +16605,8 @@ var MutationCache = class extends Subscribable {
 	*
 	* This is not typically needed for most applications, but can come in handy when needing more
 	* information about a mutation in rare scenarios.
-	*
+	* @param filters - The filters to match. `exact` defaults to `true`.
+	* @returns The first matching mutation, or `undefined`.
 	* @see {@link MutationCache#findAll}
 	* @example
 	* ```ts
@@ -16233,7 +16628,8 @@ var MutationCache = class extends Subscribable {
 	*
 	* This is not typically needed for most applications, but can come in handy when needing more
 	* information about mutations in rare scenarios.
-	*
+	* @param filters - The filters to match. Without filters, every mutation is returned.
+	* @returns The matching mutations.
 	* @see {@link MutationCache#find}
 	* @example
 	* ```ts
@@ -16245,7 +16641,11 @@ var MutationCache = class extends Subscribable {
 	findAll(filters = {}) {
 		return this.getAll().filter((mutation) => matchMutation(filters, mutation));
 	}
-	/** @internal */
+	/**
+	* Notifies every cache listener of an event, in one batch.
+	* @internal
+	* @param event - The event passed to every listener.
+	*/
 	notify(event) {
 		notifyManager.batch(() => {
 			this.listeners.forEach((listener) => {
@@ -16253,17 +16653,26 @@ var MutationCache = class extends Subscribable {
 			});
 		});
 	}
-	/** @internal */
+	/**
+	* Continues every paused mutation, e.g. when the app comes back online.
+	* @internal
+	* @returns A promise that resolves once every paused mutation has continued and settled.
+	*/
 	resumePausedMutations() {
 		const pausedMutations = this.getAll().filter((x) => x.state.isPaused);
 		return notifyManager.batch(() => Promise.all(pausedMutations.map((mutation) => mutation.continue().catch(noop))));
 	}
 };
+/**
+* Returns the scope id of a mutation, used to run mutations with the same scope one after another.
+* @param mutation - The mutation to read the scope of.
+* @returns The mutation's `scope.id`, or `undefined` if it has no scope.
+*/
 function scopeFor(mutation) {
 	return mutation.options.scope?.id;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/mutationObserver.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/mutationObserver.js
 /**
 * Observes a single mutation and derives a `MutationObserverResult` from it.
 * A framework hook like `useMutation` creates one `MutationObserver` per hook
@@ -16271,7 +16680,6 @@ function scopeFor(mutation) {
 * passed to the hook change, subscribes to it to re-render on updates, and
 * reads `getCurrentResult()` for the value to return. Calling `mutate()`
 * builds a new underlying `Mutation` in the `MutationCache` and executes it.
-*
 * @example
 * ```ts
 * const observer = new MutationObserver(queryClient, {
@@ -16291,6 +16699,10 @@ var MutationObserver$1 = class extends Subscribable {
 		this.bindMethods();
 		this.#updateResult();
 	}
+	/**
+	* Binds the methods of the result (`mutate` and `reset`) to the observer, so they keep working when
+	* destructured from it.
+	*/
 	bindMethods() {
 		this.mutate = this.mutate.bind(this);
 		this.reset = this.reset.bind(this);
@@ -16302,7 +16714,8 @@ var MutationObserver$1 = class extends Subscribable {
 	* defined), the observer is reset, detaching it from the mutation it was
 	* observing. Otherwise, if the currently observed mutation is still
 	* `pending`, its options are updated in place as well.
-	*
+	* @param options - The new mutation observer options. They are defaulted with {@link
+	* QueryClient#defaultMutationOptions} before being applied.
 	* @example
 	* ```ts
 	* observer.setOptions({
@@ -16331,7 +16744,12 @@ var MutationObserver$1 = class extends Subscribable {
 	onUnsubscribe() {
 		if (!this.hasListeners()) this.#currentMutation?.removeObserver(this);
 	}
-	/** @internal */
+	/**
+	* Updates the observer's result when the observed mutation changes, and notifies its listeners.
+	* @internal
+	* @param action - The action that updated the observed mutation, passed on to the observer's
+	* callbacks.
+	*/
 	onMutationUpdate(action) {
 		this.#updateResult();
 		this.#notify(action);
@@ -16340,6 +16758,7 @@ var MutationObserver$1 = class extends Subscribable {
 	* Returns the observer's current result, derived from the observed
 	* mutation's state (or the default, `idle` state if no mutation has been
 	* built yet, e.g. before the first `mutate()` call or after `reset()`).
+	* @returns The observer's latest result.
 	*/
 	getCurrentResult() {
 		return this.#currentResult;
@@ -16352,13 +16771,11 @@ var MutationObserver$1 = class extends Subscribable {
 	* running to completion and its own callbacks still fire, but this
 	* observer stops reflecting its state and a subsequent `mutate()` call
 	* will build a brand new mutation.
-	*
+	* @see {@link MutationObserver#mutate}
 	* @example
 	* ```ts
 	* observer.reset()
 	* ```
-	*
-	* @see {@link MutationObserver#mutate}
 	*/
 	reset() {
 		this.#currentMutation?.removeObserver(this);
@@ -16375,7 +16792,9 @@ var MutationObserver$1 = class extends Subscribable {
 	* The optional per-call `options` (`onSuccess`/`onError`/`onSettled`) are
 	* invoked once the mutation settles, in addition to any callbacks defined
 	* on the observer's own options.
-	*
+	* @param variables - The variables passed to the `mutationFn`.
+	* @param options - Per-call `onSuccess`, `onError`, and `onSettled` callbacks.
+	* @returns A promise that resolves with the mutation's data, or rejects with its error.
 	* @example
 	* ```ts
 	* await observer.mutate(
@@ -16405,7 +16824,8 @@ var MutationObserver$1 = class extends Subscribable {
 	}
 	#notify(action) {
 		notifyManager.batch(() => {
-			if (this.#mutateOptions && this.hasListeners()) {
+			const mutateOptions = this.#mutateOptions;
+			if (mutateOptions && this.hasListeners()) {
 				const variables = this.#currentResult.variables;
 				const onMutateResult = this.#currentResult.context;
 				const context = {
@@ -16415,23 +16835,23 @@ var MutationObserver$1 = class extends Subscribable {
 				};
 				if (action?.type === "success") {
 					try {
-						this.#mutateOptions.onSuccess?.(action.data, variables, onMutateResult, context);
+						mutateOptions.onSuccess?.(action.data, variables, onMutateResult, context);
 					} catch (e) {
 						Promise.reject(e);
 					}
 					try {
-						this.#mutateOptions.onSettled?.(action.data, null, variables, onMutateResult, context);
+						mutateOptions.onSettled?.(action.data, null, variables, onMutateResult, context);
 					} catch (e) {
 						Promise.reject(e);
 					}
 				} else if (action?.type === "error") {
 					try {
-						this.#mutateOptions.onError?.(action.error, variables, onMutateResult, context);
+						mutateOptions.onError?.(action.error, variables, onMutateResult, context);
 					} catch (e) {
 						Promise.reject(e);
 					}
 					try {
-						this.#mutateOptions.onSettled?.(void 0, action.error, variables, onMutateResult, context);
+						mutateOptions.onSettled?.(void 0, action.error, variables, onMutateResult, context);
 					} catch (e) {
 						Promise.reject(e);
 					}
@@ -16444,7 +16864,7 @@ var MutationObserver$1 = class extends Subscribable {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/queryCache.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/queryCache.js
 /**
 * The `QueryCache` is the storage mechanism for TanStack Query. It stores all the data, meta
 * information, and state of the queries it contains.
@@ -16454,7 +16874,6 @@ var MutationObserver$1 = class extends Subscribable {
 * safe/known updates to the cache, such as queries being added, removed, or updated — updates made
 * outside of the cache's own tracked mechanisms (e.g. mutating a query's state object directly) do
 * not notify subscribers.
-*
 * @example
 * ```ts
 * const unsubscribe = queryCache.subscribe((event) => {
@@ -16474,7 +16893,12 @@ var QueryCache = class extends Subscribable {
 	* builds and adds a new one to the cache if none exists yet. Used by framework adapters and
 	* plugins (e.g. broadcast/persistence) that need to get-or-create a `Query` directly, bypassing
 	* the reactive `QueryObserver` machinery.
-	*
+	* @param client - The client the query belongs to, used to default its options.
+	* @param options - The query options, including the `queryKey`. A new query is created with the
+	* options defaulted by {@link QueryClient#defaultQueryOptions}.
+	* @param state - The initial state of a newly created query, e.g. when hydrating. Ignored if the
+	* query already exists.
+	* @returns The existing or newly created query.
 	* @example
 	* ```ts
 	* const queryCache = queryClient.getQueryCache()
@@ -16502,7 +16926,12 @@ var QueryCache = class extends Subscribable {
 		}
 		return query;
 	}
-	/** @internal */
+	/**
+	* Adds a query to the cache.
+	* @internal
+	* @param query - The query to add. If a query with the same hash is already cached, nothing
+	* happens.
+	*/
 	add(query) {
 		if (!this.#queries.has(query.queryHash)) {
 			this.#queries.set(query.queryHash, query);
@@ -16517,7 +16946,7 @@ var QueryCache = class extends Subscribable {
 	* `'removed'` event. A no-op if the query is no longer the one currently stored under its hash
 	* (e.g. it was already replaced). Used by plugins (e.g. the broadcast client) that mirror
 	* removals across `QueryCache` instances.
-	*
+	* @param query - The query to remove.
 	* @example
 	* ```ts
 	* const queryCache = queryClient.getQueryCache()
@@ -16540,7 +16969,6 @@ var QueryCache = class extends Subscribable {
 	}
 	/**
 	* Removes all queries from the cache.
-	*
 	* @example
 	* ```ts
 	* const queryCache = queryClient.getQueryCache()
@@ -16560,7 +16988,8 @@ var QueryCache = class extends Subscribable {
 	* exists. Unlike {@link QueryCache#find}, this looks up by the already-computed hash rather
 	* than by `QueryFilters`. Used by plugins (e.g. broadcast/hydration) that already have a hash
 	* to look up directly.
-	*
+	* @param queryHash - The hash of the query to look up.
+	* @returns The query stored under the hash, or `undefined`.
 	* @example
 	* ```ts
 	* const queryCache = queryClient.getQueryCache()
@@ -16574,7 +17003,7 @@ var QueryCache = class extends Subscribable {
 	}
 	/**
 	* Returns all queries within the cache.
-	*
+	* @returns Every query in the cache.
 	* @example
 	* ```ts
 	* const queryCache = queryClient.getQueryCache()
@@ -16594,7 +17023,9 @@ var QueryCache = class extends Subscribable {
 	* This is not typically needed for most applications, but can come in handy when needing more
 	* information about a query in rare scenarios (e.g. looking at `query.state.dataUpdatedAt` to
 	* decide whether a query is fresh enough to be used as an initial value).
-	*
+	* @param filters - The filters to match, including the required `queryKey`. `exact` defaults to
+	* `true`.
+	* @returns The first matching query, or `undefined`.
 	* @see {@link QueryCache#findAll}
 	* @example
 	* ```ts
@@ -16616,7 +17047,8 @@ var QueryCache = class extends Subscribable {
 	*
 	* This is not typically needed for most applications, but can come in handy when needing more
 	* information about queries in rare scenarios.
-	*
+	* @param filters - The filters to match. Without filters, every query is returned.
+	* @returns The matching queries.
 	* @see {@link QueryCache#find}
 	* @example
 	* ```ts
@@ -16629,7 +17061,11 @@ var QueryCache = class extends Subscribable {
 		const queries = this.getAll();
 		return Object.keys(filters).length > 0 ? queries.filter((query) => matchQuery(filters, query)) : queries;
 	}
-	/** @internal */
+	/**
+	* Notifies every cache listener of an event, in one batch.
+	* @internal
+	* @param event - The event passed to every listener.
+	*/
 	notify(event) {
 		notifyManager.batch(() => {
 			this.listeners.forEach((listener) => {
@@ -16637,7 +17073,10 @@ var QueryCache = class extends Subscribable {
 			});
 		});
 	}
-	/** @internal */
+	/**
+	* Calls {@link Query#onFocus} on every cached query, in one batch.
+	* @internal
+	*/
 	onFocus() {
 		notifyManager.batch(() => {
 			this.getAll().forEach((query) => {
@@ -16645,7 +17084,10 @@ var QueryCache = class extends Subscribable {
 			});
 		});
 	}
-	/** @internal */
+	/**
+	* Calls {@link Query#onOnline} on every cached query, in one batch.
+	* @internal
+	*/
 	onOnline() {
 		notifyManager.batch(() => {
 			this.getAll().forEach((query) => {
@@ -16655,12 +17097,11 @@ var QueryCache = class extends Subscribable {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/queryClient.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/queryClient.js
 /**
 * `QueryClient` is used to interact with a cache of queries and mutations. It owns a
 * `QueryCache` and a `MutationCache` (creating default ones if none are passed in) and holds
 * the default options that are applied to queries and mutations created through it.
-*
 * @example
 * ```ts
 * const queryClient = new QueryClient({
@@ -16730,7 +17171,9 @@ var QueryClient = class {
 	* Returns the number of queries in the cache that are currently fetching, optionally
 	* matching a set of filters. This includes background-fetching, loading new pages, and
 	* loading more infinite query results.
-	*
+	* @param filters - Narrows down which fetching queries are counted. Without filters, every
+	* fetching query is counted.
+	* @returns The number of matching queries whose `fetchStatus` is `'fetching'`.
 	* @example
 	* ```ts
 	* if (queryClient.isFetching()) {
@@ -16747,7 +17190,9 @@ var QueryClient = class {
 	/**
 	* Returns the number of mutations in the cache that are currently pending, optionally
 	* matching a set of filters.
-	*
+	* @param filters - Narrows down which pending mutations are counted. Without filters, every
+	* pending mutation is counted.
+	* @returns The number of matching mutations whose `status` is `'pending'`.
 	* @example
 	* ```ts
 	* if (queryClient.isMutating()) {
@@ -16767,7 +17212,7 @@ var QueryClient = class {
 	*
 	* Hint: Do not use this function inside a component, because it won't receive updates.
 	* Use `useQuery` to create a `QueryObserver` that subscribes to changes.
-	*
+	* @param queryKey - The query key of the query to read.
 	* @returns The cached data for the query, or `undefined` if no query with this key has been observed yet.
 	* @see {@link QueryClient#getQueriesData}
 	*/
@@ -16776,6 +17221,12 @@ var QueryClient = class {
 		return this.#queryCache.get(options.queryHash)?.state.data;
 	}
 	/**
+	* Returns the cached data of a query, or fetches it if there is none. With `revalidateIfStale`,
+	* stale cached data is also refetched in the background.
+	* @param options - The query options. If the query has no cached data yet, it is fetched with
+	* these options.
+	* @returns A promise that resolves to the cached data, or to the fetched data if nothing was
+	* cached yet.
 	* @deprecated Use queryClient.query({ ...options, staleTime: 'static' }) instead. This method will be removed in the next major version.
 	*/
 	ensureQueryData(options) {
@@ -16796,7 +17247,7 @@ var QueryClient = class {
 	* than being inferred. Passing a more specific type is a convenience for call sites that know
 	* every matched query holds the same shape — it is not checked against the actual cache
 	* contents.
-	*
+	* @param filters - The filters that select which queries to read.
 	* @returns An array of query key and data pairs. The data is `undefined` for a query with no cached data.
 	* @see {@link QueryClient#getQueryData}
 	* @example
@@ -16817,14 +17268,12 @@ var QueryClient = class {
 	*
 	* Updates must be performed immutably: do not mutate `oldData`, or data previously retrieved
 	* via {@link QueryClient#getQueryData}, in place.
-	*
 	* @param queryKey - The query key to set data for.
 	* @param updater - Either the new data, or a function that receives the current data (which
 	* may be `undefined`) and returns the new data.
 	* @param options - Set `updatedAt` to override the timestamp the written data is recorded with.
 	* @returns The data that was written, or `undefined` if the updater returned `undefined` — in that case
 	* the write is skipped and the cache is left unchanged.
-	*
 	* @example
 	* ```ts
 	* queryClient.setQueryData(['posts'], newPosts)
@@ -16848,7 +17297,10 @@ var QueryClient = class {
 	* filters or partial query key matching. Only queries that already exist and match the given
 	* filters are updated; no new cache entries are created. Internally this calls
 	* {@link QueryClient#setQueryData} for each matching query.
-	*
+	* @param filters - The filters that select which existing queries to update.
+	* @param updater - Either the new data, or a function that receives each matched query's current
+	* data (which may be `undefined`) and returns the new data.
+	* @param options - Set `updatedAt` to override the timestamp the written data is recorded with.
 	* @returns One `[queryKey, data]` tuple per matched query, in the same shape and with the same
 	* `undefined` case as {@link QueryClient#setQueryData}.
 	* @example
@@ -16864,7 +17316,8 @@ var QueryClient = class {
 	/**
 	* Imperative (non-reactive) way to retrieve an existing query's state. If the query does not
 	* exist, `undefined` is returned.
-	*
+	* @param queryKey - The query key of the query to read.
+	* @returns The query's state, or `undefined` if no query with this key exists.
 	* @example
 	* ```ts
 	* const state = queryClient.getQueryState(['posts'])
@@ -16880,7 +17333,8 @@ var QueryClient = class {
 	* {@link QueryClient#invalidateQueries} or {@link QueryClient#refetchQueries}, this removes
 	* matching queries from the cache instead of refetching them. Without filters, every query in
 	* the cache is removed.
-	*
+	* @param filters - The filters that select which queries to remove. Without filters, every query
+	* is removed.
 	* @example
 	* ```ts
 	* queryClient.removeQueries({ queryKey: ['posts'], exact: true })
@@ -16898,7 +17352,11 @@ var QueryClient = class {
 	* Resets queries matching the given filters back to their initial state (e.g. any
 	* `initialData`), notifying subscribers rather than removing them. Active queries among the
 	* matched set are then refetched, and the returned promise resolves once that refetch settles.
-	*
+	* @param filters - The filters that select which queries to reset. Without filters, every query
+	* is reset.
+	* @param options - Passed to the refetch of the active matched queries, e.g. `cancelRefetch` and
+	* `throwOnError`.
+	* @returns A promise that resolves once the refetch of the active matched queries settles.
 	* @example
 	* ```ts
 	* await queryClient.resetQueries({ queryKey: ['posts'], exact: true })
@@ -16925,7 +17383,11 @@ var QueryClient = class {
 	* reverted to its state before the outgoing fetch started.
 	*
 	* The returned promise never rejects, even if individual cancellations fail.
-	*
+	* @param filters - The filters that select which queries to cancel. Without filters, every query
+	* is cancelled.
+	* @param cancelOptions - Passed to each matched query's cancellation. `revert` defaults to
+	* `true`.
+	* @returns A promise that resolves once every cancellation has settled.
 	* @example
 	* ```ts
 	* await queryClient.cancelQueries({ queryKey: ['posts'], exact: true })
@@ -16946,7 +17408,12 @@ var QueryClient = class {
 	* Unless `filters.refetchType` is `'none'`, matching queries are then refetched via
 	* {@link QueryClient#refetchQueries}, using `filters.refetchType` if set, otherwise
 	* `filters.type`, otherwise `'active'`.
-	*
+	* @param filters - The filters that select which queries to invalidate, plus `refetchType` to
+	* control which of them to refetch afterwards. Without filters, every query is invalidated.
+	* @param options - Passed to {@link QueryClient#refetchQueries}, e.g. `cancelRefetch` and
+	* `throwOnError`.
+	* @returns A promise that resolves once the refetch settles, or immediately if `refetchType` is
+	* `'none'`.
 	* @example
 	* ```ts
 	* await queryClient.invalidateQueries({ queryKey: ['posts'], refetchType: 'active' })
@@ -16972,7 +17439,11 @@ var QueryClient = class {
 	* By default (`cancelRefetch: true`), a currently running fetch is cancelled before the new
 	* one starts. The returned promise resolves once all matching queries have settled; it does
 	* not reject on individual query failures unless `throwOnError` is set.
-	*
+	* @param filters - The filters that select which queries to refetch. Without filters, every query
+	* in the cache is included.
+	* @param options - Set `cancelRefetch` to `false` to keep a running fetch instead of cancelling
+	* it, and `throwOnError` to `true` to reject when a refetch fails.
+	* @returns A promise that resolves once every matched query has settled.
 	* @example
 	* ```ts
 	* // refetch all active queries partially matching a query key:
@@ -17012,7 +17483,10 @@ var QueryClient = class {
 	*
 	* This method replaces the deprecated `fetchQuery`, and — combined with
 	* `{ staleTime: 'static' }` — the deprecated `ensureQueryData`.
-	*
+	* @param options - The query options, including the `queryKey` and the `queryFn` used if the
+	* query needs to fetch.
+	* @returns A promise that resolves to the data, or to the result of `select` if provided. It
+	* rejects with the error from the fetch or from `select`.
 	* @example
 	* ```ts
 	* try {
@@ -17032,6 +17506,12 @@ var QueryClient = class {
 		return queryData;
 	}
 	/**
+	* Fetches and caches a query, or returns its cached data if it isn't stale. Unlike in observers,
+	* the fetch isn't retried unless `retry` is set.
+	* @param options - The query options, including the `queryKey` and the `queryFn` used if the
+	* query needs to fetch.
+	* @returns A promise that resolves to the cached or fetched data, or rejects with the fetch
+	* error.
 	* @deprecated Use queryClient.query(options) instead. This method will be removed in the next major version.
 	*/
 	fetchQuery(options) {
@@ -17041,6 +17521,11 @@ var QueryClient = class {
 		return query.isStaleByTime(resolveQueryValue(defaultedOptions.staleTime, query)) ? query.fetch(defaultedOptions) : Promise.resolve(query.state.data);
 	}
 	/**
+	* Fetches and caches a query like {@link QueryClient#fetchQuery}, but ignores the result and any
+	* error.
+	* @param options - The query options, including the `queryKey` and the `queryFn` used if the
+	* query needs to fetch.
+	* @returns A promise that resolves once the fetch settles. It never rejects.
 	* @deprecated Use queryClient.query(options) instead. You can swallow errors with `.catch(noop)`. This method will be removed in the next major version.
 	*/
 	prefetchQuery(options) {
@@ -17056,7 +17541,10 @@ var QueryClient = class {
 	*
 	* This method replaces the deprecated `fetchInfiniteQuery`, and — combined with
 	* `{ staleTime: 'static' }` — the deprecated `ensureInfiniteQueryData`.
-	*
+	* @param options - The infinite query options, including the `queryKey`, the `queryFn`, and the
+	* `initialPageParam`.
+	* @returns A promise that resolves to the {@link InfiniteData}, or to the result of `select` if
+	* provided. It rejects with the error from the fetch or from `select`.
 	* @example
 	* ```ts
 	* try {
@@ -17072,6 +17560,11 @@ var QueryClient = class {
 		return this.query(options);
 	}
 	/**
+	* Fetches and caches an infinite query, or returns its cached data if it isn't stale.
+	* @param options - The infinite query options, including the `queryKey`, the `queryFn`, and the
+	* `initialPageParam`.
+	* @returns A promise that resolves to the cached or fetched {@link InfiniteData}, or rejects with
+	* the fetch error.
 	* @deprecated Use queryClient.infiniteQuery(options) instead. This method will be removed in the next major version.
 	*/
 	fetchInfiniteQuery(options) {
@@ -17079,12 +17572,23 @@ var QueryClient = class {
 		return this.fetchQuery(options);
 	}
 	/**
+	* Fetches and caches an infinite query like {@link QueryClient#fetchInfiniteQuery}, but ignores
+	* the result and any error.
+	* @param options - The infinite query options, including the `queryKey`, the `queryFn`, and the
+	* `initialPageParam`.
+	* @returns A promise that resolves once the fetch settles. It never rejects.
 	* @deprecated Use queryClient.infiniteQuery(options) instead. You can swallow errors with `.catch(noop)`. This method will be removed in the next major version.
 	*/
 	prefetchInfiniteQuery(options) {
 		return this.fetchInfiniteQuery(options).then(noop).catch(noop);
 	}
 	/**
+	* Returns the cached data of an infinite query, or fetches it if there is none. With
+	* `revalidateIfStale`, stale cached data is also refetched in the background.
+	* @param options - The infinite query options. If the query has no cached data yet, it is fetched
+	* with these options.
+	* @returns A promise that resolves to the cached {@link InfiniteData}, or to the fetched data if
+	* nothing was cached yet.
 	* @deprecated Use queryClient.infiniteQuery({ ...options, staleTime: 'static' }) instead. This method will be removed in the next major version.
 	*/
 	ensureInfiniteQueryData(options) {
@@ -17094,7 +17598,7 @@ var QueryClient = class {
 	/**
 	* Resumes mutations that were paused because there was no network connection. Does nothing
 	* (resolving immediately) if the client is currently offline.
-	*
+	* @returns A promise that resolves once the resumed mutations have settled.
 	* @example
 	* ```ts
 	* import { QueryClient } from '@tanstack/query-core'
@@ -17109,7 +17613,7 @@ var QueryClient = class {
 	}
 	/**
 	* Returns the query cache this client is connected to.
-	*
+	* @returns The {@link QueryCache} instance.
 	* @example
 	* ```ts
 	* import { QueryClient } from '@tanstack/query-core'
@@ -17124,7 +17628,7 @@ var QueryClient = class {
 	}
 	/**
 	* Returns the mutation cache this client is connected to.
-	*
+	* @returns The {@link MutationCache} instance.
 	* @example
 	* ```ts
 	* import { QueryClient } from '@tanstack/query-core'
@@ -17140,7 +17644,7 @@ var QueryClient = class {
 	/**
 	* Returns the default options that were set when creating the client, or via
 	* {@link QueryClient#setDefaultOptions}.
-	*
+	* @returns The client's current default options.
 	* @example
 	* ```ts
 	* import { QueryClient } from '@tanstack/query-core'
@@ -17155,7 +17659,7 @@ var QueryClient = class {
 	/**
 	* Dynamically sets the default options for this client, overwriting any previously defined
 	* default options.
-	*
+	* @param options - The new default options for queries and mutations.
 	* @see {@link QueryClient#getDefaultOptions}
 	* @example
 	* ```ts
@@ -17179,7 +17683,8 @@ var QueryClient = class {
 	* registration order by {@link QueryClient#getQueryDefaults}, so register defaults from the
 	* most generic key to the least generic one — more specific defaults should be registered
 	* after more generic ones so they take precedence.
-	*
+	* @param queryKey - The query key that query keys are partially matched against.
+	* @param options - The default options applied to matching queries.
 	* @example
 	* ```ts
 	* queryClient.setQueryDefaults(['posts'], { queryFn: fetchPosts })
@@ -17197,7 +17702,9 @@ var QueryClient = class {
 	* Returns the default options registered for queries whose query key partially matches the
 	* given `queryKey`, via {@link QueryClient#setQueryDefaults}. If multiple registered defaults
 	* match, they are merged together in registration order.
-	*
+	* @param queryKey - The query key to look up registered defaults for.
+	* @returns The merged default options of every registration that matches, or an empty object if
+	* none match.
 	* @example
 	* ```ts
 	* const defaultOptions = queryClient.getQueryDefaults(['posts'])
@@ -17215,7 +17722,8 @@ var QueryClient = class {
 	* Sets default options for mutations whose mutation key partially matches the given
 	* `mutationKey`. As with {@link QueryClient#setQueryDefaults}, the order of registration
 	* matters when several registered defaults match the same mutation key.
-	*
+	* @param mutationKey - The mutation key that mutation keys are partially matched against.
+	* @param options - The default options applied to matching mutations.
 	* @see {@link QueryClient#getMutationDefaults}
 	* @example
 	* ```ts
@@ -17232,7 +17740,9 @@ var QueryClient = class {
 	* Returns the default options registered for mutations whose mutation key partially matches
 	* the given `mutationKey`, via {@link QueryClient#setMutationDefaults}. If multiple registered
 	* defaults match, they are merged together in registration order.
-	*
+	* @param mutationKey - The mutation key to look up registered defaults for.
+	* @returns The merged default options of every registration that matches, or an empty object if
+	* none match.
 	* @example
 	* ```ts
 	* const defaultOptions = queryClient.getMutationDefaults(['addPost'])
@@ -17248,9 +17758,12 @@ var QueryClient = class {
 	}
 	/**
 	* Called by framework adapters (e.g. inside `useQuery`) to resolve the options passed by the
-	* caller into their final, defaulted form: merging `queryClient.setQueryDefaults` for the
-	* given `queryKey`, then the client's own `defaultOptions.queries`, then the caller's options
-	* on top. A no-op if the options are already defaulted (`_defaulted: true`).
+	* caller into their final, defaulted form: merging the client's own `defaultOptions.queries`,
+	* then `queryClient.setQueryDefaults` for the given `queryKey`, then the caller's options on
+	* top. A no-op if the options are already defaulted (`_defaulted: true`).
+	* @param options - The query options passed by the caller.
+	* @returns The defaulted options, with `queryHash` and dependent defaults (e.g.
+	* `refetchOnReconnect`) filled in.
 	*/
 	defaultQueryOptions(options) {
 		if (options._defaulted) return options;
@@ -17269,9 +17782,11 @@ var QueryClient = class {
 	}
 	/**
 	* The mutation counterpart of {@link QueryClient#defaultQueryOptions}. Called by framework
-	* adapters (e.g. inside `useMutation`) to merge `queryClient.setMutationDefaults` for the
-	* given `mutationKey`, then the client's `defaultOptions.mutations`, then the caller's options
-	* on top. A no-op if the options are already defaulted (`_defaulted: true`).
+	* adapters (e.g. inside `useMutation`) to merge the client's `defaultOptions.mutations`, then
+	* `queryClient.setMutationDefaults` for the given `mutationKey`, then the caller's options on
+	* top. A no-op if the options are already defaulted (`_defaulted: true`).
+	* @param options - The mutation options passed by the caller.
+	* @returns The defaulted options.
 	*/
 	defaultMutationOptions(options) {
 		if (options?._defaulted) return options;
@@ -17284,7 +17799,6 @@ var QueryClient = class {
 	}
 	/**
 	* Clears both the query cache and the mutation cache this client is connected to.
-	*
 	* @example
 	* ```ts
 	* import { QueryClient } from '@tanstack/query-core'
@@ -17299,21 +17813,22 @@ var QueryClient = class {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.1_react@19.3.0/node_modules/@tanstack/react-query/build/modern/IsRestoringProvider.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.5_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/IsRestoringProvider.js
 var IsRestoringContext = import_react.createContext(false);
 /**
 * If you are using `PersistQueryClientProvider`, you can also use the `useIsRestoring` hook alongside it to
 * check if a restore is currently in progress. `useQuery` and friends also check this internally to avoid
 * race conditions between the restore and mounting queries.
-*
 * @returns `true` while a persisted client is being restored, `false` otherwise.
 */
 var useIsRestoring = () => import_react.useContext(IsRestoringContext);
 IsRestoringContext.Provider;
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.1_react@19.3.0/node_modules/@tanstack/react-query/build/modern/QueryErrorResetBoundary.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.5_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/QueryErrorResetBoundary.js
 /**
-* Resets any query errors within the boundary, so queries know they can try again.
+* Creates the value shared through the boundary's context, which tracks whether a reset was
+* requested.
+* @returns The `clearReset`, `isReset`, and `reset` functions of the boundary.
 */
 function createValue() {
 	let isReset = false;
@@ -17332,6 +17847,7 @@ function createValue() {
 		},
 		/**
 		* Returns whether the boundary has been reset and not yet cleared.
+		* @returns `true` if the boundary has been reset and not yet cleared.
 		*/
 		isReset: () => {
 			return isReset;
@@ -17342,9 +17858,7 @@ var QueryErrorResetBoundaryContext = import_react.createContext(createValue());
 /**
 * This hook will reset any query errors within the closest `QueryErrorResetBoundary`. If there is no boundary
 * defined it will reset them globally.
-*
 * @returns The boundary's {@link QueryErrorResetBoundaryValue}.
-*
 * @example
 * ```tsx
 * import { ErrorBoundary } from 'react-error-boundary'
@@ -17371,23 +17885,50 @@ var QueryErrorResetBoundaryContext = import_react.createContext(createValue());
 */
 var useQueryErrorResetBoundary = () => import_react.useContext(QueryErrorResetBoundaryContext);
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.1_react@19.3.0/node_modules/@tanstack/react-query/build/modern/errorBoundaryUtils.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.5_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/errorBoundaryUtils.js
+/**
+* Turns off `retryOnMount` for a query that throws its errors (with `suspense` or `throwOnError`),
+* unless the error boundary has been reset, so a remount doesn't retry the failed query before the
+* user resets the boundary. Mutates the options.
+* @param options - The defaulted query options to adjust.
+* @param errorResetBoundary - The value of the nearest `QueryErrorResetBoundary`.
+* @param query - The query, used to evaluate a `throwOnError` function against its error.
+*/
 var ensurePreventErrorBoundaryRetry = (options, errorResetBoundary, query) => {
-	const throwOnError = query?.state.error && typeof options.throwOnError === "function" ? shouldThrowError(options.throwOnError, [query.state.error, query]) : options.throwOnError;
+	const throwOnError = query?.state.status === "error" && typeof options.throwOnError === "function" ? shouldThrowError(options.throwOnError, [query.state.error, query]) : options.throwOnError;
 	if (options.suspense || throwOnError) {
 		if (!errorResetBoundary.isReset()) options.retryOnMount = false;
 	}
 };
+/**
+* Clears the reset state of the error boundary after the component mounts, so later errors are
+* thrown to the boundary again.
+* @param errorResetBoundary - The value of the nearest `QueryErrorResetBoundary`.
+*/
 var useClearResetErrorBoundary = (errorResetBoundary) => {
 	import_react.useEffect(() => {
 		errorResetBoundary.clearReset();
 	}, [errorResetBoundary]);
 };
+/**
+* Checks whether the query error should be thrown to the nearest error boundary: the query errored
+* and isn't fetching, the boundary hasn't been reset, and either `suspense` is enabled with no data
+* or `throwOnError` says so.
+* @param params - The observer `result`, the `errorResetBoundary`, the `throwOnError` option, the
+* `query`, and the `suspense` option.
+* @returns `true` if the error should be thrown.
+*/
 var getHasError = ({ result, errorResetBoundary, throwOnError, query, suspense }) => {
 	return result.isError && !errorResetBoundary.isReset() && !result.isFetching && query && (suspense && result.data === void 0 || shouldThrowError(throwOnError, [result.error, query]));
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.1_react@19.3.0/node_modules/@tanstack/react-query/build/modern/suspense.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.5_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/suspense.js
+/**
+* Raises `staleTime` and a numeric `gcTime` to at least 1000ms when `suspense` is enabled, so a
+* component that remounts after suspending doesn't refetch right away or find the query garbage
+* collected. A `'static'` `staleTime` is kept as is. Mutates the options.
+* @param defaultedOptions - The defaulted query options to adjust.
+*/
 var ensureSuspenseTimers = (defaultedOptions) => {
 	if (defaultedOptions.suspense) {
 		const MIN_SUSPENSE_TIME_MS = 1e3;
@@ -17397,12 +17938,39 @@ var ensureSuspenseTimers = (defaultedOptions) => {
 		if (typeof defaultedOptions.gcTime === "number") defaultedOptions.gcTime = Math.max(defaultedOptions.gcTime, MIN_SUSPENSE_TIME_MS);
 	}
 };
+/**
+* Checks whether a query should suspend: `suspense` is enabled and the result is still `pending`.
+* @param defaultedOptions - The defaulted query options, if any.
+* @param result - The current result of the observer.
+* @returns `true` if the component should suspend.
+*/
 var shouldSuspend = (defaultedOptions, result) => defaultedOptions?.suspense && result.isPending;
+/**
+* Fetches the query for a suspending component, without affecting the observer's own result. If
+* the fetch fails, the reset state of the error boundary is cleared, so the error is thrown to it.
+* @param defaultedOptions - The defaulted query options to fetch with.
+* @param observer - The observer of the query.
+* @param errorResetBoundary - The value of the nearest `QueryErrorResetBoundary`.
+* @returns A promise that resolves once the fetch settles. It never rejects.
+*/
 var fetchOptimistic = (defaultedOptions, observer, errorResetBoundary) => observer.fetchOptimistic(defaultedOptions).catch(() => {
 	errorResetBoundary.clearReset();
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.1_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useBaseQuery.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.5_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/useBaseQuery.js
+/**
+* Base implementation shared by `useQuery`, `useInfiniteQuery`, `useSuspenseQuery`, and
+* `useSuspenseInfiniteQuery`.
+* @param options - The options passed to the calling hook.
+* @param Observer - The observer class from query-core (`QueryObserver` or
+* `InfiniteQueryObserver`).
+* @param queryClient - Use this to use a custom `QueryClient`. Otherwise, the one from the nearest
+* context will be used.
+* @returns The query result, tracking which properties are read unless `notifyOnChangeProps` is
+* set.
+* @throws {Error} If `options` is not an object (outside production), or the query error when it should be
+* thrown to the nearest error boundary (see `throwOnError`). While suspending, it throws a promise instead.
+*/
 function useBaseQuery(options, Observer, queryClient) {
 	const isRestoring = useIsRestoring();
 	const errorResetBoundary = useQueryErrorResetBoundary();
@@ -17436,18 +18004,15 @@ function useBaseQuery(options, Observer, queryClient) {
 	return !defaultedOptions.notifyOnChangeProps ? observer.trackResult(result) : result;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.1_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useQuery.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.5_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/useQuery.js
 function useQuery(options, queryClient) {
 	return useBaseQuery(options, QueryObserver, queryClient);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.1_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useMutation.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.5_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/useMutation.js
 /**
 * Unlike queries, mutations are typically used to create/update/delete data or perform server side-effects.
 * `useMutation` is the hook for that.
-*
-* @see {@link mutationOptions} to share these options across multiple `useMutation` call sites, or to look
-* the mutation up elsewhere via its `mutationKey` (e.g. with `useMutationState`).
 * @param options - The {@link UseMutationOptions} to use — everything you can pass to `useMutation`.
 * @param queryClient - Use this to use a custom `QueryClient`. Otherwise, the one from the nearest context will
 * be used.
@@ -17456,7 +18021,10 @@ function useQuery(options, queryClient) {
 * mutation definition. Hook-level callbacks (passed to `options`) fire for every mutation; per-call callbacks
 * fire only for the latest call you've made, and only while the component is still mounted — unmounting before
 * the mutation settles removes the subscription and prevents them from firing.
-*
+* @throws {Error} The mutation error, when `throwOnError` is `true` or returns `true` for it, so that it is
+* thrown to the nearest error boundary.
+* @see {@link mutationOptions} to share these options across multiple `useMutation` call sites, or to look
+* the mutation up elsewhere via its `mutationKey` (e.g. with `useMutationState`).
 * @example
 * ```tsx
 * import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -17482,7 +18050,6 @@ function useQuery(options, queryClient) {
 *   )
 * }
 * ```
-*
 * @example
 * Rendering the mutation's own state, rather than just firing it off:
 * ```tsx
@@ -17512,7 +18079,6 @@ function useQuery(options, queryClient) {
 *   )
 * }
 * ```
-*
 * @example
 * Optimistic update via `onMutate`, rolling back on `onError`:
 * ```tsx
@@ -17548,7 +18114,6 @@ function useQuery(options, queryClient) {
 *   )
 * }
 * ```
-*
 * @example
 * Callbacks passed per call to `mutate` only fire for the last call — `mutateAsync` gives you a
 * promise per call instead, so you can wait for all of them when they succeed:
@@ -17578,7 +18143,6 @@ function useQuery(options, queryClient) {
 *   )
 * }
 * ```
-*
 * @example
 * If some of the mutations above can fail independently of the others, and you want to know which ones
 * did — rather than losing that information the moment the first one rejects — swap `Promise.all` for
@@ -17632,7 +18196,7 @@ function useMutation(options, queryClient) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.1_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useInfiniteQuery.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.5_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/useInfiniteQuery.js
 function useInfiniteQuery(options, queryClient) {
 	return useBaseQuery(options, InfiniteQueryObserver, queryClient);
 }
@@ -17865,7 +18429,7 @@ var AutocompleteInput = (t0) => {
 		if (isBrowseMode) {
 			let t8;
 			if ($[0] !== suggestions) {
-				t8 = suggestions.filter(_temp$109);
+				t8 = suggestions.filter(_temp$110);
 				$[0] = suggestions;
 				$[1] = t8;
 			} else t8 = $[1];
@@ -18209,7 +18773,7 @@ var AutocompleteInput = (t0) => {
 	} else t27 = $[73];
 	return t27;
 };
-function _temp$109(s) {
+function _temp$110(s) {
 	return s !== null;
 }
 function _temp2$62(s_1) {
@@ -18261,7 +18825,7 @@ var onDemandModule = (importer) => {
 			let cancelled = false;
 			module.load().then((loaded) => {
 				if (!cancelled) setValue(() => loaded);
-			}).catch(_temp$108);
+			}).catch(_temp$109);
 			return () => {
 				cancelled = true;
 			};
@@ -18283,7 +18847,7 @@ var onDemandModule = (importer) => {
 	(0, import_react.useEffect)(t2, t3);
 	return value;
 };
-function _temp$108(error) {
+function _temp$109(error) {
 	console.error("Unable to load module", error);
 }
 var ContentTrust_module_default = {
@@ -18436,7 +19000,7 @@ var ContentTrustProvider = (t0) => {
 */ var usePlainText = () => {
 	return useHasAllContentPermissions() ? {
 		trusted: true,
-		present: _temp$107,
+		present: _temp$108,
 		className: void 0
 	} : {
 		trusted: false,
@@ -18531,7 +19095,7 @@ var UntrustedText = (t0) => {
 	} else t2 = $[4];
 	return t2;
 };
-function _temp$107(text) {
+function _temp$108(text) {
 	return text;
 }
 //#endregion
@@ -19315,7 +19879,7 @@ var b = x$1(1);
 var w = x$1(2);
 var E = Symbol.for("lit-noChange");
 var A = Symbol.for("lit-nothing");
-var C$2 = /* @__PURE__ */ new WeakMap();
+var C$1 = /* @__PURE__ */ new WeakMap();
 var P = l$1.createTreeWalker(l$1, 129);
 function V(t, i) {
 	if (!u$2(t) || !t.hasOwnProperty("raw")) throw Error("invalid template strings array");
@@ -19461,8 +20025,8 @@ var k = class k {
 		}
 	}
 	_$AC(t) {
-		let i = C$2.get(t.strings);
-		return void 0 === i && C$2.set(t.strings, i = new S(t)), i;
+		let i = C$1.get(t.strings);
+		return void 0 === i && C$1.set(t.strings, i = new S(t)), i;
 	}
 	k(t) {
 		u$2(this._$AH) || (this._$AH = [], this._$AR());
@@ -21521,7 +22085,7 @@ __decorate$32([n$4({
 })], VscodeCollapsible$1.prototype, "open", void 0);
 VscodeCollapsible$1 = __decorate$32([customElement("vscode-collapsible")], VscodeCollapsible$1);
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+react-elements@2.4.0_@types+react@19.3.0_@vscode+codicons@0.0.45_react_acc50d91fe5af1eafa6ba5aa80a12ce8/node_modules/@vscode-elements/react-elements/dist/components/VscodeCollapsible.js
+//#region ../../node_modules/.pnpm/@vscode-elements+react-elements@2.4.0_@types+react@19.3.0_@vscode+codicons@0.0.45_react_02e419efff47087d8cbea8401cb5f496/node_modules/@vscode-elements/react-elements/dist/components/VscodeCollapsible.js
 var VscodeCollapsible = o$7({
 	tagName: "vscode-collapsible",
 	elementClass: VscodeCollapsible$1,
@@ -24700,7 +25264,7 @@ o$7({
 	}
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+react-elements@2.4.0_@types+react@19.3.0_@vscode+codicons@0.0.45_react_acc50d91fe5af1eafa6ba5aa80a12ce8/node_modules/@vscode-elements/react-elements/dist/components/VscodeOption.js
+//#region ../../node_modules/.pnpm/@vscode-elements+react-elements@2.4.0_@types+react@19.3.0_@vscode+codicons@0.0.45_react_02e419efff47087d8cbea8401cb5f496/node_modules/@vscode-elements/react-elements/dist/components/VscodeOption.js
 var VscodeOption = o$7({
 	tagName: "vscode-option",
 	elementClass: VscodeOption$1,
@@ -25768,7 +26332,7 @@ __decorate$16([n$4({
 __decorate$16([e$6(".face")], VscodeSingleSelect$1.prototype, "_face", void 0);
 VscodeSingleSelect$1 = __decorate$16([customElement("vscode-single-select")], VscodeSingleSelect$1);
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+react-elements@2.4.0_@types+react@19.3.0_@vscode+codicons@0.0.45_react_acc50d91fe5af1eafa6ba5aa80a12ce8/node_modules/@vscode-elements/react-elements/dist/components/VscodeSingleSelect.js
+//#region ../../node_modules/.pnpm/@vscode-elements+react-elements@2.4.0_@types+react@19.3.0_@vscode+codicons@0.0.45_react_02e419efff47087d8cbea8401cb5f496/node_modules/@vscode-elements/react-elements/dist/components/VscodeSingleSelect.js
 var VscodeSingleSelect = o$7({
 	tagName: "vscode-single-select",
 	elementClass: VscodeSingleSelect$1,
@@ -28278,7 +28842,7 @@ __decorate$5([r$2()], VscodeTextarea$1.prototype, "_textareaPointerCursor", void
 __decorate$5([r$2()], VscodeTextarea$1.prototype, "_shadow", void 0);
 VscodeTextarea$1 = __decorate$5([customElement("vscode-textarea")], VscodeTextarea$1);
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+react-elements@2.4.0_@types+react@19.3.0_@vscode+codicons@0.0.45_react_acc50d91fe5af1eafa6ba5aa80a12ce8/node_modules/@vscode-elements/react-elements/dist/components/VscodeTextarea.js
+//#region ../../node_modules/.pnpm/@vscode-elements+react-elements@2.4.0_@types+react@19.3.0_@vscode+codicons@0.0.45_react_02e419efff47087d8cbea8401cb5f496/node_modules/@vscode-elements/react-elements/dist/components/VscodeTextarea.js
 var VscodeTextarea = o$7({
 	tagName: "vscode-textarea",
 	elementClass: VscodeTextarea$1,
@@ -30835,12 +31399,12 @@ var usePrismHighlight = (containerRef, contentLength) => {
 	}
 	(0, import_react.useLayoutEffect)(t0, t1);
 };
-function _temp$106(node) {
+function _temp$107(node) {
 	if (node instanceof Element) return node.querySelector("pre code") || node.matches("pre code");
 	return false;
 }
 function _temp2$61(mutation) {
-	if (mutation.type === "childList") return Array.from(mutation.addedNodes).some(_temp$106);
+	if (mutation.type === "childList") return Array.from(mutation.addedNodes).some(_temp$107);
 	return false;
 }
 function _temp3$42(error) {
@@ -31213,7 +31777,7 @@ var RichMarkdownDiv = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
 				(0, import_react.startTransition)(() => {
 					setRenderedHtml(applyPostProcess(sanitizedResult));
 				});
-			}).catch(_temp$105);
+			}).catch(_temp$106);
 			return () => {
 				cancel();
 			};
@@ -31332,7 +31896,7 @@ var MarkdownRenderQueue = class {
 	}
 };
 var renderQueue = new MarkdownRenderQueue(10);
-function _temp$105(error) {
+function _temp$106(error) {
 	console.error("Markdown rendering error:", error);
 }
 var NoContentsPanel_module_default = {
@@ -31401,7 +31965,7 @@ var NoContentsPanel = (t0) => {
 	return t6;
 };
 //#endregion
-//#region ../../node_modules/.pnpm/react-popper@2.3.0_@popperjs+core@2.11.8_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-popper/lib/esm/utils.js
+//#region ../../node_modules/.pnpm/react-popper@2.3.0_@popperjs+core@2.11.8_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/react-popper/lib/esm/utils.js
 /**
 * Simple ponyfill for Object.fromEntries
 */
@@ -32706,7 +33270,7 @@ var createPopper = /*#__PURE__*/ popperGenerator({ defaultModifiers: [
 	hide_default
 ] });
 //#endregion
-//#region ../../node_modules/.pnpm/react-popper@2.3.0_@popperjs+core@2.11.8_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-popper/lib/esm/usePopper.js
+//#region ../../node_modules/.pnpm/react-popper@2.3.0_@popperjs+core@2.11.8_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/react-popper/lib/esm/usePopper.js
 var import_react_fast_compare = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((exports, module) => {
 	var hasElementType = typeof Element !== "undefined";
 	var hasMap = typeof Map === "function";
@@ -34672,9 +35236,9 @@ var sameItems = (a, b) => a.length === b.length && a.every((item, i) => item ===
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/router/url.js
+//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/router/url.js
 /**
-* react-router v8.4.0
+* react-router v8.5.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -34689,9 +35253,9 @@ function normalizeProtocolRelativeUrl(url, protocol) {
 	return protocol + url.replace(/\\/g, "/");
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/router/history.js
+//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/router/history.js
 /**
-* react-router v8.4.0
+* react-router v8.5.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -34927,7 +35491,7 @@ function createBrowserURLImpl(windowImpl, to, isAbsolute = false) {
 	return new URL(href, base);
 }
 /**
-* react-router v8.4.0
+* react-router v8.5.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -34992,6 +35556,7 @@ var RouterContextProvider = class {
 		this.#map.set(context, value);
 	}
 };
+var DiscoveryCancelledError = class extends Error {};
 var unsupportedLazyRouteObjectKeys = /* @__PURE__ */ new Set([
 	"lazy",
 	"caseSensitive",
@@ -35289,7 +35854,7 @@ function compilePath(path, caseSensitive = false, end = true) {
 			return "(?:/([^\\/]*))?";
 		}
 		return "/([^\\/]+)";
-	}).replace(/\/([\w-]+)\?(?=\/|$|\()/g, "(?:/$1)?");
+	}).replace(/\/((?:[^/?()[\]*^\\]|\\.)+)\?(?=\/|$|\()/g, "(?:/$1)?");
 	if (path.endsWith("*")) {
 		params.push({ paramName: "*" });
 		regexpSource += path === "*" || path === "/*" ? "(.*)$" : "(?:\\/(.+)|\\/*)$";
@@ -35503,9 +36068,9 @@ function parseToInfo(_to, basename) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/router/instrumentation.js
+//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/router/instrumentation.js
 /**
-* react-router v8.4.0
+* react-router v8.5.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -35762,9 +36327,9 @@ function getReadonlyContext(context) {
 	return { get: (ctx) => context.get(ctx) };
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/router/matcher.js
+//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/router/matcher.js
 /**
-* react-router v8.4.0
+* react-router v8.5.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -35789,7 +36354,7 @@ var V6RegExMatcher = class {
 	}
 };
 /**
-* react-router v8.4.0
+* react-router v8.5.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -35799,9 +36364,9 @@ var V6RegExMatcher = class {
 * @license MIT
 */
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/router/navigation.js
+//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/router/navigation.js
 /**
-* react-router v8.4.0
+* react-router v8.5.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -35843,9 +36408,9 @@ function validateNavigationTarget(original, resolved, currentUrl, externalPolicy
 	}
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/router/router.js
+//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/router/router.js
 /**
-* react-router v8.4.0
+* react-router v8.5.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -35952,6 +36517,7 @@ var DataRoutes$1 = class {
 		}
 	}
 };
+var clientErrors = /* @__PURE__ */ new WeakMap();
 /**
 * Create a router and listen to history POP navigations
 */
@@ -35980,7 +36546,6 @@ function createRouter(init) {
 	let dataStrategyImpl = init.dataStrategy || defaultDataStrategyWithMiddleware;
 	let unlistenHistory = null;
 	let subscribers = /* @__PURE__ */ new Set();
-	let bufferedInitialStateUpdate = null;
 	let savedScrollPositions = null;
 	let getScrollRestorationKey = null;
 	let getScrollPosition = null;
@@ -36051,6 +36616,8 @@ function createRouter(init) {
 		blockers: /* @__PURE__ */ new Map()
 	};
 	let pendingAction = "POP";
+	let pendingPopstateDelta = 0;
+	let pendingDiscoveryCancellation;
 	let pendingPopstateNavigationDfd = null;
 	let pendingPreventScrollReset = false;
 	let pendingNavigationController;
@@ -36111,6 +36678,7 @@ function createRouter(init) {
 				pendingPopstateNavigationDfd = null;
 				return;
 			}
+			if (future.unstable_customRouteDiscovery) pendingPopstateDelta += delta || 0;
 			return startNavigation(historyAction, location);
 		});
 		if (isBrowser) {
@@ -36132,19 +36700,16 @@ function createRouter(init) {
 	}
 	function subscribe(fn) {
 		subscribers.add(fn);
-		if (bufferedInitialStateUpdate) {
-			let { newErrors } = bufferedInitialStateUpdate;
-			bufferedInitialStateUpdate = null;
-			fn(state, {
-				deletedFetchers: [],
-				newErrors,
-				viewTransitionOpts: void 0,
-				flushSync: false
-			});
-		}
 		return () => subscribers.delete(fn);
 	}
 	function updateState(newState, opts = {}) {
+		let newErrors = newState.errors ?? null;
+		let cachedErrors = newErrors ? clientErrors.get(newErrors) : void 0;
+		if (cachedErrors !== void 0) newErrors = cachedErrors;
+		if (newState.errors !== void 0 || newState.initialized) {
+			if (state.errors) clientErrors.delete(state.errors);
+			if (newState.errors) clientErrors.set(newState.errors, newErrors);
+		}
 		if (newState.matches) newState.matches = newState.matches.map((m) => {
 			let route = manifest[m.route.id];
 			let matchRoute = m.route;
@@ -36167,10 +36732,9 @@ function createRouter(init) {
 		fetchersQueuedForDeletion.forEach((key) => {
 			if (!state.fetchers.has(key) && !fetchControllers.has(key)) unmountedFetchers.push(key);
 		});
-		if (subscribers.size === 0) bufferedInitialStateUpdate = { newErrors: newState.errors ?? null };
 		[...subscribers].forEach((subscriber) => subscriber(state, {
 			deletedFetchers: unmountedFetchers,
-			newErrors: newState.errors ?? null,
+			newErrors,
 			viewTransitionOpts: opts.viewTransitionOpts,
 			flushSync: opts.flushSync === true
 		}));
@@ -36235,17 +36799,22 @@ function createRouter(init) {
 			viewTransitionOpts,
 			flushSync: flushSync === true
 		});
-		pendingAction = "POP";
-		pendingPreventScrollReset = false;
-		pendingViewTransitionEnabled = false;
-		isUninterruptedRevalidation = false;
-		isRevalidationRequired = false;
+		resetPendingNavigation();
 		pendingPopstateNavigationDfd?.resolve();
 		pendingPopstateNavigationDfd = null;
 		pendingRevalidationDfd?.resolve();
 		pendingRevalidationDfd = null;
 	}
+	function resetPendingNavigation() {
+		pendingPopstateDelta = 0;
+		pendingAction = "POP";
+		pendingPreventScrollReset = false;
+		pendingViewTransitionEnabled = false;
+		isUninterruptedRevalidation = false;
+		isRevalidationRequired = false;
+	}
 	async function navigate(to, opts) {
+		if (pendingDiscoveryCancellation) await pendingDiscoveryCancellation;
 		pendingPopstateNavigationDfd?.resolve();
 		pendingPopstateNavigationDfd = null;
 		if (typeof to === "number") {
@@ -36322,22 +36891,28 @@ function createRouter(init) {
 		});
 	}
 	function revalidate() {
+		if (pendingDiscoveryCancellation) return pendingDiscoveryCancellation.then(revalidate);
 		if (!pendingRevalidationDfd) pendingRevalidationDfd = createDeferred();
 		interruptActiveLoads();
 		updateState({ revalidation: "loading" });
 		let promise = pendingRevalidationDfd.promise;
 		if (state.navigation.state === "submitting") return promise;
 		if (state.navigation.state === "idle") {
-			startNavigation(state.historyAction, state.location, { startUninterruptedRevalidation: true });
+			startNavigation(state.historyAction, state.location, {
+				startUninterruptedRevalidation: true,
+				dataStrategyInitiator: "revalidation"
+			});
 			return promise;
 		}
 		startNavigation(pendingAction || state.historyAction, state.navigation.location, {
 			overrideNavigation: state.navigation,
+			dataStrategyInitiator: "revalidation",
 			enableViewTransition: pendingViewTransitionEnabled === true
 		});
 		return promise;
 	}
 	async function startNavigation(historyAction, location, opts) {
+		if (pendingDiscoveryCancellation) await pendingDiscoveryCancellation;
 		pendingNavigationController && pendingNavigationController.abort();
 		pendingNavigationController = null;
 		pendingAction = historyAction;
@@ -36373,6 +36948,7 @@ function createRouter(init) {
 		} : void 0;
 		pendingNavigationController = new AbortController();
 		let request = createClientSideRequest(init.history, location, pendingNavigationController.signal, opts && opts.submission);
+		let dataStrategyInitiator = opts?.initialHydration ? "initialization" : opts?.dataStrategyInitiator ?? "navigation";
 		let scopedContext = init.getContext ? await init.getContext() : new RouterContextProvider();
 		let pendingActionResult;
 		if (opts && opts.pendingError) pendingActionResult = [findNearestBoundary(matches).route.id, {
@@ -36380,7 +36956,7 @@ function createRouter(init) {
 			error: opts.pendingError
 		}];
 		else if (opts && opts.submission && isMutationMethod(opts.submission.formMethod)) {
-			let actionResult = await handleAction(request, location, opts.submission, matches, historyAction, scopedContext, fogOfWar.active, opts && opts.initialHydration === true, {
+			let actionResult = await handleAction(request, dataStrategyInitiator, location, opts.submission, matches, historyAction, scopedContext, fogOfWar.active, opts && opts.initialHydration === true, {
 				replace: opts.replace,
 				flushSync
 			});
@@ -36404,7 +36980,7 @@ function createRouter(init) {
 			fogOfWar.active = false;
 			request = createClientSideRequest(init.history, request.url, request.signal);
 		}
-		let { shortCircuited, matches: updatedMatches, loaderData, errors, workingFetchers } = await handleLoaders(request, location, matches, historyAction, scopedContext, fogOfWar.active, loadingNavigation, opts && opts.submission, opts && opts.fetcherSubmission, opts && opts.replace, opts && opts.initialHydration === true, flushSync, pendingActionResult, opts && opts.callSiteDefaultShouldRevalidate);
+		let { shortCircuited, matches: updatedMatches, loaderData, errors, workingFetchers } = await handleLoaders(request, dataStrategyInitiator, location, matches, historyAction, scopedContext, fogOfWar.active, loadingNavigation, opts && opts.submission, opts && opts.fetcherSubmission, opts && opts.replace, opts && opts.initialHydration === true, flushSync, pendingActionResult, opts && opts.callSiteDefaultShouldRevalidate);
 		if (shortCircuited) return;
 		pendingNavigationController = null;
 		completeNavigation(location, {
@@ -36415,13 +36991,57 @@ function createRouter(init) {
 			...workingFetchers ? { fetchers: workingFetchers } : {}
 		});
 	}
-	async function handleAction(request, location, submission, matches, historyAction, scopedContext, isFogOfWar, initialHydration, opts = {}) {
-		interruptActiveLoads();
+	function cancelDiscoveryNavigation() {
+		let cancellation = createDeferred();
+		pendingDiscoveryCancellation = cancellation.promise;
+		let delta = pendingPopstateDelta;
+		let popstateNavigationDfd = pendingPopstateNavigationDfd;
+		pendingPopstateNavigationDfd = null;
+		pendingNavigationController?.abort();
+		pendingNavigationController = null;
+		resetPendingNavigation();
+		pendingRevalidationDfd?.resolve();
+		pendingRevalidationDfd = null;
+		let blockers = new Map(state.blockers);
+		blockers.forEach((blocker, key) => {
+			if (blocker.state === "proceeding") blockers.set(key, IDLE_BLOCKER);
+		});
+		let fetchers = new Map(state.fetchers);
+		let didUpdateFetchers = markFetchRedirectsDone(fetchers);
+		fetchers.forEach((fetcher, key) => {
+			if (fetcher.state === "loading" && !fetchControllers.has(key)) {
+				fetchers.set(key, getDoneFetcher(fetcher.data));
+				didUpdateFetchers = true;
+			}
+		});
+		cancelledFetcherLoads.clear();
+		updateState({
+			navigation: IDLE_NAVIGATION,
+			revalidation: "idle",
+			blockers,
+			...didUpdateFetchers ? { fetchers } : {}
+		});
+		function finishCancellation() {
+			pendingDiscoveryCancellation = void 0;
+			popstateNavigationDfd?.resolve();
+			cancellation.resolve();
+		}
+		if (delta) {
+			unblockBlockerHistoryUpdate = finishCancellation;
+			init.history.go(-delta);
+		} else finishCancellation();
+		return cancellation.promise;
+	}
+	async function handleAction(request, dataStrategyInitiator, location, submission, matches, historyAction, scopedContext, isFogOfWar, initialHydration, opts = {}) {
+		if (!future.unstable_customRouteDiscovery) interruptActiveLoads();
 		updateState({ navigation: getSubmittingNavigation(location, matches, historyAction, submission) }, { flushSync: opts.flushSync === true });
 		if (isFogOfWar) {
 			let discoverResult = await discoverRoutes(matches, location.pathname, request.signal);
-			if (discoverResult.type === "aborted") return { shortCircuited: true };
-			else if (discoverResult.type === "error") {
+			if (future.unstable_customRouteDiscovery && request.signal.aborted || discoverResult.type === "aborted") return { shortCircuited: true };
+			else if (discoverResult.type === "cancelled") {
+				await cancelDiscoveryNavigation();
+				return { shortCircuited: true };
+			} else if (discoverResult.type === "error") {
 				if (discoverResult.partialMatches.length === 0) {
 					let { matches, route } = getShortCircuitMatches(dataRoutes.activeRoutes);
 					return {
@@ -36451,6 +37071,7 @@ function createRouter(init) {
 				};
 			} else matches = discoverResult.matches;
 		}
+		if (future.unstable_customRouteDiscovery) interruptActiveLoads();
 		let result;
 		let actionMatch = getTargetMatch(matches, location);
 		if (!actionMatch.route.action && !actionMatch.route.lazy) result = {
@@ -36462,7 +37083,7 @@ function createRouter(init) {
 			})
 		};
 		else {
-			let results = await callDataStrategy(request, location, getTargetedDataStrategyMatches(mapRouteProperties, manifest, request, location, matches, actionMatch, initialHydration ? [] : hydrationRouteProperties, scopedContext), scopedContext, null);
+			let results = await callDataStrategy(request, location, getTargetedDataStrategyMatches(mapRouteProperties, manifest, request, location, matches, actionMatch, initialHydration ? [] : hydrationRouteProperties, scopedContext), scopedContext, null, dataStrategyInitiator, historyAction);
 			result = results[actionMatch.route.id];
 			if (!result) {
 				for (let match of matches) if (results[match.route.id]) {
@@ -36476,7 +37097,7 @@ function createRouter(init) {
 			let replace;
 			if (opts && opts.replace != null) replace = opts.replace;
 			else replace = normalizeRedirectLocation(result.response.headers.get("Location"), new URL(request.url), basename, init.history) === state.location.pathname + state.location.search;
-			await startRedirectNavigation(request, result, true, {
+			await startRedirectNavigation(request, result, true, dataStrategyInitiator, {
 				submission,
 				replace
 			});
@@ -36499,7 +37120,7 @@ function createRouter(init) {
 			pendingActionResult: [actionMatch.route.id, result]
 		};
 	}
-	async function handleLoaders(request, location, matches, historyAction, scopedContext, isFogOfWar, overrideNavigation, submission, fetcherSubmission, replace, initialHydration, flushSync, pendingActionResult, callSiteDefaultShouldRevalidate) {
+	async function handleLoaders(request, dataStrategyInitiator, location, matches, historyAction, scopedContext, isFogOfWar, overrideNavigation, submission, fetcherSubmission, replace, initialHydration, flushSync, pendingActionResult, callSiteDefaultShouldRevalidate) {
 		let loadingNavigation = overrideNavigation || getLoadingNavigation(location, matches, historyAction, submission);
 		let activeSubmission = submission || fetcherSubmission || getSubmissionFromNavigation(loadingNavigation);
 		let shouldUpdateNavigationState = !isUninterruptedRevalidation && !initialHydration;
@@ -36512,8 +37133,11 @@ function createRouter(init) {
 				}, { flushSync });
 			}
 			let discoverResult = await discoverRoutes(matches, location.pathname, request.signal);
-			if (discoverResult.type === "aborted") return { shortCircuited: true };
-			else if (discoverResult.type === "error") {
+			if (future.unstable_customRouteDiscovery && request.signal.aborted || discoverResult.type === "aborted") return { shortCircuited: true };
+			else if (discoverResult.type === "cancelled") {
+				await cancelDiscoveryNavigation();
+				return { shortCircuited: true };
+			} else if (discoverResult.type === "error") {
 				if (discoverResult.partialMatches.length === 0) {
 					let { matches, route } = getShortCircuitMatches(dataRoutes.activeRoutes);
 					return {
@@ -36535,7 +37159,10 @@ function createRouter(init) {
 					loaderData: {},
 					errors: { [route.id]: error }
 				};
-			} else matches = discoverResult.matches;
+			} else {
+				matches = discoverResult.matches;
+				if (initialHydration && !request.signal.aborted) updateState({ matches });
+			}
 		}
 		let { dsMatches, revalidatingFetchers } = getMatchesToLoad(request, scopedContext, mapRouteProperties, manifest, init.history, state, matches, activeSubmission, location, initialHydration ? [] : hydrationRouteProperties, initialHydration === true, isRevalidationRequired, cancelledFetcherLoads, fetchersQueuedForDeletion, fetchLoadMatches, fetchRedirectIds, dataRouteMatcher, pendingActionResult, callSiteDefaultShouldRevalidate);
 		pendingNavigationLoadId = ++incrementingLoadId;
@@ -36567,27 +37194,31 @@ function createRouter(init) {
 		});
 		let abortPendingFetchRevalidations = () => revalidatingFetchers.forEach((f) => abortFetcher(f.key));
 		if (pendingNavigationController) pendingNavigationController.signal.addEventListener("abort", abortPendingFetchRevalidations);
-		let { loaderResults, fetcherResults } = await callLoadersAndMaybeResolveData(dsMatches, revalidatingFetchers, request, location, scopedContext);
+		let { loaderResults, fetcherResults } = await callLoadersAndMaybeResolveData(dsMatches, revalidatingFetchers, request, location, scopedContext, dataStrategyInitiator, historyAction);
 		if (request.signal.aborted) return { shortCircuited: true };
 		if (pendingNavigationController) pendingNavigationController.signal.removeEventListener("abort", abortPendingFetchRevalidations);
 		revalidatingFetchers.forEach((rf) => fetchControllers.delete(rf.key));
 		let redirect = findRedirect(loaderResults);
 		if (redirect) {
-			await startRedirectNavigation(request, redirect.result, true, { replace });
+			await startRedirectNavigation(request, redirect.result, true, dataStrategyInitiator, { replace });
 			return { shortCircuited: true };
 		}
 		redirect = findRedirect(fetcherResults);
 		if (redirect) {
 			fetchRedirectIds.add(redirect.key);
-			await startRedirectNavigation(request, redirect.result, true, { replace });
+			await startRedirectNavigation(request, redirect.result, true, dataStrategyInitiator, { replace });
 			return { shortCircuited: true };
 		}
 		let workingFetchers = new Map(state.fetchers);
 		let { loaderData, errors } = processLoaderData(state, matches, loaderResults, pendingActionResult, revalidatingFetchers, fetcherResults, workingFetchers);
-		if (initialHydration && state.errors) errors = {
-			...state.errors,
-			...errors
-		};
+		if (initialHydration && state.errors) {
+			let newClientErrors = errors ?? null;
+			errors = {
+				...state.errors,
+				...errors
+			};
+			clientErrors.set(errors, newClientErrors);
+		}
 		let didUpdateFetcherRedirects = markFetchRedirectsDone(workingFetchers);
 		let didAbortFetchLoads = abortStaleFetchLoads(pendingNavigationLoadId, workingFetchers);
 		let shouldUpdateFetchers = didUpdateFetcherRedirects || didAbortFetchLoads || revalidatingFetchers.length > 0;
@@ -36613,6 +37244,7 @@ function createRouter(init) {
 		return workingFetchers;
 	}
 	async function fetch(key, routeId, href, opts) {
+		if (pendingDiscoveryCancellation) await pendingDiscoveryCancellation;
 		abortFetcher(key);
 		let flushSync = (opts && opts.flushSync) === true;
 		let instrumentationResultMetaReceiver = consumeInstrumentationClientResultMetaReceiver(router);
@@ -36645,15 +37277,22 @@ function createRouter(init) {
 		await handleFetcherLoader(key, loadMatch, matches, scopedContext, flushSync, preventScrollReset, submission);
 	}
 	async function handleFetcherAction(key, routeId, path, requestMatches, scopedContext, isFogOfWar, flushSync, preventScrollReset, submission, callSiteDefaultShouldRevalidate) {
-		interruptActiveLoads();
+		if (!future.unstable_customRouteDiscovery) interruptActiveLoads();
 		fetchLoadMatches.delete(key);
-		updateFetcherState(key, getSubmittingFetcher(submission, state.fetchers.get(key)), { flushSync });
+		let existingFetcher = state.fetchers.get(key);
+		updateFetcherState(key, getSubmittingFetcher(submission, existingFetcher), { flushSync });
 		let abortController = new AbortController();
+		if (future.unstable_customRouteDiscovery) fetchControllers.set(key, abortController);
 		let fetchRequest = createClientSideRequest(init.history, path, abortController.signal, submission);
 		if (isFogOfWar) {
 			let discoverResult = await discoverRoutes(requestMatches, new URL(fetchRequest.url).pathname, fetchRequest.signal, key);
-			if (discoverResult.type === "aborted") return;
-			else if (discoverResult.type === "error") {
+			if (future.unstable_customRouteDiscovery && fetchRequest.signal.aborted || discoverResult.type === "aborted") return;
+			else if (discoverResult.type === "cancelled") {
+				fetchControllers.delete(key);
+				fetchLoadMatches.delete(key);
+				updateFetcherState(key, getDoneFetcher(existingFetcher?.data), { flushSync });
+				return;
+			} else if (discoverResult.type === "error") {
 				setFetcherError(key, routeId, discoverResult.error, { flushSync });
 				return;
 			} else if (!discoverResult.matches) {
@@ -36670,10 +37309,11 @@ function createRouter(init) {
 			}), { flushSync });
 			return;
 		}
+		if (future.unstable_customRouteDiscovery) interruptActiveLoads();
 		fetchControllers.set(key, abortController);
 		let originatingLoadId = incrementingLoadId;
 		let fetchMatches = getTargetedDataStrategyMatches(mapRouteProperties, manifest, fetchRequest, path, requestMatches, match, hydrationRouteProperties, scopedContext);
-		let actionResults = await callDataStrategy(fetchRequest, path, fetchMatches, scopedContext, key);
+		let actionResults = await callDataStrategy(fetchRequest, path, fetchMatches, scopedContext, key, "fetcher");
 		let actionResult = actionResults[match.route.id];
 		if (!actionResult) {
 			for (let match of fetchMatches) if (actionResults[match.route.id]) {
@@ -36699,7 +37339,7 @@ function createRouter(init) {
 				} else {
 					fetchRedirectIds.add(key);
 					updateFetcherState(key, getLoadingFetcher(submission));
-					return startRedirectNavigation(fetchRequest, actionResult, false, {
+					return startRedirectNavigation(fetchRequest, actionResult, false, "fetcher", {
 						fetcherSubmission: submission,
 						preventScrollReset
 					});
@@ -36731,7 +37371,7 @@ function createRouter(init) {
 		updateState({ fetchers: workingFetchers });
 		let abortPendingFetchRevalidations = () => revalidatingFetchers.forEach((rf) => abortFetcher(rf.key));
 		abortController.signal.addEventListener("abort", abortPendingFetchRevalidations);
-		let { loaderResults, fetcherResults } = await callLoadersAndMaybeResolveData(dsMatches, revalidatingFetchers, revalidationRequest, nextLocation, scopedContext);
+		let { loaderResults, fetcherResults } = await callLoadersAndMaybeResolveData(dsMatches, revalidatingFetchers, revalidationRequest, nextLocation, scopedContext, "fetcher");
 		if (abortController.signal.aborted) {
 			if (fetchReloadIds.get(key) === loadId) fetchReloadIds.delete(key);
 			return;
@@ -36753,13 +37393,13 @@ function createRouter(init) {
 		let redirect = findRedirect(loaderResults);
 		if (redirect) {
 			state = getRedirectStateWithDoneFetcher(state);
-			return startRedirectNavigation(revalidationRequest, redirect.result, false, { preventScrollReset });
+			return startRedirectNavigation(revalidationRequest, redirect.result, false, "fetcher", { preventScrollReset });
 		}
 		redirect = findRedirect(fetcherResults);
 		if (redirect) {
 			fetchRedirectIds.add(redirect.key);
 			state = getRedirectStateWithDoneFetcher(state);
-			return startRedirectNavigation(revalidationRequest, redirect.result, false, { preventScrollReset });
+			return startRedirectNavigation(revalidationRequest, redirect.result, false, "fetcher", { preventScrollReset });
 		}
 		let finalFetchers = new Map(state.fetchers);
 		if (fetcherIsMounted) finalFetchers.set(key, getDoneFetcher(actionResult.data));
@@ -36788,11 +37428,17 @@ function createRouter(init) {
 		let existingFetcher = state.fetchers.get(key);
 		updateFetcherState(key, getLoadingFetcher(submission, existingFetcher ? existingFetcher.data : void 0), { flushSync });
 		let abortController = new AbortController();
+		if (future.unstable_customRouteDiscovery) fetchControllers.set(key, abortController);
 		let fetchRequest = createClientSideRequest(init.history, path, abortController.signal);
 		if (loadMatch.isDiscovering) {
 			let discoverResult = await discoverRoutes(matches, new URL(fetchRequest.url).pathname, fetchRequest.signal, key);
-			if (discoverResult.type === "aborted") return;
-			else if (discoverResult.type === "error") {
+			if (future.unstable_customRouteDiscovery && fetchRequest.signal.aborted || discoverResult.type === "aborted") return;
+			else if (discoverResult.type === "cancelled") {
+				fetchControllers.delete(key);
+				fetchLoadMatches.delete(key);
+				updateFetcherState(key, getDoneFetcher(existingFetcher?.data), { flushSync });
+				return;
+			} else if (discoverResult.type === "error") {
 				setFetcherError(key, routeId, discoverResult.error, { flushSync });
 				return;
 			} else if (!discoverResult.matches) {
@@ -36806,7 +37452,7 @@ function createRouter(init) {
 		let match = getTargetMatch(matches, path);
 		fetchControllers.set(key, abortController);
 		let originatingLoadId = incrementingLoadId;
-		let results = await callDataStrategy(fetchRequest, path, getTargetedDataStrategyMatches(mapRouteProperties, manifest, fetchRequest, path, matches, match, hydrationRouteProperties, scopedContext), scopedContext, key);
+		let results = await callDataStrategy(fetchRequest, path, getTargetedDataStrategyMatches(mapRouteProperties, manifest, fetchRequest, path, matches, match, hydrationRouteProperties, scopedContext), scopedContext, key, "fetcher");
 		let result = results[match.route.id];
 		if (!result) {
 			for (let match of matches) if (results[match.route.id]) {
@@ -36825,7 +37471,7 @@ function createRouter(init) {
 			return;
 		} else {
 			fetchRedirectIds.add(key);
-			await startRedirectNavigation(fetchRequest, result, false, { preventScrollReset });
+			await startRedirectNavigation(fetchRequest, result, false, "fetcher", { preventScrollReset });
 			return;
 		}
 		if (isErrorResult(result)) {
@@ -36853,7 +37499,7 @@ function createRouter(init) {
 	* actually touch history until we've processed redirects, so we just use
 	* the history action from the original navigation (PUSH or REPLACE).
 	*/
-	async function startRedirectNavigation(request, redirect, isNavigation, { submission, fetcherSubmission, preventScrollReset, replace } = {}) {
+	async function startRedirectNavigation(request, redirect, isNavigation, dataStrategyInitiator, { submission, fetcherSubmission, preventScrollReset, replace } = {}) {
 		if (!isNavigation) {
 			pendingPopstateNavigationDfd?.resolve();
 			pendingPopstateNavigationDfd = null;
@@ -36890,20 +37536,22 @@ function createRouter(init) {
 				formAction: location
 			},
 			preventScrollReset: preventScrollReset || pendingPreventScrollReset,
-			enableViewTransition: isNavigation ? pendingViewTransitionEnabled : void 0
+			enableViewTransition: isNavigation ? pendingViewTransitionEnabled : void 0,
+			dataStrategyInitiator
 		});
 		else await startNavigation(redirectNavigationType, redirectLocation, {
 			overrideNavigation: getLoadingNavigation(redirectLocation, [], redirectNavigationType, submission),
 			fetcherSubmission,
 			preventScrollReset: preventScrollReset || pendingPreventScrollReset,
-			enableViewTransition: isNavigation ? pendingViewTransitionEnabled : void 0
+			enableViewTransition: isNavigation ? pendingViewTransitionEnabled : void 0,
+			dataStrategyInitiator
 		});
 	}
-	async function callDataStrategy(request, path, matches, scopedContext, fetcherKey) {
+	async function callDataStrategy(request, path, matches, scopedContext, fetcherKey, initiator, navigationType = null) {
 		let results;
 		let dataResults = {};
 		try {
-			results = await callDataStrategyImpl(dataStrategyImpl, request, path, matches, fetcherKey, scopedContext, false);
+			results = await callDataStrategyImpl(dataStrategyImpl, request, path, matches, fetcherKey, initiator, scopedContext, false, navigationType);
 		} catch (e) {
 			matches.filter((m) => m.shouldLoad).forEach((m) => {
 				dataResults[m.route.id] = {
@@ -36930,11 +37578,11 @@ function createRouter(init) {
 		} else dataResults[routeId] = await convertDataStrategyResultToDataResult(result);
 		return dataResults;
 	}
-	async function callLoadersAndMaybeResolveData(matches, fetchersToLoad, request, location, scopedContext) {
-		let loaderResultsPromise = callDataStrategy(request, location, matches, scopedContext, null);
+	async function callLoadersAndMaybeResolveData(matches, fetchersToLoad, request, location, scopedContext, initiator, navigationType = null) {
+		let loaderResultsPromise = callDataStrategy(request, location, matches, scopedContext, null, initiator, navigationType);
 		let fetcherResultsPromise = Promise.all(fetchersToLoad.map(async (f) => {
 			if (f.matches && f.match && f.request && f.controller) {
-				let result = (await callDataStrategy(f.request, f.path, f.matches, scopedContext, f.key))[f.match.route.id];
+				let result = (await callDataStrategy(f.request, f.path, f.matches, scopedContext, f.key, initiator, navigationType))[f.match.route.id];
 				return { [f.key]: result };
 			} else return Promise.resolve({ [f.key]: {
 				type: "error",
@@ -36948,7 +37596,8 @@ function createRouter(init) {
 	}
 	function interruptActiveLoads() {
 		isRevalidationRequired = true;
-		fetchLoadMatches.forEach((_, key) => {
+		fetchLoadMatches.forEach((loadMatch, key) => {
+			if (future.unstable_customRouteDiscovery && loadMatch.isDiscovering) return;
 			if (fetchControllers.has(key)) cancelledFetcherLoads.add(key);
 			abortFetcher(key);
 		});
@@ -36974,6 +37623,8 @@ function createRouter(init) {
 	}
 	function resetFetcher(key, opts) {
 		abortFetcher(key, opts?.reason);
+		fetchLoadMatches.delete(key);
+		cancelledFetcherLoads.delete(key);
 		updateFetcherState(key, getDoneFetcher(null));
 	}
 	function deleteFetcher(fetchers, key) {
@@ -37146,6 +37797,10 @@ function createRouter(init) {
 					}
 				});
 			} catch (e) {
+				if (future.unstable_customRouteDiscovery) {
+					if (signal.aborted) return { type: "aborted" };
+					if (e instanceof DiscoveryCancelledError) return { type: "cancelled" };
+				}
 				return {
 					type: "error",
 					error: e,
@@ -37802,7 +38457,7 @@ function getTargetedDataStrategyMatches(mapRouteProperties, manifest, request, p
 		return getDataStrategyMatch(mapRouteProperties, manifest, request, path, getRoutePattern(matches), match, lazyRoutePropertiesToSkip, scopedContext, true, shouldRevalidateArgs);
 	});
 }
-async function callDataStrategyImpl(dataStrategyImpl, request, path, matches, fetcherKey, scopedContext, isStaticHandler) {
+async function callDataStrategyImpl(dataStrategyImpl, request, path, matches, fetcherKey, initiator, scopedContext, isStaticHandler, navigationType = null) {
 	if (matches.some((m) => m._lazyPromises?.middleware)) await Promise.all(matches.map((m) => m._lazyPromises?.middleware));
 	let dataStrategyArgs = {
 		request,
@@ -37810,7 +38465,9 @@ async function callDataStrategyImpl(dataStrategyImpl, request, path, matches, fe
 		pattern: getRoutePattern(matches),
 		params: matches[0].params,
 		context: scopedContext,
-		matches
+		matches,
+		unstable_initiator: initiator,
+		unstable_navigationType: initiator === "navigation" ? navigationType : null
 	};
 	let runClientMiddleware = isStaticHandler ? () => {
 		throw new Error("You cannot call `runClientMiddleware()` from a static handler `dataStrategy`. Middleware is run outside of `dataStrategy` during SSR in order to bubble up the Response.  You can enable middleware via the `respond` API in `query`/`queryRoute`");
@@ -38404,9 +39061,9 @@ function createDeferred() {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/context.js
+//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/context.js
 /**
-* react-router v8.4.0
+* react-router v8.5.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -38450,9 +39107,9 @@ RouteIdContext.displayName = "RouteId";
 var RouteErrorContext = import_react.createContext(null);
 RouteErrorContext.displayName = "RouteError";
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/errors.js
+//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/errors.js
 /**
-* react-router v8.4.0
+* react-router v8.5.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -38477,9 +39134,9 @@ function decodeRouteErrorResponseDigest(digest) {
 	} catch {}
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/hooks.js
+//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/hooks.js
 /**
-* react-router v8.4.0
+* react-router v8.5.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -38581,7 +39238,7 @@ var navigateEffectWarning = "You should call navigate() in a React.useEffect(), 
 *   * These options only work in Framework and Data modes:
 *     * `flushSync`: Wrap the DOM updates in [`ReactDom.flushSync`](https://react.dev/reference/react-dom/flushSync)
 *     * `preventScrollReset`: Do not scroll back to the top of the page after navigation
-*     * `viewTransition`: Enable [`document.startViewTransition`](https://developer.mozilla.org/en-US/docs/Web/API/Document/startViewTransition) for this navigation
+*     * `viewTransition`: **Deprecated.** Use React's [`<ViewTransition>`](https://react.dev/reference/react/ViewTransition) component instead. See the [migration guide](../../how-to/view-transitions).
 *
 * @example
 * import { useNavigate } from "react-router";
@@ -39168,615 +39825,9 @@ function warningOnce(key, cond, message) {
 	}
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/server-runtime/warnings.js
+//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/dom/ssr/invariant.js
 /**
-* react-router v8.4.0
-*
-* Copyright (c) Remix Software Inc.
-*
-* This source code is licensed under the MIT license found in the
-* LICENSE.md file in the root directory of this source tree.
-*
-* @license MIT
-*/
-var alreadyWarned = {};
-function warnOnce(condition, message) {
-	if (!condition && !alreadyWarned[message]) {
-		alreadyWarned[message] = true;
-		console.warn(message);
-	}
-}
-//#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/components.js
-/**
-* react-router v8.4.0
-*
-* Copyright (c) Remix Software Inc.
-*
-* This source code is licensed under the MIT license found in the
-* LICENSE.md file in the root directory of this source tree.
-*
-* @license MIT
-*/
-var hydrationRouteProperties = ["HydrateFallback", "hydrateFallbackElement"];
-var Deferred = class {
-	status = "pending";
-	promise;
-	resolve;
-	reject;
-	constructor() {
-		this.promise = new Promise((resolve, reject) => {
-			this.resolve = (value) => {
-				if (this.status === "pending") {
-					this.status = "resolved";
-					resolve(value);
-				}
-			};
-			this.reject = (reason) => {
-				if (this.status === "pending") {
-					this.status = "rejected";
-					reject(reason);
-				}
-			};
-		});
-	}
-};
-/**
-* Render the UI for the given {@link DataRouter}. This component should
-* typically be at the top of an app's element tree. The router prop should
-* be a single router instance created outside of the React tree. Avoid
-* creating new routers during React renders/re-renders.
-*
-* ```tsx
-* import { createBrowserRouter } from "react-router";
-* import { RouterProvider } from "react-router/dom";
-* import { createRoot } from "react-dom/client";
-*
-* const router = createBrowserRouter(routes);
-* createRoot(document.getElementById("root")).render(
-*   <RouterProvider router={router} />
-* );
-* ```
-*
-* <docs-info>Please note that this component is exported both from
-* `react-router` and `react-router/dom` with the only difference being that the
-* latter automatically wires up `react-dom`'s [`flushSync`](https://react.dev/reference/react-dom/flushSync)
-* implementation. You _almost always_ want to use the version from
-* `react-router/dom` unless you're running in a non-DOM environment.</docs-info>
-*
-*
-* @public
-* @category Data Routers
-* @mode data
-* @param props Props
-* @param {RouterProviderProps.flushSync} props.flushSync n/a
-* @param {RouterProviderProps.onError} props.onError n/a
-* @param {RouterProviderProps.router} props.router n/a
-* @param {RouterProviderProps.useTransitions} props.useTransitions n/a
-* @returns React element for the rendered router
-*/
-function RouterProvider({ router, flushSync: reactDomFlushSyncImpl, onError, useTransitions }) {
-	useTransitions = useIsRSCRouterContext() || useTransitions;
-	let [_state, setStateImpl] = import_react.useState(router.state);
-	let [state, setOptimisticState] = (0, import_react.useOptimistic)(_state);
-	let [pendingState, setPendingState] = import_react.useState();
-	let [vtContext, setVtContext] = import_react.useState({ isTransitioning: false });
-	let [renderDfd, setRenderDfd] = import_react.useState();
-	let [transition, setTransition] = import_react.useState();
-	let [interruption, setInterruption] = import_react.useState();
-	let fetcherData = import_react.useRef(/* @__PURE__ */ new Map());
-	let setState = import_react.useCallback((newState, { deletedFetchers, newErrors, flushSync, viewTransitionOpts }) => {
-		if (newErrors && onError) Object.values(newErrors).forEach((error) => onError(error, {
-			location: newState.location,
-			params: newState.matches[0]?.params ?? {},
-			pattern: getRoutePattern(newState.matches)
-		}));
-		newState.fetchers.forEach((fetcher, key) => {
-			if (fetcher.data !== void 0) fetcherData.current.set(key, fetcher.data);
-		});
-		deletedFetchers.forEach((key) => fetcherData.current.delete(key));
-		warnOnce(flushSync === false || reactDomFlushSyncImpl != null, "You provided the `flushSync` option to a router update, but you are not using the `<RouterProvider>` from `react-router/dom` so `ReactDOM.flushSync()` is unavailable.  Please update your app to `import { RouterProvider } from \"react-router/dom\"` and ensure you have `react-dom` installed as a dependency to use the `flushSync` option.");
-		let isViewTransitionAvailable = router.window != null && router.window.document != null && typeof router.window.document.startViewTransition === "function";
-		warnOnce(viewTransitionOpts == null || isViewTransitionAvailable, "You provided the `viewTransition` option to a router update, but you do not appear to be running in a DOM environment as `window.startViewTransition` is not available.");
-		if (!viewTransitionOpts || !isViewTransitionAvailable) {
-			if (reactDomFlushSyncImpl && flushSync) reactDomFlushSyncImpl(() => setStateImpl(newState));
-			else if (useTransitions === false) setStateImpl(newState);
-			else import_react.startTransition(() => {
-				if (useTransitions === true) setOptimisticState((s) => getOptimisticRouterState(s, newState));
-				setStateImpl(newState);
-			});
-			return;
-		}
-		if (reactDomFlushSyncImpl && flushSync) {
-			reactDomFlushSyncImpl(() => {
-				if (transition) {
-					renderDfd?.resolve();
-					transition.skipTransition();
-				}
-				setVtContext({
-					isTransitioning: true,
-					flushSync: true,
-					currentLocation: viewTransitionOpts.currentLocation,
-					nextLocation: viewTransitionOpts.nextLocation
-				});
-			});
-			let t = router.window.document.startViewTransition(() => {
-				reactDomFlushSyncImpl(() => setStateImpl(newState));
-			});
-			t.finished.finally(() => {
-				reactDomFlushSyncImpl(() => {
-					setRenderDfd(void 0);
-					setTransition(void 0);
-					setPendingState(void 0);
-					setVtContext({ isTransitioning: false });
-				});
-			});
-			reactDomFlushSyncImpl(() => setTransition(t));
-			return;
-		}
-		if (transition) {
-			renderDfd?.resolve();
-			transition.skipTransition();
-			setInterruption({
-				state: newState,
-				currentLocation: viewTransitionOpts.currentLocation,
-				nextLocation: viewTransitionOpts.nextLocation
-			});
-		} else {
-			setPendingState(newState);
-			setVtContext({
-				isTransitioning: true,
-				flushSync: false,
-				currentLocation: viewTransitionOpts.currentLocation,
-				nextLocation: viewTransitionOpts.nextLocation
-			});
-		}
-	}, [
-		router.window,
-		reactDomFlushSyncImpl,
-		transition,
-		renderDfd,
-		useTransitions,
-		setOptimisticState,
-		onError
-	]);
-	import_react.useLayoutEffect(() => router.subscribe(setState), [router, setState]);
-	import_react.useEffect(() => {
-		if (vtContext.isTransitioning && !vtContext.flushSync) setRenderDfd(new Deferred());
-	}, [vtContext]);
-	import_react.useEffect(() => {
-		if (renderDfd && pendingState && router.window) {
-			let newState = pendingState;
-			let renderPromise = renderDfd.promise;
-			let transition = router.window.document.startViewTransition(async () => {
-				if (useTransitions === false) setStateImpl(newState);
-				else import_react.startTransition(() => {
-					if (useTransitions === true) setOptimisticState((s) => getOptimisticRouterState(s, newState));
-					setStateImpl(newState);
-				});
-				await renderPromise;
-			});
-			transition.finished.finally(() => {
-				setRenderDfd(void 0);
-				setTransition(void 0);
-				setPendingState(void 0);
-				setVtContext({ isTransitioning: false });
-			});
-			setTransition(transition);
-		}
-	}, [
-		pendingState,
-		renderDfd,
-		router.window,
-		useTransitions,
-		setOptimisticState
-	]);
-	import_react.useEffect(() => {
-		if (renderDfd && pendingState && state.location.key === pendingState.location.key) renderDfd.resolve();
-	}, [
-		renderDfd,
-		transition,
-		state.location,
-		pendingState
-	]);
-	import_react.useEffect(() => {
-		if (!vtContext.isTransitioning && interruption) {
-			setPendingState(interruption.state);
-			setVtContext({
-				isTransitioning: true,
-				flushSync: false,
-				currentLocation: interruption.currentLocation,
-				nextLocation: interruption.nextLocation
-			});
-			setInterruption(void 0);
-		}
-	}, [vtContext.isTransitioning, interruption]);
-	let navigator = import_react.useMemo(() => {
-		return {
-			createHref: router.createHref,
-			createURL: router.createURL,
-			encodeLocation: router.encodeLocation,
-			go: (n) => router.navigate(n),
-			push: (to, state, opts) => router.navigate(to, {
-				state,
-				preventScrollReset: opts?.preventScrollReset
-			}),
-			replace: (to, state, opts) => router.navigate(to, {
-				replace: true,
-				state,
-				preventScrollReset: opts?.preventScrollReset
-			})
-		};
-	}, [router]);
-	let basename = router.basename || "/";
-	let dataRouterContext = import_react.useMemo(() => ({
-		router,
-		navigator,
-		static: false,
-		basename,
-		onError
-	}), [
-		router,
-		navigator,
-		basename,
-		onError
-	]);
-	let dataRouterState = import_react.useMemo(() => ({
-		historyAction: state.historyAction,
-		location: state.location,
-		matches: state.matches,
-		initialized: state.initialized,
-		renderFallback: state.renderFallback,
-		restoreScrollPosition: state.restoreScrollPosition,
-		preventScrollReset: state.preventScrollReset,
-		blockers: state.blockers
-	}), [
-		state.historyAction,
-		state.location,
-		state.matches,
-		state.initialized,
-		state.renderFallback,
-		state.restoreScrollPosition,
-		state.preventScrollReset,
-		state.blockers
-	]);
-	let dataRouterNavigation = import_react.useMemo(() => ({
-		navigation: state.navigation,
-		revalidation: state.revalidation
-	}), [state.navigation, state.revalidation]);
-	let dataRouterData = import_react.useMemo(() => ({
-		loaderData: state.loaderData,
-		actionData: state.actionData,
-		errors: state.errors
-	}), [
-		state.loaderData,
-		state.actionData,
-		state.errors
-	]);
-	let fetchersContext = import_react.useMemo(() => ({
-		fetchers: state.fetchers,
-		fetcherData: fetcherData.current
-	}), [state.fetchers]);
-	return /* @__PURE__ */ import_react.createElement(import_react.Fragment, null, /* @__PURE__ */ import_react.createElement(DataRouterContext.Provider, { value: dataRouterContext }, /* @__PURE__ */ import_react.createElement(DataRouterStateContext.Provider, { value: dataRouterState }, /* @__PURE__ */ import_react.createElement(DataRouterNavigationContext.Provider, { value: dataRouterNavigation }, /* @__PURE__ */ import_react.createElement(DataRouterDataContext.Provider, { value: dataRouterData }, /* @__PURE__ */ import_react.createElement(FetchersContext.Provider, { value: fetchersContext }, /* @__PURE__ */ import_react.createElement(ViewTransitionContext.Provider, { value: vtContext }, /* @__PURE__ */ import_react.createElement(Router, {
-		basename,
-		location: state.location,
-		navigationType: state.historyAction,
-		navigator,
-		useTransitions
-	}, /* @__PURE__ */ import_react.createElement(MemoizedDataRoutes, {
-		routes: router.routes,
-		manifest: router.manifest,
-		state,
-		isStatic: false,
-		onError
-	})))))))), null);
-}
-function getOptimisticRouterState(currentState, newState) {
-	return {
-		...currentState,
-		navigation: newState.navigation.state !== "idle" ? newState.navigation : currentState.navigation,
-		revalidation: newState.revalidation !== "idle" ? newState.revalidation : currentState.revalidation,
-		actionData: newState.navigation.state !== "submitting" ? newState.actionData : currentState.actionData,
-		fetchers: newState.fetchers
-	};
-}
-var MemoizedDataRoutes = import_react.memo(DataRoutes);
-function DataRoutes({ routes, manifest, state, isStatic, onError }) {
-	let dataRouterContext = import_react.useContext(DataRouterContext);
-	invariant$1(dataRouterContext, "You must render this element inside a <DataRouterContext.Provider> element");
-	return useRoutesImpl(routes, void 0, {
-		router: dataRouterContext.router,
-		manifest,
-		state,
-		isStatic,
-		onError
-	});
-}
-/**
-* A component-based version of {@link useNavigate} to use in a
-* [`React.Component` class](https://react.dev/reference/react/Component) where
-* hooks cannot be used.
-*
-* It's recommended to avoid using this component in favor of {@link useNavigate}.
-*
-* @example
-* <Navigate to="/tasks" />
-*
-* @public
-* @category Components
-* @param props Props
-* @param {NavigateProps.relative} props.relative n/a
-* @param {NavigateProps.replace} props.replace n/a
-* @param {NavigateProps.state} props.state n/a
-* @param {NavigateProps.to} props.to n/a
-* @returns {void}
-*
-*/
-function Navigate({ to, replace, state, relative }) {
-	invariant$1(useInRouterContext(), `<Navigate> may be used only in the context of a <Router> component.`);
-	let { static: isStatic, navigator } = import_react.useContext(NavigationContext);
-	warning$1(!isStatic, "<Navigate> must not be used on the initial render in a <StaticRouter>. This is a no-op, but you should modify your code so the <Navigate> is only ever rendered in response to some user interaction or state change.");
-	let { matches } = import_react.useContext(RouteContext);
-	let { pathname: locationPathname } = useLocation();
-	let navigate = useNavigate();
-	let path = resolveTo(to, getResolveToMatches(matches), locationPathname, relative === "path");
-	validateNavigationTarget(typeof to === "string" ? to : createPath(to), navigator.createHref(path), getNavigatorCurrentUrl(navigator), "reject");
-	let jsonPath = JSON.stringify(path);
-	import_react.useEffect(() => {
-		navigate(JSON.parse(jsonPath), {
-			replace,
-			state,
-			relative
-		});
-	}, [
-		navigate,
-		jsonPath,
-		relative,
-		replace,
-		state
-	]);
-	return null;
-}
-/**
-* Renders the matching child route of a parent route or nothing if no child
-* route matches.
-*
-* @example
-* import { Outlet } from "react-router";
-*
-* export default function SomeParent() {
-*   return (
-*     <div>
-*       <h1>Parent Content</h1>
-*       <Outlet />
-*     </div>
-*   );
-* }
-*
-* @public
-* @category Components
-* @param props Props
-* @param {OutletProps.context} props.context n/a
-* @returns React element for the rendered outlet or `null` if no child route matches.
-*/
-function Outlet(props) {
-	return useOutlet(props.context);
-}
-/**
-* Provides location context for the rest of the app.
-*
-* Note: You usually won't render a `<Router>` directly. Instead, you'll render a
-* router that is more specific to your environment such as a {@link BrowserRouter}
-* in web browsers or a {@link ServerRouter} for server rendering.
-*
-* @public
-* @category Declarative Routers
-* @mode declarative
-* @param props Props
-* @param {RouterProps.basename} props.basename n/a
-* @param {RouterProps.children} props.children n/a
-* @param {RouterProps.location} props.location n/a
-* @param {RouterProps.navigationType} props.navigationType n/a
-* @param {RouterProps.navigator} props.navigator n/a
-* @param {RouterProps.static} props.static n/a
-* @param {RouterProps.useTransitions} props.useTransitions n/a
-* @returns React element for the rendered router or `null` if the location does
-* not match the {@link props.basename}
-*/
-function Router({ basename: basenameProp = "/", children = null, location: locationProp, navigationType = "POP", navigator, static: staticProp = false, useTransitions }) {
-	invariant$1(!useInRouterContext(), "You cannot render a <Router> inside another <Router>. You should never have more than one in your app.");
-	let basename = basenameProp.replace(/^\/*/, "/");
-	let navigationContext = import_react.useMemo(() => ({
-		basename,
-		navigator,
-		static: staticProp,
-		useTransitions,
-		future: {}
-	}), [
-		basename,
-		navigator,
-		staticProp,
-		useTransitions
-	]);
-	if (typeof locationProp === "string") locationProp = parsePath(locationProp);
-	let { pathname = "/", search = "", hash = "", state = null, key = "default", mask } = locationProp;
-	let locationContext = import_react.useMemo(() => {
-		let trailingPathname = stripBasename(pathname, basename);
-		if (trailingPathname == null) return null;
-		return {
-			location: {
-				pathname: trailingPathname,
-				search,
-				hash,
-				state,
-				key,
-				mask
-			},
-			navigationType
-		};
-	}, [
-		basename,
-		pathname,
-		search,
-		hash,
-		state,
-		key,
-		navigationType,
-		mask
-	]);
-	warning$1(locationContext != null, `<Router basename="${basename}"> is not able to match the URL "${pathname}${search}${hash}" because it does not start with the basename, so the <Router> won't render anything.`);
-	if (locationContext == null) return null;
-	return /* @__PURE__ */ import_react.createElement(NavigationContext.Provider, { value: navigationContext }, /* @__PURE__ */ import_react.createElement(LocationContext.Provider, {
-		children,
-		value: locationContext
-	}));
-}
-import_react.Component;
-//#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom/dom.js
-/**
-* react-router v8.4.0
-*
-* Copyright (c) Remix Software Inc.
-*
-* This source code is licensed under the MIT license found in the
-* LICENSE.md file in the root directory of this source tree.
-*
-* @license MIT
-*/
-var defaultEncType = "application/x-www-form-urlencoded";
-function isHtmlElement(object) {
-	return typeof HTMLElement !== "undefined" && object instanceof HTMLElement;
-}
-function isButtonElement(object) {
-	return isHtmlElement(object) && object.tagName.toLowerCase() === "button";
-}
-function isFormElement(object) {
-	return isHtmlElement(object) && object.tagName.toLowerCase() === "form";
-}
-function isInputElement(object) {
-	return isHtmlElement(object) && object.tagName.toLowerCase() === "input";
-}
-function isModifiedEvent(event) {
-	return !!(event.metaKey || event.altKey || event.ctrlKey || event.shiftKey);
-}
-function shouldProcessLinkClick(event, target) {
-	return event.button === 0 && (!target || target === "_self") && !isModifiedEvent(event);
-}
-/**
-* Creates a URLSearchParams object using the given initializer.
-*
-* This is identical to `new URLSearchParams(init)` except it also supports
-* arrays as values in the object form of the initializer instead of just
-* strings. This is convenient when you need multiple values for a given key,
-* but don't want to use an array initializer.
-*
-* @example
-* // Instead of:
-* let searchParams = new URLSearchParams([
-*   ["sort", "name"],
-*   ["sort", "price"],
-* ]);
-*
-* // You can do:
-* let searchParams = createSearchParams({
-*   sort: ["name", "price"],
-* });
-*
-* @public
-* @category Utils
-* @param init The value used to initialize the URL search parameters.
-* @returns A URLSearchParams object containing the initialized search
-* parameters.
-*/
-function createSearchParams(init = "") {
-	return new URLSearchParams(typeof init === "string" || Array.isArray(init) || init instanceof URLSearchParams ? init : Object.keys(init).reduce((memo, key) => {
-		let value = init[key];
-		return memo.concat(Array.isArray(value) ? value.map((v) => [key, v]) : [[key, value]]);
-	}, []));
-}
-function getSearchParamsForLocation(locationSearch, defaultSearchParams) {
-	let searchParams = createSearchParams(locationSearch);
-	if (defaultSearchParams) defaultSearchParams.forEach((_, key) => {
-		if (!searchParams.has(key)) defaultSearchParams.getAll(key).forEach((value) => {
-			searchParams.append(key, value);
-		});
-	});
-	return searchParams;
-}
-var _formDataSupportsSubmitter = null;
-function isFormDataSubmitterSupported() {
-	if (_formDataSupportsSubmitter === null) try {
-		new FormData(document.createElement("form"), 0);
-		_formDataSupportsSubmitter = false;
-	} catch {
-		_formDataSupportsSubmitter = true;
-	}
-	return _formDataSupportsSubmitter;
-}
-var supportedFormEncTypes = /* @__PURE__ */ new Set([
-	"application/x-www-form-urlencoded",
-	"multipart/form-data",
-	"text/plain"
-]);
-function getFormEncType(encType) {
-	if (encType != null && !supportedFormEncTypes.has(encType)) {
-		warning$1(false, `"${encType}" is not a valid \`encType\` for \`<Form>\`/\`<fetcher.Form>\` and will default to "${defaultEncType}"`);
-		return null;
-	}
-	return encType;
-}
-function getFormSubmissionInfo(target, basename) {
-	let method;
-	let action;
-	let encType;
-	let formData;
-	let body;
-	if (isFormElement(target)) {
-		let attr = target.getAttribute("action");
-		action = attr ? stripBasename(attr, basename) : null;
-		method = target.getAttribute("method") || "get";
-		encType = getFormEncType(target.getAttribute("enctype")) || defaultEncType;
-		formData = new FormData(target);
-	} else if (isButtonElement(target) || isInputElement(target) && (target.type === "submit" || target.type === "image")) {
-		let form = target.form;
-		if (form == null) throw new Error(`Cannot submit a <button> or <input type="submit"> without a <form>`);
-		let attr = target.getAttribute("formaction") || form.getAttribute("action");
-		action = attr ? stripBasename(attr, basename) : null;
-		method = target.getAttribute("formmethod") || form.getAttribute("method") || "get";
-		encType = getFormEncType(target.getAttribute("formenctype")) || getFormEncType(form.getAttribute("enctype")) || defaultEncType;
-		formData = new FormData(form, target);
-		if (!isFormDataSubmitterSupported()) {
-			let { name, type, value } = target;
-			if (type === "image") {
-				let prefix = name ? `${name}.` : "";
-				formData.append(`${prefix}x`, "0");
-				formData.append(`${prefix}y`, "0");
-			} else if (name) formData.append(name, value);
-		}
-	} else if (isHtmlElement(target)) throw new Error("Cannot submit element that is not <form>, <button>, or <input type=\"submit|image\">");
-	else {
-		method = "get";
-		action = null;
-		encType = defaultEncType;
-		body = target;
-	}
-	if (formData && encType === "text/plain") {
-		body = formData;
-		formData = void 0;
-	}
-	return {
-		action,
-		method: method.toLowerCase(),
-		encType,
-		formData,
-		body
-	};
-}
-//#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom/ssr/invariant.js
-/**
-* react-router v8.4.0
+* react-router v8.5.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -39789,9 +39840,9 @@ function invariant(value, message) {
 	if (value === false || value === null || typeof value === "undefined") throw new Error(message);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom/ssr/markup.js
+//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/dom/ssr/markup.js
 /**
-* react-router v8.4.0
+* react-router v8.5.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -39812,9 +39863,9 @@ function escapeHtml(html) {
 	return html.replace(ESCAPE_REGEX, (match) => ESCAPE_LOOKUP[match]);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom/ssr/single-fetch.js
+//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/dom/ssr/single-fetch.js
 /**
-* react-router v8.4.0
+* react-router v8.5.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -39823,16 +39874,17 @@ function escapeHtml(html) {
 *
 * @license MIT
 */
-function singleFetchUrl(reqUrl, extension) {
-	let url = typeof reqUrl === "string" ? new URL(reqUrl, typeof window === "undefined" ? "server://singlefetch/" : window.location.origin) : reqUrl;
+function singleFetchUrl(reqUrl, extension, serverOrigin) {
+	let url = typeof reqUrl === "string" ? new URL(reqUrl, serverOrigin ?? (typeof window === "undefined" ? "server://singlefetch/" : window.location.origin)) : new URL(reqUrl);
+	if (serverOrigin && url.origin !== serverOrigin) url = new URL(url.pathname + url.search + url.hash, serverOrigin);
 	if (url.pathname.endsWith("/")) url.pathname = `${url.pathname}_.${extension}`;
 	else url.pathname = `${url.pathname}.${extension}`;
 	return url;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom/ssr/routeModules.js
+//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/dom/ssr/routeModules.js
 /**
-* react-router v8.4.0
+* react-router v8.5.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -39860,9 +39912,9 @@ async function loadRouteModule(route, routeModulesCache) {
 	}
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom/ssr/links.js
+//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/dom/ssr/links.js
 /**
-* react-router v8.4.0
+* react-router v8.5.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -39961,9 +40013,28 @@ function dedupeLinkDescriptors(descriptors, preloads) {
 	}, []);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom/ssr/components.js
+//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/server-runtime/warnings.js
 /**
-* react-router v8.4.0
+* react-router v8.5.0
+*
+* Copyright (c) Remix Software Inc.
+*
+* This source code is licensed under the MIT license found in the
+* LICENSE.md file in the root directory of this source tree.
+*
+* @license MIT
+*/
+var alreadyWarned = {};
+function warnOnce(condition, message) {
+	if (!condition && !alreadyWarned[message]) {
+		alreadyWarned[message] = true;
+		console.warn(message);
+	}
+}
+//#endregion
+//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/dom/ssr/components.js
+/**
+* react-router v8.5.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -40117,19 +40188,21 @@ function useKeyedPrefetchLinks(matches) {
 }
 function RSCPrefetchPageLinksImpl({ page, matches: nextMatches, ...linkProps }) {
 	let location = useLocation();
+	let { unstable_apiServerOrigin } = useFrameworkContext();
 	let dataHrefs = import_react.useMemo(() => {
 		if (page === location.pathname + location.search + location.hash) return [];
-		let url = singleFetchUrl(page, "rsc");
+		let url = singleFetchUrl(page, "rsc", unstable_apiServerOrigin);
 		let hasSomeRoutesWithShouldRevalidate = false;
 		let targetRoutes = [];
 		for (let match of nextMatches) if (typeof match.route.shouldRevalidate === "function") hasSomeRoutesWithShouldRevalidate = true;
 		else targetRoutes.push(match.route.id);
 		if (hasSomeRoutesWithShouldRevalidate && targetRoutes.length > 0) url.searchParams.set("_routes", targetRoutes.join(","));
-		return [url.pathname + url.search];
+		return [unstable_apiServerOrigin ? url.toString() : url.pathname + url.search];
 	}, [
 		page,
 		location,
-		nextMatches
+		nextMatches,
+		unstable_apiServerOrigin
 	]);
 	return /* @__PURE__ */ import_react.createElement(import_react.Fragment, null, dataHrefs.map((href) => /* @__PURE__ */ import_react.createElement("link", {
 		key: href,
@@ -40141,7 +40214,7 @@ function RSCPrefetchPageLinksImpl({ page, matches: nextMatches, ...linkProps }) 
 }
 function PrefetchPageLinksImpl({ page, matches: nextMatches, ...linkProps }) {
 	let location = useLocation();
-	let { manifest, routeModules } = useFrameworkContext();
+	let { manifest, routeModules, unstable_apiServerOrigin } = useFrameworkContext();
 	let { matches } = useDataRouterState("PrefetchPageLinks");
 	let { loaderData } = useDataRouterData("PrefetchPageLinks");
 	let newMatchesForData = import_react.useMemo(() => getNewMatchesForLinks(page, nextMatches, matches, manifest, location, "data"), [
@@ -40170,9 +40243,9 @@ function PrefetchPageLinksImpl({ page, matches: nextMatches, ...linkProps }) {
 			else routesParams.add(m.route.id);
 		});
 		if (routesParams.size === 0) return [];
-		let url = singleFetchUrl(page, "data");
+		let url = singleFetchUrl(page, "data", unstable_apiServerOrigin);
 		if (foundOptOutRoute && routesParams.size > 0) url.searchParams.set("_routes", nextMatches.filter((m) => routesParams.has(m.route.id)).map((m) => m.route.id).join(","));
-		return [url.pathname + url.search];
+		return [unstable_apiServerOrigin ? url.toString() : url.pathname + url.search];
 	}, [
 		loaderData,
 		location,
@@ -40180,7 +40253,8 @@ function PrefetchPageLinksImpl({ page, matches: nextMatches, ...linkProps }) {
 		newMatchesForData,
 		nextMatches,
 		page,
-		routeModules
+		routeModules,
+		unstable_apiServerOrigin
 	]);
 	let moduleHrefs = import_react.useMemo(() => getModuleLinkHrefs(newMatchesForAssets, manifest), [newMatchesForAssets, manifest]);
 	let keyedPrefetchLinks = useKeyedPrefetchLinks(newMatchesForAssets);
@@ -40211,9 +40285,614 @@ function mergeRefs(...refs) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom/lib.js
+//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/components.js
 /**
-* react-router v8.4.0
+* react-router v8.5.0
+*
+* Copyright (c) Remix Software Inc.
+*
+* This source code is licensed under the MIT license found in the
+* LICENSE.md file in the root directory of this source tree.
+*
+* @license MIT
+*/
+var hydrationRouteProperties = ["HydrateFallback", "hydrateFallbackElement"];
+var Deferred = class {
+	status = "pending";
+	promise;
+	resolve;
+	reject;
+	constructor() {
+		this.promise = new Promise((resolve, reject) => {
+			this.resolve = (value) => {
+				if (this.status === "pending") {
+					this.status = "resolved";
+					resolve(value);
+				}
+			};
+			this.reject = (reason) => {
+				if (this.status === "pending") {
+					this.status = "rejected";
+					reject(reason);
+				}
+			};
+		});
+	}
+};
+/**
+* Render the UI for the given {@link DataRouter}. This component should
+* typically be at the top of an app's element tree. The router prop should
+* be a single router instance created outside of the React tree. Avoid
+* creating new routers during React renders/re-renders.
+*
+* ```tsx
+* import { createBrowserRouter } from "react-router";
+* import { RouterProvider } from "react-router/dom";
+* import { createRoot } from "react-dom/client";
+*
+* const router = createBrowserRouter(routes);
+* createRoot(document.getElementById("root")).render(
+*   <RouterProvider router={router} />
+* );
+* ```
+*
+* <docs-info>Please note that this component is exported both from
+* `react-router` and `react-router/dom` with the only difference being that the
+* latter automatically wires up `react-dom`'s [`flushSync`](https://react.dev/reference/react-dom/flushSync)
+* implementation. You _almost always_ want to use the version from
+* `react-router/dom` unless you're running in a non-DOM environment.</docs-info>
+*
+*
+* @public
+* @category Data Routers
+* @mode data
+* @param props Props
+* @param {RouterProviderProps.flushSync} props.flushSync n/a
+* @param {RouterProviderProps.onError} props.onError n/a
+* @param {RouterProviderProps.router} props.router n/a
+* @param {RouterProviderProps.useTransitions} props.useTransitions n/a
+* @returns React element for the rendered router
+*/
+function RouterProvider({ router, flushSync: reactDomFlushSyncImpl, onError, useTransitions }) {
+	useTransitions = useIsRSCRouterContext() || useTransitions;
+	let [_state, setStateImpl] = import_react.useState(router.state);
+	let [state, setOptimisticState] = (0, import_react.useOptimistic)(_state);
+	let lastState = import_react.useRef(state);
+	let [pendingState, setPendingState] = import_react.useState();
+	let [vtContext, setVtContext] = import_react.useState({ isTransitioning: false });
+	let [renderDfd, setRenderDfd] = import_react.useState();
+	let [transition, setTransition] = import_react.useState();
+	let [interruption, setInterruption] = import_react.useState();
+	let fetcherData = import_react.useRef(/* @__PURE__ */ new Map());
+	let handledErrors = import_react.useRef(/* @__PURE__ */ new WeakSet());
+	let setState = import_react.useCallback((newState, { deletedFetchers, newErrors, flushSync, viewTransitionOpts }) => {
+		lastState.current = newState;
+		if (newErrors && newState.errors && clientErrors.has(newState.errors)) if (handledErrors.current.has(newState.errors)) newErrors = null;
+		else handledErrors.current.add(newState.errors);
+		if (newErrors && onError) Object.values(newErrors).forEach((error) => onError(error, {
+			location: newState.location,
+			params: newState.matches[0]?.params ?? {},
+			pattern: getRoutePattern(newState.matches)
+		}));
+		newState.fetchers.forEach((fetcher, key) => {
+			if (fetcher.data !== void 0) fetcherData.current.set(key, fetcher.data);
+		});
+		deletedFetchers.forEach((key) => fetcherData.current.delete(key));
+		warnOnce(flushSync === false || reactDomFlushSyncImpl != null, "You provided the `flushSync` option to a router update, but you are not using the `<RouterProvider>` from `react-router/dom` so `ReactDOM.flushSync()` is unavailable.  Please update your app to `import { RouterProvider } from \"react-router/dom\"` and ensure you have `react-dom` installed as a dependency to use the `flushSync` option.");
+		let isViewTransitionAvailable = router.window != null && router.window.document != null && typeof router.window.document.startViewTransition === "function";
+		warnOnce(viewTransitionOpts == null || isViewTransitionAvailable, "You provided the `viewTransition` option to a router update, but you do not appear to be running in a DOM environment as `window.startViewTransition` is not available.");
+		if (!viewTransitionOpts || !isViewTransitionAvailable) {
+			if (reactDomFlushSyncImpl && flushSync) reactDomFlushSyncImpl(() => setStateImpl(newState));
+			else if (useTransitions === false) setStateImpl(newState);
+			else import_react.startTransition(() => {
+				if (useTransitions === true) setOptimisticState((s) => getOptimisticRouterState(s, newState));
+				setStateImpl(newState);
+			});
+			return;
+		}
+		if (reactDomFlushSyncImpl && flushSync) {
+			reactDomFlushSyncImpl(() => {
+				if (transition) {
+					renderDfd?.resolve();
+					transition.skipTransition();
+				}
+				setVtContext({
+					isTransitioning: true,
+					flushSync: true,
+					currentLocation: viewTransitionOpts.currentLocation,
+					nextLocation: viewTransitionOpts.nextLocation
+				});
+			});
+			let t = router.window.document.startViewTransition(() => {
+				reactDomFlushSyncImpl(() => setStateImpl(newState));
+			});
+			t.finished.finally(() => {
+				reactDomFlushSyncImpl(() => {
+					setRenderDfd(void 0);
+					setTransition(void 0);
+					setPendingState(void 0);
+					setVtContext({ isTransitioning: false });
+				});
+			});
+			reactDomFlushSyncImpl(() => setTransition(t));
+			return;
+		}
+		if (transition) {
+			renderDfd?.resolve();
+			transition.skipTransition();
+			setInterruption({
+				state: newState,
+				currentLocation: viewTransitionOpts.currentLocation,
+				nextLocation: viewTransitionOpts.nextLocation
+			});
+		} else {
+			setPendingState(newState);
+			setVtContext({
+				isTransitioning: true,
+				flushSync: false,
+				currentLocation: viewTransitionOpts.currentLocation,
+				nextLocation: viewTransitionOpts.nextLocation
+			});
+		}
+	}, [
+		router.window,
+		reactDomFlushSyncImpl,
+		transition,
+		renderDfd,
+		useTransitions,
+		setOptimisticState,
+		onError
+	]);
+	import_react.useLayoutEffect(() => router.subscribe(setState), [router, setState]);
+	import_react.useLayoutEffect(() => {
+		let errors = router.state.errors;
+		let newErrors = errors ? clientErrors.get(errors) : null;
+		if (lastState.current !== router.state || errors && newErrors && !handledErrors.current.has(errors)) setState(router.state, {
+			deletedFetchers: [],
+			flushSync: false,
+			newErrors: newErrors ?? null
+		});
+	}, [router, setState]);
+	import_react.useEffect(() => {
+		if (vtContext.isTransitioning && !vtContext.flushSync) setRenderDfd(new Deferred());
+	}, [vtContext]);
+	import_react.useEffect(() => {
+		if (renderDfd && pendingState && router.window) {
+			let newState = pendingState;
+			let renderPromise = renderDfd.promise;
+			let transition = router.window.document.startViewTransition(async () => {
+				if (useTransitions === false) setStateImpl(newState);
+				else import_react.startTransition(() => {
+					if (useTransitions === true) setOptimisticState((s) => getOptimisticRouterState(s, newState));
+					setStateImpl(newState);
+				});
+				await renderPromise;
+			});
+			transition.finished.finally(() => {
+				setRenderDfd(void 0);
+				setTransition(void 0);
+				setPendingState(void 0);
+				setVtContext({ isTransitioning: false });
+			});
+			setTransition(transition);
+		}
+	}, [
+		pendingState,
+		renderDfd,
+		router.window,
+		useTransitions,
+		setOptimisticState
+	]);
+	import_react.useEffect(() => {
+		if (renderDfd && pendingState && state.location.key === pendingState.location.key) renderDfd.resolve();
+	}, [
+		renderDfd,
+		transition,
+		state.location,
+		pendingState
+	]);
+	import_react.useEffect(() => {
+		if (!vtContext.isTransitioning && interruption) {
+			setPendingState(interruption.state);
+			setVtContext({
+				isTransitioning: true,
+				flushSync: false,
+				currentLocation: interruption.currentLocation,
+				nextLocation: interruption.nextLocation
+			});
+			setInterruption(void 0);
+		}
+	}, [vtContext.isTransitioning, interruption]);
+	let navigator = import_react.useMemo(() => {
+		return {
+			createHref: router.createHref,
+			createURL: router.createURL,
+			encodeLocation: router.encodeLocation,
+			go: (n) => router.navigate(n),
+			push: (to, state, opts) => router.navigate(to, {
+				state,
+				preventScrollReset: opts?.preventScrollReset
+			}),
+			replace: (to, state, opts) => router.navigate(to, {
+				replace: true,
+				state,
+				preventScrollReset: opts?.preventScrollReset
+			})
+		};
+	}, [router]);
+	let basename = router.basename || "/";
+	let dataRouterContext = import_react.useMemo(() => ({
+		router,
+		navigator,
+		static: false,
+		basename,
+		onError
+	}), [
+		router,
+		navigator,
+		basename,
+		onError
+	]);
+	let dataRouterState = import_react.useMemo(() => ({
+		historyAction: state.historyAction,
+		location: state.location,
+		matches: state.matches,
+		initialized: state.initialized,
+		renderFallback: state.renderFallback,
+		restoreScrollPosition: state.restoreScrollPosition,
+		preventScrollReset: state.preventScrollReset,
+		blockers: state.blockers
+	}), [
+		state.historyAction,
+		state.location,
+		state.matches,
+		state.initialized,
+		state.renderFallback,
+		state.restoreScrollPosition,
+		state.preventScrollReset,
+		state.blockers
+	]);
+	let dataRouterNavigation = import_react.useMemo(() => ({
+		navigation: state.navigation,
+		revalidation: state.revalidation
+	}), [state.navigation, state.revalidation]);
+	let dataRouterData = import_react.useMemo(() => ({
+		loaderData: state.loaderData,
+		actionData: state.actionData,
+		errors: state.errors
+	}), [
+		state.loaderData,
+		state.actionData,
+		state.errors
+	]);
+	let fetchersContext = import_react.useMemo(() => ({
+		fetchers: state.fetchers,
+		fetcherData: fetcherData.current
+	}), [state.fetchers]);
+	return /* @__PURE__ */ import_react.createElement(import_react.Fragment, null, /* @__PURE__ */ import_react.createElement(DataRouterContext.Provider, { value: dataRouterContext }, /* @__PURE__ */ import_react.createElement(DataRouterStateContext.Provider, { value: dataRouterState }, /* @__PURE__ */ import_react.createElement(DataRouterNavigationContext.Provider, { value: dataRouterNavigation }, /* @__PURE__ */ import_react.createElement(DataRouterDataContext.Provider, { value: dataRouterData }, /* @__PURE__ */ import_react.createElement(FetchersContext.Provider, { value: fetchersContext }, /* @__PURE__ */ import_react.createElement(ViewTransitionContext.Provider, { value: vtContext }, /* @__PURE__ */ import_react.createElement(Router, {
+		basename,
+		location: state.location,
+		navigationType: state.historyAction,
+		navigator,
+		useTransitions
+	}, /* @__PURE__ */ import_react.createElement(MemoizedDataRoutes, {
+		routes: router.routes,
+		manifest: router.manifest,
+		state,
+		isStatic: false,
+		onError
+	})))))))), null);
+}
+function getOptimisticRouterState(currentState, newState) {
+	return {
+		...currentState,
+		navigation: newState.navigation.state !== "idle" ? newState.navigation : currentState.navigation,
+		revalidation: newState.revalidation !== "idle" ? newState.revalidation : currentState.revalidation,
+		actionData: newState.navigation.state !== "submitting" ? newState.actionData : currentState.actionData,
+		fetchers: newState.fetchers
+	};
+}
+var MemoizedDataRoutes = import_react.memo(DataRoutes);
+function DataRoutes({ routes, manifest, state, isStatic, onError }) {
+	let dataRouterContext = import_react.useContext(DataRouterContext);
+	invariant$1(dataRouterContext, "You must render this element inside a <DataRouterContext.Provider> element");
+	let discoveryRuntime = import_react.useContext(FrameworkContext)?.routeDiscoveryRuntime;
+	import_react.useEffect(() => {
+		if (state.initialized) discoveryRuntime?.markReady();
+	}, [state.initialized, discoveryRuntime]);
+	return useRoutesImpl(routes, void 0, {
+		router: dataRouterContext.router,
+		manifest,
+		state,
+		isStatic,
+		onError
+	});
+}
+/**
+* A component-based version of {@link useNavigate} to use in a
+* [`React.Component` class](https://react.dev/reference/react/Component) where
+* hooks cannot be used.
+*
+* It's recommended to avoid using this component in favor of {@link useNavigate}.
+*
+* @example
+* <Navigate to="/tasks" />
+*
+* @public
+* @category Components
+* @param props Props
+* @param {NavigateProps.relative} props.relative n/a
+* @param {NavigateProps.replace} props.replace n/a
+* @param {NavigateProps.state} props.state n/a
+* @param {NavigateProps.to} props.to n/a
+* @returns {void}
+*
+*/
+function Navigate({ to, replace, state, relative }) {
+	invariant$1(useInRouterContext(), `<Navigate> may be used only in the context of a <Router> component.`);
+	let { static: isStatic, navigator } = import_react.useContext(NavigationContext);
+	warning$1(!isStatic, "<Navigate> must not be used on the initial render in a <StaticRouter>. This is a no-op, but you should modify your code so the <Navigate> is only ever rendered in response to some user interaction or state change.");
+	let { matches } = import_react.useContext(RouteContext);
+	let { pathname: locationPathname } = useLocation();
+	let navigate = useNavigate();
+	let path = resolveTo(to, getResolveToMatches(matches), locationPathname, relative === "path");
+	validateNavigationTarget(typeof to === "string" ? to : createPath(to), navigator.createHref(path), getNavigatorCurrentUrl(navigator), "reject");
+	let jsonPath = JSON.stringify(path);
+	import_react.useEffect(() => {
+		navigate(JSON.parse(jsonPath), {
+			replace,
+			state,
+			relative
+		});
+	}, [
+		navigate,
+		jsonPath,
+		relative,
+		replace,
+		state
+	]);
+	return null;
+}
+/**
+* Renders the matching child route of a parent route or nothing if no child
+* route matches.
+*
+* @example
+* import { Outlet } from "react-router";
+*
+* export default function SomeParent() {
+*   return (
+*     <div>
+*       <h1>Parent Content</h1>
+*       <Outlet />
+*     </div>
+*   );
+* }
+*
+* @public
+* @category Components
+* @param props Props
+* @param {OutletProps.context} props.context n/a
+* @returns React element for the rendered outlet or `null` if no child route matches.
+*/
+function Outlet(props) {
+	return useOutlet(props.context);
+}
+/**
+* Provides location context for the rest of the app.
+*
+* Note: You usually won't render a `<Router>` directly. Instead, you'll render a
+* router that is more specific to your environment such as a {@link BrowserRouter}
+* in web browsers or a {@link ServerRouter} for server rendering.
+*
+* @public
+* @category Declarative Routers
+* @mode declarative
+* @param props Props
+* @param {RouterProps.basename} props.basename n/a
+* @param {RouterProps.children} props.children n/a
+* @param {RouterProps.location} props.location n/a
+* @param {RouterProps.navigationType} props.navigationType n/a
+* @param {RouterProps.navigator} props.navigator n/a
+* @param {RouterProps.static} props.static n/a
+* @param {RouterProps.useTransitions} props.useTransitions n/a
+* @returns React element for the rendered router or `null` if the location does
+* not match the {@link props.basename}
+*/
+function Router({ basename: basenameProp = "/", children = null, location: locationProp, navigationType = "POP", navigator, static: staticProp = false, useTransitions }) {
+	invariant$1(!useInRouterContext(), "You cannot render a <Router> inside another <Router>. You should never have more than one in your app.");
+	let basename = basenameProp.replace(/^\/*/, "/");
+	let navigationContext = import_react.useMemo(() => ({
+		basename,
+		navigator,
+		static: staticProp,
+		useTransitions,
+		future: {}
+	}), [
+		basename,
+		navigator,
+		staticProp,
+		useTransitions
+	]);
+	if (typeof locationProp === "string") locationProp = parsePath(locationProp);
+	let { pathname = "/", search = "", hash = "", state = null, key = "default", mask } = locationProp;
+	let locationContext = import_react.useMemo(() => {
+		let trailingPathname = stripBasename(pathname, basename);
+		if (trailingPathname == null) return null;
+		return {
+			location: {
+				pathname: trailingPathname,
+				search,
+				hash,
+				state,
+				key,
+				mask
+			},
+			navigationType
+		};
+	}, [
+		basename,
+		pathname,
+		search,
+		hash,
+		state,
+		key,
+		navigationType,
+		mask
+	]);
+	warning$1(locationContext != null, `<Router basename="${basename}"> is not able to match the URL "${pathname}${search}${hash}" because it does not start with the basename, so the <Router> won't render anything.`);
+	if (locationContext == null) return null;
+	return /* @__PURE__ */ import_react.createElement(NavigationContext.Provider, { value: navigationContext }, /* @__PURE__ */ import_react.createElement(LocationContext.Provider, {
+		children,
+		value: locationContext
+	}));
+}
+import_react.Component;
+//#endregion
+//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/dom/dom.js
+/**
+* react-router v8.5.0
+*
+* Copyright (c) Remix Software Inc.
+*
+* This source code is licensed under the MIT license found in the
+* LICENSE.md file in the root directory of this source tree.
+*
+* @license MIT
+*/
+var defaultEncType = "application/x-www-form-urlencoded";
+function isHtmlElement(object) {
+	return typeof HTMLElement !== "undefined" && object instanceof HTMLElement;
+}
+function isButtonElement(object) {
+	return isHtmlElement(object) && object.tagName.toLowerCase() === "button";
+}
+function isFormElement(object) {
+	return isHtmlElement(object) && object.tagName.toLowerCase() === "form";
+}
+function isInputElement(object) {
+	return isHtmlElement(object) && object.tagName.toLowerCase() === "input";
+}
+function isModifiedEvent(event) {
+	return !!(event.metaKey || event.altKey || event.ctrlKey || event.shiftKey);
+}
+function shouldProcessLinkClick(event, target) {
+	return event.button === 0 && (!target || target === "_self") && !isModifiedEvent(event);
+}
+/**
+* Creates a URLSearchParams object using the given initializer.
+*
+* This is identical to `new URLSearchParams(init)` except it also supports
+* arrays as values in the object form of the initializer instead of just
+* strings. This is convenient when you need multiple values for a given key,
+* but don't want to use an array initializer.
+*
+* @example
+* // Instead of:
+* let searchParams = new URLSearchParams([
+*   ["sort", "name"],
+*   ["sort", "price"],
+* ]);
+*
+* // You can do:
+* let searchParams = createSearchParams({
+*   sort: ["name", "price"],
+* });
+*
+* @public
+* @category Utils
+* @param init The value used to initialize the URL search parameters.
+* @returns A URLSearchParams object containing the initialized search
+* parameters.
+*/
+function createSearchParams(init = "") {
+	return new URLSearchParams(typeof init === "string" || Array.isArray(init) || init instanceof URLSearchParams ? init : Object.keys(init).reduce((memo, key) => {
+		let value = init[key];
+		return memo.concat(Array.isArray(value) ? value.map((v) => [key, v]) : [[key, value]]);
+	}, []));
+}
+function getSearchParamsForLocation(locationSearch, defaultSearchParams) {
+	let searchParams = createSearchParams(locationSearch);
+	if (defaultSearchParams) defaultSearchParams.forEach((_, key) => {
+		if (!searchParams.has(key)) defaultSearchParams.getAll(key).forEach((value) => {
+			searchParams.append(key, value);
+		});
+	});
+	return searchParams;
+}
+var _formDataSupportsSubmitter = null;
+function isFormDataSubmitterSupported() {
+	if (_formDataSupportsSubmitter === null) try {
+		new FormData(document.createElement("form"), 0);
+		_formDataSupportsSubmitter = false;
+	} catch {
+		_formDataSupportsSubmitter = true;
+	}
+	return _formDataSupportsSubmitter;
+}
+var supportedFormEncTypes = /* @__PURE__ */ new Set([
+	"application/x-www-form-urlencoded",
+	"multipart/form-data",
+	"text/plain"
+]);
+function getFormEncType(encType) {
+	if (encType != null && !supportedFormEncTypes.has(encType)) {
+		warning$1(false, `"${encType}" is not a valid \`encType\` for \`<Form>\`/\`<fetcher.Form>\` and will default to "${defaultEncType}"`);
+		return null;
+	}
+	return encType;
+}
+function getFormSubmissionInfo(target, basename) {
+	let method;
+	let action;
+	let encType;
+	let formData;
+	let body;
+	if (isFormElement(target)) {
+		let attr = target.getAttribute("action");
+		action = attr ? stripBasename(attr, basename) : null;
+		method = target.getAttribute("method") || "get";
+		encType = getFormEncType(target.getAttribute("enctype")) || defaultEncType;
+		formData = new FormData(target);
+	} else if (isButtonElement(target) || isInputElement(target) && (target.type === "submit" || target.type === "image")) {
+		let form = target.form;
+		if (form == null) throw new Error(`Cannot submit a <button> or <input type="submit"> without a <form>`);
+		let attr = target.getAttribute("formaction") || form.getAttribute("action");
+		action = attr ? stripBasename(attr, basename) : null;
+		method = target.getAttribute("formmethod") || form.getAttribute("method") || "get";
+		encType = getFormEncType(target.getAttribute("formenctype")) || getFormEncType(form.getAttribute("enctype")) || defaultEncType;
+		formData = new FormData(form, target);
+		if (!isFormDataSubmitterSupported()) {
+			let { name, type, value } = target;
+			if (type === "image") {
+				let prefix = name ? `${name}.` : "";
+				formData.append(`${prefix}x`, "0");
+				formData.append(`${prefix}y`, "0");
+			} else if (name) formData.append(name, value);
+		}
+	} else if (isHtmlElement(target)) throw new Error("Cannot submit element that is not <form>, <button>, or <input type=\"submit|image\">");
+	else {
+		method = "get";
+		action = null;
+		encType = defaultEncType;
+		body = target;
+	}
+	if (formData && encType === "text/plain") {
+		body = formData;
+		formData = void 0;
+	}
+	return {
+		action,
+		method: method.toLowerCase(),
+		encType,
+		formData,
+		body
+	};
+}
+//#endregion
+//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/dom/lib.js
+/**
+* react-router v8.5.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -40673,9 +41352,9 @@ ScrollRestoration.displayName = "ScrollRestoration";
 * @param options.state The state to add to the [`History`](https://developer.mozilla.org/en-US/docs/Web/API/History)
 * entry for this navigation. Defaults to `undefined`.
 * @param options.target The target attribute for the link. Defaults to `undefined`.
-* @param options.viewTransition Enables a [View Transition](https://developer.mozilla.org/en-US/docs/Web/API/View_Transitions_API)
-* for this navigation. To apply specific styles during the transition, see
-* {@link useViewTransitionState}. Defaults to `false`.
+* @param options.viewTransition **Deprecated.** Use React's
+* [`<ViewTransition>`](https://react.dev/reference/react/ViewTransition) component
+* instead. See the [migration guide](../../how-to/view-transitions).
 * @param options.defaultShouldRevalidate Specify the default revalidation
 * behavior for the navigation. When not specified, loaders revalidate
 * according to the router's standard revalidation behavior.
@@ -40836,6 +41515,10 @@ var getUniqueFetcherId = () => `__${String(++fetcherId)}__`;
 /**
 * The imperative version of {@link Form | `<Form>`} that lets you submit a form
 * from code instead of a user interaction.
+*
+* The `viewTransition` submission option is deprecated. Use React's
+* [`<ViewTransition>`](https://react.dev/reference/react/ViewTransition) component
+* instead. See the [migration guide](../../how-to/view-transitions).
 *
 * @example
 * import { useSubmit } from "react-router";
@@ -41082,6 +41765,11 @@ function usePageShow(callback, options) {
 	}, [callback, capture]);
 }
 /**
+* **Deprecated.** Use React's [`<ViewTransition>`](https://react.dev/reference/react/ViewTransition)
+* component to style transitions instead. This hook only tracks React Router's
+* legacy view transitions, not transitions started by React. See the
+* [migration guide](../../how-to/view-transitions).
+*
 * This hook returns `true` when there is an active [View Transition](https://developer.mozilla.org/en-US/docs/Web/API/View_Transitions_API)
 * and the specified location matches either side of the navigation (the URL you are
 * navigating **to** or the URL you are navigating **from**). This can be used to apply finer-grained styles to
@@ -41101,6 +41789,8 @@ function usePageShow(callback, options) {
 * more details.
 * @returns `true` if there is an active [View Transition](https://developer.mozilla.org/en-US/docs/Web/API/View_Transitions_API)
 * and the resolved path matches the transition's destination or source pathname, otherwise `false`.
+*
+* @deprecated Use React's `<ViewTransition>` component instead.
 */
 function useViewTransitionState(to, { relative } = {}) {
 	let vtContext = import_react.useContext(ViewTransitionContext);
@@ -41801,7 +42491,7 @@ var useBreadcrumbTruncation = (segments, containerRef) => {
 				testElement.style.margin = "0";
 				testElement.style.padding = "0";
 				container.appendChild(testElement);
-				replaceMeasurementItems(testElement, segments.map(_temp$104));
+				replaceMeasurementItems(testElement, segments.map(_temp$105));
 				if (testElement.scrollWidth <= containerWidth) {
 					container.removeChild(testElement);
 					setTruncatedData({
@@ -41865,7 +42555,7 @@ var useBreadcrumbTruncation = (segments, containerRef) => {
 	(0, import_react.useEffect)(t1, t2);
 	return truncatedData;
 };
-function _temp$104(segment) {
+function _temp$105(segment) {
 	return segment.text;
 }
 function _temp2$60(segment_0) {
@@ -42266,7 +42956,7 @@ var SCROLL_RELEASE_KEYS = /* @__PURE__ */ new Set([
 				setCopied(true);
 				window.clearTimeout(timer.current);
 				timer.current = window.setTimeout(() => setCopied(false), confirmMs);
-			}).catch(_temp$103);
+			}).catch(_temp$104);
 		};
 		$[1] = confirmMs;
 		$[2] = t2;
@@ -42284,7 +42974,7 @@ var SCROLL_RELEASE_KEYS = /* @__PURE__ */ new Set([
 	} else t3 = $[5];
 	return t3;
 }
-function _temp$103(error) {
+function _temp$104(error) {
 	console.error("Failed to copy:", error);
 }
 var SourceCodePanel_module_default = {
@@ -42603,21 +43293,24 @@ var TextInput = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
 });
 TextInput.displayName = "TextInput";
 var ToolDropdownButton_module_default = {
-	toolButton: "_toolButton_3h5lc_1",
-	bodyColor: "_bodyColor_3h5lc_5",
-	chevron: "_chevron_3h5lc_17",
-	backdrop: "_backdrop_3h5lc_31",
-	dropdownMenu: "_dropdownMenu_3h5lc_41",
-	dropdownItem: "_dropdownItem_3h5lc_52",
-	dropdownHeading: "_dropdownHeading_3h5lc_73",
-	dropdownDivider: "_dropdownDivider_3h5lc_82",
-	dropdownFooter: "_dropdownFooter_3h5lc_87"
+	toolButton: "_toolButton_xg5wq_1",
+	bodyColor: "_bodyColor_xg5wq_5",
+	chevron: "_chevron_xg5wq_17",
+	backdrop: "_backdrop_xg5wq_31",
+	dropdownMenu: "_dropdownMenu_xg5wq_41",
+	dropdownItem: "_dropdownItem_xg5wq_52",
+	dropdownHeading: "_dropdownHeading_xg5wq_73",
+	dropdownDivider: "_dropdownDivider_xg5wq_82",
+	dropdownFooter: "_dropdownFooter_xg5wq_87",
+	noMargin: "_noMargin_xg5wq_98",
+	collapsibleLabel: "_collapsibleLabel_xg5wq_102"
 };
 //#endregion
 //#region ../../packages/react/src/components/ToolDropdownButton.tsx
 var ToolDropdownButton = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
-	const $ = (0, import_compiler_runtime.c)(53);
+	const $ = (0, import_compiler_runtime.c)(60);
 	let className;
+	let collapseLabel;
 	let dropdownClassName;
 	let footer;
 	let heading;
@@ -42627,48 +43320,53 @@ var ToolDropdownButton = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) =>
 	let rest;
 	let subtle;
 	let t1;
+	let title;
 	if ($[0] !== t0) {
-		({label, icon, className, items, heading, footer, dropdownAlign: t1, dropdownClassName, subtle, ...rest} = t0);
+		({label, icon, className, items, heading, footer, dropdownAlign: t1, dropdownClassName, subtle, collapseLabel, title, ...rest} = t0);
 		$[0] = t0;
 		$[1] = className;
-		$[2] = dropdownClassName;
-		$[3] = footer;
-		$[4] = heading;
-		$[5] = icon;
-		$[6] = items;
-		$[7] = label;
-		$[8] = rest;
-		$[9] = subtle;
-		$[10] = t1;
+		$[2] = collapseLabel;
+		$[3] = dropdownClassName;
+		$[4] = footer;
+		$[5] = heading;
+		$[6] = icon;
+		$[7] = items;
+		$[8] = label;
+		$[9] = rest;
+		$[10] = subtle;
+		$[11] = t1;
+		$[12] = title;
 	} else {
 		className = $[1];
-		dropdownClassName = $[2];
-		footer = $[3];
-		heading = $[4];
-		icon = $[5];
-		items = $[6];
-		label = $[7];
-		rest = $[8];
-		subtle = $[9];
-		t1 = $[10];
+		collapseLabel = $[2];
+		dropdownClassName = $[3];
+		footer = $[4];
+		heading = $[5];
+		icon = $[6];
+		items = $[7];
+		label = $[8];
+		rest = $[9];
+		subtle = $[10];
+		t1 = $[11];
+		title = $[12];
 	}
 	const dropdownAlign = t1 === void 0 ? "left" : t1;
 	const [isOpen, setIsOpen] = (0, import_react.useState)(false);
 	const buttonRef = (0, import_react.useRef)(null);
 	const [menuPosition, setMenuPosition] = (0, import_react.useState)(null);
 	let t2;
-	if ($[11] !== ref) {
+	if ($[13] !== ref) {
 		t2 = (el) => {
 			buttonRef.current = el;
 			if (typeof ref === "function") ref(el);
 			else if (ref && "current" in ref) ref.current = el;
 		};
-		$[11] = ref;
-		$[12] = t2;
-	} else t2 = $[12];
+		$[13] = ref;
+		$[14] = t2;
+	} else t2 = $[14];
 	const setRef = t2;
 	let t3;
-	if ($[13] !== dropdownAlign) {
+	if ($[15] !== dropdownAlign) {
 		t3 = () => {
 			const btn = buttonRef.current;
 			if (!btn) return;
@@ -42686,51 +43384,51 @@ var ToolDropdownButton = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) =>
 				minWidth
 			});
 		};
-		$[13] = dropdownAlign;
-		$[14] = t3;
-	} else t3 = $[14];
+		$[15] = dropdownAlign;
+		$[16] = t3;
+	} else t3 = $[16];
 	const computePosition = t3;
 	let t4;
 	let t5;
-	if ($[15] !== computePosition || $[16] !== isOpen) {
+	if ($[17] !== computePosition || $[18] !== isOpen) {
 		t4 = () => {
 			if (!isOpen) return;
 			computePosition();
 		};
 		t5 = [isOpen, computePosition];
-		$[15] = computePosition;
-		$[16] = isOpen;
-		$[17] = t4;
-		$[18] = t5;
+		$[17] = computePosition;
+		$[18] = isOpen;
+		$[19] = t4;
+		$[20] = t5;
 	} else {
-		t4 = $[17];
-		t5 = $[18];
+		t4 = $[19];
+		t5 = $[20];
 	}
 	(0, import_react.useLayoutEffect)(t4, t5);
 	const repositionTarget = isOpen ? window : null;
 	let t6;
-	if ($[19] !== computePosition) {
+	if ($[21] !== computePosition) {
 		t6 = () => computePosition();
-		$[19] = computePosition;
-		$[20] = t6;
-	} else t6 = $[20];
+		$[21] = computePosition;
+		$[22] = t6;
+	} else t6 = $[22];
 	useEventListener(repositionTarget, "resize", t6);
 	let t7;
-	if ($[21] !== computePosition) {
+	if ($[23] !== computePosition) {
 		t7 = () => computePosition();
-		$[21] = computePosition;
-		$[22] = t7;
-	} else t7 = $[22];
+		$[23] = computePosition;
+		$[24] = t7;
+	} else t7 = $[24];
 	let t8;
-	if ($[23] === Symbol.for("react.memo_cache_sentinel")) {
+	if ($[25] === Symbol.for("react.memo_cache_sentinel")) {
 		t8 = { capture: true };
-		$[23] = t8;
-	} else t8 = $[23];
+		$[25] = t8;
+	} else t8 = $[25];
 	useEventListener(repositionTarget, "scroll", t7, t8);
 	const menuRef = (0, import_react.useRef)(null);
 	let t10;
 	let t9;
-	if ($[24] === Symbol.for("react.memo_cache_sentinel")) {
+	if ($[26] === Symbol.for("react.memo_cache_sentinel")) {
 		t9 = (e) => {
 			if (e.key !== "Escape") return;
 			e.stopPropagation();
@@ -42739,78 +43437,95 @@ var ToolDropdownButton = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) =>
 			if (refocus) buttonRef.current?.focus();
 		};
 		t10 = { capture: true };
-		$[24] = t10;
-		$[25] = t9;
+		$[26] = t10;
+		$[27] = t9;
 	} else {
-		t10 = $[24];
-		t9 = $[25];
+		t10 = $[26];
+		t9 = $[27];
 	}
 	useEventListener(isOpen ? document : null, "keydown", t9, t10);
 	let t11;
-	if ($[26] === Symbol.for("react.memo_cache_sentinel")) {
+	if ($[28] === Symbol.for("react.memo_cache_sentinel")) {
 		t11 = (fn) => {
 			fn();
 			setIsOpen(false);
 		};
-		$[26] = t11;
-	} else t11 = $[26];
+		$[28] = t11;
+	} else t11 = $[28];
 	const handleItemClick = t11;
 	const t12 = subtle ? ToolDropdownButton_module_default.bodyColor : void 0;
 	let t13;
-	if ($[27] !== className || $[28] !== t12) {
+	if ($[29] !== className || $[30] !== t12) {
 		t13 = clsx("btn", "btn-tools", ToolDropdownButton_module_default.toolButton, t12, className);
-		$[27] = className;
-		$[28] = t12;
-		$[29] = t13;
-	} else t13 = $[29];
+		$[29] = className;
+		$[30] = t12;
+		$[31] = t13;
+	} else t13 = $[31];
 	let t14;
-	if ($[30] !== isOpen) {
+	if ($[32] !== isOpen) {
 		t14 = () => setIsOpen(!isOpen);
-		$[30] = isOpen;
-		$[31] = t14;
-	} else t14 = $[31];
-	let t15;
-	if ($[32] !== icon) {
-		t15 = icon && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: icon });
-		$[32] = icon;
-		$[33] = t15;
-	} else t15 = $[33];
+		$[32] = isOpen;
+		$[33] = t14;
+	} else t14 = $[33];
+	const t15 = title ?? (collapseLabel && typeof label === "string" ? label : void 0);
 	let t16;
-	if ($[34] === Symbol.for("react.memo_cache_sentinel")) {
-		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
+	if ($[34] !== collapseLabel || $[35] !== icon) {
+		t16 = icon && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
+			name: icon,
+			className: collapseLabel ? ToolDropdownButton_module_default.noMargin : void 0
+		});
+		$[34] = collapseLabel;
+		$[35] = icon;
+		$[36] = t16;
+	} else t16 = $[36];
+	let t17;
+	if ($[37] !== collapseLabel || $[38] !== label) {
+		t17 = collapseLabel ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: ToolDropdownButton_module_default.collapsibleLabel,
+			children: label
+		}) : label;
+		$[37] = collapseLabel;
+		$[38] = label;
+		$[39] = t17;
+	} else t17 = $[39];
+	let t18;
+	if ($[40] === Symbol.for("react.memo_cache_sentinel")) {
+		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
 			name: "chevronDown",
 			className: ToolDropdownButton_module_default.chevron
 		});
-		$[34] = t16;
-	} else t16 = $[34];
-	let t17;
-	if ($[35] !== isOpen || $[36] !== label || $[37] !== rest || $[38] !== setRef || $[39] !== t13 || $[40] !== t14 || $[41] !== t15) {
-		t17 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+		$[40] = t18;
+	} else t18 = $[40];
+	let t19;
+	if ($[41] !== isOpen || $[42] !== rest || $[43] !== setRef || $[44] !== t13 || $[45] !== t14 || $[46] !== t15 || $[47] !== t16 || $[48] !== t17) {
+		t19 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
 			ref: setRef,
 			type: "button",
 			className: t13,
 			onClick: t14,
 			"aria-haspopup": "menu",
 			"aria-expanded": isOpen,
+			title: t15,
 			...rest,
 			children: [
-				t15,
-				label,
-				t16
+				t16,
+				t17,
+				t18
 			]
 		});
-		$[35] = isOpen;
-		$[36] = label;
-		$[37] = rest;
-		$[38] = setRef;
-		$[39] = t13;
-		$[40] = t14;
-		$[41] = t15;
-		$[42] = t17;
-	} else t17 = $[42];
-	let t18;
-	if ($[43] !== dropdownClassName || $[44] !== footer || $[45] !== heading || $[46] !== isOpen || $[47] !== items || $[48] !== menuPosition) {
-		t18 = isOpen && menuPosition && /*#__PURE__*/ (0, import_react_dom.createPortal)(/*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		$[41] = isOpen;
+		$[42] = rest;
+		$[43] = setRef;
+		$[44] = t13;
+		$[45] = t14;
+		$[46] = t15;
+		$[47] = t16;
+		$[48] = t17;
+		$[49] = t19;
+	} else t19 = $[49];
+	let t20;
+	if ($[50] !== dropdownClassName || $[51] !== footer || $[52] !== heading || $[53] !== isOpen || $[54] !== items || $[55] !== menuPosition) {
+		t20 = isOpen && menuPosition && /*#__PURE__*/ (0, import_react_dom.createPortal)(/*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: ToolDropdownButton_module_default.backdrop,
 			role: "presentation",
 			onClick: () => setIsOpen(false)
@@ -42828,8 +43543,8 @@ var ToolDropdownButton = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) =>
 					className: ToolDropdownButton_module_default.dropdownHeading,
 					children: heading
 				}) : null,
-				Object.entries(items).map((t19) => {
-					const [itemLabel, fn_0] = t19;
+				Object.entries(items).map((t21) => {
+					const [itemLabel, fn_0] = t21;
 					return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 						type: "button",
 						className: ToolDropdownButton_module_default.dropdownItem,
@@ -42848,22 +43563,22 @@ var ToolDropdownButton = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) =>
 				})] }) : null
 			]
 		})] }), document.body);
-		$[43] = dropdownClassName;
-		$[44] = footer;
-		$[45] = heading;
-		$[46] = isOpen;
-		$[47] = items;
-		$[48] = menuPosition;
-		$[49] = t18;
-	} else t18 = $[49];
-	let t19;
-	if ($[50] !== t17 || $[51] !== t18) {
-		t19 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [t17, t18] });
-		$[50] = t17;
-		$[51] = t18;
-		$[52] = t19;
-	} else t19 = $[52];
-	return t19;
+		$[50] = dropdownClassName;
+		$[51] = footer;
+		$[52] = heading;
+		$[53] = isOpen;
+		$[54] = items;
+		$[55] = menuPosition;
+		$[56] = t20;
+	} else t20 = $[56];
+	let t21;
+	if ($[57] !== t19 || $[58] !== t20) {
+		t21 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [t19, t20] });
+		$[57] = t19;
+		$[58] = t20;
+		$[59] = t21;
+	} else t21 = $[59];
+	return t21;
 });
 ToolDropdownButton.displayName = "ToolDropdownButton";
 var NavPills_module_default = {
@@ -43002,18 +43717,18 @@ var NavPill = (t0) => {
 	return t5;
 };
 var TabSet_module_default = {
-	tabs: "_tabs_1ugqd_1",
-	tabContents: "_tabContents_1ugqd_5",
-	scrollable: "_scrollable_1ugqd_13",
-	tab: "_tab_1ugqd_1",
-	linkTab: "_linkTab_1ugqd_35",
-	tabItem: "_tabItem_1ugqd_39",
-	pillSmallContainer: "_pillSmallContainer_1ugqd_43",
-	pillSmall: "_pillSmall_1ugqd_43",
-	tabIcon: "_tabIcon_1ugqd_51",
-	tabSpacer: "_tabSpacer_1ugqd_55",
-	tabTools: "_tabTools_1ugqd_61",
-	tabStyle: "_tabStyle_1ugqd_75"
+	tabs: "_tabs_mmxoy_1",
+	tabContents: "_tabContents_mmxoy_5",
+	scrollable: "_scrollable_mmxoy_13",
+	tab: "_tab_mmxoy_1",
+	linkTab: "_linkTab_mmxoy_35",
+	tabItem: "_tabItem_mmxoy_39",
+	pillSmallContainer: "_pillSmallContainer_mmxoy_43",
+	pillSmall: "_pillSmall_mmxoy_43",
+	tabIcon: "_tabIcon_mmxoy_51",
+	tabSpacer: "_tabSpacer_mmxoy_55",
+	tabTools: "_tabTools_mmxoy_61",
+	tabStyle: "_tabStyle_mmxoy_75"
 };
 //#endregion
 //#region ../../packages/react/src/components/TabSet.tsx
@@ -43208,7 +43923,7 @@ var Tab = (t0) => {
 				"aria-controls": tabContentsId,
 				"aria-selected": isActive,
 				onClick: inAppLinkClick(tab.props.onSelected),
-				onKeyDown: _temp$102,
+				onKeyDown: _temp$103,
 				children: content
 			}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 				id: tabId,
@@ -43338,7 +44053,7 @@ var flattenChildren$1 = (children) => {
 		return [];
 	});
 };
-function _temp$102(e) {
+function _temp$103(e) {
 	if (e.key === " ") {
 		e.preventDefault();
 		e.currentTarget.click();
@@ -43376,7 +44091,7 @@ var FindTargetContext = /*#__PURE__*/ (0, import_react.createContext)(null);
 	const ctx = (0, import_react.useContext)(FindTargetContext);
 	let t0;
 	if ($[0] !== ctx?.setTarget) {
-		t0 = ctx?.setTarget ?? _temp$101;
+		t0 = ctx?.setTarget ?? _temp$102;
 		$[0] = ctx?.setTarget;
 		$[1] = t0;
 	} else t0 = $[1];
@@ -43409,7 +44124,7 @@ var FindTargetProvider = (t0) => {
 	} else t2 = $[4];
 	return t2;
 };
-function _temp$101() {}
+function _temp$102() {}
 //#endregion
 //#region ../../packages/react/src/components/ExpandablePanel.tsx
 var kNestedToggleStep = 24;
@@ -44791,7 +45506,7 @@ var MarkdownDivWithReferences = /*#__PURE__*/ (0, import_react.forwardRef)((prop
 	const [visibleKey, setVisibleKey, clearVisibleKey] = useProperty("popover", "visibleKey");
 	let t0;
 	if ($[0] !== references) {
-		t0 = new Map(references?.map(_temp$100));
+		t0 = new Map(references?.map(_temp$101));
 		$[0] = references;
 		$[1] = t0;
 	} else t0 = $[1];
@@ -44993,7 +45708,7 @@ var findCiteLink = (target) => {
 	}
 	return emitted === 0 ? html : out + html.slice(emitted);
 }
-function _temp$100(r) {
+function _temp$101(r) {
 	return [r.id, r];
 }
 var NextPreviousNav_module_default = {
@@ -45581,7 +46296,14 @@ var normalizeScore = (raw) => {
 		case "span_end":
 			if (typeof raw["id"] !== "string") fix("id", "");
 			break;
-		case "sentinel": if (raw["action"] === "continue") fix("action", "proceed");
+		case "sentinel":
+			if (raw["action"] === "continue") fix("action", "proceed");
+			for (const field of [
+				"factory",
+				"path",
+				"step_id",
+				"conversation"
+			]) if (typeof raw[field] !== "string") fix(field, "");
 	}
 	return fixes;
 };
@@ -45665,7 +46387,7 @@ var normalizeScore = (raw) => {
 var isEvalMetric = (value) => isRecord(value) && typeof value["name"] === "string" && typeof value["value"] === "number" && isRecord(value["params"]);
 var normalizeEvalMetrics = (raw) => {
 	if (!isRecord(raw)) return {};
-	const metrics = {};
+	const metrics = /* @__PURE__ */ new Map();
 	for (const [name, entry] of Object.entries(raw)) {
 		if (!isRecord(entry)) continue;
 		const filled = {
@@ -45673,9 +46395,9 @@ var normalizeEvalMetrics = (raw) => {
 			name: typeof entry["name"] === "string" ? entry["name"] : name,
 			params: isRecord(entry["params"]) ? entry["params"] : {}
 		};
-		if (isEvalMetric(filled)) metrics[name] = filled;
+		if (isEvalMetric(filled)) metrics.set(name, filled);
 	}
-	return metrics;
+	return nullProtoRecord(metrics);
 };
 /**
 * Normalize raw per-scorer results. Entries without a name drop (pydantic
@@ -45768,12 +46490,12 @@ var isCleanScoreMap = (value) => Object.values(value).every((score) => hasUsable
 */ var normalizeSampleScores = (raw) => {
 	if (!isRecord(raw)) return null;
 	if (isCleanScoreMap(raw)) return raw;
-	const scores = {};
+	const scores = /* @__PURE__ */ new Map();
 	for (const [name, score] of Object.entries(raw)) {
 		if (!hasUsableValue(score)) continue;
-		scores[name] = hasMalformedContext(score) ? clearMalformedContext(score) : score;
+		scores.set(name, hasMalformedContext(score) ? clearMalformedContext(score) : score);
 	}
-	return scores;
+	return nullProtoRecord(scores);
 };
 //#endregion
 //#region ../../packages/inspect-common/src/normalize/summary.ts
@@ -45784,7 +46506,7 @@ var isCleanScoreMap = (value) => Object.values(value).every((score) => hasUsable
 */ var normalizeModelUsageMap = (raw) => {
 	if (!isRecord(raw)) return {};
 	let changed = false;
-	const usage = {};
+	const usage = /* @__PURE__ */ new Map();
 	for (const [model, entry] of Object.entries(raw)) {
 		const normalized = normalizeModelUsage(entry);
 		if (normalized === void 0) {
@@ -45792,9 +46514,9 @@ var isCleanScoreMap = (value) => Object.values(value).every((score) => hasUsable
 			continue;
 		}
 		if (normalized !== entry) changed = true;
-		usage[model] = normalized;
+		usage.set(model, normalized);
 	}
-	return changed ? usage : raw;
+	return changed ? nullProtoRecord(usage) : raw;
 };
 var isContent = (value) => isRecord(value) && typeof value["type"] === "string";
 var kContentPayloadFields = [
@@ -46476,7 +47198,7 @@ function isModelEvent(event) {
 //#endregion
 //#region ../../packages/inspect-common/src/utils/modelFallbacks.ts
 /**
-* Total generate calls served via fallback across a sample's rollup.
+* Total requests served via fallback across a sample's rollup.
 */ var totalModelFallbacks = (fallbacks) => (fallbacks ?? []).reduce((sum, f) => sum + (f.count ?? 1), 0);
 /**
 * One "requested → served (×N)" line per fallback rollup entry.
@@ -46542,8 +47264,8 @@ var matchDeclared = (scores, headline) => {
 	const candidates = scores.filter((score) => (headline.scorer == null || score.scorer === headline.scorer) && (headline.score == null || score.name === headline.score) && (headline.reducer == null || score.reducer === headline.reducer));
 	const name = headline.metric;
 	if (name == null) return candidates.length > 0 ? firstMetric(candidates[0]) : void 0;
-	const score = candidates.find((candidate) => candidate.metrics[name] !== void 0);
-	const metric = score?.metrics[name];
+	const score = candidates.find((candidate) => getOwn(candidate.metrics, name) !== void 0);
+	const metric = getOwn(score?.metrics, name);
 	return score && metric ? {
 		score,
 		name,
@@ -46588,11 +47310,16 @@ var deriveLogFields = (header) => {
 	const completed = header.results?.completed_samples;
 	if (total && total > 0 && completed !== void 0) percent_completed = completed / total * 100;
 	const sample_limits = header.sampleLimits.length > 0 ? header.sampleLimits.join(", ") : void 0;
-	let scores;
-	if (header.results?.scores) for (const evalScore of header.results.scores) for (const [metricName, metric] of Object.entries(evalScore.metrics)) {
-		scores ??= {};
-		(scores[evalScore.name] ??= {})[metricName] = metric.value;
+	const byScorer = /* @__PURE__ */ new Map();
+	for (const evalScore of header.results?.scores ?? []) for (const [metricName, metric] of Object.entries(evalScore.metrics)) {
+		let metrics = byScorer.get(evalScore.name);
+		if (!metrics) {
+			metrics = /* @__PURE__ */ new Map();
+			byScorer.set(evalScore.name, metrics);
+		}
+		metrics.set(metricName, metric.value);
 	}
+	const scores = byScorer.size > 0 ? nullProtoRecord(new Map(Array.from(byScorer, ([name, metrics]) => [name, nullProtoRecord(metrics)]))) : void 0;
 	return {
 		total_tokens,
 		duration,
@@ -46629,11 +47356,7 @@ var deriveLogFields = (header) => {
 	return cost && !cost.partial ? cost.total : void 0;
 };
 var deriveSampleFields = (summary) => {
-	let scores;
-	if (summary.scores) {
-		scores = {};
-		for (const [scoreName, score] of Object.entries(summary.scores)) scores[scoreName] = score.value;
-	}
+	const scores = summary.scores ? nullProtoRecord(new Map(Object.entries(summary.scores).map(([name, score]) => [name, score.value]))) : void 0;
 	return {
 		tokens: totalSampleTokens(summary.model_usage),
 		cost: totalSampleCost(summary.model_usage),
@@ -48647,31 +49370,6 @@ var isEvalFile = (file) => {
 		if (api.get_log_summary) return api.get_log_summary(log_file);
 		else return (await openRemoteLogFile(api, encodePathParts(log_file), 5)).readEvalBasicInfo();
 	};
-	/**
-	* Gets log headers
-	*/ const get_log_summaries = async (log_files) => {
-		try {
-			const summaries = await api.get_log_summaries(log_files);
-			if (summaries.length === log_files.length) return summaries;
-		} catch {}
-		const eval_files = {};
-		const json_files = {};
-		let index = 0;
-		for (const file of log_files) {
-			if (isEvalFile(file)) eval_files[file] = index;
-			else json_files[file] = index;
-			index++;
-		}
-		const evalLogHeadersPromises = Object.keys(eval_files).map((file) => read_eval_file_log_summary(file).then((summary) => ({
-			index: eval_files[file],
-			summary
-		})));
-		const jsonLogHeadersPromise = api.get_log_summaries(Object.keys(json_files)).then((summaries) => summaries.map((summary, i) => ({
-			index: json_files[Object.keys(json_files)[i]],
-			summary
-		})));
-		return (await Promise.all([...evalLogHeadersPromises, jsonLogHeadersPromise])).flat().sort((a, b) => a.index - b.index).map(({ summary }) => summary);
-	};
 	const read_one_summary = async (log_file) => {
 		if (isEvalFile(log_file)) return read_eval_file_log_summary(log_file);
 		const summary = (await api.get_log_summaries([log_file]))[0];
@@ -48749,7 +49447,6 @@ var isEvalFile = (file) => {
 		get_flow: middleware("get_flow", (dir) => {
 			return api.get_flow(dir);
 		}),
-		get_log_summaries: middleware("get_log_summaries", get_log_summaries),
 		get_log_summaries_settled: middleware("get_log_summaries_settled", get_log_summaries_settled),
 		get_log_details: middleware("get_log_details", async (log_file, cached) => {
 			const result = await get_log_details(log_file, cached);
@@ -49981,9 +50678,9 @@ var LogLocationRefusal = (t0) => {
 	return t7;
 };
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom-export/dom-router-provider.js
+//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/dom-export/dom-router-provider.js
 /**
-* react-router v8.4.0
+* react-router v8.5.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -50109,7 +50806,7 @@ var kindClass = {
 var CHUNK_SIZE = 100;
 var COPIED_FEEDBACK_MS = 1e3;
 var classes = (...names) => names.filter((n) => typeof n === "string").join(" ");
-var TreeNode$2 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
+var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 	const $ = (0, import_compiler_runtime.c)(40);
 	const { name, value, defaultExpanded: t1 } = t0;
 	const [expanded, setExpanded] = (0, import_react.useState)(t1 === void 0 ? false : t1);
@@ -50140,7 +50837,7 @@ var TreeNode$2 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 	let t4;
 	if ($[4] !== expandable) {
 		t4 = () => {
-			if (expandable) setExpanded(_temp$99);
+			if (expandable) setExpanded(_temp$100);
 		};
 		$[4] = expandable;
 		$[5] = t4;
@@ -50280,12 +50977,12 @@ var TreeNode$2 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 	} else t6 = $[17];
 	return t6;
 });
-TreeNode$2.displayName = "TreeNode";
-function _temp$99(e) {
+TreeNode$1.displayName = "TreeNode";
+function _temp$100(e) {
 	return !e;
 }
 function _temp2$58(entry) {
-	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TreeNode$2, {
+	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TreeNode$1, {
 		name: entry.key,
 		value: entry.value
 	}, entry.id);
@@ -51113,203 +51810,274 @@ var FetchEngine = class {
 * injects its dependencies at the composition root.
 */ var fetchEngine = new FetchEngine();
 //#endregion
-//#region ../../node_modules/.pnpm/dexie@4.4.6/node_modules/dexie/import-wrapper-prod.mjs
-var import_dexie_min = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((exports, module) => {
-	((e, t) => {
-		"object" == typeof exports && "undefined" != typeof module ? module.exports = t() : "function" == typeof define && define.amd ? define(t) : (e = "undefined" != typeof globalThis ? globalThis : e || self).Dexie = t();
-	})(exports, function() {
-		var B = function(e, t) {
-			return (B = Object.setPrototypeOf || ({ __proto__: [] } instanceof Array ? function(e, t) {
-				e.__proto__ = t;
-			} : function(e, t) {
-				for (var n in t) Object.prototype.hasOwnProperty.call(t, n) && (e[n] = t[n]);
-			}))(e, t);
+//#region ../../node_modules/.pnpm/dexie@4.4.7/node_modules/dexie/import-wrapper.mjs
+var import_dexie = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((exports, module) => {
+	(function(global, factory) {
+		typeof exports === "object" && typeof module !== "undefined" ? module.exports = factory() : typeof define === "function" && define.amd ? define(factory) : (global = typeof globalThis !== "undefined" ? globalThis : global || self, global.Dexie = factory());
+	})(exports, (function() {
+		"use strict";
+		var extendStatics = function(d, b) {
+			extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d, b) {
+				d.__proto__ = b;
+			} || function(d, b) {
+				for (var p in b) if (Object.prototype.hasOwnProperty.call(b, p)) d[p] = b[p];
+			};
+			return extendStatics(d, b);
 		};
-		var _ = function() {
-			return (_ = Object.assign || function(e) {
-				for (var t, n = 1, r = arguments.length; n < r; n++) for (var i in t = arguments[n]) Object.prototype.hasOwnProperty.call(t, i) && (e[i] = t[i]);
-				return e;
-			}).apply(this, arguments);
+		function __extends(d, b) {
+			if (typeof b !== "function" && b !== null) throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
+			extendStatics(d, b);
+			function __() {
+				this.constructor = d;
+			}
+			d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+		}
+		var __assign = function() {
+			__assign = Object.assign || function __assign(t) {
+				for (var s, i = 1, n = arguments.length; i < n; i++) {
+					s = arguments[i];
+					for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p)) t[p] = s[p];
+				}
+				return t;
+			};
+			return __assign.apply(this, arguments);
 		};
-		function R(e, t, n) {
-			if (n || 2 === arguments.length) for (var r, i = 0, o = t.length; i < o; i++) !r && i in t || ((r = r || Array.prototype.slice.call(t, 0, i))[i] = t[i]);
-			return e.concat(r || Array.prototype.slice.call(t));
+		function __spreadArray(to, from, pack) {
+			if (pack || arguments.length === 2) {
+				for (var i = 0, l = from.length, ar; i < l; i++) if (ar || !(i in from)) {
+					if (!ar) ar = Array.prototype.slice.call(from, 0, i);
+					ar[i] = from[i];
+				}
+			}
+			return to.concat(ar || Array.prototype.slice.call(from));
 		}
-		var f = "undefined" != typeof globalThis ? globalThis : "undefined" != typeof self ? self : "undefined" != typeof window ? window : global, O = Object.keys, x = Array.isArray;
-		function a(t, n) {
-			return "object" == typeof n && O(n).forEach(function(e) {
-				t[e] = n[e];
-			}), t;
+		var _global = typeof globalThis !== "undefined" ? globalThis : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : global;
+		var keys = Object.keys;
+		var isArray = Array.isArray;
+		if (typeof Promise !== "undefined" && !_global.Promise) _global.Promise = Promise;
+		function extend(obj, extension) {
+			if (typeof extension !== "object") return obj;
+			keys(extension).forEach(function(key) {
+				obj[key] = extension[key];
+			});
+			return obj;
 		}
-		"undefined" == typeof Promise || f.Promise || (f.Promise = Promise);
-		var F = Object.getPrototypeOf, N = {}.hasOwnProperty;
-		function m(e, t) {
-			return N.call(e, t);
+		var getProto = Object.getPrototypeOf;
+		var _hasOwn = {}.hasOwnProperty;
+		function hasOwn(obj, prop) {
+			return _hasOwn.call(obj, prop);
 		}
-		function M(t, n) {
-			"function" == typeof n && (n = n(F(t))), ("undefined" == typeof Reflect ? O : Reflect.ownKeys)(n).forEach(function(e) {
-				u(t, e, n[e]);
+		function props(proto, extension) {
+			if (typeof extension === "function") extension = extension(getProto(proto));
+			(typeof Reflect === "undefined" ? keys : Reflect.ownKeys)(extension).forEach(function(key) {
+				setProp(proto, key, extension[key]);
 			});
 		}
-		var L = Object.defineProperty;
-		function u(e, t, n, r) {
-			L(e, t, a(n && m(n, "get") && "function" == typeof n.get ? {
-				get: n.get,
-				set: n.set,
-				configurable: !0
+		var defineProperty = Object.defineProperty;
+		function setProp(obj, prop, functionOrGetSet, options) {
+			defineProperty(obj, prop, extend(functionOrGetSet && hasOwn(functionOrGetSet, "get") && typeof functionOrGetSet.get === "function" ? {
+				get: functionOrGetSet.get,
+				set: functionOrGetSet.set,
+				configurable: true
 			} : {
-				value: n,
-				configurable: !0,
-				writable: !0
-			}, r));
+				value: functionOrGetSet,
+				configurable: true,
+				writable: true
+			}, options));
 		}
-		function U(t) {
-			return { from: function(e) {
-				return t.prototype = Object.create(e.prototype), u(t.prototype, "constructor", t), { extend: M.bind(null, t.prototype) };
+		function derive(Child) {
+			return { from: function(Parent) {
+				Child.prototype = Object.create(Parent.prototype);
+				setProp(Child.prototype, "constructor", Child);
+				return { extend: props.bind(null, Child.prototype) };
 			} };
 		}
-		var z = Object.getOwnPropertyDescriptor;
-		var V = [].slice;
-		function W(e, t, n) {
-			return V.call(e, t, n);
+		var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+		function getPropertyDescriptor(obj, prop) {
+			var pd = getOwnPropertyDescriptor(obj, prop);
+			var proto;
+			return pd || (proto = getProto(obj)) && getPropertyDescriptor(proto, prop);
 		}
-		function Y(e, t) {
-			return t(e);
+		var _slice = [].slice;
+		function slice(args, start, end) {
+			return _slice.call(args, start, end);
 		}
-		function $(e) {
-			if (!e) throw new Error("Assertion Failed");
+		function override(origFunc, overridedFactory) {
+			return overridedFactory(origFunc);
 		}
-		function Q(e) {
-			f.setImmediate ? setImmediate(e) : setTimeout(e, 0);
+		function assert(b) {
+			if (!b) throw new Error("Assertion Failed");
 		}
-		function c(e, t) {
-			if ("string" == typeof t && m(e, t)) return e[t];
-			if (!t) return e;
-			if ("string" != typeof t) {
-				for (var n = [], r = 0, i = t.length; r < i; ++r) {
-					var o = c(e, t[r]);
-					n.push(o);
+		function asap$1(fn) {
+			if (_global.setImmediate) setImmediate(fn);
+			else setTimeout(fn, 0);
+		}
+		function arrayToObject(array, extractor) {
+			return array.reduce(function(result, item, i) {
+				var nameAndValue = extractor(item, i);
+				if (nameAndValue) result[nameAndValue[0]] = nameAndValue[1];
+				return result;
+			}, {});
+		}
+		function getByKeyPath(obj, keyPath) {
+			if (typeof keyPath === "string" && hasOwn(obj, keyPath)) return obj[keyPath];
+			if (!keyPath) return obj;
+			if (typeof keyPath !== "string") {
+				var rv = [];
+				for (var i = 0, l = keyPath.length; i < l; ++i) {
+					var val = getByKeyPath(obj, keyPath[i]);
+					rv.push(val);
 				}
-				return n;
+				return rv;
 			}
-			var a, u = t.indexOf(".");
-			return -1 === u || null == (a = e[t.substr(0, u)]) ? void 0 : c(a, t.substr(u + 1));
+			var period = keyPath.indexOf(".");
+			if (period !== -1) {
+				var innerObj = obj[keyPath.substr(0, period)];
+				return innerObj == null ? void 0 : getByKeyPath(innerObj, keyPath.substr(period + 1));
+			}
 		}
-		function b(e, t, n) {
-			if (e && void 0 !== t && !("isFrozen" in Object && Object.isFrozen(e))) if ("string" != typeof t && "length" in t) {
-				$("string" != typeof n && "length" in n);
-				for (var r = 0, i = t.length; r < i; ++r) b(e, t[r], n[r]);
+		function setByKeyPath(obj, keyPath, value) {
+			if (!obj || keyPath === void 0) return;
+			if ("isFrozen" in Object && Object.isFrozen(obj)) return;
+			if (typeof keyPath !== "string" && "length" in keyPath) {
+				assert(typeof value !== "string" && "length" in value);
+				for (var i = 0, l = keyPath.length; i < l; ++i) setByKeyPath(obj, keyPath[i], value[i]);
 			} else {
-				var o = t.indexOf(".");
-				if (-1 !== o) {
-					var a = t.substr(0, o), o = t.substr(o + 1);
-					if ("" === o) void 0 === n ? x(e) && !isNaN(parseInt(a)) ? e.splice(a, 1) : delete e[a] : e[a] = n;
+				var period = keyPath.indexOf(".");
+				if (period !== -1) {
+					var currentKeyPath = keyPath.substr(0, period);
+					var remainingKeyPath = keyPath.substr(period + 1);
+					if (remainingKeyPath === "") if (value === void 0) {
+						if (isArray(obj) && !isNaN(parseInt(currentKeyPath))) obj.splice(currentKeyPath, 1);
+						else delete obj[currentKeyPath];
+					} else obj[currentKeyPath] = value;
 					else {
-						var u = e[a];
-						if (!u || !m(e, a)) {
-							if (void 0 === n) return;
-							u = e[a] = {};
+						var innerObj = obj[currentKeyPath];
+						if (!innerObj || !hasOwn(obj, currentKeyPath)) {
+							if (value === void 0) return;
+							innerObj = obj[currentKeyPath] = {};
 						}
-						b(u, o, n);
+						setByKeyPath(innerObj, remainingKeyPath, value);
 					}
-				} else void 0 === n ? x(e) && !isNaN(parseInt(t)) ? e.splice(t, 1) : delete e[t] : e[t] = n;
+				} else if (value === void 0) {
+					if (isArray(obj) && !isNaN(parseInt(keyPath))) obj.splice(keyPath, 1);
+					else delete obj[keyPath];
+				} else obj[keyPath] = value;
 			}
 		}
-		function G(e) {
-			var t, n = {};
-			for (t in e) m(e, t) && (n[t] = e[t]);
-			return n;
+		function delByKeyPath(obj, keyPath) {
+			if (typeof keyPath === "string") setByKeyPath(obj, keyPath, void 0);
+			else if ("length" in keyPath) [].map.call(keyPath, function(kp) {
+				setByKeyPath(obj, kp, void 0);
+			});
 		}
-		var X = [].concat;
-		function H(e) {
-			return X.apply([], e);
+		function shallowClone(obj) {
+			var rv = {};
+			for (var m in obj) if (hasOwn(obj, m)) rv[m] = obj[m];
+			return rv;
 		}
-		var e = "BigUint64Array,BigInt64Array,Array,Boolean,String,Date,RegExp,Blob,File,FileList,FileSystemFileHandle,FileSystemDirectoryHandle,ArrayBuffer,DataView,Uint8ClampedArray,ImageBitmap,ImageData,Map,Set,CryptoKey".split(",").concat(H([
+		var concat = [].concat;
+		function flatten(a) {
+			return concat.apply([], a);
+		}
+		var intrinsicTypeNames = "BigUint64Array,BigInt64Array,Array,Boolean,String,Date,RegExp,Blob,File,FileList,FileSystemFileHandle,FileSystemDirectoryHandle,ArrayBuffer,DataView,Uint8ClampedArray,ImageBitmap,ImageData,Map,Set,CryptoKey".split(",").concat(flatten([
 			8,
 			16,
 			32,
 			64
-		].map(function(t) {
+		].map(function(num) {
 			return [
 				"Int",
 				"Uint",
 				"Float"
-			].map(function(e) {
-				return e + t + "Array";
+			].map(function(t) {
+				return t + num + "Array";
 			});
-		}))).filter(function(e) {
-			return f[e];
-		}), J = new Set(e.map(function(e) {
-			return f[e];
+		}))).filter(function(t) {
+			return _global[t];
+		});
+		var intrinsicTypes = new Set(intrinsicTypeNames.map(function(t) {
+			return _global[t];
 		}));
-		var Z = null;
-		function ee(e) {
-			Z = /* @__PURE__ */ new WeakMap();
-			e = function e(t) {
-				if (!t || "object" != typeof t) return t;
-				var n = Z.get(t);
-				if (n) return n;
-				if (x(t)) {
-					n = [], Z.set(t, n);
-					for (var r = 0, i = t.length; r < i; ++r) n.push(e(t[r]));
-				} else if (J.has(t.constructor)) n = t;
-				else {
-					var o, a = F(t);
-					for (o in n = a === Object.prototype ? {} : Object.create(a), Z.set(t, n), t) m(t, o) && (n[o] = e(t[o]));
-				}
-				return n;
-			}(e);
-			return Z = null, e;
+		function cloneSimpleObjectTree(o) {
+			var rv = {};
+			for (var k in o) if (hasOwn(o, k)) {
+				var v = o[k];
+				rv[k] = !v || typeof v !== "object" || intrinsicTypes.has(v.constructor) ? v : cloneSimpleObjectTree(v);
+			}
+			return rv;
 		}
-		var te = {}.toString;
-		function ne(e) {
-			return te.call(e).slice(8, -1);
+		var circularRefs = null;
+		function deepClone(any) {
+			circularRefs = /* @__PURE__ */ new WeakMap();
+			var rv = innerDeepClone(any);
+			circularRefs = null;
+			return rv;
 		}
-		var re = "undefined" != typeof Symbol ? Symbol.iterator : "@@iterator", ie = "symbol" == typeof re ? function(e) {
-			var t;
-			return null != e && (t = e[re]) && t.apply(e);
+		function innerDeepClone(x) {
+			if (!x || typeof x !== "object") return x;
+			var rv = circularRefs.get(x);
+			if (rv) return rv;
+			if (isArray(x)) {
+				rv = [];
+				circularRefs.set(x, rv);
+				for (var i = 0, l = x.length; i < l; ++i) rv.push(innerDeepClone(x[i]));
+			} else if (intrinsicTypes.has(x.constructor)) rv = x;
+			else {
+				var proto = getProto(x);
+				rv = proto === Object.prototype ? {} : Object.create(proto);
+				circularRefs.set(x, rv);
+				for (var prop in x) if (hasOwn(x, prop)) rv[prop] = innerDeepClone(x[prop]);
+			}
+			return rv;
+		}
+		var toString = {}.toString;
+		function toStringTag(o) {
+			return toString.call(o).slice(8, -1);
+		}
+		var iteratorSymbol = typeof Symbol !== "undefined" ? Symbol.iterator : "@@iterator";
+		var getIteratorOf = typeof iteratorSymbol === "symbol" ? function(x) {
+			var i;
+			return x != null && (i = x[iteratorSymbol]) && i.apply(x);
 		} : function() {
 			return null;
 		};
-		function oe(e, t) {
-			t = e.indexOf(t);
-			0 <= t && e.splice(t, 1);
+		function delArrayItem(a, x) {
+			var i = a.indexOf(x);
+			if (i >= 0) a.splice(i, 1);
+			return i >= 0;
 		}
-		var ae = {};
-		function n(e) {
-			var t, n, r, i;
-			if (1 === arguments.length) {
-				if (x(e)) return e.slice();
-				if (this === ae && "string" == typeof e) return [e];
-				if (i = ie(e)) for (n = []; !(r = i.next()).done;) n.push(r.value);
-				else {
-					if (null == e) return [e];
-					if ("number" != typeof (t = e.length)) return [e];
-					for (n = new Array(t); t--;) n[t] = e[t];
+		var NO_CHAR_ARRAY = {};
+		function getArrayOf(arrayLike) {
+			var i, a, x, it;
+			if (arguments.length === 1) {
+				if (isArray(arrayLike)) return arrayLike.slice();
+				if (this === NO_CHAR_ARRAY && typeof arrayLike === "string") return [arrayLike];
+				if (it = getIteratorOf(arrayLike)) {
+					a = [];
+					while (x = it.next(), !x.done) a.push(x.value);
+					return a;
 				}
-			} else for (t = arguments.length, n = new Array(t); t--;) n[t] = arguments[t];
-			return n;
+				if (arrayLike == null) return [arrayLike];
+				i = arrayLike.length;
+				if (typeof i === "number") {
+					a = new Array(i);
+					while (i--) a[i] = arrayLike[i];
+					return a;
+				}
+				return [arrayLike];
+			}
+			i = arguments.length;
+			a = new Array(i);
+			while (i--) a[i] = arguments[i];
+			return a;
 		}
-		var ue = "undefined" != typeof Symbol ? function(e) {
-			return "AsyncFunction" === e[Symbol.toStringTag];
+		var isAsyncFunction = typeof Symbol !== "undefined" ? function(fn) {
+			return fn[Symbol.toStringTag] === "AsyncFunction";
 		} : function() {
-			return !1;
-		}, e = [
-			"Unknown",
-			"Constraint",
-			"Data",
-			"TransactionInactive",
-			"ReadOnly",
-			"Version",
-			"NotFound",
-			"InvalidState",
-			"InvalidAccess",
-			"Abort",
-			"Timeout",
-			"QuotaExceeded",
-			"Syntax",
-			"DataClone"
-		], t = [
+			return false;
+		};
+		var dexieErrorNames = [
 			"Modify",
 			"Bulk",
 			"OpenFailed",
@@ -51326,3595 +52094,5339 @@ var import_dexie_min = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((
 			"DatabaseClosed",
 			"PrematureCommit",
 			"ForeignAwait"
-		].concat(e), se = {
+		];
+		var idbDomErrorNames = [
+			"Unknown",
+			"Constraint",
+			"Data",
+			"TransactionInactive",
+			"ReadOnly",
+			"Version",
+			"NotFound",
+			"InvalidState",
+			"InvalidAccess",
+			"Abort",
+			"Timeout",
+			"QuotaExceeded",
+			"Syntax",
+			"DataClone"
+		];
+		var errorList = dexieErrorNames.concat(idbDomErrorNames);
+		var defaultTexts = {
 			VersionChanged: "Database version changed by other database connection",
 			DatabaseClosed: "Database has been closed",
 			Abort: "Transaction aborted",
 			TransactionInactive: "Transaction has already completed or failed",
 			MissingAPI: "IndexedDB API missing. Please visit https://tinyurl.com/y2uuvskb"
 		};
-		function ce(e, t) {
-			this.name = e, this.message = t;
+		function DexieError(name, msg) {
+			this.name = name;
+			this.message = msg;
 		}
-		function le(e, t) {
-			return e + ". Errors: " + Object.keys(t).map(function(e) {
-				return t[e].toString();
-			}).filter(function(e, t, n) {
-				return n.indexOf(e) === t;
+		derive(DexieError).from(Error).extend({ toString: function() {
+			return this.name + ": " + this.message;
+		} });
+		function getMultiErrorMessage(msg, failures) {
+			return msg + ". Errors: " + Object.keys(failures).map(function(key) {
+				return failures[key].toString();
+			}).filter(function(v, i, s) {
+				return s.indexOf(v) === i;
 			}).join("\n");
 		}
-		function fe(e, t, n, r) {
-			this.failures = t, this.failedKeys = r, this.successCount = n, this.message = le(e, t);
+		function ModifyError(msg, failures, successCount, failedKeys) {
+			this.failures = failures;
+			this.failedKeys = failedKeys;
+			this.successCount = successCount;
+			this.message = getMultiErrorMessage(msg, failures);
 		}
-		function he(e, t) {
-			this.name = "BulkError", this.failures = Object.keys(t).map(function(e) {
-				return t[e];
-			}), this.failuresByPos = t, this.message = le(e, this.failures);
+		derive(ModifyError).from(DexieError);
+		function BulkError(msg, failures) {
+			this.name = "BulkError";
+			this.failures = Object.keys(failures).map(function(pos) {
+				return failures[pos];
+			});
+			this.failuresByPos = failures;
+			this.message = getMultiErrorMessage(msg, this.failures);
 		}
-		U(ce).from(Error).extend({ toString: function() {
-			return this.name + ": " + this.message;
-		} }), U(fe).from(ce), U(he).from(ce);
-		var de = t.reduce(function(e, t) {
-			return e[t] = t + "Error", e;
-		}, {}), pe = ce, k = t.reduce(function(e, n) {
-			var r = n + "Error";
-			function t(e, t) {
-				this.name = r, e ? "string" == typeof e ? (this.message = "".concat(e).concat(t ? "\n " + t : ""), this.inner = t || null) : "object" == typeof e && (this.message = "".concat(e.name, " ").concat(e.message), this.inner = e) : (this.message = se[n] || r, this.inner = null);
+		derive(BulkError).from(DexieError);
+		var errnames = errorList.reduce(function(obj, name) {
+			return obj[name] = name + "Error", obj;
+		}, {});
+		var BaseException = DexieError;
+		var exceptions = errorList.reduce(function(obj, name) {
+			var fullName = name + "Error";
+			function DexieError(msgOrInner, inner) {
+				this.name = fullName;
+				if (!msgOrInner) {
+					this.message = defaultTexts[name] || fullName;
+					this.inner = null;
+				} else if (typeof msgOrInner === "string") {
+					this.message = "".concat(msgOrInner).concat(!inner ? "" : "\n " + inner);
+					this.inner = inner || null;
+				} else if (typeof msgOrInner === "object") {
+					this.message = "".concat(msgOrInner.name, " ").concat(msgOrInner.message);
+					this.inner = msgOrInner;
+				}
 			}
-			return U(t).from(pe), e[n] = t, e;
-		}, {}), ye = (k.Syntax = SyntaxError, k.Type = TypeError, k.Range = RangeError, e.reduce(function(e, t) {
-			return e[t + "Error"] = k[t], e;
-		}, {}));
-		e = t.reduce(function(e, t) {
-			return -1 === [
+			derive(DexieError).from(BaseException);
+			obj[name] = DexieError;
+			return obj;
+		}, {});
+		exceptions.Syntax = SyntaxError;
+		exceptions.Type = TypeError;
+		exceptions.Range = RangeError;
+		var exceptionMap = idbDomErrorNames.reduce(function(obj, name) {
+			obj[name + "Error"] = exceptions[name];
+			return obj;
+		}, {});
+		function mapError(domError, message) {
+			if (!domError || domError instanceof DexieError || domError instanceof TypeError || domError instanceof SyntaxError || !domError.name || !exceptionMap[domError.name]) return domError;
+			var rv = new exceptionMap[domError.name](message || domError.message, domError);
+			if ("stack" in domError) setProp(rv, "stack", { get: function() {
+				return this.inner.stack;
+			} });
+			return rv;
+		}
+		var fullNameExceptions = errorList.reduce(function(obj, name) {
+			if ([
 				"Syntax",
 				"Type",
 				"Range"
-			].indexOf(t) && (e[t + "Error"] = k[t]), e;
+			].indexOf(name) === -1) obj[name + "Error"] = exceptions[name];
+			return obj;
 		}, {});
-		function g() {}
-		function ve(e) {
-			return e;
+		fullNameExceptions.ModifyError = ModifyError;
+		fullNameExceptions.DexieError = DexieError;
+		fullNameExceptions.BulkError = BulkError;
+		function nop() {}
+		function mirror(val) {
+			return val;
 		}
-		function me(t, n) {
-			return null == t || t === ve ? n : function(e) {
-				return n(t(e));
+		function pureFunctionChain(f1, f2) {
+			if (f1 == null || f1 === mirror) return f2;
+			return function(val) {
+				return f2(f1(val));
 			};
 		}
-		function be(e, t) {
+		function callBoth(on1, on2) {
 			return function() {
-				e.apply(this, arguments), t.apply(this, arguments);
+				on1.apply(this, arguments);
+				on2.apply(this, arguments);
 			};
 		}
-		function ge(i, o) {
-			return i === g ? o : function() {
-				var e = i.apply(this, arguments), t = (void 0 !== e && (arguments[0] = e), this.onsuccess), n = this.onerror, r = (this.onsuccess = null, this.onerror = null, o.apply(this, arguments));
-				return t && (this.onsuccess = this.onsuccess ? be(t, this.onsuccess) : t), n && (this.onerror = this.onerror ? be(n, this.onerror) : n), void 0 !== r ? r : e;
+		function hookCreatingChain(f1, f2) {
+			if (f1 === nop) return f2;
+			return function() {
+				var res = f1.apply(this, arguments);
+				if (res !== void 0) arguments[0] = res;
+				var onsuccess = this.onsuccess, onerror = this.onerror;
+				this.onsuccess = null;
+				this.onerror = null;
+				var res2 = f2.apply(this, arguments);
+				if (onsuccess) this.onsuccess = this.onsuccess ? callBoth(onsuccess, this.onsuccess) : onsuccess;
+				if (onerror) this.onerror = this.onerror ? callBoth(onerror, this.onerror) : onerror;
+				return res2 !== void 0 ? res2 : res;
 			};
 		}
-		function we(n, r) {
-			return n === g ? r : function() {
-				n.apply(this, arguments);
-				var e = this.onsuccess, t = this.onerror;
-				this.onsuccess = this.onerror = null, r.apply(this, arguments), e && (this.onsuccess = this.onsuccess ? be(e, this.onsuccess) : e), t && (this.onerror = this.onerror ? be(t, this.onerror) : t);
+		function hookDeletingChain(f1, f2) {
+			if (f1 === nop) return f2;
+			return function() {
+				f1.apply(this, arguments);
+				var onsuccess = this.onsuccess, onerror = this.onerror;
+				this.onsuccess = this.onerror = null;
+				f2.apply(this, arguments);
+				if (onsuccess) this.onsuccess = this.onsuccess ? callBoth(onsuccess, this.onsuccess) : onsuccess;
+				if (onerror) this.onerror = this.onerror ? callBoth(onerror, this.onerror) : onerror;
 			};
 		}
-		function _e(i, o) {
-			return i === g ? o : function() {
-				var e = i.apply(this, arguments), t = (a(arguments[0], e), this.onsuccess), n = this.onerror, r = (this.onsuccess = null, this.onerror = null, o.apply(this, arguments));
-				return t && (this.onsuccess = this.onsuccess ? be(t, this.onsuccess) : t), n && (this.onerror = this.onerror ? be(n, this.onerror) : n), void 0 === e ? void 0 === r ? void 0 : r : a(e, r);
+		function hookUpdatingChain(f1, f2) {
+			if (f1 === nop) return f2;
+			return function() {
+				var res = f1.apply(this, arguments);
+				var modifications = arguments[0];
+				extend(modifications, res);
+				var onsuccess = this.onsuccess, onerror = this.onerror;
+				this.onsuccess = null;
+				this.onerror = null;
+				var res2 = f2.apply(this, arguments);
+				if (onsuccess) this.onsuccess = this.onsuccess ? callBoth(onsuccess, this.onsuccess) : onsuccess;
+				if (onerror) this.onerror = this.onerror ? callBoth(onerror, this.onerror) : onerror;
+				return res === void 0 ? res2 === void 0 ? void 0 : res2 : extend(res, res2);
 			};
 		}
-		function xe(e, t) {
-			return e === g ? t : function() {
-				return !1 !== t.apply(this, arguments) && e.apply(this, arguments);
+		function reverseStoppableEventChain(f1, f2) {
+			if (f1 === nop) return f2;
+			return function() {
+				if (f2.apply(this, arguments) === false) return false;
+				return f1.apply(this, arguments);
 			};
 		}
-		function ke(i, o) {
-			return i === g ? o : function() {
-				var e = i.apply(this, arguments);
-				if (e && "function" == typeof e.then) {
-					for (var t = this, n = arguments.length, r = new Array(n); n--;) r[n] = arguments[n];
-					return e.then(function() {
-						return o.apply(t, r);
+		function promisableChain(f1, f2) {
+			if (f1 === nop) return f2;
+			return function() {
+				var res = f1.apply(this, arguments);
+				if (res && typeof res.then === "function") {
+					var thiz = this, i = arguments.length, args = new Array(i);
+					while (i--) args[i] = arguments[i];
+					return res.then(function() {
+						return f2.apply(thiz, args);
 					});
 				}
-				return o.apply(this, arguments);
+				return f2.apply(this, arguments);
 			};
 		}
-		e.ModifyError = fe, e.DexieError = ce, e.BulkError = he;
-		var l = "undefined" != typeof location && /^(http|https):\/\/(localhost|127\.0\.0\.1)/.test(location.href);
-		function Oe(e) {
-			l = e;
+		var debug = typeof location !== "undefined" && /^(http|https):\/\/(localhost|127\.0\.0\.1)/.test(location.href);
+		function setDebug(value, filter) {
+			debug = value;
 		}
-		var Pe = {}, Ke = 100, Ee = "undefined" == typeof Promise ? [] : (t = Promise.resolve(), "undefined" != typeof crypto && crypto.subtle ? [
-			Ee = crypto.subtle.digest("SHA-512", new Uint8Array([0])),
-			F(Ee),
-			t
-		] : [
-			t,
-			F(t),
-			t
-		]), t = Ee[0], Se = Ee[1], Se = Se && Se.then, Ae = t && t.constructor, je = !!Ee[2];
-		var Ce = function(e, t) {
-			Re.push([e, t]), Ie && (queueMicrotask(Ye), Ie = !1);
-		}, Te = !0, Ie = !0, qe = [], De = [], Be = ve, s = {
+		var INTERNAL = {};
+		var ZONE_ECHO_LIMIT = 100, _a$1 = typeof Promise === "undefined" ? [] : (function() {
+			var globalP = Promise.resolve();
+			if (typeof crypto === "undefined" || !crypto.subtle) return [
+				globalP,
+				getProto(globalP),
+				globalP
+			];
+			var nativeP = crypto.subtle.digest("SHA-512", new Uint8Array([0]));
+			return [
+				nativeP,
+				getProto(nativeP),
+				globalP
+			];
+		})(), resolvedNativePromise = _a$1[0], nativePromiseProto = _a$1[1], resolvedGlobalPromise = _a$1[2], nativePromiseThen = nativePromiseProto && nativePromiseProto.then;
+		var NativePromise = resolvedNativePromise && resolvedNativePromise.constructor;
+		var patchGlobalPromise = !!resolvedGlobalPromise;
+		function schedulePhysicalTick() {
+			queueMicrotask(physicalTick);
+		}
+		var asap = function(callback, args) {
+			microtickQueue.push([callback, args]);
+			if (needsNewPhysicalTick) {
+				schedulePhysicalTick();
+				needsNewPhysicalTick = false;
+			}
+		};
+		var isOutsideMicroTick = true, needsNewPhysicalTick = true, unhandledErrors = [], rejectingErrors = [], rejectionMapper = mirror;
+		var globalPSD = {
 			id: "global",
-			global: !0,
+			global: true,
 			ref: 0,
 			unhandleds: [],
-			onunhandled: g,
-			pgp: !1,
+			onunhandled: nop,
+			pgp: false,
 			env: {},
-			finalize: g
-		}, P = s, Re = [], Fe = 0, Ne = [];
-		function K(e) {
-			if ("object" != typeof this) throw new TypeError("Promises must be constructed via new");
-			this._listeners = [], this._lib = !1;
-			var t = this._PSD = P;
-			if ("function" != typeof e) {
-				if (e !== Pe) throw new TypeError("Not a function");
-				this._state = arguments[1], this._value = arguments[2], !1 === this._state && Ue(this, this._value);
-			} else this._state = null, this._value = null, ++t.ref, function t(r, e) {
-				try {
-					e(function(n) {
-						if (null === r._state) {
-							if (n === r) throw new TypeError("A promise cannot be resolved with itself.");
-							var e = r._lib && $e();
-							n && "function" == typeof n.then ? t(r, function(e, t) {
-								n instanceof K ? n._then(e, t) : n.then(e, t);
-							}) : (r._state = !0, r._value = n, ze(r)), e && Qe();
-						}
-					}, Ue.bind(null, r));
-				} catch (e) {
-					Ue(r, e);
-				}
-			}(this, e);
+			finalize: nop
+		};
+		var PSD = globalPSD;
+		var microtickQueue = [];
+		var numScheduledCalls = 0;
+		var tickFinalizers = [];
+		function DexiePromise(fn) {
+			if (typeof this !== "object") throw new TypeError("Promises must be constructed via new");
+			this._listeners = [];
+			this._lib = false;
+			var psd = this._PSD = PSD;
+			if (typeof fn !== "function") {
+				if (fn !== INTERNAL) throw new TypeError("Not a function");
+				this._state = arguments[1];
+				this._value = arguments[2];
+				if (this._state === false) handleRejection(this, this._value);
+				return;
+			}
+			this._state = null;
+			this._value = null;
+			++psd.ref;
+			executePromiseTask(this, fn);
 		}
-		var Me = {
+		var thenProp = {
 			get: function() {
-				var u = P, t = et;
-				function e(n, r) {
-					var i = this, o = !u.global && (u !== P || t !== et), a = o && !w(), e = new K(function(e, t) {
-						Ve(i, new Le(ut(n, u, o, a), ut(r, u, o, a), e, t, u));
+				var psd = PSD, microTaskId = totalEchoes;
+				function then(onFulfilled, onRejected) {
+					var _this = this;
+					var possibleAwait = !psd.global && (psd !== PSD || microTaskId !== totalEchoes);
+					var cleanup = possibleAwait && !decrementExpectedAwaits();
+					var rv = new DexiePromise(function(resolve, reject) {
+						propagateToListener(_this, new Listener(nativeAwaitCompatibleWrap(onFulfilled, psd, possibleAwait, cleanup), nativeAwaitCompatibleWrap(onRejected, psd, possibleAwait, cleanup), resolve, reject, psd));
 					});
-					return this._consoleTask && (e._consoleTask = this._consoleTask), e;
+					if (this._consoleTask) rv._consoleTask = this._consoleTask;
+					return rv;
 				}
-				return e.prototype = Pe, e;
+				then.prototype = INTERNAL;
+				return then;
 			},
-			set: function(e) {
-				u(this, "then", e && e.prototype === Pe ? Me : {
+			set: function(value) {
+				setProp(this, "then", value && value.prototype === INTERNAL ? thenProp : {
 					get: function() {
-						return e;
+						return value;
 					},
-					set: Me.set
+					set: thenProp.set
 				});
 			}
 		};
-		function Le(e, t, n, r, i) {
-			this.onFulfilled = "function" == typeof e ? e : null, this.onRejected = "function" == typeof t ? t : null, this.resolve = n, this.reject = r, this.psd = i;
-		}
-		function Ue(e, t) {
-			var n, r;
-			De.push(t), null === e._state && (n = e._lib && $e(), t = Be(t), e._state = !1, e._value = t, r = e, qe.some(function(e) {
-				return e._value === r._value;
-			}) || qe.push(r), ze(e), n) && Qe();
-		}
-		function ze(e) {
-			var t = e._listeners;
-			e._listeners = [];
-			for (var n = 0, r = t.length; n < r; ++n) Ve(e, t[n]);
-			var i = e._PSD;
-			--i.ref || i.finalize(), 0 === Fe && (++Fe, Ce(function() {
-				0 == --Fe && Ge();
-			}, []));
-		}
-		function Ve(e, t) {
-			if (null === e._state) e._listeners.push(t);
-			else {
-				var n = e._state ? t.onFulfilled : t.onRejected;
-				if (null === n) return (e._state ? t.resolve : t.reject)(e._value);
-				++t.psd.ref, ++Fe, Ce(We, [
-					n,
-					e,
-					t
-				]);
-			}
-		}
-		function We(e, t, n) {
-			try {
-				var r, i = t._value;
-				!t._state && De.length && (De = []), r = l && t._consoleTask ? t._consoleTask.run(function() {
-					return e(i);
-				}) : e(i), t._state || -1 !== De.indexOf(i) || ((e) => {
-					for (var t = qe.length; t;) if (qe[--t]._value === e._value) return qe.splice(t, 1);
-				})(t), n.resolve(r);
-			} catch (e) {
-				n.reject(e);
-			} finally {
-				0 == --Fe && Ge(), --n.psd.ref || n.psd.finalize();
-			}
-		}
-		function Ye() {
-			at(s, function() {
-				$e() && Qe();
-			});
-		}
-		function $e() {
-			var e = Te;
-			return Ie = Te = !1, e;
-		}
-		function Qe() {
-			var e, t, n;
-			do
-				for (; 0 < Re.length;) for (e = Re, Re = [], n = e.length, t = 0; t < n; ++t) {
-					var r = e[t];
-					r[0].apply(null, r[1]);
-				}
-			while (0 < Re.length);
-			Ie = Te = !0;
-		}
-		function Ge() {
-			for (var e = qe, t = (qe = [], e.forEach(function(e) {
-				e._PSD.onunhandled.call(null, e._value, e);
-			}), Ne.slice(0)), n = t.length; n;) t[--n]();
-		}
-		function Xe(e) {
-			return new K(Pe, !1, e);
-		}
-		function E(n, r) {
-			var i = P;
-			return function() {
-				var e = $e(), t = P;
-				try {
-					return h(i, !0), n.apply(this, arguments);
-				} catch (e) {
-					r && r(e);
-				} finally {
-					h(t, !1), e && Qe();
-				}
-			};
-		}
-		M(K.prototype, {
-			then: Me,
-			_then: function(e, t) {
-				Ve(this, new Le(null, null, e, t, P));
+		props(DexiePromise.prototype, {
+			then: thenProp,
+			_then: function(onFulfilled, onRejected) {
+				propagateToListener(this, new Listener(null, null, onFulfilled, onRejected, PSD));
 			},
-			catch: function(e) {
-				var t, n;
-				return 1 === arguments.length ? this.then(null, e) : (t = e, n = arguments[1], "function" == typeof t ? this.then(null, function(e) {
-					return (e instanceof t ? n : Xe)(e);
-				}) : this.then(null, function(e) {
-					return (e && e.name === t ? n : Xe)(e);
-				}));
+			catch: function(onRejected) {
+				if (arguments.length === 1) return this.then(null, onRejected);
+				var type = arguments[0], handler = arguments[1];
+				return typeof type === "function" ? this.then(null, function(err) {
+					return err instanceof type ? handler(err) : PromiseReject(err);
+				}) : this.then(null, function(err) {
+					return err && err.name === type ? handler(err) : PromiseReject(err);
+				});
 			},
-			finally: function(t) {
-				return this.then(function(e) {
-					return K.resolve(t()).then(function() {
-						return e;
+			finally: function(onFinally) {
+				return this.then(function(value) {
+					return DexiePromise.resolve(onFinally()).then(function() {
+						return value;
 					});
-				}, function(e) {
-					return K.resolve(t()).then(function() {
-						return Xe(e);
+				}, function(err) {
+					return DexiePromise.resolve(onFinally()).then(function() {
+						return PromiseReject(err);
 					});
 				});
 			},
-			timeout: function(r, i) {
-				var o = this;
-				return r < 1 / 0 ? new K(function(e, t) {
-					var n = setTimeout(function() {
-						return t(new k.Timeout(i));
-					}, r);
-					o.then(e, t).finally(clearTimeout.bind(null, n));
+			timeout: function(ms, msg) {
+				var _this = this;
+				return ms < Infinity ? new DexiePromise(function(resolve, reject) {
+					var handle = setTimeout(function() {
+						return reject(new exceptions.Timeout(msg));
+					}, ms);
+					_this.then(resolve, reject).finally(clearTimeout.bind(null, handle));
 				}) : this;
 			}
-		}), "undefined" != typeof Symbol && Symbol.toStringTag && u(K.prototype, Symbol.toStringTag, "Dexie.Promise"), s.env = ot(), M(K, {
+		});
+		if (typeof Symbol !== "undefined" && Symbol.toStringTag) setProp(DexiePromise.prototype, Symbol.toStringTag, "Dexie.Promise");
+		globalPSD.env = snapShot();
+		function Listener(onFulfilled, onRejected, resolve, reject, zone) {
+			this.onFulfilled = typeof onFulfilled === "function" ? onFulfilled : null;
+			this.onRejected = typeof onRejected === "function" ? onRejected : null;
+			this.resolve = resolve;
+			this.reject = reject;
+			this.psd = zone;
+		}
+		props(DexiePromise, {
 			all: function() {
-				var o = n.apply(null, arguments).map(rt);
-				return new K(function(n, r) {
-					0 === o.length && n([]);
-					var i = o.length;
-					o.forEach(function(e, t) {
-						return K.resolve(e).then(function(e) {
-							o[t] = e, --i || n(o);
-						}, r);
+				var values = getArrayOf.apply(null, arguments).map(onPossibleParallellAsync);
+				return new DexiePromise(function(resolve, reject) {
+					if (values.length === 0) resolve([]);
+					var remaining = values.length;
+					values.forEach(function(a, i) {
+						return DexiePromise.resolve(a).then(function(x) {
+							values[i] = x;
+							if (!--remaining) resolve(values);
+						}, reject);
 					});
 				});
 			},
-			resolve: function(n) {
-				return n instanceof K ? n : n && "function" == typeof n.then ? new K(function(e, t) {
-					n.then(e, t);
-				}) : new K(Pe, !0, n);
+			resolve: function(value) {
+				if (value instanceof DexiePromise) return value;
+				if (value && typeof value.then === "function") return new DexiePromise(function(resolve, reject) {
+					value.then(resolve, reject);
+				});
+				return new DexiePromise(INTERNAL, true, value);
 			},
-			reject: Xe,
+			reject: PromiseReject,
 			race: function() {
-				var e = n.apply(null, arguments).map(rt);
-				return new K(function(t, n) {
-					e.map(function(e) {
-						return K.resolve(e).then(t, n);
+				var values = getArrayOf.apply(null, arguments).map(onPossibleParallellAsync);
+				return new DexiePromise(function(resolve, reject) {
+					values.map(function(value) {
+						return DexiePromise.resolve(value).then(resolve, reject);
 					});
 				});
 			},
 			PSD: {
 				get: function() {
-					return P;
+					return PSD;
 				},
-				set: function(e) {
-					return P = e;
+				set: function(value) {
+					return PSD = value;
 				}
 			},
 			totalEchoes: { get: function() {
-				return et;
+				return totalEchoes;
 			} },
-			newPSD: v,
-			usePSD: at,
+			newPSD: newScope,
+			usePSD,
 			scheduler: {
 				get: function() {
-					return Ce;
+					return asap;
 				},
-				set: function(e) {
-					Ce = e;
+				set: function(value) {
+					asap = value;
 				}
 			},
 			rejectionMapper: {
 				get: function() {
-					return Be;
+					return rejectionMapper;
 				},
-				set: function(e) {
-					Be = e;
+				set: function(value) {
+					rejectionMapper = value;
 				}
 			},
-			follow: function(i, n) {
-				return new K(function(e, t) {
-					return v(function(n, r) {
-						var e = P;
-						e.unhandleds = [], e.onunhandled = r, e.finalize = be(function() {
-							var t, e = this;
-							t = function() {
-								0 === e.unhandleds.length ? n() : r(e.unhandleds[0]);
-							}, Ne.push(function e() {
-								t(), Ne.splice(Ne.indexOf(e), 1);
-							}), ++Fe, Ce(function() {
-								0 == --Fe && Ge();
-							}, []);
-						}, e.finalize), i();
-					}, n, e, t);
+			follow: function(fn, zoneProps) {
+				return new DexiePromise(function(resolve, reject) {
+					return newScope(function(resolve, reject) {
+						var psd = PSD;
+						psd.unhandleds = [];
+						psd.onunhandled = reject;
+						psd.finalize = callBoth(function() {
+							var _this = this;
+							run_at_end_of_this_or_next_physical_tick(function() {
+								_this.unhandleds.length === 0 ? resolve() : reject(_this.unhandleds[0]);
+							});
+						}, psd.finalize);
+						fn();
+					}, zoneProps, resolve, reject);
 				});
 			}
-		}), Ae && (Ae.allSettled && u(K, "allSettled", function() {
-			var e = n.apply(null, arguments).map(rt);
-			return new K(function(n) {
-				0 === e.length && n([]);
-				var r = e.length, i = new Array(r);
-				e.forEach(function(e, t) {
-					return K.resolve(e).then(function(e) {
-						return i[t] = {
-							status: "fulfilled",
-							value: e
-						};
-					}, function(e) {
-						return i[t] = {
-							status: "rejected",
-							reason: e
-						};
-					}).then(function() {
-						return --r || n(i);
+		});
+		if (NativePromise) {
+			if (NativePromise.allSettled) setProp(DexiePromise, "allSettled", function() {
+				var possiblePromises = getArrayOf.apply(null, arguments).map(onPossibleParallellAsync);
+				return new DexiePromise(function(resolve) {
+					if (possiblePromises.length === 0) resolve([]);
+					var remaining = possiblePromises.length;
+					var results = new Array(remaining);
+					possiblePromises.forEach(function(p, i) {
+						return DexiePromise.resolve(p).then(function(value) {
+							return results[i] = {
+								status: "fulfilled",
+								value
+							};
+						}, function(reason) {
+							return results[i] = {
+								status: "rejected",
+								reason
+							};
+						}).then(function() {
+							return --remaining || resolve(results);
+						});
 					});
 				});
 			});
-		}), Ae.any && "undefined" != typeof AggregateError && u(K, "any", function() {
-			var e = n.apply(null, arguments).map(rt);
-			return new K(function(n, r) {
-				0 === e.length && r(/* @__PURE__ */ new AggregateError([]));
-				var i = e.length, o = new Array(i);
-				e.forEach(function(e, t) {
-					return K.resolve(e).then(function(e) {
-						return n(e);
-					}, function(e) {
-						o[t] = e, --i || r(new AggregateError(o));
+			if (NativePromise.any && typeof AggregateError !== "undefined") setProp(DexiePromise, "any", function() {
+				var possiblePromises = getArrayOf.apply(null, arguments).map(onPossibleParallellAsync);
+				return new DexiePromise(function(resolve, reject) {
+					if (possiblePromises.length === 0) reject(/* @__PURE__ */ new AggregateError([]));
+					var remaining = possiblePromises.length;
+					var failures = new Array(remaining);
+					possiblePromises.forEach(function(p, i) {
+						return DexiePromise.resolve(p).then(function(value) {
+							return resolve(value);
+						}, function(failure) {
+							failures[i] = failure;
+							if (!--remaining) reject(new AggregateError(failures));
+						});
 					});
 				});
 			});
-		}), Ae.withResolvers) && (K.withResolvers = Ae.withResolvers);
-		var o = {
+			if (NativePromise.withResolvers) DexiePromise.withResolvers = NativePromise.withResolvers;
+		}
+		function executePromiseTask(promise, fn) {
+			try {
+				fn(function(value) {
+					if (promise._state !== null) return;
+					if (value === promise) throw new TypeError("A promise cannot be resolved with itself.");
+					var shouldExecuteTick = promise._lib && beginMicroTickScope();
+					if (value && typeof value.then === "function") executePromiseTask(promise, function(resolve, reject) {
+						value instanceof DexiePromise ? value._then(resolve, reject) : value.then(resolve, reject);
+					});
+					else {
+						promise._state = true;
+						promise._value = value;
+						propagateAllListeners(promise);
+					}
+					if (shouldExecuteTick) endMicroTickScope();
+				}, handleRejection.bind(null, promise));
+			} catch (ex) {
+				handleRejection(promise, ex);
+			}
+		}
+		function handleRejection(promise, reason) {
+			rejectingErrors.push(reason);
+			if (promise._state !== null) return;
+			var shouldExecuteTick = promise._lib && beginMicroTickScope();
+			reason = rejectionMapper(reason);
+			promise._state = false;
+			promise._value = reason;
+			addPossiblyUnhandledError(promise);
+			propagateAllListeners(promise);
+			if (shouldExecuteTick) endMicroTickScope();
+		}
+		function propagateAllListeners(promise) {
+			var listeners = promise._listeners;
+			promise._listeners = [];
+			for (var i = 0, len = listeners.length; i < len; ++i) propagateToListener(promise, listeners[i]);
+			var psd = promise._PSD;
+			--psd.ref || psd.finalize();
+			if (numScheduledCalls === 0) {
+				++numScheduledCalls;
+				asap(function() {
+					if (--numScheduledCalls === 0) finalizePhysicalTick();
+				}, []);
+			}
+		}
+		function propagateToListener(promise, listener) {
+			if (promise._state === null) {
+				promise._listeners.push(listener);
+				return;
+			}
+			var cb = promise._state ? listener.onFulfilled : listener.onRejected;
+			if (cb === null) return (promise._state ? listener.resolve : listener.reject)(promise._value);
+			++listener.psd.ref;
+			++numScheduledCalls;
+			asap(callListener, [
+				cb,
+				promise,
+				listener
+			]);
+		}
+		function callListener(cb, promise, listener) {
+			try {
+				var ret, value = promise._value;
+				if (!promise._state && rejectingErrors.length) rejectingErrors = [];
+				ret = debug && promise._consoleTask ? promise._consoleTask.run(function() {
+					return cb(value);
+				}) : cb(value);
+				if (!promise._state && rejectingErrors.indexOf(value) === -1) markErrorAsHandled(promise);
+				listener.resolve(ret);
+			} catch (e) {
+				listener.reject(e);
+			} finally {
+				if (--numScheduledCalls === 0) finalizePhysicalTick();
+				--listener.psd.ref || listener.psd.finalize();
+			}
+		}
+		function physicalTick() {
+			usePSD(globalPSD, function() {
+				beginMicroTickScope() && endMicroTickScope();
+			});
+		}
+		function beginMicroTickScope() {
+			var wasRootExec = isOutsideMicroTick;
+			isOutsideMicroTick = false;
+			needsNewPhysicalTick = false;
+			return wasRootExec;
+		}
+		function endMicroTickScope() {
+			var callbacks, i, l;
+			do
+				while (microtickQueue.length > 0) {
+					callbacks = microtickQueue;
+					microtickQueue = [];
+					l = callbacks.length;
+					for (i = 0; i < l; ++i) {
+						var item = callbacks[i];
+						item[0].apply(null, item[1]);
+					}
+				}
+			while (microtickQueue.length > 0);
+			isOutsideMicroTick = true;
+			needsNewPhysicalTick = true;
+		}
+		function finalizePhysicalTick() {
+			var unhandledErrs = unhandledErrors;
+			unhandledErrors = [];
+			unhandledErrs.forEach(function(p) {
+				p._PSD.onunhandled.call(null, p._value, p);
+			});
+			var finalizers = tickFinalizers.slice(0);
+			var i = finalizers.length;
+			while (i) finalizers[--i]();
+		}
+		function run_at_end_of_this_or_next_physical_tick(fn) {
+			function finalizer() {
+				fn();
+				tickFinalizers.splice(tickFinalizers.indexOf(finalizer), 1);
+			}
+			tickFinalizers.push(finalizer);
+			++numScheduledCalls;
+			asap(function() {
+				if (--numScheduledCalls === 0) finalizePhysicalTick();
+			}, []);
+		}
+		function addPossiblyUnhandledError(promise) {
+			if (!unhandledErrors.some(function(p) {
+				return p._value === promise._value;
+			})) unhandledErrors.push(promise);
+		}
+		function markErrorAsHandled(promise) {
+			var i = unhandledErrors.length;
+			while (i) if (unhandledErrors[--i]._value === promise._value) {
+				unhandledErrors.splice(i, 1);
+				return;
+			}
+		}
+		function PromiseReject(reason) {
+			return new DexiePromise(INTERNAL, false, reason);
+		}
+		function wrap(fn, errorCatcher) {
+			var psd = PSD;
+			return function() {
+				var wasRootExec = beginMicroTickScope(), outerScope = PSD;
+				try {
+					switchToZone(psd, true);
+					return fn.apply(this, arguments);
+				} catch (e) {
+					errorCatcher && errorCatcher(e);
+				} finally {
+					switchToZone(outerScope, false);
+					if (wasRootExec) endMicroTickScope();
+				}
+			};
+		}
+		var task = {
 			awaits: 0,
 			echoes: 0,
 			id: 0
-		}, He = 0, Je = [], Ze = 0, et = 0, tt = 0;
-		function v(e, t, n, r) {
-			var i = P, o = Object.create(i), t = (o.parent = i, o.ref = 0, o.global = !1, o.id = ++tt, s.env, o.env = je ? {
-				Promise: K,
+		};
+		var taskCounter = 0;
+		var zoneStack = [];
+		var zoneEchoes = 0;
+		var totalEchoes = 0;
+		var zone_id_counter = 0;
+		function newScope(fn, props, a1, a2) {
+			var parent = PSD, psd = Object.create(parent);
+			psd.parent = parent;
+			psd.ref = 0;
+			psd.global = false;
+			psd.id = ++zone_id_counter;
+			globalPSD.env;
+			psd.env = patchGlobalPromise ? {
+				Promise: DexiePromise,
 				PromiseProp: {
-					value: K,
-					configurable: !0,
-					writable: !0
+					value: DexiePromise,
+					configurable: true,
+					writable: true
 				},
-				all: K.all,
-				race: K.race,
-				allSettled: K.allSettled,
-				any: K.any,
-				resolve: K.resolve,
-				reject: K.reject
-			} : {}, t && a(o, t), ++i.ref, o.finalize = function() {
+				all: DexiePromise.all,
+				race: DexiePromise.race,
+				allSettled: DexiePromise.allSettled,
+				any: DexiePromise.any,
+				resolve: DexiePromise.resolve,
+				reject: DexiePromise.reject
+			} : {};
+			if (props) extend(psd, props);
+			++parent.ref;
+			psd.finalize = function() {
 				--this.parent.ref || this.parent.finalize();
-			}, at(o, e, n, r));
-			return 0 === o.ref && o.finalize(), t;
+			};
+			var rv = usePSD(psd, fn, a1, a2);
+			if (psd.ref === 0) psd.finalize();
+			return rv;
 		}
-		function nt() {
-			return o.id || (o.id = ++He), ++o.awaits, o.echoes += Ke, o.id;
+		function incrementExpectedAwaits() {
+			if (!task.id) task.id = ++taskCounter;
+			++task.awaits;
+			task.echoes += ZONE_ECHO_LIMIT;
+			return task.id;
 		}
-		function w() {
-			return !!o.awaits && (0 == --o.awaits && (o.id = 0), o.echoes = o.awaits * Ke, !0);
+		function decrementExpectedAwaits() {
+			if (!task.awaits) return false;
+			if (--task.awaits === 0) task.id = 0;
+			task.echoes = task.awaits * ZONE_ECHO_LIMIT;
+			return true;
 		}
-		function rt(e) {
-			return o.echoes && e && e.constructor === Ae ? (nt(), e.then(function(e) {
-				return w(), e;
-			}, function(e) {
-				return w(), S(e);
-			})) : e;
+		if (("" + nativePromiseThen).indexOf("[native code]") === -1) incrementExpectedAwaits = decrementExpectedAwaits = nop;
+		function onPossibleParallellAsync(possiblePromise) {
+			if (task.echoes && possiblePromise && possiblePromise.constructor === NativePromise) {
+				incrementExpectedAwaits();
+				return possiblePromise.then(function(x) {
+					decrementExpectedAwaits();
+					return x;
+				}, function(e) {
+					decrementExpectedAwaits();
+					return rejection(e);
+				});
+			}
+			return possiblePromise;
 		}
-		function it() {
-			var e = Je[Je.length - 1];
-			Je.pop(), h(e, !1);
+		function zoneEnterEcho(targetZone) {
+			++totalEchoes;
+			if (!task.echoes || --task.echoes === 0) task.echoes = task.awaits = task.id = 0;
+			zoneStack.push(PSD);
+			switchToZone(targetZone, true);
 		}
-		function h(e, t) {
-			var n, r, i = P;
-			(t ? !o.echoes || Ze++ && e === P : !Ze || --Ze && e === P) || queueMicrotask(t ? function(e) {
-				++et, o.echoes && 0 != --o.echoes || (o.echoes = o.awaits = o.id = 0), Je.push(P), h(e, !0);
-			}.bind(null, e) : it), e !== P && (P = e, i === s && (s.env = ot()), je) && (n = s.env.Promise, r = e.env, i.global || e.global) && (Object.defineProperty(f, "Promise", r.PromiseProp), n.all = r.all, n.race = r.race, n.resolve = r.resolve, n.reject = r.reject, r.allSettled && (n.allSettled = r.allSettled), r.any) && (n.any = r.any);
+		function zoneLeaveEcho() {
+			var zone = zoneStack[zoneStack.length - 1];
+			zoneStack.pop();
+			switchToZone(zone, false);
 		}
-		function ot() {
-			var e = f.Promise;
-			return je ? {
-				Promise: e,
-				PromiseProp: Object.getOwnPropertyDescriptor(f, "Promise"),
-				all: e.all,
-				race: e.race,
-				allSettled: e.allSettled,
-				any: e.any,
-				resolve: e.resolve,
-				reject: e.reject
+		function switchToZone(targetZone, bEnteringZone) {
+			var currentZone = PSD;
+			if (bEnteringZone ? task.echoes && (!zoneEchoes++ || targetZone !== PSD) : zoneEchoes && (!--zoneEchoes || targetZone !== PSD)) queueMicrotask(bEnteringZone ? zoneEnterEcho.bind(null, targetZone) : zoneLeaveEcho);
+			if (targetZone === PSD) return;
+			PSD = targetZone;
+			if (currentZone === globalPSD) globalPSD.env = snapShot();
+			if (patchGlobalPromise) {
+				var GlobalPromise = globalPSD.env.Promise;
+				var targetEnv = targetZone.env;
+				if (currentZone.global || targetZone.global) {
+					Object.defineProperty(_global, "Promise", targetEnv.PromiseProp);
+					GlobalPromise.all = targetEnv.all;
+					GlobalPromise.race = targetEnv.race;
+					GlobalPromise.resolve = targetEnv.resolve;
+					GlobalPromise.reject = targetEnv.reject;
+					if (targetEnv.allSettled) GlobalPromise.allSettled = targetEnv.allSettled;
+					if (targetEnv.any) GlobalPromise.any = targetEnv.any;
+				}
+			}
+		}
+		function snapShot() {
+			var GlobalPromise = _global.Promise;
+			return patchGlobalPromise ? {
+				Promise: GlobalPromise,
+				PromiseProp: Object.getOwnPropertyDescriptor(_global, "Promise"),
+				all: GlobalPromise.all,
+				race: GlobalPromise.race,
+				allSettled: GlobalPromise.allSettled,
+				any: GlobalPromise.any,
+				resolve: GlobalPromise.resolve,
+				reject: GlobalPromise.reject
 			} : {};
 		}
-		function at(e, t, n, r, i) {
-			var o = P;
+		function usePSD(psd, fn, a1, a2, a3) {
+			var outerScope = PSD;
 			try {
-				return h(e, !0), t(n, r, i);
+				switchToZone(psd, true);
+				return fn(a1, a2, a3);
 			} finally {
-				h(o, !1);
+				switchToZone(outerScope, false);
 			}
 		}
-		function ut(t, n, r, i) {
-			return "function" != typeof t ? t : function() {
-				var e = P;
-				r && nt(), h(n, !0);
+		function nativeAwaitCompatibleWrap(fn, zone, possibleAwait, cleanup) {
+			return typeof fn !== "function" ? fn : function() {
+				var outerZone = PSD;
+				if (possibleAwait) incrementExpectedAwaits();
+				switchToZone(zone, true);
 				try {
-					return t.apply(this, arguments);
+					return fn.apply(this, arguments);
 				} finally {
-					h(e, !1), i && queueMicrotask(w);
+					switchToZone(outerZone, false);
+					if (cleanup) queueMicrotask(decrementExpectedAwaits);
 				}
 			};
 		}
-		function st(e) {
-			Promise === Ae && 0 === o.echoes ? 0 === Ze ? e() : enqueueNativeMicroTask(e) : setTimeout(e, 0);
+		function execInGlobalContext(cb) {
+			if (Promise === NativePromise && task.echoes === 0) {
+				if (zoneEchoes === 0) cb();
+				else enqueueNativeMicroTask(cb);
+			} else setTimeout(cb, 0);
 		}
-		-1 === ("" + Se).indexOf("[native code]") && (nt = w = g);
-		var S = K.reject;
-		var ct = String.fromCharCode(65535), A = "Invalid key provided. Keys must be of type string, number, Date or Array<string | number | Date>.", lt = "String expected.", ft = "__dbnames", ht = "readonly", dt = "readwrite";
-		function pt(e, t) {
-			return e ? t ? function() {
-				return e.apply(this, arguments) && t.apply(this, arguments);
-			} : e : t;
+		var rejection = DexiePromise.reject;
+		function tempTransaction(db, mode, storeNames, fn) {
+			if (!db.idbdb || !db._state.openComplete && !PSD.letThrough && !db._vip) {
+				if (db._state.openComplete) return rejection(new exceptions.DatabaseClosed(db._state.dbOpenError));
+				if (!db._state.isBeingOpened) {
+					if (!db._state.autoOpen) return rejection(new exceptions.DatabaseClosed());
+					db.open().catch(nop);
+				}
+				return db._state.dbReadyPromise.then(function() {
+					return tempTransaction(db, mode, storeNames, fn);
+				});
+			} else {
+				var trans = db._createTransaction(mode, storeNames, db._dbSchema);
+				try {
+					trans.create();
+					db._state.PR1398_maxLoop = 3;
+				} catch (ex) {
+					if (ex.name === errnames.InvalidState && db.isOpen() && --db._state.PR1398_maxLoop > 0) {
+						console.warn("Dexie: Need to reopen db");
+						db.close({ disableAutoOpen: false });
+						return db.open().then(function() {
+							return tempTransaction(db, mode, storeNames, fn);
+						});
+					}
+					return rejection(ex);
+				}
+				return trans._promise(mode, function(resolve, reject) {
+					return newScope(function() {
+						PSD.trans = trans;
+						return fn(resolve, reject, trans);
+					});
+				}).then(function(result) {
+					if (mode === "readwrite") try {
+						trans.idbtrans.commit();
+					} catch (_a) {}
+					return mode === "readonly" ? result : trans._completion.then(function() {
+						return result;
+					});
+				});
+			}
 		}
-		var yt = {
+		var DEXIE_VERSION = "4.4.7";
+		var maxString = String.fromCharCode(65535);
+		var minKey = -Infinity;
+		var INVALID_KEY_ARGUMENT = "Invalid key provided. Keys must be of type string, number, Date or Array<string | number | Date>.";
+		var STRING_EXPECTED = "String expected.";
+		var DEFAULT_MAX_CONNECTIONS = 1e3;
+		var DBNAMES_DB = "__dbnames";
+		var READONLY = "readonly";
+		var READWRITE = "readwrite";
+		function combine(filter1, filter2) {
+			return filter1 ? filter2 ? function() {
+				return filter1.apply(this, arguments) && filter2.apply(this, arguments);
+			} : filter1 : filter2;
+		}
+		var AnyRange = {
 			type: 3,
-			lower: -1 / 0,
-			lowerOpen: !1,
+			lower: -Infinity,
+			lowerOpen: false,
 			upper: [[]],
-			upperOpen: !1
+			upperOpen: false
 		};
-		function vt(t) {
-			return "string" != typeof t || /\./.test(t) ? function(e) {
-				return e;
-			} : function(e) {
-				return void 0 === e[t] && t in e && delete (e = ee(e))[t], e;
+		function workaroundForUndefinedPrimKey(keyPath) {
+			return typeof keyPath === "string" && !/\./.test(keyPath) ? function(obj) {
+				if (obj[keyPath] === void 0 && keyPath in obj) {
+					obj = deepClone(obj);
+					delete obj[keyPath];
+				}
+				return obj;
+			} : function(obj) {
+				return obj;
 			};
 		}
-		function mt() {
-			throw k.Type("Entity instances must never be new:ed. Instances are generated by the framework bypassing the constructor.");
+		function Entity() {
+			throw exceptions.Type("Entity instances must never be new:ed. Instances are generated by the framework bypassing the constructor.");
 		}
-		function j(e, t) {
+		function cmp(a, b) {
 			try {
-				var n = bt(e), r = bt(t);
-				if (n !== r) return "Array" === n ? 1 : "Array" === r ? -1 : "binary" === n ? 1 : "binary" === r ? -1 : "string" === n ? 1 : "string" === r ? -1 : "Date" === n ? 1 : "Date" !== r ? NaN : -1;
-				switch (n) {
+				var ta = type(a);
+				var tb = type(b);
+				if (ta !== tb) {
+					if (ta === "Array") return 1;
+					if (tb === "Array") return -1;
+					if (ta === "binary") return 1;
+					if (tb === "binary") return -1;
+					if (ta === "string") return 1;
+					if (tb === "string") return -1;
+					if (ta === "Date") return 1;
+					if (tb !== "Date") return NaN;
+					return -1;
+				}
+				switch (ta) {
 					case "number":
 					case "Date":
-					case "string": return t < e ? 1 : e < t ? -1 : 0;
-					case "binary":
-						for (var i = gt(e), o = gt(t), a = i.length, u = o.length, s = a < u ? a : u, c = 0; c < s; ++c) if (i[c] !== o[c]) return i[c] < o[c] ? -1 : 1;
-						return a === u ? 0 : a < u ? -1 : 1;
-					case "Array":
-						for (var l = e, f = t, h = l.length, d = f.length, p = h < d ? h : d, y = 0; y < p; ++y) {
-							var v = j(l[y], f[y]);
-							if (0 !== v) return v;
-						}
-						return h === d ? 0 : h < d ? -1 : 1;
+					case "string": return a > b ? 1 : a < b ? -1 : 0;
+					case "binary": return compareUint8Arrays(getUint8Array(a), getUint8Array(b));
+					case "Array": return compareArrays(a, b);
 				}
-			} catch (e) {}
+			} catch (_a) {}
 			return NaN;
 		}
-		function bt(e) {
-			var t = typeof e;
-			return "object" == t && (ArrayBuffer.isView(e) || "ArrayBuffer" === (t = ne(e))) ? "binary" : t;
+		function compareArrays(a, b) {
+			var al = a.length;
+			var bl = b.length;
+			var l = al < bl ? al : bl;
+			for (var i = 0; i < l; ++i) {
+				var res = cmp(a[i], b[i]);
+				if (res !== 0) return res;
+			}
+			return al === bl ? 0 : al < bl ? -1 : 1;
 		}
-		function gt(e) {
-			return e instanceof Uint8Array ? e : ArrayBuffer.isView(e) ? new Uint8Array(e.buffer, e.byteOffset, e.byteLength) : new Uint8Array(e);
+		function compareUint8Arrays(a, b) {
+			var al = a.length;
+			var bl = b.length;
+			var l = al < bl ? al : bl;
+			for (var i = 0; i < l; ++i) if (a[i] !== b[i]) return a[i] < b[i] ? -1 : 1;
+			return al === bl ? 0 : al < bl ? -1 : 1;
 		}
-		function wt(t, n, r) {
-			var e = t.schema.yProps;
-			return e ? (n && 0 < r.numFailures && (n = n.filter(function(e, t) {
-				return !r.failures[t];
-			})), Promise.all(e.map(function(e) {
-				e = e.updatesTable;
-				return n ? t.db.table(e).where("k").anyOf(n).delete() : t.db.table(e).clear();
+		function type(x) {
+			var t = typeof x;
+			if (t !== "object") return t;
+			if (ArrayBuffer.isView(x)) return "binary";
+			var tsTag = toStringTag(x);
+			return tsTag === "ArrayBuffer" ? "binary" : tsTag;
+		}
+		function getUint8Array(a) {
+			if (a instanceof Uint8Array) return a;
+			if (ArrayBuffer.isView(a)) return new Uint8Array(a.buffer, a.byteOffset, a.byteLength);
+			return new Uint8Array(a);
+		}
+		function builtInDeletionTrigger(table, keys, res) {
+			var yProps = table.schema.yProps;
+			if (!yProps) return res;
+			if (keys && res.numFailures > 0) keys = keys.filter(function(_, i) {
+				return !res.failures[i];
+			});
+			return Promise.all(yProps.map(function(_a) {
+				var updatesTable = _a.updatesTable;
+				return keys ? table.db.table(updatesTable).where("k").anyOf(keys).delete() : table.db.table(updatesTable).clear();
 			})).then(function() {
-				return r;
-			})) : r;
+				return res;
+			});
 		}
-		xt.prototype.execute = function(e) {
-			var t = this["@@propmod"];
-			if (void 0 !== t.add) {
-				var n = t.add;
-				if (x(n)) return R(R([], x(e) ? e : [], !0), n, !0).sort();
-				if ("number" == typeof n) return (Number(e) || 0) + n;
-				if ("bigint" == typeof n) try {
-					return BigInt(e) + n;
-				} catch (e) {
-					return BigInt(0) + n;
+		var PropModification = function() {
+			function PropModification(spec) {
+				this["@@propmod"] = spec;
+			}
+			PropModification.prototype.execute = function(value) {
+				var _a;
+				var spec = this["@@propmod"];
+				if (spec.add !== void 0) {
+					var term = spec.add;
+					if (isArray(term)) return __spreadArray(__spreadArray([], isArray(value) ? value : [], true), term, true).sort();
+					if (typeof term === "number") return (Number(value) || 0) + term;
+					if (typeof term === "bigint") try {
+						return BigInt(value) + term;
+					} catch (_b) {
+						return BigInt(0) + term;
+					}
+					throw new TypeError("Invalid term ".concat(term));
 				}
-				throw new TypeError("Invalid term ".concat(n));
-			}
-			if (void 0 !== t.remove) {
-				var r = t.remove;
-				if (x(r)) return x(e) ? e.filter(function(e) {
-					return !r.includes(e);
-				}).sort() : [];
-				if ("number" == typeof r) return Number(e) - r;
-				if ("bigint" == typeof r) try {
-					return BigInt(e) - r;
-				} catch (e) {
-					return BigInt(0) - r;
+				if (spec.remove !== void 0) {
+					var subtrahend_1 = spec.remove;
+					if (isArray(subtrahend_1)) return isArray(value) ? value.filter(function(item) {
+						return !subtrahend_1.includes(item);
+					}).sort() : [];
+					if (typeof subtrahend_1 === "number") return Number(value) - subtrahend_1;
+					if (typeof subtrahend_1 === "bigint") try {
+						return BigInt(value) - subtrahend_1;
+					} catch (_c) {
+						return BigInt(0) - subtrahend_1;
+					}
+					throw new TypeError("Invalid subtrahend ".concat(subtrahend_1));
 				}
-				throw new TypeError("Invalid subtrahend ".concat(r));
-			}
-			n = null == (n = t.replacePrefix) ? void 0 : n[0];
-			return n && "string" == typeof e && e.startsWith(n) ? t.replacePrefix[1] + e.substring(n.length) : e;
-		};
-		var _t = xt;
-		function xt(e) {
-			this["@@propmod"] = e;
-		}
-		function kt(e, t) {
-			for (var n = O(t), r = n.length, i = !1, o = 0; o < r; ++o) {
-				var a = n[o], u = t[a], s = c(e, a);
-				u instanceof _t ? (b(e, a, u.execute(s)), i = !0) : s !== u && (b(e, a, u), i = !0);
-			}
-			return i;
-		}
-		r.prototype._trans = function(e, r, t) {
-			var n = this._tx || P.trans, i = this.name, o = l && "undefined" != typeof console && console.createTask && console.createTask("Dexie: ".concat("readonly" === e ? "read" : "write", " ").concat(this.name));
-			function a(e, t, n) {
-				if (n.schema[i]) return r(n.idbtrans, n);
-				throw new k.NotFound("Table " + i + " not part of transaction");
-			}
-			var u = $e();
-			try {
-				var s = n && n.db._novip === this.db._novip ? n === P.trans ? n._promise(e, a, t) : v(function() {
-					return n._promise(e, a, t);
-				}, {
-					trans: n,
-					transless: P.transless || P
-				}) : function t(n, r, i, o) {
-					if (n.idbdb && (n._state.openComplete || P.letThrough || n._vip)) {
-						var a = n._createTransaction(r, i, n._dbSchema);
-						try {
-							a.create(), n._state.PR1398_maxLoop = 3;
-						} catch (e) {
-							return e.name === de.InvalidState && n.isOpen() && 0 < --n._state.PR1398_maxLoop ? (console.warn("Dexie: Need to reopen db"), n.close({ disableAutoOpen: !1 }), n.open().then(function() {
-								return t(n, r, i, o);
-							})) : S(e);
-						}
-						return a._promise(r, function(e, t) {
-							return v(function() {
-								return P.trans = a, o(e, t, a);
-							});
-						}).then(function(e) {
-							if ("readwrite" === r) try {
-								a.idbtrans.commit();
-							} catch (e) {}
-							return "readonly" === r ? e : a._completion.then(function() {
-								return e;
-							});
-						});
-					}
-					if (n._state.openComplete) return S(new k.DatabaseClosed(n._state.dbOpenError));
-					if (!n._state.isBeingOpened) {
-						if (!n._state.autoOpen) return S(new k.DatabaseClosed());
-						n.open().catch(g);
-					}
-					return n._state.dbReadyPromise.then(function() {
-						return t(n, r, i, o);
-					});
-				}(this.db, e, [this.name], a);
-				return o && (s._consoleTask = o, s = s.catch(function(e) {
-					return console.trace(e), S(e);
-				})), s;
-			} finally {
-				u && Qe();
-			}
-		}, r.prototype.get = function(t, e) {
-			var n = this;
-			return t && t.constructor === Object ? this.where(t).first(e) : null == t ? S(new k.Type("Invalid argument to Table.get()")) : this._trans("readonly", function(e) {
-				return n.core.get({
-					trans: e,
-					key: t
-				}).then(function(e) {
-					return n.hook.reading.fire(e);
-				});
-			}).then(e);
-		}, r.prototype.where = function(o) {
-			if ("string" == typeof o) return new this.db.WhereClause(this, o);
-			if (x(o)) return new this.db.WhereClause(this, "[".concat(o.join("+"), "]"));
-			var n = O(o);
-			if (1 === n.length) return this.where(n[0]).equals(o[n[0]]);
-			var e = this.schema.indexes.concat(this.schema.primKey).filter(function(t) {
-				if (t.compound && n.every(function(e) {
-					return 0 <= t.keyPath.indexOf(e);
-				})) {
-					for (var e = 0; e < n.length; ++e) if (-1 === n.indexOf(t.keyPath[e])) return !1;
-					return !0;
-				}
-				return !1;
-			}).sort(function(e, t) {
-				return e.keyPath.length - t.keyPath.length;
-			})[0];
-			if (e && this.db._maxKey !== ct) return t = e.keyPath.slice(0, n.length), this.where(t).equals(t.map(function(e) {
-				return o[e];
-			}));
-			!e && l && console.warn("The query ".concat(JSON.stringify(o), " on ").concat(this.name, " would benefit from a ") + "compound index [".concat(n.join("+"), "]"));
-			var a = this.schema.idxByName;
-			function u(e, t) {
-				return 0 === j(e, t);
-			}
-			var t = n.reduce(function(e, t) {
-				var n = e[0], e = e[1], r = a[t], i = o[t];
-				return [n || r, n || !r ? pt(e, r && r.multi ? function(e) {
-					e = c(e, t);
-					return x(e) && e.some(function(e) {
-						return u(i, e);
-					});
-				} : function(e) {
-					return u(i, c(e, t));
-				}) : e];
-			}, [null, null]), r = t[0], t = t[1];
-			return r ? this.where(r.name).equals(o[r.keyPath]).filter(t) : e ? this.filter(t) : this.where(n).equals("");
-		}, r.prototype.filter = function(e) {
-			return this.toCollection().and(e);
-		}, r.prototype.count = function(e) {
-			return this.toCollection().count(e);
-		}, r.prototype.offset = function(e) {
-			return this.toCollection().offset(e);
-		}, r.prototype.limit = function(e) {
-			return this.toCollection().limit(e);
-		}, r.prototype.each = function(e) {
-			return this.toCollection().each(e);
-		}, r.prototype.toArray = function(e) {
-			return this.toCollection().toArray(e);
-		}, r.prototype.toCollection = function() {
-			return new this.db.Collection(new this.db.WhereClause(this));
-		}, r.prototype.orderBy = function(e) {
-			return new this.db.Collection(new this.db.WhereClause(this, x(e) ? "[".concat(e.join("+"), "]") : e));
-		}, r.prototype.reverse = function() {
-			return this.toCollection().reverse();
-		}, r.prototype.mapToClass = function(r) {
-			for (var o = this.db, a = this.name, i = ((this.schema.mappedClass = r).prototype instanceof mt && (r = ((e) => {
-				var t = i, n = e;
-				if ("function" != typeof n && null !== n) throw new TypeError("Class extends value " + String(n) + " is not a constructor or null");
-				function r() {
-					this.constructor = t;
-				}
-				function i() {
-					return null !== e && e.apply(this, arguments) || this;
-				}
-				return B(t, n), t.prototype = null === n ? Object.create(n) : (r.prototype = n.prototype, new r()), Object.defineProperty(i.prototype, "db", {
-					get: function() {
-						return o;
-					},
-					enumerable: !1,
-					configurable: !0
-				}), i.prototype.table = function() {
-					return a;
-				}, i;
-			})(r)), /* @__PURE__ */ new Set()), e = r.prototype; e; e = F(e)) Object.getOwnPropertyNames(e).forEach(function(e) {
-				return i.add(e);
-			});
-			function t(e) {
-				if (!e) return e;
-				var t, n = Object.create(r.prototype);
-				for (t in e) if (!i.has(t)) try {
-					n[t] = e[t];
-				} catch (e) {}
-				return n;
-			}
-			return this.schema.readHook && this.hook.reading.unsubscribe(this.schema.readHook), this.schema.readHook = t, this.hook("reading", t), r;
-		}, r.prototype.defineClass = function() {
-			return this.mapToClass(function(e) {
-				a(this, e);
-			});
-		}, r.prototype.add = function(t, n) {
-			var r = this, e = this.schema.primKey, i = e.auto, o = e.keyPath, a = t;
-			return o && i && (a = vt(o)(t)), this._trans("readwrite", function(e) {
-				return r.core.mutate({
-					trans: e,
-					type: "add",
-					keys: null != n ? [n] : null,
-					values: [a]
-				});
-			}).then(function(e) {
-				return e.numFailures ? K.reject(e.failures[0]) : e.lastResult;
-			}).then(function(e) {
-				if (o) try {
-					b(t, o, e);
-				} catch (e) {}
-				return e;
-			});
-		}, r.prototype.upsert = function(r, i) {
-			var o = this, a = this.schema.primKey.keyPath;
-			return this._trans("readwrite", function(n) {
-				return o.core.get({
-					trans: n,
-					key: r
-				}).then(function(t) {
-					var e = null != t ? t : {};
-					return kt(e, i), a && b(e, a, r), o.core.mutate({
-						trans: n,
-						type: "put",
-						values: [e],
-						keys: [r],
-						upsert: !0,
-						updates: {
-							keys: [r],
-							changeSpecs: [i]
-						}
-					}).then(function(e) {
-						return e.numFailures ? K.reject(e.failures[0]) : !!t;
-					});
-				});
-			});
-		}, r.prototype.update = function(e, t) {
-			return "object" != typeof e || x(e) ? this.where(":id").equals(e).modify(t) : void 0 === (e = c(e, this.schema.primKey.keyPath)) ? S(new k.InvalidArgument("Given object does not contain its primary key")) : this.where(":id").equals(e).modify(t);
-		}, r.prototype.put = function(t, n) {
-			var r = this, e = this.schema.primKey, i = e.auto, o = e.keyPath, a = t;
-			return o && i && (a = vt(o)(t)), this._trans("readwrite", function(e) {
-				return r.core.mutate({
-					trans: e,
-					type: "put",
-					values: [a],
-					keys: null != n ? [n] : null
-				});
-			}).then(function(e) {
-				return e.numFailures ? K.reject(e.failures[0]) : e.lastResult;
-			}).then(function(e) {
-				if (o) try {
-					b(t, o, e);
-				} catch (e) {}
-				return e;
-			});
-		}, r.prototype.delete = function(t) {
-			var n = this;
-			return this._trans("readwrite", function(e) {
-				return n.core.mutate({
-					trans: e,
-					type: "delete",
-					keys: [t]
-				}).then(function(e) {
-					return wt(n, [t], e);
-				}).then(function(e) {
-					return e.numFailures ? K.reject(e.failures[0]) : void 0;
-				});
-			});
-		}, r.prototype.clear = function() {
-			var t = this;
-			return this._trans("readwrite", function(e) {
-				return t.core.mutate({
-					trans: e,
-					type: "deleteRange",
-					range: yt
-				}).then(function(e) {
-					return wt(t, null, e);
-				});
-			}).then(function(e) {
-				return e.numFailures ? K.reject(e.failures[0]) : void 0;
-			});
-		}, r.prototype.bulkGet = function(t) {
-			var n = this;
-			return this._trans("readonly", function(e) {
-				return n.core.getMany({
-					keys: t,
-					trans: e
-				}).then(function(e) {
-					return e.map(function(e) {
-						return n.hook.reading.fire(e);
-					});
-				});
-			});
-		}, r.prototype.bulkAdd = function(i, e, t) {
-			var o = this, a = Array.isArray(e) ? e : void 0, u = (t = t || (a ? void 0 : e)) ? t.allKeys : void 0;
-			return this._trans("readwrite", function(e) {
-				var t = o.schema.primKey, n = t.auto, t = t.keyPath;
-				if (t && a) throw new k.InvalidArgument("bulkAdd(): keys argument invalid on tables with inbound keys");
-				if (a && a.length !== i.length) throw new k.InvalidArgument("Arguments objects and keys must have the same length");
-				var r = i.length, n = t && n ? i.map(vt(t)) : i;
-				return o.core.mutate({
-					trans: e,
-					type: "add",
-					keys: a,
-					values: n,
-					wantResults: u
-				}).then(function(e) {
-					var t = e.numFailures, n = e.failures;
-					if (0 === t) return u ? e.results : e.lastResult;
-					throw new he("".concat(o.name, ".bulkAdd(): ").concat(t, " of ").concat(r, " operations failed"), n);
-				});
-			});
-		}, r.prototype.bulkPut = function(i, e, t) {
-			var o = this, a = Array.isArray(e) ? e : void 0, u = (t = t || (a ? void 0 : e)) ? t.allKeys : void 0;
-			return this._trans("readwrite", function(e) {
-				var t = o.schema.primKey, n = t.auto, t = t.keyPath;
-				if (t && a) throw new k.InvalidArgument("bulkPut(): keys argument invalid on tables with inbound keys");
-				if (a && a.length !== i.length) throw new k.InvalidArgument("Arguments objects and keys must have the same length");
-				var r = i.length, n = t && n ? i.map(vt(t)) : i;
-				return o.core.mutate({
-					trans: e,
-					type: "put",
-					keys: a,
-					values: n,
-					wantResults: u
-				}).then(function(e) {
-					var t = e.numFailures, n = e.failures;
-					if (0 === t) return u ? e.results : e.lastResult;
-					throw new he("".concat(o.name, ".bulkPut(): ").concat(t, " of ").concat(r, " operations failed"), n);
-				});
-			});
-		}, r.prototype.bulkUpdate = function(t) {
-			var h = this, n = this.core, r = t.map(function(e) {
-				return e.key;
-			}), i = t.map(function(e) {
-				return e.changes;
-			}), d = [];
-			return this._trans("readwrite", function(e) {
-				return n.getMany({
-					trans: e,
-					keys: r,
-					cache: "clone"
-				}).then(function(c) {
-					var l = [], f = [], s = (t.forEach(function(e, t) {
-						var n = e.key, r = e.changes, i = c[t];
-						if (i) {
-							for (var o = 0, a = Object.keys(r); o < a.length; o++) {
-								var u = a[o], s = r[u];
-								if (u === h.schema.primKey.keyPath) {
-									if (0 !== j(s, n)) throw new k.Constraint("Cannot update primary key in bulkUpdate()");
-								} else b(i, u, s);
-							}
-							d.push(t), l.push(n), f.push(i);
-						}
-					}), l.length);
-					return n.mutate({
-						trans: e,
-						type: "put",
-						keys: l,
-						values: f,
-						updates: {
-							keys: r,
-							changeSpecs: i
-						}
-					}).then(function(e) {
-						var t = e.numFailures, n = e.failures;
-						if (0 === t) return s;
-						for (var r = 0, i = Object.keys(n); r < i.length; r++) {
-							var o, a = i[r], u = d[Number(a)];
-							null != u && (o = n[a], delete n[a], n[u] = o);
-						}
-						throw new he("".concat(h.name, ".bulkUpdate(): ").concat(t, " of ").concat(s, " operations failed"), n);
-					});
-				});
-			});
-		}, r.prototype.bulkDelete = function(t) {
-			var r = this, i = t.length;
-			return this._trans("readwrite", function(e) {
-				return r.core.mutate({
-					trans: e,
-					type: "delete",
-					keys: t
-				}).then(function(e) {
-					return wt(r, t, e);
-				});
-			}).then(function(e) {
-				var t = e.numFailures, n = e.failures;
-				if (0 === t) return e.lastResult;
-				throw new he("".concat(r.name, ".bulkDelete(): ").concat(t, " of ").concat(i, " operations failed"), n);
-			});
-		};
-		var Ot = r;
-		function r() {}
-		function Pt(i) {
-			function t(e, t) {
-				if (t) {
-					for (var n = arguments.length, r = new Array(n - 1); --n;) r[n - 1] = arguments[n];
-					return a[e].subscribe.apply(null, r), i;
-				}
-				if ("string" == typeof e) return a[e];
-			}
-			var a = {};
-			t.addEventType = u;
-			for (var e = 1, n = arguments.length; e < n; ++e) u(arguments[e]);
-			return t;
-			function u(e, n, r) {
-				var i, o;
-				if ("object" != typeof e) return n = n || xe, o = {
-					subscribers: [],
-					fire: r = r || g,
-					subscribe: function(e) {
-						-1 === o.subscribers.indexOf(e) && (o.subscribers.push(e), o.fire = n(o.fire, e));
-					},
-					unsubscribe: function(t) {
-						o.subscribers = o.subscribers.filter(function(e) {
-							return e !== t;
-						}), o.fire = o.subscribers.reduce(n, r);
-					}
-				}, a[e] = t[e] = o;
-				O(i = e).forEach(function(e) {
-					var t = i[e];
-					if (x(t)) u(e, i[e][0], i[e][1]);
-					else {
-						if ("asap" !== t) throw new k.InvalidArgument("Invalid event config");
-						var n = u(e, ve, function() {
-							for (var e = arguments.length, t = new Array(e); e--;) t[e] = arguments[e];
-							n.subscribers.forEach(function(e) {
-								Q(function() {
-									e.apply(null, t);
-								});
-							});
-						});
-					}
-				});
-			}
-		}
-		function Kt(e, t) {
-			return U(t).from({ prototype: e }), t;
-		}
-		function Et(e, t) {
-			return !(e.filter || e.algorithm || e.or) && (t ? e.justLimit : !e.replayFilter);
-		}
-		function St(e, t) {
-			e.filter = pt(e.filter, t);
-		}
-		function At(e, t, n) {
-			var r = e.replayFilter;
-			e.replayFilter = r ? function() {
-				return pt(r(), t());
-			} : t, e.justLimit = n && !r;
-		}
-		function jt(e, t) {
-			if (e.isPrimKey) return t.primaryKey;
-			var n = t.getIndexByKeyPath(e.index);
-			if (n) return n;
-			throw new k.Schema("KeyPath " + e.index + " on object store " + t.name + " is not indexed");
-		}
-		function Ct(e, t, n) {
-			var r = jt(e, t.schema);
-			return t.openCursor({
-				trans: n,
-				values: !e.keysOnly,
-				reverse: "prev" === e.dir,
-				unique: !!e.unique,
-				query: {
-					index: r,
-					range: e.range
-				}
-			});
-		}
-		function Tt(e, o, t, n) {
-			var a, r, u = e.replayFilter ? pt(e.filter, e.replayFilter()) : e.filter;
-			return e.or ? (a = {}, r = function(e, t, n) {
-				var r, i;
-				u && !u(t, n, function(e) {
-					return t.stop(e);
-				}, function(e) {
-					return t.fail(e);
-				}) || ("[object ArrayBuffer]" === (i = "" + (r = t.primaryKey)) && (i = "" + new Uint8Array(r)), m(a, i)) || (a[i] = !0, o(e, t, n));
-			}, Promise.all([e.or._iterate(r, t), It(Ct(e, n, t), e.algorithm, r, !e.keysOnly && e.valueMapper)])) : It(Ct(e, n, t), pt(e.algorithm, u), o, !e.keysOnly && e.valueMapper);
-		}
-		function It(e, r, i, o) {
-			var a = E(o ? function(e, t, n) {
-				return i(o(e), t, n);
-			} : i);
-			return e.then(function(n) {
-				if (n) return n.start(function() {
-					var t = function() {
-						return n.continue();
-					};
-					r && !r(n, function(e) {
-						return t = e;
-					}, function(e) {
-						n.stop(e), t = g;
-					}, function(e) {
-						n.fail(e), t = g;
-					}) || a(n.value, n, function(e) {
-						return t = e;
-					}), t();
-				});
-			});
-		}
-		i.prototype._read = function(e, t) {
-			var n = this._ctx;
-			return n.error ? n.table._trans(null, S.bind(null, n.error)) : n.table._trans("readonly", e).then(t);
-		}, i.prototype._write = function(e) {
-			var t = this._ctx;
-			return t.error ? t.table._trans(null, S.bind(null, t.error)) : t.table._trans("readwrite", e, "locked");
-		}, i.prototype._addAlgorithm = function(e) {
-			var t = this._ctx;
-			t.algorithm = pt(t.algorithm, e);
-		}, i.prototype._iterate = function(e, t) {
-			return Tt(this._ctx, e, t, this._ctx.table.core);
-		}, i.prototype.clone = function(e) {
-			var t = Object.create(this.constructor.prototype), n = Object.create(this._ctx);
-			return e && a(n, e), t._ctx = n, t;
-		}, i.prototype.raw = function() {
-			return this._ctx.valueMapper = null, this;
-		}, i.prototype.each = function(t) {
-			var n = this._ctx;
-			return this._read(function(e) {
-				return Tt(n, t, e, n.table.core);
-			});
-		}, i.prototype.count = function(e) {
-			var i = this;
-			return this._read(function(e) {
-				var t, n = i._ctx, r = n.table.core;
-				return Et(n, !0) ? r.count({
-					trans: e,
-					query: {
-						index: jt(n, r.schema),
-						range: n.range
-					}
-				}).then(function(e) {
-					return Math.min(e, n.limit);
-				}) : (t = 0, Tt(n, function() {
-					return ++t, !1;
-				}, e, r).then(function() {
-					return t;
-				}));
-			}).then(e);
-		}, i.prototype.sortBy = function(e, t) {
-			var n = e.split(".").reverse(), r = n[0], i = n.length - 1;
-			function o(e, t) {
-				return t ? o(e[n[t]], t - 1) : e[r];
-			}
-			var a = "next" === this._ctx.dir ? 1 : -1;
-			function u(e, t) {
-				return j(o(e, i), o(t, i)) * a;
-			}
-			return this.toArray(function(e) {
-				return e.slice().sort(u);
-			}).then(t);
-		}, i.prototype.toArray = function(e) {
-			var o = this;
-			return this._read(function(e) {
-				var t, n, r, i = o._ctx;
-				return Et(i, !0) && 0 < i.limit ? (t = i.valueMapper, n = jt(i, i.table.core.schema), i.table.core.query({
-					trans: e,
-					limit: i.limit,
-					values: !0,
-					direction: "prev" === i.dir ? "prev" : void 0,
-					query: {
-						index: n,
-						range: i.range
-					}
-				}).then(function(e) {
-					e = e.result;
-					return t ? e.map(t) : e;
-				})) : (r = [], Tt(i, function(e) {
-					return r.push(e);
-				}, e, i.table.core).then(function() {
-					return r;
-				}));
-			}, e);
-		}, i.prototype.offset = function(t) {
-			var e = this._ctx;
-			return t <= 0 || (e.offset += t, Et(e) ? At(e, function() {
-				var n = t;
-				return function(e, t) {
-					return 0 === n || (1 === n ? --n : t(function() {
-						e.advance(n), n = 0;
-					}), !1);
-				};
-			}) : At(e, function() {
-				var e = t;
-				return function() {
-					return --e < 0;
-				};
-			})), this;
-		}, i.prototype.limit = function(e) {
-			return this._ctx.limit = Math.min(this._ctx.limit, e), At(this._ctx, function() {
-				var r = e;
-				return function(e, t, n) {
-					return --r <= 0 && t(n), 0 <= r;
-				};
-			}, !0), this;
-		}, i.prototype.until = function(r, i) {
-			return St(this._ctx, function(e, t, n) {
-				return !r(e.value) || (t(n), i);
-			}), this;
-		}, i.prototype.first = function(e) {
-			return this.limit(1).toArray(function(e) {
-				return e[0];
-			}).then(e);
-		}, i.prototype.last = function(e) {
-			return this.reverse().first(e);
-		}, i.prototype.filter = function(t) {
-			var e;
-			return St(this._ctx, function(e) {
-				return t(e.value);
-			}), (e = this._ctx).isMatch = pt(e.isMatch, t), this;
-		}, i.prototype.and = function(e) {
-			return this.filter(e);
-		}, i.prototype.or = function(e) {
-			return new this.db.WhereClause(this._ctx.table, e, this);
-		}, i.prototype.reverse = function() {
-			return this._ctx.dir = "prev" === this._ctx.dir ? "next" : "prev", this._ondirectionchange && this._ondirectionchange(this._ctx.dir), this;
-		}, i.prototype.desc = function() {
-			return this.reverse();
-		}, i.prototype.eachKey = function(n) {
-			var e = this._ctx;
-			return e.keysOnly = !e.isMatch, this.each(function(e, t) {
-				n(t.key, t);
-			});
-		}, i.prototype.eachUniqueKey = function(e) {
-			return this._ctx.unique = "unique", this.eachKey(e);
-		}, i.prototype.eachPrimaryKey = function(n) {
-			var e = this._ctx;
-			return e.keysOnly = !e.isMatch, this.each(function(e, t) {
-				n(t.primaryKey, t);
-			});
-		}, i.prototype.keys = function(e) {
-			var t = this._ctx, n = (t.keysOnly = !t.isMatch, []);
-			return this.each(function(e, t) {
-				n.push(t.key);
-			}).then(function() {
-				return n;
-			}).then(e);
-		}, i.prototype.primaryKeys = function(e) {
-			var n = this._ctx;
-			if (Et(n, !0) && 0 < n.limit) return this._read(function(e) {
-				var t = jt(n, n.table.core.schema);
-				return n.table.core.query({
-					trans: e,
-					values: !1,
-					limit: n.limit,
-					direction: "prev" === n.dir ? "prev" : void 0,
-					query: {
-						index: t,
-						range: n.range
-					}
-				});
-			}).then(function(e) {
-				return e.result;
-			}).then(e);
-			n.keysOnly = !n.isMatch;
-			var r = [];
-			return this.each(function(e, t) {
-				r.push(t.primaryKey);
-			}).then(function() {
-				return r;
-			}).then(e);
-		}, i.prototype.uniqueKeys = function(e) {
-			return this._ctx.unique = "unique", this.keys(e);
-		}, i.prototype.firstKey = function(e) {
-			return this.limit(1).keys(function(e) {
-				return e[0];
-			}).then(e);
-		}, i.prototype.lastKey = function(e) {
-			return this.reverse().firstKey(e);
-		}, i.prototype.distinct = function() {
-			var n, e = this._ctx, e = e.index && e.table.schema.idxByName[e.index];
-			return e && e.multi && (n = {}, St(this._ctx, function(e) {
-				var e = e.primaryKey.toString(), t = m(n, e);
-				return n[e] = !0, !t;
-			})), this;
-		}, i.prototype.modify = function(x) {
-			var n = this, k = this._ctx;
-			return this._write(function(p) {
-				function y(e, t) {
-					var n = t.failures;
-					u += e - t.numFailures;
-					for (var r = 0, i = O(n); r < i.length; r++) {
-						var o = i[r];
-						a.push(n[o]);
-					}
-				}
-				var v = "function" == typeof x ? x : function(e) {
-					return kt(e, x);
-				}, m = k.table.core, e = m.schema.primaryKey, b = e.outbound, g = e.extractKey, w = 200, e = n.db._options.modifyChunkSize, a = (e && (w = "object" == typeof e ? e[m.name] || e["*"] || 200 : e), []), u = 0, t = [], _ = x === Dt;
-				return n.clone().primaryKeys().then(function(f) {
-					function h(s) {
-						var c = Math.min(w, f.length - s), l = f.slice(s, s + c);
-						return (_ ? Promise.resolve([]) : m.getMany({
-							trans: p,
-							keys: l,
-							cache: "immutable"
-						})).then(function(e) {
-							var n = [], t = [], r = b ? [] : null, i = _ ? l : [];
-							if (!_) for (var o = 0; o < c; ++o) {
-								var a = e[o], u = {
-									value: ee(a),
-									primKey: f[s + o]
-								};
-								!1 !== v.call(u, u.value, u) && (null == u.value ? i.push(f[s + o]) : b || 0 === j(g(a), g(u.value)) ? (t.push(u.value), b && r.push(f[s + o])) : (i.push(f[s + o]), n.push(u.value)));
-							}
-							return Promise.resolve(0 < n.length && m.mutate({
-								trans: p,
-								type: "add",
-								values: n
-							}).then(function(e) {
-								for (var t in e.failures) i.splice(parseInt(t), 1);
-								y(n.length, e);
-							})).then(function() {
-								return (0 < t.length || d && "object" == typeof x) && m.mutate({
-									trans: p,
-									type: "put",
-									keys: r,
-									values: t,
-									criteria: d,
-									changeSpec: "function" != typeof x && x,
-									isAdditionalChunk: 0 < s
-								}).then(function(e) {
-									return y(t.length, e);
-								});
-							}).then(function() {
-								return (0 < i.length || d && _) && m.mutate({
-									trans: p,
-									type: "delete",
-									keys: i,
-									criteria: d,
-									isAdditionalChunk: 0 < s
-								}).then(function(e) {
-									return wt(k.table, i, e);
-								}).then(function(e) {
-									return y(i.length, e);
-								});
-							}).then(function() {
-								return f.length > s + c && h(s + w);
-							});
-						});
-					}
-					var d = Et(k) && k.limit === 1 / 0 && ("function" != typeof x || _) && {
-						index: k.index,
-						range: k.range
-					};
-					return h(0).then(function() {
-						if (0 < a.length) throw new fe("Error modifying one or more objects", a, u, t);
-						return f.length;
-					});
-				});
-			});
-		}, i.prototype.delete = function() {
-			var i = this._ctx, n = i.range;
-			return !Et(i) || i.table.schema.yProps || !i.isPrimKey && 3 !== n.type ? this.modify(Dt) : this._write(function(e) {
-				var t = i.table.core.schema.primaryKey, r = n;
-				return i.table.core.count({
-					trans: e,
-					query: {
-						index: t,
-						range: r
-					}
-				}).then(function(n) {
-					return i.table.core.mutate({
-						trans: e,
-						type: "deleteRange",
-						range: r
-					}).then(function(e) {
-						var t = e.failures, e = e.numFailures;
-						if (e) throw new fe("Could not delete some values", Object.keys(t).map(function(e) {
-							return t[e];
-						}), n - e);
-						return n - e;
-					});
-				});
-			});
-		};
-		var qt = i;
-		function i() {}
-		var Dt = function(e, t) {
-			return t.value = null;
-		};
-		function Bt(e, t) {
-			return e < t ? -1 : e === t ? 0 : 1;
-		}
-		function Rt(e, t) {
-			return t < e ? -1 : e === t ? 0 : 1;
-		}
-		function C(e, t, n) {
-			e = e instanceof Lt ? new e.Collection(e) : e;
-			return e._ctx.error = new (n || TypeError)(t), e;
-		}
-		function Ft(e) {
-			return new e.Collection(e, function() {
-				return Mt("");
-			}).limit(0);
-		}
-		function Nt(e, s, n, r) {
-			var i, c, l, f, h, d, p, y = n.length;
-			if (!n.every(function(e) {
-				return "string" == typeof e;
-			})) return C(e, lt);
-			function t(e) {
-				i = "next" === e ? function(e) {
-					return e.toUpperCase();
-				} : function(e) {
-					return e.toLowerCase();
-				}, c = "next" === e ? function(e) {
-					return e.toLowerCase();
-				} : function(e) {
-					return e.toUpperCase();
-				}, l = "next" === e ? Bt : Rt;
-				var t = n.map(function(e) {
-					return {
-						lower: c(e),
-						upper: i(e)
-					};
-				}).sort(function(e, t) {
-					return l(e.lower, t.lower);
-				});
-				f = t.map(function(e) {
-					return e.upper;
-				}), h = t.map(function(e) {
-					return e.lower;
-				}), p = "next" === (d = e) ? "" : r;
-			}
-			t("next");
-			var e = new e.Collection(e, function() {
-				return T(f[0], h[y - 1] + r);
-			}), v = (e._ondirectionchange = function(e) {
-				t(e);
-			}, 0);
-			return e._addAlgorithm(function(e, t, n) {
-				var r = e.key;
-				if ("string" == typeof r) {
-					var i = c(r);
-					if (s(i, h, v)) return !0;
-					for (var o = null, a = v; a < y; ++a) {
-						var u = ((e, t, n, r, i, o) => {
-							for (var a = Math.min(e.length, r.length), u = -1, s = 0; s < a; ++s) {
-								var c = t[s];
-								if (c !== r[s]) return i(e[s], n[s]) < 0 ? e.substr(0, s) + n[s] + n.substr(s + 1) : i(e[s], r[s]) < 0 ? e.substr(0, s) + r[s] + n.substr(s + 1) : 0 <= u ? e.substr(0, u) + t[u] + n.substr(u + 1) : null;
-								i(e[s], c) < 0 && (u = s);
-							}
-							return a < r.length && "next" === o ? e + n.substr(e.length) : a < e.length && "prev" === o ? e.substr(0, n.length) : u < 0 ? null : e.substr(0, u) + r[u] + n.substr(u + 1);
-						})(r, i, f[a], h[a], l, d);
-						null === u && null === o ? v = a + 1 : (null === o || 0 < l(o, u)) && (o = u);
-					}
-					t(null !== o ? function() {
-						e.continue(o + p);
-					} : n);
-				}
-				return !1;
-			}), e;
-		}
-		function T(e, t, n, r) {
-			return {
-				type: 2,
-				lower: e,
-				upper: t,
-				lowerOpen: n,
-				upperOpen: r
+				var prefixToReplace = (_a = spec.replacePrefix) === null || _a === void 0 ? void 0 : _a[0];
+				if (prefixToReplace && typeof value === "string" && value.startsWith(prefixToReplace)) return spec.replacePrefix[1] + value.substring(prefixToReplace.length);
+				return value;
 			};
+			return PropModification;
+		}();
+		function applyUpdateSpec(obj, changes) {
+			var keyPaths = keys(changes);
+			var numKeys = keyPaths.length;
+			var anythingModified = false;
+			for (var i = 0; i < numKeys; ++i) {
+				var keyPath = keyPaths[i];
+				var value = changes[keyPath];
+				var origValue = getByKeyPath(obj, keyPath);
+				if (value instanceof PropModification) {
+					setByKeyPath(obj, keyPath, value.execute(origValue));
+					anythingModified = true;
+				} else if (origValue !== value) {
+					setByKeyPath(obj, keyPath, value);
+					anythingModified = true;
+				}
+			}
+			return anythingModified;
 		}
-		function Mt(e) {
-			return {
-				type: 1,
-				lower: e,
-				upper: e
-			};
-		}
-		Object.defineProperty(d.prototype, "Collection", {
-			get: function() {
-				return this._ctx.table.db.Collection;
-			},
-			enumerable: !1,
-			configurable: !0
-		}), d.prototype.between = function(e, t, n, r) {
-			n = !1 !== n, r = !0 === r;
-			try {
-				return 0 < this._cmp(e, t) || 0 === this._cmp(e, t) && (n || r) && (!n || !r) ? Ft(this) : new this.Collection(this, function() {
-					return T(e, t, !n, !r);
-				});
-			} catch (e) {
-				return C(this, A);
-			}
-		}, d.prototype.equals = function(e) {
-			return null == e ? C(this, A) : new this.Collection(this, function() {
-				return Mt(e);
-			});
-		}, d.prototype.above = function(e) {
-			return null == e ? C(this, A) : new this.Collection(this, function() {
-				return T(e, void 0, !0);
-			});
-		}, d.prototype.aboveOrEqual = function(e) {
-			return null == e ? C(this, A) : new this.Collection(this, function() {
-				return T(e, void 0, !1);
-			});
-		}, d.prototype.below = function(e) {
-			return null == e ? C(this, A) : new this.Collection(this, function() {
-				return T(void 0, e, !1, !0);
-			});
-		}, d.prototype.belowOrEqual = function(e) {
-			return null == e ? C(this, A) : new this.Collection(this, function() {
-				return T(void 0, e);
-			});
-		}, d.prototype.startsWith = function(e) {
-			return "string" != typeof e ? C(this, lt) : this.between(e, e + ct, !0, !0);
-		}, d.prototype.startsWithIgnoreCase = function(e) {
-			return "" === e ? this.startsWith(e) : Nt(this, function(e, t) {
-				return 0 === e.indexOf(t[0]);
-			}, [e], ct);
-		}, d.prototype.equalsIgnoreCase = function(e) {
-			return Nt(this, function(e, t) {
-				return e === t[0];
-			}, [e], "");
-		}, d.prototype.anyOfIgnoreCase = function() {
-			var e = n.apply(ae, arguments);
-			return 0 === e.length ? Ft(this) : Nt(this, function(e, t) {
-				return -1 !== t.indexOf(e);
-			}, e, "");
-		}, d.prototype.startsWithAnyOfIgnoreCase = function() {
-			var e = n.apply(ae, arguments);
-			return 0 === e.length ? Ft(this) : Nt(this, function(t, e) {
-				return e.some(function(e) {
-					return 0 === t.indexOf(e);
-				});
-			}, e, ct);
-		}, d.prototype.anyOf = function() {
-			var e, i, t = this, o = n.apply(ae, arguments), a = this._cmp;
-			try {
-				o.sort(a);
-			} catch (e) {
-				return C(this, A);
-			}
-			return 0 === o.length ? Ft(this) : ((e = new this.Collection(this, function() {
-				return T(o[0], o[o.length - 1]);
-			}))._ondirectionchange = function(e) {
-				a = "next" === e ? t._ascending : t._descending, o.sort(a);
-			}, i = 0, e._addAlgorithm(function(e, t, n) {
-				for (var r = e.key; 0 < a(r, o[i]);) if (++i === o.length) return t(n), !1;
-				return 0 === a(r, o[i]) || (t(function() {
-					e.continue(o[i]);
-				}), !1);
-			}), e);
-		}, d.prototype.notEqual = function(e) {
-			return this.inAnyRange([[-1 / 0, e], [e, this.db._maxKey]], {
-				includeLowers: !1,
-				includeUppers: !1
-			});
-		}, d.prototype.noneOf = function() {
-			var e = n.apply(ae, arguments);
-			if (0 === e.length) return new this.Collection(this);
-			try {
-				e.sort(this._ascending);
-			} catch (e) {
-				return C(this, A);
-			}
-			var t = e.reduce(function(e, t) {
-				return e ? e.concat([[e[e.length - 1][1], t]]) : [[-1 / 0, t]];
-			}, null);
-			return t.push([e[e.length - 1], this.db._maxKey]), this.inAnyRange(t, {
-				includeLowers: !1,
-				includeUppers: !1
-			});
-		}, d.prototype.inAnyRange = function(e, t) {
-			var o = this, a = this._cmp, u = this._ascending, n = this._descending, s = this._min, c = this._max;
-			if (0 === e.length) return Ft(this);
-			if (!e.every(function(e) {
-				return void 0 !== e[0] && void 0 !== e[1] && u(e[0], e[1]) <= 0;
-			})) return C(this, "First argument to inAnyRange() must be an Array of two-value Arrays [lower,upper] where upper must not be lower than lower", k.InvalidArgument);
-			var r = !t || !1 !== t.includeLowers, i = t && !0 === t.includeUppers;
-			var l, f = u;
-			function h(e, t) {
-				return f(e[0], t[0]);
-			}
-			try {
-				(l = e.reduce(function(e, t) {
-					for (var n = 0, r = e.length; n < r; ++n) {
-						var i = e[n];
-						if (a(t[0], i[1]) < 0 && 0 < a(t[1], i[0])) {
-							i[0] = s(i[0], t[0]), i[1] = c(i[1], t[1]);
-							break;
-						}
-					}
-					return n === r && e.push(t), e;
-				}, [])).sort(h);
-			} catch (e) {
-				return C(this, A);
-			}
-			var d = 0, p = i ? function(e) {
-				return 0 < u(e, l[d][1]);
-			} : function(e) {
-				return 0 <= u(e, l[d][1]);
-			}, y = r ? function(e) {
-				return 0 < n(e, l[d][0]);
-			} : function(e) {
-				return 0 <= n(e, l[d][0]);
-			};
-			var v = p, t = new this.Collection(this, function() {
-				return T(l[0][0], l[l.length - 1][1], !r, !i);
-			});
-			return t._ondirectionchange = function(e) {
-				f = "next" === e ? (v = p, u) : (v = y, n), l.sort(h);
-			}, t._addAlgorithm(function(e, t, n) {
-				for (var r, i = e.key; v(i);) if (++d === l.length) return t(n), !1;
-				return !p(r = i) && !y(r) || (0 === o._cmp(i, l[d][1]) || 0 === o._cmp(i, l[d][0]) || t(function() {
-					f === u ? e.continue(l[d][0]) : e.continue(l[d][1]);
-				}), !1);
-			}), t;
-		}, d.prototype.startsWithAnyOf = function() {
-			var e = n.apply(ae, arguments);
-			return e.every(function(e) {
-				return "string" == typeof e;
-			}) ? 0 === e.length ? Ft(this) : this.inAnyRange(e.map(function(e) {
-				return [e, e + ct];
-			})) : C(this, "startsWithAnyOf() only works with strings");
-		};
-		var Lt = d;
-		function d() {}
-		function I(t) {
-			return E(function(e) {
-				return Ut(e), t(e.target.error), !1;
-			});
-		}
-		function Ut(e) {
-			e.stopPropagation && e.stopPropagation(), e.preventDefault && e.preventDefault();
-		}
-		var zt = "storagemutated", Vt = "x-storagemutated-1", Wt = Pt(null, zt), Yt = (p.prototype._lock = function() {
-			return $(!P.global), ++this._reculock, 1 !== this._reculock || P.global || (P.lockOwnerFor = this), this;
-		}, p.prototype._unlock = function() {
-			if ($(!P.global), 0 == --this._reculock) for (P.global || (P.lockOwnerFor = null); 0 < this._blockedFuncs.length && !this._locked();) {
-				var e = this._blockedFuncs.shift();
+		var Table = function() {
+			function Table() {}
+			Table.prototype._trans = function(mode, fn, writeLocked) {
+				var trans = this._tx || PSD.trans;
+				var tableName = this.name;
+				var task = debug && typeof console !== "undefined" && console.createTask && console.createTask("Dexie: ".concat(mode === "readonly" ? "read" : "write", " ").concat(this.name));
+				function checkTableInTransaction(resolve, reject, trans) {
+					if (!trans.schema[tableName]) throw new exceptions.NotFound("Table " + tableName + " not part of transaction");
+					return fn(trans.idbtrans, trans);
+				}
+				var wasRootExec = beginMicroTickScope();
 				try {
-					at(e[1], e[0]);
-				} catch (e) {}
-			}
-			return this;
-		}, p.prototype._locked = function() {
-			return this._reculock && P.lockOwnerFor !== this;
-		}, p.prototype.create = function(t) {
-			var n = this;
-			if (this.mode) {
-				var e = this.db.idbdb, r = this.db._state.dbOpenError;
-				if ($(!this.idbtrans), !t && !e) switch (r && r.name) {
-					case "DatabaseClosedError": throw new k.DatabaseClosed(r);
-					case "MissingAPIError": throw new k.MissingAPI(r.message, r);
-					default: throw new k.OpenFailed(r);
-				}
-				if (!this.active) throw new k.TransactionInactive();
-				$(null === this._completion._state), (t = this.idbtrans = t || (this.db.core || e).transaction(this.storeNames, this.mode, { durability: this.chromeTransactionDurability })).onerror = E(function(e) {
-					Ut(e), n._reject(t.error);
-				}), t.onabort = E(function(e) {
-					Ut(e), n.active && n._reject(new k.Abort(t.error)), n.active = !1, n.on("abort").fire(e);
-				}), t.oncomplete = E(function() {
-					n.active = !1, n._resolve(), "mutatedParts" in t && Wt.storagemutated.fire(t.mutatedParts);
-				});
-			}
-			return this;
-		}, p.prototype._promise = function(n, r, i) {
-			var e, o = this;
-			return "readwrite" === n && "readwrite" !== this.mode ? S(new k.ReadOnly("Transaction is readonly")) : this.active ? this._locked() ? new K(function(e, t) {
-				o._blockedFuncs.push([function() {
-					o._promise(n, r, i).then(e, t);
-				}, P]);
-			}) : i ? v(function() {
-				var e = new K(function(e, t) {
-					o._lock();
-					var n = r(e, t, o);
-					n && n.then && n.then(e, t);
-				});
-				return e.finally(function() {
-					return o._unlock();
-				}), e._lib = !0, e;
-			}) : ((e = new K(function(e, t) {
-				var n = r(e, t, o);
-				n && n.then && n.then(e, t);
-			}))._lib = !0, e) : S(new k.TransactionInactive());
-		}, p.prototype._root = function() {
-			return this.parent ? this.parent._root() : this;
-		}, p.prototype.waitFor = function(e) {
-			var t, r = this._root(), i = K.resolve(e), o = (r._waitingFor ? r._waitingFor = r._waitingFor.then(function() {
-				return i;
-			}) : (r._waitingFor = i, r._waitingQueue = [], t = r.idbtrans.objectStore(r.storeNames[0]), function e() {
-				for (++r._spinCount; r._waitingQueue.length;) r._waitingQueue.shift()();
-				r._waitingFor && (t.get(-1 / 0).onsuccess = e);
-			}()), r._waitingFor);
-			return new K(function(t, n) {
-				i.then(function(e) {
-					return r._waitingQueue.push(E(t.bind(null, e)));
-				}, function(e) {
-					return r._waitingQueue.push(E(n.bind(null, e)));
-				}).finally(function() {
-					r._waitingFor === o && (r._waitingFor = null);
-				});
-			});
-		}, p.prototype.abort = function() {
-			this.active && (this.active = !1, this.idbtrans && this.idbtrans.abort(), this._reject(new k.Abort()));
-		}, p.prototype.table = function(e) {
-			var t = this._memoizedTables || (this._memoizedTables = {});
-			if (m(t, e)) return t[e];
-			var n = this.schema[e];
-			if (n) return (n = new this.db.Table(e, n, this)).core = this.db.core.table(e), t[e] = n;
-			throw new k.NotFound("Table " + e + " not part of transaction");
-		}, p);
-		function p() {}
-		function $t(e, t, n, r, i, o, a, u) {
-			return {
-				name: e,
-				keyPath: t,
-				unique: n,
-				multi: r,
-				auto: i,
-				compound: o,
-				src: (n && !a ? "&" : "") + (r ? "*" : "") + (i ? "++" : "") + Qt(t),
-				type: u
-			};
-		}
-		function Qt(e) {
-			return "string" == typeof e ? e : e ? "[" + [].join.call(e, "+") + "]" : "";
-		}
-		function Gt(e, t, n) {
-			return {
-				name: e,
-				primKey: t,
-				indexes: n,
-				mappedClass: null,
-				idxByName: (r = function(e) {
-					return [e.name, e];
-				}, n.reduce(function(e, t, n) {
-					t = r(t, n);
-					return t && (e[t[0]] = t[1]), e;
-				}, {}))
-			};
-			var r;
-		}
-		var Xt = function(e) {
-			try {
-				return e.only([[]]), Xt = function() {
-					return [[]];
-				}, [[]];
-			} catch (e) {
-				return Xt = function() {
-					return ct;
-				}, ct;
-			}
-		};
-		function Ht(t) {
-			return null == t ? function() {} : "string" == typeof t ? 1 === (n = t).split(".").length ? function(e) {
-				return e[n];
-			} : function(e) {
-				return c(e, n);
-			} : function(e) {
-				return c(e, t);
-			};
-			var n;
-		}
-		function Jt(e) {
-			return [].slice.call(e);
-		}
-		var Zt = 0;
-		function en(e) {
-			return null == e ? ":id" : "string" == typeof e ? e : "[".concat(e.join("+"), "]");
-		}
-		function tn(e, i, t) {
-			function _(e) {
-				if (3 === e.type) return null;
-				if (4 === e.type) throw new Error("Cannot convert never type to IDBKeyRange");
-				var t = e.lower, n = e.upper, r = e.lowerOpen, e = e.upperOpen;
-				return void 0 === t ? void 0 === n ? null : i.upperBound(n, !!e) : void 0 === n ? i.lowerBound(t, !!r) : i.bound(t, n, !!r, !!e);
-			}
-			function n(e) {
-				var p, y, w = e.name;
-				return {
-					name: w,
-					schema: e,
-					mutate: function(e) {
-						var y = e.trans, v = e.type, m = e.keys, b = e.values, g = e.range;
-						return new Promise(function(t, e) {
-							t = E(t);
-							var n = y.objectStore(w), r = null == n.keyPath, i = "put" === v || "add" === v;
-							if (!i && "delete" !== v && "deleteRange" !== v) throw new Error("Invalid operation type: " + v);
-							var o, a = (m || b || { length: 1 }).length;
-							if (m && b && m.length !== b.length) throw new Error("Given keys array must have same length as given values array.");
-							if (0 === a) return t({
-								numFailures: 0,
-								failures: {},
-								results: [],
-								lastResult: void 0
-							});
-							function u(e) {
-								++l, Ut(e);
-							}
-							var s = [], c = [], l = 0;
-							if ("deleteRange" === v) {
-								if (4 === g.type) return t({
-									numFailures: l,
-									failures: c,
-									results: [],
-									lastResult: void 0
-								});
-								3 === g.type ? s.push(o = n.clear()) : s.push(o = n.delete(_(g)));
-							} else {
-								var r = i ? r ? [b, m] : [b, null] : [m, null], f = r[0], h = r[1];
-								if (i) for (var d = 0; d < a; ++d) s.push(o = h && void 0 !== h[d] ? n[v](f[d], h[d]) : n[v](f[d])), o.onerror = u;
-								else for (d = 0; d < a; ++d) s.push(o = n[v](f[d])), o.onerror = u;
-							}
-							function p(e) {
-								e = e.target.result, s.forEach(function(e, t) {
-									return null != e.error && (c[t] = e.error);
-								}), t({
-									numFailures: l,
-									failures: c,
-									results: "delete" === v ? m : s.map(function(e) {
-										return e.result;
-									}),
-									lastResult: e
-								});
-							}
-							o.onerror = function(e) {
-								u(e), p(e);
-							}, o.onsuccess = p;
-						});
-					},
-					getMany: function(e) {
-						var f = e.trans, h = e.keys;
-						return new Promise(function(t, e) {
-							t = E(t);
-							for (var n, r = f.objectStore(w), i = h.length, o = new Array(i), a = 0, u = 0, s = function(e) {
-								e = e.target;
-								o[e._pos] = e.result, ++u === a && t(o);
-							}, c = I(e), l = 0; l < i; ++l) null != h[l] && ((n = r.get(h[l]))._pos = l, n.onsuccess = s, n.onerror = c, ++a);
-							0 === a && t(o);
-						});
-					},
-					get: function(e) {
-						var r = e.trans, i = e.key;
-						return new Promise(function(t, e) {
-							t = E(t);
-							var n = r.objectStore(w).get(i);
-							n.onsuccess = function(e) {
-								return t(e.target.result);
-							}, n.onerror = I(e);
-						});
-					},
-					query: (p = a, y = u, function(d) {
-						return new Promise(function(t, e) {
-							t = E(t);
-							var n, r, i, o, a = d.trans, u = d.values, s = d.limit, c = d.query, l = null != (l = d.direction) ? l : "next", f = s === 1 / 0 ? void 0 : s, h = c.index, c = c.range, a = a.objectStore(w), a = h.isPrimaryKey ? a : a.index(h.name), h = _(c);
-							if (0 === s) return t({ result: [] });
-							y ? (c = {
-								query: h,
-								count: f,
-								direction: l
-							}, (n = u ? a.getAll(c) : a.getAllKeys(c)).onsuccess = function(e) {
-								return t({ result: e.target.result });
-							}, n.onerror = I(e)) : p && "next" === l ? ((n = u ? a.getAll(h, f) : a.getAllKeys(h, f)).onsuccess = function(e) {
-								return t({ result: e.target.result });
-							}, n.onerror = I(e)) : (r = 0, i = !u && "openKeyCursor" in a ? a.openKeyCursor(h, l) : a.openCursor(h, l), o = [], i.onsuccess = function() {
-								var e = i.result;
-								return !e || (o.push(u ? e.value : e.primaryKey), ++r === s) ? t({ result: o }) : void e.continue();
-							}, i.onerror = I(e));
-						});
-					}),
-					openCursor: function(e) {
-						var c = e.trans, o = e.values, a = e.query, u = e.reverse, l = e.unique;
-						return new Promise(function(t, n) {
-							t = E(t);
-							var e = a.index, r = a.range, i = c.objectStore(w), i = e.isPrimaryKey ? i : i.index(e.name), e = u ? l ? "prevunique" : "prev" : l ? "nextunique" : "next", s = !o && "openKeyCursor" in i ? i.openKeyCursor(_(r), e) : i.openCursor(_(r), e);
-							s.onerror = I(n), s.onsuccess = E(function(e) {
-								var r, i, o, a, u = s.result;
-								u ? (u.___id = ++Zt, u.done = !1, r = u.continue.bind(u), i = (i = u.continuePrimaryKey) && i.bind(u), o = u.advance.bind(u), a = function() {
-									throw new Error("Cursor not stopped");
-								}, u.trans = c, u.stop = u.continue = u.continuePrimaryKey = u.advance = function() {
-									throw new Error("Cursor not started");
-								}, u.fail = E(n), u.next = function() {
-									var e = this, t = 1;
-									return this.start(function() {
-										return t-- ? e.continue() : e.stop();
-									}).then(function() {
-										return e;
-									});
-								}, u.start = function(e) {
-									function t() {
-										if (s.result) try {
-											e();
-										} catch (e) {
-											u.fail(e);
-										}
-										else u.done = !0, u.start = function() {
-											throw new Error("Cursor behind last entry");
-										}, u.stop();
-									}
-									var n = new Promise(function(t, e) {
-										t = E(t), s.onerror = I(e), u.fail = e, u.stop = function(e) {
-											u.stop = u.continue = u.continuePrimaryKey = u.advance = a, t(e);
-										};
-									});
-									return s.onsuccess = E(function(e) {
-										s.onsuccess = t, t();
-									}), u.continue = r, u.continuePrimaryKey = i, u.advance = o, t(), n;
-								}, t(u)) : t(null);
-							}, n);
-						});
-					},
-					count: function(e) {
-						var t = e.query, i = e.trans, o = t.index, a = t.range;
-						return new Promise(function(t, e) {
-							var n = i.objectStore(w), n = o.isPrimaryKey ? n : n.index(o.name), r = _(a), r = r ? n.count(r) : n.count();
-							r.onsuccess = E(function(e) {
-								return t(e.target.result);
-							}), r.onerror = I(e);
+					var p = trans && trans.db._novip === this.db._novip ? trans === PSD.trans ? trans._promise(mode, checkTableInTransaction, writeLocked) : newScope(function() {
+						return trans._promise(mode, checkTableInTransaction, writeLocked);
+					}, {
+						trans,
+						transless: PSD.transless || PSD
+					}) : tempTransaction(this.db, mode, [this.name], checkTableInTransaction);
+					if (task) {
+						p._consoleTask = task;
+						p = p.catch(function(err) {
+							console.trace(err);
+							return rejection(err);
 						});
 					}
-				};
-			}
-			r = t, o = Jt((t = e).objectStoreNames), s = 0 < o.length ? r.objectStore(o[0]) : {};
-			var r, t = {
-				schema: {
-					name: t.name,
-					tables: o.map(function(e) {
-						return r.objectStore(e);
-					}).map(function(t) {
-						var e = t.keyPath, n = t.autoIncrement, r = x(e), i = {}, r = {
-							name: t.name,
-							primaryKey: {
-								name: null,
-								isPrimaryKey: !0,
-								outbound: null == e,
-								compound: r,
-								keyPath: e,
-								autoIncrement: n,
-								unique: !0,
-								extractKey: Ht(e)
-							},
-							indexes: Jt(t.indexNames).map(function(e) {
-								return t.index(e);
-							}).map(function(e) {
-								var t = e.name, n = e.unique, r = e.multiEntry, e = e.keyPath, t = {
-									name: t,
-									compound: x(e),
-									keyPath: e,
-									unique: n,
-									multiEntry: r,
-									extractKey: Ht(e)
-								};
-								return i[en(e)] = t;
-							}),
-							getIndexByKeyPath: function(e) {
-								return i[en(e)];
-							}
-						};
-						return i[":id"] = r.primaryKey, null != e && (i[en(e)] = r.primaryKey), r;
-					})
-				},
-				hasGetAll: 0 < o.length && "getAll" in s && !("undefined" != typeof navigator && /Safari/.test(navigator.userAgent) && !/(Chrome\/|Edge\/)/.test(navigator.userAgent) && [].concat(navigator.userAgent.match(/Safari\/(\d*)/))[1] < 604),
-				hasIdb3Features: "getAllRecords" in s
-			}, o = t.schema, a = t.hasGetAll, u = t.hasIdb3Features, s = o.tables.map(n), c = {};
-			return s.forEach(function(e) {
-				return c[e.name] = e;
-			}), {
-				stack: "dbcore",
-				transaction: e.transaction.bind(e),
-				table: function(e) {
-					if (c[e]) return c[e];
-					throw new Error("Table '".concat(e, "' not found"));
-				},
-				MIN_KEY: -1 / 0,
-				MAX_KEY: Xt(i),
-				schema: o
+					return p;
+				} finally {
+					if (wasRootExec) endMicroTickScope();
+				}
 			};
-		}
-		function nn(e, t, n, r) {
-			n = n.IDBKeyRange;
-			return t = tn(t, n, r), { dbcore: e.dbcore.reduce(function(e, t) {
-				t = t.create;
-				return _(_({}, e), t(e));
-			}, t) };
-		}
-		function rn(n, e) {
-			var t = e.db, t = nn(n._middlewares, t, n._deps, e);
-			n.core = t.dbcore, n.tables.forEach(function(e) {
-				var t = e.name;
-				n.core.schema.tables.some(function(e) {
-					return e.name === t;
-				}) && (e.core = n.core.table(t), n[t] instanceof n.Table) && (n[t].core = e.core);
-			});
-		}
-		function on(i, e, t, o) {
-			t.forEach(function(n) {
-				var r = o[n];
-				e.forEach(function(e) {
-					var t = function e(t, n) {
-						return z(t, n) || (t = F(t)) && e(t, n);
-					}(e, n);
-					(!t || "value" in t && void 0 === t.value) && (e === i.Transaction.prototype || e instanceof i.Transaction ? u(e, n, {
-						get: function() {
-							return this.table(n);
-						},
-						set: function(e) {
-							L(this, n, {
-								value: e,
-								writable: !0,
-								configurable: !0,
-								enumerable: !0
-							});
-						}
-					}) : e[n] = new i.Table(n, r));
-				});
-			});
-		}
-		function an(n, e) {
-			e.forEach(function(e) {
-				for (var t in e) e[t] instanceof n.Table && delete e[t];
-			});
-		}
-		function un(e, t) {
-			return e._cfg.version - t._cfg.version;
-		}
-		function sn(n, r, i, e) {
-			var o = n._dbSchema, a = (i.objectStoreNames.contains("$meta") && !o.$meta && (o.$meta = Gt("$meta", vn("")[0], []), n._storeNames.push("$meta")), n._createTransaction("readwrite", n._storeNames, o)), u = (a.create(i), a._completion.catch(e), a._reject.bind(a)), s = P.transless || P;
-			v(function() {
-				if (P.trans = a, P.transless = s, 0 !== r) return rn(n, i), t = r, ((e = a).storeNames.includes("$meta") ? e.table("$meta").get("version").then(function(e) {
-					return null != e ? e : t;
-				}) : K.resolve(t)).then(function(e) {
-					var s = n, c = e, l = a, f = i, t = [], e = s._versions, h = s._dbSchema = pn(0, s.idbdb, f);
-					return 0 === (e = e.filter(function(e) {
-						return e._cfg.version >= c;
-					})).length ? K.resolve() : (e.forEach(function(u) {
-						t.push(function() {
-							var t, n, r, i = h, e = u._cfg.dbschema, o = (yn(s, i, f), yn(s, e, f), h = s._dbSchema = e, ln(i, e)), a = (o.add.forEach(function(e) {
-								fn(f, e[0], e[1].primKey, e[1].indexes);
-							}), o.change.forEach(function(e) {
-								if (e.recreate) throw new k.Upgrade("Not yet support for changing primary key");
-								var t = f.objectStore(e.name);
-								e.add.forEach(function(e) {
-									return dn(t, e);
-								}), e.change.forEach(function(e) {
-									t.deleteIndex(e.name), dn(t, e);
-								}), e.del.forEach(function(e) {
-									return t.deleteIndex(e);
-								});
-							}), u._cfg.contentUpgrade);
-							if (a && u._cfg.version > c) return rn(s, f), l._memoizedTables = {}, t = G(e), o.del.forEach(function(e) {
-								t[e] = i[e];
-							}), an(s, [s.Transaction.prototype]), on(s, [s.Transaction.prototype], O(t), t), l.schema = t, (n = ue(a)) && nt(), e = K.follow(function() {
-								var e;
-								(r = a(l)) && n && (e = w.bind(null, null), r.then(e, e));
-							}), r && "function" == typeof r.then ? K.resolve(r) : e.then(function() {
-								return r;
-							});
-						}), t.push(function(e) {
-							var t = u._cfg.dbschema, n = e;
-							[].slice.call(n.db.objectStoreNames).forEach(function(e) {
-								return null == t[e] && n.db.deleteObjectStore(e);
-							}), an(s, [s.Transaction.prototype]), on(s, [s.Transaction.prototype], s._storeNames, s._dbSchema), l.schema = s._dbSchema;
-						}), t.push(function(e) {
-							s.idbdb.objectStoreNames.contains("$meta") && (Math.ceil(s.idbdb.version / 10) === u._cfg.version ? (s.idbdb.deleteObjectStore("$meta"), delete s._dbSchema.$meta, s._storeNames = s._storeNames.filter(function(e) {
-								return "$meta" !== e;
-							})) : e.objectStore("$meta").put(u._cfg.version, "version"));
-						});
-					}), function e() {
-						return t.length ? K.resolve(t.shift()(l.idbtrans)).then(e) : K.resolve();
-					}().then(function() {
-						hn(h, f);
+			Table.prototype.get = function(keyOrCrit, cb) {
+				var _this = this;
+				if (keyOrCrit && keyOrCrit.constructor === Object) return this.where(keyOrCrit).first(cb);
+				if (keyOrCrit == null) return rejection(new exceptions.Type("Invalid argument to Table.get()"));
+				return this._trans("readonly", function(trans) {
+					return _this.core.get({
+						trans,
+						key: keyOrCrit
+					}).then(function(res) {
+						return _this.hook.reading.fire(res);
+					});
+				}).then(cb);
+			};
+			Table.prototype.where = function(indexOrCrit) {
+				if (typeof indexOrCrit === "string") return new this.db.WhereClause(this, indexOrCrit);
+				if (isArray(indexOrCrit)) return new this.db.WhereClause(this, "[".concat(indexOrCrit.join("+"), "]"));
+				var keyPaths = keys(indexOrCrit);
+				if (keyPaths.length === 1) return this.where(keyPaths[0]).equals(indexOrCrit[keyPaths[0]]);
+				var compoundIndex = this.schema.indexes.concat(this.schema.primKey).filter(function(ix) {
+					if (ix.compound && keyPaths.every(function(keyPath) {
+						return ix.keyPath.indexOf(keyPath) >= 0;
+					})) {
+						for (var i = 0; i < keyPaths.length; ++i) if (keyPaths.indexOf(ix.keyPath[i]) === -1) return false;
+						return true;
+					}
+					return false;
+				}).sort(function(a, b) {
+					return a.keyPath.length - b.keyPath.length;
+				})[0];
+				if (compoundIndex && this.db._maxKey !== maxString) {
+					var keyPathsInValidOrder = compoundIndex.keyPath.slice(0, keyPaths.length);
+					return this.where(keyPathsInValidOrder).equals(keyPathsInValidOrder.map(function(kp) {
+						return indexOrCrit[kp];
 					}));
-				}).catch(u);
-				var e, t;
-				O(o).forEach(function(e) {
-					fn(i, e, o[e].primKey, o[e].indexes);
-				}), rn(n, i), K.follow(function() {
-					return n.on.populate.fire(a);
-				}).catch(u);
-			});
-		}
-		function cn(e, r) {
-			hn(e._dbSchema, r), r.db.version % 10 != 0 || r.objectStoreNames.contains("$meta") || r.db.createObjectStore("$meta").add(Math.ceil(r.db.version / 10 - 1), "version");
-			var t = pn(0, e.idbdb, r);
-			yn(e, e._dbSchema, r);
-			for (var n = 0, i = ln(t, e._dbSchema).change; n < i.length; n++) {
-				var o = ((t) => {
-					if (t.change.length || t.recreate) return console.warn("Unable to patch indexes of table ".concat(t.name, " because it has changes on the type of index or primary key.")), { value: void 0 };
-					var n = r.objectStore(t.name);
-					t.add.forEach(function(e) {
-						l && console.debug("Dexie upgrade patch: Creating missing index ".concat(t.name, ".").concat(e.src)), dn(n, e);
-					});
-				})(i[n]);
-				if ("object" == typeof o) return o.value;
-			}
-		}
-		function ln(e, t) {
-			var n, r = {
-				del: [],
-				add: [],
-				change: []
+				}
+				if (!compoundIndex && debug) console.warn("The query ".concat(JSON.stringify(indexOrCrit), " on ").concat(this.name, " would benefit from a ") + "compound index [".concat(keyPaths.join("+"), "]"));
+				var idxByName = this.schema.idxByName;
+				function equals(a, b) {
+					return cmp(a, b) === 0;
+				}
+				var _a = keyPaths.reduce(function(_a, keyPath) {
+					var prevIndex = _a[0], prevFilterFn = _a[1];
+					var index = idxByName[keyPath];
+					var value = indexOrCrit[keyPath];
+					return [prevIndex || index, prevIndex || !index ? combine(prevFilterFn, index && index.multi ? function(x) {
+						var prop = getByKeyPath(x, keyPath);
+						return isArray(prop) && prop.some(function(item) {
+							return equals(value, item);
+						});
+					} : function(x) {
+						return equals(value, getByKeyPath(x, keyPath));
+					}) : prevFilterFn];
+				}, [null, null]), idx = _a[0], filterFunction = _a[1];
+				return idx ? this.where(idx.name).equals(indexOrCrit[idx.keyPath]).filter(filterFunction) : compoundIndex ? this.filter(filterFunction) : this.where(keyPaths).equals("");
 			};
-			for (n in e) t[n] || r.del.push(n);
-			for (n in t) {
-				var i = e[n], o = t[n];
-				if (i) {
-					var a = {
-						name: n,
-						def: o,
-						recreate: !1,
-						del: [],
-						add: [],
-						change: []
-					};
-					if ("" + (i.primKey.keyPath || "") != "" + (o.primKey.keyPath || "") || i.primKey.auto !== o.primKey.auto) a.recreate = !0, r.change.push(a);
-					else {
-						var u = i.idxByName, s = o.idxByName, c = void 0;
-						for (c in u) s[c] || a.del.push(c);
-						for (c in s) {
-							var l = u[c], f = s[c];
-							l ? l.src !== f.src && a.change.push(f) : a.add.push(f);
-						}
-						(0 < a.del.length || 0 < a.add.length || 0 < a.change.length) && r.change.push(a);
-					}
-				} else r.add.push([n, o]);
-			}
-			return r;
-		}
-		function fn(e, t, n, r) {
-			var i = e.db.createObjectStore(t, n.keyPath ? {
-				keyPath: n.keyPath,
-				autoIncrement: n.auto
-			} : { autoIncrement: n.auto });
-			r.forEach(function(e) {
-				return dn(i, e);
-			});
-		}
-		function hn(t, n) {
-			O(t).forEach(function(e) {
-				n.db.objectStoreNames.contains(e) || (l && console.debug("Dexie: Creating missing table", e), fn(n, e, t[e].primKey, t[e].indexes));
-			});
-		}
-		function dn(e, t) {
-			e.createIndex(t.name, t.keyPath, {
-				unique: t.unique,
-				multiEntry: t.multi
-			});
-		}
-		function pn(e, t, u) {
-			var s = {};
-			return W(t.objectStoreNames, 0).forEach(function(e) {
-				for (var t = u.objectStore(e), n = $t(Qt(a = t.keyPath), a || "", !0, !1, !!t.autoIncrement, a && "string" != typeof a, !0), r = [], i = 0; i < t.indexNames.length; ++i) {
-					var o = t.index(t.indexNames[i]), a = o.keyPath, o = $t(o.name, a, !!o.unique, !!o.multiEntry, !1, a && "string" != typeof a, !1);
-					r.push(o);
-				}
-				s[e] = Gt(e, n, r);
-			}), s;
-		}
-		function yn(e, t, n) {
-			for (var r = n.db.objectStoreNames, i = 0; i < r.length; ++i) {
-				var o = r[i], a = n.objectStore(o);
-				e._hasGetAll = "getAll" in a;
-				for (var u = 0; u < a.indexNames.length; ++u) {
-					var s, c = a.indexNames[u], l = a.index(c).keyPath, l = "string" == typeof l ? l : "[" + W(l).join("+") + "]";
-					t[o] && (s = t[o].idxByName[l]) && (s.name = c, delete t[o].idxByName[l], t[o].idxByName[c] = s);
-				}
-			}
-			"undefined" != typeof navigator && /Safari/.test(navigator.userAgent) && !/(Chrome\/|Edge\/)/.test(navigator.userAgent) && f.WorkerGlobalScope && f instanceof f.WorkerGlobalScope && [].concat(navigator.userAgent.match(/Safari\/(\d*)/))[1] < 604 && (e._hasGetAll = !1);
-		}
-		function vn(e) {
-			return e.split(",").map(function(e, t) {
-				var n = e.split(":"), r = null == (r = n[1]) ? void 0 : r.trim(), n = (e = n[0].trim()).replace(/([&*]|\+\+)/g, ""), i = /^\[/.test(n) ? n.match(/^\[(.*)\]$/)[1].split("+") : n;
-				return $t(n, i || null, /\&/.test(e), /\*/.test(e), /\+\+/.test(e), x(i), 0 === t, r);
-			});
-		}
-		bn.prototype._createTableSchema = Gt, bn.prototype._parseIndexSyntax = vn, bn.prototype._parseStoresSpec = function(r, i) {
-			var o = this;
-			O(r).forEach(function(e) {
-				if (null !== r[e]) {
-					var t = o._parseIndexSyntax(r[e]), n = t.shift();
-					if (!n) throw new k.Schema("Invalid schema for table " + e + ": " + r[e]);
-					if (n.unique = !0, n.multi) throw new k.Schema("Primary key cannot be multiEntry*");
-					t.forEach(function(e) {
-						if (e.auto) throw new k.Schema("Only primary key can be marked as autoIncrement (++)");
-						if (!e.keyPath) throw new k.Schema("Index must have a name and cannot be an empty string");
-					});
-					n = o._createTableSchema(e, n, t);
-					i[e] = n;
-				}
-			});
-		}, bn.prototype.stores = function(e) {
-			var t = this.db, e = (this._cfg.storesSource = this._cfg.storesSource ? a(this._cfg.storesSource, e) : e, t._versions), n = {}, r = {};
-			return e.forEach(function(e) {
-				a(n, e._cfg.storesSource), r = e._cfg.dbschema = {}, e._parseStoresSpec(n, r);
-			}), t._dbSchema = r, an(t, [
-				t._allTables,
-				t,
-				t.Transaction.prototype
-			]), on(t, [
-				t._allTables,
-				t,
-				t.Transaction.prototype,
-				this._cfg.tables
-			], O(r), r), t._storeNames = O(r), this;
-		}, bn.prototype.upgrade = function(e) {
-			return this._cfg.contentUpgrade = ke(this._cfg.contentUpgrade || g, e), this;
-		};
-		var mn = bn;
-		function bn() {}
-		var gn = (() => {
-			var i, o, t;
-			return "undefined" != typeof FinalizationRegistry && "undefined" != typeof WeakRef ? (i = /* @__PURE__ */ new Set(), o = new FinalizationRegistry(function(e) {
-				i.delete(e);
-			}), {
-				toArray: function() {
-					return Array.from(i).map(function(e) {
-						return e.deref();
-					}).filter(function(e) {
-						return void 0 !== e;
-					});
-				},
-				add: function(e) {
-					var t = new WeakRef(e._novip);
-					i.add(t), o.register(e._novip, t, t), i.size > e._options.maxConnections && (t = i.values().next().value, i.delete(t), o.unregister(t));
-				},
-				remove: function(e) {
-					if (e) for (var t = i.values(), n = t.next(); !n.done;) {
-						var r = n.value;
-						if (r.deref() === e._novip) return i.delete(r), void o.unregister(r);
-						n = t.next();
-					}
-				}
-			}) : (t = [], {
-				toArray: function() {
-					return t;
-				},
-				add: function(e) {
-					t.push(e._novip);
-				},
-				remove: function(e) {
-					e && -1 !== (e = t.indexOf(e._novip)) && t.splice(e, 1);
-				}
-			});
-		})();
-		function wn(e, t) {
-			var n = e._dbNamesDB;
-			return n || (n = e._dbNamesDB = new y(ft, {
-				addons: [],
-				indexedDB: e,
-				IDBKeyRange: t
-			})).version(1).stores({ dbnames: "name" }), n.table("dbnames");
-		}
-		function _n(e) {
-			return e && "function" == typeof e.databases;
-		}
-		function xn(e) {
-			return v(function() {
-				return P.letThrough = !0, e();
-			});
-		}
-		function kn(e) {
-			return !("from" in e);
-		}
-		var q = function(e, t) {
-			var n;
-			if (!this) return n = new q(), e && "d" in e && a(n, e), n;
-			a(this, arguments.length ? {
-				d: 1,
-				from: e,
-				to: 1 < arguments.length ? t : e
-			} : { d: 0 });
-		};
-		function On(e, t, n) {
-			var r = j(t, n);
-			if (!isNaN(r)) {
-				if (0 < r) throw RangeError();
-				if (kn(e)) return a(e, {
-					from: t,
-					to: n,
-					d: 1
-				});
-				var r = e.l, i = e.r;
-				if (j(n, e.from) < 0) return r ? On(r, t, n) : e.l = {
-					from: t,
-					to: n,
-					d: 1,
-					l: null,
-					r: null
-				}, Sn(e);
-				if (0 < j(t, e.to)) return i ? On(i, t, n) : e.r = {
-					from: t,
-					to: n,
-					d: 1,
-					l: null,
-					r: null
-				}, Sn(e);
-				j(t, e.from) < 0 && (e.from = t, e.l = null, e.d = i ? i.d + 1 : 1), 0 < j(n, e.to) && (e.to = n, e.r = null, e.d = e.l ? e.l.d + 1 : 1);
-				t = !e.r;
-				r && !e.l && Pn(e, r), i && t && Pn(e, i);
-			}
-		}
-		function Pn(e, t) {
-			kn(t) || function e(t, n) {
-				var r = n.from, i = n.l, o = n.r;
-				On(t, r, n.to), i && e(t, i), o && e(t, o);
-			}(e, t);
-		}
-		function Kn(e, t) {
-			var n = En(t), r = n.next();
-			if (!r.done) for (var i = r.value, o = En(e), a = o.next(i.from), u = a.value; !r.done && !a.done;) {
-				if (j(u.from, i.to) <= 0 && 0 <= j(u.to, i.from)) return !0;
-				j(i.from, u.from) < 0 ? i = (r = n.next(u.from)).value : u = (a = o.next(i.from)).value;
-			}
-			return !1;
-		}
-		function En(e) {
-			var n = kn(e) ? null : {
-				s: 0,
-				n: e
+			Table.prototype.filter = function(filterFunction) {
+				return this.toCollection().and(filterFunction);
 			};
-			return { next: function(e) {
-				for (var t = 0 < arguments.length; n;) switch (n.s) {
-					case 0: if (n.s = 1, t) for (; n.n.l && j(e, n.n.from) < 0;) n = {
-						up: n,
-						n: n.n.l,
-						s: 1
-					};
-					else for (; n.n.l;) n = {
-						up: n,
-						n: n.n.l,
-						s: 1
-					};
-					case 1: if (n.s = 2, !t || j(e, n.n.to) <= 0) return {
-						value: n.n,
-						done: !1
-					};
-					case 2: if (n.n.r) {
-						n.s = 3, n = {
-							up: n,
-							n: n.n.r,
-							s: 0
-						};
-						continue;
+			Table.prototype.count = function(thenShortcut) {
+				return this.toCollection().count(thenShortcut);
+			};
+			Table.prototype.offset = function(offset) {
+				return this.toCollection().offset(offset);
+			};
+			Table.prototype.limit = function(numRows) {
+				return this.toCollection().limit(numRows);
+			};
+			Table.prototype.each = function(callback) {
+				return this.toCollection().each(callback);
+			};
+			Table.prototype.toArray = function(thenShortcut) {
+				return this.toCollection().toArray(thenShortcut);
+			};
+			Table.prototype.toCollection = function() {
+				return new this.db.Collection(new this.db.WhereClause(this));
+			};
+			Table.prototype.orderBy = function(index) {
+				return new this.db.Collection(new this.db.WhereClause(this, isArray(index) ? "[".concat(index.join("+"), "]") : index));
+			};
+			Table.prototype.reverse = function() {
+				return this.toCollection().reverse();
+			};
+			Table.prototype.mapToClass = function(constructor) {
+				var _a = this, db = _a.db, tableName = _a.name;
+				this.schema.mappedClass = constructor;
+				if (constructor.prototype instanceof Entity) constructor = function(_super) {
+					__extends(class_1, _super);
+					function class_1() {
+						return _super !== null && _super.apply(this, arguments) || this;
 					}
-					case 3: n = n.up;
-				}
-				return { done: !0 };
-			} };
-		}
-		function Sn(e) {
-			var t, n, r, i = ((null == (i = e.r) ? void 0 : i.d) || 0) - ((null == (i = e.l) ? void 0 : i.d) || 0), i = 1 < i ? "r" : i < -1 ? "l" : "";
-			i && (t = "r" == i ? "l" : "r", n = _({}, e), r = e[i], e.from = r.from, e.to = r.to, e[i] = r[i], n[i] = r[t], (e[t] = n).d = An(n)), e.d = An(e);
-		}
-		function An(e) {
-			var t = e.r, e = e.l;
-			return (t ? e ? Math.max(t.d, e.d) : t.d : e ? e.d : 0) + 1;
-		}
-		function jn(t, n) {
-			return O(n).forEach(function(e) {
-				t[e] ? Pn(t[e], n[e]) : t[e] = function e(t) {
-					var n, r, i = {};
-					for (n in t) m(t, n) && (r = t[n], i[n] = !r || "object" != typeof r || J.has(r.constructor) ? r : e(r));
-					return i;
-				}(n[e]);
-			}), t;
-		}
-		function Cn(t, n) {
-			return t.all || n.all || Object.keys(t).some(function(e) {
-				return n[e] && Kn(n[e], t[e]);
-			});
-		}
-		M(q.prototype, ((t = {
-			add: function(e) {
-				return Pn(this, e), this;
-			},
-			addKey: function(e) {
-				return On(this, e, e), this;
-			},
-			addKeys: function(e) {
-				var t = this;
-				return e.forEach(function(e) {
-					return On(t, e, e);
-				}), this;
-			},
-			hasKey: function(e) {
-				var t = En(this).next(e).value;
-				return t && j(t.from, e) <= 0 && 0 <= j(t.to, e);
-			}
-		})[re] = function() {
-			return En(this);
-		}, t));
-		var Tn = {}, In = {}, qn = !1;
-		function Dn(e) {
-			jn(In, e), qn || (qn = !0, setTimeout(function() {
-				qn = !1, Bn(In, !(In = {}));
-			}, 0));
-		}
-		function Bn(e, t) {
-			void 0 === t && (t = !1);
-			var n = /* @__PURE__ */ new Set();
-			if (e.all) for (var r = 0, i = Object.values(Tn); r < i.length; r++) Rn(u = i[r], e, n, t);
-			else for (var o in e) {
-				var a, u, o = /^idb\:\/\/(.*)\/(.*)\//.exec(o);
-				o && (a = o[1], o = o[2], u = Tn["idb://".concat(a, "/").concat(o)]) && Rn(u, e, n, t);
-			}
-			n.forEach(function(e) {
-				return e();
-			});
-		}
-		function Rn(e, t, n, r) {
-			for (var i = [], o = 0, a = Object.entries(e.queries.query); o < a.length; o++) {
-				for (var u = a[o], s = u[0], c = [], l = 0, f = u[1]; l < f.length; l++) {
-					var h = f[l];
-					Cn(t, h.obsSet) ? h.subscribers.forEach(function(e) {
-						return n.add(e);
-					}) : r && c.push(h);
-				}
-				r && i.push([s, c]);
-			}
-			if (r) for (var d = 0, p = i; d < p.length; d++) {
-				var y = p[d], s = y[0], c = y[1];
-				e.queries.query[s] = c;
-			}
-		}
-		function Fn(h) {
-			var d = h._state, r = h._deps.indexedDB;
-			if (d.isBeingOpened || h.idbdb) return d.dbReadyPromise.then(function() {
-				return d.dbOpenError ? S(d.dbOpenError) : h;
-			});
-			d.isBeingOpened = !0, d.dbOpenError = null, d.openComplete = !1;
-			var t = d.openCanceller, p = Math.round(10 * h.verno), y = !1;
-			function e() {
-				if (d.openCanceller !== t) throw new k.DatabaseClosed("db.open() was cancelled");
-			}
-			function v() {
-				return new K(function(c, n) {
-					if (e(), !r) throw new k.MissingAPI();
-					var l = h.name, f = d.autoSchema || !p ? r.open(l) : r.open(l, p);
-					if (!f) throw new k.MissingAPI();
-					f.onerror = I(n), f.onblocked = E(h._fireOnBlocked), f.onupgradeneeded = E(function(e) {
-						var t;
-						m = f.transaction, d.autoSchema && !h._options.allowEmptyDB ? (f.onerror = Ut, m.abort(), f.result.close(), (t = r.deleteDatabase(l)).onsuccess = t.onerror = E(function() {
-							n(new k.NoSuchDatabase("Database ".concat(l, " doesnt exist")));
-						})) : (m.onerror = I(n), t = e.oldVersion > Math.pow(2, 62) ? 0 : e.oldVersion, b = t < 1, h.idbdb = f.result, y && cn(h, m), sn(h, t / 10, m, n));
-					}, n), f.onsuccess = E(function() {
-						m = null;
-						var e, t, n, r, i, o, a = h.idbdb = f.result, u = W(a.objectStoreNames);
-						if (0 < u.length) try {
-							var s = a.transaction(1 === (i = u).length ? i[0] : i, "readonly");
-							if (d.autoSchema) o = a, r = s, (n = h).verno = o.version / 10, r = n._dbSchema = pn(0, o, r), n._storeNames = W(o.objectStoreNames, 0), on(n, [n._allTables], O(r), r);
-							else if (yn(h, h._dbSchema, s), t = s, ((t = ln(pn(0, (e = h).idbdb, t), e._dbSchema)).add.length || t.change.some(function(e) {
-								return e.add.length || e.change.length;
-							})) && !y) return console.warn("Dexie SchemaDiff: Schema was extended without increasing the number passed to db.version(). Dexie will add missing parts and increment native version number to workaround this."), a.close(), p = a.version + 1, y = !0, c(v());
-							rn(h, s);
-						} catch (e) {}
-						gn.add(h), a.onversionchange = E(function(e) {
-							d.vcFired = !0, h.on("versionchange").fire(e);
-						}), a.onclose = E(function() {
-							h.close({ disableAutoOpen: !1 });
-						}), b && (u = h._deps, i = l, _n(o = u.indexedDB) || i === ft || wn(o, u.IDBKeyRange).put({ name: i }).catch(g)), c();
-					}, n);
-				}).catch(function(e) {
-					switch (null == e ? void 0 : e.name) {
-						case "UnknownError":
-							if (0 < d.PR1398_maxLoop) return d.PR1398_maxLoop--, console.warn("Dexie: Workaround for Chrome UnknownError on open()"), v();
-							break;
-						case "VersionError": if (0 < p) return p = 0, v();
-					}
-					return K.reject(e);
+					Object.defineProperty(class_1.prototype, "db", {
+						get: function() {
+							return db;
+						},
+						enumerable: false,
+						configurable: true
+					});
+					class_1.prototype.table = function() {
+						return tableName;
+					};
+					return class_1;
+				}(constructor);
+				var inheritedProps = /* @__PURE__ */ new Set();
+				for (var proto = constructor.prototype; proto; proto = getProto(proto)) Object.getOwnPropertyNames(proto).forEach(function(propName) {
+					return inheritedProps.add(propName);
 				});
-			}
-			var n, i = d.dbReadyResolve, m = null, b = !1;
-			return K.race([t, ("undefined" == typeof navigator ? K.resolve() : !navigator.userAgentData && /Safari\//.test(navigator.userAgent) && !/Chrom(e|ium)\//.test(navigator.userAgent) && indexedDB.databases ? new Promise(function(e) {
-				function t() {
-					return indexedDB.databases().finally(e);
-				}
-				n = setInterval(t, 100), t();
-			}).finally(function() {
-				return clearInterval(n);
-			}) : Promise.resolve()).then(v)]).then(function() {
-				return e(), d.onReadyBeingFired = [], K.resolve(xn(function() {
-					return h.on.ready.fire(h.vip);
-				})).then(function e() {
-					var t;
-					if (0 < d.onReadyBeingFired.length) return t = d.onReadyBeingFired.reduce(ke, g), d.onReadyBeingFired = [], K.resolve(xn(function() {
-						return t(h.vip);
-					})).then(e);
-				});
-			}).finally(function() {
-				d.openCanceller === t && (d.onReadyBeingFired = null, d.isBeingOpened = !1);
-			}).catch(function(e) {
-				d.dbOpenError = e;
-				try {
-					m && m.abort();
-				} catch (e) {}
-				return t === d.openCanceller && h._close(), S(e);
-			}).finally(function() {
-				d.openComplete = !0, i();
-			}).then(function() {
-				var n;
-				return b && (n = {}, h.tables.forEach(function(t) {
-					t.schema.indexes.forEach(function(e) {
-						e.name && (n["idb://".concat(h.name, "/").concat(t.name, "/").concat(e.name)] = new q(-1 / 0, [[[]]]));
-					}), n["idb://".concat(h.name, "/").concat(t.name, "/")] = n["idb://".concat(h.name, "/").concat(t.name, "/:dels")] = new q(-1 / 0, [[[]]]);
-				}), Wt(zt).fire(n), Bn(n, !0)), h;
-			});
-		}
-		function Nn(t) {
-			function e(e) {
-				return t.next(e);
-			}
-			var r = n(e), i = n(function(e) {
-				return t.throw(e);
-			});
-			function n(n) {
-				return function(e) {
-					var e = n(e), t = e.value;
-					return e.done ? t : t && "function" == typeof t.then ? t.then(r, i) : x(t) ? Promise.all(t).then(r, i) : r(t);
+				var readHook = function(obj) {
+					if (!obj) return obj;
+					var res = Object.create(constructor.prototype);
+					for (var m in obj) if (!inheritedProps.has(m)) try {
+						res[m] = obj[m];
+					} catch (_) {}
+					return res;
 				};
-			}
-			return n(e)();
-		}
-		function Mn(e, t, n) {
-			for (var r = x(e) ? e.slice() : [e], i = 0; i < n; ++i) r.push(t);
-			return r;
-		}
-		var Ln = {
-			stack: "dbcore",
-			name: "VirtualIndexMiddleware",
-			level: 1,
-			create: function(l) {
-				return _(_({}, l), { table: function(e) {
-					var o = l.table(e), e = o.schema, u = Object.create(null), s = [];
-					function c(e, t, n) {
-						var r = en(e), i = u[r] = u[r] || [], o = null == e ? 0 : "string" == typeof e ? 1 : e.length, a = 0 < t, r = _(_({}, n), {
-							name: a ? "".concat(r, "(virtual-from:").concat(n.name, ")") : n.name,
-							lowLevelIndex: n,
-							isVirtual: a,
-							keyTail: t,
-							keyLength: o,
-							extractKey: Ht(e),
-							unique: !a && n.unique
+				if (this.schema.readHook) this.hook.reading.unsubscribe(this.schema.readHook);
+				this.schema.readHook = readHook;
+				this.hook("reading", readHook);
+				return constructor;
+			};
+			Table.prototype.defineClass = function() {
+				function Class(content) {
+					extend(this, content);
+				}
+				return this.mapToClass(Class);
+			};
+			Table.prototype.add = function(obj, key) {
+				var _this = this;
+				var _a = this.schema.primKey, auto = _a.auto, keyPath = _a.keyPath;
+				var objToAdd = obj;
+				if (keyPath && auto) objToAdd = workaroundForUndefinedPrimKey(keyPath)(obj);
+				return this._trans("readwrite", function(trans) {
+					return _this.core.mutate({
+						trans,
+						type: "add",
+						keys: key != null ? [key] : null,
+						values: [objToAdd]
+					});
+				}).then(function(res) {
+					return res.numFailures ? DexiePromise.reject(res.failures[0]) : res.lastResult;
+				}).then(function(lastResult) {
+					if (keyPath) try {
+						setByKeyPath(obj, keyPath, lastResult);
+					} catch (_) {}
+					return lastResult;
+				});
+			};
+			Table.prototype.upsert = function(key, modifications) {
+				var _this = this;
+				var keyPath = this.schema.primKey.keyPath;
+				return this._trans("readwrite", function(trans) {
+					return _this.core.get({
+						trans,
+						key
+					}).then(function(existing) {
+						var obj = existing !== null && existing !== void 0 ? existing : {};
+						applyUpdateSpec(obj, modifications);
+						if (keyPath) setByKeyPath(obj, keyPath, key);
+						return _this.core.mutate({
+							trans,
+							type: "put",
+							values: [obj],
+							keys: [key],
+							upsert: true,
+							updates: {
+								keys: [key],
+								changeSpecs: [modifications]
+							}
+						}).then(function(res) {
+							return res.numFailures ? DexiePromise.reject(res.failures[0]) : !!existing;
 						});
-						return i.push(r), r.isPrimaryKey || s.push(r), 1 < o && c(2 === o ? e[0] : e.slice(0, o - 1), t + 1, n), i.sort(function(e, t) {
-							return e.keyTail - t.keyTail;
-						}), r;
-					}
-					var t = c(e.primaryKey.keyPath, 0, e.primaryKey);
-					u[":id"] = [t];
-					for (var n = 0, r = e.indexes; n < r.length; n++) {
-						var i = r[n];
-						c(i.keyPath, 0, i);
-					}
-					function a(e) {
-						var t, n = e.query.index;
-						return n.isVirtual ? _(_({}, e), { query: {
-							index: n.lowLevelIndex,
-							range: (t = e.query.range, n = n.keyTail, {
-								type: 1 === t.type ? 2 : t.type,
-								lower: Mn(t.lower, t.lowerOpen ? l.MAX_KEY : l.MIN_KEY, n),
-								lowerOpen: !0,
-								upper: Mn(t.upper, t.upperOpen ? l.MIN_KEY : l.MAX_KEY, n),
-								upperOpen: !0
-							})
-						} }) : e;
-					}
-					return _(_({}, o), {
-						schema: _(_({}, e), {
-							primaryKey: t,
-							indexes: s,
-							getIndexByKeyPath: function(e) {
-								return (e = u[en(e)]) && e[0];
-							}
-						}),
-						count: function(e) {
-							return o.count(a(e));
-						},
-						query: function(e) {
-							return o.query(a(e));
-						},
-						openCursor: function(t) {
-							var e = t.query.index, r = e.keyTail, i = e.keyLength;
-							return e.isVirtual ? o.openCursor(a(t)).then(function(e) {
-								return e && n(e);
-							}) : o.openCursor(t);
-							function n(n) {
-								return Object.create(n, {
-									continue: { value: function(e) {
-										null != e ? n.continue(Mn(e, t.reverse ? l.MAX_KEY : l.MIN_KEY, r)) : t.unique ? n.continue(n.key.slice(0, i).concat(t.reverse ? l.MIN_KEY : l.MAX_KEY, r)) : n.continue();
-									} },
-									continuePrimaryKey: { value: function(e, t) {
-										n.continuePrimaryKey(Mn(e, l.MAX_KEY, r), t);
-									} },
-									primaryKey: { get: function() {
-										return n.primaryKey;
-									} },
-									key: { get: function() {
-										var e = n.key;
-										return 1 === i ? e[0] : e.slice(0, i);
-									} },
-									value: { get: function() {
-										return n.value;
-									} }
-								});
-							}
-						}
 					});
-				} });
-			}
-		};
-		function Un(i, o, a, u) {
-			return a = a || {}, u = u || "", O(i).forEach(function(e) {
-				var t, n, r;
-				m(o, e) ? (t = i[e], n = o[e], "object" == typeof t && "object" == typeof n && t && n ? (r = ne(t)) !== ne(n) ? a[u + e] = o[e] : "Object" === r ? Un(t, n, a, u + e + ".") : t !== n && (a[u + e] = o[e]) : t !== n && (a[u + e] = o[e])) : a[u + e] = void 0;
-			}), O(o).forEach(function(e) {
-				m(i, e) || (a[u + e] = o[e]);
-			}), a;
-		}
-		function zn(e, t) {
-			return "delete" === t.type ? t.keys : t.keys || t.values.map(e.extractKey);
-		}
-		var Vn = {
-			stack: "dbcore",
-			name: "HooksMiddleware",
-			level: 2,
-			create: function(e) {
-				return _(_({}, e), { table: function(r) {
-					var y = e.table(r), v = y.schema.primaryKey;
-					return _(_({}, y), { mutate: function(e) {
-						var t = P.trans, n = t.table(r).hook, h = n.deleting, d = n.creating, p = n.updating;
-						switch (e.type) {
-							case "add":
-								if (d.fire === g) break;
-								return t._promise("readwrite", function() {
-									return a(e);
-								}, !0);
-							case "put":
-								if (d.fire === g && p.fire === g) break;
-								return t._promise("readwrite", function() {
-									return a(e);
-								}, !0);
-							case "delete":
-								if (h.fire === g) break;
-								return t._promise("readwrite", function() {
-									return a(e);
-								}, !0);
-							case "deleteRange":
-								if (h.fire === g) break;
-								return t._promise("readwrite", function() {
-									return function n(r, i, o) {
-										return y.query({
-											trans: r,
-											values: !1,
-											query: {
-												index: v,
-												range: i
-											},
-											limit: o
-										}).then(function(e) {
-											var t = e.result;
-											return a({
-												type: "delete",
-												keys: t,
-												trans: r
-											}).then(function(e) {
-												return 0 < e.numFailures ? Promise.reject(e.failures[0]) : t.length < o ? {
-													failures: [],
-													numFailures: 0,
-													lastResult: void 0
-												} : n(r, _(_({}, i), {
-													lower: t[t.length - 1],
-													lowerOpen: !0
-												}), o);
-											});
-										});
-									}(e.trans, e.range, 1e4);
-								}, !0);
-						}
-						return y.mutate(e);
-						function a(c) {
-							var e, t, n, l = P.trans, f = c.keys || zn(v, c);
-							if (f) return "delete" !== (c = "add" === c.type || "put" === c.type ? _(_({}, c), { keys: f }) : _({}, c)).type && (c.values = R([], c.values, !0)), c.keys && (c.keys = R([], c.keys, !0)), e = y, n = f, ("add" === (t = c).type ? Promise.resolve([]) : e.getMany({
-								trans: t.trans,
-								keys: n,
-								cache: "immutable"
-							})).then(function(u) {
-								var s = f.map(function(e, t) {
-									var n, r, i, o = u[t], a = {
-										onerror: null,
-										onsuccess: null
-									};
-									return "delete" === c.type ? h.fire.call(a, e, o, l) : "add" === c.type || void 0 === o ? (n = d.fire.call(a, e, c.values[t], l), null == e && null != n && (c.keys[t] = e = n, v.outbound || b(c.values[t], v.keyPath, e))) : (n = Un(o, c.values[t]), (r = p.fire.call(a, n, e, o, l)) && (i = c.values[t], Object.keys(r).forEach(function(e) {
-										m(i, e) ? i[e] = r[e] : b(i, e, r[e]);
-									}))), a;
-								});
-								return y.mutate(c).then(function(e) {
-									for (var t = e.failures, n = e.results, r = e.numFailures, e = e.lastResult, i = 0; i < f.length; ++i) {
-										var o = (n || f)[i], a = s[i];
-										null == o ? a.onerror && a.onerror(t[i]) : a.onsuccess && a.onsuccess("put" === c.type && u[i] ? c.values[i] : o);
-									}
-									return {
-										failures: t,
-										results: n,
-										numFailures: r,
-										lastResult: e
-									};
-								}).catch(function(t) {
-									return s.forEach(function(e) {
-										return e.onerror && e.onerror(t);
-									}), Promise.reject(t);
-								});
-							});
-							throw new Error("Keys missing");
-						}
-					} });
-				} });
-			}
-		};
-		function Wn(e, t, n) {
-			try {
-				if (!t) return null;
-				if (t.keys.length < e.length) return null;
-				for (var r = [], i = 0, o = 0; i < t.keys.length && o < e.length; ++i) 0 === j(t.keys[i], e[o]) && (r.push(n ? ee(t.values[i]) : t.values[i]), ++o);
-				return r.length === e.length ? r : null;
-			} catch (e) {
-				return null;
-			}
-		}
-		var Yn = {
-			stack: "dbcore",
-			level: -1,
-			create: function(t) {
-				return { table: function(e) {
-					var n = t.table(e);
-					return _(_({}, n), {
-						getMany: function(t) {
-							var e;
-							return t.cache ? (e = Wn(t.keys, t.trans._cache, "clone" === t.cache)) ? K.resolve(e) : n.getMany(t).then(function(e) {
-								return t.trans._cache = {
-									keys: t.keys,
-									values: "clone" === t.cache ? ee(e) : e
-								}, e;
-							}) : n.getMany(t);
-						},
-						mutate: function(e) {
-							return "add" !== e.type && (e.trans._cache = null), n.mutate(e);
-						}
+				});
+			};
+			Table.prototype.update = function(keyOrObject, modifications) {
+				if (typeof keyOrObject === "object" && !isArray(keyOrObject)) {
+					var key = getByKeyPath(keyOrObject, this.schema.primKey.keyPath);
+					if (key === void 0) return rejection(new exceptions.InvalidArgument("Given object does not contain its primary key"));
+					return this.where(":id").equals(key).modify(modifications);
+				} else return this.where(":id").equals(keyOrObject).modify(modifications);
+			};
+			Table.prototype.put = function(obj, key) {
+				var _this = this;
+				var _a = this.schema.primKey, auto = _a.auto, keyPath = _a.keyPath;
+				var objToAdd = obj;
+				if (keyPath && auto) objToAdd = workaroundForUndefinedPrimKey(keyPath)(obj);
+				return this._trans("readwrite", function(trans) {
+					return _this.core.mutate({
+						trans,
+						type: "put",
+						values: [objToAdd],
+						keys: key != null ? [key] : null
 					});
-				} };
-			}
-		};
-		function $n(e, t) {
-			return "readonly" === e.trans.mode && !!e.subscr && !e.trans.explicit && "disabled" !== e.trans.db._options.cache && !t.schema.primaryKey.outbound;
-		}
-		function Qn(e, t) {
-			switch (e) {
-				case "query": return t.values && !t.unique;
-				case "get":
-				case "getMany":
-				case "count":
-				case "openCursor": return !1;
-			}
-		}
-		var Gn = {
-			stack: "dbcore",
-			level: 0,
-			name: "Observability",
-			create: function(b) {
-				var g = b.schema.name, w = new q(b.MIN_KEY, b.MAX_KEY);
-				return _(_({}, b), {
-					transaction: function(e, t, n) {
-						if (P.subscr && "readonly" !== t) throw new k.ReadOnly("Readwrite transaction in liveQuery context. Querier source: ".concat(P.querier));
-						return b.transaction(e, t, n);
+				}).then(function(res) {
+					return res.numFailures ? DexiePromise.reject(res.failures[0]) : res.lastResult;
+				}).then(function(lastResult) {
+					if (keyPath) try {
+						setByKeyPath(obj, keyPath, lastResult);
+					} catch (_) {}
+					return lastResult;
+				});
+			};
+			Table.prototype.delete = function(key) {
+				var _this = this;
+				return this._trans("readwrite", function(trans) {
+					return _this.core.mutate({
+						trans,
+						type: "delete",
+						keys: [key]
+					}).then(function(res) {
+						return builtInDeletionTrigger(_this, [key], res);
+					}).then(function(res) {
+						return res.numFailures ? DexiePromise.reject(res.failures[0]) : void 0;
+					});
+				});
+			};
+			Table.prototype.clear = function() {
+				var _this = this;
+				return this._trans("readwrite", function(trans) {
+					return _this.core.mutate({
+						trans,
+						type: "deleteRange",
+						range: AnyRange
+					}).then(function(res) {
+						return builtInDeletionTrigger(_this, null, res);
+					});
+				}).then(function(res) {
+					return res.numFailures ? DexiePromise.reject(res.failures[0]) : void 0;
+				});
+			};
+			Table.prototype.bulkGet = function(keys) {
+				var _this = this;
+				return this._trans("readonly", function(trans) {
+					return _this.core.getMany({
+						keys,
+						trans
+					}).then(function(result) {
+						return result.map(function(res) {
+							return _this.hook.reading.fire(res);
+						});
+					});
+				});
+			};
+			Table.prototype.bulkAdd = function(objects, keysOrOptions, options) {
+				var _this = this;
+				var keys = Array.isArray(keysOrOptions) ? keysOrOptions : void 0;
+				options = options || (keys ? void 0 : keysOrOptions);
+				var wantResults = options ? options.allKeys : void 0;
+				return this._trans("readwrite", function(trans) {
+					var _a = _this.schema.primKey, auto = _a.auto, keyPath = _a.keyPath;
+					if (keyPath && keys) throw new exceptions.InvalidArgument("bulkAdd(): keys argument invalid on tables with inbound keys");
+					if (keys && keys.length !== objects.length) throw new exceptions.InvalidArgument("Arguments objects and keys must have the same length");
+					var numObjects = objects.length;
+					var objectsToAdd = keyPath && auto ? objects.map(workaroundForUndefinedPrimKey(keyPath)) : objects;
+					return _this.core.mutate({
+						trans,
+						type: "add",
+						keys,
+						values: objectsToAdd,
+						wantResults
+					}).then(function(_a) {
+						var numFailures = _a.numFailures, results = _a.results, lastResult = _a.lastResult, failures = _a.failures;
+						var result = wantResults ? results : lastResult;
+						if (numFailures === 0) return result;
+						throw new BulkError("".concat(_this.name, ".bulkAdd(): ").concat(numFailures, " of ").concat(numObjects, " operations failed"), failures);
+					});
+				});
+			};
+			Table.prototype.bulkPut = function(objects, keysOrOptions, options) {
+				var _this = this;
+				var keys = Array.isArray(keysOrOptions) ? keysOrOptions : void 0;
+				options = options || (keys ? void 0 : keysOrOptions);
+				var wantResults = options ? options.allKeys : void 0;
+				return this._trans("readwrite", function(trans) {
+					var _a = _this.schema.primKey, auto = _a.auto, keyPath = _a.keyPath;
+					if (keyPath && keys) throw new exceptions.InvalidArgument("bulkPut(): keys argument invalid on tables with inbound keys");
+					if (keys && keys.length !== objects.length) throw new exceptions.InvalidArgument("Arguments objects and keys must have the same length");
+					var numObjects = objects.length;
+					var objectsToPut = keyPath && auto ? objects.map(workaroundForUndefinedPrimKey(keyPath)) : objects;
+					return _this.core.mutate({
+						trans,
+						type: "put",
+						keys,
+						values: objectsToPut,
+						wantResults
+					}).then(function(_a) {
+						var numFailures = _a.numFailures, results = _a.results, lastResult = _a.lastResult, failures = _a.failures;
+						var result = wantResults ? results : lastResult;
+						if (numFailures === 0) return result;
+						throw new BulkError("".concat(_this.name, ".bulkPut(): ").concat(numFailures, " of ").concat(numObjects, " operations failed"), failures);
+					});
+				});
+			};
+			Table.prototype.bulkUpdate = function(keysAndChanges) {
+				var _this = this;
+				var keys = keysAndChanges.map(function(entry) {
+					return entry.key;
+				});
+				var changeSpecs = keysAndChanges.map(function(entry) {
+					return entry.changes;
+				});
+				var offsetMap = [];
+				return this._trans("readwrite", function(trans) {
+					var coreTable = _this.core;
+					return coreTable.getMany({
+						trans,
+						keys,
+						cache: "clone"
+					}).then(function(objs) {
+						var _a = coreTable.schema.primaryKey, outbound = _a.outbound, extractKey = _a.extractKey;
+						var resultKeys = [];
+						var resultObjs = [];
+						keysAndChanges.forEach(function(_a, idx) {
+							var key = _a.key, changes = _a.changes;
+							var obj = objs[idx];
+							if (obj) {
+								for (var _i = 0, _b = Object.keys(changes); _i < _b.length; _i++) {
+									var keyPath = _b[_i];
+									setByKeyPath(obj, keyPath, changes[keyPath]);
+								}
+								if (!outbound && cmp(extractKey(obj), key) !== 0) throw new exceptions.Constraint("Cannot update primary key in bulkUpdate()");
+								offsetMap.push(idx);
+								resultKeys.push(key);
+								resultObjs.push(obj);
+							}
+						});
+						var numEntries = resultKeys.length;
+						return coreTable.mutate({
+							trans,
+							type: "put",
+							keys: resultKeys,
+							values: resultObjs,
+							updates: {
+								keys,
+								changeSpecs
+							}
+						}).then(function(_a) {
+							var numFailures = _a.numFailures, failures = _a.failures;
+							if (numFailures === 0) return numEntries;
+							for (var _i = 0, _b = Object.keys(failures); _i < _b.length; _i++) {
+								var offset = _b[_i];
+								var mappedOffset = offsetMap[Number(offset)];
+								if (mappedOffset != null) {
+									var failure = failures[offset];
+									delete failures[offset];
+									failures[mappedOffset] = failure;
+								}
+							}
+							throw new BulkError("".concat(_this.name, ".bulkUpdate(): ").concat(numFailures, " of ").concat(numEntries, " operations failed"), failures);
+						});
+					});
+				});
+			};
+			Table.prototype.bulkDelete = function(keys) {
+				var _this = this;
+				var numKeys = keys.length;
+				return this._trans("readwrite", function(trans) {
+					return _this.core.mutate({
+						trans,
+						type: "delete",
+						keys
+					}).then(function(res) {
+						return builtInDeletionTrigger(_this, keys, res);
+					});
+				}).then(function(_a) {
+					var numFailures = _a.numFailures, lastResult = _a.lastResult, failures = _a.failures;
+					if (numFailures === 0) return lastResult;
+					throw new BulkError("".concat(_this.name, ".bulkDelete(): ").concat(numFailures, " of ").concat(numKeys, " operations failed"), failures);
+				});
+			};
+			return Table;
+		}();
+		function Events(ctx) {
+			var evs = {};
+			var rv = function(eventName, subscriber) {
+				if (subscriber) {
+					var i = arguments.length, args = new Array(i - 1);
+					while (--i) args[i - 1] = arguments[i];
+					evs[eventName].subscribe.apply(null, args);
+					return ctx;
+				} else if (typeof eventName === "string") return evs[eventName];
+			};
+			rv.addEventType = add;
+			for (var i = 1, l = arguments.length; i < l; ++i) add(arguments[i]);
+			return rv;
+			function add(eventName, chainFunction, defaultFunction) {
+				if (typeof eventName === "object") return addConfiguredEvents(eventName);
+				if (!chainFunction) chainFunction = reverseStoppableEventChain;
+				if (!defaultFunction) defaultFunction = nop;
+				var context = {
+					subscribers: [],
+					fire: defaultFunction,
+					subscribe: function(cb) {
+						if (context.subscribers.indexOf(cb) === -1) {
+							context.subscribers.push(cb);
+							context.fire = chainFunction(context.fire, cb);
+						}
 					},
-					table: function(d) {
-						function e(e) {
-							var t, e = e.query;
-							return [t = e.index, new q(null != (t = (e = e.range).lower) ? t : b.MIN_KEY, null != (t = e.upper) ? t : b.MAX_KEY)];
-						}
-						var p = b.table(d), y = p.schema, v = y.primaryKey, t = y.indexes, c = v.extractKey, l = v.outbound, m = v.autoIncrement && t.filter(function(e) {
-							return e.compound && e.keyPath.includes(v.keyPath);
-						}), n = _(_({}, p), { mutate: function(a) {
-							function u(e) {
-								return e = "idb://".concat(g, "/").concat(d, "/").concat(e), n[e] || (n[e] = new q());
-							}
-							var e, o, s, t = a.trans, n = a.mutatedParts || (a.mutatedParts = {}), r = u(""), i = u(":dels"), c = a.type, l = "deleteRange" === a.type ? [a.range] : "delete" === a.type ? [a.keys] : a.values.length < 50 ? [zn(v, a).filter(function(e) {
-								return e;
-							}), a.values] : [], f = l[0], l = l[1], h = a.trans._cache;
-							return x(f) ? (r.addKeys(f), (c = "delete" === c || f.length === l.length ? Wn(f, h) : null) || i.addKeys(f), (c || l) && (e = u, o = c, s = l, y.indexes.forEach(function(t) {
-								var n = e(t.name || "");
-								function r(e) {
-									return null != e ? t.extractKey(e) : null;
-								}
-								function i(e) {
-									t.multiEntry && x(e) ? e.forEach(function(e) {
-										return n.addKey(e);
-									}) : n.addKey(e);
-								}
-								(o || s).forEach(function(e, t) {
-									var n = o && r(o[t]), t = s && r(s[t]);
-									0 !== j(n, t) && (null != n && i(n), null != t) && i(t);
-								});
-							}))) : f ? (l = {
-								from: null != (h = f.lower) ? h : b.MIN_KEY,
-								to: null != (c = f.upper) ? c : b.MAX_KEY
-							}, i.add(l), r.add(l)) : (r.add(w), i.add(w), y.indexes.forEach(function(e) {
-								return u(e.name).add(w);
-							})), p.mutate(a).then(function(o) {
-								return !f || "add" !== a.type && "put" !== a.type || (r.addKeys(o.results), m && m.forEach(function(t) {
-									for (var e = a.values.map(function(e) {
-										return t.extractKey(e);
-									}), n = t.keyPath.findIndex(function(e) {
-										return e === v.keyPath;
-									}), r = 0, i = o.results.length; r < i; ++r) e[r][n] = o.results[r];
-									u(t.name).addKeys(e);
-								})), t.mutatedParts = jn(t.mutatedParts || {}, n), o;
-							});
-						} }), f = {
-							get: function(e) {
-								return [v, new q(e.key)];
-							},
-							getMany: function(e) {
-								return [v, new q().addKeys(e.keys)];
-							},
-							count: e,
-							query: e,
-							openCursor: e
-						};
-						return O(f).forEach(function(s) {
-							n[s] = function(i) {
-								var e = P.subscr, t = !!e, n = $n(P, p) && Qn(s, i) ? i.obsSet = {} : e;
-								if (t) {
-									var o, e = function(e) {
-										e = "idb://".concat(g, "/").concat(d, "/").concat(e);
-										return n[e] || (n[e] = new q());
-									}, a = e(""), u = e(":dels"), t = f[s](i), r = t[0], t = t[1];
-									if (("query" === s && r.isPrimaryKey && !i.values ? u : e(r.name || "")).add(t), !r.isPrimaryKey) {
-										if ("count" !== s) return o = "query" === s && l && i.values && p.query(_(_({}, i), { values: !1 })), p[s].apply(this, arguments).then(function(t) {
-											if ("query" === s) {
-												if (l && i.values) return o.then(function(e) {
-													e = e.result;
-													return a.addKeys(e), t;
-												});
-												var e = i.values ? t.result.map(c) : t.result;
-												(i.values ? a : u).addKeys(e);
-											} else {
-												var n, r;
-												if ("openCursor" === s) return r = i.values, (n = t) && Object.create(n, {
-													key: { get: function() {
-														return u.addKey(n.primaryKey), n.key;
-													} },
-													primaryKey: { get: function() {
-														var e = n.primaryKey;
-														return u.addKey(e), e;
-													} },
-													value: { get: function() {
-														return r && a.addKey(n.primaryKey), n.value;
-													} }
-												});
-											}
-											return t;
-										});
-										u.add(w);
-									}
-								}
-								return p[s].apply(this, arguments);
-							};
-						}), n;
+					unsubscribe: function(cb) {
+						context.subscribers = context.subscribers.filter(function(fn) {
+							return fn !== cb;
+						});
+						context.fire = context.subscribers.reduce(chainFunction, defaultFunction);
 					}
+				};
+				evs[eventName] = rv[eventName] = context;
+				return context;
+			}
+			function addConfiguredEvents(cfg) {
+				keys(cfg).forEach(function(eventName) {
+					var args = cfg[eventName];
+					if (isArray(args)) add(eventName, cfg[eventName][0], cfg[eventName][1]);
+					else if (args === "asap") var context = add(eventName, mirror, function fire() {
+						var i = arguments.length, args = new Array(i);
+						while (i--) args[i] = arguments[i];
+						context.subscribers.forEach(function(fn) {
+							asap$1(function fireEvent() {
+								fn.apply(null, args);
+							});
+						});
+					});
+					else throw new exceptions.InvalidArgument("Invalid event config");
 				});
 			}
-		};
-		function Xn(e, t, n) {
-			var r;
-			return 0 === n.numFailures ? t : "deleteRange" === t.type || (r = t.keys ? t.keys.length : "values" in t && t.values ? t.values.length : 1, n.numFailures === r) ? null : (r = _({}, t), x(r.keys) && (r.keys = r.keys.filter(function(e, t) {
-				return !(t in n.failures);
-			})), "values" in r && x(r.values) && (r.values = r.values.filter(function(e, t) {
-				return !(t in n.failures);
-			})), r);
 		}
-		function Hn(e, t) {
-			return n = e, (void 0 === (r = t).lower || (r.lowerOpen ? 0 < j(n, r.lower) : 0 <= j(n, r.lower))) && (n = e, void 0 === (r = t).upper || (r.upperOpen ? j(n, r.upper) < 0 : j(n, r.upper) <= 0));
-			var n, r;
+		function makeClassConstructor(prototype, constructor) {
+			derive(constructor).from({ prototype });
+			return constructor;
 		}
-		function Jn(e, d, t, n, r, i) {
-			var o, p, y, v, m, a, u;
-			return !t || 0 === t.length || (o = d.query.index, p = o.multiEntry, y = d.query.range, v = n.schema.primaryKey.extractKey, m = o.extractKey, a = (o.lowLevelIndex || o).extractKey, (n = t.reduce(function(e, t) {
-				var n = e, r = [];
-				if ("add" === t.type || "put" === t.type) for (var i = new q(), o = t.values.length - 1; 0 <= o; --o) {
-					var a, u = t.values[o], s = v(u);
-					!i.hasKey(s) && (a = m(u), p && x(a) ? a.some(function(e) {
-						return Hn(e, y);
-					}) : Hn(a, y)) && (i.addKey(s), r.push(u));
-				}
-				switch (t.type) {
-					case "add":
-						var c = new q().addKeys(d.values ? e.map(function(e) {
-							return v(e);
-						}) : e), n = e.concat(d.values ? r.filter(function(e) {
-							e = v(e);
-							return !c.hasKey(e) && (c.addKey(e), !0);
-						}) : r.map(function(e) {
-							return v(e);
-						}).filter(function(e) {
-							return !c.hasKey(e) && (c.addKey(e), !0);
-						}));
-						break;
-					case "put":
-						var l = new q().addKeys(t.values.map(function(e) {
-							return v(e);
-						}));
-						n = e.filter(function(e) {
-							return !l.hasKey(d.values ? v(e) : e);
-						}).concat(d.values ? r : r.map(function(e) {
-							return v(e);
-						}));
-						break;
-					case "delete":
-						var f = new q().addKeys(t.keys);
-						n = e.filter(function(e) {
-							return !f.hasKey(d.values ? v(e) : e);
-						});
-						break;
-					case "deleteRange":
-						var h = t.range;
-						n = e.filter(function(e) {
-							return !Hn(v(e), h);
-						});
-				}
-				return n;
-			}, e)) === e) ? e : (u = function(e, t) {
-				return j(a(e), a(t)) || j(v(e), v(t));
-			}, n.sort("prev" === d.direction || "prevunique" === d.direction ? function(e, t) {
-				return u(t, e);
-			} : u), d.limit && d.limit < 1 / 0 && (n.length > d.limit ? n.length = d.limit : e.length === d.limit && n.length < d.limit && (r.dirty = !0)), i ? Object.freeze(n) : n);
-		}
-		function Zn(e, t) {
-			return 0 === j(e.lower, t.lower) && 0 === j(e.upper, t.upper) && !!e.lowerOpen == !!t.lowerOpen && !!e.upperOpen == !!t.upperOpen;
-		}
-		function er(e, t) {
-			return ((e, t, n, r) => {
-				if (void 0 === e) return void 0 !== t ? -1 : 0;
-				if (void 0 === t) return 1;
-				if (0 === (e = j(e, t))) {
-					if (n && r) return 0;
-					if (n) return 1;
-					if (r) return -1;
-				}
-				return e;
-			})(e.lower, t.lower, e.lowerOpen, t.lowerOpen) <= 0 && 0 <= ((e, t, n, r) => {
-				if (void 0 === e) return void 0 !== t ? 1 : 0;
-				if (void 0 === t) return -1;
-				if (0 === (e = j(e, t))) {
-					if (n && r) return 0;
-					if (n) return -1;
-					if (r) return 1;
-				}
-				return e;
-			})(e.upper, t.upper, e.upperOpen, t.upperOpen);
-		}
-		function tr(n, r, i, e) {
-			n.subscribers.add(i), e.addEventListener("abort", function() {
-				var e, t;
-				n.subscribers.delete(i), 0 === n.subscribers.size && (e = n, t = r, setTimeout(function() {
-					0 === e.subscribers.size && oe(t, e);
-				}, 3e3));
+		function createTableConstructor(db) {
+			return makeClassConstructor(Table.prototype, function Table(name, tableSchema, trans) {
+				this.db = db;
+				this._tx = trans;
+				this.name = name;
+				this.schema = tableSchema;
+				this.hook = db._allTables[name] ? db._allTables[name].hook : Events(null, {
+					creating: [hookCreatingChain, nop],
+					reading: [pureFunctionChain, mirror],
+					updating: [hookUpdatingChain, nop],
+					deleting: [hookDeletingChain, nop]
+				});
 			});
 		}
-		var nr = {
-			stack: "dbcore",
-			level: 0,
-			name: "Cache",
-			create: function(k) {
-				var O = k.schema.name;
-				return _(_({}, k), {
-					transaction: function(g, w, e) {
-						var _, t, x = k.transaction(g, w, e);
-						return "readwrite" === w && (e = (_ = new AbortController()).signal, x.addEventListener("abort", (t = function(b) {
-							return function() {
-								if (_.abort(), "readwrite" === w) {
-									for (var t = /* @__PURE__ */ new Set(), e = 0, n = g; e < n.length; e++) {
-										var r = n[e], i = Tn["idb://".concat(O, "/").concat(r)];
-										if (i) {
-											var o = k.table(r), a = i.optimisticOps.filter(function(e) {
-												return e.trans === x;
-											});
-											if (x._explicit && b && x.mutatedParts) for (var u = 0, s = Object.values(i.queries.query); u < s.length; u++) for (var c = 0, l = (d = s[u]).slice(); c < l.length; c++) Cn((p = l[c]).obsSet, x.mutatedParts) && (oe(d, p), p.subscribers.forEach(function(e) {
-												return t.add(e);
-											}));
-											else if (0 < a.length) {
-												i.optimisticOps = i.optimisticOps.filter(function(e) {
-													return e.trans !== x;
-												});
-												for (var f = 0, h = Object.values(i.queries.query); f < h.length; f++) for (var d, p, y, v = 0, m = (d = h[f]).slice(); v < m.length; v++) null != (p = m[v]).res && x.mutatedParts && (b && !p.dirty ? (y = Object.isFrozen(p.res), y = Jn(p.res, p.req, a, o, p, y), p.dirty ? (oe(d, p), p.subscribers.forEach(function(e) {
-													return t.add(e);
-												})) : y !== p.res && (p.res = y, p.promise = K.resolve({ result: y }))) : (p.dirty && oe(d, p), p.subscribers.forEach(function(e) {
-													return t.add(e);
-												})));
-											}
+		function isPlainKeyRange(ctx, ignoreLimitFilter) {
+			return !(ctx.filter || ctx.algorithm || ctx.or) && (ignoreLimitFilter ? ctx.justLimit : !ctx.replayFilter);
+		}
+		function addFilter(ctx, fn) {
+			ctx.filter = combine(ctx.filter, fn);
+		}
+		function addReplayFilter(ctx, factory, isLimitFilter) {
+			var curr = ctx.replayFilter;
+			ctx.replayFilter = curr ? function() {
+				return combine(curr(), factory());
+			} : factory;
+			ctx.justLimit = isLimitFilter && !curr;
+		}
+		function addMatchFilter(ctx, fn) {
+			ctx.isMatch = combine(ctx.isMatch, fn);
+		}
+		function getIndexOrStore(ctx, coreSchema) {
+			if (ctx.isPrimKey) return coreSchema.primaryKey;
+			var index = coreSchema.getIndexByKeyPath(ctx.index);
+			if (!index) throw new exceptions.Schema("KeyPath " + ctx.index + " on object store " + coreSchema.name + " is not indexed");
+			return index;
+		}
+		function openCursor(ctx, coreTable, trans) {
+			var index = getIndexOrStore(ctx, coreTable.schema);
+			return coreTable.openCursor({
+				trans,
+				values: !ctx.keysOnly,
+				reverse: ctx.dir === "prev",
+				unique: !!ctx.unique,
+				query: {
+					index,
+					range: ctx.range
+				}
+			});
+		}
+		function iter(ctx, fn, coreTrans, coreTable) {
+			var filter = ctx.replayFilter ? combine(ctx.filter, ctx.replayFilter()) : ctx.filter;
+			if (!ctx.or) return iterate(openCursor(ctx, coreTable, coreTrans), combine(ctx.algorithm, filter), fn, !ctx.keysOnly && ctx.valueMapper);
+			else {
+				var set_1 = {};
+				var union = function(item, cursor, advance) {
+					if (!filter || filter(cursor, advance, function(result) {
+						return cursor.stop(result);
+					}, function(err) {
+						return cursor.fail(err);
+					})) {
+						var primaryKey = cursor.primaryKey;
+						var key = "" + primaryKey;
+						if (key === "[object ArrayBuffer]") key = "" + new Uint8Array(primaryKey);
+						if (!hasOwn(set_1, key)) {
+							set_1[key] = true;
+							fn(item, cursor, advance);
+						}
+					}
+				};
+				return Promise.all([ctx.or._iterate(union, coreTrans), iterate(openCursor(ctx, coreTable, coreTrans), ctx.algorithm, union, !ctx.keysOnly && ctx.valueMapper)]);
+			}
+		}
+		function iterate(cursorPromise, filter, fn, valueMapper) {
+			var wrappedFn = wrap(valueMapper ? function(x, c, a) {
+				return fn(valueMapper(x), c, a);
+			} : fn);
+			return cursorPromise.then(function(cursor) {
+				if (cursor) return cursor.start(function() {
+					var c = function() {
+						return cursor.continue();
+					};
+					if (!filter || filter(cursor, function(advancer) {
+						return c = advancer;
+					}, function(val) {
+						cursor.stop(val);
+						c = nop;
+					}, function(e) {
+						cursor.fail(e);
+						c = nop;
+					})) wrappedFn(cursor.value, cursor, function(advancer) {
+						return c = advancer;
+					});
+					c();
+				});
+			});
+		}
+		var Collection = function() {
+			function Collection() {}
+			Collection.prototype._read = function(fn, cb) {
+				var ctx = this._ctx;
+				return ctx.error ? ctx.table._trans(null, rejection.bind(null, ctx.error)) : ctx.table._trans("readonly", fn).then(cb);
+			};
+			Collection.prototype._write = function(fn) {
+				var ctx = this._ctx;
+				return ctx.error ? ctx.table._trans(null, rejection.bind(null, ctx.error)) : ctx.table._trans("readwrite", fn, "locked");
+			};
+			Collection.prototype._addAlgorithm = function(fn) {
+				var ctx = this._ctx;
+				ctx.algorithm = combine(ctx.algorithm, fn);
+			};
+			Collection.prototype._iterate = function(fn, coreTrans) {
+				return iter(this._ctx, fn, coreTrans, this._ctx.table.core);
+			};
+			Collection.prototype.clone = function(props) {
+				var rv = Object.create(this.constructor.prototype), ctx = Object.create(this._ctx);
+				if (props) extend(ctx, props);
+				rv._ctx = ctx;
+				return rv;
+			};
+			Collection.prototype.raw = function() {
+				this._ctx.valueMapper = null;
+				return this;
+			};
+			Collection.prototype.each = function(fn) {
+				var ctx = this._ctx;
+				return this._read(function(trans) {
+					return iter(ctx, fn, trans, ctx.table.core);
+				});
+			};
+			Collection.prototype.count = function(cb) {
+				var _this = this;
+				return this._read(function(trans) {
+					var ctx = _this._ctx;
+					var coreTable = ctx.table.core;
+					if (isPlainKeyRange(ctx, true)) return coreTable.count({
+						trans,
+						query: {
+							index: getIndexOrStore(ctx, coreTable.schema),
+							range: ctx.range
+						}
+					}).then(function(count) {
+						return Math.min(count, ctx.limit);
+					});
+					else {
+						var count = 0;
+						return iter(ctx, function() {
+							++count;
+							return false;
+						}, trans, coreTable).then(function() {
+							return count;
+						});
+					}
+				}).then(cb);
+			};
+			Collection.prototype.sortBy = function(keyPath, cb) {
+				var parts = keyPath.split(".").reverse(), lastPart = parts[0], lastIndex = parts.length - 1;
+				function getval(obj, i) {
+					if (i) return getval(obj[parts[i]], i - 1);
+					return obj[lastPart];
+				}
+				var order = this._ctx.dir === "next" ? 1 : -1;
+				function sorter(a, b) {
+					return cmp(getval(a, lastIndex), getval(b, lastIndex)) * order;
+				}
+				return this.toArray(function(a) {
+					return a.slice().sort(sorter);
+				}).then(cb);
+			};
+			Collection.prototype.toArray = function(cb) {
+				var _this = this;
+				return this._read(function(trans) {
+					var ctx = _this._ctx;
+					if (isPlainKeyRange(ctx, true) && ctx.limit > 0) {
+						var valueMapper_1 = ctx.valueMapper;
+						var index = getIndexOrStore(ctx, ctx.table.core.schema);
+						return ctx.table.core.query({
+							trans,
+							limit: ctx.limit,
+							values: true,
+							direction: ctx.dir === "prev" ? "prev" : void 0,
+							query: {
+								index,
+								range: ctx.range
+							}
+						}).then(function(_a) {
+							var result = _a.result;
+							return valueMapper_1 ? result.map(valueMapper_1) : result;
+						});
+					} else {
+						var a_1 = [];
+						return iter(ctx, function(item) {
+							return a_1.push(item);
+						}, trans, ctx.table.core).then(function() {
+							return a_1;
+						});
+					}
+				}, cb);
+			};
+			Collection.prototype.offset = function(offset) {
+				var ctx = this._ctx;
+				if (offset <= 0) return this;
+				ctx.offset += offset;
+				if (isPlainKeyRange(ctx)) addReplayFilter(ctx, function() {
+					var offsetLeft = offset;
+					return function(cursor, advance) {
+						if (offsetLeft === 0) return true;
+						if (offsetLeft === 1) {
+							--offsetLeft;
+							return false;
+						}
+						advance(function() {
+							cursor.advance(offsetLeft);
+							offsetLeft = 0;
+						});
+						return false;
+					};
+				});
+				else addReplayFilter(ctx, function() {
+					var offsetLeft = offset;
+					return function() {
+						return --offsetLeft < 0;
+					};
+				});
+				return this;
+			};
+			Collection.prototype.limit = function(numRows) {
+				this._ctx.limit = Math.min(this._ctx.limit, numRows);
+				addReplayFilter(this._ctx, function() {
+					var rowsLeft = numRows;
+					return function(cursor, advance, resolve) {
+						if (--rowsLeft <= 0) advance(resolve);
+						return rowsLeft >= 0;
+					};
+				}, true);
+				return this;
+			};
+			Collection.prototype.until = function(filterFunction, bIncludeStopEntry) {
+				addFilter(this._ctx, function(cursor, advance, resolve) {
+					if (filterFunction(cursor.value)) {
+						advance(resolve);
+						return bIncludeStopEntry;
+					} else return true;
+				});
+				return this;
+			};
+			Collection.prototype.first = function(cb) {
+				return this.limit(1).toArray(function(a) {
+					return a[0];
+				}).then(cb);
+			};
+			Collection.prototype.last = function(cb) {
+				return this.reverse().first(cb);
+			};
+			Collection.prototype.filter = function(filterFunction) {
+				addFilter(this._ctx, function(cursor) {
+					return filterFunction(cursor.value);
+				});
+				addMatchFilter(this._ctx, filterFunction);
+				return this;
+			};
+			Collection.prototype.and = function(filter) {
+				return this.filter(filter);
+			};
+			Collection.prototype.or = function(indexName) {
+				return new this.db.WhereClause(this._ctx.table, indexName, this);
+			};
+			Collection.prototype.reverse = function() {
+				this._ctx.dir = this._ctx.dir === "prev" ? "next" : "prev";
+				if (this._ondirectionchange) this._ondirectionchange(this._ctx.dir);
+				return this;
+			};
+			Collection.prototype.desc = function() {
+				return this.reverse();
+			};
+			Collection.prototype.eachKey = function(cb) {
+				var ctx = this._ctx;
+				ctx.keysOnly = !ctx.isMatch;
+				return this.each(function(val, cursor) {
+					cb(cursor.key, cursor);
+				});
+			};
+			Collection.prototype.eachUniqueKey = function(cb) {
+				this._ctx.unique = "unique";
+				return this.eachKey(cb);
+			};
+			Collection.prototype.eachPrimaryKey = function(cb) {
+				var ctx = this._ctx;
+				ctx.keysOnly = !ctx.isMatch;
+				return this.each(function(val, cursor) {
+					cb(cursor.primaryKey, cursor);
+				});
+			};
+			Collection.prototype.keys = function(cb) {
+				var ctx = this._ctx;
+				ctx.keysOnly = !ctx.isMatch;
+				var a = [];
+				return this.each(function(item, cursor) {
+					a.push(cursor.key);
+				}).then(function() {
+					return a;
+				}).then(cb);
+			};
+			Collection.prototype.primaryKeys = function(cb) {
+				var ctx = this._ctx;
+				if (isPlainKeyRange(ctx, true) && ctx.limit > 0) return this._read(function(trans) {
+					var index = getIndexOrStore(ctx, ctx.table.core.schema);
+					return ctx.table.core.query({
+						trans,
+						values: false,
+						limit: ctx.limit,
+						direction: ctx.dir === "prev" ? "prev" : void 0,
+						query: {
+							index,
+							range: ctx.range
+						}
+					});
+				}).then(function(_a) {
+					return _a.result;
+				}).then(cb);
+				ctx.keysOnly = !ctx.isMatch;
+				var a = [];
+				return this.each(function(item, cursor) {
+					a.push(cursor.primaryKey);
+				}).then(function() {
+					return a;
+				}).then(cb);
+			};
+			Collection.prototype.uniqueKeys = function(cb) {
+				this._ctx.unique = "unique";
+				return this.keys(cb);
+			};
+			Collection.prototype.firstKey = function(cb) {
+				return this.limit(1).keys(function(a) {
+					return a[0];
+				}).then(cb);
+			};
+			Collection.prototype.lastKey = function(cb) {
+				return this.reverse().firstKey(cb);
+			};
+			Collection.prototype.distinct = function() {
+				var ctx = this._ctx, idx = ctx.index && ctx.table.schema.idxByName[ctx.index];
+				if (!idx || !idx.multi) return this;
+				var set = {};
+				addFilter(this._ctx, function(cursor) {
+					var strKey = cursor.primaryKey.toString();
+					var found = hasOwn(set, strKey);
+					set[strKey] = true;
+					return !found;
+				});
+				return this;
+			};
+			Collection.prototype.modify = function(changes) {
+				var _this = this;
+				var ctx = this._ctx;
+				return this._write(function(trans) {
+					var modifyer;
+					if (typeof changes === "function") modifyer = changes;
+					else modifyer = function(item) {
+						return applyUpdateSpec(item, changes);
+					};
+					var coreTable = ctx.table.core;
+					var _a = coreTable.schema.primaryKey, outbound = _a.outbound, extractKey = _a.extractKey;
+					var limit = 200;
+					var modifyChunkSize = _this.db._options.modifyChunkSize;
+					if (modifyChunkSize) {
+						if (typeof modifyChunkSize == "object") limit = modifyChunkSize[coreTable.name] || modifyChunkSize["*"] || 200;
+						else limit = modifyChunkSize;
+					}
+					var totalFailures = [];
+					var successCount = 0;
+					var failedKeys = [];
+					var applyMutateResult = function(expectedCount, res) {
+						var failures = res.failures, numFailures = res.numFailures;
+						successCount += expectedCount - numFailures;
+						for (var _i = 0, _a = keys(failures); _i < _a.length; _i++) {
+							var pos = _a[_i];
+							totalFailures.push(failures[pos]);
+						}
+					};
+					var isUnconditionalDelete = changes === deleteCallback;
+					return _this.clone().primaryKeys().then(function(keys) {
+						var criteria = isPlainKeyRange(ctx) && ctx.limit === Infinity && (typeof changes !== "function" || isUnconditionalDelete) && {
+							index: ctx.index,
+							range: ctx.range
+						};
+						var nextChunk = function(offset) {
+							var count = Math.min(limit, keys.length - offset);
+							var keysInChunk = keys.slice(offset, offset + count);
+							return (isUnconditionalDelete ? Promise.resolve([]) : coreTable.getMany({
+								trans,
+								keys: keysInChunk,
+								cache: "immutable"
+							})).then(function(values) {
+								var addValues = [];
+								var putValues = [];
+								var putKeys = outbound ? [] : null;
+								var deleteKeys = isUnconditionalDelete ? keysInChunk : [];
+								if (!isUnconditionalDelete) for (var i = 0; i < count; ++i) {
+									var origValue = values[i];
+									var ctx_1 = {
+										value: deepClone(origValue),
+										primKey: keys[offset + i]
+									};
+									if (modifyer.call(ctx_1, ctx_1.value, ctx_1) !== false) {
+										if (ctx_1.value == null) deleteKeys.push(keys[offset + i]);
+										else if (!outbound && cmp(extractKey(origValue), extractKey(ctx_1.value)) !== 0) {
+											deleteKeys.push(keys[offset + i]);
+											addValues.push(ctx_1.value);
+										} else {
+											putValues.push(ctx_1.value);
+											if (outbound) putKeys.push(keys[offset + i]);
 										}
 									}
-									t.forEach(function(e) {
-										return e();
-									});
 								}
-							};
-						})(!1), { signal: e }), x.addEventListener("error", t(!1), { signal: e }), x.addEventListener("complete", t(!0), { signal: e })), x;
-					},
-					table: function(s) {
-						var c = k.table(s), i = c.schema.primaryKey;
-						return _(_({}, c), {
-							mutate: function(t) {
-								var n, e = P.trans;
-								return !i.outbound && "disabled" !== e.db._options.cache && !e.explicit && "readwrite" === e.idbtrans.mode && (n = Tn["idb://".concat(O, "/").concat(s)]) ? (e = c.mutate(t), "add" !== t.type && "put" !== t.type || !(50 <= t.values.length || zn(i, t).some(function(e) {
-									return null == e;
-								})) ? (n.optimisticOps.push(t), t.mutatedParts && Dn(t.mutatedParts), e.then(function(e) {
-									0 < e.numFailures && (oe(n.optimisticOps, t), (e = Xn(0, t, e)) && n.optimisticOps.push(e), t.mutatedParts) && Dn(t.mutatedParts);
-								}), e.catch(function() {
-									oe(n.optimisticOps, t), t.mutatedParts && Dn(t.mutatedParts);
-								})) : e.then(function(r) {
-									var e = Xn(0, _(_({}, t), { values: t.values.map(function(e, t) {
-										var n;
-										return r.failures[t] ? e : (b(n = null != (n = i.keyPath) && n.includes(".") ? ee(e) : _({}, e), i.keyPath, r.results[t]), n);
-									}) }), r);
-									n.optimisticOps.push(e), queueMicrotask(function() {
-										return t.mutatedParts && Dn(t.mutatedParts);
+								return Promise.resolve(addValues.length > 0 && coreTable.mutate({
+									trans,
+									type: "add",
+									values: addValues
+								}).then(function(res) {
+									for (var pos in res.failures) deleteKeys.splice(parseInt(pos), 1);
+									applyMutateResult(addValues.length, res);
+								})).then(function() {
+									return (putValues.length > 0 || criteria && typeof changes === "object") && coreTable.mutate({
+										trans,
+										type: "put",
+										keys: putKeys,
+										values: putValues,
+										criteria,
+										changeSpec: typeof changes !== "function" && changes,
+										isAdditionalChunk: offset > 0
+									}).then(function(res) {
+										return applyMutateResult(putValues.length, res);
 									});
-								}), e) : c.mutate(t);
-							},
-							query: function(t) {
-								var i, e, n, r, o, a, u;
-								return $n(P, c) && Qn("query", t) ? (i = "immutable" === (null == (n = P.trans) ? void 0 : n.db._options.cache), e = (n = P).requery, n = n.signal, a = ((e, t, n, r) => {
-									var i = Tn["idb://".concat(e, "/").concat(t)];
-									if (!i) return [];
-									if (!(e = i.queries[n])) return [
-										null,
-										!1,
-										i,
-										null
-									];
-									var o = e[(r.query ? r.query.index.name : null) || ""];
-									if (!o) return [
-										null,
-										!1,
-										i,
-										null
-									];
-									switch (n) {
-										case "query":
-											var a = null != (u = r.direction) ? u : "next", u = o.find(function(e) {
-												var t;
-												return e.req.limit === r.limit && e.req.values === r.values && (null != (t = e.req.direction) ? t : "next") === a && Zn(e.req.query.range, r.query.range);
-											});
-											return u ? [
-												u,
-												!0,
-												i,
-												o
-											] : [
-												o.find(function(e) {
-													var t;
-													return ("limit" in e.req ? e.req.limit : 1 / 0) >= r.limit && (null != (t = e.req.direction) ? t : "next") === a && (!r.values || e.req.values) && er(e.req.query.range, r.query.range);
-												}),
-												!1,
-												i,
-												o
-											];
-										case "count":
-											u = o.find(function(e) {
-												return Zn(e.req.query.range, r.query.range);
-											});
-											return [
-												u,
-												!!u,
-												i,
-												o
-											];
-									}
-								})(O, s, "query", t), u = a[0], r = a[2], o = a[3], u && a[1] ? u.obsSet = t.obsSet : (a = c.query(t).then(function(e) {
-									var t = e.result;
-									if (u && (u.res = t), i) {
-										for (var n = 0, r = t.length; n < r; ++n) Object.freeze(t[n]);
-										Object.freeze(t);
-									}
-									return e;
-								}).catch(function(e) {
-									return o && u && oe(o, u), Promise.reject(e);
-								}), u = {
-									obsSet: t.obsSet,
-									promise: a,
-									subscribers: /* @__PURE__ */ new Set(),
-									type: "query",
-									req: t,
-									dirty: !1
-								}, o ? o.push(u) : (o = [u], (r = r || (Tn["idb://".concat(O, "/").concat(s)] = {
-									queries: {
-										query: {},
-										count: {}
-									},
-									objs: /* @__PURE__ */ new Map(),
-									optimisticOps: [],
-									unsignaledParts: {}
-								})).queries.query[t.query.index.name || ""] = o)), tr(u, o, e, n), u.promise.then(function(e) {
-									e = Jn(e.result, t, null == r ? void 0 : r.optimisticOps, c, u, i);
-									return { result: i ? e : ee(e) };
-								})) : c.query(t);
-							}
+								}).then(function() {
+									return (deleteKeys.length > 0 || criteria && isUnconditionalDelete) && coreTable.mutate({
+										trans,
+										type: "delete",
+										keys: deleteKeys,
+										criteria,
+										isAdditionalChunk: offset > 0
+									}).then(function(res) {
+										return builtInDeletionTrigger(ctx.table, deleteKeys, res);
+									}).then(function(res) {
+										return applyMutateResult(deleteKeys.length, res);
+									});
+								}).then(function() {
+									return keys.length > offset + count && nextChunk(offset + limit);
+								});
+							});
+						};
+						return nextChunk(0).then(function() {
+							if (totalFailures.length > 0) throw new ModifyError("Error modifying one or more objects", totalFailures, successCount, failedKeys);
+							return keys.length;
 						});
-					}
+					});
 				});
-			}
-		};
-		function rr(e, r) {
-			return new Proxy(e, { get: function(e, t, n) {
-				return "db" === t ? r : Reflect.get(e, t, n);
-			} });
-		}
-		D.prototype.version = function(t) {
-			if (isNaN(t) || t < .1) throw new k.Type("Given version is not a positive number");
-			if (t = Math.round(10 * t) / 10, this.idbdb || this._state.isBeingOpened) throw new k.Schema("Cannot add version when database is open");
-			this.verno = Math.max(this.verno, t);
-			var e = this._versions, n = e.filter(function(e) {
-				return e._cfg.version === t;
-			})[0];
-			return n || (n = new this.Version(t), e.push(n), e.sort(un), n.stores({}), this._state.autoSchema = !1), n;
-		}, D.prototype._whenReady = function(e) {
-			var n = this;
-			return this.idbdb && (this._state.openComplete || P.letThrough || this._vip) ? e() : new K(function(e, t) {
-				if (n._state.openComplete) return t(new k.DatabaseClosed(n._state.dbOpenError));
-				if (!n._state.isBeingOpened) {
-					if (!n._state.autoOpen) return void t(new k.DatabaseClosed());
-					n.open().catch(g);
-				}
-				n._state.dbReadyPromise.then(e, t);
-			}).then(e);
-		}, D.prototype.use = function(e) {
-			var t = e.stack, n = e.create, r = e.level, e = e.name, i = (e && this.unuse({
-				stack: t,
-				name: e
-			}), this._middlewares[t] || (this._middlewares[t] = []));
-			return i.push({
-				stack: t,
-				create: n,
-				level: null == r ? 10 : r,
-				name: e
-			}), i.sort(function(e, t) {
-				return e.level - t.level;
-			}), this;
-		}, D.prototype.unuse = function(e) {
-			var t = e.stack, n = e.name, r = e.create;
-			return t && this._middlewares[t] && (this._middlewares[t] = this._middlewares[t].filter(function(e) {
-				return r ? e.create !== r : !!n && e.name !== n;
-			})), this;
-		}, D.prototype.open = function() {
-			var e = this;
-			return at(s, function() {
-				return Fn(e);
-			});
-		}, D.prototype._close = function() {
-			this.on.close.fire(new CustomEvent("close"));
-			var n = this._state;
-			if (gn.remove(this), this.idbdb) {
-				try {
-					this.idbdb.close();
-				} catch (e) {}
-				this.idbdb = null;
-			}
-			n.isBeingOpened || (n.dbReadyPromise = new K(function(e) {
-				n.dbReadyResolve = e;
-			}), n.openCanceller = new K(function(e, t) {
-				n.cancelOpen = t;
-			}));
-		}, D.prototype.close = function(e) {
-			var e = (void 0 === e ? { disableAutoOpen: !0 } : e).disableAutoOpen, t = this._state;
-			e ? (t.isBeingOpened && t.cancelOpen(new k.DatabaseClosed()), this._close(), t.autoOpen = !1, t.dbOpenError = new k.DatabaseClosed()) : (this._close(), t.autoOpen = this._options.autoOpen || t.isBeingOpened, t.openComplete = !1, t.dbOpenError = null);
-		}, D.prototype.delete = function(n) {
-			var i = this, o = (void 0 === n && (n = { disableAutoOpen: !0 }), 0 < arguments.length && "object" != typeof arguments[0]), a = this._state;
-			return new K(function(r, t) {
-				function e() {
-					i.close(n);
-					var e = i._deps.indexedDB.deleteDatabase(i.name);
-					e.onsuccess = E(function() {
-						var e = i._deps, t = i.name, n;
-						_n(n = e.indexedDB) || t === ft || wn(n, e.IDBKeyRange).delete(t).catch(g), r();
-					}), e.onerror = I(t), e.onblocked = i._fireOnBlocked;
-				}
-				if (o) throw new k.InvalidArgument("Invalid closeOptions argument to db.delete()");
-				a.isBeingOpened ? a.dbReadyPromise.then(e) : e();
-			});
-		}, D.prototype.backendDB = function() {
-			return this.idbdb;
-		}, D.prototype.isOpen = function() {
-			return null !== this.idbdb;
-		}, D.prototype.hasBeenClosed = function() {
-			var e = this._state.dbOpenError;
-			return e && "DatabaseClosed" === e.name;
-		}, D.prototype.hasFailed = function() {
-			return null !== this._state.dbOpenError;
-		}, D.prototype.dynamicallyOpened = function() {
-			return this._state.autoSchema;
-		}, Object.defineProperty(D.prototype, "tables", {
-			get: function() {
-				var t = this;
-				return O(this._allTables).map(function(e) {
-					return t._allTables[e];
-				});
-			},
-			enumerable: !1,
-			configurable: !0
-		}), D.prototype.transaction = function() {
-			var e = function(e, t, n) {
-				var r = arguments.length;
-				if (r < 2) throw new k.InvalidArgument("Too few arguments");
-				for (var i = new Array(r - 1); --r;) i[r - 1] = arguments[r];
-				return n = i.pop(), [
-					e,
-					H(i),
-					n
-				];
-			}.apply(this, arguments);
-			return this._transaction.apply(this, e);
-		}, D.prototype._transaction = function(e, t, n) {
-			var r, i, o = this, a = P.trans, u = (a && a.db === this && -1 === e.indexOf("!") || (a = null), -1 !== e.indexOf("?"));
-			e = e.replace("!", "").replace("?", "");
-			try {
-				if (i = t.map(function(e) {
-					e = e instanceof o.Table ? e.name : e;
-					if ("string" != typeof e) throw new TypeError("Invalid table argument to Dexie.transaction(). Only Table or String are allowed");
-					return e;
-				}), "r" == e || e === ht) r = ht;
-				else {
-					if ("rw" != e && e != dt) throw new k.InvalidArgument("Invalid transaction mode: " + e);
-					r = dt;
-				}
-				if (a) {
-					if (a.mode === ht && r === dt) {
-						if (!u) throw new k.SubTransaction("Cannot enter a sub-transaction with READWRITE mode when parent transaction is READONLY");
-						a = null;
-					}
-					a && i.forEach(function(e) {
-						if (a && -1 === a.storeNames.indexOf(e)) {
-							if (!u) throw new k.SubTransaction("Table " + e + " not included in parent transaction.");
-							a = null;
+			};
+			Collection.prototype.delete = function() {
+				var ctx = this._ctx, range = ctx.range;
+				if (isPlainKeyRange(ctx) && !ctx.table.schema.yProps && (ctx.isPrimKey || range.type === 3)) return this._write(function(trans) {
+					var primaryKey = ctx.table.core.schema.primaryKey;
+					var coreRange = range;
+					return ctx.table.core.count({
+						trans,
+						query: {
+							index: primaryKey,
+							range: coreRange
 						}
-					}), u && a && !a.active && (a = null);
-				}
-			} catch (n) {
-				return a ? a._promise(null, function(e, t) {
-					t(n);
-				}) : S(n);
-			}
-			var s = function i(o, a, u, s, c) {
-				return K.resolve().then(function() {
-					var e = P.transless || P, t = o._createTransaction(a, u, o._dbSchema, s), e = (t.explicit = !0, {
-						trans: t,
-						transless: e
-					});
-					if (s) t.idbtrans = s.idbtrans;
-					else try {
-						t.create(), t.idbtrans._explicit = !0, o._state.PR1398_maxLoop = 3;
-					} catch (e) {
-						return e.name === de.InvalidState && o.isOpen() && 0 < --o._state.PR1398_maxLoop ? (console.warn("Dexie: Need to reopen db"), o.close({ disableAutoOpen: !1 }), o.open().then(function() {
-							return i(o, a, u, null, c);
-						})) : S(e);
-					}
-					var n, r = ue(c), e = (r && nt(), K.follow(function() {
-						var e;
-						(n = c.call(t, t)) && (r ? (e = w.bind(null, null), n.then(e, e)) : "function" == typeof n.next && "function" == typeof n.throw && (n = Nn(n)));
-					}, e));
-					return (n && "function" == typeof n.then ? K.resolve(n).then(function(e) {
-						return t.active ? e : S(new k.PrematureCommit("Transaction committed too early. See http://bit.ly/2kdckMn"));
-					}) : e.then(function() {
-						return n;
-					})).then(function(e) {
-						return s && t._resolve(), t._completion.then(function() {
-							return e;
+					}).then(function(count) {
+						return ctx.table.core.mutate({
+							trans,
+							type: "deleteRange",
+							range: coreRange
+						}).then(function(_a) {
+							var failures = _a.failures, numFailures = _a.numFailures;
+							if (numFailures) throw new ModifyError("Could not delete some values", Object.keys(failures).map(function(pos) {
+								return failures[pos];
+							}), count - numFailures);
+							return count - numFailures;
 						});
-					}).catch(function(e) {
-						return t._reject(e), S(e);
 					});
 				});
-			}.bind(null, this, r, i, a, n);
-			return a ? a._promise(r, s, "lock") : P.trans ? at(P.transless, function() {
-				return o._whenReady(s);
-			}) : this._whenReady(s);
-		}, D.prototype.table = function(e) {
-			if (m(this._allTables, e)) return this._allTables[e];
-			throw new k.InvalidTable("Table ".concat(e, " does not exist"));
+				return this.modify(deleteCallback);
+			};
+			return Collection;
+		}();
+		var deleteCallback = function(value, ctx) {
+			return ctx.value = null;
 		};
-		var y = D;
-		function D(e, t) {
-			var o, r, a, n, i, u = this, s = (this._middlewares = {}, this.verno = 0, D.dependencies), s = (this._options = t = _({
-				addons: D.addons,
-				autoOpen: !0,
-				indexedDB: s.indexedDB,
-				IDBKeyRange: s.IDBKeyRange,
-				cache: "cloned",
-				maxConnections: 1e3
-			}, t), this._deps = {
-				indexedDB: t.indexedDB,
-				IDBKeyRange: t.IDBKeyRange
-			}, t.addons), c = (this._dbSchema = {}, this._versions = [], this._storeNames = [], this._allTables = {}, this.idbdb = null, this._novip = this, {
-				dbOpenError: null,
-				isBeingOpened: !1,
-				onReadyBeingFired: null,
-				openComplete: !1,
-				dbReadyResolve: g,
-				dbReadyPromise: null,
-				cancelOpen: g,
-				openCanceller: null,
-				autoSchema: !0,
-				PR1398_maxLoop: 3,
-				autoOpen: t.autoOpen
-			}), l = (c.dbReadyPromise = new K(function(e) {
-				c.dbReadyResolve = e;
-			}), c.openCanceller = new K(function(e, t) {
-				c.cancelOpen = t;
-			}), this._state = c, this.name = e, this.on = Pt(this, "populate", "blocked", "versionchange", "close", { ready: [ke, g] }), this.once = function(n, r) {
-				var i = function() {
-					for (var e = [], t = 0; t < arguments.length; t++) e[t] = arguments[t];
-					u.on(n).unsubscribe(i), r.apply(u, e);
-				};
-				return u.on(n, i);
-			}, this.on.ready.subscribe = Y(this.on.ready.subscribe, function(i) {
-				return function(n, r) {
-					D.vip(function() {
-						var t, e = u._state;
-						e.openComplete ? (e.dbOpenError || K.resolve().then(n), r && i(n)) : e.onReadyBeingFired ? (e.onReadyBeingFired.push(n), r && i(n)) : (i(n), t = u, r || i(function e() {
-							t.on.ready.unsubscribe(n), t.on.ready.unsubscribe(e);
-						}));
-					});
-				};
-			}), this.Collection = (o = this, Kt(qt.prototype, function(e, t) {
-				this.db = o;
-				var n = yt, r = null;
-				if (t) try {
-					n = t();
-				} catch (e) {
-					r = e;
+		function createCollectionConstructor(db) {
+			return makeClassConstructor(Collection.prototype, function Collection(whereClause, keyRangeGenerator) {
+				this.db = db;
+				var keyRange = AnyRange, error = null;
+				if (keyRangeGenerator) try {
+					keyRange = keyRangeGenerator();
+				} catch (ex) {
+					error = ex;
 				}
-				var t = e._ctx, e = t.table, i = e.hook.reading.fire;
+				var whereCtx = whereClause._ctx;
+				var table = whereCtx.table;
+				var readingHook = table.hook.reading.fire;
 				this._ctx = {
-					table: e,
-					index: t.index,
-					isPrimKey: !t.index || e.schema.primKey.keyPath && t.index === e.schema.primKey.name,
-					range: n,
-					keysOnly: !1,
+					table,
+					index: whereCtx.index,
+					isPrimKey: !whereCtx.index || table.schema.primKey.keyPath && whereCtx.index === table.schema.primKey.name,
+					range: keyRange,
+					keysOnly: false,
 					dir: "next",
 					unique: "",
 					algorithm: null,
 					filter: null,
 					replayFilter: null,
-					justLimit: !0,
+					justLimit: true,
 					isMatch: null,
 					offset: 0,
-					limit: 1 / 0,
-					error: r,
-					or: t.or,
-					valueMapper: i !== ve ? i : null
+					limit: Infinity,
+					error,
+					or: whereCtx.or,
+					valueMapper: readingHook !== mirror ? readingHook : null
 				};
-			})), this.Table = (r = this, Kt(Ot.prototype, function(e, t, n) {
-				this.db = r, this._tx = n, this.name = e, this.schema = t, this.hook = r._allTables[e] ? r._allTables[e].hook : Pt(null, {
-					creating: [ge, g],
-					reading: [me, ve],
-					updating: [_e, g],
-					deleting: [we, g]
+			});
+		}
+		function simpleCompare(a, b) {
+			return a < b ? -1 : a === b ? 0 : 1;
+		}
+		function simpleCompareReverse(a, b) {
+			return a > b ? -1 : a === b ? 0 : 1;
+		}
+		function fail(collectionOrWhereClause, err, T) {
+			var collection = collectionOrWhereClause instanceof WhereClause ? new collectionOrWhereClause.Collection(collectionOrWhereClause) : collectionOrWhereClause;
+			collection._ctx.error = T ? new T(err) : new TypeError(err);
+			return collection;
+		}
+		function emptyCollection(whereClause) {
+			var collection = new whereClause.Collection(whereClause, function() {
+				return rangeEqual("");
+			});
+			collection._addAlgorithm(function() {
+				return false;
+			});
+			return collection;
+		}
+		function upperFactory(dir) {
+			return dir === "next" ? function(s) {
+				return s.toUpperCase();
+			} : function(s) {
+				return s.toLowerCase();
+			};
+		}
+		function lowerFactory(dir) {
+			return dir === "next" ? function(s) {
+				return s.toLowerCase();
+			} : function(s) {
+				return s.toUpperCase();
+			};
+		}
+		function nextCasing(key, lowerKey, upperNeedle, lowerNeedle, cmp, dir) {
+			var length = Math.min(key.length, lowerNeedle.length);
+			var llp = -1;
+			for (var i = 0; i < length; ++i) {
+				var lwrKeyChar = lowerKey[i];
+				if (lwrKeyChar !== lowerNeedle[i]) {
+					if (cmp(key[i], upperNeedle[i]) < 0) return key.substr(0, i) + upperNeedle[i] + upperNeedle.substr(i + 1);
+					if (cmp(key[i], lowerNeedle[i]) < 0) return key.substr(0, i) + lowerNeedle[i] + upperNeedle.substr(i + 1);
+					if (llp >= 0) return key.substr(0, llp) + lowerKey[llp] + upperNeedle.substr(llp + 1);
+					return null;
+				}
+				if (cmp(key[i], lwrKeyChar) < 0) llp = i;
+			}
+			if (length < lowerNeedle.length && dir === "next") return key + upperNeedle.substr(key.length);
+			if (length < key.length && dir === "prev") return key.substr(0, upperNeedle.length);
+			return llp < 0 ? null : key.substr(0, llp) + lowerNeedle[llp] + upperNeedle.substr(llp + 1);
+		}
+		function addIgnoreCaseAlgorithm(whereClause, match, needles, suffix) {
+			var upper, lower, compare, upperNeedles, lowerNeedles, direction, nextKeySuffix, needlesLen = needles.length;
+			if (!needles.every(function(s) {
+				return typeof s === "string";
+			})) return fail(whereClause, STRING_EXPECTED);
+			function initDirection(dir) {
+				upper = upperFactory(dir);
+				lower = lowerFactory(dir);
+				compare = dir === "next" ? simpleCompare : simpleCompareReverse;
+				var needleBounds = needles.map(function(needle) {
+					return {
+						lower: lower(needle),
+						upper: upper(needle)
+					};
+				}).sort(function(a, b) {
+					return compare(a.lower, b.lower);
 				});
-			})), this.Transaction = (a = this, Kt(Yt.prototype, function(e, t, n, r, i) {
-				var o = this;
-				"readonly" !== e && t.forEach(function(e) {
-					e = null == (e = n[e]) ? void 0 : e.yProps;
-					e && (t = t.concat(e.map(function(e) {
-						return e.updatesTable;
-					})));
-				}), this.db = a, this.mode = e, this.storeNames = t, this.schema = n, this.chromeTransactionDurability = r, this.idbtrans = null, this.on = Pt(this, "complete", "error", "abort"), this.parent = i || null, this.active = !0, this._reculock = 0, this._blockedFuncs = [], this._resolve = null, this._reject = null, this._waitingFor = null, this._waitingQueue = null, this._spinCount = 0, this._completion = new K(function(e, t) {
-					o._resolve = e, o._reject = t;
-				}), this._completion.then(function() {
-					o.active = !1, o.on.complete.fire();
+				upperNeedles = needleBounds.map(function(nb) {
+					return nb.upper;
+				});
+				lowerNeedles = needleBounds.map(function(nb) {
+					return nb.lower;
+				});
+				direction = dir;
+				nextKeySuffix = dir === "next" ? "" : suffix;
+			}
+			initDirection("next");
+			var c = new whereClause.Collection(whereClause, function() {
+				return createRange(upperNeedles[0], lowerNeedles[needlesLen - 1] + suffix);
+			});
+			c._ondirectionchange = function(direction) {
+				initDirection(direction);
+			};
+			var firstPossibleNeedle = 0;
+			c._addAlgorithm(function(cursor, advance, resolve) {
+				var key = cursor.key;
+				if (typeof key !== "string") return false;
+				var lowerKey = lower(key);
+				if (match(lowerKey, lowerNeedles, firstPossibleNeedle)) return true;
+				else {
+					var lowestPossibleCasing = null;
+					for (var i = firstPossibleNeedle; i < needlesLen; ++i) {
+						var casing = nextCasing(key, lowerKey, upperNeedles[i], lowerNeedles[i], compare, direction);
+						if (casing === null && lowestPossibleCasing === null) firstPossibleNeedle = i + 1;
+						else if (lowestPossibleCasing === null || compare(lowestPossibleCasing, casing) > 0) lowestPossibleCasing = casing;
+					}
+					if (lowestPossibleCasing !== null) advance(function() {
+						cursor.continue(lowestPossibleCasing + nextKeySuffix);
+					});
+					else advance(resolve);
+					return false;
+				}
+			});
+			return c;
+		}
+		function createRange(lower, upper, lowerOpen, upperOpen) {
+			return {
+				type: 2,
+				lower,
+				upper,
+				lowerOpen,
+				upperOpen
+			};
+		}
+		function rangeEqual(value) {
+			return {
+				type: 1,
+				lower: value,
+				upper: value
+			};
+		}
+		var WhereClause = function() {
+			function WhereClause() {}
+			Object.defineProperty(WhereClause.prototype, "Collection", {
+				get: function() {
+					return this._ctx.table.db.Collection;
+				},
+				enumerable: false,
+				configurable: true
+			});
+			WhereClause.prototype.between = function(lower, upper, includeLower, includeUpper) {
+				includeLower = includeLower !== false;
+				includeUpper = includeUpper === true;
+				try {
+					if (this._cmp(lower, upper) > 0 || this._cmp(lower, upper) === 0 && (includeLower || includeUpper) && !(includeLower && includeUpper)) return emptyCollection(this);
+					return new this.Collection(this, function() {
+						return createRange(lower, upper, !includeLower, !includeUpper);
+					});
+				} catch (e) {
+					return fail(this, INVALID_KEY_ARGUMENT);
+				}
+			};
+			WhereClause.prototype.equals = function(value) {
+				if (value == null) return fail(this, INVALID_KEY_ARGUMENT);
+				return new this.Collection(this, function() {
+					return rangeEqual(value);
+				});
+			};
+			WhereClause.prototype.above = function(value) {
+				if (value == null) return fail(this, INVALID_KEY_ARGUMENT);
+				return new this.Collection(this, function() {
+					return createRange(value, void 0, true);
+				});
+			};
+			WhereClause.prototype.aboveOrEqual = function(value) {
+				if (value == null) return fail(this, INVALID_KEY_ARGUMENT);
+				return new this.Collection(this, function() {
+					return createRange(value, void 0, false);
+				});
+			};
+			WhereClause.prototype.below = function(value) {
+				if (value == null) return fail(this, INVALID_KEY_ARGUMENT);
+				return new this.Collection(this, function() {
+					return createRange(void 0, value, false, true);
+				});
+			};
+			WhereClause.prototype.belowOrEqual = function(value) {
+				if (value == null) return fail(this, INVALID_KEY_ARGUMENT);
+				return new this.Collection(this, function() {
+					return createRange(void 0, value);
+				});
+			};
+			WhereClause.prototype.startsWith = function(str) {
+				if (typeof str !== "string") return fail(this, STRING_EXPECTED);
+				return this.between(str, str + maxString, true, true);
+			};
+			WhereClause.prototype.startsWithIgnoreCase = function(str) {
+				if (str === "") return this.startsWith(str);
+				return addIgnoreCaseAlgorithm(this, function(x, a) {
+					return x.indexOf(a[0]) === 0;
+				}, [str], maxString);
+			};
+			WhereClause.prototype.equalsIgnoreCase = function(str) {
+				return addIgnoreCaseAlgorithm(this, function(x, a) {
+					return x === a[0];
+				}, [str], "");
+			};
+			WhereClause.prototype.anyOfIgnoreCase = function() {
+				var set = getArrayOf.apply(NO_CHAR_ARRAY, arguments);
+				if (set.length === 0) return emptyCollection(this);
+				return addIgnoreCaseAlgorithm(this, function(x, a) {
+					return a.indexOf(x) !== -1;
+				}, set, "");
+			};
+			WhereClause.prototype.startsWithAnyOfIgnoreCase = function() {
+				var set = getArrayOf.apply(NO_CHAR_ARRAY, arguments);
+				if (set.length === 0) return emptyCollection(this);
+				return addIgnoreCaseAlgorithm(this, function(x, a) {
+					return a.some(function(n) {
+						return x.indexOf(n) === 0;
+					});
+				}, set, maxString);
+			};
+			WhereClause.prototype.anyOf = function() {
+				var _this = this;
+				var set = getArrayOf.apply(NO_CHAR_ARRAY, arguments);
+				var compare = this._cmp;
+				try {
+					set.sort(compare);
+				} catch (e) {
+					return fail(this, INVALID_KEY_ARGUMENT);
+				}
+				if (set.length === 0) return emptyCollection(this);
+				var c = new this.Collection(this, function() {
+					return createRange(set[0], set[set.length - 1]);
+				});
+				c._ondirectionchange = function(direction) {
+					compare = direction === "next" ? _this._ascending : _this._descending;
+					set.sort(compare);
+				};
+				var i = 0;
+				c._addAlgorithm(function(cursor, advance, resolve) {
+					var key = cursor.key;
+					while (compare(key, set[i]) > 0) {
+						++i;
+						if (i === set.length) {
+							advance(resolve);
+							return false;
+						}
+					}
+					if (compare(key, set[i]) === 0) return true;
+					else {
+						advance(function() {
+							cursor.continue(set[i]);
+						});
+						return false;
+					}
+				});
+				return c;
+			};
+			WhereClause.prototype.notEqual = function(value) {
+				return this.inAnyRange([[minKey, value], [value, this.db._maxKey]], {
+					includeLowers: false,
+					includeUppers: false
+				});
+			};
+			WhereClause.prototype.noneOf = function() {
+				var set = getArrayOf.apply(NO_CHAR_ARRAY, arguments);
+				if (set.length === 0) return new this.Collection(this);
+				try {
+					set.sort(this._ascending);
+				} catch (e) {
+					return fail(this, INVALID_KEY_ARGUMENT);
+				}
+				var ranges = set.reduce(function(res, val) {
+					return res ? res.concat([[res[res.length - 1][1], val]]) : [[minKey, val]];
+				}, null);
+				ranges.push([set[set.length - 1], this.db._maxKey]);
+				return this.inAnyRange(ranges, {
+					includeLowers: false,
+					includeUppers: false
+				});
+			};
+			WhereClause.prototype.inAnyRange = function(ranges, options) {
+				var _this = this;
+				var cmp = this._cmp, ascending = this._ascending, descending = this._descending, min = this._min, max = this._max;
+				if (ranges.length === 0) return emptyCollection(this);
+				if (!ranges.every(function(range) {
+					return range[0] !== void 0 && range[1] !== void 0 && ascending(range[0], range[1]) <= 0;
+				})) return fail(this, "First argument to inAnyRange() must be an Array of two-value Arrays [lower,upper] where upper must not be lower than lower", exceptions.InvalidArgument);
+				var includeLowers = !options || options.includeLowers !== false;
+				var includeUppers = options && options.includeUppers === true;
+				function addRange(ranges, newRange) {
+					var i = 0, l = ranges.length;
+					for (; i < l; ++i) {
+						var range = ranges[i];
+						if (cmp(newRange[0], range[1]) < 0 && cmp(newRange[1], range[0]) > 0) {
+							range[0] = min(range[0], newRange[0]);
+							range[1] = max(range[1], newRange[1]);
+							break;
+						}
+					}
+					if (i === l) ranges.push(newRange);
+					return ranges;
+				}
+				var sortDirection = ascending;
+				function rangeSorter(a, b) {
+					return sortDirection(a[0], b[0]);
+				}
+				var set;
+				try {
+					set = ranges.reduce(addRange, []);
+					set.sort(rangeSorter);
+				} catch (ex) {
+					return fail(this, INVALID_KEY_ARGUMENT);
+				}
+				var rangePos = 0;
+				var keyIsBeyondCurrentEntry = includeUppers ? function(key) {
+					return ascending(key, set[rangePos][1]) > 0;
+				} : function(key) {
+					return ascending(key, set[rangePos][1]) >= 0;
+				};
+				var keyIsBeforeCurrentEntry = includeLowers ? function(key) {
+					return descending(key, set[rangePos][0]) > 0;
+				} : function(key) {
+					return descending(key, set[rangePos][0]) >= 0;
+				};
+				function keyWithinCurrentRange(key) {
+					return !keyIsBeyondCurrentEntry(key) && !keyIsBeforeCurrentEntry(key);
+				}
+				var checkKey = keyIsBeyondCurrentEntry;
+				var c = new this.Collection(this, function() {
+					return createRange(set[0][0], set[set.length - 1][1], !includeLowers, !includeUppers);
+				});
+				c._ondirectionchange = function(direction) {
+					if (direction === "next") {
+						checkKey = keyIsBeyondCurrentEntry;
+						sortDirection = ascending;
+					} else {
+						checkKey = keyIsBeforeCurrentEntry;
+						sortDirection = descending;
+					}
+					set.sort(rangeSorter);
+				};
+				c._addAlgorithm(function(cursor, advance, resolve) {
+					var key = cursor.key;
+					while (checkKey(key)) {
+						++rangePos;
+						if (rangePos === set.length) {
+							advance(resolve);
+							return false;
+						}
+					}
+					if (keyWithinCurrentRange(key)) return true;
+					else if (_this._cmp(key, set[rangePos][1]) === 0 || _this._cmp(key, set[rangePos][0]) === 0) return false;
+					else {
+						advance(function() {
+							if (sortDirection === ascending) cursor.continue(set[rangePos][0]);
+							else cursor.continue(set[rangePos][1]);
+						});
+						return false;
+					}
+				});
+				return c;
+			};
+			WhereClause.prototype.startsWithAnyOf = function() {
+				var set = getArrayOf.apply(NO_CHAR_ARRAY, arguments);
+				if (!set.every(function(s) {
+					return typeof s === "string";
+				})) return fail(this, "startsWithAnyOf() only works with strings");
+				if (set.length === 0) return emptyCollection(this);
+				return this.inAnyRange(set.map(function(str) {
+					return [str, str + maxString];
+				}));
+			};
+			return WhereClause;
+		}();
+		function createWhereClauseConstructor(db) {
+			return makeClassConstructor(WhereClause.prototype, function WhereClause(table, index, orCollection) {
+				this.db = db;
+				this._ctx = {
+					table,
+					index: index === ":id" ? null : index,
+					or: orCollection
+				};
+				this._cmp = this._ascending = cmp;
+				this._descending = function(a, b) {
+					return cmp(b, a);
+				};
+				this._max = function(a, b) {
+					return cmp(a, b) > 0 ? a : b;
+				};
+				this._min = function(a, b) {
+					return cmp(a, b) < 0 ? a : b;
+				};
+				this._IDBKeyRange = db._deps.IDBKeyRange;
+				if (!this._IDBKeyRange) throw new exceptions.MissingAPI();
+			});
+		}
+		function eventRejectHandler(reject) {
+			return wrap(function(event) {
+				preventDefault(event);
+				reject(event.target.error);
+				return false;
+			});
+		}
+		function preventDefault(event) {
+			if (event.stopPropagation) event.stopPropagation();
+			if (event.preventDefault) event.preventDefault();
+		}
+		var DEXIE_STORAGE_MUTATED_EVENT_NAME = "storagemutated";
+		var STORAGE_MUTATED_DOM_EVENT_NAME = "x-storagemutated-1";
+		var globalEvents = Events(null, DEXIE_STORAGE_MUTATED_EVENT_NAME);
+		var Transaction = function() {
+			function Transaction() {}
+			Transaction.prototype._lock = function() {
+				assert(!PSD.global);
+				++this._reculock;
+				if (this._reculock === 1 && !PSD.global) PSD.lockOwnerFor = this;
+				return this;
+			};
+			Transaction.prototype._unlock = function() {
+				assert(!PSD.global);
+				if (--this._reculock === 0) {
+					if (!PSD.global) PSD.lockOwnerFor = null;
+					while (this._blockedFuncs.length > 0 && !this._locked()) {
+						var fnAndPSD = this._blockedFuncs.shift();
+						try {
+							usePSD(fnAndPSD[1], fnAndPSD[0]);
+						} catch (e) {}
+					}
+				}
+				return this;
+			};
+			Transaction.prototype._locked = function() {
+				return this._reculock && PSD.lockOwnerFor !== this;
+			};
+			Transaction.prototype.create = function(idbtrans) {
+				var _this = this;
+				if (!this.mode) return this;
+				var idbdb = this.db.idbdb;
+				var dbOpenError = this.db._state.dbOpenError;
+				assert(!this.idbtrans);
+				if (!idbtrans && !idbdb) switch (dbOpenError && dbOpenError.name) {
+					case "DatabaseClosedError": throw new exceptions.DatabaseClosed(dbOpenError);
+					case "MissingAPIError": throw new exceptions.MissingAPI(dbOpenError.message, dbOpenError);
+					default: throw new exceptions.OpenFailed(dbOpenError);
+				}
+				if (!this.active) throw new exceptions.TransactionInactive();
+				assert(this._completion._state === null);
+				idbtrans = this.idbtrans = idbtrans || (this.db.core ? this.db.core.transaction(this.storeNames, this.mode, { durability: this.chromeTransactionDurability }) : idbdb.transaction(this.storeNames, this.mode, { durability: this.chromeTransactionDurability }));
+				idbtrans.onerror = wrap(function(ev) {
+					preventDefault(ev);
+					_this._reject(idbtrans.error);
+				});
+				idbtrans.onabort = wrap(function(ev) {
+					preventDefault(ev);
+					_this.active && _this._reject(new exceptions.Abort(idbtrans.error));
+					_this.active = false;
+					_this.on("abort").fire(ev);
+				});
+				idbtrans.oncomplete = wrap(function() {
+					_this.active = false;
+					_this._resolve();
+					if ("mutatedParts" in idbtrans) globalEvents.storagemutated.fire(idbtrans["mutatedParts"]);
+				});
+				return this;
+			};
+			Transaction.prototype._promise = function(mode, fn, bWriteLock) {
+				var _this = this;
+				if (mode === "readwrite" && this.mode !== "readwrite") return rejection(new exceptions.ReadOnly("Transaction is readonly"));
+				if (!this.active) return rejection(new exceptions.TransactionInactive());
+				if (this._locked()) return new DexiePromise(function(resolve, reject) {
+					_this._blockedFuncs.push([function() {
+						_this._promise(mode, fn, bWriteLock).then(resolve, reject);
+					}, PSD]);
+				});
+				else if (bWriteLock) return newScope(function() {
+					var p = new DexiePromise(function(resolve, reject) {
+						_this._lock();
+						var rv = fn(resolve, reject, _this);
+						if (rv && rv.then) rv.then(resolve, reject);
+					});
+					p.finally(function() {
+						return _this._unlock();
+					});
+					p._lib = true;
+					return p;
+				});
+				else {
+					var p = new DexiePromise(function(resolve, reject) {
+						var rv = fn(resolve, reject, _this);
+						if (rv && rv.then) rv.then(resolve, reject);
+					});
+					p._lib = true;
+					return p;
+				}
+			};
+			Transaction.prototype._root = function() {
+				return this.parent ? this.parent._root() : this;
+			};
+			Transaction.prototype.waitFor = function(promiseLike) {
+				var root = this._root();
+				var promise = DexiePromise.resolve(promiseLike);
+				if (root._waitingFor) root._waitingFor = root._waitingFor.then(function() {
+					return promise;
+				});
+				else {
+					root._waitingFor = promise;
+					root._waitingQueue = [];
+					var store = root.idbtrans.objectStore(root.storeNames[0]);
+					(function spin() {
+						++root._spinCount;
+						while (root._waitingQueue.length) root._waitingQueue.shift()();
+						if (root._waitingFor) store.get(-Infinity).onsuccess = spin;
+					})();
+				}
+				var currentWaitPromise = root._waitingFor;
+				return new DexiePromise(function(resolve, reject) {
+					promise.then(function(res) {
+						return root._waitingQueue.push(wrap(resolve.bind(null, res)));
+					}, function(err) {
+						return root._waitingQueue.push(wrap(reject.bind(null, err)));
+					}).finally(function() {
+						if (root._waitingFor === currentWaitPromise) root._waitingFor = null;
+					});
+				});
+			};
+			Transaction.prototype.abort = function() {
+				if (this.active) {
+					this.active = false;
+					if (this.idbtrans) this.idbtrans.abort();
+					this._reject(new exceptions.Abort());
+				}
+			};
+			Transaction.prototype.table = function(tableName) {
+				var memoizedTables = this._memoizedTables || (this._memoizedTables = {});
+				if (hasOwn(memoizedTables, tableName)) return memoizedTables[tableName];
+				var tableSchema = this.schema[tableName];
+				if (!tableSchema) throw new exceptions.NotFound("Table " + tableName + " not part of transaction");
+				var transactionBoundTable = new this.db.Table(tableName, tableSchema, this);
+				transactionBoundTable.core = this.db.core.table(tableName);
+				memoizedTables[tableName] = transactionBoundTable;
+				return transactionBoundTable;
+			};
+			return Transaction;
+		}();
+		function createTransactionConstructor(db) {
+			return makeClassConstructor(Transaction.prototype, function Transaction(mode, storeNames, dbschema, chromeTransactionDurability, parent) {
+				var _this = this;
+				if (mode !== "readonly") storeNames.forEach(function(storeName) {
+					var _a;
+					var yProps = (_a = dbschema[storeName]) === null || _a === void 0 ? void 0 : _a.yProps;
+					if (yProps) storeNames = storeNames.concat(yProps.map(function(p) {
+						return p.updatesTable;
+					}));
+				});
+				this.db = db;
+				this.mode = mode;
+				this.storeNames = storeNames;
+				this.schema = dbschema;
+				this.chromeTransactionDurability = chromeTransactionDurability;
+				this.idbtrans = null;
+				this.on = Events(this, "complete", "error", "abort");
+				this.parent = parent || null;
+				this.active = true;
+				this._reculock = 0;
+				this._blockedFuncs = [];
+				this._resolve = null;
+				this._reject = null;
+				this._waitingFor = null;
+				this._waitingQueue = null;
+				this._spinCount = 0;
+				this._completion = new DexiePromise(function(resolve, reject) {
+					_this._resolve = resolve;
+					_this._reject = reject;
+				});
+				this._completion.then(function() {
+					_this.active = false;
+					_this.on.complete.fire();
 				}, function(e) {
-					var t = o.active;
-					return o.active = !1, o.on.error.fire(e), o.parent ? o.parent._reject(e) : t && o.idbtrans && o.idbtrans.abort(), S(e);
+					var wasActive = _this.active;
+					_this.active = false;
+					_this.on.error.fire(e);
+					_this.parent ? _this.parent._reject(e) : wasActive && _this.idbtrans && _this.idbtrans.abort();
+					return rejection(e);
 				});
-			})), this.Version = (n = this, Kt(mn.prototype, function(e) {
-				this.db = n, this._cfg = {
-					version: e,
+			});
+		}
+		function createIndexSpec(name, keyPath, unique, multi, auto, compound, isPrimKey, type) {
+			return {
+				name,
+				keyPath,
+				unique,
+				multi,
+				auto,
+				compound,
+				src: (unique && !isPrimKey ? "&" : "") + (multi ? "*" : "") + (auto ? "++" : "") + nameFromKeyPath(keyPath),
+				type
+			};
+		}
+		function nameFromKeyPath(keyPath) {
+			return typeof keyPath === "string" ? keyPath : keyPath ? "[" + [].join.call(keyPath, "+") + "]" : "";
+		}
+		function createTableSchema(name, primKey, indexes) {
+			return {
+				name,
+				primKey,
+				indexes,
+				mappedClass: null,
+				idxByName: arrayToObject(indexes, function(index) {
+					return [index.name, index];
+				})
+			};
+		}
+		function safariMultiStoreFix(storeNames) {
+			return storeNames.length === 1 ? storeNames[0] : storeNames;
+		}
+		var getMaxKey = function(IdbKeyRange) {
+			try {
+				IdbKeyRange.only([[]]);
+				getMaxKey = function() {
+					return [[]];
+				};
+				return [[]];
+			} catch (e) {
+				getMaxKey = function() {
+					return maxString;
+				};
+				return maxString;
+			}
+		};
+		function getKeyExtractor(keyPath) {
+			if (keyPath == null) return function() {};
+			else if (typeof keyPath === "string") return getSinglePathKeyExtractor(keyPath);
+			else return function(obj) {
+				return getByKeyPath(obj, keyPath);
+			};
+		}
+		function getSinglePathKeyExtractor(keyPath) {
+			if (keyPath.split(".").length === 1) return function(obj) {
+				return obj[keyPath];
+			};
+			else return function(obj) {
+				return getByKeyPath(obj, keyPath);
+			};
+		}
+		function arrayify(arrayLike) {
+			return [].slice.call(arrayLike);
+		}
+		var _id_counter = 0;
+		function getKeyPathAlias(keyPath) {
+			return keyPath == null ? ":id" : typeof keyPath === "string" ? keyPath : "[".concat(keyPath.join("+"), "]");
+		}
+		function createDBCore(db, IdbKeyRange, tmpTrans) {
+			function extractSchema(db, trans) {
+				var tables = arrayify(db.objectStoreNames);
+				var tempStore = tables.length > 0 ? trans.objectStore(tables[0]) : {};
+				return {
+					schema: {
+						name: db.name,
+						tables: tables.map(function(table) {
+							return trans.objectStore(table);
+						}).map(function(store) {
+							var keyPath = store.keyPath, autoIncrement = store.autoIncrement;
+							var compound = isArray(keyPath);
+							var outbound = keyPath == null;
+							var indexByKeyPath = {};
+							var result = {
+								name: store.name,
+								primaryKey: {
+									name: null,
+									isPrimaryKey: true,
+									outbound,
+									compound,
+									keyPath,
+									autoIncrement,
+									unique: true,
+									extractKey: getKeyExtractor(keyPath)
+								},
+								indexes: arrayify(store.indexNames).map(function(indexName) {
+									return store.index(indexName);
+								}).map(function(index) {
+									var name = index.name, unique = index.unique, multiEntry = index.multiEntry, keyPath = index.keyPath;
+									var result = {
+										name,
+										compound: isArray(keyPath),
+										keyPath,
+										unique,
+										multiEntry,
+										extractKey: getKeyExtractor(keyPath)
+									};
+									indexByKeyPath[getKeyPathAlias(keyPath)] = result;
+									return result;
+								}),
+								getIndexByKeyPath: function(keyPath) {
+									return indexByKeyPath[getKeyPathAlias(keyPath)];
+								}
+							};
+							indexByKeyPath[":id"] = result.primaryKey;
+							if (keyPath != null) indexByKeyPath[getKeyPathAlias(keyPath)] = result.primaryKey;
+							return result;
+						})
+					},
+					hasGetAll: tables.length > 0 && "getAll" in tempStore && !(typeof navigator !== "undefined" && /Safari/.test(navigator.userAgent) && !/(Chrome\/|Edge\/)/.test(navigator.userAgent) && [].concat(navigator.userAgent.match(/Safari\/(\d*)/))[1] < 604),
+					hasIdb3Features: "getAllRecords" in tempStore
+				};
+			}
+			function makeIDBKeyRange(range) {
+				if (range.type === 3) return null;
+				if (range.type === 4) throw new Error("Cannot convert never type to IDBKeyRange");
+				var lower = range.lower, upper = range.upper, lowerOpen = range.lowerOpen, upperOpen = range.upperOpen;
+				return lower === void 0 ? upper === void 0 ? null : IdbKeyRange.upperBound(upper, !!upperOpen) : upper === void 0 ? IdbKeyRange.lowerBound(lower, !!lowerOpen) : IdbKeyRange.bound(lower, upper, !!lowerOpen, !!upperOpen);
+			}
+			function createDbCoreTable(tableSchema) {
+				var tableName = tableSchema.name;
+				function mutate(_a) {
+					var trans = _a.trans, type = _a.type, keys = _a.keys, values = _a.values, range = _a.range;
+					return new Promise(function(resolve, reject) {
+						resolve = wrap(resolve);
+						var store = trans.objectStore(tableName);
+						var outbound = store.keyPath == null;
+						var isAddOrPut = type === "put" || type === "add";
+						if (!isAddOrPut && type !== "delete" && type !== "deleteRange") throw new Error("Invalid operation type: " + type);
+						var length = (keys || values || { length: 1 }).length;
+						if (keys && values && keys.length !== values.length) throw new Error("Given keys array must have same length as given values array.");
+						if (length === 0) return resolve({
+							numFailures: 0,
+							failures: {},
+							results: [],
+							lastResult: void 0
+						});
+						var req;
+						var reqs = [];
+						var failures = [];
+						var numFailures = 0;
+						var errorHandler = function(event) {
+							++numFailures;
+							preventDefault(event);
+						};
+						if (type === "deleteRange") {
+							if (range.type === 4) return resolve({
+								numFailures,
+								failures,
+								results: [],
+								lastResult: void 0
+							});
+							if (range.type === 3) reqs.push(req = store.clear());
+							else reqs.push(req = store.delete(makeIDBKeyRange(range)));
+						} else {
+							var _a = isAddOrPut ? outbound ? [values, keys] : [values, null] : [keys, null], args1 = _a[0], args2 = _a[1];
+							if (isAddOrPut) for (var i = 0; i < length; ++i) {
+								reqs.push(req = args2 && args2[i] !== void 0 ? store[type](args1[i], args2[i]) : store[type](args1[i]));
+								req.onerror = errorHandler;
+							}
+							else for (var i = 0; i < length; ++i) {
+								reqs.push(req = store[type](args1[i]));
+								req.onerror = errorHandler;
+							}
+						}
+						var done = function(event) {
+							var lastResult = event.target.result;
+							reqs.forEach(function(req, i) {
+								return req.error != null && (failures[i] = req.error);
+							});
+							resolve({
+								numFailures,
+								failures,
+								results: type === "delete" ? keys : reqs.map(function(req) {
+									return req.result;
+								}),
+								lastResult
+							});
+						};
+						req.onerror = function(event) {
+							errorHandler(event);
+							done(event);
+						};
+						req.onsuccess = done;
+					});
+				}
+				function openCursor(_a) {
+					var trans = _a.trans, values = _a.values, query = _a.query, reverse = _a.reverse, unique = _a.unique;
+					return new Promise(function(resolve, reject) {
+						resolve = wrap(resolve);
+						var index = query.index, range = query.range;
+						var store = trans.objectStore(tableName);
+						var source = index.isPrimaryKey ? store : store.index(index.name);
+						var direction = reverse ? unique ? "prevunique" : "prev" : unique ? "nextunique" : "next";
+						var req = values || !("openKeyCursor" in source) ? source.openCursor(makeIDBKeyRange(range), direction) : source.openKeyCursor(makeIDBKeyRange(range), direction);
+						req.onerror = eventRejectHandler(reject);
+						req.onsuccess = wrap(function(ev) {
+							var cursor = req.result;
+							if (!cursor) {
+								resolve(null);
+								return;
+							}
+							cursor.___id = ++_id_counter;
+							cursor.done = false;
+							var _cursorContinue = cursor.continue.bind(cursor);
+							var _cursorContinuePrimaryKey = cursor.continuePrimaryKey;
+							if (_cursorContinuePrimaryKey) _cursorContinuePrimaryKey = _cursorContinuePrimaryKey.bind(cursor);
+							var _cursorAdvance = cursor.advance.bind(cursor);
+							var doThrowCursorIsNotStarted = function() {
+								throw new Error("Cursor not started");
+							};
+							var doThrowCursorIsStopped = function() {
+								throw new Error("Cursor not stopped");
+							};
+							cursor.trans = trans;
+							cursor.stop = cursor.continue = cursor.continuePrimaryKey = cursor.advance = doThrowCursorIsNotStarted;
+							cursor.fail = wrap(reject);
+							cursor.next = function() {
+								var _this = this;
+								var gotOne = 1;
+								return this.start(function() {
+									return gotOne-- ? _this.continue() : _this.stop();
+								}).then(function() {
+									return _this;
+								});
+							};
+							cursor.start = function(callback) {
+								var iterationPromise = new Promise(function(resolveIteration, rejectIteration) {
+									resolveIteration = wrap(resolveIteration);
+									req.onerror = eventRejectHandler(rejectIteration);
+									cursor.fail = rejectIteration;
+									cursor.stop = function(value) {
+										cursor.stop = cursor.continue = cursor.continuePrimaryKey = cursor.advance = doThrowCursorIsStopped;
+										resolveIteration(value);
+									};
+								});
+								var guardedCallback = function() {
+									if (req.result) try {
+										callback();
+									} catch (err) {
+										cursor.fail(err);
+									}
+									else {
+										cursor.done = true;
+										cursor.start = function() {
+											throw new Error("Cursor behind last entry");
+										};
+										cursor.stop();
+									}
+								};
+								req.onsuccess = wrap(function(ev) {
+									req.onsuccess = guardedCallback;
+									guardedCallback();
+								});
+								cursor.continue = _cursorContinue;
+								cursor.continuePrimaryKey = _cursorContinuePrimaryKey;
+								cursor.advance = _cursorAdvance;
+								guardedCallback();
+								return iterationPromise;
+							};
+							resolve(cursor);
+						}, reject);
+					});
+				}
+				function query(hasGetAll, hasIdb3Features) {
+					return function(request) {
+						return new Promise(function(resolve, reject) {
+							var _a;
+							resolve = wrap(resolve);
+							var trans = request.trans, values = request.values, limit = request.limit, query = request.query;
+							var direction = (_a = request.direction) !== null && _a !== void 0 ? _a : "next";
+							var nonInfinitLimit = limit === Infinity ? void 0 : limit;
+							var index = query.index, range = query.range;
+							var store = trans.objectStore(tableName);
+							var source = index.isPrimaryKey ? store : store.index(index.name);
+							var idbKeyRange = makeIDBKeyRange(range);
+							if (limit === 0) return resolve({ result: [] });
+							if (hasIdb3Features) {
+								var options = {
+									query: idbKeyRange,
+									count: nonInfinitLimit,
+									direction
+								};
+								var req = values ? source.getAll(options) : source.getAllKeys(options);
+								req.onsuccess = function(event) {
+									return resolve({ result: event.target.result });
+								};
+								req.onerror = eventRejectHandler(reject);
+							} else if (hasGetAll && direction === "next") {
+								var req = values ? source.getAll(idbKeyRange, nonInfinitLimit) : source.getAllKeys(idbKeyRange, nonInfinitLimit);
+								req.onsuccess = function(event) {
+									return resolve({ result: event.target.result });
+								};
+								req.onerror = eventRejectHandler(reject);
+							} else {
+								var count_1 = 0;
+								var req_1 = values || !("openKeyCursor" in source) ? source.openCursor(idbKeyRange, direction) : source.openKeyCursor(idbKeyRange, direction);
+								var result_1 = [];
+								req_1.onsuccess = function() {
+									var cursor = req_1.result;
+									if (!cursor) return resolve({ result: result_1 });
+									result_1.push(values ? cursor.value : cursor.primaryKey);
+									if (++count_1 === limit) return resolve({ result: result_1 });
+									cursor.continue();
+								};
+								req_1.onerror = eventRejectHandler(reject);
+							}
+						});
+					};
+				}
+				return {
+					name: tableName,
+					schema: tableSchema,
+					mutate,
+					getMany: function(_a) {
+						var trans = _a.trans, keys = _a.keys;
+						return new Promise(function(resolve, reject) {
+							resolve = wrap(resolve);
+							var store = trans.objectStore(tableName);
+							var length = keys.length;
+							var result = new Array(length);
+							var keyCount = 0;
+							var callbackCount = 0;
+							var req;
+							var successHandler = function(event) {
+								var req = event.target;
+								if ((result[req._pos] = req.result) != null);
+								if (++callbackCount === keyCount) resolve(result);
+							};
+							var errorHandler = eventRejectHandler(reject);
+							for (var i = 0; i < length; ++i) if (keys[i] != null) {
+								req = store.get(keys[i]);
+								req._pos = i;
+								req.onsuccess = successHandler;
+								req.onerror = errorHandler;
+								++keyCount;
+							}
+							if (keyCount === 0) resolve(result);
+						});
+					},
+					get: function(_a) {
+						var trans = _a.trans, key = _a.key;
+						return new Promise(function(resolve, reject) {
+							resolve = wrap(resolve);
+							var req = trans.objectStore(tableName).get(key);
+							req.onsuccess = function(event) {
+								return resolve(event.target.result);
+							};
+							req.onerror = eventRejectHandler(reject);
+						});
+					},
+					query: query(hasGetAll, hasIdb3Features),
+					openCursor,
+					count: function(_a) {
+						var query = _a.query, trans = _a.trans;
+						var index = query.index, range = query.range;
+						return new Promise(function(resolve, reject) {
+							var store = trans.objectStore(tableName);
+							var source = index.isPrimaryKey ? store : store.index(index.name);
+							var idbKeyRange = makeIDBKeyRange(range);
+							var req = idbKeyRange ? source.count(idbKeyRange) : source.count();
+							req.onsuccess = wrap(function(ev) {
+								return resolve(ev.target.result);
+							});
+							req.onerror = eventRejectHandler(reject);
+						});
+					}
+				};
+			}
+			var _a = extractSchema(db, tmpTrans), schema = _a.schema, hasGetAll = _a.hasGetAll, hasIdb3Features = _a.hasIdb3Features;
+			var tables = schema.tables.map(function(tableSchema) {
+				return createDbCoreTable(tableSchema);
+			});
+			var tableMap = {};
+			tables.forEach(function(table) {
+				return tableMap[table.name] = table;
+			});
+			return {
+				stack: "dbcore",
+				transaction: db.transaction.bind(db),
+				table: function(name) {
+					if (!tableMap[name]) throw new Error("Table '".concat(name, "' not found"));
+					return tableMap[name];
+				},
+				MIN_KEY: -Infinity,
+				MAX_KEY: getMaxKey(IdbKeyRange),
+				schema
+			};
+		}
+		function createMiddlewareStack(stackImpl, middlewares) {
+			return middlewares.reduce(function(down, _a) {
+				var create = _a.create;
+				return __assign(__assign({}, down), create(down));
+			}, stackImpl);
+		}
+		function createMiddlewareStacks(middlewares, idbdb, _a, tmpTrans) {
+			var IDBKeyRange = _a.IDBKeyRange;
+			_a.indexedDB;
+			return { dbcore: createMiddlewareStack(createDBCore(idbdb, IDBKeyRange, tmpTrans), middlewares.dbcore) };
+		}
+		function generateMiddlewareStacks(db, tmpTrans) {
+			var idbdb = tmpTrans.db;
+			db.core = createMiddlewareStacks(db._middlewares, idbdb, db._deps, tmpTrans).dbcore;
+			db.tables.forEach(function(table) {
+				var tableName = table.name;
+				if (db.core.schema.tables.some(function(tbl) {
+					return tbl.name === tableName;
+				})) {
+					table.core = db.core.table(tableName);
+					if (db[tableName] instanceof db.Table) db[tableName].core = table.core;
+				}
+			});
+		}
+		function setApiOnPlace(db, objs, tableNames, dbschema) {
+			tableNames.forEach(function(tableName) {
+				var schema = dbschema[tableName];
+				objs.forEach(function(obj) {
+					var propDesc = getPropertyDescriptor(obj, tableName);
+					if (!propDesc || "value" in propDesc && propDesc.value === void 0) {
+						if (obj === db.Transaction.prototype || obj instanceof db.Transaction) setProp(obj, tableName, {
+							get: function() {
+								return this.table(tableName);
+							},
+							set: function(value) {
+								defineProperty(this, tableName, {
+									value,
+									writable: true,
+									configurable: true,
+									enumerable: true
+								});
+							}
+						});
+						else obj[tableName] = new db.Table(tableName, schema);
+					}
+				});
+			});
+		}
+		function removeTablesApi(db, objs) {
+			objs.forEach(function(obj) {
+				for (var key in obj) if (obj[key] instanceof db.Table) delete obj[key];
+			});
+		}
+		function lowerVersionFirst(a, b) {
+			return a._cfg.version - b._cfg.version;
+		}
+		function runUpgraders(db, oldVersion, idbUpgradeTrans, reject) {
+			var globalSchema = db._dbSchema;
+			if (idbUpgradeTrans.objectStoreNames.contains("$meta") && !globalSchema.$meta) {
+				globalSchema.$meta = createTableSchema("$meta", parseIndexSyntax("")[0], []);
+				db._storeNames.push("$meta");
+			}
+			var trans = db._createTransaction("readwrite", db._storeNames, globalSchema);
+			trans.create(idbUpgradeTrans);
+			trans._completion.catch(reject);
+			var rejectTransaction = trans._reject.bind(trans);
+			var transless = PSD.transless || PSD;
+			newScope(function() {
+				PSD.trans = trans;
+				PSD.transless = transless;
+				if (oldVersion === 0) {
+					keys(globalSchema).forEach(function(tableName) {
+						createTable(idbUpgradeTrans, tableName, globalSchema[tableName].primKey, globalSchema[tableName].indexes);
+					});
+					generateMiddlewareStacks(db, idbUpgradeTrans);
+					DexiePromise.follow(function() {
+						return db.on.populate.fire(trans);
+					}).catch(rejectTransaction);
+				} else {
+					generateMiddlewareStacks(db, idbUpgradeTrans);
+					return getExistingVersion(db, trans, oldVersion).then(function(oldVersion) {
+						return updateTablesAndIndexes(db, oldVersion, trans, idbUpgradeTrans);
+					}).catch(rejectTransaction);
+				}
+			});
+		}
+		function patchCurrentVersion(db, idbUpgradeTrans) {
+			createMissingTables(db._dbSchema, idbUpgradeTrans);
+			if (idbUpgradeTrans.db.version % 10 === 0 && !idbUpgradeTrans.objectStoreNames.contains("$meta")) idbUpgradeTrans.db.createObjectStore("$meta").add(Math.ceil(idbUpgradeTrans.db.version / 10 - 1), "version");
+			var globalSchema = buildGlobalSchema(db, db.idbdb, idbUpgradeTrans);
+			adjustToExistingIndexNames(db, db._dbSchema, idbUpgradeTrans);
+			var diff = getSchemaDiff(globalSchema, db._dbSchema);
+			var _loop_1 = function(tableChange) {
+				if (tableChange.change.length || tableChange.recreate) {
+					console.warn("Unable to patch indexes of table ".concat(tableChange.name, " because it has changes on the type of index or primary key."));
+					return { value: void 0 };
+				}
+				var store = idbUpgradeTrans.objectStore(tableChange.name);
+				tableChange.add.forEach(function(idx) {
+					if (debug) console.debug("Dexie upgrade patch: Creating missing index ".concat(tableChange.name, ".").concat(idx.src));
+					addIndex(store, idx);
+				});
+			};
+			for (var _i = 0, _a = diff.change; _i < _a.length; _i++) {
+				var tableChange = _a[_i];
+				var state_1 = _loop_1(tableChange);
+				if (typeof state_1 === "object") return state_1.value;
+			}
+		}
+		function getExistingVersion(db, trans, oldVersion) {
+			if (trans.storeNames.includes("$meta")) return trans.table("$meta").get("version").then(function(metaVersion) {
+				return metaVersion != null ? metaVersion : oldVersion;
+			});
+			else return DexiePromise.resolve(oldVersion);
+		}
+		function updateTablesAndIndexes(db, oldVersion, trans, idbUpgradeTrans) {
+			var queue = [];
+			var versions = db._versions;
+			var globalSchema = db._dbSchema = buildGlobalSchema(db, db.idbdb, idbUpgradeTrans);
+			var versToRun = versions.filter(function(v) {
+				return v._cfg.version >= oldVersion;
+			});
+			if (versToRun.length === 0) return DexiePromise.resolve();
+			versToRun.forEach(function(version) {
+				queue.push(function() {
+					var oldSchema = globalSchema;
+					var newSchema = version._cfg.dbschema;
+					adjustToExistingIndexNames(db, oldSchema, idbUpgradeTrans);
+					adjustToExistingIndexNames(db, newSchema, idbUpgradeTrans);
+					globalSchema = db._dbSchema = newSchema;
+					var diff = getSchemaDiff(oldSchema, newSchema);
+					diff.add.forEach(function(tuple) {
+						createTable(idbUpgradeTrans, tuple[0], tuple[1].primKey, tuple[1].indexes);
+					});
+					diff.change.forEach(function(change) {
+						if (change.recreate) throw new exceptions.Upgrade("Not yet support for changing primary key");
+						else {
+							var store_1 = idbUpgradeTrans.objectStore(change.name);
+							change.add.forEach(function(idx) {
+								return addIndex(store_1, idx);
+							});
+							change.change.forEach(function(idx) {
+								store_1.deleteIndex(idx.name);
+								addIndex(store_1, idx);
+							});
+							change.del.forEach(function(idxName) {
+								return store_1.deleteIndex(idxName);
+							});
+						}
+					});
+					var contentUpgrade = version._cfg.contentUpgrade;
+					if (contentUpgrade && version._cfg.version > oldVersion) {
+						generateMiddlewareStacks(db, idbUpgradeTrans);
+						trans._memoizedTables = {};
+						var upgradeSchema_1 = shallowClone(newSchema);
+						diff.del.forEach(function(table) {
+							upgradeSchema_1[table] = oldSchema[table];
+						});
+						removeTablesApi(db, [db.Transaction.prototype]);
+						setApiOnPlace(db, [db.Transaction.prototype], keys(upgradeSchema_1), upgradeSchema_1);
+						trans.schema = upgradeSchema_1;
+						var contentUpgradeIsAsync_1 = isAsyncFunction(contentUpgrade);
+						if (contentUpgradeIsAsync_1) incrementExpectedAwaits();
+						var returnValue_1;
+						var promiseFollowed = DexiePromise.follow(function() {
+							returnValue_1 = contentUpgrade(trans);
+							if (returnValue_1) {
+								if (contentUpgradeIsAsync_1) {
+									var decrementor = decrementExpectedAwaits.bind(null, null);
+									returnValue_1.then(decrementor, decrementor);
+								}
+							}
+						});
+						return returnValue_1 && typeof returnValue_1.then === "function" ? DexiePromise.resolve(returnValue_1) : promiseFollowed.then(function() {
+							return returnValue_1;
+						});
+					}
+				});
+				queue.push(function(idbtrans) {
+					var newSchema = version._cfg.dbschema;
+					deleteRemovedTables(newSchema, idbtrans);
+					removeTablesApi(db, [db.Transaction.prototype]);
+					setApiOnPlace(db, [db.Transaction.prototype], db._storeNames, db._dbSchema);
+					trans.schema = db._dbSchema;
+				});
+				queue.push(function(idbtrans) {
+					if (db.idbdb.objectStoreNames.contains("$meta")) {
+						if (Math.ceil(db.idbdb.version / 10) === version._cfg.version) {
+							db.idbdb.deleteObjectStore("$meta");
+							delete db._dbSchema.$meta;
+							db._storeNames = db._storeNames.filter(function(name) {
+								return name !== "$meta";
+							});
+						} else idbtrans.objectStore("$meta").put(version._cfg.version, "version");
+					}
+				});
+			});
+			function runQueue() {
+				return queue.length ? DexiePromise.resolve(queue.shift()(trans.idbtrans)).then(runQueue) : DexiePromise.resolve();
+			}
+			return runQueue().then(function() {
+				createMissingTables(globalSchema, idbUpgradeTrans);
+			});
+		}
+		function getSchemaDiff(oldSchema, newSchema) {
+			var diff = {
+				del: [],
+				add: [],
+				change: []
+			};
+			var table;
+			for (table in oldSchema) if (!newSchema[table]) diff.del.push(table);
+			for (table in newSchema) {
+				var oldDef = oldSchema[table], newDef = newSchema[table];
+				if (!oldDef) diff.add.push([table, newDef]);
+				else {
+					var change = {
+						name: table,
+						def: newDef,
+						recreate: false,
+						del: [],
+						add: [],
+						change: []
+					};
+					if ("" + (oldDef.primKey.keyPath || "") !== "" + (newDef.primKey.keyPath || "") || oldDef.primKey.auto !== newDef.primKey.auto) {
+						change.recreate = true;
+						diff.change.push(change);
+					} else {
+						var oldIndexes = oldDef.idxByName;
+						var newIndexes = newDef.idxByName;
+						var idxName = void 0;
+						for (idxName in oldIndexes) if (!newIndexes[idxName]) change.del.push(idxName);
+						for (idxName in newIndexes) {
+							var oldIdx = oldIndexes[idxName], newIdx = newIndexes[idxName];
+							if (!oldIdx) change.add.push(newIdx);
+							else if (oldIdx.src !== newIdx.src) change.change.push(newIdx);
+						}
+						if (change.del.length > 0 || change.add.length > 0 || change.change.length > 0) diff.change.push(change);
+					}
+				}
+			}
+			return diff;
+		}
+		function createTable(idbtrans, tableName, primKey, indexes) {
+			var store = idbtrans.db.createObjectStore(tableName, primKey.keyPath ? {
+				keyPath: primKey.keyPath,
+				autoIncrement: primKey.auto
+			} : { autoIncrement: primKey.auto });
+			indexes.forEach(function(idx) {
+				return addIndex(store, idx);
+			});
+			return store;
+		}
+		function createMissingTables(newSchema, idbtrans) {
+			keys(newSchema).forEach(function(tableName) {
+				if (!idbtrans.db.objectStoreNames.contains(tableName)) {
+					if (debug) console.debug("Dexie: Creating missing table", tableName);
+					createTable(idbtrans, tableName, newSchema[tableName].primKey, newSchema[tableName].indexes);
+				}
+			});
+		}
+		function deleteRemovedTables(newSchema, idbtrans) {
+			[].slice.call(idbtrans.db.objectStoreNames).forEach(function(storeName) {
+				return newSchema[storeName] == null && idbtrans.db.deleteObjectStore(storeName);
+			});
+		}
+		function addIndex(store, idx) {
+			store.createIndex(idx.name, idx.keyPath, {
+				unique: idx.unique,
+				multiEntry: idx.multi
+			});
+		}
+		function buildGlobalSchema(db, idbdb, tmpTrans) {
+			var globalSchema = {};
+			slice(idbdb.objectStoreNames, 0).forEach(function(storeName) {
+				var store = tmpTrans.objectStore(storeName);
+				var keyPath = store.keyPath;
+				var primKey = createIndexSpec(nameFromKeyPath(keyPath), keyPath || "", true, false, !!store.autoIncrement, keyPath && typeof keyPath !== "string", true);
+				var indexes = [];
+				for (var j = 0; j < store.indexNames.length; ++j) {
+					var idbindex = store.index(store.indexNames[j]);
+					keyPath = idbindex.keyPath;
+					var index = createIndexSpec(idbindex.name, keyPath, !!idbindex.unique, !!idbindex.multiEntry, false, keyPath && typeof keyPath !== "string", false);
+					indexes.push(index);
+				}
+				globalSchema[storeName] = createTableSchema(storeName, primKey, indexes);
+			});
+			return globalSchema;
+		}
+		function readGlobalSchema(db, idbdb, tmpTrans) {
+			db.verno = idbdb.version / 10;
+			var globalSchema = db._dbSchema = buildGlobalSchema(db, idbdb, tmpTrans);
+			db._storeNames = slice(idbdb.objectStoreNames, 0);
+			setApiOnPlace(db, [db._allTables], keys(globalSchema), globalSchema);
+		}
+		function verifyInstalledSchema(db, tmpTrans) {
+			var diff = getSchemaDiff(buildGlobalSchema(db, db.idbdb, tmpTrans), db._dbSchema);
+			return !(diff.add.length || diff.change.some(function(ch) {
+				return ch.add.length || ch.change.length;
+			}));
+		}
+		function adjustToExistingIndexNames(db, schema, idbtrans) {
+			var storeNames = idbtrans.db.objectStoreNames;
+			for (var i = 0; i < storeNames.length; ++i) {
+				var storeName = storeNames[i];
+				var store = idbtrans.objectStore(storeName);
+				db._hasGetAll = "getAll" in store;
+				for (var j = 0; j < store.indexNames.length; ++j) {
+					var indexName = store.indexNames[j];
+					var keyPath = store.index(indexName).keyPath;
+					var dexieName = typeof keyPath === "string" ? keyPath : "[" + slice(keyPath).join("+") + "]";
+					if (schema[storeName]) {
+						var indexSpec = schema[storeName].idxByName[dexieName];
+						if (indexSpec) {
+							indexSpec.name = indexName;
+							delete schema[storeName].idxByName[dexieName];
+							schema[storeName].idxByName[indexName] = indexSpec;
+						}
+					}
+				}
+			}
+			if (typeof navigator !== "undefined" && /Safari/.test(navigator.userAgent) && !/(Chrome\/|Edge\/)/.test(navigator.userAgent) && _global.WorkerGlobalScope && _global instanceof _global.WorkerGlobalScope && [].concat(navigator.userAgent.match(/Safari\/(\d*)/))[1] < 604) db._hasGetAll = false;
+		}
+		function parseIndexSyntax(primKeyAndIndexes) {
+			return primKeyAndIndexes.split(",").map(function(index, indexNum) {
+				var _a;
+				var typeSplit = index.split(":");
+				var type = (_a = typeSplit[1]) === null || _a === void 0 ? void 0 : _a.trim();
+				index = typeSplit[0].trim();
+				var name = index.replace(/([&*]|\+\+)/g, "");
+				var keyPath = /^\[/.test(name) ? name.match(/^\[(.*)\]$/)[1].split("+") : name;
+				return createIndexSpec(name, keyPath || null, /\&/.test(index), /\*/.test(index), /\+\+/.test(index), isArray(keyPath), indexNum === 0, type);
+			});
+		}
+		var Version = function() {
+			function Version() {}
+			Version.prototype._createTableSchema = function(name, primKey, indexes) {
+				return createTableSchema(name, primKey, indexes);
+			};
+			Version.prototype._parseIndexSyntax = function(primKeyAndIndexes) {
+				return parseIndexSyntax(primKeyAndIndexes);
+			};
+			Version.prototype._parseStoresSpec = function(stores, outSchema) {
+				var _this = this;
+				keys(stores).forEach(function(tableName) {
+					if (stores[tableName] !== null) {
+						var indexes = _this._parseIndexSyntax(stores[tableName]);
+						var primKey = indexes.shift();
+						if (!primKey) throw new exceptions.Schema("Invalid schema for table " + tableName + ": " + stores[tableName]);
+						primKey.unique = true;
+						if (primKey.multi) throw new exceptions.Schema("Primary key cannot be multiEntry*");
+						indexes.forEach(function(idx) {
+							if (idx.auto) throw new exceptions.Schema("Only primary key can be marked as autoIncrement (++)");
+							if (!idx.keyPath) throw new exceptions.Schema("Index must have a name and cannot be an empty string");
+						});
+						outSchema[tableName] = _this._createTableSchema(tableName, primKey, indexes);
+					}
+				});
+			};
+			Version.prototype.stores = function(stores) {
+				var db = this.db;
+				this._cfg.storesSource = this._cfg.storesSource ? extend(this._cfg.storesSource, stores) : stores;
+				var versions = db._versions;
+				var storesSpec = {};
+				var dbschema = {};
+				versions.forEach(function(version) {
+					extend(storesSpec, version._cfg.storesSource);
+					dbschema = version._cfg.dbschema = {};
+					version._parseStoresSpec(storesSpec, dbschema);
+				});
+				db._dbSchema = dbschema;
+				removeTablesApi(db, [
+					db._allTables,
+					db,
+					db.Transaction.prototype
+				]);
+				setApiOnPlace(db, [
+					db._allTables,
+					db,
+					db.Transaction.prototype,
+					this._cfg.tables
+				], keys(dbschema), dbschema);
+				db._storeNames = keys(dbschema);
+				return this;
+			};
+			Version.prototype.upgrade = function(upgradeFunction) {
+				this._cfg.contentUpgrade = promisableChain(this._cfg.contentUpgrade || nop, upgradeFunction);
+				return this;
+			};
+			return Version;
+		}();
+		function createVersionConstructor(db) {
+			return makeClassConstructor(Version.prototype, function Version(versionNumber) {
+				this.db = db;
+				this._cfg = {
+					version: versionNumber,
 					storesSource: null,
 					dbschema: {},
 					tables: {},
 					contentUpgrade: null
 				};
-			})), this.WhereClause = (i = this, Kt(Lt.prototype, function(e, t, n) {
-				if (this.db = i, this._ctx = {
-					table: e,
-					index: ":id" === t ? null : t,
-					or: n
-				}, this._cmp = this._ascending = j, this._descending = function(e, t) {
-					return j(t, e);
-				}, this._max = function(e, t) {
-					return 0 < j(e, t) ? e : t;
-				}, this._min = function(e, t) {
-					return j(e, t) < 0 ? e : t;
-				}, this._IDBKeyRange = i._deps.IDBKeyRange, !this._IDBKeyRange) throw new k.MissingAPI();
-			})), this.on("versionchange", function(e) {
-				0 < e.newVersion ? console.warn("Another connection wants to upgrade database '".concat(u.name, "'. Closing db now to resume the upgrade.")) : console.warn("Another connection wants to delete database '".concat(u.name, "'. Closing db now to resume the delete request.")), u.close({ disableAutoOpen: !1 });
-			}), this.on("blocked", function(e) {
-				!e.newVersion || e.newVersion < e.oldVersion ? console.warn("Dexie.delete('".concat(u.name, "') was blocked")) : console.warn("Upgrade '".concat(u.name, "' blocked by other connection holding version ").concat(e.oldVersion / 10));
-			}), this._maxKey = Xt(t.IDBKeyRange), this._createTransaction = function(e, t, n, r) {
-				return new u.Transaction(e, t, n, u._options.chromeTransactionDurability, r);
-			}, this._fireOnBlocked = function(t) {
-				u.on("blocked").fire(t), gn.toArray().filter(function(e) {
-					return e.name === u.name && e !== u && !e._state.vcFired;
-				}).map(function(e) {
-					return e.on("versionchange").fire(t);
+			});
+		}
+		var connections = createConnectionsManager();
+		function createConnectionsManager() {
+			if (typeof FinalizationRegistry !== "undefined" && typeof WeakRef !== "undefined") {
+				var _refs_1 = /* @__PURE__ */ new Set();
+				var _registry_1 = new FinalizationRegistry(function(ref) {
+					_refs_1.delete(ref);
 				});
-			}, this.use(Yn), this.use(nr), this.use(Gn), this.use(Ln), this.use(Vn), new Proxy(this, { get: function(e, t, n) {
-				var r;
-				return "_vip" === t || ("table" === t ? function(e) {
-					return rr(u.table(e), l);
-				} : (r = Reflect.get(e, t, n)) instanceof Ot ? rr(r, l) : "tables" === t ? r.map(function(e) {
-					return rr(e, l);
-				}) : "_createTransaction" === t ? function() {
-					return rr(r.apply(this, arguments), l);
-				} : r);
-			} }));
-			this.vip = l, s.forEach(function(e) {
-				return e(u);
+				var toArray = function() {
+					return Array.from(_refs_1).map(function(ref) {
+						return ref.deref();
+					}).filter(function(db) {
+						return db !== void 0;
+					});
+				};
+				var add = function(db) {
+					var ref = new WeakRef(db._novip);
+					_refs_1.add(ref);
+					_registry_1.register(db._novip, ref, ref);
+					if (_refs_1.size > db._options.maxConnections) {
+						var oldestRef = _refs_1.values().next().value;
+						_refs_1.delete(oldestRef);
+						_registry_1.unregister(oldestRef);
+					}
+				};
+				var remove = function(db) {
+					if (!db) return;
+					var iterator = _refs_1.values();
+					var result = iterator.next();
+					while (!result.done) {
+						var ref = result.value;
+						if (ref.deref() === db._novip) {
+							_refs_1.delete(ref);
+							_registry_1.unregister(ref);
+							return;
+						}
+						result = iterator.next();
+					}
+				};
+				return {
+					toArray,
+					add,
+					remove
+				};
+			} else {
+				var connections_1 = [];
+				var toArray = function() {
+					return connections_1;
+				};
+				var add = function(db) {
+					connections_1.push(db._novip);
+				};
+				var remove = function(db) {
+					if (!db) return;
+					var index = connections_1.indexOf(db._novip);
+					if (index !== -1) connections_1.splice(index, 1);
+				};
+				return {
+					toArray,
+					add,
+					remove
+				};
+			}
+		}
+		function getDbNamesTable(indexedDB, IDBKeyRange) {
+			var dbNamesDB = indexedDB["_dbNamesDB"];
+			if (!dbNamesDB) {
+				dbNamesDB = indexedDB["_dbNamesDB"] = new Dexie$1(DBNAMES_DB, {
+					addons: [],
+					indexedDB,
+					IDBKeyRange
+				});
+				dbNamesDB.version(1).stores({ dbnames: "name" });
+			}
+			return dbNamesDB.table("dbnames");
+		}
+		function hasDatabasesNative(indexedDB) {
+			return indexedDB && typeof indexedDB.databases === "function";
+		}
+		function getDatabaseNames(_a) {
+			var indexedDB = _a.indexedDB, IDBKeyRange = _a.IDBKeyRange;
+			return hasDatabasesNative(indexedDB) ? Promise.resolve(indexedDB.databases()).then(function(infos) {
+				return infos.map(function(info) {
+					return info.name;
+				}).filter(function(name) {
+					return name !== DBNAMES_DB;
+				});
+			}) : getDbNamesTable(indexedDB, IDBKeyRange).toCollection().primaryKeys();
+		}
+		function _onDatabaseCreated(_a, name) {
+			var indexedDB = _a.indexedDB, IDBKeyRange = _a.IDBKeyRange;
+			!hasDatabasesNative(indexedDB) && name !== DBNAMES_DB && getDbNamesTable(indexedDB, IDBKeyRange).put({ name }).catch(nop);
+		}
+		function _onDatabaseDeleted(_a, name) {
+			var indexedDB = _a.indexedDB, IDBKeyRange = _a.IDBKeyRange;
+			!hasDatabasesNative(indexedDB) && name !== DBNAMES_DB && getDbNamesTable(indexedDB, IDBKeyRange).delete(name).catch(nop);
+		}
+		function vip(fn) {
+			return newScope(function() {
+				PSD.letThrough = true;
+				return fn();
 			});
 		}
-		var ir, Se = "undefined" != typeof Symbol && "observable" in Symbol ? Symbol.observable : "@@observable", or = (ar.prototype.subscribe = function(e, t, n) {
-			return this._subscribe(e && "function" != typeof e ? e : {
-				next: e,
-				error: t,
-				complete: n
+		function idbReady() {
+			if (!(!navigator.userAgentData && /Safari\//.test(navigator.userAgent) && !/Chrom(e|ium)\//.test(navigator.userAgent)) || !indexedDB.databases) return Promise.resolve();
+			var intervalId;
+			return new Promise(function(resolve) {
+				var tryIdb = function() {
+					return indexedDB.databases().finally(resolve);
+				};
+				intervalId = setInterval(tryIdb, 100);
+				tryIdb();
+			}).finally(function() {
+				return clearInterval(intervalId);
 			});
-		}, ar.prototype[Se] = function() {
-			return this;
-		}, ar);
-		function ar(e) {
-			this._subscribe = e;
 		}
+		var _a;
+		function isEmptyRange(node) {
+			return !("from" in node);
+		}
+		var RangeSet = function(fromOrTree, to) {
+			if (this) extend(this, arguments.length ? {
+				d: 1,
+				from: fromOrTree,
+				to: arguments.length > 1 ? to : fromOrTree
+			} : { d: 0 });
+			else {
+				var rv = new RangeSet();
+				if (fromOrTree && "d" in fromOrTree) extend(rv, fromOrTree);
+				return rv;
+			}
+		};
+		props(RangeSet.prototype, (_a = {
+			add: function(rangeSet) {
+				mergeRanges(this, rangeSet);
+				return this;
+			},
+			addKey: function(key) {
+				addRange(this, key, key);
+				return this;
+			},
+			addKeys: function(keys) {
+				var _this = this;
+				keys.forEach(function(key) {
+					return addRange(_this, key, key);
+				});
+				return this;
+			},
+			hasKey: function(key) {
+				var node = getRangeSetIterator(this).next(key).value;
+				return node && cmp(node.from, key) <= 0 && cmp(node.to, key) >= 0;
+			}
+		}, _a[iteratorSymbol] = function() {
+			return getRangeSetIterator(this);
+		}, _a));
+		function addRange(target, from, to) {
+			var diff = cmp(from, to);
+			if (isNaN(diff)) return;
+			if (diff > 0) throw RangeError();
+			if (isEmptyRange(target)) return extend(target, {
+				from,
+				to,
+				d: 1
+			});
+			var left = target.l;
+			var right = target.r;
+			if (cmp(to, target.from) < 0) {
+				left ? addRange(left, from, to) : target.l = {
+					from,
+					to,
+					d: 1,
+					l: null,
+					r: null
+				};
+				return rebalance(target);
+			}
+			if (cmp(from, target.to) > 0) {
+				right ? addRange(right, from, to) : target.r = {
+					from,
+					to,
+					d: 1,
+					l: null,
+					r: null
+				};
+				return rebalance(target);
+			}
+			if (cmp(from, target.from) < 0) {
+				target.from = from;
+				target.l = null;
+				target.d = right ? right.d + 1 : 1;
+			}
+			if (cmp(to, target.to) > 0) {
+				target.to = to;
+				target.r = null;
+				target.d = target.l ? target.l.d + 1 : 1;
+			}
+			var rightWasCutOff = !target.r;
+			if (left && !target.l) mergeRanges(target, left);
+			if (right && rightWasCutOff) mergeRanges(target, right);
+		}
+		function mergeRanges(target, newSet) {
+			function _addRangeSet(target, _a) {
+				var from = _a.from, to = _a.to, l = _a.l, r = _a.r;
+				addRange(target, from, to);
+				if (l) _addRangeSet(target, l);
+				if (r) _addRangeSet(target, r);
+			}
+			if (!isEmptyRange(newSet)) _addRangeSet(target, newSet);
+		}
+		function rangesOverlap(rangeSet1, rangeSet2) {
+			var i1 = getRangeSetIterator(rangeSet2);
+			var nextResult1 = i1.next();
+			if (nextResult1.done) return false;
+			var a = nextResult1.value;
+			var i2 = getRangeSetIterator(rangeSet1);
+			var nextResult2 = i2.next(a.from);
+			var b = nextResult2.value;
+			while (!nextResult1.done && !nextResult2.done) {
+				if (cmp(b.from, a.to) <= 0 && cmp(b.to, a.from) >= 0) return true;
+				cmp(a.from, b.from) < 0 ? a = (nextResult1 = i1.next(b.from)).value : b = (nextResult2 = i2.next(a.from)).value;
+			}
+			return false;
+		}
+		function getRangeSetIterator(node) {
+			var state = isEmptyRange(node) ? null : {
+				s: 0,
+				n: node
+			};
+			return { next: function(key) {
+				var keyProvided = arguments.length > 0;
+				while (state) switch (state.s) {
+					case 0:
+						state.s = 1;
+						if (keyProvided) while (state.n.l && cmp(key, state.n.from) < 0) state = {
+							up: state,
+							n: state.n.l,
+							s: 1
+						};
+						else while (state.n.l) state = {
+							up: state,
+							n: state.n.l,
+							s: 1
+						};
+					case 1:
+						state.s = 2;
+						if (!keyProvided || cmp(key, state.n.to) <= 0) return {
+							value: state.n,
+							done: false
+						};
+					case 2: if (state.n.r) {
+						state.s = 3;
+						state = {
+							up: state,
+							n: state.n.r,
+							s: 0
+						};
+						continue;
+					}
+					case 3: state = state.up;
+				}
+				return { done: true };
+			} };
+		}
+		function rebalance(target) {
+			var _a, _b;
+			var diff = (((_a = target.r) === null || _a === void 0 ? void 0 : _a.d) || 0) - (((_b = target.l) === null || _b === void 0 ? void 0 : _b.d) || 0);
+			var r = diff > 1 ? "r" : diff < -1 ? "l" : "";
+			if (r) {
+				var l = r === "r" ? "l" : "r";
+				var rootClone = __assign({}, target);
+				var oldRootRight = target[r];
+				target.from = oldRootRight.from;
+				target.to = oldRootRight.to;
+				target[r] = oldRootRight[r];
+				rootClone[r] = oldRootRight[l];
+				target[l] = rootClone;
+				rootClone.d = computeDepth(rootClone);
+			}
+			target.d = computeDepth(target);
+		}
+		function computeDepth(_a) {
+			var r = _a.r, l = _a.l;
+			return (r ? l ? Math.max(r.d, l.d) : r.d : l ? l.d : 0) + 1;
+		}
+		function extendObservabilitySet(target, newSet) {
+			keys(newSet).forEach(function(part) {
+				if (target[part]) mergeRanges(target[part], newSet[part]);
+				else target[part] = cloneSimpleObjectTree(newSet[part]);
+			});
+			return target;
+		}
+		function obsSetsOverlap(os1, os2) {
+			return os1.all || os2.all || Object.keys(os1).some(function(key) {
+				return os2[key] && rangesOverlap(os2[key], os1[key]);
+			});
+		}
+		var cache = {};
+		var unsignaledParts = {};
+		var isTaskEnqueued = false;
+		function signalSubscribersLazily(part, optimistic) {
+			extendObservabilitySet(unsignaledParts, part);
+			if (!isTaskEnqueued) {
+				isTaskEnqueued = true;
+				setTimeout(function() {
+					isTaskEnqueued = false;
+					var parts = unsignaledParts;
+					unsignaledParts = {};
+					signalSubscribersNow(parts, false);
+				}, 0);
+			}
+		}
+		function signalSubscribersNow(updatedParts, deleteAffectedCacheEntries) {
+			if (deleteAffectedCacheEntries === void 0) deleteAffectedCacheEntries = false;
+			var queriesToSignal = /* @__PURE__ */ new Set();
+			if (updatedParts.all) for (var _i = 0, _a = Object.values(cache); _i < _a.length; _i++) {
+				var tblCache = _a[_i];
+				collectTableSubscribers(tblCache, updatedParts, queriesToSignal, deleteAffectedCacheEntries);
+			}
+			else for (var key in updatedParts) {
+				var parts = /^idb\:\/\/(.*)\/(.*)\//.exec(key);
+				if (parts) {
+					var dbName = parts[1], tableName = parts[2];
+					var tblCache = cache["idb://".concat(dbName, "/").concat(tableName)];
+					if (tblCache) collectTableSubscribers(tblCache, updatedParts, queriesToSignal, deleteAffectedCacheEntries);
+				}
+			}
+			queriesToSignal.forEach(function(requery) {
+				return requery();
+			});
+		}
+		function collectTableSubscribers(tblCache, updatedParts, outQueriesToSignal, deleteAffectedCacheEntries) {
+			var updatedEntryLists = [];
+			for (var _i = 0, _a = Object.entries(tblCache.queries.query); _i < _a.length; _i++) {
+				var _b = _a[_i], indexName = _b[0], entries = _b[1];
+				var filteredEntries = [];
+				for (var _c = 0, entries_1 = entries; _c < entries_1.length; _c++) {
+					var entry = entries_1[_c];
+					if (obsSetsOverlap(updatedParts, entry.obsSet)) entry.subscribers.forEach(function(requery) {
+						return outQueriesToSignal.add(requery);
+					});
+					else if (deleteAffectedCacheEntries) filteredEntries.push(entry);
+				}
+				if (deleteAffectedCacheEntries) updatedEntryLists.push([indexName, filteredEntries]);
+			}
+			if (deleteAffectedCacheEntries) for (var _d = 0, updatedEntryLists_1 = updatedEntryLists; _d < updatedEntryLists_1.length; _d++) {
+				var _e = updatedEntryLists_1[_d], indexName = _e[0], filteredEntries = _e[1];
+				tblCache.queries.query[indexName] = filteredEntries;
+			}
+		}
+		function dexieOpen(db) {
+			var state = db._state;
+			var indexedDB = db._deps.indexedDB;
+			if (state.isBeingOpened || db.idbdb) return state.dbReadyPromise.then(function() {
+				return state.dbOpenError ? rejection(state.dbOpenError) : db;
+			});
+			state.isBeingOpened = true;
+			state.dbOpenError = null;
+			state.openComplete = false;
+			var openCanceller = state.openCanceller;
+			var nativeVerToOpen = Math.round(db.verno * 10);
+			var schemaPatchMode = false;
+			function throwIfCancelled() {
+				if (state.openCanceller !== openCanceller) throw new exceptions.DatabaseClosed("db.open() was cancelled");
+			}
+			var resolveDbReady = state.dbReadyResolve, upgradeTransaction = null, wasCreated = false;
+			var tryOpenDB = function() {
+				return new DexiePromise(function(resolve, reject) {
+					throwIfCancelled();
+					if (!indexedDB) throw new exceptions.MissingAPI();
+					var dbName = db.name;
+					var req = state.autoSchema || !nativeVerToOpen ? indexedDB.open(dbName) : indexedDB.open(dbName, nativeVerToOpen);
+					if (!req) throw new exceptions.MissingAPI();
+					req.onerror = eventRejectHandler(reject);
+					req.onblocked = wrap(db._fireOnBlocked);
+					req.onupgradeneeded = wrap(function(e) {
+						upgradeTransaction = req.transaction;
+						if (state.autoSchema && !db._options.allowEmptyDB) {
+							req.onerror = preventDefault;
+							upgradeTransaction.abort();
+							req.result.close();
+							var delreq = indexedDB.deleteDatabase(dbName);
+							delreq.onsuccess = delreq.onerror = wrap(function() {
+								reject(new exceptions.NoSuchDatabase("Database ".concat(dbName, " doesnt exist")));
+							});
+						} else {
+							upgradeTransaction.onerror = eventRejectHandler(reject);
+							var oldVer = e.oldVersion > Math.pow(2, 62) ? 0 : e.oldVersion;
+							wasCreated = oldVer < 1;
+							db.idbdb = req.result;
+							if (schemaPatchMode) patchCurrentVersion(db, upgradeTransaction);
+							runUpgraders(db, oldVer / 10, upgradeTransaction, reject);
+						}
+					}, reject);
+					req.onsuccess = wrap(function() {
+						upgradeTransaction = null;
+						var idbdb = db.idbdb = req.result;
+						var objectStoreNames = slice(idbdb.objectStoreNames);
+						if (objectStoreNames.length > 0) try {
+							var tmpTrans = idbdb.transaction(safariMultiStoreFix(objectStoreNames), "readonly");
+							if (state.autoSchema) readGlobalSchema(db, idbdb, tmpTrans);
+							else {
+								adjustToExistingIndexNames(db, db._dbSchema, tmpTrans);
+								if (!verifyInstalledSchema(db, tmpTrans) && !schemaPatchMode) {
+									console.warn("Dexie SchemaDiff: Schema was extended without increasing the number passed to db.version(). Dexie will add missing parts and increment native version number to workaround this.");
+									idbdb.close();
+									nativeVerToOpen = idbdb.version + 1;
+									schemaPatchMode = true;
+									return resolve(tryOpenDB());
+								}
+							}
+							generateMiddlewareStacks(db, tmpTrans);
+						} catch (e) {}
+						connections.add(db);
+						idbdb.onversionchange = wrap(function(ev) {
+							state.vcFired = true;
+							db.on("versionchange").fire(ev);
+						});
+						idbdb.onclose = wrap(function() {
+							db.close({ disableAutoOpen: false });
+						});
+						if (wasCreated) _onDatabaseCreated(db._deps, dbName);
+						resolve();
+					}, reject);
+				}).catch(function(err) {
+					switch (err === null || err === void 0 ? void 0 : err.name) {
+						case "UnknownError":
+							if (state.PR1398_maxLoop > 0) {
+								state.PR1398_maxLoop--;
+								console.warn("Dexie: Workaround for Chrome UnknownError on open()");
+								return tryOpenDB();
+							}
+							break;
+						case "VersionError": if (nativeVerToOpen > 0) {
+							nativeVerToOpen = 0;
+							return tryOpenDB();
+						}
+					}
+					return DexiePromise.reject(err);
+				});
+			};
+			var useSafari14Workaround = typeof navigator !== "undefined" && !!indexedDB && indexedDB === _global.indexedDB;
+			return DexiePromise.race([openCanceller, (useSafari14Workaround ? idbReady() : DexiePromise.resolve()).then(tryOpenDB)]).then(function() {
+				throwIfCancelled();
+				state.onReadyBeingFired = [];
+				return DexiePromise.resolve(vip(function() {
+					return db.on.ready.fire(db.vip);
+				})).then(function fireRemainders() {
+					if (state.onReadyBeingFired.length > 0) {
+						var remainders_1 = state.onReadyBeingFired.reduce(promisableChain, nop);
+						state.onReadyBeingFired = [];
+						return DexiePromise.resolve(vip(function() {
+							return remainders_1(db.vip);
+						})).then(fireRemainders);
+					}
+				});
+			}).finally(function() {
+				if (state.openCanceller === openCanceller) {
+					state.onReadyBeingFired = null;
+					state.isBeingOpened = false;
+				}
+			}).catch(function(err) {
+				state.dbOpenError = err;
+				try {
+					upgradeTransaction && upgradeTransaction.abort();
+				} catch (_a) {}
+				if (openCanceller === state.openCanceller) db._close();
+				return rejection(err);
+			}).finally(function() {
+				state.openComplete = true;
+				resolveDbReady();
+			}).then(function() {
+				if (wasCreated) {
+					var everything_1 = {};
+					db.tables.forEach(function(table) {
+						table.schema.indexes.forEach(function(idx) {
+							if (idx.name) everything_1["idb://".concat(db.name, "/").concat(table.name, "/").concat(idx.name)] = new RangeSet(-Infinity, [[[]]]);
+						});
+						everything_1["idb://".concat(db.name, "/").concat(table.name, "/")] = everything_1["idb://".concat(db.name, "/").concat(table.name, "/:dels")] = new RangeSet(-Infinity, [[[]]]);
+					});
+					globalEvents(DEXIE_STORAGE_MUTATED_EVENT_NAME).fire(everything_1);
+					signalSubscribersNow(everything_1, true);
+				}
+				return db;
+			});
+		}
+		function awaitIterator(iterator) {
+			var callNext = function(result) {
+				return iterator.next(result);
+			}, doThrow = function(error) {
+				return iterator.throw(error);
+			}, onSuccess = step(callNext), onError = step(doThrow);
+			function step(getNext) {
+				return function(val) {
+					var next = getNext(val), value = next.value;
+					return next.done ? value : !value || typeof value.then !== "function" ? isArray(value) ? Promise.all(value).then(onSuccess, onError) : onSuccess(value) : value.then(onSuccess, onError);
+				};
+			}
+			return step(callNext)();
+		}
+		function extractTransactionArgs(mode, _tableArgs_, scopeFunc) {
+			var i = arguments.length;
+			if (i < 2) throw new exceptions.InvalidArgument("Too few arguments");
+			var args = new Array(i - 1);
+			while (--i) args[i - 1] = arguments[i];
+			scopeFunc = args.pop();
+			return [
+				mode,
+				flatten(args),
+				scopeFunc
+			];
+		}
+		function enterTransactionScope(db, mode, storeNames, parentTransaction, scopeFunc) {
+			return DexiePromise.resolve().then(function() {
+				var transless = PSD.transless || PSD;
+				var trans = db._createTransaction(mode, storeNames, db._dbSchema, parentTransaction);
+				trans.explicit = true;
+				var zoneProps = {
+					trans,
+					transless
+				};
+				if (parentTransaction) trans.idbtrans = parentTransaction.idbtrans;
+				else try {
+					trans.create();
+					trans.idbtrans._explicit = true;
+					db._state.PR1398_maxLoop = 3;
+				} catch (ex) {
+					if (ex.name === errnames.InvalidState && db.isOpen() && --db._state.PR1398_maxLoop > 0) {
+						console.warn("Dexie: Need to reopen db");
+						db.close({ disableAutoOpen: false });
+						return db.open().then(function() {
+							return enterTransactionScope(db, mode, storeNames, null, scopeFunc);
+						});
+					}
+					return rejection(ex);
+				}
+				var scopeFuncIsAsync = isAsyncFunction(scopeFunc);
+				if (scopeFuncIsAsync) incrementExpectedAwaits();
+				var returnValue;
+				var promiseFollowed = DexiePromise.follow(function() {
+					returnValue = scopeFunc.call(trans, trans);
+					if (returnValue) {
+						if (scopeFuncIsAsync) {
+							var decrementor = decrementExpectedAwaits.bind(null, null);
+							returnValue.then(decrementor, decrementor);
+						} else if (typeof returnValue.next === "function" && typeof returnValue.throw === "function") returnValue = awaitIterator(returnValue);
+					}
+				}, zoneProps);
+				return (returnValue && typeof returnValue.then === "function" ? DexiePromise.resolve(returnValue).then(function(x) {
+					return trans.active ? x : rejection(new exceptions.PrematureCommit("Transaction committed too early. See http://bit.ly/2kdckMn"));
+				}) : promiseFollowed.then(function() {
+					return returnValue;
+				})).then(function(x) {
+					if (parentTransaction) trans._resolve();
+					return trans._completion.then(function() {
+						return x;
+					});
+				}).catch(function(e) {
+					trans._reject(e);
+					return rejection(e);
+				});
+			});
+		}
+		function pad(a, value, count) {
+			var result = isArray(a) ? a.slice() : [a];
+			for (var i = 0; i < count; ++i) result.push(value);
+			return result;
+		}
+		function createVirtualIndexMiddleware(down) {
+			return __assign(__assign({}, down), { table: function(tableName) {
+				var table = down.table(tableName);
+				var schema = table.schema;
+				var indexLookup = Object.create(null);
+				var allVirtualIndexes = [];
+				function addVirtualIndexes(keyPath, keyTail, lowLevelIndex) {
+					var keyPathAlias = getKeyPathAlias(keyPath);
+					var indexList = indexLookup[keyPathAlias] = indexLookup[keyPathAlias] || [];
+					var keyLength = keyPath == null ? 0 : typeof keyPath === "string" ? 1 : keyPath.length;
+					var isVirtual = keyTail > 0;
+					var virtualIndex = __assign(__assign({}, lowLevelIndex), {
+						name: isVirtual ? "".concat(keyPathAlias, "(virtual-from:").concat(lowLevelIndex.name, ")") : lowLevelIndex.name,
+						lowLevelIndex,
+						isVirtual,
+						keyTail,
+						keyLength,
+						extractKey: getKeyExtractor(keyPath),
+						unique: !isVirtual && lowLevelIndex.unique
+					});
+					indexList.push(virtualIndex);
+					if (!virtualIndex.isPrimaryKey) allVirtualIndexes.push(virtualIndex);
+					if (keyLength > 1) addVirtualIndexes(keyLength === 2 ? keyPath[0] : keyPath.slice(0, keyLength - 1), keyTail + 1, lowLevelIndex);
+					indexList.sort(function(a, b) {
+						return a.keyTail - b.keyTail;
+					});
+					return virtualIndex;
+				}
+				var primaryKey = addVirtualIndexes(schema.primaryKey.keyPath, 0, schema.primaryKey);
+				indexLookup[":id"] = [primaryKey];
+				for (var _i = 0, _a = schema.indexes; _i < _a.length; _i++) {
+					var index = _a[_i];
+					addVirtualIndexes(index.keyPath, 0, index);
+				}
+				function findBestIndex(keyPath) {
+					var result = indexLookup[getKeyPathAlias(keyPath)];
+					return result && result[0];
+				}
+				function translateRange(range, keyTail) {
+					return {
+						type: range.type === 1 ? 2 : range.type,
+						lower: pad(range.lower, range.lowerOpen ? down.MAX_KEY : down.MIN_KEY, keyTail),
+						lowerOpen: true,
+						upper: pad(range.upper, range.upperOpen ? down.MIN_KEY : down.MAX_KEY, keyTail),
+						upperOpen: true
+					};
+				}
+				function translateRequest(req) {
+					var index = req.query.index;
+					return index.isVirtual ? __assign(__assign({}, req), { query: {
+						index: index.lowLevelIndex,
+						range: translateRange(req.query.range, index.keyTail)
+					} }) : req;
+				}
+				return __assign(__assign({}, table), {
+					schema: __assign(__assign({}, schema), {
+						primaryKey,
+						indexes: allVirtualIndexes,
+						getIndexByKeyPath: findBestIndex
+					}),
+					count: function(req) {
+						return table.count(translateRequest(req));
+					},
+					query: function(req) {
+						return table.query(translateRequest(req));
+					},
+					openCursor: function(req) {
+						var _a = req.query.index, keyTail = _a.keyTail, isVirtual = _a.isVirtual, keyLength = _a.keyLength;
+						if (!isVirtual) return table.openCursor(req);
+						function createVirtualCursor(cursor) {
+							function _continue(key) {
+								key != null ? cursor.continue(pad(key, req.reverse ? down.MAX_KEY : down.MIN_KEY, keyTail)) : req.unique ? cursor.continue(cursor.key.slice(0, keyLength).concat(req.reverse ? down.MIN_KEY : down.MAX_KEY, keyTail)) : cursor.continue();
+							}
+							return Object.create(cursor, {
+								continue: { value: _continue },
+								continuePrimaryKey: { value: function(key, primaryKey) {
+									cursor.continuePrimaryKey(pad(key, down.MAX_KEY, keyTail), primaryKey);
+								} },
+								primaryKey: { get: function() {
+									return cursor.primaryKey;
+								} },
+								key: { get: function() {
+									var key = cursor.key;
+									return keyLength === 1 ? key[0] : key.slice(0, keyLength);
+								} },
+								value: { get: function() {
+									return cursor.value;
+								} }
+							});
+						}
+						return table.openCursor(translateRequest(req)).then(function(cursor) {
+							return cursor && createVirtualCursor(cursor);
+						});
+					}
+				});
+			} });
+		}
+		var virtualIndexMiddleware = {
+			stack: "dbcore",
+			name: "VirtualIndexMiddleware",
+			level: 1,
+			create: createVirtualIndexMiddleware
+		};
+		function getObjectDiff(a, b, rv, prfx) {
+			rv = rv || {};
+			prfx = prfx || "";
+			keys(a).forEach(function(prop) {
+				if (!hasOwn(b, prop)) rv[prfx + prop] = void 0;
+				else {
+					var ap = a[prop], bp = b[prop];
+					if (typeof ap === "object" && typeof bp === "object" && ap && bp) {
+						var apTypeName = toStringTag(ap);
+						if (apTypeName !== toStringTag(bp)) rv[prfx + prop] = b[prop];
+						else if (apTypeName === "Object") getObjectDiff(ap, bp, rv, prfx + prop + ".");
+						else if (ap !== bp) rv[prfx + prop] = b[prop];
+					} else if (ap !== bp) rv[prfx + prop] = b[prop];
+				}
+			});
+			keys(b).forEach(function(prop) {
+				if (!hasOwn(a, prop)) rv[prfx + prop] = b[prop];
+			});
+			return rv;
+		}
+		function getEffectiveKeys(primaryKey, req) {
+			if (req.type === "delete") return req.keys;
+			return req.keys || req.values.map(primaryKey.extractKey);
+		}
+		var hooksMiddleware = {
+			stack: "dbcore",
+			name: "HooksMiddleware",
+			level: 2,
+			create: function(downCore) {
+				return __assign(__assign({}, downCore), { table: function(tableName) {
+					var downTable = downCore.table(tableName);
+					var primaryKey = downTable.schema.primaryKey;
+					return __assign(__assign({}, downTable), { mutate: function(req) {
+						var dxTrans = PSD.trans;
+						var _a = dxTrans.table(tableName).hook, deleting = _a.deleting, creating = _a.creating, updating = _a.updating;
+						switch (req.type) {
+							case "add":
+								if (creating.fire === nop) break;
+								return dxTrans._promise("readwrite", function() {
+									return addPutOrDelete(req);
+								}, true);
+							case "put":
+								if (creating.fire === nop && updating.fire === nop) break;
+								return dxTrans._promise("readwrite", function() {
+									return addPutOrDelete(req);
+								}, true);
+							case "delete":
+								if (deleting.fire === nop) break;
+								return dxTrans._promise("readwrite", function() {
+									return addPutOrDelete(req);
+								}, true);
+							case "deleteRange":
+								if (deleting.fire === nop) break;
+								return dxTrans._promise("readwrite", function() {
+									return deleteRange(req);
+								}, true);
+						}
+						return downTable.mutate(req);
+						function addPutOrDelete(req) {
+							var dxTrans = PSD.trans;
+							var keys = req.keys || getEffectiveKeys(primaryKey, req);
+							if (!keys) throw new Error("Keys missing");
+							req = req.type === "add" || req.type === "put" ? __assign(__assign({}, req), { keys }) : __assign({}, req);
+							if (req.type !== "delete") req.values = __spreadArray([], req.values, true);
+							if (req.keys) req.keys = __spreadArray([], req.keys, true);
+							return getExistingValues(downTable, req, keys).then(function(existingValues) {
+								var contexts = keys.map(function(key, i) {
+									var existingValue = existingValues[i];
+									var ctx = {
+										onerror: null,
+										onsuccess: null
+									};
+									if (req.type === "delete") deleting.fire.call(ctx, key, existingValue, dxTrans);
+									else if (req.type === "add" || existingValue === void 0) {
+										var generatedPrimaryKey = creating.fire.call(ctx, key, req.values[i], dxTrans);
+										if (key == null && generatedPrimaryKey != null) {
+											key = generatedPrimaryKey;
+											req.keys[i] = key;
+											if (!primaryKey.outbound) setByKeyPath(req.values[i], primaryKey.keyPath, key);
+										}
+									} else {
+										var objectDiff = getObjectDiff(existingValue, req.values[i]);
+										var additionalChanges_1 = updating.fire.call(ctx, objectDiff, key, existingValue, dxTrans);
+										if (additionalChanges_1) {
+											var requestedValue_1 = req.values[i];
+											Object.keys(additionalChanges_1).forEach(function(keyPath) {
+												if (hasOwn(requestedValue_1, keyPath)) requestedValue_1[keyPath] = additionalChanges_1[keyPath];
+												else setByKeyPath(requestedValue_1, keyPath, additionalChanges_1[keyPath]);
+											});
+										}
+									}
+									return ctx;
+								});
+								return downTable.mutate(req).then(function(_a) {
+									var failures = _a.failures, results = _a.results, numFailures = _a.numFailures, lastResult = _a.lastResult;
+									for (var i = 0; i < keys.length; ++i) {
+										var primKey = results ? results[i] : keys[i];
+										var ctx = contexts[i];
+										if (primKey == null) ctx.onerror && ctx.onerror(failures[i]);
+										else ctx.onsuccess && ctx.onsuccess(req.type === "put" && existingValues[i] ? req.values[i] : primKey);
+									}
+									return {
+										failures,
+										results,
+										numFailures,
+										lastResult
+									};
+								}).catch(function(error) {
+									contexts.forEach(function(ctx) {
+										return ctx.onerror && ctx.onerror(error);
+									});
+									return Promise.reject(error);
+								});
+							});
+						}
+						function deleteRange(req) {
+							return deleteNextChunk(req.trans, req.range, 1e4);
+						}
+						function deleteNextChunk(trans, range, limit) {
+							return downTable.query({
+								trans,
+								values: false,
+								query: {
+									index: primaryKey,
+									range
+								},
+								limit
+							}).then(function(_a) {
+								var result = _a.result;
+								return addPutOrDelete({
+									type: "delete",
+									keys: result,
+									trans
+								}).then(function(res) {
+									if (res.numFailures > 0) return Promise.reject(res.failures[0]);
+									if (result.length < limit) return {
+										failures: [],
+										numFailures: 0,
+										lastResult: void 0
+									};
+									else return deleteNextChunk(trans, __assign(__assign({}, range), {
+										lower: result[result.length - 1],
+										lowerOpen: true
+									}), limit);
+								});
+							});
+						}
+					} });
+				} });
+			}
+		};
+		function getExistingValues(table, req, effectiveKeys) {
+			return req.type === "add" ? Promise.resolve([]) : table.getMany({
+				trans: req.trans,
+				keys: effectiveKeys,
+				cache: "immutable"
+			});
+		}
+		function getFromTransactionCache(keys, cache, clone) {
+			try {
+				if (!cache) return null;
+				if (cache.keys.length < keys.length) return null;
+				var result = [];
+				for (var i = 0, j = 0; i < cache.keys.length && j < keys.length; ++i) {
+					if (cmp(cache.keys[i], keys[j]) !== 0) continue;
+					result.push(clone ? deepClone(cache.values[i]) : cache.values[i]);
+					++j;
+				}
+				return result.length === keys.length ? result : null;
+			} catch (_a) {
+				return null;
+			}
+		}
+		var cacheExistingValuesMiddleware = {
+			stack: "dbcore",
+			level: -1,
+			create: function(core) {
+				return { table: function(tableName) {
+					var table = core.table(tableName);
+					return __assign(__assign({}, table), {
+						getMany: function(req) {
+							if (!req.cache) return table.getMany(req);
+							var cachedResult = getFromTransactionCache(req.keys, req.trans["_cache"], req.cache === "clone");
+							if (cachedResult) return DexiePromise.resolve(cachedResult);
+							return table.getMany(req).then(function(res) {
+								req.trans["_cache"] = {
+									keys: req.keys,
+									values: req.cache === "clone" ? deepClone(res) : res
+								};
+								return res;
+							});
+						},
+						mutate: function(req) {
+							if (req.type !== "add") req.trans["_cache"] = null;
+							return table.mutate(req);
+						}
+					});
+				} };
+			}
+		};
+		function isCachableContext(ctx, table) {
+			return ctx.trans.mode === "readonly" && !!ctx.subscr && !ctx.trans.explicit && ctx.trans.db._options.cache !== "disabled" && !table.schema.primaryKey.outbound;
+		}
+		function isCachableRequest(type, req) {
+			switch (type) {
+				case "query": return req.values && !req.unique;
+				case "get": return false;
+				case "getMany": return false;
+				case "count": return false;
+				case "openCursor": return false;
+			}
+		}
+		var observabilityMiddleware = {
+			stack: "dbcore",
+			level: 0,
+			name: "Observability",
+			create: function(core) {
+				var dbName = core.schema.name;
+				var FULL_RANGE = new RangeSet(core.MIN_KEY, core.MAX_KEY);
+				return __assign(__assign({}, core), {
+					transaction: function(stores, mode, options) {
+						if (PSD.subscr && mode !== "readonly") throw new exceptions.ReadOnly("Readwrite transaction in liveQuery context. Querier source: ".concat(PSD.querier));
+						return core.transaction(stores, mode, options);
+					},
+					table: function(tableName) {
+						var table = core.table(tableName);
+						var schema = table.schema;
+						var primaryKey = schema.primaryKey, indexes = schema.indexes;
+						var extractKey = primaryKey.extractKey, outbound = primaryKey.outbound;
+						var indexesWithAutoIncPK = primaryKey.autoIncrement && indexes.filter(function(index) {
+							return index.compound && index.keyPath.includes(primaryKey.keyPath);
+						});
+						var tableClone = __assign(__assign({}, table), { mutate: function(req) {
+							var _a, _b;
+							var trans = req.trans;
+							var mutatedParts = req.mutatedParts || (req.mutatedParts = {});
+							var getRangeSet = function(indexName) {
+								var part = "idb://".concat(dbName, "/").concat(tableName, "/").concat(indexName);
+								return mutatedParts[part] || (mutatedParts[part] = new RangeSet());
+							};
+							var pkRangeSet = getRangeSet("");
+							var delsRangeSet = getRangeSet(":dels");
+							var type = req.type;
+							var _c = req.type === "deleteRange" ? [req.range] : req.type === "delete" ? [req.keys] : req.values.length < 50 ? [getEffectiveKeys(primaryKey, req).filter(function(id) {
+								return id != null;
+							}), req.values] : [], keys = _c[0], newObjs = _c[1];
+							var oldCache = req.trans["_cache"];
+							if (isArray(keys)) {
+								pkRangeSet.addKeys(keys);
+								var oldObjs = type === "delete" || keys.length === newObjs.length ? getFromTransactionCache(keys, oldCache) : null;
+								if (!oldObjs) delsRangeSet.addKeys(keys);
+								if (oldObjs || newObjs) trackAffectedIndexes(getRangeSet, schema, oldObjs, newObjs);
+							} else if (keys) {
+								var range = {
+									from: (_a = keys.lower) !== null && _a !== void 0 ? _a : core.MIN_KEY,
+									to: (_b = keys.upper) !== null && _b !== void 0 ? _b : core.MAX_KEY
+								};
+								delsRangeSet.add(range);
+								pkRangeSet.add(range);
+							} else {
+								pkRangeSet.add(FULL_RANGE);
+								delsRangeSet.add(FULL_RANGE);
+								schema.indexes.forEach(function(idx) {
+									return getRangeSet(idx.name).add(FULL_RANGE);
+								});
+							}
+							return table.mutate(req).then(function(res) {
+								if (keys && (req.type === "add" || req.type === "put")) {
+									pkRangeSet.addKeys(res.results);
+									if (indexesWithAutoIncPK) indexesWithAutoIncPK.forEach(function(idx) {
+										var idxVals = req.values.map(function(v) {
+											return idx.extractKey(v);
+										});
+										var pkPos = idx.keyPath.findIndex(function(prop) {
+											return prop === primaryKey.keyPath;
+										});
+										for (var i = 0, len = res.results.length; i < len; ++i) idxVals[i][pkPos] = res.results[i];
+										getRangeSet(idx.name).addKeys(idxVals);
+									});
+								}
+								trans.mutatedParts = extendObservabilitySet(trans.mutatedParts || {}, mutatedParts);
+								return res;
+							});
+						} });
+						var getRange = function(_a) {
+							var _b, _c;
+							var _d = _a.query, index = _d.index, range = _d.range;
+							return [index, new RangeSet((_b = range.lower) !== null && _b !== void 0 ? _b : core.MIN_KEY, (_c = range.upper) !== null && _c !== void 0 ? _c : core.MAX_KEY)];
+						};
+						var readSubscribers = {
+							get: function(req) {
+								return [primaryKey, new RangeSet(req.key)];
+							},
+							getMany: function(req) {
+								return [primaryKey, new RangeSet().addKeys(req.keys)];
+							},
+							count: getRange,
+							query: getRange,
+							openCursor: getRange
+						};
+						keys(readSubscribers).forEach(function(method) {
+							tableClone[method] = function(req) {
+								var subscr = PSD.subscr;
+								var isLiveQuery = !!subscr;
+								var obsSet = isCachableContext(PSD, table) && isCachableRequest(method, req) ? req.obsSet = {} : subscr;
+								if (isLiveQuery) {
+									var getRangeSet = function(indexName) {
+										var part = "idb://".concat(dbName, "/").concat(tableName, "/").concat(indexName);
+										return obsSet[part] || (obsSet[part] = new RangeSet());
+									};
+									var pkRangeSet_1 = getRangeSet("");
+									var delsRangeSet_1 = getRangeSet(":dels");
+									var _a = readSubscribers[method](req), queriedIndex = _a[0], queriedRanges = _a[1];
+									if (method === "query" && queriedIndex.isPrimaryKey && !req.values) delsRangeSet_1.add(queriedRanges);
+									else getRangeSet(queriedIndex.name || "").add(queriedRanges);
+									if (!queriedIndex.isPrimaryKey) {
+										if (method === "count") delsRangeSet_1.add(FULL_RANGE);
+										else {
+											var keysPromise_1 = method === "query" && outbound && req.values && table.query(__assign(__assign({}, req), { values: false }));
+											return table[method].apply(this, arguments).then(function(res) {
+												if (method === "query") {
+													if (outbound && req.values) return keysPromise_1.then(function(_a) {
+														var resultingKeys = _a.result;
+														pkRangeSet_1.addKeys(resultingKeys);
+														return res;
+													});
+													var pKeys = req.values ? res.result.map(extractKey) : res.result;
+													if (req.values) pkRangeSet_1.addKeys(pKeys);
+													else delsRangeSet_1.addKeys(pKeys);
+												} else if (method === "openCursor") {
+													var cursor_1 = res;
+													var wantValues_1 = req.values;
+													return cursor_1 && Object.create(cursor_1, {
+														key: { get: function() {
+															delsRangeSet_1.addKey(cursor_1.primaryKey);
+															return cursor_1.key;
+														} },
+														primaryKey: { get: function() {
+															var pkey = cursor_1.primaryKey;
+															delsRangeSet_1.addKey(pkey);
+															return pkey;
+														} },
+														value: { get: function() {
+															wantValues_1 && pkRangeSet_1.addKey(cursor_1.primaryKey);
+															return cursor_1.value;
+														} }
+													});
+												}
+												return res;
+											});
+										}
+									}
+								}
+								return table[method].apply(this, arguments);
+							};
+						});
+						return tableClone;
+					}
+				});
+			}
+		};
+		function trackAffectedIndexes(getRangeSet, schema, oldObjs, newObjs) {
+			function addAffectedIndex(ix) {
+				var rangeSet = getRangeSet(ix.name || "");
+				function extractKey(obj) {
+					return obj != null ? ix.extractKey(obj) : null;
+				}
+				var addKeyOrKeys = function(key) {
+					return ix.multiEntry && isArray(key) ? key.forEach(function(key) {
+						return rangeSet.addKey(key);
+					}) : rangeSet.addKey(key);
+				};
+				(oldObjs || newObjs).forEach(function(_, i) {
+					var oldKey = oldObjs && extractKey(oldObjs[i]);
+					var newKey = newObjs && extractKey(newObjs[i]);
+					if (cmp(oldKey, newKey) !== 0) {
+						if (oldKey != null) addKeyOrKeys(oldKey);
+						if (newKey != null) addKeyOrKeys(newKey);
+					}
+				});
+			}
+			schema.indexes.forEach(addAffectedIndex);
+		}
+		function adjustOptimisticFromFailures(tblCache, req, res) {
+			if (res.numFailures === 0) return req;
+			if (req.type === "deleteRange") return null;
+			var numBulkOps = req.keys ? req.keys.length : "values" in req && req.values ? req.values.length : 1;
+			if (res.numFailures === numBulkOps) return null;
+			var clone = __assign({}, req);
+			if (isArray(clone.keys)) clone.keys = clone.keys.filter(function(_, i) {
+				return !(i in res.failures);
+			});
+			if ("values" in clone && isArray(clone.values)) clone.values = clone.values.filter(function(_, i) {
+				return !(i in res.failures);
+			});
+			return clone;
+		}
+		function isAboveLower(key, range) {
+			return range.lower === void 0 ? true : range.lowerOpen ? cmp(key, range.lower) > 0 : cmp(key, range.lower) >= 0;
+		}
+		function isBelowUpper(key, range) {
+			return range.upper === void 0 ? true : range.upperOpen ? cmp(key, range.upper) < 0 : cmp(key, range.upper) <= 0;
+		}
+		function isWithinRange(key, range) {
+			return isAboveLower(key, range) && isBelowUpper(key, range);
+		}
+		function applyOptimisticOps(result, req, ops, table, cacheEntry, immutable) {
+			if (!ops || ops.length === 0) return result;
+			var index = req.query.index;
+			var multiEntry = index.multiEntry;
+			var queryRange = req.query.range;
+			var extractPrimKey = table.schema.primaryKey.extractKey;
+			var extractIndex = index.extractKey;
+			var extractLowLevelIndex = (index.lowLevelIndex || index).extractKey;
+			var finalResult = ops.reduce(function(result, op) {
+				var modifedResult = result;
+				var includedValues = [];
+				if (op.type === "add" || op.type === "put") {
+					var includedPKs = new RangeSet();
+					for (var i = op.values.length - 1; i >= 0; --i) {
+						var value = op.values[i];
+						var pk = extractPrimKey(value);
+						if (includedPKs.hasKey(pk)) continue;
+						var key = extractIndex(value);
+						if (multiEntry && isArray(key) ? key.some(function(k) {
+							return isWithinRange(k, queryRange);
+						}) : isWithinRange(key, queryRange)) {
+							includedPKs.addKey(pk);
+							includedValues.push(value);
+						}
+					}
+				}
+				switch (op.type) {
+					case "add":
+						var existingKeys_1 = new RangeSet().addKeys(req.values ? result.map(function(v) {
+							return extractPrimKey(v);
+						}) : result);
+						modifedResult = result.concat(req.values ? includedValues.filter(function(v) {
+							var key = extractPrimKey(v);
+							if (existingKeys_1.hasKey(key)) return false;
+							existingKeys_1.addKey(key);
+							return true;
+						}) : includedValues.map(function(v) {
+							return extractPrimKey(v);
+						}).filter(function(k) {
+							if (existingKeys_1.hasKey(k)) return false;
+							existingKeys_1.addKey(k);
+							return true;
+						}));
+						break;
+					case "put":
+						var keySet_1 = new RangeSet().addKeys(op.values.map(function(v) {
+							return extractPrimKey(v);
+						}));
+						modifedResult = result.filter(function(item) {
+							return !keySet_1.hasKey(req.values ? extractPrimKey(item) : item);
+						}).concat(req.values ? includedValues : includedValues.map(function(v) {
+							return extractPrimKey(v);
+						}));
+						break;
+					case "delete":
+						var keysToDelete_1 = new RangeSet().addKeys(op.keys);
+						modifedResult = result.filter(function(item) {
+							return !keysToDelete_1.hasKey(req.values ? extractPrimKey(item) : item);
+						});
+						break;
+					case "deleteRange":
+						var range_1 = op.range;
+						modifedResult = result.filter(function(item) {
+							return !isWithinRange(extractPrimKey(item), range_1);
+						});
+				}
+				return modifedResult;
+			}, result);
+			if (finalResult === result) return result;
+			var sorter = function(a, b) {
+				return cmp(extractLowLevelIndex(a), extractLowLevelIndex(b)) || cmp(extractPrimKey(a), extractPrimKey(b));
+			};
+			finalResult.sort(req.direction === "prev" || req.direction === "prevunique" ? function(a, b) {
+				return sorter(b, a);
+			} : sorter);
+			if (req.limit && req.limit < Infinity) {
+				if (finalResult.length > req.limit) finalResult.length = req.limit;
+				else if (result.length === req.limit && finalResult.length < req.limit) cacheEntry.dirty = true;
+			}
+			return immutable ? Object.freeze(finalResult) : finalResult;
+		}
+		function areRangesEqual(r1, r2) {
+			return cmp(r1.lower, r2.lower) === 0 && cmp(r1.upper, r2.upper) === 0 && !!r1.lowerOpen === !!r2.lowerOpen && !!r1.upperOpen === !!r2.upperOpen;
+		}
+		function compareLowers(lower1, lower2, lowerOpen1, lowerOpen2) {
+			if (lower1 === void 0) return lower2 !== void 0 ? -1 : 0;
+			if (lower2 === void 0) return 1;
+			var c = cmp(lower1, lower2);
+			if (c === 0) {
+				if (lowerOpen1 && lowerOpen2) return 0;
+				if (lowerOpen1) return 1;
+				if (lowerOpen2) return -1;
+			}
+			return c;
+		}
+		function compareUppers(upper1, upper2, upperOpen1, upperOpen2) {
+			if (upper1 === void 0) return upper2 !== void 0 ? 1 : 0;
+			if (upper2 === void 0) return -1;
+			var c = cmp(upper1, upper2);
+			if (c === 0) {
+				if (upperOpen1 && upperOpen2) return 0;
+				if (upperOpen1) return -1;
+				if (upperOpen2) return 1;
+			}
+			return c;
+		}
+		function isSuperRange(r1, r2) {
+			return compareLowers(r1.lower, r2.lower, r1.lowerOpen, r2.lowerOpen) <= 0 && compareUppers(r1.upper, r2.upper, r1.upperOpen, r2.upperOpen) >= 0;
+		}
+		function findCompatibleQuery(dbName, tableName, type, req) {
+			var _a;
+			var tblCache = cache["idb://".concat(dbName, "/").concat(tableName)];
+			if (!tblCache) return [];
+			var queries = tblCache.queries[type];
+			if (!queries) return [
+				null,
+				false,
+				tblCache,
+				null
+			];
+			var entries = queries[(req.query ? req.query.index.name : null) || ""];
+			if (!entries) return [
+				null,
+				false,
+				tblCache,
+				null
+			];
+			switch (type) {
+				case "query":
+					var reqDirection_1 = (_a = req.direction) !== null && _a !== void 0 ? _a : "next";
+					var equalEntry = entries.find(function(entry) {
+						var _a;
+						return entry.req.limit === req.limit && entry.req.values === req.values && ((_a = entry.req.direction) !== null && _a !== void 0 ? _a : "next") === reqDirection_1 && areRangesEqual(entry.req.query.range, req.query.range);
+					});
+					if (equalEntry) return [
+						equalEntry,
+						true,
+						tblCache,
+						entries
+					];
+					return [
+						entries.find(function(entry) {
+							var _a;
+							return ("limit" in entry.req ? entry.req.limit : Infinity) >= req.limit && ((_a = entry.req.direction) !== null && _a !== void 0 ? _a : "next") === reqDirection_1 && (req.values ? entry.req.values : true) && isSuperRange(entry.req.query.range, req.query.range);
+						}),
+						false,
+						tblCache,
+						entries
+					];
+				case "count":
+					var countQuery = entries.find(function(entry) {
+						return areRangesEqual(entry.req.query.range, req.query.range);
+					});
+					return [
+						countQuery,
+						!!countQuery,
+						tblCache,
+						entries
+					];
+			}
+		}
+		function subscribeToCacheEntry(cacheEntry, container, requery, signal) {
+			cacheEntry.subscribers.add(requery);
+			signal.addEventListener("abort", function() {
+				cacheEntry.subscribers.delete(requery);
+				if (cacheEntry.subscribers.size === 0) enqueForDeletion(cacheEntry, container);
+			});
+		}
+		function enqueForDeletion(cacheEntry, container) {
+			setTimeout(function() {
+				if (cacheEntry.subscribers.size === 0) delArrayItem(container, cacheEntry);
+			}, 3e3);
+		}
+		var cacheMiddleware = {
+			stack: "dbcore",
+			level: 0,
+			name: "Cache",
+			create: function(core) {
+				var dbName = core.schema.name;
+				return __assign(__assign({}, core), {
+					transaction: function(stores, mode, options) {
+						var idbtrans = core.transaction(stores, mode, options);
+						if (mode === "readwrite") {
+							var ac_1 = new AbortController();
+							var signal = ac_1.signal;
+							var endTransaction = function(wasCommitted) {
+								return function() {
+									ac_1.abort();
+									if (mode === "readwrite") {
+										var affectedSubscribers_1 = /* @__PURE__ */ new Set();
+										for (var _i = 0, stores_1 = stores; _i < stores_1.length; _i++) {
+											var storeName = stores_1[_i];
+											var tblCache = cache["idb://".concat(dbName, "/").concat(storeName)];
+											if (tblCache) {
+												var table = core.table(storeName);
+												var ops = tblCache.optimisticOps.filter(function(op) {
+													return op.trans === idbtrans;
+												});
+												if (idbtrans._explicit && wasCommitted && idbtrans.mutatedParts) for (var _a = 0, _b = Object.values(tblCache.queries.query); _a < _b.length; _a++) {
+													var entries = _b[_a];
+													for (var _c = 0, _d = entries.slice(); _c < _d.length; _c++) {
+														var entry = _d[_c];
+														if (obsSetsOverlap(entry.obsSet, idbtrans.mutatedParts)) {
+															delArrayItem(entries, entry);
+															entry.subscribers.forEach(function(requery) {
+																return affectedSubscribers_1.add(requery);
+															});
+														}
+													}
+												}
+												else if (ops.length > 0) {
+													tblCache.optimisticOps = tblCache.optimisticOps.filter(function(op) {
+														return op.trans !== idbtrans;
+													});
+													for (var _e = 0, _f = Object.values(tblCache.queries.query); _e < _f.length; _e++) {
+														var entries = _f[_e];
+														for (var _g = 0, _h = entries.slice(); _g < _h.length; _g++) {
+															var entry = _h[_g];
+															if (entry.res != null && idbtrans.mutatedParts) {
+																if (wasCommitted && !entry.dirty) {
+																	var freezeResults = Object.isFrozen(entry.res);
+																	var modRes = applyOptimisticOps(entry.res, entry.req, ops, table, entry, freezeResults);
+																	if (entry.dirty) {
+																		delArrayItem(entries, entry);
+																		entry.subscribers.forEach(function(requery) {
+																			return affectedSubscribers_1.add(requery);
+																		});
+																	} else if (modRes !== entry.res) {
+																		entry.res = modRes;
+																		entry.promise = DexiePromise.resolve({ result: modRes });
+																	}
+																} else {
+																	if (entry.dirty) delArrayItem(entries, entry);
+																	entry.subscribers.forEach(function(requery) {
+																		return affectedSubscribers_1.add(requery);
+																	});
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+										affectedSubscribers_1.forEach(function(requery) {
+											return requery();
+										});
+									}
+								};
+							};
+							idbtrans.addEventListener("abort", endTransaction(false), { signal });
+							idbtrans.addEventListener("error", endTransaction(false), { signal });
+							idbtrans.addEventListener("complete", endTransaction(true), { signal });
+						}
+						return idbtrans;
+					},
+					table: function(tableName) {
+						var downTable = core.table(tableName);
+						var primKey = downTable.schema.primaryKey;
+						return __assign(__assign({}, downTable), {
+							mutate: function(req) {
+								var trans = PSD.trans;
+								if (primKey.outbound || trans.db._options.cache === "disabled" || trans.explicit || trans.idbtrans.mode !== "readwrite") return downTable.mutate(req);
+								var tblCache = cache["idb://".concat(dbName, "/").concat(tableName)];
+								if (!tblCache) return downTable.mutate(req);
+								var promise = downTable.mutate(req);
+								if ((req.type === "add" || req.type === "put") && (req.values.length >= 50 || getEffectiveKeys(primKey, req).some(function(key) {
+									return key == null;
+								}))) promise.then(function(res) {
+									var adjustedReq = adjustOptimisticFromFailures(tblCache, __assign(__assign({}, req), { values: req.values.map(function(value, i) {
+										var _a;
+										if (res.failures[i]) return value;
+										var valueWithKey = ((_a = primKey.keyPath) === null || _a === void 0 ? void 0 : _a.includes(".")) ? deepClone(value) : __assign({}, value);
+										setByKeyPath(valueWithKey, primKey.keyPath, res.results[i]);
+										return valueWithKey;
+									}) }), res);
+									tblCache.optimisticOps.push(adjustedReq);
+									queueMicrotask(function() {
+										return req.mutatedParts && signalSubscribersLazily(req.mutatedParts);
+									});
+								});
+								else {
+									tblCache.optimisticOps.push(req);
+									req.mutatedParts && signalSubscribersLazily(req.mutatedParts);
+									promise.then(function(res) {
+										if (res.numFailures > 0) {
+											delArrayItem(tblCache.optimisticOps, req);
+											var adjustedReq = adjustOptimisticFromFailures(tblCache, req, res);
+											if (adjustedReq) tblCache.optimisticOps.push(adjustedReq);
+											req.mutatedParts && signalSubscribersLazily(req.mutatedParts);
+										}
+									});
+									promise.catch(function() {
+										delArrayItem(tblCache.optimisticOps, req);
+										req.mutatedParts && signalSubscribersLazily(req.mutatedParts);
+									});
+								}
+								return promise;
+							},
+							query: function(req) {
+								var _a;
+								if (!isCachableContext(PSD, downTable) || !isCachableRequest("query", req)) return downTable.query(req);
+								var freezeResults = ((_a = PSD.trans) === null || _a === void 0 ? void 0 : _a.db._options.cache) === "immutable";
+								var _b = PSD, requery = _b.requery, signal = _b.signal;
+								var _c = findCompatibleQuery(dbName, tableName, "query", req), cacheEntry = _c[0], exactMatch = _c[1], tblCache = _c[2], container = _c[3];
+								if (cacheEntry && exactMatch) cacheEntry.obsSet = req.obsSet;
+								else {
+									var promise = downTable.query(req).then(function(res) {
+										var result = res.result;
+										if (cacheEntry) cacheEntry.res = result;
+										if (freezeResults) {
+											for (var i = 0, l = result.length; i < l; ++i) Object.freeze(result[i]);
+											Object.freeze(result);
+										}
+										return res;
+									}).catch(function(error) {
+										if (container && cacheEntry) delArrayItem(container, cacheEntry);
+										return Promise.reject(error);
+									});
+									cacheEntry = {
+										obsSet: req.obsSet,
+										promise,
+										subscribers: /* @__PURE__ */ new Set(),
+										type: "query",
+										req,
+										dirty: false
+									};
+									if (container) container.push(cacheEntry);
+									else {
+										container = [cacheEntry];
+										if (!tblCache) tblCache = cache["idb://".concat(dbName, "/").concat(tableName)] = {
+											queries: {
+												query: {},
+												count: {}
+											},
+											objs: /* @__PURE__ */ new Map(),
+											optimisticOps: [],
+											unsignaledParts: {}
+										};
+										tblCache.queries.query[req.query.index.name || ""] = container;
+									}
+								}
+								subscribeToCacheEntry(cacheEntry, container, requery, signal);
+								return cacheEntry.promise.then(function(res) {
+									var result = applyOptimisticOps(res.result, req, tblCache === null || tblCache === void 0 ? void 0 : tblCache.optimisticOps, downTable, cacheEntry, freezeResults);
+									return { result: freezeResults ? result : deepClone(result) };
+								});
+							}
+						});
+					}
+				});
+			}
+		};
+		function vipify(target, vipDb) {
+			return new Proxy(target, { get: function(target, prop, receiver) {
+				if (prop === "db") return vipDb;
+				return Reflect.get(target, prop, receiver);
+			} });
+		}
+		var Dexie$1 = function() {
+			function Dexie(name, options) {
+				var _this = this;
+				this._middlewares = {};
+				this.verno = 0;
+				var deps = Dexie.dependencies;
+				this._options = options = __assign({
+					addons: Dexie.addons,
+					autoOpen: true,
+					indexedDB: deps.indexedDB,
+					IDBKeyRange: deps.IDBKeyRange,
+					cache: "cloned",
+					maxConnections: DEFAULT_MAX_CONNECTIONS
+				}, options);
+				this._deps = {
+					indexedDB: options.indexedDB,
+					IDBKeyRange: options.IDBKeyRange
+				};
+				var addons = options.addons;
+				this._dbSchema = {};
+				this._versions = [];
+				this._storeNames = [];
+				this._allTables = {};
+				this.idbdb = null;
+				this._novip = this;
+				var state = {
+					dbOpenError: null,
+					isBeingOpened: false,
+					onReadyBeingFired: null,
+					openComplete: false,
+					dbReadyResolve: nop,
+					dbReadyPromise: null,
+					cancelOpen: nop,
+					openCanceller: null,
+					autoSchema: true,
+					PR1398_maxLoop: 3,
+					autoOpen: options.autoOpen
+				};
+				state.dbReadyPromise = new DexiePromise(function(resolve) {
+					state.dbReadyResolve = resolve;
+				});
+				state.openCanceller = new DexiePromise(function(_, reject) {
+					state.cancelOpen = reject;
+				});
+				this._state = state;
+				this.name = name;
+				this.on = Events(this, "populate", "blocked", "versionchange", "close", { ready: [promisableChain, nop] });
+				this.once = function(event, callback) {
+					var fn = function() {
+						var args = [];
+						for (var _i = 0; _i < arguments.length; _i++) args[_i] = arguments[_i];
+						_this.on(event).unsubscribe(fn);
+						callback.apply(_this, args);
+					};
+					return _this.on(event, fn);
+				};
+				this.on.ready.subscribe = override(this.on.ready.subscribe, function(subscribe) {
+					return function(subscriber, bSticky) {
+						Dexie.vip(function() {
+							var state = _this._state;
+							if (state.openComplete) {
+								if (!state.dbOpenError) DexiePromise.resolve().then(subscriber);
+								if (bSticky) subscribe(subscriber);
+							} else if (state.onReadyBeingFired) {
+								state.onReadyBeingFired.push(subscriber);
+								if (bSticky) subscribe(subscriber);
+							} else {
+								subscribe(subscriber);
+								var db_1 = _this;
+								if (!bSticky) subscribe(function unsubscribe() {
+									db_1.on.ready.unsubscribe(subscriber);
+									db_1.on.ready.unsubscribe(unsubscribe);
+								});
+							}
+						});
+					};
+				});
+				this.Collection = createCollectionConstructor(this);
+				this.Table = createTableConstructor(this);
+				this.Transaction = createTransactionConstructor(this);
+				this.Version = createVersionConstructor(this);
+				this.WhereClause = createWhereClauseConstructor(this);
+				this.on("versionchange", function(ev) {
+					if (ev.newVersion > 0) console.warn("Another connection wants to upgrade database '".concat(_this.name, "'. Closing db now to resume the upgrade."));
+					else console.warn("Another connection wants to delete database '".concat(_this.name, "'. Closing db now to resume the delete request."));
+					_this.close({ disableAutoOpen: false });
+				});
+				this.on("blocked", function(ev) {
+					if (!ev.newVersion || ev.newVersion < ev.oldVersion) console.warn("Dexie.delete('".concat(_this.name, "') was blocked"));
+					else console.warn("Upgrade '".concat(_this.name, "' blocked by other connection holding version ").concat(ev.oldVersion / 10));
+				});
+				this._maxKey = getMaxKey(options.IDBKeyRange);
+				this._createTransaction = function(mode, storeNames, dbschema, parentTransaction) {
+					return new _this.Transaction(mode, storeNames, dbschema, _this._options.chromeTransactionDurability, parentTransaction);
+				};
+				this._fireOnBlocked = function(ev) {
+					_this.on("blocked").fire(ev);
+					connections.toArray().filter(function(c) {
+						return c.name === _this.name && c !== _this && !c._state.vcFired;
+					}).map(function(c) {
+						return c.on("versionchange").fire(ev);
+					});
+				};
+				this.use(cacheExistingValuesMiddleware);
+				this.use(cacheMiddleware);
+				this.use(observabilityMiddleware);
+				this.use(virtualIndexMiddleware);
+				this.use(hooksMiddleware);
+				var vipDB = new Proxy(this, { get: function(_, prop, receiver) {
+					if (prop === "_vip") return true;
+					if (prop === "table") return function(tableName) {
+						return vipify(_this.table(tableName), vipDB);
+					};
+					var rv = Reflect.get(_, prop, receiver);
+					if (rv instanceof Table) return vipify(rv, vipDB);
+					if (prop === "tables") return rv.map(function(t) {
+						return vipify(t, vipDB);
+					});
+					if (prop === "_createTransaction") return function() {
+						return vipify(rv.apply(this, arguments), vipDB);
+					};
+					return rv;
+				} });
+				this.vip = vipDB;
+				addons.forEach(function(addon) {
+					return addon(_this);
+				});
+			}
+			Dexie.prototype.version = function(versionNumber) {
+				if (isNaN(versionNumber) || versionNumber < .1) throw new exceptions.Type("Given version is not a positive number");
+				versionNumber = Math.round(versionNumber * 10) / 10;
+				if (this.idbdb || this._state.isBeingOpened) throw new exceptions.Schema("Cannot add version when database is open");
+				this.verno = Math.max(this.verno, versionNumber);
+				var versions = this._versions;
+				var versionInstance = versions.filter(function(v) {
+					return v._cfg.version === versionNumber;
+				})[0];
+				if (versionInstance) return versionInstance;
+				versionInstance = new this.Version(versionNumber);
+				versions.push(versionInstance);
+				versions.sort(lowerVersionFirst);
+				versionInstance.stores({});
+				this._state.autoSchema = false;
+				return versionInstance;
+			};
+			Dexie.prototype._whenReady = function(fn) {
+				var _this = this;
+				return this.idbdb && (this._state.openComplete || PSD.letThrough || this._vip) ? fn() : new DexiePromise(function(resolve, reject) {
+					if (_this._state.openComplete) return reject(new exceptions.DatabaseClosed(_this._state.dbOpenError));
+					if (!_this._state.isBeingOpened) {
+						if (!_this._state.autoOpen) {
+							reject(new exceptions.DatabaseClosed());
+							return;
+						}
+						_this.open().catch(nop);
+					}
+					_this._state.dbReadyPromise.then(resolve, reject);
+				}).then(fn);
+			};
+			Dexie.prototype.use = function(_a) {
+				var stack = _a.stack, create = _a.create, level = _a.level, name = _a.name;
+				if (name) this.unuse({
+					stack,
+					name
+				});
+				var middlewares = this._middlewares[stack] || (this._middlewares[stack] = []);
+				middlewares.push({
+					stack,
+					create,
+					level: level == null ? 10 : level,
+					name
+				});
+				middlewares.sort(function(a, b) {
+					return a.level - b.level;
+				});
+				return this;
+			};
+			Dexie.prototype.unuse = function(_a) {
+				var stack = _a.stack, name = _a.name, create = _a.create;
+				if (stack && this._middlewares[stack]) this._middlewares[stack] = this._middlewares[stack].filter(function(mw) {
+					return create ? mw.create !== create : name ? mw.name !== name : false;
+				});
+				return this;
+			};
+			Dexie.prototype.open = function() {
+				var _this = this;
+				return usePSD(globalPSD, function() {
+					return dexieOpen(_this);
+				});
+			};
+			Dexie.prototype._close = function() {
+				this.on.close.fire(new CustomEvent("close"));
+				var state = this._state;
+				connections.remove(this);
+				if (this.idbdb) {
+					try {
+						this.idbdb.close();
+					} catch (e) {}
+					this.idbdb = null;
+				}
+				if (!state.isBeingOpened) {
+					state.dbReadyPromise = new DexiePromise(function(resolve) {
+						state.dbReadyResolve = resolve;
+					});
+					state.openCanceller = new DexiePromise(function(_, reject) {
+						state.cancelOpen = reject;
+					});
+				}
+			};
+			Dexie.prototype.close = function(_a) {
+				var disableAutoOpen = (_a === void 0 ? { disableAutoOpen: true } : _a).disableAutoOpen;
+				var state = this._state;
+				if (disableAutoOpen) {
+					if (state.isBeingOpened) state.cancelOpen(new exceptions.DatabaseClosed());
+					this._close();
+					state.autoOpen = false;
+					state.dbOpenError = new exceptions.DatabaseClosed();
+				} else {
+					this._close();
+					state.autoOpen = this._options.autoOpen || state.isBeingOpened;
+					state.openComplete = false;
+					state.dbOpenError = null;
+				}
+			};
+			Dexie.prototype.delete = function(closeOptions) {
+				var _this = this;
+				if (closeOptions === void 0) closeOptions = { disableAutoOpen: true };
+				var hasInvalidArguments = arguments.length > 0 && typeof arguments[0] !== "object";
+				var state = this._state;
+				return new DexiePromise(function(resolve, reject) {
+					var doDelete = function() {
+						_this.close(closeOptions);
+						var req = _this._deps.indexedDB.deleteDatabase(_this.name);
+						req.onsuccess = wrap(function() {
+							_onDatabaseDeleted(_this._deps, _this.name);
+							resolve();
+						});
+						req.onerror = eventRejectHandler(reject);
+						req.onblocked = _this._fireOnBlocked;
+					};
+					if (hasInvalidArguments) throw new exceptions.InvalidArgument("Invalid closeOptions argument to db.delete()");
+					if (state.isBeingOpened) state.dbReadyPromise.then(doDelete);
+					else doDelete();
+				});
+			};
+			Dexie.prototype.backendDB = function() {
+				return this.idbdb;
+			};
+			Dexie.prototype.isOpen = function() {
+				return this.idbdb !== null;
+			};
+			Dexie.prototype.hasBeenClosed = function() {
+				var dbOpenError = this._state.dbOpenError;
+				return dbOpenError && dbOpenError.name === "DatabaseClosedError";
+			};
+			Dexie.prototype.hasFailed = function() {
+				return this._state.dbOpenError !== null;
+			};
+			Dexie.prototype.dynamicallyOpened = function() {
+				return this._state.autoSchema;
+			};
+			Object.defineProperty(Dexie.prototype, "tables", {
+				get: function() {
+					var _this = this;
+					return keys(this._allTables).map(function(name) {
+						return _this._allTables[name];
+					});
+				},
+				enumerable: false,
+				configurable: true
+			});
+			Dexie.prototype.transaction = function() {
+				var args = extractTransactionArgs.apply(this, arguments);
+				return this._transaction.apply(this, args);
+			};
+			Dexie.prototype._transaction = function(mode, tables, scopeFunc) {
+				var _this = this;
+				var parentTransaction = PSD.trans;
+				if (!parentTransaction || parentTransaction.db !== this || mode.indexOf("!") !== -1) parentTransaction = null;
+				var onlyIfCompatible = mode.indexOf("?") !== -1;
+				mode = mode.replace("!", "").replace("?", "");
+				var idbMode, storeNames;
+				try {
+					storeNames = tables.map(function(table) {
+						var storeName = table instanceof _this.Table ? table.name : table;
+						if (typeof storeName !== "string") throw new TypeError("Invalid table argument to Dexie.transaction(). Only Table or String are allowed");
+						return storeName;
+					});
+					if (mode == "r" || mode === READONLY) idbMode = READONLY;
+					else if (mode == "rw" || mode == READWRITE) idbMode = READWRITE;
+					else throw new exceptions.InvalidArgument("Invalid transaction mode: " + mode);
+					if (parentTransaction) {
+						if (parentTransaction.mode === READONLY && idbMode === READWRITE) {
+							if (onlyIfCompatible) parentTransaction = null;
+							else throw new exceptions.SubTransaction("Cannot enter a sub-transaction with READWRITE mode when parent transaction is READONLY");
+						}
+						if (parentTransaction) storeNames.forEach(function(storeName) {
+							if (parentTransaction && parentTransaction.storeNames.indexOf(storeName) === -1) {
+								if (onlyIfCompatible) parentTransaction = null;
+								else throw new exceptions.SubTransaction("Table " + storeName + " not included in parent transaction.");
+							}
+						});
+						if (onlyIfCompatible && parentTransaction && !parentTransaction.active) parentTransaction = null;
+					}
+				} catch (e) {
+					return parentTransaction ? parentTransaction._promise(null, function(_, reject) {
+						reject(e);
+					}) : rejection(e);
+				}
+				var enterTransaction = enterTransactionScope.bind(null, this, idbMode, storeNames, parentTransaction, scopeFunc);
+				return parentTransaction ? parentTransaction._promise(idbMode, enterTransaction, "lock") : PSD.trans ? usePSD(PSD.transless, function() {
+					return _this._whenReady(enterTransaction);
+				}) : this._whenReady(enterTransaction);
+			};
+			Dexie.prototype.table = function(tableName) {
+				if (!hasOwn(this._allTables, tableName)) throw new exceptions.InvalidTable("Table ".concat(tableName, " does not exist"));
+				return this._allTables[tableName];
+			};
+			return Dexie;
+		}();
+		var symbolObservable = typeof Symbol !== "undefined" && "observable" in Symbol ? Symbol.observable : "@@observable";
+		var Observable = function() {
+			function Observable(subscribe) {
+				this._subscribe = subscribe;
+			}
+			Observable.prototype.subscribe = function(x, error, complete) {
+				return this._subscribe(!x || typeof x === "function" ? {
+					next: x,
+					error,
+					complete
+				} : x);
+			};
+			Observable.prototype[symbolObservable] = function() {
+				return this;
+			};
+			return Observable;
+		}();
+		var domDeps;
 		try {
-			ir = {
-				indexedDB: f.indexedDB || f.mozIndexedDB || f.webkitIndexedDB || f.msIndexedDB,
-				IDBKeyRange: f.IDBKeyRange || f.webkitIDBKeyRange
+			domDeps = {
+				indexedDB: _global.indexedDB || _global.mozIndexedDB || _global.webkitIndexedDB || _global.msIndexedDB,
+				IDBKeyRange: _global.IDBKeyRange || _global.webkitIDBKeyRange
 			};
 		} catch (e) {
-			ir = {
+			domDeps = {
 				indexedDB: null,
 				IDBKeyRange: null
 			};
 		}
-		function ur(d) {
-			var p, y = !1, e = new or(function(r) {
-				var i = ue(d);
-				var o, a = !1, u = {}, s = {}, e = {
+		function liveQuery(querier) {
+			var hasValue = false;
+			var currentValue;
+			var observable = new Observable(function(observer) {
+				var scopeFuncIsAsync = isAsyncFunction(querier);
+				function execute(ctx) {
+					var wasRootExec = beginMicroTickScope();
+					try {
+						if (scopeFuncIsAsync) incrementExpectedAwaits();
+						var rv = newScope(querier, ctx);
+						if (scopeFuncIsAsync) rv = rv.finally(decrementExpectedAwaits);
+						return rv;
+					} finally {
+						wasRootExec && endMicroTickScope();
+					}
+				}
+				var closed = false;
+				var abortController;
+				var accumMuts = {};
+				var currentObs = {};
+				var subscription = {
 					get closed() {
-						return a;
+						return closed;
 					},
 					unsubscribe: function() {
-						a || (a = !0, o && o.abort(), c && Wt.storagemutated.unsubscribe(h));
+						if (closed) return;
+						closed = true;
+						if (abortController) abortController.abort();
+						if (startedListening) globalEvents.storagemutated.unsubscribe(mutationListener);
 					}
-				}, c = (r.start && r.start(e), !1), l = function() {
-					return st(t);
 				};
-				function f() {
-					return Cn(s, u);
+				observer.start && observer.start(subscription);
+				var startedListening = false;
+				var doQuery = function() {
+					return execInGlobalContext(_doQuery);
+				};
+				function shouldNotify() {
+					return obsSetsOverlap(currentObs, accumMuts);
 				}
-				var h = function(e) {
-					jn(u, e), f() && l();
-				}, t = function() {
-					var t, n, e;
-					!a && ir.indexedDB && (u = {}, t = {}, o && o.abort(), o = new AbortController(), e = ((e) => {
-						var t = $e();
-						try {
-							i && nt();
-							var n = v(d, e);
-							return n = i ? n.finally(w) : n;
-						} finally {
-							t && Qe();
-						}
-					})(n = {
-						subscr: t,
-						signal: o.signal,
-						requery: l,
-						querier: d,
-						trans: null
-					}), c || (Wt.storagemutated.subscribe(h), c = !0), Promise.resolve(e).then(function(e) {
-						y = !0, p = e, a || n.signal.aborted || (f() || (s = t, f()) ? l() : (u = {}, st(function() {
-							return !a && r.next && r.next(e);
-						})));
-					}, function(e) {
-						y = !1, ["DatabaseClosedError", "AbortError"].includes(null == e ? void 0 : e.name) || a || st(function() {
-							a || r.error && r.error(e);
-						});
-					}));
+				var mutationListener = function(parts) {
+					extendObservabilitySet(accumMuts, parts);
+					if (shouldNotify()) doQuery();
 				};
-				return setTimeout(l, 0), e;
+				var _doQuery = function() {
+					if (closed || !domDeps.indexedDB) return;
+					accumMuts = {};
+					var subscr = {};
+					if (abortController) abortController.abort();
+					abortController = new AbortController();
+					var ctx = {
+						subscr,
+						signal: abortController.signal,
+						requery: doQuery,
+						querier,
+						trans: null
+					};
+					var ret = execute(ctx);
+					if (!startedListening) {
+						globalEvents.storagemutated.subscribe(mutationListener);
+						startedListening = true;
+					}
+					Promise.resolve(ret).then(function(result) {
+						hasValue = true;
+						currentValue = result;
+						if (closed || ctx.signal.aborted) return;
+						if (shouldNotify()) doQuery();
+						else {
+							currentObs = subscr;
+							if (shouldNotify()) doQuery();
+							else {
+								accumMuts = {};
+								execInGlobalContext(function() {
+									return !closed && observer.next && observer.next(result);
+								});
+							}
+						}
+					}, function(err) {
+						if (closed || ctx.signal.aborted) return;
+						hasValue = false;
+						if (!["DatabaseClosedError", "AbortError"].includes(err === null || err === void 0 ? void 0 : err.name)) {
+							if (!closed) execInGlobalContext(function() {
+								if (closed) return;
+								observer.error && observer.error(err);
+							});
+						}
+					});
+				};
+				setTimeout(doQuery, 0);
+				return subscription;
 			});
-			return e.hasValue = function() {
-				return y;
-			}, e.getValue = function() {
-				return p;
-			}, e;
+			observable.hasValue = function() {
+				return hasValue;
+			};
+			observable.getValue = function() {
+				return currentValue;
+			};
+			return observable;
 		}
-		var sr = y;
-		function cr(e) {
-			var t = fr;
-			try {
-				fr = !0, Wt.storagemutated.fire(e), Bn(e, !0);
-			} finally {
-				fr = t;
-			}
-		}
-		M(sr, _(_({}, e), {
-			delete: function(e) {
-				return new sr(e, { addons: [] }).delete();
+		var Dexie = Dexie$1;
+		props(Dexie, __assign(__assign({}, fullNameExceptions), {
+			delete: function(databaseName) {
+				return new Dexie(databaseName, { addons: [] }).delete();
 			},
-			exists: function(e) {
-				return new sr(e, { addons: [] }).open().then(function(e) {
-					return e.close(), !0;
+			exists: function(name) {
+				return new Dexie(name, { addons: [] }).open().then(function(db) {
+					db.close();
+					return true;
 				}).catch("NoSuchDatabaseError", function() {
-					return !1;
+					return false;
 				});
 			},
-			getDatabaseNames: function(e) {
+			getDatabaseNames: function(cb) {
 				try {
-					return t = sr.dependencies, n = t.indexedDB, t = t.IDBKeyRange, (_n(n) ? Promise.resolve(n.databases()).then(function(e) {
-						return e.map(function(e) {
-							return e.name;
-						}).filter(function(e) {
-							return e !== ft;
-						});
-					}) : wn(n, t).toCollection().primaryKeys()).then(e);
-				} catch (e) {
-					return S(new k.MissingAPI());
+					return getDatabaseNames(Dexie.dependencies).then(cb);
+				} catch (_a) {
+					return rejection(new exceptions.MissingAPI());
 				}
-				var t, n;
 			},
 			defineClass: function() {
-				return function(e) {
-					a(this, e);
-				};
+				function Class(content) {
+					extend(this, content);
+				}
+				return Class;
 			},
-			ignoreTransaction: function(e) {
-				return P.trans ? at(P.transless || s, e) : e();
+			ignoreTransaction: function(scopeFunc) {
+				return PSD.trans ? usePSD(PSD.transless || globalPSD, scopeFunc) : scopeFunc();
 			},
-			vip: xn,
-			async: function(t) {
+			vip,
+			async: function(generatorFn) {
 				return function() {
 					try {
-						var e = Nn(t.apply(this, arguments));
-						return e && "function" == typeof e.then ? e : K.resolve(e);
+						var rv = awaitIterator(generatorFn.apply(this, arguments));
+						if (!rv || typeof rv.then !== "function") return DexiePromise.resolve(rv);
+						return rv;
 					} catch (e) {
-						return S(e);
+						return rejection(e);
 					}
 				};
 			},
-			spawn: function(e, t, n) {
+			spawn: function(generatorFn, args, thiz) {
 				try {
-					var r = Nn(e.apply(n, t || []));
-					return r && "function" == typeof r.then ? r : K.resolve(r);
+					var rv = awaitIterator(generatorFn.apply(thiz, args || []));
+					if (!rv || typeof rv.then !== "function") return DexiePromise.resolve(rv);
+					return rv;
 				} catch (e) {
-					return S(e);
+					return rejection(e);
 				}
 			},
 			currentTransaction: { get: function() {
-				return P.trans || null;
+				return PSD.trans || null;
 			} },
-			waitFor: function(e, t) {
-				e = K.resolve("function" == typeof e ? sr.ignoreTransaction(e) : e).timeout(t || 6e4);
-				return P.trans ? P.trans.waitFor(e) : e;
+			waitFor: function(promiseOrFunction, optionalTimeout) {
+				var promise = DexiePromise.resolve(typeof promiseOrFunction === "function" ? Dexie.ignoreTransaction(promiseOrFunction) : promiseOrFunction).timeout(optionalTimeout || 6e4);
+				return PSD.trans ? PSD.trans.waitFor(promise) : promise;
 			},
-			Promise: K,
+			Promise: DexiePromise,
 			debug: {
 				get: function() {
-					return l;
+					return debug;
 				},
-				set: function(e) {
-					Oe(e);
+				set: function(value) {
+					setDebug(value);
 				}
 			},
-			derive: U,
-			extend: a,
-			props: M,
-			override: Y,
-			Events: Pt,
-			on: Wt,
-			liveQuery: ur,
-			extendObservabilitySet: jn,
-			getByKeyPath: c,
-			setByKeyPath: b,
-			delByKeyPath: function(t, e) {
-				"string" == typeof e ? b(t, e, void 0) : "length" in e && [].map.call(e, function(e) {
-					b(t, e, void 0);
-				});
-			},
-			shallowClone: G,
-			deepClone: ee,
-			getObjectDiff: Un,
-			cmp: j,
-			asap: Q,
-			minKey: -1 / 0,
+			derive,
+			extend,
+			props,
+			override,
+			Events,
+			on: globalEvents,
+			liveQuery,
+			extendObservabilitySet,
+			getByKeyPath,
+			setByKeyPath,
+			delByKeyPath,
+			shallowClone,
+			deepClone,
+			getObjectDiff,
+			cmp,
+			asap: asap$1,
+			minKey,
 			addons: [],
-			connections: { get: gn.toArray },
-			errnames: de,
-			dependencies: ir,
-			cache: Tn,
-			semVer: "4.4.6",
-			version: "4.4.6".split(".").map(function(e) {
-				return parseInt(e);
-			}).reduce(function(e, t, n) {
-				return e + t / Math.pow(10, 2 * n);
+			connections: { get: connections.toArray },
+			errnames,
+			dependencies: domDeps,
+			cache,
+			semVer: DEXIE_VERSION,
+			version: DEXIE_VERSION.split(".").map(function(n) {
+				return parseInt(n);
+			}).reduce(function(p, c, i) {
+				return p + c / Math.pow(10, i * 2);
 			})
-		})), sr.maxKey = Xt(sr.dependencies.IDBKeyRange), "undefined" != typeof dispatchEvent && "undefined" != typeof addEventListener && (Wt(zt, function(e) {
-			fr || (e = new CustomEvent(Vt, { detail: e }), fr = !0, dispatchEvent(e), fr = !1);
-		}), addEventListener(Vt, function(e) {
-			e = e.detail;
-			fr || cr(e);
 		}));
-		var lr, fr = !1, hr = function() {};
-		return "undefined" != typeof BroadcastChannel && ((hr = function() {
-			(lr = new BroadcastChannel(Vt)).onmessage = function(e) {
-				return e.data && cr(e.data);
+		Dexie.maxKey = getMaxKey(Dexie.dependencies.IDBKeyRange);
+		if (typeof dispatchEvent !== "undefined" && typeof addEventListener !== "undefined") {
+			globalEvents(DEXIE_STORAGE_MUTATED_EVENT_NAME, function(updatedParts) {
+				if (!propagatingLocally) {
+					var event_1 = new CustomEvent(STORAGE_MUTATED_DOM_EVENT_NAME, { detail: updatedParts });
+					propagatingLocally = true;
+					dispatchEvent(event_1);
+					propagatingLocally = false;
+				}
+			});
+			addEventListener(STORAGE_MUTATED_DOM_EVENT_NAME, function(_a) {
+				var detail = _a.detail;
+				if (!propagatingLocally) propagateLocally(detail);
+			});
+		}
+		function propagateLocally(updateParts) {
+			var wasMe = propagatingLocally;
+			try {
+				propagatingLocally = true;
+				globalEvents.storagemutated.fire(updateParts);
+				signalSubscribersNow(updateParts, true);
+			} finally {
+				propagatingLocally = wasMe;
+			}
+		}
+		var propagatingLocally = false;
+		var bc;
+		var createBC = function() {};
+		if (typeof BroadcastChannel !== "undefined") {
+			createBC = function() {
+				bc = new BroadcastChannel(STORAGE_MUTATED_DOM_EVENT_NAME);
+				bc.onmessage = function(ev) {
+					return ev.data && propagateLocally(ev.data);
+				};
 			};
-		})(), "function" == typeof lr.unref && lr.unref(), Wt(zt, function(e) {
-			fr || lr.postMessage(e);
-		})), "undefined" != typeof addEventListener && (addEventListener("pagehide", function(e) {
-			if (!y.disableBfCache && e.persisted) {
-				l && console.debug("Dexie: handling persisted pagehide"), lr?.close();
-				for (var t = 0, n = gn.toArray(); t < n.length; t++) n[t].close({ disableAutoOpen: !1 });
-			}
-		}), addEventListener("pageshow", function(e) {
-			!y.disableBfCache && e.persisted && (l && console.debug("Dexie: handling persisted pageshow"), hr(), cr({ all: new q(-1 / 0, [[]]) }));
-		})), K.rejectionMapper = function(e, t) {
-			return !e || e instanceof ce || e instanceof TypeError || e instanceof SyntaxError || !e.name || !ye[e.name] ? e : (t = new ye[e.name](t || e.message, e), "stack" in e && u(t, "stack", { get: function() {
-				return this.inner.stack;
-			} }), t);
-		}, Oe(l), _(y, Object.freeze({
+			createBC();
+			if (typeof bc.unref === "function") bc.unref();
+			globalEvents(DEXIE_STORAGE_MUTATED_EVENT_NAME, function(changedParts) {
+				if (!propagatingLocally) bc.postMessage(changedParts);
+			});
+		}
+		if (typeof addEventListener !== "undefined") {
+			addEventListener("pagehide", function(event) {
+				if (!Dexie$1.disableBfCache && event.persisted) {
+					if (debug) console.debug("Dexie: handling persisted pagehide");
+					bc === null || bc === void 0 || bc.close();
+					for (var _i = 0, _a = connections.toArray(); _i < _a.length; _i++) _a[_i].close({ disableAutoOpen: false });
+				}
+			});
+			addEventListener("pageshow", function(event) {
+				if (!Dexie$1.disableBfCache && event.persisted) {
+					if (debug) console.debug("Dexie: handling persisted pageshow");
+					createBC();
+					propagateLocally({ all: new RangeSet(-Infinity, [[]]) });
+				}
+			});
+		}
+		function add(value) {
+			return new PropModification({ add: value });
+		}
+		function remove(value) {
+			return new PropModification({ remove: value });
+		}
+		function replacePrefix(a, b) {
+			return new PropModification({ replacePrefix: [a, b] });
+		}
+		DexiePromise.rejectionMapper = mapError;
+		setDebug(debug);
+		__assign(Dexie$1, /* @__PURE__ */ Object.freeze({
 			__proto__: null,
-			DEFAULT_MAX_CONNECTIONS: 1e3,
-			Dexie: y,
-			Entity: mt,
-			PropModification: _t,
-			RangeSet: q,
-			add: function(e) {
-				return new _t({ add: e });
-			},
-			cmp: j,
-			default: y,
-			liveQuery: ur,
-			mergeRanges: Pn,
-			rangesOverlap: Kn,
-			remove: function(e) {
-				return new _t({ remove: e });
-			},
-			replacePrefix: function(e, t) {
-				return new _t({ replacePrefix: [e, t] });
-			}
-		}), { default: y }), y;
-	});
+			DEFAULT_MAX_CONNECTIONS,
+			Dexie: Dexie$1,
+			Entity,
+			PropModification,
+			RangeSet,
+			add,
+			cmp,
+			default: Dexie$1,
+			liveQuery,
+			mergeRanges,
+			rangesOverlap,
+			remove,
+			replacePrefix
+		}), { default: Dexie$1 });
+		return Dexie$1;
+	}));
 })))(), 1);
 var DexieSymbol = Symbol.for("Dexie");
-var Dexie = globalThis[DexieSymbol] || (globalThis[DexieSymbol] = import_dexie_min.default);
-if (import_dexie_min.default.semVer !== Dexie.semVer) throw new Error(`Two different versions of Dexie loaded in the same app: ${import_dexie_min.default.semVer} and ${Dexie.semVer}`);
+var Dexie = globalThis[DexieSymbol] || (globalThis[DexieSymbol] = import_dexie.default);
+if (import_dexie.default.semVer !== Dexie.semVer) throw new Error(`Two different versions of Dexie loaded in the same app: ${import_dexie.default.semVer} and ${Dexie.semVer}`);
 var { liveQuery, mergeRanges, rangesOverlap, RangeSet: RangeSet$1, cmp, Entity, PropModification, replacePrefix, add: add$1, remove: remove$2, DexieYProvider } = Dexie;
 //#endregion
 //#region src/client/database/schema.ts
@@ -54934,7 +57446,7 @@ var fromLogRecord = (record) => {
 		name: file_path
 	};
 };
-var DB_VERSION = 1602;
+var DB_VERSION = 1603;
 var DB_NAME = "InspectAI";
 /** The boundary-safe prefix for scoping `file_path` queries to a dir:
 *  `/logs/important` must not match `/logs/important-2`. */ var scopePrefix = (dir) => dir.endsWith("/") ? dir : `${dir}/`;
@@ -56402,7 +58914,7 @@ var readLogsListing = async (logDir, prefix, toRow, plan) => {
 	let t2;
 	if ($[3] !== demand || $[4] !== logDir || $[5] !== logFile) {
 		t1 = () => {
-			if (logFile !== void 0) fetchLog(logDir, logFile, { passive: demand !== "active" }).catch(_temp$98);
+			if (logFile !== void 0) fetchLog(logDir, logFile, { passive: demand !== "active" }).catch(_temp$99);
 		};
 		t2 = [
 			logDir,
@@ -56491,7 +59003,7 @@ var readLogsListing = async (logDir, prefix, toRow, plan) => {
 	} else t0 = $[1];
 	return t0;
 };
-function _temp$98() {}
+function _temp$99() {}
 //#endregion
 //#region src/log_data/pendingSamples.ts
 var kDefaultRefreshSeconds = 2;
@@ -56596,7 +59108,7 @@ var logInfoSignature = (info) => `${info.size}:${info.etag ?? ""}`;
 		t4 = {
 			queryKey: t2,
 			queryFn: t3,
-			refetchInterval: _temp$97,
+			refetchInterval: _temp$98,
 			refetchIntervalInBackground: true,
 			staleTime: 0,
 			refetchOnWindowFocus: false,
@@ -56636,7 +59148,7 @@ var logInfoSignature = (info) => `${info.size}:${info.etag ?? ""}`;
 * finalize decision). Returns
 * `undefined` when there's no resolved dir.
 */ var getPendingSamples = (logDir, logFile) => logDir === void 0 ? void 0 : queryClient.getQueryData(pendingSamplesKey(logDir, logFile)) ?? void 0;
-function _temp$97(query) {
+function _temp$98(query) {
 	return query.state.status === "error" ? false : pendingSamplesIntervalMs(query.state.data);
 }
 function _temp2$57(data) {
@@ -58306,11 +60818,11 @@ var mergeSampleSummaries = (logSamples, pendingSamples) => {
 * Non-React snapshot of {@link useSampleSummaries} (for the running-sample
 * query's tick decisions). Empty when there's no resolved dir.
 */ var getSampleSummaries = async (logDir, logFile) => logDir === void 0 ? [] : mergeSampleSummaries(await readSettledSummaries(logDir, resolveLogKey(logDir, logFile)), getPendingSamples(logDir, logFile)?.samples ?? []);
-function _temp$96(row) {
+function _temp$97(row) {
 	return row.summary;
 }
 function _temp2$56(settled) {
-	return mergeSampleSummaries(settled.rows.map(_temp$96), settled.pending?.samples ?? []);
+	return mergeSampleSummaries(settled.rows.map(_temp$97), settled.pending?.samples ?? []);
 }
 //#endregion
 //#region src/log_data/runningSampleQuery.ts
@@ -58449,7 +60961,7 @@ var findLiveSummary = async (logDir, handle) => (await getSampleSummaries(logDir
 			queryKey: t2,
 			queryFn: t3,
 			structuralSharing: false,
-			refetchInterval: _temp$95,
+			refetchInterval: _temp$96,
 			refetchIntervalInBackground: true,
 			gcTime: kSampleGcTimeMs,
 			refetchOnWindowFocus: false,
@@ -58461,7 +60973,7 @@ var findLiveSummary = async (logDir, handle) => (await getSampleSummaries(logDir
 	} else t4 = $[13];
 	return useAsyncDataFromQuery(t4);
 };
-function _temp$95(query) {
+function _temp$96(query) {
 	return query.state.status === "error" || query.state.data?.finalized === true ? false : query.state.data?.catchup === true ? kCatchupIntervalMs : kRunningSampleIntervalMs;
 }
 //#endregion
@@ -59758,7 +62270,7 @@ var isRenderableImageDocument = (source, declaredMimeType) => {
 	return isRasterImageMimeType(normalizedSource) && normalizedSource === normalizedDeclared;
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.11/node_modules/@tanstack/virtual-core/dist/esm/lazy-measurements.js
+//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.19.6/node_modules/@tanstack/virtual-core/dist/esm/lazy-measurements.js
 function getMeasurementKey(item) {
 	return typeof item === "object" ? item.key : item;
 }
@@ -59791,7 +62303,7 @@ function createLazyMeasurementsView(cache, flat) {
 	} });
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.11/node_modules/@tanstack/virtual-core/dist/esm/utils.js
+//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.19.6/node_modules/@tanstack/virtual-core/dist/esm/utils.js
 function memo$9(getDeps, fn, opts) {
 	let deps = opts.initialDeps ?? [];
 	let result;
@@ -59825,7 +62337,47 @@ var debounce = (targetWindow, fn, ms) => {
 	} });
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.11/node_modules/@tanstack/virtual-core/dist/esm/index.js
+//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.19.6/node_modules/@tanstack/virtual-core/dist/esm/scroll-classifier.js
+function classifyScrollEvent({ offset, isScrolling, elementMax, holdOffset, scrollOffset, pendingWrite, clampedMaxAtWrite }) {
+	var _a;
+	if (isScrolling && pendingWrite === null && offset === scrollOffset) return "spurious";
+	if (pendingWrite !== null && Math.abs(offset - pendingWrite.target) < 1.5) return "readBack";
+	if (pendingWrite !== null && !pendingWrite.smooth && elementMax !== null && pendingWrite.target > elementMax + holdOffset + .5 && Math.abs(offset - (elementMax + holdOffset)) < 1.5) return "clampedReadBack";
+	if (pendingWrite !== null && !pendingWrite.smooth && ((_a = pendingWrite.lowMaxes) == null ? void 0 : _a.some((max) => Math.abs(offset - max) < 1.5))) return "clampedReadBack";
+	if (clampedMaxAtWrite !== null && Math.abs(offset - clampedMaxAtWrite) < 1.5) return "clampedEcho";
+	return "external";
+}
+var isAnimating = (phase) => phase === "smooth" || phase === "smoothFinishing";
+function externalRetiresCommand({ kind, offset, command, target }) {
+	return kind !== "spurious" && kind !== "readBack" && kind !== "clampedReadBack" && (command == null ? void 0 : command.index) != null && command.phase !== "queued" && !isAnimating(command.phase) && !approxEqual(offset, command.lastTargetOffset) && !approxEqual(offset, target()) && kind !== "clampedEcho";
+}
+var FLING_WINDOW_MS = 40;
+function flingSpedUp(samples) {
+	const last = samples[samples.length - 1];
+	if (last === void 0) return false;
+	let j = samples.length - 2;
+	while (j >= 0 && last.t - samples[j].t < FLING_WINDOW_MS) j--;
+	if (j < 0) return false;
+	const mid = samples[j];
+	let k = j - 1;
+	while (k >= 0 && mid.t - samples[k].t < FLING_WINDOW_MS) k--;
+	if (k < 0) return false;
+	const first = samples[k];
+	const recent = (last.offset - mid.offset) / (last.t - mid.t);
+	const before = (mid.offset - first.offset) / (mid.t - first.t);
+	return recent * before >= 0 && Math.abs(recent) >= 2 * Math.abs(before) && Math.abs(recent) - Math.abs(before) >= .8;
+}
+function flingCaught(samples) {
+	const last = samples[samples.length - 1];
+	if (last === void 0) return false;
+	let j = samples.length - 2;
+	while (j >= 0 && last.t - samples[j].t < FLING_WINDOW_MS) j--;
+	if (j < 0) return false;
+	const from = samples[j];
+	return Math.abs(last.offset - from.offset) / (last.t - from.t) >= .05;
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.19.6/node_modules/@tanstack/virtual-core/dist/esm/ios-gesture.js
 var _isIOSResult;
 var isIOSWebKit = () => {
 	if (_isIOSResult !== void 0) return _isIOSResult;
@@ -59834,17 +62386,130 @@ var isIOSWebKit = () => {
 	const mtp = navigator.maxTouchPoints;
 	return _isIOSResult = navigator.platform === "MacIntel" && mtp !== void 0 && mtp > 0;
 };
+var _iosMomentumOverridesWritesResult;
+var iosMomentumOverridesWrites = () => {
+	if (_iosMomentumOverridesWritesResult !== void 0) return _iosMomentumOverridesWritesResult;
+	return _iosMomentumOverridesWritesResult = isIOSWebKit() && typeof CSS !== "undefined" && typeof CSS.supports === "function" && CSS.supports("overflow-anchor: auto");
+};
+var touchListenerOptions = {
+	capture: true,
+	passive: true
+};
+var IosGesture = class {
+	constructor(host) {
+		this.host = host;
+		this._touch = null;
+		this.inMotion = () => this._touch !== null && this._touch.phase !== "lateFling";
+		this.dragging = () => {
+			var _a;
+			return ((_a = this._touch) == null ? void 0 : _a.phase) === "down" && this._touch.moved;
+		};
+		this.tail = () => {
+			var _a;
+			return ((_a = this._touch) == null ? void 0 : _a.phase) === "tail" ? this._touch.moved ? "fling" : "tap" : null;
+		};
+		this.onScroll = ({ isScrolling, ownReadBack, moved, external }) => {
+			var _a, _b, _c;
+			if (isScrolling && ((_a = this._touch) == null ? void 0 : _a.phase) === "tail") this._openTail(this._touch.moved || !ownReadBack, false);
+			else if (((_b = this._touch) == null ? void 0 : _b.phase) === "lateFling") {
+				if (this.host.now() > this._touch.until) this._touch = null;
+				else if (external && isScrolling && moved) this._openTail(true, false);
+			}
+			if (!ownReadBack && isScrolling && moved && ((_c = this._touch) == null ? void 0 : _c.phase) === "down") {
+				this._touch.moved = true;
+				return true;
+			}
+			return false;
+		};
+		this.touchStart = () => {
+			this.end();
+			this._touch = {
+				phase: "down",
+				moved: false
+			};
+		};
+		this.touchEnd = () => {
+			var _a;
+			const moved = ((_a = this._touch) == null ? void 0 : _a.phase) === "down" && this._touch.moved;
+			this.end();
+			this._openTail(moved, moved);
+		};
+		this.end = () => {
+			var _a;
+			const win = this.host.getWindow();
+			if (((_a = this._touch) == null ? void 0 : _a.phase) === "tail" && win != null) win.clearTimeout(this._touch.timerId);
+			this._touch = null;
+		};
+		this.listen = (target) => {
+			const onTouchStart = () => this.touchStart();
+			const onTouchEnd = () => this.touchEnd();
+			target.addEventListener("touchstart", onTouchStart, touchListenerOptions);
+			target.addEventListener("touchend", onTouchEnd, touchListenerOptions);
+			target.addEventListener("touchcancel", onTouchEnd, touchListenerOptions);
+			return () => {
+				target.removeEventListener("touchstart", onTouchStart, touchListenerOptions);
+				target.removeEventListener("touchend", onTouchEnd, touchListenerOptions);
+				target.removeEventListener("touchcancel", onTouchEnd, touchListenerOptions);
+				this.end();
+			};
+		};
+		this._openTail = (moved, awaitingFling) => {
+			const win = this.host.getWindow();
+			if (!isIOSWebKit() || win == null) return;
+			this.end();
+			const tail = {
+				phase: "tail",
+				moved,
+				awaitingFling,
+				timerId: win.setTimeout(() => {
+					if (this.host.tailStillMoving()) {
+						this._openTail(tail.moved, tail.awaitingFling);
+						return;
+					}
+					this._touch = tail.awaitingFling ? {
+						phase: "lateFling",
+						until: this.host.now() + 1e3
+					} : null;
+					this.host.onTailClosed();
+				}, 150)
+			};
+			this._touch = tail;
+		};
+	}
+	get touch() {
+		return this._touch;
+	}
+};
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.19.6/node_modules/@tanstack/virtual-core/dist/esm/index.js
 var getRect = (element) => {
-	const { offsetWidth, offsetHeight } = element;
+	const { clientWidth, clientHeight } = element;
 	return {
-		width: offsetWidth,
-		height: offsetHeight
+		width: clientWidth,
+		height: clientHeight
+	};
+};
+var createFrameQueue = (targetWindow) => {
+	const ids = /* @__PURE__ */ new Set();
+	return {
+		schedule: (fn) => {
+			const id = targetWindow.requestAnimationFrame(() => {
+				ids.delete(id);
+				fn();
+			});
+			ids.add(id);
+		},
+		cancel: () => {
+			ids.forEach((id) => targetWindow.cancelAnimationFrame(id));
+			ids.clear();
+		}
 	};
 };
 var defaultKeyExtractor = (index) => index;
 var defaultRangeExtractor = (range) => {
-	const start = Math.max(range.startIndex - range.overscan, 0);
-	const len = Math.min(range.endIndex + range.overscan, range.count - 1) - start + 1;
+	const overscan = range.overscan * Math.max(range.lanes ?? 1, 1);
+	const start = Math.max(range.startIndex - overscan, 0);
+	const len = Math.min(range.endIndex + overscan, range.count - 1) - start + 1;
 	const arr = new Array(len);
 	for (let i = 0; i < len; i++) arr[i] = start + i;
 	return arr;
@@ -59863,26 +62528,17 @@ var observeElementRect = (instance, cb) => {
 	};
 	handler(getRect(element));
 	if (!targetWindow.ResizeObserver) return () => {};
-	const observer = new targetWindow.ResizeObserver((entries) => {
+	const frames = createFrameQueue(targetWindow);
+	const observer = new targetWindow.ResizeObserver(() => {
 		const run = () => {
-			const entry = entries[0];
-			if (entry == null ? void 0 : entry.borderBoxSize) {
-				const box = entry.borderBoxSize[0];
-				if (box) {
-					handler({
-						width: box.inlineSize,
-						height: box.blockSize
-					});
-					return;
-				}
-			}
 			handler(getRect(element));
 		};
-		instance.options.useAnimationFrameWithResizeObserver ? requestAnimationFrame(run) : run();
+		instance.options.useAnimationFrameWithResizeObserver ? frames.schedule(run) : run();
 	});
-	observer.observe(element, { box: "border-box" });
+	observer.observe(element, { box: "content-box" });
 	return () => {
 		observer.unobserve(element);
+		frames.cancel();
 	};
 };
 var addEventListenerOptions = { passive: true };
@@ -59940,6 +62596,8 @@ var scrollWithAdjustments = (offset, { adjustments = 0, behavior }, instance) =>
 	});
 };
 var elementScroll = scrollWithAdjustments;
+var initialScrollPhase = (behavior, atTarget) => behavior === "smooth" ? atTarget ? "smoothLanded" : "smooth" : "instant";
+var isSmoothScroll = (state) => (state == null ? void 0 : state.phase) === "smooth" || (state == null ? void 0 : state.phase) === "smoothLanded";
 function isAppendWithTrim(prevCount, nextCount, getPreviousKey, getNextKey) {
 	if (nextCount === 0) return false;
 	const firstKey = getNextKey(0);
@@ -59977,48 +62635,87 @@ var Virtualizer = class {
 		this.scrollRect = null;
 		this.scrollOffset = null;
 		this.scrollDirection = null;
-		this.scrollAdjustments = 0;
-		this._iosDeferredAdjustment = 0;
-		this._iosTouching = false;
-		this._iosJustTouchEnded = false;
-		this._iosTouchEndTimerId = null;
-		this._intendedScrollOffset = null;
+		this._holdOffset = 0;
+		this._reportedOverscroll = false;
+		this._iosGesture = new IosGesture({
+			getWindow: () => this.targetWindow,
+			now: () => this.now(),
+			tailStillMoving: () => {
+				const state = this.scrollState;
+				if ((state == null ? void 0 : state.phase) !== "queued" || this.pendingWrite !== null) return false;
+				const now = this._readElementOffset();
+				if (now === null || this._lastElementOffset === null || Math.abs(now - this._lastElementOffset) < 1) return false;
+				this._lastElementOffset = now;
+				state.samples = [...state.samples ?? [], {
+					t: this.now(),
+					offset: now
+				}];
+				return true;
+			},
+			onTailClosed: () => {
+				const state = this.scrollState;
+				if ((state == null ? void 0 : state.phase) === "queued" && flingCaught(state.samples ?? [])) this.scrollState = null;
+				this._flushHoldIfReady(true);
+				this._writeAwaitingCommand();
+			}
+		});
+		this._lastElementOffset = null;
+		this.pendingWrite = null;
 		this._clampedAdjustment = null;
 		this.elementsCache = /* @__PURE__ */ new Map();
+		this._resizeBatch = null;
 		this.now = () => {
 			var _a, _b, _c;
 			return ((_c = (_b = (_a = this.targetWindow) == null ? void 0 : _a.performance) == null ? void 0 : _b.now) == null ? void 0 : _c.call(_b)) ?? Date.now();
 		};
 		this.observer = /* @__PURE__ */ (() => {
 			let _ro = null;
+			let _frames = null;
 			const get = () => {
 				if (_ro) return _ro;
-				if (!this.targetWindow || !this.targetWindow.ResizeObserver) return null;
-				return _ro = new this.targetWindow.ResizeObserver((entries) => {
-					entries.forEach((entry) => {
-						const run = () => {
-							const node = entry.target;
-							const index = this.indexFromElement(node);
-							if (!node.isConnected) {
-								this.observer.unobserve(node);
-								for (const [cacheKey, cachedNode] of this.elementsCache) if (cachedNode === node) {
-									this.elementsCache.delete(cacheKey);
-									break;
-								}
-								return;
+				const targetWindow = this.targetWindow;
+				if (!targetWindow || !targetWindow.ResizeObserver) return null;
+				const frames = _frames = createFrameQueue(targetWindow);
+				return _ro = new targetWindow.ResizeObserver((entries) => {
+					const run = () => {
+						const batch = { sync: false };
+						this._resizeBatch = batch;
+						try {
+							entries.forEach(measureEntry);
+						} finally {
+							this._resizeBatch = null;
+							if (batch.notify) {
+								this.notify(batch.sync);
+								this._noteClampMax();
+								this._flushHoldIfReady(true);
+								this._retryClampedAdjustment();
 							}
-							if (!this.isIndexInRange(index)) return;
-							if (this.shouldMeasureDuringScroll(index)) this.resizeItem(index, this.options.measureElement(node, entry, this));
-						};
-						this.options.useAnimationFrameWithResizeObserver ? requestAnimationFrame(run) : run();
-					});
+						}
+					};
+					this.options.useAnimationFrameWithResizeObserver ? frames.schedule(run) : run();
 				});
+			};
+			const measureEntry = (entry) => {
+				const node = entry.target;
+				const index = this.indexFromElement(node);
+				if (!node.isConnected) {
+					this.observer.unobserve(node);
+					for (const [cacheKey, cachedNode] of this.elementsCache) if (cachedNode === node) {
+						this.elementsCache.delete(cacheKey);
+						break;
+					}
+					return;
+				}
+				if (!this.isIndexInRange(index)) return;
+				if (this.shouldMeasureDuringScroll(index)) this.resizeItem(index, this.options.measureElement(node, entry, this));
 			};
 			return {
 				disconnect: () => {
 					var _a;
 					(_a = get()) == null || _a.disconnect();
+					_frames?.cancel();
 					_ro = null;
+					_frames = null;
 				},
 				observe: (target) => {
 					var _a;
@@ -60097,9 +62794,8 @@ var Virtualizer = class {
 				this.pendingMin = 0;
 				this.itemSizeCacheVersion++;
 			}
-			let anchorResolved = false;
-			let anchorDelta = 0;
-			if (anchor && this.scrollOffset !== null) {
+			let anchorDelta = null;
+			if (anchor && this.scrollOffset !== null && !this._awaitingCommandReadBack()) {
 				const [anchorKey, anchorOffset] = anchor;
 				const newMeasurements = this.getMeasurements();
 				const { count, getItemKey } = this.options;
@@ -60112,17 +62808,24 @@ var Virtualizer = class {
 						if (!followOnAppend && newOffset !== this.scrollOffset) {
 							anchorDelta = newOffset - this.scrollOffset;
 							this.scrollOffset = newOffset;
-							anchorResolved = true;
 						}
 					}
 				}
 			}
-			if (anchorResolved || followOnAppend) this.pendingScrollAnchor = [
-				anchorResolved ? anchor[0] : null,
-				anchorResolved ? anchor[1] : 0,
-				followOnAppend,
-				anchorDelta
-			];
+			if (followOnAppend) this.pendingScrollAnchor = {
+				kind: "follow",
+				behavior: followOnAppend
+			};
+			else if (anchorDelta !== null) {
+				if (this._canWriteScroll()) this.pendingScrollAnchor = {
+					kind: "anchor",
+					delta: anchorDelta
+				};
+				else {
+					this._holdOffset += anchorDelta;
+					this._followOffsetTarget(anchorDelta);
+				}
+			}
 		};
 		this.notify = (sync) => {
 			var _a, _b;
@@ -60147,6 +62850,7 @@ var Virtualizer = class {
 			]
 		});
 		this.cleanup = () => {
+			var _a;
 			this.unsubs.filter(Boolean).forEach((d) => d());
 			this.unsubs = [];
 			this.observer.disconnect();
@@ -60155,12 +62859,14 @@ var Virtualizer = class {
 				this.rafId = null;
 			}
 			this.scrollState = null;
+			(_a = this._momentumStop) == null || _a.restore();
+			this._momentumStop = null;
 			this.isScrolling = false;
 			this.scrollDirection = null;
-			this._iosDeferredAdjustment = 0;
-			this._iosTouching = false;
-			this._iosJustTouchEnded = false;
+			this._holdOffset = 0;
+			this._reportedOverscroll = false;
 			this._clampedAdjustment = null;
+			this.pendingWrite = null;
 			this.scrollElement = null;
 			this.targetWindow = null;
 		};
@@ -60170,7 +62876,7 @@ var Virtualizer = class {
 			};
 		};
 		this._willUpdate = () => {
-			var _a, _b;
+			var _a;
 			const scrollElement = this.options.enabled ? this.options.getScrollElement() : null;
 			if (this.scrollElement !== scrollElement) {
 				this.cleanup();
@@ -60189,71 +62895,85 @@ var Virtualizer = class {
 					this.maybeNotify();
 				}));
 				this.unsubs.push(this.options.observeElementOffset(this, (offset, isScrolling) => {
-					if (isScrolling && this._intendedScrollOffset === null && offset === this.scrollOffset) return;
-					if (this._intendedScrollOffset !== null && Math.abs(offset - this._intendedScrollOffset) < 1.5) offset = this._intendedScrollOffset;
-					this._intendedScrollOffset = null;
+					var _a2, _b, _c, _d;
+					const elementMax = isScrolling ? this._elementMaxScrollOffset() : null;
+					const wasOverscrolled = this._reportedOverscroll;
+					this._reportedOverscroll = offset < 0 || elementMax !== null && offset > elementMax + 1;
+					const elementOffset = offset;
+					this._lastElementOffset = elementOffset;
+					offset = this._toLayoutOffset(offset);
+					const kind = this._classifyScrollEvent(offset, isScrolling, elementMax);
+					if (kind === "spurious") return;
+					if (kind === "readBack") offset = this.pendingWrite.target;
+					else if (kind === "clampedReadBack" && ((_a2 = this.scrollState) == null ? void 0 : _a2.index) != null && offset < this.getMaxScrollOffset() - 1.5) this.scrollState.lastTargetOffset = offset;
+					else if (externalRetiresCommand({
+						kind,
+						offset,
+						command: this.scrollState,
+						target: () => this.getScrollStateTarget(this.scrollState)
+					})) this.scrollState = null;
+					this.pendingWrite = null;
 					if (this._clampedAdjustment !== null && Math.abs(offset - this._clampedAdjustment.maxAtWrite) >= 1.5) this._clampedAdjustment = null;
-					this.scrollAdjustments = 0;
 					const prevOffset = this.getScrollOffset();
+					const prevDirection = this.scrollDirection;
 					this.scrollDirection = isScrolling ? prevOffset === offset ? this.scrollDirection : prevOffset < offset ? "forward" : "backward" : null;
 					this.scrollOffset = offset;
 					this.isScrolling = isScrolling;
-					this._flushIosDeferredIfReady();
+					const queued = this.scrollState;
+					if ((queued == null ? void 0 : queued.phase) === "queued" && kind === "external" && isScrolling) {
+						if (wasOverscrolled || this._reportedOverscroll) queued.samples = [];
+						else {
+							const t = this.now();
+							queued.samples = [...(queued.samples ?? []).filter((sample) => t - sample.t <= 200), {
+								t,
+								offset: elementOffset
+							}];
+							if (prevDirection !== null && this.scrollDirection !== prevDirection || flingSpedUp(queued.samples)) this.scrollState = null;
+						}
+					}
+					if (this._iosGesture.onScroll({
+						isScrolling,
+						ownReadBack: kind === "readBack",
+						moved: offset !== prevOffset,
+						external: kind === "external" && ((_b = this.scrollState) == null ? void 0 : _b.phase) !== "smooth" && ((_c = this.scrollState) == null ? void 0 : _c.phase) !== "smoothFinishing"
+					}) && ((_d = this.scrollState) == null ? void 0 : _d.phase) === "queued") this.scrollState = null;
+					this._flushHoldIfReady(true);
 					if (this.scrollState) this.scheduleScrollReconcile();
 					this.maybeNotify();
 				}));
-				if ("addEventListener" in this.scrollElement) {
-					const scrollEl = this.scrollElement;
-					const onTouchStart = () => {
-						this._iosTouching = true;
-						this._iosJustTouchEnded = false;
-						if (this._iosTouchEndTimerId !== null && this.targetWindow != null) {
-							this.targetWindow.clearTimeout(this._iosTouchEndTimerId);
-							this._iosTouchEndTimerId = null;
-						}
-					};
-					const onTouchEnd = () => {
-						this._iosTouching = false;
-						if (!isIOSWebKit() || this.targetWindow == null) return;
-						this._iosJustTouchEnded = true;
-						this._iosTouchEndTimerId = this.targetWindow.setTimeout(() => {
-							this._iosJustTouchEnded = false;
-							this._iosTouchEndTimerId = null;
-							this._flushIosDeferredIfReady();
-						}, 150);
-					};
-					scrollEl.addEventListener("touchstart", onTouchStart, addEventListenerOptions);
-					scrollEl.addEventListener("touchend", onTouchEnd, addEventListenerOptions);
-					this.unsubs.push(() => {
-						scrollEl.removeEventListener("touchstart", onTouchStart);
-						scrollEl.removeEventListener("touchend", onTouchEnd);
-						if (this._iosTouchEndTimerId !== null && this.targetWindow != null) {
-							this.targetWindow.clearTimeout(this._iosTouchEndTimerId);
-							this._iosTouchEndTimerId = null;
-						}
-					});
-				}
-				this._scrollToOffset(this.getScrollOffset(), {
-					adjustments: void 0,
-					behavior: void 0
-				});
+				if ("addEventListener" in this.scrollElement) this.unsubs.push(this._iosGesture.listen(this.scrollElement));
+				this._scrollToOffset(this.getScrollOffset());
 			}
+			this._noteClampMax();
 			const anchor = this.pendingScrollAnchor;
 			this.pendingScrollAnchor = null;
 			if (anchor && this.scrollElement && this.options.enabled) {
-				const [key, _offset, followOnAppend, anchorDelta] = anchor;
-				if (key !== null && !followOnAppend) {
-					if (isIOSWebKit() && (this.isScrolling || this._iosTouching || this._iosJustTouchEnded)) {
-						if (anchorDelta !== 0) this._iosDeferredAdjustment += anchorDelta;
-					} else if (((_b = this.scrollState) == null ? void 0 : _b.behavior) === "smooth" && !approxEqual(this.getScrollOffset() - anchorDelta, this.scrollState.lastTargetOffset));
-					else this._scrollToOffset(this.getScrollOffset(), {
-						adjustments: void 0,
-						behavior: void 0
-					});
-				}
-				if (followOnAppend) this.scrollToEnd({ behavior: followOnAppend });
+				if (anchor.kind === "anchor") {
+					if (!this._canWriteScroll()) {
+						this._holdOffset += anchor.delta;
+						this._followOffsetTarget(anchor.delta);
+						this.notify(false);
+					} else if (isSmoothScroll(this.scrollState) && !approxEqual(this.getScrollOffset() - anchor.delta, this.scrollState.lastTargetOffset));
+					else {
+						this._followOffsetTarget(anchor.delta);
+						this._scrollToOffset(this.getScrollOffset());
+					}
+				} else this.scrollToEnd({ behavior: anchor.behavior });
 			}
+			this._flushHoldIfReady(false);
 			this._retryClampedAdjustment();
+		};
+		this._classifyScrollEvent = (offset, isScrolling, elementMax) => {
+			var _a;
+			return classifyScrollEvent({
+				offset,
+				isScrolling,
+				elementMax,
+				holdOffset: this._holdOffset,
+				scrollOffset: this.scrollOffset,
+				pendingWrite: this.pendingWrite,
+				clampedMaxAtWrite: ((_a = this._clampedAdjustment) == null ? void 0 : _a.maxAtWrite) ?? null
+			});
 		};
 		this._retryClampedAdjustment = () => {
 			if (this._clampedAdjustment === null || !this.scrollElement || !this.options.enabled) return;
@@ -60264,30 +62984,42 @@ var Virtualizer = class {
 					target,
 					maxAtWrite: max
 				} : null;
-				this._scrollToOffset(target, {
-					adjustments: void 0,
-					behavior: void 0
-				});
+				this._scrollToOffset(target);
 			}
 		};
-		this._flushIosDeferredIfReady = () => {
-			if (this._iosDeferredAdjustment === 0) return;
-			if (this.isScrolling) return;
-			if (this._iosTouching) return;
-			if (this._iosJustTouchEnded) return;
-			const cur = this.getScrollOffset();
-			const max = this.getMaxScrollOffset();
-			if (cur < 0 || cur > max) return;
-			if (this._iosDeferredAdjustment < 0 && cur >= max - 1) {
-				this._iosDeferredAdjustment = 0;
-				return;
-			}
-			const delta = this._iosDeferredAdjustment;
-			this._iosDeferredAdjustment = 0;
-			this._scrollToOffset(cur, {
-				adjustments: this.scrollAdjustments += delta,
-				behavior: void 0
-			});
+		this._writeAwaitingCommand = () => {
+			const state = this.scrollState;
+			if (state === null || state.phase !== "queued") return;
+			const { behavior } = state;
+			this.getMeasurements();
+			const offset = this.getScrollStateTarget(state);
+			state.lastTargetOffset = offset;
+			this._clampedAdjustment = null;
+			state.phase = initialScrollPhase(behavior, state.index != null && approxEqual(offset, this.getScrollOffset()));
+			this._scrollToOffset(offset, { behavior });
+			this.scheduleScrollReconcile();
+		};
+		this._readElementOffset = () => {
+			const el = this.scrollElement;
+			if (el == null) return null;
+			const { horizontal, isRtl } = this.options;
+			if (typeof el.scrollTop === "number") return horizontal ? el.scrollLeft * (isRtl && -1 || 1) : el.scrollTop;
+			if (typeof el.scrollY === "number") return horizontal ? el.scrollX : el.scrollY;
+			return null;
+		};
+		this._canWriteScroll = () => !(isIOSWebKit() && this._iosGesture.inMotion()) && !this._reportedOverscroll;
+		this._flushHoldIfReady = (sync) => {
+			var _a;
+			if (this._holdOffset === 0) return;
+			if (!this.scrollElement || !this.options.enabled) return;
+			if (!this._canWriteScroll()) return;
+			if (((_a = this.scrollState) == null ? void 0 : _a.phase) === "smooth") return;
+			this._holdOffset = 0;
+			if (this.scrollOffset !== null && this.scrollOffset < 0) this.scrollOffset = 0;
+			this.notify(sync);
+			const target = this.getCommandWrittenOffset() ?? this.getScrollOffset();
+			this._clampedAdjustment = this._clampedBy(target);
+			this._scrollToOffset(target);
 		};
 		this.rafId = null;
 		this.getSize = () => {
@@ -60492,14 +63224,16 @@ var Virtualizer = class {
 				this.options.overscan,
 				this.options.count,
 				startIndex,
-				endIndex
+				endIndex,
+				this.options.lanes
 			];
-		}, (rangeExtractor, overscan, count, startIndex, endIndex) => {
+		}, (rangeExtractor, overscan, count, startIndex, endIndex, lanes) => {
 			return startIndex === null || endIndex === null ? [] : rangeExtractor({
 				startIndex,
 				endIndex,
 				overscan,
-				count
+				count,
+				lanes
 			});
 		}, {
 			key: false,
@@ -60516,7 +63250,7 @@ var Virtualizer = class {
 		};
 		this.shouldMeasureDuringScroll = (index) => {
 			var _a;
-			if (!this.scrollState || this.scrollState.behavior !== "smooth") return true;
+			if (!isSmoothScroll(this.scrollState)) return true;
 			const scrollIndex = this.scrollState.index ?? ((_a = this.getVirtualItemForOffset(this.scrollState.lastTargetOffset)) == null ? void 0 : _a.index);
 			if (scrollIndex !== void 0 && this.range) {
 				const bufferSize = Math.max(this.options.overscan, Math.ceil((this.range.endIndex - this.range.startIndex) / 2));
@@ -60545,15 +63279,16 @@ var Virtualizer = class {
 				this.observer.observe(node);
 				this.elementsCache.set(key, node);
 			}
-			if ((!this.isScrolling || this.scrollState) && this.shouldMeasureDuringScroll(index)) this.resizeItem(index, this.options.measureElement(node, void 0, this));
+			if (node.isConnected && (!this.isScrolling || this.scrollState) && this.shouldMeasureDuringScroll(index)) this.resizeItem(index, this.options.measureElement(node, void 0, this));
 		};
 		this.resizeItem = (index, size) => {
 			var _a, _b, _c;
 			if (!this.isIndexInRange(index)) return;
+			if ((_a = this._resizeBatch) == null ? void 0 : _a.sync) this.getMeasurements();
 			let cachedSize;
 			let itemStart;
 			let key;
-			const flat = (_a = this._singleLaneMeasurements) == null ? void 0 : _a.flat;
+			const flat = (_b = this._singleLaneMeasurements) == null ? void 0 : _b.flat;
 			if (this.options.lanes === 1 && flat != null) {
 				key = this.options.getItemKey(index);
 				itemStart = flat[index * 2];
@@ -60568,11 +63303,11 @@ var Virtualizer = class {
 			const itemSize = this.itemSizeCache.get(key) ?? cachedSize;
 			const delta = size - itemSize;
 			if (delta !== 0) {
-				const wasAtEnd = this.options.anchorTo === "end" && ((_b = this.scrollState) == null ? void 0 : _b.behavior) !== "smooth" && this.getVirtualDistanceFromEnd() <= this.options.scrollEndThreshold;
-				const prevTotalSize = wasAtEnd ? this.getTotalSize() : 0;
-				const scrollOffsetWithAdj = this.getScrollOffset() + this.scrollAdjustments;
-				const defaultShouldAdjust = !this.itemSizeCache.has(key) ? itemStart < scrollOffsetWithAdj : itemStart + itemSize <= scrollOffsetWithAdj && this.scrollDirection !== "backward";
-				const shouldAdjustScroll = ((_c = this.scrollState) == null ? void 0 : _c.behavior) !== "smooth" && (this.shouldAdjustScrollPositionOnItemSizeChange !== void 0 ? this.shouldAdjustScrollPositionOnItemSizeChange(this.measurementsCache[index] ?? {
+				const wasAtEnd = this.options.anchorTo === "end" && !isSmoothScroll(this.scrollState) && this.getVirtualDistanceFromEnd() <= this.options.scrollEndThreshold;
+				const prevTotalSize = wasAtEnd ? this._getLayoutTotalSize() : 0;
+				const scrollOffset = this.getScrollOffset();
+				const defaultShouldAdjust = !this.itemSizeCache.has(key) ? itemStart < scrollOffset : itemStart + itemSize <= scrollOffset && this.scrollDirection !== "backward";
+				const shouldAdjustScroll = !isSmoothScroll(this.scrollState) && (this.shouldAdjustScrollPositionOnItemSizeChange !== void 0 ? this.shouldAdjustScrollPositionOnItemSizeChange(this.measurementsCache[index] ?? {
 					index,
 					key,
 					start: itemStart,
@@ -60584,17 +63319,34 @@ var Virtualizer = class {
 				this.itemSizeCache.set(key, size);
 				this.itemSizeCacheVersion++;
 				let adjustedSync = false;
-				if (wasAtEnd) adjustedSync = this.applyScrollAdjustment(this.getTotalSize() - prevTotalSize);
-				else if (shouldAdjustScroll) adjustedSync = this.applyScrollAdjustment(delta);
+				if (!this._awaitingCommandReadBack()) {
+					if (wasAtEnd) adjustedSync = this.applyScrollAdjustment(this._getLayoutTotalSize() - prevTotalSize);
+					else if (shouldAdjustScroll) adjustedSync = this.applyScrollAdjustment(delta);
+				}
+				if (this._resizeBatch) {
+					this._resizeBatch.notify = true;
+					(_c = this._resizeBatch).sync || (_c.sync = adjustedSync);
+					return;
+				}
 				this.notify(adjustedSync);
+				this._noteClampMax();
+				this._flushHoldIfReady(true);
 				this._retryClampedAdjustment();
 			}
 		};
-		this.getVirtualItems = memo$9(() => [this.getVirtualIndexes(), this.getMeasurements()], (indexes, measurements) => {
+		this.getVirtualItems = memo$9(() => [
+			this.getVirtualIndexes(),
+			this.getMeasurements(),
+			this._holdOffset
+		], (indexes, measurements, hold) => {
 			const virtualItems = [];
 			for (let k = 0, len = indexes.length; k < len; k++) {
 				const measurement = measurements[indexes[k]];
-				virtualItems.push(measurement);
+				virtualItems.push(hold === 0 ? measurement : {
+					...measurement,
+					start: measurement.start - hold,
+					end: measurement.end - hold
+				});
 			}
 			return virtualItems;
 		}, {
@@ -60609,16 +63361,75 @@ var Virtualizer = class {
 			const useFlat = this.options.lanes === 1 && flat != null;
 			return notUndefined(measurements[findNearestBinarySearch(0, measurements.length - 1, useFlat ? (i) => flat[i * 2] : (i) => notUndefined(measurements[i]).start, offset)]);
 		};
-		this.getMaxScrollOffset = () => {
-			if (!this.scrollElement) return 0;
-			if ("scrollHeight" in this.scrollElement) return this.options.horizontal ? this.scrollElement.scrollWidth - this.scrollElement.clientWidth : this.scrollElement.scrollHeight - this.scrollElement.clientHeight;
-			else {
-				const doc = this.scrollElement.document.documentElement;
-				return this.options.horizontal ? doc.scrollWidth - this.scrollElement.innerWidth : doc.scrollHeight - this.scrollElement.innerHeight;
+		this._noteClampMax = () => {
+			if (!this._awaitingCommandReadBack()) return;
+			const elementMax = this._elementMaxScrollOffset();
+			if (elementMax === null) return;
+			const write = this.pendingWrite;
+			const max = Math.max(elementMax, 0) + this._holdOffset;
+			if (max >= write.target) return;
+			const lowMaxes = write.lowMaxes ?? (write.lowMaxes = []);
+			if (lowMaxes[lowMaxes.length - 1] !== max) lowMaxes.push(max);
+		};
+		this.getMaxScrollOffset = () => (this._elementMaxScrollOffset() ?? 0) + this._holdOffset;
+		this._toLayoutOffset = (elementOffset) => {
+			var _a;
+			let offset = elementOffset + this._holdOffset;
+			if (((_a = this.pendingScrollAnchor) == null ? void 0 : _a.kind) === "anchor") offset += this.pendingScrollAnchor.delta;
+			return offset;
+		};
+		this._elementMaxScrollOffset = () => {
+			const el = this.scrollElement;
+			if (el === null) return null;
+			if ("scrollHeight" in el) return this.options.horizontal ? el.scrollWidth - el.clientWidth : el.scrollHeight - el.clientHeight;
+			if ("document" in el) {
+				const doc = el.document.documentElement;
+				return this.options.horizontal ? doc.scrollWidth - el.innerWidth : doc.scrollHeight - el.innerHeight;
 			}
+			return null;
+		};
+		this._momentumStop = null;
+		this._stopMomentum = (done) => {
+			const el = this.scrollElement;
+			const win = this.targetWindow;
+			if (el === null || win === null) return;
+			const scroller = "document" in el ? el.document.scrollingElement : el;
+			if (!(scroller == null ? void 0 : scroller.style)) return;
+			if (this._momentumStop) {
+				this._momentumStop.done = done;
+				return;
+			}
+			const { style } = scroller;
+			const property = this.options.horizontal ? "overflow-x" : "overflow-y";
+			const value = style.getPropertyValue(property);
+			const priority = style.getPropertyPriority(property);
+			style.setProperty(property, "hidden", "important");
+			const stop = {
+				restore: () => {
+					if (style.getPropertyValue(property) !== "hidden" || style.getPropertyPriority(property) !== "important") return false;
+					style.setProperty(property, value, priority);
+					return true;
+				},
+				done
+			};
+			this._momentumStop = stop;
+			win.requestAnimationFrame(() => win.requestAnimationFrame(() => {
+				if (this._momentumStop !== stop) return;
+				this._momentumStop = null;
+				if (stop.restore()) stop.done();
+			}));
+		};
+		this._clampedBy = (target) => {
+			const elementMax = this._elementMaxScrollOffset();
+			if (elementMax === null) return null;
+			const maxAtWrite = elementMax + this._holdOffset;
+			return target > maxAtWrite + .5 ? {
+				target,
+				maxAtWrite
+			} : null;
 		};
 		this.getVirtualDistanceFromEnd = () => {
-			return Math.max(this.getTotalSize() - this.getSize() - this.getScrollOffset(), 0);
+			return Math.max(this._getLayoutTotalSize() - this.getSize() - this.getScrollOffset(), 0);
 		};
 		this.getDistanceFromEnd = () => {
 			return Math.max(this.getMaxScrollOffset() - this.getScrollOffset(), 0);
@@ -60647,77 +63458,57 @@ var Virtualizer = class {
 				else if (item.start <= scrollOffset + this.options.scrollPaddingStart) align = "start";
 				else return [scrollOffset, align];
 			}
-			if (align === "end" && index === this.options.count - 1) return [this.getMaxScrollOffset(), align];
+			if (align === "end" && index === this.options.count - 1) {
+				const maxOffset = this.getMaxScrollOffset();
+				const toOffset2 = maxOffset - this.options.paddingEnd + this.options.scrollPaddingEnd;
+				return [Math.max(Math.min(toOffset2, maxOffset), 0), align];
+			}
 			const toOffset = align === "end" ? item.end + this.options.scrollPaddingEnd : item.start - this.options.scrollPaddingStart;
 			return [this.getOffsetForAlignment(toOffset, align, item.size), align];
 		};
 		this.scrollToOffset = (toOffset, { align = "start", behavior = "auto" } = {}) => {
-			this._iosDeferredAdjustment = 0;
-			const offset = this.getOffsetForAlignment(toOffset, align);
-			const now = this.now();
-			this.scrollState = {
+			this._startScroll({
 				index: null,
-				align,
-				behavior,
-				startedAt: now,
-				lastTargetOffset: offset,
-				stableFrames: 0
-			};
-			this._scrollToOffset(offset, {
-				adjustments: void 0,
-				behavior
-			});
-			this.scheduleScrollReconcile();
+				align
+			}, this.getOffsetForAlignment(toOffset, align), behavior, "absolute");
 		};
 		this.scrollToIndex = (index, { align: initialAlign = "auto", behavior = "auto" } = {}) => {
-			this._iosDeferredAdjustment = 0;
 			index = Math.max(0, Math.min(index, this.options.count - 1));
 			const offsetInfo = this.getOffsetForIndex(index, initialAlign);
 			if (!offsetInfo) return;
 			const [offset, align] = offsetInfo;
-			const now = this.now();
-			this.scrollState = {
+			this._startScroll({
 				index,
-				align,
-				behavior,
-				startedAt: now,
-				lastTargetOffset: offset,
-				stableFrames: 0
-			};
-			this._scrollToOffset(offset, {
-				adjustments: void 0,
-				behavior
-			});
-			this.scheduleScrollReconcile();
+				align
+			}, offset, behavior, "absolute");
 		};
 		this.scrollBy = (delta, { behavior = "auto" } = {}) => {
-			const offset = this.getScrollOffset() + delta;
-			const now = this.now();
-			this.scrollState = {
+			const offset = this.getOffsetForAlignment((this.getCommandWrittenOffset() ?? this.getScrollOffset()) + delta, "start");
+			this._startScroll({
 				index: null,
-				align: "start",
-				behavior,
-				startedAt: now,
-				lastTargetOffset: offset,
-				stableFrames: 0
-			};
-			this._scrollToOffset(offset, {
-				adjustments: void 0,
-				behavior
-			});
-			this.scheduleScrollReconcile();
+				align: "start"
+			}, offset, behavior, "relative");
 		};
 		this.scrollToEnd = ({ behavior = "auto" } = {}) => {
 			if (this.options.count > 0) {
-				this.scrollToIndex(this.options.count - 1, {
+				this._startScroll({
+					index: this.options.count - 1,
 					align: "end",
-					behavior
-				});
+					toEnd: true
+				}, Math.max(this.getMaxScrollOffset(), 0), behavior, "absolute");
 				return;
 			}
 			this.scrollToOffset(Math.max(this.getTotalSize() - this.getSize(), 0), { behavior });
 		};
-		this.getTotalSize = () => {
+		this.cancelScroll = () => {
+			if (this.rafId != null && this.targetWindow) {
+				this.targetWindow.cancelAnimationFrame(this.rafId);
+				this.rafId = null;
+			}
+			this.scrollState = null;
+		};
+		this.getTotalSize = () => Math.max(this._getLayoutTotalSize() - this._holdOffset, 0);
+		this._getLayoutTotalSize = () => {
 			var _a, _b;
 			const measurements = this.getMeasurements();
 			let end;
@@ -60753,12 +63544,25 @@ var Virtualizer = class {
 			});
 			return snapshot;
 		};
-		this._scrollToOffset = (offset, { adjustments, behavior }) => {
-			this._intendedScrollOffset = offset + (adjustments ?? 0);
-			this.options.scrollToFn(offset, {
+		this._scrollToOffset = (offset, { adjustments, behavior } = {}) => {
+			const write = {
+				target: offset + (adjustments ?? 0),
+				smooth: behavior === "smooth"
+			};
+			this.pendingWrite = write;
+			this.options.scrollToFn(offset - this._holdOffset, {
 				behavior,
 				adjustments
 			}, this);
+			return write;
+		};
+		this.getCommandWrittenOffset = () => this.scrollState !== null && this.pendingWrite !== null && !this.pendingWrite.smooth ? this.pendingWrite.target : null;
+		this._awaitingCommandReadBack = () => {
+			const writtenOffset = this.getCommandWrittenOffset();
+			return !(isIOSWebKit() && this._iosGesture.dragging()) && writtenOffset !== null && !approxEqual(writtenOffset, this.getScrollOffset());
+		};
+		this._followOffsetTarget = (delta) => {
+			if (this.scrollState !== null && this.scrollState.index == null) this.scrollState.lastTargetOffset += delta;
 		};
 		this.measure = () => {
 			this.pendingMin = null;
@@ -60769,27 +63573,31 @@ var Virtualizer = class {
 		};
 		this.setOptions(opts);
 	}
+	/**
+	* @deprecated Always 0: a scroll correction is folded into `scrollOffset`
+	* at once, so there is never an outstanding adjustment to add to it. Read
+	* `scrollOffset` alone.
+	*/
+	get scrollAdjustments() {
+		return 0;
+	}
 	applyScrollAdjustment(delta, behavior) {
 		if (delta === 0) return false;
-		if (isIOSWebKit() && (this.isScrolling || this._iosTouching || this._iosJustTouchEnded)) {
-			this._iosDeferredAdjustment += delta;
-			return false;
+		this._followOffsetTarget(delta);
+		if (!this._canWriteScroll()) {
+			this._holdOffset += delta;
+			if (this.scrollOffset !== null) this.scrollOffset += delta;
+			return true;
 		} else {
-			const target = this.getScrollOffset() + this.scrollAdjustments + delta;
-			const el = this.scrollElement;
-			const maxAtWrite = el !== null && ("scrollHeight" in el || "document" in el) ? this.getMaxScrollOffset() : null;
-			this._clampedAdjustment = maxAtWrite !== null && target > maxAtWrite + .5 ? {
-				target,
-				maxAtWrite
-			} : null;
-			this._scrollToOffset(this.getScrollOffset(), {
-				adjustments: this.scrollAdjustments += delta,
+			const offset = this.getScrollOffset();
+			this._clampedAdjustment = this._clampedBy(offset + delta);
+			const write = this._scrollToOffset(offset, {
+				adjustments: delta,
 				behavior
 			});
 			if (this.scrollOffset !== null) {
-				this.scrollOffset += this.scrollAdjustments;
+				if (this.pendingWrite === write) this.scrollOffset += delta;
 				if (this.scrollOffset < 0) this.scrollOffset = 0;
-				this.scrollAdjustments = 0;
 			}
 			return true;
 		}
@@ -60805,6 +63613,10 @@ var Virtualizer = class {
 			this.reconcileScroll();
 		});
 	}
+	getScrollStateTarget(state) {
+		const offsetInfo = state.toEnd ? [Math.max(this.getMaxScrollOffset(), 0)] : state.index != null ? this.getOffsetForIndex(state.index, state.align) : void 0;
+		return offsetInfo ? offsetInfo[0] : state.lastTargetOffset;
+	}
 	reconcileScroll() {
 		if (!this.scrollState) return;
 		if (!this.scrollElement) return;
@@ -60812,17 +63624,20 @@ var Virtualizer = class {
 			this.scrollState = null;
 			return;
 		}
-		const offsetInfo = this.scrollState.index != null ? this.getOffsetForIndex(this.scrollState.index, this.scrollState.align) : void 0;
-		const targetOffset = offsetInfo ? offsetInfo[0] : this.scrollState.lastTargetOffset;
-		const STABLE_FRAMES = 1;
+		if (this.scrollState.phase === "queued") {
+			this.scheduleScrollReconcile();
+			return;
+		}
+		this.getMeasurements();
+		const targetOffset = this.getScrollStateTarget(this.scrollState);
+		const STABLE_FRAMES = this.scrollState.index == null ? 1 : this.options.useAnimationFrameWithResizeObserver ? 3 : 2;
 		const targetChanged = targetOffset !== this.scrollState.lastTargetOffset;
 		if (!targetChanged && approxEqual(targetOffset, this.getScrollOffset())) {
+			if (this.scrollState.phase === "smooth") this.scrollState.phase = "smoothLanded";
+			else if (this.scrollState.phase === "smoothFinishing") this.scrollState.phase = "instant";
 			this.scrollState.stableFrames++;
 			if (this.scrollState.stableFrames >= STABLE_FRAMES) {
-				if (this.getScrollOffset() !== targetOffset) this._scrollToOffset(targetOffset, {
-					adjustments: void 0,
-					behavior: "auto"
-				});
+				if (this.getScrollOffset() !== targetOffset) this._scrollToOffset(targetOffset, { behavior: "auto" });
 				this.scrollState = null;
 				return;
 			}
@@ -60831,15 +63646,50 @@ var Virtualizer = class {
 			if (targetChanged) {
 				const viewport = this.getSize() || 600;
 				const distance = Math.abs(targetOffset - this.getScrollOffset());
-				const keepSmooth = this.scrollState.behavior === "smooth" && distance > viewport;
+				const keepSmooth = isSmoothScroll(this.scrollState) && distance > viewport;
 				this.scrollState.lastTargetOffset = targetOffset;
-				if (!keepSmooth) this.scrollState.behavior = "auto";
-				this._scrollToOffset(targetOffset, {
-					adjustments: void 0,
-					behavior: keepSmooth ? "smooth" : "auto"
-				});
+				if (keepSmooth) this.scrollState.phase = "smooth";
+				else if (this.scrollState.phase === "smooth") this.scrollState.phase = "smoothFinishing";
+				else if (this.scrollState.phase === "smoothLanded") this.scrollState.phase = "instant";
+				this._scrollToOffset(targetOffset, { behavior: keepSmooth ? "smooth" : "auto" });
 			}
 		}
+		this.scheduleScrollReconcile();
+	}
+	_startScroll(target, offset, behavior, kind) {
+		const tail = this._iosGesture.tail();
+		if (kind === "absolute" && tail !== null) {
+			if (tail === "fling" && iosMomentumOverridesWrites()) {
+				this._stopMomentum(() => {
+					const state = this.scrollState;
+					if ((state == null ? void 0 : state.phase) !== "queued" || this._iosGesture.tail() !== "fling" || this._reportedOverscroll) return;
+					this._iosGesture.end();
+					this._flushHoldIfReady(true);
+					this._writeAwaitingCommand();
+				});
+				this.scrollState = {
+					...target,
+					startedAt: this.now(),
+					lastTargetOffset: offset,
+					stableFrames: 0,
+					phase: "queued",
+					behavior,
+					samples: []
+				};
+				this.scheduleScrollReconcile();
+				return;
+			}
+			this._iosGesture.end();
+		}
+		this.scrollState = {
+			...target,
+			startedAt: this.now(),
+			lastTargetOffset: offset,
+			stableFrames: 0,
+			behavior,
+			phase: initialScrollPhase(behavior, target.index != null && approxEqual(offset, this.getScrollOffset()))
+		};
+		this._scrollToOffset(offset, { behavior });
 		this.scheduleScrollReconcile();
 	}
 };
@@ -60907,7 +63757,7 @@ function calculateRangeImpl(measurements, outerSize, scrollOffset, lanes, flat) 
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-virtual@3.14.13_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/@tanstack/react-virtual/dist/esm/index.js
+//#region ../../node_modules/.pnpm/@tanstack+react-virtual@3.14.21_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/@tanstack/react-virtual/dist/esm/index.js
 var useIsomorphicLayoutEffect$1 = typeof document !== "undefined" ? import_react.useLayoutEffect : import_react.useEffect;
 function useVirtualizerBase({ useFlushSync = true, directDomUpdates = false, directDomUpdatesMode = "transform", ...options }) {
 	const rerender = import_react.useReducer((x) => x + 1, 0)[1];
@@ -60932,23 +63782,22 @@ function useVirtualizerBase({ useFlushSync = true, directDomUpdates = false, dir
 			state.container.style[sizeAxis] = `${totalSize}px`;
 		}
 	};
+	const applyItemPosition = (instance2, item, el) => {
+		const state = directRef.current;
+		const horizontal = !!instance2.options.horizontal;
+		const next = item.start - instance2.options.scrollMargin;
+		if (state.lastPositions.get(el) === next) return;
+		state.lastPositions.set(el, next);
+		if (state.mode === "transform") el.style.transform = horizontal ? `translate3d(${next}px, 0, 0)` : `translate3d(0, ${next}px, 0)`;
+		else el.style[horizontal ? "left" : "top"] = `${next}px`;
+	};
 	const applyDirectStyles = (instance2) => {
 		const state = directRef.current;
 		if (!state.enabled || !state.container) return;
 		applyContainerSize(instance2);
-		const horizontal = !!instance2.options.horizontal;
-		const useTransform = state.mode === "transform";
-		const posAxis = horizontal ? "left" : "top";
-		const scrollMargin = instance2.options.scrollMargin;
-		const items = instance2.getVirtualItems();
-		for (const item of items) {
-			const next = item.start - scrollMargin;
+		for (const item of instance2.getVirtualItems()) {
 			const el = instance2.elementsCache.get(item.key);
-			if (!el) continue;
-			if (state.lastPositions.get(el) === next) continue;
-			state.lastPositions.set(el, next);
-			if (useTransform) el.style.transform = horizontal ? `translate3d(${next}px, 0, 0)` : `translate3d(0, ${next}px, 0)`;
-			else el.style[posAxis] = `${next}px`;
+			if (el) applyItemPosition(instance2, item, el);
 		}
 	};
 	const resolvedOptions = {
@@ -60985,17 +63834,17 @@ function useVirtualizerBase({ useFlushSync = true, directDomUpdates = false, dir
 			} finally {
 				measuringFromRef.current = false;
 			}
+			const state = directRef.current;
+			if (node !== null && state.enabled && state.container) {
+				const item = v.measurementsCache[v.indexFromElement(node)];
+				if (item) applyItemPosition(v, item, node);
+			}
 		};
 		return Object.assign(v, { containerRef: (node) => {
 			const state = directRef.current;
 			state.container = node;
 			state.lastSize = null;
-			if (node && state.enabled) {
-				const total = v.getTotalSize();
-				state.lastSize = total;
-				const axis = v.options.horizontal ? "width" : "height";
-				node.style[axis] = `${total}px`;
-			}
+			if (node !== null) applyDirectStyles(v);
 		} });
 	});
 	instance.setOptions(resolvedOptions);
@@ -62030,7 +64879,7 @@ var isNonEmptyObject = (v) => isRecord(v) && Object.keys(v).length > 0;
 	const depth = t1 === void 0 ? 0 : t1;
 	const baseId = id ?? "metadata-grid";
 	const allEntries = entryRecords(entries);
-	const scalars = allEntries.filter(_temp$94);
+	const scalars = allEntries.filter(_temp$95);
 	const groups = allEntries.filter(_temp2$55);
 	const [expanded, setExpanded] = (0, import_react.useState)(false);
 	const isCollapsible = maxRows != null && scalars.length > maxRows;
@@ -62158,7 +65007,7 @@ var entryRecords = (entries) => {
 	});
 	else return entries;
 };
-function _temp$94(e) {
+function _temp$95(e) {
 	return !isNonEmptyObject(e.value) || isHtmlEscape(e.value);
 }
 function _temp2$55(e_0) {
@@ -62212,7 +65061,7 @@ var isWebSearchValue = (v) => isRecord(v) && isOptionalString(v.query) && Array.
 				$[7] = entry;
 				$[8] = t3;
 			} else t3 = $[8];
-			const renderer_0 = Object.keys(renderers).map((key) => renderers[key]).sort(_temp$93).find(t3);
+			const renderer_0 = Object.keys(renderers).map((key) => renderers[key]).sort(_temp$94).find(t3);
 			if (renderer_0) {
 				const { rendered } = renderer_0.render(id, entry, renderOptions, references);
 				if (rendered !== void 0 && /*#__PURE__*/ (0, import_react.isValidElement)(rendered)) {
@@ -62440,7 +65289,7 @@ var isWebSearchValue = (v) => isRecord(v) && isOptionalString(v.query) && Array.
 	};
 	return contentRenderers;
 };
-function _temp$93(a, b) {
+function _temp$94(a, b) {
 	if (!a || !b) return 0;
 	return a.bucket - b.bucket;
 }
@@ -62929,7 +65778,7 @@ var WebSearchResults$1 = (t0) => {
 	}
 	let t3;
 	if ($[2] !== results) {
-		t3 = results.map(_temp$92);
+		t3 = results.map(_temp$93);
 		$[2] = results;
 		$[3] = t3;
 	} else t3 = $[3];
@@ -62944,7 +65793,7 @@ var WebSearchResults$1 = (t0) => {
 	} else t4 = $[5];
 	return t4;
 };
-function _temp$92(result, index) {
+function _temp$93(result, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("li", {
 		className: clsx(WebSearchResults_module_default.result, "text-style-secondary"),
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExternalLink, {
@@ -63261,7 +66110,7 @@ var MessageCitations = (t0) => {
 	} else t1 = $[0];
 	let t2;
 	if ($[1] !== citations) {
-		t2 = citations.map(_temp$91);
+		t2 = citations.map(_temp$92);
 		$[1] = citations;
 		$[2] = t2;
 	} else t2 = $[2];
@@ -63335,7 +66184,7 @@ var OtherCitation = (t0) => {
 	} else t1 = $[1];
 	return t1;
 };
-function _temp$91(citation, index) {
+function _temp$92(citation, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: index + 1 }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageCitation, { citation })] }, index);
 }
 var MessageContent_module_default = {
@@ -63576,7 +66425,7 @@ var TodoWriteInput = (t0) => {
 			t2 = clsx(TodoWriteInput_module_default.todoList);
 			$[5] = t2;
 		} else t2 = $[5];
-		t3 = todoItems.map(_temp$90);
+		t3 = todoItems.map(_temp$91);
 		$[0] = contents;
 		$[1] = parentRef;
 		$[2] = t1;
@@ -63601,7 +66450,7 @@ var TodoWriteInput = (t0) => {
 	} else t4 = $[9];
 	return t4;
 };
-function _temp$90(todo) {
+function _temp$91(todo) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
 		name: todo.status === "completed" ? "checkboxChecked" : "checkboxUnchecked",
 		className: "text-size-smallest"
@@ -63943,7 +66792,7 @@ var WebSearchResults = (t0) => {
 	const t1 = `${id}-output`;
 	let t2;
 	if ($[0] !== results) {
-		t2 = results.map(_temp$89);
+		t2 = results.map(_temp$90);
 		$[0] = results;
 		$[1] = t2;
 	} else t2 = $[1];
@@ -64124,7 +66973,7 @@ var maybeListTools = (content) => {
 };
 /** Shallow: the list below renders title and url, and skips entries lacking them. */ var isWebResult = (value) => isRecord(value) && typeof value["title"] === "string" && typeof value["url"] === "string";
 /** Shallow: the list below keys on name and renders description. */ var isToolInfo = (value) => isRecord(value) && typeof value["name"] === "string";
-function _temp$89(result, index) {
+function _temp$90(result, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExternalLink, {
 		href: result.url,
 		title: result.url,
@@ -64648,7 +67497,7 @@ function asCoordinate(value) {
 	const { contents, annotation } = t0;
 	let t1;
 	if ($[0] !== contents) {
-		t1 = contents.findLastIndex(_temp$88);
+		t1 = contents.findLastIndex(_temp$89);
 		$[0] = contents;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -64822,7 +67671,7 @@ function renderHtmlAnnotation(annotation) {
 	}
 	return null;
 }
-function _temp$88(c) {
+function _temp$89(c) {
 	return c.type === "image" && isRenderableImageSource(c.image);
 }
 var customToolRendering_module_default = { submitView: "_submitView_1ru17_1" };
@@ -64862,7 +67711,7 @@ var ToolSearchView_module_default = {
 	} else t2 = $[3];
 	return t2;
 };
-function _temp$87(tool, toolIdx) {
+function _temp$88(tool, toolIdx) {
 	return tool.description ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("details", {
 		className: ToolSearchView_module_default.tool,
 		children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("summary", {
@@ -64886,7 +67735,7 @@ function _temp2$54(namespace, nsIdx) {
 		}), namespace.description ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
 			className: ToolSearchView_module_default.namespaceDescription,
 			children: [" — ", namespace.description]
-		}) : null] }) : null, namespace.tools.map(_temp$87)]
+		}) : null] }) : null, namespace.tools.map(_temp$88)]
 	}, `ns-${nsIdx}`);
 }
 var ToolTitle_module_default = {
@@ -65070,7 +67919,7 @@ var ToolCallView_module_default = { toolCallView: "_toolCallView_x6cus_1" };
 	const normalizedContent = t6;
 	let t7;
 	if ($[8] !== normalizedContent) {
-		t7 = normalizedContent.find(_temp$86);
+		t7 = normalizedContent.find(_temp$87);
 		$[8] = normalizedContent;
 		$[9] = t7;
 	} else t7 = $[9];
@@ -65271,7 +68120,7 @@ var normalizeContent = (output) => {
 		}]
 	}];
 };
-function _temp$86(c) {
+function _temp$87(c) {
 	if (c.type === "tool") {
 		for (const t of c.content) if (t.type === "text") {
 			if (t.text) return true;
@@ -65765,7 +68614,7 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 	const t16 = message.role === "tool" ? 30 : message.role === "assistant" ? 25 : 15;
 	let t17;
 	if ($[58] !== id || $[59] !== isNonSubagentTool || $[60] !== message || $[61] !== references || $[62] !== subagentNotifications || $[63] !== toolMarkdown || $[64] !== toolSearchNamespaces) {
-		t17 = isNonSubagentTool ? toolSearchNamespaces ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolSearchView, { namespaces: toolSearchNamespaces }) : toolMarkdown !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: toolMarkdown }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolOutput, { output: typeof message.content === "string" ? message.content : message.content.filter(_temp$85) }) : subagentNotifications !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: subagentNotifications }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContents, {
+		t17 = isNonSubagentTool ? toolSearchNamespaces ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolSearchView, { namespaces: toolSearchNamespaces }) : toolMarkdown !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: toolMarkdown }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolOutput, { output: typeof message.content === "string" ? message.content : message.content.filter(_temp$86) }) : subagentNotifications !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: subagentNotifications }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContents, {
 			message,
 			references
 		}, `${id}-contents`);
@@ -65841,7 +68690,7 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 	}
 	return segments;
 };
-function _temp$85(c) {
+function _temp$86(c) {
 	return c.type === "text" || c.type === "image";
 }
 var RowSelectCheckbox_module_default = {
@@ -65946,7 +68795,7 @@ var RowSelectCheckbox_module_default = {
 			"aria-label": label,
 			title: label,
 			className: t2,
-			onMouseDown: _temp$84,
+			onMouseDown: _temp$85,
 			onClick: t3,
 			children: t4
 		});
@@ -65959,7 +68808,7 @@ var RowSelectCheckbox_module_default = {
 	} else t5 = $[12];
 	return t5;
 };
-function _temp$84(e) {
+function _temp$85(e) {
 	if (e.shiftKey) e.preventDefault();
 }
 var ChatMessageRow_module_default = {
@@ -66212,7 +69061,7 @@ var MessageLabel_module_default = {
 		viewKinds = $[18];
 		views = $[19];
 	}
-	const hasTools = viewKinds.some(_temp$83);
+	const hasTools = viewKinds.some(_temp$84);
 	if (useLabels || hasTools) {
 		let t2;
 		if ($[42] !== hasTools || $[43] !== highlightLabeled || $[44] !== highlightUserMessage || $[45] !== index || $[46] !== messageChip || $[47] !== resolvedMessage || $[48] !== viewChips || $[49] !== viewKinds || $[50] !== views) {
@@ -66375,7 +69224,7 @@ var ToolCallViewCompact = (t0) => {
 	} else t4 = $[5];
 	return t4;
 };
-function _temp$83(k) {
+function _temp$84(k) {
 	return k !== "message";
 }
 //#endregion
@@ -66821,7 +69670,7 @@ var kLoadMoreMarginRows = 20;
 	useListKeyboardNavigation(t5);
 	let t6;
 	if ($[8] !== rows) {
-		t6 = () => rows.map(_temp$82).filter(_temp2$52);
+		t6 = () => rows.map(_temp$83).filter(_temp2$52);
 		$[8] = rows;
 		$[9] = t6;
 	} else t6 = $[9];
@@ -66994,7 +69843,7 @@ var kLoadMoreMarginRows = 20;
 	} else t16 = $[54];
 	return t16;
 });
-function _temp$82(row) {
+function _temp$83(row) {
 	return row.resolved.message.id;
 }
 function _temp2$52(rowId) {
@@ -67434,7 +70283,7 @@ var kLoadingFeed = unpagedFeed(loading$2);
 			queryKey: t4,
 			queryFn: t5,
 			initialPageParam: 0,
-			getNextPageParam: _temp$81,
+			getNextPageParam: _temp$82,
 			gcTime: kSampleGcTimeMs,
 			staleTime: Infinity,
 			retry: false,
@@ -67558,7 +70407,7 @@ var kLoadingFeed = unpagedFeed(loading$2);
 	}
 	return t12;
 };
-function _temp$81(last) {
+function _temp$82(last) {
 	return last.nextCursor?.offset;
 }
 function _temp2$51(page) {
@@ -67789,7 +70638,7 @@ var useScoreSchema = (logDir, scopeDir) => {
 	if ($[0] !== config) {
 		t0 = () => {
 			activateFetchEngine(config);
-			return _temp$80;
+			return _temp$81;
 		};
 		t1 = [config];
 		$[0] = config;
@@ -67802,7 +70651,7 @@ var useScoreSchema = (logDir, scopeDir) => {
 	(0, import_react.useEffect)(t0, t1);
 	return null;
 };
-function _temp$80() {
+function _temp$81() {
 	return deactivateFetchEngine();
 }
 //#endregion
@@ -68689,7 +71538,7 @@ function enableMapSet() {
 }
 var produce = new Immer2().produce;
 //#endregion
-//#region ../../node_modules/.pnpm/zustand@5.0.15_@types+react@19.3.0_immer@11.1.21_react@19.3.0_use-sync-external-store@1.7.0_react@19.3.0_/node_modules/zustand/esm/vanilla.mjs
+//#region ../../node_modules/.pnpm/zustand@5.0.15_@types+react@19.3.0_immer@11.1.21_react@19.3.1_use-sync-external-store@1.7.0_react@19.3.1_/node_modules/zustand/esm/vanilla.mjs
 var createStoreImpl = (createState) => {
 	let state;
 	const listeners = /* @__PURE__ */ new Set();
@@ -68718,7 +71567,7 @@ var createStoreImpl = (createState) => {
 };
 var createStore = ((createState) => createState ? createStoreImpl(createState) : createStoreImpl);
 //#endregion
-//#region ../../node_modules/.pnpm/zustand@5.0.15_@types+react@19.3.0_immer@11.1.21_react@19.3.0_use-sync-external-store@1.7.0_react@19.3.0_/node_modules/zustand/esm/react.mjs
+//#region ../../node_modules/.pnpm/zustand@5.0.15_@types+react@19.3.0_immer@11.1.21_react@19.3.1_use-sync-external-store@1.7.0_react@19.3.1_/node_modules/zustand/esm/react.mjs
 var identity$1 = (arg) => arg;
 function useStore$1(api, selector = identity$1) {
 	const slice = import_react.useSyncExternalStore(api.subscribe, import_react.useCallback(() => selector(api.getState()), [api, selector]), import_react.useCallback(() => selector(api.getInitialState()), [api, selector]));
@@ -68733,7 +71582,7 @@ var createImpl = (createState) => {
 };
 var create = ((createState) => createState ? createImpl(createState) : createImpl);
 //#endregion
-//#region ../../node_modules/.pnpm/zustand@5.0.15_@types+react@19.3.0_immer@11.1.21_react@19.3.0_use-sync-external-store@1.7.0_react@19.3.0_/node_modules/zustand/esm/middleware.mjs
+//#region ../../node_modules/.pnpm/zustand@5.0.15_@types+react@19.3.0_immer@11.1.21_react@19.3.1_use-sync-external-store@1.7.0_react@19.3.1_/node_modules/zustand/esm/middleware.mjs
 var shouldDispatchFromDevtools = (api) => !!api.dispatchFromDevtools && typeof api.dispatch === "function";
 var trackedConnections = /* @__PURE__ */ new Map();
 var getTrackedConnectionState = (name) => {
@@ -69071,7 +71920,7 @@ var persistImpl = (config, baseOptions) => (set, get, api) => {
 };
 var persist = persistImpl;
 //#endregion
-//#region ../../node_modules/.pnpm/zustand@5.0.15_@types+react@19.3.0_immer@11.1.21_react@19.3.0_use-sync-external-store@1.7.0_react@19.3.0_/node_modules/zustand/esm/middleware/immer.mjs
+//#region ../../node_modules/.pnpm/zustand@5.0.15_@types+react@19.3.0_immer@11.1.21_react@19.3.1_use-sync-external-store@1.7.0_react@19.3.1_/node_modules/zustand/esm/middleware/immer.mjs
 var immerImpl = (initializer) => (set, get, store) => {
 	store.setState = (updater, replace, ...args) => {
 		return set(typeof updater === "function" ? produce(updater) : updater, replace, ...args);
@@ -69097,8 +71946,10 @@ var kWorkspaceTabs = [
 ];
 var kSampleMessagesTabId = `messages`;
 var kSampleTranscriptTabId = `transcript`;
+var kSampleTerminalsTabId = `terminals`;
 var kSampleScoringTabId = `scoring`;
 var kSampleActivityTabId = `activity`;
+var kSampleInfoTabId = `info`;
 var kSampleMetdataTabId = `metadata`;
 var kSampleUsageTabId = `usage`;
 var kSampleErrorTabId = `error`;
@@ -69106,11 +71957,14 @@ var kSampleRetriesTabId = `retries`;
 var kSampleErrorRetriesTabId = `retry-errors`;
 var kSampleJsonTabId = `json`;
 var kSampleEventTabId = `event`;
+/** Resolve a legacy sample tab id to the tab that now shows its content. */ var sampleTabAlias = (tabId) => tabId === kSampleUsageTabId || tabId === kSampleMetdataTabId ? kSampleInfoTabId : tabId;
 var kSampleTabIds = [
 	kSampleMessagesTabId,
 	kSampleTranscriptTabId,
+	kSampleTerminalsTabId,
 	kSampleScoringTabId,
 	kSampleActivityTabId,
+	kSampleInfoTabId,
 	kSampleUsageTabId,
 	kSampleMetdataTabId,
 	kSampleErrorTabId,
@@ -71259,7 +74113,7 @@ function useRouteSelection(pathname) {
 	const { children } = t0;
 	const { pathname } = useLocation();
 	const { logFile, sample } = useRouteSelection(pathname);
-	useMirrorToStore(sample, _temp$79);
+	useMirrorToStore(sample, _temp$80);
 	let t1;
 	if ($[0] !== logFile || $[1] !== sample) {
 		t1 = {
@@ -71282,7 +74136,7 @@ function useRouteSelection(pathname) {
 	} else t2 = $[5];
 	return t2;
 }
-function _temp$79(handle) {
+function _temp$80(handle) {
 	return highlightSample(handle.id, handle.epoch, handle.logFile);
 }
 function useCurrentSelection() {
@@ -72368,7 +75222,7 @@ var SAMPLE_VARIABLES = [
 	["error", "The sample error message (or null)"],
 	["limit", "The limit kind that stopped the sample (or null)"],
 	["retries", "The number of times the sample was retried (0 if none)"],
-	["fallbacks", "The number of generate calls served by a fallback model (0 if none)"],
+	["fallbacks", "The number of requests served by a fallback model (0 if none)"],
 	["tokens", "Total tokens used across all models (or null)"],
 	["duration", "Total wall-clock time of the sample, in seconds (or null)"],
 	[kSampleMetadataVariable, "Metadata associated with the sample"]
@@ -72720,7 +75574,7 @@ var kDefaultScorePanelSort = {
 * own default (typically `chips` for ≤ 6 scores, `grid` for 7+).
 */ var useScorePanelView = () => {
 	const $ = (0, import_compiler_runtime.c)(5);
-	const stored = useStore(_temp$78);
+	const stored = useStore(_temp$79);
 	const setPropertyValue = useStore(_temp2$50);
 	let t0;
 	if ($[0] !== setPropertyValue) {
@@ -73242,7 +76096,7 @@ var useLogsListing = () => {
 	} else t0 = $[3];
 	return t0;
 };
-function _temp$78(state) {
+function _temp$79(state) {
 	const value = state.app.propertyBags[kScorePanelViewBag]?.[kScorePanelViewKey];
 	return isScoreView(value) ? value : void 0;
 }
@@ -73565,7 +76419,7 @@ var FlowButton = () => {
 		t2 = {
 			queryKey: t0,
 			queryFn: t1,
-			select: _temp$77,
+			select: _temp$78,
 			staleTime: Infinity
 		};
 		$[6] = t0;
@@ -73574,7 +76428,7 @@ var FlowButton = () => {
 	} else t2 = $[8];
 	return useAsyncDataFromQuery(t2);
 };
-function _temp$77(flow) {
+function _temp$78(flow) {
 	return flow ?? void 0;
 }
 var ThemeToggle_module_default = {
@@ -73864,9 +76718,9 @@ var subscribe = (onChange) => {
 		$[0] = preference;
 		$[1] = t0;
 	} else t0 = $[1];
-	return (0, import_react.useSyncExternalStore)(subscribe, t0, _temp$76);
+	return (0, import_react.useSyncExternalStore)(subscribe, t0, _temp$77);
 };
-function _temp$76() {
+function _temp$77() {
 	return false;
 }
 //#endregion
@@ -74554,7 +77408,7 @@ var ApplicationNavbar = (t0) => {
 	const { currentPath, fnNavigationUrl, backUrl, homeUrl, bordered, children, breadcrumbsEnabled, loading: t1, viewerOptionsError } = t0;
 	const loadingProp = t1 === void 0 ? false : t1;
 	const [optionsEl, setOptionsEl] = (0, import_react.useState)(null);
-	const themePreference = useUserSettings(_temp$75);
+	const themePreference = useUserSettings(_temp$76);
 	const setThemePreference = useUserSettings(_temp2$49);
 	const isDark = useResolvedIsDark(themePreference);
 	const loading = useSelectedLogLoading() || loadingProp;
@@ -74648,7 +77502,7 @@ var ApplicationNavbar = (t0) => {
 	} else t8 = $[29];
 	return t8;
 };
-function _temp$75(s) {
+function _temp$76(s) {
 	return s.themePreference;
 }
 function _temp2$49(s_0) {
@@ -74846,7 +77700,7 @@ var ViewSegmentedControl = (t0) => {
 		t2 = {
 			queryKey: t0,
 			queryFn: t1,
-			select: _temp$74,
+			select: _temp$75,
 			staleTime: Infinity
 		};
 		$[6] = t0;
@@ -74855,7 +77709,7 @@ var ViewSegmentedControl = (t0) => {
 	} else t2 = $[8];
 	return useAsyncDataFromQuery(t2);
 };
-function _temp$74(evalSet) {
+function _temp$75(evalSet) {
 	return evalSet ?? void 0;
 }
 //#endregion
@@ -74964,7 +77818,7 @@ var ColumnSelectorPopover = (t0) => {
 		}
 		let t10;
 		if ($[13] !== columns) {
-			t10 = columns.filter(_temp$73);
+			t10 = columns.filter(_temp$74);
 			$[13] = columns;
 			$[14] = t10;
 		} else t10 = $[14];
@@ -75288,7 +78142,7 @@ var ColumnSelectorPopover = (t0) => {
 	} else t32 = $[88];
 	return t32;
 };
-function _temp$73(col_0) {
+function _temp$74(col_0) {
 	return !isScoreField(getFieldKey(col_0));
 }
 function _temp2$48(col_1) {
@@ -76100,7 +78954,7 @@ var useLogListColumns = (mode = "logs", scopeDir, viewMode = "by-metric") => {
 	};
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-table@9.1.2_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/@tanstack/react-table/dist/FlexRender.js
+//#region ../../node_modules/.pnpm/@tanstack+react-table@9.1.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/@tanstack/react-table/dist/FlexRender.js
 function isReactComponent(component) {
 	return isClassComponent(component) || typeof component === "function" || isExoticComponent(component);
 }
@@ -76517,7 +79371,7 @@ function getOwnKeys(obj) {
 	return Object.keys(obj).concat(Object.getOwnPropertySymbols(obj));
 }
 //#endregion
-//#region ../../node_modules/.pnpm/use-sync-external-store@1.7.0_react@19.3.0/node_modules/use-sync-external-store/cjs/use-sync-external-store-shim.production.js
+//#region ../../node_modules/.pnpm/use-sync-external-store@1.7.0_react@19.3.1/node_modules/use-sync-external-store/cjs/use-sync-external-store-shim.production.js
 /**
 * @license React
 * use-sync-external-store-shim.production.js
@@ -76577,12 +79431,12 @@ var require_use_sync_external_store_shim_production = /* @__PURE__ */ __commonJS
 	exports.useSyncExternalStore = void 0 !== React.useSyncExternalStore ? React.useSyncExternalStore : shim;
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/use-sync-external-store@1.7.0_react@19.3.0/node_modules/use-sync-external-store/shim/index.js
+//#region ../../node_modules/.pnpm/use-sync-external-store@1.7.0_react@19.3.1/node_modules/use-sync-external-store/shim/index.js
 var require_shim = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = require_use_sync_external_store_shim_production();
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/use-sync-external-store@1.7.0_react@19.3.0/node_modules/use-sync-external-store/cjs/use-sync-external-store-shim/with-selector.production.js
+//#region ../../node_modules/.pnpm/use-sync-external-store@1.7.0_react@19.3.1/node_modules/use-sync-external-store/cjs/use-sync-external-store-shim/with-selector.production.js
 /**
 * @license React
 * use-sync-external-store-shim/with-selector.production.js
@@ -76654,7 +79508,7 @@ var require_with_selector_production = /* @__PURE__ */ __commonJSMin(((exports) 
 	};
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-store@0.11.1_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/@tanstack/react-store/dist/useSelector.js
+//#region ../../node_modules/.pnpm/@tanstack+react-store@0.11.1_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/@tanstack/react-store/dist/useSelector.js
 var import_with_selector = (/* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = require_with_selector_production();
 })))();
@@ -76691,7 +79545,7 @@ function useSelector(source, selector = (s) => s, options) {
 	return (0, import_with_selector.useSyncExternalStoreWithSelector)(subscribe, getSnapshot, getSnapshot, selector, compare);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-table@9.1.2_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/@tanstack/react-table/dist/Subscribe.js
+//#region ../../node_modules/.pnpm/@tanstack+react-table@9.1.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/@tanstack/react-table/dist/Subscribe.js
 function Subscribe(props) {
 	const selected = useSelector(props.source, props.selector, { compare: shallow });
 	return typeof props.children === "function" ? props.children(selected) : props.children;
@@ -76810,7 +79664,7 @@ function createRenderPhaseSource(source, compare = Object.is) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-table@9.1.2_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/@tanstack/react-table/dist/reactivity.js
+//#region ../../node_modules/.pnpm/@tanstack+react-table@9.1.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/@tanstack/react-table/dist/reactivity.js
 /**
 * Creates the table-core reactivity bindings used by the React adapter.
 *
@@ -81505,7 +84359,7 @@ function _createSortedRowModel(table) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-table@9.1.2_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/@tanstack/react-table/dist/useTable.js
+//#region ../../node_modules/.pnpm/@tanstack+react-table@9.1.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/@tanstack/react-table/dist/useTable.js
 var useIsomorphicLayoutEffect = typeof window === "undefined" ? import_react.useEffect : import_react.useLayoutEffect;
 /**
 * Creates a React table instance backed by TanStack Store atoms.
@@ -81991,7 +84845,7 @@ var isConditionShaped = (value) => {
 	const t3 = `${columnId}-op${idSuffix}`;
 	let t4;
 	if ($[2] !== operatorOptions) {
-		t4 = operatorOptions.map(_temp$72);
+		t4 = operatorOptions.map(_temp$73);
 		$[2] = operatorOptions;
 		$[3] = t4;
 	} else t4 = $[3];
@@ -82249,7 +85103,7 @@ var ColumnFilterEditor = (t0) => {
 	} else t10 = $[32];
 	return t10;
 };
-function _temp$72(option) {
+function _temp$73(option) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("option", {
 		value: option,
 		children: OPERATOR_LABELS[option]
@@ -83856,7 +86710,7 @@ function GridRowInner(t0) {
 		t18 = columnDef.meta?.filterable && filterType && !hideColumnFilters && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: DataGrid_module_default.rotatedFilter,
 			role: "presentation",
-			onClick: _temp$71,
+			onClick: _temp$72,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ColumnFilterControl, {
 				columnId: header.column.id,
 				filterType,
@@ -83957,7 +86811,7 @@ function GridRowInner(t0) {
 	} else t22 = $[62];
 	return t22;
 }
-function _temp$71(e_2) {
+function _temp$72(e_2) {
 	return e_2.stopPropagation();
 }
 //#endregion
@@ -84540,7 +87394,7 @@ var LogListGrid = (t0) => {
 	const searchColumns = t10;
 	let t11;
 	if ($[26] !== searchColumns) {
-		t11 = searchColumns.map(_temp$70);
+		t11 = searchColumns.map(_temp$71);
 		$[26] = searchColumns;
 		$[27] = t11;
 	} else t11 = $[27];
@@ -84831,7 +87685,7 @@ var LogListGrid = (t0) => {
 	} else t32 = $[108];
 	return t32;
 };
-function _temp$70(col_0) {
+function _temp$71(col_0) {
 	return col_0.id ?? "";
 }
 function _temp2$47(row_2) {
@@ -84960,7 +87814,7 @@ var kNoRows = [];
 	const $ = (0, import_compiler_runtime.c)(45);
 	const { overlayItems, scopeKey, getValue, getComparator, getFilterType, accessorsKey, listing } = t0;
 	const { gridStateByScope } = useLogsListing();
-	const overlayData = useKeyedMemo(overlayItems, _temp$69, _temp2$46, _temp3$31);
+	const overlayData = useKeyedMemo(overlayItems, _temp$70, _temp2$46, _temp3$31);
 	let t1;
 	if ($[0] !== overlayData) {
 		const folders = [];
@@ -85099,7 +87953,7 @@ var kNoRows = [];
 	} else t12 = $[44];
 	return t12;
 };
-function _temp$69(item) {
+function _temp$70(item) {
 	return item.id;
 }
 function _temp2$46(item_0) {
@@ -85276,7 +88130,7 @@ var LogsPanel = (t0) => {
 	const mode = t1 === void 0 ? "logs" : t1;
 	const [showColumnSelector, setShowColumnSelector] = (0, import_react.useState)(false);
 	const [columnButtonEl, setColumnButtonEl] = (0, import_react.useState)(null);
-	const showRetriedLogs = useUserSettings(_temp$68);
+	const showRetriedLogs = useUserSettings(_temp$69);
 	const setShowRetriedLogs = useUserSettings(_temp2$45);
 	const logDir = useLogDir();
 	const { gridStateByScope, patchGridState } = useLogsListing();
@@ -85746,7 +88600,7 @@ var appendPendingItems = (evalSet, tasksWithLogFiles, items) => {
 	items.push(...pendingTasks);
 	return items;
 };
-function _temp$68(state) {
+function _temp$69(state) {
 	return state.showRetriedLogs;
 }
 function _temp2$45(state_0) {
@@ -86048,6 +88902,451 @@ var InlineSampleDisplay_module_default = {
 	scroller: "_scroller_ly812_7"
 };
 //#endregion
+//#region ../../packages/inspect-components/src/transcript/transform/utils.ts
+var STEP = "step";
+var SPAN_BEGIN = "span_begin";
+var SPAN_END = "span_end";
+var TYPE_TOOL = "tool";
+var TYPE_SUBTASK = "subtask";
+var TYPE_SCORERS = "scorers";
+/** Span/step events group the rows below them; they are structure, not content. */ var isStructuralEvent = (event) => event.event === "span_begin" || event.event === "span_end" || event.event === "step";
+var hasSpans = (events) => {
+	return events.some((event) => event.event === SPAN_BEGIN);
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/types.ts
+var kTranscriptCollapseScope = "transcript-collapse";
+var kTranscriptOutlineCollapseScope = "transcript-outline";
+/** Event types whose *children* can be collapsed (tree collapse). */ var kCollapsibleEventTypes = [
+	STEP,
+	SPAN_BEGIN,
+	TYPE_TOOL,
+	TYPE_SUBTASK
+];
+var isCollapsibleEvent = (event) => kCollapsibleEventTypes.some((type) => type === event.event);
+/** Event types whose *content* can be collapsed (panel-level collapse). */ var kContentCollapsibleEventTypes = [
+	"model",
+	"state",
+	"store"
+];
+var eventTypeValues = [
+	"sample_init",
+	"sample_limit",
+	"state",
+	"store",
+	"model",
+	"logger",
+	"info",
+	"step",
+	"subtask",
+	"score",
+	"score_edit",
+	"tool",
+	"input",
+	"interrupt",
+	"error",
+	"anchor",
+	"approval",
+	"review",
+	"sentinel",
+	"branch",
+	"checkpoint",
+	"compaction",
+	"sandbox",
+	"span_begin",
+	"span_end"
+];
+var kDefaultExcludeEvents = [
+	"sample_init",
+	"sandbox",
+	"state",
+	"store",
+	"branch",
+	"anchor",
+	"checkpoint"
+];
+var EventNode = class {
+	id;
+	event;
+	children = [];
+	depth;
+	/** Timeline span info, attached by app-level processing. */ sourceSpan;
+	constructor(id, event, depth) {
+		this.id = id;
+		this.event = event;
+		this.depth = depth;
+	}
+};
+var isEventNodeOf = (node, type) => node.event.event === type;
+/**
+* Re-reads an event node's discriminant to get a node typed to it.
+*
+* A `switch (node.event.event)` narrows the event but not the `EventNode`
+* wrapping it — TypeScript cannot re-key a generic class instance from a
+* discriminant on one of its fields. One string compare per branch buys back
+* the type the case already established.
+*/ var eventNodeOf = (node, type) => {
+	if (!isEventNodeOf(node, type)) throw new Error(`expected a "${type}" event node, got "${node.event.event}"`);
+	return node;
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/transform/toolSentinels.ts
+/** The span a sentinel's dispatch runs in; it holds the step's events and the model calls its monitors made. */ var isSentinelSpan = (node) => node.event.event === "span_begin" && node.event.type === "sentinel";
+var reported = (node, kind) => node.event.status === "reported" && node.event.kind === kind;
+var pathSegments = (path) => path === "" ? [] : path.split("/");
+/**
+* Lays a step's checks out so a nested configuration reads top to bottom:
+* each layer above its children, siblings in the order they were first
+* recorded, and each check under the nearest recorded check above it by path.
+*/ var buildTree$1 = (checks) => {
+	const newLayer = () => ({
+		checks: [],
+		children: /* @__PURE__ */ new Map()
+	});
+	const root = newLayer();
+	for (const node of checks) {
+		let layer = root;
+		for (const segment of pathSegments(node.event.path)) {
+			let child = layer.children.get(segment);
+			if (!child) layer.children.set(segment, child = newLayer());
+			layer = child;
+		}
+		layer.checks.push(node);
+	}
+	const tree = [];
+	const visit = (layer, parent) => {
+		let above = parent;
+		for (const node of layer.checks) {
+			const entry = {
+				node,
+				parent,
+				children: [],
+				depth: parent ? parent.depth + 1 : 0
+			};
+			parent?.children.push(entry);
+			tree.push(entry);
+			above = entry;
+		}
+		for (const child of layer.children.values()) visit(child, above);
+	};
+	visit(root, void 0);
+	return tree;
+};
+var guidesFor = (entry) => {
+	const isLast = (e) => !e.parent || e.parent.children.at(-1) === e;
+	if (!entry.parent) return "";
+	let prefix = isLast(entry) ? "└─ " : "├─ ";
+	for (let up = entry.parent; up.parent; up = up.parent) prefix = (isLast(up) ? "   " : "│  ") + prefix;
+	return prefix;
+};
+var explanationOf = (node) => node?.event.explanation?.trim() || void 0;
+/**
+* The check that made the step's decision: from the outcome, descend to the
+* child that made the same decision, to the lowest such descendant.
+* Explanations and replacements may differ, since combinators reword what
+* they pass up.
+*/ var creditDecision = (tree, outcome) => {
+	let current = tree.find((e) => e.node === outcome);
+	let reason = explanationOf(outcome);
+	let reasonSource = reason ? outcome : void 0;
+	for (;;) {
+		const matching = current.children.filter((c) => reported(c.node, "decision") && c.node.event.action === outcome.event.action);
+		const next = matching.length === 1 ? matching[0] : passedUp(matching, reason);
+		if (!next) return {
+			node: current.node,
+			reason,
+			reasonSource
+		};
+		current = next;
+		const own = explanationOf(next.node);
+		if (own) {
+			reason = own;
+			reasonSource = next.node;
+		}
+	}
+};
+/**
+* Of several children that made the same decision, the one whose explanation
+* the explanation above begins with. Children record in completion order,
+* while combinators break ties by configuration order (`concurrent`) or take
+* the last (`sequential`), so recording order cannot tell; an explanation
+* passed up names its source. Unset when none or several match.
+*/ var passedUp = (children, reason) => {
+	if (!reason) return void 0;
+	const [first, second] = children.map((child) => ({
+		child,
+		text: explanationOf(child.node)
+	})).filter(({ text }) => text !== void 0 && reason.startsWith(text)).sort((a, b) => b.text.length - a.text.length);
+	if (!first || second && second.text.length === first.text.length) return;
+	return first.child;
+};
+/**
+* The decision the runner returned for the step: the root's, or, when a
+* `decide_final()` bypassed the root, the one recorded after the bypassed layers.
+*/ var outcomeOf = (nodes) => {
+	const root = nodes.find((n) => n.event.path === "" && reported(n, "decision"));
+	if (root) return root;
+	const bypassed = nodes.findIndex((n) => n.event.path === "" && n.event.status === "bypassed");
+	if (bypassed === -1) return void 0;
+	return nodes.slice(bypassed + 1).findLast((n) => reported(n, "decision"));
+};
+var isInactive$1 = (status) => status !== "reported";
+/**
+* The verdict of a step the runner returned no decision for: observed when
+* only monitors reported, proceeded when a protocol reported but the root
+* returned nothing, and the recorded status when the root or every check was
+* cancelled or bypassed.
+*/ var quietVerdict = (checks) => {
+	const rootStatus = checks.find((n) => n.event.path === "")?.event.status;
+	if (rootStatus && isInactive$1(rootStatus)) return rootStatus;
+	if (checks.some((n) => reported(n, "decision"))) return "proceed";
+	if (checks.some((n) => reported(n, "observation"))) return "observe";
+	const firstStatus = checks[0]?.event.status;
+	return firstStatus && isInactive$1(firstStatus) ? firstStatus : "proceed";
+};
+/**
+* Builds the check tree for one step's events, given in recording order. A
+* decision that a later `superseded` event names shares that event's row.
+*/ function buildSentinelStep(nodes, modelCalls = []) {
+	const first = nodes[0];
+	const replaced = /* @__PURE__ */ new Set();
+	/** Decisions not yet superseded, by the layer and function that made them. */ const standing = /* @__PURE__ */ new Map();
+	for (const node of nodes) {
+		const fn = node.event.function;
+		const key = `${node.event.path}\u0000${fn == null ? String(fn) : `:${fn}`}`;
+		if (node.event.status === "superseded") {
+			for (const report of standing.get(key) ?? []) replaced.add(report);
+			standing.delete(key);
+		} else if (reported(node, "decision")) {
+			const reports = standing.get(key);
+			if (reports) reports.push(node);
+			else standing.set(key, [node]);
+		}
+	}
+	const checks = nodes.filter((n) => !replaced.has(n));
+	const tree = buildTree$1(checks);
+	const outcome = outcomeOf(checks);
+	const acted = !!outcome && outcome.event.action !== "proceed";
+	const credit = acted ? creditDecision(tree, outcome) : void 0;
+	const effective = credit?.node;
+	const single = checks.length === 1 ? checks[0] : void 0;
+	const observations = checks.filter((n) => reported(n, "observation") && n.event.suspicion != null);
+	const scores = acted ? [] : single?.event.suspicion != null ? [formatSuspicion(single.event.suspicion)].filter(Boolean) : observations.flatMap((n) => {
+		const top = topScore(n.event.suspicion);
+		if (!top.value) return [];
+		return [`${top.dimension ?? n.event.factory.split("/").at(-1)} ${top.value}`];
+	});
+	return {
+		id: first?.id ?? "",
+		stage: first?.event.stage ?? "tool_call",
+		stepId: first?.event.step_id ?? "",
+		rows: tree.map((entry) => ({
+			node: entry.node,
+			depth: entry.depth,
+			guides: guidesFor(entry),
+			tookEffect: entry.node === effective
+		})),
+		verdict: outcome ? outcome.event.action ?? "proceed" : quietVerdict(checks),
+		outcome,
+		returned: !!outcome,
+		decider: effective ?? outcome,
+		effective,
+		reason: credit ? credit.reason : explanationOf(single),
+		error: single?.event.error || void 0,
+		reasonReferences: credit ? credit.reasonSource?.event.references ?? [] : explanationOf(single) ? single.event.references : [],
+		scores,
+		audit: nodes.some((n) => n.event.audit),
+		failed: checks.filter((n) => n.event.status === "error").length,
+		modelCalls
+	};
+}
+/**
+* The step of one event shown without the rest of its step (e.g. in the
+* chunked transcript), whose verdict is the event's own result.
+*/ function buildLoneSentinelStep(node) {
+	const step = buildSentinelStep([node]);
+	const event = node.event;
+	if (!reported(node, "decision") || step.outcome) return step;
+	const verdict = event.action ?? "proceed";
+	const acted = verdict !== "proceed";
+	return {
+		...step,
+		verdict,
+		outcome: node,
+		returned: event.path === "",
+		decider: node,
+		effective: acted ? node : void 0,
+		rows: step.rows.map((row) => ({
+			...row,
+			tookEffect: acted
+		})),
+		reason: explanationOf(node),
+		reasonReferences: explanationOf(node) ? event.references : []
+	};
+}
+/**
+* The steps of a flat event list, keyed by the first event each recorded, in
+* recording order. The events of one sentinel span form a step. Events
+* outside a span group by conversation, stage and step id, and a step id the
+* conversation reuses starts a new step once the root has reported for the
+* earlier one. A node's id is its event's uuid, or `evt:<index>` in `events`
+* without one.
+*/ function buildSentinelSteps(events) {
+	const sentinelSpans = /* @__PURE__ */ new Set();
+	for (const event of events) if (event.event === "span_begin" && event.type === "sentinel") sentinelSpans.add(event.id);
+	const groups = [];
+	const bySpan = /* @__PURE__ */ new Map();
+	/** The latest spanless step per key, and whether its root has reported. */ const spanless = /* @__PURE__ */ new Map();
+	events.forEach((event, index) => {
+		if (event.event !== "sentinel") return;
+		const node = new EventNode(event.uuid ?? `evt:${index}`, event, 0);
+		if (event.span_id && sentinelSpans.has(event.span_id)) {
+			let nodes = bySpan.get(event.span_id);
+			if (!nodes) {
+				bySpan.set(event.span_id, nodes = []);
+				groups.push(nodes);
+			}
+			nodes.push(node);
+			return;
+		}
+		const key = `${event.conversation}\u0000${event.stage}\u0000${event.step_id}`;
+		let step = spanless.get(key);
+		if (!step || step.done && event.status !== "superseded") {
+			step = {
+				nodes: [],
+				done: false
+			};
+			spanless.set(key, step);
+			groups.push(step.nodes);
+		}
+		step.nodes.push(node);
+		if (event.path === "" && event.status !== "bypassed" && event.status !== "superseded") step.done = true;
+	});
+	return new Map(groups.map((nodes) => [nodes[0].event, buildSentinelStep(nodes)]));
+}
+var kToolStages = /* @__PURE__ */ new Set(["tool_call", "tool_result"]);
+/**
+* The ToolEvent a tool-stage step judged: the first one with the step's id
+* recorded after a `tool_call` step (none when no such tool follows), the last
+* one before a `tool_result` step, skipping tools that already host a step of
+* the same stage.
+*/ var hostTool = (tools, step, order, claimed) => {
+	const candidates = tools.filter((t) => t.node.event.id === step.stepId && !claimed.has(`${step.stage}\u0000${t.node.id}`));
+	const after = candidates.find((t) => t.order > order);
+	if (step.stage === "tool_call") return after;
+	return candidates.findLast((t) => t.order < order) ?? after;
+};
+/**
+* Groups SentinelEvents by the step they judged and pairs tool-stage steps to
+* their ToolEvent (`step_id == ToolEvent.id`), so the tool panel renders them
+* inline. Each sentinel span holds one step; events outside a span group by
+* stage and step id. Steps with no tool render as one row at their span or
+* first event.
+*
+* The Activity view pairs the same way in `collectSentinelDecisions`
+* (sample-activity/activityData.ts), over the flat event list; a change to
+* these pairing rules belongs in both.
+*/ function pairToolSentinels(eventNodes) {
+	const tools = [];
+	const proposals = /* @__PURE__ */ new Map();
+	const steps = /* @__PURE__ */ new Map();
+	const seen = /* @__PURE__ */ new Set();
+	let order = 0;
+	const walk = (nodes, span) => {
+		for (const n of nodes) {
+			if (seen.has(n.id)) continue;
+			seen.add(n.id);
+			const at = order++;
+			span?.members.push(n);
+			if (n.event.event === "tool") tools.push({
+				node: eventNodeOf(n, "tool"),
+				order: at,
+				proposed: proposals.get(n.event.id)?.shift()
+			});
+			else if (n.event.event === "sentinel") {
+				const key = span ? span.node.id : `${n.event.stage}\u0000${n.event.step_id}`;
+				const step = steps.get(key) ?? {
+					nodes: [],
+					order: span?.order ?? at,
+					span
+				};
+				step.nodes.push(eventNodeOf(n, "sentinel"));
+				steps.set(key, step);
+			} else if (n.event.event === "model") {
+				if (span) span.modelCalls.push(eventNodeOf(n, "model"));
+				else {
+					const proposed = n.event.output.choices.flatMap((choice) => choice.message.tool_calls ?? []);
+					for (const id of new Set(proposed.map((call) => call.id))) proposals.set(id, proposed.filter((call) => call.id === id));
+				}
+			}
+			let inner = span;
+			if (isSentinelSpan(n)) inner = {
+				node: n,
+				members: [],
+				modelCalls: [],
+				order: at
+			};
+			if (n.children.length) walk(n.children, inner);
+		}
+	};
+	walk(eventNodes, void 0);
+	const toolSentinels = /* @__PURE__ */ new Map();
+	const standaloneSentinels = /* @__PURE__ */ new Map();
+	const hiddenSentinelIds = /* @__PURE__ */ new Set();
+	const sentinelScrollRedirects = /* @__PURE__ */ new Map();
+	const claimed = /* @__PURE__ */ new Set();
+	const ordered = [...steps.values()].sort((a, b) => a.order - b.order);
+	for (const { nodes, order: at, span } of ordered) {
+		const step = buildSentinelStep(nodes, span?.modelCalls);
+		const tool = kToolStages.has(step.stage) ? hostTool(tools, step, at, claimed) : void 0;
+		const hostId = tool?.node.id ?? span?.node.id ?? nodes[0].id;
+		if (tool) {
+			claimed.add(`${step.stage}\u0000${tool.node.id}`);
+			const paired = toolSentinels.get(tool.node.id) ?? { proposed: tool.proposed };
+			if (step.stage === "tool_call") paired.before = step;
+			else paired.after = step;
+			toolSentinels.set(tool.node.id, paired);
+		} else standaloneSentinels.set(hostId, step);
+		const hidden = span ? [span.node, ...span.members] : nodes;
+		for (const node of hidden) {
+			if (node.id === hostId) continue;
+			hiddenSentinelIds.add(node.id);
+			sentinelScrollRedirects.set(node.id, hostId);
+		}
+	}
+	return {
+		toolSentinels,
+		standaloneSentinels,
+		hiddenSentinelIds,
+		sentinelScrollRedirects
+	};
+}
+/** The instance path, or the factory's registry name at the root. */ var instanceLabel = (event) => event.path || event.factory;
+var formatSuspicion = (suspicion) => {
+	if (typeof suspicion === "number") return formatScore(suspicion);
+	return Object.entries(suspicion).map(([dimension, value]) => `${dimension} ${formatScore(value)}`).join(", ");
+};
+var formatScore = (value) => String(Math.round(value * 100) / 100);
+/** The highest score of a suspicion, which stands for it where space is short; an empty value for a suspicion with no scores. */ var topScore = (suspicion) => {
+	if (typeof suspicion === "number") return {
+		value: formatScore(suspicion),
+		more: 0
+	};
+	const top = sortedScores(suspicion)[0];
+	if (!top) return {
+		value: "",
+		more: 0
+	};
+	const [dimension, value] = top;
+	return {
+		dimension,
+		value: formatScore(value),
+		more: Object.keys(suspicion).length - 1
+	};
+};
+/** A suspicion's dimensions, highest score first. */ var sortedScores = (suspicion) => Object.entries(suspicion).sort(([, a], [, b]) => b - a);
+/** A modify decision's replacement call, with every argument spelled out. */ var formatModifiedCall = (call) => `${call.function}(${Object.entries(call.arguments).map(([key, value]) => `${key}=${JSON.stringify(value)}`).join(", ")})`;
+//#endregion
 //#region ../../packages/inspect-components/src/usage/timeFormat.ts
 var fmtCompactDuration = (s) => {
 	const t = Math.round(s);
@@ -86253,6 +89552,13 @@ var truncate = (text, max = 120) => text.length > max ? `${text.slice(0, max - 1
 	if (typeof decision !== "string") return "decided";
 	return kDecisionWord.get(decision) ?? (decision !== "" ? decision : "decided");
 };
+/** What a sentinel step acted on, by stage. The stage is log-authored, so
+*  a Map lookup with a fallback, as for decision words. */ var kSentinelStageLead = /* @__PURE__ */ new Map([
+	["tool_call", "Tool call"],
+	["tool_result", "Tool result"],
+	["model_input", "Model input"],
+	["model_output", "Model output"]
+]);
 var valueText = (value) => typeof value === "string" ? value : JSON.stringify(value);
 /** The call's arguments as a short mono string: a lone argument shows its
 *  value ("rm -rf build/"), several show `key: value` pairs. */ var callArgsText = (args) => {
@@ -86276,6 +89582,7 @@ var valueText = (value) => typeof value === "string" ? value : JSON.stringify(va
 	for (const part of parts) if (part.type === "text") size += part.text.length;
 	return size;
 };
+var toolFailed = (event) => event.error != null || event.failed === true;
 /** Wall completion for duration-bearing events (model/tool/subtask/sandbox). */ var completedEpoch = (event) => "completed" in event && typeof event.completed === "string" ? isoToEpoch(event.completed) : void 0;
 var scoreText = (score) => {
 	const value = score.value;
@@ -86324,6 +89631,112 @@ var scoreText = (score) => {
 	return {
 		stopReason: choice?.stop_reason,
 		toolCalls
+	};
+};
+/** The decisions that count as rejections. An action a newer or odd log
+*  records is left out rather than guessed at. */ var kCountedVerdicts = /* @__PURE__ */ new Set([
+	"reject",
+	"modify",
+	"terminate",
+	"escalate"
+]);
+/** The next slot `stage` has not taken, past those `skip` says never reached
+*  it; a stage with no proposal left takes a fresh slot. */ var takeSlot = (chain, stage, skip) => {
+	let slot = chain.slots[chain[stage]];
+	while (slot && skip?.(slot)) slot = chain.slots[++chain[stage]];
+	if (!slot) chain.slots.push(slot = {});
+	chain[stage] += 1;
+	return slot;
+};
+var approvalStopped = (approval) => approval.decision !== "approve" && approval.decision !== "modify";
+/** A call stopped before it ran, or whose arguments never parsed, has no
+*  result; an escalation older builds let through ran despite its step. */ var didNotRun = (slot) => !slot.tool || toolFailed(slot.tool) && (slot.stopped === true || slot.tool.error?.type === "parsing");
+/** Each sentinel step counts once, by the decision that took effect —
+*  nested configurations record a decision per layer. Pairing runs in
+*  recording order within each conversation: `conversationOf` keys an
+*  event's span.
+*
+*  This pairs separately from `pairToolSentinels`, which works on the event
+*  tree and scans tools per step; this pass also needs approvals and each
+*  call's proposing model call, in one pass over a flat list. Keep the rules
+*  in sync: the latest output proposing an id owns its proposals, which its
+*  tools take in order; a `tool_call` step judges the next tool with its id,
+*  a `tool_result` step one that ran before it. */ var collectSentinelDecisions = (events, spans, conversationOf) => {
+	const steps = buildSentinelSteps(events);
+	const chains = /* @__PURE__ */ new Map();
+	const chainKey = (spanId, id) => `${conversationOf(spanId)}\u0000${id}`;
+	const newChain = (slots) => ({
+		slots,
+		approvals: 0,
+		checks: 0,
+		tools: 0,
+		results: 0
+	});
+	const chainFor = (spanId, id) => {
+		const key = chainKey(spanId, id);
+		let chain = chains.get(key);
+		if (!chain) chains.set(key, chain = newChain([]));
+		return chain;
+	};
+	const latestModel = /* @__PURE__ */ new Map();
+	const slotOfStep = /* @__PURE__ */ new Map();
+	const producerOfStep = /* @__PURE__ */ new Map();
+	const overruledApprovals = /* @__PURE__ */ new Set();
+	const blockedTools = /* @__PURE__ */ new Set();
+	for (const event of events) if (event.event === "model") {
+		if (spans.get(event.span_id ?? "")?.type === "sentinel") continue;
+		latestModel.set(conversationOf(event.span_id), event);
+		const fresh = /* @__PURE__ */ new Map();
+		for (const choice of event.output.choices) for (const call of choice.message.tool_calls ?? []) {
+			let slots = fresh.get(call.id);
+			if (!slots) fresh.set(call.id, slots = []);
+			slots.push({
+				call,
+				producer: event
+			});
+		}
+		for (const [id, slots] of fresh) chains.set(chainKey(event.span_id, id), newChain(slots));
+	} else if (event.event === "approval") {
+		const slot = takeSlot(chainFor(event.span_id, event.call.id), "approvals");
+		slot.approval = event;
+		if (approvalStopped(event)) slot.stopped = true;
+	} else if (event.event === "tool") takeSlot(chainFor(event.span_id, event.id), "tools").tool = event;
+	else if (event.event === "sentinel") {
+		const step = steps.get(event);
+		if (!step) continue;
+		if (step.stage === "tool_call") {
+			const slot = takeSlot(chainFor(event.span_id, step.stepId), "checks", (slot) => slot.stopped === true);
+			slotOfStep.set(step, slot);
+			if (step.effective && step.verdict !== "proceed" && step.verdict !== "modify") slot.stopped = true;
+		} else if (step.stage === "tool_result") {
+			const chain = chainFor(event.span_id, step.stepId);
+			slotOfStep.set(step, takeSlot(chain, "results", didNotRun));
+		} else {
+			const producer = latestModel.get(conversationOf(event.span_id));
+			if (producer) producerOfStep.set(step, producer);
+		}
+	}
+	const byOutcome = /* @__PURE__ */ new Map();
+	for (const step of steps.values()) {
+		const { effective: decider, outcome } = step;
+		if (!decider || !outcome || !kCountedVerdicts.has(step.verdict)) continue;
+		const slot = slotOfStep.get(step);
+		const tool = slot?.tool;
+		const ghost = step.stage === "tool_call" && step.verdict !== "modify" && (!tool || toolFailed(tool));
+		if (slot?.approval) overruledApprovals.add(slot.approval);
+		if (ghost && tool) blockedTools.add(tool);
+		byOutcome.set(outcome.event, {
+			step,
+			decider,
+			call: slot ? slot.call ?? tool : void 0,
+			producer: slot ? slot.producer : producerOfStep.get(step),
+			ghost
+		});
+	}
+	return {
+		byOutcome,
+		overruledApprovals,
+		blockedTools
 	};
 };
 /** True when any event carries a usable timestamp — old logs without them
@@ -86375,6 +89788,7 @@ var inertData = (inputs) => ({
 	*  after the pass (they interleave across conversations), so the link is
 	*  by identity — pre-uuid logs have no other handle. */ const turnOfPoint = /* @__PURE__ */ new Map();
 	const turnOfDrop = /* @__PURE__ */ new Map();
+	const turnOfModel = /* @__PURE__ */ new Map();
 	let minTime = Infinity;
 	let maxTime = -Infinity;
 	let contextPeak = 0;
@@ -86464,6 +89878,20 @@ var inertData = (inputs) => ({
 	*  context). */ const currentConversationBySpan = /* @__PURE__ */ new Map();
 	const spanKey = (spanId) => spanId ?? "";
 	const conversationForEvent = (spanId) => currentConversationBySpan.get(spanKey(spanId)) ?? conversationForSpan(spanId);
+	/** The span a sentinel's dispatch ran under. Its own span also holds its
+	*  monitors' model calls, and a role-keyed one would claim the span key
+	*  for a stray row. */ const outsideSentinelSpans = (spanId) => {
+		let id = spanId;
+		let span = id ? spans.get(id) : void 0;
+		const visited = /* @__PURE__ */ new Set();
+		while (span?.type === "sentinel" && !visited.has(span.id)) {
+			visited.add(span.id);
+			id = span.parentId;
+			span = id ? spans.get(id) : void 0;
+		}
+		return id;
+	};
+	const sentinelDecisions = collectSentinelDecisions(events, spans, (spanId) => conversationForSpan(outsideSentinelSpans(spanId)).id);
 	const rowFor = (conversation) => {
 		let row = rowsById.get(conversation.id);
 		if (!row) {
@@ -86559,6 +89987,7 @@ var inertData = (inputs) => ({
 				};
 				row.spans.push(span);
 				const turn = newTurn(row.id, t, end);
+				turnOfModel.set(event, turn);
 				turn.model = span;
 				turn.modelWork = span.working;
 				if ((event.retries ?? 0) > 0) retryWindows.push({
@@ -86596,7 +90025,8 @@ var inertData = (inputs) => ({
 				break;
 			}
 			case "tool": {
-				const failed = event.error != null || event.failed === true;
+				const failed = toolFailed(event);
+				if (sentinelDecisions.blockedTools.has(event)) break;
 				const isPending = event.pending === true && completed === void 0;
 				const end = completed ?? (isPending ? Math.max(windowEnd, t) : t);
 				if (isPending) pending = true;
@@ -86687,6 +90117,7 @@ var inertData = (inputs) => ({
 				break;
 			case "approval": {
 				if (event.decision === "approve") break;
+				if (sentinelDecisions.overruledApprovals.has(event)) break;
 				rejectedCount += 1;
 				const word = decisionWord(event.decision);
 				const args = callArgsText(event.call.arguments);
@@ -86715,6 +90146,44 @@ var inertData = (inputs) => ({
 					detail: event.explanation ? `“${truncate(event.explanation)}”` : void 0,
 					by: event.approver,
 					byRole: "approver"
+				});
+				break;
+			}
+			case "sentinel": {
+				const decision = sentinelDecisions.byOutcome.get(event);
+				if (!decision) break;
+				const { step, decider, call, producer, ghost } = decision;
+				rejectedCount += 1;
+				const word = decisionWord(step.verdict);
+				const lead = kSentinelStageLead.get(step.stage) ?? "Sentinel step";
+				const args = call ? callArgsText(call.arguments) : "";
+				if (step.stage !== "model_input") {
+					const turn = (producer && turnOfModel.get(producer)) ?? currentTurnByRow.get(conversationForEvent(outsideSentinelSpans(event.span_id)).id);
+					if (turn) {
+						if (ghost) turn.rejected += 1;
+						turn.end = Math.max(turn.end, t);
+					}
+				}
+				const reason = step.reason ?? (decider.event.message?.trim() || void 0);
+				markers.push({
+					time: t,
+					category: "approval",
+					key: decider.id,
+					uuid: decider.event.uuid ?? void 0,
+					label: `${lead}${call ? ` ${call.function}` : ""} ${word}`
+				});
+				rows.push({
+					time: t,
+					category: "approval",
+					kind: word,
+					key: decider.id,
+					uuid: decider.event.uuid ?? void 0,
+					lead,
+					mono: call ? args ? `${call.function}: ${args}` : call.function : void 0,
+					tail: word,
+					detail: reason ? `“${truncate(reason)}”` : void 0,
+					by: instanceLabel(decider.event),
+					byRole: "sentinel"
 				});
 				break;
 			}
@@ -87243,7 +90712,7 @@ var Grid = (t0) => {
 	const { rows } = t0;
 	let t1;
 	if ($[0] !== rows) {
-		t1 = rows.slice(0, 4).map(_temp$67);
+		t1 = rows.slice(0, 4).map(_temp$68);
 		$[0] = rows;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -88524,7 +91993,7 @@ var CurveBody = (t0) => {
 	} else t3 = $[43];
 	return t3;
 };
-function _temp$67(row) {
+function _temp$68(row) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: ActivityTooltip_module_default.key,
 		children: row.key
@@ -90393,7 +93862,7 @@ var ModelTokenTable = (t0) => {
 								(() => {
 									const cfg = model_configs?.[modelId];
 									const args = model_args?.[modelId];
-									const cfgEntries = cfg ? Object.entries(cfg).filter(_temp$66) : [];
+									const cfgEntries = cfg ? Object.entries(cfg).filter(_temp$67) : [];
 									const argEntries = args ? Object.entries(args).filter(_temp2$43) : [];
 									if (cfgEntries.length === 0 && argEntries.length === 0) return null;
 									const renderSection = _temp4$23;
@@ -90508,7 +93977,7 @@ var ModelTokenTable = (t0) => {
 	} else t11 = $[37];
 	return t11;
 };
-function _temp$66(t0) {
+function _temp$67(t0) {
 	const [, v] = t0;
 	return v != null;
 }
@@ -90686,7 +94155,7 @@ var ModelUsagePanel = (t0) => {
 	let t7;
 	if ($[0] !== className || $[1] !== timing || $[2] !== usage) {
 		const categories = buildCategories(usage);
-		const composeTotal = categories.reduce(_temp$65, 0);
+		const composeTotal = categories.reduce(_temp$66, 0);
 		const total = usage.total_tokens || composeTotal;
 		const inputAll = (usage.input_tokens ?? 0) + (usage.input_tokens_cache_read ?? 0) + (usage.input_tokens_cache_write ?? 0);
 		const denom = inputAll + ((usage.output_tokens ?? 0) + (usage.reasoning_tokens ?? 0)) || total || 1;
@@ -90874,7 +94343,7 @@ var ModelUsagePanel = (t0) => {
 	} else t11 = $[40];
 	return t11;
 };
-function _temp$65(a, c) {
+function _temp$66(a, c) {
 	return a + c.value;
 }
 function _temp2$42(c_1) {
@@ -91537,7 +95006,7 @@ var ProvenanceGrid = (t0) => {
 	} else t4 = $[3];
 	let t5;
 	if ($[4] !== changes) {
-		t5 = changes.map(_temp$64);
+		t5 = changes.map(_temp$65);
 		$[4] = changes;
 		$[5] = t5;
 	} else t5 = $[5];
@@ -91584,7 +95053,7 @@ var ProvenanceGrid = (t0) => {
 	} else t9 = $[17];
 	return t9;
 };
-function _temp$64(change) {
+function _temp$65(change) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [
 		change.name,
 		" ",
@@ -91747,7 +95216,7 @@ var ConnectionLogModal = (t0) => {
 			$[3] = retunes;
 			$[4] = t2;
 		} else t2 = $[4];
-		t1 = [...events.map(_temp$63), ...t2.map(_temp2$41)].sort(_temp3$27);
+		t1 = [...events.map(_temp$64), ...t2.map(_temp2$41)].sort(_temp3$27);
 		$[0] = events;
 		$[1] = retunes;
 		$[2] = t1;
@@ -91886,7 +95355,7 @@ var ConnectionLogModal = (t0) => {
 	} else t12 = $[35];
 	return t12;
 };
-function _temp$63(event) {
+function _temp$64(event) {
 	return {
 		kind: "controller",
 		time: event.timestamp,
@@ -92101,7 +95570,7 @@ var ConnectionsView_module_default = {
 									children: model_0
 								}), roles.length > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
 									className: ConnectionsView_module_default.roles,
-									children: [roles.length > 1 ? "shared by" : "used by", roles.map(_temp$62)]
+									children: [roles.length > 1 ? "shared by" : "used by", roles.map(_temp$63)]
 								})]
 							}),
 							/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
@@ -92379,7 +95848,7 @@ var kBaselineY = 60;
 	} else t2 = $[3];
 	return t2;
 };
-function _temp$62(role) {
+function _temp$63(role) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: ConnectionsView_module_default.roleChip,
 		children: role
@@ -93365,8 +96834,8 @@ var SelectTool_module_default = {
 * `Select` (on, nothing selected) or a latched split `Select · N | ×`, where
 * × clears the selection and exits the mode in one press.
 */ var SelectTool = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(16);
-	const { active, count, onToggle, onClear, item, className } = t0;
+	const $ = (0, import_compiler_runtime.c)(17);
+	const { active, count, onToggle, onClear, item, collapseLabel, className } = t0;
 	const hasSelection = active && count > 0;
 	const title = !active ? `Select ${item}s` : count === 0 ? `Click ${item}s to select · click again to exit` : "Exit select mode";
 	let t1;
@@ -93379,27 +96848,29 @@ var SelectTool_module_default = {
 	const t3 = active ? "selectionSelecting" : "selectionSelect";
 	const t4 = hasSelection ? SelectTool_module_default.splitMain : void 0;
 	let t5;
-	if ($[2] !== active || $[3] !== onToggle || $[4] !== t2 || $[5] !== t3 || $[6] !== t4 || $[7] !== title) {
+	if ($[2] !== active || $[3] !== collapseLabel || $[4] !== onToggle || $[5] !== t2 || $[6] !== t3 || $[7] !== t4 || $[8] !== title) {
 		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolButton, {
 			label: t2,
 			icon: t3,
 			latched: active,
 			subtle: true,
+			collapseLabel,
 			className: t4,
 			title,
 			"aria-pressed": active,
 			onClick: onToggle
 		});
 		$[2] = active;
-		$[3] = onToggle;
-		$[4] = t2;
-		$[5] = t3;
-		$[6] = t4;
-		$[7] = title;
-		$[8] = t5;
-	} else t5 = $[8];
+		$[3] = collapseLabel;
+		$[4] = onToggle;
+		$[5] = t2;
+		$[6] = t3;
+		$[7] = t4;
+		$[8] = title;
+		$[9] = t5;
+	} else t5 = $[9];
 	let t6;
-	if ($[9] !== hasSelection || $[10] !== onClear) {
+	if ($[10] !== hasSelection || $[11] !== onClear) {
 		t6 = hasSelection ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolButton, {
 			icon: "selectionClear",
 			latched: true,
@@ -93409,110 +96880,22 @@ var SelectTool_module_default = {
 			"aria-label": "Clear selection and exit",
 			onClick: onClear
 		}) : null;
-		$[9] = hasSelection;
-		$[10] = onClear;
-		$[11] = t6;
-	} else t6 = $[11];
+		$[10] = hasSelection;
+		$[11] = onClear;
+		$[12] = t6;
+	} else t6 = $[12];
 	let t7;
-	if ($[12] !== t1 || $[13] !== t5 || $[14] !== t6) {
+	if ($[13] !== t1 || $[14] !== t5 || $[15] !== t6) {
 		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
 			className: t1,
 			children: [t5, t6]
 		});
-		$[12] = t1;
-		$[13] = t5;
-		$[14] = t6;
-		$[15] = t7;
-	} else t7 = $[15];
+		$[13] = t1;
+		$[14] = t5;
+		$[15] = t6;
+		$[16] = t7;
+	} else t7 = $[16];
 	return t7;
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/transform/utils.ts
-var STEP = "step";
-var SPAN_BEGIN = "span_begin";
-var SPAN_END = "span_end";
-var TYPE_TOOL = "tool";
-var TYPE_SUBTASK = "subtask";
-var TYPE_SCORERS = "scorers";
-/** Span/step events group the rows below them; they are structure, not content. */ var isStructuralEvent = (event) => event.event === "span_begin" || event.event === "span_end" || event.event === "step";
-var hasSpans = (events) => {
-	return events.some((event) => event.event === SPAN_BEGIN);
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/types.ts
-var kTranscriptCollapseScope = "transcript-collapse";
-var kTranscriptOutlineCollapseScope = "transcript-outline";
-/** Event types whose *children* can be collapsed (tree collapse). */ var kCollapsibleEventTypes = [
-	STEP,
-	SPAN_BEGIN,
-	TYPE_TOOL,
-	TYPE_SUBTASK
-];
-var isCollapsibleEvent = (event) => kCollapsibleEventTypes.some((type) => type === event.event);
-/** Event types whose *content* can be collapsed (panel-level collapse). */ var kContentCollapsibleEventTypes = [
-	"model",
-	"state",
-	"store"
-];
-var eventTypeValues = [
-	"sample_init",
-	"sample_limit",
-	"state",
-	"store",
-	"model",
-	"logger",
-	"info",
-	"step",
-	"subtask",
-	"score",
-	"score_edit",
-	"tool",
-	"input",
-	"interrupt",
-	"error",
-	"anchor",
-	"approval",
-	"review",
-	"sentinel",
-	"branch",
-	"checkpoint",
-	"compaction",
-	"sandbox",
-	"span_begin",
-	"span_end"
-];
-var kDefaultExcludeEvents = [
-	"sample_init",
-	"sandbox",
-	"state",
-	"store",
-	"branch",
-	"anchor",
-	"checkpoint"
-];
-var EventNode = class {
-	id;
-	event;
-	children = [];
-	depth;
-	/** Timeline span info, attached by app-level processing. */ sourceSpan;
-	constructor(id, event, depth) {
-		this.id = id;
-		this.event = event;
-		this.depth = depth;
-	}
-};
-var isEventNodeOf = (node, type) => node.event.event === type;
-/**
-* Re-reads an event node's discriminant to get a node typed to it.
-*
-* A `switch (node.event.event)` narrows the event but not the `EventNode`
-* wrapping it — TypeScript cannot re-key a generic class instance from a
-* discriminant on one of its fields. One string compare per branch buys back
-* the type the case already established.
-*/ var eventNodeOf = (node, type) => {
-	if (!isEventNodeOf(node, type)) throw new Error(`expected a "${type}" event node, got "${node.event.event}"`);
-	return node;
 };
 //#endregion
 //#region ../../packages/inspect-components/src/chat/types.ts
@@ -93927,7 +97310,7 @@ var StoreSpecificRenderableTypes = [human_baseline_session];
 	const { toolDefinitions } = t0;
 	let t1;
 	if ($[0] !== toolDefinitions) {
-		t1 = toolDefinitions.map(_temp$61);
+		t1 = toolDefinitions.map(_temp$62);
 		$[0] = toolDefinitions;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -93971,7 +97354,7 @@ var StoreSpecificRenderableTypes = [human_baseline_session];
 	} else t3 = $[5];
 	return t3;
 };
-function _temp$61(toolDefinition, idx) {
+function _temp$62(toolDefinition, idx) {
 	const name = toolDefinition.name;
 	const toolArgs = toolDefinition.parameters?.properties ? Object.keys(toolDefinition.parameters.properties) : [];
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Tool, {
@@ -94256,7 +97639,7 @@ var GoToTurnBar_module_default = {
 			} else if (prefillTurn !== void 0) setValue(String(prefillTurn));
 			openRef.current = true;
 			setOpen(true);
-			setFocusEpoch(_temp$60);
+			setFocusEpoch(_temp$61);
 		};
 		$[0] = t2;
 	} else t2 = $[0];
@@ -94442,7 +97825,7 @@ var GoToTurnBar_module_default = {
 	} else t14 = $[29];
 	return t14;
 });
-function _temp$60(epoch) {
+function _temp$61(epoch) {
 	return epoch + 1;
 }
 var TimelineSelector_module_default = {
@@ -94705,7 +98088,7 @@ var ToolCheckInset_module_default = {
 	} else t6 = $[14];
 	let t7;
 	if ($[15] !== scores) {
-		t7 = scores?.map(_temp$59);
+		t7 = scores?.map(_temp$60);
 		$[15] = scores;
 		$[16] = t7;
 	} else t7 = $[16];
@@ -94904,7 +98287,7 @@ var ToolCheckInset_module_default = {
 	label: ToolCheckInset_module_default.label,
 	mono: ToolCheckInset_module_default.mono
 };
-function _temp$59(score, i) {
+function _temp$60(score, i) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: ToolCheckInset_module_default.scores,
 		children: score
@@ -95058,7 +98441,7 @@ var decisionIcon$1 = (decision) => {
 	const [collapsed, setCollapsed] = useCollapsedState(`${chain[0].id}-approval-chain`, true);
 	const event = final.event;
 	const look = decisionLook(event.decision);
-	const escalated = chain.slice(0, -1).some(_temp$58);
+	const escalated = chain.slice(0, -1).some(_temp$59);
 	let t1;
 	if ($[0] !== chain.length || $[1] !== collapsed || $[2] !== setCollapsed) {
 		t1 = chain.length > 1 ? {
@@ -95124,7 +98507,7 @@ var decisionLook = (decision) => {
 		};
 	}
 };
-function _temp$58(n) {
+function _temp$59(n) {
 	return n.event.decision === "escalate";
 }
 function _temp2$39(node, index) {
@@ -95370,7 +98753,7 @@ var EventNavsPicker_module_default = {
 	let t8;
 	if ($[9] === Symbol.for("react.memo_cache_sentinel")) {
 		t7 = clsx("nav-link", "active", "text-style-label", "text-size-small", EventNavsPicker_module_default.trigger);
-		t8 = () => setOpen(_temp$57);
+		t8 = () => setOpen(_temp$58);
 		$[9] = t7;
 		$[10] = t8;
 	} else {
@@ -95466,7 +98849,7 @@ var EventNavsPicker_module_default = {
 	} else t15 = $[28];
 	return t15;
 };
-function _temp$57(v) {
+function _temp$58(v) {
 	return !v;
 }
 //#endregion
@@ -95560,7 +98943,7 @@ var SWITCH_TOLERANCE = 4;
 	} else t5 = $[10];
 	let t6;
 	if ($[11] !== navs) {
-		t6 = navs.map(_temp$56);
+		t6 = navs.map(_temp$57);
 		$[11] = navs;
 		$[12] = t6;
 	} else t6 = $[12];
@@ -95589,7 +98972,7 @@ var SWITCH_TOLERANCE = 4;
 	} else t8 = $[18];
 	return t8;
 };
-function _temp$56(nav_1) {
+function _temp$57(nav_1) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("li", {
 		className: "nav-item",
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
@@ -95864,318 +99247,6 @@ var EventPanel_module_default = {
 function hasDataDefault(node) {
 	return /*#__PURE__*/ (0, import_react.isValidElement)(node) && node.props !== null && typeof node.props === "object" && "data-default" in node.props;
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/transform/toolSentinels.ts
-/** The span a sentinel's dispatch runs in; it holds the step's events and the model calls its monitors made. */ var isSentinelSpan = (node) => node.event.event === "span_begin" && node.event.type === "sentinel";
-var reported = (node, kind) => node.event.status === "reported" && node.event.kind === kind;
-var pathSegments = (path) => path === "" ? [] : path.split("/");
-var isAncestorPath = (ancestor, path) => ancestor === "" ? path !== "" : path.startsWith(`${ancestor}/`);
-/**
-* Orders a step's events so a nested configuration reads top to bottom: each
-* layer above its children, siblings in the order they were first recorded.
-*/ var pathOrderKeys = (nodes) => {
-	const firstSeen = /* @__PURE__ */ new Map();
-	nodes.forEach((node, index) => {
-		const segments = pathSegments(node.event.path);
-		for (let i = 1; i <= segments.length; i++) {
-			const prefix = segments.slice(0, i).join("/");
-			if (!firstSeen.has(prefix)) firstSeen.set(prefix, index);
-		}
-	});
-	const keys = /* @__PURE__ */ new Map();
-	for (const node of nodes) {
-		const segments = pathSegments(node.event.path);
-		keys.set(node, segments.map((_, i) => firstSeen.get(segments.slice(0, i + 1).join("/"))));
-	}
-	return keys;
-};
-var compareKeys = (a, b) => {
-	for (let i = 0; i < Math.min(a.length, b.length); i++) {
-		const diff = a[i] - b[i];
-		if (diff !== 0) return diff;
-	}
-	return a.length - b.length;
-};
-/** Links each check to the nearest recorded check above it by path. */ var buildTree$2 = (ordered) => {
-	const tree = [];
-	for (const node of ordered) {
-		const parent = tree.findLast((candidate) => isAncestorPath(candidate.node.event.path, node.event.path));
-		const entry = {
-			node,
-			parent,
-			children: [],
-			depth: parent ? parent.depth + 1 : 0
-		};
-		parent?.children.push(entry);
-		tree.push(entry);
-	}
-	return tree;
-};
-var guidesFor = (entry) => {
-	const isLast = (e) => !e.parent || e.parent.children.at(-1) === e;
-	if (!entry.parent) return "";
-	let prefix = isLast(entry) ? "└─ " : "├─ ";
-	for (let up = entry.parent; up.parent; up = up.parent) prefix = (isLast(up) ? "   " : "│  ") + prefix;
-	return prefix;
-};
-var explanationOf = (node) => node?.event.explanation?.trim() || void 0;
-/**
-* The check that made the step's decision: from the outcome, descend to the
-* child that made the same decision, to the lowest such descendant.
-* Explanations and replacements may differ, since combinators reword what
-* they pass up.
-*/ var creditDecision = (tree, outcome) => {
-	let current = tree.find((e) => e.node === outcome);
-	let reason = explanationOf(outcome);
-	let reasonSource = reason ? outcome : void 0;
-	for (;;) {
-		const matching = current.children.filter((c) => reported(c.node, "decision") && c.node.event.action === outcome.event.action);
-		const next = matching.length === 1 ? matching[0] : passedUp(matching, reason);
-		if (!next) return {
-			node: current.node,
-			reason,
-			reasonSource
-		};
-		current = next;
-		const own = explanationOf(next.node);
-		if (own) {
-			reason = own;
-			reasonSource = next.node;
-		}
-	}
-};
-/**
-* Of several children that made the same decision, the one whose explanation
-* the explanation above begins with. Children record in completion order,
-* while combinators break ties by configuration order (`concurrent`) or take
-* the last (`sequential`), so recording order cannot tell; an explanation
-* passed up names its source. Unset when none or several match.
-*/ var passedUp = (children, reason) => {
-	if (!reason) return void 0;
-	const [first, second] = children.map((child) => ({
-		child,
-		text: explanationOf(child.node)
-	})).filter(({ text }) => text !== void 0 && reason.startsWith(text)).sort((a, b) => b.text.length - a.text.length);
-	if (!first || second && second.text.length === first.text.length) return;
-	return first.child;
-};
-/**
-* The decision the runner returned for the step: the root's, or, when a
-* `decide_final()` bypassed the root, the one recorded after the bypassed layers.
-*/ var outcomeOf = (nodes) => {
-	const root = nodes.find((n) => n.event.path === "" && reported(n, "decision"));
-	if (root) return root;
-	const bypassed = nodes.findIndex((n) => n.event.path === "" && n.event.status === "bypassed");
-	if (bypassed === -1) return void 0;
-	return nodes.slice(bypassed + 1).findLast((n) => reported(n, "decision"));
-};
-var isInactive$1 = (status) => status !== "reported";
-/**
-* The verdict of a step the runner returned no decision for: observed when
-* only monitors reported, proceeded when a protocol reported but the root
-* returned nothing, and the recorded status when the root or every check was
-* cancelled or bypassed.
-*/ var quietVerdict = (checks) => {
-	const rootStatus = checks.find((n) => n.event.path === "")?.event.status;
-	if (rootStatus && isInactive$1(rootStatus)) return rootStatus;
-	if (checks.some((n) => reported(n, "decision"))) return "proceed";
-	if (checks.some((n) => reported(n, "observation"))) return "observe";
-	const firstStatus = checks[0]?.event.status;
-	return firstStatus && isInactive$1(firstStatus) ? firstStatus : "proceed";
-};
-/**
-* Builds the check tree for one step's events, given in recording order. A
-* decision that a later `superseded` event names shares that event's row.
-*/ function buildSentinelStep(nodes, modelCalls = []) {
-	const first = nodes[0];
-	const replaced = /* @__PURE__ */ new Set();
-	nodes.forEach((loser, at) => {
-		if (loser.event.status !== "superseded") return;
-		for (const report of nodes.slice(0, at)) if (reported(report, "decision") && report.event.path === loser.event.path && report.event.function === loser.event.function) replaced.add(report);
-	});
-	const checks = nodes.filter((n) => !replaced.has(n));
-	const keys = pathOrderKeys(checks);
-	const tree = buildTree$2(checks.map((node, index) => ({
-		node,
-		index
-	})).sort((a, b) => compareKeys(keys.get(a.node), keys.get(b.node)) || a.index - b.index).map(({ node }) => node));
-	const outcome = outcomeOf(checks);
-	const acted = !!outcome && outcome.event.action !== "proceed";
-	const credit = acted ? creditDecision(tree, outcome) : void 0;
-	const effective = credit?.node;
-	const single = checks.length === 1 ? checks[0] : void 0;
-	const observations = checks.filter((n) => reported(n, "observation") && n.event.suspicion != null);
-	const scores = acted ? [] : single?.event.suspicion != null ? [formatSuspicion(single.event.suspicion)].filter(Boolean) : observations.flatMap((n) => {
-		const top = topScore(n.event.suspicion);
-		if (!top.value) return [];
-		return [`${top.dimension ?? n.event.factory.split("/").at(-1)} ${top.value}`];
-	});
-	return {
-		id: first?.id ?? "",
-		stage: first?.event.stage ?? "tool_call",
-		stepId: first?.event.step_id ?? "",
-		rows: tree.map((entry) => ({
-			node: entry.node,
-			depth: entry.depth,
-			guides: guidesFor(entry),
-			tookEffect: entry.node === effective
-		})),
-		verdict: outcome ? outcome.event.action ?? "proceed" : quietVerdict(checks),
-		outcome,
-		returned: !!outcome,
-		decider: effective ?? outcome,
-		effective,
-		reason: credit ? credit.reason : explanationOf(single),
-		error: single?.event.error || void 0,
-		reasonReferences: credit ? credit.reasonSource?.event.references ?? [] : explanationOf(single) ? single.event.references : [],
-		scores,
-		audit: nodes.some((n) => n.event.audit),
-		failed: checks.filter((n) => n.event.status === "error").length,
-		modelCalls
-	};
-}
-/**
-* The step of one event shown without the rest of its step (e.g. in the
-* chunked transcript), whose verdict is the event's own result.
-*/ function buildLoneSentinelStep(node) {
-	const step = buildSentinelStep([node]);
-	const event = node.event;
-	if (!reported(node, "decision") || step.outcome) return step;
-	const verdict = event.action ?? "proceed";
-	const acted = verdict !== "proceed";
-	return {
-		...step,
-		verdict,
-		outcome: node,
-		returned: event.path === "",
-		decider: node,
-		effective: acted ? node : void 0,
-		rows: step.rows.map((row) => ({
-			...row,
-			tookEffect: acted
-		})),
-		reason: explanationOf(node),
-		reasonReferences: explanationOf(node) ? event.references : []
-	};
-}
-var kToolStages = /* @__PURE__ */ new Set(["tool_call", "tool_result"]);
-/**
-* The ToolEvent a tool-stage step judged: the first one with the step's id
-* recorded after a `tool_call` step (none when no such tool follows), the last
-* one before a `tool_result` step, skipping tools that already host a step of
-* the same stage.
-*/ var hostTool = (tools, step, order, claimed) => {
-	const candidates = tools.filter((t) => t.node.event.id === step.stepId && !claimed.has(`${step.stage}\u0000${t.node.id}`));
-	const after = candidates.find((t) => t.order > order);
-	if (step.stage === "tool_call") return after;
-	return candidates.findLast((t) => t.order < order) ?? after;
-};
-/**
-* Groups SentinelEvents by the step they judged and pairs tool-stage steps to
-* their ToolEvent (`step_id == ToolEvent.id`), so the tool panel renders them
-* inline. Each sentinel span holds one step; events outside a span group by
-* stage and step id. Steps with no tool render as one row at their span or
-* first event.
-*/ function pairToolSentinels(eventNodes) {
-	const tools = [];
-	const proposals = /* @__PURE__ */ new Map();
-	const steps = /* @__PURE__ */ new Map();
-	const seen = /* @__PURE__ */ new Set();
-	let order = 0;
-	const walk = (nodes, span) => {
-		for (const n of nodes) {
-			if (seen.has(n.id)) continue;
-			seen.add(n.id);
-			const at = order++;
-			span?.members.push(n);
-			if (n.event.event === "tool") tools.push({
-				node: eventNodeOf(n, "tool"),
-				order: at,
-				proposed: proposals.get(n.event.id)?.shift()
-			});
-			else if (n.event.event === "sentinel") {
-				const key = span ? span.node.id : `${n.event.stage}\u0000${n.event.step_id}`;
-				const step = steps.get(key) ?? {
-					nodes: [],
-					order: span?.order ?? at,
-					span
-				};
-				step.nodes.push(eventNodeOf(n, "sentinel"));
-				steps.set(key, step);
-			} else if (n.event.event === "model") {
-				if (span) span.modelCalls.push(eventNodeOf(n, "model"));
-				else {
-					const proposed = n.event.output.choices.flatMap((choice) => choice.message.tool_calls ?? []);
-					for (const id of new Set(proposed.map((call) => call.id))) proposals.set(id, proposed.filter((call) => call.id === id));
-				}
-			}
-			let inner = span;
-			if (isSentinelSpan(n)) inner = {
-				node: n,
-				members: [],
-				modelCalls: [],
-				order: at
-			};
-			if (n.children.length) walk(n.children, inner);
-		}
-	};
-	walk(eventNodes, void 0);
-	const toolSentinels = /* @__PURE__ */ new Map();
-	const standaloneSentinels = /* @__PURE__ */ new Map();
-	const hiddenSentinelIds = /* @__PURE__ */ new Set();
-	const sentinelScrollRedirects = /* @__PURE__ */ new Map();
-	const claimed = /* @__PURE__ */ new Set();
-	const ordered = [...steps.values()].sort((a, b) => a.order - b.order);
-	for (const { nodes, order: at, span } of ordered) {
-		const step = buildSentinelStep(nodes, span?.modelCalls);
-		const tool = kToolStages.has(step.stage) ? hostTool(tools, step, at, claimed) : void 0;
-		const hostId = tool?.node.id ?? span?.node.id ?? nodes[0].id;
-		if (tool) {
-			claimed.add(`${step.stage}\u0000${tool.node.id}`);
-			const paired = toolSentinels.get(tool.node.id) ?? { proposed: tool.proposed };
-			if (step.stage === "tool_call") paired.before = step;
-			else paired.after = step;
-			toolSentinels.set(tool.node.id, paired);
-		} else standaloneSentinels.set(hostId, step);
-		const hidden = span ? [span.node, ...span.members] : nodes;
-		for (const node of hidden) {
-			if (node.id === hostId) continue;
-			hiddenSentinelIds.add(node.id);
-			sentinelScrollRedirects.set(node.id, hostId);
-		}
-	}
-	return {
-		toolSentinels,
-		standaloneSentinels,
-		hiddenSentinelIds,
-		sentinelScrollRedirects
-	};
-}
-/** The instance path, or the factory's registry name at the root. */ var instanceLabel = (event) => event.path || event.factory;
-var formatSuspicion = (suspicion) => {
-	if (typeof suspicion === "number") return formatScore(suspicion);
-	return Object.entries(suspicion).map(([dimension, value]) => `${dimension} ${formatScore(value)}`).join(", ");
-};
-var formatScore = (value) => String(Math.round(value * 100) / 100);
-/** The highest score of a suspicion, which stands for it where space is short; an empty value for a suspicion with no scores. */ var topScore = (suspicion) => {
-	if (typeof suspicion === "number") return {
-		value: formatScore(suspicion),
-		more: 0
-	};
-	const top = sortedScores(suspicion)[0];
-	if (!top) return {
-		value: "",
-		more: 0
-	};
-	const [dimension, value] = top;
-	return {
-		dimension,
-		value: formatScore(value),
-		more: Object.keys(suspicion).length - 1
-	};
-};
-/** A suspicion's dimensions, highest score first. */ var sortedScores = (suspicion) => Object.entries(suspicion).sort(([, a], [, b]) => b - a);
-/** A modify decision's replacement call, with every argument spelled out. */ var formatModifiedCall = (call) => `${call.function}(${Object.entries(call.arguments).map(([key, value]) => `${key}=${JSON.stringify(value)}`).join(", ")})`;
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/event/utils.ts
 var sampleLimitTitles = {
@@ -96575,7 +99646,7 @@ var Snapshot = (t0) => {
 	if ($[7] !== details.additional_files || $[8] !== details.files) {
 		t4 = details.files && details.files.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: CheckpointEventView_module_default.files,
-			children: [details.files.map(_temp$55), details.additional_files ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			children: [details.files.map(_temp$56), details.additional_files ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 				className: CheckpointEventView_module_default.fileOverflow,
 				children: [
 					"+",
@@ -96730,7 +99801,7 @@ var CheckpointEventView = (t0) => {
 	} else t19 = $[32];
 	return t19;
 };
-function _temp$55(file) {
+function _temp$56(file) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 		className: CheckpointEventView_module_default.file,
 		children: file
@@ -97031,50 +100102,62 @@ var INTERRUPTED_DESCRIPTIONS = {
 	between_turns: "between turns"
 };
 var InterruptEventView = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(11);
+	const $ = (0, import_compiler_runtime.c)(15);
 	const { eventNode, className } = t0;
 	const event = eventNode.event;
-	const baseTitle = SOURCE_TITLES[event.source];
 	let t1;
-	if ($[0] !== baseTitle || $[1] !== event.timestamp) {
-		t1 = event.timestamp ? `${baseTitle} — ${formatDateTime$1(new Date(event.timestamp))}` : baseTitle;
-		$[0] = baseTitle;
-		$[1] = event.timestamp;
-		$[2] = t1;
-	} else t1 = $[2];
-	const title = t1;
-	const detail = INTERRUPTED_DESCRIPTIONS[event.interrupted];
-	const t2 = eventNode.id;
+	if ($[0] !== event.source) {
+		t1 = getOwn(SOURCE_TITLES, event.source) ?? "Interrupted";
+		$[0] = event.source;
+		$[1] = t1;
+	} else t1 = $[1];
+	const baseTitle = t1;
+	let t2;
+	if ($[2] !== baseTitle || $[3] !== event.timestamp) {
+		t2 = event.timestamp ? `${baseTitle} — ${formatDateTime$1(new Date(event.timestamp))}` : baseTitle;
+		$[2] = baseTitle;
+		$[3] = event.timestamp;
+		$[4] = t2;
+	} else t2 = $[4];
+	const title = t2;
 	let t3;
-	if ($[3] === Symbol.for("react.memo_cache_sentinel")) {
-		t3 = clsx("text-size-smaller");
-		$[3] = t3;
-	} else t3 = $[3];
-	let t4;
-	if ($[4] !== detail) {
-		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: t3,
+	if ($[5] !== event.interrupted) {
+		t3 = getOwn(INTERRUPTED_DESCRIPTIONS, event.interrupted);
+		$[5] = event.interrupted;
+		$[6] = t3;
+	} else t3 = $[6];
+	const detail = t3;
+	const t4 = eventNode.id;
+	let t5;
+	if ($[7] === Symbol.for("react.memo_cache_sentinel")) {
+		t5 = clsx("text-size-smaller");
+		$[7] = t5;
+	} else t5 = $[7];
+	let t6;
+	if ($[8] !== detail) {
+		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t5,
 			children: detail
 		});
-		$[4] = detail;
-		$[5] = t4;
-	} else t4 = $[5];
-	let t5;
-	if ($[6] !== className || $[7] !== eventNode.id || $[8] !== t4 || $[9] !== title) {
-		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventPanel, {
-			eventNodeId: t2,
+		$[8] = detail;
+		$[9] = t6;
+	} else t6 = $[9];
+	let t7;
+	if ($[10] !== className || $[11] !== eventNode.id || $[12] !== t6 || $[13] !== title) {
+		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventPanel, {
+			eventNodeId: t4,
 			title,
 			icon: "interrupt",
 			className,
-			children: t4
+			children: t6
 		});
-		$[6] = className;
-		$[7] = eventNode.id;
-		$[8] = t4;
-		$[9] = title;
-		$[10] = t5;
-	} else t5 = $[10];
-	return t5;
+		$[10] = className;
+		$[11] = eventNode.id;
+		$[12] = t6;
+		$[13] = title;
+		$[14] = t7;
+	} else t7 = $[14];
+	return t7;
 };
 var LoggerEventView_module_default = { grid: "_grid_1pgwi_1" };
 //#endregion
@@ -97346,7 +100429,7 @@ var RetryChip = (t0) => {
 	let t8;
 	let t9;
 	if ($[13] === Symbol.for("react.memo_cache_sentinel")) {
-		t8 = () => setOpen(_temp$54);
+		t8 = () => setOpen(_temp$55);
 		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
 			name: "retry",
 			className: RetryChip_module_default.chipIcon
@@ -97450,7 +100533,7 @@ function formatAttemptDuration(event) {
 	const sec = attemptDurationSec(event);
 	return sec != null ? formatTime$1(sec) : null;
 }
-function _temp$54(v) {
+function _temp$55(v) {
 	return !v;
 }
 var StopReasonBadge_module_default = {
@@ -97736,7 +100819,7 @@ var ModelEventView = (t0) => {
 	const callTime = event.output.time;
 	let t4;
 	if ($[6] !== event.output.choices) {
-		t4 = event.output.choices.map(_temp$53);
+		t4 = event.output.choices.map(_temp$54);
 		$[6] = event.output.choices;
 		$[7] = t4;
 	} else t4 = $[7];
@@ -97753,9 +100836,10 @@ var ModelEventView = (t0) => {
 	const showStopReason = !!firstChoice && (!!stopDetails || firstChoice.stop_reason !== "stop");
 	context?.hasToolEvents;
 	context?.toolEventIds;
+	context?.inputShownElsewhere;
 	const agentResultsFiltered = !!event.agentResultsFiltered;
 	const t5 = context?.hasToolEvents;
-	const t6 = context?.toolEventIds;
+	const t6 = context?.inputShownElsewhere ? void 0 : context?.toolEventIds;
 	let t7;
 	if ($[10] !== agentResultsFiltered || $[11] !== event.input || $[12] !== t5 || $[13] !== t6) {
 		t7 = recentInputMessages(event.input, {
@@ -98461,7 +101545,7 @@ var withoutToolCallsIn = (message, toolEventIds) => {
 		tool_calls: toolCalls
 	};
 };
-function _temp$53(choice) {
+function _temp$54(choice) {
 	return choice.message;
 }
 function _temp2$38(m) {
@@ -98644,7 +101728,7 @@ var SampleInitEventView = (t0) => {
 			const t3 = `event-${eventNode.id}`;
 			let t4;
 			if ($[8] !== event.sample.files) {
-				t4 = Object.keys(event.sample.files).map(_temp$52);
+				t4 = Object.keys(event.sample.files).map(_temp$53);
 				$[8] = event.sample.files;
 				$[9] = t4;
 			} else t4 = $[9];
@@ -98783,7 +101867,7 @@ var SampleInitEventView = (t0) => {
 	} else t11 = $[42];
 	return t11;
 };
-function _temp$52(file) {
+function _temp$53(file) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("pre", {
 		className: SampleInitEventView_module_default.noMargin,
 		children: file
@@ -98807,7 +101891,7 @@ function _temp3$25(target) {
 var SampleLimitEventView = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(12);
 	const { eventNode, className } = t0;
-	const resolve_title = _temp$51;
+	const resolve_title = _temp$52;
 	const resolve_icon = _temp2$36;
 	const baseTitle = resolve_title(eventNode.event.type);
 	let t1;
@@ -98852,7 +101936,7 @@ var SampleLimitEventView = (t0) => {
 	} else t5 = $[11];
 	return t5;
 };
-function _temp$51(type) {
+function _temp$52(type) {
 	switch (type) {
 		case "custom": return "Custom Limit Exceeded";
 		case "time": return "Time Limit Exceeded";
@@ -100181,7 +103265,7 @@ var CheckDetail = (t0) => {
 		} else t7 = $[29];
 		t8 = scores ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: SentinelEventView_module_default.scoreGrid,
-			children: scores.map(_temp$50)
+			children: scores.map(_temp$51)
 		}) : null;
 		$[8] = effectTone;
 		$[9] = event.stage;
@@ -100533,7 +103617,7 @@ var decisionClass = (decision) => {
 		case "proceed": return SentinelEventView_module_default.proceed;
 	}
 };
-function _temp$50(t0) {
+function _temp$51(t0) {
 	const [dimension, value] = t0;
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: SentinelEventView_module_default.scoreName,
@@ -100565,7 +103649,7 @@ function _temp$50(t0) {
 	const text = t2;
 	let t3;
 	if ($[4] !== childNodes) {
-		t3 = childNodes.map(_temp$49);
+		t3 = childNodes.map(_temp$50);
 		$[4] = childNodes;
 		$[5] = t3;
 	} else t3 = $[5];
@@ -100631,7 +103715,7 @@ var summarize = (children) => {
 	if (children.length === 1) return "1 event";
 	else return `${children.length} events`;
 };
-function _temp$49(child) {
+function _temp$50(child) {
 	return child.id;
 }
 //#endregion
@@ -100688,7 +103772,7 @@ var DiffChildren = (t0) => {
 	} else t2 = $[1];
 	let t3;
 	if ($[2] !== entry.children) {
-		t3 = entry.children.map(_temp$48);
+		t3 = entry.children.map(_temp$49);
 		$[2] = entry.children;
 		$[3] = t3;
 	} else t3 = $[3];
@@ -100832,7 +103916,7 @@ var DiffValue = (t0) => {
 	} else t2 = $[3];
 	return t2;
 };
-function _temp$48(child) {
+function _temp$49(child) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(DiffRow, { child }, child.id);
 }
 var StateEventView_module_default = {
@@ -101087,7 +104171,7 @@ var SubtaskEventView = (t0) => {
 	} else t4 = $[17];
 	let t5;
 	if ($[18] !== childNodes) {
-		t5 = childNodes.map(_temp$47);
+		t5 = childNodes.map(_temp$48);
 		$[18] = childNodes;
 		$[19] = t5;
 	} else t5 = $[19];
@@ -101236,7 +104320,7 @@ var None = () => {
 	} else t0 = $[0];
 	return t0;
 };
-function _temp$47(child) {
+function _temp$48(child) {
 	return child.id;
 }
 function _temp2$35(val, index) {
@@ -101968,12 +105052,17 @@ function eventToNode(event) {
 * foreign-prompt wrapping is skipped entirely (warmup calls are still
 * wrapped; they are identified independently of prompts).
 *
+* A call whose recorded `origin` is not "agent" is utility and never sets
+* the primary prompt. A call recorded as "agent" goes through the rules
+* above, as a call with no `origin` does, since a bridged agent's warm-ups
+* and helper calls are recorded as "agent".
+*
 * Operates recursively on the entire span tree.
 */ function wrapUtilityEvents(agent) {
 	let primaryPrompt = null;
 	for (const item of agent.content) if (item.type === "event" && item.event.event === "model") {
 		const modelEvt = item.event;
-		if (hasToolCalls(modelEvt)) {
+		if (hasToolCalls(modelEvt) && mayBeTurn(modelEvt)) {
 			primaryPrompt = getSystemPromptForEvent(modelEvt);
 			break;
 		}
@@ -101988,6 +105077,10 @@ function eventToNode(event) {
 	for (const [index, item] of agent.content.entries()) {
 		if (item.type === "event" && item.event.event === "model") {
 			const modelEvt = item.event;
+			if (!mayBeTurn(modelEvt)) {
+				newContent.push(utilityWrapper(item, index));
+				continue;
+			}
 			if (isWarmupCall(modelEvt)) {
 				newContent.push(utilityWrapper(item, index));
 				continue;
@@ -102005,6 +105098,17 @@ function eventToNode(event) {
 	agent.content = newContent;
 	for (const item of originalSpans) wrapUtilityEvents(item);
 	for (const branch of agent.branches) wrapUtilityEvents(branch);
+}
+/**
+* Whether a model call with this origin is one of its conversation's agent
+* turns; a kind added later reads as not a turn.
+*/ function isAgentTurn(origin) {
+	return origin === "agent";
+}
+/**
+* An agent turn by its recorded origin, or a call that records none.
+*/ function mayBeTurn(event) {
+	return event.origin == null || isAgentTurn(event.origin);
 }
 function isWarmupCall(event) {
 	if (event.config.max_tokens == null || event.config.max_tokens > 1) return false;
@@ -102711,7 +105815,13 @@ function collectFromContent(content, out, sourceSpans, skipAgentSpanId, includeU
 		}
 	}
 	const emittedBranchedFroms = /* @__PURE__ */ new Set();
+	const openCheckpointIds = [];
 	for (const item of content) if (item.type === "event") {
+		if (item.event.event === "span_begin" && item.event.type === "checkpoint") openCheckpointIds.push(item.event.id);
+		else if (item.event.event === "span_end") {
+			const index = openCheckpointIds.lastIndexOf(item.event.id);
+			if (index !== -1) openCheckpointIds.splice(index, 1);
+		}
 		if (skipAgentSpanId && item.event.event === "tool" && item.event.agent_span_id === skipAgentSpanId) continue;
 		if (item.event.event === "model" && pendingToolCallIds.size > 0) {
 			const modelEvent = item.event;
@@ -102739,7 +105849,7 @@ function collectFromContent(content, out, sourceSpans, skipAgentSpanId, includeU
 			span_id: item.id,
 			type: item.spanType,
 			timestamp: item.startTime().toISOString(),
-			parent_id: null,
+			parent_id: openCheckpointIds.at(-1) ?? null,
 			pending: false,
 			working_start: 0,
 			uuid: item.id,
@@ -103149,7 +106259,7 @@ var ToolEventView = ({ eventNode, childNodes, className, context, eventCallbacks
 		afterOutput: afterInset,
 		outputReplacement: notRun
 	});
-	const toolLabel = toolLabels.messageLabels?.[event.id];
+	const toolLabel = getOwn(toolLabels.messageLabels, event.id);
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventPanel, {
 		eventNodeId: eventNode.id,
 		title: formatTitle(panelTitle, void 0, event.working_time),
@@ -105528,7 +108638,7 @@ var RenderedEventNode = /*#__PURE__*/ (0, import_react.memo)(RenderedEventNodeIn
 						eventNodeContext: {
 							hasToolEvents: true,
 							...checks,
-							toolEventIds: void 0
+							inputShownElsewhere: true
 						}
 					})]
 				})
@@ -106336,7 +109446,7 @@ var isAutoApprove = (node) => node.event.approver === "auto" && node.event.decis
 			$[88] = goToLane;
 			$[89] = t26;
 		} else t26 = $[89];
-		t25 = lanes.filter(_temp$46).map(t26);
+		t25 = lanes.filter(_temp$47).map(t26);
 		$[85] = goToLane;
 		$[86] = lanes;
 		$[87] = t25;
@@ -106468,7 +109578,7 @@ var isAutoApprove = (node) => node.event.approver === "auto" && node.event.decis
 	} else t37 = $[130];
 	return t37;
 }
-function _temp$46(lane_1) {
+function _temp$47(lane_1) {
 	return lane_1.firstAnchorId;
 }
 //#endregion
@@ -107599,7 +110709,7 @@ function useTranscriptTimeline(options) {
 		t7 = () => {
 			const top = viewStack.at(-1);
 			if (!top) return;
-			setViewStack(_temp$45);
+			setViewStack(_temp$46);
 			timelineProps?.onSelect(top.priorSelected);
 		};
 		$[16] = timelineProps;
@@ -107934,7 +111044,7 @@ function _temp3$24(item_0) {
 function _temp2$34(row) {
 	return row.depth === 0 || rowHasEvents(row);
 }
-function _temp$45(s_0) {
+function _temp$46(s_0) {
 	return s_0.slice(0, -1);
 }
 var kBranchKeyPattern$1 = /\/branch-([^/]*)-(\d+)$/;
@@ -108032,7 +111142,7 @@ var AgentCardView = (t0) => {
 		$[2] = t1;
 	} else t1 = $[2];
 	const handleClick = t1;
-	const stopPropagation = _temp$44;
+	const stopPropagation = _temp$45;
 	let t2;
 	if ($[3] !== span) {
 		t2 = getSpanToolResult(span);
@@ -108250,7 +111360,7 @@ var AgentCardView = (t0) => {
 	} else t23 = $[55];
 	return t23;
 };
-function _temp$44(e) {
+function _temp$45(e) {
 	e.stopPropagation();
 }
 var TimelineMinimap_module_default = {
@@ -108763,7 +111873,7 @@ var TimelineSelector = (t0) => {
 	if (!active) return null;
 	let t4;
 	if ($[4] === Symbol.for("react.memo_cache_sentinel")) {
-		t4 = () => setIsOpen(_temp$43);
+		t4 = () => setIsOpen(_temp$44);
 		$[4] = t4;
 	} else t4 = $[4];
 	let t5;
@@ -108828,7 +111938,7 @@ var TimelineSelector = (t0) => {
 	} else t8 = $[17];
 	return t8;
 };
-function _temp$43(prev) {
+function _temp$44(prev) {
 	return !prev;
 }
 var TimelineSwimLanes_module_default = {
@@ -108954,7 +112064,7 @@ var TimelineSwimLanes = (t0) => {
 	let keys_0;
 	if ($[6] !== layouts || $[7] !== parentKeys) {
 		keys_0 = new Set(parentKeys);
-		for (const layout_0 of layouts) if (layout_0.markers.some(_temp$42)) keys_0.add(layout_0.key);
+		for (const layout_0 of layouts) if (layout_0.markers.some(_temp$43)) keys_0.add(layout_0.key);
 		$[6] = layouts;
 		$[7] = parentKeys;
 		$[8] = keys_0;
@@ -110135,7 +113245,7 @@ var MarkerGlyph = (t0) => {
 	} else t6 = $[24];
 	return t6;
 };
-function _temp$42(m) {
+function _temp$43(m) {
 	return m.kind === "branch";
 }
 function _temp2$33(m_0) {
@@ -110335,7 +113445,7 @@ function _temp3$23(l_1) {
 	if ($[18] !== selected) {
 		t8 = {
 			selected,
-			onSelect: _temp$41
+			onSelect: _temp$42
 		};
 		$[18] = selected;
 		$[19] = t8;
@@ -110403,7 +113513,7 @@ function _temp3$23(l_1) {
 	return t14;
 }
 function _temp2$32() {}
-function _temp$41() {}
+function _temp$42() {}
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/hooks/useListPositionManager.ts
 /** Strip `/branch-…` segments so all selections within a branch tree share
@@ -110975,7 +114085,7 @@ function _temp$41() {}
 	const sidebarsRef = useLatestRef(sidebars);
 	let t0;
 	if ($[0] !== sidebars) {
-		t0 = sidebars.map(_temp$40).join("|");
+		t0 = sidebars.map(_temp$41).join("|");
 		$[0] = sidebars;
 		$[1] = t0;
 	} else t0 = $[1];
@@ -111057,7 +114167,7 @@ function _temp$41() {}
 	} else t4 = $[13];
 	(0, import_react.useEffect)(t3, t4);
 }
-function _temp$40(s) {
+function _temp$41(s) {
 	return String(s.remountKey);
 }
 //#endregion
@@ -111143,7 +114253,7 @@ function _temp$40(s) {
 	const timelinesForBranchDetection = useTimelinesArray(eventsForTimeline, serverTimelines);
 	let t2;
 	if ($[5] !== timelinesForBranchDetection) {
-		t2 = timelinesForBranchDetection.some(_temp$39);
+		t2 = timelinesForBranchDetection.some(_temp$40);
 		$[5] = timelinesForBranchDetection;
 		$[6] = t2;
 	} else t2 = $[6];
@@ -111272,7 +114382,7 @@ function _temp$40(s) {
 	} else t11 = $[35];
 	return t11;
 }
-function _temp$39(tl) {
+function _temp$40(tl) {
 	return spanHasBranches(tl.root);
 }
 //#endregion
@@ -113359,7 +116469,7 @@ var TranscriptLayout = (t0) => {
 	const t14 = timelineSelection?.selected ?? null;
 	let t15;
 	if ($[17] !== timelineSelection?.onSelect) {
-		t15 = timelineSelection?.onSelect ?? _temp$38;
+		t15 = timelineSelection?.onSelect ?? _temp$39;
 		$[17] = timelineSelection?.onSelect;
 		$[18] = t15;
 	} else t15 = $[18];
@@ -113982,7 +117092,7 @@ var TranscriptLayout = (t0) => {
 	} else t63 = $[234];
 	return t63;
 };
-function _temp$38() {}
+function _temp$39() {}
 function _temp2$31(a) {
 	return a.spanType === "agent";
 }
@@ -115723,7 +118833,7 @@ var kNoScoreColorScales$1 = Object.freeze({});
 	const evalDefault = useEvalDefaultSamplesView();
 	const view = useResolvedSamplesView();
 	const logFile = useCurrentLogFile();
-	const setSampleListViewAction = useStore(_temp$37);
+	const setSampleListViewAction = useStore(_temp$38);
 	let t1;
 	if ($[2] !== logFile || $[3] !== setSampleListViewAction) {
 		t1 = (next) => {
@@ -115930,7 +119040,7 @@ function _temp3$21(t0) {
 function _temp2$30(c) {
 	return c.id;
 }
-function _temp$37(state) {
+function _temp$38(state) {
 	return state.logsActions.setSampleListView;
 }
 var ScorePanel_module_default = {
@@ -116314,7 +119424,7 @@ function formatPlainValue(v) {
 			$[10] = t2;
 		} else t2 = $[10];
 		const initial = scores.map(t2);
-		const numbers = initial.map(_temp$36).filter(_temp2$29);
+		const numbers = initial.map(_temp$37).filter(_temp2$29);
 		const min = numbers.length ? Math.min(...numbers) : 0;
 		const range = (numbers.length ? Math.max(...numbers) : 0) - min;
 		t1 = initial.map((s_0) => {
@@ -116665,7 +119775,7 @@ function makeCompare(column) {
 		return as.localeCompare(bs, void 0, { numeric: true });
 	};
 }
-function _temp$36(s) {
+function _temp$37(s) {
 	return typeof s.value === "number" ? s.value : null;
 }
 function _temp2$29(v) {
@@ -116751,7 +119861,7 @@ var MetaLine = (t0) => {
 	} else t1 = $[0];
 	let t2;
 	if ($[1] !== items) {
-		t2 = items.map(_temp$35);
+		t2 = items.map(_temp$36);
 		$[1] = items;
 		$[2] = t2;
 	} else t2 = $[2];
@@ -117243,7 +120353,7 @@ var FieldLabel = (t0) => {
 	} else t6 = $[11];
 	return t6;
 };
-function _temp$35(item, idx) {
+function _temp$36(item, idx) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [idx > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: SampleSummaryView_module_default.metaSep,
 		children: "·"
@@ -118398,7 +121508,7 @@ var SampleScannerPicker = (t0) => {
 	const handleChange = t1;
 	let t2;
 	if ($[2] !== scanners) {
-		t2 = scanners.map(_temp$34);
+		t2 = scanners.map(_temp$35);
 		$[2] = scanners;
 		$[3] = t2;
 	} else t2 = $[3];
@@ -118422,7 +121532,7 @@ var SampleScannerPicker = (t0) => {
 	} else t3 = $[7];
 	return t3;
 };
-function _temp$34(scanner) {
+function _temp$35(scanner) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(VscodeOption, {
 		value: scanner,
 		children: scanner
@@ -118722,7 +121832,7 @@ var ScansSidebarPanel_module_default = {
 * `open` mirrors the scans sidebar's visibility — labels are only computed
 * while the sidebar is showing.
 */ function useSampleScans(opts) {
-	const $ = (0, import_compiler_runtime.c)(15);
+	const $ = (0, import_compiler_runtime.c)(18);
 	const { allScores, sampleId, sampleEpoch, open } = opts;
 	let filtered;
 	if ($[0] !== allScores) {
@@ -118742,57 +121852,73 @@ var ScansSidebarPanel_module_default = {
 	} else t0 = $[3];
 	const scanners = t0;
 	const hasScans = scanners.length > 0;
+	let t1;
+	if ($[4] !== scores) {
+		t1 = hasScanResults(scores);
+		$[4] = scores;
+		$[5] = t1;
+	} else t1 = $[5];
+	const hasResults = t1;
 	const [storedSelection, setSelected] = (0, import_react.useState)("");
 	const selected = scanners.includes(storedSelection) ? storedSelection : scanners[0] ?? "";
-	let t1;
-	if ($[4] !== sampleEpoch || $[5] !== sampleId) {
-		t1 = {
+	let t2;
+	if ($[6] !== sampleEpoch || $[7] !== sampleId) {
+		t2 = {
 			sampleId,
 			sampleEpoch
 		};
-		$[4] = sampleEpoch;
-		$[5] = sampleId;
-		$[6] = t1;
-	} else t1 = $[6];
-	const makeCiteUrl = useMakeCiteUrl(t1);
-	let t2;
+		$[6] = sampleEpoch;
+		$[7] = sampleId;
+		$[8] = t2;
+	} else t2 = $[8];
+	const makeCiteUrl = useMakeCiteUrl(t2);
+	let t3;
 	bb0: {
 		if (!open || !hasScans) {
-			t2 = void 0;
+			t3 = void 0;
 			break bb0;
 		}
 		const score_0 = selected ? scores[selected] : void 0;
-		let t3;
-		if ($[7] !== score_0?.metadata) {
+		let t4;
+		if ($[9] !== score_0?.metadata) {
 			const refs = readScannerReferences(score_0?.metadata);
 			const messageLabels = {};
 			for (const r of refs) if (r.type === "message" && r.id && r.cite) messageLabels[r.id] = r.cite;
-			t3 = Object.keys(messageLabels).length > 0 ? { messageLabels } : void 0;
-			$[7] = score_0?.metadata;
-			$[8] = t3;
-		} else t3 = $[8];
-		t2 = t3;
+			t4 = Object.keys(messageLabels).length > 0 ? { messageLabels } : void 0;
+			$[9] = score_0?.metadata;
+			$[10] = t4;
+		} else t4 = $[10];
+		t3 = t4;
 	}
-	const eventNodeContext = t2;
-	let t3;
-	if ($[9] !== eventNodeContext || $[10] !== hasScans || $[11] !== makeCiteUrl || $[12] !== scores || $[13] !== selected) {
-		t3 = {
+	const eventNodeContext = t3;
+	let t4;
+	if ($[11] !== eventNodeContext || $[12] !== hasResults || $[13] !== hasScans || $[14] !== makeCiteUrl || $[15] !== scores || $[16] !== selected) {
+		t4 = {
 			scores,
 			hasScans,
+			hasResults,
 			selected,
 			setSelected,
 			makeCiteUrl,
 			eventNodeContext
 		};
-		$[9] = eventNodeContext;
-		$[10] = hasScans;
-		$[11] = makeCiteUrl;
-		$[12] = scores;
-		$[13] = selected;
-		$[14] = t3;
-	} else t3 = $[14];
-	return t3;
+		$[11] = eventNodeContext;
+		$[12] = hasResults;
+		$[13] = hasScans;
+		$[14] = makeCiteUrl;
+		$[15] = scores;
+		$[16] = selected;
+		$[17] = t4;
+	} else t4 = $[17];
+	return t4;
 }
+/**
+* Whether any scanner produced a result worth showing. A scanner whose value
+* is falsy (no value/NaN, false, 0, "", or an empty list/dict) and that cites
+* nothing found nothing, so on its own isn't worth opening the Scans panel for
+* by default.
+*/ var hasScanResults = (scores) => Object.values(scores).some((score) => !isFalsyValue(score.value) || readScannerReferences(score.metadata).length > 0);
+var isFalsyValue = (value) => Array.isArray(value) ? value.length === 0 : typeof value === "object" ? Object.keys(value).length === 0 : !value;
 //#endregion
 //#region src/app/samples/scores/SampleScores.tsx
 var SampleScores = ({ scores, scorer }) => {
@@ -118991,7 +122117,7 @@ var SampleScoresView = (t0) => {
 		const scoreInput = inputString(sample.input);
 		if (sample.choices && sample.choices.length > 0) {
 			scoreInput.push("");
-			scoreInput.push(...sample.choices.map(_temp$33));
+			scoreInput.push(...sample.choices.map(_temp$34));
 		}
 		if ($[17] !== className) {
 			t7 = clsx("container-fluid", className, "font-size-base");
@@ -119128,8 +122254,658 @@ var SampleScoresView = (t0) => {
 	} else t15 = $[46];
 	return t15;
 };
-function _temp$33(choice, index) {
+function _temp$34(choice, index) {
 	return `${String.fromCharCode(65 + index)}) ${choice}`;
+}
+var StoreTerminalSessions_module_default = {
+	tiles: "_tiles_gwli1_1",
+	tile: "_tile_gwli1_1",
+	tileHeader: "_tileHeader_gwli1_22",
+	tileName: "_tileName_gwli1_31",
+	tilePreview: "_tilePreview_gwli1_38",
+	tilePlay: "_tilePlay_gwli1_45",
+	tileButton: "_tileButton_gwli1_62",
+	overlay: "_overlay_gwli1_75",
+	overlayHeader: "_overlayHeader_gwli1_84",
+	overlayTitleGroup: "_overlayTitleGroup_gwli1_93",
+	overlayTitle: "_overlayTitle_gwli1_93",
+	overlayNote: "_overlayNote_gwli1_105",
+	overlayNoteDetail: "_overlayNoteDetail_gwli1_109",
+	overlayControls: "_overlayControls_gwli1_113",
+	speedGroup: "_speedGroup_gwli1_120",
+	headerButton: "_headerButton_gwli1_124",
+	headerButtonActive: "_headerButtonActive_gwli1_158",
+	closeButton: "_closeButton_gwli1_163",
+	overlayBody: "_overlayBody_gwli1_182"
+};
+//#endregion
+//#region src/app/samples/StoreTerminalSessions.tsx
+var kAsciicastStorePrefix = "asciinema:";
+var kIdleTimeLimit = 2;
+var kIdleNoteMinGap = 30;
+var kPlaybackSpeeds = [
+	1,
+	2,
+	4
+];
+/** Collect the playable asciicast entries from a sample's store. */ var storeCasts = (store) => Object.entries(store).flatMap(([key, value]) => key.startsWith(kAsciicastStorePrefix) && typeof value === "string" ? [{
+	key,
+	name: key.slice(10),
+	cast: value
+}] : []);
+/**
+* Shows each store asciicast as a paused preview tile; clicking a tile opens
+* it full-viewport, scaled to show the whole terminal, and plays it.
+*/ var StoreTerminalSessions = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(20);
+	const { id, casts } = t0;
+	const [expandedKey, setExpandedKey] = (0, import_react.useState)(null);
+	const [speed, setSpeed] = (0, import_react.useState)(1);
+	let expanded;
+	let t1;
+	let t2;
+	if ($[0] !== casts || $[1] !== expandedKey || $[2] !== id) {
+		const displayCasts = casts.map(_temp$33);
+		let t3;
+		if ($[6] !== expandedKey) {
+			t3 = (storeCast_0) => storeCast_0.key === expandedKey;
+			$[6] = expandedKey;
+			$[7] = t3;
+		} else t3 = $[7];
+		expanded = displayCasts.find(t3);
+		t1 = StoreTerminalSessions_module_default.tiles;
+		let t4;
+		if ($[8] !== id) {
+			t4 = (storeCast_1) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TerminalTile, {
+				id: `${id}-${storeCast_1.name}`,
+				buttonId: tilePlayButtonId(storeCast_1.key),
+				storeCast: storeCast_1,
+				onOpen: () => setExpandedKey(storeCast_1.key)
+			}, storeCast_1.key);
+			$[8] = id;
+			$[9] = t4;
+		} else t4 = $[9];
+		t2 = displayCasts.map(t4);
+		$[0] = casts;
+		$[1] = expandedKey;
+		$[2] = id;
+		$[3] = expanded;
+		$[4] = t1;
+		$[5] = t2;
+	} else {
+		expanded = $[3];
+		t1 = $[4];
+		t2 = $[5];
+	}
+	let t3;
+	if ($[10] !== t1 || $[11] !== t2) {
+		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t1,
+			children: t2
+		});
+		$[10] = t1;
+		$[11] = t2;
+		$[12] = t3;
+	} else t3 = $[12];
+	let t4;
+	if ($[13] !== expanded || $[14] !== id || $[15] !== speed) {
+		t4 = expanded ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExpandedTerminal, {
+			id: `${id}-${expanded.name}-expanded`,
+			storeCast: expanded,
+			speed,
+			onSpeedChange: setSpeed,
+			onClose: () => {
+				setExpandedKey(null);
+				document.getElementById(tilePlayButtonId(expanded.key))?.focus();
+			}
+		}) : null;
+		$[13] = expanded;
+		$[14] = id;
+		$[15] = speed;
+		$[16] = t4;
+	} else t4 = $[16];
+	let t5;
+	if ($[17] !== t3 || $[18] !== t4) {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [t3, t4] });
+		$[17] = t3;
+		$[18] = t4;
+		$[19] = t5;
+	} else t5 = $[19];
+	return t5;
+};
+var tilePlayButtonId = (key) => `terminal-tile-play-${key}`;
+var TerminalTile = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(42);
+	const { id, buttonId, storeCast, onOpen } = t0;
+	let t1;
+	if ($[0] !== storeCast.cast) {
+		t1 = castGeometry(storeCast.cast);
+		$[0] = storeCast.cast;
+		$[1] = t1;
+	} else t1 = $[1];
+	const { rows, cols } = t1;
+	let duration;
+	let t2;
+	let t3;
+	let t4;
+	let t5;
+	let t6;
+	let t7;
+	if ($[2] !== storeCast.cast || $[3] !== storeCast.name) {
+		duration = castDuration(storeCast.cast, kIdleTimeLimit);
+		const recorded = castDuration(storeCast.cast);
+		t7 = StoreTerminalSessions_module_default.tile;
+		t5 = StoreTerminalSessions_module_default.tileHeader;
+		let t8;
+		if ($[11] === Symbol.for("react.memo_cache_sentinel")) {
+			t8 = clsx(StoreTerminalSessions_module_default.tileName, "text-size-small");
+			$[11] = t8;
+		} else t8 = $[11];
+		if ($[12] !== storeCast.name) {
+			t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+				className: t8,
+				children: storeCast.name
+			});
+			$[12] = storeCast.name;
+			$[13] = t6;
+		} else t6 = $[13];
+		t2 = "text-size-smallest text-style-secondary";
+		t3 = recorded > duration ? `Plays in ${formatTime$1(duration)} (pauses over ${kIdleTimeLimit}s shortened); recorded over ${formatTime$1(recorded)}` : void 0;
+		t4 = duration > 0 ? formatTime$1(duration) : "";
+		$[2] = storeCast.cast;
+		$[3] = storeCast.name;
+		$[4] = duration;
+		$[5] = t2;
+		$[6] = t3;
+		$[7] = t4;
+		$[8] = t5;
+		$[9] = t6;
+		$[10] = t7;
+	} else {
+		duration = $[4];
+		t2 = $[5];
+		t3 = $[6];
+		t4 = $[7];
+		t5 = $[8];
+		t6 = $[9];
+		t7 = $[10];
+	}
+	let t8;
+	if ($[14] !== t2 || $[15] !== t3 || $[16] !== t4) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: t2,
+			title: t3,
+			children: t4
+		});
+		$[14] = t2;
+		$[15] = t3;
+		$[16] = t4;
+		$[17] = t8;
+	} else t8 = $[17];
+	let t9;
+	if ($[18] !== t5 || $[19] !== t6 || $[20] !== t8) {
+		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t5,
+			children: [t6, t8]
+		});
+		$[18] = t5;
+		$[19] = t6;
+		$[20] = t8;
+		$[21] = t9;
+	} else t9 = $[21];
+	const t10 = `npt:${duration}`;
+	let t11;
+	if ($[22] === Symbol.for("react.memo_cache_sentinel")) {
+		t11 = {
+			width: "100%",
+			height: "100%"
+		};
+		$[22] = t11;
+	} else t11 = $[22];
+	let t12;
+	if ($[23] !== cols || $[24] !== id || $[25] !== rows || $[26] !== storeCast.cast || $[27] !== t10) {
+		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(AsciinemaPlayer, {
+			id,
+			cast: storeCast.cast,
+			rows,
+			cols,
+			fit: "both",
+			autoPlay: false,
+			controls: false,
+			idleTimeLimit: kIdleTimeLimit,
+			poster: t10,
+			style: t11
+		});
+		$[23] = cols;
+		$[24] = id;
+		$[25] = rows;
+		$[26] = storeCast.cast;
+		$[27] = t10;
+		$[28] = t12;
+	} else t12 = $[28];
+	let t13;
+	if ($[29] === Symbol.for("react.memo_cache_sentinel")) {
+		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: StoreTerminalSessions_module_default.tilePlay,
+			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "play" })
+		});
+		$[29] = t13;
+	} else t13 = $[29];
+	let t14;
+	if ($[30] !== t12) {
+		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: StoreTerminalSessions_module_default.tilePreview,
+			inert: true,
+			children: [t12, t13]
+		});
+		$[30] = t12;
+		$[31] = t14;
+	} else t14 = $[31];
+	const t15 = `Play terminal ${storeCast.name}`;
+	const t16 = `Play ${storeCast.name}`;
+	let t17;
+	if ($[32] !== buttonId || $[33] !== onOpen || $[34] !== t15 || $[35] !== t16) {
+		t17 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+			id: buttonId,
+			type: "button",
+			className: StoreTerminalSessions_module_default.tileButton,
+			onClick: onOpen,
+			"aria-label": t15,
+			title: t16
+		});
+		$[32] = buttonId;
+		$[33] = onOpen;
+		$[34] = t15;
+		$[35] = t16;
+		$[36] = t17;
+	} else t17 = $[36];
+	let t18;
+	if ($[37] !== t14 || $[38] !== t17 || $[39] !== t7 || $[40] !== t9) {
+		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t7,
+			children: [
+				t9,
+				t14,
+				t17
+			]
+		});
+		$[37] = t14;
+		$[38] = t17;
+		$[39] = t7;
+		$[40] = t9;
+		$[41] = t18;
+	} else t18 = $[41];
+	return t18;
+};
+var ExpandedTerminal = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(42);
+	const { id, storeCast, speed, onSpeedChange, onClose } = t0;
+	let t1;
+	if ($[0] !== storeCast.cast) {
+		t1 = castGeometry(storeCast.cast);
+		$[0] = storeCast.cast;
+		$[1] = t1;
+	} else t1 = $[1];
+	const { rows, cols } = t1;
+	const duration = castDuration(storeCast.cast, kIdleTimeLimit);
+	const recorded = castDuration(storeCast.cast);
+	let t2;
+	if ($[2] !== storeCast.cast) {
+		t2 = castMarkers(storeCast.cast, kIdleTimeLimit, kIdleNoteMinGap);
+		$[2] = storeCast.cast;
+		$[3] = t2;
+	} else t2 = $[3];
+	const markers = t2;
+	const overlayRef = (0, import_react.useRef)(null);
+	let t3;
+	if ($[4] !== onClose) {
+		t3 = (e) => {
+			if (e.key === "Escape") {
+				e.stopPropagation();
+				onClose();
+			} else if (e.key === "Tab" && overlayRef.current) trapFocus(e, overlayRef.current);
+		};
+		$[4] = onClose;
+		$[5] = t3;
+	} else t3 = $[5];
+	let t4;
+	if ($[6] === Symbol.for("react.memo_cache_sentinel")) {
+		t4 = { capture: true };
+		$[6] = t4;
+	} else t4 = $[6];
+	useEventListener(window, "keydown", t3, t4);
+	const t5 = import_react_dom.createPortal;
+	const t6 = StoreTerminalSessions_module_default;
+	const t7 = "dialog";
+	const t8 = "true";
+	const t9 = `Terminal ${storeCast.name}`;
+	const t10 = StoreTerminalSessions_module_default;
+	const t11 = StoreTerminalSessions_module_default;
+	let t12;
+	if ($[7] !== storeCast.name) {
+		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: StoreTerminalSessions_module_default.overlayTitle,
+			children: storeCast.name
+		});
+		$[7] = storeCast.name;
+		$[8] = t12;
+	} else t12 = $[8];
+	const t13 = recorded - duration >= 1 ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+		className: clsx(StoreTerminalSessions_module_default.overlayNote, "text-size-small"),
+		children: [
+			"Recorded over ",
+			formatTime$1(recorded),
+			" ·",
+			" ",
+			/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+				className: StoreTerminalSessions_module_default.overlayNoteDetail,
+				children: [
+					"pauses longer than ",
+					kIdleTimeLimit,
+					"s shortened"
+				]
+			})
+		]
+	}) : null;
+	let t14;
+	if ($[9] !== t11.overlayTitleGroup || $[10] !== t12 || $[11] !== t13) {
+		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: t11.overlayTitleGroup,
+			children: [t12, t13]
+		});
+		$[9] = t11.overlayTitleGroup;
+		$[10] = t12;
+		$[11] = t13;
+		$[12] = t14;
+	} else t14 = $[12];
+	let t15;
+	if ($[13] !== onSpeedChange || $[14] !== speed) {
+		t15 = kPlaybackSpeeds.map((option) => /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+			type: "button",
+			className: clsx(StoreTerminalSessions_module_default.headerButton, speed === option && StoreTerminalSessions_module_default.headerButtonActive),
+			"aria-pressed": speed === option,
+			onClick: () => onSpeedChange(option),
+			children: [option, "×"]
+		}, option));
+		$[13] = onSpeedChange;
+		$[14] = speed;
+		$[15] = t15;
+	} else t15 = $[15];
+	let t16;
+	if ($[16] !== t15) {
+		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: StoreTerminalSessions_module_default.overlayControls,
+			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+				className: StoreTerminalSessions_module_default.speedGroup,
+				role: "group",
+				"aria-label": "Playback speed",
+				children: t15
+			})
+		});
+		$[16] = t15;
+		$[17] = t16;
+	} else t16 = $[17];
+	let t17;
+	if ($[18] === Symbol.for("react.memo_cache_sentinel")) {
+		t17 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "close" });
+		$[18] = t17;
+	} else t17 = $[18];
+	let t18;
+	if ($[19] !== onClose) {
+		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+			type: "button",
+			className: StoreTerminalSessions_module_default.closeButton,
+			onClick: onClose,
+			title: "Close (Esc)",
+			"aria-label": "Close",
+			children: t17
+		});
+		$[19] = onClose;
+		$[20] = t18;
+	} else t18 = $[20];
+	let t19;
+	if ($[21] !== t10.overlayHeader || $[22] !== t14 || $[23] !== t16 || $[24] !== t18) {
+		t19 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t10.overlayHeader,
+			children: [
+				t14,
+				t16,
+				t18
+			]
+		});
+		$[21] = t10.overlayHeader;
+		$[22] = t14;
+		$[23] = t16;
+		$[24] = t18;
+		$[25] = t19;
+	} else t19 = $[25];
+	let t20;
+	if ($[26] === Symbol.for("react.memo_cache_sentinel")) {
+		t20 = {
+			width: "100%",
+			height: "100%"
+		};
+		$[26] = t20;
+	} else t20 = $[26];
+	let t21;
+	if ($[27] !== cols || $[28] !== id || $[29] !== markers || $[30] !== rows || $[31] !== speed || $[32] !== storeCast.cast) {
+		t21 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: StoreTerminalSessions_module_default.overlayBody,
+			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(AsciinemaPlayer, {
+				id,
+				cast: storeCast.cast,
+				rows,
+				cols,
+				fit: "both",
+				autoPlay: true,
+				autoFocus: true,
+				clickToToggle: true,
+				controls: true,
+				idleTimeLimit: kIdleTimeLimit,
+				markers,
+				speed,
+				style: t20
+			})
+		});
+		$[27] = cols;
+		$[28] = id;
+		$[29] = markers;
+		$[30] = rows;
+		$[31] = speed;
+		$[32] = storeCast.cast;
+		$[33] = t21;
+	} else t21 = $[33];
+	let t22;
+	if ($[34] !== t19 || $[35] !== t21 || $[36] !== t6.overlay || $[37] !== t9) {
+		t22 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			ref: overlayRef,
+			className: t6.overlay,
+			role: t7,
+			"aria-modal": t8,
+			"aria-label": t9,
+			children: [t19, t21]
+		});
+		$[34] = t19;
+		$[35] = t21;
+		$[36] = t6.overlay;
+		$[37] = t9;
+		$[38] = t22;
+	} else t22 = $[38];
+	let t23;
+	if ($[39] !== t22 || $[40] !== t5) {
+		t23 = t5(t22, document.body);
+		$[39] = t22;
+		$[40] = t5;
+		$[41] = t23;
+	} else t23 = $[41];
+	return t23;
+};
+var kTabbableSelector = "a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex=\"-1\"])";
+var trapFocus = (e, container) => {
+	const tabbables = Array.from(container.querySelectorAll(kTabbableSelector));
+	const first = tabbables[0];
+	const last = tabbables.at(-1);
+	if (!first || !last) return;
+	const active = document.activeElement;
+	const inside = active instanceof Node && container.contains(active);
+	if (e.shiftKey && (!inside || active === first)) {
+		e.preventDefault();
+		last.focus();
+	} else if (!e.shiftKey && (!inside || active === last)) {
+		e.preventDefault();
+		first.focus();
+	}
+};
+var castGeometry = (cast) => {
+	let rows = 24;
+	let cols = 80;
+	const newline = cast.indexOf("\n");
+	const headerLine = newline === -1 ? cast : cast.slice(0, newline);
+	try {
+		const header = JSON.parse(headerLine);
+		if (typeof header === "object" && header !== null) {
+			if ("height" in header && typeof header.height === "number") rows = header.height;
+			if ("width" in header && typeof header.width === "number") cols = header.width;
+		}
+	} catch {}
+	return {
+		rows,
+		cols
+	};
+};
+var castDuration = (cast, idleTimeLimit) => {
+	let duration = 0;
+	let previous = 0;
+	for (const line of cast.split("\n").slice(1)) {
+		const time = eventTime(line);
+		if (time === void 0) continue;
+		const gap = Math.max(0, time - previous);
+		duration += idleTimeLimit === void 0 ? gap : Math.min(gap, idleTimeLimit);
+		previous = time;
+	}
+	return duration;
+};
+var kCommandMarkerOffset = .01;
+/**
+* The cast's own markers, placed on the playback timeline (every gap capped
+* at `idleTimeLimit`) for the player's `markers` option. When the cast has
+* command ("send …") markers, only those are kept, labeled by the command, so
+* the scrubber (and [ / ] jumps) step through commands, not screen reads. Each
+* sits just after the first output that follows it: the recorded marker is
+* stamped when the command is sent, before the terminal echoes it, so seeking
+* there would hide the command. Think time of at least `minGap` seconds before
+* a marker is noted on its label.
+*/ var castMarkers = (cast, idleTimeLimit, minGap) => {
+	const markers = [];
+	let pending;
+	const flushPending = (time) => {
+		if (pending) {
+			markers.push([time, pending.label]);
+			pending = void 0;
+		}
+	};
+	const events = cast.split("\n").slice(1).flatMap((line) => parseEvent(line) ?? []);
+	const commandsOnly = events.some((event) => event.type === "m" && sentCommand(event.data) !== void 0);
+	let playback = 0;
+	let previous = 0;
+	for (const event of events) {
+		const gap = Math.max(0, event.time - previous);
+		const idle = gap >= minGap ? `${formatTime$1(gap)} idle` : void 0;
+		playback += Math.min(gap, idleTimeLimit);
+		previous = event.time;
+		if (event.type === "m") {
+			const command = sentCommand(event.data);
+			if (commandsOnly && command === void 0) continue;
+			const label = command !== void 0 ? commandLabel(command) : event.data;
+			flushPending(pending?.time ?? playback);
+			pending = {
+				time: playback,
+				label: idle ? `${label} (after ${idle})` : label
+			};
+		} else if (event.type === "o") flushPending(playback + kCommandMarkerOffset);
+	}
+	flushPending(pending?.time ?? playback);
+	return markers;
+};
+var kInputStyleStart = "\x1B[1;38;2;130;170;255m";
+var kInputStyleEnd = "\x1B[22;39m";
+/**
+* Styles the terminal's echo of each sent command so input stands out from
+* output. The recording has no input events, but each "send …" marker is
+* followed by output whose first line echoes the command (plus `> `
+* continuation lines for a multi-line command). The echo is styled only when
+* it contains the start of the sent command, so output that doesn't echo it
+* (a key press like C-c, a redrawn screen) is left alone.
+*/ var highlightCommandEchoes = (cast) => {
+	const lines = cast.split("\n");
+	let pendingCommand;
+	for (let i = 1; i < lines.length; i++) {
+		const event = parseEvent(lines[i] ?? "");
+		if (event === void 0) continue;
+		if (event.type === "m") pendingCommand = sentCommand(event.data) ?? pendingCommand;
+		else if (event.type === "o" && pendingCommand !== void 0) {
+			const styled = styleCommandEcho(event.data, pendingCommand);
+			pendingCommand = void 0;
+			if (styled !== event.data) lines[i] = JSON.stringify([
+				event.time,
+				event.type,
+				styled
+			]);
+		}
+	}
+	return lines.join("\n");
+};
+var styleCommandEcho = (output, command) => {
+	if (endsInsideEscape(output)) return output;
+	const probe = (command.split("\n")[0] ?? "").trim().slice(0, 20);
+	const firstEnd = lineEnd(output, 0);
+	if (!probe || !stripAnsi(output.slice(0, firstEnd)).includes(probe)) return output;
+	let styled = styleInput(output.slice(0, firstEnd));
+	let pos = firstEnd;
+	if (command.trimEnd().includes("\n")) while (output.startsWith("\r\n> ", pos)) {
+		const end = lineEnd(output, pos + 2);
+		styled += "\r\n" + styleInput(output.slice(pos + 2, end));
+		pos = end;
+	}
+	return styled + output.slice(pos);
+};
+var endsInsideEscape = (text) => {
+	const lastEscape = text.lastIndexOf("\x1B");
+	return lastEscape !== -1 && stripAnsi(text.slice(lastEscape)).startsWith("\x1B");
+};
+var styleInput = (text) => `${kInputStyleStart}${text}${kInputStyleEnd}`;
+var lineEnd = (text, from) => {
+	const end = text.indexOf("\r\n", from);
+	return end === -1 ? text.length : end;
+};
+var sentCommand = (label) => {
+	const match = /^send [^:]+: (['"])([\s\S]*)$/.exec(label);
+	if (!match) return void 0;
+	const [, quote = "", body = ""] = match;
+	return (body.endsWith(quote) ? body.slice(0, -quote.length) : body).replace(/\\(.)/g, (_, c) => c === "n" ? "\n" : c === "t" ? "	" : c);
+};
+var commandLabel = (command) => {
+	const lines = command.trimEnd().split("\n");
+	const first = (lines[0] ?? "").trim();
+	return lines.length > 1 ? `${first} …` : first;
+};
+var eventTime = (line) => parseEvent(line)?.time;
+var parseEvent = (line) => {
+	if (!line.trim()) return void 0;
+	try {
+		const event = JSON.parse(line);
+		if (Array.isArray(event) && typeof event[0] === "number" && typeof event[1] === "string") return {
+			time: event[0],
+			type: event[1],
+			data: typeof event[2] === "string" ? event[2] : ""
+		};
+	} catch {}
+};
+function _temp$33(storeCast) {
+	return {
+		...storeCast,
+		cast: highlightCommandEchoes(storeCast.cast)
+	};
 }
 //#endregion
 //#region src/app/samples/transcript/chunked/ChunkedRowView.tsx
@@ -120784,7 +124560,8 @@ var kNoMessageRows = [];
 	useUnmount(() => {
 		clearSampleTab();
 	});
-	const effectiveSelectedTab = sampleTabId || selectedTab;
+	const routedTab = sampleTabId || selectedTab;
+	const effectiveSelectedTab = routedTab ? sampleTabAlias(routedTab) : routedTab;
 	const sampleHandle = useCurrentSampleHandle();
 	const defaultExcludeEvents = (0, import_react.useMemo)(() => dynamicDefaultExcludeEvents(sampleEvents), [sampleEvents]);
 	const messagesTabOpen = effectiveSelectedTab === kSampleMessagesTabId;
@@ -120825,6 +124602,7 @@ var kNoMessageRows = [];
 		getMessageUrl
 	}), [getMessageUrl]);
 	const chatTools = (0, import_react.useMemo)(() => ({ callStyle: kDefaultMessageRowOptions.toolCallStyle }), []);
+	const terminalSessions = sample ? storeCasts(sample.store) : [];
 	const sampleUsages = usageViewsForSample(`${baseId}-${id}`, sample, evalSpec);
 	const sampleMetadatas = metadataViewsForSample(`${baseId}-${id}`, scrollRef, sample);
 	const tabsetId = `task-sample-details-tab-${id}`;
@@ -120920,7 +124698,7 @@ var kNoMessageRows = [];
 		sampleEpoch: sample?.epoch ?? void 0,
 		open: storedDock === void 0 || storedDock === "scans"
 	});
-	const rightDock = storedDock ?? (scans.hasScans ? "scans" : "none");
+	const rightDock = storedDock ?? (scans.hasResults ? "scans" : "none");
 	const setRightDock = (0, import_react.useCallback)((value_0) => setPropertyValue("rail-dock", dockKey, value_0), [setPropertyValue, dockKey]);
 	const searchScope = effectiveSelectedTab === kSampleTranscriptTabId ? "events" : effectiveSelectedTab === kSampleMessagesTabId ? "messages" : void 0;
 	const searchContext = useInspectSearchContext(sample);
@@ -120959,7 +124737,8 @@ var kNoMessageRows = [];
 			label: isCollapsed(collapsedMode) ? "Expand" : "Collapse",
 			icon: isCollapsed(collapsedMode) ? "expandAll" : "collapseAll",
 			onClick: toggleCollapsedMode,
-			subtle: true
+			subtle: true,
+			collapseLabel: true
 		}, "sample-collapse-transcript"));
 	}
 	tools.push(/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolButton, {
@@ -120968,17 +124747,22 @@ var kNoMessageRows = [];
 		onClick: toggleDisplayMode,
 		ref: optionsRef,
 		latched: displayMode === "raw",
-		subtle: true
+		subtle: true,
+		collapseLabel: true
 	}, "options-button"));
 	tools.push(/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: SampleDisplay_module_default.toolSeparator,
 		"aria-hidden": "true"
 	}, "actions-separator"));
-	if (evidence.tool) tools.push(/*#__PURE__*/ (0, import_jsx_runtime.jsx)(SelectTool, { ...evidence.tool }, "sample-select"));
+	if (evidence.tool) tools.push(/*#__PURE__*/ (0, import_jsx_runtime.jsx)(SelectTool, {
+		...evidence.tool,
+		collapseLabel: true
+	}, "sample-select"));
 	tools.push(/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolDropdownButton, {
 		label: "Copy",
 		icon,
 		subtle: true,
+		collapseLabel: true,
 		dropdownClassName: "text-size-smallest",
 		heading: selected?.menu.heading,
 		footer: selected?.menu.footer,
@@ -121005,6 +124789,7 @@ var kNoMessageRows = [];
 			label: "Download",
 			icon: "download",
 			subtle: true,
+			collapseLabel: true,
 			dropdownClassName: "text-size-smallest",
 			heading: selected?.menu.heading,
 			footer: selected?.menu.footer,
@@ -121030,9 +124815,10 @@ var kNoMessageRows = [];
 	if (!isVscode() && printLogPath && printSampleId && printEpoch) tools.push(/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolButton, {
 		label: selected ? `Print · ${selected.count}` : "Print",
 		title: selected ? `Print ${selected.count} selected ${selected.item}${selected.count === 1 ? "" : "s"}` : void 0,
-		icon: "copy",
+		icon: "print",
 		onClick: handlePrintClick,
-		subtle: true
+		subtle: true,
+		collapseLabel: true
 	}, "sample-print-tool"));
 	const scrollToTopOnFinish = !sample?.error && !selectedSampleSummary?.error && logDetails?.status !== "error" && logDetails?.status !== "cancelled";
 	const displayModeContext = (0, import_react.useMemo)(() => ({ displayMode: displayMode ?? "rendered" }), [displayMode]);
@@ -121224,6 +125010,21 @@ var kNoMessageRows = [];
 								}, chatListId)
 							})
 						}, kSampleMessagesTabId),
+						terminalSessions.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TabPanel, {
+							id: kSampleTerminalsTabId,
+							className: "sample-tab",
+							title: "Terminals",
+							onSelected: onSelectedTab,
+							href: sampleTabHref(kSampleTerminalsTabId),
+							selected: effectiveSelectedTab === kSampleTerminalsTabId,
+							children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+								className: clsx(SampleDisplay_module_default.padded, SampleDisplay_module_default.fullWidth),
+								children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(StoreTerminalSessions, {
+									id: `${baseId}-${id}-terminal-sessions`,
+									casts: terminalSessions
+								})
+							})
+						}, kSampleTerminalsTabId) : null,
 						/*#__PURE__*/ (0, import_jsx_runtime.jsx)(TabPanel, {
 							id: kSampleScoringTabId,
 							className: "sample-tab",
@@ -121259,29 +125060,17 @@ var kNoMessageRows = [];
 								})
 							})
 						}, kSampleActivityTabId) : null,
-						sampleUsages.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TabPanel, {
-							id: kSampleUsageTabId,
-							className: clsx("sample-tab"),
-							title: "Usage",
-							onSelected: onSelectedTab,
-							href: sampleTabHref(kSampleUsageTabId),
-							selected: effectiveSelectedTab === kSampleUsageTabId,
-							children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-								className: clsx(SampleDisplay_module_default.padded, SampleDisplay_module_default.fullWidth, SampleDisplay_module_default.metadataPanel),
-								children: sampleUsages
-							})
-						}) : null,
 						/*#__PURE__*/ (0, import_jsx_runtime.jsx)(TabPanel, {
-							id: kSampleMetdataTabId,
+							id: kSampleInfoTabId,
 							className: clsx("sample-tab"),
-							title: "Metadata",
+							title: "Info",
 							onSelected: onSelectedTab,
-							href: sampleTabHref(kSampleMetdataTabId),
-							selected: effectiveSelectedTab === kSampleMetdataTabId,
-							children: sampleMetadatas.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+							href: sampleTabHref(kSampleInfoTabId),
+							selected: effectiveSelectedTab === kSampleInfoTabId,
+							children: sampleUsages.length > 0 || sampleMetadatas.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 								className: clsx(SampleDisplay_module_default.padded, SampleDisplay_module_default.fullWidth, SampleDisplay_module_default.metadataPanel),
-								children: sampleMetadatas
-							}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(NoContentsPanel, { text: "No sample metadata available" })
+								children: [sampleUsages, sampleMetadatas]
+							}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(NoContentsPanel, { text: "No sample usage or metadata available" })
 						}),
 						sample?.error && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TabPanel, {
 							id: kSampleErrorTabId,
@@ -121589,11 +125378,13 @@ var metadataViewsForSample = (id, scrollRef, sample) => {
 			copyButton: true
 		})
 	})] }, `sample-metadata-${id}`));
-	if (Object.keys(sample.store).length > 0) sampleMetadatas.push(/*#__PURE__*/ (0, import_jsx_runtime.jsxs)(Card$1, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardHeader, { label: "Store" }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardBody, {
+	const castKeys = new Set(storeCasts(sample.store).map((cast) => cast.key));
+	const storeRecord = Object.fromEntries(Object.entries(sample.store).filter(([key]) => !castKeys.has(key)));
+	if (Object.keys(storeRecord).length > 0) sampleMetadatas.push(/*#__PURE__*/ (0, import_jsx_runtime.jsxs)(Card$1, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardHeader, { label: "Store" }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardBody, {
 		padded: false,
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RecordTree, {
 			id: `task-sample-store-${id}`,
-			record: sample.store,
+			record: storeRecord,
 			className: clsx("tab-pane", SampleDisplay_module_default.noTop),
 			scrollRef,
 			processStore: true,
@@ -124987,12 +128778,12 @@ function _temp4$13(warning) {
 	}, `sample-warning-message-${warning.type}-${warning.msg}`);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@lezer+common@1.5.2/node_modules/@lezer/common/dist/index.js
+//#region ../../node_modules/.pnpm/@lezer+common@1.5.3/node_modules/@lezer/common/dist/index.js
 /**
 The default maximum length of a `TreeBuffer` node.
 */
-var DefaultBufferLength$1 = 1024;
-var nextPropID$1 = 0;
+var DefaultBufferLength = 1024;
+var nextPropID = 0;
 var Range$1 = class {
 	constructor(from, to) {
 		this.from = from;
@@ -125004,12 +128795,12 @@ Each [node type](#common.NodeType) or [individual tree](#common.Tree)
 can have metadata associated with it in props. Instances of this
 class represent prop names.
 */
-var NodeProp$1 = class {
+var NodeProp = class {
 	/**
 	Create a new node prop type.
 	*/
 	constructor(config = {}) {
-		this.id = nextPropID$1++;
+		this.id = nextPropID++;
 		this.perNode = !!config.perNode;
 		this.deserialize = config.deserialize || (() => {
 			throw new Error("This node type doesn't define a deserialize function");
@@ -125027,7 +128818,7 @@ var NodeProp$1 = class {
 	*/
 	add(match) {
 		if (this.perNode) throw new RangeError("Can't add per-node props to node types");
-		if (typeof match != "function") match = NodeType$1.match(match);
+		if (typeof match != "function") match = NodeType.match(match);
 		return (type) => {
 			let result = match(type);
 			return result === void 0 ? null : [this, result];
@@ -125040,19 +128831,19 @@ delimiters, this holds an array of node names (written as a
 space-separated string when declaring this prop in a grammar)
 for the node types of closing delimiters that match it.
 */
-NodeProp$1.closedBy = new NodeProp$1({ deserialize: (str) => str.split(" ") });
+NodeProp.closedBy = new NodeProp({ deserialize: (str) => str.split(" ") });
 /**
 The inverse of [`closedBy`](#common.NodeProp^closedBy). This is
 attached to closing delimiters, holding an array of node names
 of types of matching opening delimiters.
 */
-NodeProp$1.openedBy = new NodeProp$1({ deserialize: (str) => str.split(" ") });
+NodeProp.openedBy = new NodeProp({ deserialize: (str) => str.split(" ") });
 /**
 Used to assign node types to groups (for example, all node
 types that represent an expression could be tagged with an
 `"Expression"` group).
 */
-NodeProp$1.group = new NodeProp$1({ deserialize: (str) => str.split(" ") });
+NodeProp.group = new NodeProp({ deserialize: (str) => str.split(" ") });
 /**
 Attached to nodes to indicate these should be
 [displayed](https://codemirror.net/docs/ref/#language.syntaxTree)
@@ -125064,7 +128855,7 @@ nodes that appear _inside_ arbitrary text, like HTML tags. When
 not given a value, in a grammar declaration, defaults to
 `"auto"`.
 */
-NodeProp$1.isolate = new NodeProp$1({ deserialize: (value) => {
+NodeProp.isolate = new NodeProp({ deserialize: (value) => {
 	if (value && value != "rtl" && value != "ltr" && value != "auto") throw new RangeError("Invalid value for isolate: " + value);
 	return value || "auto";
 } });
@@ -125073,26 +128864,26 @@ The hash of the [context](#lr.ContextTracker.constructor)
 that the node was parsed in, if any. Used to limit reuse of
 contextual nodes.
 */
-NodeProp$1.contextHash = new NodeProp$1({ perNode: true });
+NodeProp.contextHash = new NodeProp({ perNode: true });
 /**
 The distance beyond the end of the node that the tokenizer
 looked ahead for any of the tokens inside the node. (The LR
 parser only stores this when it is larger than 25, for
 efficiency reasons.)
 */
-NodeProp$1.lookAhead = new NodeProp$1({ perNode: true });
+NodeProp.lookAhead = new NodeProp({ perNode: true });
 /**
 This per-node prop is used to replace a given node, or part of a
 node, with another tree. This is useful to include trees from
 different languages in mixed-language parsers.
 */
-NodeProp$1.mounted = new NodeProp$1({ perNode: true });
+NodeProp.mounted = new NodeProp({ perNode: true });
 /**
 A mounted tree, which can be [stored](#common.NodeProp^mounted) on
 a tree node to indicate that parts of its content are
 represented by another tree.
 */
-var MountedTree$1 = class {
+var MountedTree = class {
 	constructor(tree, overlay, parser, bracketed = false) {
 		this.tree = tree;
 		this.overlay = overlay;
@@ -125103,14 +128894,14 @@ var MountedTree$1 = class {
 	@internal
 	*/
 	static get(tree) {
-		return tree && tree.props && tree.props[NodeProp$1.mounted.id];
+		return tree && tree.props && tree.props[NodeProp.mounted.id];
 	}
 };
-var noProps$1 = Object.create(null);
+var noProps = Object.create(null);
 /**
 Each node in a syntax tree has a node type associated with it.
 */
-var NodeType$1 = class NodeType$1 {
+var NodeType = class NodeType {
 	/**
 	@internal
 	*/
@@ -125124,9 +128915,9 @@ var NodeType$1 = class NodeType$1 {
 	Define a node type.
 	*/
 	static define(spec) {
-		let props = spec.props && spec.props.length ? Object.create(null) : noProps$1;
+		let props = spec.props && spec.props.length ? Object.create(null) : noProps;
 		let flags = (spec.top ? 1 : 0) | (spec.skipped ? 2 : 0) | (spec.error ? 4 : 0) | (spec.name == null ? 8 : 0);
-		let type = new NodeType$1(spec.name || "", props, spec.id, flags);
+		let type = new NodeType(spec.name || "", props, spec.id, flags);
 		if (spec.props) for (let src of spec.props) {
 			if (!Array.isArray(src)) src = src(type);
 			if (src) {
@@ -125175,7 +128966,7 @@ var NodeType$1 = class NodeType$1 {
 	is(name) {
 		if (typeof name == "string") {
 			if (this.name == name) return true;
-			let group = this.prop(NodeProp$1.group);
+			let group = this.prop(NodeProp.group);
 			return group ? group.indexOf(name) > -1 : false;
 		}
 		return this.id == name;
@@ -125192,7 +128983,7 @@ var NodeType$1 = class NodeType$1 {
 		let direct = Object.create(null);
 		for (let prop in map) for (let name of prop.split(" ")) direct[name] = map[prop];
 		return (node) => {
-			for (let groups = node.prop(NodeProp$1.group), i = -1; i < (groups ? groups.length : 0); i++) {
+			for (let groups = node.prop(NodeProp.group), i = -1; i < (groups ? groups.length : 0); i++) {
 				let found = direct[i < 0 ? node.name : groups[i]];
 				if (found) return found;
 			}
@@ -125202,7 +128993,7 @@ var NodeType$1 = class NodeType$1 {
 /**
 An empty dummy node type to use when no actual type is available.
 */
-NodeType$1.none = new NodeType$1("", Object.create(null), 0, 8);
+NodeType.none = new NodeType("", Object.create(null), 0, 8);
 /**
 A node set holds a collection of node types. It is used to
 compactly represent trees by storing their type ids, rather than a
@@ -125239,18 +129030,18 @@ var NodeSet = class NodeSet {
 					newProps[prop.id] = value;
 				}
 			}
-			newTypes.push(newProps ? new NodeType$1(type.name, newProps, type.id, type.flags) : type);
+			newTypes.push(newProps ? new NodeType(type.name, newProps, type.id, type.flags) : type);
 		}
 		return new NodeSet(newTypes);
 	}
 };
-var CachedNode$1 = /* @__PURE__ */ new WeakMap();
-var CachedInnerNode$1 = /* @__PURE__ */ new WeakMap();
+var CachedNode = /* @__PURE__ */ new WeakMap();
+var CachedInnerNode = /* @__PURE__ */ new WeakMap();
 /**
 Options that control iteration. Can be combined with the `|`
 operator to enable multiple ones.
 */
-var IterMode$1;
+var IterMode;
 (function(IterMode) {
 	/**
 	When enabled, iteration will only visit [`Tree`](#common.Tree)
@@ -125284,7 +129075,7 @@ var IterMode$1;
 	[`enter`](#common.SyntaxNode.enter), not in cursors.
 	*/
 	IterMode[IterMode["EnterBracketed"] = 16] = "EnterBracketed";
-})(IterMode$1 || (IterMode$1 = {}));
+})(IterMode || (IterMode = {}));
 /**
 A piece of syntax tree. There are two ways to approach these
 trees: the way they are actually stored in memory, and the
@@ -125301,7 +129092,7 @@ use the [`TreeCursor`](#common.TreeCursor) or
 a view on some part of this data structure, and can be used to
 move around to adjacent nodes.
 */
-var Tree$1 = class Tree$1 {
+var Tree = class Tree {
 	/**
 	Construct a new tree. See also [`Tree.build`](#common.Tree^build).
 	*/
@@ -125323,7 +129114,7 @@ var Tree$1 = class Tree$1 {
 	@internal
 	*/
 	toString() {
-		let mounted = MountedTree$1.get(this);
+		let mounted = MountedTree.get(this);
 		if (mounted && !mounted.overlay) return mounted.tree.toString();
 		let children = "";
 		for (let ch of this.children) {
@@ -125341,7 +129132,7 @@ var Tree$1 = class Tree$1 {
 	nodes the cursor visits.
 	*/
 	cursor(mode = 0) {
-		return new TreeCursor$1(this.topNode, mode);
+		return new TreeCursor(this.topNode, mode);
 	}
 	/**
 	Get a [tree cursor](#common.TreeCursor) pointing into this tree
@@ -125349,9 +129140,9 @@ var Tree$1 = class Tree$1 {
 	[`moveTo`](#common.TreeCursor.moveTo).
 	*/
 	cursorAt(pos, side = 0, mode = 0) {
-		let cursor = new TreeCursor$1(CachedNode$1.get(this) || this.topNode);
+		let cursor = new TreeCursor(CachedNode.get(this) || this.topNode);
 		cursor.moveTo(pos, side);
-		CachedNode$1.set(this, cursor._tree);
+		CachedNode.set(this, cursor._tree);
 		return cursor;
 	}
 	/**
@@ -125359,7 +129150,7 @@ var Tree$1 = class Tree$1 {
 	tree.
 	*/
 	get topNode() {
-		return new TreeNode$1(this, 0, 0, null);
+		return new TreeNode(this, 0, 0, null);
 	}
 	/**
 	Get the [syntax node](#common.SyntaxNode) at the given position.
@@ -125373,8 +129164,8 @@ var Tree$1 = class Tree$1 {
 	[`resolveInner`](#common.Tree.resolveInner) instead.
 	*/
 	resolve(pos, side = 0) {
-		let node = resolveNode$1(CachedNode$1.get(this) || this.topNode, pos, side, false);
-		CachedNode$1.set(this, node);
+		let node = resolveNode(CachedNode.get(this) || this.topNode, pos, side, false);
+		CachedNode.set(this, node);
 		return node;
 	}
 	/**
@@ -125385,8 +129176,8 @@ var Tree$1 = class Tree$1 {
 	the host trees).
 	*/
 	resolveInner(pos, side = 0) {
-		let node = resolveNode$1(CachedInnerNode$1.get(this) || this.topNode, pos, side, true);
-		CachedInnerNode$1.set(this, node);
+		let node = resolveNode(CachedInnerNode.get(this) || this.topNode, pos, side, true);
+		CachedInnerNode.set(this, node);
 		return node;
 	}
 	/**
@@ -125397,7 +129188,7 @@ var Tree$1 = class Tree$1 {
 	position.
 	*/
 	resolveStack(pos, side = 0) {
-		return stackIterator$1(this, pos, side);
+		return stackIterator(this, pos, side);
 	}
 	/**
 	Iterate over the tree and its children, calling `enter` for any
@@ -125408,8 +129199,8 @@ var Tree$1 = class Tree$1 {
 	*/
 	iterate(spec) {
 		let { enter, leave, from = 0, to = this.length } = spec;
-		let mode = spec.mode || 0, anon = (mode & IterMode$1.IncludeAnonymous) > 0;
-		for (let c = this.cursor(mode | IterMode$1.IncludeAnonymous);;) {
+		let mode = spec.mode || 0, anon = (mode & IterMode.IncludeAnonymous) > 0;
+		for (let c = this.cursor(mode | IterMode.IncludeAnonymous);;) {
 			let entered = false;
 			if (c.from <= to && c.to >= from && (!anon && c.type.isAnonymous || enter(c) !== false)) {
 				if (c.firstChild()) continue;
@@ -125446,21 +129237,21 @@ var Tree$1 = class Tree$1 {
 	[`NodeType.none`](#common.NodeType^none).
 	*/
 	balance(config = {}) {
-		return this.children.length <= 8 ? this : balanceRange$1(NodeType$1.none, this.children, this.positions, 0, this.children.length, 0, this.length, (children, positions, length) => new Tree$1(this.type, children, positions, length, this.propValues), config.makeTree || ((children, positions, length) => new Tree$1(NodeType$1.none, children, positions, length)));
+		return this.children.length <= 8 ? this : balanceRange(NodeType.none, this.children, this.positions, 0, this.children.length, 0, this.length, (children, positions, length) => new Tree(this.type, children, positions, length, this.propValues), config.makeTree || ((children, positions, length) => new Tree(NodeType.none, children, positions, length)));
 	}
 	/**
 	Build a tree from a postfix-ordered buffer of node information,
 	or a cursor over such a buffer.
 	*/
 	static build(data) {
-		return buildTree$1(data);
+		return buildTree(data);
 	}
 };
 /**
 The empty tree
 */
-Tree$1.empty = new Tree$1(NodeType$1.none, [], [], 0);
-var FlatBufferCursor$1 = class FlatBufferCursor$1 {
+Tree.empty = new Tree(NodeType.none, [], [], 0);
+var FlatBufferCursor = class FlatBufferCursor {
 	constructor(buffer, index) {
 		this.buffer = buffer;
 		this.index = index;
@@ -125484,7 +129275,7 @@ var FlatBufferCursor$1 = class FlatBufferCursor$1 {
 		this.index -= 4;
 	}
 	fork() {
-		return new FlatBufferCursor$1(this.buffer, this.index);
+		return new FlatBufferCursor(this.buffer, this.index);
 	}
 };
 /**
@@ -125493,7 +129284,7 @@ node. In such a buffer, nodes are stored in prefix order (parents
 before children, with the endIndex of the parent indicating which
 children belong to it).
 */
-var TreeBuffer$1 = class TreeBuffer$1 {
+var TreeBuffer = class TreeBuffer {
 	/**
 	Create a tree buffer.
 	*/
@@ -125506,7 +129297,7 @@ var TreeBuffer$1 = class TreeBuffer$1 {
 	@internal
 	*/
 	get type() {
-		return NodeType$1.none;
+		return NodeType.none;
 	}
 	/**
 	@internal
@@ -125540,7 +129331,7 @@ var TreeBuffer$1 = class TreeBuffer$1 {
 	*/
 	findChild(startIndex, endIndex, dir, pos, side) {
 		let { buffer } = this, pick = -1;
-		for (let i = startIndex; i != endIndex; i = buffer[i + 3]) if (checkSide$1(side, pos, buffer[i + 1], buffer[i + 2])) {
+		for (let i = startIndex; i != endIndex; i = buffer[i + 3]) if (checkSide(side, pos, buffer[i + 1], buffer[i + 2])) {
 			pick = i;
 			if (dir > 0) break;
 		}
@@ -125559,10 +129350,10 @@ var TreeBuffer$1 = class TreeBuffer$1 {
 			copy[j++] = b[i++] - startI;
 			len = Math.max(len, to);
 		}
-		return new TreeBuffer$1(copy, len, this.set);
+		return new TreeBuffer(copy, len, this.set);
 	}
 };
-function checkSide$1(side, pos, from, to) {
+function checkSide(side, pos, from, to) {
 	switch (side) {
 		case -2: return from < pos;
 		case -1: return to >= pos && from < pos;
@@ -125572,16 +129363,16 @@ function checkSide$1(side, pos, from, to) {
 		case 4: return true;
 	}
 }
-function resolveNode$1(node, pos, side, overlays) {
+function resolveNode(node, pos, side, overlays) {
 	var _a;
 	while (node.from == node.to || (side < 1 ? node.from >= pos : node.from > pos) || (side > -1 ? node.to <= pos : node.to < pos)) {
-		let parent = !overlays && node instanceof TreeNode$1 && node.index < 0 ? null : node.parent;
+		let parent = !overlays && node instanceof TreeNode && node.index < 0 ? null : node.parent;
 		if (!parent) return node;
 		node = parent;
 	}
-	let mode = overlays ? 0 : IterMode$1.IgnoreOverlays;
+	let mode = overlays ? 0 : IterMode.IgnoreOverlays;
 	if (overlays) {
-		for (let scan = node, parent = scan.parent; parent; scan = parent, parent = scan.parent) if (scan instanceof TreeNode$1 && scan.index < 0 && ((_a = parent.enter(pos, side, mode)) === null || _a === void 0 ? void 0 : _a.from) != scan.from) node = parent;
+		for (let scan = node, parent = scan.parent; parent; scan = parent, parent = scan.parent) if (scan instanceof TreeNode && scan.index < 0 && ((_a = parent.enter(pos, side, mode)) === null || _a === void 0 ? void 0 : _a.from) != scan.from) node = parent;
 	}
 	for (;;) {
 		let inner = node.enter(pos, side, mode);
@@ -125589,25 +129380,25 @@ function resolveNode$1(node, pos, side, overlays) {
 		node = inner;
 	}
 }
-var BaseNode$1 = class {
+var BaseNode = class {
 	cursor(mode = 0) {
-		return new TreeCursor$1(this, mode);
+		return new TreeCursor(this, mode);
 	}
 	getChild(type, before = null, after = null) {
-		let r = getChildren$1(this, type, before, after);
+		let r = getChildren(this, type, before, after);
 		return r.length ? r[0] : null;
 	}
 	getChildren(type, before = null, after = null) {
-		return getChildren$1(this, type, before, after);
+		return getChildren(this, type, before, after);
 	}
 	resolve(pos, side = 0) {
-		return resolveNode$1(this, pos, side, false);
+		return resolveNode(this, pos, side, false);
 	}
 	resolveInner(pos, side = 0) {
-		return resolveNode$1(this, pos, side, true);
+		return resolveNode(this, pos, side, true);
 	}
 	matchContext(context) {
-		return matchNodeContext$1(this.parent, context);
+		return matchNodeContext(this.parent, context);
 	}
 	enterUnfinishedNodesBefore(pos) {
 		let scan = this.childBefore(pos), node = this;
@@ -125628,7 +129419,7 @@ var BaseNode$1 = class {
 		return this.parent;
 	}
 };
-var TreeNode$1 = class TreeNode$1 extends BaseNode$1 {
+var TreeNode = class TreeNode extends BaseNode {
 	constructor(_tree, from, index, _parent) {
 		super();
 		this._tree = _tree;
@@ -125649,19 +129440,19 @@ var TreeNode$1 = class TreeNode$1 extends BaseNode$1 {
 		for (let parent = this;;) {
 			for (let { children, positions } = parent._tree, e = dir > 0 ? children.length : -1; i != e; i += dir) {
 				let next = children[i], start = positions[i] + parent.from, mounted;
-				if (!(mode & IterMode$1.EnterBracketed && next instanceof Tree$1 && (mounted = MountedTree$1.get(next)) && !mounted.overlay && mounted.bracketed && pos >= start && pos <= start + next.length) && !checkSide$1(side, pos, start, start + next.length)) continue;
-				if (next instanceof TreeBuffer$1) {
-					if (mode & IterMode$1.ExcludeBuffers) continue;
+				if (!(mode & IterMode.EnterBracketed && next instanceof Tree && (mounted = MountedTree.get(next)) && !mounted.overlay && mounted.bracketed && pos >= start && pos <= start + next.length) && !checkSide(side, pos, start, start + next.length)) continue;
+				if (next instanceof TreeBuffer) {
+					if (mode & IterMode.ExcludeBuffers) continue;
 					let index = next.findChild(0, next.buffer.length, dir, pos - start, side);
-					if (index > -1) return new BufferNode$1(new BufferContext$1(parent, next, i, start), null, index);
-				} else if (mode & IterMode$1.IncludeAnonymous || !next.type.isAnonymous || hasChild$1(next)) {
+					if (index > -1) return new BufferNode(new BufferContext(parent, next, i, start), null, index);
+				} else if (mode & IterMode.IncludeAnonymous || !next.type.isAnonymous || hasChild(next)) {
 					let mounted;
-					if (!(mode & IterMode$1.IgnoreMounts) && (mounted = MountedTree$1.get(next)) && !mounted.overlay) return new TreeNode$1(mounted.tree, start, i, parent);
-					let inner = new TreeNode$1(next, start, i, parent);
-					return mode & IterMode$1.IncludeAnonymous || !inner.type.isAnonymous ? inner : inner.nextChild(dir < 0 ? next.children.length - 1 : 0, dir, pos, side, mode);
+					if (!(mode & IterMode.IgnoreMounts) && (mounted = MountedTree.get(next)) && !mounted.overlay) return new TreeNode(mounted.tree, start, i, parent);
+					let inner = new TreeNode(next, start, i, parent);
+					return mode & IterMode.IncludeAnonymous || !inner.type.isAnonymous ? inner : inner.nextChild(dir < 0 ? next.children.length - 1 : 0, dir, pos, side, mode);
 				}
 			}
-			if (mode & IterMode$1.IncludeAnonymous || !parent.type.isAnonymous) return null;
+			if (mode & IterMode.IncludeAnonymous || !parent.type.isAnonymous) return null;
 			if (parent.index >= 0) i = parent.index + dir;
 			else i = dir < 0 ? -1 : parent._parent._tree.children.length;
 			parent = parent._parent;
@@ -125685,9 +129476,9 @@ var TreeNode$1 = class TreeNode$1 extends BaseNode$1 {
 	}
 	enter(pos, side, mode = 0) {
 		let mounted;
-		if (!(mode & IterMode$1.IgnoreOverlays) && (mounted = MountedTree$1.get(this._tree)) && mounted.overlay) {
-			let rPos = pos - this.from, enterBracketed = mode & IterMode$1.EnterBracketed && mounted.bracketed;
-			for (let { from, to } of mounted.overlay) if ((side > 0 || enterBracketed ? from <= rPos : from < rPos) && (side < 0 || enterBracketed ? to >= rPos : to > rPos)) return new TreeNode$1(mounted.tree, mounted.overlay[0].from + this.from, -1, this);
+		if (!(mode & IterMode.IgnoreOverlays) && (mounted = MountedTree.get(this._tree)) && mounted.overlay) {
+			let rPos = pos - this.from, enterBracketed = mode & IterMode.EnterBracketed && mounted.bracketed;
+			for (let { from, to } of mounted.overlay) if ((side > 0 || enterBracketed ? from <= rPos : from < rPos) && (side < 0 || enterBracketed ? to >= rPos : to > rPos)) return new TreeNode(mounted.tree, mounted.overlay[0].from + this.from, -1, this);
 		}
 		return this.nextChild(0, 1, pos, side, mode);
 	}
@@ -125718,7 +129509,7 @@ var TreeNode$1 = class TreeNode$1 extends BaseNode$1 {
 		return this._tree.toString();
 	}
 };
-function getChildren$1(node, type, before, after) {
+function getChildren(node, type, before, after) {
 	let cur = node.cursor(), result = [];
 	if (!cur.firstChild()) return result;
 	if (before != null) for (let found = false; !found;) {
@@ -125731,7 +129522,7 @@ function getChildren$1(node, type, before, after) {
 		if (!cur.nextSibling()) return after == null ? result : [];
 	}
 }
-function matchNodeContext$1(node, context, i = context.length - 1) {
+function matchNodeContext(node, context, i = context.length - 1) {
 	for (let p = node; i >= 0; p = p.parent) {
 		if (!p) return false;
 		if (!p.type.isAnonymous) {
@@ -125741,7 +129532,7 @@ function matchNodeContext$1(node, context, i = context.length - 1) {
 	}
 	return true;
 }
-var BufferContext$1 = class {
+var BufferContext = class {
 	constructor(parent, buffer, index, start) {
 		this.parent = parent;
 		this.buffer = buffer;
@@ -125749,7 +129540,7 @@ var BufferContext$1 = class {
 		this.start = start;
 	}
 };
-var BufferNode$1 = class BufferNode$1 extends BaseNode$1 {
+var BufferNode = class BufferNode extends BaseNode {
 	get name() {
 		return this.type.name;
 	}
@@ -125769,7 +129560,7 @@ var BufferNode$1 = class BufferNode$1 extends BaseNode$1 {
 	child(dir, pos, side) {
 		let { buffer } = this.context;
 		let index = buffer.findChild(this.index + 4, buffer.buffer[this.index + 3], dir, pos - this.context.start, side);
-		return index < 0 ? null : new BufferNode$1(this.context, this, index);
+		return index < 0 ? null : new BufferNode(this.context, this, index);
 	}
 	get firstChild() {
 		return this.child(1, 0, 4);
@@ -125787,10 +129578,10 @@ var BufferNode$1 = class BufferNode$1 extends BaseNode$1 {
 		return this.type.prop(prop);
 	}
 	enter(pos, side, mode = 0) {
-		if (mode & IterMode$1.ExcludeBuffers) return null;
+		if (mode & IterMode.ExcludeBuffers) return null;
 		let { buffer } = this.context;
 		let index = buffer.findChild(this.index + 4, buffer.buffer[this.index + 3], side > 0 ? 1 : -1, pos - this.context.start, side);
-		return index < 0 ? null : new BufferNode$1(this.context, this, index);
+		return index < 0 ? null : new BufferNode(this.context, this, index);
 	}
 	get parent() {
 		return this._parent || this.context.parent.nextSignificantParent();
@@ -125801,14 +129592,14 @@ var BufferNode$1 = class BufferNode$1 extends BaseNode$1 {
 	get nextSibling() {
 		let { buffer } = this.context;
 		let after = buffer.buffer[this.index + 3];
-		if (after < (this._parent ? buffer.buffer[this._parent.index + 3] : buffer.buffer.length)) return new BufferNode$1(this.context, this._parent, after);
+		if (after < (this._parent ? buffer.buffer[this._parent.index + 3] : buffer.buffer.length)) return new BufferNode(this.context, this._parent, after);
 		return this.externalSibling(1);
 	}
 	get prevSibling() {
 		let { buffer } = this.context;
 		let parentStart = this._parent ? this._parent.index + 4 : 0;
 		if (this.index == parentStart) return this.externalSibling(-1);
-		return new BufferNode$1(this.context, this._parent, buffer.findChild(parentStart, this.index, -1, 0, 4));
+		return new BufferNode(this.context, this._parent, buffer.findChild(parentStart, this.index, -1, 0, 4));
 	}
 	get tree() {
 		return null;
@@ -125822,7 +129613,7 @@ var BufferNode$1 = class BufferNode$1 extends BaseNode$1 {
 			children.push(buffer.slice(startI, endI, from));
 			positions.push(0);
 		}
-		return new Tree$1(this.type, children, positions, this.to - this.from);
+		return new Tree(this.type, children, positions, this.to - this.from);
 	}
 	/**
 	@internal
@@ -125831,7 +129622,7 @@ var BufferNode$1 = class BufferNode$1 extends BaseNode$1 {
 		return this.context.buffer.childString(this.index);
 	}
 };
-function iterStack$1(heads) {
+function iterStack(heads) {
 	if (!heads.length) return null;
 	let pick = 0, picked = heads[0];
 	for (let i = 1; i < heads.length; i++) {
@@ -125841,41 +129632,41 @@ function iterStack$1(heads) {
 			pick = i;
 		}
 	}
-	let next = picked instanceof TreeNode$1 && picked.index < 0 ? null : picked.parent;
+	let next = picked instanceof TreeNode && picked.index < 0 ? null : picked.parent;
 	let newHeads = heads.slice();
 	if (next) newHeads[pick] = next;
 	else newHeads.splice(pick, 1);
-	return new StackIterator$1(newHeads, picked);
+	return new StackIterator(newHeads, picked);
 }
-var StackIterator$1 = class {
+var StackIterator = class {
 	constructor(heads, node) {
 		this.heads = heads;
 		this.node = node;
 	}
 	get next() {
-		return iterStack$1(this.heads);
+		return iterStack(this.heads);
 	}
 };
-function stackIterator$1(tree, pos, side) {
+function stackIterator(tree, pos, side) {
 	let inner = tree.resolveInner(pos, side), layers = null;
-	for (let scan = inner instanceof TreeNode$1 ? inner : inner.context.parent; scan; scan = scan.parent) if (scan.index < 0) {
+	for (let scan = inner instanceof TreeNode ? inner : inner.context.parent; scan; scan = scan.parent) if (scan.index < 0) {
 		let parent = scan.parent;
 		(layers || (layers = [inner])).push(parent.resolve(pos, side));
 		scan = parent;
 	} else {
-		let mount = MountedTree$1.get(scan.tree);
+		let mount = MountedTree.get(scan.tree);
 		if (mount && mount.overlay && mount.overlay[0].from <= pos && mount.overlay[mount.overlay.length - 1].to >= pos) {
-			let root = new TreeNode$1(mount.tree, mount.overlay[0].from + scan.from, -1, scan);
-			(layers || (layers = [inner])).push(resolveNode$1(root, pos, side, false));
+			let root = new TreeNode(mount.tree, mount.overlay[0].from + scan.from, -1, scan);
+			(layers || (layers = [inner])).push(resolveNode(root, pos, side, false));
 		}
 	}
-	return layers ? iterStack$1(layers) : inner;
+	return layers ? iterStack(layers) : inner;
 }
 /**
 A tree cursor object focuses on a given node in a syntax tree, and
 allows you to move to adjacent nodes.
 */
-var TreeCursor$1 = class {
+var TreeCursor = class {
 	/**
 	Shorthand for `.type.name`.
 	*/
@@ -125896,8 +129687,8 @@ var TreeCursor$1 = class {
 		*/
 		this.index = 0;
 		this.bufferNode = null;
-		this.mode = mode & ~IterMode$1.EnterBracketed;
-		if (node instanceof TreeNode$1) this.yieldNode(node);
+		this.mode = mode & ~IterMode.EnterBracketed;
+		if (node instanceof TreeNode) this.yieldNode(node);
 		else {
 			this._tree = node.context.parent;
 			this.buffer = node.context;
@@ -125927,7 +129718,7 @@ var TreeCursor$1 = class {
 	*/
 	yield(node) {
 		if (!node) return false;
-		if (node instanceof TreeNode$1) {
+		if (node instanceof TreeNode) {
 			this.buffer = null;
 			return this.yieldNode(node);
 		}
@@ -125985,15 +129776,15 @@ var TreeCursor$1 = class {
 	*/
 	enter(pos, side, mode = this.mode) {
 		if (!this.buffer) return this.yield(this._tree.enter(pos, side, mode));
-		return mode & IterMode$1.ExcludeBuffers ? false : this.enterChild(1, pos, side);
+		return mode & IterMode.ExcludeBuffers ? false : this.enterChild(1, pos, side);
 	}
 	/**
 	Move to the node's parent node, if this isn't the top node.
 	*/
 	parent() {
-		if (!this.buffer) return this.yieldNode(this.mode & IterMode$1.IncludeAnonymous ? this._tree._parent : this._tree.parent);
+		if (!this.buffer) return this.yieldNode(this.mode & IterMode.IncludeAnonymous ? this._tree._parent : this._tree.parent);
 		if (this.stack.length) return this.yieldBuf(this.stack.pop());
-		let parent = this.mode & IterMode$1.IncludeAnonymous ? this.buffer.parent : this.buffer.parent.nextSignificantParent();
+		let parent = this.mode & IterMode.IncludeAnonymous ? this.buffer.parent : this.buffer.parent.nextSignificantParent();
 		this.buffer = null;
 		return this.yieldNode(parent);
 	}
@@ -126034,7 +129825,7 @@ var TreeCursor$1 = class {
 		} else ({index, _parent: parent} = this._tree);
 		for (; parent; {index, _parent: parent} = parent) if (index > -1) for (let i = index + dir, e = dir < 0 ? -1 : parent._tree.children.length; i != e; i += dir) {
 			let child = parent._tree.children[i];
-			if (this.mode & IterMode$1.IncludeAnonymous || child instanceof TreeBuffer$1 || !child.type.isAnonymous || hasChild$1(child)) return false;
+			if (this.mode & IterMode.IncludeAnonymous || child instanceof TreeBuffer || !child.type.isAnonymous || hasChild(child)) return false;
 		}
 		return true;
 	}
@@ -126090,8 +129881,8 @@ var TreeCursor$1 = class {
 			}
 			index = this.stack[--d];
 		}
-		for (let i = depth; i < this.stack.length; i++) result = new BufferNode$1(this.buffer, result, this.stack[i]);
-		return this.bufferNode = new BufferNode$1(this.buffer, result, this.index);
+		for (let i = depth; i < this.stack.length; i++) result = new BufferNode(this.buffer, result, this.stack[i]);
+		return this.bufferNode = new BufferNode(this.buffer, result, this.index);
 	}
 	/**
 	Get the [tree](#common.Tree) that represents the current node, if
@@ -126134,10 +129925,10 @@ var TreeCursor$1 = class {
 	are treated as wildcards.
 	*/
 	matchContext(context) {
-		if (!this.buffer) return matchNodeContext$1(this.node.parent, context);
+		if (!this.buffer) return matchNodeContext(this.node.parent, context);
 		let { buffer } = this.buffer, { types } = buffer.set;
 		for (let i = context.length - 1, d = this.stack.length - 1; i >= 0; d--) {
-			if (d < 0) return matchNodeContext$1(this._tree, context, i);
+			if (d < 0) return matchNodeContext(this._tree, context, i);
 			let type = types[buffer.buffer[this.stack[d]]];
 			if (!type.isAnonymous) {
 				if (context[i] && context[i] != type.name) return false;
@@ -126147,13 +129938,13 @@ var TreeCursor$1 = class {
 		return true;
 	}
 };
-function hasChild$1(tree) {
-	return tree.children.some((ch) => ch instanceof TreeBuffer$1 || !ch.type.isAnonymous || hasChild$1(ch));
+function hasChild(tree) {
+	return tree.children.some((ch) => ch instanceof TreeBuffer || !ch.type.isAnonymous || hasChild(ch));
 }
-function buildTree$1(data) {
+function buildTree(data) {
 	var _a;
-	let { buffer, nodeSet, maxBufferLength = DefaultBufferLength$1, reused = [], minRepeatType = nodeSet.types.length } = data;
-	let cursor = Array.isArray(buffer) ? new FlatBufferCursor$1(buffer, buffer.length) : buffer;
+	let { buffer, nodeSet, maxBufferLength = DefaultBufferLength, reused = [], minRepeatType = nodeSet.types.length } = data;
+	let cursor = Array.isArray(buffer) ? new FlatBufferCursor(buffer, buffer.length) : buffer;
 	let types = nodeSet.types;
 	let contextHash = 0, lookAhead = 0;
 	function takeNode(parentStart, minPos, children, positions, inRepeat, depth) {
@@ -126180,7 +129971,7 @@ function buildTree$1(data) {
 			let data = new Uint16Array(buffer.size - buffer.skip);
 			let endPos = cursor.pos - buffer.size, index = data.length;
 			while (cursor.pos > endPos) index = copyToBuffer(buffer.start, data, index);
-			node = new TreeBuffer$1(data, end - buffer.start, nodeSet);
+			node = new TreeBuffer(data, end - buffer.start, nodeSet);
 			startPos = buffer.start - parentStart;
 		} else {
 			let endPos = cursor.pos - size;
@@ -126202,7 +129993,7 @@ function buildTree$1(data) {
 			localPositions.reverse();
 			if (localInRepeat > -1 && lastGroup > 0) {
 				let make = makeBalanced(type, contextAtStart);
-				node = balanceRange$1(type, localChildren, localPositions, 0, localChildren.length, 0, end - start, make, make);
+				node = balanceRange(type, localChildren, localPositions, 0, localChildren.length, 0, end - start, make, make);
 			} else node = makeTree(type, localChildren, localPositions, end - start, lookAheadAtStart - end, contextAtStart);
 		}
 		children.push(node);
@@ -126231,16 +130022,16 @@ function buildTree$1(data) {
 				buffer[j++] = nodes[i + 2] - start;
 				buffer[j++] = j;
 			}
-			children.push(new TreeBuffer$1(buffer, nodes[2] - start, nodeSet));
+			children.push(new TreeBuffer(buffer, nodes[2] - start, nodeSet));
 			positions.push(start - parentStart);
 		}
 	}
 	function makeBalanced(type, contextHash) {
 		return (children, positions, length) => {
 			let lookAhead = 0, lastI = children.length - 1, last, lookAheadProp;
-			if (lastI >= 0 && (last = children[lastI]) instanceof Tree$1) {
+			if (lastI >= 0 && (last = children[lastI]) instanceof Tree) {
 				if (!lastI && last.type == type && last.length == length) return last;
-				if (lookAheadProp = last.prop(NodeProp$1.lookAhead)) lookAhead = positions[lastI] + last.length + lookAheadProp;
+				if (lookAheadProp = last.prop(NodeProp.lookAhead)) lookAhead = positions[lastI] + last.length + lookAheadProp;
 			}
 			return makeTree(type, children, positions, length, lookAhead, contextHash);
 		};
@@ -126256,14 +130047,14 @@ function buildTree$1(data) {
 	}
 	function makeTree(type, children, positions, length, lookAhead, contextHash, props) {
 		if (contextHash) {
-			let pair = [NodeProp$1.contextHash, contextHash];
+			let pair = [NodeProp.contextHash, contextHash];
 			props = props ? [pair].concat(props) : [pair];
 		}
 		if (lookAhead > 25) {
-			let pair = [NodeProp$1.lookAhead, lookAhead];
+			let pair = [NodeProp.lookAhead, lookAhead];
 			props = props ? [pair].concat(props) : [pair];
 		}
-		return new Tree$1(type, children, positions, length, props);
+		return new Tree(type, children, positions, length, props);
 	}
 	function findBufferSize(maxSize, inRepeat) {
 		let fork = cursor.fork();
@@ -126327,36 +130118,36 @@ function buildTree$1(data) {
 	let children = [], positions = [];
 	while (cursor.pos > 0) takeNode(data.start || 0, data.bufferStart || 0, children, positions, -1, 0);
 	let length = (_a = data.length) !== null && _a !== void 0 ? _a : children.length ? positions[0] + children[0].length : 0;
-	return new Tree$1(types[data.topID], children.reverse(), positions.reverse(), length);
+	return new Tree(types[data.topID], children.reverse(), positions.reverse(), length);
 }
-var nodeSizeCache$1 = /* @__PURE__ */ new WeakMap();
-function nodeSize$1(balanceType, node) {
-	if (!balanceType.isAnonymous || node instanceof TreeBuffer$1 || node.type != balanceType) return 1;
-	let size = nodeSizeCache$1.get(node);
+var nodeSizeCache = /* @__PURE__ */ new WeakMap();
+function nodeSize(balanceType, node) {
+	if (!balanceType.isAnonymous || node instanceof TreeBuffer || node.type != balanceType) return 1;
+	let size = nodeSizeCache.get(node);
 	if (size == null) {
 		size = 1;
 		for (let child of node.children) {
-			if (child.type != balanceType || !(child instanceof Tree$1)) {
+			if (child.type != balanceType || !(child instanceof Tree)) {
 				size = 1;
 				break;
 			}
-			size += nodeSize$1(balanceType, child);
+			size += nodeSize(balanceType, child);
 		}
-		nodeSizeCache$1.set(node, size);
+		nodeSizeCache.set(node, size);
 	}
 	return size;
 }
-function balanceRange$1(balanceType, children, positions, from, to, start, length, mkTop, mkTree) {
+function balanceRange(balanceType, children, positions, from, to, start, length, mkTop, mkTree) {
 	let total = 0;
-	for (let i = from; i < to; i++) total += nodeSize$1(balanceType, children[i]);
+	for (let i = from; i < to; i++) total += nodeSize(balanceType, children[i]);
 	let maxChild = Math.ceil(total * 1.5 / 8);
 	let localChildren = [], localPositions = [];
 	function divide(children, positions, from, to, offset) {
 		for (let i = from; i < to;) {
-			let groupFrom = i, groupStart = positions[i], groupSize = nodeSize$1(balanceType, children[i]);
+			let groupFrom = i, groupStart = positions[i], groupSize = nodeSize(balanceType, children[i]);
 			i++;
 			for (; i < to; i++) {
-				let nextSize = nodeSize$1(balanceType, children[i]);
+				let nextSize = nodeSize(balanceType, children[i]);
 				if (groupSize + nextSize >= maxChild) break;
 				groupSize += nextSize;
 			}
@@ -126369,7 +130160,7 @@ function balanceRange$1(balanceType, children, positions, from, to, start, lengt
 				localChildren.push(children[groupFrom]);
 			} else {
 				let length = positions[i - 1] + children[i - 1].length - groupStart;
-				localChildren.push(balanceRange$1(balanceType, children, positions, groupFrom, i, groupStart, length, null, mkTree));
+				localChildren.push(balanceRange(balanceType, children, positions, groupFrom, i, groupStart, length, null, mkTree));
 			}
 			localPositions.push(groupStart + offset - start);
 		}
@@ -126505,7 +130296,7 @@ var StringInput = class {
 		return this.string.slice(from, to);
 	}
 };
-new NodeProp$1({ perNode: true });
+new NodeProp({ perNode: true });
 //#endregion
 //#region ../../node_modules/.pnpm/@marijn+find-cluster-break@1.0.4/node_modules/@marijn/find-cluster-break/src/index.js
 var rangeFrom = [];
@@ -129993,11 +133784,11 @@ function findColumn(string, col, tabSize, strict) {
 }
 //#endregion
 //#region ../../node_modules/.pnpm/style-mod@4.1.4_patch_hash=8b8994768dcd5295790b5425f0e9f8a8dfaaaea0f61f438744f64f243c5a511b/node_modules/style-mod/src/style-mod.js
-var C$1 = "ͼ";
-var COUNT$1 = typeof Symbol == "undefined" ? "__ͼ" : Symbol.for(C$1);
-var SET$1 = typeof Symbol == "undefined" ? "__styleSet" + Math.floor(Math.random() * 1e8) : Symbol("styleSet");
-var top$1 = typeof globalThis != "undefined" ? globalThis : typeof window != "undefined" ? window : {};
-var StyleModule$1 = class {
+var C = "ͼ";
+var COUNT = typeof Symbol == "undefined" ? "__ͼ" : Symbol.for(C);
+var SET = typeof Symbol == "undefined" ? "__styleSet" + Math.floor(Math.random() * 1e8) : Symbol("styleSet");
+var top = typeof globalThis != "undefined" ? globalThis : typeof window != "undefined" ? window : {};
+var StyleModule = class {
 	constructor(spec, options) {
 		this.rules = [];
 		let { finish } = options || {};
@@ -130023,32 +133814,32 @@ var StyleModule$1 = class {
 		return this.rules.join("\n");
 	}
 	static newName() {
-		let id = top$1[COUNT$1] || 1;
-		top$1[COUNT$1] = id + 1;
-		return C$1 + id.toString(36);
+		let id = top[COUNT] || 1;
+		top[COUNT] = id + 1;
+		return C + id.toString(36);
 	}
 	static mount(root, modules, options) {
-		let set = root[SET$1], nonce = options && options.nonce;
-		if (!set) set = new StyleSet$1(root, nonce);
+		let set = root[SET], nonce = options && options.nonce;
+		if (!set) set = new StyleSet(root, nonce);
 		else if (nonce) set.setNonce(nonce);
 		set.mount(Array.isArray(modules) ? modules : [modules], root);
 	}
 };
-var adoptedSet$1 = /* @__PURE__ */ new Map();
-var StyleSet$1 = class {
+var adoptedSet = /* @__PURE__ */ new Map();
+var StyleSet = class {
 	constructor(root, nonce) {
 		let doc = root.ownerDocument || root, win = doc.defaultView;
 		if (root.adoptedStyleSheets && win.CSSStyleSheet) {
-			let adopted = adoptedSet$1.get(doc);
-			if (adopted) return root[SET$1] = adopted;
+			let adopted = adoptedSet.get(doc);
+			if (adopted) return root[SET] = adopted;
 			this.sheet = new win.CSSStyleSheet();
-			adoptedSet$1.set(doc, this);
+			adoptedSet.set(doc, this);
 		} else {
 			this.styleTag = doc.createElement("style");
 			if (nonce) this.styleTag.setAttribute("nonce", nonce);
 		}
 		this.modules = [];
-		root[SET$1] = this;
+		root[SET] = this;
 	}
 	mount(modules, root) {
 		let sheet = this.sheet;
@@ -130213,7 +134004,7 @@ function add(elt, child) {
 	else throw new RangeError("Unsupported child node: " + child);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@codemirror+view@6.43.13/node_modules/@codemirror/view/dist/index.js
+//#region ../../node_modules/.pnpm/@codemirror+view@6.43.15/node_modules/@codemirror/view/dist/index.js
 var nav = typeof navigator != "undefined" ? navigator : {
 	userAgent: "",
 	vendor: "",
@@ -130259,7 +134050,7 @@ function attrsEq(a, b, ignore) {
 	if (!a) a = noAttrs$1;
 	if (!b) b = noAttrs$1;
 	let keysA = Object.keys(a), keysB = Object.keys(b);
-	if (keysA.length - (ignore && keysA.indexOf(ignore) > -1 ? 1 : 0) != keysB.length - (ignore && keysB.indexOf(ignore) > -1 ? 1 : 0)) return false;
+	if (keysA.length - 0 != keysB.length - 0) return false;
 	for (let key of keysA) if (key != ignore && (keysB.indexOf(key) == -1 || a[key] !== b[key])) return false;
 	return true;
 }
@@ -130596,6 +134387,8 @@ var BlockWrapper = class BlockWrapper extends RangeValue {
 	}
 };
 BlockWrapper.prototype.startSide = BlockWrapper.prototype.endSide = -1;
+var isElt = (node) => node.nodeType == 1;
+var isText = (node) => node.nodeType == 3;
 function getSelection(root) {
 	let target;
 	if (root.nodeType == 11) target = root.getSelection ? root : root.ownerDocument;
@@ -130614,8 +134407,8 @@ function hasSelection(dom, selection) {
 	}
 }
 function clientRectsFor(dom) {
-	if (dom.nodeType == 3) return textRange(dom, 0, dom.nodeValue.length).getClientRects();
-	else if (dom.nodeType == 1) return dom.getClientRects();
+	if (isText(dom)) return textRange(dom, 0, dom.nodeValue.length).getClientRects();
+	else if (isElt(dom)) return dom.getClientRects();
 	else return [];
 }
 function isEquivalentPosition(node, off, targetNode, targetOff) {
@@ -130628,7 +134421,7 @@ function domIndex(node) {
 	}
 }
 function isBlockElement(node) {
-	return node.nodeType == 1 && /^(DIV|P|LI|UL|OL|BLOCKQUOTE|DD|DT|H\d|SECTION|PRE)$/.test(node.nodeName);
+	return isElt(node) && /^(DIV|P|LI|UL|OL|BLOCKQUOTE|DD|DT|H\d|SECTION|PRE)$/.test(node.nodeName);
 }
 function scanFor(node, off, targetNode, targetOff, dir) {
 	for (;;) {
@@ -130636,18 +134429,18 @@ function scanFor(node, off, targetNode, targetOff, dir) {
 		if (off == (dir < 0 ? 0 : maxOffset(node))) {
 			if (node.nodeName == "DIV") return false;
 			let parent = node.parentNode;
-			if (!parent || parent.nodeType != 1) return false;
+			if (!parent || !isElt(parent)) return false;
 			off = domIndex(node) + (dir < 0 ? 0 : 1);
 			node = parent;
-		} else if (node.nodeType == 1) {
+		} else if (isElt(node)) {
 			node = node.childNodes[off + (dir < 0 ? -1 : 0)];
-			if (node.nodeType == 1 && node.contentEditable == "false") return false;
+			if (isElt(node) && (node.nodeName == "IMG" || node.nodeName == "BR" || node.contentEditable == "false")) return false;
 			off = dir < 0 ? maxOffset(node) : 0;
 		} else return false;
 	}
 }
 function maxOffset(node) {
-	return node.nodeType == 3 ? node.nodeValue.length : node.childNodes.length;
+	return isText(node) ? node.nodeValue.length : node.childNodes.length;
 }
 function flattenRect(rect, toLeft) {
 	let { left, right } = rect;
@@ -130687,13 +134480,16 @@ function getScale(elt, rect) {
 }
 function scrollRectIntoView(dom, rect, side, x, y, xMargin, yMargin, ltr) {
 	let doc = dom.ownerDocument, win = doc.defaultView || window;
-	for (let cur = dom, stop = false; cur && !stop;) if (cur.nodeType == 1) {
+	for (let cur = dom, stop = false; cur && !stop;) if (isElt(cur)) {
 		let bounding, top = cur == doc.body;
-		let scaleX = 1, scaleY = 1;
+		let scaleX = 1, scaleY = 1, xScroll = true, yScroll = true;
 		if (top) bounding = windowRect(win);
 		else {
-			if (/^(fixed|sticky)$/.test(getComputedStyle(cur).position)) stop = true;
-			if (cur.scrollHeight <= cur.clientHeight && cur.scrollWidth <= cur.clientWidth) {
+			let style = getComputedStyle(cur);
+			if (/^(fixed|sticky)$/.test(style.position)) stop = true;
+			if (cur.scrollHeight <= cur.clientHeight || !/auto|scroll/.test(style.overflowY)) yScroll = false;
+			if (cur.scrollWidth <= cur.clientWidth || !/auto|scroll/.test(style.overflowX)) xScroll = false;
+			if (!xScroll && !yScroll) {
 				cur = cur.assignedSlot || cur.parentNode;
 				continue;
 			}
@@ -130707,7 +134503,8 @@ function scrollRectIntoView(dom, rect, side, x, y, xMargin, yMargin, ltr) {
 			};
 		}
 		let moveX = 0, moveY = 0;
-		if (y == "nearest") {
+		if (!yScroll);
+		else if (y == "nearest") {
 			if (rect.top < bounding.top + yMargin) {
 				moveY = rect.top - (bounding.top + yMargin);
 				if (side > 0 && rect.bottom > bounding.bottom + moveY) moveY = rect.bottom - bounding.bottom + yMargin;
@@ -130719,7 +134516,8 @@ function scrollRectIntoView(dom, rect, side, x, y, xMargin, yMargin, ltr) {
 			let rectHeight = rect.bottom - rect.top, boundingHeight = bounding.bottom - bounding.top;
 			moveY = (y == "center" && rectHeight <= boundingHeight ? rect.top + rectHeight / 2 - boundingHeight / 2 : y == "start" || y == "center" && side < 0 ? rect.top - yMargin : rect.bottom - boundingHeight + yMargin) - bounding.top;
 		}
-		if (x == "nearest") {
+		if (!xScroll);
+		else if (x == "nearest") {
 			if (rect.left < bounding.left + xMargin) {
 				moveX = rect.left - (bounding.left + xMargin);
 				if (side > 0 && rect.right > bounding.right + moveX) moveX = rect.right - bounding.right + xMargin;
@@ -130766,9 +134564,9 @@ function scrollRectIntoView(dom, rect, side, x, y, xMargin, yMargin, ltr) {
 function scrollableParents(dom, getX = true) {
 	let doc = dom.ownerDocument, x = null, y = null;
 	for (let cur = dom.parentNode; cur;) if (cur == doc.body || (!getX || x) && y) break;
-	else if (cur.nodeType == 1) {
-		if (!y && cur.scrollHeight > cur.clientHeight) y = cur;
-		if (getX && !x && cur.scrollWidth > cur.clientWidth) x = cur;
+	else if (isElt(cur)) {
+		if (!y && cur.scrollHeight > cur.clientHeight && /scroll|auto/.test(getComputedStyle(cur).overflowY)) y = cur;
+		if (getX && !x && cur.scrollWidth > cur.clientWidth && /scroll|auto/.test(getComputedStyle(cur).overflowX)) x = cur;
 		cur = cur.assignedSlot || cur.parentNode;
 	} else if (cur.nodeType == 11) cur = cur.host;
 	else break;
@@ -130800,7 +134598,7 @@ var DOMSelectionState = class {
 };
 function getScrollStack(target) {
 	let stack = [];
-	for (let cur = target; cur; cur = cur.nodeType == 11 ? cur.host : cur.parentNode) if (cur.nodeType == 1) stack.push({
+	for (let cur = target; cur; cur = cur.nodeType == 11 ? cur.host : cur.parentNode) if (isElt(cur)) stack.push({
 		node: cur,
 		left: cur.scrollLeft,
 		top: cur.scrollTop
@@ -130864,7 +134662,7 @@ function atElementStart(doc, selection) {
 	if (!node || selection.anchorNode != node || selection.anchorOffset != offset) return false;
 	offset = Math.min(offset, maxOffset(node));
 	for (;;) if (offset) {
-		if (node.nodeType != 1) return false;
+		if (!isElt(node)) return false;
 		let prev = node.childNodes[offset - 1];
 		if (prev.contentEditable == "false") offset--;
 		else {
@@ -130882,11 +134680,11 @@ function isScrolledToBottom(elt) {
 	return elt.scrollTop > Math.max(1, elt.scrollHeight - elt.clientHeight - 4);
 }
 function textNodeBefore(startNode, startOffset) {
-	for (let node = startNode, offset = startOffset;;) if (node.nodeType == 3 && offset > 0) return {
+	for (let node = startNode, offset = startOffset;;) if (isText(node) && offset > 0) return {
 		node,
 		offset
 	};
-	else if (node.nodeType == 1 && offset > 0) {
+	else if (isElt(node) && offset > 0) {
 		if (node.contentEditable == "false") return null;
 		node = node.childNodes[offset - 1];
 		offset = maxOffset(node);
@@ -130896,11 +134694,11 @@ function textNodeBefore(startNode, startOffset) {
 	} else return null;
 }
 function textNodeAfter(startNode, startOffset) {
-	for (let node = startNode, offset = startOffset;;) if (node.nodeType == 3 && offset < node.nodeValue.length) return {
+	for (let node = startNode, offset = startOffset;;) if (isText(node) && offset < node.nodeValue.length) return {
 		node,
 		offset
 	};
-	else if (node.nodeType == 1 && offset < node.childNodes.length) {
+	else if (isElt(node) && offset < node.childNodes.length) {
 		if (node.contentEditable == "false") return null;
 		node = node.childNodes[offset];
 		offset = 0;
@@ -131235,7 +135033,6 @@ function autoDirection(text, from, to) {
 		if (type == 1) return LTR;
 		if (type == 2 || type == 4) return RTL;
 	}
-	return LTR;
 }
 var clickAddsSelectionRange = /*@__PURE__*/ Facet.define();
 var dragMovesSelection$1 = /*@__PURE__*/ Facet.define();
@@ -131410,7 +135207,6 @@ function getIsolatedRanges(view, line) {
 			let level = result;
 			for (let i = active.length - 1; i >= 0; i--, open--) {
 				let direction = active[i].spec.bidiIsolate, update;
-				if (direction == null) direction = autoDirection(line.text, from, to);
 				if (open > 0 && level.length && (update = level[level.length - 1]).to == from && update.direction == direction) {
 					update.to = to;
 					level = update.inner;
@@ -131427,7 +135223,26 @@ function getIsolatedRanges(view, line) {
 			}
 		}
 	});
-	return result;
+	return resolveIsolates(line.text, result);
+}
+function resolveIsolates(text, isolates) {
+	for (let i of isolates) {
+		if (i.direction == null) {
+			for (let pos = i.from, j = 0; pos < i.to; j++) {
+				let nextInner = j < i.inner.length ? i.inner[j] : null;
+				let dir = autoDirection(text, pos, nextInner ? nextInner.from : i.to);
+				if (dir) {
+					i.direction = dir;
+					break;
+				}
+				if (!nextInner) break;
+				pos = nextInner.to;
+			}
+			if (i.direction == null) i.direction = Direction.LTR;
+		}
+		resolveIsolates(text, i.inner);
+	}
+	return isolates;
 }
 var scrollMargins = /*@__PURE__*/ Facet.define();
 function getScrollMargins(view) {
@@ -131827,17 +135642,17 @@ var LineTile = class LineTile extends CompositeTile {
 	get domAttrs() {
 		return this.attrs;
 	}
-	resolveInline(pos, side, forCoords) {
+	resolveInline(pos, side, forCoords = false) {
 		let before = null, beforeOff = -1, after = null, afterOff = -1;
 		function scan(tile, pos) {
 			for (let i = 0, off = 0; i < tile.children.length && off <= pos; i++) {
 				let child = tile.children[i], end = off + child.length;
 				if (end >= pos) {
 					if (child.isComposite()) scan(child, pos - off);
-					else if ((!after || after.isHidden && (side > 0 && !(after.flags & 32) || forCoords && onSameLine(after, child))) && (end > pos || child.flags & 32 && side <= 1)) {
+					else if ((!after || forCoords && after.isHidden && (side > 0 && !(after.flags & 32) || forCoords && onSameLine(after, child))) && (end > pos || child.flags & 32 && side <= 1)) {
 						after = child;
 						afterOff = pos - off;
-					} else if (off < pos || child.flags & 16 && !child.isHidden && side >= -1) {
+					} else if (off < pos || child.flags & 16 && !(forCoords && child.isHidden) && side >= -1) {
 						before = child;
 						beforeOff = pos - off;
 					}
@@ -133072,7 +136887,7 @@ function destroyDropped(tile, reused) {
 	}
 }
 function betweenUneditable(pos) {
-	return pos.node.nodeType == 1 && pos.node.firstChild && (pos.offset == 0 || pos.node.childNodes[pos.offset - 1].contentEditable == "false") && (pos.offset == pos.node.childNodes.length || pos.node.childNodes[pos.offset].contentEditable == "false");
+	return isElt(pos.node) && pos.node.firstChild && (pos.offset == 0 || pos.node.childNodes[pos.offset - 1].contentEditable == "false") && (pos.offset == pos.node.childNodes.length || pos.node.childNodes[pos.offset].contentEditable == "false");
 }
 function findCompositionNode(view, headPos) {
 	let sel = view.observer.selectionRange;
@@ -133110,7 +136925,7 @@ function findCompositionRange(view, changes, headPos) {
 	};
 }
 function nextToUneditable(node, offset) {
-	if (node.nodeType != 1) return 0;
+	if (!isElt(node)) return 0;
 	return (offset && node.childNodes[offset - 1].contentEditable == "false" ? 1 : 0) | (offset < node.childNodes.length && node.childNodes[offset].contentEditable == "false" ? 2 : 0);
 }
 var DecorationComparator$1 = class DecorationComparator {
@@ -133150,7 +136965,7 @@ function findChangedWrappers(a, b, diff) {
 	return comp.changes;
 }
 function inUneditable(node, inside) {
-	for (let cur = node; cur && cur != inside; cur = cur.assignedSlot || cur.parentNode) if (cur.nodeType == 1 && cur.contentEditable == "false") return true;
+	for (let cur = node; cur && cur != inside; cur = cur.assignedSlot || cur.parentNode) if (isElt(cur) && cur.contentEditable == "false") return true;
 	return false;
 }
 function touchesComposition(changes, composition) {
@@ -133240,13 +137055,13 @@ function moveToLineBoundary(view, start, forward, includeWrap) {
 	if (coords) {
 		let editorRect = view.dom.getBoundingClientRect();
 		let direction = view.textDirectionAt(block.from);
-		let pos = view.posAtCoords({
+		let pos = view.posAndSideAtCoords({
 			x: forward == (direction == Direction.LTR) ? editorRect.right - 1 : editorRect.left + 1,
 			y: (coords.top + coords.bottom) / 2
 		});
-		if (pos != null) return EditorSelection.cursor(pos, forward ? -1 : 1);
+		if (pos) return EditorSelection.cursor(pos.pos, pos.assoc);
 	}
-	return EditorSelection.cursor(forward ? block.to : block.from, forward ? -1 : 1);
+	return EditorSelection.cursor(forward ? block.to : block.from, forward ? 1 : -1);
 }
 function moveByChar(view, start, forward, by) {
 	let line = view.state.doc.lineAt(start.head), spans = view.bidiSpans(line);
@@ -133496,7 +137311,7 @@ var InlineCoordsScan = class {
 		let scan = this.scan(positions, (i) => {
 			let child = tile.children[i];
 			if (child.flags & 48) return null;
-			return (child.dom.nodeType == 1 ? child.dom : textRange(child.dom, 0, child.length)).getClientRects();
+			return (isElt(child.dom) ? child.dom : textRange(child.dom, 0, child.length)).getClientRects();
 		});
 		let child = tile.children[scan.i], pos = positions[scan.i];
 		if (child.isText()) return this.scanText(child, pos);
@@ -133565,16 +137380,16 @@ var DOMReader = class {
 			this.findPointInside(node, fromView.length);
 			for (let i = fromView.iter(); !i.next().done;) if (i.lineBreak) this.lineBreak();
 			else this.append(i.value);
-		} else if (node.nodeType == 3) this.readTextNode(node);
+		} else if (isText(node)) this.readTextNode(node);
 		else if (node.nodeName == "BR") {
 			if (node.nextSibling) this.lineBreak();
-		} else if (node.nodeType == 1) this.readRange(node.firstChild, null);
+		} else if (isElt(node)) this.readRange(node.firstChild, null);
 	}
 	findPointBefore(node, next) {
 		for (let point of this.points) if (point.node == node && node.childNodes[point.offset] == next) point.pos = this.text.length;
 	}
 	findPointInside(node, length) {
-		for (let point of this.points) if (node.nodeType == 3 ? point.node == node : node.contains(point.node)) point.pos = this.text.length + (isAtEnd(node, point.node, point.offset) ? length : 0);
+		for (let point of this.points) if (isText(node) ? point.node == node : node.contains(point.node)) point.pos = this.text.length + (isAtEnd(node, point.node, point.offset) ? length : 0);
 	}
 };
 function isAtEnd(parent, node, offset) {
@@ -134540,12 +138355,12 @@ observers.blur = (view) => {
 	view.observer.clearSelectionRange();
 	updateForFocusChange(view);
 };
-observers.compositionstart = observers.compositionupdate = (view) => {
+observers.compositionstart = observers.compositionupdate = (view, event) => {
 	if (view.observer.editContext) return;
 	if (view.inputState.compositionFirstChange == null) view.inputState.compositionFirstChange = true;
 	if (view.inputState.composing < 0) {
 		let { main } = view.state.selection;
-		if (!main.empty && view.lineBlockAt(main.from).from != view.lineBlockAt(main.to).from) view.dispatch({
+		if (!main.empty && view.lineBlockAt(main.from).from != view.lineBlockAt(main.to).from && !view.state.readOnly) view.dispatch({
 			changes: view.state.selection.ranges.filter((r) => !r.empty).map((r) => ({
 				from: r.from,
 				to: r.to
@@ -135249,17 +139064,16 @@ function visiblePixelRange(dom, paddingTop) {
 	let doc = dom.ownerDocument, win = doc.defaultView || window;
 	let left = Math.max(0, rect.left), right = Math.min(win.innerWidth, rect.right);
 	let top = Math.max(0, rect.top), bottom = Math.min(win.innerHeight, rect.bottom);
-	for (let parent = dom.parentNode; parent && parent != doc.body;) if (parent.nodeType == 1) {
-		let elt = parent;
-		let style = window.getComputedStyle(elt);
-		if ((elt.scrollHeight > elt.clientHeight || elt.scrollWidth > elt.clientWidth) && style.overflow != "visible") {
-			let parentRect = elt.getBoundingClientRect();
+	for (let parent = dom.parentNode; parent && parent != doc.body;) if (isElt(parent)) {
+		let style = window.getComputedStyle(parent);
+		if ((parent.scrollHeight > parent.clientHeight || parent.scrollWidth > parent.clientWidth) && style.overflow != "visible") {
+			let parentRect = parent.getBoundingClientRect();
 			left = Math.max(left, parentRect.left);
 			right = Math.min(right, parentRect.right);
 			top = Math.max(top, parentRect.top);
 			bottom = Math.min(parent == dom.parentNode ? win.innerHeight : bottom, parentRect.bottom);
 		}
-		parent = style.position == "absolute" || style.position == "fixed" ? elt.offsetParent : elt.parentNode;
+		parent = style.position == "absolute" || style.position == "fixed" ? parent.offsetParent : parent.parentNode;
 	} else if (parent.nodeType == 11) parent = parent.host;
 	else break;
 	return {
@@ -135382,7 +139196,7 @@ var ViewState = class {
 	}
 	updateScaler() {
 		let scaler = this.scaler;
-		this.scaler = this.heightMap.height <= 7e6 ? IdScaler : new BigScaler(this.heightOracle, this.heightMap, this.viewports);
+		this.scaler = this.heightMap.height <= 7e6 ? IdScaler : BigScaler.get(this.heightOracle, this.heightMap, this.viewports);
 		return scaler.eq(this.scaler) ? 0 : 2;
 	}
 	updateViewportLines() {
@@ -135674,7 +139488,7 @@ var ViewState = class {
 		return this.scrollParent == this.view.scrollDOM ? this.scrollParent.scrollTop * this.scaleY : (this.scrollParent ? this.scrollParent.getBoundingClientRect().top : 0) - this.view.contentDOM.getBoundingClientRect().top;
 	}
 	scrollAnchorAt(scrollOffset) {
-		let block = this.lineBlockAtHeight(scrollOffset + 8);
+		let block = this.lineBlockAtHeight(scrollOffset + 12 - this.paddingTop);
 		return block.from >= this.viewport.from || this.viewportLines[0].top - scrollOffset > 200 ? block : this.viewportLines[0];
 	}
 	elementAtHeight(height) {
@@ -135763,9 +139577,13 @@ function staticDeco(state) {
 	return deco;
 }
 var BigScaler = class BigScaler {
-	constructor(oracle, heightMap, viewports) {
+	constructor(scale, viewports) {
+		this.scale = scale;
+		this.viewports = viewports;
+	}
+	static get(oracle, heightMap, viewports) {
 		let vpHeight = 0, base = 0, domBase = 0;
-		this.viewports = viewports.map(({ from, to }) => {
+		let vps = viewports.map(({ from, to }) => {
 			let top = heightMap.lineAt(from, QueryType.ByPos, oracle, 0, 0).top;
 			let bottom = heightMap.lineAt(to, QueryType.ByPos, oracle, 0, 0).bottom;
 			vpHeight += bottom - top;
@@ -135778,12 +139596,14 @@ var BigScaler = class BigScaler {
 				domBottom: 0
 			};
 		});
-		this.scale = (7e6 - vpHeight) / (heightMap.height - vpHeight);
-		for (let obj of this.viewports) {
-			obj.domTop = domBase + (obj.top - base) * this.scale;
+		if (heightMap.height - vpHeight < 10) return IdScaler;
+		let scale = (7e6 - vpHeight) / (heightMap.height - vpHeight);
+		for (let obj of vps) {
+			obj.domTop = domBase + (obj.top - base) * scale;
 			domBase = obj.domBottom = obj.domTop + (obj.bottom - obj.top);
 			base = obj.bottom;
 		}
+		return new BigScaler(scale, vps);
 	}
 	toDOM(n) {
 		for (let i = 0, base = 0, domBase = 0;; i++) {
@@ -135815,15 +139635,15 @@ function scaleBlock(block, scaler) {
 }
 var theme = /*@__PURE__*/ Facet.define({ combine: (strs) => strs.join(" ") });
 var darkTheme = /*@__PURE__*/ Facet.define({ combine: (values) => values.indexOf(true) > -1 });
-var baseThemeID = /*@__PURE__*/ StyleModule$1.newName();
-var baseLightID = /*@__PURE__*/ StyleModule$1.newName();
-var baseDarkID = /*@__PURE__*/ StyleModule$1.newName();
+var baseThemeID = /*@__PURE__*/ StyleModule.newName();
+var baseLightID = /*@__PURE__*/ StyleModule.newName();
+var baseDarkID = /*@__PURE__*/ StyleModule.newName();
 var lightDarkIDs = {
 	"&light": "." + baseLightID,
 	"&dark": "." + baseDarkID
 };
 function buildTheme(main, spec, scopes) {
-	return new StyleModule$1(spec, { finish(sel) {
+	return new StyleModule(spec, { finish(sel) {
 		return /&/.test(sel) ? sel.replace(/&\w*/, (m) => {
 			if (m == "&") return main;
 			if (!scopes || !scopes[m]) throw new RangeError(`Unsupported selector: ${m}`);
@@ -136011,7 +139831,7 @@ var baseTheme$1$1 = /*@__PURE__*/ buildTheme("." + baseThemeID, {
 		verticalAlign: "bottom"
 	},
 	".cm-widgetBuffer": {
-		verticalAlign: "text-top",
+		verticalAlign: "baseline",
 		height: "1em",
 		width: 0,
 		display: "inline"
@@ -136146,7 +139966,7 @@ var DOMObserver = class {
 		if (this.intersecting) this.view.measure();
 	}
 	onScroll(e) {
-		if (this.intersecting) this.flush(false);
+		if (this.intersecting) this.flush(this.pendingRecords().length > 0);
 		if (this.editContext) this.view.requestMeasure(this.editContext.measureReq);
 		this.onScrollChanged(e);
 	}
@@ -136211,7 +140031,7 @@ var DOMObserver = class {
 	listenForScroll() {
 		this.parentCheck = -1;
 		let i = 0, changed = null;
-		for (let dom = this.dom; dom;) if (dom.nodeType == 1) {
+		for (let dom = this.dom; dom;) if (isElt(dom)) {
 			if (!changed && i < this.scrollTargets.length && this.scrollTargets[i] == dom) i++;
 			else if (!changed) changed = this.scrollTargets.slice(0, i);
 			if (changed) changed.push(dom);
@@ -136327,14 +140147,14 @@ var DOMObserver = class {
 	flush(readSelection = true) {
 		if (this.delayedFlush >= 0 || this.delayedAndroidKey) return false;
 		if (readSelection) this.readSelectionRange();
-		let domChange = this.readChange();
+		let selChange = this.selectionChanged, domChange = this.readChange();
 		if (!domChange) {
 			this.view.requestMeasure();
 			return false;
 		}
 		let startState = this.view.state;
 		let handled = applyDOMChange(this.view, domChange);
-		if (this.view.state == startState && (domChange.domChanged || domChange.newSel && !sameSelPos(this.view.state.selection, domChange.newSel.main))) this.view.update([]);
+		if (this.view.state == startState && (domChange.domChanged || selChange)) this.view.update([]);
 		return handled;
 	}
 	readMutation(rec) {
@@ -137047,7 +140867,7 @@ var EditorView = class EditorView {
 	mountStyles() {
 		this.styleModules = this.state.facet(styleModule);
 		let nonce = this.state.facet(EditorView.cspNonce);
-		StyleModule$1.mount(this.root, this.styleModules.concat(baseTheme$1$1).reverse(), nonce ? { nonce } : void 0);
+		StyleModule.mount(this.root, this.styleModules.concat(baseTheme$1$1).reverse(), nonce ? { nonce } : void 0);
 	}
 	readMeasured() {
 		if (this.updateState == 2) throw new Error("Reading the editor layout isn't allowed during an update");
@@ -137056,7 +140876,7 @@ var EditorView = class EditorView {
 	/**
 	Schedule a layout measurement, optionally providing callbacks to
 	do custom DOM measuring followed by a DOM write phase. Using
-	this is preferable reading DOM layout directly from, for
+	this is preferable to reading DOM layout directly from, for
 	example, an event handler, because it'll make sure measuring and
 	drawing done by other components is synchronized, avoiding
 	unnecessary DOM layout computations.
@@ -137479,7 +141299,7 @@ var EditorView = class EditorView {
 	`&light` when a light theme is active).
 	*/
 	static theme(spec, options) {
-		let prefix = StyleModule$1.newName();
+		let prefix = StyleModule.newName();
 		let result = [theme.of(prefix), styleModule.of(buildTheme(`.${prefix}`, spec))];
 		if (options && options.dark) result.push(darkTheme.of(true));
 		return result;
@@ -138124,6 +141944,7 @@ Define a layer.
 function layer(config) {
 	return [ViewPlugin.define((v) => new LayerView(v, config)), layerOrder.of(config)];
 }
+var drawMainRange = !browser.ios;
 var selectionConfig = /*@__PURE__*/ Facet.define({ combine(configs) {
 	return combineConfig(configs, {
 		cursorBlinkRate: 1200,
@@ -138197,7 +142018,7 @@ var selectionLayer = /*@__PURE__*/ layer({
 	above: false,
 	markers(view) {
 		let markers = [], { main, ranges } = view.state.selection;
-		for (let r of ranges) if (!r.empty) for (let marker of RectangleMarker.forRange(view, "cm-selectionBackground", r)) markers.push(marker);
+		for (let r of ranges) if (!r.empty && (drawMainRange || r != main)) for (let marker of RectangleMarker.forRange(view, "cm-selectionBackground", r)) markers.push(marker);
 		if (browser.ios && !main.empty && view.state.facet(selectionConfig).iosSelectionHandles) {
 			for (let piece of RectangleMarker.forRange(view, "cm-selectionHandle cm-selectionHandle-start", EditorSelection.cursor(main.from, 1))) markers.push(piece);
 			for (let piece of RectangleMarker.forRange(view, "cm-selectionHandle cm-selectionHandle-end", EditorSelection.cursor(main.to, 1))) markers.push(piece);
@@ -138212,14 +142033,14 @@ var selectionLayer = /*@__PURE__*/ layer({
 var selectionBg = browser.gecko && browser.gecko_version == 153 ? "#ffffff01" : "transparent";
 var hideNativeSelection = /*@__PURE__*/ Prec.highest(/*@__PURE__*/ EditorView.theme({
 	".cm-line": {
-		"& ::selection, &::selection": { backgroundColor: `${selectionBg} !important` },
+		...drawMainRange ? { "& ::selection, &::selection": { backgroundColor: `${selectionBg} !important` } } : {},
 		caretColor: "transparent !important"
 	},
 	".cm-content": {
 		caretColor: "transparent !important",
 		"& :focus": {
 			caretColor: "initial !important",
-			"&::selection, & ::selection": { backgroundColor: "Highlight !important" }
+			...drawMainRange ? { "&::selection, & ::selection": { backgroundColor: "Highlight !important" } } : {}
 		}
 	}
 }));
@@ -138512,13 +142333,26 @@ var TooltipViewManager = class {
 		return true;
 	}
 };
+function fixedRange(view) {
+	let docElt = view.dom.ownerDocument.documentElement, width = docElt.clientWidth;
+	let style = getComputedStyle(docElt);
+	if (!/stable/.test(style.scrollbarGutter || "")) return {
+		left: 0,
+		right: width
+	};
+	let rect = docElt.getBoundingClientRect(), scrollX = view.win.scrollX;
+	return {
+		left: Math.max(0, rect.left + scrollX - parseFloat(style.marginLeft)),
+		right: Math.min(width, rect.right + scrollX + parseFloat(style.marginRight))
+	};
+}
 function windowSpace(view) {
-	let docElt = view.dom.ownerDocument.documentElement;
+	let { left, right } = fixedRange(view);
 	return {
 		top: 0,
-		left: 0,
-		bottom: docElt.clientHeight,
-		right: docElt.clientWidth
+		left,
+		right,
+		bottom: view.dom.ownerDocument.documentElement.clientHeight
 	};
 }
 var tooltipConfig = /*@__PURE__*/ Facet.define({ combine: (values) => {
@@ -138631,7 +142465,7 @@ var tooltipPlugin = /*@__PURE__*/ ViewPlugin.fromClass(class {
 		clearTimeout(this.measureTimeout);
 	}
 	readMeasure() {
-		let scaleX = 1, scaleY = 1, makeAbsolute = false;
+		let scaleX = 1, scaleY = 1, makeAbsolute = false, fixedLeft = 0;
 		if (this.position == "fixed" && this.manager.tooltipViews.length) {
 			let { dom } = this.manager.tooltipViews[0];
 			if (browser.safari) {
@@ -138647,7 +142481,7 @@ var tooltipPlugin = /*@__PURE__*/ ViewPlugin.fromClass(class {
 					scaleY = rect.height / this.parent.offsetHeight;
 				}
 			} else ({scaleX, scaleY} = this.view.viewState);
-		}
+		} else fixedLeft = fixedRange(this.view).left;
 		let visible = this.view.scrollDOM.getBoundingClientRect(), margins = getScrollMargins(this.view);
 		return {
 			visible: {
@@ -138665,7 +142499,8 @@ var tooltipPlugin = /*@__PURE__*/ ViewPlugin.fromClass(class {
 			space: this.view.state.facet(tooltipConfig).tooltipSpace(this.view),
 			scaleX,
 			scaleY,
-			makeAbsolute
+			makeAbsolute,
+			fixedLeft
 		};
 	}
 	writeMeasure(measured) {
@@ -138710,7 +142545,7 @@ var tooltipPlugin = /*@__PURE__*/ ViewPlugin.fromClass(class {
 				setLeftStyle(dom, (left - measured.parent.left) / scaleX);
 			} else {
 				dom.style.top = top / scaleY + "px";
-				setLeftStyle(dom, left / scaleX);
+				setLeftStyle(dom, (left - measured.fixedLeft) / scaleX);
 			}
 			if (arrow) {
 				let arrowLeft = pos.left + (ltr ? offset.x : -offset.x) - (left + 14 - 7);
@@ -139260,1351 +143095,6 @@ GutterMarker.prototype.toDOM = void 0;
 GutterMarker.prototype.mapMode = MapMode.TrackBefore;
 GutterMarker.prototype.startSide = GutterMarker.prototype.endSide = -1;
 GutterMarker.prototype.point = true;
-//#endregion
-//#region ../../node_modules/.pnpm/@lezer+common@1.5.3/node_modules/@lezer/common/dist/index.js
-/**
-The default maximum length of a `TreeBuffer` node.
-*/
-var DefaultBufferLength = 1024;
-var nextPropID = 0;
-/**
-Each [node type](#common.NodeType) or [individual tree](#common.Tree)
-can have metadata associated with it in props. Instances of this
-class represent prop names.
-*/
-var NodeProp = class {
-	/**
-	Create a new node prop type.
-	*/
-	constructor(config = {}) {
-		this.id = nextPropID++;
-		this.perNode = !!config.perNode;
-		this.deserialize = config.deserialize || (() => {
-			throw new Error("This node type doesn't define a deserialize function");
-		});
-		this.combine = config.combine || null;
-	}
-	/**
-	This is meant to be used with
-	[`NodeSet.extend`](#common.NodeSet.extend) or
-	[`LRParser.configure`](#lr.ParserConfig.props) to compute
-	prop values for each node type in the set. Takes a [match
-	object](#common.NodeType^match) or function that returns undefined
-	if the node type doesn't get this prop, and the prop's value if
-	it does.
-	*/
-	add(match) {
-		if (this.perNode) throw new RangeError("Can't add per-node props to node types");
-		if (typeof match != "function") match = NodeType.match(match);
-		return (type) => {
-			let result = match(type);
-			return result === void 0 ? null : [this, result];
-		};
-	}
-};
-/**
-Prop that is used to describe matching delimiters. For opening
-delimiters, this holds an array of node names (written as a
-space-separated string when declaring this prop in a grammar)
-for the node types of closing delimiters that match it.
-*/
-NodeProp.closedBy = new NodeProp({ deserialize: (str) => str.split(" ") });
-/**
-The inverse of [`closedBy`](#common.NodeProp^closedBy). This is
-attached to closing delimiters, holding an array of node names
-of types of matching opening delimiters.
-*/
-NodeProp.openedBy = new NodeProp({ deserialize: (str) => str.split(" ") });
-/**
-Used to assign node types to groups (for example, all node
-types that represent an expression could be tagged with an
-`"Expression"` group).
-*/
-NodeProp.group = new NodeProp({ deserialize: (str) => str.split(" ") });
-/**
-Attached to nodes to indicate these should be
-[displayed](https://codemirror.net/docs/ref/#language.syntaxTree)
-in a bidirectional text isolate, so that direction-neutral
-characters on their sides don't incorrectly get associated with
-surrounding text. You'll generally want to set this for nodes
-that contain arbitrary text, like strings and comments, and for
-nodes that appear _inside_ arbitrary text, like HTML tags. When
-not given a value, in a grammar declaration, defaults to
-`"auto"`.
-*/
-NodeProp.isolate = new NodeProp({ deserialize: (value) => {
-	if (value && value != "rtl" && value != "ltr" && value != "auto") throw new RangeError("Invalid value for isolate: " + value);
-	return value || "auto";
-} });
-/**
-The hash of the [context](#lr.ContextTracker.constructor)
-that the node was parsed in, if any. Used to limit reuse of
-contextual nodes.
-*/
-NodeProp.contextHash = new NodeProp({ perNode: true });
-/**
-The distance beyond the end of the node that the tokenizer
-looked ahead for any of the tokens inside the node. (The LR
-parser only stores this when it is larger than 25, for
-efficiency reasons.)
-*/
-NodeProp.lookAhead = new NodeProp({ perNode: true });
-/**
-This per-node prop is used to replace a given node, or part of a
-node, with another tree. This is useful to include trees from
-different languages in mixed-language parsers.
-*/
-NodeProp.mounted = new NodeProp({ perNode: true });
-/**
-A mounted tree, which can be [stored](#common.NodeProp^mounted) on
-a tree node to indicate that parts of its content are
-represented by another tree.
-*/
-var MountedTree = class {
-	constructor(tree, overlay, parser, bracketed = false) {
-		this.tree = tree;
-		this.overlay = overlay;
-		this.parser = parser;
-		this.bracketed = bracketed;
-	}
-	/**
-	@internal
-	*/
-	static get(tree) {
-		return tree && tree.props && tree.props[NodeProp.mounted.id];
-	}
-};
-var noProps = Object.create(null);
-/**
-Each node in a syntax tree has a node type associated with it.
-*/
-var NodeType = class NodeType {
-	/**
-	@internal
-	*/
-	constructor(name, props, id, flags = 0) {
-		this.name = name;
-		this.props = props;
-		this.id = id;
-		this.flags = flags;
-	}
-	/**
-	Define a node type.
-	*/
-	static define(spec) {
-		let props = spec.props && spec.props.length ? Object.create(null) : noProps;
-		let flags = (spec.top ? 1 : 0) | (spec.skipped ? 2 : 0) | (spec.error ? 4 : 0) | (spec.name == null ? 8 : 0);
-		let type = new NodeType(spec.name || "", props, spec.id, flags);
-		if (spec.props) for (let src of spec.props) {
-			if (!Array.isArray(src)) src = src(type);
-			if (src) {
-				if (src[0].perNode) throw new RangeError("Can't store a per-node prop on a node type");
-				props[src[0].id] = src[1];
-			}
-		}
-		return type;
-	}
-	/**
-	Retrieves a node prop for this type. Will return `undefined` if
-	the prop isn't present on this node.
-	*/
-	prop(prop) {
-		return this.props[prop.id];
-	}
-	/**
-	True when this is the top node of a grammar.
-	*/
-	get isTop() {
-		return (this.flags & 1) > 0;
-	}
-	/**
-	True when this node is produced by a skip rule.
-	*/
-	get isSkipped() {
-		return (this.flags & 2) > 0;
-	}
-	/**
-	Indicates whether this is an error node.
-	*/
-	get isError() {
-		return (this.flags & 4) > 0;
-	}
-	/**
-	When true, this node type doesn't correspond to a user-declared
-	named node, for example because it is used to cache repetition.
-	*/
-	get isAnonymous() {
-		return (this.flags & 8) > 0;
-	}
-	/**
-	Returns true when this node's name or one of its
-	[groups](#common.NodeProp^group) matches the given string.
-	*/
-	is(name) {
-		if (typeof name == "string") {
-			if (this.name == name) return true;
-			let group = this.prop(NodeProp.group);
-			return group ? group.indexOf(name) > -1 : false;
-		}
-		return this.id == name;
-	}
-	/**
-	Create a function from node types to arbitrary values by
-	specifying an object whose property names are node or
-	[group](#common.NodeProp^group) names. Often useful with
-	[`NodeProp.add`](#common.NodeProp.add). You can put multiple
-	names, separated by spaces, in a single property name to map
-	multiple node names to a single value.
-	*/
-	static match(map) {
-		let direct = Object.create(null);
-		for (let prop in map) for (let name of prop.split(" ")) direct[name] = map[prop];
-		return (node) => {
-			for (let groups = node.prop(NodeProp.group), i = -1; i < (groups ? groups.length : 0); i++) {
-				let found = direct[i < 0 ? node.name : groups[i]];
-				if (found) return found;
-			}
-		};
-	}
-};
-/**
-An empty dummy node type to use when no actual type is available.
-*/
-NodeType.none = new NodeType("", Object.create(null), 0, 8);
-var CachedNode = /* @__PURE__ */ new WeakMap();
-var CachedInnerNode = /* @__PURE__ */ new WeakMap();
-/**
-Options that control iteration. Can be combined with the `|`
-operator to enable multiple ones.
-*/
-var IterMode;
-(function(IterMode) {
-	/**
-	When enabled, iteration will only visit [`Tree`](#common.Tree)
-	objects, not nodes packed into
-	[`TreeBuffer`](#common.TreeBuffer)s.
-	*/
-	IterMode[IterMode["ExcludeBuffers"] = 1] = "ExcludeBuffers";
-	/**
-	Enable this to make iteration include anonymous nodes (such as
-	the nodes that wrap repeated grammar constructs into a balanced
-	tree).
-	*/
-	IterMode[IterMode["IncludeAnonymous"] = 2] = "IncludeAnonymous";
-	/**
-	By default, regular [mounted](#common.NodeProp^mounted) nodes
-	replace their base node in iteration. Enable this to ignore them
-	instead.
-	*/
-	IterMode[IterMode["IgnoreMounts"] = 4] = "IgnoreMounts";
-	/**
-	This option only applies in
-	[`enter`](#common.SyntaxNode.enter)-style methods. It tells the
-	library to not enter mounted overlays if one covers the given
-	position.
-	*/
-	IterMode[IterMode["IgnoreOverlays"] = 8] = "IgnoreOverlays";
-	/**
-	When set, positions on the boundary of a mounted overlay tree
-	that has its [`bracketed`](#common.NestedParse.bracketed) flag
-	set will enter that tree regardless of side. Only supported in
-	[`enter`](#common.SyntaxNode.enter), not in cursors.
-	*/
-	IterMode[IterMode["EnterBracketed"] = 16] = "EnterBracketed";
-})(IterMode || (IterMode = {}));
-/**
-A piece of syntax tree. There are two ways to approach these
-trees: the way they are actually stored in memory, and the
-convenient way.
-
-Syntax trees are stored as a tree of `Tree` and `TreeBuffer`
-objects. By packing detail information into `TreeBuffer` leaf
-nodes, the representation is made a lot more memory-efficient.
-
-However, when you want to actually work with tree nodes, this
-representation is very awkward, so most client code will want to
-use the [`TreeCursor`](#common.TreeCursor) or
-[`SyntaxNode`](#common.SyntaxNode) interface instead, which provides
-a view on some part of this data structure, and can be used to
-move around to adjacent nodes.
-*/
-var Tree = class Tree {
-	/**
-	Construct a new tree. See also [`Tree.build`](#common.Tree^build).
-	*/
-	constructor(type, children, positions, length, props) {
-		this.type = type;
-		this.children = children;
-		this.positions = positions;
-		this.length = length;
-		/**
-		@internal
-		*/
-		this.props = null;
-		if (props && props.length) {
-			this.props = Object.create(null);
-			for (let [prop, value] of props) this.props[typeof prop == "number" ? prop : prop.id] = value;
-		}
-	}
-	/**
-	@internal
-	*/
-	toString() {
-		let mounted = MountedTree.get(this);
-		if (mounted && !mounted.overlay) return mounted.tree.toString();
-		let children = "";
-		for (let ch of this.children) {
-			let str = ch.toString();
-			if (str) {
-				if (children) children += ",";
-				children += str;
-			}
-		}
-		return !this.type.name ? children : (/\W/.test(this.type.name) && !this.type.isError ? JSON.stringify(this.type.name) : this.type.name) + (children.length ? "(" + children + ")" : "");
-	}
-	/**
-	Get a [tree cursor](#common.TreeCursor) positioned at the top of
-	the tree. Mode can be used to [control](#common.IterMode) which
-	nodes the cursor visits.
-	*/
-	cursor(mode = 0) {
-		return new TreeCursor(this.topNode, mode);
-	}
-	/**
-	Get a [tree cursor](#common.TreeCursor) pointing into this tree
-	at the given position and side (see
-	[`moveTo`](#common.TreeCursor.moveTo).
-	*/
-	cursorAt(pos, side = 0, mode = 0) {
-		let cursor = new TreeCursor(CachedNode.get(this) || this.topNode);
-		cursor.moveTo(pos, side);
-		CachedNode.set(this, cursor._tree);
-		return cursor;
-	}
-	/**
-	Get a [syntax node](#common.SyntaxNode) object for the top of the
-	tree.
-	*/
-	get topNode() {
-		return new TreeNode(this, 0, 0, null);
-	}
-	/**
-	Get the [syntax node](#common.SyntaxNode) at the given position.
-	If `side` is -1, this will move into nodes that end at the
-	position. If 1, it'll move into nodes that start at the
-	position. With 0, it'll only enter nodes that cover the position
-	from both sides.
-	
-	Note that this will not enter
-	[overlays](#common.MountedTree.overlay), and you often want
-	[`resolveInner`](#common.Tree.resolveInner) instead.
-	*/
-	resolve(pos, side = 0) {
-		let node = resolveNode(CachedNode.get(this) || this.topNode, pos, side, false);
-		CachedNode.set(this, node);
-		return node;
-	}
-	/**
-	Like [`resolve`](#common.Tree.resolve), but will enter
-	[overlaid](#common.MountedTree.overlay) nodes, producing a syntax node
-	pointing into the innermost overlaid tree at the given position
-	(with parent links going through all parent structure, including
-	the host trees).
-	*/
-	resolveInner(pos, side = 0) {
-		let node = resolveNode(CachedInnerNode.get(this) || this.topNode, pos, side, true);
-		CachedInnerNode.set(this, node);
-		return node;
-	}
-	/**
-	In some situations, it can be useful to iterate through all
-	nodes around a position, including those in overlays that don't
-	directly cover the position. This method gives you an iterator
-	that will produce all nodes, from small to big, around the given
-	position.
-	*/
-	resolveStack(pos, side = 0) {
-		return stackIterator(this, pos, side);
-	}
-	/**
-	Iterate over the tree and its children, calling `enter` for any
-	node that touches the `from`/`to` region (if given) before
-	running over such a node's children, and `leave` (if given) when
-	leaving the node. When `enter` returns `false`, that node will
-	not have its children iterated over (or `leave` called).
-	*/
-	iterate(spec) {
-		let { enter, leave, from = 0, to = this.length } = spec;
-		let mode = spec.mode || 0, anon = (mode & IterMode.IncludeAnonymous) > 0;
-		for (let c = this.cursor(mode | IterMode.IncludeAnonymous);;) {
-			let entered = false;
-			if (c.from <= to && c.to >= from && (!anon && c.type.isAnonymous || enter(c) !== false)) {
-				if (c.firstChild()) continue;
-				entered = true;
-			}
-			for (;;) {
-				if (entered && leave && (anon || !c.type.isAnonymous)) leave(c);
-				if (c.nextSibling()) break;
-				if (!c.parent()) return;
-				entered = true;
-			}
-		}
-	}
-	/**
-	Get the value of the given [node prop](#common.NodeProp) for this
-	node. Works with both per-node and per-type props.
-	*/
-	prop(prop) {
-		return !prop.perNode ? this.type.prop(prop) : this.props ? this.props[prop.id] : void 0;
-	}
-	/**
-	Returns the node's [per-node props](#common.NodeProp.perNode) in a
-	format that can be passed to the [`Tree`](#common.Tree)
-	constructor.
-	*/
-	get propValues() {
-		let result = [];
-		if (this.props) for (let id in this.props) result.push([+id, this.props[id]]);
-		return result;
-	}
-	/**
-	Balance the direct children of this tree, producing a copy of
-	which may have children grouped into subtrees with type
-	[`NodeType.none`](#common.NodeType^none).
-	*/
-	balance(config = {}) {
-		return this.children.length <= 8 ? this : balanceRange(NodeType.none, this.children, this.positions, 0, this.children.length, 0, this.length, (children, positions, length) => new Tree(this.type, children, positions, length, this.propValues), config.makeTree || ((children, positions, length) => new Tree(NodeType.none, children, positions, length)));
-	}
-	/**
-	Build a tree from a postfix-ordered buffer of node information,
-	or a cursor over such a buffer.
-	*/
-	static build(data) {
-		return buildTree(data);
-	}
-};
-/**
-The empty tree
-*/
-Tree.empty = new Tree(NodeType.none, [], [], 0);
-var FlatBufferCursor = class FlatBufferCursor {
-	constructor(buffer, index) {
-		this.buffer = buffer;
-		this.index = index;
-	}
-	get id() {
-		return this.buffer[this.index - 4];
-	}
-	get start() {
-		return this.buffer[this.index - 3];
-	}
-	get end() {
-		return this.buffer[this.index - 2];
-	}
-	get size() {
-		return this.buffer[this.index - 1];
-	}
-	get pos() {
-		return this.index;
-	}
-	next() {
-		this.index -= 4;
-	}
-	fork() {
-		return new FlatBufferCursor(this.buffer, this.index);
-	}
-};
-/**
-Tree buffers contain (type, start, end, endIndex) quads for each
-node. In such a buffer, nodes are stored in prefix order (parents
-before children, with the endIndex of the parent indicating which
-children belong to it).
-*/
-var TreeBuffer = class TreeBuffer {
-	/**
-	Create a tree buffer.
-	*/
-	constructor(buffer, length, set) {
-		this.buffer = buffer;
-		this.length = length;
-		this.set = set;
-	}
-	/**
-	@internal
-	*/
-	get type() {
-		return NodeType.none;
-	}
-	/**
-	@internal
-	*/
-	toString() {
-		let result = [];
-		for (let index = 0; index < this.buffer.length;) {
-			result.push(this.childString(index));
-			index = this.buffer[index + 3];
-		}
-		return result.join(",");
-	}
-	/**
-	@internal
-	*/
-	childString(index) {
-		let id = this.buffer[index], endIndex = this.buffer[index + 3];
-		let type = this.set.types[id], result = type.name;
-		if (/\W/.test(result) && !type.isError) result = JSON.stringify(result);
-		index += 4;
-		if (endIndex == index) return result;
-		let children = [];
-		while (index < endIndex) {
-			children.push(this.childString(index));
-			index = this.buffer[index + 3];
-		}
-		return result + "(" + children.join(",") + ")";
-	}
-	/**
-	@internal
-	*/
-	findChild(startIndex, endIndex, dir, pos, side) {
-		let { buffer } = this, pick = -1;
-		for (let i = startIndex; i != endIndex; i = buffer[i + 3]) if (checkSide(side, pos, buffer[i + 1], buffer[i + 2])) {
-			pick = i;
-			if (dir > 0) break;
-		}
-		return pick;
-	}
-	/**
-	@internal
-	*/
-	slice(startI, endI, from) {
-		let b = this.buffer;
-		let copy = new Uint16Array(endI - startI), len = 0;
-		for (let i = startI, j = 0; i < endI;) {
-			copy[j++] = b[i++];
-			copy[j++] = b[i++] - from;
-			let to = copy[j++] = b[i++] - from;
-			copy[j++] = b[i++] - startI;
-			len = Math.max(len, to);
-		}
-		return new TreeBuffer(copy, len, this.set);
-	}
-};
-function checkSide(side, pos, from, to) {
-	switch (side) {
-		case -2: return from < pos;
-		case -1: return to >= pos && from < pos;
-		case 0: return from < pos && to > pos;
-		case 1: return from <= pos && to > pos;
-		case 2: return to > pos;
-		case 4: return true;
-	}
-}
-function resolveNode(node, pos, side, overlays) {
-	var _a;
-	while (node.from == node.to || (side < 1 ? node.from >= pos : node.from > pos) || (side > -1 ? node.to <= pos : node.to < pos)) {
-		let parent = !overlays && node instanceof TreeNode && node.index < 0 ? null : node.parent;
-		if (!parent) return node;
-		node = parent;
-	}
-	let mode = overlays ? 0 : IterMode.IgnoreOverlays;
-	if (overlays) {
-		for (let scan = node, parent = scan.parent; parent; scan = parent, parent = scan.parent) if (scan instanceof TreeNode && scan.index < 0 && ((_a = parent.enter(pos, side, mode)) === null || _a === void 0 ? void 0 : _a.from) != scan.from) node = parent;
-	}
-	for (;;) {
-		let inner = node.enter(pos, side, mode);
-		if (!inner) return node;
-		node = inner;
-	}
-}
-var BaseNode = class {
-	cursor(mode = 0) {
-		return new TreeCursor(this, mode);
-	}
-	getChild(type, before = null, after = null) {
-		let r = getChildren(this, type, before, after);
-		return r.length ? r[0] : null;
-	}
-	getChildren(type, before = null, after = null) {
-		return getChildren(this, type, before, after);
-	}
-	resolve(pos, side = 0) {
-		return resolveNode(this, pos, side, false);
-	}
-	resolveInner(pos, side = 0) {
-		return resolveNode(this, pos, side, true);
-	}
-	matchContext(context) {
-		return matchNodeContext(this.parent, context);
-	}
-	enterUnfinishedNodesBefore(pos) {
-		let scan = this.childBefore(pos), node = this;
-		while (scan) {
-			let last = scan.lastChild;
-			if (!last || last.to != scan.to) break;
-			if (last.type.isError && last.from == last.to) {
-				node = scan;
-				scan = last.prevSibling;
-			} else scan = last;
-		}
-		return node;
-	}
-	get node() {
-		return this;
-	}
-	get next() {
-		return this.parent;
-	}
-};
-var TreeNode = class TreeNode extends BaseNode {
-	constructor(_tree, from, index, _parent) {
-		super();
-		this._tree = _tree;
-		this.from = from;
-		this.index = index;
-		this._parent = _parent;
-	}
-	get type() {
-		return this._tree.type;
-	}
-	get name() {
-		return this._tree.type.name;
-	}
-	get to() {
-		return this.from + this._tree.length;
-	}
-	nextChild(i, dir, pos, side, mode = 0) {
-		for (let parent = this;;) {
-			for (let { children, positions } = parent._tree, e = dir > 0 ? children.length : -1; i != e; i += dir) {
-				let next = children[i], start = positions[i] + parent.from, mounted;
-				if (!(mode & IterMode.EnterBracketed && next instanceof Tree && (mounted = MountedTree.get(next)) && !mounted.overlay && mounted.bracketed && pos >= start && pos <= start + next.length) && !checkSide(side, pos, start, start + next.length)) continue;
-				if (next instanceof TreeBuffer) {
-					if (mode & IterMode.ExcludeBuffers) continue;
-					let index = next.findChild(0, next.buffer.length, dir, pos - start, side);
-					if (index > -1) return new BufferNode(new BufferContext(parent, next, i, start), null, index);
-				} else if (mode & IterMode.IncludeAnonymous || !next.type.isAnonymous || hasChild(next)) {
-					let mounted;
-					if (!(mode & IterMode.IgnoreMounts) && (mounted = MountedTree.get(next)) && !mounted.overlay) return new TreeNode(mounted.tree, start, i, parent);
-					let inner = new TreeNode(next, start, i, parent);
-					return mode & IterMode.IncludeAnonymous || !inner.type.isAnonymous ? inner : inner.nextChild(dir < 0 ? next.children.length - 1 : 0, dir, pos, side, mode);
-				}
-			}
-			if (mode & IterMode.IncludeAnonymous || !parent.type.isAnonymous) return null;
-			if (parent.index >= 0) i = parent.index + dir;
-			else i = dir < 0 ? -1 : parent._parent._tree.children.length;
-			parent = parent._parent;
-			if (!parent) return null;
-		}
-	}
-	get firstChild() {
-		return this.nextChild(0, 1, 0, 4);
-	}
-	get lastChild() {
-		return this.nextChild(this._tree.children.length - 1, -1, 0, 4);
-	}
-	childAfter(pos) {
-		return this.nextChild(0, 1, pos, 2);
-	}
-	childBefore(pos) {
-		return this.nextChild(this._tree.children.length - 1, -1, pos, -2);
-	}
-	prop(prop) {
-		return this._tree.prop(prop);
-	}
-	enter(pos, side, mode = 0) {
-		let mounted;
-		if (!(mode & IterMode.IgnoreOverlays) && (mounted = MountedTree.get(this._tree)) && mounted.overlay) {
-			let rPos = pos - this.from, enterBracketed = mode & IterMode.EnterBracketed && mounted.bracketed;
-			for (let { from, to } of mounted.overlay) if ((side > 0 || enterBracketed ? from <= rPos : from < rPos) && (side < 0 || enterBracketed ? to >= rPos : to > rPos)) return new TreeNode(mounted.tree, mounted.overlay[0].from + this.from, -1, this);
-		}
-		return this.nextChild(0, 1, pos, side, mode);
-	}
-	nextSignificantParent() {
-		let val = this;
-		while (val.type.isAnonymous && val._parent) val = val._parent;
-		return val;
-	}
-	get parent() {
-		return this._parent ? this._parent.nextSignificantParent() : null;
-	}
-	get nextSibling() {
-		return this._parent && this.index >= 0 ? this._parent.nextChild(this.index + 1, 1, 0, 4) : null;
-	}
-	get prevSibling() {
-		return this._parent && this.index >= 0 ? this._parent.nextChild(this.index - 1, -1, 0, 4) : null;
-	}
-	get tree() {
-		return this._tree;
-	}
-	toTree() {
-		return this._tree;
-	}
-	/**
-	@internal
-	*/
-	toString() {
-		return this._tree.toString();
-	}
-};
-function getChildren(node, type, before, after) {
-	let cur = node.cursor(), result = [];
-	if (!cur.firstChild()) return result;
-	if (before != null) for (let found = false; !found;) {
-		found = cur.type.is(before);
-		if (!cur.nextSibling()) return result;
-	}
-	for (;;) {
-		if (after != null && cur.type.is(after)) return result;
-		if (cur.type.is(type)) result.push(cur.node);
-		if (!cur.nextSibling()) return after == null ? result : [];
-	}
-}
-function matchNodeContext(node, context, i = context.length - 1) {
-	for (let p = node; i >= 0; p = p.parent) {
-		if (!p) return false;
-		if (!p.type.isAnonymous) {
-			if (context[i] && context[i] != p.name) return false;
-			i--;
-		}
-	}
-	return true;
-}
-var BufferContext = class {
-	constructor(parent, buffer, index, start) {
-		this.parent = parent;
-		this.buffer = buffer;
-		this.index = index;
-		this.start = start;
-	}
-};
-var BufferNode = class BufferNode extends BaseNode {
-	get name() {
-		return this.type.name;
-	}
-	get from() {
-		return this.context.start + this.context.buffer.buffer[this.index + 1];
-	}
-	get to() {
-		return this.context.start + this.context.buffer.buffer[this.index + 2];
-	}
-	constructor(context, _parent, index) {
-		super();
-		this.context = context;
-		this._parent = _parent;
-		this.index = index;
-		this.type = context.buffer.set.types[context.buffer.buffer[index]];
-	}
-	child(dir, pos, side) {
-		let { buffer } = this.context;
-		let index = buffer.findChild(this.index + 4, buffer.buffer[this.index + 3], dir, pos - this.context.start, side);
-		return index < 0 ? null : new BufferNode(this.context, this, index);
-	}
-	get firstChild() {
-		return this.child(1, 0, 4);
-	}
-	get lastChild() {
-		return this.child(-1, 0, 4);
-	}
-	childAfter(pos) {
-		return this.child(1, pos, 2);
-	}
-	childBefore(pos) {
-		return this.child(-1, pos, -2);
-	}
-	prop(prop) {
-		return this.type.prop(prop);
-	}
-	enter(pos, side, mode = 0) {
-		if (mode & IterMode.ExcludeBuffers) return null;
-		let { buffer } = this.context;
-		let index = buffer.findChild(this.index + 4, buffer.buffer[this.index + 3], side > 0 ? 1 : -1, pos - this.context.start, side);
-		return index < 0 ? null : new BufferNode(this.context, this, index);
-	}
-	get parent() {
-		return this._parent || this.context.parent.nextSignificantParent();
-	}
-	externalSibling(dir) {
-		return this._parent ? null : this.context.parent.nextChild(this.context.index + dir, dir, 0, 4);
-	}
-	get nextSibling() {
-		let { buffer } = this.context;
-		let after = buffer.buffer[this.index + 3];
-		if (after < (this._parent ? buffer.buffer[this._parent.index + 3] : buffer.buffer.length)) return new BufferNode(this.context, this._parent, after);
-		return this.externalSibling(1);
-	}
-	get prevSibling() {
-		let { buffer } = this.context;
-		let parentStart = this._parent ? this._parent.index + 4 : 0;
-		if (this.index == parentStart) return this.externalSibling(-1);
-		return new BufferNode(this.context, this._parent, buffer.findChild(parentStart, this.index, -1, 0, 4));
-	}
-	get tree() {
-		return null;
-	}
-	toTree() {
-		let children = [], positions = [];
-		let { buffer } = this.context;
-		let startI = this.index + 4, endI = buffer.buffer[this.index + 3];
-		if (endI > startI) {
-			let from = buffer.buffer[this.index + 1];
-			children.push(buffer.slice(startI, endI, from));
-			positions.push(0);
-		}
-		return new Tree(this.type, children, positions, this.to - this.from);
-	}
-	/**
-	@internal
-	*/
-	toString() {
-		return this.context.buffer.childString(this.index);
-	}
-};
-function iterStack(heads) {
-	if (!heads.length) return null;
-	let pick = 0, picked = heads[0];
-	for (let i = 1; i < heads.length; i++) {
-		let node = heads[i];
-		if (node.from > picked.from || node.to < picked.to) {
-			picked = node;
-			pick = i;
-		}
-	}
-	let next = picked instanceof TreeNode && picked.index < 0 ? null : picked.parent;
-	let newHeads = heads.slice();
-	if (next) newHeads[pick] = next;
-	else newHeads.splice(pick, 1);
-	return new StackIterator(newHeads, picked);
-}
-var StackIterator = class {
-	constructor(heads, node) {
-		this.heads = heads;
-		this.node = node;
-	}
-	get next() {
-		return iterStack(this.heads);
-	}
-};
-function stackIterator(tree, pos, side) {
-	let inner = tree.resolveInner(pos, side), layers = null;
-	for (let scan = inner instanceof TreeNode ? inner : inner.context.parent; scan; scan = scan.parent) if (scan.index < 0) {
-		let parent = scan.parent;
-		(layers || (layers = [inner])).push(parent.resolve(pos, side));
-		scan = parent;
-	} else {
-		let mount = MountedTree.get(scan.tree);
-		if (mount && mount.overlay && mount.overlay[0].from <= pos && mount.overlay[mount.overlay.length - 1].to >= pos) {
-			let root = new TreeNode(mount.tree, mount.overlay[0].from + scan.from, -1, scan);
-			(layers || (layers = [inner])).push(resolveNode(root, pos, side, false));
-		}
-	}
-	return layers ? iterStack(layers) : inner;
-}
-/**
-A tree cursor object focuses on a given node in a syntax tree, and
-allows you to move to adjacent nodes.
-*/
-var TreeCursor = class {
-	/**
-	Shorthand for `.type.name`.
-	*/
-	get name() {
-		return this.type.name;
-	}
-	/**
-	@internal
-	*/
-	constructor(node, mode = 0) {
-		/**
-		@internal
-		*/
-		this.buffer = null;
-		this.stack = [];
-		/**
-		@internal
-		*/
-		this.index = 0;
-		this.bufferNode = null;
-		this.mode = mode & ~IterMode.EnterBracketed;
-		if (node instanceof TreeNode) this.yieldNode(node);
-		else {
-			this._tree = node.context.parent;
-			this.buffer = node.context;
-			for (let n = node._parent; n; n = n._parent) this.stack.unshift(n.index);
-			this.bufferNode = node;
-			this.yieldBuf(node.index);
-		}
-	}
-	yieldNode(node) {
-		if (!node) return false;
-		this._tree = node;
-		this.type = node.type;
-		this.from = node.from;
-		this.to = node.to;
-		return true;
-	}
-	yieldBuf(index, type) {
-		this.index = index;
-		let { start, buffer } = this.buffer;
-		this.type = type || buffer.set.types[buffer.buffer[index]];
-		this.from = start + buffer.buffer[index + 1];
-		this.to = start + buffer.buffer[index + 2];
-		return true;
-	}
-	/**
-	@internal
-	*/
-	yield(node) {
-		if (!node) return false;
-		if (node instanceof TreeNode) {
-			this.buffer = null;
-			return this.yieldNode(node);
-		}
-		this.buffer = node.context;
-		return this.yieldBuf(node.index, node.type);
-	}
-	/**
-	@internal
-	*/
-	toString() {
-		return this.buffer ? this.buffer.buffer.childString(this.index) : this._tree.toString();
-	}
-	/**
-	@internal
-	*/
-	enterChild(dir, pos, side) {
-		if (!this.buffer) return this.yield(this._tree.nextChild(dir < 0 ? this._tree._tree.children.length - 1 : 0, dir, pos, side, this.mode));
-		let { buffer } = this.buffer;
-		let index = buffer.findChild(this.index + 4, buffer.buffer[this.index + 3], dir, pos - this.buffer.start, side);
-		if (index < 0) return false;
-		this.stack.push(this.index);
-		return this.yieldBuf(index);
-	}
-	/**
-	Move the cursor to this node's first child. When this returns
-	false, the node has no child, and the cursor has not been moved.
-	*/
-	firstChild() {
-		return this.enterChild(1, 0, 4);
-	}
-	/**
-	Move the cursor to this node's last child.
-	*/
-	lastChild() {
-		return this.enterChild(-1, 0, 4);
-	}
-	/**
-	Move the cursor to the first child that ends after `pos`.
-	*/
-	childAfter(pos) {
-		return this.enterChild(1, pos, 2);
-	}
-	/**
-	Move to the last child that starts before `pos`.
-	*/
-	childBefore(pos) {
-		return this.enterChild(-1, pos, -2);
-	}
-	/**
-	Move the cursor to the child around `pos`. If side is -1 the
-	child may end at that position, when 1 it may start there. This
-	will also enter [overlaid](#common.MountedTree.overlay)
-	[mounted](#common.NodeProp^mounted) trees unless `overlays` is
-	set to false.
-	*/
-	enter(pos, side, mode = this.mode) {
-		if (!this.buffer) return this.yield(this._tree.enter(pos, side, mode));
-		return mode & IterMode.ExcludeBuffers ? false : this.enterChild(1, pos, side);
-	}
-	/**
-	Move to the node's parent node, if this isn't the top node.
-	*/
-	parent() {
-		if (!this.buffer) return this.yieldNode(this.mode & IterMode.IncludeAnonymous ? this._tree._parent : this._tree.parent);
-		if (this.stack.length) return this.yieldBuf(this.stack.pop());
-		let parent = this.mode & IterMode.IncludeAnonymous ? this.buffer.parent : this.buffer.parent.nextSignificantParent();
-		this.buffer = null;
-		return this.yieldNode(parent);
-	}
-	/**
-	@internal
-	*/
-	sibling(dir) {
-		if (!this.buffer) return !this._tree._parent ? false : this.yield(this._tree.index < 0 ? null : this._tree._parent.nextChild(this._tree.index + dir, dir, 0, 4, this.mode));
-		let { buffer } = this.buffer, d = this.stack.length - 1;
-		if (dir < 0) {
-			let parentStart = d < 0 ? 0 : this.stack[d] + 4;
-			if (this.index != parentStart) return this.yieldBuf(buffer.findChild(parentStart, this.index, -1, 0, 4));
-		} else {
-			let after = buffer.buffer[this.index + 3];
-			if (after < (d < 0 ? buffer.buffer.length : buffer.buffer[this.stack[d] + 3])) return this.yieldBuf(after);
-		}
-		return d < 0 ? this.yield(this.buffer.parent.nextChild(this.buffer.index + dir, dir, 0, 4, this.mode)) : false;
-	}
-	/**
-	Move to this node's next sibling, if any.
-	*/
-	nextSibling() {
-		return this.sibling(1);
-	}
-	/**
-	Move to this node's previous sibling, if any.
-	*/
-	prevSibling() {
-		return this.sibling(-1);
-	}
-	atLastNode(dir) {
-		let index, parent, { buffer } = this;
-		if (buffer) {
-			if (dir > 0) {
-				if (this.index < buffer.buffer.buffer.length) return false;
-			} else for (let i = 0; i < this.index; i++) if (buffer.buffer.buffer[i + 3] < this.index) return false;
-			({index, parent} = buffer);
-		} else ({index, _parent: parent} = this._tree);
-		for (; parent; {index, _parent: parent} = parent) if (index > -1) for (let i = index + dir, e = dir < 0 ? -1 : parent._tree.children.length; i != e; i += dir) {
-			let child = parent._tree.children[i];
-			if (this.mode & IterMode.IncludeAnonymous || child instanceof TreeBuffer || !child.type.isAnonymous || hasChild(child)) return false;
-		}
-		return true;
-	}
-	move(dir, enter) {
-		if (enter && this.enterChild(dir, 0, 4)) return true;
-		for (;;) {
-			if (this.sibling(dir)) return true;
-			if (this.atLastNode(dir) || !this.parent()) return false;
-		}
-	}
-	/**
-	Move to the next node in a
-	[pre-order](https://en.wikipedia.org/wiki/Tree_traversal#Pre-order,_NLR)
-	traversal, going from a node to its first child or, if the
-	current node is empty or `enter` is false, its next sibling or
-	the next sibling of the first parent node that has one.
-	*/
-	next(enter = true) {
-		return this.move(1, enter);
-	}
-	/**
-	Move to the next node in a last-to-first pre-order traversal. A
-	node is followed by its last child or, if it has none, its
-	previous sibling or the previous sibling of the first parent
-	node that has one.
-	*/
-	prev(enter = true) {
-		return this.move(-1, enter);
-	}
-	/**
-	Move the cursor to the innermost node that covers `pos`. If
-	`side` is -1, it will enter nodes that end at `pos`. If it is 1,
-	it will enter nodes that start at `pos`.
-	*/
-	moveTo(pos, side = 0) {
-		while (this.from == this.to || (side < 1 ? this.from >= pos : this.from > pos) || (side > -1 ? this.to <= pos : this.to < pos)) if (!this.parent()) break;
-		while (this.enterChild(1, pos, side));
-		return this;
-	}
-	/**
-	Get a [syntax node](#common.SyntaxNode) at the cursor's current
-	position.
-	*/
-	get node() {
-		if (!this.buffer) return this._tree;
-		let cache = this.bufferNode, result = null, depth = 0;
-		if (cache && cache.context == this.buffer) scan: for (let index = this.index, d = this.stack.length; d >= 0;) {
-			for (let c = cache; c; c = c._parent) if (c.index == index) {
-				if (index == this.index) return c;
-				result = c;
-				depth = d + 1;
-				break scan;
-			}
-			index = this.stack[--d];
-		}
-		for (let i = depth; i < this.stack.length; i++) result = new BufferNode(this.buffer, result, this.stack[i]);
-		return this.bufferNode = new BufferNode(this.buffer, result, this.index);
-	}
-	/**
-	Get the [tree](#common.Tree) that represents the current node, if
-	any. Will return null when the node is in a [tree
-	buffer](#common.TreeBuffer).
-	*/
-	get tree() {
-		return this.buffer ? null : this._tree._tree;
-	}
-	/**
-	Iterate over the current node and all its descendants, calling
-	`enter` when entering a node and `leave`, if given, when leaving
-	one. When `enter` returns `false`, any children of that node are
-	skipped, and `leave` isn't called for it.
-	*/
-	iterate(enter, leave) {
-		for (let depth = 0;;) {
-			let mustLeave = false;
-			if (this.type.isAnonymous || enter(this) !== false) {
-				if (this.firstChild()) {
-					depth++;
-					continue;
-				}
-				if (!this.type.isAnonymous) mustLeave = true;
-			}
-			for (;;) {
-				if (mustLeave && leave) leave(this);
-				mustLeave = this.type.isAnonymous;
-				if (!depth) return;
-				if (this.nextSibling()) break;
-				this.parent();
-				depth--;
-				mustLeave = true;
-			}
-		}
-	}
-	/**
-	Test whether the current node matches a given context—a sequence
-	of direct parent node names. Empty strings in the context array
-	are treated as wildcards.
-	*/
-	matchContext(context) {
-		if (!this.buffer) return matchNodeContext(this.node.parent, context);
-		let { buffer } = this.buffer, { types } = buffer.set;
-		for (let i = context.length - 1, d = this.stack.length - 1; i >= 0; d--) {
-			if (d < 0) return matchNodeContext(this._tree, context, i);
-			let type = types[buffer.buffer[this.stack[d]]];
-			if (!type.isAnonymous) {
-				if (context[i] && context[i] != type.name) return false;
-				i--;
-			}
-		}
-		return true;
-	}
-};
-function hasChild(tree) {
-	return tree.children.some((ch) => ch instanceof TreeBuffer || !ch.type.isAnonymous || hasChild(ch));
-}
-function buildTree(data) {
-	var _a;
-	let { buffer, nodeSet, maxBufferLength = DefaultBufferLength, reused = [], minRepeatType = nodeSet.types.length } = data;
-	let cursor = Array.isArray(buffer) ? new FlatBufferCursor(buffer, buffer.length) : buffer;
-	let types = nodeSet.types;
-	let contextHash = 0, lookAhead = 0;
-	function takeNode(parentStart, minPos, children, positions, inRepeat, depth) {
-		let { id, start, end, size } = cursor;
-		let lookAheadAtStart = lookAhead, contextAtStart = contextHash;
-		if (size < 0) {
-			cursor.next();
-			if (size == -1) {
-				let node = reused[id];
-				children.push(node);
-				positions.push(start - parentStart);
-				return;
-			} else if (size == -3) {
-				contextHash = id;
-				return;
-			} else if (size == -4) {
-				lookAhead = id;
-				return;
-			} else throw new RangeError(`Unrecognized record size: ${size}`);
-		}
-		let type = types[id], node, buffer;
-		let startPos = start - parentStart;
-		if (end - start <= maxBufferLength && (buffer = findBufferSize(cursor.pos - minPos, inRepeat))) {
-			let data = new Uint16Array(buffer.size - buffer.skip);
-			let endPos = cursor.pos - buffer.size, index = data.length;
-			while (cursor.pos > endPos) index = copyToBuffer(buffer.start, data, index);
-			node = new TreeBuffer(data, end - buffer.start, nodeSet);
-			startPos = buffer.start - parentStart;
-		} else {
-			let endPos = cursor.pos - size;
-			cursor.next();
-			let localChildren = [], localPositions = [];
-			let localInRepeat = id >= minRepeatType ? id : -1;
-			let lastGroup = 0, lastEnd = end;
-			while (cursor.pos > endPos) if (localInRepeat >= 0 && cursor.id == localInRepeat && cursor.size >= 0) {
-				if (cursor.end <= lastEnd - maxBufferLength) {
-					makeRepeatLeaf(localChildren, localPositions, start, lastGroup, cursor.end, lastEnd, localInRepeat, lookAheadAtStart, contextAtStart);
-					lastGroup = localChildren.length;
-					lastEnd = cursor.end;
-				}
-				cursor.next();
-			} else if (depth > 2500) takeFlatNode(start, endPos, localChildren, localPositions);
-			else takeNode(start, endPos, localChildren, localPositions, localInRepeat, depth + 1);
-			if (localInRepeat >= 0 && lastGroup > 0 && lastGroup < localChildren.length) makeRepeatLeaf(localChildren, localPositions, start, lastGroup, start, lastEnd, localInRepeat, lookAheadAtStart, contextAtStart);
-			localChildren.reverse();
-			localPositions.reverse();
-			if (localInRepeat > -1 && lastGroup > 0) {
-				let make = makeBalanced(type, contextAtStart);
-				node = balanceRange(type, localChildren, localPositions, 0, localChildren.length, 0, end - start, make, make);
-			} else node = makeTree(type, localChildren, localPositions, end - start, lookAheadAtStart - end, contextAtStart);
-		}
-		children.push(node);
-		positions.push(startPos);
-	}
-	function takeFlatNode(parentStart, minPos, children, positions) {
-		let nodes = [];
-		let nodeCount = 0, stopAt = -1;
-		while (cursor.pos > minPos) {
-			let { id, start, end, size } = cursor;
-			if (size > 4) cursor.next();
-			else if (stopAt > -1 && start < stopAt) break;
-			else {
-				if (stopAt < 0) stopAt = end - maxBufferLength;
-				nodes.push(id, start, end);
-				nodeCount++;
-				cursor.next();
-			}
-		}
-		if (nodeCount) {
-			let buffer = new Uint16Array(nodeCount * 4);
-			let start = nodes[nodes.length - 2];
-			for (let i = nodes.length - 3, j = 0; i >= 0; i -= 3) {
-				buffer[j++] = nodes[i];
-				buffer[j++] = nodes[i + 1] - start;
-				buffer[j++] = nodes[i + 2] - start;
-				buffer[j++] = j;
-			}
-			children.push(new TreeBuffer(buffer, nodes[2] - start, nodeSet));
-			positions.push(start - parentStart);
-		}
-	}
-	function makeBalanced(type, contextHash) {
-		return (children, positions, length) => {
-			let lookAhead = 0, lastI = children.length - 1, last, lookAheadProp;
-			if (lastI >= 0 && (last = children[lastI]) instanceof Tree) {
-				if (!lastI && last.type == type && last.length == length) return last;
-				if (lookAheadProp = last.prop(NodeProp.lookAhead)) lookAhead = positions[lastI] + last.length + lookAheadProp;
-			}
-			return makeTree(type, children, positions, length, lookAhead, contextHash);
-		};
-	}
-	function makeRepeatLeaf(children, positions, base, i, from, to, type, lookAhead, contextHash) {
-		let localChildren = [], localPositions = [];
-		while (children.length > i) {
-			localChildren.push(children.pop());
-			localPositions.push(positions.pop() + base - from);
-		}
-		children.push(makeTree(nodeSet.types[type], localChildren, localPositions, to - from, lookAhead - to, contextHash));
-		positions.push(from - base);
-	}
-	function makeTree(type, children, positions, length, lookAhead, contextHash, props) {
-		if (contextHash) {
-			let pair = [NodeProp.contextHash, contextHash];
-			props = props ? [pair].concat(props) : [pair];
-		}
-		if (lookAhead > 25) {
-			let pair = [NodeProp.lookAhead, lookAhead];
-			props = props ? [pair].concat(props) : [pair];
-		}
-		return new Tree(type, children, positions, length, props);
-	}
-	function findBufferSize(maxSize, inRepeat) {
-		let fork = cursor.fork();
-		let size = 0, start = 0, skip = 0, minStart = fork.end - maxBufferLength;
-		let result = {
-			size: 0,
-			start: 0,
-			skip: 0
-		};
-		scan: for (let minPos = fork.pos - maxSize; fork.pos > minPos;) {
-			let nodeSize = fork.size;
-			if (fork.id == inRepeat && nodeSize >= 0) {
-				result.size = size;
-				result.start = start;
-				result.skip = skip;
-				skip += 4;
-				size += 4;
-				fork.next();
-				continue;
-			}
-			let startPos = fork.pos - nodeSize;
-			if (nodeSize < 0 || startPos < minPos || fork.start < minStart) break;
-			let localSkipped = fork.id >= minRepeatType ? 4 : 0;
-			let nodeStart = fork.start;
-			fork.next();
-			while (fork.pos > startPos) {
-				if (fork.size < 0) {
-					if (fork.size == -3 || fork.size == -4) localSkipped += 4;
-					else break scan;
-				} else if (fork.id >= minRepeatType) localSkipped += 4;
-				fork.next();
-			}
-			start = nodeStart;
-			size += nodeSize;
-			skip += localSkipped;
-		}
-		if (inRepeat < 0 || size == maxSize) {
-			result.size = size;
-			result.start = start;
-			result.skip = skip;
-		}
-		return result.size > 4 ? result : void 0;
-	}
-	function copyToBuffer(bufferStart, buffer, index) {
-		let { id, start, end, size } = cursor;
-		cursor.next();
-		if (size >= 0 && id < minRepeatType) {
-			let startIndex = index;
-			if (size > 4) {
-				let endPos = cursor.pos - (size - 4);
-				while (cursor.pos > endPos) index = copyToBuffer(bufferStart, buffer, index);
-			}
-			buffer[--index] = startIndex;
-			buffer[--index] = end - bufferStart;
-			buffer[--index] = start - bufferStart;
-			buffer[--index] = id;
-		} else if (size == -3) contextHash = id;
-		else if (size == -4) lookAhead = id;
-		return index;
-	}
-	let children = [], positions = [];
-	while (cursor.pos > 0) takeNode(data.start || 0, data.bufferStart || 0, children, positions, -1, 0);
-	let length = (_a = data.length) !== null && _a !== void 0 ? _a : children.length ? positions[0] + children[0].length : 0;
-	return new Tree(types[data.topID], children.reverse(), positions.reverse(), length);
-}
-var nodeSizeCache = /* @__PURE__ */ new WeakMap();
-function nodeSize(balanceType, node) {
-	if (!balanceType.isAnonymous || node instanceof TreeBuffer || node.type != balanceType) return 1;
-	let size = nodeSizeCache.get(node);
-	if (size == null) {
-		size = 1;
-		for (let child of node.children) {
-			if (child.type != balanceType || !(child instanceof Tree)) {
-				size = 1;
-				break;
-			}
-			size += nodeSize(balanceType, child);
-		}
-		nodeSizeCache.set(node, size);
-	}
-	return size;
-}
-function balanceRange(balanceType, children, positions, from, to, start, length, mkTop, mkTree) {
-	let total = 0;
-	for (let i = from; i < to; i++) total += nodeSize(balanceType, children[i]);
-	let maxChild = Math.ceil(total * 1.5 / 8);
-	let localChildren = [], localPositions = [];
-	function divide(children, positions, from, to, offset) {
-		for (let i = from; i < to;) {
-			let groupFrom = i, groupStart = positions[i], groupSize = nodeSize(balanceType, children[i]);
-			i++;
-			for (; i < to; i++) {
-				let nextSize = nodeSize(balanceType, children[i]);
-				if (groupSize + nextSize >= maxChild) break;
-				groupSize += nextSize;
-			}
-			if (i == groupFrom + 1) {
-				if (groupSize > maxChild) {
-					let only = children[groupFrom];
-					divide(only.children, only.positions, 0, only.children.length, positions[groupFrom] + offset);
-					continue;
-				}
-				localChildren.push(children[groupFrom]);
-			} else {
-				let length = positions[i - 1] + children[i - 1].length - groupStart;
-				localChildren.push(balanceRange(balanceType, children, positions, groupFrom, i, groupStart, length, null, mkTree));
-			}
-			localPositions.push(groupStart + offset - start);
-		}
-	}
-	divide(children, positions, from, to, 0);
-	return (mkTop || mkTree)(localChildren, localPositions, length);
-}
-new NodeProp({ perNode: true });
 //#endregion
 //#region ../../node_modules/.pnpm/@lezer+highlight@1.2.5/node_modules/@lezer/highlight/dist/index.js
 var nextTagID = 0;
@@ -141479,105 +143969,179 @@ tagHighlighter([
 	}
 ]);
 //#endregion
-//#region ../../node_modules/.pnpm/style-mod@4.1.3_patch_hash=8b8994768dcd5295790b5425f0e9f8a8dfaaaea0f61f438744f64f243c5a511b/node_modules/style-mod/src/style-mod.js
-var C = "ͼ";
-var COUNT = typeof Symbol == "undefined" ? "__ͼ" : Symbol.for(C);
-var SET = typeof Symbol == "undefined" ? "__styleSet" + Math.floor(Math.random() * 1e8) : Symbol("styleSet");
-var top = typeof globalThis != "undefined" ? globalThis : typeof window != "undefined" ? window : {};
-var StyleModule = class {
-	constructor(spec, options) {
-		this.rules = [];
-		let { finish } = options || {};
-		function splitSelector(selector) {
-			return /^@/.test(selector) ? [selector] : selector.split(/,\s*/);
+//#region ../../node_modules/.pnpm/@codemirror+streamparser@6.0.0/node_modules/@codemirror/streamparser/dist/index.js
+function countCol(string, end, tabSize, startIndex = 0, startValue = 0) {
+	if (end == null) {
+		end = string.search(/[^\s\u00a0]/);
+		if (end == -1) end = string.length;
+	}
+	let n = startValue;
+	for (let i = startIndex; i < end; i++) if (string.charCodeAt(i) == 9) n += tabSize - n % tabSize;
+	else n++;
+	return n;
+}
+/**
+Encapsulates a single line of input. Given to stream syntax code,
+which uses it to tokenize the content.
+*/
+var StringStream = class {
+	/**
+	Create a stream.
+	*/
+	constructor(string, tabSize, indentUnit, overrideIndent) {
+		this.string = string;
+		this.tabSize = tabSize;
+		this.indentUnit = indentUnit;
+		this.overrideIndent = overrideIndent;
+		/**
+		The current position on the line.
+		*/
+		this.pos = 0;
+		/**
+		The start position of the current token.
+		*/
+		this.start = 0;
+		this.lastColumnPos = 0;
+		this.lastColumnValue = 0;
+	}
+	/**
+	True if we are at the end of the line.
+	*/
+	eol() {
+		return this.pos >= this.string.length;
+	}
+	/**
+	True if we are at the start of the line.
+	*/
+	sol() {
+		return this.pos == 0;
+	}
+	/**
+	Get the next code unit after the current position, or undefined
+	if we're at the end of the line.
+	*/
+	peek() {
+		return this.string.charAt(this.pos) || void 0;
+	}
+	/**
+	Read the next code unit and advance `this.pos`.
+	*/
+	next() {
+		if (this.pos < this.string.length) return this.string.charAt(this.pos++);
+	}
+	/**
+	Match the next character against the given string, regular
+	expression, or predicate. Consume and return it if it matches.
+	*/
+	eat(match) {
+		let ch = this.string.charAt(this.pos);
+		let ok;
+		if (typeof match == "string") ok = ch == match;
+		else ok = ch && (match instanceof RegExp ? match.test(ch) : match(ch));
+		if (ok) {
+			++this.pos;
+			return ch;
 		}
-		function render(selectors, spec, target, isKeyframes) {
-			let local = [], isAt = /^@(\w+)\b/.exec(selectors[0]), keyframes = isAt && isAt[1] == "keyframes";
-			if (isAt && spec == null) return target.push(selectors[0] + ";");
-			for (let prop in spec) {
-				let value = spec[prop];
-				if (/&/.test(prop)) render(prop.split(/,\s*/).map((part) => selectors.map((sel) => part.replace(/&/, sel))).reduce((a, b) => a.concat(b)), value, target);
-				else if (value && typeof value == "object") {
-					if (!isAt) throw new RangeError("The value of a property (" + prop + ") should be a primitive value.");
-					render(splitSelector(prop), value, local, keyframes);
-				} else if (value != null) local.push(prop.replace(/_.*/, "").replace(/[A-Z]/g, (l) => "-" + l.toLowerCase()) + ": " + value + ";");
-			}
-			if (local.length || keyframes) target.push((finish && !isAt && !isKeyframes ? selectors.map(finish) : selectors).join(", ") + " {" + local.join(" ") + "}");
+	}
+	/**
+	Continue matching characters that match the given string,
+	regular expression, or predicate function. Return true if any
+	characters were consumed.
+	*/
+	eatWhile(match) {
+		let start = this.pos;
+		while (this.eat(match));
+		return this.pos > start;
+	}
+	/**
+	Consume whitespace ahead of `this.pos`. Return true if any was
+	found.
+	*/
+	eatSpace() {
+		let start = this.pos;
+		while (/[\s\u00a0]/.test(this.string.charAt(this.pos))) ++this.pos;
+		return this.pos > start;
+	}
+	/**
+	Move to the end of the line.
+	*/
+	skipToEnd() {
+		this.pos = this.string.length;
+	}
+	/**
+	Move to directly before the given character, if found on the
+	current line.
+	*/
+	skipTo(ch) {
+		let found = this.string.indexOf(ch, this.pos);
+		if (found > -1) {
+			this.pos = found;
+			return true;
 		}
-		for (let prop in spec) render(splitSelector(prop), spec[prop], this.rules);
 	}
-	getRules() {
-		return this.rules.join("\n");
+	/**
+	Move back `n` characters.
+	*/
+	backUp(n) {
+		this.pos -= n;
 	}
-	static newName() {
-		let id = top[COUNT] || 1;
-		top[COUNT] = id + 1;
-		return C + id.toString(36);
+	/**
+	Get the column position at `this.pos`.
+	*/
+	column() {
+		if (this.lastColumnPos < this.start) {
+			this.lastColumnValue = countCol(this.string, this.start, this.tabSize, this.lastColumnPos, this.lastColumnValue);
+			this.lastColumnPos = this.start;
+		}
+		return this.lastColumnValue;
 	}
-	static mount(root, modules, options) {
-		let set = root[SET], nonce = options && options.nonce;
-		if (!set) set = new StyleSet(root, nonce);
-		else if (nonce) set.setNonce(nonce);
-		set.mount(Array.isArray(modules) ? modules : [modules], root);
+	/**
+	Get the indentation column of the current line.
+	*/
+	indentation() {
+		var _a;
+		return (_a = this.overrideIndent) !== null && _a !== void 0 ? _a : countCol(this.string, null, this.tabSize);
 	}
-};
-var adoptedSet = /* @__PURE__ */ new Map();
-var StyleSet = class {
-	constructor(root, nonce) {
-		let doc = root.ownerDocument || root, win = doc.defaultView;
-		if (root.adoptedStyleSheets && win.CSSStyleSheet) {
-			let adopted = adoptedSet.get(doc);
-			if (adopted) return root[SET] = adopted;
-			this.sheet = new win.CSSStyleSheet();
-			adoptedSet.set(doc, this);
+	/**
+	Match the input against the given string or regular expression
+	(which should start with a `^`). Return true or the regexp match
+	if it matches.
+	
+	Unless `consume` is set to `false`, this will move `this.pos`
+	past the matched text.
+	
+	When matching a string `caseInsensitive` can be set to true to
+	make the match case-insensitive.
+	*/
+	match(pattern, consume, caseInsensitive) {
+		if (typeof pattern == "string") {
+			let cased = (str) => caseInsensitive ? str.toLowerCase() : str;
+			if (cased(this.string.substr(this.pos, pattern.length)) == cased(pattern)) {
+				if (consume !== false) this.pos += pattern.length;
+				return true;
+			} else return null;
 		} else {
-			this.styleTag = doc.createElement("style");
-			if (nonce) this.styleTag.setAttribute("nonce", nonce);
-		}
-		this.modules = [];
-		root[SET] = this;
-	}
-	mount(modules, root) {
-		let sheet = this.sheet;
-		let pos = 0, j = 0;
-		for (let i = 0; i < modules.length; i++) {
-			let mod = modules[i], index = this.modules.indexOf(mod);
-			if (index < j && index > -1) {
-				this.modules.splice(index, 1);
-				j--;
-				index = -1;
-			}
-			if (index == -1) {
-				this.modules.splice(j++, 0, mod);
-				if (sheet) for (let k = 0; k < mod.rules.length; k++) sheet.insertRule(mod.rules[k], pos++);
-			} else {
-				while (j < index) pos += this.modules[j++].rules.length;
-				pos += mod.rules.length;
-				j++;
-			}
-		}
-		if (sheet) {
-			if (root.adoptedStyleSheets.indexOf(this.sheet) < 0) root.adoptedStyleSheets = [this.sheet, ...root.adoptedStyleSheets];
-		} else {
-			let text = "";
-			for (let i = 0; i < this.modules.length; i++) text += this.modules[i].getRules() + "\n";
-			this.styleTag.textContent = text;
-			let target = root.head || root;
-			if (this.styleTag.parentNode != target) target.insertBefore(this.styleTag, target.firstChild);
+			let match = this.string.slice(this.pos).match(pattern);
+			if (match && match.index > 0) return null;
+			if (match && consume !== false) this.pos += match[0].length;
+			return match;
 		}
 	}
-	setNonce(nonce) {
-		if (this.styleTag && this.styleTag.getAttribute("nonce") != nonce) this.styleTag.setAttribute("nonce", nonce);
+	/**
+	Get the current token.
+	*/
+	current() {
+		return this.string.slice(this.start, this.pos);
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@codemirror+language@6.12.4/node_modules/@codemirror/language/dist/index.js
+//#region ../../node_modules/.pnpm/@codemirror+language@6.13.1/node_modules/@codemirror/language/dist/index.js
 var _a;
 /**
 Node prop stored in a parser's top syntax node to provide the
 facet that stores language-specific data for that language.
 */
-var languageDataProp = /*@__PURE__*/ new NodeProp$1();
+var languageDataProp = /*@__PURE__*/ new NodeProp();
 /**
 Helper function to define a facet (to be added to the top syntax
 node(s) for a language via
@@ -141593,7 +144157,7 @@ function defineLanguageFacet(baseData) {
 Syntax node prop used to register sublanguages. Should be added to
 the top level node type for the language.
 */
-var sublanguageProp = /*@__PURE__*/ new NodeProp$1();
+var sublanguageProp = /*@__PURE__*/ new NodeProp();
 /**
 A language object manages parsing and per-language
 [metadata](https://codemirror.net/6/docs/ref/#state.EditorState.languageDataAt). Parse data is
@@ -141659,7 +144223,7 @@ var Language = class {
 				});
 				return;
 			}
-			let mount = tree.prop(NodeProp$1.mounted);
+			let mount = tree.prop(NodeProp.mounted);
 			if (mount) {
 				if (mount.tree.prop(languageDataProp) == this.data) {
 					if (mount.overlay) for (let r of mount.overlay) result.push({
@@ -141679,7 +144243,7 @@ var Language = class {
 			}
 			for (let i = 0; i < tree.children.length; i++) {
 				let ch = tree.children[i];
-				if (ch instanceof Tree$1) explore(ch, tree.positions[i] + from);
+				if (ch instanceof Tree) explore(ch, tree.positions[i] + from);
 			}
 		};
 		explore(syntaxTree(state), 0);
@@ -141700,7 +144264,7 @@ Language.setState = /*@__PURE__*/ StateEffect.define();
 function topNodeAt(state, pos, side) {
 	let topLang = state.facet(language$1), tree = syntaxTree(state).topNode;
 	if (!topLang || topLang.allowsNesting) {
-		for (let node = tree; node; node = node.enter(pos, side, IterMode$1.ExcludeBuffers | IterMode$1.EnterBracketed)) if (node.type.isTop) tree = node;
+		for (let node = tree; node; node = node.enter(pos, side, IterMode.ExcludeBuffers | IterMode.EnterBracketed)) if (node.type.isTop) tree = node;
 	}
 	return tree;
 }
@@ -141712,7 +144276,7 @@ language available.
 */
 function syntaxTree(state) {
 	let field = state.field(Language.state, false);
-	return field ? field.tree : Tree$1.empty;
+	return field ? field.tree : Tree.empty;
 }
 /**
 Lezer-style
@@ -141774,7 +144338,7 @@ var ParseContext = class ParseContext {
 	@internal
 	*/
 	static create(parser, state, viewport) {
-		return new ParseContext(parser, state, [], Tree$1.empty, 0, viewport, [], null);
+		return new ParseContext(parser, state, [], Tree.empty, 0, viewport, [], null);
 	}
 	startParse() {
 		return this.parser.startParse(new DocInput(this.state.doc), this.fragments);
@@ -141784,7 +144348,7 @@ var ParseContext = class ParseContext {
 	*/
 	work(until, upto) {
 		if (upto != null && upto >= this.state.doc.length) upto = void 0;
-		if (this.tree != Tree$1.empty && this.isDone(upto !== null && upto !== void 0 ? upto : this.state.doc.length)) {
+		if (this.tree != Tree.empty && this.isDone(upto !== null && upto !== void 0 ? upto : this.state.doc.length)) {
 			this.takeTree();
 			return true;
 		}
@@ -141854,7 +144418,7 @@ var ParseContext = class ParseContext {
 				toB
 			}));
 			fragments = TreeFragment.applyChanges(fragments, ranges);
-			tree = Tree$1.empty;
+			tree = Tree.empty;
 			treeLen = 0;
 			viewport = {
 				from: changes.mapPos(viewport.from, -1),
@@ -141933,7 +144497,7 @@ var ParseContext = class ParseContext {
 							if (until) cx.scheduleOn = cx.scheduleOn ? Promise.all([cx.scheduleOn, until]) : until;
 						}
 						this.parsedPos = to;
-						return new Tree$1(NodeType$1.none, [], [], to - from);
+						return new Tree(NodeType.none, [], [], to - from);
 					},
 					stoppedAt: null,
 					stopAt() {}
@@ -142251,7 +144815,7 @@ context to a column number (see also
 [`indentString`](https://codemirror.net/6/docs/ref/#language.indentString)) or null, where null
 indicates that no definitive indentation can be determined.
 */
-var indentNodeProp = /*@__PURE__*/ new NodeProp$1();
+var indentNodeProp = /*@__PURE__*/ new NodeProp();
 function syntaxIndentation(cx, ast, pos) {
 	let stack = ast.resolveStack(pos);
 	let inner = ast.resolveInner(pos, -1).resolve(pos, 0).enterUnfinishedNodesBefore(pos);
@@ -142279,7 +144843,7 @@ function indentStrategy(tree) {
 	let strategy = tree.type.prop(indentNodeProp);
 	if (strategy) return strategy;
 	let first = tree.firstChild, close;
-	if (first && (close = first.type.prop(NodeProp$1.closedBy))) {
+	if (first && (close = first.type.prop(NodeProp.closedBy))) {
 		let last = tree.lastChild, closed = last && close.indexOf(last.name) > -1;
 		return (cx) => delimitedStrategy(cx, true, 1, void 0, closed && !ignoreClosed(cx) ? last.from : void 0);
 	}
@@ -142642,9 +145206,9 @@ a node, a ‘handle’—the part of the node that is highlighted, and
 that the cursor must be on to activate highlighting in the first
 place.
 */
-var bracketMatchingHandle = /*@__PURE__*/ new NodeProp$1();
+var bracketMatchingHandle = /*@__PURE__*/ new NodeProp();
 function matchingNodes(node, dir, brackets) {
-	let byProp = node.prop(dir < 0 ? NodeProp$1.openedBy : NodeProp$1.closedBy);
+	let byProp = node.prop(dir < 0 ? NodeProp.openedBy : NodeProp.closedBy);
 	if (byProp) return byProp;
 	if (node.name.length == 1) {
 		let index = brackets.indexOf(node.name);
@@ -142749,170 +145313,6 @@ function matchPlainBrackets(state, pos, dir, tree, tokenType, maxScanDistance, b
 		matched: false
 	} : null;
 }
-function countCol(string, end, tabSize, startIndex = 0, startValue = 0) {
-	if (end == null) {
-		end = string.search(/[^\s\u00a0]/);
-		if (end == -1) end = string.length;
-	}
-	let n = startValue;
-	for (let i = startIndex; i < end; i++) if (string.charCodeAt(i) == 9) n += tabSize - n % tabSize;
-	else n++;
-	return n;
-}
-/**
-Encapsulates a single line of input. Given to stream syntax code,
-which uses it to tokenize the content.
-*/
-var StringStream = class {
-	/**
-	Create a stream.
-	*/
-	constructor(string, tabSize, indentUnit, overrideIndent) {
-		this.string = string;
-		this.tabSize = tabSize;
-		this.indentUnit = indentUnit;
-		this.overrideIndent = overrideIndent;
-		/**
-		The current position on the line.
-		*/
-		this.pos = 0;
-		/**
-		The start position of the current token.
-		*/
-		this.start = 0;
-		this.lastColumnPos = 0;
-		this.lastColumnValue = 0;
-	}
-	/**
-	True if we are at the end of the line.
-	*/
-	eol() {
-		return this.pos >= this.string.length;
-	}
-	/**
-	True if we are at the start of the line.
-	*/
-	sol() {
-		return this.pos == 0;
-	}
-	/**
-	Get the next code unit after the current position, or undefined
-	if we're at the end of the line.
-	*/
-	peek() {
-		return this.string.charAt(this.pos) || void 0;
-	}
-	/**
-	Read the next code unit and advance `this.pos`.
-	*/
-	next() {
-		if (this.pos < this.string.length) return this.string.charAt(this.pos++);
-	}
-	/**
-	Match the next character against the given string, regular
-	expression, or predicate. Consume and return it if it matches.
-	*/
-	eat(match) {
-		let ch = this.string.charAt(this.pos);
-		let ok;
-		if (typeof match == "string") ok = ch == match;
-		else ok = ch && (match instanceof RegExp ? match.test(ch) : match(ch));
-		if (ok) {
-			++this.pos;
-			return ch;
-		}
-	}
-	/**
-	Continue matching characters that match the given string,
-	regular expression, or predicate function. Return true if any
-	characters were consumed.
-	*/
-	eatWhile(match) {
-		let start = this.pos;
-		while (this.eat(match));
-		return this.pos > start;
-	}
-	/**
-	Consume whitespace ahead of `this.pos`. Return true if any was
-	found.
-	*/
-	eatSpace() {
-		let start = this.pos;
-		while (/[\s\u00a0]/.test(this.string.charAt(this.pos))) ++this.pos;
-		return this.pos > start;
-	}
-	/**
-	Move to the end of the line.
-	*/
-	skipToEnd() {
-		this.pos = this.string.length;
-	}
-	/**
-	Move to directly before the given character, if found on the
-	current line.
-	*/
-	skipTo(ch) {
-		let found = this.string.indexOf(ch, this.pos);
-		if (found > -1) {
-			this.pos = found;
-			return true;
-		}
-	}
-	/**
-	Move back `n` characters.
-	*/
-	backUp(n) {
-		this.pos -= n;
-	}
-	/**
-	Get the column position at `this.pos`.
-	*/
-	column() {
-		if (this.lastColumnPos < this.start) {
-			this.lastColumnValue = countCol(this.string, this.start, this.tabSize, this.lastColumnPos, this.lastColumnValue);
-			this.lastColumnPos = this.start;
-		}
-		return this.lastColumnValue;
-	}
-	/**
-	Get the indentation column of the current line.
-	*/
-	indentation() {
-		var _a;
-		return (_a = this.overrideIndent) !== null && _a !== void 0 ? _a : countCol(this.string, null, this.tabSize);
-	}
-	/**
-	Match the input against the given string or regular expression
-	(which should start with a `^`). Return true or the regexp match
-	if it matches.
-	
-	Unless `consume` is set to `false`, this will move `this.pos`
-	past the matched text.
-	
-	When matching a string `caseInsensitive` can be set to true to
-	make the match case-insensitive.
-	*/
-	match(pattern, consume, caseInsensitive) {
-		if (typeof pattern == "string") {
-			let cased = (str) => caseInsensitive ? str.toLowerCase() : str;
-			if (cased(this.string.substr(this.pos, pattern.length)) == cased(pattern)) {
-				if (consume !== false) this.pos += pattern.length;
-				return true;
-			} else return null;
-		} else {
-			let match = this.string.slice(this.pos).match(pattern);
-			if (match && match.index > 0) return null;
-			if (match && consume !== false) this.pos += match[0].length;
-			return match;
-		}
-	}
-	/**
-	Get the current token.
-	*/
-	current() {
-		return this.string.slice(this.start, this.pos);
-	}
-};
 function fullParser(spec) {
 	return {
 		name: spec.name || "",
@@ -142953,7 +145353,7 @@ var StreamLanguage = class StreamLanguage extends Language {
 		this.topNode = docID(data, this);
 		self = this;
 		this.streamParser = p;
-		this.stateAfter = new NodeProp$1({ perNode: true });
+		this.stateAfter = new NodeProp({ perNode: true });
 		this.tokenTable = parser.tokenTable ? new TokenTable(p.tokenTable) : defaultTokenTable;
 	}
 	/**
@@ -143007,7 +145407,7 @@ function findState(lang, tree, off, startPos, before) {
 	};
 	for (let i = tree.children.length - 1; i >= 0; i--) {
 		let child = tree.children[i], pos = off + tree.positions[i];
-		let found = child instanceof Tree$1 && pos < before && findState(lang, child, pos, startPos, before);
+		let found = child instanceof Tree && pos < before && findState(lang, child, pos, startPos, before);
 		if (found) return found;
 	}
 	return null;
@@ -143017,9 +145417,9 @@ function cutTree(lang, tree, from, to, inside) {
 	if (!inside && from == 0 && tree.type == lang.topNode) inside = true;
 	for (let i = tree.children.length - 1; i >= 0; i--) {
 		let pos = tree.positions[i], child = tree.children[i], inner;
-		if (pos < to && child instanceof Tree$1) {
+		if (pos < to && child instanceof Tree) {
 			if (!(inner = cutTree(lang, child, from - pos, to - pos, inside))) break;
-			return !inside ? inner : new Tree$1(tree.type, tree.children.slice(0, i).concat(inner), tree.positions.slice(0, i + 1), pos + inner.length);
+			return !inside ? inner : new Tree(tree.type, tree.children.slice(0, i).concat(inner), tree.positions.slice(0, i + 1), pos + inner.length);
 		}
 	}
 	return null;
@@ -143035,7 +145435,7 @@ function findStartInFragments(lang, fragments, startPos, endPos, editorState) {
 	}
 	return {
 		state: lang.streamParser.startState(editorState ? getIndentUnit(editorState) : 4),
-		tree: Tree$1.empty
+		tree: Tree.empty
 	};
 }
 var Parse = class {
@@ -143150,7 +145550,7 @@ var Parse = class {
 		if (this.parsedPos < this.to) this.parsedPos++;
 	}
 	finishChunk() {
-		let tree = Tree$1.build({
+		let tree = Tree.build({
 			buffer: this.chunk,
 			start: this.chunkStart,
 			length: this.parsedPos - this.chunkStart,
@@ -143159,7 +145559,7 @@ var Parse = class {
 			maxBufferLength: 512,
 			reused: this.chunkReused
 		});
-		tree = new Tree$1(tree.type, tree.children, tree.positions, tree.length, [[this.lang.stateAfter, this.lang.streamParser.copyState(this.state)]]);
+		tree = new Tree(tree.type, tree.children, tree.positions, tree.length, [[this.lang.stateAfter, this.lang.streamParser.copyState(this.state)]]);
 		this.chunks.push(tree);
 		this.chunkPos.push(this.chunkStart - this.ranges[0].from);
 		this.chunk = [];
@@ -143167,7 +145567,7 @@ var Parse = class {
 		this.chunkStart = this.parsedPos;
 	}
 	finish() {
-		return new Tree$1(this.lang.topNode, this.chunks, this.chunkPos, this.parsedPos - this.ranges[0].from).balance();
+		return new Tree(this.lang.topNode, this.chunks, this.chunkPos, this.parsedPos - this.ranges[0].from).balance();
 	}
 };
 function readToken(token, stream, state) {
@@ -143179,7 +145579,7 @@ function readToken(token, stream, state) {
 	throw new Error("Stream parser failed to advance stream.");
 }
 var noTokens = /*@__PURE__*/ Object.create(null);
-var typeArray = [NodeType$1.none];
+var typeArray = [NodeType.none];
 var nodeSet = /*@__PURE__*/ new NodeSet(typeArray);
 var warned = [];
 var byTag = /*@__PURE__*/ Object.create(null);
@@ -143232,7 +145632,7 @@ function createTokenType(extra, tagStr) {
 	let name = tagStr.replace(/ /g, "_"), key = name + " " + tags$1.map((t) => t.id);
 	let known = byTag[key];
 	if (known) return known.id;
-	let type = byTag[key] = NodeType$1.define({
+	let type = byTag[key] = NodeType.define({
 		id: typeArray.length,
 		name,
 		props: [styleTags({ [name]: tags$1 })]
@@ -143241,7 +145641,7 @@ function createTokenType(extra, tagStr) {
 	return type.id;
 }
 function docID(data, lang) {
-	let type = NodeType$1.define({
+	let type = NodeType.define({
 		id: typeArray.length,
 		name: "Document",
 		props: [languageDataProp.add(() => data), indentNodeProp.add(() => (cx) => lang.getIndent(cx))],
@@ -144173,7 +146573,7 @@ var SamplesViewOptionsPopover = (t0) => {
 	return t14;
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@codemirror+autocomplete@6.20.3/node_modules/@codemirror/autocomplete/dist/index.js
+//#region ../../node_modules/.pnpm/@codemirror+autocomplete@6.20.4/node_modules/@codemirror/autocomplete/dist/index.js
 /**
 An instance of this is passed to completion source functions.
 */
@@ -145214,7 +147614,7 @@ var completionPlugin = /*@__PURE__*/ ViewPlugin.fromClass(class {
 var windows = typeof navigator == "object" && /*@__PURE__*/ /Win/.test(navigator.platform);
 var commitCharacters = /*@__PURE__*/ Prec.highest(/*@__PURE__*/ EditorView.domEventHandlers({ keydown(event, view) {
 	let field = view.state.field(completionState, false);
-	if (!field || !field.open || field.open.disabled || field.open.selected < 0 || event.key.length > 1 || event.ctrlKey && !(windows && event.altKey) || event.metaKey) return false;
+	if (!field || !field.open || field.open.disabled || field.open.selected < 0 || !event.key || event.key.length > 1 || event.ctrlKey && !(windows && event.altKey) || event.metaKey) return false;
 	let option = field.open.options[field.open.selected];
 	let result = field.active.find((a) => a.source == option.source);
 	let commitChars = option.completion.commitCharacters || result.result.commitCharacters;
@@ -146524,7 +148924,7 @@ function interestingNode(state, node, bracketProp) {
 }
 function moveBySyntax(state, start, forward) {
 	let pos = syntaxTree(state).resolveInner(start.head);
-	let bracketProp = forward ? NodeProp$1.closedBy : NodeProp$1.openedBy;
+	let bracketProp = forward ? NodeProp.closedBy : NodeProp.openedBy;
 	for (let at = start.head;;) {
 		let next = forward ? pos.childAfter(at) : pos.childBefore(at);
 		if (!next) break;
@@ -147170,7 +149570,7 @@ function isBetweenBrackets(state, pos) {
 	};
 	let context = syntaxTree(state).resolveInner(pos);
 	let before = context.childBefore(pos), after = context.childAfter(pos), closedBy;
-	if (before && after && before.to <= pos && after.from >= pos && (closedBy = before.type.prop(NodeProp$1.closedBy)) && closedBy.indexOf(after.name) > -1 && state.doc.lineAt(before.to).from == state.doc.lineAt(after.from).from && !/\S/.test(state.sliceDoc(before.to, after.from))) return {
+	if (before && after && before.to <= pos && after.from >= pos && (closedBy = before.type.prop(NodeProp.closedBy)) && closedBy.indexOf(after.name) > -1 && state.doc.lineAt(before.to).from == state.doc.lineAt(after.from).from && !/\S/.test(state.sliceDoc(before.to, after.from))) return {
 		from: before.to,
 		to: after.from
 	};
@@ -157126,7 +159526,7 @@ var SamplePrintView_module_default = {
 	const [searchParams] = useSearchParams();
 	let t0;
 	if ($[0] !== searchParams) {
-		t0 = searchParams.get("view") ?? kSampleTranscriptTabId;
+		t0 = sampleTabAlias(searchParams.get("view") ?? kSampleTranscriptTabId);
 		$[0] = searchParams;
 		$[1] = t0;
 	} else t0 = $[1];
@@ -157342,7 +159742,7 @@ var SamplePrintView_module_default = {
 	} else t16 = $[50];
 	let t17;
 	if ($[51] !== sample || $[52] !== view) {
-		t17 = view === kSampleMetdataTabId && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(PrintMetadata, { sample });
+		t17 = view === kSampleInfoTabId && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(PrintMetadata, { sample });
 		$[51] = sample;
 		$[52] = view;
 		$[53] = t17;

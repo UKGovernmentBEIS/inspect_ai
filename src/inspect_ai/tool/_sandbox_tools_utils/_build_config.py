@@ -1,17 +1,18 @@
 import re
-from typing import Literal, TypeAlias
-
-from pydantic import BaseModel
+from dataclasses import dataclass
+from typing import Literal, TypeAlias, cast
 
 # Duplicated from inspect_ai.util._sandbox._cli — keep in sync.
 # Cannot import it here because this module runs inside Docker build containers
-# where inspect_ai is not installed.
+# where inspect_ai is not installed. Stdlib-only for the same reason, and so the
+# release build runs it with no installed dependencies.
 SANDBOX_TOOLS_BASE_NAME = "inspect-sandbox-tools"
 
 SandboxToolsArch: TypeAlias = Literal["amd64", "arm64"]
 
 
-class SandboxToolsBuildConfig(BaseModel):
+@dataclass(frozen=True)
+class SandboxToolsBuildConfig:
     arch: SandboxToolsArch
     version: int
     suffix: Literal["dev"] | None
@@ -35,13 +36,14 @@ def filename_to_config(filename: str) -> SandboxToolsBuildConfig:
     if not match:
         raise ValueError(f"Filename '{filename}' doesn't match expected pattern")
 
-    return SandboxToolsBuildConfig.model_validate(
-        {
-            "arch": match.group("arch"),
-            "version": int(match.group("version")),
-            "suffix": match.group("suffix"),
-            "musl": match.group("libc") == "musl",
-        }
+    arch, suffix = match.group("arch"), match.group("suffix")
+    if arch not in ("amd64", "arm64") or suffix not in (None, "dev"):
+        raise ValueError(f"Invalid configuration in filename '{filename}'")
+    return SandboxToolsBuildConfig(
+        arch=cast(SandboxToolsArch, arch),
+        version=int(match.group("version")),
+        suffix=cast(Literal["dev"] | None, suffix),
+        musl=match.group("libc") == "musl",
     )
 
 

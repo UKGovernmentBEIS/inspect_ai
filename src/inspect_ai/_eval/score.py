@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import functools
+import logging
 from copy import deepcopy
 from pathlib import Path
 from typing import (
@@ -10,10 +11,12 @@ from typing import (
     AsyncContextManager,
     AsyncGenerator,
     Callable,
+    Iterable,
     Literal,
     NamedTuple,
     Sequence,
     Tuple,
+    cast,
 )
 
 if TYPE_CHECKING:
@@ -25,10 +28,17 @@ from inspect_ai._display import display as display_manager
 from inspect_ai._eval.context import init_task_context
 from inspect_ai._eval.loader import load_file_tasks, scorer_from_spec
 from inspect_ai._eval.task.task import resolve_scorer, resolve_scorer_metrics
+from inspect_ai._sentinel._scope import sentinel_scope
 from inspect_ai._util._async import configured_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.platform import platform_init, running_in_notebook
 from inspect_ai._util.registry import (
+    LOG_METRIC_OPTION_TYPES,
+    DisallowedRegistryArg,
+    RegistryNameNotFound,
+    create_registry_object,
     has_registry_params,
+    is_model_dict,
+    is_registry_dict,
     registry_lookup,
     registry_params,
     registry_unqualified_name,
@@ -55,7 +65,7 @@ from inspect_ai.model._model import Model, ModelRoles, get_model
 from inspect_ai.model._model_config import model_roles_config_to_model_roles
 from inspect_ai.model._util import resolve_model_roles
 from inspect_ai.scorer import Metric, Scorer, Target
-from inspect_ai.scorer._metric import SampleScore, Score, metric_create
+from inspect_ai.scorer._metric import SampleScore, Score
 from inspect_ai.scorer._reducer import (
     ScoreReducer,
     ScoreReducers,
@@ -74,6 +84,8 @@ from inspect_ai.util._store import init_subtask_store
 
 from .task.log import resolve_eval_scorers
 from .task.results import ScorerInfo, eval_results
+
+logger = logging.getLogger(__name__)
 
 ScoreAction = Literal["append", "overwrite"]
 
@@ -223,6 +235,8 @@ async def score_async(
     display: DisplayType | None = None,
     copy: bool = True,
     samples: Callable[[int], AsyncContextManager[EvalSample]] | None = None,
+    *,
+    _log_scorers: bool = False,
 ) -> EvalLog:
     """Score an evaluation log.
 
@@ -301,6 +315,23 @@ async def score_async(
     # prime the scoring tasks
     action = action or "append"
 
+    # collect metrics from EvalLog (they may overlap w/ the scorer metrics,
+    # that will be taken care of in eval_results). For append, the new scorer
+    # uses its own metrics -- the original eval's metrics are already baked
+    # into log.results.scores and don't need to be recreated. Resolved before
+    # scoring so that a metric that can't be rebuilt fails before any scorer
+    # runs. The log is trusted only when its own scorers are being run.
+    log_metrics = metrics or (
+        metrics_from_log_header(
+            log,
+            task_import=LogTaskFileImport(log, trust_log=True, import_task_file=False)
+            if _log_scorers
+            else LogTaskFileImport(log, trust_log=False, opt_in=SCORE_OPT_IN),
+        )
+        if action != "append"
+        else None
+    )
+
     with display_manager().progress(total=total_samples) as p:
         scorer_names: list[str] | None = None
         scores: list[dict[str, SampleScore] | None] = [None] * total_samples
@@ -338,14 +369,6 @@ async def score_async(
                 functools.partial(_score_sample, idx_sample)
                 for idx_sample in range(total_samples)
             )
-        )
-
-        # collect metrics from EvalLog (they may overlap w/ the scorer metrics,
-        # that will be taken care of in eval_results). For append, the new scorer
-        # uses its own metrics -- the original eval's metrics are already baked
-        # into log.results.scores and don't need to be recreated.
-        log_metrics = metrics or (
-            metrics_from_log_header(log) if action != "append" else None
         )
 
         # resolve the scorer metrics onto the scorers
@@ -520,7 +543,8 @@ async def _run_score_task(
             )
             scorer_names.append(scorer_name)
             async with span(name=scorer_name, type=SCORER_SPAN_TYPE):
-                score_result = await scorer(state, target)
+                with sentinel_scope("scorer", final=True):
+                    score_result = await scorer(state, target)
                 if scorer_name in state.scores:
                     raise RuntimeError(
                         f"Scorer {scorer_name} has modified state.scores"
@@ -559,36 +583,264 @@ async def _run_score_task(
     return results, scorer_names
 
 
-def metrics_from_log_header(
-    log: EvalLog,
-) -> list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]] | None:
-    # See if we have metrics in the eval itself
-    if log.eval.metrics:
-        if isinstance(log.eval.metrics, list):
-            result: list[Metric | dict[str, list[Metric]]] = []
-            for metric_item in log.eval.metrics:
-                if isinstance(metric_item, dict):
-                    # It's a dict of metric groups
-                    result.append(
-                        {
-                            key: [metric_from_log(metric) for metric in metrics]
-                            for key, metrics in metric_item.items()
-                        }
-                    )
-                else:
-                    # It's a direct metric
-                    result.append(metric_from_log(metric_item))
-            return result
+TRUST_LOG_OPT_IN = (
+    "To trust the log, pass trust_log=True (inspect log recover: --trust-log); "
+    "this imports the log's task file and runs its code, so do it only for logs "
+    "you trust."
+)
+"""Closing advice of untrusted-log metric errors for recompute, edit and recovery."""
+
+SCORE_OPT_IN = (
+    "To score without the log's metrics, pass metrics= (inspect score: --metric). "
+    "If you trust the log, rescore with its own scorers instead (inspect score "
+    "without --scorer)."
+)
+"""Closing advice of untrusted-log metric errors when rescoring with the caller's scorers."""
+
+LogMetricDefinitions = (
+    list[EvalMetricDefinition | dict[str, list[EvalMetricDefinition]]]
+    | dict[str, list[EvalMetricDefinition]]
+)
+
+
+class LogTaskFileImport:
+    """The trust decision and task-file import for one recompute, recovery or rescore.
+
+    Shared by the metric resolvers of one operation (scorer metrics and
+    task-level metrics), so the task file is imported at most once per
+    operation and reported once.
+    """
+
+    def __init__(
+        self,
+        log: EvalLog,
+        *,
+        trust_log: bool,
+        import_task_file: bool = True,
+        opt_in: str | None = TRUST_LOG_OPT_IN,
+        dependency_advice: str | None = None,
+    ) -> None:
+        """Create the tracker.
+
+        Args:
+            log: Log whose metrics are being rebuilt.
+            trust_log: Whether the log may choose code: import the task file
+                for unregistered metrics, and rebuild metric options without
+                restriction.
+            import_task_file: With `trust_log`, whether to import the task
+                file for unregistered metrics. `False` is for rescoring with
+                the log's own scorers, which trusts options but fails on a
+                missing metric as it always has.
+            opt_in: Closing advice of untrusted-log errors, naming an option
+                the caller actually has (`None` for no advice).
+            dependency_advice: Advice appended to the error for an object
+                nested in metric options that is not registered (the task
+                file is not imported for those).
+        """
+        self.trust_log = trust_log
+        self.import_task_file = import_task_file
+        self.opt_in = opt_in
+        self.dependency_advice = dependency_advice
+        self.task_file = log.eval.task_file
+        self.task_path = Path(self.task_file).absolute() if self.task_file else None
+        self.imported = False
+
+    def import_metrics_file(self, name: str) -> bool:
+        """Import the task file to load metric `name`, if trusted and not yet done.
+
+        Returns:
+            Whether the task file has been imported.
+        """
+        if self.imported:
+            return True
+        if (
+            not self.trust_log
+            or not self.import_task_file
+            or self.task_path is None
+            or not self.task_path.exists()
+        ):
+            return False
+        load_file_tasks(self.task_path)
+        self.imported = True
+        logger.info(
+            f"Imported task file {self.task_path} (recorded in the log) to load "
+            f"metric '{name}'."
+        )
+        return True
+
+    def missing_metric_error(self, name: str, used_by: str) -> RegistryNameNotFound:
+        message = f"Metric '{name}' ({used_by}) is not registered."
+        if self.task_file:
+            message += (
+                f" If it is defined in the task file ('{self.task_file}'), import "
+                "that module first."
+            )
         else:
-            return {
-                key: [metric_from_log(metric) for metric in metrics]
-                for key, metrics in log.eval.metrics.items()
-            }
-    return None
+            message += " Install or import the module that defines it first."
+        if not self.trust_log and self.opt_in:
+            message += f" {self.opt_in}"
+        return RegistryNameNotFound(message, registry_type="metric", name=name)
 
 
-def metric_from_log(metric: EvalMetricDefinition) -> Metric:
-    return metric_create(metric.name, **(metric.options or {}))
+def ensure_metrics_registered(
+    definitions: Iterable[tuple[EvalMetricDefinition, str]],
+    task_import: LogTaskFileImport,
+) -> None:
+    """Import the task file for unregistered metrics, when trusted to.
+
+    Only runs when `task_import` may import the task file, which must happen
+    before anything is built. Otherwise metrics are found missing as they are
+    built, in order, so an earlier failure decides the outcome.
+
+    Each definition comes with the label used in the error ("used by scorer
+    'my_scorer'" or "a task-level metric"). Metric registry dicts nested in
+    options are checked too.
+
+    Raises:
+        RegistryNameNotFound: A metric is still not registered after the
+            import (a `LookupError`).
+    """
+    if not (task_import.trust_log and task_import.import_task_file):
+        return
+    missing = [
+        (name, used_by)
+        for definition, used_by in definitions
+        for name in _metric_names(definition)
+        if registry_lookup("metric", name) is None
+    ]
+    if missing and task_import.import_metrics_file(missing[0][0]):
+        missing = [m for m in missing if registry_lookup("metric", m[0]) is None]
+    if missing:
+        raise task_import.missing_metric_error(*missing[0])
+
+
+def _metric_names(definition: EvalMetricDefinition) -> list[str]:
+    """Names of the metric and the metrics nested in its options.
+
+    Walks the options the way `registry_arg()` resolves them: a mapping of
+    arguments is never itself a registry dict, and a model dict is passed to
+    the model as is.
+    """
+    names = [definition.name]
+
+    def walk_args(args: dict[str, Any]) -> None:
+        for value in args.values():
+            walk(value)
+
+    def walk(value: Any) -> None:
+        if is_registry_dict(value):
+            if value["type"] == "metric":
+                names.append(value["name"])
+            walk_args(value["params"])
+        elif is_model_dict(value):
+            return
+        elif isinstance(value, dict):
+            walk_args(value)
+        elif isinstance(value, (list, tuple)):
+            for item in value:
+                walk(item)
+
+    walk_args(definition.options or {})
+    return names
+
+
+def _flatten_metric_definitions(
+    metrics: LogMetricDefinitions,
+) -> list[EvalMetricDefinition]:
+    if isinstance(metrics, dict):
+        return [md for mds in metrics.values() for md in mds]
+    flat: list[EvalMetricDefinition] = []
+    for item in metrics:
+        if isinstance(item, dict):
+            flat.extend(md for mds in item.values() for md in mds)
+        else:
+            flat.append(item)
+    return flat
+
+
+def _metrics_from_definitions(
+    metrics: LogMetricDefinitions, task_import: LogTaskFileImport, used_by: str
+) -> list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]]:
+    def build(metric: EvalMetricDefinition) -> Metric:
+        return metric_from_log(metric, task_import=task_import, used_by=used_by)
+
+    if isinstance(metrics, dict):
+        return {key: [build(md) for md in mds] for key, mds in metrics.items()}
+    result: list[Metric | dict[str, list[Metric]]] = []
+    for item in metrics:
+        if isinstance(item, dict):
+            result.append({key: [build(md) for md in mds] for key, mds in item.items()})
+        else:
+            result.append(build(item))
+    return result
+
+
+def metrics_from_log_header(
+    log: EvalLog, *, task_import: LogTaskFileImport | None = None
+) -> list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]] | None:
+    """Rebuild the log's task-level metrics (`eval.metrics`).
+
+    Args:
+        log: Log to read.
+        task_import: Trust decision for this operation (default: untrusted).
+
+    Raises:
+        LookupError: A metric is not registered.
+        DisallowedRegistryArg: Untrusted metric options name a model or a
+            non-metric registry object.
+    """
+    if not log.eval.metrics:
+        return None
+    task_import = task_import or LogTaskFileImport(log, trust_log=False)
+    ensure_metrics_registered(
+        (
+            (md, "a task-level metric")
+            for md in _flatten_metric_definitions(log.eval.metrics)
+        ),
+        task_import,
+    )
+    return _metrics_from_definitions(
+        log.eval.metrics, task_import, "a task-level metric"
+    )
+
+
+def metric_from_log(
+    metric: EvalMetricDefinition,
+    *,
+    task_import: LogTaskFileImport | None = None,
+    used_by: str = "a metric",
+) -> Metric:
+    """Rebuild one metric definition from a log.
+
+    Untrusted (the default) options may construct only metrics and reducers.
+    `used_by` labels the metric in a missing-metric error.
+    """
+    trusted = task_import is not None and task_import.trust_log
+    try:
+        return cast(
+            Metric,
+            create_registry_object(
+                "metric",
+                metric.name,
+                metric.options or {},
+                allowed_types=None if trusted else LOG_METRIC_OPTION_TYPES,
+            ),
+        )
+    except DisallowedRegistryArg as ex:
+        ex.advice = task_import.opt_in if task_import else TRUST_LOG_OPT_IN
+        raise
+    except RegistryNameNotFound as ex:
+        if ex.registry_type == "metric" and ex.name is not None and task_import:
+            # the metric itself, or one nested in its options
+            raise task_import.missing_metric_error(ex.name, used_by) from ex
+        message = (
+            f"Metric '{metric.name}' needs an object that is not registered "
+            f"({ex}). Install the package that defines it, or import the module "
+            "that defines it, first."
+        )
+        if task_import and task_import.dependency_advice:
+            message = f"{message} {task_import.dependency_advice}"
+        raise RegistryNameNotFound(message) from ex
 
 
 def reducers_from_log_header(log: EvalLog) -> list[ScoreReducer] | None:
@@ -645,59 +897,47 @@ def resolve_scorers(
     )
 
 
-def resolve_scorers_info(log: EvalLog) -> list[ScorerInfo]:
-    """Build ScorerInfo objects from an evaluation log for metrics recomputation."""
+def resolve_scorers_info(
+    log: EvalLog, *, task_import: LogTaskFileImport | None = None
+) -> list[ScorerInfo]:
+    """Build ScorerInfo objects from an evaluation log for metrics recomputation.
+
+    Args:
+        log: Log to read.
+        task_import: Trust decision for this operation (default: untrusted).
+
+    Raises:
+        LookupError: A scorer metric is not registered.
+        DisallowedRegistryArg: Untrusted metric options name a model or a
+            non-metric registry object.
+    """
     if log.eval.scorers is None:
         return []
 
-    task_file = log.eval.task_file
-    task_path = Path(task_file).absolute() if task_file else None
-    task_loaded = False
+    task_import = task_import or LogTaskFileImport(log, trust_log=False)
+    ensure_metrics_registered(
+        (
+            (md, f"used by scorer '{s.name}'")
+            for s in log.eval.scorers
+            if s.metrics
+            for md in _flatten_metric_definitions(s.metrics)
+        ),
+        task_import,
+    )
 
-    def resolve_metric(metric: EvalMetricDefinition) -> Metric:
-        nonlocal task_loaded
-        if (
-            task_path is not None
-            and not task_loaded
-            and registry_lookup("metric", metric.name) is None
-        ):
-            load_file_tasks(task_path)
-            task_loaded = True
-        return metric_from_log(metric)
-
-    infos: list[ScorerInfo] = []
-    for s in log.eval.scorers:
-        # s.metrics holds EvalMetricDefinition entries (serialized name + options).
-        # ScorerInfo needs callable Metric instances since eval_results invokes them
-        # via call_metric(). Walk the (possibly nested) list/dict structure and run
-        # each leaf through metric_from_log to instantiate it from the registry.
-        metrics: list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]]
-        if not s.metrics:
-            metrics = []
-        elif isinstance(s.metrics, list):
-            metrics_list: list[Metric | dict[str, list[Metric]]] = []
-            for m in s.metrics:
-                if isinstance(m, dict):
-                    metrics_list.append(
-                        {
-                            key: [resolve_metric(md) for md in mds]
-                            for key, mds in m.items()
-                        }
-                    )
-                else:
-                    metrics_list.append(resolve_metric(m))
-            metrics = metrics_list
-        else:
-            metrics = {
-                key: [resolve_metric(md) for md in mds]
-                for key, mds in s.metrics.items()
-            }
-        infos.append(
-            ScorerInfo(
-                name=s.name,
-                metrics=metrics,
-                params=s.options or {},
-                metadata=s.metadata or {},
+    # s.metrics holds EvalMetricDefinition entries (serialized name + options).
+    # ScorerInfo needs callable Metric instances since eval_results invokes them
+    # via call_metric().
+    return [
+        ScorerInfo(
+            name=s.name,
+            metrics=_metrics_from_definitions(
+                s.metrics, task_import, f"used by scorer '{s.name}'"
             )
+            if s.metrics
+            else [],
+            params=s.options or {},
+            metadata=s.metadata or {},
         )
-    return infos
+        for s in log.eval.scorers
+    ]

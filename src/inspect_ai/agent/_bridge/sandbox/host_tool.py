@@ -5,7 +5,7 @@ import anyio
 from pydantic import JsonValue, TypeAdapter
 from shortuuid import uuid
 
-from inspect_ai._sentinel._scope import AgentScope, sentinel_scope
+from inspect_ai._sentinel._scope import sentinel_scope
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
@@ -305,7 +305,7 @@ async def _execute_granted(
                         event._set_cancel_fn(scope.cancel)
                         # as in call_tool: the tool's own model calls are not
                         # agent turns
-                        with sentinel_scope(AgentScope.OFF), known_work():
+                        with sentinel_scope("tool"), known_work():
                             result = await tool_fn(**call_arguments)
                         output, truncated = _recorded_result(
                             tool, result, tool_def.max_output

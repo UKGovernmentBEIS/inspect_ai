@@ -63,7 +63,7 @@ from .common import CommonOptions, common_options, process_common_options
     multiple=True,
     type=str,
     envvar="INSPECT_SCORE_MODEL_ROLE",
-    help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-4o or --model-role grader="{model: mockllm/model, temperature: 0.5}". Bind multiple models to a role with a comma-separated list of names or a YAML/JSON list of configs. Merged over the model roles recorded in the log.',
+    help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-6-luna or --model-role grader="{model: mockllm/model, temperature: 0.5}". Bind multiple models to a role with a comma-separated list of names or a YAML/JSON list of configs. Merged over the model roles recorded in the log.',
 )
 @click.option(
     "--scorer",
@@ -184,6 +184,8 @@ async def score(
 
     recorder = create_recorder_for_location(log_file, log_dir)
     eval_log = await recorder.read_log(log_file, header_only=bool(stream))
+    if stream:
+        eval_log.reductions = await recorder.read_log_reductions(log_file)
     num_samples = (
         len(eval_log.samples)
         if eval_log.samples
@@ -251,6 +253,7 @@ async def score(
         action=action,
         copy=False,
         samples=read_sample,
+        _log_scorers=scorer is None,
     )
 
     if stream:

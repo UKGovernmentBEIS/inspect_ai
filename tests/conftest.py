@@ -952,6 +952,9 @@ def pytest_configure(config):
         "is the live control surface)",
     )
     os.environ["INSPECT_EVAL_LOG_MODEL_API"] = "1"
+    # verify every composed S3 log flush against a digest of the temp file's
+    # prefix (off in production; see design/s3-incremental-log-flush.md)
+    os.environ["INSPECT_VERIFY_COMPOSE_PREFIX"] = "1"
     # Dummy provider keys so tests that only construct a client (not call the
     # API) work without real credentials. Real keys (when present) win via
     # setdefault. api-marked tests are gated behind --runapi and skip when the

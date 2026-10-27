@@ -189,6 +189,63 @@ def test_convert_preserves_eval_error(
     assert converted.error.traceback == "Traceback (most recent call last): ..."
 
 
+@pytest.mark.parametrize(
+    "stream", [True, False, 3], ids=["stream", "no-stream", "stream-3"]
+)
+@pytest.mark.parametrize("to", ["eval", "json"])
+@pytest.mark.parametrize("source", ["eval", "json"])
+def test_convert_preserves_reductions(
+    tmp_path: pathlib.Path,
+    stream: bool | int,
+    to: Literal["eval", "json"],
+    source: Literal["eval", "json"],
+) -> None:
+    input_file = (
+        _TESTS_DIR
+        / "test_list_logs/2024-11-05T13-32-37-05-00_input-task_hxs4q9azL3ySGkjJirypKZ.eval"
+    )
+    source_file = tmp_path / "input" / input_file.with_suffix(f".{source}").name
+    source_file.parent.mkdir()
+    log = read_eval_log(str(input_file))
+    assert log.reductions
+    write_eval_log(log, str(source_file))
+
+    output_dir = tmp_path / "output"
+    convert_eval_logs(str(source_file), to, str(output_dir), stream=stream)
+
+    converted = read_eval_log(
+        str((output_dir / source_file.name).with_suffix(f".{to}"))
+    )
+    assert converted.reductions == log.reductions
+
+
+@pytest.mark.parametrize(
+    "stream", [True, False, 3], ids=["stream", "no-stream", "stream-3"]
+)
+@pytest.mark.parametrize("format", ["eval", "json"])
+def test_convert_in_place_preserves_reductions(
+    tmp_path: pathlib.Path,
+    stream: bool | int,
+    format: Literal["eval", "json"],
+) -> None:
+    input_file = (
+        _TESTS_DIR
+        / "test_list_logs/2024-11-05T13-32-37-05-00_input-task_hxs4q9azL3ySGkjJirypKZ.eval"
+    )
+    source_file = tmp_path / input_file.with_suffix(f".{format}").name
+    log = read_eval_log(str(input_file))
+    assert log.reductions
+    write_eval_log(log, str(source_file))
+
+    convert_eval_logs(
+        str(source_file), format, str(tmp_path), overwrite=True, stream=stream
+    )
+
+    converted = read_eval_log(str(source_file))
+    assert converted.samples
+    assert converted.reductions == log.reductions
+
+
 @pytest.mark.parametrize("stream", [True, False], ids=["stream", "no-stream"])
 def test_convert_applies_message_pool_dedup(tmp_path: pathlib.Path, stream: bool):
     """Converting a v2 .eval file should apply message pool dedup."""
@@ -712,6 +769,32 @@ def test_convert_chunked_overwrite(tmp_path: pathlib.Path):
     with pytest.raises(FileExistsError):
         convert_eval_logs_to_chunked(str(input_file), str(tmp_path))
     convert_eval_logs_to_chunked(str(input_file), str(tmp_path), overwrite=True)
+
+
+@pytest.mark.parametrize(
+    "cut, error",
+    [(1, "EOCD not found"), (19, "central directory"), (40, "central directory")],
+)
+def test_convert_chunked_truncated_log_raises(
+    tmp_path: pathlib.Path, cut: int, error: str
+):
+    """A truncated log fails to convert rather than converting empty.
+
+    The sample id puts the EOCD signature in the central directory, where a
+    search that skipped the truncated EOCD would find it.
+    """
+    log = read_eval_log(str(_TESTS_DIR / "test_eval_log/log_read_sample.eval"))
+    assert log.samples
+    log.samples[0].id = "PK\x05\x06" + "A" * 30
+    input_file = tmp_path / "input" / "truncated.eval"
+    input_file.parent.mkdir()
+    write_eval_log(log, str(input_file))
+    input_file.write_bytes(input_file.read_bytes()[:-cut])
+
+    output_dir = tmp_path / "output"
+    with pytest.raises(ValueError, match=error):
+        convert_eval_logs_to_chunked(str(input_file), str(output_dir))
+    assert not (output_dir / input_file.name).exists()
 
 
 def test_convert_chunked_cli_hidden():

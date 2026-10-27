@@ -28,18 +28,19 @@ on:
         default: false
 
 jobs:
-  publish:
-    name: Publish to NPM
+  # Installs, checks and packs without id-token, so the workspace's
+  # dependencies never run in a job that can publish; the publish job only
+  # uploads the packed tarball.
+  build:
+    name: Build npm package
     # publish.yml likewise refuses pre-release GitHub Releases.
     if: ${{ !github.event.release.prerelease }}
     runs-on: ubuntu-latest
-    environment: npm
     defaults:
       run:
         working-directory: src/inspect_ai/_view/ts-mono/apps/inspect
     permissions:
       contents: read
-      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -48,6 +49,7 @@ jobs:
           ref: ${{ inputs.tag }}
           fetch-depth: 0
           submodules: recursive
+          persist-credentials: false
 
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
@@ -59,13 +61,12 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22.x"
-          registry-url: "https://registry.npmjs.org"
           package-manager-cache: false
 
-      - name: Upgrade npm (for Trusted Publishing)
+      # The publish job's npm, so a dry-run applies the same publish checks.
+      - name: Upgrade npm
         run: |
-          # Install via prefix to avoid npm self-upgrade rebuild bug on Node 22.
-          npm install --prefix "$RUNNER_TEMP/npm-upgrade" --no-audit --no-fund npm@^11.5.1
+          npm install --prefix "$RUNNER_TEMP/npm-upgrade" --no-audit --no-fund --ignore-scripts npm@11.21.0
           echo "$RUNNER_TEMP/npm-upgrade/node_modules/.bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/npm-upgrade/node_modules/.bin/npm" --version
 
@@ -73,9 +74,8 @@ jobs:
         working-directory: src/inspect_ai/_view/ts-mono
         run: pnpm install --frozen-lockfile
 
-      # Must run before publish: the submodule has no tags, so we resolve
-      # the version from the parent repo and write it into package.json.
-      # prepublishOnly in package.json expects this has already been done.
+      # The submodule has no tags, so we resolve the version from the parent
+      # repo and write it into package.json before packing.
       - name: Sync version from git tag
         run: |
           VERSION=$(git -C ${{ github.workspace }} describe --tags --abbrev=0 --match='[0-9]*.[0-9]*.[0-9]*')
@@ -101,28 +101,108 @@ jobs:
         working-directory: src/inspect_ai/_view/ts-mono
         run: pnpm --filter @meridianlabs/log-viewer --fail-if-no-match check-all
 
-      - name: Build library for prerelease
-        if: ${{ inputs.prerelease }}
+      # The publish job uploads a tarball, which runs no lifecycle scripts,
+      # so the package's prepublishOnly (publishability check and library
+      # build) runs here instead.
+      - name: Build library
         working-directory: src/inspect_ai/_view/ts-mono
-        run: pnpm --filter @meridianlabs/log-viewer --fail-if-no-match build:lib
+        run: pnpm --filter @meridianlabs/log-viewer --fail-if-no-match run prepublishOnly
+
+      - name: Pack
+        run: |
+          mkdir -p "$RUNNER_TEMP/npm-package"
+          npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP/npm-package"
 
       - name: Publish to NPM (dry-run)
         if: ${{ inputs.dry-run }}
-        run: npm publish --dry-run --access public ${{ inputs.prerelease && '--tag beta --ignore-scripts' || '' }}
+        run: npm publish --dry-run --ignore-scripts --access public "$RUNNER_TEMP"/npm-package/*.tgz ${{ inputs.prerelease && '--tag beta' || '' }}
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: npm-package
+          path: ${{ runner.temp }}/npm-package/
+          if-no-files-found: error
+          # a re-run of this job replaces the earlier attempt's artifact
+          overwrite: true
+
+  publish:
+    name: Publish to NPM
+    needs: build
+    if: ${{ !inputs.dry-run }}
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      # No checkout: nothing from the repository is installed or run in the
+      # job that holds the publishing id-token.
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22.x"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+
+      - name: Upgrade npm (for Trusted Publishing)
+        run: |
+          # Install via prefix to avoid npm self-upgrade rebuild bug on Node 22.
+          # An exact version (Trusted Publishing needs >= 11.5.1) without install
+          # scripts, since this job holds the publishing id-token.
+          npm install --prefix "$RUNNER_TEMP/npm-upgrade" --no-audit --no-fund --ignore-scripts npm@11.21.0
+          echo "$RUNNER_TEMP/npm-upgrade/node_modules/.bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/npm-upgrade/node_modules/.bin/npm" --version
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: npm-package
+          path: npm-package/
+
+      # The build job chose the name and version; publish only the release
+      # being run (or, for a prerelease, a beta version).
+      - name: Check the package
+        id: package
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+          PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          fail() { echo "::error::$1"; exit 1; }
+          shopt -s nullglob
+          # Absolute: npm reads a bare `dir/file.tgz` as a GitHub shorthand.
+          TARBALLS=("$PWD"/npm-package/*.tgz)
+          [ ${#TARBALLS[@]} -eq 1 ] || fail "Expected one package tarball, found ${#TARBALLS[@]}"
+          MANIFEST=$(tar -xOzf "${TARBALLS[0]}" package/package.json)
+          NAME=$(jq -r .name <<< "$MANIFEST")
+          VERSION=$(jq -r .version <<< "$MANIFEST")
+          [ "$NAME" = "@meridianlabs/log-viewer" ] || fail "Unexpected package name '$NAME'"
+          if [ "$PRERELEASE" = "true" ]; then
+            [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$ ]] ||
+              fail "Prerelease version '$VERSION' is not X.Y.Z-beta.N"
+          else
+            [ "$VERSION" = "$TAG" ] || fail "Package version '$VERSION' does not match release tag '$TAG'"
+          fi
+          {
+            echo "tarball=${TARBALLS[0]}"
+            echo "name=$NAME"
+            echo "version=$VERSION"
+          } >> "$GITHUB_OUTPUT"
 
       # npm never accepts a version twice, so a retried release skips the
       # publish once the version exists.
       - name: Check npm for this version
         id: npm-version
-        if: ${{ !inputs.dry-run && !inputs.prerelease }}
+        if: ${{ !inputs.prerelease }}
+        env:
+          NAME: ${{ steps.package.outputs.name }}
+          VERSION: ${{ steps.package.outputs.version }}
         run: |
-          NAME=$(node -p "require('./package.json').name")
-          VERSION=$(node -p "require('./package.json').version")
           if [ -n "$(npm view "$NAME@$VERSION" version 2>/dev/null)" ]; then
             echo "::notice::$NAME@$VERSION is already on npm; not publishing it again"
             echo "published=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Publish to NPM
-        if: ${{ !inputs.dry-run && steps.npm-version.outputs.published != 'true' }}
-        run: npm publish --access public ${{ inputs.prerelease && '--tag beta --ignore-scripts' || '' }}
+        if: ${{ steps.npm-version.outputs.published != 'true' }}
+        env:
+          TARBALL: ${{ steps.package.outputs.tarball }}
+        run: npm publish "$TARBALL" --ignore-scripts --access public ${{ inputs.prerelease && '--tag beta' || '' }}

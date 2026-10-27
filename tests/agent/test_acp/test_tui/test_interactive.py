@@ -95,7 +95,15 @@ class TestComposerVisibility:
                 if isinstance(app.screen, SessionScreen):
                     break
             assert isinstance(app.screen, SessionScreen)
-            composer_row = app.screen.query_one("#composer-row")
+            screen = app.screen
+            # The screen is on the stack (and composed) before its on_mount
+            # hides the composer row for observe-only sessions.
+            for _ in range(20):
+                if screen.is_mounted:
+                    break
+                await pilot.pause()
+            assert screen.is_mounted
+            composer_row = screen.query_one("#composer-row")
             return not composer_row.display
 
     @skip_if_trio
