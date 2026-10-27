@@ -330,6 +330,7 @@ async def sandbox_agent_bridge(
         # A cancellation from an enclosing scope is not an Exception, so it
         # passes through unchanged for that scope to handle.
         if bridge is not None and bridge.generation_limits:
+            await _deliver_enclosing_cancellation()
             raise_unwrapped(ex, outermost_limit_error(bridge.generation_limits))
         # If the agent completed successfully but we got an error during cleanup,
         # log the error but don't fail the sample.
@@ -342,7 +343,19 @@ async def sandbox_agent_bridge(
             raise_unwrapped(ex, inner_exception(ex))
     # the agent returned after a generation reached a limit
     if bridge is not None and bridge.generation_limits:
+        await _deliver_enclosing_cancellation()
         raise outermost_limit_error(bridge.generation_limits)
+
+
+async def _deliver_enclosing_cancellation() -> None:
+    """Raise a cancellation an enclosing scope requested, if any.
+
+    A cancellation requested while the bridge shut down in its shielded scope
+    can be left undelivered on asyncio once the task group exits. Delivering it
+    before a recorded limit is raised lets it pass through unchanged, as when
+    it arrives earlier.
+    """
+    await anyio.lowlevel.checkpoint_if_cancelled()
 
 
 def _register_bridged_tools(

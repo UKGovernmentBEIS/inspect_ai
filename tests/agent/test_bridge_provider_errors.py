@@ -963,16 +963,20 @@ class _Scaffold:
 
     Once every reply has been written, the scaffold exits: cleanly, or with
     `fails` as a CLI wrapper does when the CLI exits unsuccessfully. The
-    bridge applies `filter` and `response_filter` to its generations.
+    bridge applies `filter` and `response_filter` to its generations. With
+    `slow_kill`, killing the model proxy lasts until an enclosing scope has
+    cancelled the model service.
     """
 
     requests: list[_Request]
     fails: bool = False
     filter: ModelGenerateFilter | None = None
     response_filter: ModelResponseFilter | None = None
+    slow_kill: bool = False
 
     def arm(self) -> None:
         self.killing = anyio.Event()
+        self.service_cancelled = anyio.Event()
         for request in self.requests:
             request.arm()
 
@@ -998,6 +1002,12 @@ class _ExitedProxy:
         raise StopAsyncIteration
 
     async def kill(self) -> None:
+        if self._scaffold.slow_kill:
+            with anyio.fail_after(10):
+                await self._scaffold.service_cancelled.wait()
+            # let the bridge's other cancelled tasks finish too
+            for _ in range(10):
+                await anyio.lowlevel.checkpoint()
         request = self._scaffold.during_shutdown
         if request is not None:
             self._scaffold.killing.set()
@@ -1086,7 +1096,10 @@ def _serve_generations(
         async with anyio.create_task_group() as tg:
             for service in services:
                 tg.start_soon(service._handle_request_tracked, REQUEST_FILE, REQUEST_ID)
-        await anyio.sleep_forever()
+        try:
+            await anyio.sleep_forever()
+        finally:
+            scaffold.service_cancelled.set()
 
     monkeypatch.setattr(bridge_service, "sandbox_service", serve)
 
@@ -1486,6 +1499,44 @@ def test_limit_behind_a_response_filter_refusal_is_raised(
     _assert_error_replies(outcome.replies)
 
 
+def test_limit_without_a_source_in_a_bridged_generation_ends_the_sample(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A custom limit without a source outranks a `run()` limit reached with it.
+
+    A response filter raises a custom limit (no `source`, as the docs show)
+    together with the `run()` token limit. As for a native agent, no `run()`
+    handles the custom limit, so it ends the sample.
+    """
+    limit = token_limit(1000)
+
+    async def judges_over_limits(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        raise ExceptionGroup(
+            "judges",
+            [
+                LimitExceededError("custom", value=2, limit=1),
+                LimitExceededError("token", value=1001, limit=1000, source=limit),
+            ],
+        )
+
+    outcome = _run_bridged_agent(
+        tmp_path,
+        monkeypatch,
+        limit,
+        scaffold=_Scaffold([_Request()], response_filter=judges_over_limits),
+    )
+
+    sample = outcome.sample
+    assert sample.error is None, sample.error
+    assert sample.limit is not None
+    assert (sample.limit.type, sample.limit.limit) == ("custom", 1)
+    assert "continued" not in sample.store
+    assert outcome.errors == []
+    _assert_error_replies(outcome.replies)
+
+
 def test_enclosing_time_limit_during_a_bridged_limit_reply_wins(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1512,3 +1563,32 @@ def test_enclosing_time_limit_during_a_bridged_limit_reply_wins(
     [error] = outcome.outer_errors
     assert error is not None and error.type == "time"
     assert outcome.replies == []
+
+
+def test_enclosing_time_limit_during_bridge_shutdown_wins(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An enclosing time limit that expires while the bridge kills the proxy wins.
+
+    The generation reaches the inner `run()` token limit and the agent returns
+    after its reply. The enclosing `run()` time limit expires while the bridge
+    is killing the model proxy, inside a shielded scope. The cancellation is
+    delivered rather than replaced by the recorded limit, so the enclosing
+    `run()` returns its time limit error.
+    """
+    outcome = _run_bridged_agent(
+        tmp_path,
+        monkeypatch,
+        token_limit(5),
+        scaffold=_Scaffold([_Request()], slow_kill=True),
+        outer_limit=time_limit(0.5),
+    )
+
+    sample = outcome.sample
+    assert sample.error is None, sample.error
+    assert sample.limit is None
+    assert sample.store.get("continued") is True
+    assert outcome.errors == []
+    [error] = outcome.outer_errors
+    assert error is not None and error.type == "time"
+    _assert_error_replies(outcome.replies)

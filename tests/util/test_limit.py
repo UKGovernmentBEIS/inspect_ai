@@ -126,7 +126,7 @@ def test_apply_limits_child_exceeded() -> None:
 def test_outermost_limit_error_is_the_first_entered() -> None:
     """Of nested limits of different types, the outer one's error wins.
 
-    An error with no source counts as innermost.
+    An error with no source counts as outermost: no scope handles it.
     """
     outer = token_limit(5)
     inner = message_limit(2)
@@ -135,11 +135,15 @@ def test_outermost_limit_error_is_the_first_entered() -> None:
         message_error = LimitExceededError("message", value=3, limit=2, source=inner)
         no_source = LimitExceededError("custom", value=1, limit=0)
         for errors in (
+            [message_error, token_error],
+            [token_error, message_error],
+        ):
+            assert outermost_limit_error(errors) is token_error
+        for errors in (
             [message_error, token_error, no_source],
             [no_source, token_error, message_error],
         ):
-            assert outermost_limit_error(errors) is token_error
-        assert outermost_limit_error([no_source, message_error]) is message_error
+            assert outermost_limit_error(errors) is no_source
 
 
 def test_apply_limits_handles_error_without_source() -> None:

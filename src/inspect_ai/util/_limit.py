@@ -199,7 +199,8 @@ def outermost_limit_error(errors: Sequence[LimitExceededError]) -> LimitExceeded
 
     Limits active in one context nest in the order they were entered, so the
     first one belongs to the outermost scope, which ends the others' scopes as
-    well. An error with no entered `source` counts as innermost.
+    well. An error with no entered `source` (e.g. a custom limit) counts as
+    outermost, since no `apply_limits()` scope handles it.
 
     Args:
        errors: Errors of limits exceeded in one context (at least one).
@@ -207,7 +208,7 @@ def outermost_limit_error(errors: Sequence[LimitExceededError]) -> LimitExceeded
 
     def entry(error: LimitExceededError) -> float:
         entered = getattr(error.source, "_entry", None)
-        return math.inf if entered is None else entered
+        return -math.inf if entered is None else entered
 
     return min(errors, key=entry)
 
