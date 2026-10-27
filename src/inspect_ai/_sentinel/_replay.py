@@ -81,6 +81,8 @@ def steps_from_events(
 
     Every step's `agent_messages` is None: the log does not record the agent's own messages, and model input can hold messages the agent kept out of them.
 
+    A call a sandbox bridge ran on the host (`ToolEvent.metadata["bridge"]`) differs from live in two cases, as the log does not record which model call's output the bridge handed over. A response filter that returns a copy of the model's output: live gives the call's tool steps no input, as the bridge cannot tell which generation produced it; replay gives them the model call's input. A call more than one model call proposed (a response filter that regenerates an equal output, which keeps the call's id): replay gives the steps no input, while live gives the input of the generation whose output was handed over.
+
     Args:
         messages: The sample's messages (`EvalSample.messages`).
         events: The sample's events, with model inputs condensed (`input_refs` into `message_pool`), as the log stores them; inputs given expanded are condensed first. Attachments must be resolved (`resolve_attachments`), or monitors are handed `attachment://` references.
@@ -375,6 +377,8 @@ class _Driver:
         candidates: dict[str, list[str]] = {}
         turn_ids: set[str | None] = set()
         produced: dict[str, tuple[ChatMessageAssistant, ModelEvent, ToolCall]] = {}
+        # how many model calls proposed each call id
+        proposals: dict[str, int] = {}
         approvals: dict[str, ApprovalEvent] = {}
         calls: list[_Call] = []
 
@@ -401,6 +405,7 @@ class _Driver:
                     message = event.output.choices[0].message
                     for tool_call in message.tool_calls or []:
                         produced[tool_call.id] = (message, event, tool_call)
+                        proposals[tool_call.id] = proposals.get(tool_call.id, 0) + 1
                 if not is_agent_turn(event.origin):
                     continue
                 turn_ids.add(event.uuid)
@@ -439,6 +444,10 @@ class _Driver:
                 proposal: ToolCall | None
                 if found is not None:
                     assistant, producer, proposal = found
+                    if _bridged(event) and proposals[event.id] > 1:
+                        # a bridge hands over one generation's output, and the
+                        # log can't tell which of these it was
+                        producer = None
                 else:
                     assistant, proposal = self._assistant(event.id)
                 conversation = (
@@ -762,7 +771,7 @@ class _Driver:
         after_call = modify if modify is not None else before_call
         # a sandbox bridge records the host tool's own name; its result is
         # checked under the call the model made
-        bridged = event.metadata is not None and "bridge" in event.metadata
+        bridged = _bridged(event)
         after_call = replace(
             after_call,
             id=event.id,
@@ -798,7 +807,7 @@ class _Driver:
 
         Live decides by the region that runs the call (`checks_tool_calls()` in `call_tool`), which the log does not record, so a call run in a region other than the one its producer was made in is replayed by its producer's. A call no model call produced (a pre-filled message) is taken as checked. A call a sandbox bridge ran on the host (`metadata["bridge"]`) is not, unless its steps were recorded: live checks it in the bridge, where it may also have been rejected before it ran or checked with no input, which the log alone cannot tell.
         """
-        if event.metadata is not None and "bridge" in event.metadata:
+        if _bridged(event):
             return False
         return producer is None or producer.origin in _NON_FINAL
 
@@ -1122,3 +1131,8 @@ def _check_span_tree(events: Sequence[Event]) -> None:
             on_path.add(current)
             current = parents[current]
         done.update(path)
+
+
+def _bridged(event: ToolEvent) -> bool:
+    """Whether a sandbox bridge ran the call on the host."""
+    return event.metadata is not None and "bridge" in event.metadata

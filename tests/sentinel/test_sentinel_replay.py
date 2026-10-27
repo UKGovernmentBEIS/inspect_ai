@@ -57,6 +57,7 @@ from inspect_ai.model import (
     ChatMessageTool,
     ChatMessageUser,
     GenerateConfig,
+    Model,
     ModelAPI,
     ModelOutput,
     ModelRefusalError,
@@ -65,6 +66,7 @@ from inspect_ai.model import (
     modelapi,
 )
 from inspect_ai.model._call_tools import execute_tools
+from inspect_ai.model._model import GenerateInput, ModelResponseFilter
 from inspect_ai.model._providers.mockllm import MockLLM
 from inspect_ai.scorer import Score, Scorer, Target, scorer
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
@@ -969,7 +971,9 @@ def test_a_custom_memory_tool_replays_its_path_as_given() -> None:
 
 
 @agent
-def r7_runs_a_bridged_host_tool() -> Agent:
+def r7_runs_a_bridged_host_tool(
+    response_filter: ModelResponseFilter | None = None,
+) -> Agent:
     async def execute(state: AgentState) -> AgentState:
         from inspect_ai.agent._bridge.completions import (
             inspect_completions_api_request,
@@ -985,6 +989,7 @@ def r7_runs_a_bridged_host_tool() -> Agent:
             port=8080,
             model=None,
             bridged_tools={"host": {"addition": addition()}},
+            response_filter=response_filter,
         )
         [served] = bridge.served_tools.values()
         # the scaffold declares the tool under its own name, with the
@@ -1050,6 +1055,85 @@ def test_a_bridged_host_tool_calls_steps_replay_as_live() -> None:
     assert isinstance(after, AfterToolCall)
     # under the call the model made, not the host tool's own name
     assert (after.result.function, after.result.text) == ("mcp__host__addition", "2")
+
+
+async def r7_copies(
+    model: Model, output: ModelOutput, input: GenerateInput
+) -> ModelOutput | None:
+    return output.model_copy(deep=True)
+
+
+def test_a_copied_bridged_host_calls_steps_replay_with_the_model_calls_input() -> None:
+    # a known difference: live can't tell which generation a response filter's
+    # copy came from, so the steps have no input; the log doesn't record that
+    # the output was copied, so replay gives the model call's
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        as_solver(r7_runs_a_bridged_host_tool(r7_copies)),
+        outputs(call("mcp__host__addition", x=1, y=1)),
+        sentinel=[r7_probe(seen, copies=True)],
+    )
+    sample = logged_sample(log)
+    [turn] = [e for e in sample.events if isinstance(e, ModelEvent)]
+    live = live_steps(sample, seen)
+    replay: dict[tuple[str, str], Step] = {
+        (step.stage, step.id): step.step for step in replayed(log)
+    }
+    tool_steps = [key for key in live if key[0] in ("tool_call", "tool_result")]
+    assert [stage for stage, _ in tool_steps] == ["tool_call", "tool_result"]
+    for key in tool_steps:
+        live_step, replay_step = live[key], replay[key]
+        assert isinstance(live_step, BeforeToolCall | AfterToolCall)
+        assert isinstance(replay_step, BeforeToolCall | AfterToolCall)
+        assert live_step.input is None
+        assert replay_step.input is not None
+        assert comparable(list(replay_step.input), False) == comparable(
+            list(turn.input), False
+        )
+
+
+@pytest.mark.parametrize("returns", ["generation", "regeneration"])
+def test_a_bridged_host_call_two_model_calls_proposed_replays_with_no_input(
+    returns: str,
+) -> None:
+    # the response filter regenerates an equal output, which keeps the call's
+    # id: which generation's output was handed over the log can't tell
+    proposed = call("mcp__host__addition", x=1, y=1)
+
+    async def regenerates(
+        model: Model, output: ModelOutput, input: GenerateInput
+    ) -> ModelOutput | None:
+        regeneration = await model.generate(
+            [ChatMessageSystem(content="Again."), *input.input],
+            tools=input.tools,
+            tool_choice=input.tool_choice,
+            config=input.config,
+        )
+        return regeneration if returns == "regeneration" else None
+
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        as_solver(r7_runs_a_bridged_host_tool(regenerates)),
+        outputs(proposed, proposed.model_copy(deep=True)),
+        sentinel=[r7_probe(seen, copies=True)],
+    )
+    sample = logged_sample(log)
+    generations = [e for e in sample.events if isinstance(e, ModelEvent)]
+    assert len(generations) == 2
+    sent = generations[1 if returns == "regeneration" else 0].input
+    live = live_steps(sample, seen)
+    replay: dict[tuple[str, str], Step] = {
+        (step.stage, step.id): step.step for step in replayed(log)
+    }
+    tool_steps = [key for key in live if key[0] in ("tool_call", "tool_result")]
+    assert [stage for stage, _ in tool_steps] == ["tool_call", "tool_result"]
+    for key in tool_steps:
+        live_step, replay_step = live[key], replay[key]
+        assert isinstance(live_step, BeforeToolCall | AfterToolCall)
+        assert isinstance(replay_step, BeforeToolCall | AfterToolCall)
+        assert live_step.input is not None
+        assert comparable(list(live_step.input), False) == comparable(list(sent), False)
+        assert replay_step.input is None
 
 
 def run_logged(
