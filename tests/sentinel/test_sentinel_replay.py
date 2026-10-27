@@ -2220,15 +2220,38 @@ def imported_tool_event(
 
 READ = ToolCall(id="call_read", function="read_file", arguments={"path": "a.cfg"})
 LIST = ToolCall(id="call_list", function="list_dir", arguments={"path": "."})
+FIND = ToolCall(id="call_find", function="find", arguments={"name": "*.cfg"})
 GREP = ToolCall(id="call_grep", function="grep", arguments={"pattern": "port"})
 
 
-def claude_code_transcript() -> tuple[list[ChatMessage], list[Event]]:
+def as_copies(
+    messages: list[ChatMessage], calls: list[ModelEvent]
+) -> tuple[list[ChatMessage], list[ModelEvent]]:
+    """The conversation as LangSmith and Weave write it: each model call's output, in the messages and in later inputs, a copy without its id or model."""
+    copies = {
+        id(event.output.message): event.output.message.model_copy(
+            update={"id": f"copy-{event.uuid}", "model": None}
+        )
+        for event in calls
+    }
+
+    def copied(written: list[ChatMessage]) -> list[ChatMessage]:
+        return [copies.get(id(m), m) for m in written]
+
+    return copied(messages), [
+        event.model_copy(update={"input": copied(event.input)}) for event in calls
+    ]
+
+
+def claude_code_transcript(parallel: bool) -> tuple[list[ChatMessage], list[Event]]:
     # a Task call is written in the sub-agent's span, with no tool span; a
     # Bash call in its tool span
     task = ToolCall(id="toolu_task", function="Task", arguments={"prompt": "Look."})
-    bash = ToolCall(id="toolu_bash", function="Bash", arguments={"command": "ls"})
-    messages, (m0, m1, m2) = imported_conversation("session", [task], [bash])
+    bashes = [
+        ToolCall(id=f"toolu_bash{n}", function="Bash", arguments={"command": f"ls {n}"})
+        for n in range(3 if parallel else 1)
+    ]
+    messages, (m0, m1, m2) = imported_conversation("session", [task], bashes)
     task_event = imported_tool_event(task, 0, "agent-toolu_task")
     task_event.agent_span_id = "agent-toolu_task"
     return messages, [
@@ -2241,21 +2264,34 @@ def claude_code_transcript() -> tuple[list[ChatMessage], list[Event]]:
         imported_call("sub", [ChatMessageUser(content="Look.")], "agent-toolu_task"),
         SpanEndEvent(id="agent-toolu_task"),
         m1,
-        SpanBeginEvent(
-            id="tool-toolu_bash", name="Bash", type="tool", parent_id="session"
-        ),
-        imported_tool_event(bash, 1, "tool-toolu_bash"),
-        SpanEndEvent(id="tool-toolu_bash"),
+        *[
+            event
+            for bash in bashes
+            for event in (
+                SpanBeginEvent(
+                    id=f"tool-{bash.id}", name="Bash", type="tool", parent_id="session"
+                ),
+                imported_tool_event(bash, 1, f"tool-{bash.id}"),
+                SpanEndEvent(id=f"tool-{bash.id}"),
+            )
+        ],
         m2,
         SpanEndEvent(id="session"),
     ]
 
 
+def first_turn(parallel: bool) -> list[ToolCall]:
+    return [READ, LIST, FIND] if parallel else [READ, LIST]
+
+
 def spanless_transcript(
-    span_type: str | None, tool_event_ids: bool
+    span_type: str | None, tool_event_ids: bool, copies: bool, parallel: bool
 ) -> tuple[list[ChatMessage], list[Event]]:
     # ToolEvents in the run's span, with the call's id or with their own
-    messages, (m0, m1, m2) = imported_conversation("run", [READ, LIST], [GREP])
+    messages, calls = imported_conversation("run", first_turn(parallel), [GREP])
+    if copies:
+        messages, calls = as_copies(messages, calls)
+    m0, m1, m2 = calls
 
     def tool_event(call: ToolCall, turn: int) -> ToolEvent:
         if tool_event_ids:
@@ -2267,8 +2303,7 @@ def spanless_transcript(
     return messages, [
         SpanBeginEvent(id="run", name="agent run", type=span_type),
         m0,
-        tool_event(READ, 0),
-        tool_event(LIST, 0),
+        *[tool_event(call, 0) for call in first_turn(parallel)],
         m1,
         tool_event(GREP, 1),
         m2,
@@ -2276,9 +2311,9 @@ def spanless_transcript(
     ]
 
 
-def atif_transcript() -> tuple[list[ChatMessage], list[Event]]:
+def atif_transcript(parallel: bool) -> tuple[list[ChatMessage], list[Event]]:
     # model calls in an agent span, and no ToolEvents
-    messages, calls = imported_conversation("terminus", [READ, LIST], [GREP])
+    messages, calls = imported_conversation("terminus", first_turn(parallel), [GREP])
     return messages, [
         SpanBeginEvent(id="terminus", name="terminus_2", type="agent"),
         *calls,
@@ -2286,33 +2321,68 @@ def atif_transcript() -> tuple[list[ChatMessage], list[Event]]:
     ]
 
 
-IMPORTERS: dict[str, Callable[[], tuple[list[ChatMessage], list[Event]]]] = {
+IMPORTERS: dict[str, Callable[[bool], tuple[list[ChatMessage], list[Event]]]] = {
     "claude_code": claude_code_transcript,
     # Phoenix: a chain span of no type, ToolEvents keyed by the call's id
-    "phoenix": partial(spanless_transcript, None, True),
+    "phoenix": partial(spanless_transcript, None, True, False),
     # Logfire: an agent span, ToolEvents keyed by the call's id
-    "logfire": partial(spanless_transcript, "agent", True),
-    # LangSmith: an agent span, ToolEvents keyed by their run's id
-    "langsmith": partial(spanless_transcript, "agent", False),
-    # Weave: a span of no type, ToolEvents keyed by their call's id in Weave
-    "weave": partial(spanless_transcript, None, False),
+    "logfire": partial(spanless_transcript, "agent", True, False),
+    # LangSmith: an agent span, ToolEvents keyed by their run's id, and copies
+    # of each output in the messages and later inputs
+    "langsmith": partial(spanless_transcript, "agent", False, True),
+    # Weave: a span of no type, ToolEvents keyed by their call's id in Weave,
+    # and copies of each output
+    "weave": partial(spanless_transcript, None, False, True),
     "atif": atif_transcript,
 }
 
 
+@pytest.mark.parametrize("parallel", [False, True], ids=["", "parallel"])
 @pytest.mark.parametrize("importer", IMPORTERS)
 def test_an_imported_transcript_keeps_the_tool_steps_of_its_messages(
-    importer: str,
+    importer: str, parallel: bool
 ) -> None:
     # Ransom's second review: a call whose ToolEvent no tool span holds, or
-    # that has none, takes its steps from the messages
-    messages, events = IMPORTERS[importer]()
+    # that has none, takes its steps from the messages; his third: each of a
+    # turn's parallel calls has its steps
+    messages, events = IMPORTERS[importer](parallel)
     replay = steps_from_events(
         messages, events, [], sample_uuid="transcript", eval_info=IMPORTED
     )
 
     assert tool_steps(replay) == projected_tool_steps(messages)
-    assert len(tool_steps(replay)) == (4 if importer == "claude_code" else 6)
+    assert len(tool_steps(replay)) == (
+        2 * (4 if parallel else 2)
+        if importer == "claude_code"
+        else 2 * (len(first_turn(parallel)) + 1)
+    )
+
+
+@pytest.mark.parametrize("calls", [3, 4])
+def test_a_copied_message_s_parallel_calls_each_keep_their_answer(calls: int) -> None:
+    # Ransom's third review: the parallel calls of an output the messages and
+    # later inputs hold a copy of share its position, so each is answered
+    parallel = [
+        ToolCall(id=f"call_{n}", function="read_file", arguments={"path": f"{n}.cfg"})
+        for n in range(calls)
+    ]
+    messages, events = as_copies(*imported_conversation("run", parallel))
+    replay = steps_from_events(
+        messages,
+        [
+            SpanBeginEvent(id="run", name="agent run", type="agent"),
+            *events,
+            SpanEndEvent(id="run"),
+        ],
+        [],
+        sample_uuid="transcript",
+        eval_info=IMPORTED,
+    )
+
+    assert tool_steps(replay) == projected_tool_steps(messages)
+    assert [s[4] for s in tool_steps(replay) if s[0] == "tool_result"] == [
+        f"result of call_{n} in turn 0" for n in range(calls)
+    ]
 
 
 @pytest.mark.parametrize("copied", [False, True])
@@ -2323,12 +2393,7 @@ def test_a_reused_call_id_keeps_each_call_and_its_own_answer(copied: bool) -> No
     # its id or model
     messages, calls = imported_conversation("terminus", [READ], [READ])
     if copied:
-        messages = [
-            m.model_copy(update={"id": f"copy-{n}", "model": None})
-            if isinstance(m, ChatMessageAssistant)
-            else m
-            for n, m in enumerate(messages)
-        ]
+        messages, calls = as_copies(messages, calls)
     replay = steps_from_events(
         messages,
         [
@@ -2409,7 +2474,7 @@ def test_an_imported_call_no_message_answers_has_no_result_step(cut: str) -> Non
 
 
 def test_an_imported_call_s_steps_come_after_its_model_output() -> None:
-    messages, events = atif_transcript()
+    messages, events = atif_transcript(False)
     replay = steps_from_events(
         messages, events, [], sample_uuid="transcript", eval_info=IMPORTED
     )
@@ -2431,7 +2496,7 @@ def test_an_imported_call_s_steps_come_after_its_model_output() -> None:
 
 
 def test_a_task_s_result_step_comes_after_its_sub_agent() -> None:
-    messages, events = claude_code_transcript()
+    messages, events = claude_code_transcript(False)
     replay = steps_from_events(
         messages, events, [], sample_uuid="transcript", eval_info=IMPORTED
     )
@@ -2494,7 +2559,7 @@ def test_an_inspect_log_s_calls_without_a_tool_span_keep_no_tool_steps(
     # call not executed after an earlier one failed), so a log written by
     # Inspect, with or without a version in its header, keeps reading its
     # calls from events
-    messages, events = spanless_transcript(None, True)
+    messages, events = spanless_transcript(None, True, False, False)
     replay = steps_from_events(
         messages,
         events,

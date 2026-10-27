@@ -380,9 +380,9 @@ class _Driver:
         self._assistants: dict[str, tuple[ChatMessageAssistant, ToolCall]] | None = None
         self._messages_by_id: dict[str, ChatMessage] | None = None
         # an imported transcript's calls in its messages and in the pool, and
-        # where each call is in them, by id() of its assistant message and call
+        # where each assistant message making calls is in them, by id()
         self._message_calls: tuple[_MessageCalls, _MessageCalls] | None = None
-        self._positions: dict[tuple[int, int], tuple[_MessageCalls, int]] = {}
+        self._positions: dict[int, tuple[_MessageCalls, int] | None] = {}
         # the origins of model calls the log records none for, by id()
         self._inferred: dict[int, str] | None = None
         # the uuids of the model calls made outside sentinel spans
@@ -1145,34 +1145,40 @@ class _Driver:
         occurrences: list[tuple[ChatMessageAssistant, ModelEvent, ToolCall, int]],
         calls: list[_Call],
     ) -> None:
-        """Find each call of an imported transcript, in log order, in the sample's messages, else in the pool."""
+        """Find the assistant message making each call of an imported transcript, in log order, in the sample's messages, else in the pool: once for the message, which its sibling calls share."""
         messages = _MessageCalls(self.messages)
         pool = _MessageCalls(self.pool)
         self._message_calls = (messages, pool)
-        made: list[tuple[ChatMessageAssistant, ToolCall, int]] = [
-            (assistant, call, pool.held(call, producer.input_refs or []))
+        made: list[tuple[ChatMessageAssistant, ToolCall, Sequence[tuple[int, int]]]] = [
+            (assistant, call, producer.input_refs or [])
             for assistant, producer, call, _ in occurrences
         ]
         # a call no model call made that a ToolEvent ran (a pre-filled message)
         made += [
-            (entry.assistant, entry.proposal, 0)
+            (entry.assistant, entry.proposal, [])
             for entry in calls
             if entry.producer is None
             and entry.assistant is not None
             and entry.proposal is not None
         ]
-        for assistant, call, held in made:
-            for found in (messages, pool):
-                at = found.locate(assistant, call, held)
-                if at is not None:
-                    self._positions[id(assistant), id(call)] = (found, at)
-                    break
+        for assistant, call, refs in made:
+            if id(assistant) in self._positions:
+                continue
+            held = pool.held(call, refs)
+            self._positions[id(assistant)] = next(
+                (
+                    (found, at)
+                    for found in (messages, pool)
+                    if (at := found.locate(assistant, call, held)) is not None
+                ),
+                None,
+            )
 
     def _answer(
         self, assistant: ChatMessageAssistant, call: ToolCall
     ) -> ChatMessageTool | None:
         """The tool message answering a call of an imported transcript: the first with its id after the assistant message making the call."""
-        found = self._positions.get((id(assistant), id(call)))
+        found = self._positions.get(id(assistant))
         return found[0].answer(found[1], call.id) if found is not None else None
 
     def _calls_no_model_call_made(
@@ -1186,7 +1192,7 @@ class _Driver:
         outputs = sorted(
             (found[1], index, producer)
             for assistant, producer, call, index in occurrences
-            if (found := self._positions.get((id(assistant), id(call)))) is not None
+            if (found := self._positions.get(id(assistant))) is not None
             and found[0] is messages
         )
         # the earliest model call, in log order, among outputs from each on
@@ -1211,10 +1217,10 @@ class _Driver:
                     if outputs
                     else self.spans.conversation(None)
                 )
+            self._positions[id(assistant)] = (messages, position)
             for call in assistant.tool_calls or []:
                 if call.parse_error is not None:
                     continue
-                self._positions[id(assistant), id(call)] = (messages, position)
                 self._message_steps(
                     assistant, None, call, conversation, at, at, self._next_seq(3)
                 )
