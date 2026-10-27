@@ -87,7 +87,7 @@ def steps_from_events(
 
     Every step's `agent_messages` is None: the log does not record the agent's own messages, and model input can hold messages the agent kept out of them.
 
-    A log that does not record where a model call was made (`ModelEvent.origin`, written since inspect_ai PR #5990), an older Inspect log or a transcript imported from another source, has its turns inferred: a call made in a tool's span (or nested in its `ToolEvent`) is a tool's, one in the scorers' span a scorer's and one in the init span setup's; of the rest, those the timeline shows as utility (`timeline_build`'s prompt and continuity rules) are not turns, and the others are.
+    A log that does not record where a model call was made (`ModelEvent.origin`, written since inspect_ai PR #5990), an older Inspect log or a transcript imported from another source, has its turns inferred: a call made in the scorers' span is a scorer's, whatever tool or agent span holds it (live, the scorers' scope is final); one in a tool's span (or nested in its `ToolEvent`) a tool's, and one in the init span setup's; of the rest, those the timeline shows as utility (`timeline_build`'s prompt and continuity rules) are not turns, and the others are.
 
     A transcript imported from another source (`eval_info` is `None`) has its tool steps from the sample's messages alone, as sentinel's messages projection (`steps_from_messages`) takes them: each call of each assistant message, in order, a `tool_call` step, and a `tool_result` step holding the first tool message with the call's id after that assistant message, none when there is none; step ids, calls, views and results as the projection's, with no input or tools. The steps are in the main conversation, the one the messages are (the conversation with the fewest agent spans enclosing it), with its record. Its `ToolEvent`s and model calls do not decide which tool steps there are, what answers them or their conversation, only where they go among the main conversation's turns: a message's steps follow the `model_output` step of the turn whose output has the message's id, else of the turn before the first turn whose input is longer than the message's position in the messages (the turn that made it, where the messages extend each turn's input), else they precede the first turn. A placement mistake changes their order only. So a call no message holds (a sub-agent's, or one in a turn the messages dropped) has no tool steps, as in the projection.
 
@@ -980,10 +980,12 @@ class _Driver:
             if not isinstance(event, ModelEvent) or event.origin is not None:
                 continue
             kind, phase = self._region(event.span_id, spans)
-            if nested or kind == "tool":
-                inferred[id(event)] = "tool"
-            elif phase == "scorers":
+            if phase == "scorers":
+                # live, the scorers' scope is final: nothing inside it, a tool
+                # or an agent, changes it
                 inferred[id(event)] = "scorer"
+            elif nested or kind == "tool":
+                inferred[id(event)] = "tool"
             elif phase == "init":
                 inferred[id(event)] = "setup"
             elif id(event) in utility:

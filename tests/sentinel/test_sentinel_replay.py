@@ -3659,6 +3659,51 @@ def test_a_task_scorer_s_tool_calls_have_no_tool_steps() -> None:
     assert not [s for s in replay if s.stage.startswith("tool")]
 
 
+@scorer(metrics=[])
+def r7_scores_with_a_helper_tool() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        tools = [asks_a_helper()]
+        output = await get_model().generate("Check the sum.", tools)
+        await execute_tools(
+            [ChatMessageUser(content="Check the sum."), output.message], tools
+        )
+        return Score(value=1)
+
+    return score
+
+
+@scorer(metrics=[])
+def r7_scores_in_an_agent_span() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        async with span("checker", type="agent"):
+            tools = [asks_a_helper()]
+            output = await get_model().generate("Check the sum.", tools)
+            await execute_tools(
+                [ChatMessageUser(content="Check the sum."), output.message], tools
+            )
+        return Score(value=1)
+
+    return score
+
+
+@pytest.mark.parametrize("arrangement", ["helper_tool", "agent_span"])
+def test_a_task_scorer_s_nested_calls_have_no_tool_steps_without_origins(
+    arrangement: str,
+) -> None:
+    # Ransom's fourth review: the scorers' scope is final live, through a
+    # tool whose helper model proposes and runs a call, directly or inside an
+    # agent span; with origins removed their calls are a scorer's, and none
+    # has tool steps
+    replay = assert_replay_equals_live(
+        generate(),
+        outputs(done(), call("asks_a_helper")),
+        scorer=r7_scores_with_a_helper_tool()
+        if arrangement == "helper_tool"
+        else r7_scores_in_an_agent_span(),
+    )
+    assert [s.stage for s in replay] == ["model_input", "model_output"]
+
+
 @solver
 def r7_carries_on_after_a_refusal() -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
