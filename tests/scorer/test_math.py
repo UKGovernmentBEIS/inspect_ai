@@ -402,6 +402,21 @@ def test_constant_tuple_self_match_is_correct() -> None:
 
 
 @pytest.mark.parametrize(
+    ("answer", "target", "expected"),
+    [
+        (r"\boxed{[2, 5]}", "(2, 5)", "incorrect"),
+        (r"\boxed{(2, 5)}", "[2, 5]", "incorrect"),
+        (r"\boxed{[-1, 1/2]}", "(-1, 1/2)", "incorrect"),
+        (r"\boxed{[2, 5)}", "[2, 5)", "correct"),
+        (r"\boxed{[2, 5)}", "(2, 5]", "incorrect"),
+        (r"\boxed{\left[2, 5\right]}", "[2, 5]", "correct"),
+    ],
+)
+def test_interval_endpoint_inclusion(answer: str, target: str, expected: str) -> None:
+    assert _score_answer(answer, (target,)).status == expected
+
+
+@pytest.mark.parametrize(
     "answer,target",
     [
         ("1,234", "1234"),

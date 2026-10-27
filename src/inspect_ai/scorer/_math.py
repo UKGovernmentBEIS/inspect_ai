@@ -701,6 +701,11 @@ class _PlainExpressionBuilder(ast.NodeVisitor):
 def _parse_plain_expression(
     candidate: str, sympy: Any, policy: _SymbolPolicy | None = None
 ) -> Any | None:
+    candidate = re.sub(
+        r"\\(?:left|right|Bigl|Bigr|bigl|bigr|Big|big|Large|large)\b",
+        "",
+        candidate,
+    )
     if "\\" in candidate or re.search(r"\^\s*\{", candidate):
         return None
     # An equation's halves inherit the whole candidate's policy: "z = 1+i" is
@@ -726,11 +731,52 @@ def _parse_plain_expression(
             raise _MathParseError("invalid equation")
         return sympy.Eq(left, right, evaluate=False)
 
+    interval = _split_plain_interval(text)
+    if interval is not None:
+        left_text, right_text = interval
+        left = _parse_plain_expression(left_text, sympy, policy)
+        right = _parse_plain_expression(right_text, sympy, policy)
+        if left is None or right is None:
+            raise _MathParseError("invalid interval")
+        return sympy.Interval(
+            left,
+            right,
+            left_open=text.startswith("("),
+            right_open=text.endswith(")"),
+        )
+
     try:
         parsed = ast.parse(text, mode="eval")
     except (SyntaxError, ValueError):
         return None
     return _PlainExpressionBuilder(sympy, policy).visit(parsed)
+
+
+def _split_plain_interval(candidate: str) -> tuple[str, str] | None:
+    if len(candidate) < 5 or candidate[0] not in "([" or candidate[-1] not in ")]":
+        return None
+
+    depth = 0
+    separator: int | None = None
+    for index, char in enumerate(candidate[1:-1], start=1):
+        if char in "([{":
+            depth += 1
+        elif char in ")]}":
+            depth -= 1
+            if depth < 0:
+                return None
+        elif char == "," and depth == 0:
+            if separator is not None:
+                return None
+            separator = index
+
+    if depth != 0 or separator is None:
+        return None
+    left = candidate[1:separator].strip()
+    right = candidate[separator + 1 : -1].strip()
+    if not left or not right:
+        return None
+    return left, right
 
 
 def _looks_complex(candidate: str) -> bool:
