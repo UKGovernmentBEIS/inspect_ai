@@ -239,6 +239,8 @@ class _PreparedInput(NamedTuple):
     tool_choice: ToolChoice
     rebuilt: list[ChatMessage]
     """Messages of `input` built for this call rather than by the caller."""
+    combined_occurrences: dict[bytes, int]
+    """Occurrences of each rebuilt content given an id while collapsing."""
 
 
 @dataclasses.dataclass(frozen=True)
@@ -1416,17 +1418,21 @@ class Model:
         if extract_types:
             input = tool_result_media_as_user_message(input, tuple(extract_types))
 
+        combined_occurrences: dict[bytes, int] = {}
+
         def reuse_combined_id(message: ChatMessage) -> None:
             # a combination records the ids of the messages it combines
             if message.id not in caller_ids:
-                _reuse_rebuilt_message_ids([message], [message])
+                _reuse_rebuilt_message_ids([message], [message], combined_occurrences)
 
         input = collapse_consecutive_messages_for_api(
             input, self.api, before_combine=reuse_combined_id
         )
         _validate_model_input_media(input)
         rebuilt = [message for message in input if message.id not in caller_ids]
-        return _PreparedInput(input, tdefs, base_tools, tool_choice, rebuilt)
+        return _PreparedInput(
+            input, tdefs, base_tools, tool_choice, rebuilt, combined_occurrences
+        )
 
     async def _generate(
         self,
@@ -1450,7 +1456,7 @@ class Model:
             track_active_model_event,
         )
 
-        input, tdefs, base_tools, tool_choice, rebuilt = prepared
+        input, tdefs, base_tools, tool_choice, rebuilt, combined_occurrences = prepared
 
         # resolve cache policy
         if isinstance(cache, NotGiven):
@@ -1514,7 +1520,7 @@ class Model:
                 cache=cache_mode,
             )
             # after the hooks, which may edit the input
-            _reuse_rebuilt_message_ids(input, rebuilt)
+            _reuse_rebuilt_message_ids(input, rebuilt, dict(combined_occurrences))
             _validate_model_input_media(input)
 
             event_tools = (
@@ -3164,10 +3170,13 @@ def _snapshot_message(message: _MessageT) -> _MessageT:
     return copied
 
 
-_sample_rebuilt_message_ids: ContextVar[dict[bytes, str] | None] = ContextVar(
+_sample_rebuilt_message_ids: ContextVar[dict[bytes, list[str]] | None] = ContextVar(
     "sample_rebuilt_message_ids", default=None
 )
-"""Id of each message content rebuilt by `Model.generate()` in the sample."""
+"""Ids of each message content rebuilt by `Model.generate()` in the sample.
+
+The nth occurrence of a content in one call takes the nth id.
+"""
 
 
 def init_sample_rebuilt_message_ids() -> None:
@@ -3175,7 +3184,9 @@ def init_sample_rebuilt_message_ids() -> None:
 
 
 def _reuse_rebuilt_message_ids(
-    messages: list[ChatMessage], rebuilt: list[ChatMessage]
+    messages: list[ChatMessage],
+    rebuilt: list[ChatMessage],
+    occurrences: dict[bytes, int] | None = None,
 ) -> None:
     """Give each message rebuilt for this generate the sample's id for its content.
 
@@ -3183,31 +3194,46 @@ def _reuse_rebuilt_message_ids(
     rather than by the caller (the configured system message,
     reasoning-history filtering, tool `model_input` rewriting, media
     extraction, collapsing consecutive messages), which otherwise get a fresh
-    id on every call. Within a sample, each content (every field but the id)
-    is given one id, so an unchanged rebuilt message keeps its id across calls
-    and its event snapshot and message pool entry are reused. Run again after
-    an edit (e.g. by a hook), a message is given the id of its new content.
+    id on every call. Within a sample, the nth occurrence of a content (every
+    field but the id) in a call is given that content's nth id, so unchanged
+    rebuilt messages, duplicates included, keep their ids across calls and
+    their event snapshots and message pool entries are reused. Run again after
+    an edit (e.g. by a hook), a message is given an id of its new content.
     Messages with different content never share an id, a message never takes
     an id held by another message in `messages`, and outside a sample the ids
     are left as they are.
 
     Rebuilt messages are new objects, so setting their id changes nothing the
     caller holds.
+
+    Args:
+        messages: The call's input.
+        rebuilt: The messages of `messages` built for the call.
+        occurrences: Occurrences of each content already given an id in this
+            call (updated); by default none.
     """
     rebuilt_ids = _sample_rebuilt_message_ids.get()
     if rebuilt_ids is None:
         return
+    if occurrences is None:
+        occurrences = {}
     rebuilt_objects = {id(message) for message in rebuilt}
     used = {message.id for message in messages if id(message) not in rebuilt_objects}
     for message in messages:
         if id(message) not in rebuilt_objects:
             continue
         key = _rebuilt_message_key(message)
-        message_id = rebuilt_ids.get(key) if key is not None else None
-        if message_id is None and key is not None:
-            message_id = rebuilt_ids[key] = uuid()
-        if message_id is None or message_id in used:
+        if key is None:
             message_id = uuid()
+        else:
+            ids = rebuilt_ids.setdefault(key, [])
+            index = occurrences.get(key, 0)
+            while index < len(ids) and ids[index] in used:
+                index += 1
+            if index == len(ids):
+                ids.append(uuid())
+            occurrences[key] = index + 1
+            message_id = ids[index]
         message.id = message_id
         used.add(message_id)
 

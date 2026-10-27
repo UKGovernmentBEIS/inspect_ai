@@ -7,7 +7,7 @@ from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Iterator
+from typing import Any, Callable, Iterator, Literal
 
 import numpy as np
 import pytest
@@ -559,27 +559,48 @@ async def test_model_event_input_changed_system_message_gets_new_id() -> None:
     assert ids[0] == ids[2]
 
 
-async def test_model_event_input_identical_rebuilt_messages_get_distinct_ids() -> None:
+@pytest.mark.parametrize(
+    "reasoning_history,collapse", [("none", False), ("last", False), ("none", True)]
+)
+async def test_model_event_input_identical_rebuilt_messages_keep_distinct_ids(
+    monkeypatch: pytest.MonkeyPatch,
+    reasoning_history: Literal["none", "last"],
+    collapse: bool,
+) -> None:
     init_transcript(Transcript())
     init_sample_rebuilt_message_ids()
     model = get_model("mockllm/model")
-    assistant: list[Content] = [
-        ContentReasoning(reasoning="hmm"),
-        ContentText(text="Thinking."),
-    ]
-    messages: list[ChatMessage] = [
-        ChatMessageUser(content="hi"),
-        ChatMessageAssistant(content=list(assistant)),
-        ChatMessageUser(content="go on"),
-        ChatMessageAssistant(content=list(assistant)),
-        ChatMessageUser(content="go on"),
-    ]
+    monkeypatch.setattr(model.api, "collapse_assistant_messages", lambda: collapse)
+    messages: list[ChatMessage] = [ChatMessageUser(content="hi")]
+    # identical once their reasoning is removed (collapsed in pairs)
+    for n in range(2 if collapse else 3):
+        messages.append(
+            ChatMessageAssistant(
+                content=[
+                    ContentReasoning(reasoning=f"thought {n}"),
+                    ContentText(text="Thinking."),
+                ]
+            )
+        )
+        if not collapse:
+            messages.append(ChatMessageUser(content="go on"))
+    before = deepcopy(messages)
 
-    await model.generate(messages, config=GenerateConfig(reasoning_history="none"))
+    for _ in range(3):
+        await model.generate(
+            messages, config=GenerateConfig(reasoning_history=reasoning_history)
+        )
 
-    (event,) = _model_events()
-    assert event.input[1] == event.input[3].model_copy(update={"id": event.input[1].id})
-    assert event.input[1].id != event.input[3].id
+    assert [m.model_dump() for m in messages] == [m.model_dump() for m in before]
+    first, *rest = _model_events()
+    if collapse:
+        assert first.input[1].metadata is not None
+        parts = first.input[1].metadata["combined_from"]
+        assert len(set(parts)) == len(parts)
+    assert len({m.id for m in first.input}) == len(first.input)
+    for event in rest:
+        assert [m.id for m in event.input] == [m.id for m in first.input]
+        assert all(a is b for a, b in zip(event.input, first.input))
 
 
 def test_model_event_input_rebuilt_ids_not_shared_across_samples() -> None:
