@@ -134,7 +134,7 @@ scored_samples: list[Any] = []
 
 
 @scorer(metrics=[accuracy()])
-def counting_scorer() -> Scorer:
+def untrusted_logs_counting_scorer() -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:
         scored_samples.append(state.sample_id)
         return Score(value="C")
@@ -1177,7 +1177,7 @@ def test_rescore_with_callers_scorers_rebuilds_log_metrics_untrusted(
     with pytest.raises(error) as ex:
         score(
             log,
-            counting_scorer(),
+            untrusted_logs_counting_scorer(),
             action="overwrite",
             model="mockllm/model",
         )
@@ -1190,7 +1190,7 @@ def test_rescore_with_callers_scorers_rebuilds_log_metrics_untrusted(
     # the caller's own metrics replace the log's
     rescored = score(
         log,
-        counting_scorer(),
+        untrusted_logs_counting_scorer(),
         metrics=[accuracy()],
         action="overwrite",
         model="mockllm/model",
@@ -1204,7 +1204,7 @@ def test_rescore_overwrite_ignores_replaced_scorer_metrics(
 ) -> None:
     rescored = score(
         _fixture(name, task_file),
-        counting_scorer(),
+        untrusted_logs_counting_scorer(),
         action="overwrite",
         model="mockllm/model",
     )
@@ -1213,7 +1213,7 @@ def test_rescore_overwrite_ignores_replaced_scorer_metrics(
     assert _imported(imports) == [] and untrusted_models == []
 
 
-@pytest.mark.parametrize("scorer", [None, "counting_scorer"])
+@pytest.mark.parametrize("scorer", [None, "untrusted_logs_counting_scorer"])
 async def test_score_cli_trusts_log_metrics_only_with_log_scorers(
     scorer: str | None,
     tmp_path: Path,
@@ -1226,7 +1226,8 @@ async def test_score_cli_trusts_log_metrics_only_with_log_scorers(
     log = _fixture("3t", tmp_path)
     log.eval.scorers = [
         EvalScorer(
-            name="counting_scorer", metrics=[EvalMetricDefinition(name="accuracy")]
+            name="untrusted_logs_counting_scorer",
+            metrics=[EvalMetricDefinition(name="accuracy")],
         )
     ]
     input_file = tmp_path / "input.eval"
