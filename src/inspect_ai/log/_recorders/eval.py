@@ -4,6 +4,7 @@ import json
 import logging
 import math
 import os
+import re
 import shutil
 import tempfile
 import warnings
@@ -61,6 +62,7 @@ from inspect_ai._util.error import EvalError, WriteConflictError
 from inspect_ai._util.file import FileSystem, dirname, file, filesystem, local_path
 from inspect_ai._util.json import (
     ExcludingObjectBuilder,
+    is_ijson_float_overflow_error,
     is_ijson_int_overflow_error,
     is_ijson_nan_inf_error,
     jsonable_dict,
@@ -94,6 +96,12 @@ from .._log import (
 )
 from .._resolve import rebind_sample_timelines, resolve_sample_events_data
 from .file import FileRecorder, write_local_snapshot
+from .json_write import (
+    BinaryWriteStream,
+    write_events_data_field,
+    write_json_array_field,
+    write_json_object_field,
+)
 from .recorder import SampleRecordKey, exclude_sample_fields, sample_read_exclusions
 
 logger = getLogger(__name__)
@@ -514,6 +522,23 @@ class EvalRecorder(FileRecorder):
 
     @classmethod
     @override
+    async def read_log_sample_keys(cls, location: str) -> list[SampleRecordKey]:
+        async with AsyncFilesystem() as fs:
+            cd = await AsyncZipReader(fs, location).entries()
+        keys = (_sample_key(entry.filename) for entry in cd.entries)
+        # a re-logged sample repeats its member name
+        return list(dict.fromkeys(key for key in keys if key is not None))
+
+    @classmethod
+    @override
+    async def read_log_reductions(
+        cls, location: str
+    ) -> list[EvalSampleReductions] | None:
+        log = await cls.read_log(location, header_only=True)
+        return log.reductions
+
+    @classmethod
+    @override
     async def write_log(
         cls,
         location: str,
@@ -655,7 +680,8 @@ def _read_local_sample_excluding(
     """Stream a local member's included JSON fields in a worker thread.
 
     Like the async disk reader, retain the stdlib fallback for Python's
-    non-finite numbers and integers too large for the streaming parser.
+    non-finite numbers and integers or floats too large for the streaming
+    parser.
     """
     from inspect_ai._util.json import get_ijson_backend
 
@@ -668,7 +694,11 @@ def _read_local_sample_excluding(
                 builder.event(event, value)
         return builder.data
     except (ValueError, IncompleteJSONError, UnexpectedSymbol) as ex:
-        if not (is_ijson_nan_inf_error(ex) or is_ijson_int_overflow_error(ex)):
+        if not (
+            is_ijson_nan_inf_error(ex)
+            or is_ijson_int_overflow_error(ex)
+            or is_ijson_float_overflow_error(ex)
+        ):
             raise
         with zip.open(member) as stream:
             data: dict[str, Any] = json.load(stream)
@@ -701,7 +731,11 @@ async def _read_member_json_excluding(
         IncompleteJSONError,
         UnexpectedSymbol,
     ) as ex:
-        if is_ijson_nan_inf_error(ex) or is_ijson_int_overflow_error(ex):
+        if (
+            is_ijson_nan_inf_error(ex)
+            or is_ijson_int_overflow_error(ex)
+            or is_ijson_float_overflow_error(ex)
+        ):
             data = json.loads(await reader.read_member_fully(member))
             for field in exclude_fields:
                 data.pop(field, None)
@@ -1041,9 +1075,10 @@ class ZipLogFile:
         self._etag: str | None = None
         # An S3 object whose leading bytes equal the temp file's
         # [0, length): the next remote flush copies them server-side and
-        # uploads only the rest. Set by a byte-copy seed from an S3 prior;
-        # cleared by any write and by anything that replaces the temp file
-        # (see design/s3-incremental-log-flush.md).
+        # uploads only the rest. Set by a byte-copy seed from an S3 prior and
+        # by every successful S3 flush (the log's own object); cleared by a
+        # failed write and by anything that replaces the temp file (see
+        # design/s3-incremental-log-flush.md).
         self._compose_prefix: ComposeSource | None = None
         # verify mode: the prefix's local digest when it was recorded, and
         # the first mismatch found, which every later flush and close re-raise
@@ -1184,7 +1219,8 @@ class ZipLogFile:
             attachments = _sample_history_attachments(
                 sample, history, events, events_data
             )
-            sample_data: dict[str, Any] = jsonable_dict(
+            # Serialize history separately to avoid a second full-sample copy.
+            header: dict[str, JsonValue] = jsonable_dict(
                 sample.model_dump(
                     mode="python",
                     exclude_none=True,
@@ -1192,15 +1228,34 @@ class ZipLogFile:
                     fallback=lambda _x: None,
                 )
             )
-            sample_data.update(
-                {
-                    "events": events,
-                    "attachments": attachments,
-                    "events_data": events_data,
-                }
-            )
-
-            self._zip_writestr(_sample_filename(sample.id, sample.epoch), sample_data)
+            header_bytes = to_json_safe(header, indent=None)
+            # A truncated sample member makes the entire log unreadable.
+            # Keep yielding, but defer cancellation until the entry is complete.
+            with anyio.CancelScope(shield=True):
+                filename = _sample_filename(sample.id, sample.epoch)
+                assert self._zip
+                member_count = len(self._zip.filelist)
+                try:
+                    with self._zip_open_write(filename) as stream:
+                        # Required id/epoch fields make the header non-empty.
+                        stream.write(header_bytes[:-1])
+                        await write_json_array_field(
+                            stream, "events", events, comma=True
+                        )
+                        await write_json_object_field(
+                            stream, "attachments", attachments, comma=True
+                        )
+                        await write_events_data_field(stream, events_data, comma=True)
+                        stream.write(b"}")
+                except BaseException:
+                    # Drop the failed write, preserving any earlier entry.
+                    del self._zip.filelist[member_count:]
+                    prior = [i for i in self._zip.filelist if i.filename == filename]
+                    if prior:
+                        self._zip.NameToInfo[filename] = prior[-1]
+                    else:
+                        self._zip.NameToInfo.pop(filename, None)
+                    raise
 
             key = SampleRecordKey(str(sample.id), sample.epoch)
             # evict a buffered prior record for the same (id, epoch): its
@@ -1352,15 +1407,19 @@ class ZipLogFile:
         async with self._lock:
             self._raise_compose_prefix_violation()
 
-            # close the zip file so it is flushed
+            # close the zip file so it is flushed; the closed zip keeps the
+            # end of its member area, the next flush's compose prefix
+            member_end: int | None = None
             if self._zip:
                 self._zip.close()
+                member_end = self._zip.start_dir
 
             # Stream temp file to output using the appropriate backend
             # (atomic local write, native S3 multipart upload, or chunked
             # copy via fsspec).
             written = True
             etag: str | None = None
+            can_compose = False
             try:
                 if self._fs.is_local():
                     with trace_action(logger, "Log Write", self._file):
@@ -1382,10 +1441,13 @@ class ZipLogFile:
                 else:
                     async with AsyncFilesystem() as async_fs:
                         etag = await self._write_remote(async_fs)
-            finally:
-                # only the seed records a prefix, for the first write (a
-                # failed one included: the next write uploads whole)
+                        can_compose = async_fs.can_compose(self._file)
+            except BaseException:
+                # whether the destination still holds the prefix's object is
+                # unknown: the next write uploads whole
                 self._clear_compose_prefix()
+                raise
+            finally:
                 # re-open zip file w/ self.temp_file pointer at end
                 self._open()
 
@@ -1402,6 +1464,13 @@ class ZipLogFile:
                 self._streaming_samples.clear()
                 self._destination_written = True
                 self._etag = etag
+                # the object now holds the temp file's member area, so the
+                # next flush composes onto it and uploads only what follows
+                self._clear_compose_prefix()
+                if etag is not None and can_compose and member_end is not None:
+                    await self._record_compose_prefix(
+                        ComposeSource(self._file, etag, member_end)
+                    )
 
     async def _write_remote(self, async_fs: AsyncFilesystem) -> str | None:
         """Write the closed temp zip to a remote destination; return the ETag.
@@ -1916,16 +1985,21 @@ class ZipLogFile:
             )
 
     @contextmanager
-    def _zip_open_write(self, filename: str) -> Generator[IO[bytes], None, None]:
-        """Open a ZIP entry for streaming writes.
-
-        Returns a writable binary stream. The caller writes raw bytes
-        (typically JSON) directly. The entry is finalized when the
-        context manager exits.
-        """
+    def _zip_open_write(
+        self, filename: str
+    ) -> Generator[BinaryWriteStream, None, None]:
+        """Open a ZIP entry, finalizing it on exit; duplicate names supersede."""
         assert self._zip
-        with self._zip.open(filename, "w", force_zip64=True) as stream:
+        # Warning filters are process-global; don't hold them across caller awaits.
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore", message="Duplicate name:", category=UserWarning
+            )
+            stream = self._zip.open(filename, "w", force_zip64=True)
+        try:
             yield stream
+        finally:
+            stream.close()
 
 
 def _sample_history_attachments(
@@ -2220,6 +2294,16 @@ def _read_header(zip: ZipFile, location: str) -> EvalLog:
 
 def _sample_filename(id: str | int, epoch: int) -> str:
     return f"{SAMPLES_DIR}/{id}_epoch_{epoch}.json"
+
+
+# an id may be empty or contain a newline
+_SAMPLE_FILENAME_RE = re.compile(rf"{SAMPLES_DIR}/(.*)_epoch_(\d+)\.json", re.DOTALL)
+
+
+def _sample_key(filename: str) -> SampleRecordKey | None:
+    """The key `_sample_filename` named this member by, or `None` for other members."""
+    match = _SAMPLE_FILENAME_RE.fullmatch(filename)
+    return SampleRecordKey(match[1], int(match[2])) if match else None
 
 
 def _journal_path(file: str) -> str:

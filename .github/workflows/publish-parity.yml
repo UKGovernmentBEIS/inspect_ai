@@ -10,6 +10,7 @@ on:
     paths:
       - ".github/actions/build-dist/**"
       - ".github/actions/publish-dist/**"
+      - "scripts/build-dist/**"
       - ".github/workflows/publish.yml"
       - ".github/workflows/publish-parity.yml"
       - ".github/workflows/release.yml"

@@ -91,6 +91,12 @@ async def copy_out(
     chunk is produced by ``dd`` into ``chunk_path`` (inside the
     sandbox's root-only area) and read back with ``read_file``.
 
+    Request root explicitly when the provider declares a ``user`` parameter.
+    Only providers with the old file interface retain their existing transfer
+    behavior. A failure from an updated provider always propagates; it never
+    triggers a retry without the requested user. Callers must keep ``chunk_path``
+    inside their verified root-owned private directory.
+
     Written to :func:`copy_out_partial_path` and renamed into place only
     after the copy completes (and, when ``expected_sha256`` is given,
     the digest of the bytes actually read matches it), so an
@@ -112,6 +118,7 @@ async def copy_out(
             f"max_sandbox_snapshot_bytes cap of {max_bytes} bytes"
         )
     digest = hashlib.sha256()
+    read_params = {"user": "root"} if env._supports_file_user("read_file") else {}
     dest.parent.mkdir(parents=True, exist_ok=True)
     partial = copy_out_partial_path(dest)
     try:
@@ -129,7 +136,7 @@ async def copy_out(
                 if not result.success:
                     raise RuntimeError(f"{label}: chunk copy failed: {result.stderr}")
                 with override_max_read_file_size(chunk_size * 2):
-                    data = await env.read_file(chunk_path, text=False)
+                    data = await env.read_file(chunk_path, text=False, **read_params)
                 if not data:
                     raise RuntimeError(
                         f"{label}: unexpected EOF at chunk {index} "

@@ -8,7 +8,7 @@ Creates a span tree mirroring the eval hierarchy:
     eval_run (root)
       task: math_reasoning (CHAIN)
         sample: q1 (CHAIN)
-          model_call: gpt-4o (LLM) - 847 tokens, 1.2s
+          model_call: gpt-6-luna (LLM) - 847 tokens, 1.2s
           tool_call: calculator (TOOL) - args: {"expr": "2+2"}, result: 4
           score: accuracy (EVALUATOR) - value: C
 
