@@ -64,7 +64,10 @@ def _forward_provider_errors(
     A limit only in an exception's cause or context is not recorded: it was
     handled, or replaced by the error that escaped (a refusal reduced from a
     response filter's group, a `ResponseFilterError`, a fallback's provider
-    error), which takes its own route.
+    error), which takes its own route. A group of only limits and refusals
+    that holds a limit, such as a generate filter's, counts as its first
+    member, as a response filter's group does: a refusal first fails the
+    sample, a limit first is recorded.
 
     A turn limit is checked after a generation, so a request that arrives
     once one is exceeded gets its error reply without another generation.
@@ -81,17 +84,20 @@ def _forward_provider_errors(
             if find_control_flow(ex) is not None:
                 # the service dispatcher ends the sample with it
                 raise
-            limit = _first_limit(ex)
-            if limit is not None:
+            control = _first_control(ex)
+            if isinstance(control, LimitExceededError):
                 # only the first is raised, so later ones are not kept
                 if bridge.generation_limit is None:
-                    bridge.generation_limit = limit
+                    bridge.generation_limit = control
                 return {PROVIDER_ERROR_KEY: cast(JsonValue, provider_error_payload(ex))}
-            if isinstance(ex, (ModelRefusalError, ResponseFilterError)):
-                bridge.request_fail(ex)
+            failure = control or ex
+            if isinstance(failure, (ModelRefusalError, ResponseFilterError)):
+                bridge.request_fail(failure)
                 # no non-provider-error warning: the failure is reported once,
                 # by the sample error the monitor task raises
-                return {PROVIDER_ERROR_KEY: cast(JsonValue, provider_error_payload(ex))}
+                return {
+                    PROVIDER_ERROR_KEY: cast(JsonValue, provider_error_payload(failure))
+                }
             payload = provider_error_payload(ex)
             # A payload with no recoverable HTTP status almost always means the
             # failure came from our own request translation rather than the
@@ -108,6 +114,28 @@ def _forward_provider_errors(
             return {PROVIDER_ERROR_KEY: cast(JsonValue, payload)}
 
     return generate_forwarding_errors
+
+
+def _first_control(ex: Exception) -> LimitExceededError | ModelRefusalError | None:
+    """The limit to record, or refusal to fail with, for a failed generation.
+
+    The first limit of `ex` and its group members, except that a group of only
+    limits and refusals that holds a limit counts as its first member, depth
+    first in order, as `_apply_response_filter` reduces a response filter's
+    group.
+    """
+    if isinstance(ex, ExceptionGroup):
+        control, rest = ex.split((LimitExceededError, ModelRefusalError))
+        if (
+            control is not None
+            and rest is None
+            and control.subgroup(LimitExceededError) is not None
+        ):
+            first: Exception = control
+            while isinstance(first, ExceptionGroup):
+                first = first.exceptions[0]
+            return cast(LimitExceededError | ModelRefusalError, first)
+    return _first_limit(ex)
 
 
 def _first_limit(ex: BaseException) -> LimitExceededError | None:

@@ -1587,6 +1587,56 @@ def test_first_limit_in_a_bridged_filter_group_is_raised(
     _assert_error_replies(outcome.replies)
 
 
+@pytest.mark.parametrize("first", ["refusal", "limit", "nested_refusal"])
+def test_first_of_a_bridged_filter_group_of_limits_and_refusals_wins(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, first: str
+) -> None:
+    """A generate filter's group of only limits and refusals counts as its first member.
+
+    As for a response filter's group: a refusal first, also in a nested group,
+    fails the sample; a limit first is raised and the agent's `run()` handles
+    it.
+    """
+    limit = message_limit(10)
+
+    async def over_limit_and_refused(
+        model: Model,
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        error = LimitExceededError("message", value=11, limit=10, source=limit)
+        members: list[Exception] = {
+            "refusal": [_refusal(), error],
+            "limit": [error, _refusal()],
+            "nested_refusal": [ExceptionGroup("judges", [_refusal()]), error],
+        }[first]
+        raise ExceptionGroup("generations", members)
+
+    outcome = _run_bridged_agent(
+        tmp_path,
+        monkeypatch,
+        limit,
+        scaffold=_Scaffold(
+            # a refusal's reply never completes: only the failure ends the agent
+            [_Request(held=first != "limit")],
+            filter=over_limit_and_refused,
+        ),
+    )
+
+    if first == "limit":
+        _assert_agent_limit(outcome, limit)
+        _assert_error_replies(outcome.replies)
+    else:
+        sample = outcome.sample
+        assert sample.error is not None
+        assert "refus" in sample.error.message.lower(), sample.error.message
+        assert sample.limit is None
+        assert "continued" not in sample.store
+        assert outcome.errors == []
+
+
 def test_request_after_a_bridged_turn_limit_does_not_generate(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
