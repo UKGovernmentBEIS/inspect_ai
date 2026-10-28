@@ -843,5 +843,38 @@ jobs:
           fetch-tags: true
           filter: "blob:none"
 
-      - uses: hynek/build-and-inspect-python-package@67230f7b8410ae0052b39c1efc89d89fff43ff10 # v3.0.2
+      - name: Install uv
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' || steps.filter.outputs.package_readme == 'true'
+        uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa # v10.3.1
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.11"
+
+      # Build with the release's hash-pinned toolchain and no isolation, as
+      # .github/actions/build-dist does, so nothing is resolved at build time.
+      # --no-config: install the file as pip does there, without the project's
+      # exclude-newer, which Dependabot's day-granular cooldown can undercut.
+      - name: Build
+        if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' || steps.filter.outputs.package_readme == 'true'
+        run: |
+          uv venv "$RUNNER_TEMP/build-env"
+          uv pip install --no-config --python "$RUNNER_TEMP/build-env" --require-hashes --only-binary :all: --no-deps -r scripts/build-dist/requirements.txt
+          "$RUNNER_TEMP/build-env/bin/python" -m build --no-isolation
+          ls -l dist
+
+      # twine and check-wheel-contents come from uv.lock (the dist extra).
+      - name: Install check tools
+        if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' || steps.filter.outputs.package_readme == 'true'
+        run: uv sync --locked --no-default-groups --extra dist --no-install-project
+
+      - name: Check wheel contents
+        if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' || steps.filter.outputs.package_readme == 'true'
+        run: uv run --no-sync check-wheel-contents dist/*.whl
+
+      - name: Check PyPI README
+        if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' || steps.filter.outputs.package_readme == 'true'
+        run: uv run --no-sync twine check --strict dist/*
+
+      - name: Minimize uv cache
+        if: ${{ !cancelled() && (github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' || steps.filter.outputs.package_readme == 'true') }}
+        run: uv cache prune --ci
