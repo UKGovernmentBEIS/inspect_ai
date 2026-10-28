@@ -1685,7 +1685,7 @@ def test_non_finite_scores_survive_log_round_trip(
 
 
 def test_non_finite_serialization_configured_on_all_wire_roots() -> None:
-    """Known serialization roots for score-bearing data emit NaN constants.
+    """Known serialization roots for score-bearing data and events emit NaN constants.
 
     Pydantic reads ser_json_inf_nan from the dump-root model only -- a
     nested Score's own config is ignored -- so each model that is itself
