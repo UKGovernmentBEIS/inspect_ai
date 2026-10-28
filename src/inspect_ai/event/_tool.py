@@ -82,11 +82,21 @@ class ToolEvent(BaseEvent):
     """Did the tool call fail with a hard error?."""
 
     message_id: str | None = Field(default=None)
-    """Id of ChatMessageTool associated with this event."""
+    """Id of ChatMessageTool associated with this event.
+
+    The message may not stay in the conversation (react removes its `submit`
+    tool's result). `None` for a host tool a sandbox agent bridge runs for the
+    scaffold, whose result reaches the conversation through the scaffold.
+    """
 
     call_message_id: str | None = Field(default=None)
     """Id of the assistant message that proposed this tool call.
 
+    The output of the `ModelEvent` that generated the call. In the agent bridge
+    this is the generated output even when a response filter or approval
+    changed the message handed to the scaffold (that message names it in
+    `metadata["derived_from"]`); `None` for a call the model did not propose.
+    A cached output reused by several model calls names each of them.
     `message_id` is the id of the tool message holding its result.
     """
 
