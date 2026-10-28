@@ -21,7 +21,7 @@ import anyio
 import pytest
 from acp.schema import SessionNotification, ToolCallProgress, ToolCallStart
 from pydantic import JsonValue
-from test_helpers.message_ids import assert_message_ids, tool_event_producers
+from test_helpers.message_ids import assert_message_ids, edited_id, tool_event_producers
 from test_helpers.service_dispatch import (
     dispatching_service,
     serve_beside_failure_monitor,
@@ -91,7 +91,6 @@ from inspect_ai.model._generate_config import (
     GenerateConfig,
     active_generate_config_context_var,
 )
-from inspect_ai.model._message_ids import content_hash, edit_id
 from inspect_ai.model._model import GenerateInput, Model, get_model
 from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
 from inspect_ai.model._openai_responses import (
@@ -4712,7 +4711,7 @@ class _HostConversation:
         parameters = info.parameters.model_dump(exclude_none=True)
         match self.dialect:
             case "completions":
-                tool = {
+                tool: dict[str, Any] = {
                     "type": "function",
                     "function": info.model_dump(exclude_none=True),
                 }
@@ -4957,10 +4956,7 @@ def test_host_tool_events_name_the_generated_output(
         if mode == "plain":
             assert reply.id in outputs_by_id
         else:
-            assert any(
-                reply.id == edit_id(source, content_hash(reply))
-                for source in outputs_by_id
-            )
+            assert any(reply.id == edited_id(source, reply) for source in outputs_by_id)
     if mode == "approval":
         assert {
             call.arguments["path"] for r in replies for call in r.tool_calls or []

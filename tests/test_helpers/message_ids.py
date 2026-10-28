@@ -13,6 +13,7 @@ from typing import Any
 from inspect_ai.event import ModelEvent, ToolEvent
 from inspect_ai.log import EvalSample
 from inspect_ai.model import ChatMessage, ChatMessageAssistant, ChatMessageTool
+from inspect_ai.model._message_ids import content_hash, edit_id
 
 
 def shown(message: ChatMessage) -> str:
@@ -131,3 +132,12 @@ def tool_event_producers(sample: EvalSample) -> list[int]:
 def assert_message_ids(sample: EvalSample) -> None:
     violations = message_id_violations(sample)
     assert not violations, "\n".join(violations)
+
+
+def edited_id(source_id: str | None, edited: ChatMessage) -> str:
+    """The id Inspect gives an edit of message `source_id` with `edited`'s content.
+
+    Unlike the checks above, this uses the production id code.
+    """
+    assert source_id is not None
+    return edit_id(source_id, content_hash(edited))

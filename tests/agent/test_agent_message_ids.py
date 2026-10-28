@@ -18,7 +18,7 @@ from google import genai
 from openai import AsyncOpenAI
 from shortuuid import uuid
 from test_helpers.checkpoint import RecordingCheckpointer
-from test_helpers.message_ids import assert_message_ids, tool_event_producers
+from test_helpers.message_ids import assert_message_ids, edited_id, tool_event_producers
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentImage, ContentText
@@ -43,7 +43,7 @@ from inspect_ai.model import (
     ModelOutput,
     get_model,
 )
-from inspect_ai.model._message_ids import content_hash, edit_id, edited_message
+from inspect_ai.model._message_ids import edited_message
 from inspect_ai.solver import generate, user_message
 from inspect_ai.tool import Tool, ToolCall, ToolResult, tool
 from inspect_ai.util import store
@@ -328,7 +328,7 @@ def assert_ids_agree(log: EvalLog, model_calls: int, edits: bool = False) -> int
         reply = sample.messages[len(input_ids)]
         if reply.id != event.output.message.id:
             assert edits
-            assert reply.id == edit_id(event.output.message.id, content_hash(reply))
+            assert reply.id == edited_id(event.output.message.id, reply)
             edited += 1
     prompt = next(m for m in sample.messages if m.text == PROMPT)
     assert prompt.id == sample.store["input_id"]
@@ -602,7 +602,7 @@ async def test_scaffold_edits_get_ids_derived_from_the_originals() -> None:
     assert [edited[i] for i in (0, 1, 3)] == [ids[i] for i in (0, 1, 3)]
     assert edited[5] == final.id
     for i in (2, 4):
-        assert edited[i] == edit_id(ids[i], content_hash(sent[i])) != ids[i]
+        assert edited[i] == edited_id(ids[i], sent[i]) != ids[i]
         assert sent[i].metadata is None
     assert again == edited
 
@@ -704,8 +704,8 @@ def test_react_submit_keeps_the_contract(tmp_path: Path) -> None:
     assert isinstance(final, ChatMessageAssistant)
     assert not final.tool_calls and final.text.endswith("done")
     answered = sample.output.message
-    assert answered.id == edit_id(submitted.id, content_hash(answered))
-    assert final.id == edit_id(answered.id, content_hash(final))
+    assert answered.id == edited_id(submitted.id, answered)
+    assert final.id == edited_id(answered.id, final)
     assert answered.id != final.id
     assert tool_event_producers(sample) == [1, 1]
 
@@ -742,7 +742,7 @@ def test_handoff_keeps_the_contract(tmp_path: Path) -> None:
     sample = _assert_contract(log)
     child = [e for e in sample.events if isinstance(e, ModelEvent)][1].output.message
     [prefixed] = [m for m in sample.messages if m.text == "[searcher] child answer"]
-    assert prefixed.id == edit_id(child.id, content_hash(prefixed))
+    assert prefixed.id == edited_id(child.id, prefixed)
 
 
 def test_configured_system_message_keeps_one_id(tmp_path: Path) -> None:

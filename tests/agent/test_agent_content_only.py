@@ -1,5 +1,7 @@
 from copy import copy
 
+from test_helpers.message_ids import edited_id
+
 from inspect_ai._util.content import (
     Content,
     ContentImage,
@@ -17,7 +19,6 @@ from inspect_ai.model import (
     ChatMessageUser,
 )
 from inspect_ai.model._call_tools import execute_tools
-from inspect_ai.model._message_ids import content_hash, edit_id
 from inspect_ai.tool import ToolCall
 
 
@@ -61,7 +62,7 @@ async def test_converts_tool_messages_to_user() -> None:
 
     assert len(filtered) == 1
     assert isinstance(filtered[0], ChatMessageUser)
-    assert filtered[0].id == edit_id("tool-456", content_hash(filtered[0]))
+    assert filtered[0].id == edited_id("tool-456", filtered[0])
     assert filtered[0].metadata is None
     assert filtered[0].content == "Tool result"
 
@@ -294,7 +295,7 @@ async def test_preserves_message_ids() -> None:
     assert len(filtered) == 3
     assert filtered[0].id == "user-001"
     assert filtered[1].id == "assistant-002"
-    assert filtered[2].id == edit_id("tool-003", content_hash(filtered[2]))
+    assert filtered[2].id == edited_id("tool-003", filtered[2])
 
 
 async def test_handles_tool_use_with_error() -> None:

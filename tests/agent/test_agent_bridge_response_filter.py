@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock
 import anyio
 import pytest
 from pydantic import JsonValue
+from test_helpers.message_ids import edited_id
 from test_helpers.service_dispatch import (
     REQUEST_FILE,
     REQUEST_ID,
@@ -59,7 +60,6 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.model._message_ids import content_hash, edit_id
 from inspect_ai.model._model import (
     GenerateFilter,
     GenerateInput,
@@ -1873,8 +1873,8 @@ async def test_response_filter_replacement_drops_pending_server_work(
             ("text", REPLACED_SENTINEL)
         ]
         assert state_output.message.content == [ContentText(text=REPLACED_SENTINEL)]
-        assert state_output.message.id == edit_id(
-            provider_output.message.id, content_hash(state_output.message)
+        assert state_output.message.id == edited_id(
+            provider_output.message.id, state_output.message
         )
     else:
         assert state_output.message.id == provider_output.message.id
@@ -2652,7 +2652,7 @@ def test_settle_message_ids_derives_a_replacement_from_what_it_replaces() -> Non
     _settle_message_ids(original, replaced)
 
     first = replaced.choices[0].message
-    assert first.id == edit_id(original.choices[0].message.id, content_hash(first))
+    assert first.id == edited_id(original.choices[0].message.id, first)
     assert replaced.choices[1].message.id == original.choices[1].message.id
     assert replaced.choices[2].message.id == extra_id
     assert all(choice.message.metadata is None for choice in replaced.choices)
@@ -2672,4 +2672,4 @@ def test_settle_message_ids_gives_the_same_edit_the_same_id() -> None:
 
     assert first.message.id == second.message.id != original.message.id
     assert other.message.id not in {first.message.id, original.message.id}
-    assert first.message.id == edit_id(original.message.id, content_hash(first.message))
+    assert first.message.id == edited_id(original.message.id, first.message)
