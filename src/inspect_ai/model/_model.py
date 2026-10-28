@@ -237,8 +237,6 @@ class _PreparedInput(NamedTuple):
     tdefs: list[ToolDef]
     tools: list[ToolInfo]
     tool_choice: ToolChoice
-    settled: "_SettledInput | None"
-    """The input as its rebuilt message ids were settled, in a sample."""
 
 
 @dataclasses.dataclass(frozen=True)
@@ -1368,7 +1366,9 @@ class Model:
         tool_choice: ToolChoice | None,
         config: GenerateConfig,
     ) -> "_PreparedInput":
-        caller_input = list(input)
+        # one snapshot, so a caller's edit to its list while tools are
+        # discovered can't make its message look rebuilt
+        input = caller_input = list(input)
 
         # insert any system message provided in config
         if config.system_message:
@@ -1418,8 +1418,8 @@ class Model:
 
         input = collapse_consecutive_messages_for_api(input, self.api)
         _validate_model_input_media(input)
-        settled = _reuse_rebuilt_message_ids(input, caller_input)
-        return _PreparedInput(input, tdefs, base_tools, tool_choice, settled)
+        _reuse_rebuilt_message_ids(input, caller_input)
+        return _PreparedInput(input, tdefs, base_tools, tool_choice)
 
     async def _generate(
         self,
@@ -1443,7 +1443,7 @@ class Model:
             track_active_model_event,
         )
 
-        input, tdefs, base_tools, tool_choice, settled = prepared
+        input, tdefs, base_tools, tool_choice = prepared
 
         # resolve cache policy
         if isinstance(cache, NotGiven):
@@ -1498,7 +1498,7 @@ class Model:
 
             call_tools = copy_tools_info(base_tools)
 
-            hooks_called = await emit_before_model_generate(
+            await emit_before_model_generate(
                 model_name=str(self),
                 input=input,
                 tools=call_tools,
@@ -1506,8 +1506,6 @@ class Model:
                 config=config,
                 cache=cache_mode,
             )
-            if hooks_called:
-                _renew_rebuilt_message_ids_after_hooks(input, settled)
             _validate_model_input_media(input)
 
             event_tools = (
@@ -3118,69 +3116,50 @@ def _snapshot_message(message: _MessageT) -> _MessageT:
     return copied
 
 
-@dataclasses.dataclass
-class _RebuiltMessageIds:
-    ids: dict[bytes, list[str]] = dataclasses.field(default_factory=dict)
-    """Ids of each content key; the nth occurrence in one call takes the nth."""
-    issued: set[str] = dataclasses.field(default_factory=set)
-    """Every id given to a rebuilt message in the sample."""
-
-
-_sample_rebuilt_message_ids: ContextVar[_RebuiltMessageIds | None] = ContextVar(
+_sample_rebuilt_message_ids: ContextVar[dict[bytes, list[str]] | None] = ContextVar(
     "sample_rebuilt_message_ids", default=None
 )
-"""Ids of the messages rebuilt by `Model.generate()` in the sample."""
+"""Ids of each content of the messages rebuilt by `Model.generate()` in the sample."""
 
 
 def init_sample_rebuilt_message_ids() -> None:
-    _sample_rebuilt_message_ids.set(_RebuiltMessageIds())
-
-
-class _SettledInput(NamedTuple):
-    messages: list[ChatMessage]
-    ids: list[str | None]
-    keys: dict[int, bytes | None]
-    """The content key of each rebuilt message, by position."""
-    callers: list[ChatMessage]
-    """The caller's messages, before and after preparation."""
+    _sample_rebuilt_message_ids.set({})
 
 
 def _reuse_rebuilt_message_ids(
     input: list[ChatMessage],
     caller_input: list[ChatMessage],
-) -> _SettledInput | None:
+) -> None:
     """Give each message rebuilt for this generate the sample's id for its content.
 
     Rebuilt messages (configured system message, reasoning-history filtering,
     tool `model_input` rewriting, media extraction, collapsing) otherwise get
     a fresh id on every call. In a sample, the nth occurrence of a content
     (all fields but the id) in a call takes that content's nth id, so event
-    snapshots and pool entries are reused. Different contents never share an
-    id, no rebuilt message takes a caller's id, and a message with no content
-    key gets a fresh id.
+    snapshots and pool entries are reused. Ids stay unique in the input, no
+    rebuilt message takes a caller's id, and a message with no content key
+    gets a fresh id. Ids are not changed after this: a hook that edits a
+    rebuilt message keeps its id, and the edit is recorded as a new version
+    of it, as for caller messages.
 
     Args:
         input: The prepared input, before a sentinel or a hook sees it.
         caller_input: The caller's messages, before preparation.
-
-    Returns:
-        The settled input, or None outside a sample (ids are left as is).
     """
     rebuilt_ids = _sample_rebuilt_message_ids.get()
     if rebuilt_ids is None:
-        return None
-    keys: dict[int, bytes | None] = {}
+        return
     occurrences: dict[bytes, int] = {}
     caller_ids = {message.id for message in caller_input}
     used = set(caller_ids)
-    for i, message in enumerate(input):
+    for message in input:
         if message.id in caller_ids:
             continue
-        key = keys[i] = _rebuilt_message_key(message)
+        key = _rebuilt_message_key(message)
         if key is None:
             message_id = uuid()
         else:
-            ids = rebuilt_ids.ids.setdefault(key, [])
+            ids = rebuilt_ids.setdefault(key, [])
             index = occurrences.get(key, 0)
             while index < len(ids) and ids[index] in used:
                 index += 1
@@ -3190,53 +3169,6 @@ def _reuse_rebuilt_message_ids(
             message_id = ids[index]
         message.id = message_id
         used.add(message_id)
-        rebuilt_ids.issued.add(message_id)
-    callers = caller_input + [m for i, m in enumerate(input) if i not in keys]
-    return _SettledInput(list(input), [message.id for message in input], keys, callers)
-
-
-def _renew_rebuilt_message_ids_after_hooks(
-    input: list[ChatMessage], settled: _SettledInput | None
-) -> None:
-    """Give the rebuilt messages fresh ids if a hook changed the input.
-
-    Ids are kept when the input holds the settled messages (same objects and
-    ids, in order) with their settled content keys, as with hooks that only
-    read the input or set headers. Otherwise this call's rebuilt messages,
-    and any other non-caller message holding an id issued in the sample (one
-    a hook brought back), are replaced by copies with fresh ids, so an id
-    never names two contents in a sample and ids stay unique in the input.
-    Caller messages, including ones preparation combined or replaced, are
-    never changed. If any rebuilt message has no content key, the check fires
-    whenever a hook runs, even one that only sets headers.
-
-    Args:
-        input: The input after the hooks ran.
-        settled: The input as settled, or None outside a sample.
-    """
-    rebuilt_ids = _sample_rebuilt_message_ids.get()
-    if rebuilt_ids is None or settled is None:
-        return
-    if (
-        [message.id for message in input] == settled.ids
-        and all(a is b for a, b in zip(input, settled.messages))
-        and all(
-            key is not None and _rebuilt_message_key(input[i]) == key
-            for i, key in settled.keys.items()
-        )
-    ):
-        return
-    callers = {id(message) for message in settled.callers}
-    rebuilt = {id(settled.messages[i]) for i in settled.keys}
-    for i, message in enumerate(input):
-        if id(message) in callers or (
-            id(message) not in rebuilt and message.id not in rebuilt_ids.issued
-        ):
-            continue
-        # a copy, since the object may be an earlier event's snapshot
-        message = input[i] = message.model_copy()
-        message_id = message.id = uuid()
-        rebuilt_ids.issued.add(message_id)
 
 
 def _rebuilt_message_key(message: ChatMessage) -> bytes | None:

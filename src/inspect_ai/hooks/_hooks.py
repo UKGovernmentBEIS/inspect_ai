@@ -873,12 +873,7 @@ async def emit_before_model_generate(
     tool_choice: ToolChoice,
     config: GenerateConfig,
     cache: Literal["write"] | None,
-) -> bool:
-    """Call `on_before_model_generate` on the enabled hooks.
-
-    Returns:
-        Whether any hook was called.
-    """
+) -> None:
     from inspect_ai.log._samples import sample_active
 
     active = sample_active()
@@ -896,7 +891,7 @@ async def emit_before_model_generate(
         sample_id=active.id if active else None,
         task_name=active.task if active else None,
     )
-    return await _emit_to_all(lambda hook: hook.on_before_model_generate(data))
+    await _emit_to_all(lambda hook: hook.on_before_model_generate(data))
 
 
 async def emit_sample_attempt_start(
@@ -1096,12 +1091,10 @@ def get_all_hooks() -> list[Hooks]:
     return _hooks_cache
 
 
-async def _emit_to_all(callable: Callable[[Hooks], Awaitable[None]]) -> bool:
-    called = False
+async def _emit_to_all(callable: Callable[[Hooks], Awaitable[None]]) -> None:
     for hook in get_all_hooks():
         if not hook.enabled():
             continue
-        called = True
         try:
             await callable(hook)
         # We propagate LimitExceededError so that limits can be enforced via hooks.
@@ -1109,4 +1102,3 @@ async def _emit_to_all(callable: Callable[[Hooks], Awaitable[None]]) -> bool:
             raise
         except Exception as ex:
             logger.warning(f"Exception calling hook '{hook.__class__.__name__}': {ex}")
-    return called
