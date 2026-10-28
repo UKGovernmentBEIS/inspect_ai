@@ -1,5 +1,6 @@
 import importlib
-from collections.abc import Mapping, Sequence
+import typing
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from importlib.metadata import PackageNotFoundError, version
 from typing import TYPE_CHECKING, Annotated, Any, TypeAlias, Union, cast
 
@@ -22,10 +23,24 @@ from inspect_ai._util.registry import is_registry_object
 from inspect_ai._util.version import has_required_version
 
 if TYPE_CHECKING:
+    import inspect_sentinel._integration
     from inspect_sentinel import Protocol
-    from inspect_sentinel._integration import Sentinels
-else:
-    Sentinels: TypeAlias = Any
+
+
+# The shape of inspect_sentinel's `Sentinels`, so that public signatures type
+# check without inspect_sentinel installed. A monitor takes (context, step) and a
+# protocol (context, step, escalations), as inspect_sentinel's own types define.
+SentinelFunction: TypeAlias = Callable[..., Awaitable[Any]]
+
+
+class SentinelGroup(typing.Protocol):
+    @property
+    def functions(self) -> Sequence[SentinelFunction]: ...
+
+
+Sentinel: TypeAlias = SentinelFunction | SentinelGroup
+
+Sentinels: TypeAlias = Sentinel | Mapping[str, Sentinel] | Sequence[Sentinel]
 
 
 class SentinelEntry(BaseModel):
@@ -183,14 +198,14 @@ def _require_sentinel() -> None:
         )
 
 
-def resolve_sentinel_spec(spec: SentinelSpec) -> "Sentinels":
+def resolve_sentinel_spec(spec: SentinelSpec) -> Sentinels:
     _require_sentinel()
     from inspect_sentinel._integration import sentinel_from_config
 
     if isinstance(spec, str | SentinelConfig) or not _is_constructed(spec):
-        sentinels = sentinel_from_config(cast(str | SentinelConfig, spec))
+        sentinels: Sentinels = sentinel_from_config(cast(str | SentinelConfig, spec))
     else:
-        sentinels = cast("Sentinels", spec)
+        sentinels = cast(Sentinels, spec)
     resolve_sentinel_root(sentinels)
     return sentinels
 
@@ -214,15 +229,17 @@ def _is_constructed(spec: object) -> bool:
     return bool(values) and all(constructed)
 
 
-def resolve_sentinel_root(sentinels: "Sentinels") -> SentinelRoot:
+def resolve_sentinel_root(sentinels: Sentinels) -> SentinelRoot:
     _require_sentinel()
     from inspect_sentinel._integration import resolve_sentinel
 
-    return resolve_sentinel(sentinels)
+    return resolve_sentinel(cast("inspect_sentinel._integration.Sentinels", sentinels))
 
 
-def sentinel_config(sentinels: "Sentinels") -> SentinelConfig:
+def sentinel_config(sentinels: Sentinels) -> SentinelConfig:
     _require_sentinel()
     from inspect_sentinel._integration import config_from_sentinel
 
-    return config_from_sentinel(sentinels)
+    return config_from_sentinel(
+        cast("inspect_sentinel._integration.Sentinels", sentinels)
+    )
