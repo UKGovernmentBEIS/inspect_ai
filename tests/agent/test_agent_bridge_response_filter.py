@@ -1868,7 +1868,12 @@ async def test_response_filter_replacement_drops_pending_server_work(
             ("text", REPLACED_SENTINEL)
         ]
         assert state_output.message.content == [ContentText(text=REPLACED_SENTINEL)]
+        assert state_output.message.id != provider_output.message.id
+        assert state_output.message.metadata == {
+            "derived_from": [provider_output.message.id]
+        }
     else:
+        assert state_output.message.id == provider_output.message.id
         assert PENDING_CODE in json.dumps(blocks)
         assert [b["type"] for b in blocks] == [b["type"] for b in original_blocks]
     # the provider's output and its replay record are untouched

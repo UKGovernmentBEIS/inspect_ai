@@ -1,15 +1,22 @@
+import json
 from enum import IntEnum
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Callable, NamedTuple, NoReturn, Sequence, Set
 
 from shortuuid import uuid
 
+from inspect_ai._util.content import ContentReasoning, ContentText, ContentToolUse
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.log._condense import ATTACHMENT_PROTOCOL
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageTool,
+    ChatMessageUser,
+)
 from inspect_ai.model._compaction import (
     Compact,
     CompactionStrategy,
@@ -118,6 +125,7 @@ class AgentBridge:
             state.messages.copy(),
             value_type=list[ChatMessage],
         )
+        self._record_input_message_ids(self._compaction_prefix)
         self.filter = filter
         self.response_filter = response_filter
         self.retry_refusals = retry_refusals
@@ -331,31 +339,47 @@ class AgentBridge:
         """
         self._pending_operator += 1
 
-    def _id_for_message(
-        self, message: ChatMessage, conversation: list[ChatMessage]
-    ) -> str:
-        # message_id we will return
-        message_id: str | None = None
+    def _id_for_message(self, message: ChatMessage, used: Set[str]) -> str:
+        """The id the bridge knows `message` by, or a new one if it has never seen it.
 
-        # turn message into a hash so it can be a dictionary key
-        message_key = message_json_hash(to_json_str_safe(message))
-
-        # do we already have an id for this message that isn't in the conversation?
-        conversation_ids: Set[str] = {m.id for m in conversation if m.id is not None}
-        message_ids = self._message_ids.get(message_key, [])
-        for id in message_ids:
-            if id not in conversation_ids:
-                message_id = id
-                break
-
-        # if we didn't find an id then generate a new one and update our record
+        Candidates are taken in the order they were recorded, skipping ids already
+        `used` in the request, so the k-th repeat of a message gets the k-th id.
+        """
+        keys = _message_id_keys(message)
+        message_id = next(
+            (
+                id
+                for key in keys
+                for id in self._message_ids.get(key, [])
+                if id not in used
+            ),
+            None,
+        )
         if message_id is None:
             message_id = uuid()
-            message_ids.append(message_id)
-            self._message_ids[message_key] = message_ids
-
-        # return the id
+        self._record_message_id(keys, message_id)
         return message_id
+
+    def _record_message_id(self, keys: list[str], message_id: str) -> None:
+        for key in keys:
+            ids = self._message_ids.setdefault(key, [])
+            if message_id not in ids:
+                ids.append(message_id)
+
+    def _record_input_message_ids(self, messages: list[ChatMessage]) -> None:
+        """Record the input's ids, including the condensed and quoted forms `_position_descent` accepts."""
+        for message in messages:
+            if message.id is None:
+                continue
+            keys = _message_id_keys(message)
+            if message.role == "user" and message.text:
+                text = message.text.strip()
+                for variant in (
+                    f"{ATTACHMENT_PROTOCOL}{mm3_hash(message.text)}",
+                    f'"{text}"',
+                ):
+                    keys.append(_loose_message_key(message, variant))
+            self._record_message_id(keys, message.id)
 
     _message_ids: dict[str, list[str]]
 
@@ -408,6 +432,9 @@ class AgentBridge:
           further calls (candidate promotion) or by the longer-descending-call
           displacement above when it makes only one.
         """
+        if output.message.id is not None:
+            self._record_message_id(_message_id_keys(output.message), output.message.id)
+
         messages = input + [output.message]
         fps = [_message_fingerprint(m) for m in messages]
 
@@ -542,6 +569,52 @@ class AgentBridge:
 @lru_cache(maxsize=100)
 def message_json_hash(message_json: str) -> str:
     return mm3_hash(message_json)
+
+
+def _message_id_keys(message: ChatMessage) -> list[str]:
+    """Keys a message sent back by a scaffold is recognized by, strongest first.
+
+    Scaffolds don't echo message ids. Besides the exact content, an assistant
+    message keeps its tool call ids (every dialect but Google), and the loose key
+    ignores whitespace, JSON key order, call ids and reasoning.
+    """
+    keys = [
+        message_json_hash(to_json_str_safe(message.model_copy(update={"id": None})))
+    ]
+    if isinstance(message, ChatMessageAssistant) and message.tool_calls:
+        keys.append("calls:" + "\n".join(call.id for call in message.tool_calls))
+    keys.append(_loose_message_key(message, message.text))
+    return keys
+
+
+def _loose_message_key(message: ChatMessage, text: str) -> str:
+    content = [] if isinstance(message.content, str) else message.content
+    return "loose:" + mm3_hash(
+        json.dumps(
+            [
+                message.role,
+                " ".join(text.split()),
+                message.tool_call_id if isinstance(message, ChatMessageTool) else None,
+                [
+                    [
+                        call.function,
+                        json.dumps(call.arguments, sort_keys=True, default=str),
+                    ]
+                    for call in message.tool_calls or []
+                ]
+                if isinstance(message, ChatMessageAssistant)
+                else None,
+                [
+                    c.id
+                    if isinstance(c, ContentToolUse)
+                    else c.model_dump_json(exclude_none=True)
+                    for c in content
+                    if not isinstance(c, ContentText | ContentReasoning)
+                ],
+            ],
+            default=str,
+        )
+    )
 
 
 class _MessageFingerprint(NamedTuple):

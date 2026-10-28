@@ -528,9 +528,10 @@ def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
     tool items are kept all or none (`_check_provider_owned_content`), so a
     message that keeps them takes the id of the message they came from, whatever
     id the filter gave it, and keeps that work. A changed message that keeps none
-    gets a new id if it still has an original one, and drops the work.
-    Content-keyed replay state (kept server tool items, signed thinking) does not
-    depend on the message id.
+    gets a new id if it still has an original one, and drops the work; it
+    records the original's id in `metadata["derived_from"]`. Content-keyed replay
+    state (kept server tool items, signed thinking) does not depend on the
+    message id.
     """
     owners = {
         content.id: choice.message.id
@@ -562,6 +563,7 @@ def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
             if owner is not None:
                 message.id = owner
         elif message.id in original_ids and message not in original_messages:
+            message.metadata = (message.metadata or {}) | {"derived_from": [message.id]}
             message.id = uuid()
 
 
@@ -1579,11 +1581,8 @@ async def validate_bridge_media(
 
 
 def apply_message_ids(bridge: AgentBridge, messages: list[ChatMessage]) -> None:
-    # clear the ids so we can apply new ones
+    """Replace the ids made up while rebuilding a request with the ids the bridge knows."""
+    used: set[str] = set()
     for message in messages:
-        message.id = None
-
-    # allocate ids based on message content (re-applying the same id for the same
-    # content, but also ensuring that if an id is already used we generate a new one)
-    for message in messages:
-        message.id = bridge._id_for_message(message, messages)
+        message.id = bridge._id_for_message(message, used)
+        used.add(message.id)
