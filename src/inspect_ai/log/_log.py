@@ -1110,7 +1110,15 @@ class EvalShards(BaseModel):
     """One entry per shard with a current attempt, in shard order."""
 
 
-class EnqueueTaskOrigin(BaseModel):
+class EvalOrigin(BaseModel):
+    """How a task came to be in its run, when the run was not asked to run it.
+
+    Each kind of origin is a subclass with a `type` discriminator (see
+    `EvalOriginType`).
+    """
+
+
+class EnqueueTaskOrigin(EvalOrigin):
     """Origin of a task added with `enqueue_task()` within a running task.
 
     The creating task ran in the run that first added this task (a retry of
@@ -1128,10 +1136,8 @@ class EnqueueTaskOrigin(BaseModel):
     """`task_id` of the creating task (unchanged when that task is retried)."""
 
 
-EvalOrigin: TypeAlias = Annotated[EnqueueTaskOrigin, Field(discriminator="type")]
-"""How a task came to be in its run, when the run was not asked to run it.
-
-A union discriminated by `type`. Each kind of origin is its own member."""
+EvalOriginType: TypeAlias = Annotated[EnqueueTaskOrigin, Field(discriminator="type")]
+"""The kinds of `EvalOrigin`, discriminated by `type`."""
 
 
 class EvalSpec(BaseModel):
@@ -1246,7 +1252,7 @@ class EvalSpec(BaseModel):
     shards: EvalShards | None = Field(default=None)
     """Shards merged into this log (merged logs only)."""
 
-    origin: EvalOrigin | None = Field(default=None)
+    origin: EvalOriginType | None = Field(default=None)
     """How the task came to be in its run, when the run was not asked to run it.
 
     `EnqueueTaskOrigin` for a task added with `enqueue_task()` within a running

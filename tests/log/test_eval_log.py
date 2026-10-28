@@ -44,6 +44,7 @@ from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log import (
     EnqueueTaskOrigin,
     EvalError,
+    EvalOrigin,
     EvalShardEntry,
     EvalShards,
     read_eval_log,
@@ -742,6 +743,7 @@ def test_eval_log_origin_is_tagged_with_its_type(tmp_path: Path) -> None:
         _eval_log_header_json(location)["eval"], context=get_deserializing_context()
     )
     assert isinstance(spec.origin, EnqueueTaskOrigin)
+    assert isinstance(spec.origin, EvalOrigin)
 
 
 def test_eval_log_origin_with_unknown_type_is_rejected(tmp_path: Path) -> None:

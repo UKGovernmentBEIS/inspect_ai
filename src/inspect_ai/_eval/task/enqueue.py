@@ -23,7 +23,7 @@ from threading import Lock
 from typing import TYPE_CHECKING, Callable
 
 from inspect_ai._util.task import task_active
-from inspect_ai.log._log import EnqueueTaskOrigin, EvalOrigin
+from inspect_ai.log._log import EnqueueTaskOrigin, EvalOriginType
 
 if TYPE_CHECKING:
     from inspect_ai._eval.task.resolved import ResolvedTask
@@ -52,7 +52,7 @@ class TaskEnqueuer:
     """Fired after tasks are buffered — used by a live run to wake dispatch."""
 
     def enqueue(
-        self, tasks: "Tasks", *, origin: EvalOrigin | None = None
+        self, tasks: "Tasks", *, origin: EvalOriginType | None = None
     ) -> list["ResolvedTask"]:
         """Resolve ``tasks`` and queue them to run; returns the resolved tasks.
 

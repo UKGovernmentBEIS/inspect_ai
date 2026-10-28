@@ -3,7 +3,7 @@ from typing import Any, Sequence, Set
 
 from inspect_ai._eval.task import Task
 from inspect_ai._eval.task.run import EvalSampleSource
-from inspect_ai.log._log import EvalOrigin
+from inspect_ai.log._log import EvalOriginType
 from inspect_ai.model import Model
 from inspect_ai.model._model_output import ModelUsage
 from inspect_ai.util import SandboxEnvironmentSpec
@@ -27,7 +27,7 @@ class ResolvedTask:
     initial_model_usage: dict[str, ModelUsage] | None = field(default=None)
     initial_role_usage: dict[str, ModelUsage] | None = field(default=None)
     input_media_policy: InputMediaPolicy = field(default="inline_only")
-    origin: EvalOrigin | None = field(default=None)
+    origin: EvalOriginType | None = field(default=None)
     """How the task came to be in its run (``EvalSpec.origin``)."""
     retry: bool = field(default=False)
     """Resolved from a previous log (a ``PreviousTask``), whose ``origin`` it keeps."""
