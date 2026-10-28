@@ -3,6 +3,7 @@
 import bisect
 import dataclasses
 import json
+import logging
 import random
 from collections.abc import Callable, Sequence
 from dataclasses import replace
@@ -291,25 +292,34 @@ def assert_logged_replay_equals_live(
     assert len(rebuilt) == len(replay)
     assert set(rebuilt) == set(live)
     for key, step in live.items():
-        again = rebuilt[key].step
-        assert type(again) is type(step), key
-        assert rebuilt[key].segment[0] == step.conversation
-        stage = type(step).__name__
-        for f in dataclasses.fields(step):
-            if f.name in ABSENT.get(stage, set()):
-                continue
-            if f"{key[0]}.{f.name}" in differences:
-                continue
-            ours, theirs = getattr(again, f.name), getattr(step, f.name)
-            if f.name == "agent_messages":
-                # the log does not record the agent's own messages
-                assert ours is None, key
-                continue
-            if f.name == "view":
-                ours, theirs = ours.call, theirs.call
-            ids = f.name not in POOLED
-            assert comparable(ours, ids) == comparable(theirs, ids), f"{key} {f.name}"
+        assert_step_equals_live(key, rebuilt[key], step, differences)
     return replay
+
+
+def assert_step_equals_live(
+    key: tuple[str, str],
+    rebuilt: "ReplayStep",
+    step: Step,
+    differences: Sequence[str] = (),
+) -> None:
+    again = rebuilt.step
+    assert type(again) is type(step), key
+    assert rebuilt.segment[0] == step.conversation
+    stage = type(step).__name__
+    for f in dataclasses.fields(step):
+        if f.name in ABSENT.get(stage, set()):
+            continue
+        if f"{key[0]}.{f.name}" in differences:
+            continue
+        ours, theirs = getattr(again, f.name), getattr(step, f.name)
+        if f.name == "agent_messages":
+            # the log does not record the agent's own messages
+            assert ours is None, key
+            continue
+        if f.name == "view":
+            ours, theirs = ours.call, theirs.call
+        ids = f.name not in POOLED
+        assert comparable(ours, ids) == comparable(theirs, ids), f"{key} {f.name}"
 
 
 @solver
@@ -1019,7 +1029,9 @@ def r7_runs_a_bridged_host_tool() -> Agent:
     return execute
 
 
-def test_a_bridged_host_tool_calls_steps_are_not_replayed() -> None:
+def test_a_bridged_host_tool_calls_steps_are_not_replayed(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     seen: dict[str, Step] = {}
     log = run_logged(
         as_solver(r7_runs_a_bridged_host_tool()),
@@ -1037,8 +1049,107 @@ def test_a_bridged_host_tool_calls_steps_are_not_replayed() -> None:
     live = [e.stage for e in events if isinstance(e, SentinelEvent)]
     assert live == ["model_input", "model_output", "tool_call", "tool_result"]
     # the log records neither the call's producer nor the result as the bridge
-    # delivered it, so replay skips the tool steps
-    assert [step.stage for step in replayed(log)] == ["model_input", "model_output"]
+    # delivered it, so replay skips the tool steps, and says so once
+    with caplog.at_level(logging.WARNING):
+        assert [step.stage for step in replayed(log)] == ["model_input", "model_output"]
+    [warning] = [
+        r.getMessage() for r in caplog.records if "Replay skipped" in r.message
+    ]
+    assert f"({ran.id})" in warning
+
+
+def test_a_native_call_reusing_a_bridged_call_id_replays_its_own_checks() -> None:
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        [as_solver(r7_runs_a_bridged_host_tool()), use_tools(addition()), generate()],
+        outputs(
+            r7_tool_calls(
+                ToolCall(
+                    id="shared",
+                    function="mcp__host__addition",
+                    arguments={"x": 1, "y": 1},
+                )
+            ),
+            r7_tool_calls(
+                ToolCall(id="shared", function="addition", arguments={"x": 5, "y": 5})
+            ),
+            done(),
+        ),
+        sentinel=[r7_probe(seen, copies=True)],
+    )
+    live = [
+        ((e.stage, e.step_id), seen[e.explanation or ""])
+        for e in logged_sample(log).events
+        if isinstance(e, SentinelEvent) and e.path == "r7_probe"
+    ]
+    tools = [
+        (key, step.call.function)
+        for key, step in live
+        if isinstance(step, BeforeToolCall | AfterToolCall)
+    ]
+    assert tools == [
+        (("tool_call", "shared"), "mcp__host__addition"),
+        (("tool_result", "shared"), "mcp__host__addition"),
+        (("tool_call", "shared"), "addition"),
+        (("tool_result", "shared"), "addition"),
+    ]
+    # the bridge's checks of the id are skipped, and the native call's are
+    # replayed after its own turn, as live checked them
+    native = [
+        (key, step)
+        for key, step in live
+        if not isinstance(step, BeforeToolCall | AfterToolCall)
+        or step.call.function == "addition"
+    ]
+    replay = replayed(log)
+    assert [(s.stage, s.id) for s in replay] == [key for key, _ in native]
+    for (key, step), rebuilt in zip(native, replay):
+        assert_step_equals_live(key, rebuilt, step)
+
+
+def test_a_person_s_decision_at_a_skipped_bridge_step_reaches_later_turns(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    Panel("approve", "allowed").install(monkeypatch)
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        as_solver(r7_bridged_scaffold("report")),
+        outputs(
+            r7_tool_calls(
+                ToolCall(
+                    id="host",
+                    function="mcp__host__addition",
+                    arguments={"x": 1, "y": 1},
+                )
+            ),
+            done(),
+        ),
+        sentinel=[
+            r7_probe(seen, copies=True),
+            h_ask("tool_call", ["approve", "reject"]),
+        ],
+    )
+    live = [
+        seen[e.explanation or ""]
+        for e in logged_sample(log).events
+        if isinstance(e, SentinelEvent)
+        and e.path == "r7_probe"
+        and e.stage.startswith("model")
+    ]
+    replay = replayed(log)
+    assert [s.stage for s in replay] == [
+        "model_input",
+        "model_output",
+        "model_input",
+        "model_output",
+    ]
+    # the person approved the host call, whose steps replay skips; the turns
+    # after it still see the decision
+    assert [len(s.human_decisions or []) for s in live] == [0, 0, 1, 1]
+    for step, rebuilt in zip(live, replay):
+        assert comparable(rebuilt.step.human_decisions) == comparable(
+            step.human_decisions
+        )
 
 
 def r7_tool_calls(*calls: ToolCall) -> ModelOutput:
@@ -2877,3 +2988,37 @@ def test_parallel_on_start_sub_agent_calls_replay_with_their_histories(
         sub_input, sub_output = by_conversation[conversation]
         assert [m.text for m in sub_output.step.history or []] == [text]
         assert parents[("model_input", sub_input.id)] == conversation
+
+
+def test_a_person_s_approval_of_a_bridged_host_call_reaches_later_turns() -> None:
+    log = run_logged(
+        as_solver(r7_bridged_scaffold("report")),
+        outputs(
+            r7_tool_calls(
+                ToolCall(
+                    id="host",
+                    function="mcp__host__addition",
+                    arguments={"x": 1, "y": 1},
+                )
+            ),
+            done(),
+        ),
+        approval=[ApprovalPolicy(r7_decides("approve"), "*")],
+    )
+    sample = logged_sample(log)
+    [approver_name] = {
+        e.approver for e in sample.events if isinstance(e, ApprovalEvent)
+    }
+    replay = steps_from_events(
+        sample.messages,
+        sample.events,
+        [],
+        sample_uuid=sample.uuid or "",
+        eval_info=EvalInfo(inspect_ai_version=None, sentinel=False),
+        human_approvers=(approver_name,),
+    )
+    # replay skips the host call's tool steps, but the turn after it sees the
+    # person's approval
+    assert [s.stage for s in replay] == ["model_input", "model_output"] * 2
+    [decision] = replay[2].step.human_decisions or []
+    assert (decision.step_id, decision.decided.report.action) == ("host", "proceed")
