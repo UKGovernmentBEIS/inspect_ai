@@ -327,7 +327,9 @@ class TestPollDeliversOutputAfterLeaderExits:
     ) -> None:
         """A single 1 s bound covers both streams, not 1 s per stream."""
         controller = Controller()
-        pid = await controller.submit("(while true; do printf x; done) & printf early")
+        pid = await controller.submit(
+            "(while true; do printf x; sleep 0.01; done) & printf early"
+        )
         try:
             start = time.monotonic()
             result, stdout, stderr = await self._poll_to_completion(controller, pid)
@@ -341,7 +343,9 @@ class TestPollDeliversOutputAfterLeaderExits:
     @pytest.mark.asyncio
     async def test_cancelling_poll_waiting_for_readers_raises_in_caller(self) -> None:
         controller = Controller()
-        pid = await controller.submit("(while true; do printf x; done) & printf early")
+        pid = await controller.submit(
+            "(while true; do printf x; sleep 0.01; done) & printf early"
+        )
         try:
             job = controller._jobs[pid]
             with anyio.fail_after(5):
@@ -356,6 +360,32 @@ class TestPollDeliversOutputAfterLeaderExits:
                 await task
         finally:
             _kill_group(pid)
+
+    @pytest.mark.asyncio
+    async def test_output_survives_a_poll_cancelled_while_waiting(self) -> None:
+        """A poll cancelled while draining the readers must not lose output.
+
+        The state is already terminal, so a later poll finishes the drain and
+        still delivers the output the readers get afterwards.
+        """
+        controller = Controller()
+        pid = await controller.submit("(sleep 0.3; printf late) & printf early")
+        job = controller._jobs[pid]
+        with anyio.fail_after(5):
+            while job._process.returncode is None:
+                await anyio.sleep(0.01)
+
+        task = asyncio.create_task(controller.poll(pid, ack_seq=0))
+        await anyio.sleep(0.1)
+        assert not task.done()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+        result, stdout, stderr = await self._poll_to_completion(controller, pid)
+        assert stdout == "earlylate"
+        assert result.state == "completed"
+        assert result.exit_code == 0
 
 
 def _kill_group(pid: int) -> None:

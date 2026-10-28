@@ -155,7 +155,12 @@ class Job:
         if self._state == "running" and self._process.returncode is not None:
             self._state = "completed"
             self._exit_code = self._process.returncode
-            # Wait for read tasks to finish draining
+
+        # Drain the readers whenever the job is no longer running. A poll
+        # cancelled here leaves the state terminal with the readers unfinished;
+        # a later poll finishes the drain so its output is not lost. Once the
+        # readers are done this does nothing.
+        if self._state != "running":
             await self._wait_for_readers()
 
         # Always limit per-poll output to keep JSON-RPC responses small.
@@ -372,15 +377,19 @@ class Job:
     async def _wait_for_readers(self) -> None:
         """Wait up to 1 s for the read tasks to reach EOF, then cancel any left.
 
-        The buffers stay open while the tasks run, so output read after the
-        leader exits is kept. Cancelling a task also frees a put() that waits
-        on a full buffer.
+        Only the tasks still running when called are awaited, so a repeated
+        call does not re-raise an error an earlier call already handled. The
+        buffers stay open while the tasks run, so output read after the leader
+        exits is kept, and cancelling a task frees a put() that waits on a full
+        buffer. A reader error is raised to the caller.
         """
-        readers = {self._stdout_task, self._stderr_task}
+        readers = [t for t in (self._stdout_task, self._stderr_task) if not t.done()]
+        if not readers:
+            return
         _, pending = await asyncio.wait(readers, timeout=1.0)
         for task in pending:
             task.cancel()
-        await asyncio.gather(*pending, return_exceptions=True)
+        await asyncio.gather(*readers)
 
     async def _read_stream(
         self, stream: asyncio.StreamReader | None, buffer: BoundedByteBuffer

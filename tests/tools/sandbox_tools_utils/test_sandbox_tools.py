@@ -10,7 +10,7 @@ from test_helpers.tool_call_utils import (
     get_tool_calls,
     get_tool_response,
 )
-from test_helpers.utils import flaky_retry, skip_if_no_docker
+from test_helpers.utils import flaky_retry
 
 from inspect_ai import Task, eval, eval_async
 from inspect_ai._util import logger as inspect_logger
@@ -263,7 +263,6 @@ async def test_text_editor_directory_path_is_literal(
     assert log.status == "success", log.error
 
 
-@skip_if_no_docker
 @pytest.mark.slow
 async def test_exec_remote_delivers_output_written_after_leader_exits() -> None:
     """A background child that writes after the leader exits is not lost.
