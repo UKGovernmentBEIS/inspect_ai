@@ -84,7 +84,7 @@ def steps_from_events(
 
     Every step's `agent_messages` is None: the log does not record the agent's own messages, and model input can hold messages the agent kept out of them.
 
-    The tool steps of an agent bridge's calls are not rebuilt, recorded or not: a call the bridged scaffold ran itself leaves no `ToolEvent`, and for a call a sandbox bridge ran on the host (`ToolEvent.metadata["bridge"]`) the log records neither which model call produced it (the bridge can hand over a response filter's output, or one of several generations under one call id) nor its result as the bridge's service delivered it (the error text a scaffold received, for one). Replay skips these steps until the log records which message made each call, and logs a warning naming the calls. A `human()` decision at a skipped step, and a person's approval of a host call, still reach the later steps of the conversation, as live.
+    The tool steps of an agent bridge's calls are not rebuilt, recorded or not: a call the bridged scaffold ran itself leaves no `ToolEvent`, and for a call a sandbox bridge ran on the host (`ToolEvent.metadata["bridge"]`) the log records neither which model call produced it (the bridge can hand over a response filter's output, or one of several generations under one call id) nor its result as the bridge's service delivered it (the error text a scaffold received, for one). Replay skips these steps until the log records which message made each call, and logs a warning naming the calls. A `human()` decision at a skipped step, and a person's approval of a host call, still reach the later steps of the conversation, as live. A native call's tool steps are rebuilt from the checks of its own execution under its id; if a bridge checked a call under the same id while the native call ran, replay can take the bridge's check as the native call's.
 
     Args:
         messages: The sample's messages (`EvalSample.messages`).
@@ -369,9 +369,8 @@ class _Driver:
         self.span_steps: dict[str, tuple["Step", str]] = {}
         # the ids of the calls whose tool steps replay skips
         self.skipped: list[str] = []
-        # the conversation replay gives the turns of each agent span (a stored
-        # timeline can give another)
-        self.turn_conversations: dict[str, str] = {}
+        # call id -> the indexes of the model events that proposed it
+        self.proposed: dict[str, list[int]] = {}
         # each model event's input view and producer, shared by its steps
         self._views: dict[int, PoolView] = {}
         self._producers: dict[int, Producer] = {}
@@ -418,13 +417,11 @@ class _Driver:
                     message = event.output.choices[0].message
                     for tool_call in message.tool_calls or []:
                         produced[tool_call.id] = (message, event, tool_call, index)
+                        self.proposed.setdefault(tool_call.id, []).append(index)
                 if not is_agent_turn(event.origin):
                     continue
                 turn_ids.add(event.uuid)
                 conversation = self._conversation(event)
-                self.turn_conversations[self.spans.conversation(event.span_id)] = (
-                    conversation
-                )
                 self._at(index, 2, partial(self._fold, conversation, event))
                 attempt_key = (
                     event.span_id,
@@ -714,7 +711,9 @@ class _Driver:
             ("tool_call", event.id), call.produced_at, begin
         )
         after_span = self._tool_span_of(
-            ("tool_result", event.id), end if end is not None else call.index
+            ("tool_result", event.id),
+            end if end is not None else call.index,
+            ending=event.failed is True,
         )
         proposal = call.proposal
         if proposal is None or call.assistant is None:
@@ -825,7 +824,12 @@ class _Driver:
         self._settle_at_end(after_span)
 
     def _tool_span_of(
-        self, key: tuple[SentinelStage, str], after: int, before: int | None = None
+        self,
+        key: tuple[SentinelStage, str],
+        after: int,
+        before: int | None = None,
+        *,
+        ending: bool = False,
     ) -> str | None:
         """The first sentinel span with this tool step id that no call has taken and begins between the events at `after` and `before`.
 
@@ -833,14 +837,27 @@ class _Driver:
         own execution. A span no call takes is an agent bridge's check (a call
         the bridged scaffold ran, a host call, or a check of a result the
         scaffold reported), which replay does not rebuild, including one under
-        an id a native call used too.
+        an id a native call used too. With `ending`, the call failed, and the
+        span is its result check only if the check is what failed it: live
+        checks a result only once the tool has returned.
         """
         spans = self.tool_spans.get(key, [])
         for at, span in enumerate(spans):
             position = self.begins[span][0]
             if position > after and (before is None or position < before):
+                if ending and not self._ended_call(span):
+                    return None
                 return spans.pop(at)
         return None
+
+    def _ended_call(self, span: str) -> bool:
+        """Whether the check in `span` failed, or decided to terminate."""
+        return span in self.failed or any(
+            event.kind == "decision"
+            and event.status == "reported"
+            and event.action == "terminate"
+            for event in self.span_events.get(span, [])
+        )
 
     def _skip_bridge_checks(self) -> None:
         """Publish the `human()` decisions of the tool steps no call took, which are an agent bridge's, and warn that replay skips them."""
@@ -915,10 +932,7 @@ class _Driver:
         if built is not None:
             conversation = built[0].conversation
         else:
-            # a bridge checks a call in its producer's conversation, which
-            # the check's span need not be in
-            recorded = events[0].conversation
-            conversation = self.turn_conversations.get(recorded, recorded)
+            conversation = self._skipped_conversation(span, events)
         kept: list["HumanDecision"] = []
         for event in events:
             if event.kind != "decision" or event.action is None:
@@ -939,6 +953,24 @@ class _Driver:
             self._record(conversation).publish(kept)
 
     # ---- helpers
+
+    def _skipped_conversation(self, span: str, events: list[SentinelEvent]) -> str:
+        """The conversation of a bridge's check that replay skips: where a stored timeline places its decisions, else its producer's.
+
+        A bridge checks a call in the conversation of the model call that proposed it (`SentinelEvent.conversation`), which the check's span need not be in.
+        """
+        if self.timeline is not None:
+            for event in events:
+                found = self.timeline.get(_event_key(event))
+                if event.kind == "decision" and found is not None:
+                    return found
+        recorded = events[0].conversation
+        begin = self.begins[span][0]
+        for index in reversed(self.proposed.get(events[0].step_id, [])):
+            producer = self.events[index]
+            if index < begin and self.spans.conversation(producer.span_id) == recorded:
+                return self._conversation(producer)
+        return recorded
 
     def _cut(self, span: str | None, anchor: tuple[int, int]) -> tuple[int, int]:
         """Where a step is built: before its sentinel span, else at its anchor."""

@@ -3052,8 +3052,10 @@ async def r7_host_bridge(state: AgentState) -> tuple[Any, list[Any]]:
 
 
 @agent
-def r7_defers_a_bridged_host_call(native_first: bool) -> Agent:
-    """A bridged call proposed, then a native call generated under its id, before either runs."""
+def r7_defers_a_bridged_host_call(
+    native_first: bool, native: str = "addition"
+) -> Agent:
+    """A bridged call proposed, then a native call (`addition`, or `explodes`, which raises) generated under its id, before either runs."""
 
     async def execute(state: AgentState) -> AgentState:
         from inspect_ai.agent._bridge.completions import (
@@ -3068,9 +3070,10 @@ def r7_defers_a_bridged_host_call(native_first: bool) -> Agent:
         )
         [proposed] = completion.choices[0].message.tool_calls or []
         assert proposed.type == "function"
+        native_tools = [explodes() if native == "explodes" else addition()]
         history: list[ChatMessage] = [ChatMessageUser(content="What is 5 + 5?")]
-        native = await get_model().generate(history, tools=[addition()])
-        history.append(native.message)
+        output = await get_model().generate(history, tools=native_tools)
+        history.append(output.message)
 
         async def host() -> None:
             await call_tool(bridge)(
@@ -3078,7 +3081,10 @@ def r7_defers_a_bridged_host_call(native_first: bool) -> Agent:
             )
 
         async def native_call() -> None:
-            await execute_tools(history, [addition()])
+            try:
+                await execute_tools(history, native_tools)
+            except RuntimeError:
+                assert native == "explodes"
 
         for run in (native_call, host) if native_first else (host, native_call):
             await run()
@@ -3139,6 +3145,48 @@ def test_a_native_call_run_while_a_bridged_call_waits_replays_its_own_checks(
         assert_step_equals_live(key, rebuilt, step)
 
 
+def test_a_failed_native_call_takes_no_later_bridge_result_check() -> None:
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        as_solver(r7_defers_a_bridged_host_call(native_first=True, native="explodes")),
+        outputs(
+            r7_tool_calls(
+                ToolCall(
+                    id="shared",
+                    function="mcp__host__addition",
+                    arguments={"x": 1, "y": 1},
+                )
+            ),
+            r7_tool_calls(ToolCall(id="shared", function="explodes", arguments={})),
+        ),
+        sentinel=[r7_probe(seen, copies=True)],
+    )
+    events = logged_sample(log).events
+    [failed] = [
+        e for e in events if isinstance(e, ToolEvent) and e.function == "explodes"
+    ]
+    assert failed.failed
+    # the native call raised, so live checked no result of it; the bridge
+    # checked its host call's result under the same id afterwards
+    live = [
+        (e.stage, seen[e.explanation or ""].call.function)
+        for e in events
+        if isinstance(e, SentinelEvent)
+        and e.path == "r7_probe"
+        and e.stage.startswith("tool")
+    ]
+    assert live == [
+        ("tool_call", "mcp__host__addition"),
+        ("tool_call", "explodes"),
+        ("tool_result", "mcp__host__addition"),
+    ]
+    assert [
+        (s.stage, s.step.call.function)
+        for s in replayed(log)
+        if isinstance(s.step, BeforeToolCall | AfterToolCall)
+    ] == [("tool_call", "explodes")]
+
+
 @agent
 def r7_runs_a_host_call_outside_its_producer() -> Agent:
     """A bridged conversation in an agent span of its own, whose host call the service runs in the enclosing span."""
@@ -3177,10 +3225,18 @@ def r7_runs_a_host_call_outside_its_producer() -> Agent:
     return execute
 
 
-@pytest.mark.parametrize("stored_timeline", [False, True])
-def test_a_person_s_decision_at_a_host_call_run_outside_its_producer_s_span_reaches_later_turns(
-    monkeypatch: pytest.MonkeyPatch, stored_timeline: bool
-) -> None:
+class HostDecision(NamedTuple):
+    log: EvalLog
+    events: list[Event]
+    producer: str
+    decided: SentinelEvent
+    live: list[Step]
+
+
+def r7_host_decision_outside_its_producer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> HostDecision:
+    """A person's approval of a host call's result, checked in the producer's conversation from outside its span; `live` is the model steps as the probe saw them."""
     Panel("approve", "allowed").install(monkeypatch)
     seen: dict[str, Step] = {}
     log = run_logged(
@@ -3209,7 +3265,6 @@ def test_a_person_s_decision_at_a_host_call_run_outside_its_producer_s_span_reac
         for e in events
         if isinstance(e, SentinelEvent) and e.factory == "inspect_sentinel/human"
     ]
-    # the result was checked in the producer's conversation, from outside its span
     assert decided.conversation == producer
     assert ran.span_id is not None and begins[ran.span_id].parent_id != producer
     live = [
@@ -3219,6 +3274,15 @@ def test_a_person_s_decision_at_a_host_call_run_outside_its_producer_s_span_reac
         and e.path == "r7_probe"
         and e.stage.startswith("model")
     ]
+    assert [len(s.human_decisions or []) for s in live] == [0, 0, 1, 1]
+    return HostDecision(log, list(events), producer, decided, live)
+
+
+@pytest.mark.parametrize("stored_timeline", [False, True])
+def test_a_person_s_decision_at_a_host_call_run_outside_its_producer_s_span_reaches_later_turns(
+    monkeypatch: pytest.MonkeyPatch, stored_timeline: bool
+) -> None:
+    log, events, producer, _, _ = r7_host_decision_outside_its_producer(monkeypatch)
     turns = [e for e in events if isinstance(e, ModelEvent)]
     timeline = Timeline(
         name="target",
@@ -3232,8 +3296,43 @@ def test_a_person_s_decision_at_a_host_call_run_outside_its_producer_s_span_reac
     replay = replay_events(
         log, events, **({"timeline": timeline} if stored_timeline else {})
     )
-    assert [len(s.human_decisions or []) for s in live] == [0, 0, 1, 1]
+    # a timeline that does not place the decision gives it the conversation
+    # of the model call that proposed the host call
     assert [len(s.step.human_decisions or []) for s in replay] == [0, 0, 1, 1]
     assert {s.step.conversation for s in replay} == {
         "target" if stored_timeline else producer
     }
+
+
+def test_a_person_s_decision_at_a_host_call_stays_in_the_branch_a_timeline_places_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    log, events, _, decided, _ = r7_host_decision_outside_its_producer(monkeypatch)
+    first, second = [e for e in events if isinstance(e, ModelEvent)]
+    # the first turn and the decision in one conversation, the second turn in
+    # a branch of its own
+    timeline = Timeline(
+        name="split",
+        description="",
+        root=TimelineSpan(
+            id="first",
+            name="first",
+            content=[TimelineEvent(event=e) for e in events if e is not second],
+            branches=[
+                TimelineSpan(
+                    id="second",
+                    name="second",
+                    content=[TimelineEvent(event=second)],
+                )
+            ],
+        ),
+    )
+    assert any(
+        item.event is decided
+        for item in timeline.root.content
+        if isinstance(item, TimelineEvent)
+    )
+    replay = replay_events(log, events, timeline=timeline)
+    assert [
+        (s.step.conversation, len(s.step.human_decisions or [])) for s in replay
+    ] == [("first", 0), ("first", 0), ("second", 0), ("second", 0)]
