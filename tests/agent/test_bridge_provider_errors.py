@@ -10,6 +10,8 @@ extractors, and the `service.py` wrapper that turns an exception into a
 from __future__ import annotations
 
 import ast
+import gc
+import weakref
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -778,9 +780,34 @@ async def test_forward_provider_errors_records_a_limit_and_replies(
     bridge = _bridge()
     result = await _forward_provider_errors(boom, bridge)({})
     assert result == {PROVIDER_ERROR_KEY: {"status": None, "message": str(error)}}
-    assert bridge.generation_limits == [error]
+    assert bridge.generation_limit is error
     assert not bridge._failure_requested.is_set()
     assert warnings == []
+
+
+async def test_forward_provider_errors_keeps_only_the_first_limit() -> None:
+    """Only the first limit is recorded; later ones are released once answered.
+
+    A scaffold can keep sending requests after its error reply. Their limit
+    errors, with the request frames in their tracebacks, are not kept until
+    the agent unwinds.
+    """
+    errors = [LimitExceededError("message", value=2, limit=1) for _ in range(2)]
+    first = errors[0]
+    later = weakref.ref(errors[1])
+
+    async def over_limit(
+        json_data: dict[str, Any], headers: dict[str, str] | None = None
+    ) -> dict[str, Any]:
+        raise errors.pop(0)
+
+    bridge = _bridge()
+    forward = _forward_provider_errors(over_limit, bridge)
+    for _ in range(2):
+        assert PROVIDER_ERROR_KEY in await forward({})
+    gc.collect()
+    assert bridge.generation_limit is first
+    assert later() is None
 
 
 @pytest.mark.parametrize("wrapper", ["bare", "grouped", "limit"])
@@ -1461,6 +1488,97 @@ def test_limit_behind_a_response_filter_refusal_is_raised(
     else:
         _assert_sample_token_limit(outcome, limit=10)
     _assert_error_replies(outcome.replies)
+
+
+def test_first_limit_in_a_bridged_filter_group_is_raised(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Of the limits in a generate filter's group, the first in the group is raised.
+
+    The group holds the bridged agent's `run()` message limit, then the
+    enclosing `run()`'s token limit. The agent's `run()` handles its limit and
+    the enclosing one returns none.
+    """
+    inner = message_limit(10)
+    outer = token_limit(1000)
+
+    async def over_limits(
+        model: Model,
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        raise ExceptionGroup(
+            "generations",
+            [
+                LimitExceededError("message", value=11, limit=10, source=inner),
+                LimitExceededError("token", value=1001, limit=1000, source=outer),
+            ],
+        )
+
+    outcome = _run_bridged_agent(
+        tmp_path,
+        monkeypatch,
+        inner,
+        scaffold=_Scaffold([_Request()], filter=over_limits),
+        outer_limit=outer,
+    )
+
+    _assert_agent_limit(outcome, inner)
+    assert outcome.outer_errors == [None]
+    _assert_error_replies(outcome.replies)
+
+
+def test_request_after_a_bridged_turn_limit_does_not_generate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A request after a turn limit was exceeded gets its error reply without a generation."""
+    limit = turn_limit(0)
+
+    outcome = _run_bridged_agent(
+        tmp_path,
+        monkeypatch,
+        limit,
+        scaffold=_Scaffold([_Request(), _Request(after_first=True)]),
+    )
+
+    _assert_agent_limit(outcome, limit)
+    _assert_error_replies(outcome.replies, count=2)
+    # one generation of 7 tokens
+    assert outcome.sample.model_usage["mockllm/model"].total_tokens == 7
+
+
+def test_failure_after_a_bridged_limit_fails_the_sample(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failure a later generation requests ends the sample, not the recorded limit.
+
+    The first request reaches the `run()` message limit. The second one's
+    response filter fails, which fails the sample.
+    """
+
+    async def fails(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        raise ValueError("The response filter failed.")
+
+    outcome = _run_bridged_agent(
+        tmp_path,
+        monkeypatch,
+        message_limit(2),
+        scaffold=_Scaffold(
+            [_Request(messages=2), _Request(after_first=True)],
+            response_filter=fails,
+        ),
+    )
+
+    sample = outcome.sample
+    assert sample.error is not None
+    assert "The response filter failed." in sample.error.message
+    assert sample.limit is None
+    assert "continued" not in sample.store
+    assert outcome.errors == []
 
 
 def test_enclosing_time_limit_during_a_bridged_limit_reply_wins(

@@ -8,7 +8,7 @@ from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._model import ModelRefusalError
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
-from inspect_ai.util._limit import LimitExceededError
+from inspect_ai.util._limit import LimitExceededError, check_turn_limit
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
 from inspect_ai.util._sandbox.service import exception_history, find_control_flow
 
@@ -58,13 +58,16 @@ def _forward_provider_errors(
 
     An exception with a `LimitExceededError` (message, token, cost or turn
     limit) anywhere in its history, such as a filter's task group or a refusal
-    reduced from a response filter's group, is returned as an error reply too,
-    and its limits are recorded in `bridge.generation_limits`. Once the agent
-    has unwound, `sandbox_agent_bridge` raises the first of them, so the
-    scope that applied it (`run()`, or the sample) handles it, as for a native
-    agent. A `ResponseFilterError` keeps the route above even with limits in
-    its history: a response filter's group mixing a limit with another error
-    is a filter failure.
+    reduced from a response filter's group, is returned as an error reply too.
+    The first limit reached is recorded in `bridge.generation_limit`: once the
+    agent has unwound, `sandbox_agent_bridge` raises it, so the scope that
+    applied it (`run()`, or the sample) handles it, as for a native agent. A
+    `ResponseFilterError` keeps the route above even with limits in its
+    history: a response filter's group mixing a limit with another error is a
+    filter failure.
+
+    A turn limit is checked after a generation, so a request that arrives
+    once one is exceeded gets its error reply without another generation.
     """
 
     async def generate_forwarding_errors(
@@ -72,16 +75,24 @@ def _forward_provider_errors(
         headers: dict[str, str] | None = None,
     ) -> dict[str, JsonValue]:
         try:
+            check_turn_limit()
             return await generate(json_data, headers)
         except Exception as ex:
             if find_control_flow(ex) is not None:
                 # the service dispatcher ends the sample with it
                 raise
-            limits = [
-                e for e in exception_history(ex) if isinstance(e, LimitExceededError)
-            ]
-            if limits and not isinstance(ex, ResponseFilterError):
-                bridge.generation_limits.extend(limits)
+            limit = next(
+                (
+                    e
+                    for e in exception_history(ex, in_order=True)
+                    if isinstance(e, LimitExceededError)
+                ),
+                None,
+            )
+            if limit is not None and not isinstance(ex, ResponseFilterError):
+                # only the first is raised, so later ones are not kept
+                if bridge.generation_limit is None:
+                    bridge.generation_limit = limit
                 return {PROVIDER_ERROR_KEY: cast(JsonValue, provider_error_payload(ex))}
             if isinstance(ex, (ModelRefusalError, ResponseFilterError)):
                 bridge.request_fail(ex)

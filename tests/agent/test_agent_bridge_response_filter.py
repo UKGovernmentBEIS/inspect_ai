@@ -1261,7 +1261,7 @@ async def test_sandbox_forwarding_preserves_response_filter_limit() -> None:
     generate = _forward_provider_errors(generate_completions(bridge), bridge)
     reply = await generate(CHAT_REQUEST)
     assert PROVIDER_ERROR_KEY in reply
-    assert bridge.generation_limits == [limit_error]
+    assert bridge.generation_limit is limit_error
     assert not bridge._failure_requested.is_set()
 
 
@@ -1493,7 +1493,8 @@ async def test_response_filter_limit_propagates(
                         generate_completions(sandbox_bridge), sandbox_bridge
                     )(CHAT_REQUEST)
                     assert PROVIDER_ERROR_KEY in reply
-                    raise sandbox_bridge.generation_limits[0]
+                    assert sandbox_bridge.generation_limit is not None
+                    raise sandbox_bridge.generation_limit
                 case _:
                     assert_never(path)
     assert exc_info.value.type == "token"

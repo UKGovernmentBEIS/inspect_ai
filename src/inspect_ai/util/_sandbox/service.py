@@ -65,10 +65,16 @@ def find_control_flow(ex: Exception) -> BaseException | None:
     return None
 
 
-def exception_history(ex: BaseException) -> list[BaseException]:
+def exception_history(ex: BaseException, in_order: bool = False) -> list[BaseException]:
     """An exception and its causal history, as `find_control_flow` searches it.
 
     Group leaves, explicit causes and implicit context, each exception once.
+
+    Args:
+      ex: The exception.
+      in_order: Visit them depth first in order: an exception, then its group
+        members in the group's order, then its cause, then its context. By
+        default, group members, cause and context are visited in reverse.
     """
     seen: set[int] = set()
     stack: list[BaseException] = [ex]
@@ -79,12 +85,14 @@ def exception_history(ex: BaseException) -> list[BaseException]:
             continue
         seen.add(id(e))
         history.append(e)
+        successors: list[BaseException] = []
         if isinstance(e, BaseExceptionGroup):
-            stack.extend(e.exceptions)
+            successors.extend(e.exceptions)
         if e.__cause__ is not None:
-            stack.append(e.__cause__)
+            successors.append(e.__cause__)
         if e.__context__ is not None:
-            stack.append(e.__context__)
+            successors.append(e.__context__)
+        stack.extend(reversed(successors) if in_order else successors)
     return history
 
 
