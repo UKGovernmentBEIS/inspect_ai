@@ -1028,10 +1028,19 @@ def _scorer_log(
     name: str,
     task_file: pathlib.Path | str | None = None,
     options: dict[str, Any] | None = None,
+    legacy: bool = False,
 ) -> EvalLog:
+    """Log naming one scorer, in `eval.scorers` or (legacy) only in `results.scores`."""
     from datetime import datetime, timezone
 
-    from inspect_ai.log._log import EvalConfig, EvalDataset, EvalScorer, EvalSpec
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalResults,
+        EvalScore,
+        EvalScorer,
+        EvalSpec,
+    )
 
     return EvalLog(
         eval=EvalSpec(
@@ -1041,8 +1050,13 @@ def _scorer_log(
             dataset=EvalDataset(),
             model="mockllm/model",
             config=EvalConfig(),
-            scorers=[EvalScorer(name=name, options=options)],
+            scorers=None if legacy else [EvalScorer(name=name, options=options)],
+        ),
+        results=EvalResults(
+            scores=[EvalScore(name=name, scorer=name, params=options or {})]
         )
+        if legacy
+        else None,
     )
 
 
@@ -1051,7 +1065,8 @@ def fresh_display(monkeypatch: pytest.MonkeyPatch) -> None:
     """Start with no display, display type or Rich console, as a new process does.
 
     Earlier tests leave these set (a quiet console, a cached display), which
-    would hide or redirect the output these tests capture.
+    would hide or redirect the output these tests capture. The new console is
+    wide enough not to wrap the long temporary paths in that output.
     """
     import rich
 
@@ -1061,11 +1076,11 @@ def fresh_display(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(active, "_active_display", None)
     monkeypatch.setattr(_display, "_display_type", None)
     monkeypatch.setattr(rich, "_console", None)
+    monkeypatch.setenv("COLUMNS", "1000")
 
 
 def _printed(capsys: pytest.CaptureFixture[str]) -> str:
-    # undo the console's line wrapping
-    return capsys.readouterr().out.replace("\n", "")
+    return capsys.readouterr().out
 
 
 def _record(path: pathlib.Path, scorer: str) -> str:
@@ -1075,15 +1090,16 @@ def _record(path: pathlib.Path, scorer: str) -> str:
     )
 
 
+@pytest.mark.parametrize("legacy", [False, True], ids=["eval_scorers", "results"])
 @pytest.mark.parametrize("form", ["at", "path"])
 def test_recorded_scorer_name_is_not_imported_as_a_path(
-    scorer_file: pathlib.Path, imports: pathlib.Path, form: str
+    scorer_file: pathlib.Path, imports: pathlib.Path, form: str, legacy: bool
 ) -> None:
     from inspect_ai._util.error import PrerequisiteError
 
     name = f"{scorer_file}@{FILE_SCORER}" if form == "at" else str(scorer_file)
     with pytest.raises(PrerequisiteError, match="couldn't be loaded"):
-        resolve_scorers(_scorer_log(name))
+        resolve_scorers(_scorer_log(name, legacy=legacy))
     assert _imported(imports) == []
 
 
@@ -1211,7 +1227,7 @@ def test_score_command_prints_log_model_base_url(
     result = CliRunner().invoke(score_command, [*args, "--output-file", str(output)])
     assert result.exit_code == 0, result.output
     record = f"Scoring model mockllm/model from the log, base URL {LOG_BASE_URL}."
-    assert record in result.output.replace("\n", "")
+    assert record in result.output
 
     result = CliRunner().invoke(
         score_command,
@@ -1290,7 +1306,7 @@ def test_score_command_prompts_stay_visible_with_display_none(
     result = CliRunner().invoke(score_command, args, input="append\ncreate\n\n")
     assert result.exit_code == 0, result.output
 
-    output = result.output.replace("\n", "")
+    output = result.output
     assert "Overwrite existing scores or append as additional scores?" in output
     assert f"Overwrite {log_file} or create new file?" in output
     assert "Output file name?" in output
