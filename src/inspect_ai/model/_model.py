@@ -1368,7 +1368,7 @@ class Model:
         tool_choice: ToolChoice | None,
         config: GenerateConfig,
     ) -> "_PreparedInput":
-        caller_ids = {message.id for message in input}
+        caller_input = list(input)
 
         # insert any system message provided in config
         if config.system_message:
@@ -1418,7 +1418,7 @@ class Model:
 
         input = collapse_consecutive_messages_for_api(input, self.api)
         _validate_model_input_media(input)
-        settled = _reuse_rebuilt_message_ids(input, caller_ids)
+        settled = _reuse_rebuilt_message_ids(input, caller_input)
         return _PreparedInput(input, tdefs, base_tools, tool_choice, settled)
 
     async def _generate(
@@ -3141,11 +3141,13 @@ class _SettledInput(NamedTuple):
     ids: list[str | None]
     keys: dict[int, bytes | None]
     """The content key of each rebuilt message, by position."""
+    callers: list[ChatMessage]
+    """The caller's messages, before and after preparation."""
 
 
 def _reuse_rebuilt_message_ids(
     input: list[ChatMessage],
-    caller_ids: set[str | None],
+    caller_input: list[ChatMessage],
 ) -> _SettledInput | None:
     """Give each message rebuilt for this generate the sample's id for its content.
 
@@ -3159,7 +3161,7 @@ def _reuse_rebuilt_message_ids(
 
     Args:
         input: The prepared input, before a sentinel or a hook sees it.
-        caller_ids: Ids of the caller's messages.
+        caller_input: The caller's messages, before preparation.
 
     Returns:
         The settled input, or None outside a sample (ids are left as is).
@@ -3169,6 +3171,7 @@ def _reuse_rebuilt_message_ids(
         return None
     keys: dict[int, bytes | None] = {}
     occurrences: dict[bytes, int] = {}
+    caller_ids = {message.id for message in caller_input}
     used = set(caller_ids)
     for i, message in enumerate(input):
         if message.id in caller_ids:
@@ -3188,7 +3191,8 @@ def _reuse_rebuilt_message_ids(
         message.id = message_id
         used.add(message_id)
         rebuilt_ids.issued.add(message_id)
-    return _SettledInput(list(input), [message.id for message in input], keys)
+    callers = caller_input + [m for i, m in enumerate(input) if i not in keys]
+    return _SettledInput(list(input), [message.id for message in input], keys, callers)
 
 
 def _renew_rebuilt_message_ids_after_hooks(
@@ -3198,10 +3202,12 @@ def _renew_rebuilt_message_ids_after_hooks(
 
     Ids are kept when the input holds the settled messages (same objects and
     ids, in order) with their settled content keys, as with hooks that only
-    read the input or set headers. Otherwise each non-caller message holding
-    an id issued in the sample (this call's rebuilt messages, or one a hook
-    brought back) gets a fresh id, copying a repeated object first, so an id
-    never names two contents in a sample and ids stay unique in the input.
+    read the input or set headers. Otherwise this call's rebuilt messages,
+    and any other non-caller message holding an id issued in the sample (one
+    a hook brought back), get fresh ids, copying a repeated object first, so
+    an id never names two contents in a sample and ids stay unique in the
+    input. Caller messages, including ones preparation combined or replaced,
+    are never changed.
 
     Args:
         input: The input after the hooks ran.
@@ -3219,10 +3225,13 @@ def _renew_rebuilt_message_ids_after_hooks(
         )
     ):
         return
-    caller = {id(m) for i, m in enumerate(settled.messages) if i not in settled.keys}
+    callers = {id(message) for message in settled.callers}
+    rebuilt = {id(settled.messages[i]) for i in settled.keys}
     renewed: set[int] = set()
     for i, message in enumerate(input):
-        if id(message) in caller or message.id not in rebuilt_ids.issued:
+        if id(message) in callers or (
+            id(message) not in rebuilt and message.id not in rebuilt_ids.issued
+        ):
             continue
         if id(message) in renewed:
             message = input[i] = message.model_copy()
@@ -3235,7 +3244,10 @@ def _rebuilt_message_key(message: ChatMessage) -> bytes | None:
     # only plain JSON is keyed: other values (e.g. an iterator, which
     # serializing consumes) may not serialize the same way each time
     calls = message.tool_calls if isinstance(message, ChatMessageAssistant) else None
-    if not _is_plain_json([message.metadata, *[c.arguments for c in calls or []]]):
+    try:
+        if not _is_plain_json([message.metadata, *[c.arguments for c in calls or []]]):
+            return None
+    except RecursionError:  # cyclic or very deep
         return None
     logged = logged_json(message, exclude_id=True)
     # a cryptographic hash, since content (e.g. model output) is untrusted

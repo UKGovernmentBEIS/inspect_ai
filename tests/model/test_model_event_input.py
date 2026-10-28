@@ -40,6 +40,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._chat_message import logged_json
 from inspect_ai.model._model import (
+    _rebuilt_message_key,
     _snapshot_messages,
     init_sample_rebuilt_message_ids,
     use_model_event_sink,
@@ -551,6 +552,53 @@ async def test_model_event_input_hook_reintroduced_rebuilt_message_gets_new_id(
     assert [m.model_dump() for m in messages] == [m.model_dump() for m in before]
 
 
+@pytest.mark.parametrize("path", _REBUILD_PATHS)
+async def test_model_event_input_hook_giving_rebuilt_message_caller_id_renews_it(
+    monkeypatch: pytest.MonkeyPatch, path: str
+) -> None:
+    model, messages, tools, config = _rebuilt_input(monkeypatch, path)
+    caller_ids = [m.id for m in messages]
+    before = deepcopy(messages)
+
+    def take_caller_id(call: int, data: BeforeModelGenerate) -> None:
+        rebuilt = next(m for m in data.input if m.id not in caller_ids)
+        rebuilt.id = next(m.id for m in data.input if m.id in caller_ids)
+
+    with _input_hook(take_caller_id):
+        await model.generate(messages, tools=tools, config=config)
+
+    [event] = _model_events()
+    ids = [m.id for m in event.input]
+    assert len(set(ids)) == len(ids)
+    assert set(caller_ids) & set(ids)
+    assert [m.model_dump() for m in messages] == [m.model_dump() for m in before]
+
+
+async def test_model_event_input_hook_appending_combined_caller_keeps_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    init_transcript(Transcript())
+    init_sample_rebuilt_message_ids()
+    model = get_model("mockllm/model")
+    monkeypatch.setattr(model.api, "collapse_user_messages", lambda: True)
+    await model.generate(
+        [ChatMessageUser(content="one"), ChatMessageUser(content="two")]
+    )
+    # the caller passes on the combined message, which is combined again
+    caller = _model_events()[0].input[0].model_copy(deep=True)
+    before = caller.model_dump()
+
+    def append_caller(call: int, data: BeforeModelGenerate) -> None:
+        data.input.append(caller)
+
+    with _input_hook(append_caller):
+        await model.generate([caller, ChatMessageUser(content="three")])
+
+    # the caller's message keeps its id and content
+    assert caller.model_dump() == before
+    _assert_one_content_per_id(_model_events())
+
+
 @pytest.mark.parametrize("metadata", [False, True])
 async def test_model_event_input_hook_edits_on_retry_get_new_ids(
     monkeypatch: pytest.MonkeyPatch, metadata: bool
@@ -760,3 +808,35 @@ def test_model_event_input_rebuilt_ids_not_shared_across_samples() -> None:
     assert len(system_ids) == 4
     assert all(first == second for first, second in system_ids)
     assert len({first for first, _ in system_ids}) == 4
+
+
+@pytest.mark.parametrize("shape", ["cyclic", "deep"])
+@pytest.mark.parametrize("field", ["metadata", "arguments"])
+def test_rebuilt_message_with_recursive_values_has_no_key(
+    field: str, shape: str
+) -> None:
+    def message(value: dict[str, Any]) -> ChatMessage:
+        return ChatMessageAssistant(
+            content="answer",
+            metadata=value if field == "metadata" else None,
+            tool_calls=[
+                ToolCall(
+                    id="call",
+                    function="step",
+                    arguments=value if field == "arguments" else {},
+                )
+            ],
+        )
+
+    value: dict[str, Any] = {}
+    if shape == "cyclic":
+        value["self"] = value
+    else:
+        inner = value
+        for _ in range(2000):
+            inner["k"] = {}
+            inner = inner["k"]
+
+    # no key (so a fresh id) rather than an error; plain JSON is keyed
+    assert _rebuilt_message_key(message(value)) is None
+    assert _rebuilt_message_key(message({"items": [1, 2]})) is not None
