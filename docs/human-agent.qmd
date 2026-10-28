@@ -167,6 +167,11 @@ You can disable session recording with the `record_session` option:
 --solver human_cli -S record_session=false
 ```
 
+When you specify `user`, collecting recordings requires the sandbox provider to
+support `read_file(user=...)`. Providers without this support warn and omit the
+recordings from the sample log. Disable recording until the provider adds support,
+or use the sandbox's default user if that is the intended human identity.
+
 ## Headless {#headless}
 
 The examples above demonstrate human baselining being initiated from the CLI and standard task display. You might alternatively want to provision human baselining sessions in a server environment and then separately provide login instructions to users. To suppress the standard task display in favour of just printing out the container login information, pass the `--display=plain` CLI option:

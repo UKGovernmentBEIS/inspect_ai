@@ -18,6 +18,7 @@ from .environment import (
     SandboxConnection,
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
+    SandboxUserUnsupportedError,
 )
 from .limits import OutputLimitExceededError, SandboxEnvironmentLimits
 from .service import is_sandbox_service_command
@@ -140,15 +141,18 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
         )
 
     @override
-    async def write_file(self, file: str, contents: str | bytes) -> None:
+    async def write_file(
+        self, file: str, contents: str | bytes, *, user: str | None = None
+    ) -> None:
         from inspect_ai.event._sandbox import SandboxEvent
         from inspect_ai.log._transcript import transcript
 
         timestamp = datetime.now(timezone.utc)
+        params = self._file_user_params("write_file", user)
 
         # make call
         try:
-            await self._sandbox.write_file(file, contents)
+            await self._sandbox.write_file(file, contents, **params)
         except TimeoutError as ex:
             raise SandboxTimeoutError(str(ex)) from ex
 
@@ -158,6 +162,7 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
                 SandboxEvent(
                     timestamp=timestamp,
                     action="write_file",
+                    options=params or None,
                     file=file,
                     input=content_display(contents),
                     completed=datetime.now(timezone.utc),
@@ -165,24 +170,33 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
             )
 
     @overload
-    async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
+    async def read_file(
+        self, file: str, text: Literal[True] = True, *, user: str | None = None
+    ) -> str: ...
 
     @overload
-    async def read_file(self, file: str, text: Literal[False]) -> bytes: ...
+    async def read_file(
+        self, file: str, text: Literal[False], *, user: str | None = None
+    ) -> bytes: ...
 
     @override
-    async def read_file(self, file: str, text: bool = True) -> Union[str | bytes]:
+    async def read_file(
+        self, file: str, text: bool = True, *, user: str | None = None
+    ) -> Union[str | bytes]:
         from inspect_ai.event._sandbox import SandboxEvent
         from inspect_ai.log._transcript import transcript
 
         timestamp = datetime.now(timezone.utc)
+        params = self._file_user_params("read_file", user)
 
         # make call
         try:
             if text is True:
-                output: str | bytes = await self._sandbox.read_file(file, True)
+                output: str | bytes = await self._sandbox.read_file(
+                    file, True, **params
+                )
             else:
-                output = await self._sandbox.read_file(file, False)
+                output = await self._sandbox.read_file(file, False, **params)
         except TimeoutError as ex:
             raise SandboxTimeoutError(str(ex)) from ex
 
@@ -192,6 +206,7 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
                 SandboxEvent(
                     timestamp=timestamp,
                     action="read_file",
+                    options=params or None,
                     file=file,
                     output=content_display(output),
                     completed=datetime.now(timezone.utc),
@@ -200,6 +215,24 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
 
         # return result
         return output
+
+    @override
+    def _supports_file_user(
+        self, operation: Literal["read_file", "write_file"]
+    ) -> bool:
+        return self._sandbox._supports_file_user(operation)
+
+    def _file_user_params(
+        self, operation: Literal["read_file", "write_file"], user: str | None
+    ) -> dict[str, Any]:
+        if user is None:
+            return {}
+        if not self._supports_file_user(operation):
+            raise SandboxUserUnsupportedError(
+                f"{type(self._sandbox).__name__}.{operation} does not support "
+                f"user={user!r}. Update the sandbox provider to support file users."
+            )
+        return {"user": user}
 
     @override
     async def connection(self, *, user: str | None = None) -> SandboxConnection:
