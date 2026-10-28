@@ -1242,15 +1242,23 @@ SciKnowEval's `metrics_by_task`, a dictionary metric whose samples have
 the same keys in a different order) gives the same value for each key, but
 its rows can come out in another order, and without a task
 `headline_metric` the default headline (the first metric of the first
-score) can differ; a task's `headline_metric` pins it. The one built-in
-case where values change is refused (`_check_glob_key_sets`): a dictionary
-metric with a pattern key (`{"*": [...]}`, or any key holding `*`, `?` or
-`[`) is expanded from the first sample's keys, so when two samples'
-dictionary scores for that scorer have different keys the merge raises
+score) can differ; a task's `headline_metric` pins it. The built-in
+cases where values change are refused. A scorer's dictionary metrics
+(`{"*": [...]}`, `{"alpha": [...]}`) take their keys from the first
+sample's score: a pattern is expanded from its keys, a named key it lacks
+is dropped, and a later score lacking a resolved key raises. So when two
+samples' dictionary scores for that scorer differ in the keys those
+metrics name or match (other keys do not matter), the merge raises
 `ShardSetError` before publishing or deleting, naming a sample, its log
-and the score. The check runs once over the raw scores, which covers the
-unreduced, default-reduced and recorded-reduction views, on every pass
-that writes. A registered metric that reads the first score, or whose
+and the score (`_check_dict_metric_keys`). The check covers the raw
+scores (the unreduced and default-reduced views) and, with recorded epoch
+reducers, each recorded reduction a scorer's reduced metrics consume, since
+a reducer can change a score's keys; it runs on every pass that writes,
+carried samples included. A `grouped()` metric, at any depth of a
+wrapper's options, whose `name_template` can give two groups one name
+(any field other than a plain `{group_name}`) is refused in
+`check_scoring_resolvable`: the group seen last keeps the name.
+A registered metric that reads the first score, or whose
 values otherwise depend on input order, is not supported and not
 detected.
 
@@ -2488,7 +2496,13 @@ Per PR (numbers from "Implementation plan"):
      different orders merge, fresh and incrementally, to an unsharded
      run's value for each key, and a task `headline_metric` gives its
      headline; scores with different keys are refused, fresh and
-     incrementally, with nothing written and the shards byte-identical;
+     incrementally, with nothing written and the shards byte-identical, as
+     are scores lacking a named key (`{"alpha": [...]}` declared directly
+     and in a list) and recorded reductions with different keys (a reducer
+     turning scalars into dictionaries), while differing keys a named
+     metric does not select merge to the run's values; a `grouped()`
+     template `{group_name[0]}` is refused and `group-{group_name}` merges
+     to the run's values, and templates nested in wrappers are checked;
    - epoch reducers: `at_least(1, value=0.5)` with one epoch and with two,
      `pass_at(2, value=0.5)`, `pass_k(2, value=0.5)` and a `mean` with a
      value converter, beside a default-reducer control, on a scorer with

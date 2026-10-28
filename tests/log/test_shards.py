@@ -45,6 +45,7 @@ from inspect_ai.scorer import (
     SampleScore,
     Score,
     Scorer,
+    ScoreReducer,
     Target,
     Value,
     accuracy,
@@ -56,6 +57,7 @@ from inspect_ai.scorer import (
     metric,
     pass_at,
     pass_k,
+    score_reducer,
     scorer,
     value_to_float,
 )
@@ -1188,33 +1190,78 @@ def test_a_solver_set_score_is_refused(
     assert not os.path.exists(merged) and _files(shards) == before
 
 
+async def _metadata_score(state: TaskState, target: Target) -> Score:
+    """The value in the sample's metadata; a dictionary keeps its key order."""
+    value = state.metadata["value"]
+    return Score(value=dict(value) if isinstance(value, dict) else value)
+
+
 @scorer(metrics=[{"*": [mean()]}])
 def keyed() -> Scorer:
-    """Scores each sample with the dictionary in its metadata, keys in order."""
+    return _metadata_score
 
-    async def score(state: TaskState, target: Target) -> Score:
-        return Score(value=dict(state.metadata["value"]))
 
-    return score
+@scorer(metrics={"alpha": [mean()]})
+def keyed_named() -> Scorer:
+    return _metadata_score
+
+
+@scorer(metrics=[{"alpha": [mean()]}])
+def keyed_named_listed() -> Scorer:
+    return _metadata_score
+
+
+@scorer(metrics=[grouped(mean(), "group", all=False, name_template="{group_name[0]}")])
+def grouped_initials() -> Scorer:
+    return _metadata_score
+
+
+@scorer(
+    metrics=[grouped(mean(), "group", all=False, name_template="group-{group_name}")]
+)
+def grouped_prefixed() -> Scorer:
+    return _metadata_score
+
+
+@score_reducer(name="shard_split")
+def shard_split() -> ScoreReducer:
+    """Reduces a sample scoring 1 to `{alpha, beta}` and one scoring 0 to `{alpha}`."""
+
+    def reduce(scores: list[Score]) -> Score:
+        value = scores[0].as_float()
+        return Score(
+            value={"alpha": value, "beta": value} if value else {"alpha": value}
+        )
+
+    return reduce
 
 
 def _keyed_task(
-    values: dict[int, dict[str, int]], headline_metric: str | None = None
+    values: dict[int, Any],
+    headline_metric: str | None = None,
+    scorer: Scorer | None = None,
+    groups: dict[int, str] | None = None,
+    epochs: Epochs | int = 1,
 ) -> Task:
     return Task(
         dataset=[
-            Sample(id=id, input=f"question {id}", metadata={"value": value})
+            Sample(
+                id=id,
+                input=f"question {id}",
+                metadata={"value": value, "group": (groups or {}).get(id)},
+            )
             for id, value in values.items()
         ],
         solver=generate(),
-        scorer=keyed(),
+        scorer=scorer or keyed(),
         name=TASK,
         headline_metric=headline_metric,
+        epochs=epochs,
     )
 
 
 def _merge_keyed(
-    tmp_path: Path, values: dict[int, dict[str, int]], incremental: bool, **kwargs: Any
+    tmp_path: Path, values: dict[int, Any], incremental: bool, **kwargs: Any
 ) -> tuple[str, str]:
     """Run ids 2 and 10 (merged as "10", "2") as two shards, merging after the first if `incremental`."""
     merged, shards = _paths(tmp_path)
@@ -1223,6 +1270,27 @@ def _merge_keyed(
         merge_eval_log_shards(merged, allow_incomplete=True)
     _run(shards, "1", _keyed_task(values, **kwargs), sample_id=[10])
     return merged, shards
+
+
+def _unsharded(tmp_path: Path, values: dict[int, Any], **kwargs: Any) -> EvalLog:
+    return eval(
+        _keyed_task(values, **kwargs),
+        model="mockllm/model",
+        log_dir=str(tmp_path / "unsharded"),
+        display="none",
+    )[0]
+
+
+def _refuses_keyed(
+    tmp_path: Path, values: dict[int, Any], incremental: bool, match: str, **kwargs: Any
+) -> None:
+    """The merge of `values` raises `match`, leaving every file byte-identical."""
+    merged, _ = _merge_keyed(tmp_path, values, incremental, **kwargs)
+    before = _files(str(tmp_path))
+    with pytest.raises(ShardSetError, match=match):
+        merge_eval_log_shards(merged, delete_shards=True)
+    assert _files(str(tmp_path)) == before
+    assert os.path.exists(merged) == incremental
 
 
 def _metric_values(log: EvalLog) -> dict[tuple[str, str], float]:
@@ -1239,12 +1307,7 @@ def test_dictionary_scores_with_keys_in_another_order_merge_to_the_same_values(
     tmp_path: Path, incremental: bool
 ) -> None:
     values = {2: {"alpha": 1, "beta": 0}, 10: {"beta": 1, "alpha": 1}}
-    unsharded = eval(
-        _keyed_task(values),
-        model="mockllm/model",
-        log_dir=str(tmp_path / "unsharded"),
-        display="none",
-    )[0]
+    unsharded = _unsharded(tmp_path, values)
     merged, _ = _merge_keyed(tmp_path, values, incremental)
     log = merge_eval_log_shards(merged, delete_shards=True).log
     assert _metric_values(log) == _metric_values(unsharded)
@@ -1253,12 +1316,7 @@ def test_dictionary_scores_with_keys_in_another_order_merge_to_the_same_values(
 
 def test_a_task_headline_metric_gives_the_unsharded_headline(tmp_path: Path) -> None:
     values = {2: {"alpha": 1, "beta": 0}, 10: {"beta": 1, "alpha": 1}}
-    unsharded = eval(
-        _keyed_task(values, headline_metric="keyed.alpha"),
-        model="mockllm/model",
-        log_dir=str(tmp_path / "unsharded"),
-        display="none",
-    )[0]
+    unsharded = _unsharded(tmp_path, values, headline_metric="keyed.alpha")
     merged, _ = _merge_keyed(tmp_path, values, False, headline_metric="keyed.alpha")
     log = merge_eval_log_shards(merged).log
     assert log.results is not None and unsharded.results is not None
@@ -1272,18 +1330,113 @@ def test_dictionary_scores_with_different_keys_under_a_pattern_metric_are_refuse
 ) -> None:
     # merged first, 10's keys alone give a result (an unsharded run raises)
     values = {2: {"alpha": 1, "beta": 1}, 10: {"alpha": 1}}
-    merged, shards = _merge_keyed(tmp_path, values, incremental)
-    before = _files(str(tmp_path))
-    with pytest.raises(
-        ShardSetError,
-        match=(
-            r"Sample '2' in .* has the score 'keyed' with the keys "
-            r"\['alpha', 'beta'\], but sample '10' in .* has \['alpha'\].* for '\*'"
-        ),
-    ):
-        merge_eval_log_shards(merged, delete_shards=True)
-    assert _files(str(tmp_path)) == before
-    assert os.path.exists(merged) == incremental
+    _refuses_keyed(
+        tmp_path,
+        values,
+        incremental,
+        r"Sample '2' in .* has the score 'keyed' with the keys "
+        r"\['alpha', 'beta'\] .*, but sample '10' in .* has \['alpha'\]",
+    )
+
+
+@pytest.mark.parametrize("incremental", [False, True], ids=["first", "incremental"])
+@pytest.mark.parametrize("declared", [keyed_named, keyed_named_listed])
+def test_dictionary_scores_missing_a_named_metric_key_are_refused(
+    tmp_path: Path, declared: Callable[[], Scorer], incremental: bool
+) -> None:
+    name = declared.__name__
+    # merged first, 10 lacks alpha, so a merge would drop it; a run raises
+    values = {2: {"alpha": 1, "beta": 1}, 10: {"beta": 1}}
+    assert _unsharded(tmp_path, values, scorer=declared()).status == "error"
+    _refuses_keyed(
+        tmp_path,
+        values,
+        incremental,
+        rf"Sample '2' in .* has the score '{name}' with the keys \['alpha'\] "
+        r".*, but sample '10' in .* has \[\]",
+        scorer=declared(),
+    )
+
+
+def test_named_metric_keys_ignore_other_keys(tmp_path: Path) -> None:
+    values = {2: {"alpha": 1, "beta": 1}, 10: {"alpha": 0, "gamma": 1}}
+    unsharded = _unsharded(tmp_path, values, scorer=keyed_named())
+    merged, _ = _merge_keyed(tmp_path, values, False, scorer=keyed_named())
+    log = merge_eval_log_shards(merged, delete_shards=True).log
+    assert _metric_values(log) == _metric_values(unsharded)
+    assert _metric_values(log) == {("alpha", "mean"): 0.5}
+
+
+@pytest.mark.parametrize("incremental", [False, True], ids=["first", "incremental"])
+def test_recorded_reductions_with_different_keys_are_refused(
+    tmp_path: Path, incremental: bool
+) -> None:
+    # scalar scores the reducer turns into dictionaries with different keys
+    values = {2: 1, 10: 0}
+    epochs = Epochs(1, shard_split())
+    assert _unsharded(tmp_path, values, epochs=epochs).status == "error"
+    _refuses_keyed(
+        tmp_path,
+        values,
+        incremental,
+        r"Sample '2' in .* has the score 'keyed' \(reduced by 'shard_split'\) "
+        r"with the keys \['alpha', 'beta'\] .*, but sample '10' in .* has "
+        r"\['alpha'\]",
+        epochs=epochs,
+    )
+
+
+def test_grouped_names_that_can_collide_are_refused(tmp_path: Path) -> None:
+    values, groups = {2: 1, 10: 0}, {2: "alpha", 10: "apple"}
+    _refuses_keyed(
+        tmp_path,
+        values,
+        False,
+        r"grouped\(\) metric of scorer 'grouped_initials' has the name template "
+        r"'\{group_name\[0\]\}'",
+        scorer=grouped_initials(),
+        groups=groups,
+    )
+
+    # a template with the whole group name merges to the run's values
+    other = tmp_path / "prefixed"
+    unsharded = _unsharded(other, values, scorer=grouped_prefixed(), groups=groups)
+    merged, _ = _merge_keyed(
+        other, values, False, scorer=grouped_prefixed(), groups=groups
+    )
+    log = merge_eval_log_shards(merged, delete_shards=True).log
+    assert _metric_values(log) == _metric_values(unsharded)
+    assert _metric_values(log) == {
+        ("grouped_prefixed", "group-alpha"): 1.0,
+        ("grouped_prefixed", "group-apple"): 0.0,
+    }
+
+
+@pytest.mark.parametrize(
+    "template,refused",
+    [
+        ("{group_name}", False),
+        ("{group_name}-{group_name}", False),
+        ("{group_name[0]}", True),
+        ("{group_name:.3}", True),
+        ("{group_name!r}", True),
+        ("all", True),
+    ],
+)
+def test_grouped_templates_are_checked_when_nested(
+    template: str, refused: bool
+) -> None:
+    from inspect_ai._util.registry import registry_params
+    from inspect_ai.log._shards._write import _check_group_names
+    from inspect_ai.scorer import aggregate
+
+    inner = grouped(mean(), "g", name_template=template)
+    options = registry_params(aggregate("k", grouped(inner, "h")))
+    if refused:
+        with pytest.raises(ShardSetError, match="name template"):
+            _check_group_names("s", "aggregate", options)
+    else:
+        _check_group_names("s", "aggregate", options)
 
 
 @pytest.mark.parametrize("snapshot", ["startup", "unscored"])
