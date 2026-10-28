@@ -80,6 +80,8 @@ from inspect_ai.util._checkpoint.sandbox_paths import SandboxBackupPaths
 from inspect_ai.util._sandbox import _privileged as privileged
 from inspect_ai.util._sandbox._framework_directory import FrameworkDirectoryError
 from inspect_ai.util._sandbox._privileged import pinned_shell_command
+from inspect_ai.util._sandbox.environment import SandboxUserUnsupportedError
+from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
 from inspect_ai.util._subprocess import ExecResult
 
 
@@ -1376,6 +1378,69 @@ def test_copy_out_partial_path_hides_once(tmp_path: Path) -> None:
         copy_out_partial_path(tmp_path / ".egress-default-ckpt-00001.tar")
         == tmp_path / ".egress-default-ckpt-00001.tar.partial"
     )
+
+
+@pytest.mark.parametrize("modern", [False, True])
+@pytest.mark.parametrize("wrapped", [False, True])
+@pytest.mark.parametrize(
+    "failure",
+    [None, PermissionError, TimeoutError, TypeError, SandboxUserUnsupportedError],
+)
+async def test_copy_out_file_user_compatibility(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    modern: bool,
+    wrapped: bool,
+    failure: type[Exception] | None,
+) -> None:
+    env = LocalShellSandbox()
+    calls: list[str | None] = []
+
+    async def legacy_read(file: str, text: bool = True) -> bytes:
+        calls.append(None)
+        if failure:
+            raise failure("transfer failed")
+        return Path(file).read_bytes()
+
+    async def modern_read(
+        file: str, text: bool = True, *, user: str | None = None
+    ) -> bytes:
+        calls.append(user)
+        if failure:
+            raise failure("transfer failed")
+        return Path(file).read_bytes()
+
+    monkeypatch.setattr(env, "read_file", modern_read if modern else legacy_read)
+    provider = SandboxEnvironmentProxy(SandboxEnvironmentProxy(env)) if wrapped else env
+    src = tmp_path / "source"
+    src.write_bytes(b"checkpoint")
+    dest = tmp_path / "destination"
+
+    async def copy() -> None:
+        await copy_out(
+            provider,
+            src=str(src),
+            chunk_path=str(tmp_path / "chunk"),
+            size=src.stat().st_size,
+            dest=dest,
+            max_bytes=100,
+            label="test",
+            chunk_size=100,
+        )
+
+    if failure:
+        with pytest.raises(failure, match="transfer failed"):
+            await copy()
+        assert not dest.exists()
+        assert not copy_out_partial_path(dest).exists()
+    else:
+        if isinstance(provider, SandboxEnvironmentProxy):
+            with provider.no_events():
+                await copy()
+        else:
+            await copy()
+        assert dest.read_bytes() == b"checkpoint"
+    assert calls == ["root" if modern else None]
 
 
 async def test_copy_out_roundtrip_multi_chunk(tmp_path: Path) -> None:

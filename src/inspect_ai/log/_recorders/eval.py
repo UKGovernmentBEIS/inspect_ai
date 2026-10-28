@@ -4,6 +4,7 @@ import json
 import logging
 import math
 import os
+import re
 import shutil
 import tempfile
 import warnings
@@ -95,6 +96,12 @@ from .._log import (
 )
 from .._resolve import rebind_sample_timelines, resolve_sample_events_data
 from .file import FileRecorder, write_local_snapshot
+from .json_write import (
+    BinaryWriteStream,
+    write_events_data_field,
+    write_json_array_field,
+    write_json_object_field,
+)
 from .recorder import SampleRecordKey, exclude_sample_fields, sample_read_exclusions
 
 logger = getLogger(__name__)
@@ -512,6 +519,23 @@ class EvalRecorder(FileRecorder):
             reader = AsyncZipReader(fs, location)
             summaries, _ = await _read_all_summaries_async(reader)
             return summaries
+
+    @classmethod
+    @override
+    async def read_log_sample_keys(cls, location: str) -> list[SampleRecordKey]:
+        async with AsyncFilesystem() as fs:
+            cd = await AsyncZipReader(fs, location).entries()
+        keys = (_sample_key(entry.filename) for entry in cd.entries)
+        # a re-logged sample repeats its member name
+        return list(dict.fromkeys(key for key in keys if key is not None))
+
+    @classmethod
+    @override
+    async def read_log_reductions(
+        cls, location: str
+    ) -> list[EvalSampleReductions] | None:
+        log = await cls.read_log(location, header_only=True)
+        return log.reductions
 
     @classmethod
     @override
@@ -1195,7 +1219,8 @@ class ZipLogFile:
             attachments = _sample_history_attachments(
                 sample, history, events, events_data
             )
-            sample_data: dict[str, Any] = jsonable_dict(
+            # Serialize history separately to avoid a second full-sample copy.
+            header: dict[str, JsonValue] = jsonable_dict(
                 sample.model_dump(
                     mode="python",
                     exclude_none=True,
@@ -1203,15 +1228,34 @@ class ZipLogFile:
                     fallback=lambda _x: None,
                 )
             )
-            sample_data.update(
-                {
-                    "events": events,
-                    "attachments": attachments,
-                    "events_data": events_data,
-                }
-            )
-
-            self._zip_writestr(_sample_filename(sample.id, sample.epoch), sample_data)
+            header_bytes = to_json_safe(header, indent=None)
+            # A truncated sample member makes the entire log unreadable.
+            # Keep yielding, but defer cancellation until the entry is complete.
+            with anyio.CancelScope(shield=True):
+                filename = _sample_filename(sample.id, sample.epoch)
+                assert self._zip
+                member_count = len(self._zip.filelist)
+                try:
+                    with self._zip_open_write(filename) as stream:
+                        # Required id/epoch fields make the header non-empty.
+                        stream.write(header_bytes[:-1])
+                        await write_json_array_field(
+                            stream, "events", events, comma=True
+                        )
+                        await write_json_object_field(
+                            stream, "attachments", attachments, comma=True
+                        )
+                        await write_events_data_field(stream, events_data, comma=True)
+                        stream.write(b"}")
+                except BaseException:
+                    # Drop the failed write, preserving any earlier entry.
+                    del self._zip.filelist[member_count:]
+                    prior = [i for i in self._zip.filelist if i.filename == filename]
+                    if prior:
+                        self._zip.NameToInfo[filename] = prior[-1]
+                    else:
+                        self._zip.NameToInfo.pop(filename, None)
+                    raise
 
             key = SampleRecordKey(str(sample.id), sample.epoch)
             # evict a buffered prior record for the same (id, epoch): its
@@ -1941,16 +1985,21 @@ class ZipLogFile:
             )
 
     @contextmanager
-    def _zip_open_write(self, filename: str) -> Generator[IO[bytes], None, None]:
-        """Open a ZIP entry for streaming writes.
-
-        Returns a writable binary stream. The caller writes raw bytes
-        (typically JSON) directly. The entry is finalized when the
-        context manager exits.
-        """
+    def _zip_open_write(
+        self, filename: str
+    ) -> Generator[BinaryWriteStream, None, None]:
+        """Open a ZIP entry, finalizing it on exit; duplicate names supersede."""
         assert self._zip
-        with self._zip.open(filename, "w", force_zip64=True) as stream:
+        # Warning filters are process-global; don't hold them across caller awaits.
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore", message="Duplicate name:", category=UserWarning
+            )
+            stream = self._zip.open(filename, "w", force_zip64=True)
+        try:
             yield stream
+        finally:
+            stream.close()
 
 
 def _sample_history_attachments(
@@ -2245,6 +2294,16 @@ def _read_header(zip: ZipFile, location: str) -> EvalLog:
 
 def _sample_filename(id: str | int, epoch: int) -> str:
     return f"{SAMPLES_DIR}/{id}_epoch_{epoch}.json"
+
+
+# an id may be empty or contain a newline
+_SAMPLE_FILENAME_RE = re.compile(rf"{SAMPLES_DIR}/(.*)_epoch_(\d+)\.json", re.DOTALL)
+
+
+def _sample_key(filename: str) -> SampleRecordKey | None:
+    """The key `_sample_filename` named this member by, or `None` for other members."""
+    match = _SAMPLE_FILENAME_RE.fullmatch(filename)
+    return SampleRecordKey(match[1], int(match[2])) if match else None
 
 
 def _journal_path(file: str) -> str:

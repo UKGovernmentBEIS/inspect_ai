@@ -104,7 +104,7 @@ async def sandbox_agent_bridge(
         state: Initial state for agent bridge. Used as a basis for yielding
             an updated state based on traffic over the bridge.
         model: Pin every request the bridge does not otherwise recognise to
-            this model (e.g. "inspect/openai/gpt-4o"; the "inspect/" prefix is
+            this model (e.g. "inspect/openai/gpt-6-luna"; the "inspect/" prefix is
             optional). Aliases, resolver results and the name "inspect" are not
             pinned. Defaults to `None`, which routes unrecognised names to the
             eval's active model ("inspect" means the same); map other names
@@ -164,9 +164,10 @@ async def sandbox_agent_bridge(
             to pass to CLI agents are available via bridge.mcp_server_configs.
         model_event_sink: Optional sink that takes ownership of `ModelEvent`
             emission for calls routed through the bridge. When set, the bridge
-            installs it around `model.generate()` so the sink decides when and
-            under which span each event is emitted to the transcript. A host
-            tool call the model proposed is recorded in the span the sink set
+            installs it around `model.generate()`. The sink decides under which
+            span each generation runs (its optional `on_start`) and when each
+            event is emitted to the transcript (`on_pending`/`on_complete`); see
+            `ModelEventSink`. A host tool call the model proposed is recorded in the span the sink set
             on the proposing `ModelEvent` by the time `on_complete` returns,
             and is recorded right away: a span set later, or a `ModelEvent`
             the sink emits later, is not matched up with it.

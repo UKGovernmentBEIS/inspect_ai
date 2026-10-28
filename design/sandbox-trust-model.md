@@ -275,6 +275,58 @@ or an `exec_remote` user of `"root"`. In a sandbox whose default user is root,
 omitting `user` runs the tool as root. A tools process that is not root never
 switches user (`guest/_util/user_switch.py:36-50`).
 
+### File-operation users
+
+`read_file` and `write_file` accept a keyword-only `user`. Docker performs
+these operations as that user, or the container's default execution user when
+omitted. The kernel checks access to symlink targets. Root-default evals that
+confine agent tools to another user must supply that user for file operations
+performed on the agent's behalf. Human session-log collection carries its
+configured user through to reads. Providers without user-aware reads cannot
+collect recordings for an explicit human user: collection warns and omits the
+logs, and callers can disable recording with `record_session=False`. Falling
+back to a userless read would let a less privileged human redirect a log path
+to a file readable only by the provider's more privileged reader. Skill
+installation's default-user writes followed by privileged ownership and mode
+changes remain a known pre-existing gap: an agent-controlled destination can
+redirect these operations through symlinks. That gap is tracked separately in
+[meridianlabs-ai/inspect_ai#590](https://github.com/meridianlabs-ai/inspect_ai/issues/590).
+
+Docker runs system `tar` inside the container, following symlinks without
+recursing into directories. The bounded archive reader rejects anything
+other than one regular file and never extracts on the host. `TAR_OPTIONS` is
+cleared so image settings cannot change the archive format. Actual kernel
+permissions replace the old owner-read-bit heuristic. Concurrently modified
+files can return best-effort contents or fail. GNU tar's changed-file warning
+is accepted only when its complete diagnostics contain no other failures;
+the archive still passes the same type and size checks. Shrinking-file errors
+and other tar failures propagate without retrying under another user.
+
+Reads require a running Linux container with `tar --no-recursion`,
+`/bin/sh` and `/usr/bin/timeout`. Reads share Docker exec's cancellation
+limitation: cancelling the host call does not guarantee immediate termination
+inside the container; the ten-minute in-container timeout remains the fallback.
+
+The sandbox proxy rejects an explicit user before calling a provider that does
+not declare a keyword-capable `user` parameter. Calls without a user retain
+the old provider interface. Successful file events record an explicit user in
+the existing `options` map; the schema is unchanged. Producers are proxy reads
+and writes; consumers are transcript/log readers, hooks, dataframes, the
+viewer and replay. Old events retain their existing shape.
+
+Checkpoint export requests `user="root"` when the provider declares support,
+including through nested proxies. Only the old interface receives the old
+call. Permission errors, timeouts, unsupported-root errors and internal
+`TypeError`s propagate after one attempt. This exception is confined to
+checkpoint chunks under a verified root-owned private directory. The directory
+and verify-before-use requirements elsewhere in this document remain necessary.
+Existing calls to Kubernetes, Modal, Daytona and E2B remain unchanged; this
+does not add checkpoint support to those providers.
+
+Docker reads use container execution rather than daemon-backed copies, with no
+privileged fallback. Callers that intentionally need privileged reads must
+specify `user="root"`.
+
 ## Threat model
 
 ### Trust anchors

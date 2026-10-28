@@ -26,6 +26,8 @@ This module deliberately avoids importing pytest because it's in main, not test 
 
 import random
 import string
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Any, Generic, Optional, Type, TypeVar
 
 import anyio
@@ -42,6 +44,32 @@ from inspect_ai.util._sandbox.limits import override_max_read_file_size
 async def _cleanup_file(sandbox_env: SandboxEnvironment, filename: str) -> None:
     res = await sandbox_env.exec(["rm", "-f", "--", filename])
     assert res.success
+
+
+@asynccontextmanager
+async def _sandbox_user(
+    sandbox_env: SandboxEnvironment, username: str
+) -> AsyncIterator[None]:
+    """Create and remove an account for checks requiring user switching."""
+    # Neither adduser nor useradd are part of POSIX.
+    result = await sandbox_env.exec(["adduser", "--help"])
+    if "BusyBox" in result.stdout + result.stderr:
+        command = ["adduser", "-D", username]
+    else:
+        command = [
+            "adduser",
+            "--comment",
+            "self_check.py",
+            "--disabled-password",
+            username,
+        ]
+
+    try:
+        result = await sandbox_env.exec(command, user="root", timeout=10)
+        assert result.success, f"Failed to add user: {result.stderr}"
+        yield
+    finally:
+        await sandbox_env.exec(["userdel", "-r", username], user="root")
 
 
 async def test_read_and_write_file_text(sandbox_env: SandboxEnvironment) -> None:
@@ -154,6 +182,103 @@ async def test_read_file_not_allowed(sandbox_env: SandboxEnvironment) -> None:
     finally:
         await sandbox_env.exec(["chmod", "+r", file_name])
         await _cleanup_file(sandbox_env, file_name)
+
+
+async def test_read_file_as_user(sandbox_env: SandboxEnvironment) -> None:
+    """Read as a supported user, enforcing permissions through symlinks too.
+
+    Requires root access and account creation, as test_exec_as_user does.
+    """
+    username = "inspect-ai-test-read-user"
+    async with _sandbox_user(sandbox_env, username):
+        result = await sandbox_env.exec(["mktemp", "-d"])
+        assert result.success, result.stderr
+        directory = result.stdout.strip()
+        file_name = f"{directory}/private"
+        link_name = f"{directory}/link"
+        try:
+            await sandbox_env.write_file(file_name, "private")
+            assert (await sandbox_env.exec(["chmod", "755", directory])).success
+            assert (
+                await sandbox_env.exec(["chown", "root", file_name], user="root")
+            ).success
+            assert (
+                await sandbox_env.exec(["chmod", "600", file_name], user="root")
+            ).success
+            assert (await sandbox_env.exec(["ln", "-s", file_name, link_name])).success
+
+            for path in (file_name, link_name):
+                assert await sandbox_env.read_file(path, user="root") == "private"
+                with Raises(PermissionError):
+                    await sandbox_env.read_file(path, user=username)
+                with Raises(PermissionError):
+                    await sandbox_env.read_file(path, text=False, user=username)
+
+            assert (
+                await sandbox_env.exec(["chmod", "644", file_name], user="root")
+            ).success
+            for path in (file_name, link_name):
+                assert await sandbox_env.read_file(path, user=username) == "private"
+                assert (
+                    await sandbox_env.read_file(path, text=False, user=username)
+                    == b"private"
+                )
+        finally:
+            result = await sandbox_env.exec(["rm", "-rf", directory], user="root")
+            assert result.success, result.stderr
+
+
+async def test_write_file_as_user(sandbox_env: SandboxEnvironment) -> None:
+    """Write as a supported user, enforcing permissions through symlinks too.
+
+    Requires root access and account creation, as test_exec_as_user does.
+    """
+    username = "inspect-ai-test-write-user"
+    async with _sandbox_user(sandbox_env, username):
+        result = await sandbox_env.exec(["mktemp", "-d"])
+        assert result.success, result.stderr
+        directory = result.stdout.strip()
+        file_name = f"{directory}/private"
+        link_name = f"{directory}/link"
+        writable_directory = f"{directory}/writable"
+        try:
+            await sandbox_env.write_file(file_name, "private")
+            assert (await sandbox_env.exec(["chmod", "755", directory])).success
+            assert (
+                await sandbox_env.exec(["chown", "root", file_name], user="root")
+            ).success
+            assert (
+                await sandbox_env.exec(["chmod", "600", file_name], user="root")
+            ).success
+            assert (await sandbox_env.exec(["ln", "-s", file_name, link_name])).success
+            assert (await sandbox_env.exec(["mkdir", writable_directory])).success
+            assert (
+                await sandbox_env.exec(
+                    ["chown", username, writable_directory], user="root"
+                )
+            ).success
+
+            for contents, expected in (("text", "text"), (b"bytes", "bytes")):
+                writable_file = f"{writable_directory}/{expected}"
+                await sandbox_env.write_file(writable_file, contents, user=username)
+                result = await sandbox_env.exec(["cat", writable_file], user=username)
+                assert result.success, result.stderr
+                assert result.stdout == expected
+                result = await sandbox_env.exec(
+                    ["find", writable_file, "-user", username, "-print"], user="root"
+                )
+                assert result.success, result.stderr
+                assert result.stdout.strip() == writable_file
+
+                for path in (file_name, link_name):
+                    with Raises(PermissionError):
+                        await sandbox_env.write_file(path, contents, user=username)
+                    result = await sandbox_env.exec(["cat", file_name], user="root")
+                    assert result.success, result.stderr
+                    assert result.stdout == "private"
+        finally:
+            result = await sandbox_env.exec(["rm", "-rf", directory], user="root")
+            assert result.success, result.stderr
 
 
 async def test_read_file_is_directory(sandbox_env: SandboxEnvironment) -> None:
@@ -597,33 +722,7 @@ async def test_exec_large_command(sandbox_env: SandboxEnvironment) -> None:
 
 async def test_exec_as_user(sandbox_env: SandboxEnvironment) -> None:
     username = "inspect-ai-test-exec-as-user"
-
-    # Neither adduser nor useradd are part of POSIX, so we need some brittle logic here
-    adduser_help_exec_result = await sandbox_env.exec(["adduser", "--help"])
-    adduser_help_text = (
-        adduser_help_exec_result.stdout + adduser_help_exec_result.stderr
-    )
-
-    if "BusyBox" in adduser_help_text:
-        adduser_command = ["adduser", "-D", username]
-    else:
-        adduser_command = [
-            "adduser",
-            "--comment",
-            "self_check.py",
-            "--disabled-password",
-            username,
-        ]
-
-    try:
-        # Create a new user
-        add_user_result = await sandbox_env.exec(
-            adduser_command,
-            user="root",
-            timeout=10,  # in one case adduser decided to ask for input which caused the test to hang indefinitely
-        )
-        assert add_user_result.success, f"Failed to add user: {add_user_result.stderr}"
-
+    async with _sandbox_user(sandbox_env, username):
         # Test exec as different users
         root_result = await sandbox_env.exec(["whoami"], user="root")
         assert root_result.stdout.strip() == "root", (
@@ -633,9 +732,6 @@ async def test_exec_as_user(sandbox_env: SandboxEnvironment) -> None:
         assert myuser_result.stdout.strip() == username, (
             f"Expected '{username}', got '{myuser_result.stdout.strip()}'"
         )
-    finally:
-        # Clean up
-        await sandbox_env.exec(["userdel", "-r", username], user="root")
 
 
 async def test_exec_as_nonexistent_user(sandbox_env: SandboxEnvironment) -> None:

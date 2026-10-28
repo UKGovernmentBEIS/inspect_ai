@@ -832,29 +832,29 @@ button._segment_116ql_10._disabled_116ql_51:hover {
 ._hidden_hqi3c_47 {
   opacity: 0 !important;
 }
-.btn._toolButton_xg5wq_1 {
+.btn._toolButton_1nbeo_1 {
   background-color: var(--bs-light-border-subtle);
 }
 
-.btn._toolButton_xg5wq_1._bodyColor_xg5wq_5 {
+.btn._toolButton_1nbeo_1._bodyColor_1nbeo_5 {
   background-color: var(--bs-light);
 }
 
-._toolButton_xg5wq_1 {
+._toolButton_1nbeo_1 {
   white-space: nowrap;
 }
 
-._toolButton_xg5wq_1 i {
+._toolButton_1nbeo_1 i {
   margin-right: 0.5em;
 }
 
-._toolButton_xg5wq_1 ._chevron_xg5wq_17 {
+._toolButton_1nbeo_1 ._chevron_1nbeo_17 {
   margin-left: 0.5em;
   margin-right: 0;
   font-size: 0.75em;
 }
 
-._toolButton_xg5wq_1:focus {
+._toolButton_1nbeo_1:focus {
   outline: none;
   box-shadow:
     0 0 0 2px rgba(var(--bs-primary-rgb), 0.5),
@@ -862,7 +862,7 @@ button._segment_116ql_10._disabled_116ql_51:hover {
     inset 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
-._backdrop_xg5wq_31 {
+._backdrop_1nbeo_31 {
   position: fixed;
   top: 0;
   left: 0;
@@ -872,7 +872,7 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   z-index: 1049;
 }
 
-._dropdownMenu_xg5wq_41 {
+._dropdownMenu_1nbeo_41 {
   position: fixed;
   background: var(--bs-body-bg);
   border: 1px solid var(--bs-border-color);
@@ -883,7 +883,7 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   overflow: hidden;
 }
 
-._dropdownItem_xg5wq_52 {
+._dropdownItem_1nbeo_52 {
   display: block;
   width: 100%;
   padding: 0.25rem 0.75rem;
@@ -896,15 +896,20 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   transition: background-color 0.15s ease-in-out;
 }
 
-._dropdownItem_xg5wq_52:hover {
+._dropdownItem_1nbeo_52:hover {
   background-color: var(--bs-tertiary-bg);
 }
 
-._dropdownItem_xg5wq_52:active {
+._dropdownItem_1nbeo_52:active {
   background-color: var(--bs-secondary-bg);
 }
 
-._dropdownHeading_xg5wq_73 {
+._dropdownItemSelected_1nbeo_73,
+._dropdownItemSelected_1nbeo_73:hover {
+  background-color: var(--bs-primary-bg-subtle);
+}
+
+._dropdownHeading_1nbeo_78 {
   padding: 0.15rem 0.75rem 0.1rem;
   font-size: 0.65rem;
   text-transform: uppercase;
@@ -913,33 +918,33 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   white-space: nowrap;
 }
 
-._dropdownDivider_xg5wq_82 {
+._dropdownDivider_1nbeo_87 {
   border-top: 1px solid var(--bs-border-color);
   margin: 0.25rem 0;
 }
 
-._dropdownFooter_xg5wq_87 {
+._dropdownFooter_1nbeo_92 {
   display: flex;
   align-items: center;
   gap: 0.5em;
   color: var(--bs-secondary-color);
 }
 
-._dropdownFooter_xg5wq_87 i {
+._dropdownFooter_1nbeo_92 i {
   font-size: 0.85em;
 }
 
-._toolButton_xg5wq_1 ._noMargin_xg5wq_98 {
+._toolButton_1nbeo_1 ._noMargin_1nbeo_103 {
   margin-right: 0;
 }
 
-._collapsibleLabel_xg5wq_102 {
+._collapsibleLabel_1nbeo_107 {
   margin-left: 0.5em;
 }
 
 /* Below this width the label is visually hidden but stays the accessible name. */
 @media (max-width: 1300px) {
-  ._collapsibleLabel_xg5wq_102 {
+  ._collapsibleLabel_1nbeo_107 {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -13691,6 +13696,14 @@ pre[class*="language-"] {
   --inspect-glass-color: #000000;
   --inspect-glass-opacity: 0.3;
 
+  /* Terminal session bodies stay dark in every theme (the recordings' ANSI
+     colors assume a dark background). */
+  --inspect-terminal-background: #2d2d2d;
+  --inspect-terminal-foreground: #cccccc;
+  /* The largest terminal text: the transcript's tool output size (0.9em of
+     the smaller size). Narrower rows fit their columns below it. */
+  --inspect-terminal-font-size: calc(var(--inspect-font-size-smaller) * 0.9);
+
   /* Tool messages — dedicated tokens so apps (and the vscode bridge) can
      re-skin tool calls/outputs/errors without patching component CSS.
      Defaults reproduce the previous hard-coded appearance. */
@@ -23909,7 +23922,7 @@ a._turnButton_loteg_100 {
 ._eventsList_sou2s_45 {
   padding-bottom: 1rem;
 }
-._tabControls_fvnsu_1 {
+._tabControls_6sqvk_1 {
   position: sticky;
   z-index: 1001;
   top: var(--inspect-sample-header-height, 0);
@@ -23918,38 +23931,38 @@ a._turnButton_loteg_100 {
   background-color: var(--bs-body-bg);
 }
 
-._fullWidth_fvnsu_10 {
+._fullWidth_6sqvk_10 {
   width: 100%;
 }
 
-._metadataPanel_fvnsu_14 {
+._metadataPanel_6sqvk_14 {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
 }
 
-._padded_fvnsu_20 {
+._padded_6sqvk_20 {
   padding-left: 0.8em;
   margin-top: 0.4em;
 }
 
-._error_fvnsu_25 {
+._error_6sqvk_25 {
   padding-top: 0.5em;
 }
 
-._ansi_fvnsu_29 {
+._ansi_6sqvk_29 {
   margin: 1em 0;
 }
 
-._noTop_fvnsu_33 {
+._noTop_6sqvk_33 {
   margin-top: 0;
 }
 
-._chat_fvnsu_37 {
+._chat_6sqvk_37 {
   padding: 0.5rem;
 }
 
-._railHost_fvnsu_41 {
+._railHost_6sqvk_41 {
   display: flex;
   flex-direction: row;
   align-items: stretch;
@@ -23957,18 +23970,18 @@ a._turnButton_loteg_100 {
   min-width: 0;
 }
 
-._tabContent_fvnsu_49 {
+._tabContent_6sqvk_49 {
   flex: 1;
   width: 100%;
   min-width: 0;
   min-height: 0;
 }
 
-._padded_fvnsu_20 {
+._padded_6sqvk_20 {
   padding: 1em;
 }
 
-._overflowVisible_fvnsu_60 {
+._overflowVisible_6sqvk_60 {
   overflow-y: visible;
 }
 
@@ -23976,7 +23989,7 @@ a._turnButton_loteg_100 {
    inline-block ensures it lays out alongside ToolButtons in TabSet's
    flex/wrap tools row, and the negative margin tightens the column-gap
    on either side so it reads as a separator rather than another tool. */
-._toolSeparator_fvnsu_68 {
+._toolSeparator_6sqvk_68 {
   display: inline-block;
   width: 1px;
   align-self: center;
@@ -23985,7 +23998,7 @@ a._turnButton_loteg_100 {
   margin: 0 0.3rem;
 }
 
-._retriedErrors_fvnsu_77 {
+._retriedErrors_6sqvk_77 {
   /* Full-bleed (no card), with a small uniform inset from the tab edges. */
   margin: 0;
   padding: 0.5rem;
@@ -23993,6 +24006,11 @@ a._turnButton_loteg_100 {
   overflow: hidden;
   align-self: stretch;
   flex: 1;
+}
+
+/* The Terminals tab's fullscreen control: the icon reads at a glance. */
+._fullscreenTool_6sqvk_88 i {
+  font-size: 1.05em;
 }
 ._card_1bwn0_1 {
   flex: 1;
@@ -24941,195 +24959,746 @@ pre._value_8citi_25 {
 ._scores_148cv_9 {
   padding-top: 1em;
 }
-._tiles_gwli1_1 {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 1em;
-}
-
-._tile_gwli1_1 {
-  position: relative;
+._view_1mnpl_1 {
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--bs-border-color);
-  border-radius: var(--bs-border-radius);
-  overflow: hidden;
-  background-color: var(--bs-body-bg);
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  outline: none;
+  background-color: var(--vscode-sideBar-background);
 }
 
-._tile_gwli1_1:hover,
-._tile_gwli1_1:focus-within {
-  border-color: var(--bs-primary);
+/* Filling the window: over the sample's sticky header (1002), under dropdown
+   menus (1050; the agent picker's menu opens from the fill header) and the
+   expanded terminal (1060). */
+._viewFill_1mnpl_14 {
+  position: fixed;
+  inset: 0;
+  z-index: 1030;
+  height: 100vh;
 }
 
-._tileHeader_gwli1_22 {
+/* Sized to its rows, so the controls sit right under them; once the rows
+   need the view's whole height the stage shrinks and the controls stay at
+   the bottom. */
+._stage_1mnpl_24 {
+  flex: 0 1 auto;
+  min-height: 0;
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.5em;
-  padding: 0.35em 0.6em;
-  border-bottom: 1px solid var(--bs-border-color);
-}
-
-._tileName_gwli1_31 {
-  font-weight: 600;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px 14px;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-._tilePreview_gwli1_38 {
+._stageScrolls_1mnpl_34 {
+  overflow-y: auto;
+}
+
+/* Rows */
+
+._row_1mnpl_40 {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: var(--vscode-editor-background);
+  box-shadow: 0 0 0 1px var(--vscode-widget-border);
+  transition: box-shadow 120ms ease;
+}
+
+._rowFocused_1mnpl_51 {
+  box-shadow:
+    0 0 0 2px var(--vscode-focusBorder),
+    0 2px 10px rgba(0, 0, 0, 0.18);
+}
+
+._bar_1mnpl_57 {
   position: relative;
-  height: 200px;
-  background-color: #121314;
-  pointer-events: none;
+  display: flex;
+  align-items: stretch;
+  height: 26px;
+  flex-shrink: 0;
+  color: var(--vscode-descriptionForeground);
+  background-color: var(--vscode-sideBar-background);
+  font-size: 12px;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
 }
 
-._tilePlay_gwli1_45 {
+/* An accent tint over the bar that fades: a session opening, or a command
+   landing in a row the user isn't watching. */
+._barFlash_1mnpl_73 {
   position: absolute;
   inset: 0;
+  background-color: var(--vscode-focusBorder);
+  opacity: 0;
+  pointer-events: none;
+  animation: _barFlash_1mnpl_73 600ms ease-out;
+}
+
+@keyframes _barFlash_1mnpl_73 {
+  0% {
+    opacity: 0;
+  }
+  17% {
+    opacity: 0.35;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+._newCommand_1mnpl_94 {
+  color: var(--vscode-textLink-foreground);
+  font-weight: 700;
+  animation: _newCommand_1mnpl_94 600ms ease-out forwards;
+}
+
+@keyframes _newCommand_1mnpl_94 {
+  0%,
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+._rowFocused_1mnpl_51 ._bar_1mnpl_57 {
+  color: var(--vscode-foreground);
+  background-color: var(--vscode-list-inactiveSelectionBackground);
+}
+
+._rowFolded_1mnpl_115 ._bar_1mnpl_57 {
+  background-color: var(--vscode-editor-background);
+}
+
+._rowClosed_1mnpl_119 ._bar_1mnpl_57 {
+  background-color: var(--bs-secondary-bg);
+}
+
+._barButton_1mnpl_123 {
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-size: 3em;
-  color: rgba(255, 255, 255, 0.85);
-  opacity: 0;
-  transition: opacity 0.15s ease;
-}
-
-._tile_gwli1_1:hover ._tilePlay_gwli1_45,
-._tile_gwli1_1:focus-within ._tilePlay_gwli1_45 {
-  opacity: 1;
-}
-
-._tileButton_gwli1_62 {
-  position: absolute;
-  inset: 0;
   border: 0;
+  padding: 0;
   background: transparent;
+  color: inherit;
+  font: inherit;
   cursor: pointer;
 }
 
-._tileButton_gwli1_62:focus-visible {
-  outline: 2px solid var(--bs-primary);
+/* Layered over the bar's own background, so a focused or folded bar keeps
+   its tint under the hover. */
+._bar_1mnpl_57:hover:has(._barMain_1mnpl_136:enabled) {
+  background-image: linear-gradient(
+    var(--vscode-toolbar-hoverBackground),
+    var(--vscode-toolbar-hoverBackground)
+  );
+}
+
+._barButton_1mnpl_123:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder);
   outline-offset: -2px;
 }
 
-._overlay_gwli1_75 {
-  position: fixed;
-  inset: 0;
-  z-index: 1060;
-  display: flex;
-  flex-direction: column;
-  background-color: rgba(0, 0, 0, 0.92);
-}
-
-._overlayHeader_gwli1_84 {
+._chevron_1mnpl_148 {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1em;
-  padding: 0.6em 1em;
-  color: #fff;
+  justify-content: center;
+  width: 26px;
+  flex-shrink: 0;
+  font-size: 12px;
 }
 
-._overlayTitleGroup_gwli1_93 {
+._rowFocused_1mnpl_51 ._chevron_1mnpl_148,
+._rowFocused_1mnpl_51 ._sessionName_1mnpl_158 {
+  color: var(--vscode-textLink-foreground);
+}
+
+._barMain_1mnpl_136 {
+  flex: 1;
+  min-width: 0;
+  gap: 10px;
+  padding-right: 10px;
+  text-align: left;
+}
+
+._sessionName_1mnpl_158 {
+  flex-shrink: 0;
+  font-family: var(--bs-font-monospace);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+._rowFolded_1mnpl_115 ._sessionName_1mnpl_158 {
+  color: var(--vscode-foreground);
+}
+
+._lastCommand_1mnpl_181 {
+  align-self: center;
+  flex: 0 1 auto;
+  min-width: 3em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--bs-font-monospace);
+}
+
+._snippet_1mnpl_191 {
+  flex: 0 100 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--bs-font-monospace);
+}
+
+._barMeta_1mnpl_200 {
+  flex-shrink: 0;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+._fullscreenButton_1mnpl_210 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--vscode-descriptionForeground);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+._fullscreenButton_1mnpl_210:hover {
+  background-color: var(--vscode-toolbar-hoverBackground);
+  color: var(--vscode-foreground);
+}
+
+._bodyFrame_1mnpl_229 {
+  position: relative;
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: height 200ms cubic-bezier(0.2, 0, 0, 1);
+  background-color: var(--inspect-terminal-background);
+}
+
+._body_1mnpl_229 {
+  height: 100%;
+  padding: 8px 8px 6px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* PlayerSync owns the scroll position; the browser's anchoring would move
+     it again when the player rewrites its lines. */
+  overflow-anchor: none;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+  cursor: pointer;
+}
+
+/* Unfocused bodies keep full-contrast text; the inset shadow under the bar
+   is what quiets them. */
+._rowOpen_1mnpl_253 ._bodyFrame_1mnpl_229::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 16px 14px -14px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+}
+
+/* The player fits its columns to this box's width, so capping the width at
+   the columns in the terminal font at --inspect-terminal-font-size (plus the
+   player's 0.75em border each side) caps the text at that size. */
+._playerCap_1mnpl_264 {
+  overflow: hidden;
+  max-width: calc(var(--terminal-cols) * 1ch + 1.5em);
+  font-family: var(--term-font-family, monospace);
+  font-size: var(--inspect-terminal-font-size);
+}
+
+._body_1mnpl_229 .asciinema-player-theme-asciinema {
+  --term-color-background: var(--inspect-terminal-background);
+  --term-color-foreground: var(--inspect-terminal-foreground);
+}
+
+._body_1mnpl_229 .ap-player {
+  background-color: var(--inspect-terminal-background);
+}
+
+._body_1mnpl_229 .ap-player .ap-overlay-start {
+  display: none;
+}
+
+._body_1mnpl_229 .ap-term {
+  cursor: text;
+  user-select: text;
+}
+
+._latest_1mnpl_289 {
+  position: absolute;
+  right: 18px;
+  bottom: 8px;
+  z-index: 1;
+  padding: 2px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 999px;
+  background-color: rgba(0, 0, 0, 0.6);
+  color: var(--inspect-terminal-foreground);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+._latest_1mnpl_289:hover {
+  background-color: rgba(0, 0, 0, 0.8);
+}
+
+/* Control strip and timeline */
+
+._controls_1mnpl_309 {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 4px 8px 4px 14px;
+  border-top: 1px solid var(--vscode-widget-border);
+  background-color: var(--vscode-editor-background);
+  color: var(--vscode-foreground);
+}
+
+._controlRow_1mnpl_320 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 28px;
+}
+
+._controlTools_1mnpl_327 {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+._playButton_1mnpl_334 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background-color: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  font-size: 16px;
+  cursor: pointer;
+}
+
+._playButton_1mnpl_334:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder);
+  outline-offset: 2px;
+}
+
+._readout_1mnpl_354 {
   display: flex;
   align-items: baseline;
-  flex-wrap: wrap;
-  column-gap: 1em;
+  gap: 4px;
+  flex-shrink: 0;
+  font-family: var(--bs-font-monospace);
+  font-variant-numeric: tabular-nums;
+}
+
+._readoutElapsed_1mnpl_363 {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+._readoutTotal_1mnpl_368 {
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+}
+
+._readoutNote_1mnpl_373 {
+  flex-shrink: 2;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+}
+
+._chip_1mnpl_383 {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 2px 10px;
+  border: 1px solid var(--vscode-widget-border);
+  border-radius: 999px;
+  background-color: var(--vscode-editor-background);
+  color: var(--vscode-textLink-foreground);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+._chip_1mnpl_383:hover {
+  background-color: var(--vscode-list-hoverBackground);
+}
+
+._controlSpacer_1mnpl_404 {
+  flex: 1;
   min-width: 0;
 }
 
-._overlayTitle_gwli1_93 {
-  font-weight: 600;
+._speedGroup_1mnpl_409 {
+  display: inline-flex;
+  flex-shrink: 0;
+  border: 1px solid var(--vscode-widget-border);
+  border-radius: 6px;
+  overflow: hidden;
 }
 
-._overlayNote_gwli1_105 {
-  color: rgba(255, 255, 255, 0.7);
+._speedButton_1mnpl_417 {
+  height: 22px;
+  padding: 0 7px;
+  border: 0;
+  background: transparent;
+  color: var(--vscode-descriptionForeground);
+  font-size: 11px;
+  cursor: pointer;
 }
 
-._overlayNoteDetail_gwli1_109 {
-  color: rgba(255, 255, 255, 0.45);
+._speedButton_1mnpl_417 + ._speedButton_1mnpl_417 {
+  border-left: 1px solid var(--vscode-widget-border);
 }
 
-._overlayControls_gwli1_113 {
+._speedButtonActive_1mnpl_431 {
+  background-color: var(--vscode-list-inactiveSelectionBackground);
+  color: var(--vscode-textLink-foreground);
+  font-weight: 700;
+}
+
+._speedButton_1mnpl_417:hover {
+  background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+._timelineToggle_1mnpl_441 {
   display: flex;
   align-items: center;
-  gap: 0.75em;
-  margin-left: auto;
-}
-
-._speedGroup_gwli1_120 {
-  display: inline-flex;
-}
-
-._speedGroup_gwli1_120 ._headerButton_gwli1_124:not(:first-child) {
-  margin-left: -1px;
-}
-
-._speedGroup_gwli1_120 ._headerButton_gwli1_124:not(:first-child, :last-child) {
-  border-radius: 0;
-}
-
-._speedGroup_gwli1_120 ._headerButton_gwli1_124:first-child:not(:last-child) {
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-}
-
-._speedGroup_gwli1_120 ._headerButton_gwli1_124:last-child:not(:first-child) {
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
-}
-
-._headerButton_gwli1_124 {
-  padding: 0.15em 0.6em;
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  border-radius: var(--bs-border-radius);
-  background: transparent;
-  color: rgba(255, 255, 255, 0.8);
-  font-size: var(--inspect-font-size-small);
-  cursor: pointer;
-}
-
-._headerButton_gwli1_124:hover,
-._headerButton_gwli1_124:focus-visible {
-  background-color: rgba(255, 255, 255, 0.12);
-  color: #fff;
-}
-
-._headerButton_gwli1_124._headerButtonActive_gwli1_158 {
-  background-color: rgba(255, 255, 255, 0.25);
-  color: #fff;
-}
-
-._closeButton_gwli1_163 {
-  display: inline-flex;
-  align-items: center;
   justify-content: center;
-  padding: 0 0.15em;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
   border: 0;
-  border-radius: var(--bs-border-radius);
+  border-radius: 4px;
   background: transparent;
-  color: #fff;
-  font-size: 1.75em;
-  line-height: 1;
+  color: var(--vscode-descriptionForeground);
   cursor: pointer;
 }
 
-._closeButton_gwli1_163:hover,
-._closeButton_gwli1_163:focus-visible {
-  background-color: rgba(255, 255, 255, 0.15);
+._timelineToggle_1mnpl_441:hover {
+  background-color: var(--vscode-toolbar-hoverBackground);
+  color: var(--vscode-foreground);
 }
 
-._overlayBody_gwli1_182 {
+._timelineChevron_1mnpl_460 {
+  display: inline-flex;
+  font-size: 12px;
+  transition: transform 200ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+._timelineChevronFolded_1mnpl_466 {
+  transform: rotate(180deg);
+}
+
+._timeline_1mnpl_441 {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  user-select: none;
+}
+
+._laneLabels_1mnpl_476 {
+  display: flex;
+  flex-direction: column;
+  padding-top: 22px;
+}
+
+._laneLabel_1mnpl_476 {
+  height: 18px;
+  padding: 0 6px 0 0;
+  border: 0;
+  background: transparent;
+  color: var(--vscode-descriptionForeground);
+  font-family: var(--bs-font-monospace);
+  font-size: 11px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+._laneLabelFocused_1mnpl_497 {
+  color: var(--vscode-textLink-foreground);
+  font-weight: 700;
+}
+
+._track_1mnpl_502 {
+  position: relative;
+  cursor: pointer;
+  touch-action: none;
+}
+
+._ruler_1mnpl_508 {
+  position: relative;
+  height: 16px;
+  border-bottom: 1px solid var(--vscode-widget-border);
+  font-family: var(--bs-font-monospace);
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+}
+
+._rulerLabel_1mnpl_517 {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+._rulerLabel_1mnpl_517:first-child {
+  transform: none;
+}
+
+._rulerLabelEnd_1mnpl_528 {
+  transform: translateX(-100%);
+}
+
+._lane_1mnpl_476 {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 13px;
+}
+
+._lifetime_1mnpl_539 {
+  position: absolute;
+  top: 4px;
+  height: 5px;
+  border-radius: 3px;
+  background-color: var(--vscode-widget-border);
+}
+
+._focusSegment_1mnpl_547 {
+  position: absolute;
+  top: 3px;
+  height: 7px;
+  border-radius: 2px;
+  background-color: var(--vscode-focusBorder);
+  opacity: 0.55;
+}
+
+/* A 7 px target around a 1 px line. */
+._tick_1mnpl_557 {
+  position: absolute;
+  top: 1px;
+  width: 7px;
+  height: 11px;
+  margin-left: -3px;
+  cursor: pointer;
+}
+
+._tick_1mnpl_557::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  width: 1px;
+  height: 100%;
+  background-color: var(--vscode-foreground);
+  opacity: 0.7;
+}
+
+._tick_1mnpl_557:hover::before {
+  opacity: 1;
+  width: 2px;
+  left: 2.5px;
+}
+
+._tickChip_1mnpl_582 {
+  position: absolute;
+  z-index: 2;
+  transform: translate(-6px, -110%);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background-color: var(--vscode-editorHoverWidget-background);
+  color: var(--vscode-editor-foreground);
+  box-shadow: 0 0 0 1px var(--vscode-widget-border);
+  font-family: var(--bs-font-monospace);
+  font-size: 11px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+._tickChipLeft_1mnpl_597 {
+  transform: translate(calc(-100% + 6px), -110%);
+}
+
+._playhead_1mnpl_601 {
+  position: absolute;
+  top: 17px;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background-color: var(--vscode-editor-foreground);
+  pointer-events: none;
+}
+
+._foldedTrack_1mnpl_611 {
+  position: relative;
   flex: 1;
-  min-height: 0;
-  padding: 0 1em 1em;
+  min-width: 60px;
+  height: 16px;
+  cursor: pointer;
+  touch-action: none;
 }
 
-._overlayBody_gwli1_182 .ap-term {
-  cursor: pointer;
+._foldedTrack_1mnpl_611 ._lane_1mnpl_476 {
+  top: 2px;
+}
+
+._foldedTrack_1mnpl_611 ._playhead_1mnpl_601 {
+  top: 0;
+}
+
+._foldedFocus_1mnpl_628 {
+  flex-shrink: 0;
+  font-family: var(--bs-font-monospace);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--vscode-textLink-foreground);
+}
+
+._holdChip_1mnpl_636 {
+  flex-shrink: 1;
+}
+
+._scrubChip_1mnpl_640 {
+  flex-shrink: 1;
+  border-color: transparent;
+  background-color: var(--vscode-editor-foreground);
+  color: var(--vscode-editor-background);
+  font-family: var(--bs-font-monospace);
+  cursor: default;
+}
+
+._scrubChip_1mnpl_640:hover {
+  background-color: var(--vscode-editor-foreground);
+}
+
+@keyframes _chipIn_1mnpl_1 {
+  from {
+    opacity: 0;
+  }
+}
+
+._foldedTimeline_1mnpl_659 {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* The full lanes slide up over the stage while the folded bar is hovered. */
+._peek_1mnpl_668 {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  z-index: 3;
+  padding: 6px 8px 4px 14px;
+  border-top: 1px solid var(--vscode-widget-border);
+  background-color: var(--vscode-editor-background);
+  box-shadow: 0 -6px 16px rgba(0, 0, 0, 0.18);
+  animation: _peekIn_1mnpl_1 150ms ease-out;
+}
+
+@keyframes _peekIn_1mnpl_1 {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ._row_1mnpl_40,
+  ._bar_1mnpl_57,
+  ._bodyFrame_1mnpl_229 {
+    transition: none;
+  }
+
+  ._peek_1mnpl_668 {
+    animation: none;
+  }
+
+  ._timelineChevron_1mnpl_460 {
+    transition: none;
+  }
+
+  /* The pulse becomes a steady tint for the same time. */
+  ._barFlash_1mnpl_73 {
+    animation: _barFlashSteady_1mnpl_1 600ms steps(1, end);
+  }
+}
+
+@keyframes _barFlashSteady_1mnpl_1 {
+  0% {
+    opacity: 0.25;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Agent picker (brief §9), rendered in the sample's tab toolbar. */
+._agentPickerLabel_1mnpl_719 {
+  display: inline-flex;
+  gap: 0.35em;
+}
+
+._agentItem_1mnpl_724 {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4em;
+  min-width: 12em;
+}
+
+._agentSpawn_1mnpl_731 {
+  color: var(--vscode-descriptionForeground);
+}
+
+._agentName_1mnpl_735 {
+  flex: 1;
+}
+
+._agentCount_1mnpl_739 {
+  color: var(--vscode-descriptionForeground);
 }
 ._layout_6xi98_1 {
   display: flex;
