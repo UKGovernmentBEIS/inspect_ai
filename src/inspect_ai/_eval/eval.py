@@ -1185,8 +1185,8 @@ async def _eval_async_inner(
                             break
 
                         # (a TaskSource observes results via sample_complete /
-                        # task_complete, fired from task_run as each sample/task
-                        # finishes — so its next_tasks() decision can use them)
+                        # task_complete, fired as each sample/task finishes —
+                        # so its next_tasks() decision can use them)
 
                         # next batch under this run_id: imperative additions
                         # (enqueue_task) first, else the TaskSource's next_tasks()
@@ -1388,7 +1388,11 @@ def eval_retry(
     """Retry a previously failed evaluation task.
 
     Args:
-        tasks: Log files for task(s) to retry.
+        tasks: Log files for task(s) to retry. An `EvalLog` without
+            samples (for example one read with `header_only=True`, or the
+            log `eval()` returns for a task whose final log write failed or
+            was interrupted) reuses the samples saved in the file at its
+            `location`.
         log_level: Level for logging to the console: "debug", "http", "sandbox",
             "info", "warning", "error", "critical", or "notset" (defaults to "warning")
         log_level_transcript: Level for logging to the log file (defaults to "info")
@@ -1577,6 +1581,29 @@ def _requalify_sample_ids(
         return sample_id
 
 
+def _saved_samples_file(eval_log: EvalLog) -> EvalLogInfo | None:
+    """The file to read a retried log's prior samples from, if not in memory.
+
+    An `EvalLog` without samples (a header-only read, or the log without
+    samples a run returns for a task whose final log write failed or was
+    interrupted) has its saved samples only in the file at its `location`,
+    so the retry reads them from there, as the run's own task retries do.
+    A missing file, or one without a sample, leaves that sample to run
+    again.
+    """
+    if eval_log.samples is not None or not eval_log.location:
+        return None
+    return EvalLogInfo(
+        name=eval_log.location,
+        type="file",
+        size=0,
+        mtime=None,
+        task=eval_log.eval.task,
+        task_id=eval_log.eval.task_id,
+        suffix=None,
+    )
+
+
 async def eval_retry_async(
     tasks: str | EvalLogInfo | EvalLog | list[str] | list[EvalLogInfo] | list[EvalLog],
     log_level: str | None = None,
@@ -1619,7 +1646,11 @@ async def eval_retry_async(
     """Retry a previously failed evaluation task.
 
     Args:
-        tasks: Log files for task(s) to retry.
+        tasks: Log files for task(s) to retry. An `EvalLog` without
+            samples (for example one read with `header_only=True`, or the
+            log `eval()` returns for a task whose final log write failed or
+            was interrupted) reuses the samples saved in the file at its
+            `location`.
         log_level: Level for logging to the console: "debug", "http", "sandbox",
           "info", "warning", "error", "critical", or "notset" (defaults to "warning")
         log_level_transcript: Level for logging to the log file (defaults to "info")
@@ -1980,7 +2011,7 @@ async def eval_retry_async(
                         eval_log.eval.task_file, eval_log.eval.sandbox
                     ),
                     log=eval_log,
-                    log_info=None,
+                    log_info=_saved_samples_file(eval_log),
                 ),
                 model=model,
                 model_roles=model_roles,

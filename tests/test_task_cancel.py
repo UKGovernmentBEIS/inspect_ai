@@ -15,12 +15,14 @@ import anyio
 import pytest
 from typing_extensions import override
 
-from inspect_ai import Task
+from inspect_ai import Task, TaskSource, eval_retry, task
 from inspect_ai import eval as inspect_eval
 from inspect_ai._display.core.display import TaskCancel
 from inspect_ai._eval.evalset import eval_set
 from inspect_ai._eval.task.run import task_run as original_task_run
 from inspect_ai.dataset import Sample
+from inspect_ai.log import EvalLog
+from inspect_ai.model import GenerateConfig, get_model
 from inspect_ai.scorer import includes
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.util import (
@@ -1085,3 +1087,741 @@ def test_errored_attempt_marked_retry_pending() -> None:
         # stamped exactly once, on the errored attempt — not the retry
         assert len(marked) == 1
         assert marked[0] != logs[0].eval.eval_id
+
+
+def _task_cancel_handle(eval_id: str) -> TaskCancel:
+    """The registered `TaskCancel` of a running attempt (what `ctl task cancel` fires)."""
+    from inspect_ai._control.eval_state import get_eval_state
+
+    state = get_eval_state(eval_id)
+    assert state is not None and state.task_cancel is not None
+    return state.task_cancel
+
+
+def _fire_on_log_finish(
+    monkeypatch: pytest.MonkeyPatch,
+    task_name: str,
+    status: str,
+    cancel_type: Literal["abort", "retry"],
+) -> None:
+    """Fire `cancel_type` on `task_name`'s first attempt as it starts writing its final log with `status`.
+
+    The cancel lands inside the attempt's final (unshielded) log write, so
+    the write is interrupted at its first await and the attempt returns no
+    log — the window a control-channel abort hits when it races a failing
+    sample.
+    """
+    from inspect_ai._eval.task.log import TaskLogger
+
+    original_log_finish = TaskLogger.log_finish
+    fired: list[str] = []
+
+    async def log_finish(self: TaskLogger, *args: Any, **kwargs: Any) -> Any:
+        if self.eval.task == task_name and args[0] == status and not fired:
+            fired.append(self.eval.eval_id)
+            _task_cancel_handle(self.eval.eval_id).cancel_task(cancel_type)
+        return await original_log_finish(self, *args, **kwargs)
+
+    monkeypatch.setattr(TaskLogger, "log_finish", log_finish)
+
+
+async def _disk_statuses(log_dir: Path) -> list[tuple[str, str]]:
+    from inspect_ai.log import list_eval_logs, read_eval_log_async
+
+    return sorted(
+        [
+            (log.eval.task, log.status)
+            for log in [
+                await read_eval_log_async(info, header_only=True)
+                for info in list_eval_logs(str(log_dir))
+            ]
+        ]
+    )
+
+
+def _plain_task(name: str, runs: list[str]) -> Task:
+    @solver(name=f"record_run_{name}_{id(runs)}")
+    def record_run() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            runs.append(name)
+            return state
+
+        return solve
+
+    return Task(dataset=[Sample(input="x", target="y")], solver=record_run(), name=name)
+
+
+def _failing_task(name: str, runs: list[str], failures: int) -> Task:
+    """A task whose sample raises on its first `failures` attempts."""
+
+    @solver(name=f"fail_run_{name}_{id(runs)}")
+    def fail_run() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            runs.append(name)
+            if runs.count(name) <= failures:
+                raise RuntimeError("sample failure")
+            return state
+
+        return solve
+
+    return Task(dataset=[Sample(input="x", target="y")], solver=fail_run(), name=name)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("retries", [0, 1])
+async def test_abort_interrupting_error_log_write_ends_only_that_task(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, retries: int
+) -> None:
+    """An abort that interrupts a failing task's error-log write ends only that task.
+
+    The attempt returns no log. The dispatcher must not read that as a
+    run-level cancellation: the queued tasks still run, the aborted task is
+    reported with an error log naming the abort and is not retried, its
+    file on disk keeps the `started` status the interrupted write left, and
+    its task display is completed.
+    """
+    import inspect_ai._eval.task.run as task_run_module
+    from inspect_ai import eval_async
+    from inspect_ai._display.core.display import TaskError
+
+    displayed_errors: list[BaseException] = []
+
+    def recording_task_error(*args: Any) -> TaskError:
+        result = TaskError(*args)
+        displayed_errors.append(result.exc_value)
+        return result
+
+    monkeypatch.setattr(task_run_module, "TaskError", recording_task_error)
+
+    runs: list[str] = []
+    _fire_on_log_finish(monkeypatch, "a", "error", "abort")
+    logs = await eval_async(
+        [
+            _failing_task("a", runs, failures=1),
+            _plain_task("b", runs),
+            _plain_task("c", runs),
+        ],
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        max_tasks=1,
+        task_retry_attempts=retries,
+    )
+
+    assert [(log.eval.task, log.status) for log in logs] == [
+        ("a", "error"),
+        ("b", "success"),
+        ("c", "success"),
+    ]
+    assert logs[0].error is not None
+    assert "cancelled by user (abort)" in logs[0].error.message
+    assert runs == ["a", "b", "c"]
+    assert [str(ex) for ex in displayed_errors] == ["sample failure"]
+    assert await _disk_statuses(tmp_path) == [
+        ("a", "started"),
+        ("b", "success"),
+        ("c", "success"),
+    ]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("retries", [0, 1])
+async def test_retry_interrupting_error_log_write_retries_task(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, retries: int
+) -> None:
+    """A retry request that interrupts the error-log write still retries the task."""
+    from inspect_ai import eval_async
+
+    runs: list[str] = []
+    _fire_on_log_finish(monkeypatch, "a", "error", "retry")
+    logs = await eval_async(
+        [_failing_task("a", runs, failures=1), _plain_task("b", runs)],
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        max_tasks=1,
+        task_retry_attempts=retries,
+    )
+
+    if retries:
+        assert [(log.eval.task, log.status) for log in logs] == [
+            ("a", "success"),
+            ("b", "success"),
+        ]
+        # the retry is queued behind b
+        assert runs == ["a", "b", "a"]
+        assert await _disk_statuses(tmp_path) == [
+            ("a", "started"),
+            ("a", "success"),
+            ("b", "success"),
+        ]
+    else:
+        assert [(log.eval.task, log.status) for log in logs] == [
+            ("a", "error"),
+            ("b", "success"),
+        ]
+        assert runs == ["a", "b"]
+
+
+@pytest.mark.anyio
+async def test_control_abort_racing_sample_error_keeps_run_going(
+    tmp_path: Path,
+) -> None:
+    """`ctl task cancel` fired as the task's only sample raises ends only that task.
+
+    Under trio the abort deterministically interrupts the error-log write;
+    under asyncio it is delivered earlier and the task logs the abort itself.
+    """
+    from inspect_ai import eval_async
+    from inspect_ai._control.cancel import cancel_task
+    from inspect_ai._control.eval_state import get_eval_state
+    from inspect_ai.log._samples import sample_active
+
+    runs: list[str] = []
+
+    @solver(name=f"abort_then_fail_{id(runs)}")
+    def abort_then_fail() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            active = sample_active()
+            assert active is not None
+            eval_state = get_eval_state(active.eval_id)
+            assert eval_state is not None
+            result = cancel_task(eval_state.task_id, action="cancel")
+            assert result is not None and result.get("changed") is True
+            raise RuntimeError("sample failure racing the abort")
+
+        return solve
+
+    logs = await eval_async(
+        [
+            Task(dataset=[Sample(input="x")], solver=abort_then_fail(), name="a"),
+            _plain_task("b", runs),
+            _plain_task("c", runs),
+        ],
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        max_tasks=1,
+        task_retry_attempts=1,
+    )
+
+    assert [(log.eval.task, log.status) for log in logs] == [
+        ("a", "error"),
+        ("b", "success"),
+        ("c", "success"),
+    ]
+    assert runs == ["b", "c"]
+
+
+@pytest.mark.anyio
+async def test_abort_racing_success_log_write_keeps_run_going(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An abort that interrupts a successful task's log write ends only that task.
+
+    The interrupted success write goes through the task's cancellation
+    handler, which writes the abort's error log under a shield, so the task
+    returns a log and the run continues.
+    """
+    from inspect_ai import eval_async
+
+    runs: list[str] = []
+    _fire_on_log_finish(monkeypatch, "a", "success", "abort")
+    logs = await eval_async(
+        [_plain_task("a", runs), _plain_task("b", runs), _plain_task("c", runs)],
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        max_tasks=1,
+        task_retry_attempts=1,
+    )
+
+    assert [(log.eval.task, log.status) for log in logs] == [
+        ("a", "error"),
+        ("b", "success"),
+        ("c", "success"),
+    ]
+    assert logs[0].error is not None
+    assert "cancelled by user (abort)" in logs[0].error.message
+    assert runs == ["a", "b", "c"]
+    assert await _disk_statuses(tmp_path) == [
+        ("a", "error"),
+        ("b", "success"),
+        ("c", "success"),
+    ]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("with_abort", [False, True])
+async def test_run_cancel_stops_dispatch(tmp_path: Path, with_abort: bool) -> None:
+    """A run-level cancellation stops dispatching, also when the task was aborted too."""
+    from inspect_ai import eval_async
+
+    runs: list[str] = []
+    scopes: list[anyio.CancelScope] = []
+
+    @solver(name=f"cancel_run_{id(runs)}")
+    def cancel_run() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            from inspect_ai.log._samples import sample_active
+
+            runs.append("a")
+            if with_abort:
+                active = sample_active()
+                assert active is not None
+                _task_cancel_handle(active.eval_id).cancel_task("abort")
+            scopes[0].cancel()
+            await anyio.sleep_forever()
+            return state
+
+        return solve
+
+    with anyio.CancelScope() as scope:
+        scopes.append(scope)
+        await eval_async(
+            [
+                Task(dataset=[Sample(input="x")], solver=cancel_run(), name="a"),
+                _plain_task("b", runs),
+                _plain_task("c", runs),
+            ],
+            model="mockllm/model",
+            log_dir=str(tmp_path),
+            max_tasks=1,
+            task_retry_attempts=1,
+        )
+
+    assert runs == ["a"]
+    assert await _disk_statuses(tmp_path) == [
+        ("a", "error" if with_abort else "cancelled")
+    ]
+
+
+@pytest.mark.anyio
+async def test_dismissed_cancel_dialog_keeps_pending_abort(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A cancel dialog dismissed after an abort (it passes None) keeps the abort.
+
+    The abort interrupts the task's error-log write, so the task is
+    reported with the abort's errored log and is not retried.
+    """
+    from inspect_ai import eval_async
+    from inspect_ai._eval.task.log import TaskLogger
+
+    original_log_finish = TaskLogger.log_finish
+    fired: list[str] = []
+
+    async def log_finish(self: TaskLogger, *args: Any, **kwargs: Any) -> Any:
+        if self.eval.task == "a" and args[0] == "error" and not fired:
+            fired.append(self.eval.eval_id)
+            handle = _task_cancel_handle(self.eval.eval_id)
+            handle.cancel_task("abort")
+            handle.cancel_task(None)
+        return await original_log_finish(self, *args, **kwargs)
+
+    monkeypatch.setattr(TaskLogger, "log_finish", log_finish)
+    runs: list[str] = []
+    logs = await eval_async(
+        [_failing_task("a", runs, failures=1), _plain_task("b", runs)],
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        max_tasks=1,
+        task_retry_attempts=1,
+    )
+
+    assert [(log.eval.task, log.status) for log in logs] == [
+        ("a", "error"),
+        ("b", "success"),
+    ]
+    assert logs[0].error is not None
+    assert "cancelled by user (abort)" in logs[0].error.message
+    assert runs == ["a", "b"]
+
+
+class _RecordingSource(TaskSource):
+    """A `TaskSource` that records each `task_complete` and `next_tasks` call.
+
+    `task_complete` awaits before recording, so a call made inside a
+    cancelled scope would be interrupted and not recorded. It also records
+    the active model, to show which task's context the call runs in.
+    """
+
+    def __init__(self, tasks: list[Task]) -> None:
+        self.tasks = tasks
+        self.events: list[str] = []
+
+    def initial_tasks(self) -> list[Task]:
+        return self.tasks
+
+    async def task_complete(self, log: EvalLog) -> list[Task] | None:
+        from inspect_ai.model._model import active_model
+
+        await anyio.sleep(0)
+        error = log.error.message if log.error is not None else ""
+        self.events.append(
+            f"task_complete:{log.eval.task}:{log.status}:{active_model()}:{error}"
+        )
+        return None
+
+    async def next_tasks(self) -> list[Task] | None:
+        self.events.append("next_tasks")
+        return None
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("cancel_type", ["abort", "retry"])
+async def test_task_source_told_when_cancel_interrupts_error_log_write(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    cancel_type: Literal["abort", "retry"],
+) -> None:
+    """The TaskSource gets `task_complete` for an attempt whose log write was interrupted.
+
+    The run continues past that attempt and asks the source for more tasks,
+    so the source must have seen the attempt end first (a source waiting
+    for all its tasks would otherwise wait forever). The call gets the
+    errored log naming the cancel and runs in the task's context (its
+    model, not the run's).
+    """
+    from inspect_ai import eval_async
+
+    runs: list[str] = []
+    a = _failing_task("a", runs, failures=1)
+    a.model = get_model("mockllm/a-model")
+    source = _RecordingSource([a, _plain_task("b", runs)])
+    _fire_on_log_finish(monkeypatch, "a", "error", cancel_type)
+    await eval_async(
+        source,
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        max_tasks=1,
+        task_retry_attempts=1 if cancel_type == "retry" else 0,
+    )
+
+    interrupted = (
+        f"task_complete:a:error:mockllm/a-model:"
+        f"TerminateTaskError('Task cancelled by user ({cancel_type})')"
+    )
+    if cancel_type == "abort":
+        assert source.events == [
+            interrupted,
+            "task_complete:b:success:mockllm/model:",
+            "next_tasks",
+        ]
+    else:
+        assert source.events == [
+            interrupted,
+            "task_complete:b:success:mockllm/model:",
+            "task_complete:a:success:mockllm/a-model:",
+            "next_tasks",
+        ]
+
+
+@pytest.mark.anyio
+async def test_task_source_task_complete_runs_to_completion_after_abort(
+    tmp_path: Path,
+) -> None:
+    """An aborted task's `task_complete` call is not interrupted by the abort.
+
+    The abort lands while the sample runs, so the task writes its abort
+    error log; the TaskSource's `task_complete` then awaits and still
+    finishes, and the run returns the task's full error log.
+    """
+    from inspect_ai import eval_async
+    from inspect_ai.log._samples import sample_active
+
+    @solver(name=f"abort_self_{id(tmp_path)}")
+    def abort_self() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            active = sample_active()
+            assert active is not None
+            _task_cancel_handle(active.eval_id).cancel_task("abort")
+            await anyio.sleep_forever()
+            return state
+
+        return solve
+
+    source = _RecordingSource(
+        [Task(dataset=[Sample(input="x")], solver=abort_self(), name="a")]
+    )
+    logs = await eval_async(source, model="mockllm/model", log_dir=str(tmp_path))
+
+    assert source.events == [
+        "task_complete:a:error:mockllm/model:"
+        "TerminateTaskError('Task cancelled by user (abort)')",
+        "next_tasks",
+    ]
+    assert [(log.eval.task, log.status) for log in logs] == [("a", "error")]
+    # the task's own log, not the one without samples for an interrupted write
+    assert logs[0].samples is not None
+    assert await _disk_statuses(tmp_path) == [("a", "error")]
+
+
+@solver
+def _fail_sample_3_once(runs_file: str) -> Solver:
+    """Record each sample run in `runs_file` (a retry re-imports this module)."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        runs = Path(runs_file)
+        runs.write_text(runs.read_text() + f"{state.sample_id}\n")
+        if state.sample_id == 3 and runs.read_text().split().count("3") == 1:
+            raise RuntimeError("sample failure")
+        return state
+
+    return solve
+
+
+@task
+def abort_then_retry_task(runs_file: str) -> Task:
+    return Task(
+        dataset=[Sample(input="x", id=id) for id in (1, 2, 3)],
+        solver=_fail_sample_3_once(runs_file),
+    )
+
+
+def test_eval_retry_of_log_returned_for_interrupted_write_reuses_samples(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Retrying the errored log returned for an interrupted write reuses saved samples.
+
+    The returned log has no samples, but its file holds the samples saved
+    before the abort, and `eval_retry` reads them from there as it does
+    when given the file itself.
+    """
+    runs = tmp_path / "runs.txt"
+    runs.write_text("")
+    _fire_on_log_finish(monkeypatch, "abort_then_retry_task", "error", "abort")
+    [log] = inspect_eval(
+        abort_then_retry_task(str(runs)),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        max_samples=1,
+        log_buffer=1,
+    )
+    assert log.status == "error" and log.samples is None
+    assert runs.read_text().split() == ["1", "2", "3"]
+
+    [retried] = eval_retry(log, log_dir=str(tmp_path))
+
+    assert retried.status == "success"
+    assert sorted(str(sample.id) for sample in retried.samples or []) == [
+        "1",
+        "2",
+        "3",
+    ]
+    # samples 1 and 2 are reused from the file, only sample 3 runs again
+    assert runs.read_text().split() == ["1", "2", "3", "3"]
+
+
+@solver
+def _generate_fail_sample_3_once(runs_file: str) -> Solver:
+    """Generate, then fail sample 3 on its first run (runs recorded in `runs_file`)."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        runs = Path(runs_file)
+        runs.write_text(runs.read_text() + f"{state.sample_id}\n")
+        state = await generate(state)
+        if state.sample_id == 3 and runs.read_text().split().count("3") == 1:
+            raise RuntimeError("sample failure")
+        return state
+
+    return solve
+
+
+@task
+def generate_config_task(runs_file: str) -> Task:
+    return Task(
+        dataset=[Sample(input="x", id=id) for id in (1, 2, 3)],
+        solver=_generate_fail_sample_3_once(runs_file),
+        config=GenerateConfig(temperature=0.9),
+    )
+
+
+def test_eval_retry_of_log_returned_for_interrupted_write_keeps_eval_settings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The errored log returned for an interrupted write keeps the attempt's plan and stats.
+
+    `eval_retry` takes the generate settings passed to `eval()` from the
+    log's plan, so the re-run sample uses them (not the task's own
+    `temperature`), the retried log keeps the eval-set task identifier of
+    the file on disk, and the model usage so far is carried into the
+    retried log.
+    """
+    from inspect_ai._eval.evalset import task_identifier
+    from inspect_ai.event import ModelEvent
+    from inspect_ai.log import read_eval_log
+
+    runs = tmp_path / "runs.txt"
+    runs.write_text("")
+    _fire_on_log_finish(monkeypatch, "generate_config_task", "error", "abort")
+    [log] = inspect_eval(
+        generate_config_task(str(runs)),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        max_samples=1,
+        log_buffer=1,
+        temperature=0.3,
+        max_tokens=77,
+    )
+    monkeypatch.undo()
+    assert log.status == "error" and log.samples is None
+    assert log.plan.config.temperature == 0.3 and log.plan.config.max_tokens == 77
+    prior_tokens = log.stats.model_usage["mockllm/model"].total_tokens
+    assert prior_tokens > 0
+
+    [retried] = eval_retry(log, log_dir=str(tmp_path))
+
+    assert retried.status == "success"
+    assert retried.plan.config.temperature == 0.3
+    assert retried.plan.config.max_tokens == 77
+    [sample_3] = [sample for sample in retried.samples or [] if sample.id == 3]
+    [model_event] = [e for e in sample_3.events if isinstance(e, ModelEvent)]
+    assert model_event.config.temperature == 0.3
+    on_disk = read_eval_log(log.location, header_only=True)
+    assert task_identifier(on_disk, None) == task_identifier(retried, None)
+    assert retried.stats.model_usage["mockllm/model"].total_tokens == (
+        prior_tokens + sample_3.model_usage["mockllm/model"].total_tokens
+    )
+
+
+def test_failed_error_log_write_returns_log_with_plan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The errored log returned for a failed error-log write keeps the plan and stats."""
+    from inspect_ai.log._recorders.eval import EvalRecorder
+
+    original_log_finish = EvalRecorder.log_finish
+
+    async def failing_log_finish(self: EvalRecorder, *args: Any, **kwargs: Any) -> Any:
+        if args[1] == "error":
+            raise OSError("log storage unreachable")
+        return await original_log_finish(self, *args, **kwargs)
+
+    monkeypatch.setattr(EvalRecorder, "log_finish", failing_log_finish)
+    runs = tmp_path / "runs.txt"
+    runs.write_text("")
+    [log] = inspect_eval(
+        generate_config_task(str(runs)),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        max_samples=1,
+        temperature=0.3,
+    )
+
+    assert log.status == "error" and log.samples is None
+    assert log.error is not None and "log storage unreachable" in log.error.message
+    assert log.plan.config.temperature == 0.3
+    assert log.stats.model_usage["mockllm/model"].total_tokens > 0
+
+
+def test_retry_attempt_failing_before_log_start_returns_log_with_plan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A retry attempt that fails before its first log write reports the task's plan.
+
+    The plan is the same for every attempt, so it is kept from the first
+    attempt; the stats are this attempt's own, which never reached a log
+    write, so none of the first attempt's model usage is reported twice.
+    """
+    from inspect_ai._eval.task.log import TaskLogger
+
+    async def failing_seed(self: TaskLogger, *args: Any, **kwargs: Any) -> None:
+        raise OSError("prior log unreadable")
+
+    monkeypatch.setattr(TaskLogger, "seed_from_prior", failing_seed)
+    runs = tmp_path / "runs.txt"
+    runs.write_text("")
+    [log] = inspect_eval(
+        generate_config_task(str(runs)),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        max_samples=1,
+        temperature=0.3,
+        task_retry_attempts=1,
+    )
+
+    assert log.status == "error" and log.samples is None
+    assert log.error is not None and "prior log unreadable" in log.error.message
+    assert log.plan.config.temperature == 0.3
+    assert log.stats.model_usage == {}
+
+
+class _LateCancelSource(TaskSource):
+    """Answers the task's cancel dialog with `cancel_type` while `task_complete` runs."""
+
+    def __init__(self, task: Task, cancel_type: Literal["abort", "retry"]) -> None:
+        self.task = task
+        self.cancel_type: Literal["abort", "retry"] = cancel_type
+        self.completed: list[str] = []
+
+    def initial_tasks(self) -> list[Task]:
+        return [self.task]
+
+    async def task_complete(self, log: EvalLog) -> None:
+        self.completed.append(log.status)
+        if len(self.completed) == 1:
+            _task_cancel_handle(log.eval.eval_id).cancel_task(self.cancel_type)
+        await anyio.sleep(0)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "failures,cancel_type,completed",
+    [(0, "retry", ["success"]), (1, "abort", ["error"])],
+)
+async def test_cancel_after_task_finished_does_not_rerun_it(
+    tmp_path: Path,
+    failures: int,
+    cancel_type: Literal["abort", "retry"],
+    completed: list[str],
+) -> None:
+    """A cancel answered while `task_complete` runs cannot re-run the finished task.
+
+    A late "retry" for a task that succeeded is ignored, so the task runs
+    once and the source hears about it once. A late abort for a task that
+    errored is still honoured: the dispatcher does not retry it.
+    """
+    from inspect_ai import eval_async
+
+    runs: list[str] = []
+    source = _LateCancelSource(_failing_task("a", runs, failures), cancel_type)
+    logs = await eval_async(
+        source,
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        task_retry_attempts=1,
+    )
+
+    assert runs == ["a"]
+    assert source.completed == completed
+    assert [log.status for log in logs] == completed
+    assert await _disk_statuses(tmp_path) == [("a", completed[0])]
+
+
+@pytest.mark.anyio
+async def test_task_complete_error_ends_run_and_keeps_task_log(
+    tmp_path: Path,
+) -> None:
+    """An exception from `task_complete` ends the run and names `task_complete`.
+
+    It is not reported as a failure of the task's log write: the task's
+    success log stays as written and the task is not retried.
+    """
+    from inspect_ai import eval_async
+
+    class _RaisingSource(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            return [_plain_task("a", runs)]
+
+        async def task_complete(self, log: EvalLog) -> None:
+            raise RuntimeError("task_complete failed")
+
+    runs: list[str] = []
+    with pytest.raises(RuntimeError, match="task_complete failed") as raised:
+        await eval_async(
+            _RaisingSource(),
+            model="mockllm/model",
+            log_dir=str(tmp_path),
+            task_retry_attempts=1,
+        )
+
+    assert "TaskSource.task_complete() for task 'a'" in "".join(raised.value.__notes__)
+    assert runs == ["a"]
+    assert await _disk_statuses(tmp_path) == [("a", "success")]
