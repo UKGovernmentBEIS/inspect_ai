@@ -372,16 +372,24 @@ class AgentBridge:
         aligned = self._align_with_tracked(messages, keys)
         reserved = set(aligned.values())
         used: set[str] = set()
+        # per key, the first recorded id not yet taken (ids only become taken)
+        cursors: dict[str, int] = {}
+
+        def recorded_id(message_keys: list[str]) -> str | None:
+            for key in message_keys:
+                ids = self._message_ids.get(key, [])
+                cursor = cursors.get(key, 0)
+                while cursor < len(ids) and (
+                    ids[cursor] in used or ids[cursor] in reserved
+                ):
+                    cursor += 1
+                cursors[key] = cursor
+                if cursor < len(ids):
+                    return ids[cursor]
+            return None
+
         for index, (message, message_keys) in enumerate(zip(messages, keys)):
-            message_id = aligned.get(index) or next(
-                (
-                    id
-                    for key in message_keys
-                    for id in self._message_ids.get(key, [])
-                    if id not in used and id not in reserved
-                ),
-                None,
-            )
+            message_id = aligned.get(index) or recorded_id(message_keys)
             message.id = message_id or uuid()
             used.add(message.id)
             self._record_message_id(message_keys, message.id)
@@ -403,6 +411,11 @@ class AgentBridge:
         tracked thread continues it), then the latest position (scaffold
         compaction keeps the tail). A same-role message between two runs, at the
         same offset in both, is an edit of the tracked one.
+
+        Only the position continuing the last run and the latest
+        `_MAX_ALIGN_CANDIDATES` positions per key are considered, and runs are
+        measured only for the strongest, so the cost stays linear in the length
+        of a conversation that repeats the same messages.
         """
         tracked = self._tracked_ids
         tracked_keys = [self._keys_by_id.get(id, set()) for id, _ in tracked]
@@ -431,19 +444,24 @@ class AgentBridge:
         i, next_j = 0, 0
         last: tuple[int, int] | None = None
         while i < len(messages):
-            runs = {
-                j: run(i, j)
+            diagonal = next_j + (i - last[0]) if last is not None else i
+            candidates = {
+                j
                 for key in keys[i]
-                for j in positions.get(key, [])
+                for j in positions.get(key, [])[-_MAX_ALIGN_CANDIDATES:]
                 if j >= next_j
             }
-            if not runs:
+            if diagonal < len(tracked) and strength(i, diagonal):
+                candidates.add(diagonal)
+            if not candidates:
                 i += 1
                 continue
+            strengths = {j: strength(i, j) for j in candidates}
+            strongest = max(strengths.values())
+            runs = {j: run(i, j) for j in candidates if strengths[j] == strongest}
             j = max(
                 runs,
                 key=lambda j: (
-                    strength(i, j),
                     len(messages) - i if j + runs[j] == len(tracked) else runs[j],
                     j,
                 ),
@@ -461,11 +479,12 @@ class AgentBridge:
         return aligned
 
     def _record_message_id(self, keys: list[str], message_id: str) -> None:
+        # `_keys_by_id` mirrors `_message_ids`, so membership is a set lookup
+        known = self._keys_by_id.setdefault(message_id, set())
         for key in keys:
-            ids = self._message_ids.setdefault(key, [])
-            if message_id not in ids:
-                ids.append(message_id)
-        self._keys_by_id.setdefault(message_id, set()).update(keys)
+            if key not in known:
+                self._message_ids.setdefault(key, []).append(message_id)
+                known.add(key)
 
     def _record_input_message_ids(self, messages: list[ChatMessage]) -> None:
         """Record the input's ids, including the condensed and quoted forms `_position_descent` accepts."""
@@ -693,6 +712,9 @@ def _message_id_keys(message: ChatMessage) -> list[str]:
         keys.append(f"result:{message.tool_call_id}")
     keys.append(_loose_message_key(message, message.text))
     return keys
+
+
+_MAX_ALIGN_CANDIDATES = 8
 
 
 def _key_strength(key: str) -> int:

@@ -10,6 +10,7 @@ import copy
 import json
 from pathlib import Path
 from typing import Any, Callable, Literal, cast
+from unittest.mock import patch
 
 import pytest
 from anthropic import AsyncAnthropic
@@ -21,6 +22,7 @@ from test_helpers.checkpoint import RecordingCheckpointer
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai.agent import Agent, AgentState, agent, agent_bridge, react
+from inspect_ai.agent._bridge import types as bridge_types
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.agent._bridge.util import apply_message_ids
 from inspect_ai.dataset import Sample
@@ -600,3 +602,64 @@ async def test_edited_messages_keep_their_ids() -> None:
 
     assert edited[:5] == ids
     assert edited[5] == final.id
+
+
+class _CountingList(list[str]):
+    reads = 0
+
+    def __getitem__(self, index: Any) -> Any:
+        _CountingList.reads += 1
+        return super().__getitem__(index)
+
+    def __contains__(self, value: object) -> bool:
+        _CountingList.reads += len(self)
+        return super().__contains__(value)
+
+    def __iter__(self) -> Any:
+        for item in super().__iter__():
+            _CountingList.reads += 1
+            yield item
+
+
+async def _matching_work(repeats: int, compacted: bool) -> int:
+    """Key comparisons and id-list reads to match one request on a repetitive history."""
+    task = ChatMessageUser(content="Keep going until told to stop.")
+    history: list[ChatMessage] = [task]
+    for _ in range(repeats):
+        history += [
+            ChatMessageAssistant(content="OK"),
+            ChatMessageUser(content="continue"),
+        ]
+    scaffold = _Scaffold(AgentBridge(AgentState(messages=[task])))
+    await scaffold.request(history, ChatMessageAssistant(content="OK"))
+    bridge = scaffold.bridge
+    for key, ids in bridge._message_ids.items():
+        bridge._message_ids[key] = _CountingList(ids)
+
+    strengths = 0
+    key_strength = bridge_types._key_strength
+
+    def counting_strength(key: str) -> int:
+        nonlocal strengths
+        strengths += 1
+        return key_strength(key)
+
+    _CountingList.reads = 0
+    request = (
+        [ChatMessageUser(content="Summary: said OK a lot."), *history[1:]]
+        if compacted
+        else history
+    )
+    with patch.object(bridge_types, "_key_strength", counting_strength):
+        await scaffold.request(request + [ChatMessageUser(content="continue")])
+    return strengths + _CountingList.reads
+
+
+@pytest.mark.parametrize("compacted", [False, True])
+async def test_matching_work_is_linear_in_a_repetitive_conversation(
+    compacted: bool,
+) -> None:
+    small = await _matching_work(100, compacted)
+    large = await _matching_work(800, compacted)
+    # linear is 8x; the quadratic matching this replaced was 64x
+    assert large < 12 * small
