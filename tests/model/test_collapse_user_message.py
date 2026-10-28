@@ -145,3 +145,18 @@ def test_collapsed_message_names_its_sources_and_keeps_its_id():
     assert first.metadata["derived_from"] == [m.id for m in messages]
     assert first.id == second.id
     assert first.id not in {m.id for m in messages}
+
+
+def test_collapsed_messages_with_different_sources_get_different_ids():
+    """Source ids are arbitrary strings: ["a,b", "c"] and ["a", "b,c"] are different sources."""
+    collapsed = collapse_consecutive_user_messages(
+        [
+            ChatMessageUser(id="a,b", content="one"),
+            ChatMessageUser(id="c", content="two"),
+            ChatMessageAssistant(id="separator", content="next"),
+            ChatMessageUser(id="a", content="three"),
+            ChatMessageUser(id="b,c", content="four"),
+        ]
+    )
+
+    assert len({m.id for m in collapsed}) == len(collapsed) == 3

@@ -2801,7 +2801,7 @@ def _derived_message_id(kind: str, sources: list[str]) -> str | None:
     The same on every call, so the message is one message across a sample's
     model events (and one entry in the log's message pool).
     """
-    return uuid(name=f"inspect-{kind}:{','.join(sources)}") if sources else None
+    return uuid(name=f"inspect-{kind}:{json.dumps(sources)}") if sources else None
 
 
 def _derived_sources(message: ChatMessage) -> list[str]:

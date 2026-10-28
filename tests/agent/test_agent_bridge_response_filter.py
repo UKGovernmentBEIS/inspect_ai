@@ -44,7 +44,11 @@ from inspect_ai.agent._bridge.sandbox.service import (
 )
 from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
 from inspect_ai.agent._bridge.types import AgentBridge
-from inspect_ai.agent._bridge.util import _apply_response_filter, bridge_generate
+from inspect_ai.agent._bridge.util import (
+    _apply_response_filter,
+    _settle_message_ids,
+    bridge_generate,
+)
 from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
 from inspect_ai.event import ModelEvent
 from inspect_ai.log import EvalLog
@@ -2624,3 +2628,30 @@ def test_live_response_filter_anthropic_native_content(
             assert first_reply_types == []
         case _:
             assert_never(mode)
+
+
+def test_settle_message_ids_records_what_a_replacement_replaces() -> None:
+    """A fresh replacement names the original at its index; an unchanged choice names nothing."""
+    original = ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(message=ChatMessageAssistant(content=text))
+            for text in ["one", "two"]
+        ],
+    )
+    replaced = ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(message=ChatMessageAssistant(content="replacement")),
+            original.choices[1].model_copy(),
+            ChatCompletionChoice(message=ChatMessageAssistant(content="extra")),
+        ],
+    )
+
+    _settle_message_ids(original, replaced)
+
+    assert replaced.choices[0].message.metadata == {
+        "derived_from": [original.choices[0].message.id]
+    }
+    assert replaced.choices[1].message.metadata is None
+    assert replaced.choices[2].message.metadata is None

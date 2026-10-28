@@ -528,10 +528,13 @@ def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
     tool items are kept all or none (`_check_provider_owned_content`), so a
     message that keeps them takes the id of the message they came from, whatever
     id the filter gave it, and keeps that work. A changed message that keeps none
-    gets a new id if it still has an original one, and drops the work; it
-    records the original's id in `metadata["derived_from"]`. Content-keyed replay
-    state (kept server tool items, signed thinking) does not depend on the
-    message id.
+    gets a new id if it still has an original one, and drops the work.
+    Content-keyed replay state (kept server tool items, signed thinking) does not
+    depend on the message id.
+
+    A changed or new message that keeps none records the message it replaces in
+    `metadata["derived_from"]` (unless the filter set it): the original whose id
+    it had, else the original choice at its index.
     """
     owners = {
         content.id: choice.message.id
@@ -542,7 +545,7 @@ def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
     }
     original_messages = [choice.message for choice in original.choices]
     original_ids = {message.id for message in original_messages if message.id}
-    for choice in filtered.choices:
+    for index, choice in enumerate(filtered.choices):
         message = choice.message
         kept_owners = (
             {
@@ -562,9 +565,18 @@ def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
             owner = next(iter(kept_owners))
             if owner is not None:
                 message.id = owner
-        elif message.id in original_ids and message not in original_messages:
-            message.metadata = (message.metadata or {}) | {"derived_from": [message.id]}
-            message.id = uuid()
+        elif message not in original_messages:
+            if message.id in original_ids:
+                source: str | None = message.id
+                message.id = uuid()
+            else:
+                source = (
+                    original_messages[index].id
+                    if index < len(original_messages)
+                    else None
+                )
+            if source is not None and "derived_from" not in (message.metadata or {}):
+                message.metadata = (message.metadata or {}) | {"derived_from": [source]}
 
 
 def _check_provider_owned_content(original: ModelOutput, filtered: ModelOutput) -> None:
