@@ -1,4 +1,4 @@
-"""Bounded, chunked sandbox → host file copy.
+"""Bounded, chunked sandbox → host file copy, and its host → sandbox counterpart.
 
 The shared copy-out primitive for sandbox snapshot strategies (design
 §8): a file produced inside the sandbox's root-only area is copied to
@@ -165,3 +165,29 @@ async def copy_out(
         raise
     os.replace(partial, dest)
     return CopyOutResult(sha256=digest.hexdigest(), size=copied)
+
+
+async def copy_in(
+    env: SandboxEnvironment,
+    *,
+    src: Path,
+    dest: str,
+    label: str,
+    chunk_size: int = DEFAULT_COPY_CHUNK_SIZE,
+) -> None:
+    """Copy the host file ``src`` to the in-sandbox path ``dest`` in chunks.
+
+    Each chunk is appended to ``dest`` by its own root ``sh`` exec:
+    ``exec`` takes fully materialized input bytes, so a single exec would
+    buffer the whole file in host RAM and can exceed per-call provider
+    limits. ``label`` prefixes error messages.
+    """
+    with open(src, "rb") as f:
+        redirect = ">"
+        while data := f.read(chunk_size):
+            result = await privileged_shell(
+                env, f"cat {redirect} {dest}", input=data, user="root"
+            )
+            if not result.success:
+                raise RuntimeError(f"{label}: copy-in failed: {result.stderr}")
+            redirect = ">>"
