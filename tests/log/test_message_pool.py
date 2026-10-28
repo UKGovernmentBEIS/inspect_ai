@@ -278,6 +278,53 @@ def test_write_read_round_trip(
             assert event.input_refs is None
 
 
+@pytest.mark.parametrize("format", ["eval", "json"])
+def test_write_read_keeps_message_ids(format: str) -> None:
+    """Messages with equal content but their own ids read back with those ids."""
+    first = ChatMessageUser(content="continue")
+    reply = ChatMessageAssistant(content="ok")
+    second = ChatMessageUser(content="continue")
+    inputs: list[list[ChatMessage]] = [
+        [first],
+        [first.model_copy(), reply, second],
+    ]
+    sample = EvalSample(
+        id="test",
+        epoch=1,
+        input="test",
+        target="test",
+        messages=[first, reply, second],
+        events=[
+            ModelEvent(
+                model="test-model",
+                input=input,
+                tools=[],
+                tool_choice="auto",
+                config=GenerateConfig(),
+                output=ModelOutput(),
+            )
+            for input in inputs
+        ],
+    )
+    log = _make_eval_log_with_model_events()
+    log.samples = [condense_sample(sample)]
+    assert log.samples[0].events_data is not None
+    assert len(log.samples[0].events_data["messages"]) == 3
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = os.path.join(tmpdir, f"test.{format}")
+        write_eval_log(log, path)
+        read_log = read_eval_log(path)
+
+    assert read_log.samples is not None
+    read_sample = read_log.samples[0]
+    model_events = [e for e in read_sample.events if isinstance(e, ModelEvent)]
+    assert [[m.id for m in e.input] for e in model_events] == [
+        [m.id for m in input] for input in inputs
+    ]
+    assert [m.id for m in read_sample.messages] == [first.id, reply.id, second.id]
+
+
 def test_eval_sample_validation_preserves_condensed_timeline_events_data():
     """EvalSample validation hydrates timelines but does not resolve event pools."""
     sample = _make_sample_with_timeline()
@@ -1096,11 +1143,12 @@ def test_msg_hash_stable_across_serialization_roundtrip() -> None:
         [reparsed] = validate_chat_messages([json.loads(msg.model_dump_json())])
         assert _msg_hash(reparsed) == _msg_hash(msg)
 
-    # the hash excludes .id: same content under different ids hashes equal
+    # the hash includes .id: copies hash equal, other ids do not
     a = ChatMessageUser(content="same content")
     b = ChatMessageUser(content="same content")
     assert a.id != b.id
-    assert _msg_hash(a) == _msg_hash(b)
+    assert _msg_hash(a) == _msg_hash(a.model_copy())
+    assert _msg_hash(a) != _msg_hash(b)
 
 
 def test_pool_json_helpers_roundtrip_to_own_hash() -> None:

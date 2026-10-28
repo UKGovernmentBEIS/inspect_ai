@@ -648,7 +648,7 @@ def test_condense_helper_duplicate_message_in_one_event() -> None:
 
 
 def test_condense_helper_fresh_ids_bounded_index() -> None:
-    """Fresh objects/ids each turn (bridge-style agents) must not grow the index.
+    """Fresh objects each turn (bridge-style agents) must not grow the index.
 
     The identity bucket must stay bounded at the number of unique pool entries,
     not grow with the number of events.
@@ -659,12 +659,12 @@ def test_condense_helper_fresh_ids_bounded_index() -> None:
 
     n = 20
     for k in range(1, n + 1):
-        # Rebuild full history with fresh objects and fresh ids each event,
-        # simulating bridge-style scaffolds that never reuse message objects.
-        history = [ChatMessageUser(content=f"msg {i}") for i in range(k)]
+        # Rebuild full history with fresh objects each event, simulating
+        # bridge-style scaffolds that never reuse message objects.
+        history = [ChatMessageUser(id=f"m{i}", content=f"msg {i}") for i in range(k)]
         _condense(_model_event(history), msg_index, call_index, recorder)
 
-    assert len(recorder.messages) == n  # content-deduped in the pool
+    assert len(recorder.messages) == n
     assert msg_index.size == n
     # White-box: identity buckets must not accumulate one entry per occurrence;
     # each unique message should produce exactly one bucket entry.
