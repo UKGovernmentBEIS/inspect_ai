@@ -78,7 +78,7 @@ from inspect_ai.tool import (
     tool,
 )
 from inspect_ai.tool._tool import ToolApprovalError, ToolParsingError
-from inspect_ai.util._span import span
+from inspect_ai.util._span import current_agent_span_id, current_span_id, in_span, span
 
 from .test_sentinel_dispatch import (
     _RetriedError,
@@ -3022,3 +3022,218 @@ def test_a_person_s_approval_of_a_bridged_host_call_reaches_later_turns() -> Non
     assert [s.stage for s in replay] == ["model_input", "model_output"] * 2
     [decision] = replay[2].step.human_decisions or []
     assert (decision.step_id, decision.decided.report.action) == ("host", "proceed")
+
+
+async def r7_host_bridge(state: AgentState) -> tuple[Any, list[Any]]:
+    """A sandbox bridge serving `addition` on the host, and the scaffold's declaration of it."""
+    from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
+
+    bridge = SandboxAgentBridge(
+        state=state,
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=8080,
+        model=None,
+        bridged_tools={"host": {"addition": addition()}},
+    )
+    [served] = bridge.served_tools.values()
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "mcp__host__addition",
+                "description": served.description,
+                "parameters": served.parameters.model_dump(exclude_none=True),
+            },
+        }
+    ]
+    return bridge, tools
+
+
+@agent
+def r7_defers_a_bridged_host_call(native_first: bool) -> Agent:
+    """A bridged call proposed, then a native call generated under its id, before either runs."""
+
+    async def execute(state: AgentState) -> AgentState:
+        from inspect_ai.agent._bridge.completions import (
+            inspect_completions_api_request,
+        )
+        from inspect_ai.agent._bridge.sandbox.service import call_tool
+
+        bridge, tools = await r7_host_bridge(state)
+        messages = [{"role": "user", "content": "What is 1 + 1?"}]
+        completion = await inspect_completions_api_request(
+            {"model": "inspect", "messages": messages, "tools": tools}, None, bridge
+        )
+        [proposed] = completion.choices[0].message.tool_calls or []
+        assert proposed.type == "function"
+        history: list[ChatMessage] = [ChatMessageUser(content="What is 5 + 5?")]
+        native = await get_model().generate(history, tools=[addition()])
+        history.append(native.message)
+
+        async def host() -> None:
+            await call_tool(bridge)(
+                "host", "addition", json.loads(proposed.function.arguments)
+            )
+
+        async def native_call() -> None:
+            await execute_tools(history, [addition()])
+
+        for run in (native_call, host) if native_first else (host, native_call):
+            await run()
+        return state
+
+    return execute
+
+
+@pytest.mark.parametrize("native_first", [False, True])
+def test_a_native_call_run_while_a_bridged_call_waits_replays_its_own_checks(
+    native_first: bool,
+) -> None:
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        as_solver(r7_defers_a_bridged_host_call(native_first)),
+        outputs(
+            r7_tool_calls(
+                ToolCall(
+                    id="shared",
+                    function="mcp__host__addition",
+                    arguments={"x": 1, "y": 1},
+                )
+            ),
+            r7_tool_calls(
+                ToolCall(id="shared", function="addition", arguments={"x": 5, "y": 5})
+            ),
+        ),
+        sentinel=[r7_probe(seen, copies=True)],
+    )
+    live = [
+        ((e.stage, e.step_id), seen[e.explanation or ""])
+        for e in logged_sample(log).events
+        if isinstance(e, SentinelEvent) and e.path == "r7_probe"
+    ]
+    # the bridge checked the call before the native call was generated, and
+    # its result around the native call's checks
+    bridged = [
+        n
+        for n, (_, step) in enumerate(live)
+        if isinstance(step, BeforeToolCall | AfterToolCall)
+        and step.call.function == "mcp__host__addition"
+    ]
+    native = [
+        n
+        for n, (_, step) in enumerate(live)
+        if isinstance(step, BeforeToolCall | AfterToolCall)
+        and step.call.function == "addition"
+    ]
+    [_, turn] = [n for n, (key, _) in enumerate(live) if key[0] == "model_input"]
+    assert bridged[0] < turn < native[0]
+    assert (bridged[1] > native[1]) is native_first
+    # replay leaves out the bridge's checks, and the native call's steps are
+    # its own, in live's order
+    kept = [(key, step) for n, (key, step) in enumerate(live) if n not in bridged]
+    replay = replayed(log)
+    assert [(s.stage, s.id) for s in replay] == [key for key, _ in kept]
+    for (key, step), rebuilt in zip(kept, replay):
+        assert_step_equals_live(key, rebuilt, step)
+
+
+@agent
+def r7_runs_a_host_call_outside_its_producer() -> Agent:
+    """A bridged conversation in an agent span of its own, whose host call the service runs in the enclosing span."""
+
+    async def execute(state: AgentState) -> AgentState:
+        from inspect_ai.agent._bridge.completions import (
+            inspect_completions_api_request,
+        )
+        from inspect_ai.agent._bridge.sandbox.service import call_tool
+
+        bridge, tools = await r7_host_bridge(state)
+        messages: list[Any] = [{"role": "user", "content": "What is 1 + 1?"}]
+
+        async def request() -> Any:
+            completion = await inspect_completions_api_request(
+                {"model": "inspect", "messages": messages, "tools": tools}, None, bridge
+            )
+            message = completion.choices[0].message
+            messages.append(message.model_dump(exclude_none=True))
+            return message.tool_calls or []
+
+        outer, outer_agent = current_span_id(), current_agent_span_id()
+        assert outer is not None
+        async with span("producer", type="agent"):
+            [proposed] = await request()
+            with in_span(outer, outer_agent):
+                result = await call_tool(bridge)(
+                    "host", "addition", json.loads(proposed.function.arguments)
+                )
+            messages.append(
+                {"role": "tool", "tool_call_id": proposed.id, "content": str(result)}
+            )
+            await request()
+        return state
+
+    return execute
+
+
+@pytest.mark.parametrize("stored_timeline", [False, True])
+def test_a_person_s_decision_at_a_host_call_run_outside_its_producer_s_span_reaches_later_turns(
+    monkeypatch: pytest.MonkeyPatch, stored_timeline: bool
+) -> None:
+    Panel("approve", "allowed").install(monkeypatch)
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        as_solver(r7_runs_a_host_call_outside_its_producer()),
+        outputs(
+            r7_tool_calls(
+                ToolCall(
+                    id="cross",
+                    function="mcp__host__addition",
+                    arguments={"x": 1, "y": 1},
+                )
+            ),
+            done(),
+        ),
+        sentinel=[
+            r7_probe(seen, copies=True),
+            h_ask("tool_result", ["approve", "reject"]),
+        ],
+    )
+    events = logged_sample(log).events
+    begins = {e.id: e for e in events if isinstance(e, SpanBeginEvent)}
+    [producer] = [e.id for e in begins.values() if e.name == "producer"]
+    [ran] = [e for e in events if isinstance(e, ToolEvent)]
+    [decided] = [
+        e
+        for e in events
+        if isinstance(e, SentinelEvent) and e.factory == "inspect_sentinel/human"
+    ]
+    # the result was checked in the producer's conversation, from outside its span
+    assert decided.conversation == producer
+    assert ran.span_id is not None and begins[ran.span_id].parent_id != producer
+    live = [
+        seen[e.explanation or ""]
+        for e in events
+        if isinstance(e, SentinelEvent)
+        and e.path == "r7_probe"
+        and e.stage.startswith("model")
+    ]
+    turns = [e for e in events if isinstance(e, ModelEvent)]
+    timeline = Timeline(
+        name="target",
+        description="",
+        root=TimelineSpan(
+            id="target",
+            name="target",
+            content=[TimelineEvent(event=e) for e in turns],
+        ),
+    )
+    replay = replay_events(
+        log, events, **({"timeline": timeline} if stored_timeline else {})
+    )
+    assert [len(s.human_decisions or []) for s in live] == [0, 0, 1, 1]
+    assert [len(s.step.human_decisions or []) for s in replay] == [0, 0, 1, 1]
+    assert {s.step.conversation for s in replay} == {
+        "target" if stored_timeline else producer
+    }

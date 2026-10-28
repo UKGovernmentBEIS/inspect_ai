@@ -369,6 +369,9 @@ class _Driver:
         self.span_steps: dict[str, tuple["Step", str]] = {}
         # the ids of the calls whose tool steps replay skips
         self.skipped: list[str] = []
+        # the conversation replay gives the turns of each agent span (a stored
+        # timeline can give another)
+        self.turn_conversations: dict[str, str] = {}
         # each model event's input view and producer, shared by its steps
         self._views: dict[int, PoolView] = {}
         self._producers: dict[int, Producer] = {}
@@ -419,6 +422,9 @@ class _Driver:
                     continue
                 turn_ids.add(event.uuid)
                 conversation = self._conversation(event)
+                self.turn_conversations[self.spans.conversation(event.span_id)] = (
+                    conversation
+                )
                 self._at(index, 2, partial(self._fold, conversation, event))
                 attempt_key = (
                     event.span_id,
@@ -699,9 +705,17 @@ class _Driver:
             # result as its service delivered it, are not in the log
             self.skipped.append(event.id)
             return
-        before_span = self._tool_span_of(("tool_call", event.id), call.produced_at)
-        after_span = self._tool_span_of(("tool_result", event.id), call.produced_at)
         tool_span = call.tool_span
+        # live checks the call before its tool span opens, and its result once
+        # the span has ended
+        begin = self.begins[tool_span][0] if tool_span else call.index
+        end = self.ends.get(tool_span) if tool_span is not None else None
+        before_span = self._tool_span_of(
+            ("tool_call", event.id), call.produced_at, begin
+        )
+        after_span = self._tool_span_of(
+            ("tool_result", event.id), end if end is not None else call.index
+        )
         proposal = call.proposal
         if proposal is None or call.assistant is None:
             return
@@ -778,7 +792,6 @@ class _Driver:
             )
             self._built(event.id, "tool_call", step, before_span)
 
-        begin = self.begins[tool_span][0] if tool_span else call.index
         self._at_point(self._cut(before_span, (begin, 1)), call.seq, build_before)
         self._settle_at_end(before_span)
         if not ran:
@@ -807,23 +820,25 @@ class _Driver:
             )
             self._built(event.id, "tool_result", step, after_span)
 
-        end = self.ends.get(tool_span) if tool_span is not None else None
         after_cut = self._cut(after_span, (end if end is not None else call.index, 3))
         self._at_point(after_cut, call.seq + 2, build_after)
         self._settle_at_end(after_span)
 
-    def _tool_span_of(self, key: tuple[SentinelStage, str], after: int) -> str | None:
-        """The first sentinel span with this tool step id that no call has taken and begins after the call's producer (the event at `after`).
+    def _tool_span_of(
+        self, key: tuple[SentinelStage, str], after: int, before: int | None = None
+    ) -> str | None:
+        """The first sentinel span with this tool step id that no call has taken and begins between the events at `after` and `before`.
 
-        A call takes the steps recorded under its id in log order. A span no
-        call takes is an agent bridge's check (a call the bridged scaffold ran,
-        a host call, or a check of a result the scaffold reported), which replay
-        does not rebuild, including one before the producer under an id the
-        model used again.
+        A call takes the steps recorded under its id in log order, within its
+        own execution. A span no call takes is an agent bridge's check (a call
+        the bridged scaffold ran, a host call, or a check of a result the
+        scaffold reported), which replay does not rebuild, including one under
+        an id a native call used too.
         """
         spans = self.tool_spans.get(key, [])
         for at, span in enumerate(spans):
-            if self.begins[span][0] > after:
+            position = self.begins[span][0]
+            if position > after and (before is None or position < before):
                 return spans.pop(at)
         return None
 
@@ -897,11 +912,13 @@ class _Driver:
         if span in self.failed or not events:
             return
         built = self.span_steps.get(span)
-        conversation = (
-            built[0].conversation
-            if built is not None
-            else self._conversation(events[0])
-        )
+        if built is not None:
+            conversation = built[0].conversation
+        else:
+            # a bridge checks a call in its producer's conversation, which
+            # the check's span need not be in
+            recorded = events[0].conversation
+            conversation = self.turn_conversations.get(recorded, recorded)
         kept: list["HumanDecision"] = []
         for event in events:
             if event.kind != "decision" or event.action is None:
