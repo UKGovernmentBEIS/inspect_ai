@@ -9,9 +9,11 @@ caller); the ergonomic trigger surface — hooks, a callback, etc. — is layere
 top and tested separately.
 """
 
+import gc
 import os
 import subprocess
 import sys
+import weakref
 from contextvars import Context, copy_context
 from dataclasses import dataclass
 from pathlib import Path
@@ -42,11 +44,12 @@ from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.tasks import Tasks
 from inspect_ai._util.content import ContentImage
 from inspect_ai._util.registry import _registry
-from inspect_ai.dataset import Sample
+from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.hooks import Hooks, RunEnd, RunStart, SampleEnd, TaskStart, hooks
 from inspect_ai.log import EvalLog, read_eval_log
 from inspect_ai.model import ChatMessageUser, get_model
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
+from inspect_ai.util import throttle
 from inspect_ai.util._display import init_display_type
 
 
@@ -801,6 +804,86 @@ def test_enqueue_task_after_run_finished_dispatching_raises() -> None:
     assert [log.status for log in logs] == ["success"]
     with pytest.raises(RuntimeError, match="finished dispatching"):
         contexts[0].run(enqueue_task, child())
+
+
+async def test_enqueue_task_from_late_throttle_trailing_call_keeps_eval_result(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # A throttle trailing call that adds a task fires in run-level background
+    # work after the run has finished dispatching (here, scheduled from
+    # on_run_end, which runs after that), so enqueue_task raises there. The
+    # throttle logs that error: the eval still returns its logs and on_run_end
+    # runs once.
+    fired = anyio.Event()
+    run_end_calls = 0
+
+    @throttle(0.3)
+    def add_follow_up(name: str) -> None:
+        if name == "late":
+            fired.set()
+            enqueue_task(Task(dataset=[Sample(input="x")], name="late"))
+
+    @hooks(name="throttled_run_end", description="Schedules a trailing call.")
+    class ThrottledRunEnd(Hooks):
+        async def on_run_end(self, data: RunEnd) -> None:
+            nonlocal run_end_calls
+            run_end_calls += 1
+            add_follow_up("leading")
+            add_follow_up("late")
+            with anyio.fail_after(10):
+                await fired.wait()
+
+    init_display_type("none")
+    try:
+        logs = await eval_async(_parent(generate()), model="mockllm/model")
+    finally:
+        del _registry["hooks:throttled_run_end"]
+
+    assert [(log.eval.task, log.status) for log in logs] == [("parent", "success")]
+    assert run_end_calls == 1
+    assert "finished dispatching" in caplog.text
+
+
+@pytest.mark.parametrize("sandbox", [None, "local"])
+async def test_enqueue_task_finished_added_task_is_released_before_run_ends(
+    sandbox: str | None,
+) -> None:
+    # A long run that keeps adding tasks must not hold every finished added
+    # task's Task and dataset until it ends. The parent waits, while it is
+    # still running, for its finished child's dataset to be freed.
+    released: list[bool] = []
+
+    @solver
+    def enqueue_child_and_wait_for_release() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            added = Task(
+                dataset=MemoryDataset([Sample(input="x")]),
+                name="child",
+                sandbox=sandbox,
+            )
+            dataset = weakref.ref(added.dataset)
+            enqueue_task(added, start="when_free")
+            del added
+            with anyio.move_on_after(10):
+                while dataset() is not None:
+                    await anyio.sleep(0.05)
+                    gc.collect()
+            released.append(dataset() is None)
+            return state
+
+        return solve
+
+    init_display_type("none")
+    logs = await eval_async(
+        _parent(enqueue_child_and_wait_for_release()),
+        model="mockllm/model",
+        max_tasks=2,
+    )
+    assert sorted((log.eval.task, log.status) for log in logs) == [
+        ("child", "success"),
+        ("parent", "success"),
+    ]
+    assert released == [True]
 
 
 async def test_task_enqueuer_close_refuses_enqueue() -> None:

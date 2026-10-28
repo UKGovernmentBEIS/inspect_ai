@@ -169,12 +169,12 @@ enqueue_task(companion_task(), start="when_free")
 Capacity is `max_tasks`, read live: if the running tasks hold every slot (for example at `max_tasks=1`), the added task waits until a slot frees or the limit is raised with `inspect ctl config --max-tasks`.
 
 ::: {.callout-warning appearance="simple"}
-A task that waits for a `"when_free"` task it added needs a free slot for it. `eval()` defaults `max_tasks` to the number of models, which is 1 for a single model, so the added task never starts and the run hangs. Set `max_tasks` above the number of task × model units that run at the same time.
+A task that waits for a `"when_free"` task it added needs a free slot for it. `eval()` defaults `max_tasks` to the number of models, which is 1 for a single model, so the added task never starts and the run hangs. The same applies to an eval set that an external runner runs in selection mode: `eval_set()`'s own default of at least 10 is not applied there, so `eval()`'s default is used unless the runner's selection or the `eval_set()` call sets `max_tasks`. Set `max_tasks` above the number of task × model units that run at the same time.
 :::
 
 All tasks of a run, including added ones, share one task display and one set of task-level sandbox environments, which are cleaned up when the run ends.
 
-While an added task's task-level sandbox environment starts (its provider's `task_init`, for example a Docker image build), the tasks already running keep running, but the task display is suspended, no other task starts, and the process-wide working directory and the environment variables the provider sets for startup are changed. Subprocesses that running tasks start in that time inherit them.
+While an added task's task-level sandbox environment starts (its provider's `task_init`, for example a Docker image build), the tasks already running keep running, but the task display is suspended, no other task starts, and the process-wide working directory and the environment variables the provider sets for startup are changed. Subprocesses that running tasks start in that time inherit them. If a running task whose `SampleSource` adds samples resolves or starts its own sandbox environments at the same time, the working directory can stay changed after both have finished: the process can be left in one of the two tasks' directories for the rest of the run.
 
 ## Concurrency
 

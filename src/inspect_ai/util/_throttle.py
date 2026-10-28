@@ -37,7 +37,9 @@ def throttle(seconds: float) -> Callable[[Callable[P, R]], Callable[P, R]]:
     Behavior depends on whether an async context is active:
 
     With async context: a background task fires the trailing event after the
-    window expires, so pending events are never lost.
+    window expires, so pending events are never lost. An exception raised by
+    that background call is logged, not raised, since no caller is waiting
+    for it.
 
     Without async context: pending args are saved but only fire on the next call
     that arrives after the window expires. If no further call is made, the final
@@ -64,9 +66,17 @@ def throttle(seconds: float) -> Callable[[Callable[P, R]], Callable[P, R]]:
             # Re-check: a synchronous call may have fired and reset state
             # while we slept
             if pending is not None and time.time() - (last_called or 0) >= seconds:
-                last_result = func(*pending[0], **pending[1])
-                last_called = time.time()
+                args, kwargs = pending
                 pending = None
+                # no caller waits for this call, and an exception escaping
+                # run-level background work would fail the whole eval
+                try:
+                    last_result = func(*args, **kwargs)
+                except Exception:
+                    logger.exception(
+                        f"Throttled trailing call to {func.__name__} failed."
+                    )
+                last_called = time.time()
             deferred_scheduled = False
 
         @wraps(func)

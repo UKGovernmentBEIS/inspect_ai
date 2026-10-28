@@ -1,6 +1,7 @@
 import functools
 import logging
 import os
+import weakref
 from contextlib import ExitStack, asynccontextmanager
 from copy import copy
 from dataclasses import dataclass, replace
@@ -214,11 +215,13 @@ async def eval_run(
         eval_config.sandbox_cleanup is not False,
     )
 
-    # every prepared task (seed + added groups), so that if an error escapes
-    # the run before the dispatcher has discarded or finished their loggers
-    # (for example the task display fails to start), their resources
-    # (stale-flush timers, buffer dbs) are torn down instead of leaked
-    prepared_options: list[TaskRunOptions] = []
+    # the logger of every prepared task (seed + added groups), so that if an
+    # error escapes the run before the dispatcher has discarded or finished
+    # them (for example the task display fails to start), their resources
+    # (stale-flush timers, buffer dbs) are torn down instead of leaked. Only
+    # the loggers: holding the whole options would keep every added task's
+    # Task and dataset alive until the run ends
+    prepared_loggers: list[TaskLogger] = []
 
     async def prepare_options(
         resolved_tasks: list[ResolvedTask],
@@ -228,7 +231,7 @@ async def eval_run(
         The group's loggers belong to this call until it returns them: if
         preparing a task fails or is cancelled, the loggers already created
         (open buffer dbs, recorder entries) are discarded. They are not yet
-        in ``prepared_options``, so ``eval_run``'s error handler would not
+        in ``prepared_loggers``, so ``eval_run``'s error handler would not
         reach them.
         """
         loggers: list[TaskLogger] = []
@@ -239,7 +242,7 @@ async def eval_run(
                 for logger in loggers:
                     await logger.discard()
             raise
-        prepared_options.extend(options)
+        prepared_loggers.extend(loggers)
         return options
 
     async def prepare_group(
@@ -569,8 +572,8 @@ async def eval_run(
         # cancellation triggering this handler doesn't interrupt that wait and
         # leave realtime flush timers running against torn-down logging state.
         with anyio.CancelScope(shield=True):
-            for task_options in prepared_options:
-                await task_options.logger.cleanup()
+            for logger in prepared_loggers:
+                await logger.cleanup()
         raise
 
     finally:
@@ -1077,6 +1080,31 @@ async def run_task_retry_attempts(
                         )
                     wake.set()
 
+                def start_pending() -> None:
+                    """Start pending tasks up to the concurrency cap (model-balanced).
+
+                    Re-reads the live ``ctl config --max-tasks`` override each
+                    iteration (a set fires the dispatch wakers, so a raise
+                    reaches a waiting dispatcher immediately). A function of
+                    its own so the dispatch loop holds no reference to the
+                    last started task, which would keep its ``Task`` and
+                    dataset alive after it finishes.
+                    """
+                    nonlocal in_flight
+                    while (
+                        not cancelled
+                        and in_flight < effective_max_tasks(parallel)
+                        and pending
+                    ):
+                        item = pick_balanced()
+                        if item is None:
+                            # everything pending is held by a pause latch —
+                            # a resume fires the dispatch waker (wake.set)
+                            break
+                        model_counts[item.options.model] += 1
+                        in_flight += 1
+                        tg.start_soon(run_one, item)
+
                 while True:
                     if cancelled:
                         break
@@ -1108,23 +1136,7 @@ async def run_task_retry_attempts(
                         pending.remove(abandoned)
                         await abandoned.options.logger.discard()
 
-                    # dispatch up to the concurrency cap (model-balanced),
-                    # re-reading the live `ctl config --max-tasks` override
-                    # each iteration (a set fires the dispatch wakers, so a
-                    # raise reaches a waiting dispatcher immediately)
-                    while (
-                        not cancelled
-                        and in_flight < effective_max_tasks(parallel)
-                        and pending
-                    ):
-                        item = pick_balanced()
-                        if item is None:
-                            # everything pending is held by a pause latch —
-                            # a resume fires the dispatch waker (wake.set)
-                            break
-                        model_counts[item.options.model] += 1
-                        in_flight += 1
-                        tg.start_soon(run_one, item)
+                    start_pending()
 
                     if cancelled:
                         break
@@ -1197,11 +1209,13 @@ class SandboxManager:
         ] = []
         self._init_lock = anyio.Lock()
         self._lifecycle: ExitStack | None = None
-        # keyed by (task, spec): resolution folds in per-task state (run_dir),
-        # so a spec-only key would leak one task's resolution to another
-        self._resolved_no_metadata: dict[
-            tuple[Task, SandboxEnvironmentSpec], TaskSandboxEnvironment
-        ] = {}
+        # keyed by task, then spec: resolution folds in per-task state
+        # (run_dir), so a spec-only key would leak one task's resolution to
+        # another. Weak on the task, so a finished task's Task and dataset are
+        # not kept alive until the run ends
+        self._resolved_no_metadata: weakref.WeakKeyDictionary[
+            Task, dict[SandboxEnvironmentSpec, TaskSandboxEnvironment]
+        ] = weakref.WeakKeyDictionary()
 
     def open(self) -> None:
         """Own the run's sandbox lifecycle state from the calling context.
@@ -1264,21 +1278,22 @@ class SandboxManager:
         interpolate it into a per-sample init environment).
         """
         sandboxenvs: Set[TaskSandboxEnvironment] = set()
+        resolved = self._resolved_no_metadata.setdefault(task.task, {})
         for sample in samples:
             sandboxenv: TaskSandboxEnvironment | None = None
-            cache_key: tuple[Task, SandboxEnvironmentSpec] | None = None
+            cache_key: SandboxEnvironmentSpec | None = None
             if not sample.metadata:
                 spec = await resolve_sandbox(task.sandbox, sample, task.task.name)
                 if spec is None:
                     continue
-                cache_key = (task.task, spec)
-                sandboxenv = self._resolved_no_metadata.get(cache_key)
+                cache_key = spec
+                sandboxenv = resolved.get(cache_key)
             if sandboxenv is None:
                 sandboxenv = await resolve_sandbox_for_task_and_sample(
                     task.sandbox, task.task, sample
                 )
                 if sandboxenv is not None and cache_key is not None:
-                    self._resolved_no_metadata[cache_key] = sandboxenv
+                    resolved[cache_key] = sandboxenv
             if sandboxenv is not None:
                 sandboxenvs.add(sandboxenv)
         return sandboxenvs

@@ -284,7 +284,10 @@ task-not-found (not specially handled).
   loggers discarded, the cancellation propagating); a real Ctrl-C while an
   added task is prepared or `next_tasks()` waits (in a subprocess, under both
   backends) raising `KeyboardInterrupt`; and which hooks can call
-  `enqueue_task`. `tests/test_task_source.py` also covers tasks enqueued by
+  `enqueue_task`. It also covers a throttled trailing call that enqueues after the run
+  has finished dispatching (logged; the eval keeps its result) and a finished
+  added task's dataset being freed before the run ends.
+  `tests/test_task_source.py` also covers tasks enqueued by
   the final `next_tasks()` call (an `after_batch` one starting after the
   `when_free` ones enqueued with it) and a cancellation while `next_tasks()`
   blocks propagating, and
@@ -328,7 +331,10 @@ through the `AddedTasks` protocol ([run.py](../src/inspect_ai/_eval/run.py)):
 hands it to `run_task_retry_attempts(..., feed=...)`. `prepare_options` owns a
 group's loggers until it returns them: if preparing a task fails or is
 cancelled, it discards the loggers it already created (they are not yet in
-`prepared_options`, so `eval_run`'s error handler would not reach them). At `parallel == 1` it puts the seed
+`prepared_loggers`, so `eval_run`'s error handler would not reach them).
+`prepared_loggers` keeps only the loggers, not the `TaskRunOptions`, so a
+finished added task's `Task` and dataset are freed before the run ends. At
+`parallel == 1` it puts the seed
 and every added group in sequence-major order (`_dispatch_order`), so with the
 dispatcher's queue-order tie-break all of task N's model fan-outs run before
 task N+1's, as when the tasks are passed to `eval()` directly.

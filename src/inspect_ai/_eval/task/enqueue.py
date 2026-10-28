@@ -180,7 +180,10 @@ def enqueue_task(
     A task that waits for a ``"when_free"`` task it added needs a free slot for
     it: ``eval()`` defaults ``max_tasks`` to the number of models (1 for a
     single model), so without a higher ``max_tasks`` the added task never
-    starts and the run hangs.
+    starts and the run hangs. The same applies to ``eval_set()`` in selection
+    mode (an external runner running the tasks it selected): ``eval_set()``'s
+    own default (at least 10) is not applied there, so ``eval()``'s default
+    is used unless the selection or the ``eval_set()`` call sets ``max_tasks``.
 
     In a :class:`~inspect_ai.TaskSource` run, tasks added while
     ``next_tasks()`` runs start only after it returns, so ``next_tasks()``
