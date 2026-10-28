@@ -1,6 +1,5 @@
 from typing import Any, Literal, cast
 
-from shortuuid import uuid
 from typing_extensions import override
 
 from inspect_ai._util.content import (
@@ -193,7 +192,7 @@ class CompactionEdit(CompactionStrategy):
             if self.keep_tool_inputs:
                 # Just clear the result content
                 result[tool_idx] = result[tool_idx].model_copy(
-                    update={"id": uuid(), "content": TOOL_RESULT_REMOVED}
+                    update={"content": TOOL_RESULT_REMOVED}
                 )
             else:
                 # Remove tool message entirely
@@ -270,8 +269,8 @@ def _clear_reasoning(msg: ChatMessageAssistant) -> ChatMessageAssistant:
         if not isinstance(c, ContentReasoning) or _is_replay_anchor(c)
     ]
     if not new_content:
-        return msg.model_copy(update={"id": uuid(), "content": ""})
-    return msg.model_copy(update={"id": uuid(), "content": new_content})
+        return msg.model_copy(update={"content": ""})
+    return msg.model_copy(update={"content": new_content})
 
 
 def _is_replay_anchor(content: ContentReasoning) -> bool:
@@ -319,7 +318,6 @@ def _replace_tool_call_with_text(
 
     return msg.model_copy(
         update={
-            "id": uuid(),
             "tool_calls": new_tool_calls if new_tool_calls else None,
             "content": new_content,
         }
@@ -361,6 +359,6 @@ def _apply_server_tool_clearing(
             )
             content_list[content_idx] = cleared_tool_use
 
-        result[msg_idx] = msg.model_copy(update={"id": uuid(), "content": content_list})
+        result[msg_idx] = msg.model_copy(update={"content": content_list})
 
     return result

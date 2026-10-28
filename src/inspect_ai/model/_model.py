@@ -2671,9 +2671,7 @@ def resolve_reasoning_history(
                             if not isinstance(content, ContentReasoning)
                         ]
                         if len(filtered) != len(message.content):
-                            message = message.model_copy(
-                                update={"id": uuid(), "content": filtered}
-                            )
+                            message = message.model_copy(update={"content": filtered})
                     found_last = True
 
             resolved_messages.append(message)
@@ -2716,7 +2714,6 @@ def resolve_tool_model_input(
             )
             if model_input_content is not message.content:
                 message.content = model_input_content
-                message.id = uuid()
 
     # return modified messages
     return messages
@@ -2743,6 +2740,7 @@ def tool_result_media_as_user_message(
     chat_messages: list[ChatMessage] = []
     pending_content: list[Content] = []
     tool_call_ids: list[str] = []
+    source_ids: list[str] = []
     for message in messages:
         if (
             isinstance(message, ChatMessageTool)
@@ -2756,6 +2754,7 @@ def tool_result_media_as_user_message(
             )
             chat_messages.append(
                 ChatMessageTool(
+                    id=message.id,
                     content=edited_tool_message_content,
                     tool_call_id=message.tool_call_id,
                     function=message.function,
@@ -2764,19 +2763,32 @@ def tool_result_media_as_user_message(
             pending_content.extend(new_user_message_content)
             if message.tool_call_id:
                 tool_call_ids.append(message.tool_call_id)
+            if message.id:
+                source_ids.append(message.id)
         else:
             if pending_content:
                 chat_messages.append(
-                    ChatMessageUser(content=pending_content, tool_call_id=tool_call_ids)
+                    _media_user_message(pending_content, tool_call_ids, source_ids)
                 )
             pending_content = []
             tool_call_ids = []
+            source_ids = []
             chat_messages.append(message)
     if pending_content:
         chat_messages.append(
-            ChatMessageUser(content=pending_content, tool_call_id=tool_call_ids)
+            _media_user_message(pending_content, tool_call_ids, source_ids)
         )
     return chat_messages
+
+
+def _media_user_message(
+    content: list[Content], tool_call_ids: list[str], source_ids: list[str]
+) -> ChatMessageUser:
+    return ChatMessageUser(
+        content=content,
+        tool_call_id=tool_call_ids,
+        metadata={"derived_from": source_ids} if source_ids else None,
+    )
 
 
 def _make_content_reducer(
@@ -2920,8 +2932,9 @@ def combine_messages(
     if b.metadata:
         merged_metadata.update(b.metadata)
 
-    # track which messages were combined
+    # track which messages were combined (the anthropic provider reads combined_from)
     merged_metadata["combined_from"] = [a.id, b.id]
+    merged_metadata["derived_from"] = [a.id, b.id]
 
     # type-specific field merging
     if isinstance(a, ChatMessageAssistant) and isinstance(b, ChatMessageAssistant):

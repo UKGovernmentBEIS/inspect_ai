@@ -1382,3 +1382,51 @@ async def test_server_tool_clearing_does_not_write_into_other_messages(
     assert len(tool_uses) == 1
     assert tool_uses[0].id == "ws1"
     assert tool_uses[0].result == TOOL_RESULT_REMOVED
+
+
+@pytest.mark.parametrize("keep_tool_inputs", [True, False])
+async def test_edited_messages_keep_their_ids(
+    tool_call_1: ToolCall, keep_tool_inputs: bool
+) -> None:
+    """Clearing thinking, tool results, server tool results and memory content keeps ids."""
+    strategy = CompactionEdit(
+        keep_thinking_turns=0,
+        keep_tool_uses=0,
+        keep_tool_inputs=keep_tool_inputs,
+        memory=True,
+    )
+    memory_call = ToolCall(
+        id="mem1",
+        function="memory",
+        arguments={"command": "create", "path": "/notes", "file_text": "x" * 100},
+    )
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="Start"),
+        ChatMessageAssistant(
+            content=[
+                ContentReasoning(reasoning="Thinking"),
+                ContentText(text="Searching"),
+                ContentToolUse(
+                    tool_type="web_search",
+                    id="ws1",
+                    name="web_search",
+                    arguments="{}",
+                    result="results",
+                ),
+            ],
+            tool_calls=[tool_call_1, memory_call],
+        ),
+        ChatMessageTool(content="Sunny", tool_call_id="tool1", function="get_weather"),
+        ChatMessageTool(content="saved", tool_call_id="mem1", function="memory"),
+        ChatMessageUser(content="Next"),
+    ]
+    by_id = {m.id: m for m in messages}
+
+    compacted, _ = await strategy.compact(get_model("mockllm/model"), messages, [])
+
+    assert all(m.id in by_id for m in compacted)
+    edited = [m for m in compacted if m != by_id[m.id]]
+    # with keep_tool_inputs=False the tool messages are removed, not edited
+    assert {m.role for m in edited} == (
+        {"assistant", "tool"} if keep_tool_inputs else {"assistant"}
+    )

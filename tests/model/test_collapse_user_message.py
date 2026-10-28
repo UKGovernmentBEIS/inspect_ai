@@ -96,6 +96,8 @@ def test_collapse_user_messages_preserves_fields():
     assert combined.metadata["key2"] == "val2"
     assert combined.metadata["shared"] == "from_b"
     assert combined.metadata["combined_from"] == [msg_a.id, msg_b.id]
+    assert combined.metadata["derived_from"] == [msg_a.id, msg_b.id]
+    assert combined.id not in {msg_a.id, msg_b.id}
 
 
 @pytest.mark.anyio

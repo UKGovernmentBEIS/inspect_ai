@@ -1,14 +1,19 @@
 """Tests for stable_message_ids and message ID stability."""
 
+from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
+    ChatMessageTool,
     ChatMessageUser,
     GenerateConfig,
     ModelOutput,
+    get_model,
 )
 from inspect_ai.model._message_ids import stable_message_ids
+from inspect_ai.model._model import resolve_reasoning_history, resolve_tool_model_input
+from inspect_ai.tool import ToolDef
 
 
 class TestStableMessageIds:
@@ -271,3 +276,42 @@ class TestStableMessageIdsWithModelEvent:
 
         # Input should still have IDs
         assert list(event.input)[0].id is not None
+
+
+def test_reasoning_history_stripping_keeps_ids() -> None:
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="Question"),
+        ChatMessageAssistant(
+            content=[ContentReasoning(reasoning="hmm"), ContentText(text="Answer")]
+        ),
+    ]
+    resolved = resolve_reasoning_history(
+        messages,
+        GenerateConfig(reasoning_history="none"),
+        get_model("mockllm/model").api,
+    )
+
+    assert resolved[1].content == [ContentText(text="Answer")]
+    assert [m.id for m in resolved] == [m.id for m in messages]
+
+
+def test_tool_model_input_keeps_ids() -> None:
+    async def lookup(query: str) -> str:
+        """Look up a query.
+
+        Args:
+          query: The query.
+        """
+        return query
+
+    tdef = ToolDef(lookup, model_input=lambda index, total, content, hints: "(removed)")
+    messages: list[ChatMessage] = [
+        ChatMessageTool(content="result", tool_call_id="c1", function="lookup")
+    ]
+    resolved = resolve_tool_model_input(
+        [tdef], messages, {"disable_computer_screenshot_truncation": False}
+    )
+
+    assert resolved[0].content == "(removed)"
+    assert resolved[0].id == messages[0].id
+    assert messages[0].content == "result"

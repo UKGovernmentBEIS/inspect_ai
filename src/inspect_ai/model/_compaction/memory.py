@@ -1,5 +1,3 @@
-from shortuuid import uuid
-
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -46,9 +44,7 @@ def clear_memory_content(messages: list[ChatMessage]) -> list[ChatMessage]:
                 else:
                     new_tool_calls.append(tc)
             if modified:
-                result[i] = msg.model_copy(
-                    update={"id": uuid(), "tool_calls": new_tool_calls}
-                )
+                result[i] = msg.model_copy(update={"tool_calls": new_tool_calls})
     return result
 
 

@@ -1269,11 +1269,11 @@ async def test_baseline_uses_input_context_tokens(
 async def test_checkpoint_state_survives_round_trip() -> None:
     """Handler state serializes and restores faithfully on resume.
 
-    The edit strategy replaces the tool result with a synthesized
-    "(Tool result removed)" message that has its own id, absent from the
-    full history. Such messages live only in `compacted_input`, so they
-    can't be rebuilt from the tracked `messages` by id — the state must be
-    persisted in full and survive the JSON round-trip intact.
+    The edit strategy replaces the tool result's content with "(Tool result
+    removed)" under the same id. The edited message lives only in
+    `compacted_input`, so it can't be rebuilt from the tracked `messages` by
+    id — the state must be persisted in full and survive the JSON round-trip
+    intact.
     """
     model = get_model("mockllm/model")
     strategy = CompactionEdit(threshold=300, keep_tool_uses=0)
@@ -1302,12 +1302,12 @@ async def test_checkpoint_state_survives_round_trip() -> None:
     assert isinstance(snap, _CompactionState)
     assert snap.processed_message_ids  # state was captured
 
-    # compacted_input contains a synthesized message whose id is NOT in the
-    # full history — proof it can't be reconstructed from ids and must be
-    # serialized in full.
-    history_ids = {m.id for m in messages}
-    novel = [m for m in snap.compacted_input if m.id not in history_ids]
-    assert novel, "expected edit strategy to introduce a message absent from history"
+    # compacted_input contains an edited message that differs from the history
+    # message with its id — proof it can't be reconstructed from ids and must
+    # be serialized in full.
+    history = {m.id: m for m in messages}
+    edited = [m for m in snap.compacted_input if m != history[m.id]]
+    assert edited, "expected edit strategy to edit a message from history"
 
     # round-trip through JSON exactly as the checkpointer would, then resume
     restored = _CompactionState.model_validate(snap.model_dump(mode="json"))

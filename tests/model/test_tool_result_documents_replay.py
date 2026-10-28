@@ -1,3 +1,5 @@
+from typing import Any
+
 from inspect_ai._util.content import (
     ContentAudio,
     ContentDocument,
@@ -197,9 +199,42 @@ def execute_and_assert(input_messages: list[ChatMessage], expected: list[ChatMes
 def assert_messages_equal(
     actual: list[ChatMessage], expected: list[ChatMessage]
 ) -> None:
-    assert [message.model_dump(exclude={"id"}) for message in actual] == [
-        message.model_dump(exclude={"id"}) for message in expected
+    assert [_comparable(message) for message in actual] == [
+        _comparable(message) for message in expected
     ]
+
+
+def _comparable(message: ChatMessage) -> dict[str, Any]:
+    """The message without its id and `derived_from`, which `test_media_message_ids` checks."""
+    dump = message.model_dump(exclude={"id"})
+    metadata = {
+        key: value
+        for key, value in (dump["metadata"] or {}).items()
+        if key != "derived_from"
+    }
+    dump["metadata"] = metadata or None
+    return dump
+
+
+def test_media_message_ids() -> None:
+    """Edited tool messages keep their ids; the new user message records its sources."""
+    tool_a = ChatMessageTool(
+        tool_call_id="a", content=[ContentDocument(document="a.pdf")]
+    )
+    tool_b = ChatMessageTool(
+        tool_call_id="b", content=[ContentDocument(document="b.pdf")]
+    )
+    user = ChatMessageUser(content="next")
+
+    transformed = tool_result_media_as_user_message(
+        [tool_a, tool_b, user], (ContentDocument,)
+    )
+
+    assert [m.id for m in transformed[:2]] == [tool_a.id, tool_b.id]
+    media = transformed[2]
+    assert media.id not in {tool_a.id, tool_b.id, user.id}
+    assert media.metadata == {"derived_from": [tool_a.id, tool_b.id]}
+    assert transformed[3] is user
 
 
 def _modified_document_response_message(message: ChatMessageTool) -> ChatMessageTool:
