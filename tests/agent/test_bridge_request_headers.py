@@ -1,17 +1,21 @@
 """Tests for `BridgeRequest.headers`: the client's request headers on the host."""
 
-from typing import Any, Awaitable, Callable, Mapping, cast
+import copy
+import dataclasses
+import json
+import pickle
+from typing import Any, Awaitable, Callable, Sequence, cast
 
 import httpx2
 import pytest
-from pydantic import JsonValue
+from pydantic import JsonValue, TypeAdapter
 
 from inspect_ai.agent import BridgeRequest, current_bridge_request
 from inspect_ai.agent._agent import AgentState
+from inspect_ai.agent._bridge.bridge import resolve_expose_client_headers
 from inspect_ai.agent._bridge.context import (
     bridged_request_scope,
     client_request_headers_scope,
-    sanitize_client_headers,
 )
 from inspect_ai.agent._bridge.sandbox.service import (
     generate_anthropic,
@@ -19,6 +23,7 @@ from inspect_ai.agent._bridge.sandbox.service import (
     generate_responses,
 )
 from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
+from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.model import GenerateConfig, get_model
 from inspect_ai.model._model import GenerateFilter, use_model_event_sink
@@ -33,69 +38,94 @@ _CLIENT_HEADERS = {
     "x-app": "cli",
     "Authorization": "Bearer sandbox-token",
     "x-api-key": "sandbox-key",
-    "Api-Key": "sandbox-key",
-    "x-goog-api-key": "sandbox-key",
-    "Proxy-Authorization": "Basic abc",
-    "Cookie": "a=b",
-    "X-Amz-Security-Token": "sandbox-token",
-    "x-custom-auth-token": "secret",
-    "Ocp-Apim-Subscription-Key": "secret",
+    "CF-Access-Jwt-Assertion": "eyJhbGciOiJSUzI1NiJ9.payload.signature",
 }
+
+_EXPOSE = ["x-claude-code-agent-id", "X-Claude-Code-Parent-Agent-Id"]
 
 _EXPOSED = {
     "x-claude-code-agent-id": "a1b2c3",
     "x-claude-code-parent-agent-id": "p9",
-    "x-claude-code-session-id": "s1",
-    "x-app": "cli",
 }
 
-
-def test_sanitize_lowercases_and_drops_credentials() -> None:
-    headers = sanitize_client_headers(_CLIENT_HEADERS)
-    assert dict(headers) == _EXPOSED
-    with pytest.raises(TypeError):
-        cast(dict[str, str], headers)["x-app"] = "other"
+_NAMES = resolve_expose_client_headers(_EXPOSE)
 
 
-def test_sanitize_joins_repeated_names_and_drops_non_strings() -> None:
-    headers = sanitize_client_headers({"X-A": "1", "x-a": "2", "x-b": 3, 4: "x"})
-    assert dict(headers) == {"x-a": "1, 2"}
+def _exposed(headers: object, names: frozenset[str] = _NAMES) -> dict[str, str]:
+    with client_request_headers_scope(headers, names):
+        with bridged_request_scope("slug"):
+            request = current_bridge_request()
+            assert request is not None
+            return request.headers
+
+
+def test_exposes_only_listed_headers() -> None:
+    assert _exposed(_CLIENT_HEADERS) == _EXPOSED
+
+
+def test_exposes_nothing_by_default() -> None:
+    assert resolve_expose_client_headers(None) == frozenset()
+    assert _exposed(_CLIENT_HEADERS, frozenset()) == {}
+
+
+def test_joins_repeated_names_and_drops_non_strings() -> None:
+    names = frozenset({"x-a", "x-b"})
+    assert _exposed({"X-A": "1", "x-a": "2", "x-b": 3, 4: "x"}, names) == {
+        "x-a": "1, 2"
+    }
 
 
 @pytest.mark.parametrize("headers", [None, {}, "not-a-mapping"])
-def test_sanitize_empty(headers: object) -> None:
-    assert dict(sanitize_client_headers(headers)) == {}
+def test_no_headers(headers: object) -> None:
+    assert _exposed(headers) == {}
+
+
+def test_resolve_normalizes_names() -> None:
+    assert resolve_expose_client_headers([" X-Agent-Id ", "x-agent-id"]) == {
+        "x-agent-id"
+    }
+
+
+@pytest.mark.parametrize("value", ["x-agent-id", ["x-agent-id", 1], {"x-agent-id"}])
+def test_resolve_rejects_non_lists(value: Any) -> None:
+    with pytest.raises(TypeError):
+        resolve_expose_client_headers(value)
+
+
+@pytest.mark.parametrize(
+    "name", ["Authorization", "x-api-key", "Cookie", "X-Amz-Security-Token"]
+)
+def test_resolve_refuses_credential_headers(name: str) -> None:
+    with pytest.raises(ValueError, match="credentials"):
+        resolve_expose_client_headers([name])
 
 
 def test_bridge_request_headers_default_empty_and_hashable() -> None:
     request = BridgeRequest(model="m")
-    assert dict(request.headers) == {}
+    assert request.headers == {}
     hash(request)
     assert request == BridgeRequest(model="m", headers={})
 
 
-def test_bridge_request_copies_pickles_and_is_read_only() -> None:
-    import copy
-    import dataclasses
-    import pickle
-
-    request = BridgeRequest(model="m", headers={"x-app": "cli"})
+@pytest.mark.parametrize("headers", [{}, {"x-agent-id": "a1"}])
+def test_bridge_request_serializes(headers: dict[str, str]) -> None:
+    request = BridgeRequest(model="m", headers=headers)
+    expected = {"model": "m", "headers": headers}
+    assert json.loads(json.dumps(dataclasses.asdict(request))) == expected
+    assert json.loads(TypeAdapter(BridgeRequest).dump_json(request)) == expected
+    event = InfoEvent(data=dataclasses.asdict(request))
+    assert json.loads(event.model_dump_json())["data"] == expected
     assert copy.deepcopy(request) == request
     assert pickle.loads(pickle.dumps(request)) == request
-    assert dataclasses.asdict(request)["headers"] == {"x-app": "cli"}
-    with pytest.raises(TypeError):
-        cast(dict[str, str], request.headers)["x-app"] = "other"
 
 
 def test_scope_carries_headers_and_resets() -> None:
-    with client_request_headers_scope({"X-App": "cli"}):
-        with bridged_request_scope("slug"):
-            request = current_bridge_request()
-            assert request is not None
-            assert dict(request.headers) == {"x-app": "cli"}
+    assert _exposed({"X-Agent-Id": "a"}, frozenset({"x-agent-id"})) == {
+        "x-agent-id": "a"
+    }
     with bridged_request_scope("slug"):
         request = current_bridge_request()
-        assert request is not None and dict(request.headers) == {}
+        assert request is not None and request.headers == {}
 
 
 # --- sandbox model service --------------------------------------------------
@@ -115,7 +145,10 @@ class _CapturingSink:
 
 
 def _bridge(
-    model: Any = "mockllm/model", filter: GenerateFilter | None = None
+    model: Any = "mockllm/model",
+    filter: GenerateFilter | None = None,
+    expose: Sequence[str] | None = _EXPOSE,
+    forward: dict[str, list[str]] | None = None,
 ) -> SandboxAgentBridge:
     return SandboxAgentBridge(
         state=AgentState(messages=[]),
@@ -125,6 +158,8 @@ def _bridge(
         port=13131,
         model=None,
         model_aliases={"agent-model": model},
+        expose_client_headers=expose,
+        forward_client_headers=forward,
     )
 
 
@@ -168,7 +203,7 @@ async def test_model_event_sink_sees_client_headers(protocol: str) -> None:
     for _, request in sink.seen:
         assert request is not None
         assert request.model == "agent-model"
-        assert dict(request.headers) == _EXPOSED
+        assert request.headers == _EXPOSED
     # nothing leaks past the request
     assert current_bridge_request() is None
 
@@ -184,7 +219,7 @@ async def test_filter_sees_client_headers() -> None:
     factory, body = _PROTOCOLS["anthropic"]
     await factory(_bridge(filter=capture))(body, dict(_CLIENT_HEADERS))
     [request] = seen
-    assert request is not None and dict(request.headers) == _EXPOSED
+    assert request is not None and request.headers == _EXPOSED
 
 
 @pytest.mark.anyio
@@ -194,12 +229,12 @@ async def test_sink_sees_no_headers_when_client_sent_none() -> None:
     with use_model_event_sink(sink):
         await factory(_bridge())(body, None)
     for _, request in sink.seen:
-        assert request is not None and dict(request.headers) == {}
+        assert request is not None and request.headers == {}
 
 
 @pytest.mark.anyio
 async def test_exposed_headers_are_not_forwarded_to_provider() -> None:
-    """Exposing headers to host code must not widen what the provider receives."""
+    """Exposing a header doesn't forward it; `forward_client_headers` still applies."""
     requests: list[httpx2.Request] = []
 
     def handler(request: httpx2.Request) -> httpx2.Response:
@@ -229,19 +264,23 @@ async def test_exposed_headers_are_not_forwarded_to_provider() -> None:
     sink = _CapturingSink()
     try:
         with use_model_event_sink(sink):
-            await generate_anthropic(_NO_WEB, _NO_CODE, _bridge(model))(
+            bridge = _bridge(
+                model, expose=[*_EXPOSE, "x-app"], forward={"x-app": ["cli"]}
+            )
+            await generate_anthropic(_NO_WEB, _NO_CODE, bridge)(
                 _PROTOCOLS["anthropic"][1], dict(_CLIENT_HEADERS)
             )
     finally:
         await model.api.aclose()
 
-    # the sink saw them...
+    # the sink saw the exposed headers...
     request_seen = sink.seen[0][1]
     assert request_seen is not None
-    assert dict(request_seen.headers) == _EXPOSED
-    # ...but the provider did not (none are listed in forward_client_headers)
+    assert request_seen.headers == {**_EXPOSED, "x-app": "cli"}
+    # ...but the provider got only the forwarded one
     [request] = requests
-    host_auth = {"x-api-key", "authorization"}
+    assert request.headers.get("x-app") == "cli"
+    host_auth = {"x-api-key", "authorization", "x-app"}
     for name in {name.lower() for name in _CLIENT_HEADERS} - host_auth:
         assert name not in request.headers, name
     # the host's key, as x-api-key or (anthropic >= 2) a bearer token, and
@@ -261,39 +300,23 @@ async def test_in_process_bridge_exposes_extra_headers() -> None:
     from inspect_ai.agent import agent_bridge
 
     sink = _CapturingSink()
-    async with agent_bridge(AgentState(messages=[]), model_event_sink=sink):
+    async with agent_bridge(
+        AgentState(messages=[]),
+        model_event_sink=sink,
+        expose_client_headers=["X-Agent-Id"],
+    ):
         async with AsyncOpenAI(
             api_key="unused", base_url="http://localhost:1/v1"
         ) as client:
             await client.chat.completions.create(
                 model="inspect/mockllm/model",
                 messages=[{"role": "user", "content": "hi"}],
-                extra_headers={"X-Agent-Id": "sub-1", "Authorization": "Bearer x"},
+                extra_headers={"X-Agent-Id": "sub-1", "X-Other": "o"},
             )
 
     assert sink.seen
     for _, request in sink.seen:
-        assert request is not None
-        headers: Mapping[str, str] = request.headers
-        assert headers.get("x-agent-id") == "sub-1"
-        assert "authorization" not in headers
-
-
-def test_sanitize_catches_credential_variants() -> None:
-    headers = sanitize_client_headers(
-        {
-            "x_api_key": "s",
-            "x-access-key-id": "a",
-            "x-hmac-signature": "sig",
-            "x-custom": "Bearer abc",
-            "x-other": "sk-ant-123",
-            "x-joined": "v, Bearer abc",
-            "x-tab": "Bearer\tabc",
-            "x-token": "Token abc",
-            "x-session-id": "ok",
-        }
-    )
-    assert dict(headers) == {"x-session-id": "ok"}
+        assert request is not None and request.headers == {"x-agent-id": "sub-1"}
 
 
 @pytest.mark.anyio
@@ -344,7 +367,7 @@ async def test_concurrent_requests_see_their_own_headers() -> None:
         return None
 
     factory, body = _PROTOCOLS["anthropic"]
-    generate = factory(_bridge(filter=filter))
+    generate = factory(_bridge(filter=filter, expose=["x-id"]))
 
     async def run(i: int) -> None:
         await generate(body, {"x-id": str(i)})
@@ -362,19 +385,21 @@ async def test_in_process_anthropic_exposes_extra_headers() -> None:
     from inspect_ai.agent import agent_bridge
 
     sink = _CapturingSink()
-    async with agent_bridge(AgentState(messages=[]), model_event_sink=sink):
+    async with agent_bridge(
+        AgentState(messages=[]),
+        model_event_sink=sink,
+        expose_client_headers=["x-agent-id"],
+    ):
         async with AsyncAnthropic(api_key="unused", base_url="http://localhost:1") as c:
             await c.messages.create(
                 model="inspect/mockllm/model",
                 max_tokens=16,
                 messages=[{"role": "user", "content": "hi"}],
-                extra_headers={"X-Agent-Id": "s2", "X-Api-Key": "k"},
+                extra_headers={"X-Agent-Id": "s2", "X-Other": "o"},
             )
     assert sink.seen
     for _, request in sink.seen:
-        assert request is not None
-        assert request.headers.get("x-agent-id") == "s2"
-        assert "x-api-key" not in request.headers
+        assert request is not None and request.headers == {"x-agent-id": "s2"}
 
 
 @pytest.mark.anyio
@@ -390,7 +415,11 @@ async def test_nested_bridged_request_does_not_inherit_outer_headers(
     inner = _CapturingSink()
 
     async def outer_filter(*args: Any) -> None:
-        async with agent_bridge(AgentState(messages=[]), model_event_sink=inner):
+        async with agent_bridge(
+            AgentState(messages=[]),
+            model_event_sink=inner,
+            expose_client_headers=["x-claude-code-agent-id"],
+        ):
             await genai.Client(api_key="inspect").aio.models.generate_content(
                 model="inspect", contents="hi"
             )
@@ -403,7 +432,7 @@ async def test_nested_bridged_request_does_not_inherit_outer_headers(
     assert inner.seen
     for _, request in inner.seen:
         assert request is not None
-        assert dict(request.headers) == {}
+        assert request.headers == {}
 
 
 @pytest.mark.anyio
@@ -413,7 +442,11 @@ async def test_in_process_responses_exposes_extra_headers() -> None:
     from inspect_ai.agent import agent_bridge
 
     sink = _CapturingSink()
-    async with agent_bridge(AgentState(messages=[]), model_event_sink=sink):
+    async with agent_bridge(
+        AgentState(messages=[]),
+        model_event_sink=sink,
+        expose_client_headers=["x-agent-id"],
+    ):
         async with AsyncOpenAI(
             api_key="unused", base_url="http://localhost:1/v1"
         ) as client:
@@ -429,10 +462,10 @@ async def test_in_process_responses_exposes_extra_headers() -> None:
 
 def test_scopes_reset_on_exception() -> None:
     with pytest.raises(RuntimeError):
-        with client_request_headers_scope({"x-app": "cli"}):
+        with client_request_headers_scope({"x-app": "cli"}, frozenset({"x-app"})):
             with bridged_request_scope("slug"):
                 raise RuntimeError("boom")
     assert current_bridge_request() is None
     with bridged_request_scope("slug"):
         request = current_bridge_request()
-        assert request is not None and dict(request.headers) == {}
+        assert request is not None and request.headers == {}

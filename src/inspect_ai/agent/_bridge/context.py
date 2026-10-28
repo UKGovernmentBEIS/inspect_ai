@@ -1,8 +1,7 @@
-import re
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
-from typing import Any, Iterator, Literal, Mapping
+from typing import Iterator, Literal, Mapping
 
 
 @dataclass(frozen=True)
@@ -56,30 +55,6 @@ class AgentBridgeContext:
             )
 
 
-class _ReadOnlyHeaders(Mapping[str, str]):
-    """Immutable header mapping that (unlike `MappingProxyType`) copies and pickles."""
-
-    __slots__ = ("_headers",)
-
-    def __init__(self, headers: Mapping[str, str] | None = None) -> None:
-        self._headers = dict(headers or {})
-
-    def __getitem__(self, key: str) -> str:
-        return self._headers[key]
-
-    def __iter__(self) -> Iterator[str]:
-        return iter(self._headers)
-
-    def __len__(self) -> int:
-        return len(self._headers)
-
-    def __repr__(self) -> str:
-        return repr(self._headers)
-
-    def __reduce__(self) -> tuple[Any, ...]:
-        return (_ReadOnlyHeaders, (self._headers,))
-
-
 @dataclass(frozen=True)
 class BridgeRequest:
     """Facts about the bridged request currently being handled."""
@@ -87,74 +62,24 @@ class BridgeRequest:
     model: str
     """Model slug requested by the scaffold (before model alias resolution)."""
 
-    headers: Mapping[str, str] = field(default_factory=_ReadOnlyHeaders, hash=False)
-    """Client request headers (lowercased, read-only), minus credential headers."""
-
-    def __post_init__(self) -> None:
-        if not isinstance(self.headers, _ReadOnlyHeaders):
-            object.__setattr__(self, "headers", _ReadOnlyHeaders(self.headers))
+    headers: dict[str, str] = field(default_factory=dict, hash=False)
+    """Client request headers listed in `expose_client_headers` (lowercase names)."""
 
 
-_EMPTY_HEADERS: Mapping[str, str] = _ReadOnlyHeaders()
-
-# Credential header names (lowercase): never exposed on `BridgeRequest.headers`
-# and never forwarded from a sandboxed client to the provider (`bridge.py`)
-CREDENTIAL_HEADERS = frozenset(
-    [
-        "authorization",
-        "proxy-authorization",
-        "x-api-key",
-        "api-key",
-        "x-goog-api-key",
-        "cookie",
-    ]
-)
-CREDENTIAL_HEADER_PREFIXES = ("x-amz-",)
-_CREDENTIAL_HEADER_FRAGMENTS = (
-    "key",
-    "signature",
-    "auth",
-    "token",
-    "secret",
-    "password",
-    "credential",
-    "cookie",
-)
-
-
-_CREDENTIAL_VALUE = re.compile(r"\s*((bearer|basic|token)\s|sk-)", re.IGNORECASE)
-
-
-def _is_credential_header(lower_name: str) -> bool:
-    name = lower_name.replace("_", "-")
-    return (
-        name in CREDENTIAL_HEADERS
-        or name.startswith(CREDENTIAL_HEADER_PREFIXES)
-        or any(fragment in name for fragment in _CREDENTIAL_HEADER_FRAGMENTS)
-    )
-
-
-def _is_credential_value(value: str) -> bool:
-    # repeated headers arrive joined with ", ", so check each part
-    return any(_CREDENTIAL_VALUE.match(part) for part in value.split(","))
-
-
-def sanitize_client_headers(headers: object) -> Mapping[str, str]:
-    """Client request headers as exposed on `BridgeRequest.headers`."""
-    if not isinstance(headers, Mapping) or not headers:
-        return _EMPTY_HEADERS
-    sanitized: dict[str, str] = {}
+def _exposed_headers(headers: object, names: frozenset[str]) -> dict[str, str]:
+    exposed: dict[str, str] = {}
+    if not names or not isinstance(headers, Mapping):
+        return exposed
     for name, value in headers.items():
-        if not isinstance(name, str) or not isinstance(value, str):
-            continue
-        lower_name = name.lower()
-        if _is_credential_header(lower_name) or _is_credential_value(value):
-            continue
-        if lower_name in sanitized:
-            sanitized[lower_name] = f"{sanitized[lower_name]}, {value}"
-        else:
-            sanitized[lower_name] = value
-    return _ReadOnlyHeaders(sanitized) if sanitized else _EMPTY_HEADERS
+        if isinstance(name, str) and isinstance(value, str):
+            lower_name = name.lower()
+            if lower_name in names:
+                exposed[lower_name] = (
+                    f"{exposed[lower_name]}, {value}"
+                    if lower_name in exposed
+                    else value
+                )
+    return exposed
 
 
 _UNKNOWN_CONTEXT = AgentBridgeContext("unknown")
@@ -171,8 +96,8 @@ _bridge_request: ContextVar[BridgeRequest | None] = ContextVar(
 # Client headers of the request being handled, set by the bridge's entry
 # point (sandbox model service or in-process SDK patch) and read by the
 # `bridged_request_scope` that `bridge_generate` opens for that request.
-_client_request_headers: ContextVar[Mapping[str, str]] = ContextVar(
-    "_client_request_headers", default=_EMPTY_HEADERS
+_client_request_headers: ContextVar[dict[str, str] | None] = ContextVar(
+    "_client_request_headers", default=None
 )
 
 
@@ -250,9 +175,11 @@ def current_bridge_request() -> BridgeRequest | None:
 
 
 @contextmanager
-def client_request_headers_scope(headers: object) -> Iterator[None]:
-    """Record the client's request headers for the bridged request handled within."""
-    token = _client_request_headers.set(sanitize_client_headers(headers))
+def client_request_headers_scope(
+    headers: object, names: frozenset[str]
+) -> Iterator[None]:
+    """Record the client's `names` headers for the bridged request handled within."""
+    token = _client_request_headers.set(_exposed_headers(headers, names))
     try:
         yield
     finally:
@@ -275,9 +202,9 @@ def bridged_request_scope(requested_model: str | None) -> Iterator[None]:
     # consume the client headers: they belong to this request only, not to a
     # bridged request nested inside it that has no entry point of its own
     headers = _client_request_headers.get()
-    headers_token = _client_request_headers.set(_EMPTY_HEADERS)
+    headers_token = _client_request_headers.set(None)
     request_token = _bridge_request.set(
-        BridgeRequest(model=requested_model, headers=headers)
+        BridgeRequest(model=requested_model, headers=dict(headers or {}))
         if requested_model is not None
         else None
     )

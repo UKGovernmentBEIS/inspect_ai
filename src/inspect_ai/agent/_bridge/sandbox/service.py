@@ -96,19 +96,16 @@ def _forward_provider_errors(
     return generate_forwarding_errors
 
 
-def _expose_client_headers(generate: GenerateMethod) -> GenerateMethod:
-    """Expose the client's request headers as `current_bridge_request().headers`.
-
-    Only for host code (filters, model event sinks) reading the bridged
-    request; what reaches the provider is still limited by
-    `filter_sandbox_client_headers`.
-    """
+def _expose_client_headers(
+    generate: GenerateMethod, bridge: SandboxAgentBridge
+) -> GenerateMethod:
+    """Show host code the client headers in `bridge.expose_client_headers`."""
 
     async def generate_with_client_headers(
         json_data: dict[str, JsonValue],
         headers: dict[str, str] | None = None,
     ) -> dict[str, JsonValue]:
-        with client_request_headers_scope(headers):
+        with client_request_headers_scope(headers, bridge.expose_client_headers):
             return await generate(json_data, headers)
 
     return generate_with_client_headers
@@ -163,7 +160,7 @@ def generate_completions(
         )
         return completion.model_dump(mode="json", warnings=False)
 
-    return _expose_client_headers(generate)
+    return _expose_client_headers(generate, bridge)
 
 
 def generate_responses(
@@ -184,7 +181,7 @@ def generate_responses(
         )
         return completion.model_dump(mode="json", warnings=False)
 
-    return _expose_client_headers(generate)
+    return _expose_client_headers(generate, bridge)
 
 
 def generate_anthropic(
@@ -205,7 +202,7 @@ def generate_anthropic(
         )
         return completion.model_dump(mode="json", warnings=False)
 
-    return _expose_client_headers(generate)
+    return _expose_client_headers(generate, bridge)
 
 
 def generate_google(
@@ -223,7 +220,7 @@ def generate_google(
         )
         return completion
 
-    return _expose_client_headers(generate)
+    return _expose_client_headers(generate, bridge)
 
 
 def list_tools(

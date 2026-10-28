@@ -48,11 +48,7 @@ from inspect_ai.tool._tools._web_search._web_search import (
 
 from .anthropic_api import inspect_anthropic_api_request
 from .completions import inspect_completions_api_request
-from .context import (
-    CREDENTIAL_HEADER_PREFIXES,
-    CREDENTIAL_HEADERS,
-    client_request_headers_scope,
-)
+from .context import client_request_headers_scope
 from .google_api import inspect_google_api_request
 from .responses import inspect_responses_api_request
 from .util import (
@@ -100,7 +96,17 @@ _BLOCKED_BRIDGE_HEADER_PREFIXES = ("x-stainless-",)
 # the provider SDK or Inspect owns. The credential names cover the provider
 # SDKs Inspect uses: bearer tokens, Anthropic and Foundry keys, Azure OpenAI's
 # `api-key`, Google's `x-goog-api-key`, and AWS SigV4 (`x-amz-` prefix).
-_BLOCKED_CLIENT_HEADERS = CREDENTIAL_HEADERS | frozenset(
+_CREDENTIAL_CLIENT_HEADERS = frozenset(
+    [
+        "authorization",
+        "proxy-authorization",
+        "x-api-key",
+        "api-key",
+        "x-goog-api-key",
+        "cookie",
+    ]
+)
+_BLOCKED_CLIENT_HEADERS = _CREDENTIAL_CLIENT_HEADERS | frozenset(
     [
         "host",
         "content-type",
@@ -112,7 +118,7 @@ _BLOCKED_CLIENT_HEADERS = CREDENTIAL_HEADERS | frozenset(
         "x-irid",
     ]
 )
-_BLOCKED_CLIENT_HEADER_PREFIXES = ("x-stainless-", *CREDENTIAL_HEADER_PREFIXES)
+_BLOCKED_CLIENT_HEADER_PREFIXES = ("x-stainless-", "x-amz-")
 
 _FORWARD_CLIENT_HEADERS_OPTION = "sandbox_agent_bridge(forward_client_headers=...)"
 
@@ -121,6 +127,39 @@ def _is_blocked_client_header(lower_name: str) -> bool:
     return lower_name in _BLOCKED_CLIENT_HEADERS or lower_name.startswith(
         _BLOCKED_CLIENT_HEADER_PREFIXES
     )
+
+
+def resolve_expose_client_headers(
+    expose_client_headers: Sequence[str] | None,
+) -> frozenset[str]:
+    """Validate `expose_client_headers`, as lowercase header names.
+
+    Raises:
+        TypeError: Not a sequence of strings (e.g. a bare string).
+        ValueError: A credential header is listed.
+    """
+    if expose_client_headers is None:
+        return frozenset()
+    if isinstance(expose_client_headers, str) or not isinstance(
+        expose_client_headers, Sequence
+    ):
+        raise TypeError(
+            "expose_client_headers must be a list of header names "
+            f"(got {expose_client_headers!r})."
+        )
+    names: set[str] = set()
+    for name in expose_client_headers:
+        if not isinstance(name, str):
+            raise TypeError(
+                f"expose_client_headers names must be strings (got {name!r})."
+            )
+        lower_name = name.strip().lower()
+        if lower_name in _CREDENTIAL_CLIENT_HEADERS or lower_name.startswith("x-amz-"):
+            raise ValueError(
+                f"expose_client_headers cannot list '{name}': it carries credentials."
+            )
+        names.add(lower_name)
+    return frozenset(names)
 
 
 def resolve_forward_client_headers(
@@ -369,6 +408,7 @@ async def agent_bridge(
     forward_generation_config: bool = False,
     approval: list["ApprovalPolicy"] | None = None,
     response_filter: ModelResponseFilter | None = None,
+    expose_client_headers: Sequence[str] | None = None,
 ) -> AsyncGenerator[AgentBridge, None]:
     """Agent bridge.
 
@@ -428,6 +468,10 @@ async def agent_bridge(
        response_filter: Filter that can replace model output after generation
           (see ``ModelResponseFilter``). Return ``None`` to pass through; return
           a ``ModelOutput`` to replace the response.
+       expose_client_headers: Names of per-request client headers (e.g.
+          `extra_headers`) to show host code in `current_bridge_request().headers`.
+          Doesn't change which headers are forwarded. Credential headers (e.g.
+          `Authorization`) cannot be listed. Defaults to `None` (none).
     """
     # ensure one time init
     init_bridge_request_patch()
@@ -440,6 +484,7 @@ async def agent_bridge(
         code_execution, default_grant=True
     )
     allow_remote_mcp = True if client_mcp_servers is None else client_mcp_servers
+    exposed_headers = resolve_expose_client_headers(expose_client_headers)
 
     # create a state value that will be used to track mesages going over the bridge
     state = state or AgentState(messages=[])
@@ -466,6 +511,7 @@ async def agent_bridge(
             web_search=web_search_grant,
             code_execution=code_execution_grant,
             bridge=bridge,
+            expose_client_headers=exposed_headers,
         )
     )
     try:
@@ -489,6 +535,7 @@ class PatchConfig:
     bridge: AgentBridge = field(
         default_factory=lambda: AgentBridge(AgentState(messages=[]))
     )
+    expose_client_headers: frozenset[str] = frozenset()
 
 
 _patch_config: ContextVar[PatchConfig] = ContextVar(
@@ -617,7 +664,9 @@ def init_openai_request_patch() -> None:
                 headers = filter_bridge_headers(client_headers)
 
                 result: BaseModel
-                with client_request_headers_scope(client_headers):
+                with client_request_headers_scope(
+                    client_headers, config.expose_client_headers
+                ):
                     if options.url == "/chat/completions":
                         result = await inspect_completions_api_request(
                             json_data, headers, config.bridge
@@ -755,7 +804,9 @@ def init_anthropic_request_patch() -> None:
                 # anthropic >= 2.3 no longer puts ?beta=true on the url
                 is_beta = isinstance(cast_to, type) and issubclass(cast_to, BetaMessage)
                 client_headers = request_headers(options)
-                with client_request_headers_scope(client_headers):
+                with client_request_headers_scope(
+                    client_headers, config.expose_client_headers
+                ):
                     result = await inspect_anthropic_api_request(
                         json_data,
                         filter_bridge_headers(client_headers),

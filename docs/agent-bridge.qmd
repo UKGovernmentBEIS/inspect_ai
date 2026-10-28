@@ -375,7 +375,7 @@ Attribution comes from whoever runs the bridge: bridged agent packages (e.g. `in
 
 Model requests carry additional ambient facts: `current_bridge_request()` exposes the model slug the scaffold requested (before `model_aliases` resolution), or `None` when the request carried no model. Context resolvers use it to classify traffic that a scaffold routes through distinct model names.
 
-`current_bridge_request().headers` holds the HTTP headers the scaffold sent with the request (lowercased, with credential headers removed). Some scaffolds identify the calling agent there, e.g. Claude Code's `x-claude-code-agent-id`. The values come from the client and aren't verified, so don't rely on them to enforce policy.
+`current_bridge_request().headers` holds the request headers named in the bridge's `expose_client_headers` option (none by default), with lowercase names. Some scaffolds identify the calling agent there, e.g. `sandbox_agent_bridge(expose_client_headers=["x-claude-code-agent-id"])`. This is separate from `forward_client_headers`, which alone decides what reaches the provider. Gemini requests and in-process SDK `default_headers` carry no headers. The values come from the client and aren't verified, so don't rely on them to enforce policy.
 
 ## Transcript
 

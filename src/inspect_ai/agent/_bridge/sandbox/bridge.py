@@ -73,6 +73,7 @@ async def sandbox_agent_bridge(
     checkpointer: Checkpointer | None = None,
     forward_client_headers: Mapping[str, Sequence[str]] | None = None,
     response_filter: ModelResponseFilter | None = None,
+    expose_client_headers: Sequence[str] | None = None,
 ) -> AsyncIterator[SandboxAgentBridge]:
     """Sandbox agent bridge.
 
@@ -202,6 +203,12 @@ async def sandbox_agent_bridge(
         response_filter: Filter that can replace model output after generation
             (see ``ModelResponseFilter``). Return ``None`` to pass through;
             return a ``ModelOutput`` to replace the response.
+        expose_client_headers: Names of client request headers to show host
+            code (filters, model event sinks) in
+            `current_bridge_request().headers`, e.g. `["x-claude-code-agent-id"]`.
+            Doesn't change what is forwarded to the provider (see
+            `forward_client_headers`). Credential headers (e.g. `Authorization`)
+            cannot be listed. Defaults to `None` (none).
     """
     warn_sentinel_bridged()
 
@@ -250,6 +257,7 @@ async def sandbox_agent_bridge(
                 allow_remote_mcp=allow_remote_mcp,
                 forward_client_headers=forward_client_headers,
                 response_filter=response_filter,
+                expose_client_headers=expose_client_headers,
             )
 
             # register bridged tools with the bridge
