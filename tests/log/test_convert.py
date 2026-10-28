@@ -1,4 +1,5 @@
 import json
+import math
 import pathlib
 import re
 import zipfile
@@ -635,6 +636,35 @@ def test_convert_chunked_round_trip(tmp_path: pathlib.Path, fixture: str, pooled
             assert _resolved_dump(reassembled, attachment_map) == _resolved_dump(
                 original_sample, original_sample.attachments
             )
+
+
+def test_convert_chunked_events_keep_non_finite_floats(tmp_path: pathlib.Path):
+    """Events chunks write NaN/Inf as JSON constants, not null.
+
+    Each chunk dumps its events as their own roots rather than inside an
+    `EvalSample`, so the event models must carry the non-finite config.
+    """
+    log = read_eval_log(str(_TESTS_DIR / "test_eval_log/log_read_sample.eval"))
+    assert log.samples
+    sample = log.samples[0]
+    init = next(e for e in sample.events if isinstance(e, SampleInitEvent))
+    init.sample.metadata = {"nan": float("nan"), "inf": float("inf")}
+    model = next(e for e in sample.events if isinstance(e, ModelEvent))
+    model.output.metadata = {"nan": float("nan")}
+    input_file = tmp_path / "input" / "nan.eval"
+    input_file.parent.mkdir()
+    write_eval_log(log, str(input_file))
+
+    output_dir = tmp_path / "chunked"
+    convert_eval_logs_to_chunked(str(input_file), str(output_dir))
+
+    with zipfile.ZipFile(output_dir / input_file.name) as zf:
+        events = _read_chunked_sequence(zf, sample.id, sample.epoch, "events")
+    init_data = next(e for e in events if e["event"] == "sample_init")
+    assert math.isnan(init_data["sample"]["metadata"]["nan"])
+    assert init_data["sample"]["metadata"]["inf"] == float("inf")
+    model_data = next(e for e in events if e["event"] == "model")
+    assert math.isnan(model_data["output"]["metadata"]["nan"])
 
 
 def test_convert_chunked_sidecars(tmp_path: pathlib.Path):
