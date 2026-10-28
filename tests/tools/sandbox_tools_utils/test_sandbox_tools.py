@@ -10,7 +10,7 @@ from test_helpers.tool_call_utils import (
     get_tool_calls,
     get_tool_response,
 )
-from test_helpers.utils import flaky_retry
+from test_helpers.utils import flaky_retry, skip_if_no_docker
 
 from inspect_ai import Task, eval, eval_async
 from inspect_ai._util import logger as inspect_logger
@@ -257,6 +257,37 @@ async def test_text_editor_directory_path_is_literal(
             dataset=[Sample(input="View a directory containing shell syntax")],
             solver=check_directory_view(),
             sandbox=sandbox_config,
+        ),
+        model="mockllm/model",
+    )
+    assert log.status == "success", log.error
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+async def test_exec_remote_delivers_output_written_after_leader_exits() -> None:
+    """A background child that writes after the leader exits is not lost.
+
+    Fails on main when the first poll sees the exit before the child writes.
+    """
+
+    @solver
+    def check_late_output() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            result = await sandbox().exec_remote(
+                ["sh", "-c", "(sleep 0.5; echo late) & echo early"], stream=False
+            )
+            assert result.success, result.stderr
+            assert result.stdout == "early\nlate\n", result.stdout
+            return state
+
+        return solve
+
+    [log] = await eval_async(
+        Task(
+            dataset=[Sample(input="Run a command with late background output")],
+            solver=check_late_output(),
+            sandbox="docker",
         ),
         model="mockllm/model",
     )

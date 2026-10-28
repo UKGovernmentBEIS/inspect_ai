@@ -370,19 +370,17 @@ class Job:
         await self._wait_for_readers()
 
     async def _wait_for_readers(self) -> None:
-        """Wait for background read tasks to complete."""
-        self._stdout_buffer.close()
-        self._stderr_buffer.close()
-        for task in [self._stdout_task, self._stderr_task]:
-            if not task.done():
-                try:
-                    await asyncio.wait_for(task, timeout=1.0)
-                except (asyncio.TimeoutError, asyncio.CancelledError):
-                    task.cancel()
-                    try:
-                        await task
-                    except asyncio.CancelledError:
-                        pass
+        """Wait up to 1 s for the read tasks to reach EOF, then cancel any left.
+
+        The buffers stay open while the tasks run, so output read after the
+        leader exits is kept. Cancelling a task also frees a put() that waits
+        on a full buffer.
+        """
+        readers = {self._stdout_task, self._stderr_task}
+        _, pending = await asyncio.wait(readers, timeout=1.0)
+        for task in pending:
+            task.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
 
     async def _read_stream(
         self, stream: asyncio.StreamReader | None, buffer: BoundedByteBuffer
