@@ -742,7 +742,7 @@ def test_model_event_input_rebuilt_ids_not_shared_across_samples() -> None:
     assert len({first for first, _ in system_ids}) == 4
 
 
-@pytest.mark.parametrize("shape", ["cyclic", "deep"])
+@pytest.mark.parametrize("shape", ["cyclic", "deep", "shared_dict", "shared_list"])
 @pytest.mark.parametrize("field", ["metadata", "arguments"])
 def test_rebuilt_message_with_recursive_values_has_no_key(
     field: str, shape: str
@@ -763,12 +763,22 @@ def test_rebuilt_message_with_recursive_values_has_no_key(
     value: dict[str, Any] = {}
     if shape == "cyclic":
         value["self"] = value
-    else:
+    elif shape == "deep":
         inner = value
         for _ in range(2000):
             inner["k"] = {}
             inner = inner["k"]
+    else:
+        # 300 containers, but 2**300 paths if shared containers are revisited
+        shared: Any = 1
+        for _ in range(300):
+            shared = (
+                {"a": shared, "b": shared}
+                if shape == "shared_dict"
+                else [shared, shared]
+            )
+        value["k"] = shared
 
-    # no key (so a fresh id) rather than an error; plain JSON is keyed
+    # no key (so a fresh id) rather than an error or a hang; plain JSON is keyed
     assert _rebuilt_message_key(message(value)) is None
     assert _rebuilt_message_key(message({"items": [1, 2]})) is not None

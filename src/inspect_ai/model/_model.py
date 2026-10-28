@@ -3176,9 +3176,10 @@ def _rebuilt_message_key(message: ChatMessage) -> bytes | None:
     # serializing consumes) may not serialize the same way each time
     calls = message.tool_calls if isinstance(message, ChatMessageAssistant) else None
     try:
-        if not _is_plain_json([message.metadata, *[c.arguments for c in calls or []]]):
+        values = [message.metadata, *[c.arguments for c in calls or []]]
+        if not _is_plain_json(values, set()):
             return None
-    except RecursionError:  # cyclic or very deep
+    except RecursionError:  # very deep
         return None
     logged = logged_json(message, exclude_id=True)
     # a cryptographic hash, since content (e.g. model output) is untrusted
@@ -3186,11 +3187,18 @@ def _rebuilt_message_key(message: ChatMessage) -> bytes | None:
     return hashlib.sha256(logged).digest() if logged is not None else None
 
 
-def _is_plain_json(value: Any) -> bool:
-    if type(value) is dict:
-        return all(isinstance(k, str) and _is_plain_json(v) for k, v in value.items())
-    if type(value) is list:
-        return all(_is_plain_json(item) for item in value)
+def _is_plain_json(value: Any, seen: set[int]) -> bool:
+    if type(value) is dict or type(value) is list:
+        # a container seen before (shared or cyclic) is not plain JSON, so
+        # each container is visited once
+        if id(value) in seen:
+            return False
+        seen.add(id(value))
+        if type(value) is dict:
+            return all(
+                isinstance(k, str) and _is_plain_json(v, seen) for k, v in value.items()
+            )
+        return all(_is_plain_json(item, seen) for item in value)
     return value is None or isinstance(value, str | int | float)
 
 
