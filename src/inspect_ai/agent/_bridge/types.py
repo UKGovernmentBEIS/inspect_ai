@@ -1,7 +1,7 @@
 import json
 from enum import IntEnum
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, Callable, NamedTuple, NoReturn, Sequence, Set
+from typing import TYPE_CHECKING, Any, Callable, NamedTuple, NoReturn, Sequence
 
 from shortuuid import uuid
 
@@ -125,10 +125,22 @@ class AgentBridge:
             state.messages.copy(),
             value_type=list[ChatMessage],
         )
-        # not checkpointed: on resume ids are still found through `_message_ids`
+        self._derived_from = self._cp.track(
+            "bridge_derived_from",
+            lambda: self._derived_from,
+            {},
+            value_type=dict[str, list[str]],
+        )
         self._keys_by_id: dict[str, set[str]] = {}
-        self._derived_from: dict[str, list[str]] = {}
+        for key, ids in self._message_ids.items():
+            for id in ids:
+                self._keys_by_id.setdefault(id, set()).add(key)
         self._record_input_message_ids(self._compaction_prefix)
+        # the tracked thread's ids, from the checkpoint on resume (which isn't
+        # handed back to the scaffold, see above)
+        self._tracked_ids = [
+            (m.id, m.role) for m in restored_messages if m.id is not None
+        ]
         self.filter = filter
         self.response_filter = response_filter
         self.retry_refusals = retry_refusals
@@ -348,41 +360,105 @@ class AgentBridge:
         """
         self._pending_operator += 1
 
-    def _id_for_message(
-        self, message: ChatMessage, used: Set[str], aligned: ChatMessage | None
-    ) -> str:
-        """The id the bridge knows `message` by, or a new one if it has never seen it.
+    def _assign_message_ids(self, messages: list[ChatMessage]) -> None:
+        """Give each message of a request the id the bridge knows it by, or a new one.
 
-        The tracked thread's message at the same position (`aligned`) wins when it
-        matches, so a repeat of a side call's message can't take its id. Otherwise
-        candidates are taken in the order they were recorded, skipping ids already
-        `used` in the request, so the k-th repeat of a message gets the k-th id.
+        Messages that line up with the tracked thread (`_align_with_tracked`) take
+        its ids. Others take the first id recorded for their strongest key that
+        isn't already used in the request, so the k-th repeat of a message gets the
+        k-th id.
         """
-        keys = _message_id_keys(message)
-        message_id: str | None = None
-        if aligned is not None and aligned.id is not None and aligned.id not in used:
-            aligned_keys = self._keys_by_id.get(aligned.id) or set(
-                _message_id_keys(aligned)
-            )
-            if not aligned_keys.isdisjoint(keys):
-                message_id = aligned.id
-        if message_id is None:
-            message_id = next(
+        keys = [_message_id_keys(message) for message in messages]
+        aligned = self._align_with_tracked(messages, keys)
+        reserved = set(aligned.values())
+        used: set[str] = set()
+        for index, (message, message_keys) in enumerate(zip(messages, keys)):
+            message_id = aligned.get(index) or next(
                 (
                     id
-                    for key in keys
+                    for key in message_keys
                     for id in self._message_ids.get(key, [])
-                    if id not in used
+                    if id not in used and id not in reserved
                 ),
                 None,
             )
-        if message_id is None:
-            message_id = uuid()
-        self._record_message_id(keys, message_id)
-        derived_from = self._derived_from.get(message_id)
-        if derived_from is not None and "derived_from" not in (message.metadata or {}):
-            message.metadata = (message.metadata or {}) | {"derived_from": derived_from}
-        return message_id
+            message.id = message_id or uuid()
+            used.add(message.id)
+            self._record_message_id(message_keys, message.id)
+            derived_from = self._derived_from.get(message.id)
+            if derived_from is not None and "derived_from" not in (
+                message.metadata or {}
+            ):
+                message.metadata = (message.metadata or {}) | {
+                    "derived_from": derived_from
+                }
+
+    def _align_with_tracked(
+        self, messages: list[ChatMessage], keys: list[list[str]]
+    ) -> dict[int, str]:
+        """Pair request messages with the tracked thread's, in order.
+
+        Each run of consecutive matches starts at the tracked message sharing the
+        strongest key, then the longest run (one that reaches the end of the
+        tracked thread continues it), then the latest position (scaffold
+        compaction keeps the tail). A same-role message between two runs, at the
+        same offset in both, is an edit of the tracked one.
+        """
+        tracked = self._tracked_ids
+        tracked_keys = [self._keys_by_id.get(id, set()) for id, _ in tracked]
+        positions: dict[str, list[int]] = {}
+        for position, position_keys in enumerate(tracked_keys):
+            for key in position_keys:
+                positions.setdefault(key, []).append(position)
+
+        def strength(i: int, j: int) -> int:
+            return max(
+                (_key_strength(key) for key in keys[i] if key in tracked_keys[j]),
+                default=0,
+            )
+
+        def run(i: int, j: int) -> int:
+            length = 0
+            while (
+                i + length < len(messages)
+                and j + length < len(tracked)
+                and strength(i + length, j + length)
+            ):
+                length += 1
+            return length
+
+        aligned: dict[int, str] = {}
+        i, next_j = 0, 0
+        last: tuple[int, int] | None = None
+        while i < len(messages):
+            runs = {
+                j: run(i, j)
+                for key in keys[i]
+                for j in positions.get(key, [])
+                if j >= next_j
+            }
+            if not runs:
+                i += 1
+                continue
+            j = max(
+                runs,
+                key=lambda j: (
+                    strength(i, j),
+                    len(messages) - i if j + runs[j] == len(tracked) else runs[j],
+                    j,
+                ),
+            )
+            if last is not None and i - last[0] == j - last[1]:
+                for offset in range(i - last[0]):
+                    gap_id, gap_role = tracked[last[1] + offset]
+                    if messages[last[0] + offset].role == gap_role:
+                        aligned[last[0] + offset] = gap_id
+            length = runs[j]
+            for offset in range(length):
+                aligned[i + offset] = tracked[j + offset][0]
+            i, next_j = i + length, j + length
+            last = (i, next_j)
+        return aligned
 
     def _record_message_id(self, keys: list[str], message_id: str) -> None:
         for key in keys:
@@ -527,6 +603,7 @@ class AgentBridge:
         """
         self.state.messages = messages
         self.state.output = output
+        self._tracked_ids = [(m.id, m.role) for m in messages if m.id is not None]
         self._tracked_fps = fps
         self._tracked_calls = calls
         self._tracked_descends = self._descends_from_initial(messages, fps)
@@ -603,7 +680,8 @@ def _message_id_keys(message: ChatMessage) -> list[str]:
     """Keys a message sent back by a scaffold is recognized by, strongest first.
 
     Scaffolds don't echo message ids. Besides the exact content, an assistant
-    message keeps its tool call ids (every dialect but Google), and the loose key
+    message keeps its tool call ids (every dialect but Google), a tool message
+    its call id, and the loose key
     ignores whitespace, JSON key order, call ids and reasoning.
     """
     keys = [
@@ -611,8 +689,18 @@ def _message_id_keys(message: ChatMessage) -> list[str]:
     ]
     if isinstance(message, ChatMessageAssistant) and message.tool_calls:
         keys.append("calls:" + "\n".join(call.id for call in message.tool_calls))
+    if isinstance(message, ChatMessageTool) and message.tool_call_id:
+        keys.append(f"result:{message.tool_call_id}")
     keys.append(_loose_message_key(message, message.text))
     return keys
+
+
+def _key_strength(key: str) -> int:
+    if key.startswith("loose:"):
+        return 1
+    if key.startswith(("calls:", "result:")):
+        return 2
+    return 3
 
 
 def _loose_message_key(message: ChatMessage, text: str) -> str:

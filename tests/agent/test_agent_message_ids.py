@@ -6,6 +6,7 @@ the final messages, in each `ModelEvent`'s input and output, in each
 `ToolEvent`, and in the log read back (`.eval` and `.json`) must agree.
 """
 
+import copy
 import json
 from pathlib import Path
 from typing import Any, Callable, Literal, cast
@@ -15,6 +16,7 @@ from anthropic import AsyncAnthropic
 from google import genai
 from openai import AsyncOpenAI
 from shortuuid import uuid
+from test_helpers.checkpoint import RecordingCheckpointer
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentImage, ContentText
@@ -473,18 +475,128 @@ async def test_repeated_message_keeps_the_main_threads_id() -> None:
     assert len(set(final)) == len(final)
 
 
-async def test_derived_from_survives_the_round_trip() -> None:
+@pytest.mark.parametrize("resume", [False, True])
+async def test_derived_from_survives_the_round_trip(resume: bool) -> None:
     task = ChatMessageUser(content="Hello")
-    bridge = AgentBridge(AgentState(messages=[task]))
+    checkpointer = RecordingCheckpointer()
+    bridge = AgentBridge(AgentState(messages=[task]), checkpointer=checkpointer)
     replaced = ChatMessageAssistant(
         content="Hi", metadata={"derived_from": ["model-output"]}
     )
     messages = _rebuilt(task)
     apply_message_ids(bridge, messages)
     await bridge._track_state(messages, ModelOutput.from_message(replaced))
+    if resume:
+        snapshot = {
+            key: copy.deepcopy(callback())
+            for key, callback in checkpointer.callbacks.items()
+        }
+        bridge = AgentBridge(
+            AgentState(messages=[task]),
+            checkpointer=RecordingCheckpointer(restored=snapshot),
+        )
 
     messages = _rebuilt(task, replaced, ChatMessageUser(content="Again"))
     apply_message_ids(bridge, messages)
 
     assert messages[1].id == replaced.id
     assert messages[1].metadata == {"derived_from": ["model-output"]}
+
+
+class _Scaffold:
+    """Drives a bridge the way a scaffold does: rebuilt requests, then the reply."""
+
+    def __init__(self, bridge: AgentBridge) -> None:
+        self.bridge = bridge
+
+    async def request(
+        self, messages: list[ChatMessage], output: ChatMessage | None = None
+    ) -> list[str]:
+        rebuilt = _rebuilt(*messages)
+        apply_message_ids(self.bridge, rebuilt)
+        if output is not None:
+            await self.bridge._track_state(rebuilt, ModelOutput.from_message(output))
+        return [m.id or "" for m in rebuilt]
+
+
+def _call(call_id: str) -> ChatMessageAssistant:
+    return ChatMessageAssistant(
+        content="",
+        tool_calls=[ToolCall(id=call_id, function="bash", arguments={"cmd": "ls"})],
+    )
+
+
+def _result(call_id: str, content: str = "a.txt") -> ChatMessageTool:
+    return ChatMessageTool(content=content, tool_call_id=call_id, function="bash")
+
+
+@pytest.mark.parametrize("call_ids", [("unique-1", "unique-2"), ("call_1", "call_1")])
+async def test_compacted_history_keeps_the_ids_of_the_retained_messages(
+    call_ids: tuple[str, str],
+) -> None:
+    """After scaffold compaction the retained tail keeps its ids, by call id or by position."""
+    task = ChatMessageUser(content="List the files twice.")
+    first, second = _call(call_ids[0]), _call(call_ids[1])
+    result_1, result_2 = _result(call_ids[0]), _result(call_ids[1])
+    scaffold = _Scaffold(AgentBridge(AgentState(messages=[task])))
+    await scaffold.request([task], first)
+    await scaffold.request([task, first, result_1], second)
+    summary = ChatMessageUser(content="Summary: listed the files once.")
+
+    ids = await scaffold.request([summary, second, result_2])
+
+    assert ids[1] == second.id
+
+
+async def test_resumed_bridge_keeps_the_main_threads_id() -> None:
+    """A side call's equal output recorded first doesn't take the main thread's id after a resume."""
+    task = ChatMessageUser(content="List the files.")
+    side, first = _call("call_1"), _call("call_1")
+    checkpointer = RecordingCheckpointer()
+    scaffold = _Scaffold(
+        AgentBridge(AgentState(messages=[task]), checkpointer=checkpointer)
+    )
+    await scaffold.request([ChatMessageUser(content="Is ls safe?")], side)
+    await scaffold.request([task], first)
+    snapshot = {
+        key: copy.deepcopy(callback())
+        for key, callback in checkpointer.callbacks.items()
+    }
+    before = await scaffold.request([task, first, _result("call_1")])
+
+    resumed = _Scaffold(
+        AgentBridge(
+            AgentState(messages=[task]),
+            checkpointer=RecordingCheckpointer(restored=snapshot),
+        )
+    )
+    after = await resumed.request([task, first, _result("call_1")])
+
+    assert before[1] == after[1] == first.id
+
+
+async def test_edited_messages_keep_their_ids() -> None:
+    """A tool result and a user message the scaffold edits keep their ids."""
+    task = ChatMessageUser(content="List the files.")
+    first, second = _call("call_1"), ChatMessageAssistant(content="Anything else?")
+    result = _result("call_1", "a very long listing")
+    follow_up = ChatMessageUser(content="No, thanks.")
+    scaffold = _Scaffold(AgentBridge(AgentState(messages=[task])))
+    await scaffold.request([task], first)
+    ids = await scaffold.request([task, first, result], second)
+    final = ChatMessageAssistant(content="Bye.")
+    ids = await scaffold.request([task, first, result, second, follow_up], final)
+
+    edited = await scaffold.request(
+        [
+            task,
+            first,
+            _result("call_1", "[truncated]"),
+            second,
+            ChatMessageUser(content="No, thanks!"),
+            final,
+        ]
+    )
+
+    assert edited[:5] == ids
+    assert edited[5] == final.id
