@@ -367,6 +367,11 @@ class TaskLogger:
         # has recorded (see record_inherited_config_updates)
         self._process_updates_recorded = 0
 
+        # the plan given to log_start() and the stats given to log_finish()
+        # (see header_log)
+        self._plan: EvalPlan | None = None
+        self._stats: EvalStats | None = None
+
     def _init_stale_flush_state(self) -> None:
         # `_flush_lock` serializes every path that writes the log via the
         # recorder — the buffer-full flush and the stale-flush timer (both
@@ -435,6 +440,9 @@ class TaskLogger:
         # the retry attempt gets a fresh log, which must re-record the run's
         # full accumulated process-scoped updates in init() below
         self._process_updates_recorded = 0
+        # the plan stays: every attempt of the task logs the same plan, so a
+        # retry attempt that fails before log_start() still reports it
+        self._stats = None
         # log_finish() (or discard() above) has cleaned up the buffer db; a
         # stale one would collide with the new attempt's (the location repeats
         # if `created` lands on the same second)
@@ -526,6 +534,27 @@ class TaskLogger:
     def finished(self) -> bool:
         """Whether :meth:`log_finish` completed for this attempt (its log is written)."""
         return self._finished
+
+    def header_log(self, error: EvalError) -> EvalLog:
+        """An errored log of this attempt's header, for an attempt left without a log.
+
+        Stands in for the log of an attempt whose log write failed or was
+        interrupted. It carries the attempt's eval spec, the plan given to
+        :meth:`log_start` (by an earlier attempt, if this one failed before
+        it) and the stats given to :meth:`log_finish` this attempt (empty if
+        that call was not reached), so ``eval_retry()`` of it runs with the
+        eval's generate config, keeps the eval-set task identifier and rolls
+        forward the model usage so far. It has no samples or results: the
+        samples saved before the failure are in the file at ``location``.
+        """
+        return EvalLog(
+            status="error",
+            eval=self.eval,
+            plan=self._plan if self._plan is not None else EvalPlan(),
+            stats=self._stats if self._stats is not None else EvalStats(),
+            error=error,
+            location=self.location,
+        )
 
     async def seed_from_prior(
         self,
@@ -652,6 +681,7 @@ class TaskLogger:
         self._record_sample_outcome(sample)
 
     async def log_start(self, plan: EvalPlan) -> None:
+        self._plan = plan
         await self.recorder.log_start(self.eval, plan)
         # the first destination write: for a seeded retry attempt it already
         # carries the complete prior sample set
@@ -1187,6 +1217,8 @@ class TaskLogger:
         resolution (score/error/drain) abandoned queued samples whose seeded
         records the next pass reuses, so it never prunes.
         """
+        self._stats = stats
+
         # quiesce the stale-flush timer first — _stop_stale_flush_timer waits
         # for any in-flight timer flush to complete, so it can't race the teardown
         await self._stop_stale_flush_timer()

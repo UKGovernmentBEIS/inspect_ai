@@ -601,34 +601,45 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
     cancelled with, so a caller managing retries can distinguish a
     retry/abort request from an ordinary error. ``can_retry`` is surfaced to
     the task (via ``TaskCancel``) so it knows whether requesting a retry will
-    be honoured. The rare error that
-    escapes a task — a failure to write the log itself (e.g. the ``log_start()``
-    header flush) — is converted into an errored :class:`EvalLog` so the
-    dispatcher can retry the task rather than tearing down the run; it is
-    re-raised only when ``debug_errors`` is set.
+    be honoured. The rare error that escapes ``task_run`` — a failure to
+    write the log itself (e.g. the ``log_start()`` header flush) — is
+    converted into an errored :class:`EvalLog` so the dispatcher can retry
+    the task rather than tearing down the run; it is re-raised only when
+    ``debug_errors`` is set.
 
     A task's own abort or retry request cancels its scope, which can also
     interrupt the task's error-log write (it is not shielded, so an abort
     can end a stuck error-log write) or the awaits after its final log
     write, and leave no log. That attempt is reported with an errored
-    :class:`EvalLog` naming the cancel (the attempt's header only: no
-    results, samples or stats), so the dispatcher ends (or retries) only
-    this task instead of reading a missing log as a run-level cancellation.
-    Its file keeps what the task wrote: normally the ``started`` header of
-    the interrupted write, or the final log when the cancel landed after the
-    write. (An abort that interrupts a success-log write instead goes
-    through the task's cancellation handler, which writes the abort's error
-    log under a shield, so a hung success-log write is not ended by it.)
+    :class:`EvalLog` naming the cancel, so the dispatcher ends (or retries)
+    only this task instead of reading a missing log as a run-level
+    cancellation. Like the log of a failed write, it holds the attempt's
+    header, plan and stats but no results or samples (see
+    ``TaskLogger.header_log``). Its file keeps what the task wrote:
+    normally the ``started`` header of the interrupted write, or the final
+    log when the cancel landed after the write. (An abort that interrupts a
+    success-log write instead goes through the task's cancellation handler,
+    which writes the abort's error log under a shield, so a hung
+    success-log write is not ended by it.)
+
+    Once the task's scope has exited, the attempt's outcome is decided: a
+    later retry request (e.g. a cancel dialog answered while
+    ``task_complete`` runs) is ignored, so it cannot re-run a finished
+    task. Only an abort of an attempt that ended in error is still
+    recorded, so it stops the dispatcher from retrying that attempt.
 
     The run's ``TaskSource`` (if any) gets ``task_complete`` with the log of
     each attempt that ``task_run`` finished or that the task's abort or
-    retry request interrupted (the errored log above). It is called after
-    the task's cancel scope has exited, in the task's context, so it runs to
-    completion whether or not the task was cancelled.
+    retry request interrupted (the errored log above), but not the log of
+    a failed write. It is called after the task's cancel scope has exited,
+    in the task's context, so it runs to completion whether or not the task
+    was cancelled. An exception it raises is not a task error: it ends the
+    run, as an exception from ``next_tasks()`` does.
     """
     result: EvalLog | None = None
     cancel_type: CancelType = None
     abandoned = False
+    scope_exited = False
     try:
         with trace_action(
             log, "Run Task", f"task: {options.task.name} ({options.model})"
@@ -653,6 +664,17 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                     # it must not clear one already made
                     if type is None:
                         return
+                    # after task_run the attempt's outcome is decided: only an
+                    # abort of an attempt that ended in error still applies
+                    # (it stops the dispatcher's retry). A retry would re-run
+                    # the finished task, and any other request would
+                    # misreport how it ended
+                    if scope_exited and not (
+                        type == "abort"
+                        and result is not None
+                        and result.status == "error"
+                    ):
+                        return
                     cancel_type = type
                     tc.cancel_type = type
                     # samples parked at the pause gate observe the stamped
@@ -671,7 +693,8 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                 task_cancel.cancel_task = cancel_task
 
                 async def run() -> None:
-                    nonlocal result, abandoned
+                    nonlocal result, abandoned, scope_exited
+                    write_failed = False
                     with task_scope:
                         try:
                             result = await task_run(options, task_cancel=task_cancel)
@@ -687,7 +710,39 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                             # attempt's log, which must remain the task's
                             # final state.
                             abandoned = True
-                    if abandoned:
+                        except Exception as ex:
+                            # errors generally don't escape from task_run --
+                            # the exception is a failure to write the log
+                            # itself (e.g. the log_start() header flush, or
+                            # the log_finish() of an already-errored task,
+                            # when log storage is unreachable) or of a
+                            # retry's checkpoint startup copy, which runs
+                            # before the log's first write. propagating
+                            # would tear down the entire run (and all
+                            # sibling tasks) for one task's failed write, so
+                            # record an errored EvalLog instead: the
+                            # dispatcher re-queues errored tasks and
+                            # eval_set() retries them once storage recovers.
+                            if options.debug_errors:
+                                raise
+                            inner = inner_exception(ex)
+                            log.error(
+                                f"Task '{options.task.name}' encountered an error "
+                                f"while starting or writing its log: {inner}"
+                            )
+                            # location points at the log file the write was
+                            # destined for — it may not exist (a failed
+                            # log_start() header flush, or a retry's failed
+                            # checkpoint startup copy) or may hold a partial
+                            # log (a failed error-status log_finish())
+                            result = options.logger.header_log(
+                                eval_error(
+                                    inner, type(inner), inner, inner.__traceback__
+                                )
+                            )
+                            write_failed = True
+                    scope_exited = True
+                    if abandoned or write_failed:
                         return
                     # task_scope swallows only its own cancellation (a
                     # run-level one propagates), so no log here means the
@@ -697,45 +752,21 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                         cancel_ex = TerminateTaskError(
                             f"Task cancelled by user ({cancel_type})"
                         )
-                        result = EvalLog(
-                            status="error",
-                            eval=options.logger.eval,
-                            error=eval_error(
-                                cancel_ex, TerminateTaskError, cancel_ex, None
-                            ),
-                            location=options.logger.location,
+                        result = options.logger.header_log(
+                            eval_error(cancel_ex, TerminateTaskError, cancel_ex, None)
                         )
-                    await notify_task_source(options, result)
+                    try:
+                        await notify_task_source(options, result)
+                    except Exception as ex:
+                        ex.add_note(
+                            "Raised by TaskSource.task_complete() for task "
+                            f"'{options.task.name}'."
+                        )
+                        raise
 
                 task_tg.start_soon(run)
         if abandoned:
             return TaskRunResult(None, None, abandoned=True)
-    except Exception as ex:
-        # errors generally don't escape from tasks -- the exception is a
-        # failure to write the log itself (e.g. the log_start() header flush,
-        # or the log_finish() of an already-errored task, when log storage is
-        # unreachable) or of a retry's checkpoint startup copy, which runs
-        # before the log's first write. propagating would tear down the
-        # entire run (and all sibling tasks) for one task's failed write, so
-        # record an errored EvalLog instead: the dispatcher re-queues errored
-        # tasks and eval_set() retries them once storage recovers.
-        if options.debug_errors:
-            raise
-        inner = inner_exception(ex)
-        log.error(
-            f"Task '{options.task.name}' encountered an error while starting "
-            f"or writing its log: {inner}"
-        )
-        # location points at the log file the write was destined for — it may
-        # not exist (a failed log_start() header flush, or a retry's failed
-        # checkpoint startup copy) or may hold a partial log (a failed
-        # error-status log_finish())
-        result = EvalLog(
-            status="error",
-            eval=options.logger.eval,
-            error=eval_error(inner, type(inner), inner, inner.__traceback__),
-            location=options.logger.location,
-        )
     finally:
         # Startup can fail before log_finish owns teardown. Release the
         # cached prior on every exit without removing a written destination.

@@ -1584,8 +1584,8 @@ def _requalify_sample_ids(
 def _saved_samples_file(eval_log: EvalLog) -> EvalLogInfo | None:
     """The file to read a retried log's prior samples from, if not in memory.
 
-    An `EvalLog` without samples (a header-only read, or the header-only
-    log a run returns for a task whose final log write failed or was
+    An `EvalLog` without samples (a header-only read, or the log without
+    samples a run returns for a task whose final log write failed or was
     interrupted) has its saved samples only in the file at its `location`,
     so the retry reads them from there, as the run's own task retries do.
     A missing file, or one without a sample, leaves that sample to run
