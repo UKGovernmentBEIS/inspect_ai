@@ -12,6 +12,8 @@ whole instrument.
 """
 
 import json
+import os
+import re
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -19,7 +21,15 @@ from typing import Any
 
 import pytest
 
-from inspect_ai import Task, enqueue_task, eval, eval_set, task
+from inspect_ai import (
+    Task,
+    TaskSource,
+    enqueue_task,
+    eval,
+    eval_set,
+    task,
+    task_with,
+)
 from inspect_ai._eval.eval_set_manifest import (
     INSPECT_EVAL_SET_CAPTURE,
     EvalSetCapture,
@@ -28,7 +38,6 @@ from inspect_ai._eval.eval_set_manifest import (
 from inspect_ai._eval.eval_set_pruning import (
     INSPECT_EVAL_SET_NO_PRUNE,
     is_placeholder,
-    materialize_pruned,
     reset_pruning,
 )
 from inspect_ai._eval.eval_set_selection import (
@@ -194,7 +203,7 @@ def three_tasks() -> list[Task]:
 def capture(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
-    build_tasks: Callable[[], list[Task]] = three_tasks,
+    build_tasks: Callable[[], list[Task] | str] = three_tasks,
 ) -> EvalSetCapture:
     manifest = tmp_path / "manifest.json"
     monkeypatch.setenv(INSPECT_EVAL_SET_CAPTURE, str(manifest))
@@ -242,7 +251,7 @@ def run(
     selection: EvalSetSelection,
     *,
     name: str = "selection",
-    build_tasks: Callable[[], list[Task]] = three_tasks,
+    build_tasks: Callable[[], list[Task] | str] = three_tasks,
 ) -> tuple[bool, list[Any]]:
     path = tmp_path / f"{name}.json"
     path.write_text(selection.model_dump_json())
@@ -415,58 +424,45 @@ def prebuilt_unselected_entry() -> list[Task]:
     return tasks
 
 
+def prebuilt_adapted_follow_up() -> list[Task]:
+    PREBUILT["task"] = task_with(
+        prune_enqueued(), dataset=[Sample(input="adapted", target="adapted")]
+    )
+    return [prune_prebuilt_enqueuer(), prune_two()]
+
+
+PRUNED = (
+    "skipped by eval-set selection pruning (INSPECT_EVAL_SET_SELECTION) in this process"
+)
+"""The part of the placeholder error that every route to it shares."""
+
+
 @pytest.mark.parametrize(
     "build_tasks",
-    [prebuilt_follow_up, prebuilt_unselected_entry],
-    ids=["follow_up_built_before_eval_set", "unselected_eval_set_entry"],
+    [prebuilt_follow_up, prebuilt_unselected_entry, prebuilt_adapted_follow_up],
+    ids=["follow_up_built_before_eval_set", "unselected_eval_set_entry", "adapted"],
 )
-def test_a_placeholder_enqueued_by_a_running_task_is_built(
+def test_an_enqueued_placeholder_fails_the_enqueue_call(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     build_tasks: Callable[[], list[Task]],
 ) -> None:
-    """A task pruned before the selection is resolved still runs for real when enqueued.
+    """A task object pruned before the selection is resolved cannot be enqueued.
 
-    The definition builds `prune_enqueued` while pruning is active and a running
-    solver later enqueues that object, so what reaches `enqueue_task()` is
-    already a placeholder: either a follow-up the definition builds up front,
-    or one of the eval set's own unselected entries.
+    The definition builds `prune_enqueued` while pruning is active, as a
+    follow-up built up front (adapted with `task_with()` or not) or as one of the
+    eval set's own unselected entries, and a running solver enqueues that
+    object. It is refused rather than rebuilt, since a rebuild would drop the
+    adaptation. The error is the enqueuing sample's, and no log is written for
+    the placeholder.
     """
     manifest = capture(monkeypatch, tmp_path, build_tasks)
-
-    success, logs = run(
-        monkeypatch,
-        tmp_path,
-        selection_naming(manifest, "prune_prebuilt_enqueuer"),
-        build_tasks=build_tasks,
-    )
-
-    assert success
-    assert CONSTRUCTED == ["prune_prebuilt_enqueuer", "prune_enqueued"]
-    by_task = {log.eval.task: log for log in logs}
-    assert sorted(by_task) == ["prune_enqueued", "prune_prebuilt_enqueuer"]
-    child = read_eval_log(by_task["prune_enqueued"].location)
-    assert child.samples is not None
-    assert [sample.input for sample in child.samples] == ["hello"]
-    assert child.samples[0].scores is not None
-    assert child.samples[0].scores["exact"].value == "C"
-
-
-def test_an_enqueued_placeholder_fails_the_enqueue_call(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """With materialization bypassed, the placeholder fails the `enqueue_task()` call instead of running.
-
-    The error surfaces as the enqueuing sample's error, and no log is written for the placeholder.
-    """
-    manifest = capture(monkeypatch, tmp_path, prebuilt_follow_up)
-    monkeypatch.setattr("inspect_ai._eval.eval.materialize_pruned", lambda tasks: tasks)
 
     _, logs = run(
         monkeypatch,
         tmp_path,
         selection_naming(manifest, "prune_prebuilt_enqueuer"),
-        build_tasks=prebuilt_follow_up,
+        build_tasks=build_tasks,
     )
 
     assert [log.eval.task for log in logs] == ["prune_prebuilt_enqueuer"]
@@ -474,53 +470,66 @@ def test_an_enqueued_placeholder_fails_the_enqueue_call(
     assert parent.samples is not None
     error = parent.samples[0].error
     assert error is not None
-    assert "never constructed" in error.message
+    assert PRUNED in error.message
     assert "prune_enqueued" not in CONSTRUCTED
 
 
-def test_a_previous_task_wrapping_a_placeholder_is_materialized(
+def test_an_enqueued_placeholder_from_a_task_file_fails_the_enqueue_call(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """A `PreviousTask` resolves from the `Task` it wraps, so that is what gets built."""
-    manifest = capture(monkeypatch, tmp_path)
-    built: list[Task] = []
+    """A follow-up built at module level in a task file is refused, not rebuilt.
 
-    def build_tasks() -> list[Task]:
-        built.extend(three_tasks())
-        return built
+    The file loader builds tasks in the file's directory, so `child` reads its
+    sibling `input.txt` when the file is loaded. Rebuilt at the `enqueue_task()`
+    call it would run in the process's working directory instead.
+    """
+    definition = tmp_path / "followup.py"
+    definition.write_text(
+        "from pathlib import Path\n"
+        "from inspect_ai import Task, enqueue_task, task\n"
+        "from inspect_ai.dataset import Sample\n"
+        "from inspect_ai.solver import Generate, Solver, TaskState, solver\n"
+        "\n"
+        "@task\n"
+        "def child() -> Task:\n"
+        "    text = Path('input.txt').read_text()\n"
+        "    return Task(dataset=[Sample(input=text)])\n"
+        "\n"
+        "FOLLOW_UP = child()\n"
+        "\n"
+        "@solver\n"
+        "def enqueue_follow_up() -> Solver:\n"
+        "    async def solve(state: TaskState, generate: Generate) -> TaskState:\n"
+        "        enqueue_task(FOLLOW_UP)\n"
+        "        return state\n"
+        "    return solve\n"
+        "\n"
+        "@task\n"
+        "def parent() -> Task:\n"
+        "    return Task(dataset=[Sample(input='1')], solver=[enqueue_follow_up()])\n"
+    )
+    (tmp_path / "input.txt").write_text("sibling data")
+    # the loader globs, and a glob must be relative
+    spec = os.path.relpath(definition)
 
+    manifest = capture(monkeypatch, tmp_path, lambda: spec)
     _, logs = run(
         monkeypatch,
         tmp_path,
-        selection_naming(manifest, "prune_one"),
-        build_tasks=build_tasks,
-    )
-    placeholder = built[1]
-    assert is_placeholder(placeholder)
-    previous = PreviousTask(
-        id="previous",
-        task=placeholder,
-        task_args={},
-        model=None,
-        model_roles=None,
-        sandbox=None,
-        log=logs[0],
-        log_info=None,
+        selection_naming(manifest, "parent"),
+        build_tasks=lambda: spec,
     )
 
-    [materialized] = materialize_pruned([previous])
+    assert [log.eval.task for log in logs] == ["parent"]
+    parent = read_eval_log(logs[0].location)
+    assert parent.samples is not None
+    error = parent.samples[0].error
+    assert error is not None
+    assert f"Task 'child' was {PRUNED}" in error.message
 
-    assert isinstance(materialized, PreviousTask)
-    assert isinstance(materialized.task, Task)
-    assert not is_placeholder(materialized.task)
-    assert materialized.log is previous.log
-    assert CONSTRUCTED[-1] == "prune_two"
 
-
-def test_a_placeholder_that_reaches_eval_fails_loudly(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """Running a placeholder would report success for a body that never ran, so it is refused."""
+def pruned_prune_two(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Task:
+    """`prune_two()`, built while a selection naming only `prune_one` is in force."""
     manifest = capture(monkeypatch, tmp_path)
     selection = tmp_path / "selection.json"
     selection.write_text(selection_naming(manifest, "prune_one").model_dump_json())
@@ -529,8 +538,71 @@ def test_a_placeholder_that_reaches_eval_fails_loudly(
     placeholder = prune_two()
     monkeypatch.delenv(INSPECT_EVAL_SET_SELECTION)
     assert is_placeholder(placeholder)
+    return placeholder
 
-    with pytest.raises(RuntimeError, match="never constructed"):
+
+def test_a_placeholder_from_a_task_source_fails_the_run(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """`next_tasks()` goes through the same resolver as `enqueue_task()`."""
+    placeholder = pruned_prune_two(monkeypatch, tmp_path)
+    returned: list[Task] = []
+
+    async def next_tasks() -> list[Task] | None:
+        if returned:
+            return None
+        returned.append(placeholder)
+        return [placeholder]
+
+    source = TaskSource.from_tasks([prune_one()], next_tasks=next_tasks)
+    with pytest.raises(RuntimeError, match=re.escape(PRUNED)):
+        eval(source, model=MODEL, log_dir=str(tmp_path / "logs"), display="none")
+    assert "prune_two" not in CONSTRUCTED
+
+
+def test_a_previous_task_wrapping_a_placeholder_cannot_be_enqueued(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A `PreviousTask` resolves from the `Task` it wraps, so the same check refuses it."""
+    from inspect_ai._eval.eval import _resolve_enqueued_tasks
+    from inspect_ai.model import GenerateConfig, get_model
+
+    placeholder = pruned_prune_two(monkeypatch, tmp_path)
+    [log] = eval(
+        prune_one(), model=MODEL, log_dir=str(tmp_path / "logs"), display="none"
+    )
+    previous = PreviousTask(
+        id="previous",
+        task=placeholder,
+        task_args={},
+        model=None,
+        model_roles=None,
+        sandbox=None,
+        log=log,
+        log_info=None,
+    )
+
+    with pytest.raises(RuntimeError, match=re.escape(PRUNED)):
+        _resolve_enqueued_tasks(
+            [previous],
+            models=[get_model(MODEL)],
+            model_roles=None,
+            config=GenerateConfig(),
+            sandbox=None,
+            sample_shuffle=None,
+            checkpoint=None,
+            cost_limit=None,
+        )
+    assert "prune_two" not in CONSTRUCTED
+
+
+def test_a_placeholder_that_reaches_eval_fails_loudly(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Running a placeholder would report success for a body that never ran, so it is refused."""
+    placeholder = pruned_prune_two(monkeypatch, tmp_path)
+
+    with pytest.raises(RuntimeError, match=re.escape(PRUNED)):
         eval(
             placeholder,
             model=MODEL,
@@ -716,6 +788,51 @@ def test_a_genuinely_missing_task_still_reports_drift(
 
     with pytest.raises(PrerequisiteError, match="does not match any"):
         run(monkeypatch, tmp_path, selection)
+
+
+def test_a_task_list_reused_by_a_second_selection_runs_the_task_it_selects(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Pruning is off after the first selection, but the reused list still holds its placeholders.
+
+    The second selection names a task the first one pruned, so the boundary has
+    to recover by building it. Genuine drift in a third selection on the same
+    list is still reported.
+    """
+    from inspect_ai._util.error import PrerequisiteError
+
+    manifest = capture(monkeypatch, tmp_path)
+    built: list[Task] = []
+
+    def build_tasks() -> list[Task]:
+        if not built:
+            built.extend(three_tasks())
+        return built
+
+    _, logs = run(
+        monkeypatch,
+        tmp_path,
+        selection_naming(manifest, "prune_one"),
+        name="first",
+        build_tasks=build_tasks,
+    )
+    assert [log.eval.task for log in logs] == ["prune_one"]
+    assert is_placeholder(built[1])
+
+    success, logs = run(
+        monkeypatch,
+        tmp_path,
+        selection_naming(manifest, "prune_two"),
+        name="second",
+        build_tasks=build_tasks,
+    )
+    assert success
+    assert [log.eval.task for log in logs] == ["prune_two"]
+
+    drifted = selection_naming(manifest, "prune_two")
+    drifted.tasks[0].identifier = "nosuchtask#deadbeef/mockllm/model/cafe"
+    with pytest.raises(PrerequisiteError, match="does not match any"):
+        run(monkeypatch, tmp_path, drifted, name="third", build_tasks=build_tasks)
 
 
 def test_a_placeholder_never_reaches_the_log(

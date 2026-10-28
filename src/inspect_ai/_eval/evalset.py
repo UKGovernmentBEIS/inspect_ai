@@ -129,11 +129,10 @@ from .eval_set_overrides import (
     read_eval_set_overrides,
 )
 from .eval_set_pruning import (
+    INSPECT_EVAL_SET_NO_PRUNE,
     disable_pruning,
     is_placeholder,
     materialize_pruned,
-    pruned_anything,
-    pruning_active,
 )
 from .eval_set_selection import (
     INSPECT_EVAL_SET_SELECTION,
@@ -938,9 +937,10 @@ def eval_set(
             try:
                 return run_selection(tasks)
             except PrunedTaskMissing as ex:
-                # early pruning skipped a task this worker was selected to run,
-                # which is a bug in the matching rather than a fact about the
-                # eval set. Build what was skipped and try once more: the cost
+                # early pruning skipped a task this worker was selected to run:
+                # a bug in the matching, or a task list reused from an earlier
+                # selection in this process, rather than a fact about the eval
+                # set. Build what was skipped and try once more: the cost
                 # is exactly the resolution that would have happened without
                 # pruning at all, and the alternative is failing a run over an
                 # optimization (eval_set_pruning.py, *The safety property*).
@@ -954,8 +954,9 @@ def eval_set(
                 logger.warning(
                     f"Early task pruning skipped selected task "
                     f"'{ex.identifier}'; building the full eval set and "
-                    f"retrying. This is an inspect bug -- the run is "
-                    f"unaffected apart from its startup cost."
+                    f"retrying. Unless this task list was reused from an "
+                    f"earlier selection in this process, this is an inspect "
+                    f"bug -- the run is unaffected apart from its startup cost."
                 )
                 disable_pruning()
                 return run_selection(materialize_pruned(tasks))
@@ -1612,14 +1613,18 @@ def _recover_crashed_log(
 # the protocol these implement.
 
 
-class PrunedTaskMissing(Exception):
+class PrunedTaskMissing(PrerequisiteError):
     """A selected task was absent from a resolution that skipped tasks.
 
-    Internal and never seen by a user: the selection branch catches it, resolves again with pruning disabled, and either succeeds or raises the ordinary drift error. It exists so that *the definition changed* and *pruning was wrong* are answered differently, since only the second one is worth paying a second resolution for.
+    The selection branch catches it, materializes the placeholders, resolves again with pruning disabled, and either succeeds or raises the ordinary drift error. It exists so that *the definition changed* and *pruning was wrong* are answered differently, since only the second one is worth paying a second resolution for. It reaches the user only when the retry still finds placeholders it could not materialize (such as one inside a `PreviousTask` passed to `eval_set()`), so its message says how to run without pruning.
     """
 
     def __init__(self, identifier: str) -> None:
-        super().__init__(identifier)
+        super().__init__(
+            f"[bold]ERROR[/bold]: Selected task '{identifier}' was skipped by "
+            "eval-set selection pruning and could not be built. Set "
+            f"{INSPECT_EVAL_SET_NO_PRUNE}=1 to run without pruning."
+        )
         self.identifier = identifier
 
 
@@ -1698,17 +1703,12 @@ def _selected_eval_set_tasks(
     selected: list[ResolvedTask | PreviousTask] = []
     for entry in selection.tasks:
         matches = by_identifier.get(entry.identifier, [])
-        # `pruning_active()` as well as `pruned_anything()`, and the retry is
-        # why: the flag records that tasks were skipped at some point in this
-        # process, which stays true after pruning is switched off. Without the
-        # first clause the re-resolve raises this again and the real error
-        # never surfaces
-        if len(matches) == 0 and pruning_active() and pruned_anything():
+        if len(matches) == 0 and any(is_placeholder(t.task) for t in resolved_tasks):
             # a selected task is missing and tasks were skipped, so the skipping
-            # is the first suspect. Not an error yet: the caller resolves again
-            # with pruning off, which either finds the task (pruning was wrong,
-            # and cost time rather than the run) or raises the drift error below
-            # against a resolution that skipped nothing
+            # is the first suspect. Not an error yet: the caller materializes the
+            # placeholders and resolves again, which either finds the task
+            # (pruning was wrong, and cost time rather than the run) or raises
+            # the drift error below against a resolution with no placeholders
             raise PrunedTaskMissing(entry.identifier)
         if len(matches) == 0:
             raise PrerequisiteError(

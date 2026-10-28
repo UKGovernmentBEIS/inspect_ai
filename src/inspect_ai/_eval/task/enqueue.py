@@ -105,8 +105,11 @@ def enqueue_task(tasks: "Tasks", *, run_id: str | None = None) -> None:
             given it must match the active run, else the call is rejected.
 
     Raises:
-        RuntimeError: If no eval is currently running in this process, or
-            ``run_id`` doesn't match the active run.
+        RuntimeError: If no eval is currently running in this process,
+            ``run_id`` doesn't match the active run, or a task was skipped by
+            eval-set selection pruning. In selection mode a task added at run
+            time must be built at run time, by calling its ``@task`` function
+            inside the running task.
         ValueError: If the tasks can't be resolved (propagated from resolution).
     """
     enqueuer = get_task_enqueuer()
