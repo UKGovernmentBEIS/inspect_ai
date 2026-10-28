@@ -140,11 +140,7 @@ def _is_credential_value(value: str) -> bool:
 
 
 def sanitize_client_headers(headers: object) -> Mapping[str, str]:
-    """Client request headers as exposed on `BridgeRequest.headers`.
-
-    Lowercases names, joins repeated names with ", ", drops non-string names
-    or values and credential headers, and returns a read-only mapping.
-    """
+    """Client request headers as exposed on `BridgeRequest.headers`."""
     if not isinstance(headers, Mapping) or not headers:
         return _EMPTY_HEADERS
     sanitized: dict[str, str] = {}
@@ -255,12 +251,7 @@ def current_bridge_request() -> BridgeRequest | None:
 
 @contextmanager
 def client_request_headers_scope(headers: object) -> Iterator[None]:
-    """Record the client's request headers for the bridged request handled within.
-
-    For bridge entry points: wrap the call that translates and generates one
-    client request. The headers are sanitized (`sanitize_client_headers`) and
-    exposed as `BridgeRequest.headers`. They are never forwarded anywhere.
-    """
+    """Record the client's request headers for the bridged request handled within."""
     token = _client_request_headers.set(sanitize_client_headers(headers))
     try:
         yield
