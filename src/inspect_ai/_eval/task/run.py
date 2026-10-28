@@ -42,7 +42,7 @@ from inspect_ai._sentinel._context import SentinelFailure
 from inspect_ai._sentinel._scope import sentinel_scope, sentinel_solving
 from inspect_ai._util._async import Wake, aexit_shielded_when, raise_unwrapped
 from inspect_ai._util.async_zip import AsyncZipReader
-from inspect_ai._util.asyncfiles import get_async_filesystem
+from inspect_ai._util.asyncfiles import AsyncFilesystem, get_async_filesystem
 from inspect_ai._util.constants import (
     DEFAULT_EPOCHS,
     DEFAULT_MAX_CONNECTIONS,
@@ -164,6 +164,7 @@ from inspect_ai.util._checkpoint._layout import (
 )
 from inspect_ai.util._checkpoint._resume_copy import copy_resume_payloads
 from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
+from inspect_ai.util._checkpoint.checkpointer_factory import create_checkpointer
 from inspect_ai.util._checkpoint.config import (
     CheckpointConfig,
     merge_checkpoint_configs,
@@ -2314,8 +2315,10 @@ async def task_run_sample(
     (after releasing the sample semaphore), and the loop advances the
     `SampleAttempt` — error history, carried sample uuid — and re-enters;
     the retry re-acquires the semaphore, so it goes to the back of the
-    sample queue. Any other attempt outcome is the run's result (terminal
-    exceptions — cancellation, fail-on-error — propagate as exceptions).
+    sample queue. Each retry resolves the latest committed checkpoint so
+    progress from the preceding attempt is restored. Any other attempt
+    outcome is the run's result (terminal exceptions — cancellation,
+    fail-on-error — propagate as exceptions).
     See design/sample-lifecycle.md for the run's full state diagram.
     """
     attempt = SampleAttempt(retry_limit=retry_on_error)
@@ -2578,36 +2581,39 @@ async def _task_run_sample_attempt(
         # Derive agent name for the ACP picker / TUI meta row.
         agent_name = plan_agent_name(plan)
 
-        async with active_sample(
-            task=task_name,
-            log_location=log_location,
-            model=str(state.model),
-            sample=sample,
-            epoch=state.epoch,
-            message_limit=state.message_limit,
-            token_limit=state.token_limit,
-            # the metering type is only meaningful when a ceiling is configured
-            token_limit_type=state.token_limit_type
-            if state.token_limit is not None
-            else None,
-            cost_limit=state.cost_limit,
-            time_limit=time_limit,
-            working_limit=working_limit,
-            fails_on_error=fails_on_error or (attempt.retries_remaining > 0),
-            transcript=sample_transcript,
-            checkpoint=resolved_checkpoint,
-            resume_checkpoint=resume_checkpoint,
-            eval_set_id=eval_set_id,
-            run_id=run_id,
-            eval_id=task_id,
-            agent_name=agent_name,
-            # prior failed attempts (task-level seed + sample-level retries),
-            # surfaced as the running sample's error history by the control channel
-            error_retries=previous_attempt_errors + list(attempt.errors),
-            # the uuid the logged EvalSample will carry — lets the control
-            # channel keep one event cursor valid across running→terminal
-            sample_uuid=state.uuid,
-        ) as active:
+        async with (
+            aexit_shielded_when(AsyncFilesystem(), lambda: True),
+            active_sample(
+                task=task_name,
+                log_location=log_location,
+                model=str(state.model),
+                sample=sample,
+                epoch=state.epoch,
+                message_limit=state.message_limit,
+                token_limit=state.token_limit,
+                # the metering type is only meaningful when a ceiling is configured
+                token_limit_type=state.token_limit_type
+                if state.token_limit is not None
+                else None,
+                cost_limit=state.cost_limit,
+                time_limit=time_limit,
+                working_limit=working_limit,
+                fails_on_error=fails_on_error or (attempt.retries_remaining > 0),
+                transcript=sample_transcript,
+                checkpoint=resolved_checkpoint,
+                resume_checkpoint=resume_checkpoint,
+                eval_set_id=eval_set_id,
+                run_id=run_id,
+                eval_id=task_id,
+                agent_name=agent_name,
+                # prior failed attempts (task-level seed + sample-level retries),
+                # surfaced as the running sample's error history by the control channel
+                error_retries=previous_attempt_errors + list(attempt.errors),
+                # the uuid the logged EvalSample will carry — lets the control
+                # channel keep one event cursor valid across running→terminal
+                sample_uuid=state.uuid,
+            ) as active,
+        ):
             # check for early stopping
             if early_stopping is not None and logger is not None:
                 early_stop = await early_stopping.schedule_sample(
@@ -2679,6 +2685,24 @@ async def _task_run_sample_attempt(
                 if logger is not None and sample_id in input_media_plan:
                     await logger.start_sample(sample_summary)
                     sample_row_started = True
+
+                # Probe inside the attempt's error boundary so storage failures
+                # follow the same retry policy as other initialization errors.
+                if not attempt.is_first and resolved_checkpoint is not None:
+                    resume_checkpoint = await resolve_resume_checkpoint(
+                        eval_checkpoints_dir_from_config(
+                            log_location, checkpoint, eval_checkpoint
+                        ),
+                        sample_id,
+                        state.epoch,
+                    )
+                    active.checkpointer = create_checkpointer(
+                        config=resolved_checkpoint,
+                        log_location=log_location,
+                        sample_id=sample_id,
+                        epoch=state.epoch,
+                        resume_checkpoint=resume_checkpoint,
+                    )
 
                 materialized_sample = await materialize_sample_input(
                     sample, input_media_plan
@@ -3279,6 +3303,15 @@ async def _task_run_sample_attempt(
                                 logger.buffer_db is None
                                 or not sample_transcript.history.resident_events_truncated
                             )
+                            materialize_full_sample = (
+                                log_from_memory
+                                or _finalization_consumes_events(
+                                    scanning=scanner is not None
+                                    and scan_id is not None,
+                                    sample_feed=sample_feed,
+                                    task_source=task_source,
+                                )
+                            )
                             eval_sample = await log_sample(
                                 eval_sample=make_eval_sample(
                                     include_events=log_from_memory
@@ -3286,6 +3319,7 @@ async def _task_run_sample_attempt(
                                 logger=logger,
                                 log_images=log_images,
                                 from_memory=log_from_memory,
+                                materialize_full_sample=materialize_full_sample,
                             )
                             results = scores_as_logged(results, eval_sample)
                         else:
@@ -3518,20 +3552,41 @@ def create_eval_sample(
     )
 
 
+def _finalization_consumes_events(
+    *,
+    scanning: bool,
+    sample_feed: SampleSource | None,
+    task_source: TaskSource | None,
+) -> bool:
+    """Whether a finalization consumer needs the sample's event history."""
+    from inspect_ai.hooks._hooks import any_hook_needs_full_sample
+
+    # Hook enablement must stay stable until on_sample_end dispatch.
+    return (
+        scanning
+        or sample_feed is not None
+        or task_source is not None
+        or any_hook_needs_full_sample()
+    )
+
+
 async def log_sample(
     eval_sample: EvalSample,
     logger: TaskLogger,
     log_images: bool,
     *,
     from_memory: bool,
+    materialize_full_sample: bool,
 ) -> EvalSample:
+    """Log a sample, returning the data needed by finalization consumers.
+
+    With ``from_memory=True``, ``eval_sample`` must contain the full history.
+    On buffer readback, ``materialize_full_sample=False`` returns a sample
+    without events, attachments or timelines; the written log remains complete.
+    """
     try:
-        # No realtime buffer DB, or the full history is still resident in memory:
-        # log directly from the in-memory sample (which carries its events). This
-        # avoids the open_sample_history -> materialize_streaming_sample round-trip
-        # (read every event back out of SQLite + re-validate). `complete_sample`
-        # still finalizes the buffer DB via `_finalize_sample`, so when a realtime
-        # buffer exists it stays consistent for live viewing.
+        # Avoid reading resident events back from the buffer. complete_sample
+        # still finalizes the buffer for live viewing.
         if logger.buffer_db is None or from_memory:
             await logger.complete_sample(
                 condense_sample(eval_sample, log_images), flush=True
@@ -3548,8 +3603,15 @@ async def log_sample(
         with logger.buffer_db.open_sample_history(
             eval_sample.id, eval_sample.epoch
         ) as sample_history:
-            materialized_sample = materialize_streaming_sample(
-                eval_sample, sample_history
+            # Restored attachments may exist only in eval_sample, so retain
+            # them in logging_sample. Clear timelines only in the reduced
+            # return value: their event references also retain history.
+            materialized_sample = (
+                materialize_streaming_sample(eval_sample, sample_history)
+                if materialize_full_sample
+                else eval_sample.model_copy(
+                    update={"attachments": {}, "timelines": None}
+                )
             )
             await logger.complete_sample_streaming(
                 logging_sample, sample_history, flush=True
