@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=64", "setuptools_scm[toml]>=8"]
+requires = ["setuptools>=64", "setuptools_scm[toml]>=9"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.dynamic]
@@ -10,6 +10,11 @@ optional-dependencies.dist = { file = ["requirements-dist.txt"] }
 optional-dependencies.math = { file = ["requirements-math.txt"] }
 
 [tool.setuptools_scm]
+# The base version for a checkout with no release tags, such as Dependabot's
+# tagless shallow clone. Without it the project builds as 0.1.devN, below the
+# inspect-ai floor of dev dependencies like inspect-scout, and `uv lock` fails.
+# Release Please updates it with each release.
+fallback_version = "0.3.285"
 git_describe_command = [
   'git',
   'describe',

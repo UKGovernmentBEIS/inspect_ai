@@ -771,8 +771,14 @@ def test_convert_chunked_overwrite(tmp_path: pathlib.Path):
     convert_eval_logs_to_chunked(str(input_file), str(tmp_path), overwrite=True)
 
 
-def test_convert_chunked_truncated_log_raises(tmp_path: pathlib.Path):
-    """A log missing its last byte fails to convert rather than converting empty.
+@pytest.mark.parametrize(
+    "cut, error",
+    [(1, "EOCD not found"), (19, "central directory"), (40, "central directory")],
+)
+def test_convert_chunked_truncated_log_raises(
+    tmp_path: pathlib.Path, cut: int, error: str
+):
+    """A truncated log fails to convert rather than converting empty.
 
     The sample id puts the EOCD signature in the central directory, where a
     search that skipped the truncated EOCD would find it.
@@ -783,10 +789,10 @@ def test_convert_chunked_truncated_log_raises(tmp_path: pathlib.Path):
     input_file = tmp_path / "input" / "truncated.eval"
     input_file.parent.mkdir()
     write_eval_log(log, str(input_file))
-    input_file.write_bytes(input_file.read_bytes()[:-1])
+    input_file.write_bytes(input_file.read_bytes()[:-cut])
 
     output_dir = tmp_path / "output"
-    with pytest.raises(ValueError, match="EOCD not found"):
+    with pytest.raises(ValueError, match=error):
         convert_eval_logs_to_chunked(str(input_file), str(output_dir))
     assert not (output_dir / input_file.name).exists()
 

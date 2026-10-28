@@ -540,9 +540,9 @@ Capturing the proposing event's span, in `bridge_generate`
 
 - When the bridge has a `model_event_sink`, `bridge_generate` wraps it for
   the `model.generate()` call in a `_SpanCapturingSink` (private, in
-  `util.py`) that forwards `on_pending` and `on_complete` to the inner sink
-  and, after `on_complete`, remembers `event.span_id`. The sink protocol is
-  not widened and the inner sink is unaware. When the bridge has no sink,
+  `util.py`) that forwards `on_start` (when the inner sink has one),
+  `on_pending` and `on_complete` to the inner sink and, after `on_complete`,
+  remembers `event.span_id`. The inner sink is unaware. When the bridge has no sink,
   nothing is installed (installing one would disable partial-output
   publishing, `_model.py:1394-1401`); the `ModelEvent` was stamped with
   `current_span_id()` in this same task.
@@ -550,7 +550,10 @@ Capturing the proposing event's span, in `bridge_generate`
   span_id=captured)`, `declarations` being the `[*tools, *declared_in_input(...)]`
   list #5428 builds today, where `captured` is the remembered span if it
   differs from `current_span_id()` at the sink's `on_pending` and at its
-  `on_complete`, else `None`. The comparison is made in the callbacks, not at
+  `on_complete`, else `None`. When the sink's `on_start` named another span,
+  the generation runs under it, so `current_span_id()` in those callbacks is
+  that span: the wrapper then compares against the span current when
+  `on_start` was called, and a span equal to the `on_start` span is captured. The comparison is made in the callbacks, not at
   registration: a checkpoint can rotate while the calls await approval, and
   the earlier checkpoint span is not a sink's choice. Storing only a
   differing span keeps executions under the checkpointer's rotating
@@ -874,8 +877,9 @@ the `ToolEvent` docstring and in `docs/agent-bridge.qmd`.
   `checkpoint N` span via the shared `_SpanCell`
   (`src/inspect_ai/util/_span.py:135-152`,
   `src/inspect_ai/util/_checkpoint/checkpointer_impl.py:293`).
-- `ModelEventSink` is not widened. The bridge's private wrapper reads the
-  span the sink assigned; the sink neither sees tool events nor needs to.
+- `ModelEventSink`'s tool-event surface is not widened (its optional
+  `on_start` names the span a generation runs under; see the protocol's
+  docstring). The bridge's private wrapper reads the span the sink assigned; the sink neither sees tool events nor needs to.
   The span is read when `on_complete` returns, so a sink must assign it by
   then. The host `ToolEvent` is emitted at once; a span assigned later, or a
   `ModelEvent` the sink holds back and emits later, is not coordinated with

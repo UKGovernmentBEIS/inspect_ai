@@ -73,6 +73,7 @@ def human_cli(
                         intermediate_scoring,
                         record_session,
                         instructions,
+                        user=user,
                     )
 
                     # install agent tools

@@ -2,7 +2,7 @@ import pickle
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterator
+from typing import Iterator, Literal
 
 import pytest
 from test_helpers.utils import run_example
@@ -11,10 +11,11 @@ from inspect_ai import Task, eval
 from inspect_ai._eval.evalset import GENERATE_CONFIG_FIELDS_TO_EXCLUDE
 from inspect_ai._util import appdirs
 from inspect_ai._util import logger as inspect_logger
+from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai._util.content import ContentText
 from inspect_ai.dataset import Sample
 from inspect_ai.event._model import ModelEvent
-from inspect_ai.log import EvalSample
+from inspect_ai.log import EvalSample, read_eval_log
 from inspect_ai.model import (
     CachePolicy,
     ChatMessageUser,
@@ -76,6 +77,38 @@ def test_cache(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     # first eval should miss the cache and the second should hit it
     check_eval_with_cache(False)
     check_eval_with_cache(True)
+
+
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_cache_policy_without_expiry_round_trips(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, log_format: Literal["eval", "json"]
+):
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path / "cache"))
+    log = eval(
+        Task(dataset=[Sample(input="Hello")]),
+        model="mockllm/model",
+        cache=CachePolicy(expiry=None),
+        log_dir=str(tmp_path / "logs"),
+        log_format=log_format,
+        display="none",
+    )[0]
+
+    log = read_eval_log(log.location)
+    assert isinstance(log.eval.model_generate_config.cache, CachePolicy)
+    assert log.eval.model_generate_config.cache.expiry is None
+    assert log.samples
+    model_event = next(e for e in log.samples[0].events if isinstance(e, ModelEvent))
+    assert isinstance(model_event.config.cache, CachePolicy)
+    assert model_event.config.cache.expiry is None
+
+
+def test_cache_policy_missing_expiry_is_none_only_in_log_reads():
+    assert CachePolicy.model_validate({}).expiry == "1W"
+    assert CachePolicy().expiry == "1W"
+    assert (
+        CachePolicy.model_validate({}, context=get_deserializing_context()).expiry
+        is None
+    )
 
 
 def _key_for(config: GenerateConfig) -> str:
