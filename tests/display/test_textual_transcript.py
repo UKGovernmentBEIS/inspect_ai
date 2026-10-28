@@ -1,22 +1,28 @@
+import re
 from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
-from typing import cast
+from typing import Any, cast
 
 import pytest
 from rich.console import Console, Group
 from test_helpers.utils import skip_if_trio
 from textual.app import App, ComposeResult
+from textual.widget import Widget
+from textual.widgets import Static
 
 from inspect_ai._display.textual.widgets.transcript import (
     TranscriptView,
     render_sentinel_event,
+    render_sub_events,
 )
 from inspect_ai.dataset import Sample
 from inspect_ai.event import (
+    CommunicationDelivery,
     CommunicationEvent,
     CommunicationRecord,
     CommunicationRejection,
     CommunicationSend,
+    CommunicationWait,
     Event,
     InfoEvent,
     SentinelEvent,
@@ -169,12 +175,19 @@ class _TranscriptApp(App[None]):
         yield TranscriptView()
 
 
-async def _textual_output(events: list[Event]) -> str:
-    """The terminal output of the Textual transcript widgets for ``events``."""
+async def _textual_output(events: list[Event], *, nested: bool = False) -> str:
+    """The terminal output of the Textual transcript widgets for ``events``.
+
+    ``nested`` renders them as the sub-events of another event.
+    """
     app = _TranscriptApp()
-    async with app.run_test(size=(200, 40)) as pilot:
+    async with app.run_test(size=(400, 40)) as pilot:
         view = app.query_one(TranscriptView)
-        widgets = view._widgets_for_events(events)
+        widgets: list[Widget] = (
+            [Static(Group(*render_sub_events(events)))]
+            if nested
+            else view._widgets_for_events(events)
+        )
         await view.mount_all(widgets)
         await pilot.pause()
         return "".join(
@@ -184,58 +197,118 @@ async def _textual_output(events: list[Event]) -> str:
         )
 
 
-_CLEAR = "\x1b[2J"
+# ESC/CSI, C1 CSI and bidi controls, markup-looking text, a lone surrogate and
+# ordinary Unicode
+_HOSTILE = "a\x1b[2Jb\x9bc\u202ed [/red] [bold]x[/bold] \ud800 é"
+_SHOWN = "abcd [/red] [bold]x[/bold] \\ud800 é"
+# JSON already escapes C0 controls, so data shows ESC as `\u001b`
+_SHOWN_IN_DATA = "a\\u001b[2Jbcd [/red] [bold]x[/bold] \\ud800 é"
+
+_SGR = re.compile(r"\x1b\[[0-9;]*m")
+_CONTROLS = re.compile(r"[\x00-\x1f\x7f-\x9f\u200e\u200f\u202a-\u202e\u2066-\u2069]")
 
 
-@skip_if_trio
-@pytest.mark.anyio
-async def test_communication_event_strings_reach_terminal_without_controls() -> None:
-    record = CommunicationRecord(
-        id="w-1", kind="message", sender="a", content=f"hello{_CLEAR}[/red] world"
-    )
-    sent = CommunicationEvent(
-        kind="sent",
-        source="inspect_swarm",
-        agent="a",
-        channel="bus",
-        record_ids=["w-1"],
-        send=CommunicationSend(record=record),
-    )
-    refused = CommunicationEvent(
+def _communication(**kwargs: Any) -> CommunicationEvent:
+    fields: dict[str, Any] = dict(
         kind="sent",
         source="inspect_swarm",
         agent="a",
         channel="bus",
         record_ids=["w-1"],
         send=CommunicationSend(
-            record=record,
-            rejected=CommunicationRejection(
-                control="rate", reason=f"slow{_CLEAR} [bold]down"
-            ),
+            record=CommunicationRecord(id="w-1", kind="message", sender="a")
         ),
     )
-    output = await _textual_output([sent, refused])
-    assert _CLEAR not in output
-    assert "hello[/red] world" in output
-    assert "refused (rate): slow [bold]down" in output
+    fields.update(kwargs)
+    return CommunicationEvent(**fields)
 
 
-@skip_if_trio
-@pytest.mark.anyio
-@pytest.mark.parametrize("kind", ["[/red]", "[bold]ledger[/bold]"])
-async def test_swarm_event_kind_renders_literally_in_header(kind: str) -> None:
-    output = await _textual_output([SwarmEvent(kind=kind, data={"version": 1})])
-    assert f"swarm: {kind}" in output
+def _record(**kwargs: Any) -> CommunicationSend:
+    fields: dict[str, Any] = dict(kind="message", sender="a")
+    fields.update(kwargs)
+    return CommunicationSend(record=CommunicationRecord(**fields))
 
 
-@skip_if_trio
-@pytest.mark.anyio
-async def test_swarm_event_data_reaches_terminal_without_controls() -> None:
-    event = SwarmEvent(
-        kind="ledger",
-        data={"note": "before\x9b2Jmiddle\u202eafter", "raw": "x\ud800y"},
+def _refused(control: str = "rate", reason: str = "slow") -> CommunicationSend:
+    return CommunicationSend(
+        record=CommunicationRecord(kind="message", sender="a"),
+        rejected=CommunicationRejection(control=control, reason=reason),
     )
-    output = await _textual_output([event])
-    assert "\x9b" not in output and "\u202e" not in output
-    assert "before2Jmiddleafter" in output
-    assert '"raw":"x\\ud800y"' in output
+
+
+def _wait(**kwargs: Any) -> CommunicationEvent:
+    fields: dict[str, Any] = (
+        dict(channels=["bus"], outcome="news", duration=1.0) | kwargs
+    )
+    return _communication(
+        kind="waited",
+        channel=None,
+        record_ids=[],
+        send=None,
+        wait=CommunicationWait(**fields),
+    )
+
+
+def _delivered(**kwargs: Any) -> CommunicationEvent:
+    return _communication(
+        kind="delivered", send=None, delivery=CommunicationDelivery(**kwargs)
+    )
+
+
+_LINES: list[tuple[str, Event, str]] = [
+    ("sent agent", _communication(agent=_HOSTILE), _SHOWN),
+    ("sent channel", _communication(channel=_HOSTILE), _SHOWN),
+    (
+        "sent record kind",
+        _communication(record_ids=[], send=_record(kind=_HOSTILE)),
+        _SHOWN,
+    ),
+    (
+        "sent record id",
+        _communication(record_ids=[_HOSTILE], send=_record(id=_HOSTILE)),
+        _SHOWN,
+    ),
+    ("sent to", _communication(record_ids=[], send=_record(to=[_HOSTILE])), _SHOWN),
+    (
+        "sent content",
+        _communication(record_ids=[], send=_record(content=_HOSTILE)),
+        _SHOWN,
+    ),
+    (
+        "refused control",
+        _communication(record_ids=[], send=_refused(control=_HOSTILE)),
+        _SHOWN,
+    ),
+    (
+        "refused reason",
+        _communication(record_ids=[], send=_refused(reason=_HOSTILE)),
+        _SHOWN,
+    ),
+    ("delivered recipients", _delivered(recipients=[_HOSTILE], seq=1), _SHOWN),
+    (
+        "read record ids",
+        _communication(kind="read", send=None, record_ids=[_HOSTILE]),
+        _SHOWN,
+    ),
+    ("wait channels", _wait(channels=[_HOSTILE]), _SHOWN),
+    ("wait outcome", _wait(outcome=_HOSTILE), _SHOWN),
+    ("swarm member", SwarmEvent(kind="final", member=_HOSTILE, data={}), _SHOWN),
+    ("swarm kind", SwarmEvent(kind=_HOSTILE, data={}), f"swarm: {_SHOWN}"),
+    ("swarm data", SwarmEvent(kind="final", data={"note": _HOSTILE}), _SHOWN_IN_DATA),
+]
+
+
+@skip_if_trio
+@pytest.mark.anyio
+@pytest.mark.parametrize("nested", [False, True], ids=["top", "nested"])
+@pytest.mark.parametrize(
+    "event,shown", [line[1:] for line in _LINES], ids=[line[0] for line in _LINES]
+)
+async def test_event_text_reaches_terminal_literally_and_safely(
+    event: Event, shown: str, nested: bool
+) -> None:
+    output = await _textual_output([event], nested=nested)
+    output.encode("utf-8")
+    text = _SGR.sub("", output)
+    assert shown in text
+    assert _CONTROLS.search(text) is None

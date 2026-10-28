@@ -308,12 +308,3 @@ def test_events_render_in_tui(event: Event, title: str, line: str) -> None:
     rendered_title, output = _render(event)
     assert rendered_title == title
     assert output.strip() == line
-
-
-def test_events_render_markup_as_literal_text_in_tui() -> None:
-    sent = _sent(send=CommunicationSend(record=_record(id="w-1", content="[/red]")))
-    assert "append w-1: [/red]" in _render(sent)[1]
-    rejected = _rejected("matched [/red] [bold]x")
-    assert "refused (rate): matched [/red] [bold]x" in _render(rejected)[1]
-    swarm = _swarm(data={"version": 1, "reason": "[/red]"})
-    assert '"reason":"[/red]"' in _render(swarm)[1]
