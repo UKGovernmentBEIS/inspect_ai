@@ -133,7 +133,7 @@ from ._generate_config import (
     active_generate_config,
     set_active_generate_config,
 )
-from ._message_ids import edited_message, with_edited_id
+from ._message_ids import content_hash, edited_message, with_edited_id
 from ._model_call import ModelCall, as_error_response
 from ._model_data.model_data import ModelCost, ModelInfo
 from ._model_output import (
@@ -1029,7 +1029,7 @@ class Model:
 
         # insert any system message provided in config
         if config.system_message:
-            input = [ChatMessageSystem(content=config.system_message)] + input
+            input = [_configured_system_message(config.system_message)] + input
 
         prepared = await self._prepare_input(input, tools, tool_choice, config)
 
@@ -2793,32 +2793,56 @@ def tool_result_media_as_user_message(
 def _media_user_message(
     content: list[Content], tool_call_ids: list[str], source_ids: list[str]
 ) -> ChatMessageUser:
-    return ChatMessageUser(
-        id=_derived_message_id("media", source_ids),
-        content=content,
-        tool_call_id=tool_call_ids,
-        metadata={"derived_from": source_ids} if source_ids else None,
+    return _with_derived_id(
+        "media",
+        ChatMessageUser(
+            content=content,
+            tool_call_id=tool_call_ids,
+            metadata={"derived_from": source_ids} if source_ids else None,
+        ),
     )
 
 
 _DERIVED_KINDS = ("media", "combined")
 
 
-def _derived_message_id(kind: str, sources: list[str]) -> str | None:
-    """Id of a message rebuilt from `sources` on every model call.
+def _configured_system_message(content: str) -> ChatMessageSystem:
+    """The configured system message, under one id per sample for each content."""
+    from inspect_ai.log._samples import sample_active
+
+    sample = sample_active()
+    key = [sample.sample_uuid if sample is not None else None, content]
+    return ChatMessageSystem(
+        id=uuid(name=f"inspect-system-message:{json.dumps(key)}"), content=content
+    )
+
+
+_DerivedT = TypeVar("_DerivedT", bound=ChatMessage)
+
+
+def _with_derived_id(kind: str, message: _DerivedT) -> _DerivedT:
+    """Give a message rebuilt on every model call an id from its sources and content.
 
     The same on every call, so the message is one message across a sample's
-    model events (and one entry in the log's message pool).
+    model events (and one entry in the log's message pool), and different
+    content from the same sources (another model's media support) is another.
     """
-    return uuid(name=f"inspect-{kind}:{json.dumps(sources)}") if sources else None
+    sources = (message.metadata or {}).get("derived_from")
+    if sources:
+        message.id = _derived_message_id(kind, sources, message)
+    return message
+
+
+def _derived_message_id(kind: str, sources: list[str], message: ChatMessage) -> str:
+    return uuid(name=f"inspect-{kind}:{json.dumps([sources, content_hash(message)])}")
 
 
 def _derived_sources(message: ChatMessage) -> list[str]:
     """The sources of a message rebuilt on every call, or the message itself."""
     sources = (message.metadata or {}).get("derived_from")
-    if isinstance(sources, list) and message.id in (
-        _derived_message_id(kind, sources) for kind in _DERIVED_KINDS
-    ):
+    if isinstance(sources, list) and message.id in {
+        _derived_message_id(kind, sources, message) for kind in _DERIVED_KINDS
+    }:
         return list(sources)
     return [message.id] if message.id else []
 
@@ -2966,15 +2990,12 @@ def combine_messages(
 
     # track which messages were combined (the anthropic provider reads combined_from)
     merged_metadata["combined_from"] = [a.id, b.id]
-    sources = _derived_sources(a) + _derived_sources(b)
-    merged_metadata["derived_from"] = sources
-    id = _derived_message_id("combined", sources)
+    merged_metadata["derived_from"] = _derived_sources(a) + _derived_sources(b)
 
     # type-specific field merging
     if isinstance(a, ChatMessageAssistant) and isinstance(b, ChatMessageAssistant):
         merged_tool_calls = (a.tool_calls or []) + (b.tool_calls or [])
-        return ChatMessageAssistant(
-            id=id,
+        combined: ChatMessage = ChatMessageAssistant(
             content=content,
             tool_calls=merged_tool_calls or None,
             model=b.model or a.model,
@@ -2983,20 +3004,19 @@ def combine_messages(
         )
     elif isinstance(a, ChatMessageUser) and isinstance(b, ChatMessageUser):
         merged_tool_call_id = (a.tool_call_id or []) + (b.tool_call_id or [])
-        return ChatMessageUser(
-            id=id,
+        combined = ChatMessageUser(
             content=content,
             tool_call_id=merged_tool_call_id or None,
             source=b.source or a.source,
             metadata=merged_metadata or None,
         )
     else:
-        return message_type(
-            id=id,
+        combined = message_type(
             content=content,
             source=b.source or a.source,
             metadata=merged_metadata or None,
         )
+    return _with_derived_id("combined", combined)
 
 
 async def log_model_retry(

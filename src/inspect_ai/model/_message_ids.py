@@ -4,14 +4,19 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 import mmh3
 from shortuuid import uuid as shortuuid
 
+from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai._util.hash import mm3_hash
 
-from ._chat_message import ChatMessage, ChatMessageBase
+from ._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageTool,
+)
 from ._model_output import ModelOutput
 
 if TYPE_CHECKING:
@@ -88,15 +93,15 @@ def stable_message_ids() -> Callable[[Sequence[ChatMessage] | ModelEvent], None]
     return apply_ids
 
 
-EditedT = TypeVar("EditedT", bound=ChatMessageBase)
+EditedT = TypeVar("EditedT", bound=ChatMessage)
 
 
 def edited_message(source: EditedT, **update: Any) -> EditedT:
     """A copy of `source` with `update` applied, under its own id (`with_edited_id`)."""
-    return with_edited_id(source, source.model_copy(update=update))
+    return with_edited_id(source, cast(EditedT, source.model_copy(update=update)))
 
 
-def with_edited_id(source: ChatMessageBase, edited: EditedT) -> EditedT:
+def with_edited_id(source: ChatMessage, edited: EditedT) -> EditedT:
     """`edited` under an id of its own, recording its source in `derived_from`.
 
     Different content never shares an id. The id is derived from the source's
@@ -104,10 +109,10 @@ def with_edited_id(source: ChatMessageBase, edited: EditedT) -> EditedT:
     call is one message. An edit of an edit names the original source. An edit
     that leaves the content unchanged keeps the source's id.
     """
-    content = _content_hash(edited)
+    content = content_hash(edited)
     if source.id is None:
         edited.id = shortuuid()
-    elif content == _content_hash(source):
+    elif content == content_hash(source):
         edited.id = source.id
     else:
         original = _edited_from(source) or source.id
@@ -116,14 +121,14 @@ def with_edited_id(source: ChatMessageBase, edited: EditedT) -> EditedT:
     return edited
 
 
-def _edited_from(message: ChatMessageBase) -> str | None:
+def _edited_from(message: ChatMessage) -> str | None:
     """The original a message is an edit of, if `with_edited_id` made it."""
     sources = (message.metadata or {}).get("derived_from")
     if (
         isinstance(sources, list)
         and len(sources) == 1
         and isinstance(sources[0], str)
-        and message.id == _edit_id(sources[0], _content_hash(message))
+        and message.id == _edit_id(sources[0], content_hash(message))
     ):
         return sources[0]
     return None
@@ -133,5 +138,49 @@ def _edit_id(source_id: str, content: str) -> str:
     return shortuuid(name=f"inspect-edit:{json.dumps([source_id, content])}")
 
 
-def _content_hash(message: ChatMessageBase) -> str:
-    return mm3_hash(message.model_dump_json(exclude={"id", "metadata"}))
+def content_hash(message: ChatMessage) -> str:
+    """Hash of what a message shows: versions that differ here are different messages.
+
+    Provider-internal fields (reasoning signatures, `internal`, citations), the
+    `model` and `source`, metadata and the id are left out, and string content
+    equals the same text as a content list.
+    """
+    items = (
+        [ContentText(text=message.content)]
+        if isinstance(message.content, str)
+        else message.content
+    )
+    return mm3_hash(
+        json.dumps(
+            [
+                message.role,
+                [
+                    ["text", item.text]
+                    if isinstance(item, ContentText)
+                    else ["reasoning", item.reasoning, item.redacted]
+                    if isinstance(item, ContentReasoning)
+                    else item.model_dump(exclude_none=True, exclude={"internal"})
+                    for item in items
+                ],
+                [
+                    [
+                        call.id,
+                        call.function,
+                        json.dumps(call.arguments, sort_keys=True, default=str),
+                    ]
+                    for call in message.tool_calls or []
+                ]
+                if isinstance(message, ChatMessageAssistant)
+                else None,
+                [
+                    message.tool_call_id,
+                    [message.error.type, message.error.message]
+                    if message.error
+                    else None,
+                ]
+                if isinstance(message, ChatMessageTool)
+                else None,
+            ],
+            default=str,
+        )
+    )

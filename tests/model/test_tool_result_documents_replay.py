@@ -268,3 +268,23 @@ class _CaptureAPI(ModelAPI):
 
     def tool_result_documents(self) -> bool:
         return self._replay_documents
+
+
+def test_media_message_id_depends_on_what_was_moved() -> None:
+    """Models with different media support move different content: different ids."""
+    source = ChatMessageTool(
+        tool_call_id="a",
+        content=[
+            ContentImage(image="data:image/png;base64,iVBORw0KGgo="),
+            ContentDocument(document="report.pdf"),
+        ],
+    )
+
+    images = tool_result_media_as_user_message([source], (ContentImage,))
+    both = tool_result_media_as_user_message([source], (ContentImage, ContentDocument))
+    again = tool_result_media_as_user_message([source], (ContentImage,))
+
+    assert images[1].content != both[1].content
+    assert images[1].id != both[1].id
+    assert images[0].id != both[0].id
+    assert [m.id for m in again] == [m.id for m in images]

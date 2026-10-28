@@ -19,7 +19,6 @@ from typing import (
 
 from pydantic import ValidationError
 from pydantic_core import PydanticSerializationError
-from shortuuid import uuid
 from typing_extensions import TypeIs
 
 from inspect_ai._sentinel._agent_state import bridge_request
@@ -55,6 +54,7 @@ from inspect_ai.model._generate_config import (
     ResponseSchema,
     active_generate_config,
 )
+from inspect_ai.model._message_ids import with_edited_id
 from inspect_ai.model._model import (
     GenerateFilter,
     GenerateInput,
@@ -532,9 +532,11 @@ def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
     Content-keyed replay state (kept server tool items, signed thinking) does not
     depend on the message id.
 
-    A changed or new message that keeps none records the message it replaces in
-    `metadata["derived_from"]` (unless the filter set it): the original whose id
-    it had, else the original choice at its index.
+    A changed or new message that keeps none replaces the original whose id it
+    had, else the original choice at its index: it gets an id derived from that
+    original's and its own content (`with_edited_id`), so the same edit is the
+    same message, and names it in `metadata["derived_from"]` (unless the filter
+    set that).
     """
     owners = {
         content.id: choice.message.id
@@ -544,7 +546,6 @@ def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
         if isinstance(content, ContentToolUse)
     }
     original_messages = [choice.message for choice in original.choices]
-    original_ids = {message.id for message in original_messages if message.id}
     for index, choice in enumerate(filtered.choices):
         message = choice.message
         kept_owners = (
@@ -566,17 +567,15 @@ def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
             if owner is not None:
                 message.id = owner
         elif message not in original_messages:
-            if message.id in original_ids:
-                source: str | None = message.id
-                message.id = uuid()
-            else:
-                source = (
-                    original_messages[index].id
-                    if index < len(original_messages)
-                    else None
-                )
-            if source is not None and "derived_from" not in (message.metadata or {}):
-                message.metadata = (message.metadata or {}) | {"derived_from": [source]}
+            source = next(
+                (m for m in original_messages if m.id == message.id),
+                original_messages[index] if index < len(original_messages) else None,
+            )
+            if source is not None:
+                lineage = (message.metadata or {}).get("derived_from")
+                with_edited_id(source, message)
+                if lineage is not None and message.metadata is not None:
+                    message.metadata["derived_from"] = lineage
 
 
 def _check_provider_owned_content(original: ModelOutput, filtered: ModelOutput) -> None:
@@ -1045,6 +1044,8 @@ async def _bridge_generate_impl(
                         else:
                             raise
 
+        generated = output
+
         # Update the compaction baseline with the actual input token count
         # from the generate call (most accurate source of truth). Record it
         # before the response filter: a replacement (e.g.
@@ -1092,7 +1093,16 @@ async def _bridge_generate_impl(
                 declarations.extend(declared_in_input(input_messages))
             # executions are placed in the proposing ModelEvent's span; only one
             # a sink chose is stored, so a rotating checkpoint span is followed
-            bridge._proposing_message_id = reviewed.output.message.id
+            # a call the model proposed names its output, though a response
+            # filter or an approver may have changed the message handed over
+            proposed = {
+                (call.id, call.function) for call in generated.message.tool_calls or []
+            }
+            bridge._proposing_message_ids = {
+                call.id: generated.message.id
+                for call in reviewed.output.message.tool_calls or []
+                if (call.id, call.function) in proposed and generated.message.id
+            }
             try:
                 bridge.register_tool_execution_grants(
                     reviewed.output.message.tool_calls or [],
@@ -1100,7 +1110,7 @@ async def _bridge_generate_impl(
                     span_id=sink.span_id if sink is not None else None,
                 )
             finally:
-                bridge._proposing_message_id = None
+                bridge._proposing_message_ids = {}
             return reviewed.output, c_message
 
         rejections += 1

@@ -18,16 +18,22 @@ from google import genai
 from openai import AsyncOpenAI
 from shortuuid import uuid
 from test_helpers.checkpoint import RecordingCheckpointer
+from test_helpers.message_ids import assert_message_ids, tool_event_producers
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentImage, ContentText
-from inspect_ai.agent import Agent, AgentState, agent, agent_bridge, react
+from inspect_ai.agent import Agent, AgentState, agent, agent_bridge, handoff, react
 from inspect_ai.agent._bridge import types as bridge_types
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.agent._bridge.util import apply_message_ids
 from inspect_ai.dataset import Sample
 from inspect_ai.event import ModelEvent, ToolEvent
-from inspect_ai.log import EvalLog, read_eval_log
+from inspect_ai.log import (
+    EvalLog,
+    EvalSample,
+    read_eval_log,
+    resolve_sample_attachments,
+)
 from inspect_ai.log._condense import condense_sample
 from inspect_ai.model import (
     ChatMessage,
@@ -37,6 +43,7 @@ from inspect_ai.model import (
     ModelOutput,
     get_model,
 )
+from inspect_ai.solver import generate, user_message
 from inspect_ai.tool import Tool, ToolCall, ToolResult, tool
 from inspect_ai.util import store
 
@@ -307,7 +314,8 @@ def assert_ids_agree(log: EvalLog, model_calls: int, edits: bool = False) -> int
     an edit naming the reply in `derived_from`. Returns the number of such edits.
     """
     assert log.samples
-    sample = log.samples[0]
+    sample = resolve_sample_attachments(log.samples[0], "full")
+    assert_message_ids(sample)
     final_ids = [m.id for m in sample.messages]
     assert len(set(final_ids)) == len(final_ids)
     model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
@@ -685,3 +693,98 @@ async def test_matching_work_is_linear_in_a_repetitive_conversation(
     large = await _matching_work(800, compacted)
     # linear is 8x; the quadratic matching this replaced was 64x
     assert large < 12 * small
+
+
+def _assert_contract(log: EvalLog) -> EvalSample:
+    """Check the message id contract live and read back; return the read-back sample."""
+    assert log.status == "success", log.error
+    read = read_eval_log(log.location)
+    for logged in [log, read]:
+        for sample in logged.samples or []:
+            assert_message_ids(resolve_sample_attachments(sample, "full"))
+    assert read.samples
+    return resolve_sample_attachments(read.samples[0], "full")
+
+
+def test_react_submit_keeps_the_contract(tmp_path: Path) -> None:
+    """Appending the answer and removing the submit call are edits naming the output."""
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model", "echo", {"text": "hi", "count": 1}
+            ),
+            ModelOutput.for_tool_call("mockllm/model", "submit", {"answer": "done"}),
+        ],
+    )
+    log = eval(
+        Task(dataset=[Sample(input=PROMPT)], solver=react(tools=[echo()])),
+        model=model,
+        log_dir=str(tmp_path),
+    )[0]
+
+    sample = _assert_contract(log)
+    submitted = [e for e in sample.events if isinstance(e, ModelEvent)][
+        -1
+    ].output.message
+    final = sample.messages[-1]
+    assert isinstance(final, ChatMessageAssistant)
+    assert not final.tool_calls and final.text.endswith("done")
+    assert final.metadata == {"derived_from": [submitted.id]}
+    assert sample.output.message.metadata == {"derived_from": [submitted.id]}
+    assert sample.output.message.id != final.id
+    assert tool_event_producers(sample) == [1, 1]
+
+
+@agent(description="Searches for things.")
+def searcher() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        state.output = await get_model().generate(state.messages)
+        state.messages.append(state.output.message)
+        return state
+
+    return execute
+
+
+def test_handoff_keeps_the_contract(tmp_path: Path) -> None:
+    """The agent name prefix and the content_only output filter are edits naming their sources."""
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call("mockllm/model", "transfer_to_searcher", {}),
+            ModelOutput.from_content("mockllm/model", "child answer"),
+            ModelOutput.from_content("mockllm/model", "parent answer"),
+        ],
+    )
+    log = eval(
+        Task(
+            dataset=[Sample(input=PROMPT)],
+            solver=react(tools=[handoff(searcher())], submit=False),
+        ),
+        model=model,
+        log_dir=str(tmp_path),
+    )[0]
+
+    sample = _assert_contract(log)
+    child = [e for e in sample.events if isinstance(e, ModelEvent)][1].output.message
+    [prefixed] = [m for m in sample.messages if m.text == "[searcher] child answer"]
+    assert prefixed.metadata == {"derived_from": [child.id]}
+
+
+def test_configured_system_message_keeps_one_id(tmp_path: Path) -> None:
+    log = eval(
+        Task(
+            dataset=[Sample(input=PROMPT)],
+            solver=[generate(), user_message("Again."), generate()],
+        ),
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[ModelOutput.from_content("mockllm/model", "OK")] * 2,
+        ),
+        log_dir=str(tmp_path),
+        system_message="Always here.",
+    )[0]
+
+    sample = _assert_contract(log)
+    model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
+    assert len({e.input[0].id for e in model_events}) == 1

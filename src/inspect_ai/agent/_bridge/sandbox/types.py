@@ -187,7 +187,9 @@ class SandboxAgentBridge(AgentBridge):
                     + ", ".join(f"{t.server}/{t.tool}" for t in targets)
                     + "); an execution grant was registered for each of them.",
                 )
-            proposal = _Proposal(call, span_id, self._proposing_message_id)
+            proposal = _Proposal(
+                call, span_id, self._proposing_message_ids.get(call.id)
+            )
             for target in targets:
                 if (
                     len(self._tool_execution_grants)

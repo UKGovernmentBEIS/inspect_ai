@@ -160,3 +160,23 @@ def test_collapsed_messages_with_different_sources_get_different_ids():
     )
 
     assert len({m.id for m in collapsed}) == len(collapsed) == 3
+
+
+def test_collapsed_message_id_depends_on_its_content():
+    """The same sources combined into different content are different messages."""
+    a = ChatMessageUser(id="a", content="A")
+    b = ChatMessageUser(id="b", content="B")
+    c = ChatMessageUser(id="c", content=[ContentText(text="C")])
+
+    [first] = collapse_consecutive_user_messages([a, b, c])
+    [ab] = collapse_consecutive_user_messages([a, b])
+    [abc] = collapse_consecutive_user_messages([ab, c])
+    [second] = collapse_consecutive_user_messages(
+        [a, *collapse_consecutive_user_messages([b, c])]
+    )
+
+    assert first.id == abc.id
+    assert first.metadata is not None and second.metadata is not None
+    assert first.metadata["derived_from"] == second.metadata["derived_from"]
+    assert first.content != second.content
+    assert first.id != second.id

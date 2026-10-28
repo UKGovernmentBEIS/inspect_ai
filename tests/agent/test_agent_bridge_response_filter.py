@@ -2655,3 +2655,20 @@ def test_settle_message_ids_records_what_a_replacement_replaces() -> None:
     }
     assert replaced.choices[1].message.metadata is None
     assert replaced.choices[2].message.metadata is None
+
+
+def test_settle_message_ids_gives_the_same_edit_the_same_id() -> None:
+    """Filtering the same output the same way (e.g. a cache hit) is the same message."""
+    original = ModelOutput.from_content("mockllm/model", "before")
+
+    def edited(text: str) -> ModelOutput:
+        copy = original.model_copy(deep=True)
+        copy.message.content = text
+        _settle_message_ids(original, copy)
+        return copy
+
+    first, second, other = edited("after"), edited("after"), edited("other")
+
+    assert first.message.id == second.message.id != original.message.id
+    assert other.message.id not in {first.message.id, original.message.id}
+    assert first.message.metadata == {"derived_from": [original.message.id]}

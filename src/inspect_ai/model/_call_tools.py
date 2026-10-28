@@ -94,6 +94,7 @@ from ._chat_message import (
     ChatMessageUser,
 )
 from ._generate_config import active_generate_config
+from ._message_ids import edited_message
 
 logger = getLogger(__name__)
 
@@ -1063,14 +1064,13 @@ async def agent_handoff(
     # tools in parallel and we won't be handling the other calls)
     last_message = agent_conversation[-1]
     if isinstance(last_message, ChatMessageAssistant) and last_message.tool_calls:
-        agent_conversation[-1] = agent_conversation[-1].model_copy(
-            update=dict(
-                tool_calls=[
-                    tool_call
-                    for tool_call in last_message.tool_calls
-                    if tool_call.id == call.id
-                ]
-            )
+        agent_conversation[-1] = edited_message(
+            last_message,
+            tool_calls=[
+                tool_call
+                for tool_call in last_message.tool_calls
+                if tool_call.id == call.id
+            ],
         )
 
     # ammend the conversation with a ChatMessageTool to indicate
@@ -1181,9 +1181,7 @@ def prepend_agent_name(
     message: ChatMessageAssistant, agent_name: str
 ) -> ChatMessageAssistant:
     if isinstance(message.content, str):
-        return message.model_copy(
-            update=dict(content=f"[{agent_name}] {message.content}")
-        )
+        return edited_message(message, content=f"[{agent_name}] {message.content}")
     else:
         content = copy(message.content)
         for i in range(0, len(content)):
@@ -1194,7 +1192,7 @@ def prepend_agent_name(
                         update=dict(text=f"[{agent_name}] {text}")
                     )
                 break
-        return message.model_copy(update=dict(content=content))
+        return edited_message(message, content=content)
 
 
 async def resolve_tools(

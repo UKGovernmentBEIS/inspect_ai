@@ -12,7 +12,8 @@ import logging
 import re
 from collections import deque
 from contextlib import contextmanager
-from pathlib import PurePosixPath
+from functools import partial
+from pathlib import Path, PurePosixPath
 from typing import Any, Awaitable, Callable, Iterator, Literal, NamedTuple, cast
 from unittest.mock import AsyncMock, MagicMock
 
@@ -20,6 +21,7 @@ import anyio
 import pytest
 from acp.schema import SessionNotification, ToolCallProgress, ToolCallStart
 from pydantic import JsonValue
+from test_helpers.message_ids import assert_message_ids, tool_event_producers
 from test_helpers.service_dispatch import (
     dispatching_service,
     serve_beside_failure_monitor,
@@ -27,6 +29,7 @@ from test_helpers.service_dispatch import (
 
 import inspect_ai._util.logger as inspect_logger
 from inspect_ai import Task, eval
+from inspect_ai._util._async import tg_collect
 from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent._acp.event_mapping import _AcpEventRouter, replay_transcript
@@ -71,6 +74,7 @@ from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.event._tree import EventTreeSpan, event_tree
+from inspect_ai.log import read_eval_log, resolve_sample_attachments
 from inspect_ai.log._condense import condense_sample
 from inspect_ai.log._log import EvalSample
 from inspect_ai.log._samples import _sample_active
@@ -4675,3 +4679,114 @@ async def test_a_rejection_is_recorded_when_its_span_cannot_be_allocated(
     else:
         assert raised == []
         assert not bridge._failure_requested.is_set()
+
+
+async def _suffix_filter(
+    model: Model, output: ModelOutput, generate_input: GenerateInput
+) -> ModelOutput:
+    output.message.content = output.message.text + " FILTERED"
+    return output
+
+
+@agent
+def host_scaffold(mode: Literal["plain", "filter", "approval"]) -> Agent:
+    """A Completions scaffold running every call it gets as a bridged host tool, in parallel."""
+
+    async def execute(state: AgentState) -> AgentState:
+        bridge = SandboxAgentBridge(
+            state=state,
+            filter=None,
+            retry_refusals=None,
+            compaction=None,
+            port=13131,
+            model=None,
+            bridged_tools={
+                "host": {"read_file": read_file(AsyncMock(return_value="same result"))}
+            },
+            response_filter=_suffix_filter if mode == "filter" else None,
+            approval=[ApprovalPolicy(modifying_approver({"path": "safe"}), "*")]
+            if mode == "approval"
+            else None,
+        )
+        [info] = declare("mcp__host__read_file")
+        tools = [{"type": "function", "function": info.model_dump(exclude_none=True)}]
+        messages: list[dict[str, Any]] = [
+            {"role": "user", "content": state.messages[0].text}
+        ]
+        while True:
+            response = await inspect_completions_api_request(
+                {"model": "inspect", "messages": messages, "tools": tools}, None, bridge
+            )
+            reply = response.choices[0].message
+            messages.append(reply.model_dump(exclude_none=True))
+            calls = [call for call in reply.tool_calls or [] if call.type == "function"]
+            if not calls:
+                return bridge.state
+            results = await tg_collect(
+                [
+                    partial(
+                        call_host_tool(bridge),
+                        "host",
+                        "read_file",
+                        json.loads(call.function.arguments),
+                    )
+                    for call in calls
+                ]
+            )
+            messages.extend(
+                {"role": "tool", "tool_call_id": call.id, "content": str(result)}
+                for call, result in zip(calls, results)
+            )
+
+    return execute
+
+
+@pytest.mark.parametrize("mode", ["plain", "filter", "approval"])
+def test_host_tool_events_name_the_generated_output(
+    mode: Literal["plain", "filter", "approval"], tmp_path: Path
+) -> None:
+    """Each host tool event names exactly one model event's output, whatever changed the reply."""
+    name = "mcp__host__read_file"
+    outputs = [
+        tool_calls_output(
+            ToolCall(id="repeat", function=name, arguments={"path": "a"}),
+            ToolCall(id="parallel", function=name, arguments={"path": "b"}),
+            content=f"round {n}",
+        )
+        for n in range(2)
+    ] + [ModelOutput.from_content("mockllm/model", "done")]
+    log = eval(
+        Task(
+            dataset=[Sample(input="Read both files twice.")], solver=host_scaffold(mode)
+        ),
+        model=get_model("mockllm/model", custom_outputs=outputs),
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+
+    read = read_eval_log(log.location)
+    assert read.samples
+    sample = resolve_sample_attachments(read.samples[0], "full")
+    assert_message_ids(sample)
+    assert tool_event_producers(sample) == [1, 1, 1, 1]
+    replies = [
+        m
+        for m in sample.messages
+        if isinstance(m, ChatMessageAssistant) and m.tool_calls
+    ]
+    outputs_by_id = {
+        e.output.message.id: e.output.message
+        for e in sample.events
+        if isinstance(e, ModelEvent)
+    }
+    for reply in replies:
+        if mode == "plain":
+            assert reply.id in outputs_by_id
+        else:
+            assert reply.metadata is not None
+            [source] = reply.metadata["derived_from"]
+            assert source in outputs_by_id
+    if mode == "approval":
+        assert {
+            call.arguments["path"] for r in replies for call in r.tool_calls or []
+        } == {"safe"}

@@ -24,6 +24,7 @@ from inspect_ai.model._compaction import (
 from inspect_ai.model._compaction import (
     compaction as create_compaction,
 )
+from inspect_ai.model._message_ids import content_hash
 from inspect_ai.model._model import (
     GenerateFilter,
     Model,
@@ -309,10 +310,11 @@ class AgentBridge:
         bind later service requests to the calls the model actually made.
         """
 
-    _proposing_message_id: str | None = None
-    """Id of the message whose calls `register_tool_execution_grants` is registering.
+    _proposing_message_ids: dict[str, str] = {}
+    """Generated output message id by call id, for the calls `register_tool_execution_grants` is registering.
 
-    Set by `bridge_generate` around the call (the hook's signature is public).
+    Set by `bridge_generate` around the call (the hook's signature is public). A
+    call a response filter added has none.
     """
 
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
@@ -398,7 +400,7 @@ class AgentBridge:
             message_id = aligned.get(index) or recorded_id(message_keys)
             if message_id is None:
                 message.id = uuid()
-                self._content_by_id[message.id] = _message_content(message)
+                self._content_by_id[message.id] = content_hash(message)
             else:
                 used.add(message_id)
                 message.id = self._version_id(message_id, message)
@@ -420,7 +422,7 @@ class AgentBridge:
         from the original's and its content, and records the original in
         `derived_from`.
         """
-        content = _message_content(message)
+        content = content_hash(message)
         if self._content_by_id.setdefault(message_id, content) == content:
             return message_id
         # an edit of an edit names the original
@@ -536,7 +538,7 @@ class AgentBridge:
                 ):
                     keys.append(_loose_message_key(message, variant))
             self._record_message_id(keys, message.id)
-            self._content_by_id.setdefault(message.id, _message_content(message))
+            self._content_by_id.setdefault(message.id, content_hash(message))
 
     _message_ids: dict[str, list[str]]
 
@@ -592,7 +594,7 @@ class AgentBridge:
         if output.message.id is not None:
             self._record_message_id(_message_id_keys(output.message), output.message.id)
             self._content_by_id.setdefault(
-                output.message.id, _message_content(output.message)
+                output.message.id, content_hash(output.message)
             )
             derived_from = (output.message.metadata or {}).get("derived_from")
             if derived_from is not None:
@@ -759,54 +761,6 @@ _MAX_ALIGN_CANDIDATES = 8
 
 def _edit_id(original_id: str, content: str) -> str:
     return uuid(name=f"inspect-edit:{json.dumps([original_id, content])}")
-
-
-def _message_content(message: ChatMessage) -> str:
-    """Hash of what a message shows: versions that differ here are different messages.
-
-    Provider-internal fields (reasoning signatures, `internal`, citations,
-    `model`, `source`, metadata) are left out, so an exact round trip through a
-    scaffold is the same message.
-    """
-    items = (
-        [ContentText(text=message.content)]
-        if isinstance(message.content, str)
-        else message.content
-    )
-    return mm3_hash(
-        json.dumps(
-            [
-                message.role,
-                [
-                    ["text", item.text]
-                    if isinstance(item, ContentText)
-                    else ["reasoning", item.reasoning, item.redacted]
-                    if isinstance(item, ContentReasoning)
-                    else item.model_dump(exclude_none=True, exclude={"internal"})
-                    for item in items
-                ],
-                [
-                    [
-                        call.id,
-                        call.function,
-                        json.dumps(call.arguments, sort_keys=True, default=str),
-                    ]
-                    for call in message.tool_calls or []
-                ]
-                if isinstance(message, ChatMessageAssistant)
-                else None,
-                [
-                    message.tool_call_id,
-                    [message.error.type, message.error.message]
-                    if message.error
-                    else None,
-                ]
-                if isinstance(message, ChatMessageTool)
-                else None,
-            ],
-            default=str,
-        )
-    )
 
 
 def _key_strength(key: str) -> int:
