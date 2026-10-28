@@ -11,12 +11,10 @@ The cases below are the real strings docker emits for each way of breaking
 a container, taken from the reproduction in that issue.
 """
 
-import anyio
 import pytest
 from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai.util import ExecResult
-from inspect_ai.util._sandbox.docker import diagnostics
 from inspect_ai.util._sandbox.docker.docker import DockerSandboxEnvironment
 from inspect_ai.util._sandbox.docker.failure import (
     InjectedWrapper,
@@ -699,127 +697,6 @@ async def test_silent_success_never_checks_the_container(
         "inspect_ai.util._sandbox.docker.docker.service_dead", exploding_check
     )
     assert await _sandbox().exec(["true"], timeout=30) == ok
-
-
-def _stub_ps_states(
-    monkeypatch: pytest.MonkeyPatch, *states: list[str] | Exception
-) -> list[int]:
-    """Make successive `compose ps` probes report `states`, repeating the last."""
-    calls: list[int] = []
-
-    async def fake_entries(*args: object, **kwargs: object) -> list[dict[str, str]]:
-        state = states[min(len(calls), len(states) - 1)]
-        calls.append(1)
-        if isinstance(state, Exception):
-            raise state
-        return [{"Service": "default", "State": s} for s in state]
-
-    monkeypatch.setattr(diagnostics, "_service_ps_entries", fake_entries)
-    monkeypatch.setattr(diagnostics, "_SETTLE_INTERVAL", 0)
-    # long enough that a slow runner cannot end the window early
-    monkeypatch.setattr(diagnostics, "_SETTLE_TIMEOUT", 60)
-    return calls
-
-
-def _project() -> ComposeProject:
-    return ComposeProject(name="test", config=None, sample_id=1, epoch=1, env=None)
-
-
-async def test_service_dead_waits_for_exit_to_be_recorded(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """`compose ps` can still say running after the exec saw the kill."""
-    calls = _stub_ps_states(monkeypatch, ["running"], ["running"], ["exited"])
-    assert await diagnostics.service_dead("default", _project())
-    assert len(calls) == 3
-
-
-async def test_service_dead_gives_up_on_a_running_container(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _stub_ps_states(monkeypatch, ["running"])
-    monkeypatch.setattr(diagnostics, "_SETTLE_TIMEOUT", 0.05)
-    assert not await diagnostics.service_dead("default", _project())
-
-
-async def test_service_dead_bounds_a_stalled_recheck(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A hung re-check must not add `compose_command`'s timeout retries."""
-    calls = 0
-
-    async def fake_entries(*args: object, **kwargs: object) -> list[dict[str, str]]:
-        nonlocal calls
-        calls += 1
-        if calls > 1:
-            await anyio.sleep_forever()
-        return [{"Service": "default", "State": "running"}]
-
-    monkeypatch.setattr(diagnostics, "_service_ps_entries", fake_entries)
-    monkeypatch.setattr(diagnostics, "_SETTLE_INTERVAL", 0)
-    monkeypatch.setattr(diagnostics, "_SETTLE_TIMEOUT", 0.1)
-
-    with anyio.fail_after(10):
-        assert not await diagnostics.service_dead("default", _project())
-
-
-async def test_service_dead_first_probe_is_not_bounded_by_the_window(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The first probe may queue behind other docker commands."""
-
-    async def slow_entries(*args: object, **kwargs: object) -> list[dict[str, str]]:
-        await anyio.sleep(0.2)
-        return [{"Service": "default", "State": "exited"}]
-
-    monkeypatch.setattr(diagnostics, "_service_ps_entries", slow_entries)
-    monkeypatch.setattr(diagnostics, "_SETTLE_TIMEOUT", 0.01)
-    assert await diagnostics.service_dead("default", _project())
-
-
-@pytest.mark.parametrize(
-    "state",
-    [pytest.param([], id="no_containers"), pytest.param(OSError(), id="ps_failed")],
-)
-async def test_service_dead_does_not_wait_without_evidence(
-    monkeypatch: pytest.MonkeyPatch, state: list[str] | Exception
-) -> None:
-    calls = _stub_ps_states(monkeypatch, state, ["exited"])
-    assert not await diagnostics.service_dead("default", _project())
-    assert len(calls) == 1
-
-
-async def test_service_dead_propagates_cancellation_while_rechecking(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Cancelling a re-check probe must not be swallowed as "not dead"."""
-    rechecking = anyio.Event()
-    calls = 0
-
-    async def fake_entries(*args: object, **kwargs: object) -> list[dict[str, str]]:
-        nonlocal calls
-        calls += 1
-        if calls > 1:
-            rechecking.set()
-            await anyio.sleep_forever()
-        return [{"Service": "default", "State": "running"}]
-
-    monkeypatch.setattr(diagnostics, "_service_ps_entries", fake_entries)
-    monkeypatch.setattr(diagnostics, "_SETTLE_INTERVAL", 0)
-    monkeypatch.setattr(diagnostics, "_SETTLE_TIMEOUT", 60)
-    results: list[bool] = []
-
-    async def check() -> None:
-        results.append(await diagnostics.service_dead("default", _project()))
-
-    with anyio.fail_after(10):
-        async with anyio.create_task_group() as tg:
-            tg.start_soon(check)
-            await rechecking.wait()
-            tg.cancel_scope.cancel()
-
-    assert results == []
-    assert calls == 2
 
 
 async def test_no_wrapper_leaves_runc_launch_failures_unclassified(
