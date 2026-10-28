@@ -530,3 +530,64 @@ async def test_sample_source_late_task_init(provider: str) -> None:
         assert sample_state(provider, "sourced/1") == "MISSING"
         assert seen(provider, "task_cleanup") == seen(provider, "task_init")
         assert cleanup_covers(provider) == set()
+
+
+# --- what task_cleanup sees besides provider state -----------------------------
+
+_cleanup_saw_screen: list[bool] = []
+
+
+@sandboxenv(name="screen_probe_fake")
+class ScreenProbeFake(CtxVarFake):
+    provider = "screen_probe_fake"
+
+    @override
+    @classmethod
+    async def task_cleanup(
+        cls, task_name: str, config: SandboxEnvironmentConfigType | None, cleanup: bool
+    ) -> None:
+        from inspect_ai._display.core.active import _active_task_screen
+
+        _cleanup_saw_screen.append(_active_task_screen.get() is not None)
+        await super().task_cleanup(task_name, config, cleanup)
+
+
+@pytest.mark.parametrize("how", ["when_free", "after_batch", "next_tasks"])
+async def test_task_cleanup_sees_only_provider_state(how: str) -> None:
+    # a config first started for an added task (while the task display is
+    # open) is cleaned up after the display has closed: its cleanup sees the
+    # provider's state, not the display that was active during its task_init
+    _cleanup_saw_screen.clear()
+    child = fake_task("child", "screen_probe_fake", "C")
+
+    @solver
+    def add_child() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            _enqueue([child], "after_batch" if how == "after_batch" else "when_free")
+            return state
+
+        return solve
+
+    given = False
+
+    async def next_tasks() -> list[Task] | None:
+        nonlocal given
+        if how == "next_tasks" and not given:
+            given = True
+            return [child]
+        return None
+
+    seed = Task(name="seed", dataset=[Sample(input="hi")], solver=add_child())
+    tasks: Any = (
+        TaskSource.from_tasks([_plain_seed()], next_tasks=next_tasks)
+        if how == "next_tasks"
+        else seed
+    )
+    logs = await eval_async(tasks, model="mockllm/model", max_tasks=2)
+    _ok(logs)
+    assert _cleanup_saw_screen == [False]
+    assert cleanup_covers("screen_probe_fake") == all_samples("screen_probe_fake")
+
+
+def _plain_seed() -> Task:
+    return Task(name="seed", dataset=[Sample(input="hi")], solver=noop())

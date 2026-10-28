@@ -4,7 +4,7 @@ import os
 import weakref
 from collections import Counter
 from contextlib import ExitStack, asynccontextmanager
-from contextvars import Context, copy_context
+from contextvars import ContextVar, copy_context
 from copy import copy
 from dataclasses import dataclass, replace
 from typing import (
@@ -1036,14 +1036,18 @@ def _start_throughput_reporter(tg: TaskGroup) -> anyio.CancelScope:
     return scope
 
 
+ProviderState = dict[ContextVar[Any], Any]
+"""ContextVars a sandbox provider's ``task_init`` set, with the values it left."""
+
+
 class _TaskCleanup(NamedTuple):
     """A started sandbox config's ``task_cleanup`` and what it runs with."""
 
     cleanup: TaskCleanup
     config: SandboxEnvironmentConfigType | None
     run_dir: str
-    context: Context
-    """A copy of the context right after the config's ``task_init``."""
+    state: ProviderState
+    """The provider state right after the config's ``task_init``."""
 
 
 class SandboxManager:
@@ -1055,12 +1059,15 @@ class SandboxManager:
     already started and accumulate their cleanups; :meth:`shutdown` runs every
     accumulated cleanup once, at the end of the run.
 
-    Each ``task_cleanup`` runs in a copy of the context its ``task_init`` left
-    behind, so a provider that keeps state in ContextVars set by ``task_init``
-    (Modal, E2B, Daytona and others) sees that state in its cleanup even after
-    a later ``task_init`` of the same provider (for an added task) has set the
-    ContextVar again. ``ctx.run(tg.start_soon, ...)`` starts a task in a copy of
-    ``ctx`` on asyncio and trio alike.
+    Providers may keep state in ContextVars that ``task_init`` sets and
+    ``sample_init`` / ``task_cleanup`` read (Modal, E2B, Daytona, k8s). Each
+    ``task_init`` runs in a child task; the ContextVars it sets are recorded
+    and set in the caller's context (so the tasks it starts see them, the
+    latest value of each winning, as when ``task_init`` ran in the caller's
+    context), and each ``task_cleanup`` runs with the state as it was right
+    after its own ``task_init``. So a cleanup sees its own state even after a
+    later ``task_init`` of the same provider (for an added task) set the
+    ContextVar again, and sees nothing of the task that happened to start it.
 
     The manager also owns the run's sandbox lifecycle state (the registries
     a provider's `task_cleanup` reads: running containers, generated config
@@ -1081,6 +1088,7 @@ class SandboxManager:
         self._cleanup = cleanup
         self._started: Set[TaskSandboxEnvironment] = set()
         self._cleanups: list[_TaskCleanup] = []
+        self._state: ProviderState = {}
         self._init_lock = anyio.Lock()
         self._lifecycle: ExitStack | None = None
         # keyed by task, then spec: resolution folds in per-task state
@@ -1175,7 +1183,7 @@ class SandboxManager:
     async def _start_sandboxenvs(
         self, sandboxenvs: Set[TaskSandboxEnvironment]
     ) -> None:
-        """Run `task_init` for sandboxenvs not already started.
+        """Run `task_init` for new sandboxenvs; set provider state in the caller.
 
         Serialized on a lock with the started-set re-checked under it, so
         concurrent callers (e.g. two live tasks adding samples at once)
@@ -1185,14 +1193,15 @@ class SandboxManager:
         because the started set only ever grows.
         """
         sandboxenvs = {env for env in sandboxenvs if env not in self._started}
-        if not sandboxenvs:
-            return
+        if sandboxenvs:
+            async with self._init_lock:
+                await self._init_sandboxenvs(sandboxenvs)
+        _set_provider_state(self._state)
 
-        async with self._init_lock:
-            sandboxenvs = {env for env in sandboxenvs if env not in self._started}
-            if not sandboxenvs:
-                return
-
+    async def _init_sandboxenvs(self, sandboxenvs: Set[TaskSandboxEnvironment]) -> None:
+        """Run ``task_init`` for each sandboxenv not started meanwhile (under the lock)."""
+        sandboxenvs = {env for env in sandboxenvs if env not in self._started}
+        if sandboxenvs:
             set_sandbox_prebuilt(self._config.sandbox_prebuilt is True)
 
             # initialiase sandboxenvs (track cleanups)
@@ -1210,13 +1219,18 @@ class SandboxManager:
                         self._config.max_sandboxes,
                     )
 
-                    # run startup
+                    # run startup, from the state earlier task_inits left (so a
+                    # provider's get-or-create finds it)
                     task_init = cast(TaskInit, getattr(sandboxenv_type, "task_init"))
+                    _set_provider_state(self._state)
                     with chdir(sandboxenv.run_dir), environ_vars(dict(sandboxenv.env)):
-                        await task_init("startup", sandboxenv.sandbox.config)
+                        state = await _provider_state_of(
+                            task_init, "startup", sandboxenv.sandbox.config
+                        )
 
                     # track as started and append cleanup method
                     self._started.add(sandboxenv)
+                    self._state.update(state)
                     task_cleanup = cast(
                         TaskCleanup, getattr(sandboxenv_type, "task_cleanup")
                     )
@@ -1225,7 +1239,7 @@ class SandboxManager:
                             task_cleanup,
                             sandboxenv.sandbox.config,
                             sandboxenv.run_dir,
-                            copy_context(),
+                            dict(self._state),
                         )
                     )
 
@@ -1243,6 +1257,7 @@ class SandboxManager:
         """
 
         async def cleanup(job: _TaskCleanup) -> None:
+            _set_provider_state(job.state)
             await job.cleanup("shutdown", job.config, self._cleanup)
 
         with anyio.CancelScope(shield=True):
@@ -1254,7 +1269,7 @@ class SandboxManager:
                                 unwrap_exception_group(),
                                 anyio.create_task_group() as tg,
                             ):
-                                job.context.run(tg.start_soon, cleanup, job)
+                                tg.start_soon(cleanup, job)
                     except BaseException as ex:
                         log.warning(
                             f"Error occurred shutting down sandbox environments: {exception_message(ex)}"
@@ -1263,6 +1278,46 @@ class SandboxManager:
                 if self._lifecycle is not None:
                     self._lifecycle.close()
                     self._lifecycle = None
+
+
+async def _provider_state_of(
+    task_init: TaskInit, task_name: str, config: SandboxEnvironmentConfigType | None
+) -> ProviderState:
+    """Run a provider's ``task_init`` in a child task; return the ContextVars it set.
+
+    Only what ``task_init`` itself sets is kept, not a copy of the caller's
+    whole context, which would keep the caller's state (its task display,
+    a running task's settings) alive and visible to ``task_cleanup``.
+    """
+    base = copy_context()
+    state: ProviderState = {}
+
+    async def run() -> None:
+        await task_init(task_name, config)
+        state.update(
+            (var, value)
+            for var, value in copy_context().items()
+            if base.get(var, _UNSET) is not value
+        )
+
+    try:
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(run)
+    except BaseExceptionGroup as group:
+        # the task group wraps the one task's exception
+        if len(group.exceptions) == 1:
+            raise group.exceptions[0] from group.exceptions[0].__cause__
+        raise
+    return state
+
+
+_UNSET = object()
+
+
+def _set_provider_state(state: ProviderState) -> None:
+    """Set provider ContextVars in the current context, for the tasks it starts."""
+    for var, value in state.items():
+        var.set(value)
 
 
 @asynccontextmanager
