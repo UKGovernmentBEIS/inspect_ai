@@ -2,6 +2,7 @@ import contextlib
 import json
 import os
 import shlex
+import time
 from logging import getLogger
 from pathlib import Path
 from typing import Any, Literal, cast, overload
@@ -14,6 +15,9 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.trace import trace_message
 from inspect_ai.util._concurrency import concurrency as concurrency_manager
 from inspect_ai.util._display import display_type, display_type_plain
+from inspect_ai.util._sandbox._privileged import pinned_command
+from inspect_ai.util._sandbox.environment import SandboxUnavailableError
+from inspect_ai.util._sandbox.limits import SandboxEnvironmentLimits
 from inspect_ai.util._subprocess import (
     ExecResult,
     StdoutReader,
@@ -23,6 +27,7 @@ from inspect_ai.util._subprocess import (
 )
 
 from .config import is_auto_compose_file
+from .failure import classify_exec_failure, raise_for_unsupported_user
 from .mounts import validate_compose_mounts
 from .prereqs import (
     DOCKER_COMPOSE_REQUIRED_VERSION_PULL_POLICY,
@@ -111,30 +116,111 @@ async def compose_down(project: ComposeProject, quiet: bool = True) -> None:
         )
 
 
-async def compose_cp_archive(
-    src: str, project: ComposeProject, read_archive: StdoutReader
+_READ_FILE_TIMEOUT = 600
+
+
+async def compose_read_archive(
+    service: str,
+    file: str,
+    project: ComposeProject,
+    read_archive: StdoutReader,
+    user: str | None = None,
 ) -> bytes:
-    """Copy `src` out of a service container as a tar archive.
+    """Read a file archive as the requested user, without host extraction.
 
-    Docker Compose writes the archive to stdout instead of extracting it on the
-    host. The archive is built from container state, so nothing from it is
-    written to the host filesystem. `read_archive` reads it from stdout; if it
-    raises, the copy is stopped and the exception propagates.
-
-    Raises:
-      RuntimeError: If the copy fails.
+    Tar follows symlinks under that user's permissions. It does not recurse
+    into directories; the existing archive reader rejects non-regular files.
+    GNU tar's changed-file warning permits a best-effort read; shrinking-file
+    and other errors propagate. Cancellation has the same in-container timeout
+    fallback as Docker exec.
     """
+    command = [
+        "exec",
+        "-T",
+        "--workdir",
+        "/",
+        "--env",
+        "LC_ALL=C",
+        "--env",
+        "TAR_OPTIONS=",
+    ]
+    if user is not None:
+        command.extend(["--user", user])
+    command.extend(
+        [
+            service,
+            "/usr/bin/timeout",
+            "-k",
+            "5s",
+            f"{_READ_FILE_TIMEOUT}s",
+            *pinned_command(["tar", "-chf", "-", "--no-recursion", "--", file]),
+        ]
+    )
+    start_time = time.monotonic()
     result = await compose_command(
-        ["cp", "-L", "--", src, "-"],
+        command,
         project=project,
-        timeout=600,  # 10-minute timeout for file copies
+        timeout=_READ_FILE_TIMEOUT + 10,
+        timeout_retry=False,
         text=False,
         stdout_reader=read_archive,
+        output_limit=SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE,
     )
-    if not result.success:
+    if result.returncode == 124 or (
+        result.returncode in (137, 143)
+        and time.monotonic() - start_time >= _READ_FILE_TIMEOUT
+    ):
+        raise TimeoutError(
+            f"Docker read_file timed out after {_READ_FILE_TIMEOUT} seconds"
+        )
+    if not result.success and not _tar_file_changed(result):
         stderr = result.stderr.decode(errors="replace")
-        raise RuntimeError(f"Failed to copy file from '{src}': {stderr}")
+        raise_for_unsupported_user(stderr, user)
+        if result.returncode in (126, 127):
+            diagnostic = (
+                result.stderr
+                or result.stdout[: SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE]
+            ).decode(errors="replace")
+            raise SandboxUnavailableError(
+                "Docker read_file could not execute its required tools "
+                f"(/usr/bin/timeout, /bin/sh and tar): {diagnostic}"
+            )
+        failure = classify_exec_failure(result, wrapper=None)
+        if failure is not None:
+            raise failure
+        if result.returncode > 128:
+            # Diagnostics uses compose commands, so import it after module loading.
+            from .diagnostics import service_dead
+
+            if await service_dead(service, project):
+                raise SandboxUnavailableError(
+                    "The sandbox is not running: Docker read_file exited with code "
+                    f'{result.returncode} and the container for service "{service}" '
+                    "has exited."
+                )
+        raise RuntimeError(f"Failed to read file '{file}': {stderr}")
     return result.stdout
+
+
+def _tar_file_changed(result: ExecResult[bytes]) -> bool:
+    """Recognize only GNU tar's changed-file warning with complete diagnostics."""
+    if (
+        result.returncode != 1
+        or len(result.stderr) >= SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE
+    ):
+        return False
+    changed = False
+    for line in result.stderr.decode(errors="replace").splitlines():
+        if line.startswith("tar: ") and line.endswith(": file changed as we read it"):
+            changed = True
+        elif line not in (
+            "tar: Removing leading `/' from member names",
+            "tar: Removing leading `/' from hard link targets",
+            "tar: Removing leading '/' from member names",
+            "tar: Removing leading '/' from hard link targets",
+        ):
+            return False
+    return changed
 
 
 async def compose_check_running(
