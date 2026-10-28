@@ -20,6 +20,7 @@ from typing import (
 )
 
 import anyio
+from anyio.abc import TaskGroup
 from typing_extensions import Unpack
 
 from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
@@ -32,7 +33,6 @@ from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._checkpoint import CheckpointConfig
 
 if TYPE_CHECKING:
-    from anyio.abc import TaskGroup
     from inspect_sentinel._integration import Sentinels
 
 from inspect_ai._control.eval_state import (
@@ -717,7 +717,7 @@ class TaskDispatcher:
                     await attempt.options.logger.discard()
         return [log for _, log in sorted(self.results.items())]
 
-    async def loop(self, tg: "TaskGroup") -> None:
+    async def loop(self, tg: TaskGroup) -> None:
         """Start ready attempts while there is capacity; when idle, add more or finish."""
         while not self.cancelled:
             await self.start_up(self.queue.take("when_free"))
@@ -797,7 +797,7 @@ class TaskDispatcher:
             self.queue.ready.remove(attempt)
             await attempt.options.logger.discard()
 
-    def start_ready(self, tg: "TaskGroup") -> None:
+    def start_ready(self, tg: TaskGroup) -> None:
         """Start ready attempts while there is capacity under ``max_tasks``.
 
         The limit is read live for each attempt (a ``ctl config --max-tasks``
@@ -1013,7 +1013,7 @@ def retry_sample_source(
     )
 
 
-def _start_throughput_reporter(tg: "TaskGroup") -> anyio.CancelScope:
+def _start_throughput_reporter(tg: TaskGroup) -> anyio.CancelScope:
     """Start the run's periodic ``[Throughput]`` trace reporter.
 
     See design/model-throughput.md §4. Returns its cancel scope: dispatch ends
