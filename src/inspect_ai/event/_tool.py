@@ -96,8 +96,10 @@ class ToolEvent(BaseEvent):
     this is the generated output even when a response filter or approval
     changed the message handed to the scaffold (that message names it in
     `metadata["derived_from"]`); `None` for a call the model did not propose.
-    A cached output reused by several model calls names each of them.
-    `message_id` is the id of the tool message holding its result.
+    It identifies the proposing message, not necessarily one model call: a
+    cached output reused by several model calls (even within one sample and
+    epoch) has one id, so a join that matches more than one `ModelEvent` is
+    ambiguous. `message_id` is the id of the tool message holding its result.
     """
 
     def _set_result(

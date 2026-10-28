@@ -32,11 +32,16 @@ class ChatMessageBase(BaseModel):
     """Unique identifier for message.
 
     An id names one message with one content: copies of a message keep its id,
-    and a version with different content has another. When Inspect edits a
-    message (removing reasoning or a tool result for a model call, compaction,
-    a handoff, a response filter or approval in the agent bridge), the edit gets
-    an id derived from the original's id and its own content, so the same edit
-    is the same message, and names the original in `metadata["derived_from"]`.
+    and a version with different content has another. Content here is what the
+    message shows: its role, text and other content, tool calls and tool result.
+    A string and the same text as a content list are the same content;
+    provider-internal fields, `source`, `model` and `metadata` don't count.
+
+    When Inspect edits a message (removing reasoning or a tool result for a
+    model call, compaction, a handoff, react's submit, a response filter or
+    approval in the agent bridge), the edit gets an id derived from the
+    original's id and its own content, so the same edit is the same message,
+    and names the original in `metadata["derived_from"]`.
     Messages built from others (combined messages, media moved out of tool
     results) also list their sources there. One exception: a response filter
     output that keeps Anthropic server tool items keeps the model output's id.
