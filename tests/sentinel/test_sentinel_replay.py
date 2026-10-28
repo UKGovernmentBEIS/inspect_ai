@@ -1601,9 +1601,9 @@ def test_a_checked_call_inferred_not_a_turn_has_no_steps() -> None:
 
 
 def test_a_fork_at_the_end_without_phase_spans_keeps_the_final_messages_call() -> None:
-    # Ransom's fifth review B5: an imported transcript has no phase spans, so
-    # the timeline's root is a synthetic span around the agent's; the final
-    # messages, which carry on the earlier call of the fork, reach it
+    # Ransom's fifth review B5: in a log without phase spans the timeline's
+    # root is a synthetic span around the agent's; the final messages, which
+    # carry on the earlier call of the fork, reach it
     import json
 
     from pydantic import TypeAdapter
@@ -1622,7 +1622,7 @@ def test_a_fork_at_the_end_without_phase_spans_keeps_the_final_messages_call() -
         events,
         [],
         sample_uuid="sample",
-        eval_info=IMPORTED,
+        eval_info=EvalInfo(inspect_ai_version=None, sentinel=False),
     )
 
     assert [s.id for s in replay if s.stage == "model_input"] == ["m1", "m2"]
@@ -2353,10 +2353,6 @@ def test_a_person_s_approval_decision_reaches_later_steps(
         assert [d.step_id for d in after.step.human_decisions or []][-1:] == [after.id]
 
 
-# a transcript imported from another source has no log header
-IMPORTED = None
-
-
 def tool_steps(steps: Sequence["ReplayStep"]) -> list[tuple[Any, ...]]:
     return [
         (
@@ -2369,63 +2365,6 @@ def tool_steps(steps: Sequence["ReplayStep"]) -> list[tuple[Any, ...]]:
         for s in steps
         if isinstance(s.step, BeforeToolCall | AfterToolCall)
     ]
-
-
-def projected_tool_steps(messages: Sequence[ChatMessage]) -> list[tuple[Any, ...]]:
-    """The tool steps sentinel's messages projection takes from `messages`: each assistant message's calls in order, each with a `tool_result` step when a later tool message answers it."""
-    steps: list[tuple[Any, ...]] = []
-    for index, message in enumerate(messages):
-        if not isinstance(message, ChatMessageAssistant):
-            continue
-        for call in message.tool_calls or []:
-            steps.append(("tool_call", call.id, call.function, call.arguments, None))
-            answer = next(
-                (
-                    m
-                    for m in messages[index + 1 :]
-                    if isinstance(m, ChatMessageTool) and m.tool_call_id == call.id
-                ),
-                None,
-            )
-            if answer is not None:
-                steps.append(
-                    ("tool_result", call.id, call.function, call.arguments, answer.text)
-                )
-    return steps
-
-
-def test_a_transcript_that_records_no_tools_offered_keeps_its_tool_steps() -> None:
-    # as Scout's importers write one: no origins, no tools on its model calls
-    # and no tool spans (Ransom's second review)
-    log = run_logged(tool_loop(addition()), agent_model(2))
-    sample = logged_sample(log)
-    tool_spans = {
-        e.id: e.parent_id
-        for e in sample.events
-        if isinstance(e, SpanBeginEvent) and e.type == "tool"
-    }
-    imported: list[Event] = []
-    for event in without_origins(sample.events):
-        if isinstance(event, SpanBeginEvent | SpanEndEvent) and event.id in tool_spans:
-            continue
-        if isinstance(event, ModelEvent):
-            event = event.model_copy(update={"tools": []})
-        elif isinstance(event, ToolEvent) and event.span_id in tool_spans:
-            event = event.model_copy(update={"span_id": tool_spans[event.span_id]})
-        imported.append(event)
-    replay = steps_from_events(
-        sample.messages,
-        imported,
-        [],
-        sample_uuid=sample.uuid or "",
-        eval_info=IMPORTED,
-    )
-
-    assert tool_steps(replay) == projected_tool_steps(sample.messages)
-    assert [s[:2] for s in tool_steps(replay)] == [
-        s[:2] for s in tool_steps(replay_events(log, sample.events))
-    ]
-    assert len(tool_steps(replay)) == 4
 
 
 # transcripts shaped as Scout's importers write them, built by hand: no
@@ -2498,7 +2437,6 @@ def imported_tool_event(
 
 READ = ToolCall(id="call_read", function="read_file", arguments={"path": "a.cfg"})
 LIST = ToolCall(id="call_list", function="list_dir", arguments={"path": "."})
-FIND = ToolCall(id="call_find", function="find", arguments={"name": "*.cfg"})
 GREP = ToolCall(id="call_grep", function="grep", arguments={"pattern": "port"})
 
 
@@ -2521,15 +2459,12 @@ def as_copies(
     ]
 
 
-def claude_code_transcript(parallel: bool) -> tuple[list[ChatMessage], list[Event]]:
+def claude_code_transcript() -> tuple[list[ChatMessage], list[Event]]:
     # a Task call is written in the sub-agent's span, with no tool span; a
     # Bash call in its tool span
     task = ToolCall(id="toolu_task", function="Task", arguments={"prompt": "Look."})
-    bashes = [
-        ToolCall(id=f"toolu_bash{n}", function="Bash", arguments={"command": f"ls {n}"})
-        for n in range(3 if parallel else 1)
-    ]
-    messages, (m0, m1, m2) = imported_conversation("session", [task], bashes)
+    bash = ToolCall(id="toolu_bash", function="Bash", arguments={"command": "ls"})
+    messages, (m0, m1, m2) = imported_conversation("session", [task], [bash])
     task_event = imported_tool_event(task, 0, "agent-toolu_task")
     task_event.agent_span_id = "agent-toolu_task"
     return messages, [
@@ -2542,31 +2477,19 @@ def claude_code_transcript(parallel: bool) -> tuple[list[ChatMessage], list[Even
         imported_call("sub", [ChatMessageUser(content="Look.")], "agent-toolu_task"),
         SpanEndEvent(id="agent-toolu_task"),
         m1,
-        *[
-            event
-            for bash in bashes
-            for event in (
-                SpanBeginEvent(
-                    id=f"tool-{bash.id}", name="Bash", type="tool", parent_id="session"
-                ),
-                imported_tool_event(bash, 1, f"tool-{bash.id}"),
-                SpanEndEvent(id=f"tool-{bash.id}"),
-            )
-        ],
+        SpanBeginEvent(id="tool-bash", name="Bash", type="tool", parent_id="session"),
+        imported_tool_event(bash, 1, "tool-bash"),
+        SpanEndEvent(id="tool-bash"),
         m2,
         SpanEndEvent(id="session"),
     ]
 
 
-def first_turn(parallel: bool) -> list[ToolCall]:
-    return [READ, LIST, FIND] if parallel else [READ, LIST]
-
-
 def spanless_transcript(
-    span_type: str | None, tool_event_ids: bool, copies: bool, parallel: bool
+    span_type: str | None, tool_event_ids: bool, copies: bool
 ) -> tuple[list[ChatMessage], list[Event]]:
     # ToolEvents in the run's span, with the call's id or with their own
-    messages, calls = imported_conversation("run", first_turn(parallel), [GREP])
+    messages, calls = imported_conversation("run", [READ, LIST], [GREP])
     if copies:
         messages, calls = as_copies(messages, calls)
     m0, m1, m2 = calls
@@ -2581,7 +2504,7 @@ def spanless_transcript(
     return messages, [
         SpanBeginEvent(id="run", name="agent run", type=span_type),
         m0,
-        *[tool_event(call, 0) for call in first_turn(parallel)],
+        *[tool_event(call, 0) for call in [READ, LIST]],
         m1,
         tool_event(GREP, 1),
         m2,
@@ -2589,9 +2512,9 @@ def spanless_transcript(
     ]
 
 
-def atif_transcript(parallel: bool) -> tuple[list[ChatMessage], list[Event]]:
+def atif_transcript() -> tuple[list[ChatMessage], list[Event]]:
     # model calls in an agent span, and no ToolEvents
-    messages, calls = imported_conversation("terminus", first_turn(parallel), [GREP])
+    messages, calls = imported_conversation("terminus", [READ, LIST], [GREP])
     return messages, [
         SpanBeginEvent(id="terminus", name="terminus_2", type="agent"),
         *calls,
@@ -2599,7 +2522,7 @@ def atif_transcript(parallel: bool) -> tuple[list[ChatMessage], list[Event]]:
     ]
 
 
-IMPORTERS: dict[str, Callable[[bool], tuple[list[ChatMessage], list[Event]]]] = {
+IMPORTERS: dict[str, Callable[[], tuple[list[ChatMessage], list[Event]]]] = {
     "claude_code": claude_code_transcript,
     # Phoenix: a chain span of no type, ToolEvents keyed by the call's id
     "phoenix": partial(spanless_transcript, None, True, False),
@@ -2615,1007 +2538,20 @@ IMPORTERS: dict[str, Callable[[bool], tuple[list[ChatMessage], list[Event]]]] = 
 }
 
 
-@pytest.mark.parametrize("parallel", [False, True], ids=["", "parallel"])
 @pytest.mark.parametrize("importer", IMPORTERS)
-def test_an_imported_transcript_keeps_the_tool_steps_of_its_messages(
-    importer: str, parallel: bool
-) -> None:
-    # Ransom's second review: a call whose ToolEvent no tool span holds, or
-    # that has none, takes its steps from the messages; his third: each of a
-    # turn's parallel calls has its steps
-    messages, events = IMPORTERS[importer](parallel)
-    replay = steps_from_events(
-        messages, events, [], sample_uuid="transcript", eval_info=IMPORTED
-    )
+def test_an_imported_transcript_is_replayed_from_its_messages(importer: str) -> None:
+    # a transcript with no log header is replayed by sentinel's messages
+    # projection, not from its events
+    messages, events = IMPORTERS[importer]()
 
-    assert tool_steps(replay) == projected_tool_steps(messages)
-    assert len(tool_steps(replay)) == (
-        2 * (4 if parallel else 2)
-        if importer == "claude_code"
-        else 2 * (len(first_turn(parallel)) + 1)
-    )
-
-
-@pytest.mark.parametrize("calls", [3, 4])
-def test_a_copied_message_s_parallel_calls_each_keep_their_answer(calls: int) -> None:
-    # Ransom's third review: the parallel calls of an output the messages and
-    # later inputs hold a copy of share its position, so each is answered
-    parallel = [
-        ToolCall(id=f"call_{n}", function="read_file", arguments={"path": f"{n}.cfg"})
-        for n in range(calls)
-    ]
-    messages, events = as_copies(*imported_conversation("run", parallel))
-    replay = steps_from_events(
-        messages,
-        [
-            SpanBeginEvent(id="run", name="agent run", type="agent"),
-            *events,
-            SpanEndEvent(id="run"),
-        ],
-        [],
-        sample_uuid="transcript",
-        eval_info=IMPORTED,
-    )
-
-    assert tool_steps(replay) == projected_tool_steps(messages)
-    assert [s[4] for s in tool_steps(replay) if s[0] == "tool_result"] == [
-        f"result of call_{n} in turn 0" for n in range(calls)
-    ]
-
-
-@pytest.mark.parametrize("copied", [False, True])
-def test_a_reused_call_id_keeps_each_call_and_its_own_answer(copied: bool) -> None:
-    # a provider can reuse a call's id: as the projection, each call has its
-    # steps, answered by the first tool message after it; `copied` writes the
-    # messages as LangSmith does, a copy of each assistant message without
-    # its id or model
-    messages, calls = imported_conversation("terminus", [READ], [READ])
-    if copied:
-        messages, calls = as_copies(messages, calls)
-    replay = steps_from_events(
-        messages,
-        [
-            SpanBeginEvent(id="terminus", name="terminus_2", type="agent"),
-            *calls,
-            SpanEndEvent(id="terminus"),
-        ],
-        [],
-        sample_uuid="transcript",
-        eval_info=IMPORTED,
-    )
-
-    assert tool_steps(replay) == projected_tool_steps(messages)
-    assert [s[4] for s in tool_steps(replay) if s[0] == "tool_result"] == [
-        "result of call_read in turn 0",
-        "result of call_read in turn 1",
-    ]
-
-
-def answers(calls: Sequence[ToolCall], text: str) -> list[ChatMessage]:
-    return [
-        ChatMessageTool(
-            content=f"{text} {call.id}", tool_call_id=call.id, function=call.function
+    with pytest.raises(ValueError, match="steps_from_messages"):
+        steps_from_events(
+            messages,
+            events,
+            [],
+            sample_uuid="transcript",
+            eval_info=cast(EvalInfo, None),
         )
-        for call in calls
-    ]
-
-
-def replayed_imported(
-    messages: list[ChatMessage], *events: Event
-) -> list["ReplayStep"]:
-    return steps_from_events(
-        messages,
-        [
-            SpanBeginEvent(id="run", name="agent run", type="agent"),
-            *events,
-            SpanEndEvent(id="run"),
-        ],
-        [],
-        sample_uuid="transcript",
-        eval_info=IMPORTED,
-    )
-
-
-@pytest.mark.parametrize("parallel", [False, True])
-def test_an_equal_call_in_the_input_the_messages_lack_leaves_the_copy_found(
-    parallel: bool,
-) -> None:
-    # fresh-context review of 8c0d61601, finding 1: the model call's input
-    # holds an equal call the messages do not (an example the transcript
-    # dropped), so it does not count among those before the output's copy
-    made = [READ, LIST] if parallel else [READ]
-    example = ChatMessageAssistant(id="example", content="", tool_calls=[READ])
-    user = ChatMessageUser(content="Find the config file.")
-    m0 = imported_call("m0", [user, example, *answers([READ], "example")], "run", *made)
-    written = [user, m0.output.message, *answers(made, "result of")]
-    m1 = imported_call("m1", written, "run")
-    messages, (m0, m1) = as_copies([*written, m1.output.message], [m0, m1])
-    replay = replayed_imported(messages, m0, m1)
-
-    assert tool_steps(replay) == projected_tool_steps(messages)
-    assert len(tool_steps(replay)) == 2 * len(made)
-
-
-def prefilled_then_reused(
-    parallel: bool, copied: bool, tool_events: list[ToolCall], span: bool
-) -> tuple[list[ChatMessage], list[Event]]:
-    """A pre-filled assistant message in the first input and the messages, whose calls `tool_events` are run by ToolEvents (in tool spans if `span`), and a turn that makes the same calls again."""
-    made = [READ, LIST] if parallel else [READ]
-    prefilled = ChatMessageAssistant(id="prefilled", content="", tool_calls=made)
-    history = [
-        ChatMessageUser(content="Find the config file."),
-        prefilled,
-        *answers(made, "prefilled answer of"),
-    ]
-    m0 = imported_call("m0", history, "run", *made)
-    written = [*history, m0.output.message, *answers(made, "result of")]
-    m1 = imported_call("m1", written, "run")
-    messages, calls = [*written, m1.output.message], [m0, m1]
-    if copied:
-        messages, calls = as_copies(messages, calls)
-    ran: list[Event] = []
-    for call in tool_events:
-        event = imported_tool_event(call, 0, f"tool-{call.id}" if span else "run")
-        event.result = f"prefilled answer of {call.id}"
-        ran += (
-            [
-                SpanBeginEvent(id=f"tool-{call.id}", name=call.function, type="tool"),
-                event,
-                SpanEndEvent(id=f"tool-{call.id}"),
-            ]
-            if span
-            else [event]
-        )
-    return messages, [*ran, *calls]
-
-
-@pytest.mark.parametrize("span", [False, True])
-@pytest.mark.parametrize("copied", [False, True])
-@pytest.mark.parametrize("parallel", [False, True])
-def test_a_prefilled_call_a_later_turn_reuses_keeps_its_own_answer(
-    parallel: bool, copied: bool, span: bool
-) -> None:
-    # fresh-context review of 8c0d61601, finding 2: a ToolEvent runs a
-    # pre-filled call whose id a later turn reuses; the call no model call
-    # made has its steps from the messages, answered in its place, once
-    made = [READ, LIST] if parallel else [READ]
-    messages, events = prefilled_then_reused(parallel, copied, made, span)
-    replay = replayed_imported(messages, *events)
-
-    assert tool_steps(replay) == projected_tool_steps(messages)
-    assert [s[4] for s in tool_steps(replay) if s[0] == "tool_result"] == [
-        *[f"prefilled answer of {call.id}" for call in made],
-        *[f"result of {call.id}" for call in made],
-    ]
-
-
-@pytest.mark.parametrize("span", [False, True])
-def test_a_prefilled_message_only_some_of_whose_calls_ran_keeps_every_call(
-    span: bool,
-) -> None:
-    # fresh-context review of 8c0d61601, finding 3: a ToolEvent runs one of a
-    # pre-filled message's two calls; the other keeps its steps
-    messages, events = prefilled_then_reused(True, False, [READ], span)
-    replay = replayed_imported(messages, *events)
-
-    assert tool_steps(replay) == projected_tool_steps(messages)
-
-
-@pytest.mark.parametrize("copied", [False, True])
-def test_a_turn_the_messages_dropped_has_no_tool_steps(copied: bool) -> None:
-    # the messages and the last input drop the first turn, whose calls the
-    # next turn makes again: as in the projection, only the messages' calls
-    # have tool steps, each with its own answer
-    written, calls = imported_conversation("run", [READ, LIST], [LIST, READ])
-    if copied:
-        written, calls = as_copies(written, calls)
-    kept = [written[0], *written[4:]]
-    m0, m1, m2 = calls
-    replay = replayed_imported(kept, m0, m1, m2.model_copy(update={"input": kept[:-1]}))
-
-    assert tool_steps(replay) == projected_tool_steps(kept)
-
-
-def test_an_earlier_output_with_the_last_output_s_stable_id_keeps_its_steps() -> None:
-    # verification of e721a8f33 (problem 4): LangSmith-shaped, with the
-    # importer's stable ids, an earlier output equal to the last one gets its
-    # id, while its copy in the later input (without the model) does not; the
-    # last output is the message with that id
-    from inspect_ai.model._message_ids import stable_message_ids
-
-    user = ChatMessageUser(content="Find the config file.")
-    m0 = imported_call("m0", [user], "run", READ)
-    m0.output.choices[0].message.content = "again"
-    copy = m0.output.message.model_copy(update={"model": None}, deep=True)
-    m1 = imported_call(
-        "m1", [user.model_copy(), copy, *answers([READ], "result 0 of")], "run", READ
-    )
-    m1.output.choices[0].message.content = "again"
-    ids = stable_message_ids()
-    ids(m0)
-    ids(m1)
-    messages = [*m1.input, m1.output.message]
-    ids(messages)
-    replay = replayed_imported(messages, m0, m1)
-
-    assert m0.output.message.id == m1.output.message.id
-    assert tool_steps(replay) == projected_tool_steps(messages)
-
-
-@pytest.mark.parametrize("copied", [False, True])
-def test_a_compacted_input_keeps_each_turn_s_own_answer(copied: bool) -> None:
-    # verification of e721a8f33 (problem 3): two turns make the same call, and
-    # the second's input was compacted, so holds no copy of the first's
-    user = ChatMessageUser(content="Find the config file.")
-    summary = ChatMessageUser(content="A summary of turn 0.")
-    m0 = imported_call("m0", [user], "run", READ)
-    m1 = imported_call("m1", [user, summary], "run", READ)
-    written = [
-        user,
-        m0.output.message,
-        *answers([READ], "result 0 of"),
-        m1.output.message,
-        *answers([READ], "result 1 of"),
-    ]
-    m2 = imported_call("m2", [user, summary, *written[3:]], "run")
-    messages, calls = [*written, m2.output.message], [m0, m1, m2]
-    if copied:
-        messages, calls = as_copies(messages, calls)
-    replay = replayed_imported(
-        messages, *[c.model_copy(update={"origin": "agent"}) for c in calls]
-    )
-
-    assert tool_steps(replay) == projected_tool_steps(messages)
-
-
-@pytest.mark.parametrize("span", [False, True])
-def test_a_call_inferred_not_a_turn_has_its_steps_from_the_messages(
-    span: bool,
-) -> None:
-    # verification of e721a8f33 (problem 5): with a summary compaction between
-    # them, the first model call is inferred a helper; the messages hold its
-    # call, which has its steps from them, as in the projection
-    from inspect_ai.event import CompactionEvent
-
-    user = ChatMessageUser(content="Find the config file.")
-    summary = ChatMessageUser(content="A summary of turn 0.")
-    m0 = imported_call("m0", [user], "run", READ)
-    m1 = imported_call("m1", [user, summary], "run", LIST)
-    written = [
-        user,
-        m0.output.message,
-        *answers([READ], "result 0 of"),
-        m1.output.message,
-        *answers([LIST], "result 1 of"),
-    ]
-    m2 = imported_call("m2", [user, summary, *written[3:]], "run")
-
-    def ran(call: ToolCall, turn: int) -> list[Event]:
-        if not span:
-            return []
-        event = imported_tool_event(call, turn, f"tool-{call.id}")
-        event.result = f"result {turn} of {call.id}"
-        return [
-            SpanBeginEvent(id=f"tool-{call.id}", name=call.function, type="tool"),
-            event,
-            SpanEndEvent(id=f"tool-{call.id}"),
-        ]
-
-    messages = [*written, m2.output.message]
-    replay = replayed_imported(
-        messages,
-        m0,
-        *ran(READ, 0),
-        CompactionEvent(type="summary"),
-        m1,
-        *ran(LIST, 1),
-        m2,
-    )
-
-    assert tool_steps(replay) == projected_tool_steps(messages)
-
-
-@pytest.mark.parametrize("where", ["before", "after"])
-def test_a_sub_agent_s_equal_call_leaves_the_main_turn_s_steps(
-    where: str,
-) -> None:
-    # a sub-agent run by a Task call makes a call equal to one a main turn
-    # makes (before or after it), with copies as LangSmith writes them: the
-    # main turn's call keeps its answer, and the sub-agent's call, which the
-    # messages do not hold, has no tool steps, as in the projection
-    task = ToolCall(id="toolu_task", function="Task", arguments={"prompt": "Look."})
-    turns = [[READ, task], [READ]] if where == "after" else [[task], [READ]]
-    messages, calls = as_copies(*imported_conversation("run", *turns))
-    sub_input: list[ChatMessage] = [ChatMessageUser(content="Look.")]
-    s0 = imported_call("s0", sub_input, "sub", READ)
-    s1 = imported_call(
-        "s1",
-        [
-            *sub_input,
-            s0.output.message.model_copy(update={"id": "copy-s0", "model": None}),
-            *answers([READ], "sub answer of"),
-        ],
-        "sub",
-    )
-    ran = imported_tool_event(task, 0, "sub")
-    ran.agent_span_id = "sub"
-    replay = replayed_imported(
-        messages,
-        calls[0],
-        SpanBeginEvent(id="sub", name="Explore", type="agent", parent_id="run"),
-        ran,
-        s0,
-        s1,
-        SpanEndEvent(id="sub"),
-        *calls[1:],
-    )
-    assert tool_steps(replay) == projected_tool_steps(messages)
-
-
-LS = ToolCall(id="call_0", function="bash", arguments={"cmd": "ls"})
-
-
-def no_text(event: ModelEvent) -> ModelEvent:
-    """`event`, whose output has no text, so equal calls make equal outputs."""
-    event.output.choices[0].message.content = ""
-    return event
-
-
-def stable_ids(messages: list[ChatMessage], *events: ModelEvent) -> None:
-    """Give the events and messages Scout's stable message ids, as its importers do."""
-    from inspect_ai.model._message_ids import stable_message_ids
-
-    ids = stable_message_ids()
-    for event in events:
-        ids(event)
-    ids(messages)
-
-
-def sub_agent_with_stable_ids() -> tuple[list[ChatMessage], list[Event]]:
-    # F1: a sub-agent's output equal to a main turn's gets its stable id
-    task = ToolCall(id="call_1", function="Task", arguments={"prompt": "Look."})
-    user = ChatMessageUser(content="Find the config file.")
-    m0 = no_text(imported_call("m0", [user], "run", LS))
-    in1 = [user, m0.output.message.model_copy(deep=True), *answers([LS], "main of")]
-    m1 = no_text(imported_call("m1", in1, "run", task))
-    in2 = [*in1, m1.output.message.model_copy(deep=True), *answers([task], "task of")]
-    m2 = imported_call("m2", in2, "run")
-    look = ChatMessageUser(content="Look.")
-    s0 = no_text(imported_call("s0", [look], "sub", LS))
-    s1 = imported_call(
-        "s1",
-        [look, s0.output.message.model_copy(deep=True), *answers([LS], "sub of")],
-        "sub",
-    )
-    messages = [m.model_copy(deep=True) for m in [*m2.input, m2.output.message]]
-    stable_ids(messages, m0, m1, s0, s1, m2)
-    ran = imported_tool_event(task, 1, "sub")
-    ran.agent_span_id = "sub"
-    return messages, [
-        m0,
-        m1,
-        SpanBeginEvent(id="sub", name="Explore", type="agent", parent_id="run"),
-        ran,
-        s0,
-        s1,
-        SpanEndEvent(id="sub"),
-        m2,
-    ]
-
-
-def equal_outputs_after_compaction(
-    whole: bool,
-) -> tuple[list[ChatMessage], list[Event]]:
-    # F2 (`whole`: the messages hold every turn) and F4 (they are the last,
-    # compacted input): two turns make equal outputs, with stable ids
-    user = ChatMessageUser(content="Find the config file.")
-    summary = ChatMessageUser(content="A summary of turn 0.")
-    m0 = no_text(imported_call("m0", [user], "run", LS))
-    m1 = no_text(imported_call("m1", [user, summary], "run", LS))
-    written = [
-        user,
-        m0.output.message,
-        *answers([LS], "result 0 of"),
-        m1.output.message,
-        *answers([LS], "result 1 of"),
-    ]
-    later = [m.model_copy(deep=True) for m in written[3:]]
-    m2 = imported_call("m2", [user, summary, *later], "run")
-    kept = [*written, m2.output.message] if whole else [*m2.input, m2.output.message]
-    messages = [m.model_copy(deep=True) for m in kept]
-    stable_ids(messages, m0, m1, m2)
-    return messages, [c.model_copy(update={"origin": "agent"}) for c in (m0, m1, m2)]
-
-
-def copies_after_compaction(prefilled: bool) -> tuple[list[ChatMessage], list[Event]]:
-    # F3: a compacted input and a later turn making an earlier call again,
-    # with copies; the earlier call a turn inferred a helper's (or, with
-    # `prefilled`, a pre-filled message's, every turn recorded)
-    from inspect_ai.event import CompactionEvent
-
-    user = ChatMessageUser(content="Find the config file.")
-    summary = ChatMessageUser(content="A summary.")
-    history: list[ChatMessage] = [user]
-    if prefilled:
-        earlier = ChatMessageAssistant(id="prefilled", content="", tool_calls=[READ])
-        history += [earlier, *answers([READ], "prefilled answer of")]
-    first = [LIST] if prefilled else [READ, LIST]
-    m0 = imported_call("m0", history, "run", *first)
-    m1 = imported_call("m1", [user, summary], "run", READ)
-    written = [
-        *history,
-        m0.output.message,
-        *answers(first, "result 0 of"),
-        m1.output.message,
-        *answers([READ], "result 1 of"),
-    ]
-    m2 = imported_call("m2", [user, summary, *written[-2:]], "run")
-    messages, calls = as_copies([*written, m2.output.message], [m0, m1, m2])
-    if prefilled:
-        return messages, [c.model_copy(update={"origin": "agent"}) for c in calls]
-    return messages, [calls[0], CompactionEvent(type="summary"), *calls[1:]]
-
-
-def reused_id_in_a_later_message() -> tuple[list[ChatMessage], list[Event]]:
-    # F5: an injected message reuses a turn's call id, each run by a spanless
-    # ToolEvent
-    user = ChatMessageUser(content="Find the config file.")
-    m0 = imported_call("m0", [user], "run", READ)
-    again = ToolCall(id=READ.id, function="read_file", arguments={"path": "b.cfg"})
-    injected = ChatMessageAssistant(id="injected", content="", tool_calls=[again])
-    written = [
-        user,
-        m0.output.message,
-        *answers([READ], "result 0 of"),
-        injected,
-        *answers([again], "injected answer of"),
-    ]
-    m1 = imported_call("m1", written, "run")
-    ran = imported_tool_event(again, 0, "run")
-    ran.result = "injected answer"
-    return [*written, m1.output.message], [
-        m0,
-        imported_tool_event(READ, 0, "run"),
-        ran,
-        m1,
-    ]
-
-
-def sub_agent_after_an_equal_call() -> tuple[list[ChatMessage], list[Event]]:
-    # F4: a main turn makes a call a later sub-agent makes again, with copies
-    task = ToolCall(id="toolu_task", function="Task", arguments={"prompt": "Look."})
-    messages, calls = as_copies(*imported_conversation("run", [READ], [task]))
-    look: list[ChatMessage] = [ChatMessageUser(content="Look.")]
-    s0 = imported_call("s0", look, "sub", READ)
-    s1 = imported_call(
-        "s1",
-        [
-            *look,
-            s0.output.message.model_copy(update={"id": "copy-s0", "model": None}),
-            *answers([READ], "sub answer of"),
-        ],
-        "sub",
-    )
-    ran = imported_tool_event(task, 1, "sub")
-    ran.agent_span_id = "sub"
-    return messages, [
-        calls[0],
-        calls[1],
-        SpanBeginEvent(id="sub", name="Explore", type="agent", parent_id="run"),
-        ran,
-        s0,
-        s1,
-        SpanEndEvent(id="sub"),
-        calls[2],
-    ]
-
-
-REVIEWED: dict[str, Callable[[], tuple[list[ChatMessage], list[Event]]]] = {
-    "sub_agent_with_stable_ids": sub_agent_with_stable_ids,
-    "equal_outputs_after_compaction": partial(equal_outputs_after_compaction, True),
-    "last_input_after_compaction": partial(equal_outputs_after_compaction, False),
-    "helper_then_copy_after_compaction": partial(copies_after_compaction, False),
-    "prefilled_then_copy_after_compaction": partial(copies_after_compaction, True),
-    "reused_id_in_a_later_message": reused_id_in_a_later_message,
-    "sub_agent_after_an_equal_call": sub_agent_after_an_equal_call,
-}
-
-
-@pytest.mark.parametrize("shape", REVIEWED)
-def test_the_reviewed_imported_shapes_give_the_projection_s_tool_steps(
-    shape: str,
-) -> None:
-    # the fresh-context review of 836e17102 (F1-F5): matching calls to model
-    # calls lost, duplicated or misanswered tool steps in these; taken from
-    # the messages alone, they are the projection's
-    messages, events = REVIEWED[shape]()
-
-    assert tool_steps(replayed_imported(messages, *events)) == projected_tool_steps(
-        messages
-    )
-
-
-def test_an_imported_call_with_an_empty_id_keeps_its_result() -> None:
-    # review of 9277c1fad: an importer can write "" for an id its source
-    # lacks, which the projection answers like any other
-    call = ToolCall(id="", function="f", arguments={})
-    messages: list[ChatMessage] = [
-        ChatMessageUser(content="go"),
-        ChatMessageAssistant(content="", tool_calls=[call]),
-        ChatMessageTool(content="r", tool_call_id="", function="f"),
-    ]
-    replay = steps_from_events(
-        messages, [], [], sample_uuid="transcript", eval_info=IMPORTED
-    )
-
-    assert tool_steps(replay) == projected_tool_steps(messages)
-    assert [s.stage for s in replay] == ["tool_call", "tool_result"]
-
-
-def test_an_imported_message_s_steps_follow_the_turn_whose_output_it_is() -> None:
-    # review of 9277c1fad: after a compaction, the messages are the last
-    # input, so a message's position does not say which turn made it; a turn
-    # whose output has its id does
-    from inspect_ai.event import CompactionEvent
-
-    user = ChatMessageUser(content="go")
-    summary = ChatMessageUser(content="summary")
-    t0 = imported_call("t0", [user], "run", READ)
-    t1 = imported_call(
-        "t1", [user, t0.output.message, *answers([READ], "r")], "run", LIST
-    )
-    t2 = imported_call("t2", [user, summary], "run", FIND)
-    later = [user, summary, t2.output.message, *answers([FIND], "r")]
-    t3 = imported_call("t3", later, "run", GREP)
-    final = imported_call(
-        "final", [*later, t3.output.message, *answers([GREP], "r")], "run"
-    )
-    messages = [*final.input, final.output.message]
-    replay = replayed_imported(
-        messages, t0, t1, CompactionEvent(type="summary"), t2, t3, final
-    )
-
-    order = [(s.stage, s.id) for s in replay]
-    assert tool_steps(replay) == projected_tool_steps(messages)
-    for turn, call in (("t2", FIND), ("t3", GREP)):
-        made = order.index(("model_output", turn))
-        assert order[made + 1 : made + 3] == [
-            ("tool_call", call.id),
-            ("tool_result", call.id),
-        ]
-
-
-@pytest.mark.parametrize("nested", [True, False])
-def test_a_sub_agent_sharing_stable_ids_does_not_take_the_main_steps(
-    nested: bool,
-) -> None:
-    # Codex review of be3766bd0: a sub-agent run first, whose input opens and
-    # whose output has the ids of the main turn's (Scout's stable ids), does
-    # not give the messages' tool steps its conversation
-    call = ToolCall(id="c", function="f", arguments={})
-    opening = ChatMessageUser(id="same-opening", content="go")
-    sub = imported_call("sub", [opening], "sub", GREP)
-    sub.output.choices[0].message.id = "same-output"
-    main = imported_call("main", [opening], "run", call)
-    main.output.choices[0].message.id = "same-output"
-    messages = [opening, main.output.message, *answers([call], "answer of")]
-    replay = steps_from_events(
-        messages,
-        [
-            SpanBeginEvent(id="run", name="main", type="agent"),
-            SpanBeginEvent(
-                id="sub",
-                name="sub",
-                type="agent",
-                parent_id="run" if nested else None,
-            ),
-            sub,
-            SpanEndEvent(id="sub"),
-            main,
-            SpanEndEvent(id="run"),
-        ],
-        [],
-        sample_uuid="transcript",
-        eval_info=IMPORTED,
-    )
-
-    steps = [s for s in replay if s.stage.startswith("tool")]
-    assert tool_steps(replay) == projected_tool_steps(messages)
-    assert [s.step.conversation for s in steps] == ["run", "run"]
-    assert [s.segment for s in steps] == [("run", 0), ("run", 0)]
-
-
-def nested_agent_messages(
-    importer: str,
-) -> tuple[list[ChatMessage], list[Event]]:
-    """A parent's one model call, then a nested agent's tool loop, with the messages one model call's, as an importer takes them: Logfire's the longest input (with its output), LangSmith's the last call's (with copies of outputs in later inputs)."""
-    parent = imported_call("parent", [ChatMessageUser(content="Parent task.")], "run")
-    asked = ChatMessageUser(content="Read the sub-agent config.")
-    s0 = imported_call("s0", [asked], "sub", READ)
-    s1 = imported_call(
-        "s1", [asked, s0.output.message, *answers([READ], "config of")], "sub"
-    )
-    calls = [s0, s1]
-    if importer == "langsmith":
-        _, calls = as_copies([], calls)
-    s0, s1 = calls
-    messages = [*s1.input, s1.output.message]
-    return messages, [
-        SpanBeginEvent(id="run", name="parent", type="agent"),
-        parent,
-        SpanBeginEvent(id="sub", name="reader", type="agent", parent_id="run"),
-        s0,
-        s1,
-        SpanEndEvent(id="sub"),
-        SpanEndEvent(id="run"),
-    ]
-
-
-@pytest.mark.parametrize("importer", ["logfire", "langsmith"])
-def test_an_imported_nested_agent_s_messages_keep_its_conversation(
-    importer: str,
-) -> None:
-    # Ransom's fourth review: the messages are the nested agent's, so its tool
-    # steps are in its conversation, with its history, after its turn
-    messages, events = nested_agent_messages(importer)
-    replay = steps_from_events(
-        messages, events, [], sample_uuid="transcript", eval_info=IMPORTED
-    )
-
-    assert tool_steps(replay) == projected_tool_steps(messages)
-    tools = [s for s in replay if s.stage.startswith("tool")]
-    assert [s.step.conversation for s in tools] == ["sub", "sub"]
-    assert [s.segment for s in tools] == [("sub", 0), ("sub", 0)]
-    assert [[m.text for m in s.step.history or []] for s in tools] == [
-        ["Read the sub-agent config."],
-        ["Read the sub-agent config."],
-    ]
-    order = [(s.stage, s.id) for s in replay]
-    made = order.index(("model_output", "s0"))
-    assert order[made + 1 : made + 3] == [
-        ("tool_call", READ.id),
-        ("tool_result", READ.id),
-    ]
-    assert order.index(("model_input", "s1")) == made + 3
-
-
-def test_a_longer_input_elsewhere_does_not_take_the_messages_conversation() -> None:
-    # review of 06bf969be: a nested agent's longer input ends with a message
-    # the messages hold too (the same nudge); the messages are the parent's
-    # last call's, with its output, so its conversation has the steps
-    delegate = ToolCall(id="call_delegate", function="delegate", arguments={})
-    task = ChatMessageUser(content="Parent task.")
-    p0 = imported_call("p0", [task], "run", delegate)
-    asked = ChatMessageUser(content="Sub task.")
-    s0 = imported_call("s0", [asked], "sub", READ)
-    in1 = [asked, s0.output.message, *answers([READ], "r")]
-    s1 = imported_call("s1", in1, "sub", FIND)
-    in2 = [*in1, s1.output.message, *answers([FIND], "r")]
-    s2 = imported_call("s2", in2, "sub")
-    s3 = imported_call(
-        "s3", [*in2, s2.output.message, ChatMessageUser(content="Continue.")], "sub"
-    )
-    pin1 = [task, p0.output.message, *answers([delegate], "sub said")]
-    p1 = imported_call("p1", pin1, "run")
-    p2 = imported_call(
-        "p2", [*pin1, p1.output.message, ChatMessageUser(content="Continue.")], "run"
-    )
-    messages = [m.model_copy(deep=True) for m in [*p2.input, p2.output.message]]
-    stable_ids(messages, p0, s0, s1, s2, s3, p1, p2)
-    replay = replayed_imported(
-        messages,
-        p0,
-        SpanBeginEvent(id="sub", name="sub", type="agent", parent_id="run"),
-        s0,
-        s1,
-        s2,
-        s3,
-        SpanEndEvent(id="sub"),
-        p1,
-        p2,
-    )
-
-    tools = [s for s in replay if s.stage.startswith("tool")]
-    assert tool_steps(replay) == projected_tool_steps(messages)
-    assert [s.step.conversation for s in tools] == ["run", "run"]
-    assert [[m.text for m in s.step.history or []] for s in tools] == [
-        ["Parent task."],
-        ["Parent task."],
-    ]
-
-
-def test_a_copied_message_s_steps_follow_its_turn_after_a_compaction() -> None:
-    # review of 06bf969be: with LangSmith's copies (no id or model in common
-    # with the outputs) the turn that made a message is found by its content,
-    # so after a compaction its steps follow that turn, in its segment
-    from inspect_ai.event import CompactionEvent
-
-    user = ChatMessageUser(content="go")
-    summary = ChatMessageUser(content="summary")
-    t0 = imported_call("t0", [user], "run", READ)
-    t1 = imported_call(
-        "t1", [user, t0.output.message, *answers([READ], "r")], "run", LIST
-    )
-    t2 = imported_call("t2", [user, summary], "run", FIND)
-    later = [user, summary, t2.output.message, *answers([FIND], "r")]
-    t3 = imported_call("t3", later, "run", GREP)
-    final = imported_call(
-        "final", [*later, t3.output.message, *answers([GREP], "r")], "run"
-    )
-    messages, calls = as_copies(
-        [*final.input, final.output.message], [t0, t1, t2, t3, final]
-    )
-    stable_ids(messages, *calls)
-    t0, t1, t2, t3, final = calls
-    replay = replayed_imported(
-        messages, t0, t1, CompactionEvent(type="summary", span_id="run"), t2, t3, final
-    )
-
-    order = [(s.stage, s.id) for s in replay]
-    assert tool_steps(replay) == projected_tool_steps(messages)
-    for turn, call in (("t2", FIND), ("t3", GREP)):
-        made = order.index(("model_output", turn))
-        assert order[made + 1 : made + 3] == [
-            ("tool_call", call.id),
-            ("tool_result", call.id),
-        ]
-    assert {s.segment for s in replay if s.stage.startswith("tool")} == {("run", 1)}
-
-
-def test_an_output_repeated_after_a_compaction_places_its_steps_after_the_latest() -> (
-    None
-):
-    # Codex review of 65af6fbb7: two turns make equal outputs (Scout's stable
-    # ids give them one id), and the messages after a compaction hold only
-    # the second's; the latest turn whose output is the message places it
-    from inspect_ai.event import CompactionEvent
-
-    messages, (m0, m1, m2) = equal_outputs_after_compaction(False)
-    replay = replayed_imported(
-        messages, m0, CompactionEvent(type="summary", span_id="run"), m1, m2
-    )
-
-    order = [(s.stage, s.id) for s in replay]
-    made = order.index(("model_output", "m1"))
-    assert order[made + 1 : made + 3] == [
-        ("tool_call", LS.id),
-        ("tool_result", LS.id),
-    ]
-    assert {s.segment for s in replay if s.stage.startswith("tool")} == {("run", 1)}
-
-
-@pytest.mark.parametrize("copied", [False, True])
-def test_an_earlier_equal_output_does_not_take_the_last_call_s_messages(
-    copied: bool,
-) -> None:
-    # Codex review of 65af6fbb7: an earlier sub-agent's call, with a longer
-    # input ending in the same message, makes an output equal to the parent's
-    # last call's, whose input and output the messages are (LangSmith, with a
-    # copy of the output or not); the latest turn's conversation wins
-    call = ToolCall(id="c", function="f", arguments={})
-    user = ChatMessageUser(content="go")
-    sub = imported_call("sub", [ChatMessageUser(content="extra"), user], "sub", call)
-    main = imported_call("main", [user], "run", call)
-    sub.output.choices[0].message.content = "same"
-    main.output.choices[0].message.content = "same"
-    output = main.output.message
-    if copied:
-        output = output.model_copy(update={"id": "copy", "model": None})
-    messages = [user, output, *answers([call], "answer of")]
-    replay = replayed_imported(
-        messages,
-        SpanBeginEvent(id="sub", name="sub", type="agent", parent_id="run"),
-        sub,
-        SpanEndEvent(id="sub"),
-        main,
-    )
-
-    tools = [s for s in replay if s.stage.startswith("tool")]
-    assert tool_steps(replay) == projected_tool_steps(messages)
-    assert [s.step.conversation for s in tools] == ["run", "run"]
-    assert [s.segment for s in tools] == [("run", 0), ("run", 0)]
-
-
-def random_imported(seed: int) -> tuple[list[ChatMessage], list[Event]]:
-    """An imported-style transcript: reused ids, parallel calls, pre-filled messages, compaction, sub-agents, ToolEvents of every kind, copies and stable ids, and messages that are the whole history or the last input."""
-    from inspect_ai.event import CompactionEvent
-
-    rng = random.Random(seed)
-
-    def made() -> list[ToolCall]:
-        chosen = rng.sample(["c0", "c1", "c2"], rng.choice([0, 1, 1, 2, 3]))
-        return [
-            ToolCall(id=i, function="f", arguments={"p": rng.choice([0, 1])})
-            for i in chosen
-        ]
-
-    user = ChatMessageUser(content="go")
-    current: list[ChatMessage] = [user]
-    if rng.random() < 0.3:
-        prefilled = made() or [ToolCall(id="c0", function="f", arguments={"p": 0})]
-        current += [
-            ChatMessageAssistant(content="", tool_calls=prefilled),
-            *answers(prefilled, "prefilled answer of"),
-        ]
-    written = list(current)
-    models: list[ModelEvent] = []
-    events: list[Event] = []
-    for n in range(rng.randint(1, 4)):
-        calls = made()
-        event = imported_call(f"m{n}", current, "run", *calls)
-        if rng.random() < 0.5:
-            event = no_text(event)
-        models.append(event)
-        events.append(event)
-        for call in calls:
-            kind = rng.choice(["none", "spanless", "span"])
-            ran = imported_tool_event(call, n, f"tool-{n}-{call.id}")
-            ran.result = f"result {n} of {call.id}"
-            if kind == "spanless":
-                ran.span_id = "run"
-                events.append(ran)
-            elif kind == "span":
-                events += [
-                    SpanBeginEvent(
-                        id=f"tool-{n}-{call.id}", name="f", type="tool", parent_id="run"
-                    ),
-                    ran,
-                    SpanEndEvent(id=f"tool-{n}-{call.id}"),
-                ]
-        out = [event.output.message, *answers(calls, f"result {n} of")]
-        written += out
-        current = [*current, *out]
-        if rng.random() < 0.25:
-            events.append(CompactionEvent(type="summary"))
-            current = [user, ChatMessageUser(content=f"summary {n}")]
-        if rng.random() < 0.25:
-            look = ChatMessageUser(content=f"look {n}")
-            sub_calls = made()
-            s0 = imported_call(f"s{n}", [look], f"sub{n}", *sub_calls)
-            s1 = imported_call(
-                f"t{n}",
-                [look, s0.output.message, *answers(sub_calls, "sub answer of")],
-                f"sub{n}",
-            )
-            models += [s0, s1]
-            events += [
-                SpanBeginEvent(id=f"sub{n}", name="sub", type="agent", parent_id="run"),
-                s0,
-                s1,
-                SpanEndEvent(id=f"sub{n}"),
-            ]
-    final = imported_call("final", current, "run")
-    models.append(final)
-    events.append(final)
-    messages = (
-        [*written, final.output.message]
-        if rng.random() < 0.5
-        else [*current, final.output.message]
-    )
-    if rng.random() < 0.5:
-        messages, copied = as_copies(messages, models)
-        swap = {id(old): new for old, new in zip(models, copied)}
-        events = [cast(Event, swap.get(id(e), e)) for e in events]
-        models = copied
-    if rng.random() < 0.5:
-        messages = [m.model_copy(deep=True) for m in messages]
-        stable_ids(messages, *models)
-    return messages, [
-        SpanBeginEvent(id="run", name="agent run", type="agent"),
-        *events,
-        SpanEndEvent(id="run"),
-    ]
-
-
-def test_random_imported_transcripts_give_the_projection_s_tool_steps() -> None:
-    for seed in range(300):
-        messages, events = random_imported(seed)
-        replay = steps_from_events(
-            messages, events, [], sample_uuid="transcript", eval_info=IMPORTED
-        )
-
-        assert sorted(tool_steps(replay), key=repr) == sorted(
-            projected_tool_steps(messages), key=repr
-        ), seed
-
-
-def test_a_copied_output_is_not_taken_for_an_equal_call_in_its_input() -> None:
-    # the final Codex review's reproduction: the model call's input holds an
-    # earlier, equal call with its own answer, and the messages hold a copy of
-    # its output without its id or model, as LangSmith writes them. As the
-    # projection, the earlier call has its steps, before the turn, and each
-    # call has its own answer
-    earlier = ChatMessageAssistant(id="earlier", content="", tool_calls=[READ])
-    old = ChatMessageTool(
-        content="old answer", tool_call_id=READ.id, function=READ.function
-    )
-    written, (m0, m1) = imported_conversation("run", [READ])
-    history = [written[0], earlier, old]
-    copy = written[1].model_copy(update={"id": "copy", "model": None})
-    messages = [*history, copy, *written[2:]]
-    replay = steps_from_events(
-        messages,
-        [
-            SpanBeginEvent(id="run", name="agent run", type="agent"),
-            m0.model_copy(update={"input": history}),
-            m1.model_copy(update={"input": [*history, copy, written[2]]}),
-            SpanEndEvent(id="run"),
-        ],
-        [],
-        sample_uuid="transcript",
-        eval_info=IMPORTED,
-    )
-
-    assert tool_steps(replay) == projected_tool_steps(messages)
-    assert [s[4] for s in tool_steps(replay) if s[0] == "tool_result"] == [
-        "old answer",
-        "result of call_read in turn 0",
-    ]
-    assert [(s.stage, s.id) for s in replay][:3] == [
-        ("tool_call", "call_read"),
-        ("tool_result", "call_read"),
-        ("model_input", "m0"),
-    ]
-
-
-@pytest.mark.parametrize("cut", ["ended", "answered_later"])
-def test_an_imported_call_no_message_answers_has_no_result_step(cut: str) -> None:
-    # as the projection: a ToolEvent's result is not taken, whether the
-    # transcript ended before the answer ("ended") or its messages stop before
-    # an answer only a later model call's input holds ("answered_later")
-    messages, (m0, m1) = imported_conversation("run", [READ])
-    events: list[Event] = [
-        SpanBeginEvent(id="run", name="agent run"),
-        m0,
-        imported_tool_event(READ, 0, "run"),
-        *([m1] if cut == "answered_later" else []),
-        SpanEndEvent(id="run"),
-    ]
-    replay = steps_from_events(
-        messages[:2], events, [], sample_uuid="transcript", eval_info=IMPORTED
-    )
-
-    assert tool_steps(replay) == projected_tool_steps(messages[:2])
-    assert [s[:2] for s in tool_steps(replay)] == [("tool_call", "call_read")]
-
-
-def test_an_imported_call_s_steps_come_after_its_model_output() -> None:
-    messages, events = atif_transcript(False)
-    replay = steps_from_events(
-        messages, events, [], sample_uuid="transcript", eval_info=IMPORTED
-    )
-
-    assert [(s.stage, s.id) for s in replay] == [
-        ("model_input", "m0"),
-        ("model_output", "m0"),
-        ("tool_call", "call_read"),
-        ("tool_result", "call_read"),
-        ("tool_call", "call_list"),
-        ("tool_result", "call_list"),
-        ("model_input", "m1"),
-        ("model_output", "m1"),
-        ("tool_call", "call_grep"),
-        ("tool_result", "call_grep"),
-        ("model_input", "m2"),
-        ("model_output", "m2"),
-    ]
-
-
-def test_an_imported_message_s_tool_steps_follow_the_turn_that_made_it() -> None:
-    # placement: a message's tool steps follow the model_output step of the
-    # turn that made it, and a sub-agent's turns between do not move them
-    messages, events = claude_code_transcript(False)
-    replay = steps_from_events(
-        messages, events, [], sample_uuid="transcript", eval_info=IMPORTED
-    )
-
-    order = [(s.stage, s.id) for s in replay]
-    made = order.index(("model_output", "m0"))
-    assert order[made + 1 : made + 3] == [
-        ("tool_call", "toolu_task"),
-        ("tool_result", "toolu_task"),
-    ]
-    assert order.index(("model_output", "sub")) < order.index(("model_input", "m1"))
 
 
 @tool
@@ -3668,7 +2604,7 @@ def test_an_inspect_log_s_calls_without_a_tool_span_keep_no_tool_steps(
     # call not executed after an earlier one failed), so a log written by
     # Inspect, with or without a version in its header, keeps reading its
     # calls from events
-    messages, events = spanless_transcript(None, True, False, False)
+    messages, events = spanless_transcript(None, True, False)
     replay = steps_from_events(
         messages,
         events,

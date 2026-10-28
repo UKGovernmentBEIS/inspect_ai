@@ -5,7 +5,6 @@ from bisect import bisect_left, bisect_right
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, replace
 from functools import partial
-from itertools import accumulate
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 from inspect_ai._util.content import Content
@@ -78,7 +77,7 @@ def steps_from_events(
     message_pool: Sequence[ChatMessage],
     *,
     sample_uuid: str,
-    eval_info: EvalInfo | None,
+    eval_info: EvalInfo,
     timeline: Timeline | None = None,
     human_approvers: Sequence[str] = (),
 ) -> list["ReplayStep"]:
@@ -88,16 +87,14 @@ def steps_from_events(
 
     Every step's `agent_messages` is None: the log does not record the agent's own messages, and model input can hold messages the agent kept out of them.
 
-    A log that does not record where a model call was made (`ModelEvent.origin`, written since inspect_ai PR #5990), an older Inspect log or a transcript imported from another source, has its turns inferred: a call made in the scorers' span (in a log from before spans, between a scorer's `StepEvent`s) is a scorer's, whatever tool or agent span holds it (live, the scorers' scope is final); one in a tool's span (or nested in its `ToolEvent`) a tool's, and one in the init span setup's; of the rest, those the timeline shows as utility (`timeline_build`'s prompt and continuity rules) are not turns, and the others are. A final scope no span records reads as the region holding it: a `model_origin()` region, `score()` called by a solver or a tool, an approver's model call; where the timeline does not show such a call as utility, its call is a turn (or, in a tool, its calls are checked), as live it was not.
-
-    A transcript imported from another source (`eval_info` is `None`) has its tool steps from the sample's messages alone, as sentinel's messages projection (`steps_from_messages`) takes them: each call of each assistant message, in order, a `tool_call` step, and a `tool_result` step holding the first tool message with the call's id after that assistant message, none when there is none; step ids, calls, views and results as the projection's, with no input or tools. An importer takes the messages from one model call and adds its output (Scout's Logfire importer the call with the longest input, its LangSmith importer the last), which can be a nested agent's; so among the turns whose output is one of the messages (by id, or by content without the model's name, as LangSmith copies outputs), the latest wins. The steps are in that turn's conversation, with its record; with no such turn, in that of the turn with the longest input whose last message is one of the messages (of those, the latest), else of the conversation with the fewest agent spans enclosing it. Its `ToolEvent`s and model calls do not decide which tool steps there are or what answers them, only where they go among that conversation's turns, which decides their order and the record they are built with (`history`, `human_decisions`, segment): a message's steps follow the `model_output` step of the latest turn whose output is the message, else of the turn before the first turn whose input is longer than the message's position in the messages (the turn that made it, where the messages extend each turn's input), else they precede the first turn. So a call no message holds (a sub-agent's, or one in a turn the messages dropped) has no tool steps, as in the projection.
+    A log that does not record where a model call was made (`ModelEvent.origin`, written since inspect_ai PR #5990), as an older Inspect log does not, has its turns inferred: a call made in the scorers' span (in a log from before spans, between a scorer's `StepEvent`s) is a scorer's, whatever tool or agent span holds it (live, the scorers' scope is final); one in a tool's span (or nested in its `ToolEvent`) a tool's, and one in the init span setup's; of the rest, those the timeline shows as utility (`timeline_build`'s prompt and continuity rules) are not turns, and the others are. A final scope no span records reads as the region holding it: a `model_origin()` region, `score()` called by a solver or a tool, an approver's model call; where the timeline does not show such a call as utility, its call is a turn (or, in a tool, its calls are checked), as live it was not.
 
     Args:
         messages: The sample's messages (`EvalSample.messages`).
         events: The sample's events, with model inputs condensed (`input_refs` into `message_pool`), as the log stores them; inputs given expanded are condensed first. Attachments must be resolved (`resolve_attachments`), or monitors are handed `attachment://` references.
         message_pool: The sample's message pool (`EvalSample.events_data["messages"]`).
         sample_uuid: The sample's uuid: the conversation of calls made outside any agent span.
-        eval_info: What the log's header says about the eval (`EvalInfo.from_eval`), or `None` for a transcript imported from another source, which has no header.
+        eval_info: What the log's header says about the eval (`EvalInfo.from_eval`).
         timeline: A stored timeline whose spans define which conversation each event is in (such as Petri's `"target"`), in place of the span tree; a log without origins has its turns inferred within those conversations, its events matched to the stored timeline's by UUID.
         human_approvers: The registry names of approvers that are people, whose `ApprovalEvent`s are `human_decisions` in a log from an eval that ran no sentinel.
 
@@ -105,9 +102,16 @@ def steps_from_events(
         The steps, in the order they ran live.
 
     Raises:
-        MalformedLogError: Two steps of one stage have one step id (other than an imported transcript's tool steps, which keep the ids its messages give them), the span tree has a `parent_id` cycle, or a model input names rows outside the message pool.
+        ValueError: `eval_info` is `None`. A transcript imported from another source has no log header, and its events do not record which model call its messages came from; replay it from its messages with inspect_sentinel's `steps_from_messages`.
+        MalformedLogError: Two steps of one stage have one step id, the span tree has a `parent_id` cycle, or a model input names rows outside the message pool.
         NotImplementedError: A sentinel checked a model_input step whose model call was not made (a sentinel ended the sample there or failed, or a token or cost limit or a cancellation stopped the call before it was recorded), whose input the log does not record.
     """
+    if eval_info is None:
+        raise ValueError(
+            "steps_from_events replays an Inspect log, and needs its header "
+            "(EvalInfo.from_eval); replay a transcript imported from another "
+            "source from its messages with inspect_sentinel's steps_from_messages."
+        )
     flat, nested = _flatten(events)
     pool: list[ChatMessage] | Sequence[ChatMessage] = message_pool
     if any(isinstance(e, ModelEvent) and e.input_refs is None for e in flat):
@@ -324,8 +328,7 @@ class _Call:
 
 class _Action(NamedTuple):
     position: int
-    # at one position: an imported transcript's tool steps placed before the
-    # turn there (0), steps built before the event there (1), the event's own
+    # at one position: steps built before the event there (1), the event's own
     # effect (2), then steps built once the event has happened (3)
     phase: int
     seq: int
@@ -347,7 +350,7 @@ class _Driver:
         nested: list[bool],
         pool: Sequence[ChatMessage],
         sample_uuid: str,
-        eval_info: EvalInfo | None,
+        eval_info: EvalInfo,
         timeline: Timeline | None,
         human_approvers: Sequence[str],
     ) -> None:
@@ -356,8 +359,7 @@ class _Driver:
         self.nested = nested
         self.pool = pool
         self.keys = _PoolKeys(pool)
-        self.imported = eval_info is None
-        self.eval_info = eval_info or EvalInfo(inspect_ai_version=None, sentinel=False)
+        self.eval_info = eval_info
         self.human_approvers = set(human_approvers)
         self.spans = SpanConversations(sample_uuid)
         self.timeline = _timeline_conversations(timeline) if timeline else None
@@ -491,11 +493,8 @@ class _Driver:
         self._check_generated(candidates)
         for group in generates:
             self._generate(group)
-        if self.imported:
-            self._projected_tool_steps(generates)
-        else:
-            for entry in calls:
-                self._tool_call(entry)
+        for entry in calls:
+            self._tool_call(entry)
 
         # the second pass: in log order, each step at its cut
         for action in sorted(self.actions, key=lambda a: (a.position, a.phase, a.seq)):
@@ -824,146 +823,6 @@ class _Driver:
         self._at_point(after_cut, call.seq + 2, build_after)
         self._settle_at_end(after_span)
 
-    def _projected_tool_steps(self, generates: list[_Generate]) -> None:
-        """An imported transcript's tool steps, as sentinel's messages projection takes them from the sample's messages (see `steps_from_events`), placed among the main conversation's turns."""
-        conversation, turns = self._main_turns(generates)
-        longest = list(
-            accumulate((len(self._input(g.attempts[0][1])) for g in turns), max)
-        )
-        # the latest turn whose output has each id, and each content without
-        # the model's name (a copy, as LangSmith writes them)
-        made: dict[str, _Generate] = {}
-        copied: dict[str, _Generate] = {}
-        for group in turns:
-            output = group.attempts[-1][1].output
-            if output.choices:
-                if output.message.id is not None:
-                    made[output.message.id] = group
-                copied[_copy_key(output.message)] = group
-        answers: dict[str, list[int]] = {}
-        for position, message in enumerate(self.messages):
-            if (
-                isinstance(message, ChatMessageTool)
-                and message.tool_call_id is not None
-            ):
-                answers.setdefault(message.tool_call_id, []).append(position)
-        for position, message in enumerate(self.messages):
-            if not isinstance(message, ChatMessageAssistant):
-                continue
-            # the latest turn whose output is the message, else the turn before
-            # the first whose input is longer than the message's position
-            turn = (
-                made.get(message.id) if message.id is not None else None
-            ) or copied.get(_copy_key(message))
-            later = bisect_right(longest, position)
-            if turn is not None or later > 0:
-                at = ((turn or turns[later - 1]).attempts[-1][0], 3)
-            elif turns:
-                at = (turns[0].attempts[0][0], 0)
-            else:
-                at = (len(self.events), 1)
-            for call in message.tool_calls or []:
-                found = answers.get(call.id, [])
-                after = bisect_right(found, position)
-                result = (
-                    cast(ChatMessageTool, self.messages[found[after]])
-                    if after < len(found)
-                    else None
-                )
-                self._projected_call(message, position, call, result, conversation, at)
-
-    def _main_turns(self, generates: list[_Generate]) -> tuple[str, list[_Generate]]:
-        """The conversation the sample's messages are (see `steps_from_events`), and its turns."""
-        ids = {m.id for m in self.messages if m.id is not None}
-        keys = {_copy_key(m) for m in self.messages}
-
-        def held(message: ChatMessage) -> bool:
-            return (message.id is not None and message.id in ids) or _copy_key(
-                message
-            ) in keys
-
-        made: str | None = None
-        extended: tuple[int, str] | None = None
-        for group in generates:
-            output = group.attempts[-1][1].output
-            if output.choices and held(output.message):
-                made = group.conversation
-            input = self._input(group.attempts[0][1])
-            if input and held(input[-1]):
-                if extended is None or len(input) >= extended[0]:
-                    extended = (len(input), group.conversation)
-        main = made or (extended[1] if extended is not None else None)
-        if main is None:
-            main = self._shallowest(generates)
-        return main, [g for g in generates if g.conversation == main]
-
-    def _shallowest(self, generates: list[_Generate]) -> str:
-        depths: dict[str, int] = {}
-        for group in generates:
-            if group.conversation not in depths:
-                depth = 0
-                span_id: str | None = group.conversation
-                while span_id is not None and span_id in self.begins:
-                    begin = self.begins[span_id][1]
-                    depth += begin.type == AGENT_SPAN_TYPE
-                    span_id = begin.parent_id
-                depths[group.conversation] = depth
-        if not depths:
-            return self.spans.conversation(None)
-        least = min(depths.values())
-        return [g for g in generates if depths[g.conversation] == least][
-            -1
-        ].conversation
-
-    def _projected_call(
-        self,
-        assistant: ChatMessageAssistant,
-        position: int,
-        call: ToolCall,
-        result: ChatMessageTool | None,
-        conversation: str,
-        at: tuple[int, int],
-    ) -> None:
-        view = ToolCallView(call=call.view)
-        message_id = assistant.id or f"m{position}"
-        seq = self._next_seq(3)
-
-        def build_before() -> None:
-            step = before_tool_call(
-                conversation=conversation,
-                message=assistant.text,
-                message_id=message_id,
-                call=call,
-                view=view,
-                producer=None,
-                agent_messages=None,
-                record=self._record(conversation),
-            )
-            self._built(call.id, "tool_call", step, None, unique=False)
-
-        self._at_point(at, seq, build_before)
-        if result is None:
-            return
-        answer = result
-
-        def build_after() -> None:
-            step = after_tool_call(
-                conversation=conversation,
-                message=assistant.text,
-                message_id=message_id,
-                call=call,
-                view=view,
-                result=answer,
-                output=None,
-                truncated=None,
-                producer=None,
-                agent_messages=None,
-                record=self._record(conversation),
-            )
-            self._built(call.id, "tool_result", step, None, unique=False)
-
-        self._at_point(at, seq + 2, build_after)
-
     def _checks_tool_calls(self, event: ToolEvent, producer: ModelEvent | None) -> bool:
         """Whether live checked the calls a model call produced, inferred from the region the model call was made in.
 
@@ -1080,16 +939,12 @@ class _Driver:
         stage: SentinelStage,
         step: "Step",
         span: str | None,
-        unique: bool = True,
     ) -> None:
         from inspect_sentinel import ReplayStep
 
-        if unique:
-            if (stage, step_id) in self.ids:
-                raise MalformedLogError(
-                    f"Two {stage} steps have the step id {step_id!r}."
-                )
-            self.ids.add((stage, step_id))
+        if (stage, step_id) in self.ids:
+            raise MalformedLogError(f"Two {stage} steps have the step id {step_id!r}.")
+        self.ids.add((stage, step_id))
         answers: dict[str, "HumanAnswer"] = {}
         if span is not None:
             answers = self._recorded_answers(span)
@@ -1305,14 +1160,6 @@ def _approval_report(approval: ApprovalEvent) -> Any:
         report=decision,
         function=approval.approver,
     )
-
-
-def _copy_key(message: ChatMessage) -> str:
-    # an importer can write an output's copy into later inputs without the
-    # model's name (LangSmith)
-    if isinstance(message, ChatMessageAssistant) and message.model is not None:
-        message = message.model_copy(update={"model": None})
-    return content_key(message)
 
 
 def _default_view(call: ToolCall) -> Any:
