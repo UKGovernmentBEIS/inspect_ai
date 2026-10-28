@@ -3,11 +3,11 @@
 import json
 import math
 import threading
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterator, Literal
+from typing import Any, Callable, Iterator, Literal
 
 import numpy as np
 import pytest
@@ -33,6 +33,7 @@ from inspect_ai.model import (
     ChatMessageTool,
     ChatMessageUser,
     GenerateConfig,
+    Model,
     ModelOutput,
     ModelUsage,
     get_model,
@@ -376,15 +377,20 @@ def _truncate_older(
     return content if index == total - 1 else "[removed]"
 
 
-async def _generate_twice(
+_REBUILD_PATHS = ["system_message", "reasoning", "model_input", "media", "collapse"]
+
+
+def _rebuilt_input(
     monkeypatch: pytest.MonkeyPatch, path: str
-) -> tuple[list[ChatMessage], list[ModelEvent]]:
+) -> tuple[Model, list[ChatMessage], list[Tool], GenerateConfig]:
     init_transcript(Transcript())
     init_sample_rebuilt_message_ids()
     model = get_model("mockllm/model")
     monkeypatch.setattr(model.api, "tool_result_images", lambda: path != "media")
+    monkeypatch.setattr(model.api, "collapse_user_messages", lambda: path == "collapse")
     messages = [
         ChatMessageUser(content="Do the steps."),
+        *([ChatMessageUser(content="Go on.")] if path == "collapse" else []),
         *_step_call(1),
         *_step_call(2),
     ]
@@ -397,61 +403,22 @@ async def _generate_twice(
         system_message="Be careful." if path == "system_message" else None,
         reasoning_history="last" if path == "reasoning" else None,
     )
-    before = deepcopy(messages)
-
-    await model.generate(messages, tools=tools, config=config)
-    await model.generate(messages, tools=tools, config=config)
-
-    # the caller's messages are not changed
-    assert [m.model_dump() for m in messages] == [m.model_dump() for m in before]
-    return messages, _model_events()
+    return model, messages, tools, config
 
 
-@pytest.mark.parametrize(
-    "path", ["system_message", "reasoning", "model_input", "media"]
-)
-async def test_model_event_input_rebuilt_messages_keep_ids(
-    monkeypatch: pytest.MonkeyPatch, path: str
-) -> None:
-    messages, (first, second) = await _generate_twice(monkeypatch, path)
-
+def _rebuilt_positions(event: ModelEvent, messages: list[ChatMessage]) -> list[int]:
     caller_ids = {m.id for m in messages}
-    rebuilt = [i for i, m in enumerate(first.input) if m.id not in caller_ids]
-    assert rebuilt
-    assert [m.id for m in first.input] == [m.id for m in second.input]
-    assert len({m.id for m in first.input}) == len(first.input)
-    for i in rebuilt:
-        # the unchanged rebuilt message reuses the first event's snapshot
-        assert first.input[i] is second.input[i]
+    return [i for i, m in enumerate(event.input) if m.id not in caller_ids]
 
 
-_Edit = tuple[Literal["edit", "replace"], str] | None
-
-
-class _EditInput(Hooks):
-    target = 0
-    edits: list[_Edit] = []
-    seen_ids: list[str | None] = []
-    active = True
-
-    def __init__(self) -> None:
-        self.calls = 0
-
-    def enabled(self) -> bool:
-        return self.active
-
-    async def on_before_model_generate(self, data: BeforeModelGenerate) -> None:
-        self.seen_ids.append(data.input[self.target].id)
-        edit = self.edits[self.calls]
-        if edit is not None:
-            how, content = edit
-            if how == "edit":
-                data.input[self.target].content = content
-            else:
-                data.input[self.target] = data.input[self.target].model_copy(
-                    update={"content": content}
-                )
-        self.calls += 1
+def _assert_one_content_per_id(events: list[ModelEvent]) -> None:
+    contents: dict[str | None, bytes | None] = {}
+    for event in events:
+        ids = [m.id for m in event.input]
+        assert len(set(ids)) == len(ids)
+        for message in event.input:
+            content = logged_json(message, exclude_id=True)
+            assert contents.setdefault(message.id, content) == content
 
 
 @contextmanager
@@ -469,217 +436,187 @@ def _registered_hook(hook: type[Hooks]) -> Iterator[None]:
 
 
 @contextmanager
-def _edit_input(
-    edits: list[_Edit], target: int = 0, active: bool = True
-) -> Iterator[list[str | None]]:
-    _EditInput.target = target
-    _EditInput.edits = edits
-    _EditInput.seen_ids = []
-    _EditInput.active = active
-    with _registered_hook(_EditInput):
-        yield _EditInput.seen_ids
+def _input_hook(
+    action: Callable[[int, BeforeModelGenerate], None],
+) -> Iterator[None]:
+    class InputHook(Hooks):
+        calls = 0
+
+        async def on_before_model_generate(self, data: BeforeModelGenerate) -> None:
+            InputHook.calls += 1
+            action(InputHook.calls, data)
+
+    with _registered_hook(InputHook):
+        yield
 
 
-@pytest.mark.parametrize("path", ["system_message", "reasoning"])
-@pytest.mark.parametrize(
-    "edits",
-    [
-        [("edit", "one"), ("edit", "two"), None],
-        [("edit", "one"), ("edit", "one"), None],
-        [None, ("edit", "edited"), None],
-        [("replace", "edited"), None, ("replace", "edited")],
-    ],
-    ids=["edit_twice", "same_edit_twice", "unedited_then_edited", "replaced"],
-)
-async def test_model_event_input_hook_edited_rebuilt_messages_get_new_ids(
-    path: str, edits: list[_Edit]
+def _set_header(call: int, data: BeforeModelGenerate) -> None:
+    # like a tracing hook: reads the input, changes only the request headers
+    data.config.extra_headers = {"x-input-length": str(len(data.input))}
+
+
+@pytest.mark.parametrize("hook", [False, True], ids=["no_hook", "header_only_hook"])
+@pytest.mark.parametrize("path", _REBUILD_PATHS)
+async def test_model_event_input_rebuilt_messages_keep_ids(
+    monkeypatch: pytest.MonkeyPatch, path: str, hook: bool
 ) -> None:
-    init_transcript(Transcript())
-    init_sample_rebuilt_message_ids()
-    model = get_model("mockllm/model")
-    messages: list[ChatMessage] = [ChatMessageUser(content="hi")]
-    if path == "reasoning":
-        messages.append(
-            ChatMessageAssistant(
-                content=[
-                    ContentReasoning(reasoning="thought"),
-                    ContentText(text="original"),
-                ]
-            )
-        )
-        config = GenerateConfig(reasoning_history="none")
-        target = 1
-    else:
-        config = GenerateConfig(system_message="original")
-        target = 0
+    model, messages, tools, config = _rebuilt_input(monkeypatch, path)
     before = deepcopy(messages)
 
-    with _edit_input(edits, target) as seen_ids:
-        for _ in edits:
-            await model.generate(messages, config=config)
+    with _input_hook(_set_header) if hook else nullcontext():
+        for _ in range(2):
+            await model.generate(messages, tools=tools, config=config)
 
-    recorded = [event.input[target] for event in _model_events()]
-    assert [m.text for m in recorded] == [
-        "original" if edit is None else edit[1] for edit in edits
-    ]
-    # the hook saw the sample's id for the original content on every call;
-    # unedited calls record it, and each edited call records a new id
-    assert len(set(seen_ids)) == 1
-    unedited = [m.id for m, edit in zip(recorded, edits) if edit is None]
-    edited = [m.id for m, edit in zip(recorded, edits) if edit is not None]
-    assert set(unedited) == set(seen_ids)
-    assert len(set(edited)) == len(edited)
-    assert not set(edited) & set(unedited)
     # the caller's messages are not changed
     assert [m.model_dump() for m in messages] == [m.model_dump() for m in before]
+    first, second = _model_events()
+    rebuilt = _rebuilt_positions(first, messages)
+    assert rebuilt
+    assert [m.id for m in first.input] == [m.id for m in second.input]
+    assert len({m.id for m in first.input}) == len(first.input)
+    for i in rebuilt:
+        # the unchanged rebuilt message reuses the first event's snapshot
+        assert first.input[i] is second.input[i]
 
 
-@pytest.mark.parametrize(
-    "edits",
-    [
-        [("edit", "one"), ("edit", "two")],
-        [("edit", "one"), ("edit", "one")],
-        [None, ("edit", "one")],
-    ],
-)
-async def test_model_event_input_hook_edited_rebuilt_message_on_retry(
-    monkeypatch: pytest.MonkeyPatch, edits: list[_Edit]
+@pytest.mark.parametrize("path", _REBUILD_PATHS)
+async def test_model_event_input_hook_edit_gives_rebuilt_messages_new_ids(
+    monkeypatch: pytest.MonkeyPatch, path: str
 ) -> None:
-    init_transcript(Transcript())
-    init_sample_rebuilt_message_ids()
-    sent: list[ChatMessage] = []
+    model, messages, tools, config = _rebuilt_input(monkeypatch, path)
+    caller_ids = {m.id for m in messages}
+    before = deepcopy(messages)
 
-    def output(
-        input: list[ChatMessage],
-        tools: list[ToolInfo],
-        tool_choice: ToolChoice,
-        config: GenerateConfig,
-    ) -> ModelOutput:
-        sent.append(input[0].model_copy())
-        if len(sent) == 1:
-            raise RuntimeError("retry once")
-        return ModelOutput.from_content(model="mockllm", content="ok")
+    def edit_second_call(call: int, data: BeforeModelGenerate) -> None:
+        if call == 2:
+            next(m for m in data.input if m.id not in caller_ids).content = "edited"
 
-    model = get_model("mockllm/model", memoize=False, custom_outputs=output)
-    monkeypatch.setattr(model.api, "should_retry", lambda ex: True)
-    monkeypatch.setattr(model.api, "retry_wait", lambda: wait_none())
+    with _input_hook(edit_second_call):
+        for _ in range(3):
+            await model.generate(messages, tools=tools, config=config)
 
-    with _edit_input(edits) as seen_ids:
-        await model.generate(
-            [ChatMessageUser(content="hi")],
-            config=GenerateConfig(system_message="x", max_retries=2),
-        )
-
-    assert [m.text for m in sent] == ["x" if e is None else e[1] for e in edits]
-    # an edited message gets a new id, which a retry keeps only while the
-    # content is unchanged
-    first, second = sent
-    assert (first.id == seen_ids[0]) == (edits[0] is None)
-    assert second.id != seen_ids[0]
-    assert (first.id == second.id) == (first.text == second.text)
+    assert [m.model_dump() for m in messages] == [m.model_dump() for m in before]
+    events = _model_events()
+    _assert_one_content_per_id(events)
+    first, edited, third = events
+    rebuilt = _rebuilt_positions(first, messages)
+    assert rebuilt == _rebuilt_positions(edited, messages)
+    assert "edited" in [edited.input[i].text for i in rebuilt]
+    # every rebuilt message of the edited call gets a new id, used only there
+    edited_ids = {edited.input[i].id for i in rebuilt}
+    assert len(edited_ids) == len(rebuilt)
+    assert not edited_ids & {m.id for e in (first, third) for m in e.input}
+    for i in range(len(first.input)):
+        if i in rebuilt:
+            assert first.input[i] is third.input[i]
+        else:
+            assert first.input[i].id == edited.input[i].id == third.input[i].id
 
 
-async def test_model_event_input_hook_enabled_on_retry_renews_edited_id(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    init_transcript(Transcript())
-    init_sample_rebuilt_message_ids()
-    sent: list[ChatMessage] = []
-
-    def output(
-        input: list[ChatMessage],
-        tools: list[ToolInfo],
-        tool_choice: ToolChoice,
-        config: GenerateConfig,
-    ) -> ModelOutput:
-        sent.append(input[0].model_copy())
-        if len(sent) == 1:
-            _EditInput.active = True
-            raise RuntimeError("retry once")
-        return ModelOutput.from_content(model="mockllm", content="ok")
-
-    model = get_model("mockllm/model", memoize=False, custom_outputs=output)
-    monkeypatch.setattr(model.api, "should_retry", lambda ex: True)
-    monkeypatch.setattr(model.api, "retry_wait", lambda: wait_none())
-
-    config = GenerateConfig(system_message="x", max_retries=2)
-    with _edit_input([("edit", "one"), None], active=False):
-        for _ in range(2):
-            await model.generate([ChatMessageUser(content="hi")], config=config)
-
-    # the hook first runs on the retry, and its edit gets a new id
-    assert [m.text for m in sent] == ["x", "one", "x"]
-    assert sent[0].id == sent[2].id != sent[1].id
-    assert [e.input[0].id for e in _model_events()] == [m.id for m in sent]
-
-
-class _ReintroduceSystemMessage(Hooks):
-    case = "copy"
-    seen_ids: list[str | None] = []
-
-    def __init__(self) -> None:
-        self.calls = 0
-        self.saved: ChatMessage | None = None
-
-    async def on_before_model_generate(self, data: BeforeModelGenerate) -> None:
-        self.seen_ids.append(data.input[0].id)
-        self.calls += 1
-        if self.case == "alias":
-            data.input.append(data.input[0])
-        elif self.calls == 1 and self.case == "copy":
-            self.saved = data.input[0].model_copy()
-        elif self.calls == 1:
-            self.saved = data.input.pop(0)
-        elif self.calls == 2:
-            assert self.saved is not None
-            if self.case == "earlier_call":
-                self.saved.content = "edited"
-            data.input.append(self.saved)
-
-
-@pytest.mark.parametrize("case", ["copy", "alias", "earlier_call"])
+@pytest.mark.parametrize("case", ["saved", "saved_edited", "alias"])
 async def test_model_event_input_hook_reintroduced_rebuilt_message_gets_new_id(
     case: str,
 ) -> None:
     init_transcript(Transcript())
     init_sample_rebuilt_message_ids()
     model = get_model("mockllm/model")
-    messages: list[ChatMessage] = [ChatMessageUser(content="hi")]
-    before = deepcopy(messages)
-    _ReintroduceSystemMessage.case = case
-    _ReintroduceSystemMessage.seen_ids = []
+    config = GenerateConfig(system_message="one")
+    saved: list[ChatMessage] = []
+    saved_ids: list[str | None] = []
 
-    with _registered_hook(_ReintroduceSystemMessage):
-        for system_message in (
-            ["one", "two", "one"] if case == "earlier_call" else ["one", "one"]
-        ):
-            await model.generate(
-                messages, config=GenerateConfig(system_message=system_message)
-            )
+    def reintroduce(call: int, data: BeforeModelGenerate) -> None:
+        if call == 1:
+            saved.append(data.input[0].model_copy())
+            saved_ids.append(data.input[0].id)
+        elif case == "alias":
+            data.input.append(data.input[0])
+        else:
+            if case == "saved_edited":
+                saved[0].content = "edited"
+            data.input.append(saved[0])
+
+    with _input_hook(reintroduce):
+        await model.generate([ChatMessageUser(content="hi")], config=config)
+        # the caller passes on a copy of the rebuilt message, with its id
+        caller = _model_events()[0].input[0].model_copy(deep=True)
+        messages: list[ChatMessage] = [caller, ChatMessageUser(content="again")]
+        before = deepcopy(messages)
+        await model.generate(messages, config=config)
 
     events = _model_events()
-    assert events[1].input[-1].text == ("edited" if case == "earlier_call" else "one")
-    # ids are unique in each input, and each id names one content
-    texts: dict[str | None, str] = {}
-    for event in events:
-        ids = [m.id for m in event.input]
-        assert len(set(ids)) == len(ids)
-        for message in event.input:
-            assert texts.setdefault(message.id, message.text) == message.text
-    # the system message keeps the id the hook saw
-    if case != "earlier_call":
-        assert [e.input[0].id for e in events] == _ReintroduceSystemMessage.seen_ids
+    _assert_one_content_per_id(events)
+    second = events[1]
+    assert second.input[1].id == caller.id == saved_ids[0]
+    assert second.input[-1].id != caller.id
     assert [m.model_dump() for m in messages] == [m.model_dump() for m in before]
 
 
-async def test_model_event_input_rebuilt_message_with_consumed_metadata_gets_new_id() -> (
-    None
-):
+@pytest.mark.parametrize("metadata", [False, True])
+async def test_model_event_input_hook_edits_on_retry_get_new_ids(
+    monkeypatch: pytest.MonkeyPatch, metadata: bool
+) -> None:
     init_transcript(Transcript())
     init_sample_rebuilt_message_ids()
-    model = get_model("mockllm/model")
+    sent: list[ChatMessage] = []
 
-    for items in [iter([1, 2]), [1, 2]]:
+    def output(
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        sent.append(input[0].model_copy())
+        if len(sent) == 1:
+            raise RuntimeError("retry once")
+        return ModelOutput.from_content(model="mockllm", content="ok")
+
+    model = get_model("mockllm/model", memoize=False, custom_outputs=output)
+    monkeypatch.setattr(model.api, "should_retry", lambda ex: True)
+    monkeypatch.setattr(model.api, "retry_wait", lambda: wait_none())
+    seen: list[str | None] = []
+
+    def edit(call: int, data: BeforeModelGenerate) -> None:
+        seen.append(data.input[0].id)
+        data.input[0].content = f"edit {call}"
+        # a value with no content key on the first attempt only
+        data.input[0].metadata = (
+            {"items": iter([1, 2])} if metadata and call == 1 else None
+        )
+
+    with _input_hook(edit):
+        await model.generate(
+            [ChatMessageUser(content="hi")],
+            config=GenerateConfig(system_message="x", max_retries=2),
+        )
+
+    assert [m.text for m in sent] == ["edit 1", "edit 2"]
+    # each attempt's edit gets its own new id
+    assert len({seen[0], sent[0].id, sent[1].id}) == 3
+    _assert_one_content_per_id(_model_events())
+
+
+@pytest.mark.parametrize("field", ["metadata", "arguments"])
+async def test_model_event_input_rebuilt_message_with_non_json_values_gets_new_id(
+    field: str,
+) -> None:
+    init_transcript(Transcript())
+    init_sample_rebuilt_message_ids()
+
+    def output(
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        # with usage, so mockllm does not count tokens of the iterator
+        result = ModelOutput.from_content(model="mockllm", content="ok")
+        result.usage = ModelUsage(input_tokens=1, output_tokens=1, total_tokens=2)
+        return result
+
+    model = get_model("mockllm/model", memoize=False, custom_outputs=output)
+
+    for items in [iter([1, 2]), [1, 2], [1, 2]]:
+        value = {"items": items}
         await model.generate(
             [
                 ChatMessageUser(id="user", content="hi"),
@@ -689,18 +626,24 @@ async def test_model_event_input_rebuilt_message_with_consumed_metadata_gets_new
                         ContentReasoning(reasoning="thought"),
                         ContentText(text="answer"),
                     ],
-                    metadata={"items": items},
+                    metadata=value if field == "metadata" else None,
+                    tool_calls=[
+                        ToolCall(
+                            id="call",
+                            function="step",
+                            arguments=value if field == "arguments" else {},
+                        )
+                    ],
                 ),
             ],
             config=GenerateConfig(reasoning_history="none"),
         )
 
-    # serializing consumes the iterator, so its message is not given the id
-    # of the content it had when keyed
-    first, second = _model_events()
-    assert second.input[1].metadata == {"items": [1, 2]}
-    assert first.input[1].metadata != second.input[1].metadata
+    # serializing an iterator consumes it, so it is not keyed; plain JSON is
+    first, second, third = _model_events()
     assert first.input[1].id != second.input[1].id
+    assert second.input[1].id == third.input[1].id
+    assert second.input[1] is third.input[1]
 
 
 async def test_model_event_input_changed_system_message_gets_new_id() -> None:

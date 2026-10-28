@@ -5661,7 +5661,7 @@ async def test_generate_input_citations_resolve_with_rebuilt_messages(
     ]
 
 
-async def test_generate_input_step_id_names_message_before_hook_edit() -> None:
+async def test_generate_input_step_id_names_rebuilt_message_before_hook_edit() -> None:
     from inspect_ai._sentinel._scope import sentinel_solving
     from inspect_ai._util.registry import _registry
     from inspect_ai.hooks import BeforeModelGenerate, Hooks, hooks
@@ -5685,7 +5685,10 @@ async def test_generate_input_step_id_names_message_before_hook_edit() -> None:
     try:
         with active([d3_cites_input()]), sentinel_solving():
             await model.generate(
-                messages, config=GenerateConfig(reasoning_history="none")
+                messages,
+                config=GenerateConfig(
+                    system_message="configured", reasoning_history="none"
+                ),
             )
     finally:
         _registry.pop("hooks:d3_edits_last_input", None)
@@ -5695,10 +5698,13 @@ async def test_generate_input_step_id_names_message_before_hook_edit() -> None:
     [sentinel_event] = [e for e in events if isinstance(e, SentinelEvent)]
     ids = [m.id for m in model_event.input]
     assert model_event.input[-1].text == "edited"
-    # the sentinel saw the input before the hook, so the step id and the
-    # citation of the edited rebuilt message name its id from before the edit
-    # (accepted: Ransom, 2026-10-27)
+    # the sentinel saw the input before the hook changed it, so the step id
+    # and the citations of the call's rebuilt messages (the configured system
+    # message and the edited assistant) name their ids from before the hook;
+    # the caller's message keeps its id (accepted: Ransom, 2026-10-27 and
+    # 2026-10-28)
     cited = [r.id for r in sentinel_event.references]
-    assert cited[:-1] == ids[:-1]
-    assert cited[-1] != ids[-1]
+    assert cited[1] == ids[1] == messages[0].id
+    assert cited[0] != ids[0]
+    assert cited[2] != ids[2]
     assert sentinel_event.step_id.split(":")[0] == cited[-1]
