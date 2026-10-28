@@ -3,7 +3,7 @@
 ## [0.3.286](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.285...0.3.286) (2026-10-28)
 
 
-### ⚠ BREAKING CHANGES
+### Breaking Changes
 
 * Docker read_file() now uses the container's default execution user instead of Docker's privileged copy API. Callers needing privileged reads must request user="root"; callers acting for a different sandbox user must pass that user. Docker reads require tar with --no-recursion, /bin/sh and /usr/bin/timeout, and no longer retry the former compose-cp host-timeout path. Sandbox providers must update read_file()/write_file() override signatures; explicit-user calls are rejected until supported. In particular, human_cli(user=...) cannot collect terminal recordings on older providers, including Kubernetes: collection warns and omits those logs. Set record_session=False until support is added, or use the sandbox's default identity if appropriate. This is deliberate security tightening: dropping an explicit user could read a protected file through a sandbox-controlled log symlink with the reader's greater privileges.
 * recomputing, editing or recovering a log no longer imports files or builds models it names ([#6007](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6007))
