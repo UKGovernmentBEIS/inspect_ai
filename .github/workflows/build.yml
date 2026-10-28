@@ -845,11 +845,13 @@ jobs:
 
       # Build with the release's hash-pinned toolchain and no isolation, as
       # .github/actions/build-dist does, so nothing is resolved at build time.
+      # --no-config: install the file as pip does there, without the project's
+      # exclude-newer, which Dependabot's day-granular cooldown can undercut.
       - name: Build
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' || steps.filter.outputs.package_readme == 'true'
         run: |
           uv venv "$RUNNER_TEMP/build-env"
-          uv pip install --python "$RUNNER_TEMP/build-env" --require-hashes --only-binary :all: --no-deps -r scripts/build-dist/requirements.txt
+          uv pip install --no-config --python "$RUNNER_TEMP/build-env" --require-hashes --only-binary :all: --no-deps -r scripts/build-dist/requirements.txt
           "$RUNNER_TEMP/build-env/bin/python" -m build --no-isolation
           ls -l dist
 

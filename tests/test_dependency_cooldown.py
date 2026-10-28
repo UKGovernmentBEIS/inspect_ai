@@ -200,10 +200,8 @@ def test_pinned_uv_versions_meet_required_version() -> None:
 def test_no_workflow_uses_the_build_and_inspect_action() -> None:
     # hynek/build-and-inspect-python-package installs the newest uv with
     # curl | bash and apt-installs tree.
-    for workflow in WORKFLOWS.glob("*.yml"):
-        assert "build-and-inspect-python-package" not in workflow.read_text(), (
-            workflow.name
-        )
+    for path in (REPO / ".github").rglob("*.y*ml"):
+        assert "build-and-inspect-python-package" not in path.read_text(), path
 
 
 @pytest.mark.parametrize("name,sync", LOCKED_JOBS.items())
