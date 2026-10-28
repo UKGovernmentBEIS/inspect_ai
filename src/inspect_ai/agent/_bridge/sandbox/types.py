@@ -187,7 +187,7 @@ class SandboxAgentBridge(AgentBridge):
                     + ", ".join(f"{t.server}/{t.tool}" for t in targets)
                     + "); an execution grant was registered for each of them.",
                 )
-            proposal = _Proposal(call, span_id)
+            proposal = _Proposal(call, span_id, self._proposing_message_id)
             for target in targets:
                 if (
                     len(self._tool_execution_grants)
@@ -350,14 +350,19 @@ class _Proposal:
     and no pairing state outlives the bounded grant store.
     """
 
-    __slots__ = ("call", "span_id", "paired")
+    __slots__ = ("call", "span_id", "message_id", "paired")
 
-    def __init__(self, call: ToolCall, span_id: str | None) -> None:
+    def __init__(
+        self, call: ToolCall, span_id: str | None, message_id: str | None
+    ) -> None:
         self.call = call
         """The proposing call, with the function name as the model saw it."""
 
         self.span_id = span_id
         """Span to record executions under, or `None` for the span current then."""
+
+        self.message_id = message_id
+        """Id of the assistant message the call is in, or `None` if unknown."""
 
         self.paired = False
         """Whether an execution has already taken `call.id`."""

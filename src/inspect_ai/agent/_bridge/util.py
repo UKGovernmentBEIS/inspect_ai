@@ -1080,11 +1080,15 @@ async def _bridge_generate_impl(
                 declarations.extend(declared_in_input(input_messages))
             # executions are placed in the proposing ModelEvent's span; only one
             # a sink chose is stored, so a rotating checkpoint span is followed
-            bridge.register_tool_execution_grants(
-                reviewed.output.message.tool_calls or [],
-                declarations,
-                span_id=sink.span_id if sink is not None else None,
-            )
+            bridge._proposing_message_id = reviewed.output.message.id
+            try:
+                bridge.register_tool_execution_grants(
+                    reviewed.output.message.tool_calls or [],
+                    declarations,
+                    span_id=sink.span_id if sink is not None else None,
+                )
+            finally:
+                bridge._proposing_message_id = None
             return reviewed.output, c_message
 
         rejections += 1

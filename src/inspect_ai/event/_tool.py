@@ -84,6 +84,12 @@ class ToolEvent(BaseEvent):
     message_id: str | None = Field(default=None)
     """Id of ChatMessageTool associated with this event."""
 
+    call_message_id: str | None = Field(default=None)
+    """Id of the assistant message that proposed this tool call.
+
+    `message_id` is the id of the tool message holding its result.
+    """
+
     def _set_result(
         self,
         result: ToolResult,

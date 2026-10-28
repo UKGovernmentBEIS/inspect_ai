@@ -196,6 +196,7 @@ async def _record_rejection(
     event_id: str | None = None,
     view: ToolCallContent | None = None,
     failed: bool | None = None,
+    call_message_id: str | None = None,
 ) -> None:
     """Record a request that did not execute as a completed event in its own `tool` span."""
     event = ToolEvent(
@@ -204,6 +205,7 @@ async def _record_rejection(
         arguments=arguments,
         view=view,
         metadata=metadata.as_metadata(),
+        call_message_id=call_message_id,
     )
     event._set_result(
         result="",
@@ -247,6 +249,7 @@ async def _execute_granted(
         metadata.grant = "exempt"
     event_id = grant.proposal.take_id() if grant is not None else uuid()
     view = grant.proposal.call.view if grant is not None else None
+    call_message_id = grant.proposal.message_id if grant is not None else None
 
     try:
         tool_def = ToolDef(tool_fn)
@@ -269,6 +272,7 @@ async def _execute_granted(
             event_id=event_id,
             view=view,
             failed=True if mapped is None else None,
+            call_message_id=call_message_id,
         )
         raise
     if validation_errors:
@@ -280,6 +284,7 @@ async def _execute_granted(
             metadata,
             event_id=event_id,
             view=view,
+            call_message_id=call_message_id,
         )
         raise ToolParsingError(validation_errors)
     call_arguments = cast(dict[str, JsonValue], arguments)
@@ -291,6 +296,7 @@ async def _execute_granted(
         view=view,
         pending=True,
         metadata=metadata.as_metadata(),
+        call_message_id=call_message_id,
     )
     sample = sample_active()
     observer = (

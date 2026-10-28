@@ -1,9 +1,9 @@
-"""Message ids stay the same through the agent bridge and the log.
+"""Message ids stay the same through an agent run and the log.
 
-Each dialect runs a two-turn scaffold through `agent_bridge()` against mockllm:
-the model calls a tool, the scaffold runs it and sends the conversation back,
-and the model answers. The ids in the final messages, in each `ModelEvent`'s
-input and output, and in the log read back must agree.
+A react agent, and a scaffold in each bridge dialect, run against mockllm: the
+model calls a tool, the agent runs it, and the model answers twice. The ids in
+the final messages, in each `ModelEvent`'s input and output, in each
+`ToolEvent`, and in the log read back (`.eval` and `.json`) must agree.
 """
 
 import json
@@ -15,12 +15,18 @@ from anthropic import AsyncAnthropic
 from google import genai
 from openai import AsyncOpenAI
 
-from inspect_ai import Task, eval, task
-from inspect_ai.agent import Agent, AgentState, agent, agent_bridge
+from inspect_ai import Task, eval
+from inspect_ai.agent import Agent, AgentState, agent, agent_bridge, react
 from inspect_ai.dataset import Sample
-from inspect_ai.event import ModelEvent
+from inspect_ai.event import ModelEvent, ToolEvent
 from inspect_ai.log import EvalLog, read_eval_log
-from inspect_ai.model import ModelOutput, get_model
+from inspect_ai.model import (
+    ChatMessageAssistant,
+    ChatMessageTool,
+    ModelOutput,
+    get_model,
+)
+from inspect_ai.tool import Tool, tool
 from inspect_ai.util import store
 
 Dialect = Literal["completions", "responses", "anthropic", "google"]
@@ -272,39 +278,91 @@ def scaffold_agent(dialect: Dialect, mangle: bool) -> Agent:
     return execute
 
 
-def _run(dialect: Dialect, mangle: bool, log_dir: Path) -> EvalLog:
-    @task
-    def bridged() -> Task:
-        return Task(
-            dataset=[Sample(input=PROMPT)],
-            solver=scaffold_agent(dialect, mangle),
-        )
-
-    log = eval(bridged(), model=_mock_model(), log_dir=str(log_dir))[0]
+def _run(solver: Agent, log_dir: Path, log_format: Literal["eval", "json"]) -> EvalLog:
+    log = eval(
+        Task(dataset=[Sample(input=PROMPT)], solver=solver),
+        model=_mock_model(),
+        log_dir=str(log_dir),
+        log_format=log_format,
+    )[0]
     assert log.status == "success", log.error
     return log
 
 
-def assert_ids_agree(log: EvalLog) -> None:
-    """The final conversation extends every model call's input and output, by id."""
+def assert_ids_agree(log: EvalLog, model_calls: int) -> None:
+    """The final conversation extends every model call, and tool events point into it."""
     assert log.samples
     sample = log.samples[0]
     final_ids = [m.id for m in sample.messages]
     assert len(set(final_ids)) == len(final_ids)
     model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
-    assert len(model_events) == 3
+    assert len(model_events) == model_calls
     for event in model_events:
         call_ids = [m.id for m in event.input] + [event.output.message.id]
         assert call_ids == final_ids[: len(call_ids)]
     prompt = next(m for m in sample.messages if m.text == PROMPT)
     assert prompt.id == sample.store["input_id"]
+    for tool_event in [e for e in sample.events if isinstance(e, ToolEvent)]:
+        [proposing] = [
+            m
+            for m in sample.messages
+            if isinstance(m, ChatMessageAssistant)
+            and tool_event.id in [call.id for call in m.tool_calls or []]
+        ]
+        [result] = [
+            m
+            for m in sample.messages
+            if isinstance(m, ChatMessageTool) and m.tool_call_id == tool_event.id
+        ]
+        assert tool_event.call_message_id == proposing.id
+        assert tool_event.message_id == result.id
 
 
+@pytest.mark.parametrize("log_format", ["eval", "json"])
 @pytest.mark.parametrize("dialect", DIALECTS)
 @pytest.mark.parametrize("mangle", [False, True])
 def test_bridge_keeps_message_ids(
-    dialect: Dialect, mangle: bool, tmp_path: Path
+    dialect: Dialect,
+    mangle: bool,
+    log_format: Literal["eval", "json"],
+    tmp_path: Path,
 ) -> None:
-    log = _run(dialect, mangle, tmp_path)
-    assert_ids_agree(log)
-    assert_ids_agree(read_eval_log(log.location))
+    log = _run(scaffold_agent(dialect, mangle), tmp_path, log_format)
+    assert_ids_agree(log, model_calls=3)
+    assert_ids_agree(read_eval_log(log.location), model_calls=3)
+
+
+@tool
+def echo() -> Tool:
+    async def execute(text: str, count: int) -> str:
+        """Echo text.
+
+        Args:
+          text: The text.
+          count: How many times.
+        """
+        return text * count
+
+    return execute
+
+
+@agent
+def react_agent() -> Agent:
+    agent = react(tools=[echo()], submit=False)
+
+    async def execute(state: AgentState) -> AgentState:
+        store().set("input_id", state.messages[0].id)
+        return await agent(state)
+
+    return execute
+
+
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_react_keeps_message_ids(
+    log_format: Literal["eval", "json"], tmp_path: Path
+) -> None:
+    log = _run(react_agent(), tmp_path, log_format)
+    assert log.samples
+    assert any(isinstance(e, ToolEvent) for e in log.samples[0].events)
+    assert_ids_agree(log, model_calls=2)
+    assert_ids_agree(read_eval_log(log.location), model_calls=2)

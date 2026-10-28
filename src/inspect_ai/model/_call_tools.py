@@ -404,6 +404,7 @@ async def _execute_tools_impl(
                     arguments=call.arguments,
                     view=call.view,
                     pending=True,
+                    call_message_id=message.id,
                 )
                 stage_results[idx] = None
 

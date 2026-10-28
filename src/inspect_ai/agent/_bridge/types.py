@@ -288,6 +288,12 @@ class AgentBridge:
         bind later service requests to the calls the model actually made.
         """
 
+    _proposing_message_id: str | None = None
+    """Id of the message whose calls `register_tool_execution_grants` is registering.
+
+    Set by `bridge_generate` around the call (the hook's signature is public).
+    """
+
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
         """The bridged tool call that `call` makes through a dispatcher, if any.
 

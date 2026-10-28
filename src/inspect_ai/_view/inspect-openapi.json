@@ -11826,6 +11826,17 @@
             "title": "Arguments",
             "type": "object"
           },
+          "call_message_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Call Message Id"
+          },
           "completed": {
             "anyOf": [
               {

@@ -3408,6 +3408,9 @@ async def test_proposed_host_tool_call_is_recorded_with_the_proposing_id(
         "proposal_id": "proposed",
         "grant": "consumed",
     }
+    [proposing] = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    assert event.call_message_id == proposing.output.message.id
+    assert event.call_message_id is not None
     assert recorded.completions(event) == 1
 
 
@@ -3474,6 +3477,7 @@ async def test_denied_host_tool_call_is_recorded_in_its_own_tool_span() -> None:
     assert bridge_metadata(event)["grant"] == "denied"
     assert bridge_metadata(event)["function"] is None
     assert bridge_metadata(event)["proposal_id"] is None
+    assert event.call_message_id is None
     assert recorded.completions(event) == 1
 
 
