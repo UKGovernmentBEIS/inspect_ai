@@ -339,7 +339,7 @@ def _write_sample_streaming(
             write_json_field(
                 stream,
                 "store",
-                recovered_sample_store(raw_events, attachments),
+                recovered_sample_store(summary, raw_events, attachments),
                 comma=True,
             )
 

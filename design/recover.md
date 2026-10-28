@@ -94,6 +94,7 @@ After a crash, the complete set of sample data is split across two sources:
 - All **completed** samples: those flushed to `.eval` + those completed but unflushed (in buffer DB)
 - `EvalSpec` and `EvalPlan` from `start.json`
 - For unflushed completed samples: scores, input, target, messages and store (via events)
+- For in-progress samples: the store as of the last top-level span (`init`, `solvers`, `scorers`) that ended, since a span records its `StoreEvent` when it ends
 
 **What is NOT recoverable:**
 - In-progress samples at crash time (started but `complete_sample()` never called — no scores)

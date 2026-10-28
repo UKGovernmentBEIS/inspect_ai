@@ -289,8 +289,10 @@ def _json_change_to_patch_op(change: JsonChange) -> dict[str, Any]:
     op: dict[str, Any] = {"op": change.op, "path": change.path}
 
     if change.op in ("add", "replace", "test"):
-        # These operations require a value (None is valid for explicit null)
-        op["value"] = change.value
+        # These operations require a value (None is valid for explicit null).
+        # Copied because the patch is applied in place: later patches would
+        # otherwise modify the event's own value.
+        op["value"] = deepcopy(change.value)
     elif change.op in ("move", "copy"):
         if change.from_ is None:
             raise ValueError(

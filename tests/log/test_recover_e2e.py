@@ -12,6 +12,7 @@ from test_helpers.buffer import simulate_crashed_buffer_db
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.json import JsonChange
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sample_init import SampleInitEvent
@@ -1468,6 +1469,62 @@ async def test_recovery_keeps_messages_and_output_inline(buffer_kind: str) -> No
             assert expected.attachments.items() <= recovered_sample.attachments.items()
 
 
+def _store_span(id: str, before: dict[str, Any], after: dict[str, Any]) -> list[Any]:
+    """A top-level span holding the StoreEvent for its store changes."""
+    return [
+        SpanBeginEvent(id=id, name=id),
+        StoreEvent(changes=store_changes(before, after) or [], span_id=id),
+        SpanEndEvent(id=id),
+    ]
+
+
+async def _recover_completed_sample(
+    buffer_kind: str, events: list[Any], temp_dir: str
+) -> str:
+    """Buffer a completed sample with `events`, crash, recover; the output path."""
+    eval_path = os.path.join(temp_dir, "store.eval")
+    output_path = os.path.join(temp_dir, "store-recovered.eval")
+    zip_log = ZipLogFile(eval_path)
+    await zip_log.init(log_start=None, summary_counter=0, summaries=[])
+    await zip_log.start(
+        LogStart(
+            version=LOG_SCHEMA_VERSION,
+            eval=_make_eval_spec(num_samples=1),
+            plan=EvalPlan(),
+        )
+    )
+    await zip_log.flush()
+
+    summary = EvalSampleSummary(
+        id="s1",
+        epoch=1,
+        input="hi",
+        target="reply",
+        started_at=datetime.now(timezone.utc).isoformat(),
+    )
+    db_dir = os.path.join(temp_dir, "bufferdb")
+    buffer = SampleBufferDatabase(eval_path, create=True, db_dir=Path(db_dir))
+    buffer.start_sample(summary)
+    buffer.log_events([SampleEvent(id="s1", epoch=1, event=event) for event in events])
+    buffer.complete_sample(
+        summary.model_copy(
+            update={"completed_at": datetime.now(timezone.utc).isoformat()}
+        ),
+        sample_metadata=None,
+    )
+
+    if buffer_kind == "filestore":
+        sync_to_filestore(buffer, SampleBufferFilestore(eval_path, create=True))
+        db_dir = os.path.join(temp_dir, "empty_db_dir")
+    else:
+        _simulate_crashed_buffer(buffer)
+
+    await recover_eval_log_async(
+        eval_path, output=output_path, cleanup=False, _db_dir=db_dir
+    )
+    return output_path
+
+
 @pytest.mark.parametrize("buffer_kind", ["database", "filestore"])
 async def test_recovery_restores_store(buffer_kind: str) -> None:
     """A completed but unflushed sample's store is replayed from its StoreEvents."""
@@ -1477,62 +1534,18 @@ async def test_recovery_restores_store(buffer_kind: str) -> None:
         "long": "L" * 5000,
         "tmp": 1,
     }
-    scored = {key: value for key, value in solved.items() if key != "tmp"}
-    scored["scored"] = True
-
-    def span(id: str, before: dict[str, Any], after: dict[str, Any]) -> list[Any]:
-        return [
-            SpanBeginEvent(id=id, name=id),
-            StoreEvent(changes=store_changes(before, after) or [], span_id=id),
-            SpanEndEvent(id=id),
-        ]
-
-    started_at = datetime.now(timezone.utc).isoformat()
-    summary = EvalSampleSummary(
-        id="s1", epoch=1, input="hi", target="reply", started_at=started_at
-    )
+    # nested changes, which replay must not apply to the earlier event's value
+    scored = {
+        "answer_key": {"id": "s1-scored", "values": [1, 2, None, 3]},
+        "long": solved["long"],
+        "scored": True,
+    }
+    events = _store_span("solvers", {}, solved) + _store_span("scorers", solved, scored)
+    store_events = [event for event in events if isinstance(event, StoreEvent)]
 
     async with AsyncFilesystem():
         with tempfile.TemporaryDirectory() as temp_dir:
-            eval_path = os.path.join(temp_dir, "store.eval")
-            output_path = os.path.join(temp_dir, "store-recovered.eval")
-            zip_log = ZipLogFile(eval_path)
-            await zip_log.init(log_start=None, summary_counter=0, summaries=[])
-            await zip_log.start(
-                LogStart(
-                    version=LOG_SCHEMA_VERSION,
-                    eval=_make_eval_spec(num_samples=1),
-                    plan=EvalPlan(),
-                )
-            )
-            await zip_log.flush()
-
-            db_dir = os.path.join(temp_dir, "bufferdb")
-            buffer = SampleBufferDatabase(eval_path, create=True, db_dir=Path(db_dir))
-            buffer.start_sample(summary)
-            buffer.log_events(
-                [
-                    SampleEvent(id="s1", epoch=1, event=event)
-                    for event in span("solvers", {}, solved)
-                    + span("scorers", solved, scored)
-                ]
-            )
-            buffer.complete_sample(
-                summary.model_copy(
-                    update={"completed_at": datetime.now(timezone.utc).isoformat()}
-                ),
-                sample_metadata=None,
-            )
-
-            if buffer_kind == "filestore":
-                sync_to_filestore(buffer, SampleBufferFilestore(eval_path, create=True))
-                db_dir = os.path.join(temp_dir, "empty_db_dir")
-            else:
-                _simulate_crashed_buffer(buffer)
-
-            await recover_eval_log_async(
-                eval_path, output=output_path, cleanup=False, _db_dir=db_dir
-            )
+            output_path = await _recover_completed_sample(buffer_kind, events, temp_dir)
 
             # the store stays inline, as in a normal run's log
             recovered = await read_eval_log_async(
@@ -1540,3 +1553,43 @@ async def test_recovery_restores_store(buffer_kind: str) -> None:
             )
             assert recovered.samples is not None
             assert recovered.samples[0].store == scored
+
+            recovered = await read_eval_log_async(output_path, resolve_attachments=True)
+            assert recovered.samples is not None
+            recovered_store_events = [
+                event
+                for event in recovered.samples[0].events
+                if isinstance(event, StoreEvent)
+            ]
+            assert [event.changes for event in recovered_store_events] == [
+                event.changes for event in store_events
+            ]
+
+
+@pytest.mark.parametrize("buffer_kind", ["database", "filestore"])
+async def test_recovery_store_changes_that_dont_replay(
+    buffer_kind: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A sample whose store changes don't replay is recovered with an empty store."""
+    events = _store_span("solvers", {}, {"a": 1}) + [
+        SpanBeginEvent(id="scorers", name="scorers"),
+        # older versions could record moves that don't replay
+        StoreEvent(
+            changes=[
+                JsonChange.model_validate(
+                    {"op": "move", "from": "/missing", "path": "/b"}
+                )
+            ],
+            span_id="scorers",
+        ),
+        SpanEndEvent(id="scorers"),
+    ]
+
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = await _recover_completed_sample(buffer_kind, events, temp_dir)
+
+            recovered = await read_eval_log_async(output_path)
+            assert recovered.samples is not None
+            assert recovered.samples[0].store == {}
+            assert "Could not replay the store changes of sample s1" in caplog.text

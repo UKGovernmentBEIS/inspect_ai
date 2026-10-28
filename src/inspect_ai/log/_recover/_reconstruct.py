@@ -226,7 +226,9 @@ def recovered_sample_scores(
 
 
 def recovered_sample_store(
-    events: list[Event], attachments: Mapping[str, str]
+    summary: EvalSampleSummary,
+    events: list[Event],
+    attachments: Mapping[str, str],
 ) -> dict[str, Any]:
     """A recovered sample's store, replayed from its `StoreEvent`s.
 
@@ -234,9 +236,23 @@ def recovered_sample_store(
     `attachment://` refs in the replayed values are resolved; a normal run's
     log keeps the store inline. Changes made while `StoreEvent`s were
     suspended (`suspend_store_events()`) were never recorded, so they can't
-    be recovered.
+    be recovered, and an in-progress sample's store reflects only the
+    top-level spans that ended. If the changes don't replay (older versions
+    could record `move` operations that don't), the store is left empty with
+    a warning rather than failing the recovery of every sample.
     """
-    data = dict(store_from_events(events).items())
+    try:
+        data = dict(store_from_events(events).items())
+    # jsonpatch also raises jsonpointer's exceptions, which have no type stubs
+    except Exception as ex:
+        logger.warning(
+            "Could not replay the store changes of sample %s (epoch %s) during "
+            "recovery; recovering it with an empty store: %r",
+            summary.id,
+            summary.epoch,
+            ex,
+        )
+        return {}
     return cast(
         dict[str, Any],
         walk_json_value(
@@ -318,7 +334,7 @@ def reconstruct_eval_sample(
         messages=messages,
         output=output,
         scores=recovered_sample_scores(summary, events),
-        store=recovered_sample_store(events, attachments),
+        store=recovered_sample_store(summary, events, attachments),
         events=events if include_events else [],
         timelines=None,
         attachments=attachments,
