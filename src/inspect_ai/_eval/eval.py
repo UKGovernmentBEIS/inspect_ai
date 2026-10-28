@@ -1127,6 +1127,11 @@ async def _eval_async_inner(
                         **kwargs,
                     )
                 )
+            # the run has stopped starting tasks: refuse further additions
+            # (from on_run_end, or from child contexts that copied the
+            # enqueuer) rather than drop them. A cancelled run returns without
+            # the dispatcher closing it.
+            enqueuer.close()
 
             # keep-alive: after the body, park while the control / ACP
             # servers are still up so `inspect ctl` can read state and
@@ -1164,6 +1169,9 @@ async def _eval_async_inner(
                 await emit_run_end(eval_set_id, run_id, EvalLogs([]))
 
     except BaseException as e:
+        # a failed run also stops accepting additions before on_run_end
+        if enqueuer is not None:
+            enqueuer.close()
         # a second Ctrl-C while finishing a cancelled trio run does not start
         # the hooks again
         if not trio_cancelled:
@@ -1173,11 +1181,6 @@ async def _eval_async_inner(
 
     finally:
         _eval_async_running = False
-        # Stop accepting task additions for this run (a cancelled or failed
-        # run ends without the dispatcher closing the enqueuer; child contexts
-        # that copied it then get an error rather than a silent drop).
-        if enqueuer is not None:
-            enqueuer.close()
         if enqueuer_token is not None:
             clear_task_enqueuer(enqueuer_token)
         # Clear the process-level EvalState registry and the retry-loop

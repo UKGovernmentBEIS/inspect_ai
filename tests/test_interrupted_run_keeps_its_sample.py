@@ -270,11 +270,26 @@ async def test_run_task_screen_absorbs_teardown_cancel_after_body_cancel(
     )
     returned = False
     with anyio.CancelScope() as scope:
-        async with _run_task_screen([]):
+        async with _run_task_screen([], absorb_cancel=lambda: True):
             scope.cancel()
             await anyio.sleep(0)
         returned = True
     assert returned
+
+
+async def test_run_task_screen_propagates_body_cancel_not_absorbed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A body cancel that absorb_cancel() refuses propagates past the teardown."""
+    monkeypatch.setattr(
+        "inspect_ai._eval.run.display", lambda: _CheckpointTeardownDisplay()
+    )
+    with anyio.CancelScope() as scope:
+        async with _run_task_screen([], absorb_cancel=lambda: False):
+            scope.cancel()
+            await anyio.sleep(0)
+        pytest.fail("body cancel was absorbed")
+    assert scope.cancelled_caught
 
 
 async def test_run_task_screen_propagates_teardown_cancel_after_normal_body(
@@ -286,7 +301,7 @@ async def test_run_task_screen_propagates_teardown_cancel_after_normal_body(
             "inspect_ai._eval.run.display",
             lambda: _CheckpointTeardownDisplay(cancel_in_teardown=scope),
         )
-        async with _run_task_screen([]):
+        async with _run_task_screen([], absorb_cancel=lambda: True):
             pass
         pytest.fail("teardown cancel was absorbed")
     assert scope.cancelled_caught

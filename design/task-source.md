@@ -184,7 +184,9 @@ all feed the run's one dispatcher:
   `when_free` in a `TaskSource` run, `after_batch` otherwise. An invalid
   `start` raises `ValueError` before the tasks are resolved. `enqueue_task`
   must be called from the eval's event loop: the dispatcher's wake callback is
-  not thread-safe.
+  not thread-safe. The run's enqueuer is registered after `emit_run_start` and
+  closed before `emit_run_end`, so a call from `on_run_start` or `on_run_end`
+  raises; hooks called during a task can add tasks.
 
 The last two share the same downstream machinery:
 
@@ -200,8 +202,8 @@ The last two share the same downstream machinery:
   `next_tasks()`, so imperative additions and declarative generation compose in
   one loop.
 - When `when_idle()` finds nothing more to run, it calls `close()` before
-  returning `None` (and the run's `finally` closes it on a cancelled or failed
-  run). A later `enqueue()` raises `RuntimeError` instead of buffering a task
+  returning `None` (and `eval_async` closes it once `eval_run` returns, for a
+  cancelled run, or when the run fails). A later `enqueue()` raises `RuntimeError` instead of buffering a task
   that would never run.
 
 Because `enqueue_task` is called from *arbitrary* code, it needs an ambient
@@ -278,10 +280,14 @@ task-not-found (not specially handled).
   of a multi-model `when_free` group; retries; a late enqueue raising; an
   invalid `start` raising before resolution; `when_idle()` returning buffered
   `when_free` additions first; cancellation while a `when_free` child is
-  queued; and cancellation while an added group is being prepared (both
-  loggers discarded). `tests/test_task_source.py` also covers tasks enqueued by
+  queued; cancellation while an added group is being prepared (both
+  loggers discarded, the cancellation propagating); a real Ctrl-C while an
+  added task is prepared or `next_tasks()` waits (in a subprocess, under both
+  backends) raising `KeyboardInterrupt`; and which hooks can call
+  `enqueue_task`. `tests/test_task_source.py` also covers tasks enqueued by
   the final `next_tasks()` call (an `after_batch` one starting after the
-  `when_free` ones enqueued with it), and
+  `when_free` ones enqueued with it) and a cancellation while `next_tasks()`
+  blocks propagating, and
   `tests/util/sandbox/test_docker_cleanup.py` an added task sharing the run's
   sandbox scope.
 
@@ -321,8 +327,8 @@ through the `AddedTasks` protocol ([run.py](../src/inspect_ai/_eval/run.py)):
 `SandboxManager`) into a `PreparedFeed` with the same three operations, and
 hands it to `run_task_retry_attempts(..., feed=...)`. `prepare_options` owns a
 group's loggers until it returns them: if preparing a task fails or is
-cancelled, it discards the loggers it already created (a cancelled run returns
-normally, so `eval_run`'s error handler would not reach them). At `parallel == 1` it puts the seed
+cancelled, it discards the loggers it already created (they are not yet in
+`prepared_options`, so `eval_run`'s error handler would not reach them). At `parallel == 1` it puts the seed
 and every added group in sequence-major order (`_dispatch_order`), so with the
 dispatcher's queue-order tie-break all of task N's model fan-outs run before
 task N+1's, as when the tasks are passed to `eval()` directly.
@@ -344,6 +350,15 @@ helper (a per-task cancel scope around `task_run`); initial tasks keep their
 input order in the results and injected tasks are appended in arrival order.
 When dispatch stops on a cancelled run, tasks still queued never start, and
 their log entries are discarded as for an abandoned retry.
+
+A cancellation (Ctrl-C, or a cancelled scope around `eval_async`) that lands
+while the dispatcher waits for running tasks is absorbed (`_run_task_screen`):
+those tasks end with `cancelled` logs and the run returns them. One that lands
+while the dispatcher takes tasks from the feed (preparing an added group, or
+awaiting `next_tasks()`) propagates out of `eval_async`, so `eval()` raises
+`KeyboardInterrupt` and the CLI exits 1: the tasks it interrupts have no log
+yet, so a run that returned normally would look complete. Tasks running beside
+the interrupted preparation are cancelled and write `cancelled` logs.
 
 Consequences of one dispatcher per run: task-level sandbox environments
 (`task_init`) started for any generation are cleaned up once, at the end of the

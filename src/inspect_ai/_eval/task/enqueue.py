@@ -186,8 +186,12 @@ def enqueue_task(
     ``next_tasks()`` runs start only after it returns, so ``next_tasks()``
     must not wait for them.
 
-    Call from the eval's event loop (a solver, scorer, tool or hook), not from
-    another thread.
+    Call from the eval's event loop, not from another thread: from a solver,
+    scorer or tool, a ``TaskSource``'s ``next_tasks()`` or completion
+    callbacks, or a hook Inspect calls during a task (such as
+    ``on_task_start`` or ``on_sample_end``). It raises in ``on_run_start``,
+    which runs before the run accepts added tasks, and in ``on_run_end``,
+    which runs after the run has finished starting tasks.
 
     Args:
         tasks: A ``Task`` (or list of tasks) to add to the running eval.

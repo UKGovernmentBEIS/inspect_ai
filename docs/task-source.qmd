@@ -152,7 +152,7 @@ def spawn_followup():
     return solve
 ```
 
-Enqueued tasks run under the current run id, resolved against the run's models and config. Without a `start` argument (see below), they are handled like tasks returned from `sample_complete` / `task_complete`. `enqueue_task()` raises if no eval is running, and also if the run has already finished starting tasks (for example, when called from a background task that outlives the run), since the added task would never run. Call it from the eval's event loop (a solver, scorer, tool or hook), not from another thread.
+Enqueued tasks run under the current run id, resolved against the run's models and config. Without a `start` argument (see below), they are handled like tasks returned from `sample_complete` / `task_complete`. `enqueue_task()` raises if no eval is running, and also if the run has already finished starting tasks (for example, when called from a background task that outlives the run), since the added task would never run. Call it from the eval's event loop, not from another thread: from a solver, scorer or tool, a `TaskSource`'s `next_tasks()` or completion callbacks (`sample_complete`, `task_complete`), or a hook Inspect calls during a task (such as `on_task_start` or `on_sample_end`). It raises in `on_run_start`, which runs before the run accepts added tasks, and in `on_run_end`, which runs after the run has finished starting tasks.
 
 ### When an added task starts
 

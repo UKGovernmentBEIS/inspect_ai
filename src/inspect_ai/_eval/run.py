@@ -227,9 +227,9 @@ async def eval_run(
 
         The group's loggers belong to this call until it returns them: if
         preparing a task fails or is cancelled, the loggers already created
-        (open buffer dbs, recorder entries) are discarded. A cancelled run
-        returns normally (see :func:`_run_task_screen`), so ``eval_run``'s
-        error handler would not reach them.
+        (open buffer dbs, recorder entries) are discarded. They are not yet
+        in ``prepared_options``, so ``eval_run``'s error handler would not
+        reach them.
         """
         loggers: list[TaskLogger] = []
         try:
@@ -790,6 +790,12 @@ async def run_task_retry_attempts(
     cancelled = False
     source_done = False
 
+    # set while the dispatcher takes tasks from the feed (preparing added
+    # tasks, or awaiting a TaskSource's next_tasks()). A cancellation landing
+    # there propagates rather than being absorbed: the tasks it interrupts
+    # have no log yet, so a run that returned normally would look complete
+    taking_from_feed = False
+
     # woken on each task completion, on each injection (enqueue), and on any
     # pause-state change (a resume must re-evaluate dispatch)
     wake = Wake()
@@ -840,7 +846,9 @@ async def run_task_retry_attempts(
             launch=parallel, in_flight=in_flight, pending=len(pending)
         )
 
-    async with _run_task_screen(task_specs(tasks)) as screen:
+    async with _run_task_screen(
+        task_specs(tasks), absorb_cancel=lambda: not taking_from_feed
+    ) as screen:
         init_task_screen(screen)
         try:
             # registered inside the try so the removes in the finally below
@@ -1074,7 +1082,9 @@ async def run_task_retry_attempts(
                         break
 
                     # pick up tasks buffered since the last cycle
+                    taking_from_feed = True
                     injected = await feed.ready()
+                    taking_from_feed = False
                     if injected:
                         add(injected)
 
@@ -1129,7 +1139,9 @@ async def run_task_retry_attempts(
                     # when it is exhausted
                     if source_done:
                         break
+                    taking_from_feed = True
                     more = await feed.when_idle()
+                    taking_from_feed = False
                     if more is None:
                         source_done = True
                     else:
@@ -1353,14 +1365,17 @@ class SandboxManager:
 
 
 @asynccontextmanager
-async def _run_task_screen(tasks: list[TaskSpec]) -> AsyncIterator[TaskScreen]:
+async def _run_task_screen(
+    tasks: list[TaskSpec], absorb_cancel: Callable[[], bool]
+) -> AsyncIterator[TaskScreen]:
     """Open the display's task screen for a run that absorbs cancellation.
 
-    A cancellation of the run body is absorbed, so the run returns the logs
-    it has. Trio raises that cancellation again at every checkpoint inside
-    the cancelled scope, so a display whose teardown awaits (the rich
-    display's update-loop task group) raises it again; that one is absorbed
-    too. A cancellation from the teardown of a body that was not cancelled,
+    A cancellation of the run body is absorbed when ``absorb_cancel()`` says
+    so at that point, and the run returns the logs it has. Trio raises that
+    cancellation again at every checkpoint inside the cancelled scope, so a
+    display whose teardown awaits (the rich display's update-loop task group)
+    raises it again; that one is absorbed too. A cancellation of the body
+    that is not absorbed, from the teardown of a body that was not cancelled,
     or from the display's setup, propagates.
     """
     body_cancelled = False
@@ -1369,6 +1384,8 @@ async def _run_task_screen(tasks: list[TaskSpec]) -> AsyncIterator[TaskScreen]:
             try:
                 yield screen
             except anyio.get_cancelled_exc_class():
+                if not absorb_cancel():
+                    raise
                 body_cancelled = True
     except anyio.get_cancelled_exc_class():
         if not body_cancelled:

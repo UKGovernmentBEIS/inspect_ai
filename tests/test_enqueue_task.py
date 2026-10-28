@@ -10,6 +10,8 @@ top and tested separately.
 """
 
 import os
+import subprocess
+import sys
 from contextvars import Context, copy_context
 from dataclasses import dataclass
 from pathlib import Path
@@ -39,7 +41,9 @@ from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.tasks import Tasks
 from inspect_ai._util.content import ContentImage
+from inspect_ai._util.registry import _registry
 from inspect_ai.dataset import Sample
+from inspect_ai.hooks import Hooks, RunEnd, RunStart, SampleEnd, TaskStart, hooks
 from inspect_ai.log import EvalLog, read_eval_log
 from inspect_ai.model import ChatMessageUser, get_model
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
@@ -271,6 +275,105 @@ def test_enqueue_task_does_not_leak_active_model() -> None:
 def test_enqueue_task_outside_run_raises() -> None:
     with pytest.raises(RuntimeError, match="while an eval is running"):
         enqueue_task(child())
+
+
+def test_enqueue_task_from_hooks(tmp_path: Path) -> None:
+    # hooks Inspect calls during a task can add tasks. Run-level hooks cannot:
+    # on_run_start runs before the run accepts additions and on_run_end after
+    # it has finished dispatching, so enqueue_task raises there
+    errors: dict[str, str] = {}
+
+    def try_enqueue(hook: str, name: str) -> None:
+        try:
+            enqueue_task(Task(dataset=[Sample(input="x")], name=name))
+        except RuntimeError as ex:
+            errors[hook] = str(ex)
+
+    @hooks(name="enqueue_from_hooks", description="Adds tasks from hooks.")
+    class EnqueueFromHooks(Hooks):
+        async def on_run_start(self, data: RunStart) -> None:
+            try_enqueue("on_run_start", "from_run_start")
+
+        async def on_task_start(self, data: TaskStart) -> None:
+            if data.spec.task == "parent":
+                try_enqueue("on_task_start", "from_task_start")
+
+        async def on_sample_end(self, data: SampleEnd) -> None:
+            if data.sample.metadata.get("parent"):
+                try_enqueue("on_sample_end", "from_sample_end")
+
+        async def on_run_end(self, data: RunEnd) -> None:
+            try_enqueue("on_run_end", "from_run_end")
+
+    try:
+        logs = eval(
+            Task(dataset=[Sample(input="x", metadata={"parent": True})], name="parent"),
+            model="mockllm/model",
+            log_dir=str(tmp_path),
+            display="none",
+        )
+    finally:
+        del _registry["hooks:enqueue_from_hooks"]
+
+    assert sorted(log.eval.task for log in logs) == [
+        "from_sample_end",
+        "from_task_start",
+        "parent",
+    ]
+    assert sorted(errors) == ["on_run_end", "on_run_start"]
+    assert "can only be called while an eval is running" in errors["on_run_start"]
+    assert "finished dispatching" in errors["on_run_end"]
+
+
+@pytest.mark.parametrize("ending", ["cancelled", "failed_before_dispatch"])
+async def test_enqueue_task_from_run_end_hook_of_ended_run_raises(
+    monkeypatch: pytest.MonkeyPatch, ending: str
+) -> None:
+    # a run cancelled while a task runs (the cancellation is absorbed, so the
+    # run returns its logs), or one that fails after registering its enqueuer
+    # but before dispatching, has stopped starting tasks: on_run_end cannot
+    # add one
+    errors: list[str] = []
+
+    @hooks(name="enqueue_from_run_end", description="Adds a task at run end.")
+    class EnqueueFromRunEnd(Hooks):
+        async def on_run_end(self, data: RunEnd) -> None:
+            try:
+                enqueue_task(Task(dataset=[Sample(input="x")], name="late"))
+            except RuntimeError as ex:
+                errors.append(str(ex))
+
+    @solver
+    def cancel_run() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            scope.cancel()
+            await anyio.sleep_forever()
+            return state
+
+        return solve
+
+    def fail_launch_handoff(*args: object, **kwargs: object) -> None:
+        raise RuntimeError("launch handoff failed")
+
+    if ending == "failed_before_dispatch":
+        monkeypatch.setattr(
+            "inspect_ai._eval.eval.emit_launch_handoff", fail_launch_handoff
+        )
+
+    init_display_type("none")
+    try:
+        with anyio.fail_after(60):
+            with anyio.CancelScope() as scope:
+                if ending == "cancelled":
+                    await eval_async(_parent(cancel_run()), model="mockllm/model")
+                else:
+                    with pytest.raises(RuntimeError, match="launch handoff failed"):
+                        await eval_async(_parent(generate()), model="mockllm/model")
+    finally:
+        del _registry["hooks:enqueue_from_run_end"]
+
+    assert len(errors) == 1
+    assert "finished dispatching" in errors[0]
 
 
 def test_enqueue_task_invalid_start_raises_before_resolving() -> None:
@@ -893,7 +996,9 @@ async def test_enqueue_task_cancel_while_preparing_added_group(
 ) -> None:
     # the run is cancelled (as by Ctrl-C) while the dispatcher prepares an
     # added group of two tasks, right after the second one's log init: the
-    # loggers of both are discarded, releasing their realtime buffers
+    # cancellation propagates out of eval_async (the added tasks have no log,
+    # so returning normally would report a complete run), and the loggers of
+    # both are discarded, releasing their realtime buffers
     loggers: dict[str, TaskLogger] = {}
     discarded: list[str] = []
     init = TaskLogger.init
@@ -935,8 +1040,9 @@ async def test_enqueue_task_cancel_while_preparing_added_group(
     with anyio.fail_after(60):
         with anyio.CancelScope() as scope:
             await eval_async(_parent(enqueue_group()), model="mockllm/model")
+            pytest.fail("eval_async returned from a cancelled run")
 
-    assert scope.cancel_called
+    assert scope.cancelled_caught
     assert loggers["c"].buffer_db is None
     assert loggers["d"].buffer_db is None
     assert sorted(name for name in discarded if name in ("c", "d")) == ["c", "d"]
@@ -1040,3 +1146,133 @@ async def test_enqueue_task_when_free_file_task_log_init_keeps_running_cwd(
     assert sorted(log.eval.task for log in logs) == ["filetask", "parent"]
     assert all(log.status == "success" for log in logs)
     assert cwds[1] == cwds[0]
+
+
+# Run in a subprocess so the SIGINT cannot reach the test process.
+_CTRL_C_WHILE_ADDING_SCRIPT = """
+import signal
+import tempfile
+
+import anyio
+
+import inspect_ai._display.core.active as active_display
+import inspect_ai._eval.run as eval_run_module
+import inspect_ai.util._display as display_state
+from inspect_ai import Task, TaskSource, enqueue_task, eval
+from inspect_ai.dataset import Sample
+from inspect_ai.log import list_eval_logs, read_eval_log
+from inspect_ai.solver import solver
+
+start_sandboxes = eval_run_module.SandboxManager.start
+
+
+async def interrupted_start(self, tasks, task_names):
+    if any(t.task.name == "added" for t in tasks):
+        signal.raise_signal(signal.SIGINT)
+        await anyio.sleep(60)
+    await start_sandboxes(self, tasks, task_names)
+
+
+eval_run_module.SandboxManager.start = interrupted_start
+
+
+@solver
+def add_task(start, hold):
+    async def solve(state, generate):
+        enqueue_task(
+            Task(dataset=[Sample(input="x")], name="added", sandbox="local"),
+            start=start,
+        )
+        if hold:
+            await anyio.sleep(60)
+        return state
+
+    return solve
+
+
+class InterruptedSource(TaskSource):
+    def initial_tasks(self):
+        return [Task(dataset=[Sample(input="x")], name="seed")]
+
+    async def next_tasks(self):
+        signal.raise_signal(signal.SIGINT)
+        await anyio.sleep(60)
+        return None
+
+
+def run(case, display, log_dir):
+    active_display._active_display = None
+    display_state._display_type = None
+    if case == "source":
+        tasks = InterruptedSource()
+    else:
+        tasks = Task(
+            dataset=[Sample(input="x")],
+            solver=add_task(None if case == "default" else case, case == "when_free"),
+            name="parent",
+        )
+    eval(
+        tasks,
+        model="mockllm/model",
+        max_tasks=1,
+        log_dir=log_dir,
+        display=display,
+        ctl_server=False,
+    )
+
+
+# the Ctrl-C lands while the dispatcher prepares the added task (its sandbox
+# startup) or while next_tasks() waits; the interrupted task has no log
+expected = {
+    "default": [("parent", "success")],
+    "after_batch": [("parent", "success")],
+    "when_free": [("parent", "cancelled")],
+    "source": [("seed", "success")],
+}
+for case, logs in expected.items():
+    for display in ["rich", "plain", "log"]:
+        log_dir = tempfile.mkdtemp()
+        try:
+            run(case, display, log_dir)
+        except KeyboardInterrupt as ex:
+            assert type(ex) is KeyboardInterrupt, repr(ex)
+        else:
+            raise AssertionError(f"{case}, {display}: no KeyboardInterrupt")
+        assert signal.getsignal(signal.SIGINT) is signal.default_int_handler
+        on_disk = [
+            (log.eval.task, log.status)
+            for log in (read_eval_log(info.name) for info in list_eval_logs(log_dir))
+        ]
+        assert on_disk == logs, (case, display, on_disk)
+
+# a later eval() in the same process still runs
+active_display._active_display = None
+display_state._display_type = None
+(log,) = eval(
+    Task(dataset=[Sample(input="x")]),
+    model="mockllm/model",
+    log_dir=tempfile.mkdtemp(),
+    display="plain",
+)
+assert log.status == "success", log.status
+"""
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"], ids=["on_asyncio", "on_trio"])
+def test_ctrl_c_while_adding_tasks_raises_keyboard_interrupt(backend: str) -> None:
+    """A Ctrl-C while added tasks are prepared or next_tasks() waits ends eval().
+
+    eval() raises KeyboardInterrupt (the CLI exits 1), with the rich, plain
+    and log displays, for an added task under each start policy and for a
+    TaskSource's next_tasks(). Tasks that already finished keep their logs, a
+    task running beside the interrupted preparation is cancelled, and a later
+    eval() still runs.
+    """
+    result = subprocess.run(
+        [sys.executable, "-I", "-c", _CTRL_C_WHILE_ADDING_SCRIPT],
+        env={**os.environ, "INSPECT_ASYNC_BACKEND": backend},
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
