@@ -34,7 +34,23 @@ from typing import NamedTuple
 
 from inspect_ai.util._subprocess import ExecResult
 
-from ..environment import SandboxUnavailableError
+from ..environment import SandboxUnavailableError, SandboxUserUnsupportedError
+
+
+def raise_for_unsupported_user(stderr: str, user: str | None) -> None:
+    """Map Docker's missing-user/group launch errors without masking other failures."""
+    if user is None:
+        return
+    username, _, group = user.partition(":")
+    for kind, name, database in (
+        ("user", username, "passwd"),
+        ("group", group, "group"),
+    ):
+        if name and stderr.strip() == (
+            f"Error response from daemon: unable to find {kind} {name}: "
+            f"no matching entries in {database} file"
+        ):
+            raise SandboxUserUnsupportedError(stderr.strip())
 
 
 class InjectedWrapper(NamedTuple):
@@ -68,7 +84,7 @@ _WRAPPER_QUOTED = re.compile(r"[‘']([^’']*)[’']:")
 
 
 def classify_exec_failure(
-    result: ExecResult[str], *, wrapper: InjectedWrapper | None
+    result: ExecResult[str] | ExecResult[bytes], *, wrapper: InjectedWrapper | None
 ) -> Exception | None:
     """Classify a `docker compose exec` result that did not succeed.
 
@@ -96,6 +112,8 @@ def classify_exec_failure(
         return None
 
     output = stdout or stderr
+    if isinstance(output, bytes):
+        output = output.decode(errors="replace")
     if not output:
         return None
 

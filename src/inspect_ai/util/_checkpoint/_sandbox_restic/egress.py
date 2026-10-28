@@ -75,7 +75,8 @@ absolute path (see :func:`ingress_sandbox`).
 
 Layout under the same ``/root/.cache/inspect/`` root as :mod:`.repo`:
 - ``./egress-manifest.txt`` — sorted list of files already shipped
-- ``./staging/`` — per-cycle tarballs awaiting host-side extraction
+- ``./staging/`` — per-cycle tarballs awaiting host-side extraction, and
+  the resume tarball awaiting in-sandbox extraction
 """
 
 from __future__ import annotations
@@ -86,6 +87,7 @@ import os
 import re
 import shutil
 import tarfile
+import tempfile
 from collections.abc import Collection, Iterator, Sequence
 from contextlib import contextmanager
 from functools import partial
@@ -98,7 +100,7 @@ from inspect_ai.util._sandbox._privileged import privileged_exec, privileged_she
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
 from .._async_fs import async_mkdir
-from .._copy import DEFAULT_COPY_CHUNK_SIZE, copy_out
+from .._copy import DEFAULT_COPY_CHUNK_SIZE, copy_in, copy_out
 from .._repo_ops import (
     SNAPSHOT_ID_RE,
     list_snapshots,
@@ -156,6 +158,7 @@ async def ingress_sandbox(
     *,
     roots: RestoreRoots,
     host_restic: Path,
+    chunk_size: int = DEFAULT_COPY_CHUNK_SIZE,
     sandbox_dir: str = _SANDBOX_RESTIC_DIR,
 ) -> None:
     """Copy a host-side restic repo into the sandbox + restore from it.
@@ -171,9 +174,11 @@ async def ingress_sandbox(
        offending path and the sandbox is left untouched.
     2. Tar the host-side repo dir (put in place by the retry startup
        copy, or by the prior run of this sample on an in-eval requeue).
-    3. Stream the tarball into the sandbox via root ``sh`` so the agent
-       never sees the bytes in flight, extracting into the standard
-       in-sandbox repo location (``/root/.cache/inspect/repo``).
+    3. Copy the tarball in chunks (:func:`copy_in`) into the root-only
+       staging dir so the agent never sees the bytes in flight, then
+       extract it into the standard in-sandbox repo location
+       (``/root/.cache/inspect/repo``). Until extraction finishes, the
+       sandbox holds both, about twice the repo's size on disk.
     4. For each root, ``restic restore <id>:<parent> --target <parent>
        --include /<name> --include-xattr user.*`` inside the sandbox, so
        the root lands at its original absolute path and nothing above
@@ -211,17 +216,29 @@ async def ingress_sandbox(
         host_restic, src_repo, password, snapshot_id, roots, label=label
     )
 
-    tar_bytes = _build_repo_tar(src)
-
+    staged = f"{paths.staging}/ingress.tar"
     await ensure_root_sandbox_dir(env, sandbox_dir)
+    init = await privileged_shell(
+        env, f"set -e; mkdir -p {paths.staging}; rm -f {staged}", user="root"
+    )
+    if not init.success:
+        raise RuntimeError(f"Failed to ingress sandbox restic repo: {init.stderr}")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tar_host = Path(tmp) / "ingress.tar"
+        await anyio.to_thread.run_sync(_build_repo_tar, src, tar_host)
+        await copy_in(
+            env, src=tar_host, dest=staged, label=label, chunk_size=chunk_size
+        )
+
     extract_script = (
         f"set -e; "
         f"rm -rf {paths.repo}; "
         f"mkdir -p {paths.repo}; "
-        f"tar -xf - -C {paths.repo}; "
+        f"tar -xf {staged} -C {paths.repo}; "
+        f"rm -f {staged}; "
         # Seed the manifest with every inherited file so the next
         # egress only ships forward-progress entries.
-        f"mkdir -p {paths.staging}; "
         f"(cd {paths.repo} && "
         f"  {{ find config -type f 2>/dev/null; "
         f"     find keys -type f 2>/dev/null; "
@@ -230,7 +247,7 @@ async def ingress_sandbox(
         f"     find snapshots -type f 2>/dev/null; }} | "
         f"  LC_ALL=C sort > {paths.manifest})"
     )
-    result = await privileged_shell(env, extract_script, input=tar_bytes, user="root")
+    result = await privileged_shell(env, extract_script, user="root")
     if not result.success:
         raise RuntimeError(f"Failed to ingress sandbox restic repo: {result.stderr}")
 
@@ -286,13 +303,11 @@ async def _check_snapshot_scope(
     return full_id
 
 
-def _build_repo_tar(repo: Path) -> bytes:
-    """Build an in-memory tarball of ``repo``'s contents, paths relative."""
-    buf = io.BytesIO()
-    with tarfile.open(fileobj=buf, mode="w") as tar:
+def _build_repo_tar(repo: Path, dest: Path) -> None:
+    """Write a tarball of ``repo``'s contents to ``dest``, paths relative."""
+    with tarfile.open(dest, mode="w") as tar:
         for entry in sorted(repo.rglob("*")):
             tar.add(entry, arcname=str(entry.relative_to(repo)), recursive=False)
-    return buf.getvalue()
 
 
 def _scratch_dir(dest_repo: str) -> Path:

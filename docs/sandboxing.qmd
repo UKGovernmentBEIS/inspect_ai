@@ -210,6 +210,17 @@ Inspect's prerequisite checks confirm that Docker supports the features Inspect 
 
 If you plan on running evaluations with large numbers of concurrent containers (\> 30) you should also configure Docker's [default address pools](https://straz.to/2021-09-08-docker-address-pools/) to accommodate this.
 
+### File Access
+
+File reads require a running Linux container with `/bin/sh`, `/usr/bin/timeout`
+and `tar` supporting `--no-recursion`. Reads enforce the requested user's
+filesystem permissions, including for symlink targets. Pass `user="root"`
+when privileged access is intended.
+
+Reads follow kernel permissions, so root can normally read files with no read
+bits (mode `000`). Reads of concurrently modified files return best-effort
+contents or fail, including when a file shrinks during the read.
+
 ### Task Configuration
 
 You can use the Docker sandbox environment without any special configuration, however most commonly you’ll provide explicit configuration via either a `Dockerfile` or a [Docker Compose](https://docs.docker.com/compose/compose-file/) configuration file (`compose.yaml`).
