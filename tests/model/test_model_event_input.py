@@ -599,6 +599,32 @@ async def test_model_event_input_hook_appending_combined_caller_keeps_it(
     _assert_one_content_per_id(_model_events())
 
 
+@pytest.mark.parametrize("path", _REBUILD_PATHS)
+async def test_model_event_input_hook_appending_earlier_snapshot_leaves_it_unchanged(
+    monkeypatch: pytest.MonkeyPatch, path: str
+) -> None:
+    model, messages, tools, config = _rebuilt_input(monkeypatch, path)
+    await model.generate(messages, tools=tools, config=config)
+    [first] = _model_events()
+    rebuilt = _rebuilt_positions(first, messages)[0]
+    snapshot = first.input[rebuilt]
+    snapshot_id = snapshot.id
+
+    def append_snapshot(call: int, data: BeforeModelGenerate) -> None:
+        if call == 1:
+            data.input.append(snapshot)
+
+    with _input_hook(append_snapshot):
+        for _ in range(2):
+            await model.generate(messages, tools=tools, config=config)
+
+    # the earlier event keeps its id, and a later unchanged call reuses it
+    _, _, third = _model_events()
+    assert snapshot.id == snapshot_id
+    assert third.input[rebuilt] is snapshot
+    _assert_one_content_per_id(_model_events())
+
+
 @pytest.mark.parametrize("metadata", [False, True])
 async def test_model_event_input_hook_edits_on_retry_get_new_ids(
     monkeypatch: pytest.MonkeyPatch, metadata: bool

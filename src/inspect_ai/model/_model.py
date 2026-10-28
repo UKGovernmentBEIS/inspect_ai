@@ -3204,10 +3204,11 @@ def _renew_rebuilt_message_ids_after_hooks(
     ids, in order) with their settled content keys, as with hooks that only
     read the input or set headers. Otherwise this call's rebuilt messages,
     and any other non-caller message holding an id issued in the sample (one
-    a hook brought back), get fresh ids, copying a repeated object first, so
-    an id never names two contents in a sample and ids stay unique in the
-    input. Caller messages, including ones preparation combined or replaced,
-    are never changed.
+    a hook brought back), are replaced by copies with fresh ids, so an id
+    never names two contents in a sample and ids stay unique in the input.
+    Caller messages, including ones preparation combined or replaced, are
+    never changed. If any rebuilt message has no content key, the check fires
+    whenever a hook runs, even one that only sets headers.
 
     Args:
         input: The input after the hooks ran.
@@ -3227,17 +3228,15 @@ def _renew_rebuilt_message_ids_after_hooks(
         return
     callers = {id(message) for message in settled.callers}
     rebuilt = {id(settled.messages[i]) for i in settled.keys}
-    renewed: set[int] = set()
     for i, message in enumerate(input):
         if id(message) in callers or (
             id(message) not in rebuilt and message.id not in rebuilt_ids.issued
         ):
             continue
-        if id(message) in renewed:
-            message = input[i] = message.model_copy()
+        # a copy, since the object may be an earlier event's snapshot
+        message = input[i] = message.model_copy()
         message_id = message.id = uuid()
         rebuilt_ids.issued.add(message_id)
-        renewed.add(id(message))
 
 
 def _rebuilt_message_key(message: ChatMessage) -> bytes | None:
