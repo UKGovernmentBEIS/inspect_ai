@@ -4,13 +4,24 @@ from typing import cast
 
 import pytest
 from rich.console import Console, Group
+from test_helpers.utils import skip_if_trio
+from textual.app import App, ComposeResult
 
 from inspect_ai._display.textual.widgets.transcript import (
     TranscriptView,
     render_sentinel_event,
 )
 from inspect_ai.dataset import Sample
-from inspect_ai.event import Event, InfoEvent, SentinelEvent
+from inspect_ai.event import (
+    CommunicationEvent,
+    CommunicationRecord,
+    CommunicationRejection,
+    CommunicationSend,
+    Event,
+    InfoEvent,
+    SentinelEvent,
+    SwarmEvent,
+)
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.log._samples import ActiveSample
 from inspect_ai.log._transcript import Transcript
@@ -151,3 +162,67 @@ def test_render_sentinel_event_formats_suspicion(
         suspicion=suspicion,
     )
     assert _sentinel_text(event) == f"score: observation, {shown}"
+
+
+class _TranscriptApp(App[None]):
+    def compose(self) -> ComposeResult:
+        yield TranscriptView()
+
+
+async def _textual_output(events: list[Event]) -> str:
+    """The terminal output of the Textual transcript widgets for ``events``."""
+    app = _TranscriptApp()
+    async with app.run_test(size=(200, 40)) as pilot:
+        view = app.query_one(TranscriptView)
+        widgets = view._widgets_for_events(events)
+        await view.mount_all(widgets)
+        await pilot.pause()
+        return "".join(
+            widget.render_line(y).render(app.console)
+            for widget in widgets
+            for y in range(widget.size.height)
+        )
+
+
+_CLEAR = "\x1b[2J"
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_communication_event_strings_reach_terminal_without_controls() -> None:
+    record = CommunicationRecord(
+        id="w-1", kind="message", sender="a", content=f"hello{_CLEAR}[/red] world"
+    )
+    sent = CommunicationEvent(
+        kind="sent",
+        source="inspect_swarm",
+        agent="a",
+        channel="bus",
+        record_ids=["w-1"],
+        send=CommunicationSend(record=record),
+    )
+    refused = CommunicationEvent(
+        kind="sent",
+        source="inspect_swarm",
+        agent="a",
+        channel="bus",
+        record_ids=["w-1"],
+        send=CommunicationSend(
+            record=record,
+            rejected=CommunicationRejection(
+                control="rate", reason=f"slow{_CLEAR} [bold]down"
+            ),
+        ),
+    )
+    output = await _textual_output([sent, refused])
+    assert _CLEAR not in output
+    assert "hello[/red] world" in output
+    assert "refused (rate): slow [bold]down" in output
+
+
+@skip_if_trio
+@pytest.mark.anyio
+@pytest.mark.parametrize("kind", ["[/red]", "[bold]ledger[/bold]"])
+async def test_swarm_event_kind_renders_literally_in_header(kind: str) -> None:
+    output = await _textual_output([SwarmEvent(kind=kind, data={"version": 1})])
+    assert f"swarm: {kind}" in output

@@ -10,6 +10,7 @@ from textual.containers import ScrollableContainer
 from textual.widget import Widget
 from textual.widgets import Static
 
+from inspect_ai._cli.ctl._render import _sanitize_line
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai._util.rich import tool_result_display
 from inspect_ai._util.transcript import (
@@ -415,42 +416,50 @@ def render_sentinel_event(event: SentinelEvent) -> EventDisplay:
 
 
 def render_communication_event(event: CommunicationEvent) -> EventDisplay:
-    # event strings are appended as plain text, never parsed as markup
+    # event strings can carry model output: strip terminal controls and append
+    # them as plain text, never parsed as markup
     agent = f"{event.agent} (subagent)" if event.nested else event.agent
-    line = Text(agent, style="bold")
+    line = Text(_sanitize_line(agent), style="bold")
     if event.wait is not None:
         line.append(f" waited {event.wait.duration:.1f}s on ")
-        line.append(f"{', '.join(event.wait.channels)}: {event.wait.outcome}")
+        line.append(
+            _sanitize_line(f"{', '.join(event.wait.channels)}: {event.wait.outcome}")
+        )
         return EventDisplay(f"communication: {event.kind}", line)
 
     arrow = "←" if event.kind == "read" else "→"
     action = event.send.record.kind if event.send is not None else event.kind
-    line.append(f" {arrow} {event.channel}: {action}")
+    line.append(_sanitize_line(f" {arrow} {event.channel}: {action}"))
     if event.record_ids:
-        line.append(f" {', '.join(event.record_ids)}")
+        line.append(_sanitize_line(f" {', '.join(event.record_ids)}"))
     if event.delivery is not None:
         if event.delivery.seq is not None:
             line.append(f" (#{event.delivery.seq})")
         if event.delivery.recipients:
-            line.append(f" to {', '.join(event.delivery.recipients)}")
+            line.append(_sanitize_line(f" to {', '.join(event.delivery.recipients)}"))
     if event.send is not None:
         if event.send.record.to:
-            line.append(f" to {', '.join(event.send.record.to)}")
+            line.append(_sanitize_line(f" to {', '.join(event.send.record.to)}"))
         rejected = event.send.rejected
         if rejected is not None:
-            line.append(f", refused ({rejected.control}): {rejected.reason}")
+            line.append(
+                _sanitize_line(f", refused ({rejected.control}): {rejected.reason}")
+            )
         elif event.send.record.content:
-            line.append(f": {event.send.record.content.splitlines()[0]}")
+            line.append(
+                _sanitize_line(f": {event.send.record.content.splitlines()[0]}")
+            )
     return EventDisplay(f"communication: {event.kind}", line)
 
 
 def render_swarm_event(event: SwarmEvent) -> EventDisplay:
     line = Text()
     if event.member is not None:
-        line.append(event.member, style="bold")
+        line.append(_sanitize_line(event.member), style="bold")
         line.append(": ")
     line.append(to_json(event.data, fallback=lambda _: None).decode())
-    return EventDisplay(f"swarm: {event.kind}", line)
+    # the title is a Rich Rule title, which parses markup
+    return EventDisplay(f"swarm: {escape(_sanitize_line(event.kind))}", line)
 
 
 def render_info_event(event: InfoEvent) -> EventDisplay:
