@@ -85,6 +85,21 @@ class TestSkillNameUniqueness:
 
 
 class TestSkillInstallation:
+    @pytest.mark.parametrize("user", [None, "1000"])
+    async def test_install_keeps_legacy_write_interface(
+        self, user: str | None, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        files: list[str] = []
+        sandbox = CannedSandbox(lambda cmd, user: ExecResult(True, 0, "", ""))
+
+        async def write(file: str, contents: str | bytes) -> None:
+            files.append(file)
+
+        monkeypatch.setattr(sandbox, "write_file", write)
+        sk = Skill(name="example", description="Example", instructions="Example")
+        await install_skills([sk], sandbox=sandbox, user=user, dir="/skills")
+        assert files == ["/skills/example/SKILL.md"]
+
     async def test_install_as_local_current_user(self) -> None:
         if os.name != "posix":
             pytest.skip("requires POSIX user identities")
@@ -700,7 +715,9 @@ class _FileSandbox(CannedSandbox):
             self.owners.pop(cmd[-1], None)
         return ExecResult(True, 0, "", "")
 
-    async def write_file(self, file: str, contents: str | bytes) -> None:
+    async def write_file(
+        self, file: str, contents: str | bytes, *, user: str | None = None
+    ) -> None:
         await anyio.lowlevel.checkpoint()
         await super().write_file(file, contents)
         self.files[file] = contents.encode() if isinstance(contents, str) else contents
@@ -737,7 +754,9 @@ class _BlockingSandbox(_FileSandbox):
         for cmd in self.late_cmds:
             self._answer(cmd, None)
 
-    async def write_file(self, file: str, contents: str | bytes) -> None:
+    async def write_file(
+        self, file: str, contents: str | bytes, *, user: str | None = None
+    ) -> None:
         if self.stage == "write" and self.block:
             try:
                 await self._block(file)
@@ -776,7 +795,9 @@ class _CountingLocalSandbox(LocalSandboxEnvironment):
         super().__init__()
         self.written: list[str] = []
 
-    async def write_file(self, file: str, contents: str | bytes) -> None:
+    async def write_file(
+        self, file: str, contents: str | bytes, *, user: str | None = None
+    ) -> None:
         self.written.append(file)
         await super().write_file(file, contents)
 
@@ -1066,7 +1087,9 @@ class TestSkillToolStateScope:
         class FailingSandbox(_FileSandbox):
             fail = True
 
-            async def write_file(self, file: str, contents: str | bytes) -> None:
+            async def write_file(
+                self, file: str, contents: str | bytes, *, user: str | None = None
+            ) -> None:
                 if self.fail:
                     self.fail = False
                     self.files[file] = b"part"
