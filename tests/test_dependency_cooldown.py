@@ -9,6 +9,7 @@ newest releases happens in meridianlabs-ai/canaries, outside this repository.
 """
 
 import ast
+import json
 import pathlib
 import re
 import tomllib
@@ -137,6 +138,13 @@ def script_uv_config() -> dict[str, Any]:
     lines = [line.removeprefix("#").removeprefix(" ") for line in block[1].splitlines()]
     config: dict[str, Any] = tomllib.loads("\n".join(lines))["tool"]["uv"]
     return config
+
+
+def test_setuptools_scm_fallback_version_is_the_released_version() -> None:
+    # Dependabot's uv.lock bumps need it; see the comment in pyproject.toml.
+    pyproject = tomllib.loads((REPO / "pyproject.toml").read_text())
+    manifest = json.loads((REPO / ".release-please-manifest.json").read_text())
+    assert pyproject["tool"]["setuptools_scm"]["fallback_version"] == manifest["."]
 
 
 def test_sync_models_script_follows_the_cooldown() -> None:

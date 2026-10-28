@@ -89,6 +89,7 @@ from inspect_ai.tool import (
     ToolCallContent,
     ToolCallView,
     ToolDef,
+    ToolError,
     ToolFunction,
     ToolInfo,
     ToolResult,
@@ -2644,6 +2645,89 @@ def test_sentinel_limits_end_the_sample_before_the_call(
     [event] = [e for e in sample.events if isinstance(e, ToolEvent)]
     assert event.pending is None
     assert event.failed is True
+
+
+_GROUP_REPEATS = 50
+"""Order-sensitive group cases repeat with fresh exceptions: a group's leaves
+were once ordered by a set (object addresses), so one order could pass by
+chance."""
+
+
+def _working_limit() -> LimitExceededError:
+    return LimitExceededError("working", value=10, limit=5, message="working limit hit")
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize(
+    "decisive,other",
+    [
+        (lambda: TerminateSampleError("stop now"), lambda: ToolError("retry")),
+        (lambda: TerminateSampleError("stop now"), _working_limit),
+        (lambda: RuntimeError("defect"), _working_limit),
+        (lambda: ToolError("retry"), _working_limit),
+    ],
+    ids=[
+        "termination-tool-error",
+        "termination-limit",
+        "defect-limit",
+        "tool-error-limit",
+    ],
+)
+def test_a_grouped_sentinel_error_is_decided_by_its_most_serious_leaf(
+    decisive: Callable[[], Exception], other: Callable[[], Exception], reverse: bool
+) -> None:
+    """A termination decides, then any error that fails the sample, then a limit."""
+    from inspect_ai._sentinel._context import SentinelFailure
+    from inspect_ai.model._call_tools import _sentinel_exception
+
+    for _ in range(_GROUP_REPEATS):
+        leaf = decisive()
+        leaves = [leaf, other()]
+        failure = SentinelFailure(
+            ExceptionGroup("sentinel errors", leaves[::-1] if reverse else leaves)
+        )
+        expected = leaf if isinstance(leaf, TerminateSampleError) else failure
+        assert _sentinel_exception(failure) is expected
+
+
+def test_a_group_of_sentinel_limits_keeps_its_first_limit() -> None:
+    from inspect_ai._sentinel._context import SentinelFailure
+    from inspect_ai.model._call_tools import _sentinel_exception
+
+    for _ in range(_GROUP_REPEATS):
+        first = _working_limit()
+        failure = SentinelFailure(
+            ExceptionGroup("sentinel errors", [first, _working_limit()])
+        )
+        assert _sentinel_exception(failure) is first
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize(
+    "leaves,limit",
+    [
+        (lambda: [ToolError("retry"), TerminateSampleError("stop now")], "operator"),
+        (lambda: [_working_limit(), _working_limit()], "working"),
+        (lambda: [ToolError("retry"), _working_limit()], None),
+    ],
+    ids=["termination", "limits", "tool-error-and-limit"],
+)
+def test_a_grouped_sentinel_error_ends_the_sample_by_its_most_serious_leaf(
+    leaves: Callable[[], list[Exception]], limit: str | None, reverse: bool
+) -> None:
+    errors = leaves()
+    group = ExceptionGroup("sentinel errors", errors[::-1] if reverse else errors)
+    log = run([d3_raising(group)])
+    assert log.samples
+    sample = log.samples[0]
+    if limit is None:
+        assert log.status == "error"
+        assert sample.error is not None and "retry" in sample.error.message
+    else:
+        assert log.status == "success", log.error
+        assert sample.error is None
+        assert sample.limit is not None and sample.limit.type == limit
+    assert tool_messages(log) == []
 
 
 @monitor
