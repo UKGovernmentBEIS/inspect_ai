@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-from inspect_ai import Task, TaskSource, eval_set, task
+from inspect_ai import Task, TaskSource, enqueue_task, eval_set, task
 from inspect_ai._control.eval_state import get_eval_states
 from inspect_ai._eval.eval_set_manifest import (
     INSPECT_EVAL_SET_CAPTURE,
@@ -61,7 +61,11 @@ def selection_task_two() -> Task:
 
 
 def enumerate_eval_set(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, **kwargs: Any
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    *,
+    tasks: list[Task] | None = None,
+    **kwargs: Any,
 ) -> EvalSetCapture:
     """Enumerate the eval set under capture mode (how a runner learns identifiers)."""
     manifest_path = tmp_path / "manifest.json"
@@ -69,7 +73,9 @@ def enumerate_eval_set(
     try:
         with pytest.raises(SystemExit):
             eval_set(
-                tasks=[selection_task_one(), selection_task_two()],
+                tasks=[selection_task_one(), selection_task_two()]
+                if tasks is None
+                else tasks,
                 model=MODELS,
                 log_dir=str(tmp_path / "capture-logs"),
                 display="plain",
@@ -140,6 +146,52 @@ def test_eval_set_selection_runs_only_selected_task(
     assert logs[0].eval.model == "mockllm/model2"
     # the eval set has four tasks; the worker ran exactly one
     assert len(list_eval_logs(str(log_dir))) == 1
+
+
+@solver
+def enqueue_selection_child() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        enqueue_task(selection_task_two())
+        return state
+
+    return solve
+
+
+@task
+def selection_enqueuing_task() -> Task:
+    return Task(
+        dataset=[Sample(input="hello", target="hello")],
+        solver=[enqueue_selection_child()],
+        scorer=exact(),
+    )
+
+
+def test_eval_set_selection_enqueued_task_uses_creator_model(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A task added by a selected task (without a model) runs on its model."""
+    capture = enumerate_eval_set(
+        monkeypatch, tmp_path, tasks=[selection_enqueuing_task()]
+    )
+    selected = next(t for t in capture.tasks if t.model == "mockllm/model2")
+
+    success, logs = run_selection(
+        monkeypatch,
+        tmp_path,
+        selection_for(selected.identifier),
+        tmp_path / "logs",
+        tasks=[selection_enqueuing_task()],
+    )
+
+    added = [log for log in logs if log.eval.task == "selection_task_two"]
+    assert [log.eval.model for log in added] == ["mockllm/model2"]
+    assert success
+    added_log = read_eval_log(added[0].location)
+    assert added_log.samples is not None
+    # generate() returned model output (the none model raises instead)
+    assert added_log.samples[0].output.completion == (
+        "Default output from mockllm/model"
+    )
 
 
 def test_eval_set_selection_stamps_eval_set_id(

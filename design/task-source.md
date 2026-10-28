@@ -172,7 +172,12 @@ The last two share the same downstream machinery:
   bound via `functools.partial` to the run's models / roles / config / sandbox /
   cost limit) plus a buffer. `enqueue()` resolves immediately (so a bad task
   surfaces at the call site) and buffers; `drain()` is the non-blocking pull the
-  loop does after each batch.
+  loop does after each batch. When the run has no model (`none`, as in the inner
+  eval that `eval_set()` runs, whose tasks carry their own models), a task
+  without its own model resolves against the caller's active model: the model
+  of the task that added it for `enqueue_task` calls and `sample_complete` /
+  `task_complete` / `sample_abandoned` return values, which run inside a task,
+  and `none` for `next_tasks()`, which runs outside any task.
 - The batch loop drains the enqueuer *before* consulting `next_tasks()`, so
   imperative additions and declarative generation compose in one loop.
 

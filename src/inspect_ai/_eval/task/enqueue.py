@@ -93,7 +93,9 @@ def enqueue_task(tasks: "Tasks", *, run_id: str | None = None) -> None:
 
     The tasks run in this process under the current run's ``run_id`` (a fresh
     ``eval_id``/``task_id`` each, their own log files), resolved against the
-    run's models and config.
+    run's models and config. When the run has no model of its own (as under
+    ``eval_set()``, which gives each task its model instead), an added task
+    that sets no model uses the model of the task that added it.
 
     When the run is driven by a :class:`~inspect_ai.TaskSource`, added tasks are
     *live*: they start as soon as there is free capacity. Otherwise they run as a

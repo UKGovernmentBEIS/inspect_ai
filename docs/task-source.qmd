@@ -152,7 +152,7 @@ def spawn_followup():
     return solve
 ```
 
-Enqueued tasks run under the current run id, resolved against the run's models and config, and share a buffer with tasks returned from `sample_complete` / `task_complete`. `enqueue_task()` raises if no eval is running.
+Enqueued tasks run under the current run id, resolved against the run's models and config, and share a buffer with tasks returned from `sample_complete` / `task_complete`. When the run has no model of its own (as under `eval_set()`, which gives each task its model instead), an enqueued task that sets no model uses the model of the task that enqueued it; the same applies to tasks returned from `sample_complete` / `task_complete`. `enqueue_task()` raises if no eval is running.
 
 ## Concurrency
 
