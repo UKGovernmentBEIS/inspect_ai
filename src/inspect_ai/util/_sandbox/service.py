@@ -25,11 +25,11 @@ from ._framework_directory import (
     SHARED_MODE,
     ensure_framework_directory,
     exec_in_framework_directory,
-    split_framework_path,
     try_ensure_framework_directory_as_root,
 )
 from ._privileged import image_path_lookup, privileged_exec
 from .environment import SandboxEnvironment
+from .events import without_sandbox_events
 from .limits import OutputLimitExceededError, override_max_exec_output_size
 
 logger = getLogger(__name__)
@@ -94,7 +94,6 @@ def raise_if_control_flow(ex: Exception) -> None:
 REQUESTS_DIR = "requests"
 RESPONSES_DIR = "responses"
 SERVICES_DIR = "/var/tmp/sandbox-services"
-_SERVICES_DIR_SPLIT = split_framework_path(SERVICES_DIR)
 
 ID = "id"
 METHOD = "method"
@@ -143,18 +142,6 @@ def _is_filename_token(value: object) -> bool:
     return (
         isinstance(value, str) and FILENAME_TOKEN_PATTERN.fullmatch(value) is not None
     )
-
-
-def is_sandbox_service_command(cmd: list[str]) -> bool:
-    """Whether ``cmd`` is one of a sandbox service's own setup or queue commands.
-
-    These are not recorded as transcript events. A path under the services
-    directory appears whole in most of them; the framework-directory helper
-    receives the services directory itself split into its parent and leaf.
-    """
-    if any(SERVICES_DIR in arg for arg in cmd):
-        return True
-    return any(pair == _SERVICES_DIR_SPLIT for pair in zip(cmd, cmd[1:]))
 
 
 @overload
@@ -528,11 +515,10 @@ class SandboxService:
         except json.JSONDecodeError:
             # A decode error means either (a) the file is still being written --
             # retry on the next poll -- or (b) the provider silently TRUNCATED an
-            # oversized read instead of raising (e.g. docker/local, whose service
-            # execs bypass the output-size verifier), leaving a partial tail that
-            # can never parse. Distinguish via the on-disk size: if the file
-            # exceeds the read limit it can never be read, so discard it; otherwise
-            # treat it as an incomplete write and retry.
+            # oversized read instead of raising (e.g. docker/local), leaving a
+            # partial tail that can never parse. Distinguish via the on-disk size:
+            # if the file exceeds the read limit it can never be read, so discard
+            # it; otherwise treat it as an incomplete write and retry.
             size = await self._request_size(request_file)
             if size is not None and size > SERVICE_REQUEST_READ_OUTPUT_LIMIT:
                 limit_mib = SERVICE_REQUEST_READ_OUTPUT_LIMIT // 1024**2
@@ -747,7 +733,7 @@ class SandboxService:
         refused, not repaired.
         """
         try:
-            with untracked_sandbox_execs():
+            with without_sandbox_events(self._sandbox):
                 as_root = await try_ensure_framework_directory_as_root(
                     self._sandbox,
                     SERVICES_DIR,
@@ -790,7 +776,11 @@ class SandboxService:
         return rpc_dir
 
     async def _write_text_file(self, dir: str, name: str, contents: str) -> None:
-        result = await self._exec_in_dir(dir, ["tee", "--", name], input=contents)
+        # Service commands are subject to the exec output limit. Use shell
+        # redirection rather than tee so large writes do not also echo to stdout.
+        result = await self._exec_in_dir(
+            dir, ["sh", "-c", 'cat > "$1"', "sh", name], input=contents
+        )
         if not result.success:
             raise RuntimeError(
                 f"Failed to write file '{name}' into '{dir}' in sandbox: "
@@ -799,7 +789,7 @@ class SandboxService:
 
     # Every command below bypasses the sandbox concurrency limit: services must
     # keep running while sandboxed clients hold exec slots waiting for responses.
-    # None of them is the sample's known work (`untracked_sandbox_execs()`).
+    # Service housekeeping is excluded from the sample's known work.
 
     async def _ensure_dir(
         self,
@@ -810,7 +800,7 @@ class SandboxService:
         mode: int = DEFAULT_MODE,
     ) -> None:
         try:
-            with untracked_sandbox_execs():
+            with without_sandbox_events(self._sandbox):
                 await ensure_framework_directory(
                     self._sandbox,
                     path,
@@ -827,7 +817,7 @@ class SandboxService:
         self, dir: str, cmd: list[str], input: str | None = None
     ) -> ExecResult[str]:
         try:
-            with untracked_sandbox_execs():
+            with without_sandbox_events(self._sandbox):
                 return await exec_in_framework_directory(
                     self._sandbox,
                     dir,
@@ -856,7 +846,7 @@ class SandboxService:
         user planted on the image's ``PATH``.
         """
         try:
-            with untracked_sandbox_execs():
+            with without_sandbox_events(self._sandbox):
                 return await privileged_exec(
                     self._sandbox,
                     cmd,

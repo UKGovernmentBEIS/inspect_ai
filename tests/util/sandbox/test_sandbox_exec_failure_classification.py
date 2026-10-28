@@ -19,9 +19,13 @@ from inspect_ai.util._sandbox.docker.docker import DockerSandboxEnvironment
 from inspect_ai.util._sandbox.docker.failure import (
     InjectedWrapper,
     classify_exec_failure,
+    raise_for_unsupported_user,
 )
 from inspect_ai.util._sandbox.docker.util import ComposeProject
-from inspect_ai.util._sandbox.environment import SandboxUnavailableError
+from inspect_ai.util._sandbox.environment import (
+    SandboxUnavailableError,
+    SandboxUserUnsupportedError,
+)
 
 # what `exec` injects for `bash(timeout=N)`: GNU `timeout` in front of `bash`
 WRAPPER = InjectedWrapper(binary="/usr/bin/timeout", target="bash")
@@ -457,6 +461,57 @@ def _sandbox() -> DockerSandboxEnvironment:
         ),
         working_dir="/",
     )
+
+
+@pytest.mark.parametrize(
+    "prefix,ending",
+    [("Error response from daemon: ", "\n"), ("", "\r\n")],
+    ids=["engine-29", "engine-28"],
+)
+@pytest.mark.parametrize(
+    "user,message",
+    [
+        (
+            "nobody-here",
+            "unable to find user nobody-here: no matching entries in passwd file",
+        ),
+        (
+            "root:no-group",
+            "unable to find group no-group: no matching entries in group file",
+        ),
+        (
+            "permission denied",
+            "unable to find user permission denied: no matching entries in passwd file",
+        ),
+    ],
+)
+def test_unknown_user_recognised_on_docker_28_and_29(
+    prefix: str, ending: str, user: str, message: str
+) -> None:
+    with pytest.raises(SandboxUserUnsupportedError):
+        raise_for_unsupported_user(f"{prefix}{message}{ending}", user)
+
+
+@pytest.mark.parametrize(
+    "user,output",
+    [
+        (None, "unable to find user agent: no matching entries in passwd file"),
+        ("other", "unable to find user agent: no matching entries in passwd file"),
+        (
+            "agent",
+            "tar: x\nunable to find user agent: no matching entries in passwd file",
+        ),
+        (
+            "agent",
+            "Error response from daemon: Error response from daemon: "
+            "unable to find user agent: no matching entries in passwd file",
+        ),
+    ],
+)
+def test_unknown_user_requires_exact_message_for_requested_user(
+    user: str | None, output: str
+) -> None:
+    raise_for_unsupported_user(output, user)
 
 
 FAKE_DIAGNOSTICS = 'Container diagnostics for service "default":\n(fake diagnostics)'

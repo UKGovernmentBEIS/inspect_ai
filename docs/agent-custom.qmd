@@ -350,7 +350,7 @@ supervisor = react(
     tools=[
         addition(), 
         handoff(web_surfer()), 
-        handoff(critic(model="openai/gpt-5-mini"))
+        handoff(critic(model="openai/gpt-6-luna"))
     ]
 )
 ```
@@ -423,6 +423,21 @@ There are two reasons that you might want to create spans:
 2.  The Inspect log viewer will create a visual delineation for the span, which will make it easier to see the flow of activity within the transcript.
 
 Spans are automatically created for sample initialisation, solvers, scorers, subtasks, tool calls, and agent execution.
+
+### Model Call Origins
+
+Each `ModelEvent` records where the call was made in its `origin` field. During the solve a call is `"agent"`, one of its conversation's agent turns, unless it is made by a tool, a compaction, an approver, a reviewer, MCP sampling, a sentinel or a scorer, which Inspect marks itself (`"tool"`, `"compaction"`, `"approval"`, `"review"`, `"sampling"`, `"sentinel"`, `"scorer"`). A scorer's calls are `"scorer"`, including those of an agent run inside it, and a sentinel does not check a scorer's tool calls. Any other call outside the solve, such as one made at sample init, is `"setup"`. A sentinel checks only agent turns at its generate stages, and the transcript timeline shows other calls as utility.
+
+If your agent makes model calls that are part of the solve but are not the evaluated agent's turns, mark them with `model_origin()`. Use `"environment"` for the setup being evaluated against, such as an auditor model or a simulated user, and `"helper"` for a scaffold's own helper calls, such as its own summarizer:
+
+``` python
+from inspect_ai.model import get_model, model_origin
+
+with model_origin("environment"):
+    reply = await get_model(role="user").generate(messages)
+```
+
+An agent run inside the block keeps the block's kind, and a sentinel does not check the tool calls made within it. The marker is a context variable, so it reaches the calls made in the task that entered the block and in tasks that task starts while inside it, and no others. If the evaluated agent's calls are made from inside an environment block (for example, by an auditor's tool that generates the target's turn), they are marked as environment too, so make them outside the block.
 
 ## Parallelism
 
