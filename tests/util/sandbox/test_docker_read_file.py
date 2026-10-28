@@ -384,6 +384,31 @@ async def test_read_file_reports_stopped_container_as_unavailable(
         await _environment().read_file("source")
 
 
+@pytest.mark.parametrize("returncode", [137, 143])
+@pytest.mark.parametrize("partial_output", [False, True])
+async def test_read_file_signal_exit_before_timeout_is_a_runtime_error(
+    returncode: int, partial_output: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        compose_module,
+        "compose_command",
+        AsyncMock(
+            return_value=ExecResult(
+                success=False,
+                returncode=returncode,
+                stdout=b"partial archive" if partial_output else b"",
+                stderr=b"tar: Removing leading `/' from member names\n"
+                if partial_output
+                else b"",
+            )
+        ),
+    )
+
+    with pytest.raises(RuntimeError) as ex:
+        await _environment().read_file("source")
+    assert type(ex.value) is RuntimeError
+
+
 @pytest.mark.parametrize(
     "stderr,expected",
     [
