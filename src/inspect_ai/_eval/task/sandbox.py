@@ -2,6 +2,7 @@ import base64
 import contextlib
 import os
 from logging import getLogger
+from pathlib import Path
 from random import random
 from typing import AsyncGenerator, Callable, NamedTuple, cast
 
@@ -20,7 +21,6 @@ from inspect_ai._eval.task.util import task_run_dir
 from inspect_ai._util.file import FileSystem, file, filesystem
 from inspect_ai._util.httpx import httpx_should_retry, log_httpx_retry_attempt
 from inspect_ai._util.logger import warn_once
-from inspect_ai._util.path import chdir
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai._util.url import data_uri_to_base64, is_data_uri, is_http_url
 from inspect_ai.dataset import Sample
@@ -44,6 +44,7 @@ from inspect_ai.util._sandbox.environment import (
     TaskInitEnvironment,
 )
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
+from inspect_ai.util._sandbox.setup import SandboxSetup, sandbox_setup_scope
 
 logger = getLogger(__name__)
 
@@ -89,9 +90,10 @@ async def sandboxenv_context(
     max_sandboxes: int | None,
     cleanup: bool,
     sample: Sample,
+    task_dir: str,
 ) -> AsyncGenerator[None, None]:
     # resolve sandbox
-    sandbox = await resolve_sandbox(sandbox, sample, task_name)
+    sandbox = await resolve_sandbox(sandbox, sample, task_name, task_dir=task_dir)
     if not sandbox:
         raise ValueError("sandboxenv_context called with no sandbox specified")
 
@@ -258,15 +260,15 @@ async def resolve_sandbox_for_task_and_sample(
     # (sandboxenv_context() -> resolve_sandbox()), so that the set of sandboxes we
     # initialize here matches what each sample actually uses at runtime -- including
     # docker-compatible per-sample configs (e.g. a per-sample ComposeConfig).
-    sandbox = await resolve_sandbox(sandbox, sample, task.name)
+    run_dir = task_run_dir(task)
+    sandbox = await resolve_sandbox(sandbox, sample, task.name, task_dir=run_dir)
     if sandbox is not None:
         # see if there are environment variables required for init of this sample
-        run_dir = task_run_dir(task)
-        with chdir(run_dir):
-            sandboxenv_type = registry_find_sandboxenv(sandbox.type)
-            task_init_environment = cast(
-                TaskInitEnvironment, getattr(sandboxenv_type, "task_init_environment")
-            )
+        sandboxenv_type = registry_find_sandboxenv(sandbox.type)
+        task_init_environment = cast(
+            TaskInitEnvironment, getattr(sandboxenv_type, "task_init_environment")
+        )
+        with sandbox_setup_scope(SandboxSetup(run_dir)):
             env = await task_init_environment(sandbox.config, sample.metadata or {})
 
         return TaskSandboxEnvironment(
@@ -280,6 +282,8 @@ async def resolve_sandbox(
     sandbox: SandboxEnvironmentSpec | None,
     sample: Sample,
     task_name: str | None = None,
+    *,
+    task_dir: str | None = None,
 ) -> SandboxEnvironmentSpec | None:
     # resolved sandbox
     resolved_sandbox: SandboxEnvironmentSpec | None = None
@@ -344,6 +348,18 @@ async def resolve_sandbox(
     elif sample.sandbox is not None:
         resolved_sandbox = sample.sandbox
 
+    # a relative config file named by a sample built in code is relative to
+    # the task's directory (as a task's own config is), wherever it is read
+    if (
+        task_dir is not None
+        and resolved_sandbox is not None
+        and isinstance(resolved_sandbox.config, str)
+        and not Path(resolved_sandbox.config).is_absolute()
+    ):
+        resolved_sandbox = SandboxEnvironmentSpec(
+            resolved_sandbox.type,
+            (Path(task_dir) / resolved_sandbox.config).as_posix(),
+        )
     return resolved_sandbox
 
 

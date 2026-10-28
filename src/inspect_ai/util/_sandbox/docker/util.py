@@ -8,6 +8,7 @@ from shortuuid import uuid
 
 from ..compose import ComposeConfig, is_dockerfile
 from ..environment import SandboxEnvironmentConfigType
+from ..setup import sandbox_setup
 from .config import (
     COMPOSE_DOCKERFILE_YAML,
     auto_compose_file,
@@ -40,6 +41,11 @@ class ComposeProject:
     ) -> "ComposeProject":
         import os
 
+        # relative locations are in the task's directory during its setup and
+        # cleanup (see sandbox_setup), else in the working directory
+        setup = sandbox_setup()
+        work_dir = setup.task_dir if setup is not None else os.getcwd()
+
         # resolve config to full path if we have one
         config_path = None
         if isinstance(config, str):
@@ -51,8 +57,8 @@ class ComposeProject:
                 default_flow_style=False,
                 sort_keys=False,
             )
-            # Use project name for unique file, resolve paths against CWD
-            config = auto_compose_file(config_yaml, name, base_dir=os.getcwd())
+            # Use project name for unique file, resolve paths against work_dir
+            config = auto_compose_file(config_yaml, name, base_dir=work_dir)
         elif config is not None:
             raise ValueError(
                 f"Unsupported config type: {type(config)}. Expected str or ComposeConfig."
@@ -72,7 +78,7 @@ class ComposeProject:
 
         # no config passed, look for 'auto-config' (compose.yaml, Dockerfile, etc.)
         elif config is None:
-            config = resolve_compose_file(project_name=name)
+            config = resolve_compose_file(work_dir, project_name=name)
 
         # this could be a cleanup where docker has tracked a .compose.yaml file
         # as part of its ConfigFiles and passed it back to us -- we in the

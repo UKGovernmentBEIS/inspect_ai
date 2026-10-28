@@ -25,7 +25,6 @@ from typing_extensions import Unpack
 
 from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
 from inspect_ai._util._async import unwrap_exception_group
-from inspect_ai._util.environ import environ_vars
 from inspect_ai._util.file import cleanup_s3_sessions
 from inspect_ai._util.task import task_display_name
 from inspect_ai._util.trace import trace_action
@@ -97,6 +96,7 @@ from inspect_ai.util._sandbox.environment import (
 )
 from inspect_ai.util._sandbox.lifecycle import sandbox_lifecycle_scope
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
+from inspect_ai.util._sandbox.setup import SandboxSetup, sandbox_setup_scope
 
 from .loader import (
     as_solver_spec,
@@ -1165,7 +1165,12 @@ class SandboxManager:
             sandboxenv: TaskSandboxEnvironment | None = None
             cache_key: SandboxEnvironmentSpec | None = None
             if not sample.metadata:
-                spec = await resolve_sandbox(task.sandbox, sample, task.task.name)
+                spec = await resolve_sandbox(
+                    task.sandbox,
+                    sample,
+                    task.task.name,
+                    task_dir=task_run_dir(task.task),
+                )
                 if spec is None:
                     continue
                 cache_key = spec
@@ -1223,7 +1228,8 @@ class SandboxManager:
                     # provider's get-or-create finds it)
                     task_init = cast(TaskInit, getattr(sandboxenv_type, "task_init"))
                     _set_provider_state(self._state)
-                    with chdir(sandboxenv.run_dir), environ_vars(dict(sandboxenv.env)):
+                    setup = SandboxSetup(sandboxenv.run_dir, dict(sandboxenv.env))
+                    with sandbox_setup_scope(setup):
                         state = await _provider_state_of(
                             task_init, "startup", sandboxenv.sandbox.config
                         )
@@ -1258,18 +1264,18 @@ class SandboxManager:
 
         async def cleanup(job: _TaskCleanup) -> None:
             _set_provider_state(job.state)
-            await job.cleanup("shutdown", job.config, self._cleanup)
+            with sandbox_setup_scope(SandboxSetup(job.run_dir)):
+                await job.cleanup("shutdown", job.config, self._cleanup)
 
         with anyio.CancelScope(shield=True):
             try:
                 for job in self._cleanups:
                     try:
-                        with chdir(job.run_dir):
-                            async with (
-                                unwrap_exception_group(),
-                                anyio.create_task_group() as tg,
-                            ):
-                                tg.start_soon(cleanup, job)
+                        async with (
+                            unwrap_exception_group(),
+                            anyio.create_task_group() as tg,
+                        ):
+                            tg.start_soon(cleanup, job)
                     except BaseException as ex:
                         log.warning(
                             f"Error occurred shutting down sandbox environments: {exception_message(ex)}"

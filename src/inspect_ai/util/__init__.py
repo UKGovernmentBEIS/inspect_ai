@@ -100,6 +100,7 @@ from ._sandbox import (
     sandbox_with,
     sandboxenv,
 )
+from ._sandbox.setup import SandboxSetup, sandbox_setup
 from ._span import SpanIdProvider, current_span_id, span, span_id_provider
 from ._store import Store, store, store_from_events, store_from_events_as
 from ._store_model import StoreModel, store_as
@@ -168,6 +169,8 @@ __all__ = [
     "SandboxUnavailableError",
     "SandboxUserUnsupportedError",
     "SandboxConnection",
+    "SandboxSetup",
+    "sandbox_setup",
     "sandboxenv",
     "sandbox",
     "sandbox_with",

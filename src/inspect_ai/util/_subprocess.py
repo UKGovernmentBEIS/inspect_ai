@@ -27,6 +27,7 @@ from inspect_ai._util.trace import trace_action
 
 from ._concurrency import concurrency as concurrency_manager
 from ._concurrency import get_or_create_semaphore, register_subprocess_limiter
+from ._sandbox.setup import sandbox_setup
 
 logger = getLogger(__name__)
 
@@ -124,6 +125,12 @@ async def subprocess(
     subprocesses (defaulting to the number of processors available
     to the eval, but controllable via the `max_subprocesses` eval
     config option).
+
+    Inside a sandbox provider's task-level setup or cleanup (see
+    `sandbox_setup()`), the process runs in the task's directory unless `cwd`
+    is given, with the setup's environment variables added (`env` takes
+    precedence), and output that would go to the terminal may be collected
+    for the task instead.
 
     Args:
        args (str | list[str]): Command and arguments to execute.
@@ -246,18 +253,26 @@ async def run_subprocess(
         else None
     )
 
+    # during a sandbox provider's task-level setup or cleanup, child processes
+    # run in the task's directory with its setup env vars (see sandbox_setup)
+    setup = sandbox_setup()
+    # output the call would stream to the terminal is collected for the setup
+    collected = setup.output if setup is not None and not capture_output else None
+
     async def run_command() -> SubprocessRun[str] | SubprocessRun[bytes]:
         redirect_output_to_logger = (
             not capture_output
+            and collected is None
             and os.environ.get("INSPECT_SUBPROCESS_REDIRECT_TO_LOGGER") is not None
         )
+        piped = capture_output or redirect_output_to_logger or collected is not None
         process = await open_process(
             args,
             stdin=PIPE if input else DEVNULL,
-            stdout=PIPE if (capture_output or redirect_output_to_logger) else None,
-            stderr=PIPE if (capture_output or redirect_output_to_logger) else None,
-            cwd=cwd,
-            env={**os.environ, **(env or {})},
+            stdout=PIPE if piped else None,
+            stderr=PIPE if piped else None,
+            cwd=cwd if cwd is not None or setup is None else setup.task_dir,
+            env={**os.environ, **(setup.env if setup else {}), **(env or {})},
         )
         try:
             if redirect_output_to_logger:
@@ -283,6 +298,8 @@ async def run_subprocess(
                 write_stdin,
             ]
             stdout, stderr, _ = await tg_collect(io_tasks)
+            if collected is not None:
+                collected.append((stdout + stderr).decode(errors="replace"))
 
             returncode = await process.wait()
             success = returncode == 0

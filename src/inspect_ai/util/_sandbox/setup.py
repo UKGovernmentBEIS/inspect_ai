@@ -1,0 +1,58 @@
+"""Where a sandbox provider's task-level setup and cleanup run.
+
+Inspect calls a provider's ``task_init_environment``, ``task_init`` and
+``task_cleanup`` for a task's sandbox config without changing the process's
+working directory or environment variables, which every running task shares.
+Instead, while those calls run, :func:`sandbox_setup` returns the task's
+directory and the environment variables the provider's
+``task_init_environment`` returned for the call, and
+:func:`~inspect_ai.util.subprocess` applies them to the child processes it
+starts (as their default working directory and extra environment variables).
+A provider that resolves relative paths in Python during setup can read the
+task directory from :func:`sandbox_setup`.
+"""
+
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass, field
+from typing import Iterator
+
+
+@dataclass(frozen=True)
+class SandboxSetup:
+    """The task a sandbox provider's setup or cleanup call is for."""
+
+    task_dir: str
+    """The task's directory (where its task file is), absolute."""
+
+    env: dict[str, str] = field(default_factory=dict)
+    """Environment variables for the call's child processes (for ``task_init``,
+    what the provider's ``task_init_environment`` returned)."""
+
+    output: list[str] | None = None
+    """When set, the output of child processes that would go to the terminal
+    is collected here instead (so it can be shown if the setup fails)."""
+
+
+_sandbox_setup: ContextVar[SandboxSetup | None] = ContextVar(
+    "sandbox_setup", default=None
+)
+
+
+def sandbox_setup() -> SandboxSetup | None:
+    """The task the current sandbox setup or cleanup call is for.
+
+    Returns ``None`` outside a provider's ``task_init_environment``,
+    ``task_init`` and ``task_cleanup`` (for example in ``sample_init``).
+    """
+    return _sandbox_setup.get()
+
+
+@contextmanager
+def sandbox_setup_scope(setup: SandboxSetup) -> Iterator[None]:
+    """Make ``setup`` the current sandbox setup for the block."""
+    token = _sandbox_setup.set(setup)
+    try:
+        yield
+    finally:
+        _sandbox_setup.reset(token)

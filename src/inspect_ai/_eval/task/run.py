@@ -236,7 +236,13 @@ from .scheduler import (
 )
 from .store import DiskSampleStore, maybe_page_to_disk
 from .task_source import TaskSource
-from .util import sample_id_filter, sample_limit_count, sample_messages, slice_dataset
+from .util import (
+    sample_id_filter,
+    sample_limit_count,
+    sample_messages,
+    slice_dataset,
+    task_run_dir,
+)
 
 py_logger = getLogger(__name__)
 
@@ -2513,7 +2519,12 @@ async def _task_run_sample_attempt(
         sandboxenv_cm = (
             aexit_shielded_when(
                 sandboxenv_context(
-                    task_name, sandbox, max_sandboxes, sandbox_cleanup, sample
+                    task_name,
+                    sandbox,
+                    max_sandboxes,
+                    sandbox_cleanup,
+                    sample,
+                    task_run_dir(task),
                 ),
                 lambda: cancelled_error is not None,
             )
