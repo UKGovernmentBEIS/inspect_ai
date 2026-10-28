@@ -1,7 +1,7 @@
 """Unit tests for the pluggable sandbox snapshot strategies.
 
-Covers the §4.7 strategy pin semantics, the shared chunked copy-out
-primitive, and the ``archive`` strategy's mechanics (snapshot → restore
+Covers the §4.7 strategy pin semantics, the shared chunked copy-out and
+copy-in primitives, and the ``archive`` strategy's mechanics (snapshot → restore
 roundtrip, hash verification, restore scoping, orphan discard) against a
 *local shell* sandbox fake: ``exec`` runs the scripts with the host's
 ``sh`` and file APIs map to host paths, so the strategy's real shell
@@ -41,7 +41,7 @@ from test_helpers.local_shell_sandbox import (
     sandbox_path,
 )
 
-from inspect_ai.util._checkpoint._copy import copy_out, copy_out_partial_path
+from inspect_ai.util._checkpoint._copy import copy_in, copy_out, copy_out_partial_path
 from inspect_ai.util._checkpoint._layout.schemas import Checkpoint, SnapshotDetails
 from inspect_ai.util._checkpoint._restore_scope import (
     MAX_LONG_HEADER_BYTES,
@@ -337,11 +337,12 @@ async def test_archive_snapshot_tolerates_staging_cleanup_exception(
 
 
 class _CountingSandbox(LocalShellSandbox):
-    """Counts ``exec`` calls: a refused restore must run none."""
+    """Counts ``exec`` calls and records input sizes: a refused restore must run none."""
 
     def __init__(self) -> None:
         super().__init__()
         self.execs = 0
+        self.input_sizes: list[int] = []
 
     async def exec(
         self,
@@ -355,6 +356,8 @@ class _CountingSandbox(LocalShellSandbox):
         concurrency: bool = True,
     ) -> ExecResult[str]:
         self.execs += 1
+        if input is not None:
+            self.input_sizes.append(len(input))
         return await super().exec(
             cmd, input, cwd, env, user, timeout, timeout_retry, concurrency
         )
@@ -1624,6 +1627,35 @@ async def test_copy_out_cancelled_mid_transfer_leaves_no_partial(
 
     assert not dest.exists()
     assert not partial.exists()
+
+
+async def test_copy_in_roundtrip_multi_chunk(tmp_path: Path) -> None:
+    sandbox_dir, payload = _copy_fixture(tmp_path, 5 * _COPY_CHUNK + 123)
+    dest = sandbox_dir / "blob.in"
+    env = _CountingSandbox()
+
+    await copy_in(
+        env,
+        src=sandbox_dir / "blob",
+        dest=str(dest),
+        label="test copy",
+        chunk_size=_COPY_CHUNK,
+    )
+
+    assert dest.read_bytes() == payload
+    assert env.input_sizes == [_COPY_CHUNK] * 5 + [123]
+
+
+async def test_copy_in_reports_failed_chunk(tmp_path: Path) -> None:
+    sandbox_dir, _ = _copy_fixture(tmp_path, 10)
+
+    with pytest.raises(RuntimeError, match="test copy: copy-in failed"):
+        await copy_in(
+            LocalShellSandbox(),
+            src=sandbox_dir / "blob",
+            dest=str(tmp_path / "missing" / "blob.in"),
+            label="test copy",
+        )
 
 
 async def test_archive_setup_reports_missing_tool(tmp_path: Path) -> None:
