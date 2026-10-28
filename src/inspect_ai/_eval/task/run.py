@@ -717,6 +717,19 @@ def _enqueue_source_tasks(tasks: list[Task] | None) -> None:
             enqueuer.enqueue(tasks)
 
 
+async def notify_task_source(options: TaskRunOptions, eval_log: EvalLog) -> None:
+    """Report a finished attempt's log to the run's TaskSource (if it has one).
+
+    Adds the follow-up tasks ``TaskSource.task_complete`` returns to the run.
+    Called for each attempt that finishes with a log, or that its own abort
+    or retry request interrupted before it had one, after the attempt's
+    cancel scope has exited: that request cancels the scope, so the callback
+    runs (and can await) whether or not the task was cancelled.
+    """
+    if options.task_source is not None:
+        _enqueue_source_tasks(await options.task_source.task_complete(eval_log))
+
+
 def _enqueue_source_samples(samples: list[Sample] | None) -> None:
     """Add samples a SampleSource callback returned to the running task's queue.
 
@@ -2130,12 +2143,8 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     # restore sandbox limits
     reset_sandbox_limits(limit_tokens)
 
-    # notify a TaskSource (if the run has one) that this task is complete
-    # (it may return follow-up tasks to add to the run)
-    if options.task_source is not None:
-        _enqueue_source_tasks(await options.task_source.task_complete(eval_log))
-
-    # return eval log
+    # return eval log (the caller reports it to the run's TaskSource, see
+    # notify_task_source)
     return eval_log
 
 
