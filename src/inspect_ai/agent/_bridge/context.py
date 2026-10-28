@@ -93,9 +93,7 @@ _bridge_request: ContextVar[BridgeRequest | None] = ContextVar(
     "_bridge_request", default=None
 )
 
-# Client headers of the request being handled, set by the bridge's entry
-# point (sandbox model service or in-process SDK patch) and read by the
-# `bridged_request_scope` that `bridge_generate` opens for that request.
+# set at each bridge entry point, read by `bridged_request_scope`
 _client_request_headers: ContextVar[dict[str, str] | None] = ContextVar(
     "_client_request_headers", default=None
 )
@@ -199,8 +197,7 @@ def bridged_request_scope(requested_model: str | None) -> Iterator[None]:
     they were spawned with.
     """
     context_token = _agent_bridge_context.set(_UNKNOWN_CONTEXT)
-    # consume the client headers: they belong to this request only, not to a
-    # bridged request nested inside it that has no entry point of its own
+    # consume them so a nested bridged request doesn't inherit them
     headers = _client_request_headers.get()
     headers_token = _client_request_headers.set(None)
     request_token = _bridge_request.set(

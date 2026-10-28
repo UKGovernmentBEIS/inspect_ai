@@ -204,12 +204,10 @@ async def sandbox_agent_bridge(
         response_filter: Filter that can replace model output after generation
             (see ``ModelResponseFilter``). Return ``None`` to pass through;
             return a ``ModelOutput`` to replace the response.
-        expose_client_headers: Names of client request headers to show host
-            code (filters, model event sinks) in
+        expose_client_headers: Client request headers to show host code in
             `current_bridge_request().headers`, e.g. `["x-claude-code-agent-id"]`.
-            Doesn't change what is forwarded to the provider (see
-            `forward_client_headers`). Credential headers (e.g. `Authorization`)
-            cannot be listed. Defaults to `None` (none).
+            Doesn't affect forwarding. Credential headers cannot be listed.
+            Defaults to `None` (none).
     """
     warn_sentinel_bridged()
 

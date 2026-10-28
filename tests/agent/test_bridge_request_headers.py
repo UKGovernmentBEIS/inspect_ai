@@ -30,7 +30,7 @@ from inspect_ai.model._model import GenerateFilter, use_model_event_sink
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 
-# What Claude Code sends on a nested sub-agent's request, plus credentials
+# a nested Claude Code sub-agent's request
 _CLIENT_HEADERS = {
     "X-Claude-Code-Agent-Id": "a1b2c3",
     "x-claude-code-parent-agent-id": "p9",
@@ -68,7 +68,7 @@ def test_exposes_nothing_by_default() -> None:
     assert _exposed(_CLIENT_HEADERS, frozenset()) == {}
 
 
-def test_joins_repeated_names_and_drops_non_strings() -> None:
+def test_joins_repeated_names() -> None:
     names = frozenset({"x-a", "x-b"})
     assert _exposed({"X-A": "1", "x-a": "2", "x-b": 3, 4: "x"}, names) == {
         "x-a": "1, 2"
@@ -100,7 +100,7 @@ def test_resolve_refuses_credential_headers(name: str) -> None:
         resolve_expose_client_headers([name])
 
 
-def test_bridge_request_headers_default_empty_and_hashable() -> None:
+def test_default_empty_and_hashable() -> None:
     request = BridgeRequest(model="m")
     assert request.headers == {}
     hash(request)
@@ -191,12 +191,12 @@ _PROTOCOLS: dict[str, tuple[Callable[[SandboxAgentBridge], _Generate], Any]] = {
         },
     ),
 }
-# Google is left out: the sandbox proxy sends no headers for Gemini requests.
+# no Google: the sandbox proxy sends no headers for Gemini
 
 
 @pytest.mark.anyio
 @pytest.mark.parametrize("protocol", list(_PROTOCOLS))
-async def test_model_event_sink_sees_client_headers(protocol: str) -> None:
+async def test_sink_sees_headers(protocol: str) -> None:
     factory, body = _PROTOCOLS[protocol]
     sink = _CapturingSink()
     with use_model_event_sink(sink):
@@ -212,7 +212,7 @@ async def test_model_event_sink_sees_client_headers(protocol: str) -> None:
 
 
 @pytest.mark.anyio
-async def test_filter_sees_client_headers() -> None:
+async def test_filter_sees_headers() -> None:
     seen: list[BridgeRequest | None] = []
 
     async def capture(*args: Any) -> None:
@@ -226,7 +226,7 @@ async def test_filter_sees_client_headers() -> None:
 
 
 @pytest.mark.anyio
-async def test_sink_sees_no_headers_when_client_sent_none() -> None:
+async def test_sink_without_headers() -> None:
     factory, body = _PROTOCOLS["anthropic"]
     sink = _CapturingSink()
     with use_model_event_sink(sink):
@@ -236,8 +236,8 @@ async def test_sink_sees_no_headers_when_client_sent_none() -> None:
 
 
 @pytest.mark.anyio
-async def test_exposed_headers_are_not_forwarded_to_provider() -> None:
-    """Exposing a header doesn't forward it; `forward_client_headers` still applies."""
+async def test_exposing_does_not_forward() -> None:
+    """Only `forward_client_headers` decides what reaches the provider."""
     requests: list[httpx2.Request] = []
 
     def handler(request: httpx2.Request) -> httpx2.Response:
@@ -276,18 +276,15 @@ async def test_exposed_headers_are_not_forwarded_to_provider() -> None:
     finally:
         await model.api.aclose()
 
-    # the sink saw the exposed headers...
     request_seen = sink.seen[0][1]
     assert request_seen is not None
     assert request_seen.headers == {**_EXPOSED, "x-app": "cli"}
-    # ...but the provider got only the forwarded one
     [request] = requests
     assert request.headers.get("x-app") == "cli"
-    host_auth = {"x-api-key", "authorization", "x-app"}
-    for name in {name.lower() for name in _CLIENT_HEADERS} - host_auth:
+    sent = {"x-api-key", "authorization", "x-app"}
+    for name in {name.lower() for name in _CLIENT_HEADERS} - sent:
         assert name not in request.headers, name
-    # the host's key, as x-api-key or (anthropic >= 2) a bearer token, and
-    # never the client's value
+    # the host's key (a bearer token on anthropic >= 2), never the client's
     assert request.headers.get_list("x-api-key") in ([], ["host-key"])
     assert request.headers.get_list("authorization") in ([], ["Bearer host-key"])
     assert {"x-api-key", "authorization"} & set(request.headers.keys())
@@ -297,7 +294,7 @@ async def test_exposed_headers_are_not_forwarded_to_provider() -> None:
 
 
 @pytest.mark.anyio
-async def test_in_process_bridge_exposes_extra_headers() -> None:
+async def test_in_process_completions() -> None:
     from openai import AsyncOpenAI
 
     from inspect_ai.agent import agent_bridge
@@ -323,7 +320,7 @@ async def test_in_process_bridge_exposes_extra_headers() -> None:
 
 
 @pytest.mark.anyio
-async def test_headers_survive_refusal_retry_and_spawned_tasks() -> None:
+async def test_refusal_retry_and_spawned_tasks() -> None:
     import anyio
 
     from inspect_ai.model import ModelOutput
@@ -356,7 +353,7 @@ async def test_headers_survive_refusal_retry_and_spawned_tasks() -> None:
 
 
 @pytest.mark.anyio
-async def test_concurrent_requests_see_their_own_headers() -> None:
+async def test_concurrent_requests() -> None:
     import anyio
 
     seen: dict[str, str] = {}
@@ -382,7 +379,7 @@ async def test_concurrent_requests_see_their_own_headers() -> None:
 
 
 @pytest.mark.anyio
-async def test_in_process_anthropic_exposes_extra_headers() -> None:
+async def test_in_process_anthropic() -> None:
     from anthropic import AsyncAnthropic
 
     from inspect_ai.agent import agent_bridge
@@ -406,7 +403,7 @@ async def test_in_process_anthropic_exposes_extra_headers() -> None:
 
 
 @pytest.mark.anyio
-async def test_nested_bridged_request_does_not_inherit_outer_headers(
+async def test_nested_request_does_not_inherit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A filter running an in-process Gemini agent (no headers of its own)."""
@@ -439,7 +436,7 @@ async def test_nested_bridged_request_does_not_inherit_outer_headers(
 
 
 @pytest.mark.anyio
-async def test_in_process_responses_exposes_extra_headers() -> None:
+async def test_in_process_responses() -> None:
     from openai import AsyncOpenAI
 
     from inspect_ai.agent import agent_bridge

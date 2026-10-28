@@ -135,7 +135,7 @@ def resolve_expose_client_headers(
     """Validate `expose_client_headers`, as lowercase header names.
 
     Raises:
-        TypeError: Not a sequence of strings (e.g. a bare string).
+        TypeError: Not a list of strings.
         ValueError: A credential header is listed.
     """
     if expose_client_headers is None:
@@ -470,10 +470,9 @@ async def agent_bridge(
        response_filter: Filter that can replace model output after generation
           (see ``ModelResponseFilter``). Return ``None`` to pass through; return
           a ``ModelOutput`` to replace the response.
-       expose_client_headers: Names of per-request client headers (e.g.
-          `extra_headers`) to show host code in `current_bridge_request().headers`.
-          Doesn't change which headers are forwarded. Credential headers (e.g.
-          `Authorization`) cannot be listed. Defaults to `None` (none).
+       expose_client_headers: Per-request client headers to show host code in
+          `current_bridge_request().headers`. Doesn't affect forwarding.
+          Credential headers cannot be listed. Defaults to `None` (none).
     """
     # ensure one time init
     init_bridge_request_patch()
