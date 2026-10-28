@@ -362,30 +362,42 @@ class TestPollDeliversOutputAfterLeaderExits:
             _kill_group(pid)
 
     @pytest.mark.asyncio
-    async def test_output_survives_a_poll_cancelled_while_waiting(self) -> None:
+    async def test_output_survives_a_poll_cancelled_while_waiting(
+        self, tmp_path: Path
+    ) -> None:
         """A poll cancelled while draining the readers must not lose output.
 
         The state is already terminal, so a later poll finishes the drain and
         still delivers the output the readers get afterwards.
+
+        A gate file holds the child's late write until the test releases it, so
+        the output cannot arrive before the poll is cancelled.
         """
         controller = Controller()
-        pid = await controller.submit("(sleep 0.3; printf late) & printf early")
-        job = controller._jobs[pid]
-        with anyio.fail_after(5):
-            while job._process.returncode is None:
-                await anyio.sleep(0.01)
+        gate = shlex.quote(str(tmp_path / "gate"))
+        pid = await controller.submit(
+            f"(while [ ! -e {gate} ]; do sleep 0.01; done; printf late) & printf early"
+        )
+        try:
+            job = controller._jobs[pid]
+            with anyio.fail_after(5):
+                while job._process.returncode is None:
+                    await anyio.sleep(0.01)
 
-        task = asyncio.create_task(controller.poll(pid, ack_seq=0))
-        await anyio.sleep(0.1)
-        assert not task.done()
-        task.cancel()
-        with pytest.raises(asyncio.CancelledError):
-            await task
+            task = asyncio.create_task(controller.poll(pid, ack_seq=0))
+            await anyio.sleep(0.1)
+            assert not task.done()
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
 
-        result, stdout, stderr = await self._poll_to_completion(controller, pid)
-        assert stdout == "earlylate"
-        assert result.state == "completed"
-        assert result.exit_code == 0
+            (tmp_path / "gate").touch()
+            result, stdout, stderr = await self._poll_to_completion(controller, pid)
+            assert stdout == "earlylate"
+            assert result.state == "completed"
+            assert result.exit_code == 0
+        finally:
+            _kill_group(pid)
 
 
 def _kill_group(pid: int) -> None:
