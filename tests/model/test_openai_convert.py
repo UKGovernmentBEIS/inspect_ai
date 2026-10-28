@@ -556,6 +556,31 @@ async def test_model_output_from_openai_cache_write_token_normalization() -> Non
     assert result.usage.total_tokens == 1050
 
 
+def test_openai_completion_usage_round_trips_reasoning_tokens() -> None:
+    """Test outbound Chat Completions usage keeps reasoning tokens."""
+    usage = ModelUsage(
+        input_tokens=10,
+        output_tokens=120,
+        total_tokens=130,
+        reasoning_tokens=80,
+    )
+
+    result = openai_completion_usage(usage)
+
+    assert result.completion_tokens == 120
+    assert result.completion_tokens_details is not None
+    assert result.completion_tokens_details.reasoning_tokens == 80
+
+
+def test_openai_completion_usage_omits_reasoning_tokens_when_none() -> None:
+    """Test outbound usage has no completion details without reasoning tokens."""
+    usage = ModelUsage(input_tokens=10, output_tokens=120, total_tokens=130)
+
+    result = openai_completion_usage(usage)
+
+    assert result.completion_tokens_details is None
+
+
 def test_openai_completion_usage_round_trips_cache_details() -> None:
     """Test outbound Chat Completions usage keeps cache reads and writes."""
     usage = ModelUsage(
