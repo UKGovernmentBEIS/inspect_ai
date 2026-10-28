@@ -114,12 +114,7 @@ from .context import init_eval_context
 from .loader import resolve_task_file_sandbox, resolve_task_source, resolve_tasks
 from .run import eval_run
 from .task import Epochs, PreviousTask, Task, TaskSource
-from .task.enqueue import (
-    TaskEnqueuer,
-    clear_task_enqueuer,
-    create_task_enqueuer,
-    register_task_enqueuer,
-)
+from .task.enqueue import RunQueue, clear_run_queue, register_run_queue
 from .task.images import InputMediaPolicy
 from .task.resolved import ResolvedTask, resolved_model_names
 from .task.tasks import Tasks
@@ -813,8 +808,8 @@ async def _eval_async_inner(
 
     run_id = uuid()
 
-    enqueuer: TaskEnqueuer | None = None
-    enqueuer_token: Token[TaskEnqueuer | None] | None = None
+    queue: RunQueue | None = None
+    queue_token: Token[RunQueue | None] | None = None
     trio_cancelled = False
     try:
         # intialise eval
@@ -833,7 +828,7 @@ async def _eval_async_inner(
         # A TaskSource drives the run dynamically: its initial_tasks() seed the
         # run (resolved + validated up front like any task list); next_tasks()
         # then adds more whenever no task is queued or running (see
-        # TaskEnqueuer.when_idle). `tasks` may be a TaskSource instance or
+        # TaskDispatcher.add_when_idle). `tasks` may be a TaskSource instance or
         # refer to one (a @task_source function, a registered name, or a
         # file.py@name spec); any other task form resolves directly.
         task_source = resolve_task_source(tasks, task_args)
@@ -1049,11 +1044,10 @@ async def _eval_async_inner(
         if ctl.keep_alive:
             request_keep_alive()
 
-        # Register a task enqueuer so additional tasks can be added to this run
-        # while it's in progress — imperatively via `enqueue_task`, or
-        # declaratively via a `TaskSource`'s `next_tasks()`. Both resolve against
-        # the run's models / config; the run's dispatcher below runs them under
-        # this run_id.
+        # Register the run's queue so tasks can be added to this run while it's
+        # in progress — imperatively via `enqueue_task`, or declaratively via a
+        # `TaskSource`'s `next_tasks()`. Both resolve against the run's models /
+        # config; the run's dispatcher below runs them under this run_id.
         resolve_added_tasks = functools.partial(
             _resolve_enqueued_tasks,
             models=model,
@@ -1064,8 +1058,12 @@ async def _eval_async_inner(
             checkpoint=checkpoint,
             cost_limit=cost_limit,
         )
-        enqueuer = create_task_enqueuer(run_id, resolve_added_tasks, task_source)
-        enqueuer_token = register_task_enqueuer(enqueuer)
+        queue = RunQueue(
+            run_id,
+            resolve_added_tasks,
+            default_start="when_free" if task_source is not None else "after_batch",
+        )
+        queue_token = register_run_queue(queue)
 
         # Imported here rather than at module level: the ACP server pulls in
         # `acp.schema`, whose pydantic models are the single largest cost of
@@ -1106,7 +1104,7 @@ async def _eval_async_inner(
                         eval_checkpoint=checkpoint,
                         recorder=recorder,
                         header_only=log_header_only,
-                        added_tasks=enqueuer,
+                        queue=queue,
                         epochs_reducer=epochs_reducer,
                         approval=approval,
                         review=review,
@@ -1127,11 +1125,6 @@ async def _eval_async_inner(
                         **kwargs,
                     )
                 )
-            # the run has stopped starting tasks: refuse further additions
-            # (from on_run_end, or from child contexts that copied the
-            # enqueuer) rather than drop them. A cancelled run returns without
-            # the dispatcher closing it.
-            enqueuer.close()
 
             # keep-alive: after the body, park while the control / ACP
             # servers are still up so `inspect ctl` can read state and
@@ -1169,9 +1162,10 @@ async def _eval_async_inner(
                 await emit_run_end(eval_set_id, run_id, EvalLogs([]))
 
     except BaseException as e:
-        # a failed run also stops accepting additions before on_run_end
-        if enqueuer is not None:
-            enqueuer.close()
+        # a run that fails before its dispatcher starts (which closes the
+        # queue itself) also stops accepting additions before on_run_end
+        if queue is not None:
+            queue.close()
         # a second Ctrl-C while finishing a cancelled trio run does not start
         # the hooks again
         if not trio_cancelled:
@@ -1181,8 +1175,8 @@ async def _eval_async_inner(
 
     finally:
         _eval_async_running = False
-        if enqueuer_token is not None:
-            clear_task_enqueuer(enqueuer_token)
+        if queue_token is not None:
+            clear_run_queue(queue_token)
         # Clear the process-level EvalState registry and the retry-loop
         # config overrides at the run boundary (after any keep-alive park) —
         # but only for a standalone eval. When nested in an eval-set
@@ -1209,7 +1203,7 @@ def _resolve_enqueued_tasks(
     """Resolve tasks added to a running eval (via ``enqueue_task``).
 
     Bound (via ``functools.partial``) to the run's models / config / roles /
-    sandbox, then handed to the :class:`TaskEnqueuer` so additions resolve
+    sandbox, then handed to the run's :class:`RunQueue` so additions resolve
     consistently with the run. Raises ``ValueError`` if the tasks can't be
     resolved.
     """

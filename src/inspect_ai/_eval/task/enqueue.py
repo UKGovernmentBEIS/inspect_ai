@@ -1,166 +1,144 @@
-"""Add tasks to a running eval.
+"""Add tasks to a running eval, and the run's queue of tasks waiting to start.
 
 A run can have tasks added to it while it is in progress, under the same
-``run_id``. Every run has one task dispatcher; an added task joins its queue
-either at once (``start="when_free"``: it starts as soon as there is free task
-capacity) or once the dispatcher is idle (``start="after_batch"``: no task is
-queued or running, including ``when_free`` tasks added after it). This module
-is the in-process primitive that makes that possible; higher layers (an RL
-driver, a control-channel directive) build on it.
-
-The eval runner creates one :class:`TaskEnqueuer` per run: the run's source of
-added tasks, both those passed to :func:`enqueue_task` and those a
-:class:`~inspect_ai.TaskSource` returns from ``next_tasks()``. It holds a
-*resolve* closure (built by the runner, capturing the run's models / config /
-sandbox) that turns submitted tasks into ``ResolvedTask`` objects, the buffers
-of enqueued tasks, and the run's ``TaskSource`` (if any); the dispatcher takes
-tasks from it through the ``AddedTasks`` protocol. The active enqueuer lives in
-a ``ContextVar`` so it is scoped to the run's async context (and propagates to
-its child tasks); :func:`enqueue_task` validates an optional ``run_id`` against
-it so a stray/late caller can't enqueue into the wrong run, and the enqueuer
-refuses additions once the run has finished dispatching.
+``run_id``. Each run has one :class:`RunQueue`, which holds every task waiting
+to start: the attempts that are ready (started up, waiting for a free slot or
+a retry) and the tasks added with :func:`enqueue_task` (or returned by a
+:class:`~inspect_ai.TaskSource` callback), filed by start policy until the
+run's scheduling loop (``TaskDispatcher`` in ``inspect_ai._eval.run``) takes
+them. The active queue lives in a ``ContextVar``, so it is scoped to the run's
+async context (and propagates to its child tasks); :func:`enqueue_task`
+validates an optional ``run_id`` against it so a stray or late caller can't
+add to the wrong run, and the queue refuses additions once the run has
+finished starting tasks.
 """
 
 from __future__ import annotations
 
 from contextvars import ContextVar, Token
-from dataclasses import dataclass, field
-from threading import Lock
-from typing import TYPE_CHECKING, Callable, Literal, get_args
+from typing import TYPE_CHECKING, Callable, Literal, NamedTuple, get_args
+
+from inspect_ai._util._async import Wake
 
 if TYPE_CHECKING:
     from inspect_ai._eval.task.resolved import ResolvedTask
-    from inspect_ai._eval.task.task_source import TaskSource
+    from inspect_ai._eval.task.run import TaskRunOptions
     from inspect_ai._eval.task.tasks import Tasks
 
 # Resolve submitted tasks to concrete ``ResolvedTask``s against the run's
-# models / config. Built by the eval runner (which holds that context) and
-# handed to the enqueuer. Raises on tasks it can't resolve.
+# models / config / sandbox. Built by the eval runner (which owns that state) and
+# handed to the run's queue. Raises on tasks it can't resolve.
 ResolveTasksFn = Callable[["Tasks"], "list[ResolvedTask]"]
 
 TaskStartPolicy = Literal["when_free", "after_batch"]
 """When an enqueued task starts (see :func:`enqueue_task`)."""
 
 
-@dataclass
-class TaskEnqueuer:
-    """The source of tasks added to one run, for the run's dispatcher.
+class Attempt(NamedTuple):
+    """One attempt of a task, ready to start."""
 
-    Tasks come from :meth:`enqueue` (``enqueue_task()`` and a ``TaskSource``'s
-    completion callbacks) and from the run's ``TaskSource``'s ``next_tasks()``.
-    ``enqueue`` resolves and buffers (so a resolution error surfaces to the
-    caller), one buffer per start policy. The dispatcher takes :meth:`ready` on
-    every cycle and calls :meth:`when_idle` only once it is idle. When
-    ``when_idle`` finds nothing more to run it closes the enqueuer (as the
-    runner does when a run ends early); later enqueues raise, since nothing
-    would run them. Call :meth:`enqueue` from the eval's event loop: the
-    dispatcher's wake callback is not thread-safe.
+    idx: int
+    """Position of the task's log in the run's results (its retries keep it)."""
+
+    options: TaskRunOptions
+    """The attempt's run options, including its logger."""
+
+    retries_remaining: int
+    """Retry attempts left after this one."""
+
+
+class RunQueue:
+    """Every task waiting to start in one eval run.
+
+    ``ready`` holds attempts that have started up; the scheduling loop picks
+    among them. Added tasks wait by start policy until the loop takes them:
+    ``when_free`` ones on each of its cycles, ``after_batch`` ones once nothing
+    is ready or running.
+
+    Used only from the eval's event loop, and no method awaits, so no method
+    interleaves with another and the queue needs no lock.
     """
 
-    run_id: str
-    _resolve: ResolveTasksFn
-    _source: "TaskSource | None"
-    _pending: dict[TaskStartPolicy, list["ResolvedTask"]] = field(
-        default_factory=lambda: {"when_free": [], "after_batch": []}
-    )
-    _lock: Lock = field(default_factory=Lock)
-    _wake: Callable[[], None] | None = None
-    _source_ended: bool = False
-    _closed: bool = False
+    def __init__(
+        self, run_id: str, resolve: ResolveTasksFn, default_start: TaskStartPolicy
+    ) -> None:
+        """Create the queue of one run.
 
-    @property
-    def default_start(self) -> TaskStartPolicy:
-        """The policy for ``enqueue(start=None)``: ``when_free`` in a ``TaskSource`` run."""
-        return "when_free" if self._source is not None else "after_batch"
+        Args:
+            run_id: The run's id (``enqueue_task`` checks callers against it).
+            resolve: Resolves tasks against the run's models and config (also
+                used by the loop for a ``TaskSource``'s ``next_tasks()``).
+            default_start: The policy of ``put(start=None)``: ``when_free`` in a
+                ``TaskSource`` run, ``after_batch`` otherwise.
+        """
+        self.run_id = run_id
+        self.resolve = resolve
+        self.default_start = default_start
+        self.ready: list[Attempt] = []
+        self.wake = Wake()
+        """Set whenever the scheduling loop should look at the queue again."""
+        self._added: dict[TaskStartPolicy, list[ResolvedTask]] = {
+            "when_free": [],
+            "after_batch": [],
+        }
+        self._closed = False
 
-    def enqueue(
-        self, tasks: "Tasks", *, start: TaskStartPolicy | None = None
-    ) -> list["ResolvedTask"]:
-        """Resolve ``tasks`` and queue them to run; returns the resolved tasks.
+    def put(
+        self, tasks: Tasks, *, start: TaskStartPolicy | None = None
+    ) -> list[ResolvedTask]:
+        """Resolve tasks added to the run and file them by start policy.
+
+        Resolution errors surface to the caller. Returns the resolved tasks.
 
         Raises:
-            RuntimeError: If the run has finished dispatching tasks.
+            RuntimeError: If the run has finished starting tasks.
         """
         if self._closed:
             raise RuntimeError(
                 f"enqueue_task(): run '{self.run_id}' has finished dispatching "
                 "tasks, so an added task would never run."
             )
-        resolved = self._resolve(tasks)
-        with self._lock:
-            self._pending[start or self.default_start].extend(resolved)
-        if self._wake is not None:
-            self._wake()
+        resolved = self.resolve(tasks)
+        self._added[start or self.default_start].extend(resolved)
+        self.wake.set()
         return resolved
 
-    def set_wake(self, wake: Callable[[], None]) -> None:
-        """Register the callback fired after tasks are buffered (wakes dispatch)."""
-        self._wake = wake
+    def take(self, start: TaskStartPolicy) -> list[ResolvedTask]:
+        """Remove and return the added tasks waiting with this start policy."""
+        taken, self._added[start] = self._added[start], []
+        return taken
 
-    def ready(self) -> list["ResolvedTask"]:
-        """Remove and return the buffered ``when_free`` tasks (empty if none)."""
-        return self._drain("when_free")
+    def close(self) -> list[Attempt]:
+        """Refuse further additions and empty the queue.
 
-    async def when_idle(self) -> list["ResolvedTask"] | None:
-        """The next tasks to run once the dispatcher is idle, or ``None`` when the run is complete.
-
-        In order: buffered ``when_free`` tasks (enqueued after the dispatcher's
-        last :meth:`ready`); else buffered ``after_batch`` tasks; else the
-        ``TaskSource``'s ``next_tasks()``, until it first returns nothing (it
-        is not called again after that); else tasks enqueued while it ran,
-        ``when_free`` ones first (``after_batch`` ones then wait for the next
-        call). If there are none, closes the enqueuer and returns ``None``.
+        Returns the ready attempts, which will now never start, so the caller
+        can discard their log entries.
         """
-        queued = self._drain("when_free") or self._drain("after_batch")
-        if queued:
-            return queued
-        if self._source is not None and not self._source_ended:
-            more = await self._source.next_tasks()
-            if more:
-                return self._resolve(more)
-            self._source_ended = True
-            late = self._drain("when_free") or self._drain("after_batch")
-            if late:
-                return late
-        # the dispatcher finishes without asking again, so a later enqueue
-        # could never run
-        self.close()
-        return None
-
-    def close(self) -> None:
-        """Refuse further enqueues: the run has finished dispatching tasks."""
         self._closed = True
-
-    def _drain(self, start: TaskStartPolicy) -> list["ResolvedTask"]:
-        with self._lock:
-            batch, self._pending[start] = self._pending[start], []
-        return batch
+        self._added = {"when_free": [], "after_batch": []}
+        ready, self.ready = self.ready, []
+        return ready
 
 
-# The active run's enqueuer, scoped to the run's async context. The ``run_id``
-# on the enqueuer lets :func:`enqueue_task` reject a caller targeting a
-# different/stale run.
-_enqueuer: ContextVar[TaskEnqueuer | None] = ContextVar("task_enqueuer", default=None)
+# The run queue for the current eval run. A ContextVar (not a module global) so
+# concurrent or nested runs in one process each see their own, and child tasks
+# inherit it.
+_run_queue: ContextVar[RunQueue | None] = ContextVar("run_queue", default=None)
 
 
-def create_task_enqueuer(
-    run_id: str, resolve: ResolveTasksFn, source: "TaskSource | None"
-) -> TaskEnqueuer:
-    return TaskEnqueuer(run_id=run_id, _resolve=resolve, _source=source)
+def register_run_queue(queue: RunQueue) -> Token[RunQueue | None]:
+    """Make ``queue`` the active run queue; returns a token to restore the previous."""
+    return _run_queue.set(queue)
 
 
-def register_task_enqueuer(enqueuer: TaskEnqueuer) -> Token[TaskEnqueuer | None]:
-    """Install ``enqueuer`` as the active one; returns a token to restore with."""
-    return _enqueuer.set(enqueuer)
+def get_run_queue() -> RunQueue | None:
+    """The active run queue, or ``None`` if no eval is running here."""
+    return _run_queue.get()
 
 
-def get_task_enqueuer() -> TaskEnqueuer | None:
-    return _enqueuer.get()
-
-
-def clear_task_enqueuer(token: Token[TaskEnqueuer | None]) -> None:
-    """Restore the enqueuer in scope before the matching ``register`` call."""
-    _enqueuer.reset(token)
+def clear_run_queue(token: Token[RunQueue | None]) -> None:
+    """Restore the run queue in scope before the matching ``register`` call."""
+    _run_queue.reset(token)
 
 
 def enqueue_task(
@@ -218,15 +196,15 @@ def enqueue_task(
             "enqueue_task(): start must be 'when_free', 'after_batch' or None, "
             f"not {start!r}."
         )
-    enqueuer = get_task_enqueuer()
-    if enqueuer is None:
+    queue = get_run_queue()
+    if queue is None:
         raise RuntimeError(
             "enqueue_task() can only be called while an eval is running in this "
             "process."
         )
-    if run_id is not None and run_id != enqueuer.run_id:
+    if run_id is not None and run_id != queue.run_id:
         raise RuntimeError(
             f"enqueue_task() run_id '{run_id}' does not match the running eval "
-            f"'{enqueuer.run_id}'."
+            f"'{queue.run_id}'."
         )
-    enqueuer.enqueue(tasks, start=start)
+    queue.put(tasks, start=start)

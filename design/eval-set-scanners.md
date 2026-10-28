@@ -272,7 +272,7 @@ Net effect: a sample retried N times produces **exactly one** parquet row, refle
 
 ### 2. Task-level retry — `retry_immediate=True`
 
-When `retry_immediate=True`, eval_set's `task_retry_attempts` is forwarded to `run_task_retry_attempts`, which re-queues the whole task on error. Each retry:
+When `retry_immediate=True`, eval_set's `task_retry_attempts` is forwarded to `TaskDispatcher`, which re-queues the whole task on error. Each retry:
 
 - Calls `task_options.logger.reinit()` → fresh `eval_id`, fresh log file.
 - Carries forward succeeded samples via `eval_log_sample_source` — these reuse their original uuid.

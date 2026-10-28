@@ -43,7 +43,7 @@ an immutable local the whole way down:
    `None`; conversation display forces 1. `eval_set` defaults it to
    `max(len(models), 10)` before calling `eval()`. Finally
    `parallel = max_tasks if max_tasks is not None else 1`.
-2. **Queue shape** (`_dispatch_order` in `_eval/run.py`): every run has one
+2. **Queue shape** (`GroupStartup` in `_eval/run.py`): every run has one
    `eval_run` and one dispatcher, which takes the seed and every group of
    tasks added during the run. With `parallel == 1` each group is ordered
    sequence-major (all of task N's model fan-outs before task N+1), which —
@@ -52,10 +52,11 @@ an immutable local the whole way down:
    visible to one dispatcher. (Historically `parallel == 1` ran a fresh
    `eval_run` per sequence group, which hid the queue from the dispatcher —
    see "The `parallel == 1` batch shape" under edge cases.)
-3. **Dispatch** (`run_task_retry_attempts` in `_eval/run.py`): the
+3. **Dispatch** (`TaskDispatcher` in `_eval/run.py`): the
    dispatcher admits work with `while not cancelled and in_flight <
-   parallel and pending:`, where `parallel` is a function parameter — no
-   registry, no semaphore, nothing a control-server directive can reach.
+   effective_max_tasks(parallel) and ready:`, where `parallel` is the
+   launch limit — no semaphore, so the override below is read at the point
+   of use.
 
 Contrast with `max_samples`, which is backed by a `ResizableLimiter` in a
 task-keyed registry that `_control/limits.py` can find and resize. The
@@ -100,11 +101,11 @@ The natural-looking implementation — swap the `parallel` int for a
   must re-check the pause latches, model balance, and the feed before
   deciding whether to start anything. A semaphore acquire has nowhere to
   sit without restructuring the loop.
-- A limiter would be owned by one `run_task_retry_attempts` invocation, but
+- A limiter would be owned by one `TaskDispatcher`, but
   dispatchers can be recreated within a run: an eval-set in legacy
   `retry_immediate=False` mode re-invokes `eval()` per retry pass, each with
   its own dispatcher. (Within one `eval()`, tasks added via `enqueue_task` or
-  a `TaskSource` feed the run's single dispatcher via its `TaskEnqueuer`.) A
+  a `TaskSource` reach the run's single dispatcher through its `RunQueue`.) A
   per-dispatcher limiter silently reverts the operator's retune at the next
   dispatcher boundary.
 
@@ -117,9 +118,9 @@ from):
 - `max_tasks_override() -> int | None` / `set_max_tasks_override(value:
   int | None)` — module-level state; setting it fires
   `fire_dispatch_wakers()`.
-- A **live-dispatcher handle registry**: `run_task_retry_attempts`
+- A **live-dispatcher handle registry**: `TaskDispatcher`
   registers a handle at start (and removes it in its `finally`) exposing
-  its launch `parallel`, current `in_flight`, and `len(pending)` — the
+  its launch `parallel`, current `in_flight`, and `len(queue.ready)` — the
   view's data source. Registered/removed alongside the existing
   `add_dispatch_waker(wake.set)` call, so lifetime management is already
   correct there.
@@ -190,7 +191,7 @@ inspect ctl config --max-tasks clear
   unconditionally and governs every future dispatch decision in the run —
   which is exactly right for the windows where no dispatcher is live (a
   run still in startup — sandbox image pulls can run for minutes before
-  `run_task_retry_attempts` registers its handle). A run blocked in
+  `TaskDispatcher` registers its handle). A run blocked in
   `TaskSource.next_tasks()` keeps its dispatcher live. The legacy
   `retry_wait` sleep between batch-mode passes is *not* such a window: the
   control server binds per-`eval()` pass (and `--ctl-server=keep` is

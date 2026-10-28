@@ -15,7 +15,6 @@ import subprocess
 import sys
 import weakref
 from contextvars import Context, copy_context
-from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
@@ -33,11 +32,11 @@ from inspect_ai._eval.eval_set_selection import (
 )
 from inspect_ai._eval.loader import resolve_tasks
 from inspect_ai._eval.task.enqueue import (
-    TaskEnqueuer,
+    RunQueue,
     TaskStartPolicy,
-    clear_task_enqueuer,
+    clear_run_queue,
     enqueue_task,
-    register_task_enqueuer,
+    register_run_queue,
 )
 from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._eval.task.resolved import ResolvedTask
@@ -333,7 +332,7 @@ async def test_enqueue_task_from_run_end_hook_of_ended_run_raises(
     monkeypatch: pytest.MonkeyPatch, ending: str
 ) -> None:
     # a run cancelled while a task runs (the cancellation is absorbed, so the
-    # run returns its logs), or one that fails after registering its enqueuer
+    # run returns its logs), or one that fails after registering its queue
     # but before dispatching, has stopped starting tasks: on_run_end cannot
     # add one
     errors: list[str] = []
@@ -386,15 +385,15 @@ def test_enqueue_task_invalid_start_raises_before_resolving() -> None:
         resolved.append(tasks)
         return []
 
-    enqueuer = TaskEnqueuer(run_id="run", _resolve=resolve, _source=None)
-    token = register_task_enqueuer(enqueuer)
+    queue = RunQueue("run", resolve, "after_batch")
+    token = register_run_queue(queue)
     try:
         with pytest.raises(ValueError, match="start must be .* not 'now'"):
             enqueue_task(child(), start=cast(TaskStartPolicy, "now"))
     finally:
-        clear_task_enqueuer(token)
+        clear_run_queue(token)
     assert resolved == []
-    assert enqueuer.ready() == []
+    assert queue.take("when_free") == queue.take("after_batch") == []
 
 
 def _child_signalling(started: anyio.Event) -> Task:
@@ -787,7 +786,7 @@ def test_enqueue_task_when_free_child_is_retried() -> None:
 
 
 def test_enqueue_task_after_run_finished_dispatching_raises() -> None:
-    # a context copied during the run keeps the run's enqueuer; once the run
+    # a context copied during the run keeps the run's queue; once the run
     # has finished dispatching, enqueuing through it raises instead of
     # buffering a task that would never run
     contexts: list[Context] = []
@@ -886,193 +885,6 @@ async def test_enqueue_task_finished_added_task_is_released_before_run_ends(
     assert released == [True]
 
 
-async def test_task_enqueuer_close_refuses_enqueue() -> None:
-    resolved: list[Tasks] = []
-
-    def resolve(tasks: Tasks) -> list[ResolvedTask]:
-        resolved.append(tasks)
-        return []
-
-    enqueuer = TaskEnqueuer(run_id="run", _resolve=resolve, _source=None)
-    enqueuer.close()
-    with pytest.raises(RuntimeError, match="run 'run' has finished dispatching"):
-        enqueuer.enqueue(child())
-    # refused before resolution, and nothing is buffered
-    assert resolved == []
-    assert enqueuer.ready() == []
-    assert await enqueuer.when_idle() is None
-
-
-def _resolve_named(tasks: Tasks) -> list[ResolvedTask]:
-    return resolve_tasks(tasks, {}, get_model("mockllm/model"), None, None, None)
-
-
-def _named(names: list[str]) -> list[Task]:
-    return [Task(dataset=[Sample(input="hi")], name=name) for name in names]
-
-
-def _task_names(tasks: list[ResolvedTask] | None) -> list[str] | None:
-    return None if tasks is None else [t.task.name for t in tasks]
-
-
-class _ScriptedSource(TaskSource):
-    """``next_tasks()`` returns the scripted batches in order; one call too many raises."""
-
-    def __init__(self, batches: list[list[str] | None]) -> None:
-        self.batches = list(batches)
-
-    async def next_tasks(self) -> list[Task] | None:
-        batch = self.batches.pop(0)
-        return None if batch is None else _named(batch)
-
-
-@dataclass
-class _IdleCase:
-    id: str
-    source: list[list[str] | None] | None
-    """The ``next_tasks()`` script, or ``None`` for a run without a ``TaskSource``."""
-    enqueued: list[tuple[str, TaskStartPolicy | None]]
-    """Tasks enqueued (with their ``start``) before the dispatcher asks for any."""
-    ready: list[str]
-    """What ``ready()`` returns after the enqueues."""
-    when_idle: list[list[str] | None]
-    """What successive ``when_idle()`` calls return; the last is ``None``."""
-
-
-@pytest.mark.parametrize(
-    "case",
-    [
-        _IdleCase(
-            id="after_batch_before_source",
-            source=[["s1"], None],
-            enqueued=[("a", "after_batch"), ("w", "when_free")],
-            ready=["w"],
-            when_idle=[["a"], ["s1"], None],
-        ),
-        _IdleCase(
-            id="source_batches_until_none",
-            source=[["s1", "s2"], ["s3"], None],
-            enqueued=[],
-            ready=[],
-            when_idle=[["s1", "s2"], ["s3"], None],
-        ),
-        _IdleCase(
-            id="source_empty_list_ends",
-            source=[[]],
-            enqueued=[],
-            ready=[],
-            when_idle=[None],
-        ),
-        _IdleCase(
-            id="default_start_with_source_is_when_free",
-            source=[None],
-            enqueued=[("w", None)],
-            ready=["w"],
-            when_idle=[None],
-        ),
-        _IdleCase(
-            id="default_start_without_source_is_after_batch",
-            source=None,
-            enqueued=[("a", None), ("w", "when_free")],
-            ready=["w"],
-            when_idle=[["a"], None],
-        ),
-        _IdleCase(
-            id="no_source_nothing_added",
-            source=None,
-            enqueued=[],
-            ready=[],
-            when_idle=[None],
-        ),
-    ],
-    ids=lambda case: case.id,
-)
-async def test_task_enqueuer_idle_rule(case: _IdleCase) -> None:
-    # the dispatcher's side of the enqueuer, without running an eval: ready()
-    # on every cycle, when_idle() once idle, until it returns None
-    source = None if case.source is None else _ScriptedSource(case.source)
-    enqueuer = TaskEnqueuer(run_id="run", _resolve=_resolve_named, _source=source)
-    wakes = 0
-
-    def wake() -> None:
-        nonlocal wakes
-        wakes += 1
-
-    enqueuer.set_wake(wake)
-    for name, start in case.enqueued:
-        enqueuer.enqueue(_named([name]), start=start)
-    assert wakes == len(case.enqueued)
-
-    assert _task_names(enqueuer.ready()) == case.ready
-    assert enqueuer.ready() == []
-    assert [_task_names(await enqueuer.when_idle()) for _ in case.when_idle] == (
-        case.when_idle
-    )
-    # every scripted batch was asked for, and none beyond (a further call raises)
-    assert source is None or source.batches == []
-    # the run is complete: a late enqueue is refused
-    with pytest.raises(RuntimeError, match="finished dispatching"):
-        enqueuer.enqueue(_named(["late"]))
-
-
-async def test_task_enqueuer_runs_tasks_enqueued_during_next_tasks() -> None:
-    # next_tasks() blocks; tasks enqueued meanwhile are returned after it
-    # returns None, and the ended source is never asked again
-    entered = anyio.Event()
-    release = anyio.Event()
-
-    class BlockingSource(TaskSource):
-        calls = 0
-
-        async def next_tasks(self) -> list[Task] | None:
-            self.calls += 1
-            if self.calls > 1:
-                raise AssertionError("next_tasks() called after it returned None")
-            entered.set()
-            await release.wait()
-            return None
-
-    source = BlockingSource()
-    enqueuer = TaskEnqueuer(run_id="run", _resolve=_resolve_named, _source=source)
-    first: list[list[str] | None] = []
-
-    async def idle() -> None:
-        first.append(_task_names(await enqueuer.when_idle()))
-
-    async with anyio.create_task_group() as tg:
-        tg.start_soon(idle)
-        await entered.wait()
-        enqueuer.enqueue(_named(["w"]), start="when_free")
-        enqueuer.enqueue(_named(["a"]), start="after_batch")
-        release.set()
-
-    # each keeps its start policy: the after_batch task waits for the next idle
-    # point, once the when_free task has finished
-    assert first == [["w"]]
-    assert _task_names(await enqueuer.when_idle()) == ["a"]
-    assert await enqueuer.when_idle() is None
-    assert source.calls == 1
-    with pytest.raises(RuntimeError, match="finished dispatching"):
-        enqueuer.enqueue(_named(["late"]))
-
-
-async def test_task_enqueuer_when_idle_returns_when_free_tasks_first() -> None:
-    # when_free tasks enqueued after the dispatcher's last ready() (during an
-    # await later in its cycle) are returned before after_batch tasks and
-    # before next_tasks() is asked, which is called only when nothing is queued
-    source = _ScriptedSource([["s1"], None])
-    enqueuer = TaskEnqueuer(run_id="run", _resolve=_resolve_named, _source=source)
-    enqueuer.enqueue(_named(["a"]), start="after_batch")
-    enqueuer.enqueue(_named(["w"]), start="when_free")
-    assert [_task_names(await enqueuer.when_idle()) for _ in range(4)] == [
-        ["w"],
-        ["a"],
-        ["s1"],
-        None,
-    ]
-    assert source.batches == []
-
-
 @pytest.mark.parametrize("start", ["after_batch", "when_free"])
 async def test_enqueue_task_cancel_while_preparing_added_group(
     monkeypatch: pytest.MonkeyPatch, start: TaskStartPolicy
@@ -1136,7 +948,7 @@ async def test_enqueue_task_cancel_while_when_free_child_queued(
 ) -> None:
     # the run is cancelled (as by Ctrl-C) while a when_free child is queued
     # behind the parent at max_tasks=1: the run ends without starting the
-    # child, the child's logger is cleaned up, and the enqueuer is closed
+    # child, the child's logger is cleaned up, and the queue is closed
     cleaned: list[str] = []
     cleanup = TaskLogger.cleanup
 

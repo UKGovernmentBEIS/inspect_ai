@@ -3,7 +3,7 @@
 The ``inspect ctl config --max-tasks`` retune surface (see
 ``design/ctl/max-tasks-retune.md``). ``max_tasks`` resolves to a plain int
 (``parallel``) before a run starts and the dispatcher
-(``run_task_retry_attempts`` in ``inspect_ai._eval.run``) is a select loop,
+(``TaskDispatcher`` in ``inspect_ai._eval.run``) is a select loop,
 not a semaphore acquire — and dispatchers can be recreated within a run (an
 eval-set in legacy ``retry_immediate=False`` mode re-invokes ``eval()`` per
 retry pass). So rather than a resizable limiter owned by one dispatcher, this
@@ -49,7 +49,7 @@ class TaskDispatcherStats(NamedTuple):
 _override: int | None = None
 
 # Stats callbacks of the live task dispatchers, registered/removed by
-# run_task_retry_attempts alongside its dispatch waker (so lifetime
+# TaskDispatcher alongside its dispatch waker (so lifetime
 # management is shared). At most one dispatcher runs at a time in practice;
 # the view reads the most recently registered.
 _dispatchers: list[Callable[[], TaskDispatcherStats]] = []

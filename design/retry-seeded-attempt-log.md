@@ -51,7 +51,7 @@ The next attempt then uses only that partial log:
   (`_eval/loader.py`).
 - The in-process retry (`retry_immediate=True`, or `eval(retry_attempts=)`)
   builds the source directly from `options.logger.location` — the attempt
-  that just errored — in `run_task_retry_attempts` (`_eval/run.py`), the
+  that just errored — in `TaskDispatcher` (`_eval/run.py`), the
   loop that drives `_run_task` once per attempt.
 
 Both paths re-run from scratch every sample that completed in the older log
@@ -377,7 +377,7 @@ delays a start rather than a shutdown.
 Extend the #4933 hold to `log_finish`: if the attempt ends before its sweep
 settled, discard the temp zip and write no destination file, mirroring the
 hard-kill shape. The next retry then sees the older, complete log. Requires
-one more change: the in-process retry branch in `run_task_retry_attempts`
+one more change: the in-process retry branch in `TaskDispatcher`
 must not build its source from a location with no file (today that degrades
 to no reuse), but reuse `options.sample_source` — the same source the failed
 attempt ran with.
@@ -454,13 +454,13 @@ Independent of the mechanism chosen:
 | B raw entry copy | yes | yes | N range reads before live start | none | N | none | adds raw zip writer |
 | C server-side copy | yes | no (first flush undoes it) | fast copy | merge on unsettled finish | N + full download | `eval_id` duplication until header rewrite | adds merge path |
 | D complete at teardown | yes | no (read failure → partial) | none | whole-file download under Ctrl-C shield | N + 1 | none | keeps everything, adds teardown copy |
-| E write nothing if unsettled | yes | yes (by omission) | none | none | N | attempt leaves no log; lost live results | small; `run_task_retry_attempts` source reuse |
+| E write nothing if unsettled | yes | yes (by omission) | none | none | N | attempt leaves no log; lost live results | small; `TaskDispatcher` source reuse |
 | F one log per task | yes | yes | A's | none | 1 | attempt identity, cleanup, viewer, registry | A's + identity plumbing |
 | G chain sources | **no** | yes | summaries reads per multi-log task | none | N per link | cleanup rule, `PreviousTask`, retry precedence | adds fallback chain |
 
 ## Recommendation
 
-**A1, plus the `run_task_retry_attempts` source-reuse change from E for the
+**A1, plus the `TaskDispatcher` source-reuse change from E for the
 seed-failure path, plus H's download retry.** It is the only option that both satisfies
 the self-contained-logs constraint and makes the invariant structural rather
 than a race: after the seed, the attempt's log is a superset of the prior
@@ -816,7 +816,7 @@ reconstructed as `FileHeader(zip64=True)`, exact for the streamed members
 (`force_zip64`) and 20 bytes over for `writestr` members, so the measure
 errs toward *not* compacting.
 
-### `run_task_retry_attempts`: the retry's source is the newest record on disk
+### `TaskDispatcher`: the retry's source is the newest record on disk
 
 The retry branch decides without I/O (a filesystem probe would block the
 dispatcher's loop on a remote log dir and could itself fail transiently),
@@ -916,7 +916,7 @@ warning names the prior log and the error.
   unless delta-encoded, to insure against a rare case.
 - **`log_finish` fails after earlier flushes**: the destination holds the
   complete prior set plus the flushed completions under a `started` header,
-  and the retry seeds from it (see the `run_task_retry_attempts` section).
+  and the retry seeds from it (see the `TaskDispatcher` section).
   Only completions since the last flush are re-run.
 - **Compaction fails**: warn and flush the uncompacted zip (correct, just
   larger). Cancellation propagates after cleanup and restoration of the
@@ -1105,7 +1105,7 @@ Eval-level (`tests/test_eval_set.py`):
   the crash harness): no destination file; the next eval_set run reuses
   everything.
 - Same repro with `eval(task_retry_attempts=1)` (no eval_set) for the
-  `run_task_retry_attempts` path.
+  `TaskDispatcher` path.
 
 Run the async tests with `--runtrio` as well.
 

@@ -93,7 +93,7 @@ def test_dispatch_survives_model_name_mutation(task_retry_attempts: int) -> None
     """Balancing dispatch must survive a provider rewriting its name mid-run.
 
     The vLLM provider resolves a ``base:adapter`` LoRA spec down to ``base`` on
-    the first ``generate()``. The ``run_task_retry_attempts`` dispatcher in
+    the first ``generate()``. The ``TaskDispatcher`` in
     ``_eval/run.py`` tracks in-flight tasks per model, incrementing at dispatch
     and decrementing at completion. Keying that count by ``str(model)`` meant
     the decrement targeted a different key than the increment once the name
