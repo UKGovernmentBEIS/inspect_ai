@@ -102,12 +102,12 @@ def edited_message(source: EditedT, **update: Any) -> EditedT:
 
 
 def with_edited_id(source: ChatMessage, edited: EditedT) -> EditedT:
-    """`edited` under an id of its own, recording its source in `derived_from`.
+    """`edited` under an id of its own, derived from `source`'s id and its content.
 
-    Different content never shares an id. The id is derived from the source's
-    id and the edited content, so a message edited the same way on every model
-    call is one message. An edit of an edit names the original source. An edit
-    that leaves the content unchanged keeps the source's id.
+    Different content never shares an id. The same edit of a message on every
+    model call is one message, and an edit of an edit is derived from the edit
+    it was made from. An edit that leaves the content unchanged keeps the
+    source's id.
     """
     content = content_hash(edited)
     if source.id is None:
@@ -115,23 +115,8 @@ def with_edited_id(source: ChatMessage, edited: EditedT) -> EditedT:
     elif content == content_hash(source):
         edited.id = source.id
     else:
-        original = _edited_from(source) or source.id
-        edited.id = edit_id(original, content)
-        edited.metadata = (edited.metadata or {}) | {"derived_from": [original]}
+        edited.id = edit_id(source.id, content)
     return edited
-
-
-def _edited_from(message: ChatMessage) -> str | None:
-    """The original a message is an edit of, if `with_edited_id` made it."""
-    sources = (message.metadata or {}).get("derived_from")
-    if (
-        isinstance(sources, list)
-        and len(sources) == 1
-        and isinstance(sources[0], str)
-        and message.id == edit_id(sources[0], content_hash(message))
-    ):
-        return sources[0]
-    return None
 
 
 def edit_id(source_id: str, content: str) -> str:

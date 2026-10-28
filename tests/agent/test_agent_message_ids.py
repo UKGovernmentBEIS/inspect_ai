@@ -43,7 +43,7 @@ from inspect_ai.model import (
     ModelOutput,
     get_model,
 )
-from inspect_ai.model._message_ids import edited_message
+from inspect_ai.model._message_ids import content_hash, edit_id, edited_message
 from inspect_ai.solver import generate, user_message
 from inspect_ai.tool import Tool, ToolCall, ToolResult, tool
 from inspect_ai.util import store
@@ -312,7 +312,7 @@ def assert_ids_agree(log: EvalLog, model_calls: int, edits: bool = False) -> int
     """The final conversation extends every model call, and tool events point into it.
 
     With `edits`, a reply the scaffold sent back changed is in the conversation as
-    an edit naming the reply in `derived_from`. Returns the number of such edits.
+    an edit of the reply. Returns the number of such edits.
     """
     assert log.samples
     sample = resolve_sample_attachments(log.samples[0], "full")
@@ -328,7 +328,7 @@ def assert_ids_agree(log: EvalLog, model_calls: int, edits: bool = False) -> int
         reply = sample.messages[len(input_ids)]
         if reply.id != event.output.message.id:
             assert edits
-            assert reply.metadata == {"derived_from": [event.output.message.id]}
+            assert reply.id == edit_id(event.output.message.id, content_hash(reply))
             edited += 1
     prompt = next(m for m in sample.messages if m.text == PROMPT)
     assert prompt.id == sample.store["input_id"]
@@ -438,13 +438,14 @@ def test_messages_rebuilt_every_call_keep_one_id(tmp_path: Path) -> None:
     assert read.samples
     sample = read.samples[0]
 
+    kept = {m.id for m in sample.messages}
     derived: dict[str, set[str]] = {}
     inputs: dict[str, set[str]] = {}
     for event in [e for e in sample.events if isinstance(e, ModelEvent)]:
         for message in event.input:
             assert message.id is not None
             inputs.setdefault(message.id, set()).add(message.model_dump_json())
-            if message.metadata and "derived_from" in message.metadata:
+            if message.id not in kept:
                 derived.setdefault(message.id, set()).add(message.model_dump_json())
     # each call's tool message, edited to move its media out, and the media
     assert len(derived) == 2 * calls
@@ -499,34 +500,6 @@ async def test_repeated_message_keeps_the_main_threads_id() -> None:
 
     assert final[:4] == [task.id, first.id, ids[2], second.id]
     assert len(set(final)) == len(final)
-
-
-@pytest.mark.parametrize("resume", [False, True])
-async def test_derived_from_survives_the_round_trip(resume: bool) -> None:
-    task = ChatMessageUser(content="Hello")
-    checkpointer = RecordingCheckpointer()
-    bridge = AgentBridge(AgentState(messages=[task]), checkpointer=checkpointer)
-    replaced = ChatMessageAssistant(
-        content="Hi", metadata={"derived_from": ["model-output"]}
-    )
-    messages = _rebuilt(task)
-    apply_message_ids(bridge, messages)
-    await bridge._track_state(messages, ModelOutput.from_message(replaced))
-    if resume:
-        snapshot = {
-            key: copy.deepcopy(callback())
-            for key, callback in checkpointer.callbacks.items()
-        }
-        bridge = AgentBridge(
-            AgentState(messages=[task]),
-            checkpointer=RecordingCheckpointer(restored=snapshot),
-        )
-
-    messages = _rebuilt(task, replaced, ChatMessageUser(content="Again"))
-    apply_message_ids(bridge, messages)
-
-    assert messages[1].id == replaced.id
-    assert messages[1].metadata == {"derived_from": ["model-output"]}
 
 
 class _Scaffold:
@@ -603,7 +576,7 @@ async def test_resumed_bridge_keeps_the_main_threads_id() -> None:
 
 
 async def test_scaffold_edits_get_ids_derived_from_the_originals() -> None:
-    """A tool result and a user message the scaffold edits are new messages naming their originals."""
+    """A tool result and a user message the scaffold edits are new messages with derived ids."""
     task = ChatMessageUser(content="List the files.")
     first, second = _call("call_1"), ChatMessageAssistant(content="Anything else?")
     result = _result("call_1", "a very long listing")
@@ -629,9 +602,8 @@ async def test_scaffold_edits_get_ids_derived_from_the_originals() -> None:
     assert [edited[i] for i in (0, 1, 3)] == [ids[i] for i in (0, 1, 3)]
     assert edited[5] == final.id
     for i in (2, 4):
-        assert edited[i] != ids[i]
-        assert sent[i].metadata == {"derived_from": [ids[i]]}
-        assert scaffold.sent[i].metadata == {"derived_from": [ids[i]]}
+        assert edited[i] == edit_id(ids[i], content_hash(sent[i])) != ids[i]
+        assert sent[i].metadata is None
     assert again == edited
 
 
@@ -708,7 +680,7 @@ def _assert_contract(log: EvalLog) -> EvalSample:
 
 
 def test_react_submit_keeps_the_contract(tmp_path: Path) -> None:
-    """Appending the answer and removing the submit call are edits naming the output."""
+    """Appending the answer edits the output, and removing the submit call edits that."""
     model = get_model(
         "mockllm/model",
         custom_outputs=[
@@ -731,9 +703,10 @@ def test_react_submit_keeps_the_contract(tmp_path: Path) -> None:
     final = sample.messages[-1]
     assert isinstance(final, ChatMessageAssistant)
     assert not final.tool_calls and final.text.endswith("done")
-    assert final.metadata == {"derived_from": [submitted.id]}
-    assert sample.output.message.metadata == {"derived_from": [submitted.id]}
-    assert sample.output.message.id != final.id
+    answered = sample.output.message
+    assert answered.id == edit_id(submitted.id, content_hash(answered))
+    assert final.id == edit_id(answered.id, content_hash(final))
+    assert answered.id != final.id
     assert tool_event_producers(sample) == [1, 1]
 
 
@@ -748,7 +721,7 @@ def searcher() -> Agent:
 
 
 def test_handoff_keeps_the_contract(tmp_path: Path) -> None:
-    """The agent name prefix and the content_only output filter are edits naming their sources."""
+    """The agent name prefix and the content_only output filter are edits of their sources."""
     model = get_model(
         "mockllm/model",
         custom_outputs=[
@@ -769,7 +742,7 @@ def test_handoff_keeps_the_contract(tmp_path: Path) -> None:
     sample = _assert_contract(log)
     child = [e for e in sample.events if isinstance(e, ModelEvent)][1].output.message
     [prefixed] = [m for m in sample.messages if m.text == "[searcher] child answer"]
-    assert prefixed.metadata == {"derived_from": [child.id]}
+    assert prefixed.id == edit_id(child.id, content_hash(prefixed))
 
 
 def test_configured_system_message_keeps_one_id(tmp_path: Path) -> None:
@@ -808,4 +781,3 @@ async def test_native_and_bridge_edits_of_a_message_agree() -> None:
     native = edited_message(reply, content="Hi  there.")
 
     assert ids[1] == native.id != reply.id
-    assert scaffold.sent[1].metadata == native.metadata == {"derived_from": [reply.id]}

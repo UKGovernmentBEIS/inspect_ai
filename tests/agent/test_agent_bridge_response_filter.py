@@ -59,6 +59,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._message_ids import content_hash, edit_id
 from inspect_ai.model._model import (
     GenerateFilter,
     GenerateInput,
@@ -1872,10 +1873,9 @@ async def test_response_filter_replacement_drops_pending_server_work(
             ("text", REPLACED_SENTINEL)
         ]
         assert state_output.message.content == [ContentText(text=REPLACED_SENTINEL)]
-        assert state_output.message.id != provider_output.message.id
-        assert state_output.message.metadata == {
-            "derived_from": [provider_output.message.id]
-        }
+        assert state_output.message.id == edit_id(
+            provider_output.message.id, content_hash(state_output.message)
+        )
     else:
         assert state_output.message.id == provider_output.message.id
         assert PENDING_CODE in json.dumps(blocks)
@@ -2630,8 +2630,8 @@ def test_live_response_filter_anthropic_native_content(
             assert_never(mode)
 
 
-def test_settle_message_ids_records_what_a_replacement_replaces() -> None:
-    """A fresh replacement names the original at its index; an unchanged choice names nothing."""
+def test_settle_message_ids_derives_a_replacement_from_what_it_replaces() -> None:
+    """A fresh replacement is an edit of the original at its index; an unchanged choice keeps its id."""
     original = ModelOutput(
         model="mockllm/model",
         choices=[
@@ -2648,13 +2648,14 @@ def test_settle_message_ids_records_what_a_replacement_replaces() -> None:
         ],
     )
 
+    extra_id = replaced.choices[2].message.id
     _settle_message_ids(original, replaced)
 
-    assert replaced.choices[0].message.metadata == {
-        "derived_from": [original.choices[0].message.id]
-    }
-    assert replaced.choices[1].message.metadata is None
-    assert replaced.choices[2].message.metadata is None
+    first = replaced.choices[0].message
+    assert first.id == edit_id(original.choices[0].message.id, content_hash(first))
+    assert replaced.choices[1].message.id == original.choices[1].message.id
+    assert replaced.choices[2].message.id == extra_id
+    assert all(choice.message.metadata is None for choice in replaced.choices)
 
 
 def test_settle_message_ids_gives_the_same_edit_the_same_id() -> None:
@@ -2671,4 +2672,4 @@ def test_settle_message_ids_gives_the_same_edit_the_same_id() -> None:
 
     assert first.message.id == second.message.id != original.message.id
     assert other.message.id not in {first.message.id, original.message.id}
-    assert first.message.metadata == {"derived_from": [original.message.id]}
+    assert first.message.id == edit_id(original.message.id, content_hash(first.message))

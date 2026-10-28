@@ -39,12 +39,12 @@ class ChatMessageBase(BaseModel):
 
     When Inspect edits a message (removing reasoning or a tool result for a
     model call, compaction, a handoff, react's submit, a response filter or
-    approval in the agent bridge), the edit gets an id derived from the
-    original's id and its own content, so the same edit is the same message,
-    and names the original in `metadata["derived_from"]`.
-    Messages built from others (combined messages, media moved out of tool
-    results) also list their sources there. One exception: a response filter
-    output that keeps Anthropic server tool items keeps the model output's id.
+    approval in the agent bridge), the edit gets an id derived from the id of
+    the message it was made from and its own content, so the same edit is the
+    same message. Messages built from others (combined messages, media moved
+    out of tool results) get ids derived from their sources' ids and their
+    content. One exception: a response filter output that keeps Anthropic
+    server tool items keeps the model output's id.
     """
 
     content: str | list[Content]

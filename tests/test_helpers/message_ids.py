@@ -1,9 +1,9 @@
 """Check a logged sample against the message id contract.
 
 An id names one message with one content: no id carries two versions of what a
-message shows, the same edit of the same messages is always one id, and a message
-a model call sends again unchanged keeps its id. Written independently of the
-id code it checks.
+message shows, and a message a model call sends again unchanged keeps its id
+(including an edit Inspect makes the same way on every call). Written
+independently of the id code it checks.
 """
 
 import json
@@ -73,22 +73,15 @@ def message_id_violations(sample: EvalSample) -> list[str]:
     """Where `sample` breaks the contract (resolve its attachments first)."""
     violations: list[str] = []
     versions: dict[str, dict[str, str]] = defaultdict(dict)
-    edits: dict[tuple[str, str], set[str]] = defaultdict(set)
     for where, message in sample_messages(sample):
         if message.id is None:
             continue
         versions[message.id].setdefault(shown(message), where)
-        sources = (message.metadata or {}).get("derived_from")
-        if sources:
-            edits[(json.dumps(sources), shown(message))].add(message.id)
     for id, by_content in versions.items():
         if len(by_content) > 1:
             violations.append(
                 f"id {id} has {len(by_content)} contents at {list(by_content.values())}"
             )
-    for (sources, _), ids in edits.items():
-        if len(ids) > 1:
-            violations.append(f"the same edit of {sources} has ids {sorted(ids)}")
 
     model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
     for previous, current in zip(model_events, model_events[1:]):
@@ -101,7 +94,23 @@ def message_id_violations(sample: EvalSample) -> list[str]:
                 violations.append(
                     f"unchanged input {index} ({before.role}) went from id {before.id} to {after.id}"
                 )
+        # past the prefix, a content sent once by both calls is the same message
+        before_ids = _unique_ids_by_content(previous.input)
+        after_ids = _unique_ids_by_content(current.input)
+        for content, before_id in before_ids.items():
+            after_id = after_ids.get(content)
+            if after_id is not None and after_id != before_id:
+                violations.append(
+                    f"unchanged input went from id {before_id} to {after_id}"
+                )
     return violations
+
+
+def _unique_ids_by_content(messages: list[ChatMessage]) -> dict[str, str | None]:
+    ids: dict[str, list[str | None]] = defaultdict(list)
+    for message in messages:
+        ids[shown(message)].append(message.id)
+    return {content: found[0] for content, found in ids.items() if len(found) == 1}
 
 
 def tool_event_producers(sample: EvalSample) -> list[int]:

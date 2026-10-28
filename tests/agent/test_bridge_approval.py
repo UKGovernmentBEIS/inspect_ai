@@ -91,6 +91,7 @@ from inspect_ai.model._generate_config import (
     GenerateConfig,
     active_generate_config_context_var,
 )
+from inspect_ai.model._message_ids import content_hash, edit_id
 from inspect_ai.model._model import GenerateInput, Model, get_model
 from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
 from inspect_ai.model._openai_responses import (
@@ -4783,9 +4784,10 @@ def test_host_tool_events_name_the_generated_output(
         if mode == "plain":
             assert reply.id in outputs_by_id
         else:
-            assert reply.metadata is not None
-            [source] = reply.metadata["derived_from"]
-            assert source in outputs_by_id
+            assert any(
+                reply.id == edit_id(source, content_hash(reply))
+                for source in outputs_by_id
+            )
     if mode == "approval":
         assert {
             call.arguments["path"] for r in replies for call in r.tool_calls or []

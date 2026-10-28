@@ -11,7 +11,7 @@ from inspect_ai.model import (
     ModelOutput,
     get_model,
 )
-from inspect_ai.model._message_ids import stable_message_ids
+from inspect_ai.model._message_ids import content_hash, edit_id, stable_message_ids
 from inspect_ai.model._model import resolve_reasoning_history, resolve_tool_model_input
 from inspect_ai.tool import ToolDef
 
@@ -299,8 +299,7 @@ def test_reasoning_history_stripping_derives_ids() -> None:
 
     assert resolved[1].content == [ContentText(text="Answer")]
     assert resolved[0] is messages[0]
-    assert resolved[1].id != messages[1].id
-    assert resolved[1].metadata == {"derived_from": [messages[1].id]}
+    assert resolved[1].id == edit_id(messages[1].id, content_hash(resolved[1]))
     assert [m.id for m in again] == [m.id for m in resolved]
 
 
@@ -326,7 +325,6 @@ def test_tool_model_input_derives_ids() -> None:
     )
 
     assert resolved[0].content == "(removed)"
-    assert resolved[0].id != messages[0].id
-    assert resolved[0].metadata == {"derived_from": [messages[0].id]}
+    assert resolved[0].id == edit_id(messages[0].id, content_hash(resolved[0]))
     assert again[0].id == resolved[0].id
     assert messages[0].content == "result"

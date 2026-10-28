@@ -126,12 +126,6 @@ class AgentBridge:
             state.messages.copy(),
             value_type=list[ChatMessage],
         )
-        self._derived_from = self._cp.track(
-            "bridge_derived_from",
-            lambda: self._derived_from,
-            {},
-            value_type=dict[str, list[str]],
-        )
         # checkpointed hashes: changing `content_hash` or `edit_id` changes what a
         # resumed sample matches against
         self._content_by_id = self._cp.track(
@@ -408,37 +402,19 @@ class AgentBridge:
                 message.id = self._version_id(message_id, message)
             used.add(message.id)
             self._record_message_id(message_keys, message.id)
-            derived_from = self._derived_from.get(message.id)
-            if derived_from is not None and "derived_from" not in (
-                message.metadata or {}
-            ):
-                message.metadata = (message.metadata or {}) | {
-                    "derived_from": derived_from
-                }
 
     def _version_id(self, message_id: str, message: ChatMessage) -> str:
         """`message_id`, or the id of an edited version if `message`'s content differs.
 
         Different content never shares an id. A scaffold that sends a message back
         changed (even in whitespace) has edited it: the edit gets an id derived
-        from the original's and its content, and records the original in
-        `derived_from`.
+        from the id it was recognized by and its content.
         """
         content = content_hash(message)
         if self._content_by_id.setdefault(message_id, content) == content:
             return message_id
-        # an edit of an edit names the original
-        sources = self._derived_from.get(message_id)
-        original = (
-            sources[0]
-            if sources is not None
-            and len(sources) == 1
-            and message_id == edit_id(sources[0], self._content_by_id[message_id])
-            else message_id
-        )
-        edited_id = edit_id(original, content)
+        edited_id = edit_id(message_id, content)
         self._content_by_id.setdefault(edited_id, content)
-        self._derived_from[edited_id] = [original]
         return edited_id
 
     def _align_with_tracked(
@@ -598,9 +574,6 @@ class AgentBridge:
             self._content_by_id.setdefault(
                 output.message.id, content_hash(output.message)
             )
-            derived_from = (output.message.metadata or {}).get("derived_from")
-            if derived_from is not None:
-                self._derived_from[output.message.id] = derived_from
 
         messages = input + [output.message]
         fps = [_message_fingerprint(m) for m in messages]

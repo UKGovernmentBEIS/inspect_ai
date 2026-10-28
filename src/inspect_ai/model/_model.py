@@ -2793,17 +2793,8 @@ def tool_result_media_as_user_message(
 def _media_user_message(
     content: list[Content], tool_call_ids: list[str], source_ids: list[str]
 ) -> ChatMessageUser:
-    return _with_derived_id(
-        "media",
-        ChatMessageUser(
-            content=content,
-            tool_call_id=tool_call_ids,
-            metadata={"derived_from": source_ids} if source_ids else None,
-        ),
-    )
-
-
-_DERIVED_KINDS = ("media", "combined")
+    message = ChatMessageUser(content=content, tool_call_id=tool_call_ids)
+    return _with_derived_id("media", source_ids, message)
 
 
 def _configured_system_message(content: str) -> ChatMessageSystem:
@@ -2820,31 +2811,18 @@ def _configured_system_message(content: str) -> ChatMessageSystem:
 _DerivedT = TypeVar("_DerivedT", bound=ChatMessage)
 
 
-def _with_derived_id(kind: str, message: _DerivedT) -> _DerivedT:
+def _with_derived_id(kind: str, source_ids: list[str], message: _DerivedT) -> _DerivedT:
     """Give a message rebuilt on every model call an id from its sources and content.
 
     The same on every call, so the message is one message across a sample's
     model events (and one entry in the log's message pool), and different
     content from the same sources (another model's media support) is another.
     """
-    sources = (message.metadata or {}).get("derived_from")
-    if sources:
-        message.id = _derived_message_id(kind, sources, message)
+    if source_ids:
+        message.id = uuid(
+            name=f"inspect-{kind}:{json.dumps([source_ids, content_hash(message)])}"
+        )
     return message
-
-
-def _derived_message_id(kind: str, sources: list[str], message: ChatMessage) -> str:
-    return uuid(name=f"inspect-{kind}:{json.dumps([sources, content_hash(message)])}")
-
-
-def _derived_sources(message: ChatMessage) -> list[str]:
-    """The sources of a message rebuilt on every call, or the message itself."""
-    sources = (message.metadata or {}).get("derived_from")
-    if isinstance(sources, list) and message.id in {
-        _derived_message_id(kind, sources, message) for kind in _DERIVED_KINDS
-    }:
-        return list(sources)
-    return [message.id] if message.id else []
 
 
 def _make_content_reducer(
@@ -2988,9 +2966,8 @@ def combine_messages(
     if b.metadata:
         merged_metadata.update(b.metadata)
 
-    # track which messages were combined (the anthropic provider reads combined_from)
+    # track which messages were combined
     merged_metadata["combined_from"] = [a.id, b.id]
-    merged_metadata["derived_from"] = _derived_sources(a) + _derived_sources(b)
 
     # type-specific field merging
     if isinstance(a, ChatMessageAssistant) and isinstance(b, ChatMessageAssistant):
@@ -3016,7 +2993,9 @@ def combine_messages(
             source=b.source or a.source,
             metadata=merged_metadata or None,
         )
-    return _with_derived_id("combined", combined)
+    return _with_derived_id(
+        "combined", [id for id in (a.id, b.id) if id is not None], combined
+    )
 
 
 async def log_model_retry(

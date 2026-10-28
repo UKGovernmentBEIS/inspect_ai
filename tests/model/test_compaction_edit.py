@@ -1431,10 +1431,7 @@ async def test_edited_messages_get_ids_derived_from_their_sources(
 
     edited = [m for m in compacted if m.id not in by_id]
     assert all(m == by_id[m.id] for m in compacted if m.id in by_id)
-    for message in edited:
-        assert message.metadata is not None
-        [source] = message.metadata["derived_from"]
-        assert by_id[source].role == message.role
+    assert all(m.metadata is None for m in edited)
     # with keep_tool_inputs=False the tool messages are removed, not edited
     assert {m.role for m in edited} == (
         {"assistant", "tool"} if keep_tool_inputs else {"assistant"}

@@ -535,8 +535,7 @@ def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
     A changed or new message that keeps none replaces the original whose id it
     had, else the original choice at its index: it gets an id derived from that
     original's and its own content (`with_edited_id`), so the same edit is the
-    same message, and names it in `metadata["derived_from"]` (unless the filter
-    set that).
+    same message.
     """
     owners = {
         content.id: choice.message.id
@@ -572,10 +571,7 @@ def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
                 original_messages[index] if index < len(original_messages) else None,
             )
             if source is not None:
-                lineage = (message.metadata or {}).get("derived_from")
                 with_edited_id(source, message)
-                if lineage is not None and message.metadata is not None:
-                    message.metadata["derived_from"] = lineage
 
 
 def _check_provider_owned_content(original: ModelOutput, filtered: ModelOutput) -> None:

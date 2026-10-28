@@ -9,6 +9,7 @@ from inspect_ai._util.content import (
 from inspect_ai._util.registry import RegistryInfo, set_registry_info
 from inspect_ai.model import ChatMessage, ChatMessageTool, ChatMessageUser
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._message_ids import content_hash, edit_id
 from inspect_ai.model._model import (
     Model,
     ModelAPI,
@@ -205,15 +206,8 @@ def assert_messages_equal(
 
 
 def _comparable(message: ChatMessage) -> dict[str, Any]:
-    """The message without its id and `derived_from`, which `test_media_message_ids` checks."""
-    dump = message.model_dump(exclude={"id"})
-    metadata = {
-        key: value
-        for key, value in (dump["metadata"] or {}).items()
-        if key != "derived_from"
-    }
-    dump["metadata"] = metadata or None
-    return dump
+    """The message without its id, which `test_media_message_ids` checks."""
+    return message.model_dump(exclude={"id"})
 
 
 def test_media_message_ids() -> None:
@@ -231,15 +225,15 @@ def test_media_message_ids() -> None:
     )
 
     for edited, source in zip(transformed[:2], [tool_a, tool_b]):
-        assert edited.id != source.id
-        assert edited.metadata == {"derived_from": [source.id]}
+        assert edited.id == edit_id(source.id, content_hash(edited)) != source.id
+        assert edited.metadata is None
     again = tool_result_media_as_user_message(
         [tool_a, tool_b, user], (ContentDocument,)
     )
     assert [m.id for m in again] == [m.id for m in transformed]
     media = transformed[2]
     assert media.id not in {tool_a.id, tool_b.id, user.id}
-    assert media.metadata == {"derived_from": [tool_a.id, tool_b.id]}
+    assert media.metadata is None
     assert transformed[3] is user
 
 
