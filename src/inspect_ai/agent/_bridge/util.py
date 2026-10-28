@@ -1586,7 +1586,9 @@ async def validate_bridge_media(
 
 def apply_message_ids(bridge: AgentBridge, messages: list[ChatMessage]) -> None:
     """Replace the ids made up while rebuilding a request with the ids the bridge knows."""
+    tracked = bridge.state.messages
     used: set[str] = set()
-    for message in messages:
-        message.id = bridge._id_for_message(message, used)
+    for index, message in enumerate(messages):
+        aligned = tracked[index] if index < len(tracked) else None
+        message.id = bridge._id_for_message(message, used, aligned)
         used.add(message.id)

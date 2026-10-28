@@ -125,6 +125,9 @@ class AgentBridge:
             state.messages.copy(),
             value_type=list[ChatMessage],
         )
+        # not checkpointed: on resume ids are still found through `_message_ids`
+        self._keys_by_id: dict[str, set[str]] = {}
+        self._derived_from: dict[str, list[str]] = {}
         self._record_input_message_ids(self._compaction_prefix)
         self.filter = filter
         self.response_filter = response_filter
@@ -345,25 +348,40 @@ class AgentBridge:
         """
         self._pending_operator += 1
 
-    def _id_for_message(self, message: ChatMessage, used: Set[str]) -> str:
+    def _id_for_message(
+        self, message: ChatMessage, used: Set[str], aligned: ChatMessage | None
+    ) -> str:
         """The id the bridge knows `message` by, or a new one if it has never seen it.
 
-        Candidates are taken in the order they were recorded, skipping ids already
+        The tracked thread's message at the same position (`aligned`) wins when it
+        matches, so a repeat of a side call's message can't take its id. Otherwise
+        candidates are taken in the order they were recorded, skipping ids already
         `used` in the request, so the k-th repeat of a message gets the k-th id.
         """
         keys = _message_id_keys(message)
-        message_id = next(
-            (
-                id
-                for key in keys
-                for id in self._message_ids.get(key, [])
-                if id not in used
-            ),
-            None,
-        )
+        message_id: str | None = None
+        if aligned is not None and aligned.id is not None and aligned.id not in used:
+            aligned_keys = self._keys_by_id.get(aligned.id) or set(
+                _message_id_keys(aligned)
+            )
+            if not aligned_keys.isdisjoint(keys):
+                message_id = aligned.id
+        if message_id is None:
+            message_id = next(
+                (
+                    id
+                    for key in keys
+                    for id in self._message_ids.get(key, [])
+                    if id not in used
+                ),
+                None,
+            )
         if message_id is None:
             message_id = uuid()
         self._record_message_id(keys, message_id)
+        derived_from = self._derived_from.get(message_id)
+        if derived_from is not None and "derived_from" not in (message.metadata or {}):
+            message.metadata = (message.metadata or {}) | {"derived_from": derived_from}
         return message_id
 
     def _record_message_id(self, keys: list[str], message_id: str) -> None:
@@ -371,6 +389,7 @@ class AgentBridge:
             ids = self._message_ids.setdefault(key, [])
             if message_id not in ids:
                 ids.append(message_id)
+        self._keys_by_id.setdefault(message_id, set()).update(keys)
 
     def _record_input_message_ids(self, messages: list[ChatMessage]) -> None:
         """Record the input's ids, including the condensed and quoted forms `_position_descent` accepts."""
@@ -440,6 +459,9 @@ class AgentBridge:
         """
         if output.message.id is not None:
             self._record_message_id(_message_id_keys(output.message), output.message.id)
+            derived_from = (output.message.metadata or {}).get("derived_from")
+            if derived_from is not None:
+                self._derived_from[output.message.id] = derived_from
 
         messages = input + [output.message]
         fps = [_message_fingerprint(m) for m in messages]
