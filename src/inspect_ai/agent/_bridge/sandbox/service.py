@@ -220,7 +220,7 @@ def generate_google(
         )
         return completion
 
-    return _expose_client_headers(generate, bridge)
+    return generate
 
 
 def list_tools(
