@@ -348,17 +348,19 @@ async def resolve_sandbox(
     elif sample.sandbox is not None:
         resolved_sandbox = sample.sandbox
 
-    # a relative config file named by a sample built in code is relative to
-    # the task's directory (as a task's own config is), wherever it is read
+    # a relative config file named by a sample built in code is the one in
+    # the task's directory (as for a task's own config), wherever it is read.
+    # Only an existing file: a string config may be something else (an image
+    # name, a URL)
     if (
         task_dir is not None
         and resolved_sandbox is not None
         and isinstance(resolved_sandbox.config, str)
         and not Path(resolved_sandbox.config).is_absolute()
+        and (task_file := Path(task_dir, resolved_sandbox.config)).is_file()
     ):
         resolved_sandbox = SandboxEnvironmentSpec(
-            resolved_sandbox.type,
-            (Path(task_dir) / resolved_sandbox.config).as_posix(),
+            resolved_sandbox.type, task_file.as_posix()
         )
     return resolved_sandbox
 

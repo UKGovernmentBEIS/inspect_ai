@@ -65,11 +65,13 @@ class SetupIsolationFake(SandboxEnvironment):
         cls, task_name: str, config: SandboxEnvironmentConfigType | None
     ) -> None:
         pwd = await subprocess(["pwd"])
+        sub = await subprocess(["pwd"], cwd="sub")
         var = await subprocess(["sh", "-c", "echo $SETUP_ISOLATION_VAR"])
         RECORDS.append(
             {
                 "hook": "task_init",
                 "child_cwd": pwd.stdout.strip(),
+                "child_sub_cwd": sub.stdout.strip(),
                 "child_var": var.stdout.strip(),
                 **_describe(config),
             }
@@ -158,6 +160,22 @@ TASK_FILE = textwrap.dedent(
 
 
     @task
+    def sample_level_non_file():
+        # a string config that names no file (e.g. an image) is left as given
+        return Task(
+            dataset=[
+                Sample(
+                    input="hi",
+                    sandbox=SandboxEnvironmentSpec(
+                        "setup_isolation_fake", "python:3.12-slim"
+                    ),
+                )
+            ],
+            solver=noop(),
+        )
+
+
+    @task
     def sample_level_compose_config():
         # a ComposeConfig object (providers resolve its build contexts
         # against Path.cwd())
@@ -191,7 +209,12 @@ TASK_FILE = textwrap.dedent(
 
 @pytest.mark.parametrize(
     "task_name",
-    ["sample_level_string", "sample_level_compose_config", "task_level_string"],
+    [
+        "sample_level_string",
+        "sample_level_compose_config",
+        "task_level_string",
+        "sample_level_non_file",
+    ],
 )
 def test_setup_runs_without_process_wide_changes(
     task_name: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -203,6 +226,7 @@ def test_setup_runs_without_process_wide_changes(
     launch_dir.mkdir()
     (task_dir / "relcfg_task.py").write_text(TASK_FILE)
     (task_dir / "compose.yaml").write_text("services: {}\n")
+    (task_dir / "sub").mkdir()
     monkeypatch.chdir(launch_dir)
 
     logs = eval(
@@ -230,8 +254,12 @@ def test_setup_runs_without_process_wide_changes(
     # child processes started by subprocess() during setup run in the task's
     # directory, with the setup env vars
     assert by_hook["task_init"]["child_cwd"] == str(task_dir)
+    assert by_hook["task_init"]["child_sub_cwd"] == str(task_dir / "sub")
     assert by_hook["task_init"]["child_var"] == "from-task-init-environment"
-    if task_name != "sample_level_compose_config":
+    if task_name == "sample_level_non_file":
+        for hook in ("task_init", "sample_init", "task_cleanup"):
+            assert by_hook[hook]["config"] == "python:3.12-slim"
+    elif task_name != "sample_level_compose_config":
         # a relative config names the task-directory file in every hook
         for hook in ("task_init", "sample_init", "task_cleanup"):
             assert by_hook[hook]["config"] == str(task_dir / "compose.yaml")

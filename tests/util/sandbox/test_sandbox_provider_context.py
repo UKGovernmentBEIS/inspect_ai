@@ -623,3 +623,41 @@ async def test_task_cleanup_sees_only_provider_state(how: str) -> None:
 
 def _plain_seed() -> Task:
     return Task(name="seed", dataset=[Sample(input="hi")], solver=noop())
+
+
+@pytest.mark.parametrize("provider", ["ctxvar_fake", "getorcreate_fake"])
+async def test_sample_source_state_stays_with_its_task(provider: str) -> None:
+    # a config first started late, for a sample a SampleSource adds, sets its
+    # state inside that task: a task started afterwards on another config
+    # sees that config's state, not the late one's
+    class _Src(SampleSource):
+        def __init__(self) -> None:
+            self._produced = False
+
+        async def next_samples(self) -> list[Sample] | None:
+            if not self._produced:
+                self._produced = True
+                return [Sample(input="added", target="ok", id=1, metadata={"n": "1"})]
+            return None
+
+    sourced = Task(
+        name="sourced",
+        dataset=_Src(),
+        solver=noop(),
+        sandbox=SandboxEnvironmentSpec(provider, FakeConfig(name="S")),
+    )
+    given = False
+
+    async def next_tasks() -> list[Task] | None:
+        nonlocal given
+        if not given:
+            given = True
+            return [fake_task("later", provider, "A")]
+        return None
+
+    logs = await eval_async(
+        TaskSource.from_tasks([sourced], next_tasks=next_tasks),
+        model="mockllm/model",
+    )
+    _ok(logs)
+    assert sample_state(provider, "later/1") == init_of(provider, "A")

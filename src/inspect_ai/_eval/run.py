@@ -533,13 +533,16 @@ class GroupStartup:
     def _sandbox_starts(self, resolved_task: ResolvedTask) -> TaskSandboxStarts:
         if not self.settings.run_samples:
             return TaskSandboxStarts(None, None)
-        start = functools.partial(self.sandboxes.start_for_samples, resolved_task)
         return TaskSandboxStarts(
             own_samples=(
-                start if self.sandboxes.in_slot and resolved_task.has_sandbox else None
+                functools.partial(self.sandboxes.start_for_task, resolved_task)
+                if self.sandboxes.in_slot and resolved_task.has_sandbox
+                else None
             ),
             added_samples=(
-                start if resolved_task.task.sample_source is not None else None
+                functools.partial(self.sandboxes.start_for_samples, resolved_task)
+                if resolved_task.task.sample_source is not None
+                else None
             ),
         )
 
@@ -1126,8 +1129,8 @@ class SandboxManager:
 
     Use as an async context manager around the run. Tasks added to a running
     eval, and samples a `SampleSource` adds to a live task, arrive in groups,
-    so startup is callable repeatedly: :meth:`start` / :meth:`start_for_samples`
-    initialize only sandboxenvs not already started and accumulate their
+    so startup is callable repeatedly: :meth:`start`, :meth:`start_for_task` and
+    :meth:`start_for_samples` initialize only sandboxenvs not already started and accumulate their
     cleanups, which run once, when the run ends.
 
     Providers may keep state in ContextVars that ``task_init`` sets and
@@ -1217,7 +1220,7 @@ class SandboxManager:
             sandboxenvs |= await self._resolve_sandboxenvs(
                 task, self._selected_samples(task, task_names)
             )
-        await self._start_sandboxenvs(sandboxenvs)
+        await self._start_sandboxenvs(sandboxenvs, shared=True)
 
     async def register_limiters(
         self, tasks: list[ResolvedTask], task_names: list[str]
@@ -1241,19 +1244,34 @@ class SandboxManager:
                 self._config.max_sandboxes,
             )
 
+    async def start_for_task(
+        self, task: ResolvedTask, samples: Iterable[Sample]
+    ) -> None:
+        """Start a task's sandboxenvs from inside the task, as it starts running.
+
+        For tasks that start their sandboxes in their slots. As with
+        :meth:`start`, the provider state reaches later tasks too (one whose
+        config was already started needs it).
+        """
+        await self._start_sandboxenvs(
+            await self._resolve_sandboxenvs(task, samples), shared=True
+        )
+
     async def start_for_samples(
         self, task: ResolvedTask, samples: Iterable[Sample]
     ) -> None:
-        """Start the sandboxenvs of samples a running task is about to run.
+        """Start the sandboxenvs of samples a `SampleSource` adds to a running task.
 
-        Samples a `SampleSource` adds while its task runs, and, when tasks
-        start their sandboxes in their slots, the task's own samples: a config
-        first seen there gets the same `task_init` startup as seed configs
-        (up-front image build/pull, fail-fast validation, a registered
-        `task_cleanup`) before the samples run. Configs already started are a
-        no-op.
+        A config first seen in an added sample (including the task-level config
+        when the seed dataset was empty) gets the same `task_init` startup as
+        seed configs (up-front image build/pull, fail-fast validation, a
+        registered `task_cleanup`) before the sample runs. Configs already
+        started are a no-op. The provider state stays with this task and the
+        config's cleanup: it is set inside the task, which no other task sees.
         """
-        await self._start_sandboxenvs(await self._resolve_sandboxenvs(task, samples))
+        await self._start_sandboxenvs(
+            await self._resolve_sandboxenvs(task, samples), shared=False
+        )
 
     def _selected_samples(
         self, task: ResolvedTask, task_names: list[str]
@@ -1307,9 +1325,12 @@ class SandboxManager:
         return sandboxenvs
 
     async def _start_sandboxenvs(
-        self, sandboxenvs: set[TaskSandboxEnvironment]
+        self, sandboxenvs: set[TaskSandboxEnvironment], *, shared: bool
     ) -> None:
         """Run `task_init` for new sandboxenvs; set the provider state in the caller.
+
+        ``shared``: what the new `task_init`s set is added to the run's provider
+        state, which every later start-up gives its caller.
 
         One `task_init` at a time, on a lock, with the started set re-checked
         under it, so concurrent callers (e.g. two live tasks adding samples at
@@ -1318,8 +1339,10 @@ class SandboxManager:
         out another caller's (possibly minutes-long) image pull: the started
         set only grows.
         """
+        state = self._state
         if any(env not in self._started for env in sandboxenvs):
             async with self._init_lock:
+                state = dict(self._state)
                 new = [env for env in sandboxenvs if env not in self._started]
                 if new:
                     set_sandbox_prebuilt(self._config.sandbox_prebuilt is True)
@@ -1329,15 +1352,22 @@ class SandboxManager:
                         nullcontext() if self.in_slot else display().suspend_task_app()
                     ):
                         for sandboxenv in new:
-                            await self._init_one(sandboxenv)
+                            state |= await self._init_one(sandboxenv, state)
                         # space above the task display ("none" has none and must
                         # keep stdout machine-readable, e.g. --json)
                         if not self.in_slot and display_type() != "none":
                             print("")
-        _set_provider_state(self._state)
+            if shared:
+                self._state = state
+        _set_provider_state(state)
 
-    async def _init_one(self, sandboxenv: TaskSandboxEnvironment) -> None:
-        """Run one sandboxenv's `task_init`; record its provider state and cleanup."""
+    async def _init_one(
+        self, sandboxenv: TaskSandboxEnvironment, state: ProviderState
+    ) -> ProviderState:
+        """Run one sandboxenv's `task_init` from ``state``; return what it set.
+
+        Records its cleanup, to run with ``state`` plus what it set.
+        """
         sandboxenv_type = registry_find_sandboxenv(sandboxenv.sandbox.type)
         # pre-register the type's resizable concurrency limiter before
         # task_init (image pulls/builds can take minutes) so a `ctl limits
@@ -1355,9 +1385,9 @@ class SandboxManager:
             try:
                 # from the state earlier task_inits left, so a provider's
                 # get-or-create finds it
-                state = await _in_child_task(
+                changes = await _in_child_task(
                     functools.partial(task_init, "startup", sandboxenv.sandbox.config),
-                    self._state,
+                    state,
                 )
             except Exception as ex:
                 if setup.output:
@@ -1367,15 +1397,15 @@ class SandboxManager:
                     )
                 raise
         self._started.add(sandboxenv)
-        self._state.update(state)
         self._cleanups.append(
             _TaskCleanup(
                 cast(TaskCleanup, getattr(sandboxenv_type, "task_cleanup")),
                 sandboxenv.sandbox.config,
                 sandboxenv.run_dir,
-                dict(self._state),
+                state | changes,
             )
         )
+        return changes
 
 
 async def _in_child_task(

@@ -127,8 +127,8 @@ async def subprocess(
     config option).
 
     Inside a sandbox provider's task-level setup or cleanup (see
-    `sandbox_setup()`), the process runs in the task's directory unless `cwd`
-    is given, with the setup's environment variables added (`env` takes
+    `sandbox_setup()`), the process runs in the task's directory (a relative
+    `cwd` is relative to it), with the setup's environment variables added (`env` takes
     precedence), and output that would go to the terminal may be collected
     for the task instead.
 
@@ -254,8 +254,8 @@ async def run_subprocess(
     )
 
     setup = sandbox_setup()
-    if cwd is None and setup is not None:
-        cwd = setup.task_dir
+    if setup is not None:
+        cwd = Path(setup.task_dir, cwd) if cwd is not None else setup.task_dir
     # output the call would stream to the terminal is collected for the setup
     collected = setup.output if setup is not None and not capture_output else None
 
