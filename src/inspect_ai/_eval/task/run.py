@@ -661,7 +661,11 @@ class TaskRunOptions:
     startup_sandboxes: Callable[[list[Sample]], Awaitable[None]] | None = field(
         default=None
     )
-    """Run-level incremental sandbox startup for samples a SampleSource adds."""
+    """Run-level incremental sandbox startup for samples a SampleSource adds
+    (and, with ``start_sandboxes``, for the task's own samples)."""
+    start_sandboxes: bool = field(default=False)
+    """Start the task's sandboxes (``startup_sandboxes``) when it starts running,
+    before its samples: the run sets each task up in its own slot."""
     input_media_policy: InputMediaPolicy = field(default="inline_only")
     """Authority granted to media references in the sliced seed dataset."""
 
@@ -1134,6 +1138,10 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # return immediately if we are not running samples
             if not options.run_samples:
                 return await logger.log_finish("started", stats)
+
+            # inside the try, so a failed sandbox setup is this task's error
+            if options.start_sandboxes and options.startup_sandboxes is not None:
+                await options.startup_sandboxes(list(dataset))
 
             sample_semaphore = create_sample_semaphore(
                 config,

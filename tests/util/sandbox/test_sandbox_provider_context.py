@@ -360,10 +360,30 @@ def all_samples(provider: str) -> set[str]:
     }
 
 
-@pytest.fixture(autouse=True)
-def _reset_events(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+# whether the test runs with each task starting its sandboxes in its own slot
+# (INSPECT_TASK_SETUP_IN_SLOT=1) or with each group started up before dispatch
+IN_SLOT = False
+
+
+@pytest.fixture(autouse=True, params=["group", "slot"])
+def _reset_events(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
+) -> None:
+    global IN_SLOT
+    IN_SLOT = request.param == "slot"
+    if IN_SLOT:
+        monkeypatch.setenv("INSPECT_TASK_SETUP_IN_SLOT", "1")
     EVENTS.clear()
     monkeypatch.setenv("INSPECT_LOG_DIR", str(tmp_path / "logs"))
+
+
+def init_of(provider: str, config: str) -> str:
+    (state,) = [
+        e.state
+        for e in EVENTS
+        if e.provider == provider and e.hook == "task_init" and e.config == config
+    ]
+    return state
 
 
 def _ok(logs: list[EvalLog]) -> None:
@@ -387,7 +407,11 @@ async def test_seed_tasks_two_configs(provider: str) -> None:
 
     assert "MISSING" not in [e.state for e in EVENTS]
     assert cleanup_covers(provider) == all_samples(provider)
-    if provider == "ctxvar_fake":
+    if provider == "ctxvar_fake" and IN_SLOT:
+        # each task starts its own sandboxes and sees its own task_init's state
+        assert sample_state(provider, "seed_a/1") == init_of(provider, "A")
+        assert sample_state(provider, "seed_b/1") == init_of(provider, "B")
+    elif provider == "ctxvar_fake":
         # both seed task_inits run before any task starts, so every task sees
         # the last one's state
         inits = seen(provider, "task_init")
@@ -420,8 +444,12 @@ async def test_added_when_free_overlapping(provider: str, driver: str) -> None:
         # started after child_b's task_init
         assert sample_state(provider, "parent/1") == state_a
         assert sample_state(provider, "parent/2") == state_a
-        # child_a2 uses config A, but started after B's task_init: it sees B's
-        assert sample_state(provider, "child_a2/1") == state_b
+        # child_a2 uses config A, already started: it sees the latest state
+        # (B's once B's task_init has run, which in the slot mode depends on
+        # which of the two children starts first)
+        assert sample_state(provider, "child_a2/1") in (
+            [state_a, state_b] if IN_SLOT else [state_b]
+        )
         # each config's cleanup sees its own task_init's state
         assert sorted(seen(provider, "task_cleanup")) == sorted([state_a, state_b])
     else:
@@ -453,7 +481,9 @@ async def test_added_after_batch(
         assert len(inits) == 2
         state_a, state_b = inits
         assert sample_state(provider, "parent/1") == state_a
-        assert sample_state(provider, "child_a2/1") == state_b
+        assert sample_state(provider, "child_a2/1") in (
+            [state_a, state_b] if IN_SLOT else [state_b]
+        )
         assert sorted(seen(provider, "task_cleanup")) == sorted([state_a, state_b])
 
 
