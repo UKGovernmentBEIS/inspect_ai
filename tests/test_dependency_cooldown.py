@@ -29,6 +29,7 @@ LOCKED_JOBS = {
     "slow-tool-tests-dev": "uv sync --locked",
     "slow-tool-tests-release": "uv sync --locked",
     "docs": "uv sync --locked --extra doc --no-default-groups",
+    "package": "uv sync --locked --no-default-groups --extra dist --no-install-project",
 }
 SANDBOX_TOOLS_TEST_LOCK = "src/inspect_sandbox_tools/tests/requirements.txt"
 PROVIDERS = REPO / "src" / "inspect_ai" / "model" / "_providers"
@@ -191,6 +192,13 @@ def test_pinned_uv_versions_meet_required_version() -> None:
     pinned["devcontainer"] = devcontainer_uv[1]
     for where, pin in pinned.items():
         assert version(pin) >= version(required[1]), f"{where}: uv {pin}"
+
+
+def test_no_workflow_uses_the_build_and_inspect_action() -> None:
+    # hynek/build-and-inspect-python-package installs the newest uv with
+    # curl | bash and apt-installs tree.
+    for path in (REPO / ".github").rglob("*.y*ml"):
+        assert "build-and-inspect-python-package" not in path.read_text(), path
 
 
 def test_pre_commit_hooks_run_locked_tools() -> None:

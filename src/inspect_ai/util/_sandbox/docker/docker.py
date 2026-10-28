@@ -481,7 +481,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         if parent != ".":
             result = await self.exec(pinned_command(["mkdir", "-p", parent]), user=user)
             if not result.success:
-                raise_for_unsupported_user(result.stderr, user)
+                raise_for_unsupported_user(result.stderr or result.stdout, user)
                 if "permission denied" in result.stderr.casefold():
                     raise PermissionError(errno.EACCES, "Permission denied.", file)
                 msg = f"Failed to create container directory {parent}: {result.stderr}"
@@ -506,7 +506,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 user=user,
             )
         if result.returncode != 0:
-            raise_for_unsupported_user(result.stderr, user)
+            raise_for_unsupported_user(result.stderr or result.stdout, user)
             if "permission denied" in result.stderr.casefold():
                 ls_result = await self.exec(
                     pinned_command(["ls", "-la", "."]), user=user
