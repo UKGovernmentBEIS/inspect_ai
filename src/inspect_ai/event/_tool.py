@@ -85,8 +85,13 @@ class ToolEvent(BaseEvent):
     """Id of ChatMessageTool associated with this event.
 
     The message may not stay in the conversation (react removes its `submit`
-    tool's result). `None` for a host tool a sandbox agent bridge runs for the
-    scaffold, whose result reaches the conversation through the scaffold.
+    tool's result). For a host tool a sandbox agent bridge runs for the
+    scaffold, the result reaches the conversation only when the scaffold sends
+    it back, so this is set then, on the completed event: the tool message
+    after the reply handed to the scaffold that answers the call. It stays
+    `None` until then, and for good if the scaffold never sends the result,
+    the sample resumes from a checkpoint first, the call executed more than
+    once, or more than one tool message answers it.
     """
 
     call_message_id: str | None = Field(default=None)

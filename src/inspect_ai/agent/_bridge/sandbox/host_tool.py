@@ -37,7 +37,7 @@ from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox.service import find_control_flow
 from inspect_ai.util._span import parent_span, span
 
-from .types import SandboxAgentBridge, _ToolExecutionGrant
+from .types import SandboxAgentBridge, _Proposal, _ToolExecutionGrant
 
 logger = getLogger(__name__)
 
@@ -197,6 +197,7 @@ async def _record_rejection(
     view: ToolCallContent | None = None,
     failed: bool | None = None,
     call_message_id: str | None = None,
+    proposal: _Proposal | None = None,
 ) -> None:
     """Record a request that did not execute as a completed event in its own `tool` span."""
     event = ToolEvent(
@@ -231,6 +232,16 @@ async def _record_rejection(
         # request was still received and decided, so it is still recorded
         if not recorded:
             transcript()._event(event)
+        _await_result_message(bridge, proposal, event)
+
+
+def _await_result_message(
+    bridge: SandboxAgentBridge, proposal: _Proposal | None, event: ToolEvent
+) -> None:
+    if proposal is not None and proposal.reply is not None:
+        bridge._await_result_message(
+            proposal.reply, proposal.call.function, event, transcript()
+        )
 
 
 async def _execute_granted(
@@ -250,6 +261,7 @@ async def _execute_granted(
     event_id = grant.proposal.take_id() if grant is not None else uuid()
     view = grant.proposal.call.view if grant is not None else None
     call_message_id = grant.proposal.message_id if grant is not None else None
+    proposal = grant.proposal if grant is not None else None
 
     try:
         tool_def = ToolDef(tool_fn)
@@ -273,6 +285,7 @@ async def _execute_granted(
             view=view,
             failed=True if mapped is None else None,
             call_message_id=call_message_id,
+            proposal=proposal,
         )
         raise
     if validation_errors:
@@ -285,6 +298,7 @@ async def _execute_granted(
             event_id=event_id,
             view=view,
             call_message_id=call_message_id,
+            proposal=proposal,
         )
         raise ToolParsingError(validation_errors)
     call_arguments = cast(dict[str, JsonValue], arguments)
@@ -368,6 +382,7 @@ async def _execute_granted(
                 transcript()._event_updated(event)
             else:
                 transcript()._event(event)
+            _await_result_message(bridge, proposal, event)
             if outcome.fatal is not None:
                 bridge.request_fail(outcome.fatal)
 

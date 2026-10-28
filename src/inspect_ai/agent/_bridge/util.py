@@ -1099,6 +1099,7 @@ async def _bridge_generate_impl(
                 for call in reviewed.output.message.tool_calls or []
                 if (call.id, call.function) in proposed and generated.message.id
             }
+            bridge._proposing_reply_id = reviewed.output.message.id
             try:
                 bridge.register_tool_execution_grants(
                     reviewed.output.message.tool_calls or [],
@@ -1107,6 +1108,7 @@ async def _bridge_generate_impl(
                 )
             finally:
                 bridge._proposing_message_ids = {}
+                bridge._proposing_reply_id = None
             return reviewed.output, c_message
 
         rejections += 1

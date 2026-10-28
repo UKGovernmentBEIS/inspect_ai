@@ -4689,9 +4689,189 @@ async def _suffix_filter(
     return output
 
 
+HostDialect = Literal["completions", "responses", "anthropic", "google"]
+
+
+class _HostConversation:
+    """One dialect's wire conversation, for a scaffold running every call as a host tool."""
+
+    def __init__(self, dialect: HostDialect, prompt: str, info: ToolInfo) -> None:
+        self.dialect = dialect
+        self.info = info
+        self.history: list[dict[str, Any]] = (
+            [{"role": "user", "parts": [{"text": prompt}]}]
+            if dialect == "google"
+            else [{"role": "user", "content": prompt}]
+        )
+
+    async def request(
+        self, bridge: SandboxAgentBridge
+    ) -> list[tuple[str, dict[str, Any]]]:
+        """Send the conversation; append the reply and return its (call id or name, arguments)."""
+        info = self.info
+        parameters = info.parameters.model_dump(exclude_none=True)
+        match self.dialect:
+            case "completions":
+                tool = {
+                    "type": "function",
+                    "function": info.model_dump(exclude_none=True),
+                }
+                completion = await inspect_completions_api_request(
+                    {"model": "inspect", "messages": self.history, "tools": [tool]},
+                    None,
+                    bridge,
+                )
+                reply = completion.choices[0].message
+                self.history.append(reply.model_dump(exclude_none=True))
+                return [
+                    (call.id, json.loads(call.function.arguments))
+                    for call in reply.tool_calls or []
+                    if call.type == "function"
+                ]
+            case "responses":
+                tool = {
+                    "type": "function",
+                    "name": info.name,
+                    "description": info.description,
+                    "parameters": parameters,
+                }
+                response = await inspect_responses_api_request(
+                    {"model": "inspect", "input": self.history, "tools": [tool]},
+                    None,
+                    internal_web_search_providers(),
+                    default_code_execution_providers(),
+                    bridge,
+                )
+                self.history.extend(
+                    item.model_dump(exclude_none=True) for item in response.output
+                )
+                return [
+                    (item.call_id, json.loads(item.arguments))
+                    for item in response.output
+                    if item.type == "function_call"
+                ]
+            case "anthropic":
+                tool = {
+                    "name": info.name,
+                    "description": info.description,
+                    "input_schema": parameters,
+                }
+                message = await inspect_anthropic_api_request(
+                    {
+                        "model": "inspect",
+                        "max_tokens": 1024,
+                        "messages": self.history,
+                        "tools": [tool],
+                    },
+                    None,
+                    internal_web_search_providers(),
+                    default_code_execution_providers(),
+                    bridge,
+                )
+                self.history.append(
+                    {
+                        "role": "assistant",
+                        "content": [
+                            block.model_dump(exclude_none=True)
+                            for block in message.content
+                        ],
+                    }
+                )
+                return [
+                    (block.id, cast(dict[str, Any], block.input))
+                    for block in message.content
+                    if block.type == "tool_use"
+                ]
+            case "google":
+                tool = {
+                    "functionDeclarations": [
+                        {
+                            "name": info.name,
+                            "description": info.description,
+                            "parametersJsonSchema": parameters,
+                        }
+                    ]
+                }
+                gemini = await inspect_google_api_request(
+                    {"contents": self.history, "tools": [tool]},
+                    internal_web_search_providers(),
+                    default_code_execution_providers(),
+                    bridge,
+                )
+                content = gemini["candidates"][0]["content"]
+                self.history.append(content)
+                return [
+                    (part["functionCall"]["name"], part["functionCall"]["args"])
+                    for part in content["parts"]
+                    if "functionCall" in part
+                ]
+
+    def results(self, calls: list[tuple[str, Any]], outputs: list[JsonValue]) -> None:
+        """Append the results of `calls` the way the dialect sends them."""
+        match self.dialect:
+            case "completions":
+                self.history.extend(
+                    {"role": "tool", "tool_call_id": id, "content": str(output)}
+                    for (id, _), output in zip(calls, outputs)
+                )
+            case "responses":
+                self.history.extend(
+                    {
+                        "type": "function_call_output",
+                        "call_id": id,
+                        "output": str(output),
+                    }
+                    for (id, _), output in zip(calls, outputs)
+                )
+            case "anthropic":
+                self.history.append(
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": id,
+                                "content": str(output),
+                            }
+                            for (id, _), output in zip(calls, outputs)
+                        ],
+                    }
+                )
+            case "google":
+                self.history.append(
+                    {
+                        "role": "user",
+                        "parts": [
+                            {
+                                "functionResponse": {
+                                    "name": name,
+                                    "response": {"output": str(output)},
+                                }
+                            }
+                            for (name, _), output in zip(calls, outputs)
+                        ],
+                    }
+                )
+
+
+def _numbered_results() -> AsyncMock:
+    """A host tool mock whose every result is different."""
+    count = 0
+
+    async def read(**arguments: Any) -> str:
+        nonlocal count
+        count += 1
+        return f"{arguments.get('path')} result {count}"
+
+    return AsyncMock(side_effect=read)
+
+
 @agent
-def host_scaffold(mode: Literal["plain", "filter", "approval"]) -> Agent:
-    """A Completions scaffold running every call it gets as a bridged host tool, in parallel."""
+def host_scaffold(
+    mode: Literal["plain", "filter", "approval"],
+    dialect: HostDialect = "completions",
+) -> Agent:
+    """A scaffold running every call it gets as a bridged host tool, in parallel."""
 
     async def execute(state: AgentState) -> AgentState:
         bridge = SandboxAgentBridge(
@@ -4701,54 +4881,33 @@ def host_scaffold(mode: Literal["plain", "filter", "approval"]) -> Agent:
             compaction=None,
             port=13131,
             model=None,
-            bridged_tools={
-                "host": {"read_file": read_file(AsyncMock(return_value="same result"))}
-            },
+            bridged_tools={"host": {"read_file": read_file(_numbered_results())}},
             response_filter=_suffix_filter if mode == "filter" else None,
             approval=[ApprovalPolicy(modifying_approver({"path": "safe"}), "*")]
             if mode == "approval"
             else None,
         )
         [info] = declare("mcp__host__read_file")
-        tools = [{"type": "function", "function": info.model_dump(exclude_none=True)}]
-        messages: list[dict[str, Any]] = [
-            {"role": "user", "content": state.messages[0].text}
-        ]
+        conversation = _HostConversation(dialect, state.messages[0].text, info)
         while True:
-            response = await inspect_completions_api_request(
-                {"model": "inspect", "messages": messages, "tools": tools}, None, bridge
-            )
-            reply = response.choices[0].message
-            messages.append(reply.model_dump(exclude_none=True))
-            calls = [call for call in reply.tool_calls or [] if call.type == "function"]
+            calls = await conversation.request(bridge)
             if not calls:
                 return bridge.state
-            results = await tg_collect(
+            outputs = await tg_collect(
                 [
-                    partial(
-                        call_host_tool(bridge),
-                        "host",
-                        "read_file",
-                        json.loads(call.function.arguments),
-                    )
-                    for call in calls
+                    partial(call_host_tool(bridge), "host", "read_file", arguments)
+                    for _, arguments in calls
                 ]
             )
-            messages.extend(
-                {"role": "tool", "tool_call_id": call.id, "content": str(result)}
-                for call, result in zip(calls, results)
-            )
+            conversation.results(calls, outputs)
 
     return execute
 
 
-@pytest.mark.parametrize("mode", ["plain", "filter", "approval"])
-def test_host_tool_events_name_the_generated_output(
-    mode: Literal["plain", "filter", "approval"], tmp_path: Path
-) -> None:
-    """Each host tool event names exactly one model event's output, whatever changed the reply."""
+def _host_outputs() -> list[ModelOutput]:
+    """Two rounds of two parallel calls (the first call's id repeats), then an answer."""
     name = "mcp__host__read_file"
-    outputs = [
+    return [
         tool_calls_output(
             ToolCall(id="repeat", function=name, arguments={"path": "a"}),
             ToolCall(id="parallel", function=name, arguments={"path": "b"}),
@@ -4756,19 +4915,33 @@ def test_host_tool_events_name_the_generated_output(
         )
         for n in range(2)
     ] + [ModelOutput.from_content("mockllm/model", "done")]
+
+
+def _run_host_scaffold(
+    mode: Literal["plain", "filter", "approval"], dialect: HostDialect, tmp_path: Path
+) -> EvalSample:
     log = eval(
         Task(
-            dataset=[Sample(input="Read both files twice.")], solver=host_scaffold(mode)
+            dataset=[Sample(input="Read both files twice.")],
+            solver=host_scaffold(mode, dialect),
         ),
-        model=get_model("mockllm/model", custom_outputs=outputs),
+        model=get_model("mockllm/model", custom_outputs=_host_outputs()),
         log_dir=str(tmp_path),
     )[0]
     assert log.status == "success", log.error
-
     read = read_eval_log(log.location)
     assert read.samples
     sample = resolve_sample_attachments(read.samples[0], "full")
     assert_message_ids(sample)
+    return sample
+
+
+@pytest.mark.parametrize("mode", ["plain", "filter", "approval"])
+def test_host_tool_events_name_the_generated_output(
+    mode: Literal["plain", "filter", "approval"], tmp_path: Path
+) -> None:
+    """Each host tool event names exactly one model event's output, whatever changed the reply."""
+    sample = _run_host_scaffold(mode, "completions", tmp_path)
     assert tool_event_producers(sample) == [1, 1, 1, 1]
     replies = [
         m
@@ -4792,3 +4965,28 @@ def test_host_tool_events_name_the_generated_output(
         assert {
             call.arguments["path"] for r in replies for call in r.tool_calls or []
         } == {"safe"}
+
+
+@pytest.mark.parametrize("mode", ["plain", "filter", "approval"])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+def test_host_tool_events_name_their_result_message(
+    dialect: HostDialect, mode: Literal["plain", "filter", "approval"], tmp_path: Path
+) -> None:
+    """Each host tool event's `message_id` is the tool message the scaffold sent its result in."""
+    sample = _run_host_scaffold(mode, dialect, tmp_path)
+
+    events = [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert len(events) == 4
+    positions = {m.id: i for i, m in enumerate(sample.messages)}
+    for event in events:
+        assert event.message_id is not None
+        result = sample.messages[positions[event.message_id]]
+        assert isinstance(result, ChatMessageTool)
+        assert str(event.result) in result.text
+        proposing = next(
+            m
+            for m in reversed(sample.messages[: positions[event.message_id]])
+            if isinstance(m, ChatMessageAssistant)
+        )
+        assert result.tool_call_id in [c.id for c in proposing.tool_calls or []]
+    assert len({e.message_id for e in events}) == 4

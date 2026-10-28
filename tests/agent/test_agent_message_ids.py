@@ -10,7 +10,7 @@ import copy
 import json
 from pathlib import Path
 from typing import Any, Callable, Literal, cast
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from anthropic import AsyncAnthropic
@@ -781,3 +781,52 @@ async def test_native_and_bridge_edits_of_a_message_agree() -> None:
     native = edited_message(reply, content="Hi  there.")
 
     assert ids[1] == native.id != reply.id
+
+
+def _awaiting(
+    bridge: AgentBridge, reply: ChatMessage, executions: int = 1
+) -> list[ToolEvent]:
+    """Host tool events for call 0 of `reply`, as executing a granted call records them."""
+    assert reply.id is not None
+    events = [
+        ToolEvent(id="call_1", function="bash", arguments={}) for _ in range(executions)
+    ]
+    for event in events:
+        bridge._await_result_message((reply.id, 0), "bash", event, MagicMock())
+    return events
+
+
+async def test_host_result_is_linked_when_the_scaffold_first_sends_it() -> None:
+    """A request with the reply but not its result (a side call) leaves the event waiting."""
+    task = ChatMessageUser(content="List the files.")
+    reply = _call("call_1")
+    scaffold = _Scaffold(AgentBridge(AgentState(messages=[task])))
+    await scaffold.request([task], reply)
+    [event] = _awaiting(scaffold.bridge, reply)
+
+    await scaffold.request([task, reply, ChatMessageUser(content="Title?")])
+    assert event.message_id is None
+    ids = await scaffold.request([task, reply, _result("call_1")])
+    assert event.message_id == ids[2]
+    await scaffold.request([task, reply, _result("call_1", "changed")])
+    assert event.message_id == ids[2]
+
+
+@pytest.mark.parametrize("ambiguity", ["two results", "two executions"])
+async def test_ambiguous_host_results_stay_unlinked(ambiguity: str) -> None:
+    task = ChatMessageUser(content="List the files.")
+    reply = _call("call_1")
+    scaffold = _Scaffold(AgentBridge(AgentState(messages=[task])))
+    await scaffold.request([task], reply)
+    events = _awaiting(
+        scaffold.bridge, reply, executions=2 if ambiguity == "two executions" else 1
+    )
+    results = [_result("call_1")]
+    if ambiguity == "two results":
+        results.append(_result("call_1", "b.txt"))
+
+    await scaffold.request([task, reply, *results])
+    await scaffold.request([task, reply, _result("call_1")])
+
+    assert all(event.message_id is None for event in events)
+    assert not scaffold.bridge._awaited_results

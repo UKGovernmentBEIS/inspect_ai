@@ -175,7 +175,7 @@ class SandboxAgentBridge(AgentBridge):
         for tool in tools:
             if isinstance(tool, ToolInfo):
                 declared.setdefault(tool.name, []).append(tool)
-        for call in calls:
+        for index, call in enumerate(calls):
             targets, arguments = _proposed_call(
                 self.bridged_tools, self.served_tools, call, declared
             )
@@ -188,7 +188,12 @@ class SandboxAgentBridge(AgentBridge):
                     + "); an execution grant was registered for each of them.",
                 )
             proposal = _Proposal(
-                call, span_id, self._proposing_message_ids.get(call.id)
+                call,
+                span_id,
+                self._proposing_message_ids.get(call.id),
+                (self._proposing_reply_id, index)
+                if self._proposing_reply_id is not None
+                else None,
             )
             for target in targets:
                 if (
@@ -352,10 +357,14 @@ class _Proposal:
     and no pairing state outlives the bounded grant store.
     """
 
-    __slots__ = ("call", "span_id", "message_id", "paired")
+    __slots__ = ("call", "span_id", "message_id", "reply", "paired")
 
     def __init__(
-        self, call: ToolCall, span_id: str | None, message_id: str | None
+        self,
+        call: ToolCall,
+        span_id: str | None,
+        message_id: str | None,
+        reply: tuple[str, int] | None,
     ) -> None:
         self.call = call
         """The proposing call, with the function name as the model saw it."""
@@ -365,6 +374,9 @@ class _Proposal:
 
         self.message_id = message_id
         """Id of the assistant message the call is in, or `None` if unknown."""
+
+        self.reply = reply
+        """Id of the reply handed to the scaffold and the call's index in it."""
 
         self.paired = False
         """Whether an execution has already taken `call.id`."""

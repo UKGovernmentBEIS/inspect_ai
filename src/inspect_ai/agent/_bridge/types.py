@@ -45,6 +45,18 @@ if TYPE_CHECKING:
     # cycles back through partially-initialized modules). Same reason
     # `model/_call_tools.py` defers it.
     from inspect_ai.approval._policy import ApprovalPolicy
+    from inspect_ai.event._tool import ToolEvent
+    from inspect_ai.log._transcript import Transcript
+
+
+class _AwaitedResult(NamedTuple):
+    """Host tool events waiting for the tool message that holds their call's result."""
+
+    function: str
+    """The call's function, as handed to the scaffold."""
+
+    events: list[tuple["ToolEvent", "Transcript"]]
+    """Each execution's event, with the transcript it was recorded in."""
 
 
 class DispatchedCall(NamedTuple):
@@ -170,6 +182,7 @@ class AgentBridge:
         self._tracked_descends: _Descent | None = None
         self._candidate_fps: list[_MessageFingerprint] | None = None
         self._pending_operator = 0
+        self._awaited_results: dict[tuple[str, int], _AwaitedResult] = {}
         self._operator_keys: set[str] = set()
         self._warned_request_settings: set[str] = set()
 
@@ -313,6 +326,63 @@ class AgentBridge:
     call a response filter added has none.
     """
 
+    _proposing_reply_id: str | None = None
+    """Id of the reply handed to the scaffold, while `register_tool_execution_grants` registers its calls."""
+
+    def _await_result_message(
+        self,
+        reply: tuple[str, int],
+        function: str,
+        event: "ToolEvent",
+        transcript: "Transcript",
+    ) -> None:
+        """Set `event.message_id` when the scaffold first sends the result of call `reply`.
+
+        `reply` is the id of the reply handed to the scaffold and the call's index
+        in it. The result reaches the bridge only when the scaffold sends it back
+        in a later request (`_link_result_messages`).
+        """
+        awaited = self._awaited_results.setdefault(reply, _AwaitedResult(function, []))
+        awaited.events.append((event, transcript))
+
+    def _link_result_messages(
+        self, messages: list[ChatMessage], recognized: list[str | None]
+    ) -> None:
+        """Link awaited host tool events to their result messages in a request.
+
+        `recognized` is the id each message was recognized by (before an edit
+        versioned it). A reply handed to the scaffold comes back as the assistant
+        message recognized by its id, and the result of its call at index k is
+        the one tool message before the next assistant message whose
+        `tool_call_id` is the id of the copy's call k (Google re-derives call
+        ids, so the copy's call ids are used), when that call has the function
+        handed over. A call executed more than once, or with more than one such
+        tool message, is ambiguous and stays unlinked.
+        """
+        if not self._awaited_results:
+            return
+        for index, (message, reply_id) in enumerate(zip(messages, recognized)):
+            if reply_id is None or not isinstance(message, ChatMessageAssistant):
+                continue
+            results: list[ChatMessageTool] = []
+            for following in messages[index + 1 :]:
+                if isinstance(following, ChatMessageAssistant):
+                    break
+                if isinstance(following, ChatMessageTool):
+                    results.append(following)
+            for call_index, call in enumerate(message.tool_calls or []):
+                awaited = self._awaited_results.get((reply_id, call_index))
+                if awaited is None or awaited.function != call.function:
+                    continue
+                matches = [r for r in results if r.tool_call_id == call.id]
+                if not matches:
+                    continue
+                del self._awaited_results[(reply_id, call_index)]
+                if len(matches) == 1 and len(awaited.events) == 1:
+                    [(event, transcript)] = awaited.events
+                    event.message_id = matches[0].id
+                    transcript._event_updated(event)
+
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
         """The bridged tool call that `call` makes through a dispatcher, if any.
 
@@ -392,8 +462,10 @@ class AgentBridge:
                     return ids[cursor]
             return None
 
+        recognized: list[str | None] = []
         for index, (message, message_keys) in enumerate(zip(messages, keys)):
             message_id = aligned.get(index) or recorded_id(message_keys)
+            recognized.append(message_id)
             if message_id is None:
                 message.id = uuid()
                 self._content_by_id[message.id] = content_hash(message)
@@ -402,6 +474,7 @@ class AgentBridge:
                 message.id = self._version_id(message_id, message)
             used.add(message.id)
             self._record_message_id(message_keys, message.id)
+        self._link_result_messages(messages, recognized)
 
     def _version_id(self, message_id: str, message: ChatMessage) -> str:
         """`message_id`, or the id of an edited version if `message`'s content differs.
