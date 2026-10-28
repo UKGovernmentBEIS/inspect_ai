@@ -19,6 +19,8 @@ from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import Task, eval
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai.event import SandboxEvent
+from inspect_ai.log._transcript import Transcript, init_transcript
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.util import sandbox
 from inspect_ai.util._background import background
@@ -31,12 +33,15 @@ from inspect_ai.util._sandbox._framework_directory import (
 )
 from inspect_ai.util._sandbox._privileged import SHELL_PATH, pinned_command
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
-from inspect_ai.util._sandbox.limits import OutputLimitExceededError
+from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
+from inspect_ai.util._sandbox.limits import (
+    OutputLimitExceededError,
+    override_max_exec_output_size,
+)
 from inspect_ai.util._sandbox.service import (
     SERVICE_REQUEST_READ_OUTPUT_LIMIT,
     SERVICES_DIR,
     SandboxService,
-    is_sandbox_service_command,
     sandbox_service,
 )
 from inspect_ai.util._subprocess import ExecResult
@@ -261,9 +266,13 @@ def _violation(message: str) -> ExecResult[str]:
     )
 
 
-def _tee_target(call: FrameworkDirectoryCall) -> str | None:
-    """Full path a helper-wrapped ``tee`` writes to, or None for other commands."""
-    return f"{call.path}/{call.cmd[-1]}" if call.cmd[:1] == ("tee",) else None
+def _write_target(call: FrameworkDirectoryCall) -> str | None:
+    """Full path a helper-wrapped write targets, or None for other commands."""
+    return (
+        f"{call.path}/{call.cmd[-1]}"
+        if call.cmd[:4] == ("sh", "-c", 'cat > "$1"', "sh")
+        else None
+    )
 
 
 def _assert_no_shell_interpolation(calls: list[list[str]]) -> None:
@@ -308,11 +317,44 @@ def _service(fake: object, **kwargs: Any) -> SandboxService:
 
 async def test_every_start_command_is_hidden_from_the_transcript() -> None:
     """Service housekeeping is not a transcript event, the shared-parent probe included."""
+    transcript = Transcript()
+    init_transcript(transcript)
     sandbox = _start_sandbox()
-    await _service(sandbox, name="svc", user="agent").start()
-    assert all(is_sandbox_service_command(cmd) for cmd, _ in sandbox.exec_calls)
-    assert not is_sandbox_service_command(["ls", "-la", "/var/tmp"])
-    assert not is_sandbox_service_command(["stat", "/var/tmp", "/etc"])
+    proxy = SandboxEnvironmentProxy(sandbox)
+    await _service(proxy, name="svc", user="agent").start()
+    assert sandbox.exec_calls
+    assert not any(isinstance(e, SandboxEvent) for e in transcript.events)
+
+
+async def test_cancelled_service_io_restores_recording() -> None:
+    transcript = Transcript()
+    init_transcript(transcript)
+    sandbox = CannedSandbox.returning(
+        ExecResult(success=True, returncode=0, stdout="", stderr="")
+    )
+    proxy = SandboxEnvironmentProxy(sandbox)
+    service = _service(proxy, name="svc")
+    entered = anyio.Event()
+
+    async def blocked_exec(**kwargs: Any) -> ExecResult[str]:
+        entered.set()
+        await anyio.sleep_forever()
+        raise AssertionError("service command should have been cancelled")
+
+    async def cancel(scope: anyio.CancelScope) -> None:
+        await entered.wait()
+        scope.cancel()
+
+    with patch.object(sandbox, "exec", blocked_exec):
+        with anyio.CancelScope() as scope:
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(cancel, scope)
+                await service._exec(["find", service._requests_dir])
+        assert scope.cancelled_caught
+
+    await proxy.exec(["echo", "after"])
+    events = [e for e in transcript.events if isinstance(e, SandboxEvent)]
+    assert [e.cmd for e in events] == ["echo after"]
 
 
 async def test_start_prepares_every_directory_through_the_helper() -> None:
@@ -330,7 +372,7 @@ async def test_start_prepares_every_directory_through_the_helper() -> None:
         (svc, "agent", False, "700", reset),
         (f"{svc}/requests", "agent", True, "700", ()),
         (f"{svc}/responses", "agent", True, "700", ()),
-        (svc, "agent", False, "700", ("tee", "--", "svc.py")),
+        (svc, "agent", False, "700", ("sh", "-c", 'cat > "$1"', "sh", "svc.py")),
     ]
     # the shared parent is prepared as root, and that must really be uid 0
     assert calls[0][0].expected_uid == "0"
@@ -490,7 +532,7 @@ class _RequestReadSandbox:
       provider that silently truncates an oversized read, e.g. docker/local).
     - ``wc -c``: returns ``file_size`` (the on-disk size check).
     - queue listing (``find``): returns ``list_stdout`` (NUL-delimited paths).
-    - ``tee`` (run through the framework-directory helper, decoded into
+    - file writes (run through the framework-directory helper, decoded into
       ``helper_calls``): recorded in ``writes`` under the file's full path.
     - ``rm``: recorded in ``removed``.
     """
@@ -524,7 +566,7 @@ class _RequestReadSandbox:
         call = framework_directory_call(cmd)
         if call is not None:
             self.helper_calls.append((call, user))
-            if (target := _tee_target(call)) is not None:
+            if (target := _write_target(call)) is not None:
                 self.writes[target] = input or ""
             return _VERIFIED
         if cmd[0] == "find":
@@ -665,7 +707,7 @@ async def test_write_response_goes_through_the_verified_responses_dir() -> None:
     assert (call.path, user, call.cmd) == (
         service._responses_dir,
         None,
-        ("tee", "--", "req-1.json"),
+        ("sh", "-c", 'cat > "$1"', "sh", "req-1.json"),
     )
     assert json.loads(fake.writes[f"{service._responses_dir}/req-1.json"]) == {
         "id": "req-1",
@@ -674,6 +716,38 @@ async def test_write_response_goes_through_the_verified_responses_dir() -> None:
     }
     assert fake.removed == [request_file]
     _assert_no_shell_interpolation(fake.calls)
+
+
+async def test_service_write_does_not_echo_large_payload(tmp_path: Path) -> None:
+    transcript = Transcript()
+    init_transcript(transcript)
+    fake = _RequestReadSandbox()
+    proxy = SandboxEnvironmentProxy(cast(SandboxEnvironment, fake))
+    service = _service_with_dirs(proxy)
+    contents = "payload" * 1024
+    name = "response '$(touch marker)'.json"
+
+    async def exec_write(
+        cmd: list[str], input: str | None = None, **kwargs: Any
+    ) -> ExecResult[str]:
+        call = framework_directory_call(cmd)
+        assert call is not None
+        completed = subprocess.run(
+            call.cmd, input=input, cwd=tmp_path, capture_output=True, text=True
+        )
+        return ExecResult(
+            success=completed.returncode == 0,
+            returncode=completed.returncode,
+            stdout=completed.stdout,
+            stderr=f"{_VERIFIED_MARKER}\n{completed.stderr}",
+        )
+
+    with patch.object(fake, "exec", exec_write), override_max_exec_output_size(1024):
+        await service._write_text_file(str(tmp_path), name, contents)
+
+    assert (tmp_path / name).read_text() == contents
+    assert not (tmp_path / "marker").exists()
+    assert not any(isinstance(e, SandboxEvent) for e in transcript.events)
 
 
 async def test_handle_request_oversized_truncated_writes_error_and_removes_file() -> (
@@ -1267,7 +1341,7 @@ class _QueueSandbox:
         cmd = _argv(cmd)
         call = framework_directory_call(cmd)
         if call is not None:
-            if (target := _tee_target(call)) is not None:
+            if (target := _write_target(call)) is not None:
                 self.files[target] = input or ""
             return _VERIFIED
         if cmd[0] == "find":
@@ -1293,6 +1367,28 @@ def _enqueue(
     fake.files[f"{service._requests_dir}/{rid}.json"] = json.dumps(
         {"id": rid, "method": method, "params": {}}
     )
+
+
+async def test_service_handler_commands_are_recorded_without_queue_io() -> None:
+    transcript = Transcript()
+    init_transcript(transcript)
+    fake = _QueueSandbox()
+    proxy = SandboxEnvironmentProxy(cast(SandboxEnvironment, fake))
+    service = _service_with_dirs(proxy)
+
+    async def work() -> JsonValue:
+        await proxy.exec(["echo", "handler"])
+        return "done"
+
+    service.add_method("work", work)
+    _enqueue(fake, service, "req-work", "work")
+
+    await service.handle_requests()
+
+    response = json.loads(fake.files[f"{service._responses_dir}/req-work.json"])
+    assert response["result"] == "done"
+    events = [e for e in transcript.events if isinstance(e, SandboxEvent)]
+    assert [e.cmd for e in events] == ["echo handler"]
 
 
 async def test_slow_request_does_not_block_later_requests() -> None:
@@ -1412,7 +1508,7 @@ class _DelayedWriteSandbox(_QueueSandbox):
         call = framework_directory_call(cmd)
         if (
             call is not None
-            and _tee_target(call) is not None
+            and _write_target(call) is not None
             and call.path.endswith("/responses")
         ):
             await anyio.sleep(self.write_delay)
