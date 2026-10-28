@@ -93,12 +93,13 @@ After a crash, the complete set of sample data is split across two sources:
 **What IS recoverable:**
 - All **completed** samples: those flushed to `.eval` + those completed but unflushed (in buffer DB)
 - `EvalSpec` and `EvalPlan` from `start.json`
-- For unflushed completed samples: scores, input, target, messages (via events)
+- For unflushed completed samples: scores, input, target, messages and store (via events)
 
 **What is NOT recoverable:**
 - In-progress samples at crash time (started but `complete_sample()` never called — no scores)
 - `EvalResults` / `EvalStats` (would need recomputation from recovered samples)
 - Any `reductions` data
+- The retry history (`error_retries`) of unflushed samples: the buffer keeps only the final attempt's events and the retry count
 
 ### 4. Key Distinction: EvalSample vs EvalSampleSummary
 

@@ -16,6 +16,8 @@ from inspect_ai.dataset._dataset import Sample
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._score import ScoreEvent
+from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
+from inspect_ai.event._store import StoreEvent
 from inspect_ai.log._condense import condense_sample
 from inspect_ai.log._file import read_eval_log_async
 from inspect_ai.log._log import (
@@ -47,6 +49,7 @@ from inspect_ai.model._chat_message import (
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput, ModelUsage
 from inspect_ai.scorer._metric import Score
+from inspect_ai.util._store import store_changes
 
 
 def _make_eval_spec(task: str = "e2e_test", num_samples: int = 6) -> EvalSpec:
@@ -1463,3 +1466,77 @@ async def test_recovery_keeps_messages_and_output_inline(buffer_kind: str) -> No
             assert recovered_sample.messages == expected.messages
             assert recovered_sample.output == expected.output
             assert expected.attachments.items() <= recovered_sample.attachments.items()
+
+
+@pytest.mark.parametrize("buffer_kind", ["database", "filestore"])
+async def test_recovery_restores_store(buffer_kind: str) -> None:
+    """A completed but unflushed sample's store is replayed from its StoreEvents."""
+    solved = {
+        "answer_key": {"id": "s1", "values": [1, 2, None]},
+        # long enough for the buffer to condense it into an attachment
+        "long": "L" * 5000,
+        "tmp": 1,
+    }
+    scored = {key: value for key, value in solved.items() if key != "tmp"}
+    scored["scored"] = True
+
+    def span(id: str, before: dict[str, Any], after: dict[str, Any]) -> list[Any]:
+        return [
+            SpanBeginEvent(id=id, name=id),
+            StoreEvent(changes=store_changes(before, after) or [], span_id=id),
+            SpanEndEvent(id=id),
+        ]
+
+    started_at = datetime.now(timezone.utc).isoformat()
+    summary = EvalSampleSummary(
+        id="s1", epoch=1, input="hi", target="reply", started_at=started_at
+    )
+
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "store.eval")
+            output_path = os.path.join(temp_dir, "store-recovered.eval")
+            zip_log = ZipLogFile(eval_path)
+            await zip_log.init(log_start=None, summary_counter=0, summaries=[])
+            await zip_log.start(
+                LogStart(
+                    version=LOG_SCHEMA_VERSION,
+                    eval=_make_eval_spec(num_samples=1),
+                    plan=EvalPlan(),
+                )
+            )
+            await zip_log.flush()
+
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            buffer = SampleBufferDatabase(eval_path, create=True, db_dir=Path(db_dir))
+            buffer.start_sample(summary)
+            buffer.log_events(
+                [
+                    SampleEvent(id="s1", epoch=1, event=event)
+                    for event in span("solvers", {}, solved)
+                    + span("scorers", solved, scored)
+                ]
+            )
+            buffer.complete_sample(
+                summary.model_copy(
+                    update={"completed_at": datetime.now(timezone.utc).isoformat()}
+                ),
+                sample_metadata=None,
+            )
+
+            if buffer_kind == "filestore":
+                sync_to_filestore(buffer, SampleBufferFilestore(eval_path, create=True))
+                db_dir = os.path.join(temp_dir, "empty_db_dir")
+            else:
+                _simulate_crashed_buffer(buffer)
+
+            await recover_eval_log_async(
+                eval_path, output=output_path, cleanup=False, _db_dir=db_dir
+            )
+
+            # the store stays inline, as in a normal run's log
+            recovered = await read_eval_log_async(
+                output_path, resolve_attachments=False
+            )
+            assert recovered.samples is not None
+            assert recovered.samples[0].store == scored
