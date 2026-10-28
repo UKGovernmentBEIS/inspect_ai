@@ -95,6 +95,8 @@ HIGH_SIGNAL_EVENT_TYPES = frozenset(
         "sandbox",
         "logger",
         "info",
+        "communication",
+        "swarm",
         "sample_limit",
         "interrupt",
     }
@@ -546,6 +548,40 @@ def _project(event: "Event", *, content: bool, full: bool) -> dict[str, Any]:
             out["error"] = getattr(err, "message", None) if err else None
     elif et == "info":
         out["source"] = getattr(event, "source", None)
+        if content:
+            out["data"] = _truncate(_to_text(getattr(event, "data", None)))
+    elif et == "communication":
+        send = getattr(event, "send", None)
+        rejected = send.rejected if send is not None else None
+        delivery = getattr(event, "delivery", None)
+        wait = getattr(event, "wait", None)
+        out["source"] = getattr(event, "source", None)
+        out["kind"] = getattr(event, "kind", None)
+        out["agent"] = getattr(event, "agent", None)
+        out["nested"] = getattr(event, "nested", None)
+        out["channel"] = getattr(event, "channel", None)
+        out["record_ids"] = getattr(event, "record_ids", None)
+        if delivery is not None:
+            out["recipients"] = delivery.recipients
+            out["seq"] = delivery.seq
+        if rejected is not None:
+            out["rejected"] = rejected.control
+        if wait is not None:
+            out["channels"] = wait.channels
+            out["outcome"] = wait.outcome
+            out["duration"] = wait.duration
+        if content:
+            if send is not None:
+                record_content = send.record.content
+                out["content"] = (
+                    _truncate(record_content) if record_content is not None else None
+                )
+            if rejected is not None:
+                out["reason"] = _truncate(rejected.reason)
+            out["data"] = _truncate(_to_text(getattr(event, "data", None)))
+    elif et == "swarm":
+        out["kind"] = getattr(event, "kind", None)
+        out["member"] = getattr(event, "member", None)
         if content:
             out["data"] = _truncate(_to_text(getattr(event, "data", None)))
     return out

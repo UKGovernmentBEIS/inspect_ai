@@ -240,6 +240,8 @@ async def test_tail_scan_is_page_bounded(
 def test_filter_default_is_high_signal() -> None:
     assert "error" in HIGH_SIGNAL_EVENT_TYPES and "info" in HIGH_SIGNAL_EVENT_TYPES
     assert "sentinel" in HIGH_SIGNAL_EVENT_TYPES
+    assert "communication" in HIGH_SIGNAL_EVENT_TYPES
+    assert "swarm" in HIGH_SIGNAL_EVENT_TYPES
     events: list[Event] = [_info_at("a", _now()), _error_event("boom")]
     assert [e.event for e in _filter(events, None, None, None)] == ["info", "error"]
 
@@ -349,6 +351,112 @@ def test_project_metadata_default_tool_event() -> None:
     assert out["result"] == "payload"
     assert out["error"] == "boom"
     assert out["has_error"] is True
+
+
+def _communication_events() -> dict[str, Any]:
+    from inspect_ai.event import (
+        CommunicationDelivery,
+        CommunicationEvent,
+        CommunicationRecord,
+        CommunicationRejection,
+        CommunicationSend,
+        CommunicationWait,
+    )
+
+    common: dict[str, Any] = dict(
+        source="inspect_swarm", agent="counter-6", data={"path": "x" * 1000}
+    )
+    return dict(
+        sent=CommunicationEvent(
+            kind="sent",
+            channel="shared_memory",
+            record_ids=["w-1"],
+            send=CommunicationSend(
+                record=CommunicationRecord(
+                    id="w-1", kind="message", sender="counter-6", content="y" * 1000
+                ),
+                rejected=CommunicationRejection(control="rate", reason="slow down"),
+            ),
+            **common,
+        ),
+        delivered=CommunicationEvent(
+            kind="delivered",
+            channel="shared_memory",
+            record_ids=["w-1"],
+            delivery=CommunicationDelivery(recipients=["counter-2"], seq=3),
+            **common,
+        ),
+        waited=CommunicationEvent(
+            kind="waited",
+            nested=True,
+            wait=CommunicationWait(
+                channels=["shared_memory"], outcome="timeout", duration=2.5
+            ),
+            **common,
+        ),
+    )
+
+
+def test_project_metadata_default_communication_event() -> None:
+    events = _communication_events()
+    for event in events.values():
+        out = _project(event, content=False, full=False)
+        assert out["source"] == "inspect_swarm"
+        assert out["agent"] == "counter-6"
+        assert out["kind"] == event.kind
+        assert out["nested"] is event.nested
+        assert "content" not in out and "reason" not in out and "data" not in out
+
+    sent = _project(events["sent"], content=False, full=False)
+    assert sent["channel"] == "shared_memory"
+    assert sent["record_ids"] == ["w-1"]
+    assert sent["rejected"] == "rate"
+
+    delivered = _project(events["delivered"], content=False, full=False)
+    assert delivered["recipients"] == ["counter-2"]
+    assert delivered["seq"] == 3
+    assert "rejected" not in delivered
+
+    waited = _project(events["waited"], content=False, full=False)
+    assert waited["channel"] is None
+    assert waited["channels"] == ["shared_memory"]
+    assert waited["outcome"] == "timeout"
+    assert waited["duration"] == 2.5
+
+
+def test_project_content_communication_event() -> None:
+    events = _communication_events()
+    sent = _project(events["sent"], content=True, full=False)
+    assert sent["content"].startswith("yyy") and len(sent["content"]) <= 256
+    assert sent["reason"] == "slow down"
+    assert sent["data"].startswith('{"path": "xxx') and len(sent["data"]) <= 256
+
+    waited = _project(events["waited"], content=True, full=False)
+    assert "content" not in waited and "reason" not in waited
+    assert waited["channels"] == ["shared_memory"]
+    assert waited["outcome"] == "timeout"
+    assert waited["duration"] == 2.5
+    assert len(waited["data"]) <= 256
+
+    full = _project(events["waited"], content=False, full=True)
+    assert full == events["waited"].model_dump(mode="json")
+
+
+def test_project_swarm_event() -> None:
+    from inspect_ai.event import SwarmEvent
+
+    event = SwarmEvent(
+        kind="member_result", member="counter-5", data={"note": "z" * 1000}
+    )
+    out = _project(event, content=False, full=False)
+    assert out["kind"] == "member_result"
+    assert out["member"] == "counter-5"
+    assert "data" not in out
+
+    out = _project(event, content=True, full=False)
+    assert out["data"].startswith('{"note": "zzz') and len(out["data"]) <= 256
+
+    assert _project(event, content=False, full=True) == event.model_dump(mode="json")
 
 
 def test_project_full_is_raw_dump() -> None:

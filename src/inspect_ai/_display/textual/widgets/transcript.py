@@ -22,6 +22,7 @@ from inspect_ai._util.transcript import (
 )
 from inspect_ai.event._approval import ApprovalEvent
 from inspect_ai.event._branch import BranchEvent
+from inspect_ai.event._communication import CommunicationEvent
 from inspect_ai.event._compaction import CompactionEvent
 from inspect_ai.event._error import ErrorEvent
 from inspect_ai.event._event import (
@@ -39,6 +40,7 @@ from inspect_ai.event._score import ScoreEvent
 from inspect_ai.event._sentinel import SentinelEvent
 from inspect_ai.event._span import SpanBeginEvent
 from inspect_ai.event._subtask import SubtaskEvent
+from inspect_ai.event._swarm import SwarmEvent
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._samples import ActiveSample
 from inspect_ai.model._chat_message import (
@@ -412,6 +414,45 @@ def render_sentinel_event(event: SentinelEvent) -> EventDisplay:
     return EventDisplay(f"sentinel: {event.stage}", Group(*content))
 
 
+def render_communication_event(event: CommunicationEvent) -> EventDisplay:
+    # event strings are appended as plain text, never parsed as markup
+    agent = f"{event.agent} (subagent)" if event.nested else event.agent
+    line = Text(agent, style="bold")
+    if event.wait is not None:
+        line.append(f" waited {event.wait.duration:.1f}s on ")
+        line.append(f"{', '.join(event.wait.channels)}: {event.wait.outcome}")
+        return EventDisplay(f"communication: {event.kind}", line)
+
+    arrow = "←" if event.kind == "read" else "→"
+    action = event.send.record.kind if event.send is not None else event.kind
+    line.append(f" {arrow} {event.channel}: {action}")
+    if event.record_ids:
+        line.append(f" {', '.join(event.record_ids)}")
+    if event.delivery is not None:
+        if event.delivery.seq is not None:
+            line.append(f" (#{event.delivery.seq})")
+        if event.delivery.recipients:
+            line.append(f" to {', '.join(event.delivery.recipients)}")
+    if event.send is not None:
+        if event.send.record.to:
+            line.append(f" to {', '.join(event.send.record.to)}")
+        rejected = event.send.rejected
+        if rejected is not None:
+            line.append(f", refused ({rejected.control}): {rejected.reason}")
+        elif event.send.record.content:
+            line.append(f": {event.send.record.content.splitlines()[0]}")
+    return EventDisplay(f"communication: {event.kind}", line)
+
+
+def render_swarm_event(event: SwarmEvent) -> EventDisplay:
+    line = Text()
+    if event.member is not None:
+        line.append(event.member, style="bold")
+        line.append(": ")
+    line.append(to_json(event.data, fallback=lambda _: None).decode())
+    return EventDisplay(f"swarm: {event.kind}", line)
+
+
 def render_info_event(event: InfoEvent) -> EventDisplay:
     if isinstance(event.data, str):
         content: RenderableType = transcript_markdown(event.data)
@@ -527,6 +568,8 @@ _renderers: list[tuple[Type[Event], EventRenderer]] = [
     (ReviewEvent, render_review_event),
     (SentinelEvent, render_sentinel_event),
     (InfoEvent, render_info_event),
+    (CommunicationEvent, render_communication_event),
+    (SwarmEvent, render_swarm_event),
     (BranchEvent, render_branch_event),
     (CompactionEvent, render_compaction_event),
     (LoggerEvent, render_logger_event),
