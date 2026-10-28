@@ -452,6 +452,42 @@ def test_a_media_result_moved_out_of_the_tool_message_replays_as_it_ran() -> Non
     assert image in after.step.result.content
 
 
+@solver
+def clears_the_result() -> Solver:
+    """Run a tool, then clear its result in the conversation under the same id."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model()
+        tools = [returns("original result")]
+        for turn in range(3):
+            if turn == 2:
+                [index] = [
+                    i
+                    for i, message in enumerate(state.messages)
+                    if isinstance(message, ChatMessageTool)
+                ]
+                state.messages[index] = state.messages[index].model_copy(
+                    update={"content": "[cleared]"}
+                )
+            output = await model.generate(state.messages, tools)
+            state.messages.append(output.message)
+            if output.message.tool_calls:
+                messages, _ = await execute_tools(state.messages, tools)
+                state.messages.extend(messages)
+        return state
+
+    return solve
+
+
+def test_a_result_cleared_later_replays_as_it_ran() -> None:
+    replay = assert_replay_equals_live(
+        clears_the_result(), outputs(call("returns"), done(), done())
+    )
+    [after] = [step for step in replay if step.stage == "tool_result"]
+    assert isinstance(after.step, AfterToolCall)
+    assert after.step.result.text == "original result"
+
+
 def helper(model: Any) -> Agent:
     return react(
         name="helper",

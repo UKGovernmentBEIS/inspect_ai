@@ -359,7 +359,7 @@ class _Driver:
         self._views: dict[int, PoolView] = {}
         self._producers: dict[int, Producer] = {}
         self._assistants: dict[str, tuple[ChatMessageAssistant, ToolCall]] | None = None
-        self._messages_by_id: dict[str, ChatMessage] | None = None
+        self._messages_by_id: dict[str, list[ChatMessage]] | None = None
 
     # ---- the first pass: read the events in log order
 
@@ -890,8 +890,18 @@ class _Driver:
 
     def _result(self, event: ToolEvent) -> ChatMessageTool:
         if event.message_id is not None:
-            found = self._message_by_id(event.message_id)
-            if isinstance(found, ChatMessageTool):
+            # edited copies share the id (media moved out, a cleared result):
+            # the one holding the event's result is what the call produced
+            copies = [
+                message
+                for message in self._messages_by_id_all().get(event.message_id, [])
+                if isinstance(message, ChatMessageTool)
+            ]
+            found = next(
+                (message for message in copies if message.content == event.result),
+                copies[0] if copies else None,
+            )
+            if found is not None:
                 return found
         return ChatMessageTool(
             id=event.message_id,
@@ -902,15 +912,17 @@ class _Driver:
         )
 
     def _message_by_id(self, message_id: str) -> ChatMessage | None:
+        copies = self._messages_by_id_all().get(message_id)
+        return copies[0] if copies else None
+
+    def _messages_by_id_all(self) -> dict[str, list[ChatMessage]]:
         if self._messages_by_id is None:
-            # final messages first: a model call's input can hold an edited
-            # copy under the same id (e.g. media moved out of a tool result)
-            found: dict[str, ChatMessage] = {}
-            for message in [*self.messages, *self.pool]:
+            found: dict[str, list[ChatMessage]] = {}
+            for message in [*self.pool, *self.messages]:
                 if message.id is not None:
-                    found.setdefault(message.id, message)
+                    found.setdefault(message.id, []).append(message)
             self._messages_by_id = found
-        return self._messages_by_id.get(message_id)
+        return self._messages_by_id
 
     def _assistant(
         self, call_id: str
