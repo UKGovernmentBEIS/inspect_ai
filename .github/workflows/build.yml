@@ -416,6 +416,12 @@ jobs:
       areas: ${{ steps.areas.outputs.changes }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        # The injectable step below diffs against the base ref, so it needs the
+        # base commit; blob:none keeps that cheap (see check-version-bump).
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          filter: "blob:none"
       # Special case: tools carries injectable-build/version/S3 baggage, so its
       # filters feed a dedicated chain (check-version-bump -> slow-tool-tests-*)
       # rather than the generic slow-tests matrix below.
@@ -427,21 +433,31 @@ jobs:
               - "src/inspect_ai/tool/**"
               - "src/inspect_sandbox_tools/**"
               - "tests/tools/**"
-      # Separate step because the negation requires `every` semantics (a file
-      # must match ALL patterns), which would break the OR-style filters above.
-      # Keep the exclusions in sync with _check_main_divergence in
-      # src/inspect_ai/tool/_sandbox_tools_utils/sandbox.py — the runtime uses
-      # the same definition of "injectable source" to decide dev vs published.
-      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+      # "Injectable source" = everything whose contents feed the built binary,
+      # listed as git pathspecs in injectable_paths.txt. That file is the single
+      # source of truth, also read by _check_main_divergence in
+      # src/inspect_ai/tool/_sandbox_tools_utils/sandbox.py, so CI and the
+      # runtime classify a change the same way. A dorny paths-filter can't read
+      # the list from a file, so diff the pathspecs here. Use the three-dot form
+      # so we diff against the merge-base the PR merge commit was cut from, not
+      # the live base tip: a base that advanced after the merge commit was made
+      # must not attribute base-only injectable changes to the PR. Trim each
+      # line like sandbox.py does so a whitespace-padded entry still matches.
+      # Simplifying assumption: a git error (bad base ref, missing list) makes
+      # the diff non-zero, yielding injectable_src=true, which is fail-closed
+      # and visible, so it needs no extra handling.
+      - name: Detect injectable source change
         id: injectable
-        with:
-          predicate-quantifier: every
-          filters: |
-            injectable_src:
-              - "src/inspect_sandbox_tools/**"
-              - "!src/inspect_sandbox_tools/tests/**"
-              - "!src/inspect_sandbox_tools/**/*.md"
-              - "!src/inspect_sandbox_tools/design/**"
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          PATHS_FILE="src/inspect_ai/tool/_sandbox_tools_utils/injectable_paths.txt"
+          mapfile -t PATHSPECS < <(sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//; /^(#|$)/d' "$PATHS_FILE")
+          if git diff --quiet "origin/${BASE_REF}...HEAD" -- "${PATHSPECS[@]}"; then
+            echo "injectable_src=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "injectable_src=true" >> "$GITHUB_OUTPUT"
+          fi
       # Generic, growable table of areas whose slow tests run with nothing but
       # `uv sync --locked` + Docker-on-the-runner. `changes` is a JSON list
       # of the keys that matched; the slow-tests matrix fans out over it.
@@ -511,7 +527,7 @@ jobs:
             if [ "$PR_VERSION" -gt "$BASE_VERSION" ]; then
               echo "correctly_bumped=true" >> "$GITHUB_OUTPUT"
             else
-              echo "::error::src/inspect_sandbox_tools/ changed but ${VERSION_PATH} is v${PR_VERSION}; bump it above v${BASE_VERSION} (normally v${EXPECTED})."
+              echo "::error::An injectable build input changed (see src/inspect_ai/tool/_sandbox_tools_utils/injectable_paths.txt) but ${VERSION_PATH} is v${PR_VERSION}; bump it above v${BASE_VERSION} (normally v${EXPECTED})."
               exit 1
             fi
           else
@@ -533,7 +549,7 @@ jobs:
               fi
               echo "correctly_bumped=false" >> "$GITHUB_OUTPUT"
             else
-              echo "::error::${VERSION_PATH} changed to v${PR_VERSION} but src/inspect_sandbox_tools/ is unchanged. Either revert the version change or include the injectable source change."
+              echo "::error::${VERSION_PATH} changed to v${PR_VERSION} but the injectable build inputs are unchanged (see src/inspect_ai/tool/_sandbox_tools_utils/injectable_paths.txt). Either revert the version change or include an injectable change."
               exit 1
             fi
           fi
