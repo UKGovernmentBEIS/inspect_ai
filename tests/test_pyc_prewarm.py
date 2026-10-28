@@ -8,12 +8,14 @@ speedup depends on: pytest accepts the prewarmed pyc as valid for the source
 and the code in it is what pytest's own rewrite produces.
 """
 
+import importlib.util
 import sys
 import warnings
 from pathlib import Path
 
 import pytest
 from _pytest.assertion.rewrite import _read_pyc, _rewrite_test, assertstate_key
+from test_helpers import pyc_prewarm
 from test_helpers.pyc_prewarm import (
     PrewarmResult,
     cached_pyc_path,
@@ -70,6 +72,34 @@ def test_rewrite_to_cache_writes_pyc_pytest_accepts(
     assert cached is not None, "pytest rejected the prewarmed pyc"
     _, expected = _rewrite_test(source, pytestconfig)
     assert cached == expected
+
+
+def test_pyc_is_current_reads_checked_hash_header(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # pytest 9.2 writes a PEP 552 checked-hash pyc (flags 03000000 + the source
+    # hash). The installed pytest here writes the old mtime/size format, so
+    # force the hash branch to prove it reads that header regardless.
+    monkeypatch.setattr(pyc_prewarm, "_CHECKED_HASH_PYC", True)
+    source = _write_test_module(tmp_path / "test_mod.py")
+
+    def write_header(flags: bytes, source_bytes: bytes) -> None:
+        pyc = cached_pyc_path(source)
+        pyc.parent.mkdir(parents=True, exist_ok=True)
+        hash8 = importlib.util.source_hash(source_bytes)[:8]
+        pyc.write_bytes(importlib.util.MAGIC_NUMBER + flags + hash8 + b"payload")
+
+    # accepted when the stored hash matches the current source
+    write_header(b"\x03\x00\x00\x00", source.read_bytes())
+    assert pyc_is_current(source)
+
+    # editing the source makes the stored hash stale, so it is rejected
+    source.write_text(_TEST_SOURCE + "y = 1\n")
+    assert not pyc_is_current(source)
+
+    # rejected on the old-format flags even when the hash matches
+    write_header(b"\x00\x00\x00\x00", source.read_bytes())
+    assert not pyc_is_current(source)
 
 
 def test_rewrite_to_cache_leaves_unparsable_source_to_the_worker(
