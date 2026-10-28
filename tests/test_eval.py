@@ -261,6 +261,42 @@ async def test_task_active_identifies_the_running_task() -> None:
         ), (name, where)
 
 
+async def test_task_active_is_unset_in_run_level_background_work() -> None:
+    from inspect_ai._util.background import run_in_background
+    from inspect_ai._util.task import ActiveTask, task_active
+    from inspect_ai.util._display import init_display_type
+
+    seen: dict[str, ActiveTask | None] = {}
+    done = anyio.Event()
+
+    async def record() -> None:
+        seen["background"] = task_active()
+        done.set()
+
+    @solver
+    def start_background() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            seen["solver"] = task_active()
+            run_in_background(record)
+            with anyio.fail_after(10):
+                await done.wait()
+            return state
+
+        return solve
+
+    init_display_type("none")
+    from inspect_ai import eval_async
+
+    [log] = await eval_async(
+        Task(dataset=[Sample(input="hi")], solver=start_background()),
+        model="mockllm/model",
+    )
+    assert log.status == "success"
+    solver_task = seen["solver"]
+    assert solver_task is not None and solver_task.eval_id == log.eval.eval_id
+    assert seen["background"] is None
+
+
 def test_eval_sample_limit_values_reflect_final_retry_attempt() -> None:
     from typing import Generator
 

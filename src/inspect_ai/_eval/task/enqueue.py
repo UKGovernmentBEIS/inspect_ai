@@ -56,10 +56,14 @@ class TaskEnqueuer:
     ) -> list["ResolvedTask"]:
         """Resolve ``tasks`` and queue them to run; returns the resolved tasks.
 
-        ``origin`` is recorded in each resolved task's log header.
+        ``origin`` is recorded in each resolved task's log header, except for
+        a retry (a ``PreviousTask``), which keeps the origin of the log it
+        retries.
         """
         resolved = [
-            replace(resolved_task, origin=origin)
+            resolved_task
+            if resolved_task.retry
+            else replace(resolved_task, origin=origin)
             for resolved_task in self._resolve(tasks)
         ]
         with self._lock:
@@ -113,7 +117,11 @@ def enqueue_task(tasks: "Tasks", *, run_id: str | None = None) -> None:
     callbacks that Inspect calls within it (such as ``on_sample_end`` or
     ``TaskSource.sample_complete``). Called outside any task (for example from
     ``TaskSource.next_tasks()`` or code outside the eval's tasks), ``origin`` is
-    ``None``. Tasks a ``TaskSource`` *returns* (from ``initial_tasks()``,
+    ``None``, as it is from run-level background work (such as the deferred
+    trailing call of a ``throttle``-wrapped function), which is started with
+    no active task. A
+    retry passed as a ``PreviousTask`` keeps the origin of the log it retries.
+    Tasks a ``TaskSource`` *returns* (from ``initial_tasks()``,
     ``next_tasks()`` or a callback) always record ``None``, even when the same
     callback calling ``enqueue_task()`` would record the task.
 

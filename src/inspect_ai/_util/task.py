@@ -19,7 +19,9 @@ class ActiveTask(NamedTuple):
 
     Set by the task runner (:func:`active_task`) for the task's whole run, so
     its samples, scoring and the task's code outside samples (such as a
-    ``SampleSource``) see it. The task-level counterpart of ``ActiveSample``.
+    ``SampleSource``) see it. Not set in run-level background work
+    (``run_in_background``), which can outlive the task that started it and
+    serve other tasks. The task-level counterpart of ``ActiveSample``.
     """
 
     run_id: str
@@ -53,6 +55,19 @@ def active_task(
     token = _task_active.set(active)
     try:
         yield active
+    finally:
+        _task_active.reset(token)
+
+
+@contextlib.contextmanager
+def no_active_task() -> Iterator[None]:
+    """Run the enclosed code, and work it starts, with no active task.
+
+    Only the task identity is cleared; other context is unchanged.
+    """
+    token = _task_active.set(None)
+    try:
+        yield
     finally:
         _task_active.reset(token)
 

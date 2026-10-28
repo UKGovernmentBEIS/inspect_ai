@@ -29,6 +29,8 @@ class ResolvedTask:
     input_media_policy: InputMediaPolicy = field(default="inline_only")
     origin: EvalOrigin | None = field(default=None)
     """How the task came to be in its run (``EvalSpec.origin``)."""
+    retry: bool = field(default=False)
+    """Resolved from a previous log (a ``PreviousTask``), whose ``origin`` it keeps."""
 
     @property
     def has_sandbox(self) -> bool:

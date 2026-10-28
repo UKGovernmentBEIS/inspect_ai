@@ -375,6 +375,7 @@ def resolve_previous_task(
         initial_role_usage=initial_role_usage,
         input_media_policy="trusted_pre_run",
         origin=previous_task.log.eval.origin,
+        retry=True,
     )
 
 

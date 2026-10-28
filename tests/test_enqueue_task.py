@@ -9,11 +9,13 @@ surface — hooks, a callback, etc. — is layered on top and tested separately.
 import os
 from pathlib import Path
 
+import anyio
 import pytest
 
 from inspect_ai import SampleSource, Task, eval, eval_async, eval_retry, task
 from inspect_ai._eval.loader import resolve_tasks
 from inspect_ai._eval.task.enqueue import enqueue_task
+from inspect_ai._eval.task.task import PreviousTask
 from inspect_ai._util.content import ContentImage
 from inspect_ai._util.registry import _registry
 from inspect_ai.dataset import Sample
@@ -28,6 +30,7 @@ from inspect_ai.log import (
 from inspect_ai.model import ChatMessageUser, get_model
 from inspect_ai.scorer import Score, Target, scorer
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
+from inspect_ai.util import throttle
 from inspect_ai.util._display import init_display_type
 
 
@@ -571,6 +574,118 @@ def test_task_retry_in_run_keeps_origin(
     child_attempts = [log for log in attempts if log.eval.task == "flaky_child"]
     assert sorted(log.status for log in child_attempts) == ["error", "success"]
     assert all(log.eval.origin == expected for log in child_attempts)
+
+
+@pytest.mark.parametrize("first_run", ["enqueued", "given"])
+def test_enqueue_previous_task_keeps_origin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, first_run: str
+) -> None:
+    # a retry submitted to enqueue_task() as a PreviousTask keeps the origin
+    # of the log it retries (an EnqueueTaskOrigin, or None for a task the run
+    # was given), not the task that submitted it
+    monkeypatch.setenv("FLAKY_CHILD_MARKER", str(tmp_path / "failed-once"))
+    log_dir = str(tmp_path / "logs")
+
+    @solver
+    def enqueue_flaky_child() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            enqueue_task(flaky_child())
+            return state
+
+        return solve
+
+    first = _logs_by_task(
+        eval(
+            Task(
+                dataset=[Sample(input="hi")],
+                solver=[enqueue_flaky_child()],
+                name="parent",
+            )
+            if first_run == "enqueued"
+            else flaky_child(),
+            model="mockllm/model",
+            display="none",
+            log_dir=log_dir,
+        )
+    )
+    failed = first["flaky_child"]
+    assert failed.status == "error"
+    assert (failed.eval.origin is None) == (first_run == "given")
+
+    @solver
+    def enqueue_retry() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            enqueue_task(
+                PreviousTask(
+                    id=failed.eval.task_id,
+                    task=flaky_child(),
+                    task_args={},
+                    model=None,
+                    model_roles=None,
+                    sandbox=None,
+                    log=failed,
+                    log_info=None,
+                )
+            )
+            return state
+
+        return solve
+
+    second = _logs_by_task(
+        eval(
+            Task(dataset=[Sample(input="hi")], solver=[enqueue_retry()], name="driver"),
+            model="mockllm/model",
+            display="none",
+            log_dir=log_dir,
+        )
+    )
+    retried = second["flaky_child"]
+    assert retried.status == "success", retried.error
+    assert retried.eval.task_id == failed.eval.task_id
+    assert retried.eval.origin == failed.eval.origin
+
+
+async def test_enqueue_task_from_run_level_background_work_records_no_origin() -> None:
+    # a throttled function's trailing call runs in run-level background work,
+    # outside any task, so a task it adds records no origin; the leading call
+    # runs in the calling task
+    @throttle(0.5)
+    def add_follow_up(name: str) -> None:
+        enqueue_task(Task(dataset=[Sample(input="hi")], name=f"follow-up-{name}"))
+
+    a_scheduled = anyio.Event()
+
+    @solver
+    def call_throttled(name: str) -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if name == "a":
+                add_follow_up("a-leading")  # fires at once, in a's context
+                add_follow_up("a")  # deferred: schedules the trailing call
+                a_scheduled.set()
+            else:
+                with anyio.fail_after(10):
+                    await a_scheduled.wait()
+                add_follow_up("b")  # replaces the trailing call's arguments
+            await anyio.sleep(1.0)  # keep both tasks running past the window
+            return state
+
+        return solve
+
+    init_display_type("none")
+    logs = _logs_by_task(
+        await eval_async(
+            [
+                Task(dataset=[Sample(input="hi")], solver=[call_throttled(n)], name=n)
+                for n in ("a", "b")
+            ],
+            model="mockllm/model",
+            max_tasks=2,
+        )
+    )
+    assert logs["follow-up-a-leading"].eval.origin == EnqueueTaskOrigin(
+        eval_id=logs["a"].eval.eval_id, task_id=logs["a"].eval.task_id
+    )
+    assert logs["follow-up-b"].eval.origin is None
 
 
 def test_eval_retry_keeps_origin(
