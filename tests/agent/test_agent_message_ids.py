@@ -43,6 +43,7 @@ from inspect_ai.model import (
     ModelOutput,
     get_model,
 )
+from inspect_ai.model._message_ids import edited_message
 from inspect_ai.solver import generate, user_message
 from inspect_ai.tool import Tool, ToolCall, ToolResult, tool
 from inspect_ai.util import store
@@ -788,3 +789,23 @@ def test_configured_system_message_keeps_one_id(tmp_path: Path) -> None:
     sample = _assert_contract(log)
     model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
     assert len({e.input[0].id for e in model_events}) == 1
+
+
+async def test_native_and_bridge_edits_of_a_message_agree() -> None:
+    """An edit is the same message whether Inspect makes it or a scaffold sends it back."""
+    task = ChatMessageUser(content="Hello")
+    reply = ChatMessageAssistant(content="Hi there.")
+    scaffold = _Scaffold(AgentBridge(AgentState(messages=[task])))
+    await scaffold.request([task], reply)
+
+    ids = await scaffold.request(
+        [
+            task,
+            ChatMessageAssistant(content="Hi  there."),
+            ChatMessageUser(content="Again"),
+        ]
+    )
+    native = edited_message(reply, content="Hi  there.")
+
+    assert ids[1] == native.id != reply.id
+    assert scaffold.sent[1].metadata == native.metadata == {"derived_from": [reply.id]}

@@ -116,7 +116,7 @@ def with_edited_id(source: ChatMessage, edited: EditedT) -> EditedT:
         edited.id = source.id
     else:
         original = _edited_from(source) or source.id
-        edited.id = _edit_id(original, content)
+        edited.id = edit_id(original, content)
         edited.metadata = (edited.metadata or {}) | {"derived_from": [original]}
     return edited
 
@@ -128,13 +128,18 @@ def _edited_from(message: ChatMessage) -> str | None:
         isinstance(sources, list)
         and len(sources) == 1
         and isinstance(sources[0], str)
-        and message.id == _edit_id(sources[0], content_hash(message))
+        and message.id == edit_id(sources[0], content_hash(message))
     ):
         return sources[0]
     return None
 
 
-def _edit_id(source_id: str, content: str) -> str:
+def edit_id(source_id: str, content: str) -> str:
+    """Id of an edit of message `source_id` whose `content_hash` is `content`.
+
+    Shared by every producer of edits, so an edit made in one place (a response
+    filter) is recognized as one where it returns (the agent bridge).
+    """
     return shortuuid(name=f"inspect-edit:{json.dumps([source_id, content])}")
 
 

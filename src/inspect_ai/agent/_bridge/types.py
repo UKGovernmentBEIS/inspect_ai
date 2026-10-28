@@ -24,7 +24,7 @@ from inspect_ai.model._compaction import (
 from inspect_ai.model._compaction import (
     compaction as create_compaction,
 )
-from inspect_ai.model._message_ids import content_hash
+from inspect_ai.model._message_ids import content_hash, edit_id
 from inspect_ai.model._model import (
     GenerateFilter,
     Model,
@@ -132,6 +132,8 @@ class AgentBridge:
             {},
             value_type=dict[str, list[str]],
         )
+        # checkpointed hashes: changing `content_hash` or `edit_id` changes what a
+        # resumed sample matches against
         self._content_by_id = self._cp.track(
             "bridge_message_content",
             lambda: self._content_by_id,
@@ -431,10 +433,10 @@ class AgentBridge:
             sources[0]
             if sources is not None
             and len(sources) == 1
-            and message_id == _edit_id(sources[0], self._content_by_id[message_id])
+            and message_id == edit_id(sources[0], self._content_by_id[message_id])
             else message_id
         )
-        edited_id = _edit_id(original, content)
+        edited_id = edit_id(original, content)
         self._content_by_id.setdefault(edited_id, content)
         self._derived_from[edited_id] = [original]
         return edited_id
@@ -757,10 +759,6 @@ def _message_id_keys(message: ChatMessage) -> list[str]:
 
 
 _MAX_ALIGN_CANDIDATES = 8
-
-
-def _edit_id(original_id: str, content: str) -> str:
-    return uuid(name=f"inspect-edit:{json.dumps([original_id, content])}")
 
 
 def _key_strength(key: str) -> int:
