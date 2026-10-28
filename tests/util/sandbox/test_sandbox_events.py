@@ -1,6 +1,9 @@
+import shlex
 from typing import Literal, overload
 
 import anyio
+import pytest
+from test_helpers.sandbox import CannedSandbox
 
 from inspect_ai.event._sandbox import SandboxEvent
 from inspect_ai.log._transcript import Transcript, init_transcript
@@ -9,7 +12,49 @@ from inspect_ai.util._sandbox.environment import (
     SandboxEnvironmentConfigType,
 )
 from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
+from inspect_ai.util._sandbox.limits import (
+    OutputLimitExceededError,
+    override_max_exec_output_size,
+)
 from inspect_ai.util._subprocess import ExecResult
+
+
+@pytest.mark.parametrize(
+    "cmd",
+    [
+        ["bash", "-c", "echo hello # /var/tmp/sandbox-services"],
+        ["cat", "/var/tmp/sandbox-services/agent.txt"],
+        ["printf", "%s", "/var/tmp", "sandbox-services"],
+    ],
+)
+async def test_service_paths_do_not_suppress_exec_events(cmd: list[str]) -> None:
+    transcript = Transcript()
+    init_transcript(transcript)
+    result = ExecResult(success=True, returncode=0, stdout="hello", stderr="")
+    proxy = SandboxEnvironmentProxy(CannedSandbox.returning(result))
+
+    assert await proxy.exec(cmd) == result
+
+    events = [e for e in transcript.events if isinstance(e, SandboxEvent)]
+    assert len(events) == 1
+    assert events[0].cmd == shlex.join(cmd)
+    assert events[0].output == "hello"
+
+
+@pytest.mark.parametrize("stream", ["stdout", "stderr"])
+async def test_service_paths_do_not_bypass_output_limits(stream: str) -> None:
+    init_transcript(Transcript())
+    result = ExecResult(
+        success=True,
+        returncode=0,
+        stdout="x" * 17 if stream == "stdout" else "",
+        stderr="x" * 17 if stream == "stderr" else "",
+    )
+    proxy = SandboxEnvironmentProxy(CannedSandbox.returning(result))
+
+    with override_max_exec_output_size(16):
+        with pytest.raises(OutputLimitExceededError):
+            await proxy.exec(["echo", "/var/tmp/sandbox-services"])
 
 
 class _GatedSandbox(SandboxEnvironment):
