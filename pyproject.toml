@@ -14,7 +14,7 @@ optional-dependencies.math = { file = ["requirements-math.txt"] }
 # tagless shallow clone. Without it the project builds as 0.1.devN, below the
 # inspect-ai floor of dev dependencies like inspect-scout, and `uv lock` fails.
 # Release Please updates it with each release.
-fallback_version = "0.3.285"
+fallback_version = "0.3.286"
 git_describe_command = [
   'git',
   'describe',
