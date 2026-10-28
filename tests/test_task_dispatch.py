@@ -27,6 +27,7 @@ from inspect_ai._control.max_tasks import (
 from inspect_ai._display.core.display import CancelType
 from inspect_ai._eval.loader import resolve_tasks
 from inspect_ai._eval.run import (
+    _TASK_OVERRIDABLE,
     TaskDispatcher,
     TaskRunResult,
     pick_balanced,
@@ -201,7 +202,10 @@ class Harness:
 
 
 @pytest.fixture(autouse=True)
-def _setup() -> Any:
+def _setup(monkeypatch: pytest.MonkeyPatch) -> Any:
+    # these tests cover the default mode, where each group starts up its
+    # sandboxes before any of it runs
+    monkeypatch.delenv("INSPECT_TASK_SETUP_IN_SLOT", raising=False)
     init_display_type("none")
     yield
     reset_max_tasks_override()
@@ -236,6 +240,17 @@ async def _wait_stats(in_flight: int, pending: int) -> None:
 
 def _starts(harness: Harness) -> list[str]:
     return [e.split()[1] for e in harness.events if e.startswith("start")]
+
+
+# ------------------------------------------------------------- settings
+
+
+def test_task_overridable_settings_exist_on_task_and_eval_config() -> None:
+    # TaskSettings resolves these by name (getattr/setattr)
+    task = Task(dataset=[Sample(input="x")])
+    for name in _TASK_OVERRIDABLE:
+        assert name in EvalConfig.model_fields
+        assert hasattr(task, name)
 
 
 # ------------------------------------------------------------- RunQueue
@@ -338,9 +353,7 @@ def test_wants_retry(
     [attempt] = _attempts([("a", get_model("mockllm/m1"))])
     attempt = attempt._replace(retries_remaining=retries)
     task_log = EvalLog(eval=attempt.options.logger.eval, status=status)
-    assert wants_retry(TaskRunResult(task_log, cancel_type), task_log, attempt) is (
-        expected
-    )
+    assert wants_retry(cancel_type, task_log, attempt) is expected
 
 
 def test_wants_retry_not_after_operator_abandoned_it(
@@ -352,7 +365,7 @@ def test_wants_retry_not_after_operator_abandoned_it(
     monkeypatch.setattr(
         "inspect_ai._eval.run.task_retry_abandoned", lambda task_id: True
     )
-    assert not wants_retry(TaskRunResult(task_log, None), task_log, attempt)
+    assert not wants_retry(None, task_log, attempt)
 
 
 # ------------------------------------------------------------- the idle rule
@@ -402,7 +415,7 @@ async def test_dispatcher_idle_rule(
     for name, start in added:
         harness.queue.put([_task(name)], start=start)
 
-    await dispatcher.start_up(harness.queue.take("when_free"))
+    await dispatcher.add_group(harness.queue.take("when_free"))
     while await dispatcher.add_when_idle():
         pass
 

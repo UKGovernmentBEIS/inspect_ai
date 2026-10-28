@@ -7,7 +7,16 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from logging import getLogger
 from pathlib import PurePath
-from typing import Any, Awaitable, Callable, Literal, NamedTuple, Protocol, TypeAlias
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    Iterable,
+    Literal,
+    NamedTuple,
+    Protocol,
+    TypeAlias,
+)
 
 import anyio
 from anyio.abc import TaskGroup
@@ -661,11 +670,12 @@ class TaskRunOptions:
     startup_sandboxes: Callable[[list[Sample]], Awaitable[None]] | None = field(
         default=None
     )
-    """Run-level incremental sandbox startup for samples a SampleSource adds
-    (and, with ``start_sandboxes``, for the task's own samples)."""
-    start_sandboxes: bool = field(default=False)
-    """Start the task's sandboxes (``startup_sandboxes``) when it starts running,
-    before its samples: the run sets each task up in its own slot."""
+    """Run-level incremental sandbox startup for samples a SampleSource adds."""
+    start_task_sandboxes: Callable[[Iterable[Sample]], Awaitable[None]] | None = field(
+        default=None
+    )
+    """Starts the task's own sandboxes when it starts running, before its
+    samples (when the run sets each task up in its own slot)."""
     input_media_policy: InputMediaPolicy = field(default="inline_only")
     """Authority granted to media references in the sliced seed dataset."""
 
@@ -1140,8 +1150,10 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 return await logger.log_finish("started", stats)
 
             # inside the try, so a failed sandbox setup is this task's error
-            if options.start_sandboxes and options.startup_sandboxes is not None:
-                await options.startup_sandboxes(list(dataset))
+            if options.start_task_sandboxes is not None:
+                await options.start_task_sandboxes(
+                    sample_store[i] for i in range(len(sample_store))
+                )
 
             sample_semaphore = create_sample_semaphore(
                 config,

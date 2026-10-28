@@ -10,7 +10,7 @@ them. The active queue lives in a ``ContextVar``, so it is scoped to the run's
 async context (and propagates to its child tasks); :func:`enqueue_task`
 validates an optional ``run_id`` against it so a stray or late caller can't
 add to the wrong run, and the queue refuses additions once the run has
-finished starting tasks.
+finished dispatching tasks.
 """
 
 from __future__ import annotations
@@ -50,8 +50,9 @@ class Attempt(NamedTuple):
 class RunQueue:
     """Every task waiting to start in one eval run.
 
-    ``ready`` holds attempts that have started up; the scheduling loop picks
-    among them. Added tasks wait by start policy until the loop takes them:
+    ``ready`` holds attempts that have started up. The scheduling loop owns
+    it (it adds, picks and requeues attempts); the queue holds it so that
+    :meth:`close` can hand back the attempts that will never start. Added tasks wait by start policy until the loop takes them:
     ``when_free`` ones on each of its cycles, ``after_batch`` ones once nothing
     is ready or running.
 
@@ -91,7 +92,7 @@ class RunQueue:
         Resolution errors surface to the caller. Returns the resolved tasks.
 
         Raises:
-            RuntimeError: If the run has finished starting tasks.
+            RuntimeError: If the run has finished dispatching tasks.
         """
         if self._closed:
             raise RuntimeError(

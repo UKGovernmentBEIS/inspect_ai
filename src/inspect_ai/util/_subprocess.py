@@ -9,7 +9,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
-from subprocess import DEVNULL, PIPE
+from subprocess import DEVNULL, PIPE, STDOUT
 from typing import Generic, Literal, TypeVar, Union, overload
 
 import anyio
@@ -253,9 +253,9 @@ async def run_subprocess(
         else None
     )
 
-    # during a sandbox provider's task-level setup or cleanup, child processes
-    # run in the task's directory with its setup env vars (see sandbox_setup)
     setup = sandbox_setup()
+    if cwd is None and setup is not None:
+        cwd = setup.task_dir
     # output the call would stream to the terminal is collected for the setup
     collected = setup.output if setup is not None and not capture_output else None
 
@@ -270,12 +270,16 @@ async def run_subprocess(
             args,
             stdin=PIPE if input else DEVNULL,
             stdout=PIPE if piped else None,
-            stderr=PIPE if piped else None,
-            cwd=cwd if cwd is not None or setup is None else setup.task_dir,
+            # collected output keeps stdout and stderr in the order written
+            stderr=STDOUT if collected is not None else PIPE if piped else None,
+            cwd=cwd,
             env={**os.environ, **(setup.env if setup else {}), **(env or {})},
         )
         try:
-            if redirect_output_to_logger:
+            consume: Callable[[ByteReceiveStream | None], Awaitable[bytes]]
+            if collected is not None:
+                consume = functools.partial(_collect_stream, collected=collected)
+            elif redirect_output_to_logger:
                 consume = _log_stream
             else:
                 consume = functools.partial(_read_stream, output_limit=output_limit)
@@ -298,8 +302,6 @@ async def run_subprocess(
                 write_stdin,
             ]
             stdout, stderr, _ = await tg_collect(io_tasks)
-            if collected is not None:
-                collected.append((stdout + stderr).decode(errors="replace"))
 
             returncode = await process.wait()
             success = returncode == 0
@@ -535,6 +537,20 @@ async def _read_stream(
         async for chunk in stream:
             circular.write(chunk)
         return circular.getvalue()
+
+
+async def _collect_stream(
+    stream: ByteReceiveStream | None, *, collected: list[str]
+) -> bytes:
+    """Append a stream's output to ``collected`` as it arrives.
+
+    As it arrives, so output written before a timeout or cancellation is
+    kept.
+    """
+    if stream is not None:
+        async for chunk in stream:
+            collected.append(chunk.decode(errors="replace"))
+    return bytes()
 
 
 async def _log_stream(stream: ByteReceiveStream | None) -> bytes:

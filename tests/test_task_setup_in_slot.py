@@ -312,3 +312,30 @@ async def test_cancel_during_setup_cancels_the_task(tmp_path: Path) -> None:
         for info in list_eval_logs(str(tmp_path / "logs"))
     ]
     assert on_disk == ["cancelled"]
+
+
+@pytest.mark.parametrize("sandboxed", [True, False])
+async def test_task_with_dataset_paged_to_disk_sets_up(sandboxed: bool) -> None:
+    task = _boxed("b") if sandboxed else _plain("b")
+    logs = await eval_async(task, model="mockllm/model", max_dataset_memory=0)
+    assert _statuses(logs) == [("b", "success")]
+    assert _box.get("inits", []) == (["startup"] if sandboxed else [])
+
+
+async def test_setup_output_is_kept_when_a_call_times_out() -> None:
+    # output is collected as it arrives, in the order written, so a call cut
+    # short still shows what it wrote
+    async def stall() -> None:
+        await subprocess(
+            ["sh", "-c", "echo out-1; echo err-1 >&2; echo out-2; exec sleep 30"],
+            capture_output=False,
+            timeout=1,
+        )
+
+    _box["task_init"] = stall
+    logs = await eval_async(_boxed("b"), model="mockllm/model")
+    assert _statuses(logs) == [("b", "error")]
+    error = logs[0].error
+    assert error is not None
+    shown = error.traceback.split("Output of the sandbox setup:")[1]
+    assert shown.split() == ["out-1", "err-1", "out-2"]

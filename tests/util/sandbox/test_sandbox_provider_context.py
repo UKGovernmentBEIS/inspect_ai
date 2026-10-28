@@ -373,6 +373,8 @@ def _reset_events(
     IN_SLOT = request.param == "slot"
     if IN_SLOT:
         monkeypatch.setenv("INSPECT_TASK_SETUP_IN_SLOT", "1")
+    else:
+        monkeypatch.delenv("INSPECT_TASK_SETUP_IN_SLOT", raising=False)
     EVENTS.clear()
     monkeypatch.setenv("INSPECT_LOG_DIR", str(tmp_path / "logs"))
 

@@ -15,7 +15,7 @@ from typing import (
     Callable,
     Iterable,
     NamedTuple,
-    Set,
+    TypeVar,
     cast,
 )
 
@@ -125,6 +125,8 @@ from .task.util import resolve_task_sample_ids, slice_dataset, task_run_dir
 
 log = logging.getLogger(__name__)
 
+T = TypeVar("T")
+
 
 def setup_in_slot() -> bool:
     """Whether each task starts its sandboxes in its own slot, while others run.
@@ -203,33 +205,28 @@ async def eval_run(
         task_source=task_source,
         generate_config=kwargs,
     )
-    in_slot = setup_in_slot()
-    sandboxes = SandboxManager(
-        eval_config, eval_config.sandbox_cleanup is not False, in_slot
-    )
-    start_up = GroupStartup(
-        settings, sandboxes, parallel, list(eval_set_tasks or []), in_slot
-    )
-    dispatcher = TaskDispatcher(
-        queue,
-        start_up,
-        parallel=parallel,
-        task_retry_attempts=task_retry_attempts or 0,
-        source=task_source,
-        debug_errors=debug_errors,
-    )
     try:
-        # own the run's sandbox lifecycle state before any task starts
-        sandboxes.open()
-        return await dispatcher.run(await start_up(tasks))
-    finally:
-        try:
-            await sandboxes.shutdown()
-        except BaseException as ex:
-            log.warning(
-                f"Error occurred shutting down sandbox environments: {exception_message(ex)}"
+        async with SandboxManager(
+            eval_config,
+            cleanup=eval_config.sandbox_cleanup is not False,
+            in_slot=setup_in_slot(),
+        ) as sandboxes:
+            start_up = GroupStartup(
+                settings,
+                sandboxes,
+                parallel=parallel,
+                task_names=list(eval_set_tasks or []),
             )
-
+            dispatcher = TaskDispatcher(
+                queue,
+                start_up,
+                parallel=parallel,
+                task_retry_attempts=task_retry_attempts or 0,
+                source=task_source,
+                debug_errors=debug_errors,
+            )
+            return await dispatcher.run(await start_up(tasks))
+    finally:
         # clean up cached S3 sessions to prevent "Unclosed connector" warnings
         try:
             await cleanup_s3_sessions()
@@ -283,7 +280,7 @@ class TaskSettings:
         self,
         resolved_task: ResolvedTask,
         task_names: list[str],
-        startup_sandboxes: Callable[[list[Sample]], Awaitable[None]] | None,
+        sandboxes: "TaskSandboxStarts",
     ) -> TaskRunOptions:
         """Configure one task of the run: validate it and create its logger.
 
@@ -298,8 +295,7 @@ class TaskSettings:
             resolved_task: The task as resolved against the run's models.
             task_names: Every task name known to the run (``task:id`` sample
                 selectors).
-            startup_sandboxes: Starts the sandboxes of samples a
-                ``SampleSource`` adds while the task runs.
+            sandboxes: The sandbox start-ups the task runs itself.
 
         Raises:
             PrerequisiteError: If the task can't run with these settings.
@@ -317,71 +313,13 @@ class TaskSettings:
                     f"No sample_id selector names task '{task.name}'; "
                     "it will run no samples."
                 )
-
-            # reject options that assume a fixed sample set for a SampleSource
-            # task here, before its logger exists, so the error surfaces
-            # pre-run rather than as a task error log
-            if task.sample_source is not None:
-                # early stopping managers register the seed only (samples the
-                # source adds are never registered) and samples they halt
-                # complete without notifying the source — a source blocked
-                # awaiting completions would hang the task
-                if task.early_stopping is not None:
-                    raise PrerequisiteError(
-                        "early_stopping is not currently supported for "
-                        "tasks whose dataset is a SampleSource."
-                    )
-                # a range limit selects seed samples by position, but samples
-                # the source adds have no position
-                if isinstance(config.limit, tuple):
-                    raise PrerequisiteError(
-                        "A range --limit (start,end) is not supported for "
-                        "tasks whose dataset is a SampleSource (added "
-                        "samples have no dataset position); use a plain "
-                        "numeric --limit to cap total samples."
-                    )
-
-            for name in _TASK_OVERRIDABLE:
-                if getattr(config, name) is None:
-                    setattr(config, name, getattr(task, name))
-                else:
-                    setattr(task, name, getattr(config, name))
-
-            # the token limit and its metering type travel as a unit
-            if config.token_limit is None:
-                config.token_limit = task.token_limit
-                config.token_limit_type = task.token_limit_type
-            else:
-                task.token_limit = config.token_limit
-                task.token_limit_type = config.token_limit_type
-
-            # policies given to eval() override the task's (the eval config
-            # already reflects them); otherwise the config records the task's
-            if self.epochs_reducer is not None:
-                task.epochs_reducer = self.epochs_reducer
-            else:
-                config.epochs_reducer = reducer_log_names(task.epochs_reducer)
-            if task.epochs and task.epochs_reducer:
-                for reducer in task.epochs_reducer:
-                    validate_reducer(task.epochs, reducer)
-            if self.approval:
-                task.approval = self.approval
-            elif task.approval:
-                config.approval = config_from_approval_policies(task.approval)
-            if self.review:
-                task.review = self.review
-            elif task.review:
-                config.review = config_from_review_policies(task.review)
-            if self.sentinel is not None:
-                task.sentinel = self.sentinel
-            elif task.sentinel is not None:
-                config.sentinel = sentinel_config(task.sentinel)
+            _check_sample_source_options(task, config)
+            self._apply_eval_settings(task, config)
             sentinel_root = (
                 resolve_sentinel_root(task.sentinel)
                 if task.sentinel is not None
                 else None
             )
-
             tags = list(set(self.tags or []) | set(task.tags or [])) or None
             logger = TaskLogger(
                 task_name=task.name,
@@ -443,9 +381,95 @@ class TaskSettings:
             initial_model_usage=resolved_task.initial_model_usage,
             initial_role_usage=resolved_task.initial_role_usage,
             task_source=self.task_source,
-            startup_sandboxes=startup_sandboxes,
+            startup_sandboxes=sandboxes.added_samples,
+            start_task_sandboxes=sandboxes.own_samples,
             input_media_policy=resolved_task.input_media_policy,
         )
+
+    def _apply_eval_settings(self, task: Task, config: EvalConfig) -> None:
+        """Resolve eval-level settings against the task's own, in place.
+
+        A setting given to ``eval()`` (already in ``config``) overrides the
+        task's; otherwise the task's value is recorded in ``config``.
+        """
+        for name in _TASK_OVERRIDABLE:
+            if getattr(config, name) is None:
+                setattr(config, name, getattr(task, name))
+            else:
+                setattr(task, name, getattr(config, name))
+
+        # the token limit and its metering type travel as a unit
+        if config.token_limit is None:
+            config.token_limit = task.token_limit
+            config.token_limit_type = task.token_limit_type
+        else:
+            task.token_limit = config.token_limit
+            task.token_limit_type = config.token_limit_type
+
+        if self.epochs_reducer is not None:
+            task.epochs_reducer = self.epochs_reducer
+        else:
+            config.epochs_reducer = reducer_log_names(task.epochs_reducer)
+        if task.epochs and task.epochs_reducer:
+            for reducer in task.epochs_reducer:
+                validate_reducer(task.epochs, reducer)
+        if self.approval:
+            task.approval = self.approval
+        elif task.approval:
+            config.approval = config_from_approval_policies(task.approval)
+        if self.review:
+            task.review = self.review
+        elif task.review:
+            config.review = config_from_review_policies(task.review)
+        if self.sentinel is not None:
+            task.sentinel = self.sentinel
+        elif task.sentinel is not None:
+            config.sentinel = sentinel_config(task.sentinel)
+
+
+def _check_sample_source_options(task: Task, config: EvalConfig) -> None:
+    """Reject options that assume a fixed sample set, for a ``SampleSource`` task.
+
+    Checked before the task's logger exists, so the error surfaces before the
+    run rather than as a task error log.
+
+    Raises:
+        PrerequisiteError: If such an option is set.
+    """
+    if task.sample_source is None:
+        return
+    # early stopping managers register the seed only (samples the source adds
+    # are never registered) and samples they halt complete without notifying
+    # the source; a source blocked awaiting completions would hang the task
+    if task.early_stopping is not None:
+        raise PrerequisiteError(
+            "early_stopping is not currently supported for "
+            "tasks whose dataset is a SampleSource."
+        )
+    # a range limit selects seed samples by position, but samples the source
+    # adds have no position
+    if isinstance(config.limit, tuple):
+        raise PrerequisiteError(
+            "A range --limit (start,end) is not supported for "
+            "tasks whose dataset is a SampleSource (added "
+            "samples have no dataset position); use a plain "
+            "numeric --limit to cap total samples."
+        )
+
+
+SampleSandboxStartup = Callable[[Iterable[Sample]], Awaitable[None]]
+"""Starts the sandboxes some of a task's samples need, from inside the task."""
+
+
+class TaskSandboxStarts(NamedTuple):
+    """The sandbox start-ups a task runs itself, once it is running."""
+
+    own_samples: SampleSandboxStartup | None
+    """For the task's own samples, before they run (when it starts its
+    sandboxes in its slot)."""
+
+    added_samples: SampleSandboxStartup | None
+    """For samples a ``SampleSource`` adds while the task runs."""
 
 
 @dataclass
@@ -459,81 +483,85 @@ class GroupStartup:
     """Every task name known to the run, for ``task:id`` sample selectors: the
     enclosing eval set's (a retry runs only some of them), then each group's
     as it starts up, so an added task sees the tasks before it."""
-    in_slot: bool
-    """Each task starts its sandboxes in its slot (see :func:`setup_in_slot`)."""
 
     async def __call__(self, group: list[ResolvedTask]) -> list[TaskRunOptions]:
         """Start up a group of tasks, ready to run.
 
-        In order: sample ids, model controllers (created eagerly so ``ctl
-        config`` can retune ``max_connections`` during a long sandbox start-up),
-        the sandbox environments of the selected samples (those not already
-        started; with ``in_slot``, only their ``ctl`` limiters, as each task
-        starts its own sandboxes when it runs), configuration, then logger
-        init. A group starts up whole,
-        before any of it runs: a sandbox's ``task_init`` changes the process's
-        working directory and environment while it runs, a failure must fail
-        the run before any of the group runs, and each log's ``created`` time
-        (which names its file) follows the sandbox start-up.
+        Steps: sample ids, model controllers (created eagerly so ``ctl config``
+        can retune ``max_connections`` during a long sandbox start-up), the
+        group's sandboxes, configuration, logger init. The group starts up
+        whole, before any of it runs, so a failure fails the run before any of
+        the group runs and each log's ``created`` time (which names its file)
+        follows the sandbox start-up. When tasks start their sandboxes in their
+        slots, only the sandbox types' ``ctl`` limiters are registered here.
 
         At a launch limit of 1 the group is ordered by sequence: the scheduling
         loop breaks ties in queue order, so all of a task's model fan-outs run
-        before the next task's (the order passing the tasks to ``eval()``
-        gives). The group's loggers belong to this call until it returns: if
-        it fails or is cancelled, they are discarded.
+        before the next task's. The group's loggers belong to this call until
+        it returns: if it fails or is cancelled, they are discarded.
         """
         if self.parallel == 1:
             group = sorted(group, key=lambda t: t.sequence)
-        self.task_names = self.task_names + [
+        self.task_names.extend(
             name for name in resolved_task_names(group) if name not in self.task_names
-        ]
+        )
         for resolved_task in group:
-            dataset = resolved_task.task.dataset
-            for id, sample in enumerate(dataset):
-                if sample.id is None:
-                    sample.id = id + 1
-            ensure_unique_ids(dataset)
+            ensure_sample_ids(resolved_task.task.dataset)
         if self.settings.run_samples:
-            for resolved_task in group:
-                await ensure_model_controller(
-                    resolved_task.model,
-                    resolved_task.task.config.merge(
-                        GenerateConfigArgs(**self.settings.generate_config)
-                    ),
-                )
-            if self.in_slot:
-                await self.sandboxes.register_limiters(group, self.task_names)
-            elif any(t.has_sandbox for t in group):
-                await self.sandboxes.start(group, self.task_names)
+            await self._prepare_resources(group)
         options = [
-            self.settings.task_options(t, self.task_names, self._startup_sandboxes(t))
+            self.settings.task_options(t, self.task_names, self._sandbox_starts(t))
             for t in group
         ]
-        if self.in_slot:
-            options = [replace(o, start_sandboxes=True) for o in options]
-        try:
-            for task_options in options:
-                await task_options.logger.init()
-        except BaseException:
-            with anyio.CancelScope(shield=True):
-                for task_options in options:
-                    await task_options.logger.discard()
-            raise
+        await _init_loggers(options)
         return options
 
-    def _startup_sandboxes(
-        self, resolved_task: ResolvedTask
-    ) -> Callable[[list[Sample]], Awaitable[None]] | None:
-        """Start-up of the sandboxes of samples the task runs later.
+    async def _prepare_resources(self, group: list[ResolvedTask]) -> None:
+        """Model controllers, then the group's sandboxes (or their limiters)."""
+        for resolved_task in group:
+            await ensure_model_controller(
+                resolved_task.model,
+                resolved_task.task.config.merge(
+                    GenerateConfigArgs(**self.settings.generate_config)
+                ),
+            )
+        if self.sandboxes.in_slot:
+            await self.sandboxes.register_limiters(group, self.task_names)
+        elif any(t.has_sandbox for t in group):
+            await self.sandboxes.start(group, self.task_names)
 
-        Samples a ``SampleSource`` adds mid-run, and with ``in_slot`` the
-        task's own samples, which it starts when it starts running.
-        """
-        if self.settings.run_samples and (
-            self.in_slot or resolved_task.task.sample_source is not None
-        ):
-            return functools.partial(self.sandboxes.start_for_samples, resolved_task)
-        return None
+    def _sandbox_starts(self, resolved_task: ResolvedTask) -> TaskSandboxStarts:
+        if not self.settings.run_samples:
+            return TaskSandboxStarts(None, None)
+        start = functools.partial(self.sandboxes.start_for_samples, resolved_task)
+        return TaskSandboxStarts(
+            own_samples=(
+                start if self.sandboxes.in_slot and resolved_task.has_sandbox else None
+            ),
+            added_samples=(
+                start if resolved_task.task.sample_source is not None else None
+            ),
+        )
+
+
+async def _init_loggers(options: list[TaskRunOptions]) -> None:
+    """Initialise a group's loggers; if that fails or is cancelled, discard them all."""
+    try:
+        for task_options in options:
+            await task_options.logger.init()
+    except BaseException:
+        with anyio.CancelScope(shield=True):
+            for task_options in options:
+                await task_options.logger.discard()
+        raise
+
+
+def ensure_sample_ids(dataset: Dataset) -> None:
+    """Give samples without an id their 1-based position, then check ids are unique."""
+    for id, sample in enumerate(dataset):
+        if sample.id is None:
+            sample.id = id + 1
+    ensure_unique_ids(dataset)
 
 
 class TaskRunResult(NamedTuple):
@@ -661,7 +689,7 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
 
 
 StartUpFn = Callable[[list[ResolvedTask]], Awaitable[list[TaskRunOptions]]]
-"""Starts up a group of tasks (:class:`GroupStartup`)."""
+"""Starts up a group of tasks (:class:`GroupStartup`; tests pass a fake)."""
 
 
 class TaskDispatcher:
@@ -680,7 +708,7 @@ class TaskDispatcher:
     def __init__(
         self,
         queue: RunQueue,
-        start_up: StartUpFn,
+        group_startup: StartUpFn,
         *,
         parallel: int,
         task_retry_attempts: int,
@@ -688,7 +716,7 @@ class TaskDispatcher:
         debug_errors: bool,
     ) -> None:
         self.queue = queue
-        self.start_up_group = start_up
+        self.group_startup = group_startup
         self.parallel = parallel
         """The launch ``max_tasks`` (``ctl config --max-tasks`` overrides it live)."""
         self.task_retry_attempts = task_retry_attempts
@@ -705,8 +733,8 @@ class TaskDispatcher:
         self.cancelled = False
         """An attempt ended cancelled (the run was cancelled): start no more."""
         self.source_done = False
-        self.starting_up = False
-        """The loop is starting up an added group or awaiting ``next_tasks()``
+        self.adding = False
+        """The loop is starting up added tasks or awaiting ``next_tasks()``
         (see :meth:`run`)."""
 
     async def run(self, seed: list[TaskRunOptions]) -> list[EvalLog]:
@@ -717,14 +745,14 @@ class TaskDispatcher:
 
         A cancellation of the run that lands while tasks run or the loop waits
         is absorbed: the running tasks write cancelled logs and the run returns
-        them. One that lands while the loop starts up an added group or awaits
+        them. One that lands while the loop starts up added tasks or awaits
         ``next_tasks()`` propagates: the tasks it interrupts have no log yet,
         so a run that returned normally would look complete.
         """
-        self.add(seed, added=False)
+        self.make_ready(seed)
         try:
             async with _run_task_screen(
-                task_specs(seed), absorb_cancel=lambda: not self.starting_up
+                task_specs(seed), absorb_cancel=lambda: not self.adding
             ) as screen:
                 init_task_screen(screen)
                 try:
@@ -752,7 +780,7 @@ class TaskDispatcher:
     async def loop(self, tg: TaskGroup) -> None:
         """Start ready attempts while there is capacity; when idle, add more or finish."""
         while not self.cancelled:
-            await self.start_up(self.queue.take("when_free"))
+            await self.add_group(self.queue.take("when_free"))
             await self.drop_abandoned_retries()
             self.start_ready(tg)
             if self.cancelled:
@@ -775,33 +803,38 @@ class TaskDispatcher:
         """
         group = self.queue.take("when_free") or self.queue.take("after_batch")
         if group:
-            await self.start_up(group)
+            await self.add_group(group)
         elif self.source is not None and not self.source_done:
-            # left set if next_tasks() is cancelled, so the cancellation
-            # propagates (see run)
-            self.starting_up = True
-            more = await self.source.next_tasks()
-            self.starting_up = False
+            more = await self.while_adding(self.source.next_tasks())
             if more:
-                await self.start_up(self.queue.resolve(more))
+                await self.add_group(self.queue.resolve(more))
             else:
                 self.source_done = True
         else:
             return False
         return True
 
-    async def start_up(self, group: list[ResolvedTask]) -> None:
-        """Start up an added group and make it ready."""
+    async def add_group(self, group: list[ResolvedTask]) -> None:
+        """Start up added tasks, make them ready and grow the task display's count."""
         if not group:
             return
-        # left set if the start-up fails, so a cancellation propagates (see run)
-        self.starting_up = True
-        options = await self.start_up_group(group)
-        self.starting_up = False
-        self.add(options, added=True)
+        options = await self.while_adding(self.group_startup(group))
+        self.make_ready(options)
+        display().update_task_count(len(options))
 
-    def add(self, options: list[TaskRunOptions], *, added: bool) -> None:
-        """Make started-up tasks ready; ``added`` ones grow the task display's count."""
+    async def while_adding(self, adding: Awaitable[T]) -> T:
+        """Await a step of adding tasks.
+
+        A cancellation landing in it propagates (see :meth:`run`): the flag is
+        left set when the step raises, so the task screen re-raises it.
+        """
+        self.adding = True
+        result = await adding
+        self.adding = False
+        return result
+
+    def make_ready(self, options: list[TaskRunOptions]) -> None:
+        """Queue started-up tasks as ready attempts, in order."""
         self.queue.ready.extend(
             Attempt(self.next_index + i, task_options, self.task_retry_attempts)
             for i, task_options in enumerate(options)
@@ -810,8 +843,6 @@ class TaskDispatcher:
         # lets the model pause directives validate against tasks that have not
         # started (which have no EvalState to check)
         note_dispatch_models([dispatch_model_name(o.model) for o in options])
-        if added:
-            display().update_task_count(len(options))
 
     async def drop_abandoned_retries(self) -> None:
         """Discard ready retries whose task a ctl drain/cancel abandoned.
@@ -861,34 +892,26 @@ class TaskDispatcher:
                 # its never-started log entry goes; the task keeps its previous
                 # attempt's errored log (already in the results)
                 await options.logger.discard()
-                self.finish(attempt, None, None)
+                self.finish(attempt, task_log=None, retry=None)
                 return
             if run.log is None or run.log.status == "cancelled":
                 self.cancelled = True
-            elif wants_retry(run, run.log, attempt):
+            elif wants_retry(run.cancel_type, run.log, attempt):
                 # before the slot is freed: the loop must not see an idle run
                 # while the retry's logger reinitialises
                 retry = await self.next_attempt(attempt, run.log)
         except BaseException:
             # the run failed or was cancelled while the attempt ran or while its
             # retry's logger reinitialised
-            with anyio.CancelScope(shield=True):
-                if not options.logger.finished:
-                    await options.logger.discard(
-                        keep_destination=True, keep_buffer=True
-                    )
+            await _release_unfinished(options.logger)
             raise
         if retry is None:
             if run.log is not None:
                 # unwind the task runner's retry-pending mark (a no-op if a
                 # cancel stamp during the log write already cleared it)
                 clear_eval_retry_pending(run.log.eval.eval_id)
-            if not options.logger.finished:
-                with anyio.CancelScope(shield=True):
-                    await options.logger.discard(
-                        keep_destination=True, keep_buffer=True
-                    )
-        self.finish(attempt, run.log, retry)
+            await _release_unfinished(options.logger)
+        self.finish(attempt, task_log=run.log, retry=retry)
 
     async def next_attempt(self, attempt: Attempt, failed: EvalLog) -> Attempt:
         """The retry of a failed attempt: a fresh log entry reusing its completed samples."""
@@ -914,7 +937,7 @@ class TaskDispatcher:
         )
 
     def finish(
-        self, attempt: Attempt, task_log: EvalLog | None, retry: Attempt | None
+        self, attempt: Attempt, *, task_log: EvalLog | None, retry: Attempt | None
     ) -> None:
         """Free the attempt's slot, record its log and queue its retry.
 
@@ -942,6 +965,17 @@ class TaskDispatcher:
         )
 
 
+async def _release_unfinished(logger: TaskLogger) -> None:
+    """Release a logger whose attempt ended without finishing its log.
+
+    Its destination file and realtime buffer are kept: they hold the samples
+    saved so far, for a retry or for recovery.
+    """
+    if not logger.finished:
+        with anyio.CancelScope(shield=True):
+            await logger.discard(keep_destination=True, keep_buffer=True)
+
+
 def pick_balanced(ready: list[Attempt], model_counts: Counter[Model]) -> Attempt | None:
     """The next attempt to start, or ``None`` if every ready attempt is paused.
 
@@ -965,7 +999,7 @@ def pick_balanced(ready: list[Attempt], model_counts: Counter[Model]) -> Attempt
     return next(a for a in candidates if model_counts[a.options.model] == fewest)
 
 
-def wants_retry(run: TaskRunResult, task_log: EvalLog, attempt: Attempt) -> bool:
+def wants_retry(cancel_type: CancelType, task_log: EvalLog, attempt: Attempt) -> bool:
     """Whether a finished, not cancelled, attempt should be retried.
 
     It is retried after an error or its own retry request while retries
@@ -974,7 +1008,7 @@ def wants_retry(run: TaskRunResult, task_log: EvalLog, attempt: Attempt) -> bool
     cancel and is never retried, even when its log has an error status.
     """
     name = attempt.options.task.name
-    match run.cancel_type:
+    match cancel_type:
         case "retry":
             log.info(
                 f"Task '{name}' was cancelled with retry requested — "
@@ -1069,7 +1103,12 @@ def _start_throughput_reporter(tg: TaskGroup) -> anyio.CancelScope:
 
 
 ProviderState = dict[ContextVar[Any], Any]
-"""ContextVars a sandbox provider's ``task_init`` set, with the values it left."""
+"""ContextVars a sandbox provider set, with the values it left."""
+
+_UNSET = object()
+
+# characters of a failed sandbox setup's output shown with its error
+_SETUP_OUTPUT_SHOWN = 4000
 
 
 class _TaskCleanup(NamedTuple):
@@ -1085,11 +1124,11 @@ class _TaskCleanup(NamedTuple):
 class SandboxManager:
     """Starts sandbox environments incrementally and tears them all down.
 
-    Tasks added to a running eval — and samples a `SampleSource` adds to a
-    live task — arrive in groups, so startup must be callable repeatedly:
-    :meth:`start` / :meth:`start_for_samples` initialize only sandboxenvs not
-    already started and accumulate their cleanups; :meth:`shutdown` runs every
-    accumulated cleanup once, at the end of the run.
+    Use as an async context manager around the run. Tasks added to a running
+    eval, and samples a `SampleSource` adds to a live task, arrive in groups,
+    so startup is callable repeatedly: :meth:`start` / :meth:`start_for_samples`
+    initialize only sandboxenvs not already started and accumulate their
+    cleanups, which run once, when the run ends.
 
     Providers may keep state in ContextVars that ``task_init`` sets and
     ``sample_init`` / ``task_cleanup`` read (Modal, E2B, Daytona, k8s). Each
@@ -1103,15 +1142,13 @@ class SandboxManager:
 
     The manager also owns the run's sandbox lifecycle state (the registries
     a provider's `task_cleanup` reads: running containers, generated config
-    files). :meth:`open` binds a fresh scope in the calling context before any
-    task of the run is spawned, so a `task_init` that runs late — for an added
-    task, or in a `SampleSource` feeder task, a sibling of the samples —
-    registers on the object every task inherited rather than in its own
-    context; :meth:`shutdown` releases the scope, so a later run in the same
-    process starts clean.
+    files), bound in the calling context on entry, before any task of the run
+    is spawned, so a `task_init` that runs late (for an added task, or in a
+    `SampleSource` feeder task) registers on the object every task inherited.
+    It is released on exit, so a later run in the same process starts clean.
     """
 
-    def __init__(self, config: EvalConfig, cleanup: bool, in_slot: bool) -> None:
+    def __init__(self, config: EvalConfig, *, cleanup: bool, in_slot: bool) -> None:
         """Create the run's sandbox manager.
 
         Args:
@@ -1124,12 +1161,12 @@ class SandboxManager:
         """
         self._config = config
         self._cleanup = cleanup
-        self._in_slot = in_slot
-        self._started: Set[TaskSandboxEnvironment] = set()
+        self.in_slot = in_slot
+        self._started: set[TaskSandboxEnvironment] = set()
         self._cleanups: list[_TaskCleanup] = []
         self._state: ProviderState = {}
         self._init_lock = anyio.Lock()
-        self._lifecycle: ExitStack | None = None
+        self._lifecycle = ExitStack()
         # keyed by task, then spec: resolution folds in per-task state
         # (run_dir), so a spec-only key would leak one task's resolution to
         # another. Weak on the task, so a finished task's Task and dataset are
@@ -1138,16 +1175,35 @@ class SandboxManager:
             Task, dict[SandboxEnvironmentSpec, TaskSandboxEnvironment]
         ] = weakref.WeakKeyDictionary()
 
-    def open(self) -> None:
-        """Own the run's sandbox lifecycle state from the calling context.
+    async def __aenter__(self) -> "SandboxManager":
+        self._lifecycle.enter_context(sandbox_lifecycle_scope())
+        return self
 
-        Call before any task or sample of the run is spawned (and whether or
-        not any initial sample has a sandbox — the first sandbox may arrive
-        with an added task or sample). :meth:`shutdown` releases it.
+    async def __aexit__(self, *exc_info: object) -> None:
+        """Run every accumulated `task_cleanup`, then release the lifecycle state.
+
+        The final cleanup of the run: it also covers samples whose own cleanup
+        was deferred by an interruption, since their provider state is on the
+        scope this manager owns. A failing cleanup is logged and the others
+        still run.
         """
-        if self._lifecycle is None:
-            self._lifecycle = ExitStack()
-            self._lifecycle.enter_context(sandbox_lifecycle_scope())
+        with anyio.CancelScope(shield=True):
+            try:
+                for job in self._cleanups:
+                    try:
+                        with sandbox_setup_scope(SandboxSetup(job.run_dir)):
+                            await _in_child_task(
+                                functools.partial(
+                                    job.cleanup, "shutdown", job.config, self._cleanup
+                                ),
+                                job.state,
+                            )
+                    except BaseException as ex:
+                        log.warning(
+                            f"Error occurred shutting down sandbox environments: {exception_message(ex)}"
+                        )
+            finally:
+                self._lifecycle.close()
 
     async def start(self, tasks: list[ResolvedTask], task_names: list[str]) -> None:
         """Start the sandboxenvs of `tasks`' selected samples.
@@ -1156,7 +1212,7 @@ class SandboxManager:
         `tasks`), so `task:id` sample selectors resolve here exactly as they do
         when the tasks run.
         """
-        sandboxenvs: Set[TaskSandboxEnvironment] = set()
+        sandboxenvs: set[TaskSandboxEnvironment] = set()
         for task in tasks:
             sandboxenvs |= await self._resolve_sandboxenvs(
                 task, self._selected_samples(task, task_names)
@@ -1172,23 +1228,32 @@ class SandboxManager:
         config --max-sandboxes`` retune then reaches a type whose task is still
         waiting to start.
         """
-        types: set[str] = set()
-        for task in tasks:
-            for sample in self._selected_samples(task, task_names):
-                spec = await resolve_sandbox(
-                    task.sandbox,
-                    sample,
-                    task.task.name,
-                    task_dir=task_run_dir(task.task),
-                )
-                if spec is not None:
-                    types.add(spec.type)
+        types = {
+            spec.type
+            for task in tasks
+            for sample in self._selected_samples(task, task_names)
+            if (spec := await self._sandbox_spec(task, sample)) is not None
+        }
         for sandbox_type in types:
             await ensure_sandbox_limiter(
                 registry_find_sandboxenv(sandbox_type),
                 sandbox_type,
                 self._config.max_sandboxes,
             )
+
+    async def start_for_samples(
+        self, task: ResolvedTask, samples: Iterable[Sample]
+    ) -> None:
+        """Start the sandboxenvs of samples a running task is about to run.
+
+        Samples a `SampleSource` adds while its task runs, and, when tasks
+        start their sandboxes in their slots, the task's own samples: a config
+        first seen there gets the same `task_init` startup as seed configs
+        (up-front image build/pull, fail-fast validation, a registered
+        `task_cleanup`) before the samples run. Configs already started are a
+        no-op.
+        """
+        await self._start_sandboxenvs(await self._resolve_sandboxenvs(task, samples))
 
     def _selected_samples(
         self, task: ResolvedTask, task_names: list[str]
@@ -1201,23 +1266,16 @@ class SandboxManager:
             dynamic=task.task.sample_source is not None,
         )
 
-    async def start_for_samples(
-        self, task: ResolvedTask, samples: list[Sample]
-    ) -> None:
-        """Initialize the sandboxenvs of samples added to a live task.
-
-        The counterpart of :meth:`start` for samples a `SampleSource` adds
-        while its task runs: a sandbox config first seen in an added sample
-        (including the task-level config when the seed dataset was empty)
-        gets the same `task_init` startup as seed configs — up-front image
-        build/pull, fail-fast validation, and a registered `task_cleanup` —
-        before the sample runs. Configs already started are a no-op.
-        """
-        await self._start_sandboxenvs(await self._resolve_sandboxenvs(task, samples))
+    async def _sandbox_spec(
+        self, task: ResolvedTask, sample: Sample
+    ) -> SandboxEnvironmentSpec | None:
+        return await resolve_sandbox(
+            task.sandbox, sample, task.task.name, task_dir=task_run_dir(task.task)
+        )
 
     async def _resolve_sandboxenvs(
         self, task: ResolvedTask, samples: Iterable[Sample]
-    ) -> Set[TaskSandboxEnvironment]:
+    ) -> set[TaskSandboxEnvironment]:
         """Resolve each sample's sandboxenv (deduped; sandbox-less samples skipped).
 
         Full resolution reads the sandbox config (and, for docker configs with
@@ -1227,18 +1285,13 @@ class SandboxManager:
         samples with metadata must always fully resolve (their config may
         interpolate it into a per-sample init environment).
         """
-        sandboxenvs: Set[TaskSandboxEnvironment] = set()
+        sandboxenvs: set[TaskSandboxEnvironment] = set()
         resolved = self._resolved_no_metadata.setdefault(task.task, {})
         for sample in samples:
             sandboxenv: TaskSandboxEnvironment | None = None
             cache_key: SandboxEnvironmentSpec | None = None
             if not sample.metadata:
-                spec = await resolve_sandbox(
-                    task.sandbox,
-                    sample,
-                    task.task.name,
-                    task_dir=task_run_dir(task.task),
-                )
+                spec = await self._sandbox_spec(task, sample)
                 if spec is None:
                     continue
                 cache_key = spec
@@ -1254,134 +1307,94 @@ class SandboxManager:
         return sandboxenvs
 
     async def _start_sandboxenvs(
-        self, sandboxenvs: Set[TaskSandboxEnvironment]
+        self, sandboxenvs: set[TaskSandboxEnvironment]
     ) -> None:
-        """Run `task_init` for new sandboxenvs; set provider state in the caller.
+        """Run `task_init` for new sandboxenvs; set the provider state in the caller.
 
-        Serialized on a lock with the started-set re-checked under it, so
-        concurrent callers (e.g. two live tasks adding samples at once)
-        can't double-init the same sandboxenv. The pre-lock filter lets a
-        caller whose configs are all already started return without waiting
-        out another caller's (possibly minutes-long) image pull — safe
-        because the started set only ever grows.
+        One `task_init` at a time, on a lock, with the started set re-checked
+        under it, so concurrent callers (e.g. two live tasks adding samples at
+        once) can't init the same sandboxenv twice. The check before the lock
+        lets a caller whose configs have all started return without waiting
+        out another caller's (possibly minutes-long) image pull: the started
+        set only grows.
         """
-        sandboxenvs = {env for env in sandboxenvs if env not in self._started}
-        if sandboxenvs:
+        if any(env not in self._started for env in sandboxenvs):
             async with self._init_lock:
-                await self._init_sandboxenvs(sandboxenvs)
+                new = [env for env in sandboxenvs if env not in self._started]
+                if new:
+                    set_sandbox_prebuilt(self._config.sandbox_prebuilt is True)
+                    # a task starting its sandboxes in its slot runs beside a
+                    # live task display
+                    with (
+                        nullcontext() if self.in_slot else display().suspend_task_app()
+                    ):
+                        for sandboxenv in new:
+                            await self._init_one(sandboxenv)
+                        # space above the task display ("none" has none and must
+                        # keep stdout machine-readable, e.g. --json)
+                        if not self.in_slot and display_type() != "none":
+                            print("")
         _set_provider_state(self._state)
 
-    async def _init_sandboxenvs(self, sandboxenvs: Set[TaskSandboxEnvironment]) -> None:
-        """Run ``task_init`` for each sandboxenv not started meanwhile (under the lock)."""
-        sandboxenvs = {env for env in sandboxenvs if env not in self._started}
-        if sandboxenvs:
-            set_sandbox_prebuilt(self._config.sandbox_prebuilt is True)
-
-            # initialiase sandboxenvs (track cleanups). Tasks starting their
-            # sandboxes in their slots run beside a live task display
-            with nullcontext() if self._in_slot else display().suspend_task_app():
-                for sandboxenv in sandboxenvs:
-                    # find type
-                    sandboxenv_type = registry_find_sandboxenv(sandboxenv.sandbox.type)
-
-                    # pre-register the type's resizable concurrency limiter before
-                    # task_init (image pulls/builds can take minutes) so a `ctl
-                    # limits --max-sandboxes` issued during startup isn't dropped
-                    await ensure_sandbox_limiter(
-                        sandboxenv_type,
-                        sandboxenv.sandbox.type,
-                        self._config.max_sandboxes,
-                    )
-
-                    # run startup, from the state earlier task_inits left (so a
-                    # provider's get-or-create finds it)
-                    task_init = cast(TaskInit, getattr(sandboxenv_type, "task_init"))
-                    _set_provider_state(self._state)
-                    setup = SandboxSetup(
-                        sandboxenv.run_dir,
-                        dict(sandboxenv.env),
-                        output=[] if self._in_slot else None,
-                    )
-                    with sandbox_setup_scope(setup):
-                        try:
-                            state = await _provider_state_of(
-                                task_init, "startup", sandboxenv.sandbox.config
-                            )
-                        except Exception as ex:
-                            if setup.output:
-                                ex.add_note(
-                                    "Output of the sandbox setup:\n"
-                                    + "".join(setup.output)[-_SETUP_OUTPUT_SHOWN:]
-                                )
-                            raise
-
-                    # track as started and append cleanup method
-                    self._started.add(sandboxenv)
-                    self._state.update(state)
-                    task_cleanup = cast(
-                        TaskCleanup, getattr(sandboxenv_type, "task_cleanup")
-                    )
-                    self._cleanups.append(
-                        _TaskCleanup(
-                            task_cleanup,
-                            sandboxenv.sandbox.config,
-                            sandboxenv.run_dir,
-                            dict(self._state),
-                        )
-                    )
-
-                # provide some space above task display ("none" has no task
-                # display and must keep stdout machine-readable, e.g. --json)
-                if not self._in_slot and display_type() != "none":
-                    print("")
-
-    async def shutdown(self) -> None:
-        """Run every accumulated `task_cleanup`, then release the lifecycle state.
-
-        The final cleanup of the run: it also covers samples whose own
-        cleanup was deferred by an interruption, since their provider state is
-        on the scope this manager owns.
-        """
-
-        async def cleanup(job: _TaskCleanup) -> None:
-            _set_provider_state(job.state)
-            with sandbox_setup_scope(SandboxSetup(job.run_dir)):
-                await job.cleanup("shutdown", job.config, self._cleanup)
-
-        with anyio.CancelScope(shield=True):
+    async def _init_one(self, sandboxenv: TaskSandboxEnvironment) -> None:
+        """Run one sandboxenv's `task_init`; record its provider state and cleanup."""
+        sandboxenv_type = registry_find_sandboxenv(sandboxenv.sandbox.type)
+        # pre-register the type's resizable concurrency limiter before
+        # task_init (image pulls/builds can take minutes) so a `ctl limits
+        # --max-sandboxes` issued during startup isn't dropped
+        await ensure_sandbox_limiter(
+            sandboxenv_type, sandboxenv.sandbox.type, self._config.max_sandboxes
+        )
+        task_init = cast(TaskInit, getattr(sandboxenv_type, "task_init"))
+        setup = SandboxSetup(
+            sandboxenv.run_dir,
+            dict(sandboxenv.env),
+            output=[] if self.in_slot else None,
+        )
+        with sandbox_setup_scope(setup):
             try:
-                for job in self._cleanups:
-                    try:
-                        async with (
-                            unwrap_exception_group(),
-                            anyio.create_task_group() as tg,
-                        ):
-                            tg.start_soon(cleanup, job)
-                    except BaseException as ex:
-                        log.warning(
-                            f"Error occurred shutting down sandbox environments: {exception_message(ex)}"
-                        )
-            finally:
-                if self._lifecycle is not None:
-                    self._lifecycle.close()
-                    self._lifecycle = None
+                # from the state earlier task_inits left, so a provider's
+                # get-or-create finds it
+                state = await _in_child_task(
+                    functools.partial(task_init, "startup", sandboxenv.sandbox.config),
+                    self._state,
+                )
+            except Exception as ex:
+                if setup.output:
+                    ex.add_note(
+                        "Output of the sandbox setup:\n"
+                        + "".join(setup.output)[-_SETUP_OUTPUT_SHOWN:]
+                    )
+                raise
+        self._started.add(sandboxenv)
+        self._state.update(state)
+        self._cleanups.append(
+            _TaskCleanup(
+                cast(TaskCleanup, getattr(sandboxenv_type, "task_cleanup")),
+                sandboxenv.sandbox.config,
+                sandboxenv.run_dir,
+                dict(self._state),
+            )
+        )
 
 
-async def _provider_state_of(
-    task_init: TaskInit, task_name: str, config: SandboxEnvironmentConfigType | None
+async def _in_child_task(
+    fn: Callable[[], Awaitable[None]], state: ProviderState
 ) -> ProviderState:
-    """Run a provider's ``task_init`` in a child task; return the ContextVars it set.
+    """Run ``fn`` in a child task with ``state`` set; return the ContextVars it set.
 
-    Only what ``task_init`` itself sets is kept, not a copy of the caller's
-    whole context, which would keep the caller's state (its task display,
-    a running task's settings) alive and visible to ``task_cleanup``.
+    The child's ContextVar writes stay out of the caller's context, so only
+    what ``fn`` itself sets is kept, rather than a copy of the caller's whole
+    context, which would keep the caller's state (its task display, a running
+    task's settings) alive and visible to a later ``task_cleanup``.
     """
-    base = copy_context()
-    state: ProviderState = {}
+    changes: ProviderState = {}
 
     async def run() -> None:
-        await task_init(task_name, config)
-        state.update(
+        _set_provider_state(state)
+        base = copy_context()
+        await fn()
+        changes.update(
             (var, value)
             for var, value in copy_context().items()
             if base.get(var, _UNSET) is not value
@@ -1391,17 +1404,12 @@ async def _provider_state_of(
         async with anyio.create_task_group() as tg:
             tg.start_soon(run)
     except BaseExceptionGroup as group:
-        # the task group wraps the one task's exception
+        # the task group wraps the one task's exception (including a
+        # KeyboardInterrupt, which unwrap_exception_group leaves wrapped)
         if len(group.exceptions) == 1:
             raise group.exceptions[0] from group.exceptions[0].__cause__
         raise
-    return state
-
-
-_UNSET = object()
-
-# characters of a failed sandbox setup's output shown with its error
-_SETUP_OUTPUT_SHOWN = 4000
+    return changes
 
 
 def _set_provider_state(state: ProviderState) -> None:
