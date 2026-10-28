@@ -856,6 +856,60 @@ async def test_sample_events_endpoint_parses_type_and_404(
         assert missing.status_code == 404
 
 
+async def test_sample_events_endpoint_serializes_refused_surrogate_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A refused record's lone surrogates don't break the `content=true` response.
+
+    The producer records a refused record's text as sent, unencodable or not;
+    the projected content and reason escape the surrogate.
+    """
+    from inspect_ai._control import server as server_mod
+    from inspect_ai._control.events import _project
+    from inspect_ai.event import (
+        CommunicationEvent,
+        CommunicationRecord,
+        CommunicationRejection,
+        CommunicationSend,
+    )
+
+    event = CommunicationEvent(
+        kind="sent",
+        source="inspect_swarm",
+        agent="a",
+        channel="bus",
+        record_ids=["w-1"],
+        send=CommunicationSend(
+            record=CommunicationRecord(
+                id="w-1", kind="message", sender="a", content="invalid\ud800payload"
+            ),
+            rejected=CommunicationRejection(control="admit", reason="bad \ud800 text"),
+        ),
+    )
+
+    async def _fake(
+        eval_id: str, sample_id: str, epoch: int, *, content: bool, **kwargs: object
+    ) -> dict[str, object]:
+        projected = _project(event, content=content, full=False)
+        return {"events": [projected], "next": "c", "done": True}
+
+    monkeypatch.setattr(server_mod, "sample_events", _fake)
+
+    app = server_mod.ControlServer(run_id="test")._build_app()
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        response = await client.get(
+            "/evals/e1/sample/events", params={"sample_id": "1", "content": "true"}
+        )
+    assert response.status_code == 200, response.text
+    [projected] = response.json()["events"]
+    assert projected["content"] == "invalid\\ud800payload"
+    assert projected["reason"] == "bad \\ud800 text"
+    assert projected["rejected"] == "admit"
+
+
 async def test_sample_messages_endpoint_round_trips_and_404(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

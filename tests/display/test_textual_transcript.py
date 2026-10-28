@@ -226,3 +226,16 @@ async def test_communication_event_strings_reach_terminal_without_controls() -> 
 async def test_swarm_event_kind_renders_literally_in_header(kind: str) -> None:
     output = await _textual_output([SwarmEvent(kind=kind, data={"version": 1})])
     assert f"swarm: {kind}" in output
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_swarm_event_data_reaches_terminal_without_controls() -> None:
+    event = SwarmEvent(
+        kind="ledger",
+        data={"note": "before\x9b2Jmiddle\u202eafter", "raw": "x\ud800y"},
+    )
+    output = await _textual_output([event])
+    assert "\x9b" not in output and "\u202e" not in output
+    assert "before2Jmiddleafter" in output
+    assert '"raw":"x\\ud800y"' in output

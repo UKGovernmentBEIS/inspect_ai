@@ -1,3 +1,4 @@
+import json
 from typing import Any, Callable, NamedTuple, Sequence, Type
 
 from pydantic import JsonValue
@@ -11,6 +12,7 @@ from textual.widget import Widget
 from textual.widgets import Static
 
 from inspect_ai._cli.ctl._render import _sanitize_line
+from inspect_ai._control.events import _escape_surrogates
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai._util.rich import tool_result_display
 from inspect_ai._util.transcript import (
@@ -457,7 +459,9 @@ def render_swarm_event(event: SwarmEvent) -> EventDisplay:
     if event.member is not None:
         line.append(_sanitize_line(event.member), style="bold")
         line.append(": ")
-    line.append(to_json(event.data, fallback=lambda _: None).decode())
+    # escape lone surrogates (unencodable for the terminal) and strip controls
+    data = json.dumps(event.data, ensure_ascii=False, separators=(",", ":"))
+    line.append(_sanitize_line(_escape_surrogates(data)))
     # the title is a Rich Rule title, which parses markup
     return EventDisplay(f"swarm: {escape(_sanitize_line(event.kind))}", line)
 

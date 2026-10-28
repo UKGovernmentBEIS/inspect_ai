@@ -574,10 +574,12 @@ def _project(event: "Event", *, content: bool, full: bool) -> dict[str, Any]:
             if send is not None:
                 record_content = send.record.content
                 out["content"] = (
-                    _truncate(record_content) if record_content is not None else None
+                    _truncate(_escape_surrogates(record_content))
+                    if record_content is not None
+                    else None
                 )
             if rejected is not None:
-                out["reason"] = _truncate(rejected.reason)
+                out["reason"] = _truncate(_escape_surrogates(rejected.reason))
             out["data"] = _truncate(_to_text(getattr(event, "data", None)))
     elif et == "swarm":
         out["kind"] = getattr(event, "kind", None)
@@ -596,6 +598,14 @@ def _to_text(value: Any) -> str:
         return json.dumps(value, default=str)
     except (TypeError, ValueError):
         return str(value)
+
+
+def _escape_surrogates(text: str) -> str:
+    """Escape lone surrogates, which the JSON response cannot encode.
+
+    A refused record's text can hold them (the producer records it as sent).
+    """
+    return text.encode("utf-8", errors="backslashreplace").decode("utf-8")
 
 
 def _truncate(text: str, width: int = _TRUNCATE) -> str:
