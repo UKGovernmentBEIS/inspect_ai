@@ -78,7 +78,7 @@ from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParam, ToolParams
 from inspect_ai.util import ExecResult, collect, token_limit
-from inspect_ai.util._limit import LimitExceededError, outermost_limit_error
+from inspect_ai.util._limit import LimitExceededError
 
 
 class _FakeProxy:
@@ -1493,7 +1493,7 @@ async def test_response_filter_limit_propagates(
                         generate_completions(sandbox_bridge), sandbox_bridge
                     )(CHAT_REQUEST)
                     assert PROVIDER_ERROR_KEY in reply
-                    raise outermost_limit_error(sandbox_bridge.generation_limits)
+                    raise sandbox_bridge.generation_limits[0]
                 case _:
                     assert_never(path)
     assert exc_info.value.type == "token"

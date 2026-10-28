@@ -1348,15 +1348,16 @@ def test_limit_in_a_bridged_generation_during_shutdown_is_raised(
 
 
 @pytest.mark.parametrize("first", ["sample", "agent"])
-def test_concurrent_bridged_generations_raise_the_outermost_limit(
+def test_concurrent_bridged_generations_raise_the_first_limit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, first: str
 ) -> None:
-    """Of limits reached by concurrent bridged generations, the outermost is raised.
+    """Of limits reached by concurrent bridged generations, the first is raised.
 
     One request reaches the sample's token limit, another the `run()` message
-    limit, in either order. The sample limit ends the sample, which ends the
-    agent too, rather than `run()` handling its own limit and the sample going
-    on.
+    limit, in either order. A native agent stops at the first limit it reaches,
+    so the scope that applied the first one handles it. When that is the
+    `run()` limit, the sample's limit reached after the error reply is not
+    raised, since nothing generates again in the sample.
     """
     # 7 tokens: over the sample's token limit
     sample_request = _Request(after_first=first == "agent")
@@ -1365,58 +1366,21 @@ def test_concurrent_bridged_generations_raise_the_outermost_limit(
     requests = [sample_request, agent_request]
     if first == "agent":
         requests.reverse()
+    limit = message_limit(2)
 
     outcome = _run_bridged_agent(
         tmp_path,
         monkeypatch,
-        message_limit(2),
+        limit,
         scaffold=_Scaffold(requests),
         sample_token_limit=5,
     )
 
-    _assert_sample_token_limit(outcome)
+    if first == "sample":
+        _assert_sample_token_limit(outcome)
+    else:
+        _assert_agent_limit(outcome, limit)
     _assert_error_replies(outcome.replies, count=2)
-
-
-def test_response_filter_limits_in_a_bridged_generation_raise_the_outermost(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Of the limits a response filter's concurrent failures reach, the outermost is raised.
-
-    The filter fails with the bridged agent's `run()` message limit and the
-    enclosing `run()`'s token limit, in that order. The enclosing `run()`
-    handles its limit, rather than the inner one handling its own.
-    """
-    inner = message_limit(10)
-    outer = token_limit(1000)
-
-    async def judges_over_limits(
-        model: Model, output: ModelOutput, generate_input: GenerateInput
-    ) -> ModelOutput | None:
-        raise ExceptionGroup(
-            "judges",
-            [
-                LimitExceededError("message", value=11, limit=10, source=inner),
-                LimitExceededError("token", value=1001, limit=1000, source=outer),
-            ],
-        )
-
-    outcome = _run_bridged_agent(
-        tmp_path,
-        monkeypatch,
-        inner,
-        scaffold=_Scaffold([_Request()], response_filter=judges_over_limits),
-        outer_limit=outer,
-    )
-
-    sample = outcome.sample
-    assert sample.error is None, sample.error
-    assert sample.limit is None
-    assert sample.store.get("continued") is True
-    assert outcome.errors == []
-    [error] = outcome.outer_errors
-    assert error is not None and error.source is outer
-    _assert_error_replies(outcome.replies)
 
 
 @pytest.mark.parametrize("owner", ["agent", "sample"])
@@ -1496,44 +1460,6 @@ def test_limit_behind_a_response_filter_refusal_is_raised(
         _assert_agent_limit(outcome, limit)
     else:
         _assert_sample_token_limit(outcome, limit=10)
-    _assert_error_replies(outcome.replies)
-
-
-def test_limit_without_a_source_in_a_bridged_generation_ends_the_sample(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A custom limit without a source outranks a `run()` limit reached with it.
-
-    A response filter raises a custom limit (no `source`, as the docs show)
-    together with the `run()` token limit. As for a native agent, no `run()`
-    handles the custom limit, so it ends the sample.
-    """
-    limit = token_limit(1000)
-
-    async def judges_over_limits(
-        model: Model, output: ModelOutput, generate_input: GenerateInput
-    ) -> ModelOutput | None:
-        raise ExceptionGroup(
-            "judges",
-            [
-                LimitExceededError("custom", value=2, limit=1),
-                LimitExceededError("token", value=1001, limit=1000, source=limit),
-            ],
-        )
-
-    outcome = _run_bridged_agent(
-        tmp_path,
-        monkeypatch,
-        limit,
-        scaffold=_Scaffold([_Request()], response_filter=judges_over_limits),
-    )
-
-    sample = outcome.sample
-    assert sample.error is None, sample.error
-    assert sample.limit is not None
-    assert (sample.limit.type, sample.limit.limit) == ("custom", 1)
-    assert "continued" not in sample.store
-    assert outcome.errors == []
     _assert_error_replies(outcome.replies)
 
 

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import abc
 import ast
-import itertools
 import logging
 import math
 import operator
@@ -19,7 +18,6 @@ from typing import (
     Literal,
     Mapping,
     NamedTuple,
-    Sequence,
     TypeVar,
 )
 
@@ -38,9 +36,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 TNode = TypeVar("TNode", bound="_Node")
-
-# order in which limits are entered (see `outermost_limit_error`)
-_limit_entries = itertools.count()
 
 
 class LimitExceededError(Exception):
@@ -101,7 +96,6 @@ class Limit(abc.ABC):
         # inspect_ai.util._limit_overrides.sample_limit_override_scope and
         # resolved by the node's `limit` property); None for ordinary nodes
         self._limit_override: Callable[[], int | None] | None = None
-        self._entry: int | None = None
 
     def _limit_override_value(self) -> int | None:
         """The live override for this node, or ``None`` when none applies."""
@@ -152,7 +146,6 @@ class Limit(abc.ABC):
                 "create a new instance of the Limit."
             )
         self._entered = True
-        self._entry = next(_limit_entries)
 
 
 @contextmanager
@@ -192,39 +185,6 @@ def apply_limits(
         limit_scope.limit_error = e
         if not catch_errors:
             raise
-
-
-def outermost_limit_error(errors: Sequence[LimitExceededError]) -> LimitExceededError:
-    """The error of the limit entered first, of limits active in one context.
-
-    Limits active in one context nest in the order they were entered, so the
-    first one belongs to the outermost scope, which ends the others' scopes as
-    well. An error with no `source` (e.g. a custom limit) counts as outermost,
-    since no `apply_limits()` scope handles it.
-
-    Args:
-       errors: Errors of limits exceeded in one context (at least one).
-
-    Raises:
-       RuntimeError: An error's `source` has no entry order, so its scope
-         cannot be ranked against the others.
-    """
-
-    def entry(error: LimitExceededError) -> float:
-        if error.source is None:
-            return -math.inf
-        entered: int | None = getattr(error.source, "_entry", None)
-        if entered is None:
-            raise RuntimeError(
-                f"The {error.type} limit error's source "
-                f"({type(error.source).__name__}) has no entry order, so it "
-                "cannot be ranked against other limits. A Limit subclass used "
-                "as an error source must call `_check_reuse()` in `__enter__`."
-            )
-        return entered
-
-    entries = [entry(error) for error in errors]
-    return errors[entries.index(min(entries))]
 
 
 class LimitScope:

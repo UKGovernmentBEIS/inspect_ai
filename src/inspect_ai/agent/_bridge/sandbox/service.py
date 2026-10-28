@@ -60,7 +60,7 @@ def _forward_provider_errors(
     limit) anywhere in its history, such as a filter's task group or a refusal
     reduced from a response filter's group, is returned as an error reply too,
     and its limits are recorded in `bridge.generation_limits`. Once the agent
-    has unwound, `sandbox_agent_bridge` raises the outermost of them, so the
+    has unwound, `sandbox_agent_bridge` raises the first of them, so the
     scope that applied it (`run()`, or the sample) handles it, as for a native
     agent. A `ResponseFilterError` keeps the route above even with limits in
     its history: a response filter's group mixing a limit with another error

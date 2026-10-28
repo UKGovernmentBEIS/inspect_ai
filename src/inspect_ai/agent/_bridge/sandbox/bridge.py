@@ -27,7 +27,6 @@ from inspect_ai.tool._tools._web_search._web_search import (
 )
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._checkpoint.checkpointer import Checkpointer
-from inspect_ai.util._limit import outermost_limit_error
 from inspect_ai.util._sandbox._cli import SANDBOX_CLI
 from inspect_ai.util._sandbox.exec_remote import (
     ExecCompleted,
@@ -331,7 +330,7 @@ async def sandbox_agent_bridge(
         # passes through unchanged for that scope to handle.
         if bridge is not None and bridge.generation_limits:
             await _deliver_enclosing_cancellation()
-            raise_unwrapped(ex, outermost_limit_error(bridge.generation_limits))
+            raise_unwrapped(ex, bridge.generation_limits[0])
         # If the agent completed successfully but we got an error during cleanup,
         # log the error but don't fail the sample.
         if agent_completed:
@@ -344,7 +343,7 @@ async def sandbox_agent_bridge(
     # the agent returned after a generation reached a limit
     if bridge is not None and bridge.generation_limits:
         await _deliver_enclosing_cancellation()
-        raise outermost_limit_error(bridge.generation_limits)
+        raise bridge.generation_limits[0]
 
 
 async def _deliver_enclosing_cancellation() -> None:
