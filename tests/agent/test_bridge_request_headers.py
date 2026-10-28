@@ -25,7 +25,7 @@ from inspect_ai.agent._bridge.sandbox.service import (
 from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
-from inspect_ai.model import GenerateConfig, get_model
+from inspect_ai.model import ChatMessage, GenerateConfig, get_model
 from inspect_ai.model._model import GenerateFilter, use_model_event_sink
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
@@ -137,6 +137,9 @@ class _CapturingSink:
     def __init__(self) -> None:
         self.seen: list[tuple[str, BridgeRequest | None]] = []
 
+    def on_start(self, input: list[ChatMessage]) -> None:
+        self.seen.append(("start", current_bridge_request()))
+
     def on_pending(self, event: ModelEvent) -> None:
         self.seen.append(("pending", current_bridge_request()))
 
@@ -199,7 +202,7 @@ async def test_model_event_sink_sees_client_headers(protocol: str) -> None:
     with use_model_event_sink(sink):
         await factory(_bridge())(body, dict(_CLIENT_HEADERS))
 
-    assert [phase for phase, _ in sink.seen] == ["pending", "complete"]
+    assert [phase for phase, _ in sink.seen] == ["start", "pending", "complete"]
     for _, request in sink.seen:
         assert request is not None
         assert request.model == "agent-model"
