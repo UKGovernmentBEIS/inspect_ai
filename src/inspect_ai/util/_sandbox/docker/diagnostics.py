@@ -13,7 +13,6 @@ not stall a sample for minutes.
 """
 
 import json
-import time
 from typing import Any, NamedTuple
 
 import anyio
@@ -48,20 +47,27 @@ async def service_dead(service: str, project: ComposeProject) -> bool:
     An exec can return its signal exit before the daemon records the
     container's exit, so `compose ps` may still report `running`. A container
     that is not yet dead is re-checked for up to `_SETTLE_TIMEOUT` seconds.
+    The first probe is not bounded by that window (it may queue behind other
+    docker commands); the re-checks are, so a stalled one cannot add
+    `compose_command`'s timeout retries.
     """
-    deadline = time.monotonic() + _SETTLE_TIMEOUT
-    while True:
-        try:
-            entries = await _service_ps_entries(service, project)
-        except Exception:
-            return False
-        if not entries:
-            return False
-        if all(_is_dead(entry) for entry in entries):
-            return True
-        if time.monotonic() >= deadline:
-            return False
-        await anyio.sleep(_SETTLE_INTERVAL)
+    dead = await _probe_dead(service, project)
+    with anyio.move_on_after(_SETTLE_TIMEOUT):
+        while dead is False:
+            await anyio.sleep(_SETTLE_INTERVAL)
+            dead = await _probe_dead(service, project)
+    return dead is True
+
+
+async def _probe_dead(service: str, project: ComposeProject) -> bool | None:
+    """One `compose ps` reading: None when it gives no evidence either way."""
+    try:
+        entries = await _service_ps_entries(service, project)
+    except Exception:
+        return None
+    if not entries:
+        return None
+    return all(_is_dead(entry) for entry in entries)
 
 
 async def sandbox_unavailable_diagnostics(service: str, project: ComposeProject) -> str:
