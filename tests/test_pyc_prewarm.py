@@ -173,8 +173,9 @@ def test_prewarm_files_rewrites_only_stale_and_reports(
         candidates=5, stale=0, rewritten=0, processes=0, failed_processes=0, seconds=0.0
     )
 
-    # editing a source (size changes, so mtime granularity is irrelevant)
-    # invalidates only its own entry
+    # editing a source changes its size and content, so it invalidates its own
+    # entry under either cache key (mtime+size or source hash), whatever the
+    # mtime granularity
     sources[2].write_text(_TEST_SOURCE + "y = 'changed'\n")
     assert _counts(prewarm_files(sources, pytestconfig, processes=2)) == PrewarmResult(
         candidates=5, stale=1, rewritten=1, processes=1, failed_processes=0, seconds=0.0
