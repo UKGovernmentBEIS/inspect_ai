@@ -9,11 +9,18 @@ from pathlib import Path
 
 import ijson  # type: ignore
 import pytest
+import zstandard
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai._util.async_bytes_reader import adapt_to_reader
 from inspect_ai._util.async_zip import AsyncZipReader, CentralDirectory, ZipCrcError
 from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util.compression import (
+    Decompressor,
+    DeflateDecompressor,
+    ZstdDecompressor,
+    decompress_bytes,
+)
 from inspect_ai._util.compression_transcoding import _DeflateCompressStream
 from inspect_ai._util.zip_common import ZipCompressionMethod, ZipEntry
 
@@ -851,3 +858,192 @@ async def test_reader_reuses_a_given_central_directory(
         reader = AsyncZipReader(fs, str(crc_zip), central_directory=cd)
         assert await reader.entries() is cd
         assert json.loads(await reader.read_member_fully("member.json"))["value"]
+
+
+# --- malformed member data ----------------------------------------------------
+
+_ZSTD_METHOD: int = getattr(zipfile, "ZIP_ZSTANDARD", 93)
+_MALFORMED_PAYLOAD = os.urandom(20000) + b"tail" * 5000
+
+
+def _patch_central_directory(
+    zip_path: Path, member: str, offset: int, value: int
+) -> None:
+    """Overwrite a 32-bit field of ``member``'s central-directory header."""
+    with zipfile.ZipFile(zip_path) as zf:
+        names = zf.namelist()
+    data = bytearray(zip_path.read_bytes())
+    pos = data.find(b"PK\x01\x02")
+    for _ in range(names.index(member)):
+        pos = data.find(b"PK\x01\x02", pos + 1)
+    struct.pack_into("<I", data, pos + offset, value)
+    zip_path.write_bytes(bytes(data))
+
+
+def _write_member(
+    tmp_path: Path, method: int, data: bytes = _MALFORMED_PAYLOAD
+) -> Path:
+    zip_path = tmp_path / "member.zip"
+    with zipfile.ZipFile(zip_path, "w", method) as zf:
+        zf.writestr("m.bin", data)
+    return zip_path
+
+
+async def _read(zip_path: Path, member: str, stream: bool) -> bytes:
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(zip_path))
+        if stream:
+            return await _stream(reader, member)
+        return await reader.read_member_fully(member)
+
+
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("method", [zipfile.ZIP_DEFLATED, _ZSTD_METHOD])
+async def test_truncated_member_data_raises(
+    tmp_path: Path, method: int, stream: bool
+) -> None:
+    zip_path = _write_member(tmp_path, method)
+    with zipfile.ZipFile(zip_path) as zf:
+        compressed_size = zf.getinfo("m.bin").compress_size
+    # the member's bytes end halfway through its compressed stream
+    _patch_central_directory(zip_path, "m.bin", 20, compressed_size // 2)
+    with pytest.raises(ValueError):
+        await _read(zip_path, "m.bin", stream)
+
+
+@pytest.mark.parametrize(
+    "method", [ZipCompressionMethod.DEFLATE, ZipCompressionMethod.ZSTD]
+)
+async def test_decompressors_reject_a_truncated_stream(
+    method: ZipCompressionMethod,
+) -> None:
+    if method == ZipCompressionMethod.DEFLATE:
+        compressor = zlib.compressobj(wbits=-15)
+        compressed = compressor.compress(_MALFORMED_PAYLOAD) + compressor.flush()
+    else:
+        compressed = zstandard.ZstdCompressor().compress(_MALFORMED_PAYLOAD)
+    truncated = compressed[:-4]
+
+    with pytest.raises(ValueError, match="[Tt]runcated"):
+        decompress_bytes(truncated, method)
+
+    async def chunks() -> AsyncIterator[bytes]:
+        for i in range(0, len(truncated), 1000):
+            yield truncated[i : i + 1000]
+
+    decompressor: Decompressor = (
+        DeflateDecompressor()
+        if method == ZipCompressionMethod.DEFLATE
+        else ZstdDecompressor()
+    )
+    source = chunks()
+    with pytest.raises(ValueError, match="[Tt]runcated"):
+        while True:
+            await decompressor.decompress_next(source)
+
+
+async def test_zstd_decompressor_yields_one_frame_at_a_time() -> None:
+    """Frames that arrive in one input chunk are not inflated together."""
+    parts = [b"a" * 100_000, b"b" * 100_000, b"c" * 100_000]
+    cctx = zstandard.ZstdCompressor()
+    compressed = b"".join(cctx.compress(part) for part in parts)
+
+    async def one_chunk() -> AsyncIterator[bytes]:
+        yield compressed
+
+    decompressor = ZstdDecompressor()
+    source = one_chunk()
+    outputs: list[bytes] = []
+    with pytest.raises(StopAsyncIteration):
+        while True:
+            outputs.append(await decompressor.decompress_next(source))
+    assert outputs == parts
+
+
+@pytest.mark.parametrize("stream", [False, True])
+async def test_local_header_for_another_member_raises(
+    tmp_path: Path, stream: bool
+) -> None:
+    zip_path = tmp_path / "two.zip"
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_STORED) as zf:
+        zf.writestr("a.json", b'{"id": "AAAA"}')
+        zf.writestr("b.json", b'{"id": "BBBB"}')
+    # b.json's entry points at a.json's local header
+    _patch_central_directory(zip_path, "b.json", 42, 0)
+    with pytest.raises(ValueError, match="b.json"):
+        await _read(zip_path, "b.json", stream)
+
+
+@pytest.mark.parametrize("read", ["fully", "stream", "raw"])
+@pytest.mark.parametrize("method", [zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED])
+async def test_local_header_name_extending_member_name_raises(
+    tmp_path: Path, method: int, read: str
+) -> None:
+    zip_path = tmp_path / "prefix.zip"
+    with zipfile.ZipFile(zip_path, "w", method) as zf:
+        zf.writestr("m.binx", b'{"id": "AAAA"}')
+    # the central directory names m.bin; its last name byte becomes the comment
+    data = bytearray(zip_path.read_bytes())
+    pos = data.find(b"PK\x01\x02")
+    assert struct.unpack_from("<HHH", data, pos + 28) == (6, 0, 0)
+    struct.pack_into("<HHH", data, pos + 28, 5, 0, 1)
+    zip_path.write_bytes(bytes(data))
+
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(zip_path))
+        with pytest.raises(ValueError, match="m.bin"):
+            if read == "fully":
+                await reader.read_member_fully("m.bin")
+            elif read == "stream":
+                await _stream(reader, "m.bin")
+            else:
+                async with await reader.open_member_raw("m.bin") as raw:
+                    async for _ in raw:
+                        pass
+
+
+@pytest.mark.parametrize("stream", [False, True])
+async def test_local_header_past_end_of_file_raises(
+    tmp_path: Path, stream: bool
+) -> None:
+    zip_path = _write_member(tmp_path, zipfile.ZIP_DEFLATED, b"{}")
+    _patch_central_directory(zip_path, "m.bin", 42, zip_path.stat().st_size + 100)
+    with pytest.raises(ValueError, match="[Tt]runcated local file header"):
+        await _read(zip_path, "m.bin", stream)
+
+
+@pytest.mark.parametrize("stream", [False, True])
+async def test_local_header_with_bad_signature_raises(
+    tmp_path: Path, stream: bool
+) -> None:
+    zip_path = _write_member(tmp_path, zipfile.ZIP_DEFLATED, b"{}")
+    data = bytearray(zip_path.read_bytes())
+    data[0:4] = b"XXXX"
+    zip_path.write_bytes(bytes(data))
+    with pytest.raises(ValueError, match="signature"):
+        await _read(zip_path, "m.bin", stream)
+
+
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize(
+    "method", [zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED, _ZSTD_METHOD]
+)
+@pytest.mark.parametrize("delta", [-1, 1])
+async def test_declared_uncompressed_size_is_enforced(
+    tmp_path: Path, method: int, stream: bool, delta: int
+) -> None:
+    zip_path = _write_member(tmp_path, method, b"x" * 5000)
+    _patch_central_directory(zip_path, "m.bin", 24, 5000 + delta)
+    with pytest.raises(ValueError, match="m.bin"):
+        await _read(zip_path, "m.bin", stream)
+
+
+@pytest.mark.parametrize("method", [zipfile.ZIP_BZIP2, zipfile.ZIP_LZMA])
+async def test_open_member_rejects_an_unsupported_method(
+    tmp_path: Path, method: int
+) -> None:
+    zip_path = _write_member(tmp_path, method, b"hello" * 100)
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(zip_path))
+        with pytest.raises(NotImplementedError):
+            await reader.open_member("m.bin")

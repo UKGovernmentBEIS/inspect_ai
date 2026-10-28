@@ -3,7 +3,6 @@ from contextlib import AbstractAsyncContextManager
 from types import TracebackType
 from typing import Literal
 
-import zstandard
 from anyio.abc import ByteReceiveStream
 
 from .compression import DeflateCompressor, DeflateDecompressor, ZstdDecompressor
@@ -194,36 +193,10 @@ class _ZstdDecompressIterator(AsyncIterator[bytes]):
 
     def __init__(self, source: AsyncIterator[bytes]):
         self._source = source
-        self._dctx = zstandard.ZstdDecompressor()
-        self._obj: zstandard.ZstdDecompressionObj = self._dctx.decompressobj()
-        self._pending: bytes = b""
-        self._exhausted = False
+        self._decompressor = ZstdDecompressor()
 
     def __aiter__(self) -> AsyncIterator[bytes]:
         return self
 
     async def __anext__(self) -> bytes:
-        if self._exhausted:
-            raise StopAsyncIteration
-
-        while True:
-            if self._pending:
-                data, self._pending = self._pending, b""
-            else:
-                try:
-                    data = await self._source.__anext__()
-                except StopAsyncIteration:
-                    try:
-                        final = self._obj.decompress(b"")
-                    except zstandard.ZstdError:
-                        final = b""
-                    self._exhausted = True
-                    if final:
-                        return final
-                    raise
-            decompressed = self._obj.decompress(data)
-            if self._obj.eof:
-                self._pending = self._obj.unused_data
-                self._obj = self._dctx.decompressobj()
-            if decompressed:
-                return decompressed
+        return await self._decompressor.decompress_next(self._source)

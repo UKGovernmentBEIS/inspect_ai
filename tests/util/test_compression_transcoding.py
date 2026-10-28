@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 
+import pytest
 import zstandard
 
 from inspect_ai._util.compression_transcoding import _ZstdDecompressIterator
@@ -54,3 +55,13 @@ async def test_three_frames_round_trip() -> None:
 
     iterator = _ZstdDecompressIterator(_aiter_chunks(compressed, 13))
     assert b"".join([chunk async for chunk in iterator]) == expected
+
+
+async def test_truncated_stream_raises() -> None:
+    """A zstd stream that ends mid-frame raises rather than ending early."""
+    compressed = zstandard.ZstdCompressor().compress(b"payload " * 1024)
+
+    iterator = _ZstdDecompressIterator(_aiter_chunks(compressed[:-4], 16))
+    with pytest.raises(ValueError, match="[Tt]runcated"):
+        async for _ in iterator:
+            pass
