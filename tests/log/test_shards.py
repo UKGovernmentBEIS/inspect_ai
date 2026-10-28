@@ -1270,14 +1270,15 @@ def test_a_task_headline_metric_gives_the_unsharded_headline(tmp_path: Path) -> 
 def test_dictionary_scores_with_different_keys_under_a_pattern_metric_are_refused(
     tmp_path: Path, incremental: bool
 ) -> None:
-    values = {2: {"alpha": 1}, 10: {"alpha": 1, "beta": 1}}
+    # merged first, 10's keys alone give a result (an unsharded run raises)
+    values = {2: {"alpha": 1, "beta": 1}, 10: {"alpha": 1}}
     merged, shards = _merge_keyed(tmp_path, values, incremental)
     before = _files(str(tmp_path))
     with pytest.raises(
         ShardSetError,
         match=(
-            r"Sample '2' in .* has the score 'keyed' with the keys \['alpha'\], "
-            r"but sample '10' in .* has \['alpha', 'beta'\].* for '\*'"
+            r"Sample '2' in .* has the score 'keyed' with the keys "
+            r"\['alpha', 'beta'\], but sample '10' in .* has \['alpha'\].* for '\*'"
         ),
     ):
         merge_eval_log_shards(merged, delete_shards=True)
