@@ -132,7 +132,7 @@ While a merged log's `.shards` directory exists, `inspect score`, `score()`, `ed
 
 The merge computes metrics as a fresh, unsharded run does. A scorer's metrics see each sample's metadata from the dataset, as the sample's `sample_init` event records it, not metadata a solver changed. A sample logged without its events (its record could not be serialized) is refused. A task that declares the same scorer twice is refused too, because its later scores are recorded under suffixed names that a fresh run and a retry pass to metrics differently.
 
-A score that a solver sets, with no scorer, is merged with the task's metrics when the task declares them (`Task(metrics=...)`). Without them, the merge supports only the default case: a scalar score for which the shards recorded `accuracy` and `stderr`. Any other such score is refused; declare the task's metrics and re-run the shards.
+A score that a solver sets (in `state.scores`) rather than a scorer the task declares is refused, before writing or deleting anything, because a fresh run and a retry pass it to metrics differently. Score with a scorer declared on the task and re-run the shards.
 
 ### Limitations
 

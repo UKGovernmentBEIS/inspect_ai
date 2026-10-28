@@ -485,9 +485,8 @@ Trust (decision: Ransom, 2026-10-22): the merge never imports the log's
 `task_file`. Merging shards is a read of logs, and in the trust model of
 UKGovernmentBEIS/inspect_ai#6007 a read imports nothing a log names
 unless the caller trusts the log; this PR has no trust option, so it
-never imports. Every metric (of a scorer, or of the task in
-`eval.metrics`, as solver-set scores without a scorer use) must be in
-the registry: built in, from an installed package, or imported by the
+never imports. Every scorer's metric (the header records the task's
+`eval.metrics` with each scorer they replace) must be in the registry: built in, from an installed package, or imported by the
 caller. When one is not, the merge raises `LookupError` before writing
 anything (the type `recompute_metrics` raises for a missing metric),
 naming it and saying to import the module that defines it and merge from
@@ -1195,21 +1194,19 @@ dataset metadata is taken from the `SampleInitEvent`, which holds it for
 fresh and retry-reused samples alike. A sample with a declared scorer's
 score and no `SampleInitEvent` (a sample whose record could not be
 serialized is logged without its events) is refused with
-`ShardSetError` before publishing or deleting. Solver-set scores keep the
-final metadata and `None`, as in a fresh run. Reduced views take the
+`ShardSetError` before publishing or deleting. Reduced views take the
 metadata of the sample's first score, so grouped and clustered metrics see
 the same groups reduced or not. A task that declares one scorer twice
 (score keys `name`, `name1`) is refused in `check_scoring_resolvable`,
 before any sample is read: a fresh run names the suffixed scores' scorer
 `name`, a retry names it `name1`. After the last sample it calls
 `eval_results(samples=..., scores=..., reducers=..., scorers=resolve_scorers_info(h),
-metrics=metrics_from_log_header(h), completed_samples=...,
-headline_metric=h.eval.headline_metric)` with the template header `h`.
-It also passes `scorer_names`, the names the worker scored samples under,
-resolved once from the declared scorers with `unique_scorer_name` as the
-task runner resolves them (plus the solver-set score names), so
-aggregation does not derive a later scorer's name from earlier result
-names: a per-key result named like a later declared scorer would
+metrics=None, completed_samples=...,
+headline_metric=h.eval.headline_metric)` with the template header `h`
+(`eval_results` applies task metrics only to solver-set scores, which
+the merge refuses). It also passes `scorer_names`, the names the worker
+scored samples under (each declared scorer's name), so aggregation does
+not derive a later scorer's name from earlier result names: a per-key result named like a later declared scorer would
 otherwise rename that scorer and leave it without scores.
 Carried samples are read from the merged log's temp copy on every pass that
 writes, because the merged log's sample members are the only lossless
@@ -1220,46 +1217,19 @@ the metrics that wrappers such as `grouped()` and `aggregate()` record as
 registry dicts in their options, at any depth), so `resolve_scorers_info`
 never reaches its `task_file` import ("Trust" under "Python API"); an
 unregistered one raises `LookupError` and nothing is written (parent:
-"fails rather than store metrics from a lossy input"). A sample score
-whose name matches no declared scorer (a solver-set score) would make
-`eval_results` call `ScorerInfo.from_name`, which loads a file-qualified
-name (`task.py@scorer`, or an existing file) as a module and falls back
-to `accuracy` and `stderr` when it cannot create the scorer. The merge
-builds that scorer info itself, for exactly two shapes (decision: Ransom,
-2026-10-22):
+"fails rather than store metrics from a lossy input").
 
-1. The task declares metrics (`eval.metrics`): the score takes them, as
-   `eval_results` applies them. An explicitly empty declaration (`[]` or
-   `{}`) means no metrics, as in the live run; `metrics_from_log_header`
-   returns `None` for it, so the merge keeps it apart from an absent one.
-2. The default case: every shard's current attempt that recorded results
-   for the score recorded exactly `accuracy` and `stderr` (scalar, with
-   their default parameters), and the score's value is a scalar in every
-   merged sample. The merge recomputes it with `accuracy` and `stderr`.
-   The current attempts' headers are those read in the pass, plus the
-   unchanged shards' headers, read only when such a score exists; the
-   merged log's own results are not used, since they also hold what
-   replaced attempts contributed.
-
-Anything else is refused with `ShardSetError` before publishing or
-deleting: a score named after a scorer whose metrics were not the
-defaults, dictionary- or list-valued scores, several-valued or custom
-recorded metrics, shards that disagree, and a score no current attempt
-recorded results for (only running shards hold it). The message says the
-score's metrics cannot be established for merging and that the task should
-declare its metrics (`Task(metrics=...)`); shards already written without
-declared metrics have to be re-run. `EvalResults` is a display record
-(several-valued metrics lose their package namespace, per-key and
-reduced/unreduced views are flattened into rows), and earlier revisions
-that rebuilt metric configurations from it kept finding cases it could
-not read back. A score name in a log therefore never imports a file and
-never changes a score's metrics.
-
-Possible follow-up work, not in Step 1: a `metrics=` option on the merge
-that supplies a solver-set score's metrics, if a real task hits this
-refusal; or workers recording the metric definitions they used for each
-score in the log header, which the merge could then resolve as it
-resolves `eval.metrics`.
+Solver-set scores (decision: Ransom, 2026-10-28). A score whose key
+matches no declared scorer (a solver set it in `state.scores`) is refused
+with `ShardSetError` before publishing or deleting, whether or not the
+task declares a scorer; the message names the sample, its log and the
+score key. A fresh run passes such a score to metrics with
+`SampleScore.scorer` unset, while `eval_retry` reuse sets it to the
+stored key, so the merge cannot establish one set of metric inputs; and
+`eval_results` would build its scorer info with `ScorerInfo.from_name`,
+which loads a file-qualified name (`task.py@scorer`, or an existing
+file) as a module. No task in inspect_evals, the examples or inspect_swe
+sets one. A score name in a log therefore never imports a file.
 
 Epoch reducers (decision: Ransom, 2026-10-23). A log records each reducer
 by name only (`config.epochs_reducer`, from `reducer_log_name`), without
@@ -1331,9 +1301,8 @@ delete shard attempts (no shard changed, or an interrupted deletion's
 remnant) reads every sample member of the merged log in step 12, before
 deleting, for the same check, since summaries drop edit histories. That
 pass also checks the merged log's `reductions.json`: every reduced view
-(the declared scorers resolved from the header, and solver-set scores with
-the task's metrics or the default `accuracy` and `stderr`, the only ones a
-writing pass accepts) must hold every merged sample that has the score,
+(the declared scorers resolved from the header, the only scores a writing
+pass accepts) must hold every merged sample that has the score,
 since once the shards are deleted it is the only copy of their
 reductions. A missing member, an empty list or a partial one is refused.
 A merge that neither writes nor deletes is not checked. Two reducers recorded under one name
@@ -2467,26 +2436,21 @@ Per PR (numbers from "Implementation plan"):
    - a merge that read the merged log before a retry-cleanup removal
      deleted it has its conditional publish refused (`WriteConflictError`),
      on `mock_s3` with a pause between the read and the publish;
-   - trust: an unregistered scorer metric, an unregistered task-level
-     metric of solver-set scores with no scorer, an unregistered metric
+   - trust: an unregistered scorer metric, an unregistered metric
      wrapped in `grouped()` (and, at unit level, nested in
      `grouped(aggregate(...))`) each raise `LookupError` naming
      it, write nothing and import nothing; the same merge succeeds once
      the module that defines it is imported; solver-set score names that
      are a file-qualified scorer spec or an existing file, beside a
-     declared scorer, import no file during the merge and keep the
-     `accuracy`/`stderr` the shards recorded; a solver-set scalar score
-     with recorded `accuracy`/`stderr` merges, fresh and after a re-run
-     shard (incremental equals fresh); with `delete_shards=True`, a score
-     named after a scorer with other metrics, one whose scorer's metric is
-     custom, a dictionary-valued score whose key equals its name with
-     per-key metrics, and shards that disagree are refused, with no merged
-     log published and the shards intact, and each merges once the task
-     declares its metrics; declared scorers whose names collide with a
-     per-key result name (`parts` reporting `other`, then `other`)
-     merge to the same results as an unsharded run, with deletion enabled;
-     a score with no recorded results (running
-     shards only) is refused;
+     declared scorer, are refused and import no file; declared scorers
+     whose names collide with a per-key result name (`parts` reporting
+     `other`, then `other`) merge to the same results as an unsharded
+     run, with deletion enabled;
+   - solver-set scores: with `delete_shards=True`, a solver-set score on a
+     task with no scorer and task metrics, on a task with no scorer whose
+     workers recorded the default `accuracy` and `stderr`, and beside a
+     declared scorer is refused, with no merged log published and the
+     shards intact;
    - epoch reducers: `at_least(1, value=0.5)` with one epoch and with two,
      `pass_at(2, value=0.5)`, `pass_k(2, value=0.5)` and a `mean` with a
      value converter, beside a default-reducer control, on a scorer with
@@ -2508,8 +2472,7 @@ Per PR (numbers from "Implementation plan"):
      `delete_shards=True` the same way; an incomplete merge beside a
      running shard, on a scorer with reduced and unreduced metrics, runs no
      metric (an unreduced metric that raises when called) and writes no
-     results; solver-set scores with `Task(metrics=[])` and `{}` merge with
-     `delete_shards=True` to an unsharded run's results;
+     results;
    - `invalidated`: a fresh merge of an invalidated shard sample sets it, a
      replacement without the last invalidated sample clears it, and an
      invalidated replacement in an incremental merge sets it again; each

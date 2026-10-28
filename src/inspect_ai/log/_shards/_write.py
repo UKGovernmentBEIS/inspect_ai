@@ -28,13 +28,13 @@ from inspect_ai.log._recorders.eval import (
     _sample_filename,
 )
 from inspect_ai.log._recorders.recorder import SampleRecordKey
-from inspect_ai.scorer._metric import Metric, SampleScore, Score
+from inspect_ai.scorer._metric import SampleScore, Score
 from inspect_ai.scorer._reducer.types import ScoreReducer
 
 from ._errors import ShardSetError
 
 if TYPE_CHECKING:
-    from inspect_ai._eval.task.results import Metrics, ScorerInfo
+    from inspect_ai._eval.task.results import ScorerInfo
 
 
 class _SampleInputs(NamedTuple):
@@ -78,13 +78,16 @@ class MergedScoring(NamedTuple):
 def check_scoring_resolvable(header: EvalLog) -> None:
     """Refuse metrics the registry cannot resolve, and repeated scorer or reducer names.
 
-    The merge never imports the log's `task_file`, so every metric (of a
-    scorer or of the task, `eval.metrics`) must already be registered: built
-    in, from an installed package, or imported by the caller. Epoch reducers
-    are not recreated (see :func:`_recompute_results`): their recorded
-    reductions are told apart by name, so two reducers with one name
-    (`at_least(1, value=0.5)` and `at_least(1)` are both `at_least_1`) are
-    refused. A scorer declared twice is refused too (see
+    The merge never imports the log's `task_file`, so every scorer's metric
+    must already be registered: built in, from an installed package, or
+    imported by the caller. The header records the task's metrics
+    (`eval.metrics`) with each scorer they replace; otherwise they apply only
+    to solver-set scores, which the merge refuses (see
+    :func:`_declared_inputs`), so they are not checked separately. Epoch
+    reducers are not recreated (see :func:`_recompute_results`): their
+    recorded reductions are told apart by name, so two reducers with one
+    name (`at_least(1, value=0.5)` and `at_least(1)` are both `at_least_1`)
+    are refused. A scorer declared twice is refused too (see
     :func:`_declared_inputs`).
 
     Raises:
@@ -114,9 +117,8 @@ def check_scoring_resolvable(header: EvalLog) -> None:
             "tell their reductions apart and does not merge such shards."
         )
 
-    groups = [scorer.metrics for scorer in header.eval.scorers or []]
-    for metrics in [*groups, header.eval.metrics]:
-        for metric in _metric_definitions(metrics):
+    for scorer in header.eval.scorers or []:
+        for metric in _metric_definitions(scorer.metrics):
             if registry_lookup("metric", metric.name) is None:
                 raise LookupError(_unregistered("Metric", metric.name))
             _check_embedded(metric.options)
@@ -175,7 +177,6 @@ async def write_merged_zip(
     summaries: Sequence[EvalSampleSummary],
     template: EvalLog,
     total_samples: int,
-    shard_results: Callable[[], Awaitable[Sequence[tuple[str, EvalResults]]]],
     held_reductions: HeldReductions,
     make_header: Callable[[MergedScoring], EvalLog],
 ) -> EvalLog:
@@ -186,17 +187,13 @@ async def write_merged_zip(
     read. Then the summaries, the reductions and the header (made by
     `make_header` from the recomputed results and the samples'
     invalidation) are written. No journal is written: the merged log is
-    always written finished. `shard_results` returns the results each
-    shard's current attempt recorded (as `(source, results)`), which show
-    whether a score with no declared scorer or task metrics used the default
-    metrics; it is called only when there is such a score.
+    always written finished.
 
     Raises:
         ShardSetError: A sample member's id or epoch does not match its name;
-            a score with no declared scorer or task metrics is not the
-            default case (see :func:`_default_metrics`); or a sample's epoch
-            reduction cannot be taken from its log (see
-            :func:`_recompute_results`).
+            a sample's metric inputs cannot be established (see
+            :func:`_declared_inputs`); or a sample's epoch reduction cannot be
+            taken from its log (see :func:`_recompute_results`).
         LookupError: A metric is not registered.
         pydantic.ValidationError: A sample member does not parse.
     """
@@ -206,7 +203,7 @@ async def write_merged_zip(
             data = await read_member(key)
             inputs.append(await anyio.to_thread.run_sync(_write_sample, zf, key, data))
         results, reductions = await _recompute_results(
-            template, inputs, total_samples, shard_results, held_reductions
+            template, inputs, total_samples, held_reductions
         )
         header = make_header(
             MergedScoring(
@@ -265,7 +262,6 @@ async def _recompute_results(
     template: EvalLog,
     inputs: list[_SampleInputs],
     total_samples: int,
-    shard_results: Callable[[], Awaitable[Sequence[tuple[str, EvalResults]]]],
     held_reductions: HeldReductions,
 ) -> tuple[EvalResults | None, list[EvalSampleReductions] | None]:
     """Metrics over the merged samples, as `eval_results` computes them live.
@@ -288,37 +284,19 @@ async def _recompute_results(
 
     Raises:
         ShardSetError: A reduction cannot be taken from its log, or see
-            :func:`_default_metrics`.
+            :func:`_declared_inputs`.
     """
     from inspect_ai._eval.score import resolve_scorers_info
-    from inspect_ai._eval.task.results import (
-        RecordedReductions,
-        ScorerInfo,
-        _unique_scorer_names,
-        eval_results,
-    )
+    from inspect_ai._eval.task.results import RecordedReductions, eval_results
 
     # resolve_scorers_info imports the task file for an unregistered metric
     check_scoring_resolvable(template)
-    metrics = _task_metrics(template)
-    declared = resolve_scorers_info(template)
-    scores = _declared_inputs(declared, inputs, held_reductions.sources)
-    others = _other_score_names(declared, scores)
-    if metrics is not None:
-        other_infos = [ScorerInfo(name=name, metrics=metrics) for name in others]
-    elif others:
-        recorded = await shard_results()
-        other_infos = [
-            ScorerInfo(name=name, metrics=_default_metrics(name, recorded, scores))
-            for name in others
-        ]
-    else:
-        other_infos = []
-    infos = [*declared, *other_infos]
-    # the names the worker scored samples under, as the task runner resolves
-    # them once: aggregation must not derive them from earlier result names
-    # (a per-key result can take a later name)
-    scorer_names = [*_unique_scorer_names(declared), *others]
+    infos = resolve_scorers_info(template)
+    scores = _declared_inputs(infos, inputs, held_reductions.sources)
+    # the names the worker scored samples under (each scorer is declared
+    # once): aggregation must not derive them from earlier result names (a
+    # per-key result can take a later name)
+    scorer_names = [info.name for info in infos]
     names = template.eval.config.epochs_reducer
     reducers: RecordedReductions | list[ScoreReducer] | None = (
         None if names is None else []
@@ -338,7 +316,7 @@ async def _recompute_results(
         # reach a metric without their reductions
         by_view = _by_view(held_reductions.reductions)
         missing = _missing_reductions(
-            _reduced_score_names(infos, scorer_names),
+            _reduced_score_names(infos),
             names,
             _score_ids(scores),
             by_view,
@@ -362,7 +340,7 @@ async def _recompute_results(
         reducers=reducers,
         scorers=infos,
         scorer_names=scorer_names,
-        metrics=metrics,
+        metrics=None,
         completed_samples=sum(1 for sample in inputs if not sample.error),
         headline_metric=template.eval.headline_metric,
     )
@@ -380,20 +358,32 @@ def _declared_inputs(
     registry name, which the header keeps as the declared scorer's name. A
     retry reusing a sample passes its final metadata and score key instead;
     the merge follows the fresh run. The dataset metadata is taken from the
-    sample's `SampleInitEvent`. Solver-set scores keep the final metadata and
-    no scorer, as in a fresh run.
+    sample's `SampleInitEvent`.
+
+    A score with no declared scorer (set by a solver) is refused: a fresh
+    run and a retry give its metrics different inputs, and no task in use
+    sets one (decision: Ransom, 2026-10-28).
 
     Raises:
-        ShardSetError: A sample with a declared scorer's score has no
-            `SampleInitEvent`.
+        ShardSetError: A sample has a score with no declared scorer, or has
+            scores but no `SampleInitEvent`.
     """
     names = {info.name for info in declared}
     scores: list[dict[str, SampleScore]] = []
     for sample in inputs:
         if not sample.scores:
             continue
-        if not sample.initialized and names & sample.scores.keys():
-            id = str(next(iter(sample.scores.values())).sample_id)
+        id = str(next(iter(sample.scores.values())).sample_id)
+        other = next((name for name in sample.scores if name not in names), None)
+        if other is not None:
+            raise ShardSetError(
+                f"Sample {id!r} in {sources[id]} has the score '{other}', which "
+                "no scorer the task declares produced (a solver set it). The "
+                "merge cannot merge solver-set scores: a fresh run and a retry "
+                "give their metrics different inputs. Score with a scorer "
+                "declared on the task (Task(scorer=...)) and re-run the shards."
+            )
+        if not sample.initialized:
             raise ShardSetError(
                 f"Sample {id!r} in {sources[id]} has no sample_init event, which "
                 "records the dataset metadata a fresh run gives its scorers' "
@@ -406,8 +396,6 @@ def _declared_inputs(
                 name: score.model_copy(
                     update={"scorer": name, "sample_metadata": sample.initial_metadata}
                 )
-                if name in names
-                else score
                 for name, score in sample.scores.items()
             }
         )
@@ -434,26 +422,14 @@ def check_retained_reductions(
         ShardSetError: A required reduction is missing.
     """
     from inspect_ai._eval.score import resolve_scorers_info
-    from inspect_ai._eval.task.results import ScorerInfo, _unique_scorer_names
-    from inspect_ai.scorer._metrics.accuracy import accuracy
-    from inspect_ai.scorer._metrics.std import stderr
 
     names = header.eval.config.epochs_reducer
     if not names:
         return
     check_scoring_resolvable(header)
-    metrics = _task_metrics(header)
-    declared = resolve_scorers_info(header)
-    others = _other_score_names(declared, [dict.fromkeys(score_ids)])
-    # a pass that wrote the log merged a solver-set score only with the task's
-    # metrics or the default ones (_default_metrics)
-    other_metrics: Metrics = metrics if metrics is not None else [accuracy(), stderr()]
-    infos = [
-        *declared,
-        *(ScorerInfo(name=name, metrics=other_metrics) for name in others),
-    ]
+    infos = resolve_scorers_info(header)
     missing = _missing_reductions(
-        _reduced_score_names(infos, [*_unique_scorer_names(declared), *others]),
+        _reduced_score_names(infos),
         names,
         score_ids,
         _by_view(reductions),
@@ -464,20 +440,6 @@ def check_retained_reductions(
             + " Its shards were not deleted. Delete the merged log so the next "
             "merge rebuilds it from the shards."
         )
-
-
-def _task_metrics(header: EvalLog) -> "Metrics | None":
-    """The task's metrics, keeping an explicitly empty declaration.
-
-    `metrics_from_log_header` returns `None` for `Task(metrics=[])` (or
-    `{}`), which the live run applies as no metrics for solver-set scores.
-    """
-    from inspect_ai._eval.score import metrics_from_log_header
-
-    metrics = metrics_from_log_header(header)
-    if metrics is None and header.eval.metrics is not None:
-        return {} if isinstance(header.eval.metrics, dict) else []
-    return metrics
 
 
 class _Missing(NamedTuple):
@@ -503,15 +465,13 @@ def _score_ids(scores: list[dict[str, SampleScore]]) -> dict[str, set[str]]:
     return ids
 
 
-def _reduced_score_names(
-    infos: list["ScorerInfo"], scorer_names: list[str]
-) -> list[str]:
+def _reduced_score_names(infos: list["ScorerInfo"]) -> list[str]:
     """The scorer names whose metrics include reduced ones (a reduced view)."""
     from inspect_ai._eval.task.results import _filter_metrics_by_scores
 
     return [
-        name
-        for name, info in zip(scorer_names, infos)
+        info.name
+        for info in infos
         if _filter_metrics_by_scores(info.metrics, {"auto", "reduced"}) is not None
     ]
 
@@ -577,88 +537,3 @@ def _recorded(
         )
         for id, first in firsts.items()
     ]
-
-
-def _other_score_names(
-    declared: list["ScorerInfo"], scores: Sequence[Mapping[str, object]]
-) -> list[str]:
-    """Score names with no declared scorer (solver-set scores), in first-seen order.
-
-    `eval_results` builds their scorer info with `ScorerInfo.from_name`,
-    which loads a file-qualified name (`task.py@scorer`, or an existing
-    file) as a module and falls back to `accuracy` and `stderr` when it
-    cannot load the scorer. The merge imports nothing a log names and must
-    not change a score's metrics, so it builds that info itself: the task
-    metrics, as in `eval_results`, or else the default metrics when the
-    shards recorded exactly those (:func:`_default_metrics`).
-    """
-    from inspect_ai._eval.task.results import _unique_scorer_names
-
-    names = set(_unique_scorer_names(declared))
-    others: list[str] = []
-    for sample_scores in scores:
-        for name in sample_scores:
-            if name not in names:
-                others.append(name)
-                names.add(name)
-    return others
-
-
-def _default_metrics(
-    name: str,
-    recorded: Sequence[tuple[str, EvalResults]],
-    scores: list[dict[str, SampleScore]],
-) -> list[Metric | dict[str, list[Metric]]]:
-    """`accuracy` and `stderr` for score `name`, when that is what the shards used.
-
-    `name` has no declared scorer and the task declares no metrics. The
-    merge supports only the default case: every current attempt that
-    recorded results for `name` recorded exactly `accuracy` and `stderr`
-    with their default parameters, and every merged value of `name` is a
-    scalar. The results are a display record that cannot be read back into
-    any other metric configuration (decision: Ransom, 2026-10-22).
-
-    Raises:
-        ShardSetError: Any other case.
-    """
-    from inspect_ai._util.registry import registry_log_name, registry_params
-    from inspect_ai.scorer._metrics.accuracy import accuracy
-    from inspect_ai.scorer._metrics.std import stderr
-
-    defaults: list[Metric | dict[str, list[Metric]]] = [accuracy(), stderr()]
-    expected = {
-        (registry_log_name(m), json.dumps(registry_params(m), sort_keys=True))
-        for m in [accuracy(), stderr()]
-    }
-    rows = [
-        (source, score)
-        for source, results in recorded
-        for score in results.scores
-        if score.scorer == name
-    ]
-    default = bool(rows) and all(
-        score.name == name
-        and len(score.metrics) == len(expected)
-        and {
-            (m.name, json.dumps(m.params, sort_keys=True))
-            for m in score.metrics.values()
-            if m.group is None
-        }
-        == expected
-        for _, score in rows
-    )
-    scalar = all(
-        not isinstance(sample_scores[name].score.value, dict | list)
-        for sample_scores in scores
-        if name in sample_scores
-    )
-    if not (default and scalar):
-        raise ShardSetError(
-            f"The metrics of score '{name}' cannot be established for merging. "
-            "It has no declared scorer and the task declares no metrics, so the "
-            "merge supports it only when the shards recorded the default "
-            "metrics (accuracy and stderr) for a scalar score. Declare the "
-            "task's metrics (Task(metrics=...)); shards already written "
-            "without declared metrics have to be re-run."
-        )
-    return defaults

@@ -1153,24 +1153,38 @@ def _solver_scored() -> Solver:
     return solve
 
 
-@pytest.mark.parametrize("metrics", [[], {}])
-def test_explicitly_empty_task_metrics_merge_solver_set_scores(
-    tmp_path: Path, metrics: list[Any] | dict[str, Any]
+@pytest.mark.parametrize(
+    "declared,metrics",
+    [
+        # no scorer: the task's metrics apply to the solver's score
+        (False, [mean()]),
+        # no scorer or task metrics: the workers record accuracy and stderr
+        (False, None),
+        (True, None),
+    ],
+    ids=["task-metrics", "recorded-defaults", "beside-a-scorer"],
+)
+def test_a_solver_set_score_is_refused(
+    tmp_path: Path, declared: bool, metrics: list[Any] | None
 ) -> None:
     task = _task(solver=_solver_scored())
-    task.scorer = None
+    if not declared:
+        task.scorer = None
     task.metrics = metrics
-    unsharded = eval(
-        task, model="mockllm/model", log_dir=str(tmp_path / "unsharded"), display="none"
-    )[0]
-    assert unsharded.eval.metrics == metrics and unsharded.results is not None
-
     merged, shards = _paths(tmp_path)
     _run(shards, "0", task, sample_id=[1, 2, 3])
-    _run(shards, "1", task, sample_id=[4, 5, 6])
-    result = merge_eval_log_shards(merged, delete_shards=True)
-    assert result.shards_deleted and result.log.results is not None
-    assert result.log.results.scores == unsharded.results.scores
+    log = _run(shards, "1", task, sample_id=[4, 5, 6])
+    if not declared and metrics is None:
+        assert log.results is not None
+        [score] = log.results.scores
+        assert set(score.metrics) == {"accuracy", "stderr"}
+    before = _files(shards)
+    with pytest.raises(
+        ShardSetError,
+        match="Sample '1' .* has the score 'simple'.* cannot merge solver-set scores",
+    ):
+        merge_eval_log_shards(merged, delete_shards=True)
+    assert not os.path.exists(merged) and _files(shards) == before
 
 
 @pytest.mark.parametrize("snapshot", ["startup", "unscored"])
@@ -2206,7 +2220,6 @@ def _run_task_file(source: str) -> None:
     "source,registry_key,named",
     [
         ("scorer_metric", "metric:shard_custom_count", "Metric 'shard_custom_count'"),
-        ("task_metric", "metric:shard_custom_total", "Metric 'shard_custom_total'"),
         ("wrapped_metric", "metric:shard_custom_inner", "Metric 'shard_custom_inner'"),
     ],
 )
@@ -2258,39 +2271,6 @@ def {TASK}() -> Task:
         dataset=[Sample(id=i, input="q", target="x") for i in range(1, 5)],
         scorer=match(),
         metrics=[shard_custom_count()],
-    )
-""",
-    "task_metric": f"""
-from inspect_ai import Task, task
-from inspect_ai.dataset import Sample
-from inspect_ai.scorer import Metric, SampleScore, Score, metric
-from inspect_ai.solver import Generate, Solver, TaskState, solver
-
-
-@metric
-def shard_custom_total() -> Metric:
-    def compute(scores: list[SampleScore]) -> float:
-        return float(sum(s.score.as_float() for s in scores))
-
-    return compute
-
-
-@solver
-def scoring_solver() -> Solver:
-    async def solve(state: TaskState, generate: Generate) -> TaskState:
-        state.scores = {{"simple": Score(value=1)}}
-        return state
-
-    return solve
-
-
-@task
-def {TASK}() -> Task:
-    # no scorer: the metric is only in the task's own metrics
-    return Task(
-        dataset=[Sample(id=i, input="q") for i in range(1, 5)],
-        solver=scoring_solver(),
-        metrics=[shard_custom_total()],
     )
 """,
     "wrapped_metric": f"""
@@ -2808,201 +2788,9 @@ def test_score_names_from_the_log_never_load_files(tmp_path: Path) -> None:
     # the shard runs themselves resolve these names as eval always has
     marker.unlink(missing_ok=True)
 
-    header = merge_eval_log_shards(merged).log
+    with pytest.raises(ShardSetError, match="cannot merge solver-set scores"):
+        merge_eval_log_shards(merged)
     assert not marker.exists()
-    assert header.results is not None
-    names = {score.name for score in header.results.scores}
-    assert {"match", *keys} <= names
-    # the shards recorded the default metrics for these names; they are kept
-    for score in header.results.scores:
-        if score.name in keys:
-            assert set(score.metrics) == {"accuracy", "stderr"}
-
-
-_UNESTABLISHED = "cannot be established for merging"
-
-
-def _case_shards(
-    monkeypatch: pytest.MonkeyPatch,
-    case: str,
-    *,
-    shards: tuple[str, ...] = ("0", "1"),
-    declare: bool = False,
-    fail: tuple[str, ...] = (),
-) -> None:
-    """Run `_CASE_TASK` shards for `case`: shard 0 holds ids 1-2, shard 1 ids 3-4.
-
-    `declare` makes the task declare its metrics; the scorer factory raises
-    in the shards in `fail`, so their workers record the default metrics.
-    """
-    Path("custom_task.py").write_text(_CASE_TASK)
-    for k in shards:
-        with monkeypatch.context() as patch:
-            patch.setenv("SHARD_CASE", case)
-            if declare:
-                patch.setenv("SHARD_DECLARE", "1")
-            if k in fail:
-                patch.setenv("SHARD_SCORER_FAIL", "1")
-            eval(
-                "custom_task.py",
-                model="mockllm/model",
-                log_dir=f"{NAME}.shards/{k}",
-                display="none",
-                sample_id=[1, 2] if k == "0" else [3, 4],
-            )
-
-
-def _score_metrics(log: str) -> dict[str, float]:
-    header = read_eval_log(log, header_only=True)
-    assert header.results is not None
-    [score] = header.results.scores
-    return {name: metric.value for name, metric in score.metrics.items()}
-
-
-def test_a_solver_set_score_with_the_default_metrics_merges(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    import shutil
-
-    monkeypatch.chdir(tmp_path)
-    _case_shards(monkeypatch, "default")
-    merge_eval_log_shards(f"{NAME}.eval")
-    assert set(_score_metrics(f"{NAME}.eval")) == {"accuracy", "stderr"}
-
-    # a re-run shard: the incremental merge equals a fresh one
-    _case_shards(monkeypatch, "default", shards=("0",))
-    assert merge_eval_log_shards(f"{NAME}.eval").written
-    incremental = _score_metrics(f"{NAME}.eval")
-    shutil.move(f"{NAME}.eval", "incremental.eval")
-    merge_eval_log_shards(f"{NAME}.eval")
-    assert _score_metrics(f"{NAME}.eval") == incremental
-
-
-@pytest.mark.parametrize(
-    "case,fail",
-    [
-        ("custom_scorer", ()),
-        ("custom_metric", ()),
-        ("dict", ()),
-        # shard 0's worker could not create the scorer and recorded defaults
-        ("disagree", ("0",)),
-    ],
-)
-def test_a_solver_set_score_outside_the_default_case_is_refused(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str, fail: tuple[str, ...]
-) -> None:
-    monkeypatch.chdir(tmp_path)
-    _case_shards(monkeypatch, case, fail=fail)
-    with pytest.raises(ShardSetError, match=_UNESTABLISHED) as raised:
-        merge_eval_log_shards(f"{NAME}.eval", delete_shards=True)
-    assert "Task(metrics=...)" in str(raised.value)
-    assert not os.path.exists(f"{NAME}.eval")
-    assert len(list(Path(f"{NAME}.shards").glob("*/*.eval"))) == 2
-
-    # re-run with the task's metrics declared, the shards merge
-    _case_shards(monkeypatch, case, declare=True, fail=fail)
-    result = merge_eval_log_shards(f"{NAME}.eval", delete_shards=True)
-    assert result.shards_deleted and result.log.status == "success"
-    assert result.log.results is not None and result.log.results.scores
-
-
-def test_a_solver_set_score_with_no_recorded_results_is_refused(
-    tmp_path: Path,
-) -> None:
-    @solver
-    def labelled() -> Solver:
-        async def solve(state: TaskState, generate: Generate) -> TaskState:
-            state.scores = {"label": Score(value=1)}
-            return state
-
-        return solve
-
-    merged, shards = _paths(tmp_path)
-    task = _task(solver=labelled())
-    for k, ids in (("0", [1, 2, 3]), ("1", [4, 5, 6])):
-        _as_running(_run(shards, k, task, sample_id=ids))
-    with pytest.raises(ShardSetError, match=_UNESTABLISHED):
-        merge_eval_log_shards(merged, allow_incomplete=True)
-    assert not os.path.exists(merged)
-
-
-_CASE_TASK = f"""
-import os
-
-from inspect_ai import Task, task
-from inspect_ai.dataset import Sample
-from inspect_ai.scorer import (
-    Metric, SampleScore, Score, Scorer, Target, mean, metric, scorer
-)
-from inspect_ai.solver import Generate, Solver, TaskState, solver
-
-CASE = os.environ["SHARD_CASE"]
-
-
-@metric
-def shard_case_total() -> Metric:
-    def compute(scores: list[SampleScore]) -> float:
-        return float(sum(s.score.as_float() for s in scores))
-
-    return compute
-
-
-def _target() -> Scorer:
-    if os.environ.get("SHARD_SCORER_FAIL"):
-        raise RuntimeError("scorer unavailable")
-
-    async def score(state: TaskState, target: Target) -> Score:
-        return Score(value=1)
-
-    return score
-
-
-# scorers the solver-set scores are named after
-@scorer(metrics=[mean()])
-def shard_mean_scorer() -> Scorer:
-    return _target()
-
-
-@scorer(metrics=[shard_case_total()])
-def shard_total_scorer() -> Scorer:
-    return _target()
-
-
-@scorer(metrics={{"labels": [mean()]}})
-def labels() -> Scorer:
-    return _target()
-
-
-NAME, VALUE, DECLARED = {{
-    # no scorer has this name: the worker records accuracy and stderr
-    "default": ("shard_plain", 1, [mean()]),
-    "custom_scorer": ("shard_mean_scorer", 1, [mean()]),
-    "custom_metric": ("shard_total_scorer", 1, [mean()]),
-    # a dictionary whose key equals the score name
-    "dict": ("labels", {{"labels": 1}}, {{"labels": [mean()]}}),
-    "disagree": ("shard_mean_scorer", 1, [mean()]),
-}}[CASE]
-
-
-@solver
-def scoring_solver() -> Solver:
-    async def solve(state: TaskState, generate: Generate) -> TaskState:
-        state.scores = {{NAME: Score(value=VALUE)}}
-        return state
-
-    return solve
-
-
-@task
-def {TASK}() -> Task:
-    # no scorer: the score's metrics come from the task, or else from the
-    # scorer of the same name, or else the defaults
-    return Task(
-        dataset=[Sample(id=i, input="q") for i in range(1, 5)],
-        solver=scoring_solver(),
-        metrics=DECLARED if os.environ.get("SHARD_DECLARE") else None,
-    )
-"""
 
 
 def test_cli_json_reports_an_unregistered_metric(

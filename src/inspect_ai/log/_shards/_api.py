@@ -22,7 +22,6 @@ from inspect_ai._util.log_layout import (
 )
 from inspect_ai.log._log import (
     EvalLog,
-    EvalResults,
     EvalSampleReductions,
     EvalSampleScore,
     EvalSampleSummary,
@@ -417,7 +416,6 @@ async def _merge_pass(
     by_shard = {read.shard: read for read in reads}
     template = shards[0]
     headers = [(read.file.name, read.header) for read in reads]
-    current = {read.shard: (read.file.name, read.header) for read in reads}
     if template.name in by_shard:
         base = by_shard[template.name].header
     else:
@@ -427,7 +425,6 @@ async def _merge_pass(
         else:
             base = await _read_attempt_header(fs, template)
             headers.append((_current(template).name, base))
-            current[template.name] = headers[-1]
     if existing is not None and len(changed) < len(shards):
         headers.append((merged_path, existing.header))
     check_headers(headers)
@@ -513,9 +510,6 @@ async def _merge_pass(
                     summaries=summaries,
                     template=base,
                     total_samples=total,
-                    shard_results=functools.partial(
-                        _current_results, fs, shards, current
-                    ),
                     held_reductions=_held_reductions(
                         reads,
                         carried,
@@ -682,31 +676,6 @@ async def _read_attempt(
         reductions=reductions,
     )
     return read, reader
-
-
-async def _current_results(
-    fs: AsyncFilesystem,
-    shards: list[ShardDir],
-    read: dict[str, tuple[str, EvalLog]],
-) -> list[tuple[str, EvalResults]]:
-    """The results each shard's current attempt recorded, by attempt.
-
-    Headers already read in the pass are reused; the others (unchanged
-    shards) are read now. The merged log's results are not used: they also
-    hold what replaced attempts contributed.
-    """
-    limiter = anyio.CapacityLimiter(_MAX_CONCURRENT_READS)
-
-    async def header(shard: ShardDir) -> tuple[str, EvalLog]:
-        async with limiter:
-            return _current(shard).name, await _read_attempt_header(fs, shard)
-
-    missing = [shard for shard in shards if shard.name not in read]
-    headers = [
-        *read.values(),
-        *await tg_collect([functools.partial(header, s) for s in missing]),
-    ]
-    return [(src, h.results) for src, h in headers if h.results is not None]
 
 
 async def _read_attempt_header(fs: AsyncFilesystem, shard: ShardDir) -> EvalLog:
