@@ -657,7 +657,7 @@ def test_dataframe_functions_empty_list(
         log_dir=log_dir,
     )
     monkeypatch.setenv("INSPECT_LOG_DIR", log_dir)
-    assert len(list_eval_logs()) > 0
+    assert len(list_eval_logs(log_dir)) > 0
 
     assert resolve_logs([]) == []
     assert resolve_logs(()) == []
