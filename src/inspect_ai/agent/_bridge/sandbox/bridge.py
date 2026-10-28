@@ -328,9 +328,8 @@ async def sandbox_agent_bridge(
         # with (often the scaffold's, after it read the limit's error reply).
         # A cancellation from an enclosing scope is not an Exception, so it
         # passes through unchanged for that scope to handle.
-        error = _error_after_limit(bridge)
+        error = await _error_after_limit(bridge)
         if error is not None:
-            await _deliver_enclosing_cancellation()
             raise_unwrapped(ex, error)
         # If the agent completed successfully but we got an error during cleanup,
         # log the error but don't fail the sample.
@@ -342,23 +341,24 @@ async def sandbox_agent_bridge(
             # Error occurred before or during agent execution
             raise_unwrapped(ex, inner_exception(ex))
     # the agent returned after a generation reached a limit
-    error = _error_after_limit(bridge)
+    error = await _error_after_limit(bridge)
     if error is not None:
-        await _deliver_enclosing_cancellation()
         raise error
 
 
-def _error_after_limit(bridge: SandboxAgentBridge | None) -> Exception | None:
+async def _error_after_limit(bridge: SandboxAgentBridge | None) -> Exception | None:
     """The error to raise once the agent has unwound, if a bridged generation reached a limit.
 
     The first limit recorded, unless a sample failure was requested
     (`SandboxAgentBridge.request_fail`): the failure ends the sample in its
-    place.
+    place, as it does with no limit recorded. Before the limit is returned, a
+    pending enclosing cancellation is delivered.
     """
     if bridge is None or bridge.generation_limit is None:
         return None
     if bridge._failure is not None:
         return bridge._failure
+    await _deliver_enclosing_cancellation()
     return bridge.generation_limit
 
 

@@ -13,7 +13,7 @@ import ast
 import gc
 import weakref
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, NamedTuple, cast
 from unittest.mock import AsyncMock
@@ -992,7 +992,9 @@ class _Scaffold:
     `fails` as a CLI wrapper does when the CLI exits unsuccessfully. The
     bridge applies `filter` and `response_filter` to its generations. With
     `slow_kill`, killing the model proxy lasts until an enclosing scope has
-    cancelled the model service.
+    cancelled the model service. With `cancel_on_kill`, killing it cancels the
+    scope enclosing the bridge (`enclosing`), as an enclosing time limit
+    expiring then would.
     """
 
     requests: list[_Request]
@@ -1000,6 +1002,8 @@ class _Scaffold:
     filter: ModelGenerateFilter | None = None
     response_filter: ModelResponseFilter | None = None
     slow_kill: bool = False
+    cancel_on_kill: bool = False
+    enclosing: anyio.CancelScope = field(init=False)
 
     def arm(self) -> None:
         self.killing = anyio.Event()
@@ -1029,6 +1033,8 @@ class _ExitedProxy:
         raise StopAsyncIteration
 
     async def kill(self) -> None:
+        if self._scaffold.cancel_on_kill:
+            self._scaffold.enclosing.cancel()
         if self._scaffold.slow_kill:
             with anyio.fail_after(10):
                 await self._scaffold.service_cancelled.wait()
@@ -1134,19 +1140,21 @@ def _serve_generations(
 @agent
 def _bridged_agent(scaffold: _Scaffold) -> Agent:
     async def execute(state: AgentState) -> AgentState:
-        async with sandbox_agent_bridge(
-            state, filter=scaffold.filter, response_filter=scaffold.response_filter
-        ) as bridge:
-            request = scaffold.during_shutdown
-            if request is not None:
-                # complete while that generation is in flight
-                await request.generating.wait()
-            else:
-                # the scaffold, waiting on its model requests
-                for request in scaffold.requests:
-                    await request.replied.wait()
-                if scaffold.fails:
-                    raise RuntimeError("The scaffold exited with an error.")
+        with anyio.CancelScope() as scaffold.enclosing:
+            async with sandbox_agent_bridge(
+                state, filter=scaffold.filter, response_filter=scaffold.response_filter
+            ) as bridge:
+                request = scaffold.during_shutdown
+                if request is not None:
+                    # complete while that generation is in flight
+                    await request.generating.wait()
+                else:
+                    # the scaffold, waiting on its model requests
+                    with anyio.fail_after(10):
+                        for request in scaffold.requests:
+                            await request.replied.wait()
+                    if scaffold.fails:
+                        raise RuntimeError("The scaffold exited with an error.")
         return bridge.state
 
     return execute
@@ -1452,19 +1460,16 @@ def test_limit_in_a_bridged_filter_task_group_is_raised(
     _assert_error_replies(outcome.replies)
 
 
-@pytest.mark.parametrize("owner", ["agent", "sample"])
-def test_limit_behind_a_response_filter_refusal_is_raised(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, owner: str
+def test_refusal_before_a_limit_in_a_response_filter_group_fails_the_sample(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A limit a response filter's group holds after a refusal is raised.
+    """A refusal first in a response filter's group fails the sample, as natively.
 
-    The filter's judge generation reaches the token limit, and the filter
-    raises a refusal and that limit together. The bridge reduces the group to
-    the refusal; the limit in its history is still raised, so the scope that
-    applied it handles it.
+    The filter's judge generation reaches the `run()` token limit, and the
+    filter raises a refusal and that limit together. The bridge reduces the
+    group to the refusal, which fails the sample; the limit behind it is not
+    raised.
     """
-    # 7 tokens each for the agent's generation and the judge's
-    limit = token_limit(10 if owner == "agent" else 1000)
 
     async def refuses_over_a_limit(
         model: Model, output: ModelOutput, generate_input: GenerateInput
@@ -1478,16 +1483,68 @@ def test_limit_behind_a_response_filter_refusal_is_raised(
     outcome = _run_bridged_agent(
         tmp_path,
         monkeypatch,
-        limit,
-        scaffold=_Scaffold([_Request()], response_filter=refuses_over_a_limit),
-        sample_token_limit=10 if owner == "sample" else None,
+        # 7 tokens each for the agent's generation and the judge's
+        token_limit(10),
+        # the reply never completes: only the failure ends the agent
+        scaffold=_Scaffold([_Request(held=True)], response_filter=refuses_over_a_limit),
     )
 
-    if owner == "agent":
-        _assert_agent_limit(outcome, limit)
-    else:
-        _assert_sample_token_limit(outcome, limit=10)
+    sample = outcome.sample
+    assert sample.error is not None
+    assert "refus" in sample.error.message.lower(), sample.error.message
+    assert sample.limit is None
+    assert "continued" not in sample.store
+    assert outcome.errors == []
+
+
+def test_handled_limit_behind_a_provider_error_is_not_raised(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A limit a generate filter handled is not raised for the provider error after it.
+
+    The filter generates under its own token limit, catches the limit error
+    after that limit's scope has exited, and its fallback fails with a
+    provider error. The scaffold gets that error's 500 reply; the agent and
+    the sample are not limited.
+    """
+
+    async def falls_back(
+        model: Model,
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        try:
+            with token_limit(5):
+                return await model.generate(messages, tools, tool_choice, config)
+        except LimitExceededError:
+            raise APIStatusError(
+                "The fallback failed.",
+                response=httpx2.Response(
+                    status_code=500,
+                    request=httpx2.Request("POST", "https://api.example.com"),
+                ),
+                body=None,
+            )
+
+    outcome = _run_bridged_agent(
+        tmp_path,
+        monkeypatch,
+        token_limit(1000),
+        scaffold=_Scaffold([_Request()], filter=falls_back),
+    )
+
+    sample = outcome.sample
+    assert sample.error is None, sample.error
+    assert sample.limit is None
+    assert sample.store.get("continued") is True
+    assert outcome.errors == [None]
     _assert_error_replies(outcome.replies)
+    [(result, _)] = outcome.replies
+    assert isinstance(result, dict)
+    payload = result[PROVIDER_ERROR_KEY]
+    assert isinstance(payload, dict) and payload["status"] == 500
 
 
 def test_first_limit_in_a_bridged_filter_group_is_raised(
@@ -1570,6 +1627,43 @@ def test_failure_after_a_bridged_limit_fails_the_sample(
         scaffold=_Scaffold(
             [_Request(messages=2), _Request(after_first=True)],
             response_filter=fails,
+        ),
+    )
+
+    sample = outcome.sample
+    assert sample.error is not None
+    assert "The response filter failed." in sample.error.message
+    assert sample.limit is None
+    assert "continued" not in sample.store
+    assert outcome.errors == []
+
+
+@pytest.mark.parametrize("recorded", [True, False], ids=("recorded", "no_record"))
+def test_failure_before_a_cancellation_during_bridge_shutdown_fails_the_sample(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, recorded: bool
+) -> None:
+    """A requested failure unwinding the agent is not lost to a later cancellation.
+
+    A response filter fails, which unwinds the agent. While the bridge kills
+    the model proxy, a scope enclosing it is cancelled. The failure ends the
+    sample whether or not an earlier request recorded a limit.
+    """
+
+    async def fails(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        raise ValueError("The response filter failed.")
+
+    outcome = _run_bridged_agent(
+        tmp_path,
+        monkeypatch,
+        # the first request carries 2 messages: no room for a reply under 2
+        message_limit(2 if recorded else 10),
+        scaffold=_Scaffold(
+            # the second reply never completes: only the failure ends the agent
+            [_Request(messages=2), _Request(after_first=True, held=True)],
+            response_filter=fails,
+            cancel_on_kill=True,
         ),
     )
 

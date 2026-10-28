@@ -57,25 +57,6 @@ def find_control_flow(ex: Exception) -> BaseException | None:
     Precedence follows CONTROL_FLOW_EXCEPTIONS order, then traversal
     order.
     """
-    history = exception_history(ex)
-    for control_flow_type in CONTROL_FLOW_EXCEPTIONS:
-        for e in history:
-            if isinstance(e, control_flow_type):
-                return e
-    return None
-
-
-def exception_history(ex: BaseException, in_order: bool = False) -> list[BaseException]:
-    """An exception and its causal history, as `find_control_flow` searches it.
-
-    Group leaves, explicit causes and implicit context, each exception once.
-
-    Args:
-      ex: The exception.
-      in_order: Visit them depth first in order: an exception, then its group
-        members in the group's order, then its cause, then its context. By
-        default, group members, cause and context are visited in reverse.
-    """
     seen: set[int] = set()
     stack: list[BaseException] = [ex]
     history: list[BaseException] = []
@@ -85,15 +66,17 @@ def exception_history(ex: BaseException, in_order: bool = False) -> list[BaseExc
             continue
         seen.add(id(e))
         history.append(e)
-        successors: list[BaseException] = []
         if isinstance(e, BaseExceptionGroup):
-            successors.extend(e.exceptions)
+            stack.extend(e.exceptions)
         if e.__cause__ is not None:
-            successors.append(e.__cause__)
+            stack.append(e.__cause__)
         if e.__context__ is not None:
-            successors.append(e.__context__)
-        stack.extend(reversed(successors) if in_order else successors)
-    return history
+            stack.append(e.__context__)
+    for control_flow_type in CONTROL_FLOW_EXCEPTIONS:
+        for e in history:
+            if isinstance(e, control_flow_type):
+                return e
+    return None
 
 
 def raise_if_control_flow(ex: Exception) -> None:

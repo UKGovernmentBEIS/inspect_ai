@@ -10,7 +10,7 @@ from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 from inspect_ai.util._limit import LimitExceededError, check_turn_limit
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
-from inspect_ai.util._sandbox.service import exception_history, find_control_flow
+from inspect_ai.util._sandbox.service import find_control_flow
 
 from .._errors import PROVIDER_ERROR_KEY, ResponseFilterError, provider_error_payload
 from ..anthropic_api import inspect_anthropic_api_request
@@ -56,15 +56,15 @@ def _forward_provider_errors(
     are signalled through `bridge.request_fail` (raised on the agent's side by
     the bridge's monitor task) while the scaffold still gets an error reply.
 
-    An exception with a `LimitExceededError` (message, token, cost or turn
-    limit) anywhere in its history, such as a filter's task group or a refusal
-    reduced from a response filter's group, is returned as an error reply too.
-    The first limit reached is recorded in `bridge.generation_limit`: once the
-    agent has unwound, `sandbox_agent_bridge` raises it, so the scope that
-    applied it (`run()`, or the sample) handles it, as for a native agent. A
-    `ResponseFilterError` keeps the route above even with limits in its
-    history: a response filter's group mixing a limit with another error is a
-    filter failure.
+    A `LimitExceededError` (message, token, cost or turn limit), bare or in an
+    exception group such as a filter's task group, is returned as an error
+    reply too. The first limit reached is recorded in `bridge.generation_limit`:
+    once the agent has unwound, `sandbox_agent_bridge` raises it, so the scope
+    that applied it (`run()`, or the sample) handles it, as for a native agent.
+    A limit only in an exception's cause or context is not recorded: it was
+    handled, or replaced by the error that escaped (a refusal reduced from a
+    response filter's group, a `ResponseFilterError`, a fallback's provider
+    error), which takes its own route.
 
     A turn limit is checked after a generation, so a request that arrives
     once one is exceeded gets its error reply without another generation.
@@ -81,15 +81,8 @@ def _forward_provider_errors(
             if find_control_flow(ex) is not None:
                 # the service dispatcher ends the sample with it
                 raise
-            limit = next(
-                (
-                    e
-                    for e in exception_history(ex, in_order=True)
-                    if isinstance(e, LimitExceededError)
-                ),
-                None,
-            )
-            if limit is not None and not isinstance(ex, ResponseFilterError):
+            limit = _first_limit(ex)
+            if limit is not None:
                 # only the first is raised, so later ones are not kept
                 if bridge.generation_limit is None:
                     bridge.generation_limit = limit
@@ -115,6 +108,18 @@ def _forward_provider_errors(
             return {PROVIDER_ERROR_KEY: cast(JsonValue, payload)}
 
     return generate_forwarding_errors
+
+
+def _first_limit(ex: BaseException) -> LimitExceededError | None:
+    """The first `LimitExceededError` of `ex` and its group members, depth first in order."""
+    if isinstance(ex, LimitExceededError):
+        return ex
+    if isinstance(ex, BaseExceptionGroup):
+        for member in ex.exceptions:
+            limit = _first_limit(member)
+            if limit is not None:
+                return limit
+    return None
 
 
 async def run_model_service(
