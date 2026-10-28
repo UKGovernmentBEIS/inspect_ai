@@ -8,7 +8,11 @@ merged log until the merge has deleted its shards (decision: Ransom,
 2026-10-26).
 """
 
-from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util.asyncfiles import (
+    AsyncFilesystem,
+    is_s3_filename,
+    s3_bucket_and_key,
+)
 from inspect_ai._util.file import filesystem, local_path
 from inspect_ai._util.log_layout import eval_shards_dir
 from inspect_ai.log._log import EvalLog
@@ -25,12 +29,13 @@ def check_shards_merged(log: EvalLog, action: str) -> None:
     Raises:
         ShardSetError: The log is a merged log and its `<name>.shards/`
             directory exists and is not empty.
+        OSError: The directory could not be inspected for a reason other
+            than its absence (on S3, botocore's `ClientError`).
     """
     shards_dir = _shards_dir(log)
     if shards_dir is None:
         return
-    fs = filesystem(shards_dir)
-    if fs.exists(shards_dir) and fs.ls(shards_dir):
+    if _holds_entries(shards_dir):
         raise _live_shards(log, shards_dir, action)
 
 
@@ -51,6 +56,31 @@ def _shards_dir(log: EvalLog) -> str | None:
     if log.eval.shards is None or not log.location:
         return None
     return eval_shards_dir(local_path(log.location))
+
+
+def _holds_entries(shards_dir: str) -> bool:
+    """Whether `shards_dir` holds an entry, as :func:`_has_entries` counts them.
+
+    Only a missing directory counts as empty: fsspec's `exists()` returns
+    False on any error, a denied inspection included. S3 is listed with the
+    boto3 client, since s3fs is not supported under a configured Trio
+    backend.
+    """
+    if is_s3_filename(shards_dir):
+        bucket, prefix = s3_bucket_and_key(shards_dir)
+        prefix = prefix.rstrip("/") + "/"
+        # keys come in order, so the directory's own folder marker (not an
+        # entry) is first and a second key is an entry
+        response = (
+            AsyncFilesystem()
+            .s3_client()
+            .list_objects_v2(Bucket=bucket, Prefix=prefix, MaxKeys=2)
+        )
+        return any(obj["Key"] != prefix for obj in response.get("Contents", []))
+    try:
+        return bool(filesystem(shards_dir).ls(shards_dir))
+    except FileNotFoundError:
+        return False
 
 
 async def _has_entries(fs: AsyncFilesystem, shards_dir: str) -> bool:

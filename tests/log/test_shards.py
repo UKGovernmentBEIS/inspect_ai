@@ -3,6 +3,7 @@ import os
 import sys
 import zipfile
 from collections.abc import Callable
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 
@@ -1185,6 +1186,103 @@ def test_a_solver_set_score_is_refused(
     ):
         merge_eval_log_shards(merged, delete_shards=True)
     assert not os.path.exists(merged) and _files(shards) == before
+
+
+@scorer(metrics=[{"*": [mean()]}])
+def keyed() -> Scorer:
+    """Scores each sample with the dictionary in its metadata, keys in order."""
+
+    async def score(state: TaskState, target: Target) -> Score:
+        return Score(value=dict(state.metadata["value"]))
+
+    return score
+
+
+def _keyed_task(
+    values: dict[int, dict[str, int]], headline_metric: str | None = None
+) -> Task:
+    return Task(
+        dataset=[
+            Sample(id=id, input=f"question {id}", metadata={"value": value})
+            for id, value in values.items()
+        ],
+        solver=generate(),
+        scorer=keyed(),
+        name=TASK,
+        headline_metric=headline_metric,
+    )
+
+
+def _merge_keyed(
+    tmp_path: Path, values: dict[int, dict[str, int]], incremental: bool, **kwargs: Any
+) -> tuple[str, str]:
+    """Run ids 2 and 10 (merged as "10", "2") as two shards, merging after the first if `incremental`."""
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", _keyed_task(values, **kwargs), sample_id=[2])
+    if incremental:
+        merge_eval_log_shards(merged, allow_incomplete=True)
+    _run(shards, "1", _keyed_task(values, **kwargs), sample_id=[10])
+    return merged, shards
+
+
+def _metric_values(log: EvalLog) -> dict[tuple[str, str], float]:
+    assert log.results is not None
+    return {
+        (score.name, name): metric.value
+        for score in log.results.scores
+        for name, metric in score.metrics.items()
+    }
+
+
+@pytest.mark.parametrize("incremental", [False, True], ids=["first", "incremental"])
+def test_dictionary_scores_with_keys_in_another_order_merge_to_the_same_values(
+    tmp_path: Path, incremental: bool
+) -> None:
+    values = {2: {"alpha": 1, "beta": 0}, 10: {"beta": 1, "alpha": 1}}
+    unsharded = eval(
+        _keyed_task(values),
+        model="mockllm/model",
+        log_dir=str(tmp_path / "unsharded"),
+        display="none",
+    )[0]
+    merged, _ = _merge_keyed(tmp_path, values, incremental)
+    log = merge_eval_log_shards(merged, delete_shards=True).log
+    assert _metric_values(log) == _metric_values(unsharded)
+    assert _metric_values(log) == {("alpha", "mean"): 1.0, ("beta", "mean"): 0.5}
+
+
+def test_a_task_headline_metric_gives_the_unsharded_headline(tmp_path: Path) -> None:
+    values = {2: {"alpha": 1, "beta": 0}, 10: {"beta": 1, "alpha": 1}}
+    unsharded = eval(
+        _keyed_task(values, headline_metric="keyed.alpha"),
+        model="mockllm/model",
+        log_dir=str(tmp_path / "unsharded"),
+        display="none",
+    )[0]
+    merged, _ = _merge_keyed(tmp_path, values, False, headline_metric="keyed.alpha")
+    log = merge_eval_log_shards(merged).log
+    assert log.results is not None and unsharded.results is not None
+    assert unsharded.results.headline is not None
+    assert log.results.headline == unsharded.results.headline
+
+
+@pytest.mark.parametrize("incremental", [False, True], ids=["first", "incremental"])
+def test_dictionary_scores_with_different_keys_under_a_pattern_metric_are_refused(
+    tmp_path: Path, incremental: bool
+) -> None:
+    values = {2: {"alpha": 1}, 10: {"alpha": 1, "beta": 1}}
+    merged, shards = _merge_keyed(tmp_path, values, incremental)
+    before = _files(str(tmp_path))
+    with pytest.raises(
+        ShardSetError,
+        match=(
+            r"Sample '2' in .* has the score 'keyed' with the keys \['alpha'\], "
+            r"but sample '10' in .* has \['alpha', 'beta'\].* for '\*'"
+        ),
+    ):
+        merge_eval_log_shards(merged, delete_shards=True)
+    assert _files(str(tmp_path)) == before
+    assert os.path.exists(merged) == incremental
 
 
 @pytest.mark.parametrize("snapshot", ["startup", "unscored"])
@@ -2919,6 +3017,10 @@ def _write_with(writer: str, log: EvalLog) -> None:
         anyio.run(functools.partial(score_async, log, [graded()], action=action))
     elif writer == "edit_score":
         edit_score(log, 1, "graded", ScoreEdit(value=0.25), epoch=1)
+    elif writer == "edit_score_only":
+        edit_score(
+            log, 1, "graded", ScoreEdit(value=0.25), epoch=1, recompute_metrics=False
+        )
     else:
         # `inspect score --overwrite --stream`: refused before it writes
         assert log.location is not None
@@ -2966,6 +3068,37 @@ def test_writers_refuse_a_merged_log_whose_shards_exist(
 def test_writers_leave_ordinary_logs_alone(tmp_path: Path, writer: str) -> None:
     log = _run(str(tmp_path), "0", _graded_task(Epochs(2, at_least(1, value=0.5))))
     _write_with(writer, read_eval_log(log.location))
+
+
+@pytest.mark.parametrize(
+    "writer", ["recompute_metrics", "edit_score", "edit_score_only"]
+)
+def test_writers_refuse_when_the_shards_cannot_be_inspected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, writer: str
+) -> None:
+    from inspect_ai._util.file import filesystem
+
+    merged, shards = _paths(tmp_path)
+    task = _graded_task(Epochs(2, at_least(1, value=0.5)))
+    _run(shards, "0", task, sample_id=[1, 2, 3])
+    _run(shards, "1", task, sample_id=[4, 5, 6])
+    merge_eval_log_shards(merged)
+    log = read_eval_log(merged)
+    before = Path(merged).read_bytes(), _files(shards), log.model_dump_json()
+
+    def denied(self: Any, path: str, **kwargs: Any) -> Any:
+        raise PermissionError(f"denied: {path}")
+
+    # fsspec's exists() returns False on this error
+    with monkeypatch.context() as patched:
+        patched.setattr(type(filesystem(shards).fs), "info", denied)
+        with pytest.raises(PermissionError, match="denied"):
+            _write_with(writer, log)
+    assert (Path(merged).read_bytes(), _files(shards), log.model_dump_json()) == before
+
+    # genuine absence: once the merge has deleted the shards, the same call runs
+    assert merge_eval_log_shards(merged, delete_shards=True).shards_deleted
+    _write_with(writer, read_eval_log(merged))
 
 
 @pytest.mark.parametrize(
@@ -3048,6 +3181,45 @@ async def test_s3_shards_are_deleted_under_a_configured_trio_backend(
     result = await merge_eval_log_shards_async(merged, delete_shards=True)
     assert result.written and result.shards_deleted
     assert _s3_keys(f"{s3_root}/") == [f"{s3_root}/{NAME}.eval"]
+
+
+@skip_if_asyncio
+async def test_sync_writers_check_s3_shards_under_a_configured_trio_backend(
+    s3_shards: tuple[str, str], s3_root: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai.log import merge_eval_log_shards_async, recompute_metrics
+    from inspect_ai.scorer import ScoreEdit
+
+    merged, _ = s3_shards
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", "trio")
+    client = boto3.client("s3")
+
+    async def merged_log() -> EvalLog:
+        # read from bytes: the S3 log reader builds s3fs, which a configured
+        # Trio backend refuses
+        key = f"{s3_root}/{NAME}.eval"
+        body = client.get_object(Bucket="test-bucket", Key=key)["Body"].read()
+        log = await read_eval_log_async(BytesIO(body))
+        log.location = merged
+        return log
+
+    def write(writer: str, log: EvalLog) -> None:
+        if writer == "recompute_metrics":
+            recompute_metrics(log)
+        else:
+            edit = ScoreEdit(value="I")
+            recompute = writer == "edit_score"
+            edit_score(log, 1, "match", edit, recompute_metrics=recompute, epoch=1)
+
+    writers = ["recompute_metrics", "edit_score", "edit_score_only"]
+    await merge_eval_log_shards_async(merged)
+    for writer in writers:
+        with pytest.raises(ShardSetError, match="shards that still exist"):
+            write(writer, await merged_log())
+    result = await merge_eval_log_shards_async(merged, delete_shards=True)
+    assert result.shards_deleted
+    for writer in writers:
+        write(writer, await merged_log())
 
 
 async def test_a_sibling_prefix_is_not_a_remnant_of_a_remote_delete(

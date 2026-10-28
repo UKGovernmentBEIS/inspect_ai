@@ -2,6 +2,7 @@
 
 import functools
 import json
+import re
 import zipfile
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from typing import TYPE_CHECKING, Any, BinaryIO, NamedTuple
@@ -284,7 +285,7 @@ async def _recompute_results(
 
     Raises:
         ShardSetError: A reduction cannot be taken from its log, or see
-            :func:`_declared_inputs`.
+            :func:`_declared_inputs` and :func:`_check_glob_key_sets`.
     """
     from inspect_ai._eval.score import resolve_scorers_info
     from inspect_ai._eval.task.results import RecordedReductions, eval_results
@@ -293,6 +294,7 @@ async def _recompute_results(
     check_scoring_resolvable(template)
     infos = resolve_scorers_info(template)
     scores = _declared_inputs(infos, inputs, held_reductions.sources)
+    _check_glob_key_sets(infos, scores, held_reductions.sources)
     # the names the worker scored samples under (each scorer is declared
     # once): aggregation must not derive them from earlier result names (a
     # per-key result can take a later name)
@@ -400,6 +402,60 @@ def _declared_inputs(
             }
         )
     return scores
+
+
+# fnmatch's pattern characters, as `resolve_glob_metric_keys` matches keys
+_GLOB_CHARS = re.compile(r"[*?[]")
+
+
+def _check_glob_key_sets(
+    declared: list["ScorerInfo"],
+    scores: list[dict[str, SampleScore]],
+    sources: Mapping[str, str],
+) -> None:
+    """Refuse dictionary scores with differing keys under a pattern metric key.
+
+    A scorer's dictionary metric whose key is a pattern (`{"*": [mean()]}`)
+    is expanded from the keys of the first sample's score. The merge orders
+    samples by id and epoch, not as a single run does, so when the samples'
+    keys differ the merged metrics could differ from the run's. With the same
+    keys only the order of the result rows can differ (decision: Ransom,
+    2026-10-28). Raw scores are checked, which also covers the reduced views.
+
+    Raises:
+        ShardSetError: Two samples' dictionary scores for such a scorer have
+            different keys.
+    """
+    for info in declared:
+        groups = info.metrics if isinstance(info.metrics, list) else [info.metrics]
+        patterns = [
+            key
+            for group in groups
+            if isinstance(group, dict)
+            for key in group
+            if _GLOB_CHARS.search(key)
+        ]
+        if not patterns:
+            continue
+        first: tuple[str, set[str]] | None = None
+        for sample_scores in scores:
+            score = sample_scores.get(info.name)
+            if score is None or not isinstance(score.score.value, dict):
+                continue
+            id, keys = str(score.sample_id), set(score.score.value)
+            if first is None:
+                first = (id, keys)
+            elif keys != first[1]:
+                first_id, first_keys = first
+                raise ShardSetError(
+                    f"Sample {id!r} in {sources[id]} has the score '{info.name}' "
+                    f"with the keys {sorted(keys)}, but sample {first_id!r} in "
+                    f"{sources[first_id]} has {sorted(first_keys)}. The metrics "
+                    f"for '{patterns[0]}' take their keys from the first sample, "
+                    "which differs between the merge and a single run, so the "
+                    "merge cannot merge these scores. Give every sample the "
+                    "same keys, or name the keys in the scorer's metrics."
+                )
 
 
 def check_retained_reductions(

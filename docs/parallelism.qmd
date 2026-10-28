@@ -134,6 +134,8 @@ The merge computes metrics as a fresh, unsharded run does. A scorer's metrics se
 
 A score that a solver sets (in `state.scores`) rather than a scorer the task declares is refused, before writing or deleting anything, because a fresh run and a retry pass it to metrics differently. Score with a scorer declared on the task and re-run the shards.
 
+The merge passes samples to metrics in a fixed order (sample IDs sorted as text, then epoch), which can differ from the order of an unsharded run. Metrics whose value does not depend on sample order, such as `mean()`, `accuracy()`, `stderr()`, `std()` and `var()`, and the built-in epoch reducers, give the same values. A metric that returns a dictionary, such as `grouped()` or a dictionary of metrics for a scorer that returns a dictionary, gives the same value for each key, but its entries can come out in a different order. Without a `headline_metric` on the task, the headline (the first metric of the first score) can then differ; set `headline_metric` to fix it. A dictionary of metrics whose key is a pattern, such as `{"*": [mean()]}`, takes its keys from the first sample, so the merge refuses it when the samples' scores do not all have the same keys. A custom metric whose values depend on sample order (for example, one that reads the first score) is not supported, and the merge does not detect it.
+
 ### Limitations
 
 -   A merge that runs while a worker is writing its shard can fail with a read error. Nothing is written; run the merge again, or merge after the workers have exited.
