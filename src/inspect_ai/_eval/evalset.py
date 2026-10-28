@@ -1651,6 +1651,7 @@ def _run_eval_set_selection(
         PrerequisiteError: If the selection does not correspond to this eval set's tasks.
     """
     selected = _selected_eval_set_tasks(resolved_tasks, selection, eval_set_args)
+    disable_pruning()
     set_eval_set_id_display(selection.eval_set_id)
     logs = run_eval(selection.eval_set_id, selected)
 

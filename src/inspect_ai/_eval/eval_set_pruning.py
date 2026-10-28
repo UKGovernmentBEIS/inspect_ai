@@ -53,6 +53,20 @@ is pruned. A composed task pays for what it composes, which is work it was going
 to do anyway. The counter that tracks this is process-wide rather than
 thread-local, deliberately: see `_constructing`.
 
+**Pruning ends when the selection is resolved.** Once `eval_set()` has picked
+the selected tasks out of the resolved eval set, pruning is off for the rest of
+the process (`disable_pruning`). A `@task` call made after that, such as a task
+a running solver passes to `enqueue_task()`, is work the run asked for rather
+than an eval-set entry. A placeholder there would run and report success with
+none of the task's samples.
+
+**A placeholder never runs.** The boundary drops placeholders, but tasks added
+to a running eval never pass it, and one built before the boundary (a follow-up
+task the definition builds at module level, or one of the set's own unselected
+entries) is already a placeholder when a solver passes it to `enqueue_task()`.
+So the resolver for added tasks materializes placeholders, and a placeholder
+that still reaches it or `eval_run` is an error (`ensure_constructed`).
+
 **What this assumes of a definition, and cannot check.** Skipping a task body
 skips its side effects. The definition itself still executes in full, so
 module-level and driver-level work — registering models, `set_model_info`,
@@ -83,13 +97,14 @@ import os
 import threading
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Callable
 
 from inspect_ai._util.registry import extract_named_params
 
 from .eval_set_manifest import task_args_hash
 from .eval_set_selection import INSPECT_EVAL_SET_SELECTION
+from .task.task import PreviousTask, Task
 
 INSPECT_EVAL_SET_NO_PRUNE = "INSPECT_EVAL_SET_NO_PRUNE"
 """Set to disable early pruning. The escape hatch for a suspected pruning bug: a run can be compared with and without it without downgrading inspect, and a difference in *results* is a bug report — there should never be one."""
@@ -169,7 +184,7 @@ class _Pruner:
     def disable(self) -> None:
         """Stop pruning for the rest of this process.
 
-        The undo. A resolution that pruned and then could not match a selected identifier is re-run under this, which is what makes a wrong pruning decision cost time rather than the run. Sticky against the environment-keyed reload below, because it is an explicit decision rather than an observation.
+        Sticky against the environment-keyed reload below, because it is an explicit decision rather than an observation. See `disable_pruning` for when it is called.
         """
         self._disabled = True
         self._facets = set()
@@ -248,13 +263,35 @@ def reset_pruning() -> None:
 
 
 def disable_pruning() -> None:
-    """Stop pruning for the rest of this process, so a resolution can be retried honestly."""
+    """Stop pruning for the rest of this process.
+
+    Called at two points in `eval_set()` selection mode:
+
+    - **After the selection is resolved**, so a `@task` call the run itself makes is never pruned. See the module docstring, *Pruning ends when the selection is resolved*.
+    - **Before a retry.** A resolution that pruned and then could not match a selected identifier is re-run with pruning off, which is what makes a wrong pruning decision cost time rather than the run.
+    """
     _pruner.disable()
 
 
 def is_placeholder(task: object) -> bool:
     """Whether this task was skipped rather than constructed."""
     return getattr(task, TASK_PLACEHOLDER_ATTR, None) is not None
+
+
+def ensure_constructed(task: Task) -> None:
+    """Refuse to run a placeholder.
+
+    A placeholder has no solver, no scorer, and a one-sample dataset, so running it would report success for a task whose body never ran. `eval_set()` drops placeholders at the selection boundary and the resolver for added tasks materializes them. Anything else that hands one to `eval_run`, such as a `ResolvedTask` built from a placeholder or a plain `eval()` in a process that inherits `INSPECT_EVAL_SET_SELECTION`, fails here rather than reporting success.
+
+    Raises:
+        RuntimeError: If `task` is a placeholder.
+    """
+    if is_placeholder(task):
+        raise RuntimeError(
+            f"Task '{task.name}' was skipped by eval-set selection pruning "
+            f"({INSPECT_EVAL_SET_SELECTION}) and never constructed, so it cannot "
+            f"run. Set {INSPECT_EVAL_SET_NO_PRUNE}=1 to run without pruning."
+        )
 
 
 def pruning_active() -> bool:
@@ -305,10 +342,12 @@ def prune_task_call(
 def materialize_pruned(tasks: Any) -> Any:
     """Replace any placeholder in a task list with the task it stood in for.
 
+    Used where a placeholder would otherwise run: the selection retry in `eval_set()`, and tasks added to a running eval (`enqueue_task()`, a `TaskSource`), which never pass the boundary that drops placeholders. A `PreviousTask` wrapping a placeholder gets its `task` materialized.
+
     **What the retry needs and re-resolution cannot provide.** For the shape runners produce, `eval_set(tasks=[foo(), bar()])`, the placeholders were created while evaluating the argument list — so by the time anything can react to a bad decision, the caller's own `tasks` already holds them, and resolving again just resolves the same placeholder objects. Undoing the decision means building the tasks that were skipped.
 
     Args:
-        tasks: Whatever was passed as `tasks`. Anything that is not a sequence of tasks is returned unchanged — a string spec or a registry name is re-read from scratch on the next resolution, so it needs nothing here. Any sequence comes back as a list, since `eval_set` accepts one and the recovery path is not the place to preserve a container type.
+        tasks: Whatever was passed as `tasks`. Anything other than a placeholder or a `PreviousTask` wrapping one is returned unchanged — a string spec or a registry name is re-read from scratch on the next resolution, so it needs nothing here. Any sequence comes back as a list, since `eval_set` accepts one and the recovery path is not the place to preserve a container type.
 
     Returns:
         The tasks, with placeholders materialized.
@@ -320,6 +359,9 @@ def materialize_pruned(tasks: Any) -> Any:
 
 
 def _materialized(task: Any) -> Any:
+    # a `PreviousTask` resolves from the `Task` it wraps, so that is what to build
+    if isinstance(task, PreviousTask):
+        return replace(task, task=_materialized(task.task))
     placeholder = getattr(task, TASK_PLACEHOLDER_ATTR, None)
     return (
         placeholder.materialize() if isinstance(placeholder, TaskPlaceholder) else task

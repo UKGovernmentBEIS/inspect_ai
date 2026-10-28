@@ -62,6 +62,7 @@ from inspect_ai._display.core.display import (
     TaskScreen,
     TaskSpec,
 )
+from inspect_ai._eval.eval_set_pruning import ensure_constructed
 from inspect_ai._eval.task.scan import Scanners
 from inspect_ai._sentinel._config import resolve_sentinel_root, sentinel_config
 from inspect_ai._util.error import PrerequisiteError, exception_message
@@ -221,6 +222,8 @@ async def eval_run(
 
         # ensure sample ids
         for resolved_task in resolved_tasks:
+            ensure_constructed(resolved_task.task)
+
             # add sample ids to dataset if they aren't there (start at 1 not 0)
             task = resolved_task.task
             for id, sample in enumerate(task.dataset):
