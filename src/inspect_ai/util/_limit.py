@@ -199,18 +199,32 @@ def outermost_limit_error(errors: Sequence[LimitExceededError]) -> LimitExceeded
 
     Limits active in one context nest in the order they were entered, so the
     first one belongs to the outermost scope, which ends the others' scopes as
-    well. An error with no entered `source` (e.g. a custom limit) counts as
-    outermost, since no `apply_limits()` scope handles it.
+    well. An error with no `source` (e.g. a custom limit) counts as outermost,
+    since no `apply_limits()` scope handles it.
 
     Args:
        errors: Errors of limits exceeded in one context (at least one).
+
+    Raises:
+       RuntimeError: An error's `source` has no entry order, so its scope
+         cannot be ranked against the others.
     """
 
     def entry(error: LimitExceededError) -> float:
-        entered = getattr(error.source, "_entry", None)
-        return -math.inf if entered is None else entered
+        if error.source is None:
+            return -math.inf
+        entered: int | None = getattr(error.source, "_entry", None)
+        if entered is None:
+            raise RuntimeError(
+                f"The {error.type} limit error's source "
+                f"({type(error.source).__name__}) has no entry order, so it "
+                "cannot be ranked against other limits. A Limit subclass used "
+                "as an error source must call `_check_reuse()` in `__enter__`."
+            )
+        return entered
 
-    return min(errors, key=entry)
+    entries = [entry(error) for error in errors]
+    return errors[entries.index(min(entries))]
 
 
 class LimitScope:

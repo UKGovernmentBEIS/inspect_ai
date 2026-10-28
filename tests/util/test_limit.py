@@ -8,6 +8,7 @@ from inspect_ai.model._model_output import ModelUsage
 from inspect_ai.solver._solver import Generate, solver
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util._limit import (
+    Limit,
     LimitExceededError,
     apply_limits,
     check_message_limit,
@@ -144,6 +145,33 @@ def test_outermost_limit_error_is_the_first_entered() -> None:
             [no_source, token_error, message_error],
         ):
             assert outermost_limit_error(errors) is no_source
+
+
+def test_outermost_limit_error_refuses_a_source_without_an_entry() -> None:
+    """A sourced error whose limit was never ranked by entry is refused."""
+
+    class _Unranked(Limit):
+        def __enter__(self) -> Limit:
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            pass
+
+        @property
+        def limit(self) -> float | None:
+            return 0
+
+        @property
+        def usage(self) -> float:
+            return 1
+
+    with token_limit(5) as outer, _Unranked() as unranked:
+        errors = [
+            LimitExceededError("token", value=7, limit=5, source=outer),
+            LimitExceededError("custom", value=1, limit=0, source=unranked),
+        ]
+        with pytest.raises(RuntimeError, match="_Unranked"):
+            outermost_limit_error(errors)
 
 
 def test_apply_limits_handles_error_without_source() -> None:
