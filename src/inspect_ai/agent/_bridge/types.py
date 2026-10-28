@@ -131,6 +131,12 @@ class AgentBridge:
             {},
             value_type=dict[str, list[str]],
         )
+        self._content_by_id = self._cp.track(
+            "bridge_message_content",
+            lambda: self._content_by_id,
+            {},
+            value_type=dict[str, str],
+        )
         self._keys_by_id: dict[str, set[str]] = {}
         for key, ids in self._message_ids.items():
             for id in ids:
@@ -390,7 +396,12 @@ class AgentBridge:
 
         for index, (message, message_keys) in enumerate(zip(messages, keys)):
             message_id = aligned.get(index) or recorded_id(message_keys)
-            message.id = message_id or uuid()
+            if message_id is None:
+                message.id = uuid()
+                self._content_by_id[message.id] = _message_content(message)
+            else:
+                used.add(message_id)
+                message.id = self._version_id(message_id, message)
             used.add(message.id)
             self._record_message_id(message_keys, message.id)
             derived_from = self._derived_from.get(message.id)
@@ -400,6 +411,31 @@ class AgentBridge:
                 message.metadata = (message.metadata or {}) | {
                     "derived_from": derived_from
                 }
+
+    def _version_id(self, message_id: str, message: ChatMessage) -> str:
+        """`message_id`, or the id of an edited version if `message`'s content differs.
+
+        Different content never shares an id. A scaffold that sends a message back
+        changed (even in whitespace) has edited it: the edit gets an id derived
+        from the original's and its content, and records the original in
+        `derived_from`.
+        """
+        content = _message_content(message)
+        if self._content_by_id.setdefault(message_id, content) == content:
+            return message_id
+        # an edit of an edit names the original
+        sources = self._derived_from.get(message_id)
+        original = (
+            sources[0]
+            if sources is not None
+            and len(sources) == 1
+            and message_id == _edit_id(sources[0], self._content_by_id[message_id])
+            else message_id
+        )
+        edited_id = _edit_id(original, content)
+        self._content_by_id.setdefault(edited_id, content)
+        self._derived_from[edited_id] = [original]
+        return edited_id
 
     def _align_with_tracked(
         self, messages: list[ChatMessage], keys: list[list[str]]
@@ -500,6 +536,7 @@ class AgentBridge:
                 ):
                     keys.append(_loose_message_key(message, variant))
             self._record_message_id(keys, message.id)
+            self._content_by_id.setdefault(message.id, _message_content(message))
 
     _message_ids: dict[str, list[str]]
 
@@ -554,6 +591,9 @@ class AgentBridge:
         """
         if output.message.id is not None:
             self._record_message_id(_message_id_keys(output.message), output.message.id)
+            self._content_by_id.setdefault(
+                output.message.id, _message_content(output.message)
+            )
             derived_from = (output.message.metadata or {}).get("derived_from")
             if derived_from is not None:
                 self._derived_from[output.message.id] = derived_from
@@ -715,6 +755,58 @@ def _message_id_keys(message: ChatMessage) -> list[str]:
 
 
 _MAX_ALIGN_CANDIDATES = 8
+
+
+def _edit_id(original_id: str, content: str) -> str:
+    return uuid(name=f"inspect-edit:{json.dumps([original_id, content])}")
+
+
+def _message_content(message: ChatMessage) -> str:
+    """Hash of what a message shows: versions that differ here are different messages.
+
+    Provider-internal fields (reasoning signatures, `internal`, citations,
+    `model`, `source`, metadata) are left out, so an exact round trip through a
+    scaffold is the same message.
+    """
+    items = (
+        [ContentText(text=message.content)]
+        if isinstance(message.content, str)
+        else message.content
+    )
+    return mm3_hash(
+        json.dumps(
+            [
+                message.role,
+                [
+                    ["text", item.text]
+                    if isinstance(item, ContentText)
+                    else ["reasoning", item.reasoning, item.redacted]
+                    if isinstance(item, ContentReasoning)
+                    else item.model_dump(exclude_none=True, exclude={"internal"})
+                    for item in items
+                ],
+                [
+                    [
+                        call.id,
+                        call.function,
+                        json.dumps(call.arguments, sort_keys=True, default=str),
+                    ]
+                    for call in message.tool_calls or []
+                ]
+                if isinstance(message, ChatMessageAssistant)
+                else None,
+                [
+                    message.tool_call_id,
+                    [message.error.type, message.error.message]
+                    if message.error
+                    else None,
+                ]
+                if isinstance(message, ChatMessageTool)
+                else None,
+            ],
+            default=str,
+        )
+    )
 
 
 def _key_strength(key: str) -> int:

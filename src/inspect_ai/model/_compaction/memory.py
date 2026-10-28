@@ -3,6 +3,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageUser,
 )
+from inspect_ai.model._message_ids import edited_message
 from inspect_ai.tool import ToolCall
 
 # Name of memory tool
@@ -44,7 +45,7 @@ def clear_memory_content(messages: list[ChatMessage]) -> list[ChatMessage]:
                 else:
                     new_tool_calls.append(tc)
             if modified:
-                result[i] = msg.model_copy(update={"tool_calls": new_tool_calls})
+                result[i] = edited_message(msg, tool_calls=new_tool_calls)
     return result
 
 

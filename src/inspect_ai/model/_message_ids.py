@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, TypeVar
 
 import mmh3
 from shortuuid import uuid as shortuuid
 
-from ._chat_message import ChatMessage
+from inspect_ai._util.hash import mm3_hash
+
+from ._chat_message import ChatMessage, ChatMessageBase
 from ._model_output import ModelOutput
 
 if TYPE_CHECKING:
@@ -84,3 +86,52 @@ def stable_message_ids() -> Callable[[Sequence[ChatMessage] | ModelEvent], None]
             apply_ids_to_messages(target)  # type: ignore[arg-type]
 
     return apply_ids
+
+
+EditedT = TypeVar("EditedT", bound=ChatMessageBase)
+
+
+def edited_message(source: EditedT, **update: Any) -> EditedT:
+    """A copy of `source` with `update` applied, under its own id (`with_edited_id`)."""
+    return with_edited_id(source, source.model_copy(update=update))
+
+
+def with_edited_id(source: ChatMessageBase, edited: EditedT) -> EditedT:
+    """`edited` under an id of its own, recording its source in `derived_from`.
+
+    Different content never shares an id. The id is derived from the source's
+    id and the edited content, so a message edited the same way on every model
+    call is one message. An edit of an edit names the original source. An edit
+    that leaves the content unchanged keeps the source's id.
+    """
+    content = _content_hash(edited)
+    if source.id is None:
+        edited.id = shortuuid()
+    elif content == _content_hash(source):
+        edited.id = source.id
+    else:
+        original = _edited_from(source) or source.id
+        edited.id = _edit_id(original, content)
+        edited.metadata = (edited.metadata or {}) | {"derived_from": [original]}
+    return edited
+
+
+def _edited_from(message: ChatMessageBase) -> str | None:
+    """The original a message is an edit of, if `with_edited_id` made it."""
+    sources = (message.metadata or {}).get("derived_from")
+    if (
+        isinstance(sources, list)
+        and len(sources) == 1
+        and isinstance(sources[0], str)
+        and message.id == _edit_id(sources[0], _content_hash(message))
+    ):
+        return sources[0]
+    return None
+
+
+def _edit_id(source_id: str, content: str) -> str:
+    return shortuuid(name=f"inspect-edit:{json.dumps([source_id, content])}")
+
+
+def _content_hash(message: ChatMessageBase) -> str:
+    return mm3_hash(message.model_dump_json(exclude={"id", "metadata"}))

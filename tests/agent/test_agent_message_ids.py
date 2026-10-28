@@ -300,17 +300,27 @@ def _run(solver: Agent, log_dir: Path, log_format: Literal["eval", "json"]) -> E
     return log
 
 
-def assert_ids_agree(log: EvalLog, model_calls: int) -> None:
-    """The final conversation extends every model call, and tool events point into it."""
+def assert_ids_agree(log: EvalLog, model_calls: int, edits: bool = False) -> int:
+    """The final conversation extends every model call, and tool events point into it.
+
+    With `edits`, a reply the scaffold sent back changed is in the conversation as
+    an edit naming the reply in `derived_from`. Returns the number of such edits.
+    """
     assert log.samples
     sample = log.samples[0]
     final_ids = [m.id for m in sample.messages]
     assert len(set(final_ids)) == len(final_ids)
     model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
     assert len(model_events) == model_calls
+    edited = 0
     for event in model_events:
-        call_ids = [m.id for m in event.input] + [event.output.message.id]
-        assert call_ids == final_ids[: len(call_ids)]
+        input_ids = [m.id for m in event.input]
+        assert input_ids == final_ids[: len(input_ids)]
+        reply = sample.messages[len(input_ids)]
+        if reply.id != event.output.message.id:
+            assert edits
+            assert reply.metadata == {"derived_from": [event.output.message.id]}
+            edited += 1
     prompt = next(m for m in sample.messages if m.text == PROMPT)
     assert prompt.id == sample.store["input_id"]
     for tool_event in [e for e in sample.events if isinstance(e, ToolEvent)]:
@@ -327,6 +337,7 @@ def assert_ids_agree(log: EvalLog, model_calls: int) -> None:
         ]
         assert tool_event.call_message_id == proposing.id
         assert tool_event.message_id == result.id
+    return edited
 
 
 @pytest.mark.parametrize("log_format", ["eval", "json"])
@@ -339,8 +350,11 @@ def test_bridge_keeps_message_ids(
     tmp_path: Path,
 ) -> None:
     log = _run(scaffold_agent(dialect, mangle), tmp_path, log_format)
-    assert_ids_agree(log, model_calls=3)
-    assert_ids_agree(read_eval_log(log.location), model_calls=3)
+    # Google rebuilds tool call ids, so the reply calling a tool comes back
+    # changed; the mangling scaffold changes both replies it sends back
+    edits = 2 if mangle else 1 if dialect == "google" else 0
+    for logged in [log, read_eval_log(log.location)]:
+        assert assert_ids_agree(logged, model_calls=3, edits=edits > 0) == edits
 
 
 @tool
@@ -423,7 +437,8 @@ def test_messages_rebuilt_every_call_keep_one_id(tmp_path: Path) -> None:
             inputs.setdefault(message.id, set()).add(message.model_dump_json())
             if message.metadata and "derived_from" in message.metadata:
                 derived.setdefault(message.id, set()).add(message.model_dump_json())
-    assert len(derived) == calls
+    # each call's tool message, edited to move its media out, and the media
+    assert len(derived) == 2 * calls
     assert all(len(contents) == 1 for contents in derived.values())
 
     condensed = condense_sample(sample)
@@ -516,6 +531,7 @@ class _Scaffold:
     ) -> list[str]:
         rebuilt = _rebuilt(*messages)
         apply_message_ids(self.bridge, rebuilt)
+        self.sent = rebuilt
         if output is not None:
             await self.bridge._track_state(rebuilt, ModelOutput.from_message(output))
         return [m.id or "" for m in rebuilt]
@@ -577,31 +593,37 @@ async def test_resumed_bridge_keeps_the_main_threads_id() -> None:
     assert before[1] == after[1] == first.id
 
 
-async def test_edited_messages_keep_their_ids() -> None:
-    """A tool result and a user message the scaffold edits keep their ids."""
+async def test_scaffold_edits_get_ids_derived_from_the_originals() -> None:
+    """A tool result and a user message the scaffold edits are new messages naming their originals."""
     task = ChatMessageUser(content="List the files.")
     first, second = _call("call_1"), ChatMessageAssistant(content="Anything else?")
     result = _result("call_1", "a very long listing")
     follow_up = ChatMessageUser(content="No, thanks.")
     scaffold = _Scaffold(AgentBridge(AgentState(messages=[task])))
     await scaffold.request([task], first)
-    ids = await scaffold.request([task, first, result], second)
+    await scaffold.request([task, first, result], second)
     final = ChatMessageAssistant(content="Bye.")
     ids = await scaffold.request([task, first, result, second, follow_up], final)
+    edited_conversation: list[ChatMessage] = [
+        task,
+        first,
+        _result("call_1", "[truncated]"),
+        second,
+        ChatMessageUser(content="No, thanks!"),
+        final,
+    ]
 
-    edited = await scaffold.request(
-        [
-            task,
-            first,
-            _result("call_1", "[truncated]"),
-            second,
-            ChatMessageUser(content="No, thanks!"),
-            final,
-        ]
-    )
+    edited = await scaffold.request(edited_conversation)
+    sent = scaffold.sent
+    again = await scaffold.request(edited_conversation)
 
-    assert edited[:5] == ids
+    assert [edited[i] for i in (0, 1, 3)] == [ids[i] for i in (0, 1, 3)]
     assert edited[5] == final.id
+    for i in (2, 4):
+        assert edited[i] != ids[i]
+        assert sent[i].metadata == {"derived_from": [ids[i]]}
+        assert scaffold.sent[i].metadata == {"derived_from": [ids[i]]}
+    assert again == edited
 
 
 class _CountingList(list[str]):

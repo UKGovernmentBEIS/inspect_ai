@@ -217,7 +217,7 @@ def _comparable(message: ChatMessage) -> dict[str, Any]:
 
 
 def test_media_message_ids() -> None:
-    """Edited tool messages keep their ids; the new user message records its sources."""
+    """Edited tool messages and the new user message get ids derived from their sources."""
     tool_a = ChatMessageTool(
         tool_call_id="a", content=[ContentDocument(document="a.pdf")]
     )
@@ -230,7 +230,13 @@ def test_media_message_ids() -> None:
         [tool_a, tool_b, user], (ContentDocument,)
     )
 
-    assert [m.id for m in transformed[:2]] == [tool_a.id, tool_b.id]
+    for edited, source in zip(transformed[:2], [tool_a, tool_b]):
+        assert edited.id != source.id
+        assert edited.metadata == {"derived_from": [source.id]}
+    again = tool_result_media_as_user_message(
+        [tool_a, tool_b, user], (ContentDocument,)
+    )
+    assert [m.id for m in again] == [m.id for m in transformed]
     media = transformed[2]
     assert media.id not in {tool_a.id, tool_b.id, user.id}
     assert media.metadata == {"derived_from": [tool_a.id, tool_b.id]}

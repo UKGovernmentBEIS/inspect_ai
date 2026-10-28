@@ -890,8 +890,8 @@ class _Driver:
 
     def _result(self, event: ToolEvent) -> ChatMessageTool:
         if event.message_id is not None:
-            # edited copies share the id (media moved out, a cleared result):
-            # the one holding the event's result is what the call produced
+            # code can edit a tool message in place, keeping its id: the copy
+            # holding the event's result is what the call produced
             copies = [
                 message
                 for message in self._messages_by_id_all().get(event.message_id, [])

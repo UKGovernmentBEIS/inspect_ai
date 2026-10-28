@@ -278,7 +278,7 @@ class TestStableMessageIdsWithModelEvent:
         assert list(event.input)[0].id is not None
 
 
-def test_reasoning_history_stripping_keeps_ids() -> None:
+def test_reasoning_history_stripping_derives_ids() -> None:
     messages: list[ChatMessage] = [
         ChatMessageUser(content="Question"),
         ChatMessageAssistant(
@@ -291,11 +291,20 @@ def test_reasoning_history_stripping_keeps_ids() -> None:
         get_model("mockllm/model").api,
     )
 
+    again = resolve_reasoning_history(
+        messages,
+        GenerateConfig(reasoning_history="none"),
+        get_model("mockllm/model").api,
+    )
+
     assert resolved[1].content == [ContentText(text="Answer")]
-    assert [m.id for m in resolved] == [m.id for m in messages]
+    assert resolved[0] is messages[0]
+    assert resolved[1].id != messages[1].id
+    assert resolved[1].metadata == {"derived_from": [messages[1].id]}
+    assert [m.id for m in again] == [m.id for m in resolved]
 
 
-def test_tool_model_input_keeps_ids() -> None:
+def test_tool_model_input_derives_ids() -> None:
     async def lookup(query: str) -> str:
         """Look up a query.
 
@@ -312,6 +321,12 @@ def test_tool_model_input_keeps_ids() -> None:
         [tdef], messages, {"disable_computer_screenshot_truncation": False}
     )
 
+    again = resolve_tool_model_input(
+        [tdef], messages, {"disable_computer_screenshot_truncation": False}
+    )
+
     assert resolved[0].content == "(removed)"
-    assert resolved[0].id == messages[0].id
+    assert resolved[0].id != messages[0].id
+    assert resolved[0].metadata == {"derived_from": [messages[0].id]}
+    assert again[0].id == resolved[0].id
     assert messages[0].content == "result"

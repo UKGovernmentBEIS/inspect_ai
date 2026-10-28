@@ -1385,10 +1385,14 @@ async def test_server_tool_clearing_does_not_write_into_other_messages(
 
 
 @pytest.mark.parametrize("keep_tool_inputs", [True, False])
-async def test_edited_messages_keep_their_ids(
+async def test_edited_messages_get_ids_derived_from_their_sources(
     tool_call_1: ToolCall, keep_tool_inputs: bool
 ) -> None:
-    """Clearing thinking, tool results, server tool results and memory content keeps ids."""
+    """Clearing thinking, tool results, server tool results and memory content gives new ids.
+
+    The id is derived from the source's id and the edited content, so compacting
+    the same history again gives the same ids.
+    """
     strategy = CompactionEdit(
         keep_thinking_turns=0,
         keep_tool_uses=0,
@@ -1423,10 +1427,16 @@ async def test_edited_messages_keep_their_ids(
     by_id = {m.id: m for m in messages}
 
     compacted, _ = await strategy.compact(get_model("mockllm/model"), messages, [])
+    again, _ = await strategy.compact(get_model("mockllm/model"), messages, [])
 
-    assert all(m.id in by_id for m in compacted)
-    edited = [m for m in compacted if m != by_id[m.id]]
+    edited = [m for m in compacted if m.id not in by_id]
+    assert all(m == by_id[m.id] for m in compacted if m.id in by_id)
+    for message in edited:
+        assert message.metadata is not None
+        [source] = message.metadata["derived_from"]
+        assert by_id[source].role == message.role
     # with keep_tool_inputs=False the tool messages are removed, not edited
     assert {m.role for m in edited} == (
         {"assistant", "tool"} if keep_tool_inputs else {"assistant"}
     )
+    assert [m.id for m in again] == [m.id for m in compacted]

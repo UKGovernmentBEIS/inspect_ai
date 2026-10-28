@@ -133,6 +133,7 @@ from ._generate_config import (
     active_generate_config,
     set_active_generate_config,
 )
+from ._message_ids import edited_message, with_edited_id
 from ._model_call import ModelCall, as_error_response
 from ._model_data.model_data import ModelCost, ModelInfo
 from ._model_output import (
@@ -2671,7 +2672,7 @@ def resolve_reasoning_history(
                             if not isinstance(content, ContentReasoning)
                         ]
                         if len(filtered) != len(message.content):
-                            message = message.model_copy(update={"content": filtered})
+                            message = edited_message(message, content=filtered)
                     found_last = True
 
             resolved_messages.append(message)
@@ -2694,26 +2695,32 @@ def resolve_tool_model_input(
         return messages
 
     # don't mutate the original messages
-    messages = [m.model_copy() for m in messages]
+    messages = list(messages)
 
     # extract tool messages
     tool_messages = [
-        message for message in messages if isinstance(message, ChatMessageTool)
+        (position, message)
+        for position, message in enumerate(messages)
+        if isinstance(message, ChatMessageTool)
     ]
     # run model_input handlers over all tool_messages with the same function name
     for tdef in tdefs:
         assert tdef.model_input
         # filter messages down to just this tool
         tdef_tool_messages = [
-            message for message in tool_messages if message.function == tdef.name
+            (position, message)
+            for position, message in tool_messages
+            if message.function == tdef.name
         ]
         # call the function for each tool, passing the index, total, and content
-        for index, message in enumerate(tdef_tool_messages):
+        for index, (position, message) in enumerate(tdef_tool_messages):
             model_input_content = tdef.model_input(
                 index, len(tool_messages), message.content, hints
             )
             if model_input_content is not message.content:
-                message.content = model_input_content
+                messages[position] = edited_message(
+                    message, content=model_input_content
+                )
 
     # return modified messages
     return messages
@@ -2753,11 +2760,13 @@ def tool_result_media_as_user_message(
                 (list[Content](), list[Content]()),
             )
             chat_messages.append(
-                ChatMessageTool(
-                    id=message.id,
-                    content=edited_tool_message_content,
-                    tool_call_id=message.tool_call_id,
-                    function=message.function,
+                with_edited_id(
+                    message,
+                    ChatMessageTool(
+                        content=edited_tool_message_content,
+                        tool_call_id=message.tool_call_id,
+                        function=message.function,
+                    ),
                 )
             )
             pending_content.extend(new_user_message_content)
