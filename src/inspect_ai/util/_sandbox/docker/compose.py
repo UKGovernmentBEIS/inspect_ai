@@ -175,12 +175,12 @@ async def compose_read_archive(
         )
     if not result.success and not _tar_file_changed(result):
         stderr = result.stderr.decode(errors="replace")
-        raise_for_unsupported_user(stderr, user)
+        diagnostic = (
+            result.stderr
+            or result.stdout[: SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE]
+        ).decode(errors="replace")
+        raise_for_unsupported_user(diagnostic, user)
         if result.returncode in (126, 127):
-            diagnostic = (
-                result.stderr
-                or result.stdout[: SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE]
-            ).decode(errors="replace")
             raise SandboxUnavailableError(
                 "Docker read_file could not execute its required tools "
                 f"(/usr/bin/timeout, /bin/sh and tar): {diagnostic}"

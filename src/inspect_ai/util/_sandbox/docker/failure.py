@@ -37,20 +37,26 @@ from inspect_ai.util._subprocess import ExecResult
 from ..environment import SandboxUnavailableError, SandboxUserUnsupportedError
 
 
-def raise_for_unsupported_user(stderr: str, user: str | None) -> None:
-    """Map Docker's missing-user/group launch errors without masking other failures."""
+def raise_for_unsupported_user(output: str, user: str | None) -> None:
+    """Map Docker's missing-user/group launch errors without masking other failures.
+
+    `output` is stderr, or stdout when stderr is empty. Engine 29 rejects the
+    user when the exec is created (exit 1, on stderr, with the daemon prefix);
+    engine 28 rejects it when the exec starts (exit 126, on stdout, without
+    the prefix). Either form must be the whole of `output`.
+    """
     if user is None:
         return
+    message = output.strip().removeprefix("Error response from daemon: ")
     username, _, group = user.partition(":")
     for kind, name, database in (
         ("user", username, "passwd"),
         ("group", group, "group"),
     ):
-        if name and stderr.strip() == (
-            f"Error response from daemon: unable to find {kind} {name}: "
-            f"no matching entries in {database} file"
+        if name and message == (
+            f"unable to find {kind} {name}: no matching entries in {database} file"
         ):
-            raise SandboxUserUnsupportedError(stderr.strip())
+            raise SandboxUserUnsupportedError(output.strip())
 
 
 class InjectedWrapper(NamedTuple):

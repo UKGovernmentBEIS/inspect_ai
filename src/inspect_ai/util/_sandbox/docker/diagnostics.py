@@ -13,7 +13,10 @@ not stall a sample for minutes.
 """
 
 import json
+import time
 from typing import Any, NamedTuple
+
+import anyio
 
 from inspect_ai.util._subprocess import subprocess
 
@@ -31,6 +34,8 @@ _DEAD_STATES = ("exited", "dead")
 _LOG_TAIL_LINES = 100
 _SECTION_LIMIT = 4096
 _PROBE_TIMEOUT = 60
+_SETTLE_TIMEOUT = 2.0
+_SETTLE_INTERVAL = 0.2
 
 
 async def service_dead(service: str, project: ComposeProject) -> bool:
@@ -39,12 +44,24 @@ async def service_dead(service: str, project: ComposeProject) -> bool:
     Conservative: returns False when the query fails or shows no containers.
     Callers use True to escalate an ambiguous exec failure to "sandbox dead",
     and anything short of an observed dead container is not evidence of that.
+
+    An exec can return its signal exit before the daemon records the
+    container's exit, so `compose ps` may still report `running`. A container
+    that is not yet dead is re-checked for up to `_SETTLE_TIMEOUT` seconds.
     """
-    try:
-        entries = await _service_ps_entries(service, project)
-    except Exception:
-        return False
-    return bool(entries) and all(_is_dead(entry) for entry in entries)
+    deadline = time.monotonic() + _SETTLE_TIMEOUT
+    while True:
+        try:
+            entries = await _service_ps_entries(service, project)
+        except Exception:
+            return False
+        if not entries:
+            return False
+        if all(_is_dead(entry) for entry in entries):
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        await anyio.sleep(_SETTLE_INTERVAL)
 
 
 async def sandbox_unavailable_diagnostics(service: str, project: ComposeProject) -> str:

@@ -472,6 +472,39 @@ async def test_read_file_preserves_tar_file_errors(
         await _environment().read_file("source")
 
 
+@pytest.mark.parametrize(
+    "returncode,stdout,stderr",
+    [
+        (
+            1,
+            b"",
+            b"Error response from daemon: unable to find user agent: "
+            b"no matching entries in passwd file\n",
+        ),
+        (
+            126,
+            b"unable to find user agent: no matching entries in passwd file\r\n",
+            b"",
+        ),
+    ],
+    ids=["engine-29", "engine-28"],
+)
+async def test_read_file_reports_unknown_user_as_unsupported(
+    returncode: int, stdout: bytes, stderr: bytes, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        compose_module,
+        "compose_command",
+        AsyncMock(
+            return_value=ExecResult(
+                success=False, returncode=returncode, stdout=stdout, stderr=stderr
+            )
+        ),
+    )
+    with pytest.raises(SandboxUserUnsupportedError):
+        await _environment().read_file("source", user="agent")
+
+
 @pytest.mark.parametrize("contents", [b"contents", b""])
 @pytest.mark.parametrize(
     "stderr",

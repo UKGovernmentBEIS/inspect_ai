@@ -15,13 +15,18 @@ import pytest
 from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai.util import ExecResult
+from inspect_ai.util._sandbox.docker import diagnostics
 from inspect_ai.util._sandbox.docker.docker import DockerSandboxEnvironment
 from inspect_ai.util._sandbox.docker.failure import (
     InjectedWrapper,
     classify_exec_failure,
+    raise_for_unsupported_user,
 )
 from inspect_ai.util._sandbox.docker.util import ComposeProject
-from inspect_ai.util._sandbox.environment import SandboxUnavailableError
+from inspect_ai.util._sandbox.environment import (
+    SandboxUnavailableError,
+    SandboxUserUnsupportedError,
+)
 
 # what `exec` injects for `bash(timeout=N)`: GNU `timeout` in front of `bash`
 WRAPPER = InjectedWrapper(binary="/usr/bin/timeout", target="bash")
@@ -459,6 +464,57 @@ def _sandbox() -> DockerSandboxEnvironment:
     )
 
 
+@pytest.mark.parametrize(
+    "prefix,ending",
+    [("Error response from daemon: ", "\n"), ("", "\r\n")],
+    ids=["engine-29", "engine-28"],
+)
+@pytest.mark.parametrize(
+    "user,message",
+    [
+        (
+            "nobody-here",
+            "unable to find user nobody-here: no matching entries in passwd file",
+        ),
+        (
+            "root:no-group",
+            "unable to find group no-group: no matching entries in group file",
+        ),
+        (
+            "permission denied",
+            "unable to find user permission denied: no matching entries in passwd file",
+        ),
+    ],
+)
+def test_unknown_user_recognised_on_docker_28_and_29(
+    prefix: str, ending: str, user: str, message: str
+) -> None:
+    with pytest.raises(SandboxUserUnsupportedError):
+        raise_for_unsupported_user(f"{prefix}{message}{ending}", user)
+
+
+@pytest.mark.parametrize(
+    "user,output",
+    [
+        (None, "unable to find user agent: no matching entries in passwd file"),
+        ("other", "unable to find user agent: no matching entries in passwd file"),
+        (
+            "agent",
+            "tar: x\nunable to find user agent: no matching entries in passwd file",
+        ),
+        (
+            "agent",
+            "Error response from daemon: Error response from daemon: "
+            "unable to find user agent: no matching entries in passwd file",
+        ),
+    ],
+)
+def test_unknown_user_requires_exact_message_for_requested_user(
+    user: str | None, output: str
+) -> None:
+    raise_for_unsupported_user(output, user)
+
+
 FAKE_DIAGNOSTICS = 'Container diagnostics for service "default":\n(fake diagnostics)'
 
 
@@ -642,6 +698,58 @@ async def test_silent_success_never_checks_the_container(
         "inspect_ai.util._sandbox.docker.docker.service_dead", exploding_check
     )
     assert await _sandbox().exec(["true"], timeout=30) == ok
+
+
+def _stub_ps_states(
+    monkeypatch: pytest.MonkeyPatch, *states: list[str] | Exception
+) -> list[int]:
+    """Make successive `compose ps` probes report `states`, repeating the last."""
+    calls: list[int] = []
+
+    async def fake_entries(*args: object, **kwargs: object) -> list[dict[str, str]]:
+        state = states[min(len(calls), len(states) - 1)]
+        calls.append(1)
+        if isinstance(state, Exception):
+            raise state
+        return [{"Service": "default", "State": s} for s in state]
+
+    monkeypatch.setattr(diagnostics, "_service_ps_entries", fake_entries)
+    monkeypatch.setattr(diagnostics, "_SETTLE_INTERVAL", 0)
+    return calls
+
+
+def _project() -> ComposeProject:
+    return ComposeProject(name="test", config=None, sample_id=1, epoch=1, env=None)
+
+
+async def test_service_dead_waits_for_exit_to_be_recorded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`compose ps` can still say running after the exec saw the kill."""
+    calls = _stub_ps_states(monkeypatch, ["running"], ["running"], ["exited"])
+    assert await diagnostics.service_dead("default", _project())
+    assert len(calls) == 3
+
+
+async def test_service_dead_gives_up_on_a_running_container(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _stub_ps_states(monkeypatch, ["running"])
+    monkeypatch.setattr(diagnostics, "_SETTLE_TIMEOUT", 0.05)
+    assert not await diagnostics.service_dead("default", _project())
+    assert len(calls) > 1
+
+
+@pytest.mark.parametrize(
+    "state",
+    [pytest.param([], id="no_containers"), pytest.param(OSError(), id="ps_failed")],
+)
+async def test_service_dead_does_not_wait_without_evidence(
+    monkeypatch: pytest.MonkeyPatch, state: list[str] | Exception
+) -> None:
+    calls = _stub_ps_states(monkeypatch, state, ["exited"])
+    assert not await diagnostics.service_dead("default", _project())
+    assert len(calls) == 1
 
 
 async def test_no_wrapper_leaves_runc_launch_failures_unclassified(
