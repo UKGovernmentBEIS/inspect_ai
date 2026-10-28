@@ -14,6 +14,7 @@ from .config import (
     ensure_auto_compose_file,
     resolve_compose_file,
 )
+from .mounts import validate_generated_host_paths
 
 logger = getLogger(__name__)
 
@@ -45,12 +46,10 @@ class ComposeProject:
         if isinstance(config, str):
             config_path = Path(config).resolve()
         elif isinstance(config, ComposeConfig):
+            data = config.model_dump(mode="json", by_alias=True, exclude_none=True)
+            validate_generated_host_paths(data)
             # serialize ComposeConfig to YAML and write to auto-compose file
-            config_yaml = yaml.dump(
-                config.model_dump(mode="json", by_alias=True, exclude_none=True),
-                default_flow_style=False,
-                sort_keys=False,
-            )
+            config_yaml = yaml.dump(data, default_flow_style=False, sort_keys=False)
             # Use project name for unique file, resolve paths against CWD
             config = auto_compose_file(config_yaml, name, base_dir=os.getcwd())
         elif config is not None:

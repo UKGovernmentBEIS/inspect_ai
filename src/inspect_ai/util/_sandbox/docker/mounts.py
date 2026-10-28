@@ -1,11 +1,13 @@
 import json
 import os
 import re
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.util._subprocess import subprocess
 
+from .config import auto_compose_dir
 from .prereqs import (
     DOCKER_COMPOSE_REQUIRED_VERSION_READ_ONLY,
     validate_docker_compose,
@@ -14,6 +16,7 @@ from .prereqs import (
 
 async def validate_compose_mounts(config: dict[str, Any], project_name: str) -> None:
     """Reject host writes and unverifiable mounts across all Compose services."""
+    _reject_binds_into_auto_compose_dir(config)
     if _unsafe_mounts_allowed(config):
         return
 
@@ -212,6 +215,108 @@ async def _validate_read_only_support(bind_runtimes: dict[str | None, str]) -> N
                 "Older API versions leave nested mounts writable. Unset this "
                 "override or copy inputs with Sample.files."
             )
+
+
+_ABSOLUTE_HOST_PATHS = (
+    "Bind-mount sources and env_file paths in a ComposeConfig must be absolute "
+    "(or start with ~/): its generated Compose file is stored outside the task "
+    "directory, so Compose would resolve a relative path there. Build the path "
+    'from the task file, for example Path(__file__).parent / "data".\n\n'
+    "See https://inspect.aisi.org.uk/sandboxing.html#programmatic-configuration"
+)
+
+
+def validate_generated_host_paths(config: dict[str, Any]) -> None:
+    """Reject relative host paths in a programmatic (``ComposeConfig``) config.
+
+    Compose resolves a relative bind-mount source or ``env_file`` against the
+    directory holding the compose file. A ``ComposeConfig`` is written to the
+    generated-config directory, not the task directory, so a relative path
+    would select a location there; a missing short-syntax bind source is even
+    created, so the container silently sees an empty directory. Build contexts
+    are not covered: ``auto_compose_file`` rebases them against the working
+    directory. A source Compose interpolates (``${VAR}``) is checked once
+    resolved, by ``validate_compose_mounts``.
+
+    Args:
+        config: The config as dumped from ``ComposeConfig``, before writing.
+    """
+    for service_name, service in config["services"].items():
+        for mount in service.get("volumes", []):
+            if _is_relative_bind(mount):
+                raise relative_host_path_error(
+                    service_name, "mount", _mount_text(mount)
+                )
+        env_files = service.get("env_file", [])
+        for env_file in [env_files] if isinstance(env_files, str) else env_files:
+            if _is_relative_host_path(env_file):
+                raise relative_host_path_error(service_name, "env_file", env_file)
+
+
+def _is_relative_bind(mount: Any) -> bool:
+    if isinstance(mount, str):
+        # short syntax: the source is a host path only when it starts with '.',
+        # '/', '~' or a Windows drive, and of those only '.' is relative
+        source, sep, _ = mount.partition(":")
+        return bool(sep) and source.startswith(".")
+    if isinstance(mount, dict) and mount.get("type") == "bind":
+        bind_source = mount.get("source")
+        return isinstance(bind_source, str) and _is_relative_host_path(bind_source)
+    return False
+
+
+def _is_relative_host_path(path: str) -> bool:
+    """A literal relative path: not absolute, home-relative or interpolated.
+
+    Any ``$`` counts as interpolation (``C:${HOMEPATH}`` is absolute once
+    expanded); the backstop checks such paths after Compose resolves them.
+    """
+    if path.startswith("~") or "$" in path:
+        return False
+    return not (
+        PurePosixPath(path).is_absolute() or PureWindowsPath(path).is_absolute()
+    )
+
+
+def _mount_text(mount: Any) -> str:
+    if isinstance(mount, str):
+        return mount
+    return f"{mount.get('source')} -> {mount.get('target')}"
+
+
+def _reject_binds_into_auto_compose_dir(config: dict[str, Any]) -> None:
+    """Reject bind sources Compose resolved into the generated-config directory.
+
+    The backstop for a relative source ``validate_generated_host_paths`` could
+    not see because interpolation supplied it (``${VAR}:/data``). Applies
+    before the unsafe-mounts opt-in: that directory holds every sandbox's
+    generated config and is never the directory a config meant. A value that
+    climbs out of it (``../x``) is not detected. ``realpath`` rather than
+    ``Path.resolve``, which raises on a symlink loop before Python 3.13.
+    """
+    compose_dir = Path(os.path.realpath(auto_compose_dir()))
+    for service_name, service in config["services"].items():
+        for mount in service.get("volumes", []):
+            source = mount.get("source")
+            if (
+                mount["type"] == "bind"
+                and isinstance(source, str)
+                and Path(os.path.realpath(source)).is_relative_to(compose_dir)
+            ):
+                raise PrerequisiteError(
+                    f"Docker service '{service_name}' mount "
+                    f"'{source} -> {mount['target']}' resolves into Inspect's "
+                    f"generated Compose config directory ({compose_dir}). "
+                    + _ABSOLUTE_HOST_PATHS
+                )
+
+
+def relative_host_path_error(service: str, field: str, path: str) -> PrerequisiteError:
+    """Describe a relative host path in a ``ComposeConfig`` and how to fix it."""
+    return PrerequisiteError(
+        f"Docker service '{service}' {field} '{path}' uses a relative host path. "
+        + _ABSOLUTE_HOST_PATHS
+    )
 
 
 def mount_error(service: str, mount: str, reason: str) -> PrerequisiteError:

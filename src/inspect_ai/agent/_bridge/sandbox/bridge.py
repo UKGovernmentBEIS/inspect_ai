@@ -163,9 +163,10 @@ async def sandbox_agent_bridge(
             to pass to CLI agents are available via bridge.mcp_server_configs.
         model_event_sink: Optional sink that takes ownership of `ModelEvent`
             emission for calls routed through the bridge. When set, the bridge
-            installs it around `model.generate()` so the sink decides when and
-            under which span each event is emitted to the transcript. A host
-            tool call the model proposed is recorded in the span the sink set
+            installs it around `model.generate()`. The sink decides under which
+            span each generation runs (its optional `on_start`) and when each
+            event is emitted to the transcript (`on_pending`/`on_complete`); see
+            `ModelEventSink`. A host tool call the model proposed is recorded in the span the sink set
             on the proposing `ModelEvent` by the time `on_complete` returns,
             and is recorded right away: a span set later, or a `ModelEvent`
             the sink emits later, is not matched up with it.

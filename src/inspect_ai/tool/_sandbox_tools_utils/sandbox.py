@@ -5,7 +5,7 @@ import subprocess
 import sys
 import tempfile
 import warnings
-from contextlib import AbstractContextManager, asynccontextmanager, nullcontext
+from contextlib import asynccontextmanager
 from importlib import resources
 from logging import getLogger
 from pathlib import Path
@@ -50,7 +50,10 @@ from inspect_ai.util._sandbox.environment import (
     SandboxUnavailableError,
     SandboxUserUnsupportedError,
 )
-from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
+from inspect_ai.util._sandbox.events import (
+    SandboxEnvironmentProxy,
+    without_sandbox_events,
+)
 from inspect_ai.util._sandbox.recon import Architecture, detect_sandbox_os
 from inspect_ai.util._subprocess import ExecResult
 
@@ -150,7 +153,7 @@ async def _sandbox_tools_installed(sandbox: SandboxEnvironment) -> bool:
             default exec identity could not be read (see the handler below).
     """
     try:
-        with _without_sandbox_events(sandbox):
+        with without_sandbox_events(sandbox):
             return await _detect_sandbox_tools(sandbox)
     except SandboxDefaultUserError:
         # The install is healthy, so reinjecting cannot fix this, and running the
@@ -196,19 +199,6 @@ async def _tools_user_for(sandbox: SandboxEnvironment) -> str | None:
         f"the tools because the {access.reason}",
         cause=access.error,
     )
-
-
-def _without_sandbox_events(
-    sandbox: SandboxEnvironment,
-) -> AbstractContextManager[None]:
-    """Suppress transcript events for commands run on ``sandbox`` inside the block.
-
-    Only the event-recording proxy that wraps sample sandboxes emits events; any
-    other sandbox object (a provider used directly, or a test fake) needs nothing.
-    """
-    if isinstance(sandbox, SandboxEnvironmentProxy):
-        return sandbox.no_events()
-    return nullcontext()
 
 
 # The tool list must stay in step with the callers of sandbox_with_injected_tools().
