@@ -133,3 +133,15 @@ async def test_anthropic_user_tool_messages() -> None:
         )
     except Exception as ex:
         pytest.fail(f"Exception raised: {ex}")
+
+
+def test_collapsed_message_names_its_sources_and_keeps_its_id():
+    messages = [ChatMessageUser(content=text) for text in ["a", "b", "c"]]
+
+    [first] = collapse_consecutive_user_messages(list(messages))
+    [second] = collapse_consecutive_user_messages(list(messages))
+
+    assert first.metadata is not None
+    assert first.metadata["derived_from"] == [m.id for m in messages]
+    assert first.id == second.id
+    assert first.id not in {m.id for m in messages}

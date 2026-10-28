@@ -903,11 +903,10 @@ class _Driver:
 
     def _message_by_id(self, message_id: str) -> ChatMessage | None:
         if self._messages_by_id is None:
+            # final messages first: a model call's input can hold an edited
+            # copy under the same id (e.g. media moved out of a tool result)
             found: dict[str, ChatMessage] = {}
-            for message in self.pool:
-                if message.id is not None:
-                    found.setdefault(message.id, message)
-            for message in self.messages:
+            for message in [*self.messages, *self.pool]:
                 if message.id is not None:
                     found.setdefault(message.id, message)
             self._messages_by_id = found

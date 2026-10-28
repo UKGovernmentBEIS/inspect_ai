@@ -22,6 +22,7 @@ from inspect_ai._sentinel._integration import (
 )
 from inspect_ai._sentinel._steps import ListView, PoolView
 from inspect_ai._util._async import tg_collect
+from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent import (
     Agent,
@@ -217,31 +218,24 @@ def replayed(log: EvalLog, **kwargs: Any) -> list["ReplayStep"]:
     )
 
 
-# the fields whose messages come from the log's pool, which keeps the first id
-# stored for each content: a message sent again under a new id reads back with
-# the first, and equal messages in one history are one row, so one id and one
-# object (a known difference)
-POOLED = {"input", "history"}
-
-
-def comparable(value: Any, ids: bool = True) -> Any:
-    """A value as data, with message ids left out unless `ids`."""
+def comparable(value: Any) -> Any:
+    """A value as data."""
     if isinstance(value, BaseModel) and hasattr(value, "role"):
         return (
             type(value).__name__,
-            value.model_dump(exclude=None if ids else {"id"}),
+            value.model_dump(),
         )
     if isinstance(value, BaseModel):
         return value.model_dump()
     if dataclasses.is_dataclass(value) and not isinstance(value, type):
         return {
-            f.name: comparable(getattr(value, f.name), ids)
+            f.name: comparable(getattr(value, f.name))
             for f in dataclasses.fields(value)
         }
     if isinstance(value, Sequence) and not isinstance(value, str | bytes):
-        return [comparable(item, ids) for item in value]
+        return [comparable(item) for item in value]
     if isinstance(value, dict):
-        return {key: comparable(item, ids) for key, item in value.items()}
+        return {key: comparable(item) for key, item in value.items()}
     return value
 
 
@@ -307,8 +301,7 @@ def assert_logged_replay_equals_live(
                 continue
             if f.name == "view":
                 ours, theirs = ours.call, theirs.call
-            ids = f.name not in POOLED
-            assert comparable(ours, ids) == comparable(theirs, ids), f"{key} {f.name}"
+            assert comparable(ours) == comparable(theirs), f"{key} {f.name}"
     return replay
 
 
@@ -444,6 +437,19 @@ def test_a_truncated_result_replays_as_it_ran() -> None:
     )
     [after] = [step for step in replay if step.stage == "tool_result"]
     assert isinstance(after.step, AfterToolCall) and after.step.truncated
+
+
+def test_a_media_result_moved_out_of_the_tool_message_replays_as_it_ran() -> None:
+    # mockllm takes no images in tool results, so the model's input holds an
+    # edited copy of the tool message under its id
+    image = ContentImage(image="data:image/png;base64,iVBORw0KGgo=")
+    replay = assert_replay_equals_live(
+        tool_loop(returns([ContentText(text="look"), image])),
+        outputs(call("returns"), done()),
+    )
+    [after] = [step for step in replay if step.stage == "tool_result"]
+    assert isinstance(after.step, AfterToolCall)
+    assert image in after.step.result.content
 
 
 def helper(model: Any) -> Agent:

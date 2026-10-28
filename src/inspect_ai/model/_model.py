@@ -2785,10 +2785,33 @@ def _media_user_message(
     content: list[Content], tool_call_ids: list[str], source_ids: list[str]
 ) -> ChatMessageUser:
     return ChatMessageUser(
+        id=_derived_message_id("media", source_ids),
         content=content,
         tool_call_id=tool_call_ids,
         metadata={"derived_from": source_ids} if source_ids else None,
     )
+
+
+_DERIVED_KINDS = ("media", "combined")
+
+
+def _derived_message_id(kind: str, sources: list[str]) -> str | None:
+    """Id of a message rebuilt from `sources` on every model call.
+
+    The same on every call, so the message is one message across a sample's
+    model events (and one entry in the log's message pool).
+    """
+    return uuid(name=f"inspect-{kind}:{','.join(sources)}") if sources else None
+
+
+def _derived_sources(message: ChatMessage) -> list[str]:
+    """The sources of a message rebuilt on every call, or the message itself."""
+    sources = (message.metadata or {}).get("derived_from")
+    if isinstance(sources, list) and message.id in (
+        _derived_message_id(kind, sources) for kind in _DERIVED_KINDS
+    ):
+        return list(sources)
+    return [message.id] if message.id else []
 
 
 def _make_content_reducer(
@@ -2934,12 +2957,15 @@ def combine_messages(
 
     # track which messages were combined (the anthropic provider reads combined_from)
     merged_metadata["combined_from"] = [a.id, b.id]
-    merged_metadata["derived_from"] = [a.id, b.id]
+    sources = _derived_sources(a) + _derived_sources(b)
+    merged_metadata["derived_from"] = sources
+    id = _derived_message_id("combined", sources)
 
     # type-specific field merging
     if isinstance(a, ChatMessageAssistant) and isinstance(b, ChatMessageAssistant):
         merged_tool_calls = (a.tool_calls or []) + (b.tool_calls or [])
         return ChatMessageAssistant(
+            id=id,
             content=content,
             tool_calls=merged_tool_calls or None,
             model=b.model or a.model,
@@ -2949,6 +2975,7 @@ def combine_messages(
     elif isinstance(a, ChatMessageUser) and isinstance(b, ChatMessageUser):
         merged_tool_call_id = (a.tool_call_id or []) + (b.tool_call_id or [])
         return ChatMessageUser(
+            id=id,
             content=content,
             tool_call_id=merged_tool_call_id or None,
             source=b.source or a.source,
@@ -2956,6 +2983,7 @@ def combine_messages(
         )
     else:
         return message_type(
+            id=id,
             content=content,
             source=b.source or a.source,
             metadata=merged_metadata or None,
