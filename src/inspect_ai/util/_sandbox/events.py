@@ -248,7 +248,7 @@ _no_events_proxies: ContextVar[frozenset[SandboxEnvironmentProxy]] = ContextVar(
 )
 
 
-def _without_sandbox_events(
+def without_sandbox_events(
     sandbox: SandboxEnvironment,
 ) -> contextlib.AbstractContextManager[None]:
     """Suppress transcript events for commands run on ``sandbox`` inside the block.

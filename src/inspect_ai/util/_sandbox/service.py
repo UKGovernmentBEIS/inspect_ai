@@ -29,7 +29,7 @@ from ._framework_directory import (
 )
 from ._privileged import image_path_lookup, privileged_exec
 from .environment import SandboxEnvironment
-from .events import _without_sandbox_events
+from .events import without_sandbox_events
 from .limits import OutputLimitExceededError, override_max_exec_output_size
 
 logger = getLogger(__name__)
@@ -733,7 +733,7 @@ class SandboxService:
         refused, not repaired.
         """
         try:
-            with _without_sandbox_events(self._sandbox):
+            with without_sandbox_events(self._sandbox):
                 as_root = await try_ensure_framework_directory_as_root(
                     self._sandbox,
                     SERVICES_DIR,
@@ -789,7 +789,7 @@ class SandboxService:
 
     # Every command below bypasses the sandbox concurrency limit: services must
     # keep running while sandboxed clients hold exec slots waiting for responses.
-    # None of them is the sample's known work (`untracked_sandbox_execs()`).
+    # Service housekeeping is excluded from the sample's known work.
 
     async def _ensure_dir(
         self,
@@ -800,7 +800,7 @@ class SandboxService:
         mode: int = DEFAULT_MODE,
     ) -> None:
         try:
-            with _without_sandbox_events(self._sandbox):
+            with without_sandbox_events(self._sandbox):
                 await ensure_framework_directory(
                     self._sandbox,
                     path,
@@ -817,7 +817,7 @@ class SandboxService:
         self, dir: str, cmd: list[str], input: str | None = None
     ) -> ExecResult[str]:
         try:
-            with _without_sandbox_events(self._sandbox):
+            with without_sandbox_events(self._sandbox):
                 return await exec_in_framework_directory(
                     self._sandbox,
                     dir,
@@ -846,7 +846,7 @@ class SandboxService:
         user planted on the image's ``PATH``.
         """
         try:
-            with _without_sandbox_events(self._sandbox):
+            with without_sandbox_events(self._sandbox):
                 return await privileged_exec(
                     self._sandbox,
                     cmd,

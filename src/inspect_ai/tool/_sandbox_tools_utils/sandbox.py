@@ -52,7 +52,7 @@ from inspect_ai.util._sandbox.environment import (
 )
 from inspect_ai.util._sandbox.events import (
     SandboxEnvironmentProxy,
-    _without_sandbox_events,
+    without_sandbox_events,
 )
 from inspect_ai.util._sandbox.recon import Architecture, detect_sandbox_os
 from inspect_ai.util._subprocess import ExecResult
@@ -153,7 +153,7 @@ async def _sandbox_tools_installed(sandbox: SandboxEnvironment) -> bool:
             default exec identity could not be read (see the handler below).
     """
     try:
-        with _without_sandbox_events(sandbox):
+        with without_sandbox_events(sandbox):
             return await _detect_sandbox_tools(sandbox)
     except SandboxDefaultUserError:
         # The install is healthy, so reinjecting cannot fix this, and running the
