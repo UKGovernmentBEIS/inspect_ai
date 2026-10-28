@@ -57,7 +57,6 @@ from inspect_ai.model import (
     ChatMessageTool,
     ChatMessageUser,
     GenerateConfig,
-    Model,
     ModelAPI,
     ModelOutput,
     ModelRefusalError,
@@ -66,7 +65,6 @@ from inspect_ai.model import (
     modelapi,
 )
 from inspect_ai.model._call_tools import execute_tools
-from inspect_ai.model._model import GenerateInput, ModelResponseFilter
 from inspect_ai.model._providers.mockllm import MockLLM
 from inspect_ai.scorer import Score, Scorer, Target, scorer
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
@@ -971,9 +969,7 @@ def test_a_custom_memory_tool_replays_its_path_as_given() -> None:
 
 
 @agent
-def r7_runs_a_bridged_host_tool(
-    response_filter: ModelResponseFilter | None = None,
-) -> Agent:
+def r7_runs_a_bridged_host_tool() -> Agent:
     async def execute(state: AgentState) -> AgentState:
         from inspect_ai.agent._bridge.completions import (
             inspect_completions_api_request,
@@ -989,7 +985,6 @@ def r7_runs_a_bridged_host_tool(
             port=8080,
             model=None,
             bridged_tools={"host": {"addition": addition()}},
-            response_filter=response_filter,
         )
         [served] = bridge.served_tools.values()
         # the scaffold declares the tool under its own name, with the
@@ -1024,11 +1019,12 @@ def r7_runs_a_bridged_host_tool(
     return execute
 
 
-def test_a_bridged_host_tool_calls_steps_are_rebuilt() -> None:
+def test_a_bridged_host_tool_calls_steps_are_not_replayed() -> None:
+    seen: dict[str, Step] = {}
     log = run_logged(
         as_solver(r7_runs_a_bridged_host_tool()),
         outputs(call("mcp__host__addition", x=1, y=1)),
-        sentinel=[r7_probe({})],
+        sentinel=[r7_probe(seen)],
     )
     events = logged_sample(log).events
     [turn] = [e for e in events if isinstance(e, ModelEvent)]
@@ -1037,103 +1033,12 @@ def test_a_bridged_host_tool_calls_steps_are_rebuilt() -> None:
     assert ran.metadata is not None and "bridge" in ran.metadata
     assert [c.id for c in turn.output.message.tool_calls or []] == [ran.id]
     assert ran.error is None
-    # the bridge checks the call it hands over and the host tool's result
+    # live checked the call and its result in the bridge
     live = [e.stage for e in events if isinstance(e, SentinelEvent)]
     assert live == ["model_input", "model_output", "tool_call", "tool_result"]
-    assert [step.stage for step in replayed(log)] == live
-
-
-def test_a_bridged_host_tool_calls_steps_replay_as_live() -> None:
-    # the result message the bridge checks a host tool's result as is never
-    # logged, so its id is the one difference
-    replay = assert_replay_equals_live(
-        as_solver(r7_runs_a_bridged_host_tool()),
-        outputs(call("mcp__host__addition", x=1, y=1)),
-        differences=["tool_result.result"],
-    )
-    [after] = [step.step for step in replay if step.stage == "tool_result"]
-    assert isinstance(after, AfterToolCall)
-    # under the call the model made, not the host tool's own name
-    assert (after.result.function, after.result.text) == ("mcp__host__addition", "2")
-
-
-async def r7_copies(
-    model: Model, output: ModelOutput, input: GenerateInput
-) -> ModelOutput | None:
-    return output.model_copy(deep=True)
-
-
-def test_a_copied_bridged_host_calls_steps_replay_with_the_model_calls_input() -> None:
-    # a known difference: live can't tell which generation a response filter's
-    # copy came from, so the steps have no input; the log doesn't record that
-    # the output was copied, so replay gives the model call's
-    seen: dict[str, Step] = {}
-    log = run_logged(
-        as_solver(r7_runs_a_bridged_host_tool(r7_copies)),
-        outputs(call("mcp__host__addition", x=1, y=1)),
-        sentinel=[r7_probe(seen, copies=True)],
-    )
-    sample = logged_sample(log)
-    [turn] = [e for e in sample.events if isinstance(e, ModelEvent)]
-    live = live_steps(sample, seen)
-    replay: dict[tuple[str, str], Step] = {
-        (step.stage, step.id): step.step for step in replayed(log)
-    }
-    tool_steps = [key for key in live if key[0] in ("tool_call", "tool_result")]
-    assert [stage for stage, _ in tool_steps] == ["tool_call", "tool_result"]
-    for key in tool_steps:
-        live_step, replay_step = live[key], replay[key]
-        assert isinstance(live_step, BeforeToolCall | AfterToolCall)
-        assert isinstance(replay_step, BeforeToolCall | AfterToolCall)
-        assert live_step.input is None
-        assert replay_step.input is not None
-        assert comparable(list(replay_step.input), False) == comparable(
-            list(turn.input), False
-        )
-
-
-@pytest.mark.parametrize("returns", ["generation", "regeneration"])
-def test_a_bridged_host_call_two_model_calls_proposed_replays_with_no_input(
-    returns: str,
-) -> None:
-    # the response filter regenerates an equal output, which keeps the call's
-    # id: which generation's output was handed over the log can't tell
-    proposed = call("mcp__host__addition", x=1, y=1)
-
-    async def regenerates(
-        model: Model, output: ModelOutput, input: GenerateInput
-    ) -> ModelOutput | None:
-        regeneration = await model.generate(
-            [ChatMessageSystem(content="Again."), *input.input],
-            tools=input.tools,
-            tool_choice=input.tool_choice,
-            config=input.config,
-        )
-        return regeneration if returns == "regeneration" else None
-
-    seen: dict[str, Step] = {}
-    log = run_logged(
-        as_solver(r7_runs_a_bridged_host_tool(regenerates)),
-        outputs(proposed, proposed.model_copy(deep=True)),
-        sentinel=[r7_probe(seen, copies=True)],
-    )
-    sample = logged_sample(log)
-    generations = [e for e in sample.events if isinstance(e, ModelEvent)]
-    assert len(generations) == 2
-    sent = generations[1 if returns == "regeneration" else 0].input
-    live = live_steps(sample, seen)
-    replay: dict[tuple[str, str], Step] = {
-        (step.stage, step.id): step.step for step in replayed(log)
-    }
-    tool_steps = [key for key in live if key[0] in ("tool_call", "tool_result")]
-    assert [stage for stage, _ in tool_steps] == ["tool_call", "tool_result"]
-    for key in tool_steps:
-        live_step, replay_step = live[key], replay[key]
-        assert isinstance(live_step, BeforeToolCall | AfterToolCall)
-        assert isinstance(replay_step, BeforeToolCall | AfterToolCall)
-        assert live_step.input is not None
-        assert comparable(list(live_step.input), False) == comparable(list(sent), False)
-        assert replay_step.input is None
+    # the log records neither the call's producer nor the result as the bridge
+    # delivered it, so replay skips the tool steps
+    assert [step.stage for step in replayed(log)] == ["model_input", "model_output"]
 
 
 def r7_tool_calls(*calls: ToolCall) -> ModelOutput:
@@ -1318,177 +1223,10 @@ def test_a_bridge_checking_one_call_id_more_than_once_replays(case: str) -> None
     tool_checks = [(stage, id) for stage, id, _ in checks if stage.startswith("tool")]
     # the bridge checked a step under the call id more than once
     assert len(tool_checks) > len(set(tool_checks))
+    # the bridge's tool steps are not replayed, and the log replays
     steps = replayed(log)
     generates = [(stage, id) for stage, id, _ in checks if stage.startswith("model")]
-    if case == "report":
-        # the host call's own steps are rebuilt from its ToolEvent; the check
-        # of the scaffold's report has no event to rebuild it from
-        assert [(step.stage, step.id) for step in steps] == [
-            *generates[:2],
-            ("tool_call", "c1"),
-            ("tool_result", "c1"),
-            *generates[2:],
-        ]
-    else:
-        # the scaffold ran these calls: no event to rebuild their steps from.
-        # With `reused_by_host`, a known difference: the bridge re-issued the
-        # model's reused id to the scaffold, and the host call's ToolEvent
-        # carries that id, which the log does not link to the model's, so its
-        # steps are not rebuilt either
-        assert [(step.stage, step.id) for step in steps] == generates
-
-
-@agent
-def r7_reports_and_runs_host_calls(case: str) -> Agent:
-    """A scaffold whose bridged host calls share one model call id with other checks.
-
-    `report_before_host`: the scaffold reports a result for the proposed host
-    call before running it. `executed_twice`: two bridges each run a host call
-    the model made under the same id, the scaffold reporting each result back.
-    `rejected_then_run`: the sentinel rejects the call, the model proposes it
-    again under the same id, and the scaffold runs it.
-    """
-
-    async def execute(state: AgentState) -> AgentState:
-        from inspect_ai.agent._bridge.completions import (
-            inspect_completions_api_request,
-        )
-        from inspect_ai.agent._bridge.sandbox.service import call_tool
-        from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
-
-        async def run_bridge(report_first: bool) -> None:
-            bridge = SandboxAgentBridge(
-                state=state,
-                filter=None,
-                retry_refusals=None,
-                compaction=None,
-                port=8080,
-                model=None,
-                bridged_tools={"host": {"addition": addition()}},
-            )
-            [served] = bridge.served_tools.values()
-            tools = [
-                {
-                    "type": "function",
-                    "function": {
-                        "name": "mcp__host__addition",
-                        "description": served.description,
-                        "parameters": served.parameters.model_dump(exclude_none=True),
-                    },
-                }
-            ]
-            messages: list[Any] = [{"role": "user", "content": "What is 1 + 1?"}]
-
-            async def request() -> list[Any]:
-                completion = await inspect_completions_api_request(
-                    {"model": "inspect", "messages": messages, "tools": tools},
-                    None,
-                    bridge,
-                )
-                message = completion.choices[0].message
-                messages.append(message.model_dump(exclude_none=True))
-                return message.tool_calls or []
-
-            [proposed] = await request()
-            arguments = json.loads(proposed.function.arguments)
-            if report_first:
-                messages.append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": proposed.id,
-                        "content": "fabricated",
-                    }
-                )
-                await request()
-                await call_tool(bridge)("host", "addition", arguments)
-            else:
-                result = await call_tool(bridge)("host", "addition", arguments)
-                reported = json.dumps([{"type": "text", "text": str(result)}])
-                messages.append(
-                    {"role": "tool", "tool_call_id": proposed.id, "content": reported}
-                )
-                await request()
-
-        if case == "report_before_host":
-            await run_bridge(report_first=True)
-        elif case == "rejected_then_run":
-            await run_bridge(report_first=False)
-        else:
-            await run_bridge(report_first=False)
-            await run_bridge(report_first=False)
-        return state
-
-    return execute
-
-
-@protocol
-def r7_rejects_once() -> Protocol:
-    rejected: list[bool] = []
-
-    async def before(
-        context: Context, step: BeforeToolCall, escalations: Escalations
-    ) -> Decision | None:
-        if rejected:
-            return None
-        rejected.append(True)
-        return Decision.reject("not yet")
-
-    return before
-
-
-@pytest.mark.parametrize(
-    "case", ["report_before_host", "executed_twice", "rejected_then_run"]
-)
-def test_a_host_call_replays_only_the_checks_of_its_own_execution(case: str) -> None:
-    def addition_call(x: int) -> ModelOutput:
-        return r7_tool_calls(
-            ToolCall(
-                id="c1", function="mcp__host__addition", arguments={"x": x, "y": x}
-            )
-        )
-
-    model = outputs(
-        *{
-            "report_before_host": [addition_call(1), done()],
-            "executed_twice": [addition_call(1), done(), addition_call(2), done()],
-            "rejected_then_run": [addition_call(1), addition_call(1), done()],
-        }[case]
-    )
-    seen: dict[str, Step] = {}
-    log = run_logged(
-        as_solver(r7_reports_and_runs_host_calls(case)),
-        model,
-        sentinel=[
-            r7_probe(seen, copies=True),
-            *([r7_rejects_once()] if case == "rejected_then_run" else []),
-        ],
-    )
-
-    def checked(step: Step) -> str | None:
-        return step.result.text if isinstance(step, AfterToolCall) else None
-
-    live = [
-        (event.stage, checked(seen[event.explanation]))
-        for event in logged_sample(log).events
-        if isinstance(event, SentinelEvent)
-        and event.path == "r7_probe"
-        and event.explanation is not None
-    ]
-    replay = [(step.stage, checked(step.step)) for step in replayed(log)]
-    # the host results are where live checked them, and the scaffold's reports
-    # (which have no ToolEvent) are not rebuilt, never taken by a host call
-    host_results = ["4"] if case == "executed_twice" else []
-    host_results = ["2", *host_results]
-    assert [text for stage, text in replay if stage == "tool_result"] == host_results
-    expected = [
-        (stage, text)
-        for stage, text in live
-        if stage != "tool_result" or text in host_results
-    ]
-    if case == "rejected_then_run":
-        # the rejected call never ran: the host call is the one checked again
-        expected.remove(("tool_call", None))
-    assert replay == expected
+    assert [(step.stage, step.id) for step in steps] == generates
 
 
 def run_logged(

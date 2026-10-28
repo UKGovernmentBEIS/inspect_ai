@@ -1006,7 +1006,11 @@ async def test_host_tool_result_is_checked_in_the_service() -> None:
             [
                 ChatMessageUser(content=TASK),
                 output.message,
-                ChatMessageTool(content="host contents", tool_call_id=read.id),
+                ChatMessageTool(
+                    content="host contents",
+                    tool_call_id=read.id,
+                    function=read.function,
+                ),
             ],
             declare_read_file(),
         )
@@ -1401,7 +1405,9 @@ async def test_a_host_call_matching_several_proposals_gets_no_proposal_context()
                 [
                     ChatMessageUser(content=TASK),
                     ChatMessageAssistant(content="On it.", tool_calls=[call]),
-                    ChatMessageTool(content="contents", tool_call_id=call.id),
+                    ChatMessageTool(
+                        content="contents", tool_call_id=call.id, function=call.function
+                    ),
                 ],
                 declare_read_file(),
             )
@@ -2186,6 +2192,97 @@ async def test_a_result_changed_only_in_whitespace_is_checked_again(
     assert len(model.inputs) == 2
 
 
+@protocol
+def terminate_on_a_secret_function() -> Protocol:
+    async def after(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
+        if step.result.function == "secret":
+            return Decision.terminate("blocked function")
+        return None
+
+    return after
+
+
+async def test_a_result_reported_under_another_function_is_checked_again() -> None:
+    # the function a result is reported under reaches the model (Google's
+    # FunctionResponse.name), so a result that changes only it is new
+    model = Scripted(calls_output(READ), calls_output(), calls_output())
+    bridge = in_process_bridge([])
+
+    with active(terminate_on_a_secret_function()):
+        output = await generate(bridge, model, [ChatMessageUser(content=TASK)])
+        with pytest.raises(TerminateSampleError, match="blocked function"):
+            for function in ("read_file", "secret"):
+                await generate(
+                    bridge,
+                    model,
+                    [
+                        ChatMessageUser(content=TASK),
+                        output.message,
+                        ChatMessageTool(
+                            content="x", tool_call_id=READ.id, function=function
+                        ),
+                    ],
+                )
+
+    assert len(model.inputs) == 2
+
+
+async def test_a_google_result_renamed_by_the_scaffold_is_checked_again() -> None:
+    from inspect_ai.agent._bridge.google_api import inspect_google_api_request
+
+    model = Scripted(calls_output(READ), calls_output(), calls_output())
+    bridge = AgentBridge(
+        AgentState(messages=[]), model_aliases={"inspect": model.model}
+    )
+    tools: Any = [
+        {
+            "functionDeclarations": [
+                {
+                    "name": "read_file",
+                    "description": "Read a file.",
+                    "parameters": PATH_SCHEMA,
+                }
+            ]
+        }
+    ]
+    user: Any = {"role": "user", "parts": [{"text": TASK}]}
+
+    with active(terminate_on_a_secret_function()):
+        first: Any = await inspect_google_api_request(
+            {"model": "inspect", "contents": [user], "tools": tools}, None, None, bridge
+        )
+        parts = first["candidates"][0]["content"]["parts"]
+        [function_call] = [p["functionCall"] for p in parts if "functionCall" in p]
+        with pytest.raises(TerminateSampleError, match="blocked function"):
+            for name in ("read_file", "secret"):
+                response: Any = {
+                    "role": "user",
+                    "parts": [
+                        {
+                            "functionResponse": {
+                                "id": function_call.get("id"),
+                                "name": name,
+                                "response": {"output": "x"},
+                            }
+                        }
+                    ],
+                }
+                await inspect_google_api_request(
+                    {
+                        "model": "inspect",
+                        "contents": [user, {"role": "model", "parts": parts}, response],
+                        "tools": tools,
+                    },
+                    None,
+                    None,
+                    bridge,
+                )
+
+    assert len(model.inputs) == 2
+
+
 async def test_a_result_whose_text_moved_across_an_image_is_checked_again() -> None:
     seen: Steps = []
     model = Scripted(calls_output(READ), calls_output(), calls_output())
@@ -2768,7 +2865,11 @@ async def test_a_host_result_reported_during_its_check_is_checked_once() -> None
                     [
                         *history,
                         output.message,
-                        ChatMessageTool(content="contents", tool_call_id=call.id),
+                        ChatMessageTool(
+                            content="contents",
+                            tool_call_id=call.id,
+                            function=call.function,
+                        ),
                     ],
                     declare_read_file(),
                 )
@@ -3976,7 +4077,9 @@ async def test_a_host_result_changed_in_a_later_request_is_checked() -> None:
         delivered = [
             *history,
             one.message,
-            ChatMessageTool(content="benign", tool_call_id=call.id),
+            ChatMessageTool(
+                content="benign", tool_call_id=call.id, function=call.function
+            ),
         ]
         await generate(bridge, model, delivered, declare_read_file())
         assert len(seen) == 1
@@ -3988,7 +4091,9 @@ async def test_a_host_result_changed_in_a_later_request_is_checked() -> None:
                     *delivered,
                     ChatMessageUser(content="Again."),
                     one.message,
-                    ChatMessageTool(content="secret", tool_call_id=call.id),
+                    ChatMessageTool(
+                        content="secret", tool_call_id=call.id, function=call.function
+                    ),
                 ],
                 declare_read_file(),
             )

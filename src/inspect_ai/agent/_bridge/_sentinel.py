@@ -354,12 +354,14 @@ def _json_canonical(value: Any) -> Any:
 
 
 def _content_key(result: ChatMessageTool) -> str:
-    """A result as the model receives it: its content, in order and exactly, and its error.
+    """A result as the model receives it: its function, its content, in order and exactly, and its error.
 
     Whitespace and the order of text and other parts are meaningful (in code,
     paths and instructions), so any difference is a different result, checked
-    again. Fields that never reach a model (`internal`) are left out; a string
-    and a single text part are the same content.
+    again; so is the function it is reported under, which a provider can send
+    the model (Google's `FunctionResponse.name`). Fields that never reach a
+    model (`internal`) are left out; a string and a single text part are the
+    same content.
     """
     content = (
         [ContentText(text=result.content)]
@@ -373,7 +375,11 @@ def _content_key(result: ChatMessageTool) -> str:
         [result.error.type, result.error.message] if result.error is not None else None
     )
     return mm3_hash(
-        json.dumps(to_jsonable_python([parts, error], fallback=str), sort_keys=True)
+        json.dumps(
+            # a provider sends no function as an empty name
+            to_jsonable_python([result.function or "", parts, error], fallback=str),
+            sort_keys=True,
+        )
     )
 
 
@@ -474,16 +480,18 @@ async def sentinel_host_tool_result(
         function=check.call.function,
         error=error,
     )
-    content_key = _content_key(result)
     executions = candidates or ([check] if check.token is not None else [])
-    keys = [
-        key
-        for execution in executions
-        for key in [
+    keys: list[str] = []
+    for execution in executions:
+        # as the scaffold reports it: under the function it was handed
+        content_key = _content_key(
+            result.model_copy(update={"function": execution.handed.function})
+        )
+        keys += [
             mm3_hash(f"token:{execution.token}:{content_key}"),
             mm3_hash(f"call:{_call_key(execution.handed)}:{content_key}"),
         ]
-    ] or [f"unproposed:{uuid()}"]
+    keys = keys or [f"unproposed:{uuid()}"]
     with bridge_request():
         await _result_checks(bridge).check_running(
             bridge, _Result(keys, check, result), output, truncated

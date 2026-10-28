@@ -81,7 +81,7 @@ def steps_from_events(
 
     Every step's `agent_messages` is None: the log does not record the agent's own messages, and model input can hold messages the agent kept out of them.
 
-    The tool steps of an agent bridge's calls are rebuilt only for the calls a sandbox bridge ran on the host, which have a `ToolEvent`: a call the bridged scaffold ran itself, and a bridge's further check of a result the scaffold reported (a host result reported again, changed, or a check cancelled and run again), leave no event to rebuild a step from, and replay skips them, recorded or not. So does a host call whose model call id the model had used before: the bridge hands the scaffold a new id for it, which its `ToolEvent` carries and the log does not link to the model's. A call a sandbox bridge ran on the host (`ToolEvent.metadata["bridge"]`) differs from live in two cases, as the log does not record which model call's output the bridge handed over. A response filter that returns a copy of the model's output: live gives the call's tool steps no input, as the bridge cannot tell which generation produced it; replay gives them the model call's input. A call more than one model call proposed (a response filter that regenerates an equal output, which keeps the call's id): replay gives the steps no input, while live gives the input of the generation whose output was handed over.
+    The tool steps of an agent bridge's calls are not rebuilt, recorded or not: a call the bridged scaffold ran itself leaves no `ToolEvent`, and for a call a sandbox bridge ran on the host (`ToolEvent.metadata["bridge"]`) the log records neither which model call produced it (the bridge can hand over a response filter's output, or one of several generations under one call id) nor its result as the bridge's service delivered it (the error text a scaffold received, for one). Replay skips these steps until the log records which message made each call.
 
     Args:
         messages: The sample's messages (`EvalSample.messages`).
@@ -382,8 +382,6 @@ class _Driver:
         candidates: dict[str, list[str]] = {}
         turn_ids: set[str | None] = set()
         produced: dict[str, tuple[ChatMessageAssistant, ModelEvent, ToolCall]] = {}
-        # how many model calls proposed each call id
-        proposals: dict[str, int] = {}
         approvals: dict[str, ApprovalEvent] = {}
         calls: list[_Call] = []
 
@@ -410,7 +408,6 @@ class _Driver:
                     message = event.output.choices[0].message
                     for tool_call in message.tool_calls or []:
                         produced[tool_call.id] = (message, event, tool_call)
-                        proposals[tool_call.id] = proposals.get(tool_call.id, 0) + 1
                 if not is_agent_turn(event.origin):
                     continue
                 turn_ids.add(event.uuid)
@@ -449,10 +446,6 @@ class _Driver:
                 proposal: ToolCall | None
                 if found is not None:
                     assistant, producer, proposal = found
-                    if _bridged(event) and proposals[event.id] > 1:
-                        # a bridge hands over one generation's output, and the
-                        # log can't tell which of these it was
-                        producer = None
                 else:
                     assistant, proposal = self._assistant(event.id)
                 conversation = (
@@ -688,8 +681,12 @@ class _Driver:
 
     def _tool_call(self, call: _Call) -> None:
         event = call.event
-        before_span = self._tool_span_of(("tool_call", event.id), call)
-        after_span = self._tool_span_of(("tool_result", event.id), call)
+        if _bridged(event):
+            # which model call produced a sandbox bridge's host call, and the
+            # result as its service delivered it, are not in the log
+            return
+        before_span = self._tool_span_of(("tool_call", event.id))
+        after_span = self._tool_span_of(("tool_result", event.id))
         tool_span = call.tool_span
         proposal = call.proposal
         approval = call.approval
@@ -768,9 +765,7 @@ class _Driver:
                 agent_messages=None,
                 record=self._record(conversation),
             )
-            self._built(
-                event.id, "tool_call", step, before_span, unique=not _bridged(event)
-            )
+            self._built(event.id, "tool_call", step, before_span)
 
         begin = self.begins[tool_span][0] if tool_span else call.index
         self._at_point(self._cut(before_span, (begin, 1)), call.seq, build_before)
@@ -779,17 +774,11 @@ class _Driver:
             return
 
         after_call = modify if modify is not None else before_call
-        # a sandbox bridge records the host tool's own name; its result is
-        # checked under the call the model made
-        bridged = _bridged(event)
         after_call = replace(
-            after_call,
-            id=event.id,
-            function=after_call.function if bridged else event.function,
-            arguments=event.arguments,
+            after_call, id=event.id, function=event.function, arguments=event.arguments
         )
         truncated = self._truncated(event)
-        result = self._result(event, after_call.function)
+        result = self._result(event)
 
         def build_after() -> None:
             step = after_tool_call(
@@ -805,51 +794,29 @@ class _Driver:
                 agent_messages=None,
                 record=self._record(conversation),
             )
-            self._built(
-                event.id, "tool_result", step, after_span, unique=not _bridged(event)
-            )
+            self._built(event.id, "tool_result", step, after_span)
 
         end = self.ends.get(tool_span) if tool_span is not None else None
         after_cut = self._cut(after_span, (end if end is not None else call.index, 3))
         self._at_point(after_cut, call.seq + 2, build_after)
         self._settle_at_end(after_span)
 
-    def _tool_span_of(self, key: tuple[SentinelStage, str], call: _Call) -> str | None:
-        """The sentinel span of this call's step, which no other call has taken.
+    def _tool_span_of(self, key: tuple[SentinelStage, str]) -> str | None:
+        """The first sentinel span with this tool step id no call has taken.
 
-        A native call takes the steps recorded under its id in log order. A
-        sandbox bridge's host call takes only checks of its own execution: its
-        `tool_call` check is the latest before its `ToolEvent` (the bridge
-        checks a call before handing the response over, and an earlier check
-        under the id can be of a call it rejected), and its `tool_result` check
-        the first after its `tool` span ends (the bridge checks the result once
-        the call has run). A span no `ToolEvent` takes is a bridge's check of a
-        result the scaffold reported, which replay does not rebuild.
+        A call takes the steps recorded under its id in log order. A span no
+        call takes is an agent bridge's check (a call the bridged scaffold ran,
+        a host call, or a check of a result the scaffold reported), which replay
+        does not rebuild.
         """
         spans = self.tool_spans.get(key)
-        if not spans:
-            return None
-        if not _bridged(call.event):
-            return spans.pop(0)
-        if key[0] == "tool_call":
-            before = [span for span in spans if self.begins[span][0] < call.index]
-            span = before[-1] if before else None
-        else:
-            end = self.ends.get(call.tool_span) if call.tool_span else None
-            ran = end if end is not None else call.index
-            after = [span for span in spans if self.begins[span][0] > ran]
-            span = after[0] if after else None
-        if span is not None:
-            spans.remove(span)
-        return span
+        return spans.pop(0) if spans else None
 
     def _checks_tool_calls(self, event: ToolEvent, producer: ModelEvent | None) -> bool:
         """Whether live checked the calls a model call produced, inferred from the region the model call was made in.
 
-        Live decides by the region that runs the call (`checks_tool_calls()` in `call_tool`), which the log does not record, so a call run in a region other than the one its producer was made in is replayed by its producer's. A call no model call produced (a pre-filled message) is taken as checked. A call a sandbox bridge ran on the host (`metadata["bridge"]`) is not, unless its steps were recorded: live checks it in the bridge, where it may also have been rejected before it ran or checked with no input, which the log alone cannot tell.
+        Live decides by the region that runs the call (`checks_tool_calls()` in `call_tool`), which the log does not record, so a call run in a region other than the one its producer was made in is replayed by its producer's. A call no model call produced (a pre-filled message) is taken as checked.
         """
-        if _bridged(event):
-            return False
         return producer is None or producer.origin in _NON_FINAL
 
     # ---- effects of the second pass
@@ -868,14 +835,10 @@ class _Driver:
         stage: SentinelStage,
         step: "Step",
         span: str | None,
-        *,
-        unique: bool = True,
     ) -> None:
         from inspect_sentinel import ReplayStep
 
-        # a host call's id is the model's, which agent bridges in one sample
-        # can each hand over, as live checked them; any other step id is unique
-        if unique and (stage, step_id) in self.ids:
+        if (stage, step_id) in self.ids:
             raise MalformedLogError(f"Two {stage} steps have the step id {step_id!r}.")
         self.ids.add((stage, step_id))
         answers: dict[str, "HumanAnswer"] = {}
@@ -948,7 +911,7 @@ class _Driver:
             return Truncation(*event.truncated)
         return False if _records_truncation(self.eval_info.inspect_ai_version) else None
 
-    def _result(self, event: ToolEvent, function: str | None = None) -> ChatMessageTool:
+    def _result(self, event: ToolEvent) -> ChatMessageTool:
         if event.message_id is not None:
             found = self._message_by_id(event.message_id)
             if isinstance(found, ChatMessageTool):
@@ -957,7 +920,7 @@ class _Driver:
             id=event.message_id,
             content=cast(str | list[Content], event.result),
             tool_call_id=event.id,
-            function=function if function is not None else event.function,
+            function=event.function,
             error=event.error,
         )
 
