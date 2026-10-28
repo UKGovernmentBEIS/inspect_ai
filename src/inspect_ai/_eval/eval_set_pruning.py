@@ -280,13 +280,11 @@ def ensure_constructed(task: Task) -> None:
     """
     if is_placeholder(task):
         raise RuntimeError(
-            f"Task '{task.name}' was skipped by eval-set selection pruning "
-            f"({INSPECT_EVAL_SET_SELECTION}) in this process, so it was never built "
-            "and has no samples, solver or scorer to run. Tasks added at runtime "
-            "must be built at runtime: call the "
-            "@task function inside the running task and pass the result to "
-            f"enqueue_task(). Or set {INSPECT_EVAL_SET_NO_PRUNE}=1 to turn "
-            "pruning off."
+            f"Task '{task.name}' was skipped by eval-set selection pruning in this "
+            "process, so it has no samples, solver or scorer. Tasks added at "
+            "runtime must be built at runtime: call the @task function inside the "
+            "running task and pass the result to enqueue_task(), or set "
+            f"{INSPECT_EVAL_SET_NO_PRUNE}=1."
         )
 
 

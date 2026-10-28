@@ -431,9 +431,7 @@ def prebuilt_adapted_follow_up() -> list[Task]:
     return [prune_prebuilt_enqueuer(), prune_two()]
 
 
-PRUNED = (
-    "skipped by eval-set selection pruning (INSPECT_EVAL_SET_SELECTION) in this process"
-)
+PRUNED = "skipped by eval-set selection pruning in this process"
 """The part of the placeholder error that every route to it shares."""
 
 
