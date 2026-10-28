@@ -19,7 +19,7 @@ from typing import Any
 
 import pytest
 
-from inspect_ai import Task, enqueue_task, eval_set, task
+from inspect_ai import Task, enqueue_task, eval, eval_set, task
 from inspect_ai._eval.eval_set_manifest import (
     INSPECT_EVAL_SET_CAPTURE,
     EvalSetCapture,
@@ -28,6 +28,7 @@ from inspect_ai._eval.eval_set_manifest import (
 from inspect_ai._eval.eval_set_pruning import (
     INSPECT_EVAL_SET_NO_PRUNE,
     is_placeholder,
+    materialize_pruned,
     reset_pruning,
 )
 from inspect_ai._eval.eval_set_selection import (
@@ -36,6 +37,7 @@ from inspect_ai._eval.eval_set_selection import (
     EvalSetSelection,
     EvalSetSelectionTask,
 )
+from inspect_ai._eval.task import PreviousTask
 from inspect_ai.dataset import Sample
 from inspect_ai.log import read_eval_log
 from inspect_ai.scorer import exact
@@ -146,6 +148,28 @@ def prune_enqueuer() -> Task:
     return Task(
         dataset=[Sample(input="1+1", target="2")],
         solver=[enqueue_prune_enqueued()],
+    )
+
+
+PREBUILT: dict[str, Task] = {}
+"""The task `prune_prebuilt_enqueuer` enqueues, which the test's definition builds before calling `eval_set()`."""
+
+
+@solver
+def enqueue_prebuilt() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        enqueue_task(PREBUILT["task"])
+        return state
+
+    return solve
+
+
+@task
+def prune_prebuilt_enqueuer() -> Task:
+    CONSTRUCTED.append("prune_prebuilt_enqueuer")
+    return Task(
+        dataset=[Sample(input="1+1", target="2")],
+        solver=[enqueue_prebuilt()],
     )
 
 
@@ -378,6 +402,142 @@ def test_a_task_enqueued_by_a_running_task_is_not_pruned(
 
     # nor is a task the definition builds after eval_set() returns
     assert not is_placeholder(prune_two())
+
+
+def prebuilt_follow_up() -> list[Task]:
+    PREBUILT["task"] = prune_enqueued()
+    return [prune_prebuilt_enqueuer(), prune_two()]
+
+
+def prebuilt_unselected_entry() -> list[Task]:
+    tasks = [prune_prebuilt_enqueuer(), prune_enqueued()]
+    PREBUILT["task"] = tasks[1]
+    return tasks
+
+
+@pytest.mark.parametrize(
+    "build_tasks",
+    [prebuilt_follow_up, prebuilt_unselected_entry],
+    ids=["follow_up_built_before_eval_set", "unselected_eval_set_entry"],
+)
+def test_a_placeholder_enqueued_by_a_running_task_is_built(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    build_tasks: Callable[[], list[Task]],
+) -> None:
+    """A task pruned before the selection is resolved still runs for real when enqueued.
+
+    The definition builds `prune_enqueued` while pruning is active and a running
+    solver later enqueues that object, so what reaches `enqueue_task()` is
+    already a placeholder: either a follow-up the definition builds up front,
+    or one of the eval set's own unselected entries.
+    """
+    manifest = capture(monkeypatch, tmp_path, build_tasks)
+
+    success, logs = run(
+        monkeypatch,
+        tmp_path,
+        selection_naming(manifest, "prune_prebuilt_enqueuer"),
+        build_tasks=build_tasks,
+    )
+
+    assert success
+    assert CONSTRUCTED == ["prune_prebuilt_enqueuer", "prune_enqueued"]
+    by_task = {log.eval.task: log for log in logs}
+    assert sorted(by_task) == ["prune_enqueued", "prune_prebuilt_enqueuer"]
+    child = read_eval_log(by_task["prune_enqueued"].location)
+    assert child.samples is not None
+    assert [sample.input for sample in child.samples] == ["hello"]
+    assert child.samples[0].scores is not None
+    assert child.samples[0].scores["exact"].value == "C"
+
+
+def test_an_enqueued_placeholder_fails_the_enqueue_call(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """With materialization bypassed, the placeholder fails the `enqueue_task()` call instead of running.
+
+    The error surfaces as the enqueuing sample's error, and no log is written for the placeholder.
+    """
+    manifest = capture(monkeypatch, tmp_path, prebuilt_follow_up)
+    monkeypatch.setattr("inspect_ai._eval.eval.materialize_pruned", lambda tasks: tasks)
+
+    _, logs = run(
+        monkeypatch,
+        tmp_path,
+        selection_naming(manifest, "prune_prebuilt_enqueuer"),
+        build_tasks=prebuilt_follow_up,
+    )
+
+    assert [log.eval.task for log in logs] == ["prune_prebuilt_enqueuer"]
+    parent = read_eval_log(logs[0].location)
+    assert parent.samples is not None
+    error = parent.samples[0].error
+    assert error is not None
+    assert "never constructed" in error.message
+    assert "prune_enqueued" not in CONSTRUCTED
+
+
+def test_a_previous_task_wrapping_a_placeholder_is_materialized(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A `PreviousTask` resolves from the `Task` it wraps, so that is what gets built."""
+    manifest = capture(monkeypatch, tmp_path)
+    built: list[Task] = []
+
+    def build_tasks() -> list[Task]:
+        built.extend(three_tasks())
+        return built
+
+    _, logs = run(
+        monkeypatch,
+        tmp_path,
+        selection_naming(manifest, "prune_one"),
+        build_tasks=build_tasks,
+    )
+    placeholder = built[1]
+    assert is_placeholder(placeholder)
+    previous = PreviousTask(
+        id="previous",
+        task=placeholder,
+        task_args={},
+        model=None,
+        model_roles=None,
+        sandbox=None,
+        log=logs[0],
+        log_info=None,
+    )
+
+    [materialized] = materialize_pruned([previous])
+
+    assert isinstance(materialized, PreviousTask)
+    assert isinstance(materialized.task, Task)
+    assert not is_placeholder(materialized.task)
+    assert materialized.log is previous.log
+    assert CONSTRUCTED[-1] == "prune_two"
+
+
+def test_a_placeholder_that_reaches_eval_fails_loudly(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Running a placeholder would report success for a body that never ran, so it is refused."""
+    manifest = capture(monkeypatch, tmp_path)
+    selection = tmp_path / "selection.json"
+    selection.write_text(selection_naming(manifest, "prune_one").model_dump_json())
+    monkeypatch.setenv(INSPECT_EVAL_SET_SELECTION, str(selection))
+    CONSTRUCTED.clear()
+    placeholder = prune_two()
+    monkeypatch.delenv(INSPECT_EVAL_SET_SELECTION)
+    assert is_placeholder(placeholder)
+
+    with pytest.raises(RuntimeError, match="never constructed"):
+        eval(
+            placeholder,
+            model=MODEL,
+            log_dir=str(tmp_path / "logs"),
+            display="none",
+        )
+    assert "prune_two" not in CONSTRUCTED
 
 
 @pytest.mark.parametrize(

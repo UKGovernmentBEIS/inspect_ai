@@ -115,6 +115,7 @@ from inspect_ai.util._limit import TokenLimit, token_limit_fields
 from inspect_ai.util._notify import build_apprise, init_apprise
 
 from .context import init_eval_context
+from .eval_set_pruning import ensure_constructed, materialize_pruned
 from .loader import resolve_task_file_sandbox, resolve_task_source, resolve_tasks
 from .run import TaskInjection, eval_run
 from .task import Epochs, PreviousTask, Task, TaskSource
@@ -1305,7 +1306,12 @@ def _resolve_enqueued_tasks(
     sandbox, then handed to the :class:`TaskEnqueuer` so additions resolve
     consistently with the run. Raises ``ValueError`` if the tasks can't be
     resolved.
+
+    A task pruned to a placeholder in eval-set selection mode is built for real
+    here: it was added to run, and an added task never passes the selection
+    boundary that drops placeholders (see ``eval_set_pruning.py``).
     """
+    tasks = materialize_pruned(tasks)
 
     def resolve() -> list[ResolvedTask]:
         resolved_roles = resolve_model_roles(model_roles)
@@ -1340,6 +1346,10 @@ def _resolve_enqueued_tasks(
     ]
     if not resolved:
         raise ValueError("No tasks to enqueue (resolution produced none).")
+    # raised here, at the `enqueue_task()` call, rather than when the batch
+    # starts, where it would end the whole run
+    for resolved_task in resolved:
+        ensure_constructed(resolved_task.task)
     resolve_model_costs(resolved, cost_limit)
     return resolved
 
