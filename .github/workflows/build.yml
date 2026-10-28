@@ -119,13 +119,11 @@ jobs:
         if: ${{ !cancelled() && (github.event_name != 'pull_request' || steps.filter.outputs.code == 'true') }}
         run: uv cache prune --ci
 
-  # No project install: every hook in .pre-commit-config.yaml comes from a
-  # remote repo and runs in an environment pre-commit builds itself (the
-  # uv-lock hook brings its own uv), so nothing here reads the inspect_ai
-  # package. The checkout is shallow because nothing here consumes a
-  # setuptools_scm version either: the uv-lock hook does build root metadata,
-  # but uv.lock records this project as a versionless editable root, so the
-  # tagless fallback version a shallow clone yields never reaches the file.
+  # Every hook in .pre-commit-config.yaml runs a tool from the project
+  # environment, so pre-commit and the tools come from uv.lock and pre-commit
+  # builds no environments of its own. The uv-lock hook runs this job's uv.
+  # The checkout is shallow because nothing here needs a release version:
+  # uv.lock records this project as a versionless editable root.
   pre-commit:
     runs-on: ubuntu-latest
     env:
@@ -133,12 +131,21 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Set up Python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      - name: Install uv
+        uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa # v10.3.1
         with:
+          version: ${{ env.UV_VERSION }}
           python-version: "3.11"
 
-      - uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Run pre-commit
+        run: uv run --no-sync pre-commit run --show-diff-on-failure --color=always --all-files
+
+      - name: Minimize uv cache
+        if: ${{ !cancelled() }}
+        run: uv cache prune --ci
 
   # Detect which areas changed so conditional jobs (docs, sandbox-tools-unit)
   # can be skipped. A skipped job-level `if` still reports a (non-blocking)
