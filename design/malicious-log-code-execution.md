@@ -99,12 +99,14 @@ and rescoring with the user's scorers, rebuild them under the
 
 ### Score keys are registry names
 
-`eval_results()` builds a `ScorerInfo` for every sample score key that no
-known scorer produced, which in recompute and recovery is every key, since
-those build their `SampleScore`s without `scorer=`. `ScorerInfo.from_name()`
-resolves the key only through `scorer_from_registry()` in `loader.py`
-(a registered `@scorer` or `@scanner` by name; no path parsing, no file
-loading). Any exception from it gives the default metrics (`accuracy`,
+`eval_results()` builds a `ScorerInfo` with `ScorerInfo.from_name()` for each
+sample score key that has no `SampleScore.scorer` and is not among the
+resolved scorer names. In recompute and recovery the `SampleScore`s carry no
+`scorer=`, so a key that matches a scorer in `eval.scorers` uses that
+scorer's rebuilt metrics and options, and every other key, which is any key
+the log invents, takes this fallback. `ScorerInfo.from_name()` resolves the
+key only through `scorer_from_registry()` in `loader.py` (a registered
+`@scorer` or `@scanner` by name; no path parsing, no file loading). Any exception from it gives the default metrics (`accuracy`,
 `stderr`). The catch is broad on purpose: live final, cancellation and display
 aggregation and the control server's interim scoring also reach it, and a
 solver-written score keyed by a registered scorer that needs arguments
@@ -141,22 +143,25 @@ The tracker's fields:
 - `dependency_advice`: advice appended to the error for an unregistered object
   nested in metric options.
 
-With `trust_log=True` and `import_task_file`:
+Options and imports are decided separately:
 
-- `ensure_metrics_registered()` runs before anything is built. If any metric
+- **Options.** With `trust_log=True` metric options are rebuilt with no
+  restriction, whatever `import_task_file` says (rescoring with the log's own
+  scorers relies on this). With `trust_log=False` they are rebuilt under the
+  allow-list.
+- **Imports.** Only with `trust_log=True` and `import_task_file`,
+  `ensure_metrics_registered()` runs before anything is built. If any metric
   name, including metric registry dicts nested in options, is not registered,
   it imports `Path(task_file).absolute()` with `load_file_tasks()` (if the
   file exists), once per tracker, and logs at `INFO`:
   `Imported task file /abs/path/evals/task.py (recorded in the log) to load metric 'my_metric'.`
-  Nothing prints it; the caller asked for the import.
-- A metric still missing raises the missing-metric error below, without the
-  opt-in sentence.
-- Metric options are rebuilt with no restriction.
+  Nothing prints it; the caller asked for the import. A metric still missing
+  then raises the missing-metric error below. In every other combination
+  nothing is imported, and metrics are found missing as they are built, in
+  order.
 
-Otherwise nothing is imported, metrics are found missing as they are built,
-in order, and options are rebuilt under the allow-list. A missing metric
-raises `RegistryNameNotFound` (a `LookupError`, so callers that catch the
-registry's error keep working):
+A missing metric raises `RegistryNameNotFound` (a `LookupError`, so callers
+that catch the registry's error keep working):
 
 ```
 Metric 'my_metric' (used by scorer 'my_scorer') is not registered. If it is
@@ -168,7 +173,8 @@ you trust.
 
 For a task-level metric the parenthesis reads "(a task-level metric)". With no
 task file the middle sentence reads "Install or import the module that
-defines it first." The last sentence is the tracker's `opt_in`:
+defines it first." The last sentence, present only when the tracker does
+not trust the log, is its `opt_in`:
 
 - `TRUST_LOG_OPT_IN` (above) for `recompute_metrics()`, `edit_score()` and
   direct recovery.
