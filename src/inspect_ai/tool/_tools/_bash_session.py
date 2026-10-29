@@ -1,4 +1,4 @@
-from typing import Annotated, Literal, NoReturn
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Discriminator, Field, RootModel
 
@@ -11,6 +11,8 @@ from inspect_ai.tool._sandbox_tools_utils.sandbox import sandbox_with_injected_t
 from inspect_ai.util import StoreModel, store_as
 from inspect_ai.util._sandbox._cli import SANDBOX_CLI, tools_user_param
 from inspect_ai.util._sandbox._json_rpc_transport import SandboxJSONRPCTransport
+from inspect_ai.util._sandbox.context import sandbox_environments_context_var
+from inspect_ai.util._sandbox.environment import SandboxEnvironment
 from inspect_ai.util._sandbox.identity import (
     SandboxIdentityError,
     SandboxIdentityScope,
@@ -209,12 +211,8 @@ def bash_session(
         sandbox = await sandbox_with_injected_tools()
         session_user = sandbox_identity_user(sandbox, user, strict=True)
         scope = sandbox_identity_scope(sandbox)
-        if (
-            store.session_id
-            and scope is not None
-            and (store.identity, store.identity_sandbox) != (scope.user, scope.sandbox)
-        ):
-            _raise_shared_session(resolved_instance, store, scope)
+        if store.session_id:
+            _check_shared_session(resolved_instance, store, sandbox, scope)
 
         # Create transport for all RPC calls
         transport = SandboxJSONRPCTransport(sandbox, SANDBOX_CLI)
@@ -277,16 +275,35 @@ def bash_session(
     return execute
 
 
-def _raise_shared_session(
-    instance: str | None, store: BashSessionStore, scope: SandboxIdentityScope
-) -> NoReturn:
+def _check_shared_session(
+    instance: str | None,
+    store: BashSessionStore,
+    sandbox: SandboxEnvironment,
+    scope: SandboxIdentityScope | None,
+) -> None:
+    """Refuse a saved shell created under another sandbox identity.
+
+    A shell created in a scope stays bound to its sandbox after the scope ends:
+    the session name is only meaningful on the server that created it.
+    """
     owner = (
         f"was created as '{store.identity}' in sandbox '{store.identity_sandbox}'"
         if store.identity is not None
         else "was created outside a sandbox identity scope"
     )
-    raise SandboxIdentityError(
-        f"bash_session instance '{instance or 'default'}' {owner}, so it cannot be "
-        f"used inside the sandbox identity scope for '{scope.user}' in sandbox "
-        f"'{scope.sandbox}'. A shell cannot be shared between sandbox identities."
-    )
+    if scope is not None:
+        if (store.identity, store.identity_sandbox) != (scope.user, scope.sandbox):
+            raise SandboxIdentityError(
+                f"bash_session instance '{instance or 'default'}' {owner}, so it "
+                f"cannot be used inside the sandbox identity scope for "
+                f"'{scope.user}' in sandbox '{scope.sandbox}'. A shell cannot be "
+                "shared between sandbox identities."
+            )
+    elif store.identity_sandbox is not None and (
+        sandbox_environments_context_var.get({}).get(store.identity_sandbox)
+        is not sandbox
+    ):
+        raise SandboxIdentityError(
+            f"bash_session instance '{instance or 'default'}' {owner}, so it "
+            "cannot be used in another sandbox."
+        )

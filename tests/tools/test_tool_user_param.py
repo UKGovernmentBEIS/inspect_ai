@@ -399,3 +399,47 @@ async def test_bash_session_cannot_move_to_another_sandbox(
         "bash_session",
         "bash_session",
     ]
+
+
+async def test_bash_session_keeps_its_sandbox_after_the_scope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai.util._sandbox.context import (
+        SandboxInjectable,
+        sandbox_with_injection,
+    )
+    from inspect_ai.util._store import Store, init_subtask_store
+
+    init_subtask_store(Store())
+    # every new session is named "s", as the first shell in each sandbox would be
+    calls = _patch_module(monkeypatch, bash_session_module)
+
+    async def injected(_sandbox: SandboxEnvironment) -> bool:
+        return True
+
+    async def never_inject(_sandbox: SandboxEnvironment) -> None:
+        raise AssertionError("both sandboxes already have the tools")
+
+    async def select_sandbox(**_kwargs: Any) -> SandboxEnvironment:
+        return await sandbox_with_injection(SandboxInjectable(injected, never_inject))
+
+    monkeypatch.setattr(
+        bash_session_module, "sandbox_with_injected_tools", select_sandbox
+    )
+    a, b = FakeSandbox(), FakeSandbox()
+    team = bash_session_module.bash_session(instance="team")
+    with _environments(a=cast(SandboxEnvironment, a), b=cast(SandboxEnvironment, b)):
+        await bash_session_module.bash_session(instance="unscoped")(action="read")
+        with sandbox_identity("w-1", sandbox="b"):
+            await team(action="read")
+        with pytest.raises(SandboxIdentityError, match="cannot be used in another"):
+            await team(action="read")
+        with sandbox_identity("w-1", sandbox="b"):
+            await team(action="read")
+    assert [call["method"] for call in calls] == [
+        "bash_session_new_session",
+        "bash_session",
+        "bash_session_new_session",
+        "bash_session",
+        "bash_session",
+    ]
