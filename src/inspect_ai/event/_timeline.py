@@ -1895,7 +1895,10 @@ def _wrap_utility_events(
     With `turns` (replay's log driver only: `_continuity`), where calls
     record no ``origin`` and one of a conversation's calls continues another,
     the continuity rule decides which of its calls are turns in place of the
-    prompt rules (``_Continuity``); warm-ups stay utility.
+    prompt rules (``_Continuity``); warm-ups stay utility. The prompt rules
+    then take each conversation's primary prompt apart, as continuity does,
+    so a solver's call beside the one agent span the timeline merges it into
+    is not judged by that agent's prompt.
 
     Operates recursively on the entire span tree.
 
@@ -1906,12 +1909,24 @@ def _wrap_utility_events(
     """
     # The primary prompt comes only from a tool-calling ModelEvent: without
     # an agentic loop there is no primary trajectory (see docstring).
-    primary_prompt: str | None = None
+    by_conversation = turns is not None
+
+    def conversation(event: ModelEvent) -> object:
+        if not by_conversation:
+            return None
+        given = inputs.given(event)
+        return ("given", given) if given is not None else inputs.conversation(event)
+
+    primary_prompts: dict[object, str | None] = {}
     for item in agent.content:
         if isinstance(item, TimelineEvent) and isinstance(item.event, ModelEvent):
             if _has_tool_calls(item.event) and _may_be_turn(item.event, inputs):
-                primary_prompt = _get_system_prompt_for_event(item.event, inputs)
-                break
+                primary_prompts.setdefault(
+                    conversation(item.event),
+                    _get_system_prompt_for_event(item.event, inputs),
+                )
+                if not by_conversation:
+                    break
 
     def utility_wrapper(item: TimelineEvent, index: int) -> TimelineSpan:
         # Fall back to a position-derived id for uuid-less (legacy) events so
@@ -1946,7 +1961,11 @@ def _wrap_utility_events(
                 if not turn:
                     new_content.append(utility_wrapper(item, index))
                     continue
-            elif primary_prompt is not None and not _has_tool_calls(item.event):
+            elif (
+                not _has_tool_calls(item.event)
+                and (primary_prompt := primary_prompts.get(conversation(item.event)))
+                is not None
+            ):
                 evt_prompt = _get_system_prompt_for_event(item.event, inputs)
                 if evt_prompt is not None and evt_prompt != primary_prompt:
                     new_content.append(utility_wrapper(item, index))

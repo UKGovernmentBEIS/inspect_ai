@@ -1687,6 +1687,63 @@ def test_a_stored_timeline_s_omitted_calls_keep_the_conversation_of_a_later_span
     assert ("model_input", "X1") in steps(events)
 
 
+@pytest.mark.parametrize("phases", [True, False])
+def test_a_solver_s_call_after_the_only_agent_is_not_judged_by_its_prompt(
+    phases: bool,
+) -> None:
+    # self-review after Ransom's ninth review: the timeline merges a solver's
+    # calls beside the only agent span into that span, and the prompt rule
+    # took the agent's tool-calling prompt as theirs, so a final generate()
+    # under the solver's own prompt was utility; continuity keeps the two
+    # conversations apart, and so now does the prompt rule
+    checker = ChatMessageSystem(content="You check.")
+    asked: list[ChatMessage] = [checker, ChatMessageUser(content="Check it.")]
+    call = ToolCall(id="t1", function="f", arguments={})
+    b1 = linked_call("B1", "B", asked, "", None, call)
+    result = ChatMessageTool(content="ok", tool_call_id="t1", function="f")
+    b2 = linked_call("B2", "B", [*asked, b1.output.message, result], "Fine.", None)
+    final: list[ChatMessage] = [
+        ChatMessageSystem(content="You are the main solver."),
+        ChatMessageUser(content="Solve it."),
+    ]
+    m1 = linked_call("M1", "solvers" if phases else None, final, "Solved.", None)
+    events: list[Event] = [
+        SpanBeginEvent(id="B", name="checker", type="agent", parent_id="solvers"),
+        b1,
+        b2,
+        SpanEndEvent(id="B"),
+        m1,
+    ]
+    if phases:
+        events = [
+            SpanBeginEvent(id="solvers", name="solvers", type="solvers"),
+            *events,
+            SpanEndEvent(id="solvers"),
+        ]
+    else:
+        events[0] = SpanBeginEvent(id="B", name="checker", type="agent")
+
+    def steps(events: list[Event]) -> list[tuple[str, str]]:
+        return sorted(
+            (s.stage, s.id)
+            for s in steps_from_events(
+                [*final, m1.output.message],
+                events,
+                [],
+                sample_uuid="sample",
+                eval_info=EvalInfo(inspect_ai_version=None, sentinel=False),
+            )
+        )
+
+    recorded = [
+        e.model_copy(update={"origin": "agent"}) if isinstance(e, ModelEvent) else e
+        for e in events
+    ]
+
+    assert steps(events) == steps(recorded)
+    assert ("model_input", "M1") in steps(events)
+
+
 def checked_m3(check_id: str, later_turn: bool, recorded: bool) -> list[Event]:
     """`continuity_none`, whose m3 (a foreign-prompt call, inferred as utility) a sentinel checked as `check_id`: m3's uuid, or as sentinel 0.1.x did, the id of the last message of its input (`u3`) with a repeat suffix or without. `recorded`, every call records `origin="agent"`, as m3 was a turn live."""
     import json
