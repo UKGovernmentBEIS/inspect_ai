@@ -254,7 +254,19 @@ def bash_session(
         transport = SandboxJSONRPCTransport(sandbox, SANDBOX_CLI)
 
         if scope is not None or store.identity is not None:
-            await _check_bound_shells_supported(sandbox, transport)
+            old_tools = await _tools_without_bound_shells(sandbox, transport)
+            if old_tools is not None and scope is not None:
+                raise SandboxIdentityError(
+                    f"The sandbox has inspect-sandbox-tools {old_tools}, but "
+                    "bash_session() in a sandbox identity scope needs version "
+                    f"{BOUND_SHELL_TOOLS_VERSION} or later."
+                )
+            if old_tools is not None:
+                raise ToolError(
+                    "This sandbox's tools cannot use the saved shell. A new shell "
+                    "can be started only inside the sandbox identity scope for "
+                    f"'{store.identity}' in sandbox '{store.identity_sandbox}'."
+                )
 
         async def new_session() -> _Session:
             params: dict[str, object] = {}
@@ -331,7 +343,12 @@ def bash_session(
             # any) is the shell's, and a new shell opened here is bound the same.
             if action != "restart" or scope is None:
                 raise _lost_session_error(resolved_instance, session, scope) from None
-            result = await send(await new_session())
+            # Recover once: a new shell lost before its first request is reported.
+            session = await new_session()
+            try:
+                result = await send(session)
+            except _SessionNotFoundError:
+                raise _lost_session_error(resolved_instance, session, scope) from None
 
         # Return the appropriate response
         return (
@@ -373,16 +390,16 @@ def _lost_session_error(
     )
 
 
-async def _check_bound_shells_supported(
+async def _tools_without_bound_shells(
     sandbox: SandboxEnvironment, transport: SandboxJSONRPCTransport
-) -> None:
-    """Refuse a bound shell when the sandbox's tools predate bound shells.
+) -> str | None:
+    """The version of the sandbox's tools if they predate bound shells, else None.
 
     Older tools would give a scoped shell a counted name that a replaced server
     reissues to the next shell, whoever opens it.
     """
     if sandbox in _bound_shell_sandboxes:
-        return
+        return None
     version = await exec_scalar_request(
         method="version",
         params={},
@@ -393,12 +410,9 @@ async def _check_bound_shells_supported(
         user=sandbox._tools_user,
     )
     if semver.Version.parse(version) < BOUND_SHELL_TOOLS_VERSION:
-        raise SandboxIdentityError(
-            f"The sandbox has inspect-sandbox-tools {version}, but bash_session() "
-            "in a sandbox identity scope needs version "
-            f"{BOUND_SHELL_TOOLS_VERSION} or later."
-        )
+        return version
     _bound_shell_sandboxes.add(sandbox)
+    return None
 
 
 def _check_shared_session(

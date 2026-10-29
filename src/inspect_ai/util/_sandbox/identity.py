@@ -10,6 +10,7 @@ from .context import (
     sandbox_environments_context_var,
 )
 from .environment import SandboxEnvironment
+from .events import SandboxEnvironmentProxy
 
 
 class SandboxIdentityError(RuntimeError):
@@ -151,7 +152,9 @@ def sandbox_identity_active(env: SandboxEnvironment | None = None) -> bool:
        env: Only report a scope for this sandbox environment.
     """
     identity = _sandbox_identity.get()
-    return identity is not None and (env is None or identity.environment is env)
+    return identity is not None and (
+        env is None or _same_sandbox(identity.environment, env)
+    )
 
 
 def sandbox_identity_environment() -> SandboxEnvironment | None:
@@ -170,7 +173,9 @@ def sandbox_identity_environment() -> SandboxEnvironment | None:
     if identity is None:
         return None
     environments = sandbox_environments_context_var.get(None) or {}
-    if not any(env is identity.environment for env in environments.values()):
+    if not any(
+        _same_sandbox(env, identity.environment) for env in environments.values()
+    ):
         raise SandboxIdentityError(
             f"The sandbox identity scope for '{identity.user}' is on sandbox "
             f"'{identity.sandbox}', which the current sandbox context does not "
@@ -205,7 +210,22 @@ def sandbox_identity_scope(env: SandboxEnvironment) -> SandboxIdentityScope | No
     later call runs in the same scope.
     """
     identity = _sandbox_identity.get()
-    return identity if identity is not None and identity.environment is env else None
+    if identity is not None and _same_sandbox(identity.environment, env):
+        return identity
+    return None
+
+
+def _same_sandbox(a: SandboxEnvironment, b: SandboxEnvironment) -> bool:
+    """Whether `a` and `b` are views of one sandbox.
+
+    A sample's environments are event-recording proxies, and `as_type()` returns
+    the provider object behind one.
+    """
+    while isinstance(a, SandboxEnvironmentProxy):
+        a = a._sandbox
+    while isinstance(b, SandboxEnvironmentProxy):
+        b = b._sandbox
+    return a is b
 
 
 _sandbox_identity: ContextVar[SandboxIdentityScope | None] = ContextVar(

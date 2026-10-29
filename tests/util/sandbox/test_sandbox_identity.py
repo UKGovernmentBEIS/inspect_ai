@@ -91,6 +91,29 @@ def test_scope_for_another_sandbox_leaves_resolution_alone(
         assert sandbox_identity_active(workspace)
 
 
+def test_the_provider_behind_a_sample_proxy_is_the_same_sandbox(
+    default: CannedSandbox, workspace: CannedSandbox
+) -> None:
+    from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
+    from inspect_ai.util._sandbox.identity import sandbox_identity_environment
+
+    proxy = SandboxEnvironmentProxy(default)
+    with _environments(default=proxy, workspace=SandboxEnvironmentProxy(workspace)):
+        with sandbox_identity("w-1", cwd="/home/w-1"):
+            for view in (proxy, default):
+                assert sandbox_identity_user(view, None, strict=True) == "w-1"
+                with pytest.raises(SandboxIdentityError, match="'root'"):
+                    sandbox_identity_user(view, "root", strict=True)
+                assert sandbox_identity_cwd(view, None) == "/home/w-1"
+                assert sandbox_identity_active(view)
+            assert sandbox_identity_user(workspace, None, strict=True) is None
+            assert not sandbox_identity_active(workspace)
+            assert sandbox_identity_environment() is proxy
+        with sandbox_identity("w-1", sandbox="workspace"):
+            assert sandbox_identity_user(default, "root", strict=True) == "root"
+            assert sandbox_identity_cwd(default, None) is None
+
+
 def test_nested_scopes_raise(default: CannedSandbox) -> None:
     with _environments(default=default), sandbox_identity("w-1"):
         with pytest.raises(SandboxIdentityError, match="cannot be nested"):

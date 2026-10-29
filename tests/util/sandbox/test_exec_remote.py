@@ -847,6 +847,47 @@ class TestUserParam:
         assert params["user"] == self._DEFAULT_USER._asdict()
         assert "cwd" not in params
 
+    @pytest.mark.parametrize("scoped", ["default", "other"])
+    async def test_identity_scope_reaches_the_provider_behind_the_sample_proxy(
+        self, scoped: str
+    ) -> None:
+        from test_helpers.sandbox import CannedSandbox
+
+        from inspect_ai.util import sandbox
+
+        provider = CannedSandbox.returning(ExecResult(True, 0, _start_response(), ""))
+        provider._tools_injected = True
+        provider._tools_default_user = self._DEFAULT_USER
+        proxy = SandboxEnvironmentProxy(provider)
+        envs_token = sandbox_environments_context_var.set(
+            {
+                "default": proxy,
+                "other": SandboxEnvironmentProxy(
+                    CannedSandbox.returning(ExecResult(True, 0, "", ""))
+                ),
+            }
+        )
+        default_token = sandbox_default_context_var.set("default")
+        try:
+            with sandbox_identity("w-1", cwd="/home/w-1", sandbox=scoped):
+                # in a scope on `other`, sandbox() is `other`
+                view = (sandbox() if scoped == "default" else proxy).as_type(
+                    CannedSandbox
+                )
+                assert view is provider
+                await view.exec_remote(["id"], ExecRemoteStreamingOptions())
+        finally:
+            sandbox_default_context_var.reset(default_token)
+            sandbox_environments_context_var.reset(envs_token)
+        [request] = provider.inputs
+        assert isinstance(request, str)
+        params = json.loads(request)["params"]
+        if scoped == "default":
+            assert (params["user"], params["cwd"]) == ("w-1", "/home/w-1")
+        else:
+            assert params["user"] == self._DEFAULT_USER._asdict()
+            assert "cwd" not in params
+
 
 # ============================================================================
 # write_stdin / close_stdin error guards

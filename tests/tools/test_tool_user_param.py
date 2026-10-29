@@ -447,7 +447,7 @@ class _ToolsServer(CannedSandbox):
     name its owner; other shells get counted names (`BashSession`, `BashSession_1`).
     `replace_server()` drops every shell, as a replaced server starts empty.
     `hold_version()` holds the next `version` request until the returned event
-    is set.
+    is set. `lose_next_shell` replaces the server just after it opens a shell.
     """
 
     def __init__(self, version: str = "1.3.0") -> None:
@@ -459,6 +459,7 @@ class _ToolsServer(CannedSandbox):
         """Each request a shell acted on: its name and the request's params."""
         self.methods: list[str] = []
         self.version_requested = anyio.Event()
+        self.lose_next_shell = False
         self._version_hold: anyio.Event | None = None
 
     def replace_server(self) -> None:
@@ -500,6 +501,9 @@ class _ToolsServer(CannedSandbox):
                 count = len(self.shells)
                 name = f"BashSession_{count}" if count else "BashSession"
             self.shells[name] = params["user"] if params.get("bind") else None
+            if self.lose_next_shell:
+                self.lose_next_shell = False
+                self.replace_server()
             return {"result": {"session_name": name}}
         assert method == "bash_session"
         name, owner = params["session_name"], params.get("owner")
@@ -620,6 +624,64 @@ async def test_bash_session_refuses_a_scoped_shell_its_server_no_longer_has(
     assert restart["restart"] is True and typed["input"] == "id\n"
     assert {restart["owner"], typed["owner"], read["owner"]} == {"w-1"}
     assert _received_by(server, {setup}) == [server.received[0][1]]
+
+
+async def test_bash_session_recovers_a_lost_shell_once_per_restart(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai.util._store import Store, init_subtask_store
+
+    init_subtask_store(Store())
+    _select_by_injection(monkeypatch)
+    server = _ToolsServer()
+    team = bash_session_module.bash_session(instance="team")
+    with _environments(b=server), sandbox_identity("w-1", sandbox="b"):
+        await team(action="read")
+        stale = _session_name("team")
+        server.replace_server()
+        await bash_session_module.bash_session(instance="setup")(action="read")
+        setup = _session_name("setup")
+        # the server is replaced again between the new shell and its restart
+        server.lose_next_shell = True
+        message = await _call_tool(team, action="restart")
+        assert message.error is not None
+        assert "Use the 'restart' action" in message.error.message
+        assert [name for name, _ in server.received] == [stale, setup]
+        # the next restart recovers
+        assert (await _call_tool(team, action="restart")).error is None
+        assert server.received[-1][0] == _session_name("team")
+        assert server.shells[_session_name("team")] == "w-1"
+
+
+@pytest.mark.parametrize("version", ["1.2.1", "1.3.0"])
+async def test_bash_session_saved_scoped_shell_on_other_tools_outside_the_scope(
+    monkeypatch: pytest.MonkeyPatch, version: str
+) -> None:
+    from inspect_ai.util._store import Store, init_subtask_store
+
+    init_subtask_store(Store())
+    _select_by_injection(monkeypatch)
+    a, b = _ToolsServer(version=version), _ToolsServer()
+    team = bash_session_module.bash_session(instance="team")
+    with _environments(a=a, b=b):
+        with sandbox_identity("w-1", sandbox="b"):
+            await team(action="read")
+        # unnamed injection outside the scope selects `a`
+        message = await _call_tool(team, action="type_submit", input="id")
+    assert message.error is not None
+    expected = (
+        "This sandbox's tools cannot use the saved shell"
+        if version == "1.2.1"
+        else "no longer have that shell"
+    )
+    assert expected in message.error.message
+    assert "only inside the sandbox identity scope for 'w-1' in sandbox 'b'" in (
+        message.error.message
+    )
+    assert a.methods == (
+        ["version"] if version == "1.2.1" else ["version", "bash_session"]
+    )
+    assert a.received == []
 
 
 @pytest.mark.parametrize("other", ["w-2", None], ids=["other-scope", "unscoped"])
