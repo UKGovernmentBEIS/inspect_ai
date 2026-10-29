@@ -714,6 +714,14 @@ def test_neutralize_structural_delimiters(raw: str, expected: str) -> None:
         pytest.param("*GRADE*: I", "I", id="markdown_italic_label"),
         pytest.param("GRADE：I", "I", id="fullwidth_colon"),
         pytest.param("**GRADE**： I", "I", id="markdown_and_fullwidth_colon"),
+        pytest.param("__GRADE__: I", "I", id="markdown_underscore_label"),
+        pytest.param("GRADE: __I__", "I", id="markdown_underscore_letter"),
+        pytest.param("GRADE: `I`", "I", id="inline_code_letter"),
+        pytest.param("GRADE: [I]", "I", id="bracketed_letter"),
+        pytest.param("GRADE: (I)", "I", id="parenthesized_letter"),
+        pytest.param("GRADE = I", "I", id="equals_separator"),
+        pytest.param("## GRADE\nI", "I", id="markdown_heading"),
+        pytest.param("### **Grade**\n**I**\n", "I", id="markdown_bold_heading"),
     ],
 )
 def test_default_grade_pattern_extraction(grader_output: str, expected: str) -> None:
@@ -728,6 +736,27 @@ def test_default_grade_pattern_extraction(grader_output: str, expected: str) -> 
 @pytest.mark.parametrize(
     "grader_output",
     [
+        pytest.param(
+            "GRADE:\n* Correct points: names Paris.\n* Incorrect points: none.",
+            id="bare_label_then_bullet_list",
+        ),
+        pytest.param("snake_GRADE: I", id="identifier_suffix"),
+        pytest.param("GRADE_score: I", id="identifier_prefix"),
+        pytest.param("## GRADE\nIt is wrong overall.", id="heading_then_prose"),
+        pytest.param("Note on GRADE\nI think it is wrong.", id="label_then_newline"),
+    ],
+)
+def test_default_grade_pattern_rejects_non_verdicts(grader_output: str) -> None:
+    # Emphasis is only accepted directly against the label or verdict, and a
+    # bare heading only when the verdict stands alone on the next line, so
+    # these are not verdicts.
+    match = re.search(DEFAULT_GRADE_PATTERN, grader_output)
+    assert match is None, f"unexpected grade {match.group(1)!r} in {grader_output!r}"
+
+
+@pytest.mark.parametrize(
+    "grader_output",
+    [
         pytest.param("GRID: C", id="typo_grid"),
         pytest.param("ANSWER: C", id="wrong_word_answer"),
         pytest.param("**Answer: C**", id="markdown_decorated"),
@@ -735,6 +764,10 @@ def test_default_grade_pattern_extraction(grader_output: str, expected: str) -> 
         pytest.param("GRADE: CI", id="multi_letter_verdict"),
         pytest.param("GRADE: Correctly", id="adverb_form"),
         pytest.param("GRADE: IN", id="multi_letter_prefix_of_I"),
+        pytest.param(
+            "GRADE:\n* Correct points: names 2.\n* Incorrect points: none.",
+            id="bare_label_then_bullet_list",
+        ),
     ],
 )
 def test_grade_parse_failure_is_unscored(grader_output: str) -> None:
@@ -771,6 +804,13 @@ def test_grade_parse_failure_is_unscored(grader_output: str) -> None:
         pytest.param("GRADE: Correct", CORRECT, False, id="correct_word"),
         pytest.param("GRADE: Incorrect", INCORRECT, False, id="incorrect_word"),
         pytest.param("GRADE: Partial", PARTIAL, True, id="partial_word"),
+        pytest.param(
+            "**GRADE**： Incorrect",
+            INCORRECT,
+            False,
+            id="markdown_fullwidth_incorrect_word",
+        ),
+        pytest.param("GRADE: __C__", CORRECT, False, id="underscore_letter"),
     ],
 )
 def test_matched_grade_resolves_to_value(
@@ -900,6 +940,13 @@ def test_final_grade_still_wins_over_earlier_off_menu_mention() -> None:
         pytest.param("GRADE: **I**", id="markdown_bold_letter"),
         pytest.param("GRADE：I", id="fullwidth_colon"),
         pytest.param("**GRADE**： I", id="markdown_and_fullwidth_colon"),
+        pytest.param("**GRADE**： Incorrect", id="markdown_fullwidth_word"),
+        pytest.param("__GRADE__: I", id="markdown_underscore_label"),
+        pytest.param("GRADE: `I`", id="inline_code_letter"),
+        pytest.param("GRADE: [I]", id="bracketed_letter"),
+        pytest.param("GRADE: (I)", id="parenthesized_letter"),
+        pytest.param("GRADE = I", id="equals_separator"),
+        pytest.param("## GRADE\nI", id="markdown_heading"),
     ],
 )
 def test_markdown_or_fullwidth_final_verdict_wins_over_quoted_grade(
