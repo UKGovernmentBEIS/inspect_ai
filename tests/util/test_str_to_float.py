@@ -245,6 +245,21 @@ def test_chinese_large_units() -> None:
     )
 
 
+def test_chinese_compound_large_units() -> None:
+    # A smaller large unit's value is the coefficient of a following larger
+    # unit: 一万亿 = 一万 * 亿, not 万 alone.
+    assert unicode_number_to_float("一万亿") == 1_000_000_000_000.0
+    assert unicode_number_to_float("十二万亿") == 12_000_000_000_000.0
+    assert unicode_number_to_float("三万亿") == 3_000_000_000_000.0
+    assert unicode_number_to_float("一万二千亿") == 1_200_000_000_000.0
+    assert unicode_number_to_float("一万亿二千万") == 1_000_020_000_000.0
+    # Traditional forms and higher compounds use the same rule.
+    assert unicode_number_to_float("一萬億") == 1_000_000_000_000.0
+    assert unicode_number_to_float("一万兆") == 10_000_000_000_000_000.0
+    # Descending-then-ascending sequences stay additive, not multiplicative.
+    assert unicode_number_to_float("一兆一万亿") == 2_000_000_000_000.0
+
+
 def test_error_cases() -> None:
     with pytest.raises(ValueError):
         unicode_number_to_float("abc")
