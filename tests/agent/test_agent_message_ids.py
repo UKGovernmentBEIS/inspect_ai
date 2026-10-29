@@ -979,3 +979,74 @@ def test_tracked_host_calls_keep_no_unexecuted_calls() -> None:
     gc.collect()
 
     assert unexecuted() is None
+
+
+def _read(call_id: str, path: str) -> ToolCall:
+    return ToolCall(id=call_id, function="read", arguments={"path": path})
+
+
+def _link_copy(
+    handed: list[ToolCall],
+    results: list[tuple[int, str]],
+    copy: list[ToolCall],
+    answers: list[tuple[ToolCall, str]],
+) -> list[str | None]:
+    """Track executions of `handed` calls, send a copy with `answers`; the events' message ids."""
+    bridge = AgentBridge(AgentState(messages=[]))
+    tracked = _handed_calls("reply", handed)
+    events = []
+    for position, result in results:
+        call = handed[position]
+        event = ToolEvent(
+            id=call.id, function=call.function, arguments=call.arguments, result=result
+        )
+        bridge._await_result_message(tracked[position], event)
+        events.append(event)
+    tool_messages = [
+        ChatMessageTool(
+            id=f"result-{n}", content=content, tool_call_id=call.id, function="read"
+        )
+        for n, (call, content) in enumerate(answers)
+    ]
+    reply = ChatMessageAssistant(id="reply", content="", tool_calls=copy)
+    bridge._link_result_messages(
+        [reply, *tool_messages], ["reply", *([None] * len(tool_messages))]
+    )
+    return [event.message_id for event in events]
+
+
+def test_host_result_is_not_claimed_through_another_handed_calls_id() -> None:
+    """A copy keeping an unexecuted call's id, with the executed call's arguments, isn't the executed call."""
+    handed = [_read("a", "a"), _read("b", "b")]
+    rewritten = _read("b", "a")
+
+    ids = _link_copy(handed, [(0, "A")], [rewritten], [(rewritten, "B")])
+
+    assert ids == [None]
+
+
+def test_identical_re_derived_calls_stay_unlinked_beside_a_distinct_one() -> None:
+    handed = [_read("a", "a"), _read("b", "a"), _read("c", "c")]
+    copy = [_read("x", "a"), _read("y", "a"), _read("z", "c")]
+
+    ids = _link_copy(
+        handed,
+        [(0, "A"), (1, "A"), (2, "C")],
+        copy,
+        [(copy[0], "A"), (copy[1], "A"), (copy[2], "C")],
+    )
+
+    assert ids == [None, None, "result-2"]
+
+
+@pytest.mark.parametrize(
+    "calls", [bridge_types._MAX_HANDED_IDS, bridge_types._MAX_HANDED_IDS + 1]
+)
+def test_re_derived_ids_match_only_while_handed_ids_are_kept(calls: int) -> None:
+    """Beyond `_MAX_HANDED_IDS` calls a reply keeps no handed ids, so a re-derived id can't match."""
+    handed = [_read(f"call_{n}", str(n)) for n in range(calls)]
+    copy = [_read("re-derived", "0")]
+
+    ids = _link_copy(handed, [(0, "0")], copy, [(copy[0], "0")])
+
+    assert ids == (["result-0"] if calls <= bridge_types._MAX_HANDED_IDS else [None])

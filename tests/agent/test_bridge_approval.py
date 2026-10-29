@@ -5004,13 +5004,13 @@ def identical_host_scaffold(
     results: Literal["equal", "numbered"],
     reorder: bool,
     executed: int | None,
-    edited: bool = False,
+    edited: Literal["none", "one", "both"] = "none",
 ) -> Agent:
     """A Google scaffold running identical parallel calls as host tools.
 
     It runs the first `executed` calls (all when `None`), with `reorder` sends
-    the calls back, and their results, in reverse order, and with `edited`
-    replaces the last result it sends with other text.
+    the calls back, and their results, in reverse order, and replaces the last
+    result it sends, or every result, with other text as `edited` says.
     """
 
     async def execute(state: AgentState) -> AgentState:
@@ -5044,8 +5044,10 @@ def identical_host_scaffold(
                 )
             )
             outputs += ["not run"] * (len(calls) - len(run))
-            if edited:
+            if edited == "one":
                 outputs[-1] = "edited"
+            elif edited == "both":
+                outputs = ["edited"] * len(outputs)
             if reorder:
                 parts = conversation.history[-1]["parts"]
                 conversation.history[-1]["parts"] = [
@@ -5058,14 +5060,15 @@ def identical_host_scaffold(
 
 
 @pytest.mark.parametrize(
-    "results,reorder,count,executed,edited,linked",
+    "results,reorder,count,executed,edited",
     [
-        ("equal", False, 2, None, False, True),
-        ("equal", True, 2, None, False, True),
-        ("numbered", False, 2, None, False, False),
-        ("numbered", True, 2, None, False, False),
-        ("equal", False, 3, 2, False, False),
-        ("equal", False, 2, None, True, False),
+        ("equal", False, 2, None, "none"),
+        ("equal", True, 2, None, "none"),
+        ("numbered", False, 2, None, "none"),
+        ("numbered", True, 2, None, "none"),
+        ("equal", False, 3, 2, "none"),
+        ("equal", False, 2, None, "one"),
+        ("equal", False, 2, None, "both"),
     ],
     ids=[
         "equal results",
@@ -5074,18 +5077,18 @@ def identical_host_scaffold(
         "different results, reordered",
         "one of three not executed",
         "one tool message edited",
+        "both tool messages edited identically",
     ],
 )
-def test_identical_google_host_calls_link_only_with_equal_results(
+def test_identical_google_host_calls_stay_unlinked(
     results: Literal["equal", "numbered"],
     reorder: bool,
     count: int,
     executed: int | None,
-    edited: bool,
-    linked: bool,
+    edited: Literal["none", "one", "both"],
     tmp_path: Path,
 ) -> None:
-    """Google identical calls pair by position only when every result and every tool message is the same."""
+    """Google calls with the same function and arguments can't be told apart, whatever their results."""
     name = "mcp__host__read_file"
     log = eval(
         Task(
@@ -5114,8 +5117,4 @@ def test_identical_google_host_calls_link_only_with_equal_results(
 
     events = [e for e in sample.events if isinstance(e, ToolEvent)]
     assert len(events) == (executed or count)
-    if linked:
-        _assert_linked(sample, events)
-        assert len({e.message_id for e in events}) == len(events)
-    else:
-        assert all(e.message_id is None for e in events)
+    assert all(e.message_id is None for e in events)
