@@ -100,9 +100,10 @@ async def apply_bridge_tool_approval(
     Calls are approved in order and evaluation stops at the first non-approval, so a
     human isn't asked to decide on calls that are about to be discarded anyway.
     `terminate` doesn't return, and neither does a `modify` decision that changes the
-    function called: that is an error in the approver, and fails the sample. As on
-    the native path, an `approve` from an approver that changed the call it was
-    shown in place is a rejection.
+    function called or the call's id: that is an error in the approver, and fails
+    the sample. An `approve` from an approver that changed the call it was shown in
+    place is a rejection. Both are judged against a snapshot of the call taken
+    before review, by the rules native execution uses (`approver_result_error`).
 
     Each call is reviewed as each tool it would run (`AgentBridge.reviewed_calls`),
     and is approved only if every one of those reviews approves it. A `modify`
@@ -130,13 +131,9 @@ async def apply_bridge_tool_approval(
         The response for the scaffold, plus the messages to replay to the model when
         the response was rejected.
     """
-    from inspect_ai.approval._apply import (
-        apply_tool_approval,
-        have_tool_approval,
-        modified_function_error,
-    )
+    from inspect_ai.approval._apply import apply_tool_approval, have_tool_approval
     from inspect_ai.approval._approval import Approval
-    from inspect_ai.model._call_tools import _CHANGED_IN_PLACE, _changed_in_place
+    from inspect_ai.model._call_tools import approver_result_error
 
     with bridge_approval_scope(bridge.approval):
         approval_active = have_tool_approval()
@@ -169,7 +166,7 @@ async def apply_bridge_tool_approval(
             reviewed_calls = bridge.reviewed_calls(call, tools)
             for target in reviewed_calls.calls:
                 # each review gets its own copy, sharing nothing with the proposal
-                # or another review, and an approve must leave it as it was shown
+                # or another review; its decision is judged against `shown`
                 reviewed = deepcopy(target)
                 shown = deepcopy(target)
                 # no viewer: bridged tools reach us as ToolInfo from the scaffold's
@@ -178,19 +175,24 @@ async def apply_bridge_tool_approval(
                 approved, approval = await apply_tool_approval(
                     message, reviewed, None, approval_history
                 )
-                if (
-                    approved
-                    and approval is not None
-                    and approval.decision == "approve"
-                    and _changed_in_place(reviewed, shown)
-                ):
+                error = (
+                    approver_result_error(shown, reviewed, approval)
+                    if approved
+                    else None
+                )
+                if error is not None and approval is not None:
+                    if approval.decision == "modify":
+                        failure = RuntimeError(error)
+                        bridge.request_fail(failure)
+                        raise failure
+                    # an approve of a call changed in place is a rejection
                     approved, approval = (
                         False,
-                        Approval(decision="reject", explanation=_CHANGED_IN_PLACE),
+                        Approval(decision="reject", explanation=error),
                     )
                 if not approved:
                     explanation = (approval.explanation if approval else None) or (
-                        f"Tool call '{reviewed.function}' was rejected by the "
+                        f"Tool call '{shown.function}' was rejected by the "
                         "approval policy."
                     )
                     if approval is not None and approval.decision == "terminate":
@@ -208,17 +210,14 @@ async def apply_bridge_tool_approval(
                     and approval.decision == "modify"
                     and approval.modified is not None
                 ):
-                    error = modified_function_error(reviewed, approval.modified)
-                    if error is None and len(reviewed_calls.calls) > 1:
-                        error = (
-                            f"An approver modified a call to '{reviewed.function}' "
+                    if len(reviewed_calls.calls) > 1:
+                        failure = RuntimeError(
+                            f"An approver modified a call to '{shown.function}' "
                             "that would run several bridged tools sharing a "
                             "description. A modified call can't be approved for "
                             "all of them; give the bridged tools distinct "
                             "descriptions."
                         )
-                    if error is not None:
-                        failure = RuntimeError(error)
                         bridge.request_fail(failure)
                         raise failure
                     modified[call.id] = reviewed_calls.dispatch(

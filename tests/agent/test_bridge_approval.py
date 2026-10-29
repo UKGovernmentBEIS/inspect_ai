@@ -2750,6 +2750,125 @@ async def test_dispatched_call_modify_rewrites_the_nested_arguments() -> None:
     assert call.arguments["Arguments"] == {"path": "a.txt"}
 
 
+@approver(name="test_bridge_rename_then_modify")
+def renaming_modify_approver(keep_function: bool) -> Approver:
+    """Renames the call it is shown in place, then returns a modify.
+
+    The modify names the original function when `keep_function`, else the new one.
+    """
+
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        original = call.function
+        call.function = "write_file"
+        return Approval(
+            decision="modify",
+            modified=ToolCall(
+                id=call.id,
+                function=original if keep_function else call.function,
+                arguments={"path": "b.txt"},
+            ),
+        )
+
+    return approve
+
+
+class ModifiedShape(NamedTuple):
+    """A proposal of the bridged `read_file`, as declared and as modified to b.txt."""
+
+    call: ToolCall
+    tools: list[ToolInfo]
+    modified: ToolCall
+
+
+MODIFIED_SHAPES = {
+    "renamed": ModifiedShape(
+        ToolCall(id="1", function="summarize", arguments={"path": "a.txt"}),
+        declare("summarize"),
+        ToolCall(id="1", function="summarize", arguments={"path": "b.txt"}),
+    ),
+    "dispatcher": ModifiedShape(
+        dispatched("1", {"path": "a.txt"}),
+        declare_dispatcher(),
+        dispatched("1", {"path": "b.txt"}),
+    ),
+}
+
+
+@pytest.mark.parametrize("shape", MODIFIED_SHAPES.values(), ids=MODIFIED_SHAPES.keys())
+async def test_modify_is_judged_against_the_call_as_shown(shape: ModifiedShape) -> None:
+    """An approver that renames its input in place can't change what a modify selects.
+
+    A modify naming the original function is accepted; one naming the new name
+    fails the sample before any grant, as on the native path.
+    """
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(
+        tool, [ApprovalPolicy(renaming_modify_approver(True), "read_file")]
+    )
+
+    run = await run_bridge(
+        [tool_calls_output(shape.call)], bridge=bridge, tools=shape.tools
+    )
+
+    assert run.output.message.tool_calls == [shape.modified]
+    assert await call_host_tool(bridge)("host", "read_file", {"path": "b.txt"})
+
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(
+        tool, [ApprovalPolicy(renaming_modify_approver(False), "read_file")]
+    )
+
+    with pytest.raises(RuntimeError, match="may change only the arguments"):
+        await run_bridge(
+            [tool_calls_output(shape.call)], bridge=bridge, tools=shape.tools
+        )
+
+    assert isinstance(bridge._failure, RuntimeError)
+    assert len(bridge._tool_execution_grants) == 0
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await call_host_tool(bridge)("host", "read_file", {"path": "b.txt"})
+    tool.assert_not_awaited()
+
+
+@approver(name="test_bridge_reidentify")
+def reidentifying_approver() -> Approver:
+    """Returns a modify with another call id."""
+
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        return Approval(
+            decision="modify",
+            modified=ToolCall(id="other", function=call.function, arguments={}),
+        )
+
+    return approve
+
+
+async def test_modify_changing_the_call_id_fails_the_sample() -> None:
+    shape = MODIFIED_SHAPES["renamed"]
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(
+        tool, [ApprovalPolicy(reidentifying_approver(), "read_file")]
+    )
+
+    with pytest.raises(RuntimeError, match="not its id"):
+        await run_bridge(
+            [tool_calls_output(shape.call)], bridge=bridge, tools=shape.tools
+        )
+
+    assert isinstance(bridge._failure, RuntimeError)
+    assert len(bridge._tool_execution_grants) == 0
+
+
 @pytest.mark.parametrize(
     "arguments",
     [
