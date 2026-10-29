@@ -238,6 +238,39 @@ async def test_anthropic_count_tokens_passes_extra_headers() -> None:
     )
 
 
+@pytest.mark.anyio
+async def test_anthropic_bedrock_count_tokens_uses_local_estimate(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Bedrock has no count_tokens endpoint; use the local estimate.
+
+    The Anthropic SDK raises ``Token counting is not supported in Bedrock yet``
+    from ``AsyncAnthropicBedrock.messages.count_tokens``. Compaction estimates
+    tokens before generate, so that error fires locally with dummy AWS
+    credentials (issue #6144).
+    """
+    config = tmp_path / "config"
+    config.write_text(
+        "[profile offline]\nregion=us-east-1\n"
+        "aws_access_key_id=offline\naws_secret_access_key=offline\n"
+    )
+    monkeypatch.setenv("AWS_CONFIG_FILE", str(config))
+    monkeypatch.setenv("AWS_REGION", "us-east-1")
+
+    model = get_model(
+        "anthropic/bedrock/us.anthropic.claude-sonnet-4-6",
+        aws_profile="offline",
+        streaming=False,
+        memoize=False,
+    )
+    assert isinstance(model.api, AnthropicAPI)
+    assert model.api.is_bedrock()
+
+    count = await model.count_tokens("hello")
+    assert isinstance(count, int)
+    assert count >= 1
+
+
 _FULL_THINKING_BETA = "dev-full-thinking-2025-05-14"
 
 
