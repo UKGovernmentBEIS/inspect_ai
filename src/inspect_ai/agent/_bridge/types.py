@@ -1,7 +1,15 @@
 import json
 from enum import IntEnum
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, Callable, NamedTuple, NoReturn, Sequence
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Collection,
+    NamedTuple,
+    NoReturn,
+    Sequence,
+)
 
 from shortuuid import uuid
 
@@ -119,6 +127,9 @@ class _AwaitedResult(NamedTuple):
     settled: bool = False
     """Whether the call was linked or found ambiguous, so later results and executions are ignored."""
 
+    message_id: str | None = None
+    """Id of the tool message the call was linked to, once settled."""
+
 
 def _is_handed(copy_call: ToolCall, handed: _HandedCall) -> bool:
     return (
@@ -128,7 +139,7 @@ def _is_handed(copy_call: ToolCall, handed: _HandedCall) -> bool:
 
 
 def _copy_calls(
-    handed: _HandedCall, copy_calls: list[ToolCall], tracked_ids: set[str]
+    handed: _HandedCall, copy_calls: list[ToolCall], tracked_ids: Collection[str]
 ) -> list[ToolCall]:
     """The calls in a scaffold's copy of a reply that may be `handed`.
 
@@ -158,9 +169,12 @@ def _settle(
     from inspect_ai.log._transcript import transcript
 
     event = awaited[call_index].event
-    awaited[call_index] = awaited[call_index]._replace(event=None, settled=True)
-    if len(matches) == 1 and event is not None:
-        event.message_id = matches[0].id
+    linked = matches[0].id if len(matches) == 1 and event is not None else None
+    awaited[call_index] = awaited[call_index]._replace(
+        event=None, settled=True, message_id=linked
+    )
+    if event is not None and linked is not None:
+        event.message_id = linked
         transcript()._event_updated(event)
 
 
@@ -466,7 +480,9 @@ class AgentBridge:
         function and arguments (`_copy_calls`), picked by no other awaited call
         and with an id unique in the copy. Its result is a tool message before
         the next assistant message answering that id: exactly one links it, more
-        than one settles it unlinked.
+        than one settles it unlinked. A kept id another tracked reply also
+        handed links only if that reply's call was linked to another message
+        (`_tracked_call_ids`).
 
         Each call settles on its own. One the copy can't identify, or with no
         result yet, keeps waiting: results sent in separate requests, after
@@ -476,7 +492,7 @@ class AgentBridge:
         """
         if not self._awaited_results:
             return
-        tracked_ids: set[str] | None = None
+        tracked_ids: dict[str, list[tuple[str, str | None]]] | None = None
         for index, (message, reply_id) in enumerate(zip(messages, recognized)):
             if reply_id is None or not isinstance(message, ChatMessageAssistant):
                 continue
@@ -492,6 +508,7 @@ class AgentBridge:
             copy_calls = message.tool_calls or []
             if tracked_ids is None:
                 tracked_ids = self._tracked_call_ids()
+            tracked = tracked_ids
             candidates = {
                 call_index: _copy_calls(entry.handed, copy_calls, tracked_ids)
                 for call_index, entry in awaited.items()
@@ -509,24 +526,35 @@ class AgentBridge:
                 ):
                     continue
                 matches = [r for r in results if r.tool_call_id == copy_call.id]
+                if len(matches) == 1 and any(
+                    linked is None or linked == matches[0].id
+                    for other, linked in tracked.get(copy_call.id, [])
+                    if other != reply_id
+                ):
+                    continue
                 if matches:
                     _settle(awaited, call_index, matches)
 
-    def _tracked_call_ids(self) -> set[str]:
+    def _tracked_call_ids(self) -> dict[str, list[tuple[str, str | None]]]:
         """Ids the bridge handed in the replies it still tracks.
 
-        A reply that keeps no handed ids contributes its tracked calls' ids. Ids
-        from replies dropped by `_MAX_AWAITED_RESULTS` aren't known, so a
-        scaffold that copies an earlier call and its answer into a later reply
-        can still be taken for that reply's call.
+        Each id maps to the replies that handed it, with the tool message that
+        reply's call under it was linked to (`None` if it isn't linked). An id
+        another tracked reply handed is ambiguous unless that reply's call was
+        linked to a different message. A reply that keeps no handed ids
+        contributes its tracked calls' ids. Ids from replies dropped by
+        `_MAX_AWAITED_RESULTS` aren't known, so a scaffold that copies an
+        earlier call and its answer into a later reply can still be taken for
+        that reply's call.
         """
-        ids: set[str] = set()
-        for calls in self._awaited_results.values():
+        ids: dict[str, list[tuple[str, str | None]]] = {}
+        for reply_id, calls in self._awaited_results.items():
+            linked = {
+                entry.handed.call_id: entry.message_id for entry in calls.values()
+            }
             handed_ids = next(iter(calls.values())).handed.handed_ids
-            if handed_ids is not None:
-                ids.update(handed_ids)
-            else:
-                ids.update(entry.handed.call_id for entry in calls.values())
+            for call_id in handed_ids if handed_ids is not None else linked:
+                ids.setdefault(call_id, []).append((reply_id, linked.get(call_id)))
         return ids
 
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:

@@ -1091,3 +1091,61 @@ def test_host_result_is_not_claimed_through_an_earlier_replys_id() -> None:
     )
 
     assert [event.message_id for event in events] == [None, None]
+
+
+@pytest.mark.parametrize("reused", [True, False])
+def test_kept_id_reused_across_tracked_replies_stays_unlinked(reused: bool) -> None:
+    """An id two tracked replies handed can't tell their answers apart; an id handed once links."""
+    bridge = AgentBridge(AgentState(messages=[]))
+    first = _read("reused", "a")
+    second = _read("reused" if reused else "second", "a")
+    events = []
+    for reply_id, call, result in (("first", first, "OLD"), ("second", second, "NEW")):
+        event = ToolEvent(
+            id=call.id, function="read", arguments=call.arguments, result=result
+        )
+        bridge._await_result_message(_handed_calls(reply_id, [call])[0], event)
+        events.append(event)
+    answer = ChatMessageTool(
+        id="answer", content="OLD", tool_call_id=second.id, function="read"
+    )
+    bridge._link_result_messages(
+        [ChatMessageAssistant(id="second", content="", tool_calls=[second]), answer],
+        ["second", None],
+    )
+
+    assert [event.message_id for event in events] == (
+        [None, None] if reused else [None, "answer"]
+    )
+
+
+@pytest.mark.parametrize("copied", [False, True])
+def test_kept_id_reused_after_the_earlier_call_linked(copied: bool) -> None:
+    """A reused id links to a new answer once the earlier call is linked, never to the earlier answer."""
+    bridge = AgentBridge(AgentState(messages=[]))
+    call = _read("reused", "a")
+    first = ToolEvent(id="reused", function="read", arguments=call.arguments)
+    bridge._await_result_message(_handed_calls("first", [call])[0], first)
+    old = ChatMessageTool(
+        id="old", content="OLD", tool_call_id="reused", function="read"
+    )
+    first_reply = ChatMessageAssistant(id="first", content="", tool_calls=[call])
+    bridge._link_result_messages([first_reply, old], ["first", None])
+
+    second = ToolEvent(id="reused", function="read", arguments=call.arguments)
+    bridge._await_result_message(_handed_calls("second", [call])[0], second)
+    new = (
+        old
+        if copied
+        else ChatMessageTool(
+            id="new", content="NEW", tool_call_id="reused", function="read"
+        )
+    )
+    second_reply = ChatMessageAssistant(id="second", content="", tool_calls=[call])
+    bridge._link_result_messages(
+        [first_reply, old, second_reply, new], ["first", None, "second", None]
+    )
+
+    assert (first.message_id, second.message_id) == (
+        ("old", None) if copied else ("old", "new")
+    )
