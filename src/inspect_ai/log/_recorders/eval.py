@@ -68,6 +68,7 @@ from inspect_ai._util.json import (
     jsonable_dict,
     to_json_safe,
 )
+from inspect_ai._util.retry import backoff_multiplier
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.zip_common import ZipEntry
 from inspect_ai._util.zipfile import (
@@ -920,7 +921,8 @@ async def _copy_prior_log(prior_log: str, dest: BinaryIO) -> str | None:
     async for attempt in AsyncRetrying(
         retry=retry_if_exception(is_transient_failure),
         wait=wait_exponential_jitter(
-            initial=SEED_COPY_BACKOFF_SECONDS, jitter=SEED_COPY_BACKOFF_SECONDS
+            **backoff_multiplier(SEED_COPY_BACKOFF_SECONDS),
+            jitter=SEED_COPY_BACKOFF_SECONDS,
         ),
         stop=stop_after_attempt(SEED_COPY_ATTEMPTS),
         sleep=anyio.sleep,

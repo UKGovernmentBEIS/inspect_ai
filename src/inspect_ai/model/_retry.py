@@ -11,6 +11,7 @@ from tenacity.stop import StopBaseT
 from tenacity.wait import WaitBaseT
 from typing_extensions import NotRequired, TypedDict
 
+from inspect_ai._util.retry import backoff_multiplier
 from inspect_ai._util.working import (
     ModelAttempts,
     add_sample_wait,
@@ -131,7 +132,7 @@ def model_retry_config(
     wait = (
         wait
         if wait is not None
-        else wait_exponential_jitter(initial=3, max=(30 * 60), jitter=3)
+        else wait_exponential_jitter(**backoff_multiplier(3), max=(30 * 60), jitter=3)
     )
 
     # tenacity's retry_if_exception expects a bool predicate; coerce
