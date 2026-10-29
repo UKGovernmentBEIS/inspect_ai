@@ -1172,6 +1172,64 @@ async def test_approve_with_an_attached_call_grants_indistinct_tools_the_proposa
         assert bridge.consume_tool_execution_grant(server, name, {"path": "x"})
 
 
+@approver(name="test_bridge_mutate_in_place")
+def mutating_in_place_approver() -> Approver:
+    """Changes a nested argument of the call it is shown, then approves."""
+
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        call.arguments["options"]["mode"] = "changed"
+        return Approval(decision="approve")
+
+    return approve
+
+
+async def test_in_place_change_by_a_later_target_review_is_rejected() -> None:
+    """A review can't change, through shared arguments, what another review approved.
+
+    As on the native path, an `approve` of a call changed in place is a
+    rejection: no grant is minted, and the proposal and the earlier review keep
+    the arguments the model produced.
+    """
+    seen: list[tuple[str, ToolCall, list[ChatMessage]]] = []
+    bridge, read, delete = indistinct_read_and_delete(
+        [
+            ApprovalPolicy(recording_approver(seen), "read_file"),
+            ApprovalPolicy(mutating_in_place_approver(), "delete_file"),
+        ]
+    )
+    arguments = {"path": "x", "options": {"mode": "original"}}
+    call = ToolCall(id="proposed", function="summarize", arguments=arguments)
+    proposed = tool_calls_output(call)
+
+    run = await run_bridge(
+        [proposed, ModelOutput.from_content(model="mockllm/model", content="Done.")],
+        bridge=bridge,
+        tools=declare("summarize"),
+    )
+
+    assert run.generations == 2
+    (result,) = run.tool_results(1)
+    assert result.error is not None
+    assert "changed the tool call in place" in result.error.message
+    assert len(bridge._tool_execution_grants) == 0
+    original = {"path": "x", "options": {"mode": "original"}}
+    assert call.arguments == original
+    ((_, reviewed, _),) = seen
+    assert reviewed.arguments == original
+    execute = call_host_tool(bridge)
+    changed: dict[str, JsonValue] = {"path": "x", "options": {"mode": "changed"}}
+    for server, name in (("one", "read_file"), ("two", "delete_file")):
+        with pytest.raises(PermissionError, match="was not proposed by the model"):
+            await execute(server, name, changed)
+    read.assert_not_awaited()
+    delete.assert_not_awaited()
+
+
 async def test_dispatcher_shaped_call_to_a_bridged_tool_is_approved_as_that_tool() -> (
     None
 ):
@@ -2725,7 +2783,7 @@ async def test_call_that_dispatches_nothing_is_reviewed_as_itself(
     run = await run_bridge([tool_calls_output(call)], bridge=bridge)
 
     ((_, reviewed, _),) = seen
-    assert reviewed is call
+    assert reviewed == call
     assert run.output.message.tool_calls == [call]
 
 
@@ -2752,7 +2810,7 @@ async def test_only_the_dispatcher_function_is_unwrapped(function: str) -> None:
     run = await run_bridge([tool_calls_output(call)], bridge=bridge)
 
     ((_, reviewed, _),) = seen
-    assert reviewed is call
+    assert reviewed == call
     assert run.output.message.tool_calls == [call]
 
 
@@ -2797,7 +2855,7 @@ async def test_in_process_bridge_does_not_unwrap_dispatcher_shaped_calls() -> No
     )
 
     ((_, reviewed, _),) = seen
-    assert reviewed is call
+    assert reviewed == call
 
 
 # ---------------------------------------------------------------------------

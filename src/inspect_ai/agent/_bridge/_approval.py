@@ -24,6 +24,7 @@ back onto the call the scaffold receives.
 
 import sys
 from contextlib import AbstractContextManager, nullcontext
+from copy import deepcopy
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn, Sequence
 
@@ -99,7 +100,9 @@ async def apply_bridge_tool_approval(
     Calls are approved in order and evaluation stops at the first non-approval, so a
     human isn't asked to decide on calls that are about to be discarded anyway.
     `terminate` doesn't return, and neither does a `modify` decision that changes the
-    function called: that is an error in the approver, and fails the sample.
+    function called: that is an error in the approver, and fails the sample. As on
+    the native path, an `approve` from an approver that changed the call it was
+    shown in place is a rejection.
 
     Each call is reviewed as each tool it would run (`AgentBridge.reviewed_calls`),
     and is approved only if every one of those reviews approves it. A `modify`
@@ -132,6 +135,8 @@ async def apply_bridge_tool_approval(
         have_tool_approval,
         modified_function_error,
     )
+    from inspect_ai.approval._approval import Approval
+    from inspect_ai.model._call_tools import _CHANGED_IN_PLACE, _changed_in_place
 
     with bridge_approval_scope(bridge.approval):
         approval_active = have_tool_approval()
@@ -162,13 +167,27 @@ async def apply_bridge_tool_approval(
         modified: dict[str, dict[str, Any]] = {}
         for call in tool_calls:
             reviewed_calls = bridge.reviewed_calls(call, tools)
-            for reviewed in reviewed_calls.calls:
+            for target in reviewed_calls.calls:
+                # each review gets its own copy, sharing nothing with the proposal
+                # or another review, and an approve must leave it as it was shown
+                reviewed = deepcopy(target)
+                shown = deepcopy(target)
                 # no viewer: bridged tools reach us as ToolInfo from the scaffold's
                 # request, not as ToolDef, so there is no registered viewer to
                 # resolve. apply_tool_approval falls back to its default rendering.
                 approved, approval = await apply_tool_approval(
                     message, reviewed, None, approval_history
                 )
+                if (
+                    approved
+                    and approval is not None
+                    and approval.decision == "approve"
+                    and _changed_in_place(reviewed, shown)
+                ):
+                    approved, approval = (
+                        False,
+                        Approval(decision="reject", explanation=_CHANGED_IN_PLACE),
+                    )
                 if not approved:
                     explanation = (approval.explanation if approval else None) or (
                         f"Tool call '{reviewed.function}' was rejected by the "
