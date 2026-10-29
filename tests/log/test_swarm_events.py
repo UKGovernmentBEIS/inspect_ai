@@ -300,7 +300,7 @@ def _render(event: Event) -> tuple[str, str]:
         (
             _swarm(),
             "swarm: member_result",
-            "counter-5",
+            "member: counter-5",
         ),
     ],
 )

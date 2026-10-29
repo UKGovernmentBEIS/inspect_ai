@@ -472,10 +472,13 @@ def render_communication_event(event: CommunicationEvent) -> EventDisplay:
 
 def render_swarm_event(event: SwarmEvent) -> EventDisplay:
     # the kind and member only: `data` is left to the viewer and
-    # `inspect ctl --content`
-    line = Text()
+    # `inspect ctl --content`. The body starts with a static label because an
+    # empty body hides the whole event, header included.
     if event.member is not None:
+        line = Text("member: ")
         line.append(_display_text(event.member), style="bold")
+    else:
+        line = Text("no member")
     # the title is a Rich Rule title, which parses markup
     return EventDisplay(f"swarm: {escape(_display_text(event.kind))}", line)
 

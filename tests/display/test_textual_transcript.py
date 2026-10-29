@@ -313,12 +313,40 @@ _LINES: list[tuple[str, Event, list[str]]] = [
     (
         "swarm member",
         SwarmEvent(kind="final", member=_HOSTILE, data={}),
-        ["swarm: final", _SHOWN],
+        ["swarm: final", f"member: {_SHOWN}"],
     ),
     (
         "swarm kind",
         SwarmEvent(kind=_HOSTILE, member="m", data={}),
-        [f"swarm: {_SHOWN}", "m"],
+        [f"swarm: {_SHOWN}", "member: m"],
+    ),
+    # a swarm event without a member, or whose fields sanitize to nothing,
+    # still shows its header
+    (
+        "swarm ledger",
+        SwarmEvent(kind="ledger", data={}),
+        ["swarm: ledger", "no member"],
+    ),
+    (
+        "swarm metrics",
+        SwarmEvent(kind="metrics", data={}),
+        ["swarm: metrics", "no member"],
+    ),
+    ("swarm final", SwarmEvent(kind="final", data={}), ["swarm: final", "no member"]),
+    (
+        "swarm empty member",
+        SwarmEvent(kind="final", member="", data={}),
+        ["swarm: final", "member: "],
+    ),
+    (
+        "swarm member sanitized away",
+        SwarmEvent(kind="final", member="\x1b]0;x", data={}),
+        ["swarm: final", "member: "],
+    ),
+    (
+        "swarm kind sanitized away",
+        SwarmEvent(kind="\x1b]0;x", data={}),
+        ["swarm: ", "no member"],
     ),
 ]
 
