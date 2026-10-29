@@ -100,7 +100,7 @@ def read_history() -> list[dict[str, Any]]:
         return []
     summaries = []
     for comment in comments(issue["number"]):
-        if comment["user"]["id"] not in PUBLISHER_IDS:
+        if (comment.get("user") or {}).get("id") not in PUBLISHER_IDS:
             continue
         body = comment["body"]
         if not body.startswith("<!-- ci-perf-summary:"):

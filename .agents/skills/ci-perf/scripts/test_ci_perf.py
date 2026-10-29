@@ -560,6 +560,36 @@ def test_read_history_raises_on_publisher_malformed_comment(
         publisher.read_history()
 
 
+def test_read_history_ignores_null_user_comment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A comment whose author is null is dropped before parsing.
+
+    The GitHub API types an issue comment's `user` as nullable, so a deleted
+    account leaves `user` None. Such a comment is not a publisher, so it is
+    skipped even when its body is malformed, and the real publisher summary is
+    still returned.
+    """
+    monkeypatch.setattr(publisher, "tracking_issue", lambda: {"number": 1})
+    monkeypatch.setattr(
+        publisher,
+        "comments",
+        lambda number: [
+            {
+                "user": None,
+                "body": "<!-- ci-perf-summary:1 -->\n```json\n{",
+                "html_url": "null-user-malformed",
+            },
+            {
+                "user": {"id": 330132053},
+                "body": '<!-- ci-perf-summary:2 -->\nrun\n\n```json\n{"schema_version":1}\n```',
+                "html_url": "publisher",
+            },
+        ],
+    )
+    assert publisher.read_history() == [{"schema_version": 1}]
+
+
 def test_failed_finding_still_records_measurements(
     snapshot: dict[str, Any], monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1095,7 +1125,7 @@ def test_latest_window_end_picks_most_recent() -> None:
 
     from collect_ci_data import latest_window_end
 
-    now = datetime(2026, 10, 1, tzinfo=timezone.utc)
+    now = datetime(2026, 10, 30, tzinfo=timezone.utc)
     assert latest_window_end([], now) is None
     # Mixed Z and +00:00 inputs; the true latest is returned normalized to ...Z.
     history = [
@@ -1103,6 +1133,13 @@ def test_latest_window_end_picks_most_recent() -> None:
         {"window": {"end": "2026-09-18T21:13:35+00:00"}},
     ]
     assert latest_window_end(history, now) == "2026-09-19T13:01:25Z"
+    # A nonzero UTC offset is converted to UTC before comparison and output: the
+    # +02:00 instant (03:00Z) is later than the 02:30Z one and normalizes to ...Z.
+    offset_history = [
+        {"window": {"end": "2026-10-29T02:30:00Z"}},
+        {"window": {"end": "2026-10-29T05:00:00+02:00"}},
+    ]
+    assert latest_window_end(offset_history, now) == "2026-10-29T03:00:00Z"
 
 
 def test_latest_window_end_rejects_bad_window_end() -> None:
