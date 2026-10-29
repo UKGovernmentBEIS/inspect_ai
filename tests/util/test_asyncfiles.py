@@ -3995,6 +3995,9 @@ class _GatedFS(fsspec.asyn.AsyncFileSystem):
             if path not in self.files:
                 raise FileNotFoundError(path)
             return self.files[path][start:end]
+        except asyncio.CancelledError:
+            self.backend_cancelled = True
+            raise
         finally:
             self.cat_returned.set()
 
@@ -4280,6 +4283,7 @@ async def test_cancelled_read_retrieves_the_backend_error(
             tg.start_soon(_cancel_then_release, gated_fs, scope)
             await afs.read_file("gatedtest://bucket/timeout.bin")
     assert scope.cancelled_caught
+    assert not gated_fs.backend_cancelled
     gc.collect()
     assert not [r for r in caplog.records if "never retrieved" in r.getMessage()]
 
@@ -4295,6 +4299,7 @@ async def test_async_fsspec_read_cancelled_before_start_does_not_hang(
             await afs.read_file(_GATED_URL)
     assert scope.cancelled_caught
     assert gated_fs.cat_calls == 1
+    assert not gated_fs.backend_cancelled
 
 
 @pytest.mark.timeout(30, method="thread")
@@ -4419,8 +4424,9 @@ async def test_async_remote_read_file_bytes_cancelled_receive_keeps_offset(
                 tg.start_soon(_cancel_then_release, gated_fs, scope)
                 await stream.receive(10)
         assert scope.cancelled_caught
-        # the cancelled `_cat_file` finished before the cancellation propagated
+        # the cancelled receive's `_cat_file` ran to completion first
         assert gated_fs.cat_returned.is_set()
+        assert not gated_fs.backend_cancelled
         assert await stream.receive(10) == ranged_file[start : start + 10]
     assert gated_fs.cat_ranges == [(start, start + _RANGE)] * 2
 
