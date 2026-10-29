@@ -238,9 +238,12 @@ the running row or list a waiting sample as `error`.
 when the sweep accepts its record or a completion for it lands. The live
 listing source (`TaskLogger.sample_summaries()`) and the whole-sample read
 behind `ctl` error detail, requeue and cancel (`TaskLogger.read_sample()`)
-withhold pending keys, so such a sample reads as running or pending, and
-requeue and cancel see it as not yet at the queue (see
-[`ctl/queued-sample-cancel.md`](ctl/queued-sample-cancel.md)). An
+withhold pending keys, so such a sample reads as running or pending.
+Withholding hides only the prior record; it does not override queue or
+active state. Before its re-run arrives at the queue, requeue and cancel
+see the sample as not yet at the queue; once it has arrived, or is
+active, they follow their usual rules, so a queued re-run can be
+cancelled (see [`ctl/queued-sample-cancel.md`](ctl/queued-sample-cancel.md)). An
 invalidated record, clean to the summary, stays withheld until its re-run
 completes. Once the eval finishes the on-disk log is read, where an
 unresolved seeded record is the sample's final one.
