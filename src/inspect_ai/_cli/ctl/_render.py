@@ -546,7 +546,7 @@ def _event_summary(e: dict[str, Any]) -> str:
                 f"{_sanitize_control(str(e.get('kind') or ''))} {record_ids}"
             ).rstrip()
         bits = [head]
-        if e.get("rejected"):
+        if e.get("rejected") is not None:
             bits.append(f"refused ({_sanitize_control(str(e['rejected']))})")
         bits.append(_sanitize_control(str(e.get("reason") or "")))
         bits.append(_sanitize_control(str(e.get("content") or "")))

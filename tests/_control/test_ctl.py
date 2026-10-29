@@ -9466,6 +9466,12 @@ def test_event_summary_communication_and_swarm() -> None:
     assert _event_summary({**sent, "reason": "slow down", "content": "hi"}) == (
         "counter-6 → shared_memory: sent w-1 · refused (rate) · slow down · hi"
     )
+    assert _event_summary({**sent, "rejected": ""}) == (
+        "counter-6 → shared_memory: sent w-1 · refused ()"
+    )
+    assert _event_summary({k: v for k, v in sent.items() if k != "rejected"}) == (
+        "counter-6 → shared_memory: sent w-1"
+    )
     waited = {
         "event": "communication",
         "kind": "waited",
