@@ -4299,10 +4299,6 @@ async def run_failing(
             TimeoutError("tool-specific timeout"),
             ToolCallError("timeout", "Command timed out before completing."),
         ),
-        (
-            LimitExceededError("token", value=2, limit=1),
-            ToolCallError("limit", "The tool exceeded its token limit of 1."),
-        ),
     ],
     ids=lambda v: type(v).__name__,
 )
@@ -4313,6 +4309,22 @@ async def test_mapped_tool_exception_is_recorded_and_propagates_unchanged(
 
     assert raised is error
     assert event.error == expected
+    assert event.failed is None
+    assert event.result == ""
+    assert not bridge._failure_requested.is_set()
+
+
+async def test_limit_is_recorded_and_raised_as_its_native_tool_error() -> None:
+    """The scaffold reads the message the model reads natively, not the limit."""
+    error = LimitExceededError("token", value=2, limit=1)
+    message = "The tool exceeded its token limit of 1."
+
+    bridge, event, raised = await run_failing(error)
+
+    assert type(raised) is ToolError
+    assert str(raised) == message
+    assert raised.__cause__ is error
+    assert event.error == ToolCallError("limit", message)
     assert event.failed is None
     assert event.result == ""
     assert not bridge._failure_requested.is_set()
