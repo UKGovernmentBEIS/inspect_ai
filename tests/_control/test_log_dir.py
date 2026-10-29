@@ -2804,9 +2804,9 @@ async def test_the_walk_lists_shard_directories_once_and_no_deeper(
     listed: list[str] = []
     original = AsyncFilesystem.list_dir
 
-    async def spy(self: AsyncFilesystem, base: str) -> Any:
+    async def spy(self: AsyncFilesystem, base: str, **kwargs: Any) -> Any:
         listed.append(base)
-        return await original(self, base)
+        return await original(self, base, **kwargs)
 
     monkeypatch.setattr(AsyncFilesystem, "list_dir", spy)
     async with AsyncFilesystem() as fs:

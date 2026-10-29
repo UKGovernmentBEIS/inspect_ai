@@ -317,10 +317,10 @@ async def test_list_shard_set_leaves_out_a_shard_removed_during_the_walk(
     _touch(shards_dir / "1" / f"{T1}_task_b.eval")
     original = AsyncFilesystem.list_dir
 
-    async def removed(self: AsyncFilesystem, base: str) -> DirListing:
+    async def removed(self: AsyncFilesystem, base: str, **kwargs: Any) -> DirListing:
         if base.endswith("/1"):
             raise FileNotFoundError(base)
-        return await original(self, base)
+        return await original(self, base, **kwargs)
 
     monkeypatch.setattr(AsyncFilesystem, "list_dir", removed)
     async with AsyncFilesystem() as fs:
@@ -339,17 +339,17 @@ async def test_list_shard_set_lists_at_most_32_shards_at_a_time(
     peak = 0
     full = anyio.Event()
 
-    async def gated(self: AsyncFilesystem, base: str) -> DirListing:
+    async def gated(self: AsyncFilesystem, base: str, **kwargs: Any) -> DirListing:
         nonlocal in_flight, peak
         if base == str(shards_dir):
-            return await original(self, base)
+            return await original(self, base, **kwargs)
         in_flight += 1
         peak = max(peak, in_flight)
         if in_flight == 32:
             full.set()
         await full.wait()
         in_flight -= 1
-        return await original(self, base)
+        return await original(self, base, **kwargs)
 
     monkeypatch.setattr(AsyncFilesystem, "list_dir", gated)
     async with AsyncFilesystem() as fs:
@@ -368,13 +368,13 @@ async def test_list_shard_set_keeps_to_a_given_limiter(
     in_flight = 0
     peak = 0
 
-    async def counted(self: AsyncFilesystem, base: str) -> DirListing:
+    async def counted(self: AsyncFilesystem, base: str, **kwargs: Any) -> DirListing:
         nonlocal in_flight, peak
         in_flight += 1
         peak = max(peak, in_flight)
         try:
             await anyio.sleep(0.01)
-            return await original(self, base)
+            return await original(self, base, **kwargs)
         finally:
             in_flight -= 1
 
@@ -400,10 +400,10 @@ async def test_cancelling_list_shard_set_cancels_its_listings(
     cancelled = 0
     all_started = anyio.Event()
 
-    async def blocked(self: AsyncFilesystem, base: str) -> DirListing:
+    async def blocked(self: AsyncFilesystem, base: str, **kwargs: Any) -> DirListing:
         nonlocal started, cancelled
         if base == str(shards_dir):
-            return await original(self, base)
+            return await original(self, base, **kwargs)
         started += 1
         if started == 32:
             all_started.set()
@@ -480,10 +480,10 @@ async def test_list_shard_set_on_s3_leaves_out_a_shard_emptied_during_the_walk(
     shards_dir = f"s3://test-bucket/{prefix}"
     original = AsyncFilesystem.list_dir
 
-    async def emptied(self: AsyncFilesystem, base: str) -> DirListing:
+    async def emptied(self: AsyncFilesystem, base: str, **kwargs: Any) -> DirListing:
         if base == f"{shards_dir}/1":
             s3.delete_object(Bucket="test-bucket", Key=f"{prefix}/1/{T1}_task_a.eval")
-        return await original(self, base)
+        return await original(self, base, **kwargs)
 
     monkeypatch.setattr(AsyncFilesystem, "list_dir", emptied)
     async with AsyncFilesystem() as fs:
