@@ -61,7 +61,7 @@ stays known work. It covers:
 - the sandbox service's Python check and queue commands
   ([`util/_sandbox/service.py`](../src/inspect_ai/util/_sandbox/service.py));
 - every exec a task runs inside the proxy's `no_events()`: `exec_remote()`'s
-  polls, sandbox tools injection, and the human agent's setup and the execs
+  polls, sandbox tools installation checks, and the human agent's setup and the execs
   of its service handlers, including intermediate scoring;
 - every exec run inside `sandbox_agent_bridge()`'s body, such as the one
   that launches a bridged agent
@@ -93,9 +93,12 @@ which `suspend_working_limit()`, approvals, reviews, sentinel monitors,
 human input, the pause hold, the connection-slot wait and the backoff sleep
 use, marks its context as suspended, and no span opens there. An approver's
 or a monitor's own model calls and tool calls therefore never restart the
-agent's clock. `SampleWait` objects that close from another task (the batch
-queue, `sample_waiting_for()`) hold the work of the context that opened
-them but suspend nothing, since no work runs inside them.
+agent's clock. Waits that use `SampleWait` directly (the batch queue,
+`sample_waiting_for()`) hold the work of the context that opened them but
+do not set the suspension flag, so they suspend nothing:
+`sample_waiting_for()` closes its wait in the acquiring task once the
+semaphore is acquired, before the guarded body runs, and the batch queue's
+wait is closed by the batcher when the request's batch is submitted.
 
 The suspension only stops new spans from opening; it does not hide the work
 around it. A wait opened by a task started inside a suspension still holds
@@ -266,18 +269,21 @@ sample keeps the start time of the oldest open wait and the work spans
 
 ## Limits and logged durations
 
-Working time excludes the known waits not covered by known work, and every
-duration and limit reads it from the one sample-wide timeline over its own
-interval. The exact offsets each producer records are defined by the code
+Working time excludes the known waits not covered by known work. The
+sample's logged working time, `ToolEvent` and `SubtaskEvent` working
+durations and `working_limit()` accounting read it from the one
+sample-wide timeline over their own interval. Other event timings, such as
+a `ModelEvent`'s request time, are not working time. The exact offsets each producer records are defined by the code
 ([`_util/working.py`](../src/inspect_ai/_util/working.py) and the producers
 named below), not here.
 
 - **Scoped limits.** A `working_limit()` node's `usage` is its elapsed time
   minus the sample's waiting time over the node's own interval, computed
-  when it is read. It therefore lies in `[0, elapsed]` and picks up waits
-  recorded after the fact, such as a retried attempt that began before the
-  node was entered. Outside a running sample a scoped limit measures
-  wall-clock time.
+  when it is read. That current-attempt part lies in `[0, elapsed]` and
+  picks up waits recorded after the fact, such as a retried attempt that began before the
+  node was entered. On a normal resume the root node also adds the prior
+  attempts' working time (see "Resume accounting"). Outside a running
+  sample a scoped limit measures wall-clock time.
 - **Monitor.** `monitor_working_limit` checks the sample's working limit
   once a second. An open wait stops the clock in real time, so no wait is
   credited in advance. The pause gate keeps a tick loop only to bound how
