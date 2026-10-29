@@ -1,6 +1,7 @@
 import functools
 import os
 import sys
+import traceback
 from contextlib import nullcontext
 from json import dumps
 from typing import Any, Callable, Literal, NoReturn, TextIO, cast
@@ -606,12 +607,19 @@ def merge_shards_command(
             ValueError,
         ) as ex:
             _merge_failure(json_output, ex, stdout)
-        except LookupError as ex:
-            # an unregistered metric; KeyError and IndexError are
-            # bugs, not refusals
-            if isinstance(ex, (KeyError, IndexError)):
+        except Exception as ex:
+            # an unregistered metric is a LookupError; KeyError and
+            # IndexError are bugs, not refusals
+            if isinstance(ex, LookupError) and not isinstance(
+                ex, (KeyError, IndexError)
+            ):
+                _merge_failure(json_output, ex, stdout)
+            if not json_output or isinstance(
+                ex,
+                (click.ClickException, click.exceptions.Exit, click.exceptions.Abort),
+            ):
                 raise
-            _merge_failure(json_output, ex, stdout)
+            _unexpected_merge_failure(ex, stdout)
 
         header = outcome.result.log
         ledger = header.eval.shards.ledger if header.eval.shards else []
@@ -672,6 +680,22 @@ def _merge_failure(json_output: bool, ex: Exception, stdout: TextIO) -> NoReturn
         )
     click.echo(dumps({"error": error}, indent=2), file=stdout)
     raise SystemExit(1)
+
+
+def _unexpected_merge_failure(ex: Exception, stdout: TextIO) -> NoReturn:
+    """End `merge-shards --json` with an error object for an unexpected `ex`.
+
+    The traceback goes to stderr first (for a `PrerequisiteError`, its
+    message), so stdout still carries only the error object.
+    """
+    from inspect_ai._util.error import PrerequisiteError
+
+    if isinstance(ex, PrerequisiteError):
+        print(f"\n{ex.message}\n", file=sys.stderr)
+    else:
+        traceback.print_exception(ex, file=sys.stderr)
+    sys.stderr.flush()
+    _merge_failure(True, ex, stdout)
 
 
 _TS_MONO_APP = PKG_PATH / "_view" / "ts-mono" / "apps" / "inspect"

@@ -122,7 +122,7 @@ The merge checks that the shards belong to one run, recomputes metrics over all 
 
 `--delete-shards` deletes the whole `.shards` directory after a complete merge, including any checkpoints and scan results in it.
 
-`--json` prints one JSON object on stdout for scripts and agents. On success it has the merged log's `log`, `status`, `written`, `shards`, `samples`, `new_samples`, `missing`, `running`, `failed` and `shards_deleted`. On failure it is `{"error": {"type": ..., "message": ...}}` and the exit code is 1; for an incomplete set the error also has `status`, `missing`, `running` and `failed`. Any output from metric or reducer code goes to stderr.
+`--json` prints one JSON object on stdout for scripts and agents. On success it has the merged log's `log`, `status`, `written`, `shards`, `samples`, `new_samples`, `missing`, `running`, `failed` and `shards_deleted`. On any failure it is `{"error": {"type": ..., "message": ...}}` and the exit code is 1; for an incomplete set the error also has `status`, `missing`, `running` and `failed`. For an unexpected error, the traceback goes to stderr. Any output from metric or reducer code goes to stderr.
 
 The merge does not import the task file recorded in the shard logs. Every metric must be built in, come from an installed package, or be imported by you: when one is not, the merge refuses and names it. To merge a task with its own metric, import the module that defines it and call `merge_eval_log_shards()` from Python.
 

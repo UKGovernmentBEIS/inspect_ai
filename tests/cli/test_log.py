@@ -161,3 +161,44 @@ def test_merge_shards_json_errors(tmp_path: Path) -> None:
     (shards / f"{NAME}.eval").write_bytes(b"x")
     stray = error(merged)
     assert stray["type"] == "ShardSetError" and "not shard attempts" in stray["message"]
+
+
+def _merge_raising(monkeypatch: pytest.MonkeyPatch, ex: Exception) -> None:
+    async def merge_shards(*args: Any, **kwargs: Any) -> Any:
+        raise ex
+
+    monkeypatch.setattr("inspect_ai.log._shards._api.merge_shards", merge_shards)
+
+
+@pytest.mark.parametrize(
+    "ex",
+    [PermissionError("denied: x"), ImportError("no module s3fs"), KeyError("bug")],
+    ids=["PermissionError", "ImportError", "KeyError"],
+)
+def test_merge_shards_json_reports_an_unexpected_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ex: Exception
+) -> None:
+    _merge_raising(monkeypatch, ex)
+    merged = str(tmp_path / f"{NAME}.eval")
+    result = _merge(merged, "--json")
+    assert result.exit_code == 1, result.output
+    assert _json(result) == {"error": {"type": type(ex).__name__, "message": str(ex)}}
+    assert "Traceback" in result.stderr and str(ex) in result.stderr
+
+    # without --json it propagates
+    result = _merge(merged)
+    assert result.exception is ex and result.stdout == ""
+
+
+def test_merge_shards_json_reports_a_prerequisite_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai._util.error import PrerequisiteError
+
+    _merge_raising(monkeypatch, PrerequisiteError("install s3fs"))
+    result = _merge(str(tmp_path / f"{NAME}.eval"), "--json")
+    assert result.exit_code == 1, result.output
+    assert _json(result) == {
+        "error": {"type": "PrerequisiteError", "message": "install s3fs"}
+    }
+    assert "install s3fs" in result.stderr and "Traceback" not in result.stderr
