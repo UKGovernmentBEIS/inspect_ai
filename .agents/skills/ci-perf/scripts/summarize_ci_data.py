@@ -28,15 +28,15 @@ def window_hours(start: str, end: str) -> float:
 def job_is_unstarted(job: dict[str, Any]) -> bool:
     """Whether a non-skipped job never got a runner, so has no runner time.
 
-    The jobs API reports `runner_name` None for a job cancelled or failed while
-    still queued (fail-fast or a concurrency cancel); its `started_at` is the
-    queue time, so its exec span is wall clock, not compute. Legacy snapshots
-    predate the recorded `runner_name`, so fall back to an empty steps list: a
-    job that reached a runner ran at least one step.
+    The jobs API reports an empty or null `runner_name` for a job cancelled or
+    failed while still queued (fail-fast or a concurrency cancel); its
+    `started_at` is the queue time, so its exec span is wall clock, not compute.
+    The live queued-cancel shape is `runner_name` `""` with no steps. A job that
+    reached a runner records its steps, so a falsy `runner_name` with steps
+    present still counts as started; this one check also covers legacy snapshots
+    that predate the recorded `runner_name`.
     """
-    if "runner_name" in job:
-        return job["runner_name"] is None
-    return not job.get("steps")
+    return not job.get("runner_name") and not job.get("steps")
 
 
 def stats(values: list[float]) -> dict[str, float | int] | None:

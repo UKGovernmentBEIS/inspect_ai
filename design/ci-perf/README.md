@@ -33,8 +33,8 @@ latest attempt's start, so re-run runs are excluded from workflow wall and
 job-wait distributions and counted in `rerun_runs`. Skipped jobs
 contribute no execution time; GitHub sometimes returns inverted timestamps for
 them. A non-skipped job that never got a runner (cancelled or failed while
-still queued, so `runner_name` is null — or, in legacy raw files, with no
-steps) adds no runner time and is counted in `unstarted_jobs`. Missing or inverted execution times on non-skipped jobs make compute totals
+still queued, so `runner_name` is null or empty — or, in legacy raw files,
+with no steps) adds no runner time and is counted in `unstarted_jobs`. Missing or inverted execution times on non-skipped jobs make compute totals
 unavailable, with the count recorded in `unavailable_job_timings`. Missing or
 inverted workflow wall, job wait, and step observations are excluded from their
 distributions and counted in `excluded_timings`. The collector retains step

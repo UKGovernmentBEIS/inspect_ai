@@ -285,12 +285,13 @@ def dedupe_jobs(jobs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     runner and start time, so dedupe by (runner_id, started_at) and keep the
     copy from the earliest attempt regardless of listing order. Only jobs that
     reached a runner can be carried over; skipped or never-started jobs have a
-    null runner_id and stay keyed by id so each is retained.
+    null or zero runner_id and stay keyed by id so each is retained (distinct
+    queued-cancelled jobs share runner_id 0 and can share a started_at).
     """
     kept: dict[Any, dict[str, Any]] = {}
     for job in jobs:
         runner_id = job.get("runner_id")
-        key = (runner_id, job["started_at"]) if runner_id is not None else job["id"]
+        key = (runner_id, job["started_at"]) if runner_id else job["id"]
         incumbent = kept.get(key)
         if incumbent is None or job["run_attempt"] < incumbent["run_attempt"]:
             kept[key] = job
@@ -301,8 +302,8 @@ def job_record(run: dict[str, Any], job: dict[str, Any]) -> dict[str, Any]:
     return {
         "name": job["name"],
         "conclusion": job["conclusion"],
-        # Null when the job never got a runner (cancelled/failed while queued);
-        # the summarizer then attributes no runner time to it.
+        # Empty or null when the job never got a runner (cancelled/failed while
+        # queued); the summarizer then attributes no runner time to it.
         "runner_name": job.get("runner_name"),
         # The attempt that produced this job. filter=all returns earlier
         # attempts' jobs, so runner time per attempt and re-run totals are

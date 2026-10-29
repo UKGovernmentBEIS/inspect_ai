@@ -1222,6 +1222,66 @@ def test_unstarted_jobs_excluded_from_runner_time() -> None:
     assert "unstarted" in render(result).lower()
 
 
+# The live API shape for a run cancelled while still queued: runner_name "" and
+# runner_id 0 (not null), no steps, and a shared started_at across jobs. Run
+# 38006279837 in UKGovernmentBEIS/inspect_ai returned exactly this.
+_ZERO_RUNNER_JOBS = [
+    {
+        "id": 114075707983,
+        "name": "test (3.11)",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "run_attempt": 1,
+        "runner_id": 0,
+        "runner_name": "",
+        "started_at": "2026-10-09T23:49:25Z",
+        "completed_at": "2026-10-10T00:25:26Z",
+        "steps": [],
+    },
+    {
+        "id": 114075708048,
+        "name": "mypy (3.11)",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "run_attempt": 1,
+        "runner_id": 0,
+        "runner_name": "",
+        "started_at": "2026-10-09T23:49:25Z",
+        "completed_at": "2026-10-10T00:21:50Z",
+        "steps": [],
+    },
+]
+
+
+def test_empty_runner_name_jobs_add_no_runner_time() -> None:
+    """A queued-cancel with runner_name "" (not null) adds no runner time.
+
+    The live shape reports an empty runner_name, not null, so these jobs must
+    still be counted unstarted rather than charged their queued wall span.
+    """
+    from collect_ci_data import job_record
+
+    run = {
+        "id": 38006279837,
+        "name": "Build",
+        "conclusion": "cancelled",
+        "run_started_at": "2026-10-09T23:49:25Z",
+        "wall_seconds": 2435,
+    }
+    snap = {
+        "generated_at": "2026-10-11T00:00:00Z",
+        "repo": "UKGovernmentBEIS/inspect_ai",
+        "runs": [{**run, "jobs": [job_record(run, j) for j in _ZERO_RUNNER_JOBS]}],
+        "pytest_summaries": {},
+        "pytest_durations": {},
+    }
+    result = summarize(snap)
+    assert result["unstarted_jobs"] == 2
+    assert result["runner_minutes"] == 0
+    assert result["cancelled_runner_minutes"] == 0
+    assert result["unavailable_job_timings"] == 0
+
+
 # --- Issue 612: re-run attempts counted; re-run runs out of wall/wait --------
 
 
@@ -1313,6 +1373,75 @@ def test_dedupe_jobs_keeps_earliest_copy_regardless_of_order() -> None:
     expected = {1: 1, 2: 1, 3: 2, 5: 1, 6: 2}
     assert kept_ids(_RERUN_JOBS) == expected
     assert kept_ids(list(reversed(_RERUN_JOBS))) == expected
+
+
+def test_dedupe_jobs_keeps_zero_runner_jobs_sharing_started_at() -> None:
+    """Distinct queued-cancelled jobs share runner_id 0 and a started_at.
+
+    They are different jobs, so both must be retained; keying zero runner_id by
+    (runner_id, started_at) would collapse them into one.
+    """
+    import collect_ci_data as collector
+
+    kept = collector.dedupe_jobs(_ZERO_RUNNER_JOBS)
+    assert sorted(j["id"] for j in kept) == [114075707983, 114075708048]
+
+
+def test_zero_runner_jobs_survive_collection_and_count_as_unstarted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Both zero-runner jobs reach the snapshot and add no runner time.
+
+    Replaying the live shape through main() keeps both distinct jobs (B2) and
+    the summary charges them no runner minutes, counting both as unstarted (B1).
+    """
+    import collect_ci_data as collector
+
+    run = {
+        "id": 38006279837,
+        "name": "Build",
+        "head_branch": "topic",
+        "conclusion": "cancelled",
+        "run_attempt": 1,
+        "run_started_at": "2026-10-09T23:49:25Z",
+        "updated_at": "2026-10-10T00:30:00Z",
+    }
+
+    def fake_pages(path: str) -> Any:
+        return [{"jobs": _ZERO_RUNNER_JOBS}]
+
+    monkeypatch.setattr(
+        collector,
+        "fetch_runs",
+        lambda repo, limit, days: collector.FetchedRuns([run], 0, 0),
+    )
+    monkeypatch.setattr(collector, "read_history", lambda: [])
+    monkeypatch.setattr(collector, "gh_api_pages", fake_pages)
+    out, summary_out = tmp_path / "raw.json", tmp_path / "summary.json"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "collect",
+            "--out",
+            str(out),
+            "--summary-out",
+            str(summary_out),
+            "--durations-runs",
+            "0",
+        ],
+    )
+    collector.main()
+
+    raw = json.loads(out.read_text())
+    assert sorted(j["id"] for j in raw["runs"][0]["jobs"]) == [
+        114075707983,
+        114075708048,
+    ]
+    summary = json.loads(summary_out.read_text())
+    assert summary["unstarted_jobs"] == 2
+    assert summary["runner_minutes"] == 0
+    assert summary["cancelled_runner_minutes"] == 0
 
 
 def test_rerun_attempts_counted_and_run_excluded_from_wall(
