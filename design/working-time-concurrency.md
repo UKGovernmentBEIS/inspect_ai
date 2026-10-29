@@ -297,8 +297,11 @@ sample keeps the start time of the oldest open wait and the work spans
   retried attempt classified after that does not change an event that is
   already published. A tool event's own call is known work, so its duration
   counts as working except where the call itself was held.
-- **`working_start`** of every event is the sample's working time at the
-  event's creation, prior attempts included (`sample_working_time()`).
+- **`working_start`** of an event is the sample's working time at the
+  event's creation (`sample_working_time()`), prior attempts included once
+  they are restored (see "Resume accounting"). Events created before the
+  sample clock starts (the init span's events and `SampleInitEvent`) get
+  the raw monotonic time instead, since there is no sample clock yet.
 - **Logged `EvalSample.working_time`** is the attempt's elapsed time minus
   `sample_waiting_time(start, end)`.
 
@@ -307,21 +310,25 @@ sample keeps the start time of the oldest open wait and the work spans
 The checkpoint code ([`util/_checkpoint/sample_runtime.py`](../src/inspect_ai/util/_checkpoint/sample_runtime.py))
 keeps three things apart:
 
-- Event offsets are cumulative.
+- Event offsets are cumulative once the prior attempts are restored.
 - Logged durations cover only the current attempt.
 - Prior usage counts toward enforcement only on a normal resume.
 
 `P_wall` and `P_work` are the prior attempts' wall time and working time.
 `A(t)` is the current attempt's working time, measured from the sample
-clock's start, which comes before the checkpointer awaits hydration. `E` is
-`A` at the moment the root `working_limit` node is entered.
+clock's start, which comes before the checkpointer awaits hydration.
+`r` is the sample-clock time at which the root `working_limit` node is
+entered, and `t` is now, or the node's end time once it has exited. Root
+usage is computed over the node's own interval, like any scoped limit, not
+as a difference of readings, since late waits can change the working time
+before `r` (see "Limits and logged durations").
 
 | Quantity | Formula |
 | --- | --- |
-| `working_start` of events | `P_work + A(t)` |
+| `working_start` of events created after restore | `P_work + A(t)` |
 | Logged `EvalSample.working_time` | `A(end)` |
-| Root node `usage`, normal resume (`check=True`) | `P_work + (A(t) - E)` |
-| Root node `usage`, scoring resume (`check=False`) | `A(t) - E` |
+| Root node `usage`, normal resume (`check=True`) | `P_work + (t - r) - waiting(r, t)` |
+| Root node `usage`, scoring resume (`check=False`) | `(t - r) - waiting(r, t)` |
 | Dump `sample_elapsed` | `P_wall` plus this attempt's elapsed time, measured from the sample clock's start |
 | Dump `working_elapsed` / `working_waiting` | `P_work + A(t)` / `sample_elapsed - working_elapsed` |
 
@@ -329,6 +336,10 @@ clock's start, which comes before the checkpointer awaits hydration. `E` is
 node, whose origin restore resets after hydration, so it misses the time an
 attempt spends before restore: with 5 s from earlier attempts, 10 s before
 restore and 2 s after, it reads 7 instead of 17.
+
+`P_work` reaches events only from the restore on, which runs after
+hydration: an event created while the checkpointer hydrates keeps its
+attempt-local offset `A(t)`, and earlier events are not rebased.
 
 Restore reads:
 
@@ -414,8 +425,7 @@ is `time_limit`, which the docs recommend alongside every `working_limit`.
 
 - 2026-10-07 (decision: Ransom, after maintainer feedback): if Inspect
   knows of anything waiting, the time counts as waiting time; otherwise it
-  counts as working time. This replaced the two options of the 2026-10-06
-  revision (see "Alternatives considered"). The same decision kept these
+  counts as working time. The same decision kept these
   earlier choices: the accounting is a bug fix and is on by default, with
   no opt-in mode or legacy switch; human waits count as waiting; credited
   retry time has no cap, and the docs recommend setting `time_limit` beside
@@ -453,13 +463,13 @@ risky.
   in-flight attempts resolved by outcome would stop one wait from crediting
   other work. The cost is lanes at every fork site, pending segments and
   event probes.
-- **Credit only sure waits in eligible samples** (2026-10-06 option A). No
+- **Credit only sure waits in eligible samples.** No
   credit with a sandbox or an in-process `agent_bridge()`, any concurrent
   region charged, and a warning for samples that get no credit. This closes
   the gaming routes, but it turns `working_limit` into `time_limit` for most
   real users (sandboxed agents), who depend on rate-limit and semaphore
   credit.
-- **Working time equals wall-clock time** (2026-10-06 option B), with
+- **Working time equals wall-clock time**, with
   `working_limit` deprecated. This is the simplest choice, but it drops the
   credit that makes the feature useful (max-sandboxes and rate-limit
   waits).
