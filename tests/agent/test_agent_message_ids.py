@@ -555,6 +555,106 @@ async def test_compacted_history_keeps_the_ids_of_the_retained_messages(
     assert ids[1] == second.id
 
 
+def _transported(reply: ChatMessageAssistant, call_id: str) -> ChatMessageAssistant:
+    """`reply` as the Google dialect hands it to a scaffold: call ids re-derived."""
+    assert reply.tool_calls
+    [call] = reply.tool_calls
+    return reply.model_copy(
+        update={"tool_calls": [ToolCall(call_id, call.function, call.arguments)]}
+    )
+
+
+async def test_compaction_after_re_derived_ids_keeps_the_latest_replys_id() -> None:
+    """A retained latest reply equal to an earlier one is the latest, once both came back transported."""
+    task = ChatMessageUser(content="List the files twice.")
+    first, second = _call("toolu_1"), _call("toolu_2")
+    # Google derives the call id from the function and arguments, so both
+    # replies come back with the same one
+    first_back, second_back = (
+        _transported(first, "call_bash_1"),
+        _transported(second, "call_bash_1"),
+    )
+    bridge = AgentBridge(AgentState(messages=[task]))
+    scaffold = _Scaffold(bridge)
+    await scaffold.request([task], first)
+    bridge._record_transported_reply(first, [first_back])
+    await scaffold.request([task, first_back, _result("call_bash_1", "OLD")], second)
+    bridge._record_transported_reply(second, [second_back])
+    [event] = _awaiting(bridge, second)
+    summary = ChatMessageUser(content="Summary: listed the files once.")
+
+    ids = await scaffold.request([summary, second_back, _result("call_bash_1", "NEW")])
+
+    assert second.id is not None
+    assert ids[1] == edited_id(second.id, scaffold.sent[1])
+    assert event.message_id == ids[2]
+
+
+async def _google_compacting() -> None:
+    """Two equal calls, then compaction keeping the second call with a new result."""
+    from google.genai import types
+
+    client = genai.Client(api_key="inspect")
+    config = types.GenerateContentConfig(
+        automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True)
+    )
+    contents: list[dict[str, Any]] = [{"role": "user", "parts": [{"text": PROMPT}]}]
+    for result in ("OLD", "NEW"):
+        response = await client.aio.models.generate_content(
+            model="inspect", contents=contents, config=config
+        )
+        assert response.candidates and response.candidates[0].content
+        reply = response.candidates[0].content.model_dump(
+            exclude_none=True, by_alias=True
+        )
+        answer = {
+            "role": "user",
+            "parts": [
+                {"functionResponse": {"name": "echo", "response": {"output": result}}}
+            ],
+        }
+        contents += [reply, answer]
+    summary = {"role": "user", "parts": [{"text": "Summary: echoed once."}]}
+    await client.aio.models.generate_content(
+        model="inspect", contents=[summary, *contents[-2:]], config=config
+    )
+
+
+def test_google_compaction_keeps_the_latest_replys_id(tmp_path: Path) -> None:
+    @agent
+    def compacting() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            async with agent_bridge(state) as bridge:
+                await _google_compacting()
+                return bridge.state
+
+        return execute
+
+    log = eval(
+        Task(dataset=[Sample(input=PROMPT)], solver=compacting()),
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                *[
+                    ModelOutput.for_tool_call("mockllm/model", "echo", {"text": "hi"})
+                    for _ in range(2)
+                ],
+                ModelOutput.from_content("mockllm/model", "Done."),
+            ],
+        ),
+        log_dir=str(tmp_path),
+    )[0]
+
+    assert log.status == "success", log.error
+    assert log.samples
+    first, second, compacted = [
+        e for e in log.samples[0].events if isinstance(e, ModelEvent)
+    ]
+    retained = compacted.input[1]
+    assert second.output.message.id not in (None, first.output.message.id)
+    assert retained.id == edited_id(second.output.message.id, retained)
+
+
 async def test_resumed_bridge_keeps_the_main_threads_id() -> None:
     """A side call's equal output recorded first doesn't take the main thread's id after a resume."""
     task = ChatMessageUser(content="List the files.")

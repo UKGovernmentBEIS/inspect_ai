@@ -753,6 +753,21 @@ class AgentBridge:
                 self._message_ids.setdefault(key, []).append(message_id)
                 known.add(key)
 
+    def _record_transported_reply(
+        self, reply: ChatMessageAssistant, transported: list[ChatMessage]
+    ) -> None:
+        """Recognize `reply` by the form a dialect that re-derives call ids hands back.
+
+        Google derives call ids from function and arguments, so a reply equal to
+        an earlier one comes back as that one's copy did; recording its own copy's
+        keys lets alignment weigh both.
+        """
+        if reply.id is None:
+            return
+        for message in transported:
+            if isinstance(message, ChatMessageAssistant):
+                self._record_message_id(_message_id_keys(message), reply.id)
+
     def _record_input_message_ids(self, messages: list[ChatMessage]) -> None:
         """Record the input's ids, including the condensed and quoted forms `_position_descent` accepts."""
         for message in messages:

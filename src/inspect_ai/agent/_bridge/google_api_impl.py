@@ -171,6 +171,10 @@ async def inspect_google_api_request_impl(
     # translate response to Gemini format
     response = gemini_response_from_output(output, model.api.model_name)
     debug_log("SCAFFOLD RESPONSE", response)
+    bridge._record_transported_reply(
+        output.message,
+        messages_from_google_contents([response["candidates"][0]["content"]], None),
+    )
 
     return response
 
