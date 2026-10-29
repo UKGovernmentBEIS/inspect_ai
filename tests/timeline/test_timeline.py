@@ -1166,6 +1166,45 @@ def test_a_pooled_log_s_lookups_walk_the_smaller_of_lengths_and_rows(
     assert _pooled_work(events, pool, monkeypatch) <= entries + 20 * len(pool)
 
 
+def _trimmed(calls: int) -> tuple[list[Any], list[Any]]:
+    """`calls` model calls with no origins from a scaffold that drops the oldest message of its history each turn as it adds its output and a note, so none continues another; condensed, each input is one range of the pool."""
+    from inspect_ai.event import SpanBeginEvent, SpanEndEvent
+    from inspect_ai.event._pool import condense_model_event_inputs
+    from inspect_ai.model import ChatMessageSystem, ChatMessageUser
+
+    history: list[Any] = [
+        ChatMessageSystem(content="You are the main agent."),
+        ChatMessageUser(content="Go."),
+    ]
+    events: list[Any] = [SpanBeginEvent(id="main", name="main", type="agent")]
+    for n in range(calls):
+        output = _assistant(f"Answer {n}.")
+        events.append(_model(f"m{n}", "main", history[n:], output))
+        history = [*history, output, ChatMessageUser(content=f"Note {n}.")]
+    events.append(SpanEndEvent(id="main"))
+    condensed, _, entries = condense_model_event_inputs(events, 0, {})
+    return condensed, [message for _, message in entries]
+
+
+def test_a_trimming_scaffold_s_calls_are_looked_up_in_linear_work() -> None:
+    # self-review after Ransom's ninth review: each input covered every open
+    # call's length and the row of every open call's output, never lined up,
+    # so each call walked all the open ones; one pool range per input, the
+    # log as stored grows linearly
+    from test_helpers.adversarial_log import executed_lines
+
+    per_call = []
+    for calls in (200, 400, 800):
+        events, pool = _trimmed(calls)
+        built, lines = executed_lines(
+            _timeline_build, events, message_pool=pool, continuity=True
+        )
+        [main] = built.root.content
+        assert isinstance(main, TimelineSpan) and len(_model_events(main)) == calls
+        per_call.append(lines / calls)
+    assert per_call[2] <= 1.3 * per_call[0], per_call
+
+
 def _descending(calls: int, heads: bool) -> tuple[list[Any], list[Any]]:
     """`calls` model calls with no origins whose inputs, each one prefix range of a shared pool, get shorter call by call, their outputs in no pool row: with `heads`, each carries on one first call (the heads of a fork nothing resolves); else none carries on another (candidates)."""
     from inspect_ai.event import ModelEvent, SpanBeginEvent, SpanEndEvent

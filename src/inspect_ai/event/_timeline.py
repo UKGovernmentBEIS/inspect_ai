@@ -1344,6 +1344,11 @@ class _RowSet:
         return at
 
 
+# an open call whose output at most this many pool rows hold is also indexed
+# by each such row's offset from its input length
+_OFFSET_ROWS = 4
+
+
 class _OpenCalls:
     """Calls a later call may continue, looked up where it would hold their output: at the position of their input's length.
 
@@ -1351,7 +1356,7 @@ class _OpenCalls:
 
     A later call whose input is a list (the timeline of expanded events, as the viewer and Scout read it) is looked up at each open length shorter than its input, a fingerprint each. Forks of one tip share their input, and so their length, and side calls between two turns are few; the costly case is a long run of calls none of which continues another, each with an input of a new length, whose lookups then read at most the positions their inputs hold (pinned by ``test_calls_that_continue_nothing_cost_at_most_their_inputs``).
 
-    A later call whose input is stored as ranges of the message pool (the log driver's) is looked up range by range. A range of rows ``begin..end`` placed at position ``start`` holds, at each position ``L`` it covers, the row ``L + begin - start``, so it can continue only an open call whose length it covers, at a row holding that call's output. The open input lengths, and the pool rows holding open calls' outputs (each fingerprint's rows added once), are kept in sets counted and listed by interval in logarithmic steps (``_RowSet``), so adding one shifts none of the others (``test_calls_of_falling_lengths_are_indexed_in_linear_work``); each range walks the smaller of the open lengths it covers and those rows it covers, checking each in constant time. So the work is linear in the log as stored except where a range covers both many open lengths and many rows holding open outputs that never line up with them, pinned by ``test_a_pooled_log_s_lookups_walk_the_smaller_of_lengths_and_rows``.
+    A later call whose input is stored as ranges of the message pool (the log driver's) is looked up range by range. A range of rows ``begin..end`` placed at position ``start`` holds, at each position ``L`` it covers, the row ``L + begin - start``, so it can continue only an open call whose length it covers, at a row holding that call's output. The open input lengths, and the pool rows holding open calls' outputs (each fingerprint's rows added once), are kept in sets counted and listed by interval in logarithmic steps (``_RowSet``), so adding one shifts none of the others (``test_calls_of_falling_lengths_are_indexed_in_linear_work``); each range walks the smaller of the open lengths it covers and those rows it covers, checking each in constant time. A range can continue a call only at a row whose offset from the call's input length is the range's (``begin - start``), so an open call whose output few rows hold is also indexed by those offsets, and a range walks its offset's calls (with the calls whose output many rows hold) where they are fewer: a scaffold that drops its oldest message each turn, none of whose calls continues another, is looked up in linear work (``test_a_trimming_scaffold_s_calls_are_looked_up_in_linear_work``). So the work is linear in the log as stored except where a range covers both many open lengths and many rows holding open outputs that never line up with them, and those outputs are held by many rows each, pinned by ``test_a_pooled_log_s_lookups_walk_the_smaller_of_lengths_and_rows``.
     """
 
     def __init__(self, inputs: _Inputs) -> None:
@@ -1361,6 +1366,11 @@ class _OpenCalls:
         self._index: dict[int, dict[_Fingerprint, int]] = {}
         # the input lengths in the index
         self._lengths = _RowSet(0)
+        # row - input length -> (input length, index) of the calls whose output
+        # the row holds, for outputs at most _OFFSET_ROWS rows hold; the
+        # indexes of the other calls
+        self._offsets: dict[int, list[tuple[int, int]]] = {}
+        self._wide: list[int] = []
         # the pool rows holding an output of a call opened in any thread
         # (`_Inputs.open_rows`): a row of another's only adds to a range's count
         self._rows = inputs.open_rows()
@@ -1375,6 +1385,12 @@ class _OpenCalls:
             self._lengths.add(at)
         by_output[output] = len(self.calls)
         self._inputs.open_output(output)
+        rows = self._inputs.rows_with(output)
+        if len(rows) <= _OFFSET_ROWS:
+            for row in rows:
+                self._offsets.setdefault(row - at, []).append((at, len(self.calls)))
+        else:
+            self._wide.append(len(self.calls))
         self.calls.append(call)
 
     def continued_by(self, call: _Call) -> _Call | None:
@@ -1382,13 +1398,23 @@ class _OpenCalls:
         best = -1
         if isinstance(call.input, PoolView):
             for (begin, end), start in zip(call.input.refs, call.input.starts):
-                lengths = self._lengths.count(start, start + end - begin)
+                stop = start + end - begin
+                lengths = self._lengths.count(start, stop)
                 if lengths == 0:
                     continue
                 rows = self._rows.count(begin, end)
                 if rows == 0:
                     continue
-                if lengths <= rows:
+                offsets = self._offsets.get(begin - start, [])
+                if len(offsets) + len(self._wide) < min(lengths, rows):
+                    for at, index in offsets:
+                        if start <= at < stop:
+                            best = max(best, index)
+                    for index in self._wide:
+                        at = len(self.calls[index].input)
+                        if start <= at < stop:
+                            best = max(best, self._open_at(at, begin + at - start))
+                elif lengths <= rows:
                     for at in self._lengths.between(start, start + end - begin):
                         best = max(best, self._open_at(at, begin + at - start))
                 else:
@@ -1411,6 +1437,7 @@ class _OpenCalls:
 
     def clear(self) -> None:
         self.calls, self._index, self._lengths = [], {}, _RowSet(0)
+        self._offsets, self._wide = {}, []
 
 
 # where a summarizer's summary begins, after any analysis before it
