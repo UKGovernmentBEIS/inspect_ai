@@ -12,7 +12,12 @@ from inspect_ai._util.json import json_equal
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge.bridge import resolve_forward_client_headers
-from inspect_ai.agent._bridge.types import AgentBridge, DispatchedCall, _HandedCall
+from inspect_ai.agent._bridge.types import (
+    AgentBridge,
+    DispatchedCall,
+    _handed_calls,
+    _HandedCall,
+)
 from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._model import (
@@ -175,7 +180,11 @@ class SandboxAgentBridge(AgentBridge):
         for tool in tools:
             if isinstance(tool, ToolInfo):
                 declared.setdefault(tool.name, []).append(tool)
-        handed_calls = list(calls)
+        handed = (
+            _handed_calls(self._proposing_reply_id, calls)
+            if self._proposing_reply_id is not None
+            else None
+        )
         for index, call in enumerate(calls):
             targets, arguments = _proposed_call(
                 self.bridged_tools, self.served_tools, call, declared
@@ -192,9 +201,7 @@ class SandboxAgentBridge(AgentBridge):
                 call,
                 span_id,
                 self._proposing_message_ids.get(call.id),
-                _HandedCall(self._proposing_reply_id, index, handed_calls)
-                if self._proposing_reply_id is not None
-                else None,
+                handed[index] if handed is not None else None,
             )
             for target in targets:
                 if (

@@ -94,7 +94,8 @@ class ToolEvent(BaseEvent):
     back doesn't identify the call (exactly one call with its id, function and
     arguments, or in Google its function and arguments; in Google, calls of one
     reply with the same function and arguments pair by position only when each
-    executed once with the same result), the call executed more than once, more
+    executed once with the same result and the scaffold sent the same tool
+    message content for each), the call executed more than once, more
     than one tool message answers it, or 256 later host calls are tracked
     before its result arrives.
     """

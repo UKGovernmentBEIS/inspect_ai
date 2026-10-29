@@ -7,7 +7,9 @@ the final messages, in each `ModelEvent`'s input and output, in each
 """
 
 import copy
+import gc
 import json
+import weakref
 from pathlib import Path
 from typing import Any, Callable, Literal, cast
 from unittest.mock import patch
@@ -24,7 +26,7 @@ from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai.agent import Agent, AgentState, agent, agent_bridge, handoff, react
 from inspect_ai.agent._bridge import types as bridge_types
-from inspect_ai.agent._bridge.types import AgentBridge, _HandedCall
+from inspect_ai.agent._bridge.types import AgentBridge, _handed_calls
 from inspect_ai.agent._bridge.util import apply_message_ids
 from inspect_ai.dataset import Sample
 from inspect_ai.event import ModelEvent, ToolEvent
@@ -798,7 +800,7 @@ def _awaiting(
     ]
     for event in events:
         bridge._await_result_message(
-            _HandedCall(reply.id, index, reply.tool_calls), event
+            _handed_calls(reply.id, reply.tool_calls)[index], event
         )
     return events
 
@@ -960,3 +962,20 @@ def test_host_results_waiting_are_capped() -> None:
 
     assert events[0].message_id is None
     assert events[-1].message_id is not None
+
+
+def test_tracked_host_calls_keep_no_unexecuted_calls() -> None:
+    """A tracked call keeps nothing of the other calls in its reply."""
+    bridge = AgentBridge(AgentState(messages=[]))
+    calls = [
+        ToolCall(id=f"call_{n}", function="bash", arguments={"cmd": "ls"})
+        for n in range(5000)
+    ]
+    unexecuted = weakref.ref(calls[-1])
+    event = ToolEvent(id="call_0", function="bash", arguments={"cmd": "ls"})
+    bridge._await_result_message(_handed_calls("reply", calls)[0], event)
+
+    del calls
+    gc.collect()
+
+    assert unexecuted() is None
