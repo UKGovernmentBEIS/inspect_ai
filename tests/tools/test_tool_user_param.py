@@ -7,13 +7,14 @@ from typing import Any, Callable, cast
 import pytest
 from test_helpers.sandbox import CannedSandbox
 
-from inspect_ai.tool import Tool, bash, grep, list_files, python, read_file
+from inspect_ai.tool import Tool, bash, grep, list_files, python, read_file, skill
 from inspect_ai.tool._sandbox_tools_utils._legacy_helpers import (
     LEGACY_SANDBOX_CLI,
     legacy_tool_support_sandbox,
 )
 from inspect_ai.tool._tools import _bash_session as bash_session_module
 from inspect_ai.tool._tools import _text_editor as text_editor_module
+from inspect_ai.tool._tools._skill.types import Skill
 from inspect_ai.util import SandboxIdentityError, sandbox_identity
 from inspect_ai.util._sandbox.context import (
     sandbox_default_context_var,
@@ -282,6 +283,40 @@ async def test_computer_refuses_a_scope(monkeypatch: pytest.MonkeyPatch) -> None
         with sandbox_identity("w-1"):
             with pytest.raises(SandboxIdentityError, match="The computer tool"):
                 await computer_module.computer_sandbox()
+
+
+_SKILL = Skill(name="example", description="Example.", instructions="Do it.")
+
+
+async def test_skill_refuses_a_scope_before_any_sandbox_call() -> None:
+    from inspect_ai.util._store import Store, init_subtask_store
+
+    init_subtask_store(Store())
+    default = _RecordingSandbox()
+    with _environments(default=default), sandbox_identity("w-1"):
+        with pytest.raises(SandboxIdentityError, match="The skill tool"):
+            await skill([_SKILL])(command="example")
+    assert default.calls == []
+    assert default.written == []
+
+
+async def test_skill_installs_in_a_sandbox_outside_the_scope() -> None:
+    from inspect_ai.util._store import Store, init_subtask_store
+
+    init_subtask_store(Store())
+    default, other = _RecordingSandbox(), _RecordingSandbox()
+    # every digest check answers "missing", so the skill is written
+    other.policy = lambda _cmd, _user: ExecResult(True, 0, "missing\n", "")
+    with (
+        _environments(default=default, other=other),
+        sandbox_identity("w-1"),
+    ):
+        result = await skill([_SKILL], sandbox="other", dir="/skills")(
+            command="example"
+        )
+    assert "Base Path: /skills/example/SKILL.md" in str(result)
+    assert default.calls == []
+    assert other.written == ["/skills/example/SKILL.md"]
 
 
 def _tool_support_sandbox() -> _RecordingSandbox:

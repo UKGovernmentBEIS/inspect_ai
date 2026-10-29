@@ -10,9 +10,8 @@ from inspect_ai.tool._tool import Tool, ToolError, tool
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util import sandbox as sandbox_env
 from inspect_ai.util._sandbox.identity import (
-    sandbox_identity_cwd,
-    sandbox_identity_scope,
-    sandbox_identity_user,
+    check_sandbox_identity_supported,
+    sandbox_identity_active,
 )
 from inspect_ai.util._store import Store
 from inspect_ai.util._store_model import StoreModel, store_as
@@ -58,28 +57,21 @@ def skill(
         Args:
            command: The skill name (no arguments). E.g., "pdf" or "xlsx"
         """
-        sbox = sandbox_env(sandbox)
-        skills_user = sandbox_identity_user(sbox, user, strict=True)
-        scope = sandbox_identity_scope(sbox)
-        owner = [scope.sandbox, scope.user, scope.cwd] if scope is not None else None
+        if sandbox_identity_active():
+            check_sandbox_identity_supported(sandbox_env(sandbox), "skill")
 
         # see if we need to install the skills (double-checked under the
         # cache's lock so the first of concurrent first-callers sets the list)
         resolved_instance = tool_state_instance(instance)
         installed = store_as(InstalledSkills, instance=resolved_instance)
-        if installed.skills is None or installed.owner != owner:
+        if installed.skills is None:
             async with _cache_lock(installed.store, resolved_instance):
-                if installed.skills is None or installed.owner != owner:
+                if installed.skills is None:
+                    sbox = sandbox_env(sandbox)
                     async with install_lock(sbox):
                         installed.skills = await install_skills_shared(
-                            resolved_skills,
-                            sbox,
-                            skills_user,
-                            dir,
-                            cwd=sandbox_identity_cwd(sbox, None),
-                            private=scope is not None,
+                            resolved_skills, sbox, user, dir
                         )
-                    installed.owner = owner
 
         # lookup skill
         skill_info = next((si for si in installed.skills if si.name == command), None)
@@ -140,10 +132,6 @@ def skill(
 
 class InstalledSkills(StoreModel):
     skills: list[SkillInfo] | None = Field(default=None)
-    owner: list[str | None] | None = Field(default=None)
-    """Sandbox, user and cwd of the `sandbox_identity()` scope `skills` were
-    installed in (`None` outside a scope). A call in another scope installs
-    again, since the skills' location depends on it."""
 
 
 def _cache_lock(store: Store, instance: str | None) -> anyio.Lock:

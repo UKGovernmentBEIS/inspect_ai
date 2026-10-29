@@ -28,14 +28,13 @@ def sandbox_identity(
 
     Inside the block, built-in tools that run commands in `sandbox` run them
     as `user`: `bash()`, `python()`, `grep()`, `list_files()`, `read_file()`,
-    `skill()`, `bash_session()` and `text_editor()`. `bash()`, `python()`,
-    `grep()`, `list_files()` and `read_file()` also start in `cwd`, and
-    `skill()` installs a relative skills directory under it. `cwd` does not
+    `bash_session()` and `text_editor()`. `bash()`, `python()`, `grep()`,
+    `list_files()` and `read_file()` also start in `cwd`. `cwd` does not
     change where a `bash_session()` shell starts or what `text_editor()`
     resolves relative paths against. A tool configured with a different
     `user` raises `SandboxIdentityError`, and so do `computer()` and
-    `web_browser()`, which cannot run as a user. `skill()` refuses to install
-    into skill files another user already owns. `exec_remote()` uses the
+    `web_browser()`, which cannot run as a user, and `skill()`, which does not
+    yet install skills as a user. `exec_remote()` uses the
     scope's user and cwd when omitted and keeps explicit values. Other
     sandbox-tool launches inherit the scope's user when omitted; they keep
     their existing working-directory behavior.

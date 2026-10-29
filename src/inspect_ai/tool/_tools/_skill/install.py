@@ -12,7 +12,6 @@ from inspect_ai.util._sandbox.environment import (
     SandboxEnvironment,
     SandboxUserUnsupportedError,
 )
-from inspect_ai.util._sandbox.identity import SandboxIdentityError
 
 from .read import read_skills
 from .types import Skill, SkillInfo
@@ -61,9 +60,6 @@ async def install_skills_shared(
     sbox: SandboxEnvironment,
     user: str | None,
     dir: str | None,
-    *,
-    cwd: str | None = None,
-    private: bool = False,
 ) -> list[SkillInfo]:
     """Install skills into a sandbox directory shared by several skill tools.
 
@@ -82,11 +78,6 @@ async def install_skills_shared(
         sbox: Sandbox environment to copy skills to.
         user: User to write skills files with.
         dir: Directory to install into (defaults to "./skills").
-        cwd: Directory a relative `dir` is relative to (defaults to `user`'s
-            working directory).
-        private: Refuse, before writing anything, when a skill file already
-            exists and is not owned by `user`, so an install never gives
-            another user's files to `user`.
 
     Returns:
         List of `SkillInfo` with skill names, descriptions, and locations.
@@ -96,18 +87,10 @@ async def install_skills_shared(
             `_check_file_names()`).
         RuntimeError: If a skill file already exists in the sandbox with
             different contents.
-        SandboxIdentityError: If `private` and a skill file already exists
-            and is owned by another user.
     """
     for skill in skills:
         _check_file_names(skill)
-    skills_dir = await _resolve_skills_dir(sbox, user, dir, cwd)
-    if private:
-        await _check_private(
-            sbox,
-            user,
-            [f.path for skill in skills for f in _skill_files(skills_dir, skill)],
-        )
+    skills_dir = await _resolve_skills_dir(sbox, user, dir)
     for skill in skills:
         files = _skill_files(skills_dir, skill)
         missing: list[_SkillFile] = []
@@ -175,31 +158,6 @@ sha256sum < "$1"
 """
 
 
-# prints "missing" or "<uid> <user name>" for each file argument
-_OWNER_SCRIPT = """
-for f in "$@"; do
-  if [ -e "$f" ] || [ -L "$f" ]; then stat -c '%u %U' -- "$f"; else echo missing; fi
-done
-"""
-
-
-async def _check_private(
-    sbox: SandboxEnvironment, user: str | None, files: list[str]
-) -> None:
-    result = await privileged_shell(sbox, _OWNER_SCRIPT, *files, user=None, timeout=60)
-    if not result.success:
-        raise RuntimeError(f"Error reading skill file owners: {result.stderr}")
-    for file, owner in zip(files, result.stdout.splitlines(), strict=True):
-        if owner != "missing" and user not in owner.split():
-            raise SandboxIdentityError(
-                f"Skills cannot be installed for '{user}': {file} already exists "
-                f"and is owned by uid/user '{owner}'. Inside a sandbox identity "
-                "scope, skills install only into a directory private to the user, "
-                "such as a relative skills directory under the user's own working "
-                "directory."
-            )
-
-
 async def _sandbox_digest(sbox: SandboxEnvironment, file: str) -> str | None:
     result = await privileged_shell(sbox, _DIGEST_SCRIPT, file, user=None, timeout=60)
     if not result.success:
@@ -225,16 +183,12 @@ async def _checked_exec(
 
 
 async def _resolve_skills_dir(
-    sbox: SandboxEnvironment,
-    user: str | None,
-    dir: str | None,
-    cwd: str | None = None,
+    sbox: SandboxEnvironment, user: str | None, dir: str | None
 ) -> PurePosixPath:
     skills_dir = PurePosixPath(dir or "skills")
     if not skills_dir.is_absolute():
         skills_dir = (
-            PurePosixPath(await _checked_exec(sbox, user, ["pwd"], cwd=cwd))
-            / skills_dir
+            PurePosixPath(await _checked_exec(sbox, user, ["pwd"])) / skills_dir
         )
     return skills_dir
 
