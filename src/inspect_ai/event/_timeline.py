@@ -8,7 +8,6 @@ Uses inspect_ai's event_tree() to parse span structure.
 from __future__ import annotations
 
 import contextlib
-from bisect import bisect_left, insort
 from collections import Counter
 from collections.abc import Iterator
 from datetime import datetime, timezone
@@ -1334,7 +1333,7 @@ class _Call(NamedTuple):
 
 
 class _RowSet:
-    """A set of pool rows, counted and listed by interval in logarithmic steps: a Fenwick tree over the pool, kept sparse."""
+    """A set of pool rows (or input lengths), counted and listed by interval in logarithmic steps: a Fenwick tree over ``0..size``, kept sparse, that doubles to hold a larger row."""
 
     def __init__(self, size: int) -> None:
         self._size = size
@@ -1344,6 +1343,11 @@ class _RowSet:
     def add(self, row: int) -> None:
         if row in self._rows:
             return
+        if row >= self._size:
+            rows = self._rows
+            self._size, self._tree, self._rows = max(row + 1, 2 * self._size), {}, set()
+            for each in rows:
+                self.add(each)
         self._rows.add(row)
         at = row + 1
         while at <= self._size:
@@ -1360,7 +1364,7 @@ class _RowSet:
             yield self._kth(k)
 
     def _below(self, end: int) -> int:
-        total, at = 0, end
+        total, at = 0, min(end, self._size)
         while at > 0:
             total += self._tree.get(at, 0)
             at -= at & -at
@@ -1384,7 +1388,7 @@ class _OpenCalls:
 
     A later call whose input is a list (the timeline of expanded events, as the viewer and Scout read it) is looked up at each open length shorter than its input, a fingerprint each. Forks of one tip share their input, and so their length, and side calls between two turns are few; the costly case is a long run of calls none of which continues another, each with an input of a new length, whose lookups then read at most the positions their inputs hold (pinned by ``test_calls_that_continue_nothing_cost_at_most_their_inputs``).
 
-    A later call whose input is stored as ranges of the message pool (the log driver's) is looked up range by range. A range of rows ``begin..end`` placed at position ``start`` holds, at each position ``L`` it covers, the row ``L + begin - start``, so it can continue only an open call whose length it covers, at a row holding that call's output. The pool rows holding open calls' outputs are kept in a set listed by interval, each fingerprint's rows added once, and each range walks the smaller of the open lengths it covers and those rows it covers, checking each in constant time. So the work is linear in the log as stored except where a range covers both many open lengths and many rows holding open outputs that never line up with them, pinned by ``test_a_pooled_log_s_lookups_walk_the_smaller_of_lengths_and_rows``.
+    A later call whose input is stored as ranges of the message pool (the log driver's) is looked up range by range. A range of rows ``begin..end`` placed at position ``start`` holds, at each position ``L`` it covers, the row ``L + begin - start``, so it can continue only an open call whose length it covers, at a row holding that call's output. The open input lengths, and the pool rows holding open calls' outputs (each fingerprint's rows added once), are kept in sets counted and listed by interval in logarithmic steps (``_RowSet``), so adding one shifts none of the others (``test_calls_of_falling_lengths_are_indexed_in_linear_work``); each range walks the smaller of the open lengths it covers and those rows it covers, checking each in constant time. So the work is linear in the log as stored except where a range covers both many open lengths and many rows holding open outputs that never line up with them, pinned by ``test_a_pooled_log_s_lookups_walk_the_smaller_of_lengths_and_rows``.
     """
 
     def __init__(self, inputs: _Inputs) -> None:
@@ -1392,8 +1396,8 @@ class _OpenCalls:
         self.calls: list[_Call] = []
         # input length -> output fingerprint -> the latest such call's index
         self._index: dict[int, dict[_Fingerprint, int]] = {}
-        # the input lengths in the index, ascending
-        self._lengths: list[int] = []
+        # the input lengths in the index
+        self._lengths = _RowSet(0)
         # the pool rows holding an output of a call opened in any thread
         # (`_Inputs.open_rows`): a row of another's only adds to a range's count
         self._rows = inputs.open_rows()
@@ -1405,7 +1409,7 @@ class _OpenCalls:
         by_output = self._index.get(at)
         if by_output is None:
             by_output = self._index[at] = {}
-            insort(self._lengths, at)
+            self._lengths.add(at)
         by_output[output] = len(self.calls)
         self._inputs.open_output(output)
         self.calls.append(call)
@@ -1415,21 +1419,20 @@ class _OpenCalls:
         best = -1
         if isinstance(call.input, PoolView):
             for (begin, end), start in zip(call.input.refs, call.input.starts):
-                first = bisect_left(self._lengths, start)
-                last = bisect_left(self._lengths, start + end - begin)
-                if first == last:
+                lengths = self._lengths.count(start, start + end - begin)
+                if lengths == 0:
                     continue
                 rows = self._rows.count(begin, end)
                 if rows == 0:
                     continue
-                if last - first <= rows:
-                    for at in self._lengths[first:last]:
+                if lengths <= rows:
+                    for at in self._lengths.between(start, start + end - begin):
                         best = max(best, self._open_at(at, begin + at - start))
                 else:
                     for row in self._rows.between(begin, end):
                         best = max(best, self._open_at(row - begin + start, row))
         else:
-            for at in self._lengths[: bisect_left(self._lengths, len(call.input))]:
+            for at in self._lengths.between(0, len(call.input)):
                 found = self._index[at].get(
                     self._inputs.fingerprint(call.input[at]), -1
                 )
@@ -1444,7 +1447,7 @@ class _OpenCalls:
         return by_output.get(self._inputs.fingerprint(self._inputs.row(row)), -1)
 
     def clear(self) -> None:
-        self.calls, self._index, self._lengths = [], {}, []
+        self.calls, self._index, self._lengths = [], {}, _RowSet(0)
 
 
 # where a summarizer's summary begins, after any analysis before it

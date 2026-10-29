@@ -819,30 +819,9 @@ def test_calls_of_many_lengths_in_a_pooled_log_are_looked_up_in_linear_work(
     # the log driver's timeline reads inputs as pool ranges, so its lookups
     # are counted against the log as stored (pool rows and ranges), not the
     # expanded inputs, which are quadratic here
-    from bisect import bisect_left
-
-    from inspect_ai.event import _timeline as timeline
-
-    fingerprint = timeline._Inputs.fingerprint
-
     def work(calls: int) -> int:
-        count = 0
-
-        def counting_fingerprint(self: Any, message: Any) -> Any:
-            nonlocal count
-            count += 1
-            return fingerprint(self, message)
-
-        def counting_bisect(*args: Any) -> int:
-            nonlocal count
-            count += 1
-            return bisect_left(*args)
-
         events, pool = _pooled_lengths(calls)
-        with monkeypatch.context() as patch:
-            patch.setattr(timeline._Inputs, "fingerprint", counting_fingerprint)
-            patch.setattr("inspect_ai.event._timeline.bisect_left", counting_bisect)
-            timeline._timeline_build(events, message_pool=pool, continuity=True)
+        count = _pooled_work(events, pool, monkeypatch)
         stored = len(pool) + 2 * calls  # pool rows, one range and one output each
         assert count <= 4 * stored, (count, stored)
         return count
@@ -1125,8 +1104,8 @@ def _shared_outputs(calls: int, interleaved: bool) -> tuple[list[Any], list[Any]
 def _pooled_work(
     events: list[Any], pool: list[Any], monkeypatch: pytest.MonkeyPatch
 ) -> int:
-    """Fingerprints, bisections, sorted inserts and row-set steps while building."""
-    from bisect import bisect_left, insort
+    """Fingerprints, bisections and row-set steps while building, and each sorted insert by the elements it shifts."""
+    from bisect import bisect_left, bisect_right, insort
 
     from inspect_ai.event import _timeline as timeline
 
@@ -1140,12 +1119,19 @@ def _pooled_work(
 
         return call
 
+    def shifting(a: list[Any], x: Any) -> None:
+        nonlocal count
+        count += 1 + len(a) - bisect_right(a, x)
+        insort(a, x)
+
     with monkeypatch.context() as patch:
         patch.setattr(
             timeline._Inputs, "fingerprint", counted(timeline._Inputs.fingerprint)
         )
-        patch.setattr("inspect_ai.event._timeline.bisect_left", counted(bisect_left))
-        patch.setattr("inspect_ai.event._timeline.insort", counted(insort))
+        if hasattr(timeline, "bisect_left"):
+            patch.setattr(timeline, "bisect_left", counted(bisect_left))
+        if hasattr(timeline, "insort"):
+            patch.setattr(timeline, "insort", shifting)
         row_set = getattr(timeline, "_RowSet", None)
         for name in ("add", "_below", "_kth") if row_set is not None else ():
             patch.setattr(row_set, name, counted(getattr(row_set, name)))
@@ -1178,6 +1164,64 @@ def test_a_pooled_log_s_lookups_walk_the_smaller_of_lengths_and_rows(
     events, pool = _shared_outputs(200, interleaved=True)
     entries = sum(2 * n for n in range(1, 201))
     assert _pooled_work(events, pool, monkeypatch) <= entries + 20 * len(pool)
+
+
+def _descending(calls: int, heads: bool) -> tuple[list[Any], list[Any]]:
+    """`calls` model calls with no origins whose inputs, each one prefix range of a shared pool, get shorter call by call, their outputs in no pool row: with `heads`, each carries on one first call (the heads of a fork nothing resolves); else none carries on another (candidates)."""
+    from inspect_ai.event import ModelEvent, SpanBeginEvent, SpanEndEvent
+    from inspect_ai.model import (
+        ChatCompletionChoice,
+        ChatMessageAssistant,
+        ChatMessageUser,
+        GenerateConfig,
+        ModelOutput,
+    )
+
+    first = ChatMessageAssistant(content="First.")
+    pool: list[Any] = [ChatMessageUser(content="Go."), *([first] if heads else [])]
+    pool += [ChatMessageUser(content=f"Note {n}.") for n in range(calls)]
+    events: list[Any] = [SpanBeginEvent(id="main", name="main", type="agent")]
+
+    def model(refs: list[tuple[int, int]], output: Any) -> None:
+        events.append(
+            ModelEvent(
+                span_id="main",
+                model="mockllm/model",
+                input=[],
+                input_refs=refs,
+                tools=[],
+                tool_choice="auto",
+                config=GenerateConfig(),
+                output=ModelOutput(
+                    model="mockllm/model",
+                    choices=[ChatCompletionChoice(message=output, stop_reason="stop")],
+                ),
+            )
+        )
+
+    if heads:
+        model([(0, 1)], first)
+    for n in range(calls):
+        model([(0, len(pool) - n)], ChatMessageAssistant(content=f"Answer {n}."))
+    events.append(SpanEndEvent(id="main"))
+    return events, pool
+
+
+@pytest.mark.parametrize("heads", [False, True])
+def test_calls_of_falling_lengths_are_indexed_in_linear_work(
+    heads: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Ransom's eighth review B2: each shorter input length was inserted ahead
+    # of the open ones in a sorted list, shifting them all
+    def work(calls: int) -> int:
+        events, pool = _descending(calls, heads)
+        found = _pooled_work(events, pool, monkeypatch)
+        stored = len(pool) + 2 * calls  # pool rows, one range and one output each
+        assert found <= 20 * stored, (found, stored)
+        return found
+
+    small, large = work(200), work(400)
+    assert large <= 2.2 * small + 10, (small, large)
 
 
 def _failures(calls: int, retried: bool) -> tuple[list[Any], list[Any]]:
