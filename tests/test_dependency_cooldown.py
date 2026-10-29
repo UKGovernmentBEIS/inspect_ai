@@ -2,8 +2,8 @@
 
 pyproject.toml holds back releases younger than seven days, or six hours for a
 list of packages that must include every model provider's own package,
-Dependabot applies the same cooldown and exemptions to its uv.lock bumps, and
-every CI job installs from a lockfile. The model-data sync script runs without
+Dependabot applies the seven days to its uv.lock bumps and leaves that list to uv,
+and every CI job installs from a lockfile. The model-data sync script runs without
 pyproject.toml, so its own metadata repeats the policy. Testing against the
 newest releases happens in meridianlabs-ai/canaries, outside this repository.
 """
@@ -36,7 +36,7 @@ PROVIDERS = REPO / "src" / "inspect_ai" / "model" / "_providers"
 SYNC_MODELS = REPO / "src" / "inspect_ai" / "model" / "_model_data" / "sync_models.py"
 DEPENDENCY_CHECKS = {"pip_dependency_error", "verify_required_version"}
 # Packages providers need that aren't the provider's own SDK or integration
-# package. These stay under the cooldown.
+# package. These stay under the seven-day cooldown.
 PROVIDER_INFRASTRUCTURE = {"accelerate", "torch"}
 # The cooldown for packages in exclude-newer-package, and how uv.lock records it.
 EXEMPT_COOLDOWN = "6 hours"
