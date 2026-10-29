@@ -14,8 +14,9 @@ updates:
         patterns:
           - "*"
   # Bumps uv.lock. The cooldown matches `exclude-newer` in pyproject.toml,
-  # and its exclude list matches `exclude-newer-package` there. Those exempt
-  # packages get their own group, so a new SDK release is proposed the next day
+  # and its exclude list matches `exclude-newer-package` there: Dependabot's
+  # cooldown counts whole days, so those packages' 6-hour cooldown is left to
+  # uv. They get their own group, so a new SDK release is proposed the next day
   # and a broken update elsewhere can't hold it up. It comes first: a package
   # in both groups goes to the first match (and to the more specific pattern).
   - package-ecosystem: uv
