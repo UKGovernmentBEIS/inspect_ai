@@ -87,7 +87,7 @@ def steps_from_events(
 
     Every step's `agent_messages` is None: the log does not record the agent's own messages, and model input can hold messages the agent kept out of them.
 
-    A log that does not record where a model call was made (`ModelEvent.origin`, written since inspect_ai PR #5990), as an older Inspect log does not, has its turns inferred: a call made in the scorers' span (in a log from before spans, between a scorer's `StepEvent`s) is a scorer's, whatever tool or agent span holds it (live, the scorers' scope is final); one in a tool's span (or nested in its `ToolEvent`) a tool's, and one in the init span setup's; of the rest, those the timeline shows as utility (`timeline_build`'s prompt and continuity rules) are not turns, and the others are. A final scope no span records reads as the region holding it: a `model_origin()` region, `score()` called by a solver or a tool, an approver's model call; where the timeline does not show such a call as utility, its call is a turn (or, in a tool, its calls are checked), as live it was not.
+    A log that does not record where a model call was made (`ModelEvent.origin`, written since inspect_ai PR #5990), as an older Inspect log does not, has its turns inferred: a call made in the scorers' span (in a log from before spans, between a scorer's `StepEvent`s) is a scorer's, whatever tool or agent span holds it (live, the scorers' scope is final); one in a tool's span (or nested in its `ToolEvent`) a tool's, and one in the init span setup's; of the rest, those the timeline shows as utility (`timeline_build`'s prompt and continuity rules, continuity leaving out the calls above and a sentinel's) are not turns, and the others are. A final scope no span records reads as the region holding it: a `model_origin()` region, `score()` called by a solver or a tool, an approver's model call; where the timeline does not show such a call as utility, its call is a turn (or, in a tool, its calls are checked), as live it was not.
 
     Args:
         messages: The sample's messages (`EvalSample.messages`).
@@ -326,6 +326,19 @@ class _Call:
     tool_span: str | None
 
 
+class _Region(NamedTuple):
+    """Where a span sits, as origin inference reads it."""
+
+    kind: str | None
+    """The type of the innermost agent or tool span holding it."""
+
+    phase: str | None
+    """The phase span (`"init"`, `"scorers"`) holding it."""
+
+    sentinel: bool
+    """Whether a sentinel's span holds it."""
+
+
 class _Action(NamedTuple):
     position: int
     # at one position: steps built before the event there (1), the event's own
@@ -387,9 +400,8 @@ class _Driver:
         self._inferred: dict[int, str] | None = None
         # the uuids of the model calls made outside sentinel spans
         self.calls_made: set[str | None] = set()
-        # span id -> the innermost agent or tool span's type, and the phase
-        # span ("init", "scorers") holding it
-        self._regions: dict[str | None, tuple[str | None, str | None]] = {}
+        # span id -> the region holding it
+        self._regions: dict[str | None, _Region] = {}
         self._span_begins: dict[str, SpanBeginEvent] | None = None
         # id() of the events in a scorer's StepEvents (logs from before spans)
         self._scored: set[int] | None = None
@@ -844,6 +856,29 @@ class _Driver:
         return self._inferred.get(id(event), "agent")
 
     def _infer_origins(self) -> dict[int, str]:
+        # calls known not to be the agent's turns by their region, and
+        # compactions there, are left out of continuity: a scorer's, a tool's
+        # or a sentinel's linked calls would otherwise move the agent's thread
+        known: dict[int, str] = {}
+        outside: set[int] = set()
+        for event, nested in zip(self.events, self.nested):
+            if not isinstance(event, ModelEvent | CompactionEvent):
+                continue
+            region = self._region(event.span_id)
+            if self._scoring(event):
+                # live, the scorers' scope is final: nothing inside it, a tool
+                # or an agent, changes it
+                origin: str | None = "scorer"
+            elif nested or region.kind == "tool":
+                origin = "tool"
+            elif region.phase == "init":
+                origin = "setup"
+            else:
+                origin = None
+            if origin is not None or region.sentinel:
+                outside.add(id(event))
+            if origin is not None:
+                known[id(event)] = origin
         top = [e for e, nested in zip(self.events, self.nested) if not nested]
         timeline = _timeline_build(
             top,
@@ -855,6 +890,7 @@ class _Driver:
                 if isinstance(key, str)
             },
             continuity=True,
+            outside=outside,
         )
         utility: set[int] = set()
 
@@ -870,22 +906,12 @@ class _Driver:
 
         walk(timeline.root, timeline.root.utility)
         inferred: dict[int, str] = {}
-        for event, nested in zip(self.events, self.nested):
+        for event in self.events:
             if not isinstance(event, ModelEvent) or event.origin is not None:
                 continue
-            kind, phase = self._region(event.span_id)
-            if self._scoring(event):
-                # live, the scorers' scope is final: nothing inside it, a tool
-                # or an agent, changes it
-                inferred[id(event)] = "scorer"
-            elif nested or kind == "tool":
-                inferred[id(event)] = "tool"
-            elif phase == "init":
-                inferred[id(event)] = "setup"
-            elif id(event) in utility:
-                inferred[id(event)] = "helper"
-            else:
-                inferred[id(event)] = "agent"
+            inferred[id(event)] = known.get(
+                id(event), "helper" if id(event) in utility else "agent"
+            )
         return inferred
 
     def _scoring(self, event: Event) -> bool:
@@ -899,10 +925,11 @@ class _Driver:
                 elif steps > 0:
                     scored.add(id(each))
             self._scored = scored
-        return id(event) in self._scored or self._region(event.span_id)[1] == "scorers"
+        return (
+            id(event) in self._scored or self._region(event.span_id).phase == "scorers"
+        )
 
-    def _region(self, span_id: str | None) -> tuple[str | None, str | None]:
-        """The type of the innermost agent or tool span holding `span_id`, and the phase span above it."""
+    def _region(self, span_id: str | None) -> _Region:
         found = self._regions.get(span_id)
         if found is not None:
             return found
@@ -912,14 +939,18 @@ class _Driver:
             }
         begin = self._span_begins.get(span_id) if span_id is not None else None
         if begin is None:
-            found = (None, None)
+            found = _Region(kind=None, phase=None, sentinel=False)
         else:
-            kind, phase = self._region(begin.parent_id)
-            if begin.type in (AGENT_SPAN_TYPE, "tool"):
-                kind = begin.type
-            if begin.parent_id is None and begin.name in ("init", "scorers"):
-                phase = begin.name
-            found = (kind, phase)
+            parent = self._region(begin.parent_id)
+            found = _Region(
+                kind=begin.type
+                if begin.type in (AGENT_SPAN_TYPE, "tool")
+                else parent.kind,
+                phase=begin.name
+                if begin.parent_id is None and begin.name in ("init", "scorers")
+                else parent.phase,
+                sentinel=parent.sentinel or begin.type == "sentinel",
+            )
         self._regions[span_id] = found
         return found
 

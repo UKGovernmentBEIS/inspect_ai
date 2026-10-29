@@ -12,6 +12,7 @@ from bisect import bisect_left, insort
 from collections.abc import Iterator
 from datetime import datetime, timezone
 from typing import (
+    AbstractSet,
     Annotated,
     Any,
     AsyncIterator,
@@ -449,15 +450,16 @@ def _timeline_build(
     final_messages: Sequence[ChatMessage] | None = None,
     conversations: Mapping[str, str] | None = None,
     continuity: bool = False,
+    outside: AbstractSet[int] = frozenset(),
 ) -> Timeline:
     """`timeline_build`, also over model inputs stored as ranges of a message pool (`input_refs`), as a log stores them.
 
-    With `continuity` (replay's log driver, inferring the turns of a log that does not record ``origin``), the continuity rule decides which calls without an origin are turns (``_Continuity``); the public `timeline_build`, which the viewer and Scout use, keeps the prompt rules (decided by Charles 2026-10-26). `final_messages` are the main agent's final messages (`EvalSample.messages`), which settle a fork at the end of the main span. `conversations` gives the conversation of each event it names, by UUID, in place of its innermost agent span (a stored timeline's spans and branches, such as Petri's rollbacks), so continuity follows each apart.
+    With `continuity` (replay's log driver, inferring the turns of a log that does not record ``origin``), the continuity rule decides which calls without an origin are turns (``_Continuity``); the public `timeline_build`, which the viewer and Scout use, keeps the prompt rules (decided by Charles 2026-10-26). `final_messages` are the main agent's final messages (`EvalSample.messages`), which settle a fork at the end of the main span. `conversations` gives the conversation of each event it names, by UUID, in place of its innermost agent span (a stored timeline's spans and branches, such as Petri's rollbacks), so continuity follows each apart. `outside` names, by `id()`, the events already known not to be the agent's turns (a scorer's, a tool's, setup's or a sentinel's model calls, and compactions there), which continuity leaves out so they cannot move the agent's thread; they stay in the timeline.
     """
     # provide defaults
     name = name or "Default"
     description = description or ""
-    inputs = _Inputs(events, message_pool, conversations)
+    inputs = _Inputs(events, message_pool, conversations, outside)
 
     # no events
     if not events:
@@ -1096,10 +1098,12 @@ class _Inputs:
         events: Sequence[Event],
         pool: Sequence[ChatMessage] | None,
         conversations: Mapping[str, str] | None = None,
+        outside: AbstractSet[int] = frozenset(),
     ) -> None:
         self._events = events
         self._pool = pool
         self._conversations = conversations or {}
+        self.outside = outside
         self._views: dict[int, Sequence[ChatMessage]] = {}
         self._fingerprints: dict[int, _Fingerprint] = {}
         # tool call id -> (the input position its result follows the call at,
@@ -1632,7 +1636,7 @@ def _continuity(
 ) -> dict[int, bool]:
     """Whether each call with no recorded origin under `root` is a turn by continuity, by `id()` of its event.
 
-    The rule runs over each conversation's calls in log order: within each span of the tree, its conversations apart (a span can hold more than one, where the timeline unrolls a solver beside an agent; a tool's sub-agent and a branch are spans of their own); and a conversation given for events (a stored timeline's) across every span it reaches. A conversation in which no call continues another has no answers but its summarizers', so the existing rules decide its other calls. The final messages settle a fork at the end of the conversation they are from: that of the latest call whose output is one of them.
+    The rule runs over each conversation's calls in log order: within each span of the tree, its conversations apart (a span can hold more than one, where the timeline unrolls a solver beside an agent; a tool's sub-agent and a branch are spans of their own); and a conversation given for events (a stored timeline's) across every span it reaches. A conversation in which no call continues another has no answers but its summarizers', so the existing rules decide its other calls. The final messages settle a fork at the end of the conversation they are from: that of the latest call whose output is one of them. Calls in `inputs.outside` are left out.
     """
     order = {id(event): index for index, event in enumerate(inputs.events)}
     # (position in the log, position in the tree, conversation, event): a call
@@ -1648,6 +1652,8 @@ def _continuity(
                 walk(item)
                 continue
             at = order.get(id(item.event), at)
+            if id(item.event) in inputs.outside:
+                continue
             if isinstance(item.event, ModelEvent):
                 if item.event.origin is not None or _is_warmup_call(item.event, inputs):
                     continue

@@ -43,6 +43,7 @@ from inspect_ai.event import (
     SentinelEvent,
     SpanBeginEvent,
     SpanEndEvent,
+    StepEvent,
     Timeline,
     TimelineEvent,
     TimelineSpan,
@@ -2972,6 +2973,147 @@ def test_a_log_from_before_spans_keeps_its_scorer_s_call_from_the_turns() -> Non
         for s in replay
         for m in s.step.input or []
     )
+
+
+def linked_call(
+    uuid: str,
+    span_id: str | None,
+    input: list[ChatMessage],
+    text: str,
+    origin: str | None,
+    *calls: ToolCall,
+) -> ModelEvent:
+    return ModelEvent(
+        uuid=uuid,
+        span_id=span_id,
+        model="mockllm/model",
+        origin=origin,
+        input=input,
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput(
+            model="mockllm/model",
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(
+                        content=text, tool_calls=list(calls) or None
+                    ),
+                    stop_reason="tool_calls" if calls else "stop",
+                )
+            ],
+        ),
+    )
+
+
+def side_calls(count: int, span_id: str | None, origin: str | None) -> list[ModelEvent]:
+    """`count` calls, each but the first carrying on the one before it."""
+    input: list[ChatMessage] = [ChatMessageUser(content="Grade the answer.")]
+    calls: list[ModelEvent] = []
+    for n in range(count):
+        call = linked_call(f"s{n}", span_id, input, f"Graded {n}.", origin)
+        calls.append(call)
+        input = [*input, call.output.message, ChatMessageUser(content="Go on.")]
+    return calls
+
+
+def region_with_side_calls(
+    region: str, count: int, recorded: bool
+) -> tuple[list[ChatMessage], list[Event], Timeline | None]:
+    """An agent's turns, and `count` linked calls in a region that is not the agent's: between a scorer's `StepEvent`s (a log from before spans), in a sentinel's span, or in a tool's span that a stored conversation joins to the agent's."""
+    agent = "agent" if recorded else None
+    user = ChatMessageUser(content="Solve it.")
+    if region == "tool":
+        call = ToolCall(id="c1", function="check", arguments={})
+        m1 = linked_call("m1", "agent", [user], "Checking.", agent, call)
+        result = ChatMessageTool(content="ok", tool_call_id="c1", function="check")
+        m2 = linked_call(
+            "m2", "agent", [user, m1.output.message, result], "Solved.", agent
+        )
+        helpers = side_calls(count, "tool-c1", "tool" if recorded else None)
+        events: list[Event] = [
+            SpanBeginEvent(id="agent", name="agent", type="agent"),
+            m1,
+            SpanBeginEvent(id="tool-c1", name="check", type="tool", parent_id="agent"),
+            *helpers,
+            ToolEvent(
+                id="c1", function="check", arguments={}, result="ok", span_id="tool-c1"
+            ),
+            SpanEndEvent(id="tool-c1"),
+            m2,
+            SpanEndEvent(id="agent"),
+        ]
+        stored = Timeline(
+            name="target",
+            description="",
+            root=TimelineSpan(
+                id="target",
+                name="target",
+                content=[TimelineEvent(event=e) for e in (m1, *helpers, m2)],
+            ),
+        )
+        return [user, m1.output.message, result, m2.output.message], events, stored
+    m1 = linked_call("m1", "agent", [user], "Solved.", agent)
+    messages: list[ChatMessage] = [user, m1.output.message]
+    if region == "scorer":
+        graders = side_calls(count, None, "scorer" if recorded else None)
+        m1.span_id = None
+        return (
+            messages,
+            [
+                m1,
+                StepEvent(action="begin", type="scorer", name="match"),
+                *graders,
+                StepEvent(action="end", type="scorer", name="match"),
+            ],
+            None,
+        )
+    monitors = side_calls(count, "check", "helper" if recorded else None)
+    return (
+        messages,
+        [
+            SpanBeginEvent(id="agent", name="agent", type="agent"),
+            m1,
+            SpanBeginEvent(
+                id="check", name="probe", type="sentinel", parent_id="agent"
+            ),
+            *monitors,
+            SpanEndEvent(id="check"),
+            SpanEndEvent(id="agent"),
+        ],
+        None,
+    )
+
+
+@pytest.mark.parametrize("count", [1, 2, 3])
+@pytest.mark.parametrize("region", ["scorer", "sentinel", "tool"])
+def test_linked_calls_outside_the_agent_s_turns_leave_its_turns(
+    region: str, count: int
+) -> None:
+    # Ransom's sixth review B1: calls a region shows are not the agent's (a
+    # scorer's, a sentinel's, or a tool's that a stored conversation joins to
+    # the agent's) are left out of continuity, so linked ones cannot make
+    # the agent's turn utility; replay without origins gives the steps it
+    # gives with them
+    def steps(recorded: bool) -> list[tuple[str, str]]:
+        messages, events, stored = region_with_side_calls(region, count, recorded)
+        return [
+            (s.stage, s.id)
+            for s in steps_from_events(
+                messages,
+                events,
+                [],
+                sample_uuid="sample",
+                eval_info=EvalInfo(inspect_ai_version=None, sentinel=False),
+                timeline=stored,
+            )
+        ]
+
+    inferred = steps(recorded=False)
+
+    assert inferred == steps(recorded=True)
+    assert ("model_input", "m1") in inferred
+    assert not any(id.startswith("s") for _, id in inferred)
 
 
 @solver
