@@ -1773,6 +1773,44 @@ def test_a_checked_call_recorded_as_a_turn_keeps_its_check(
     ]
 
 
+@pytest.mark.parametrize("recorded", [False, True])
+@pytest.mark.parametrize("check_id", ["m3", "u3", "u3:1"])
+def test_a_checked_call_keeps_its_check_under_a_stored_timeline(
+    check_id: str, recorded: bool
+) -> None:
+    # self-review after Ransom's ninth review: checks name the conversation
+    # live, the agent span; a stored timeline names it otherwise ("target"),
+    # and looking a check up by that left it an orphan
+    events = checked_m3(check_id, True, recorded)
+    stored = Timeline(
+        name="target",
+        description="",
+        root=TimelineSpan(
+            id="target",
+            name="target",
+            content=[
+                TimelineEvent(event=e) for e in events if isinstance(e, ModelEvent)
+            ],
+        ),
+    )
+    replay = steps_from_events(
+        [],
+        events,
+        [],
+        sample_uuid="sample",
+        eval_info=EvalInfo(inspect_ai_version="0.3.200", sentinel=True),
+        timeline=stored,
+    )
+
+    assert [s.id for s in replay if s.stage == "model_input"] == [
+        "m1",
+        "m2",
+        *([check_id] if recorded else []),
+        "m4",
+    ]
+    assert {s.step.conversation for s in replay} == {"target"}
+
+
 def checked_m3_after_an_equal_message(
     check_id: str, later_turn: bool, recorded: bool, inputs: str
 ) -> tuple[list[ChatMessage], list[Event], list[ChatMessage]]:

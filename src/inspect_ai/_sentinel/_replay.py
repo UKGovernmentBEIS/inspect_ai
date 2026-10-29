@@ -501,21 +501,24 @@ class _Driver:
                     tuple((start, end) for start, end in event.input_refs or []),
                 )
                 group = open_generates.pop(attempt_key, None)
+                # checks name the conversation live (`SentinelEvent.conversation`),
+                # not a stored timeline's
+                live = self.spans.conversation(event.span_id)
                 if group is not None:
                     group.attempts.append((index, event))
                 else:
                     group = _Generate(
                         conversation,
                         [(index, event)],
-                        last_turn.get(conversation, -1),
+                        last_turn.get(live, -1),
                         self._next_seq(2),
-                        self._untaken(candidates.pop(conversation, [])),
+                        self._untaken(candidates.pop(live, [])),
                     )
-                    self.check_keys.pop(conversation, None)
+                    self.check_keys.pop(live, None)
                     generates.append(group)
                 if event.error is not None:
                     open_generates[attempt_key] = group
-                last_turn[conversation] = index
+                last_turn[live] = index
             elif isinstance(event, ApprovalEvent):
                 approvals[event.call.id] = event
             elif isinstance(event, CompactionEvent):
@@ -644,7 +647,7 @@ class _Driver:
         # names it, by its uuid or, before generate ids, by the last message
         # of its input: the step goes with it (and has no step), not with the
         # conversation's next turn
-        keys = self.check_keys.get(self._conversation(event))
+        keys = self.check_keys.get(self.spans.conversation(event.span_id))
         if not keys:
             return
         input = self._input(event)
