@@ -63,7 +63,7 @@ from ._plan import (
     selected_total,
 )
 from ._publish import is_local, merge_guard, merged_log_copy, publish
-from ._walk import ShardDir, is_recovered_attempt, list_shard_set
+from ._walk import ShardDir, check_s3_location, is_recovered_attempt, list_shard_set
 from ._write import (
     HeldReductions,
     check_retained_reductions,
@@ -263,6 +263,8 @@ async def merge_shards(
     if delete_shards and allow_incomplete:
         raise ValueError("delete_shards cannot be combined with allow_incomplete.")
     location, merged_path, shards_dir = merge_paths(log)
+    check_s3_location(merged_path)
+    check_s3_location(shards_dir)
     if delete_shards:
         check_deletable(merged_path)
 
@@ -375,6 +377,10 @@ async def _merge_pass(
     delete_shards: bool,
 ) -> _Pass:
     listing = await list_shard_set(fs, shards_dir)
+    for shard in listing.shards:
+        check_s3_location(shard.dir, ShardSetError)
+        for attempt in shard.attempts:
+            check_s3_location(attempt.name, ShardSetError)
     if listing.stray:
         raise ShardSetError(
             f"{shards_dir} holds log files that are not shard attempts: "

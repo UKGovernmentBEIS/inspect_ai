@@ -3283,6 +3283,165 @@ async def test_sync_writers_check_s3_shards_under_a_configured_trio_backend(
         write(writer, await merged_log())
 
 
+def _s3_copy(source: str, target: str) -> None:
+    """Copy every key under the prefix `source` to the same key under `target`."""
+    client = boto3.client("s3")
+    for key in _s3_keys(source):
+        client.copy_object(
+            Bucket="test-bucket",
+            Key=target + key[len(source) :],
+            CopySource={"Bucket": "test-bucket", "Key": key},
+        )
+
+
+def _s3_objects(prefix: str) -> dict[str, bytes]:
+    client = boto3.client("s3")
+    return {
+        key: client.get_object(Bucket="test-bucket", Key=key)["Body"].read()
+        for key in _s3_keys(prefix)
+    }
+
+
+@pytest.mark.parametrize("delete", [False, True], ids=["merge", "delete"])
+@pytest.mark.parametrize(
+    "target",
+    [
+        "{root}/{name}#tag.eval",
+        "{root}/{name}#tag.shards",
+        "{root}/dir#tag/{name}.eval",
+        "{root}/{name}?tag.eval",
+        "/{root}/{name}.eval",
+    ],
+    ids=["name", "shards", "parent", "query", "leading-slash"],
+)
+def test_s3_locations_s3_would_read_as_another_key_are_refused(
+    s3_shards: tuple[str, str], s3_root: str, target: str, delete: bool
+) -> None:
+    from inspect_ai._util.asyncfiles import s3_bucket_and_key
+
+    location = target.format(root=s3_root, name=NAME)
+    companion = location.removesuffix(".eval").removesuffix(".shards") + ".shards"
+    _s3_copy(f"{s3_root}/{NAME}.shards/", f"{companion}/")
+    # what S3 would read instead (for the leading slash, the ordinary
+    # companion): another shard set, with an unrelated object that must survive
+    _, read_as = s3_bucket_and_key(f"s3://test-bucket/{companion}")
+    if read_as != f"{s3_root}/{NAME}.shards":
+        _s3_copy(f"{s3_root}/{NAME}.shards/", f"{read_as}/")
+    boto3.client("s3").put_object(
+        Bucket="test-bucket", Key=f"{read_as}/keep.txt", Body=b"keep"
+    )
+    roots = [f"{s3_root}/", f"/{s3_root}/"]
+    before = [_s3_objects(root) for root in roots]
+    with pytest.raises(ValueError, match="S3 would read it as"):
+        merge_eval_log_shards(f"s3://test-bucket/{location}", delete_shards=delete)
+    assert [_s3_objects(root) for root in roots] == before
+
+
+def test_a_literal_percent_sign_in_an_s3_name_merges(
+    s3_shards: tuple[str, str], s3_root: str
+) -> None:
+    _s3_copy(f"{s3_root}/{NAME}.shards/", f"{s3_root}/{NAME}%23tag.shards/")
+    merged = f"s3://test-bucket/{s3_root}/{NAME}%23tag.eval"
+    result = merge_eval_log_shards(merged, delete_shards=True)
+    assert result.written and result.shards_deleted
+    assert result.log.status == "success"
+    assert not _s3_keys(f"{s3_root}/{NAME}%23tag.shards/")
+    assert f"{s3_root}/{NAME}%23tag.eval" in _s3_keys(f"{s3_root}/")
+
+
+@pytest.mark.parametrize(
+    "child", ["0#tag", "0/worker#tag.eval"], ids=["dir", "attempt"]
+)
+async def test_s3_shard_paths_s3_would_read_as_another_key_are_refused(
+    s3_shards: tuple[str, str], s3_root: str, child: str
+) -> None:
+    from inspect_ai.log import merge_eval_log_shards_async
+
+    merged, _ = s3_shards
+    shards = f"{s3_root}/{NAME}.shards"
+    [attempt] = [k for k in _s3_keys(f"{shards}/1/") if k.endswith(".eval")]
+    client = boto3.client("s3")
+    if child == "0#tag":
+        # shard 0 under a directory S3 would list as `0`
+        _s3_copy(f"{shards}/0/", f"{shards}/0#tag/")
+    else:
+        # an attempt S3 would read as the non-log object `worker`, which holds
+        # another shard's samples
+        source = {"Bucket": "test-bucket", "Key": attempt}
+        client.copy_object(
+            Bucket="test-bucket", Key=f"{shards}/{child}", CopySource=source
+        )
+        client.copy_object(
+            Bucket="test-bucket", Key=f"{shards}/0/worker", CopySource=source
+        )
+    before = _s3_objects(f"{s3_root}/")
+    with pytest.raises(ShardSetError, match="S3 would read it as"):
+        await merge_eval_log_shards_async(merged, delete_shards=True)
+    assert _s3_objects(f"{s3_root}/") == before
+
+
+def _merged_at(s3_shards: tuple[str, str], s3_root: str, name: str) -> EvalLog:
+    """The merged log of `s3_shards`, located at `name` with its shards copied beside it."""
+    merged, _ = s3_shards
+    log = merge_eval_log_shards(merged).log
+    _s3_copy(f"{s3_root}/{NAME}.shards/", f"{s3_root}/{name}.shards/")
+    full = read_eval_log(merged)
+    full.location = f"s3://test-bucket/{s3_root}/{name}.eval"
+    assert log.eval.shards is not None and full.eval.shards is not None
+    return full
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+@pytest.mark.parametrize(
+    "name,match",
+    [(f"{NAME}#tag", "S3 would read it as"), (f"{NAME}%23tag", "still exist")],
+    ids=["fragment", "literal-percent"],
+)
+def test_s3_writer_guards_refuse_a_location_s3_would_read_as_another_key(
+    s3_shards: tuple[str, str],
+    s3_root: str,
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+    match: str,
+    backend: str,
+) -> None:
+    from inspect_ai.log._shards._live import (
+        check_shards_merged,
+        check_shards_merged_async,
+    )
+
+    log = _merged_at(s3_shards, s3_root, name)
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    with pytest.raises(ShardSetError, match=match):
+        anyio.run(check_shards_merged_async, log, "rescore", backend=backend)
+    with pytest.raises(ShardSetError, match=match):
+        check_shards_merged(log, "rescore")
+
+
+@pytest.mark.parametrize(
+    "writer", ["recompute_metrics", "edit_score", "edit_score_only", "score"]
+)
+def test_s3_writers_refuse_a_location_s3_would_read_as_another_key(
+    s3_shards: tuple[str, str], s3_root: str, writer: str
+) -> None:
+    from inspect_ai import score
+    from inspect_ai.log import recompute_metrics
+    from inspect_ai.scorer import ScoreEdit
+
+    log = _merged_at(s3_shards, s3_root, f"{NAME}#tag")
+    before = log.model_dump_json(), _s3_objects(f"{s3_root}/")
+    with pytest.raises(ShardSetError, match="S3 would read it as"):
+        if writer == "recompute_metrics":
+            recompute_metrics(log)
+        elif writer == "score":
+            score(log, [match()], action="overwrite")
+        else:
+            edit = ScoreEdit(value="I")
+            recompute = writer == "edit_score"
+            edit_score(log, 1, "match", edit, recompute_metrics=recompute, epoch=1)
+    assert (log.model_dump_json(), _s3_objects(f"{s3_root}/")) == before
+
+
 async def test_a_sibling_prefix_is_not_a_remnant_of_a_remote_delete(
     s3_shards: tuple[str, str], s3_root: str
 ) -> None:

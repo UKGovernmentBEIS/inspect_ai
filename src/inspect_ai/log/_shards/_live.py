@@ -18,6 +18,7 @@ from inspect_ai._util.log_layout import eval_shards_dir
 from inspect_ai.log._log import EvalLog
 
 from ._errors import ShardSetError
+from ._walk import check_s3_location
 
 
 def check_shards_merged(log: EvalLog, action: str) -> None:
@@ -55,6 +56,7 @@ async def check_shards_merged_async(log: EvalLog, action: str) -> None:
 def _shards_dir(log: EvalLog) -> str | None:
     if log.eval.shards is None or not log.location:
         return None
+    check_s3_location(log.location, ShardSetError)
     return eval_shards_dir(local_path(log.location))
 
 

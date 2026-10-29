@@ -1444,6 +1444,16 @@ cleanup (removes the merged log too). Both use one routine,
   cleanup); such a companion is deleted by hand. Local paths are deleted
   by their exact path and are not refused. It neither classifies objects
   nor orders the deletes, and a missing companion is not an error.
+  The S3 helpers take a URL's bucket and key with `urlparse`, which drops
+  a `#` or `?` and the text after it, removes tab, CR and LF, and strips
+  a key's leading slashes, so `s3://bucket/logs/run#tag.eval` would read,
+  write and delete `logs/run`. `check_s3_location` (`log/_shards/_walk.py`)
+  refuses an S3 URL whose bucket and key do not give back the URL: the
+  merge argument's merged log and companion (`ValueError`, before any
+  merge I/O, with or without deletion), each listed shard directory and
+  attempt (`ShardSetError`, before any attempt is read), and a located
+  merged log in the writer guards (`ShardSetError`, before the presence
+  check). A literal `%23` is kept and merges.
   With `include_log`, the merged log is deleted first. A remote delete is
   then checked by a fresh listing, because a bulk delete can return
   normally while objects remain: s3fs ignores the per-object errors of a
@@ -2449,7 +2459,16 @@ Per PR (numbers from "Implementation plan"):
      sibling; on `memory://`, a remote log whose name or parent holds `?`,
      `*` or `[` is refused by `delete_shards` and by `remove_shards_dir`
      (with `include_log`), and every neighbouring companion and log the
-     glob would match is kept;
+     glob would match is kept; on `mock_s3`, a merge argument with `#` in
+     its name, its `.shards` form or a parent, `?` in its name, or a
+     leading key slash is refused with and without deletion while a shard
+     set at the key S3 would read and the intended companion stay
+     byte-identical; a shard directory or attempt with `#` is refused with
+     deletion enabled, the decoy object S3 would read included; the sync
+     and async writer guards (asyncio and Trio) and `recompute_metrics`,
+     `edit_score` (with and without recomputation) and `score` refuse a
+     merged log located at a `#` name, leaving it and S3 unchanged, while a
+     literal `%23` name merges and its guard reports the live shards;
    - interrupted `delete_shards`: locally, a companion left with an older
      attempt in one `<k>/` (its recorded attempt deleted) and only a
      checkpoint directory in another: an ordinary merge refuses (attempt
