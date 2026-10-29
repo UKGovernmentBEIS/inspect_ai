@@ -210,21 +210,37 @@ def fetch_runs(repo: str, limit: int, days: int = 7) -> FetchedRuns:
     )
 
 
-def latest_window_end(summaries: list[dict[str, Any]]) -> str | None:
+def latest_window_end(summaries: list[dict[str, Any]], now: datetime) -> str | None:
     """`window.end` of the retained summary with the latest window end.
 
     Used to split the new snapshot's runs against the most recent previous
     window. The tracking issue stores summaries in posting order, but a re-run
     or manual dispatch can post an older window after a newer one, so take the
     latest end rather than the last entry. Returns None when no summary is
-    retained.
+    retained, normalized to the `...Z` UTC form GitHub uses elsewhere otherwise.
+
+    read_history already drops comments from non-publisher accounts, but a
+    summary body is still attacker-influenced, so every `window.end` is parsed
+    strictly: it must be an ISO-8601 string that resolves to a timezone-aware
+    datetime no later than `now` (the collection time, passed in so tests are
+    deterministic). A missing or malformed value raises rather than being
+    coerced or skipped, because every published summary carries a valid one.
     """
-    ends = [
-        end
-        for summary in summaries
-        if (end := (summary.get("window") or {}).get("end")) is not None
-    ]
-    return max(ends) if ends else None
+    ends: list[datetime] = []
+    for summary in summaries:
+        window = summary.get("window")
+        end = window.get("end") if isinstance(window, dict) else None
+        if not isinstance(end, str):
+            raise ValueError(f"Trend summary has no string window.end: {end!r}")
+        parsed = datetime.fromisoformat(end.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            raise ValueError(f"Trend summary window.end is not timezone-aware: {end!r}")
+        if parsed > now:
+            raise ValueError(f"Trend summary window.end is after collection: {end!r}")
+        ends.append(parsed)
+    if not ends:
+        return None
+    return max(ends).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def warn_on_time_gap(runs: list[dict[str, Any]]) -> None:
@@ -448,12 +464,13 @@ def main() -> None:
             "--limit and --days must be positive; --durations-runs must be nonnegative"
         )
 
+    now = datetime.now(timezone.utc)
     raw_runs, excluded_untrusted, excluded_action_required = fetch_runs(
         args.repo, args.limit, args.days
     )
     # window.end of the most recent retained summary, so the summarizer can
     # split this window into runs new since then and runs it already covered.
-    previous_window_end = latest_window_end(read_history())
+    previous_window_end = latest_window_end(read_history(), now)
     print(
         f"kept {len(raw_runs)} runs; excluded {excluded_untrusted} from untrusted "
         f"head repositories and {excluded_action_required} never-started "
@@ -485,7 +502,7 @@ def main() -> None:
         else TestLogData({}, {})
     )
     snapshot = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": now.isoformat(),
         "repo": args.repo,
         "run_count": len(runs),
         "excluded_untrusted_runs": excluded_untrusted,

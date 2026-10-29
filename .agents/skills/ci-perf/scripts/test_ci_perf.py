@@ -417,9 +417,10 @@ def test_history_uses_final_json_block(monkeypatch: pytest.MonkeyPatch) -> None:
         publisher,
         "comments",
         lambda number: [
-            {"body": "A quoted <!-- ci-perf-summary:1 -->"},
+            {"user": {"id": 330132053}, "body": "A quoted <!-- ci-perf-summary:1 -->"},
             {
-                "body": '<!-- ci-perf-summary:2 -->\n```json\n{"example":true}\n```\n```json\n{"schema_version":1}\n```'
+                "user": {"id": 330132053},
+                "body": '<!-- ci-perf-summary:2 -->\n```json\n{"example":true}\n```\n```json\n{"schema_version":1}\n```',
             },
         ],
     )
@@ -491,8 +492,72 @@ def test_history_recovers_summary_after_unclosed_report_fence(
         + '\n\n```json\n{"schema_version":1}\n```'
     )
     monkeypatch.setattr(publisher, "tracking_issue", lambda: {"number": 1})
-    monkeypatch.setattr(publisher, "comments", lambda number: [{"body": body}])
+    monkeypatch.setattr(
+        publisher,
+        "comments",
+        lambda number: [{"user": {"id": 330132053}, "body": body}],
+    )
     assert publisher.read_history() == [{"schema_version": 1}]
+
+
+def test_read_history_ignores_non_publisher_comments(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Only the publisher accounts' summaries are trusted; the issue is public.
+
+    330132053 is meridian-marvin[bot]; 999 is an untrusted outsider. The
+    outsider's malformed comment would crash the parser if it were read, and
+    their well-formed far-future summary would win max() in the collector, so
+    both must be dropped before any parsing.
+    """
+    monkeypatch.setattr(publisher, "tracking_issue", lambda: {"number": 1})
+    monkeypatch.setattr(
+        publisher,
+        "comments",
+        lambda number: [
+            {
+                "user": {"id": 999},
+                "body": "<!-- ci-perf-summary:1 -->\n```json\n{",
+                "html_url": "outsider-malformed",
+            },
+            {
+                "user": {"id": 999},
+                "body": '<!-- ci-perf-summary:2 -->\nrun\n\n```json\n{"schema_version":1,"window":{"end":"2999-01-01T00:00:00Z"}}\n```',
+                "html_url": "outsider-wellformed",
+            },
+            {
+                "user": {"id": 330132053},
+                "body": '<!-- ci-perf-summary:3 -->\nrun\n\n```json\n{"schema_version":1,"window":{"end":"2026-09-01T00:00:00Z"}}\n```',
+                "html_url": "publisher",
+            },
+        ],
+    )
+    assert publisher.read_history() == [
+        {"schema_version": 1, "window": {"end": "2026-09-01T00:00:00Z"}}
+    ]
+
+
+def test_read_history_raises_on_publisher_malformed_comment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A malformed summary from a publisher account is a real publisher bug.
+
+    The author filter does not soften it: it still raises, as before the filter.
+    """
+    monkeypatch.setattr(publisher, "tracking_issue", lambda: {"number": 1})
+    monkeypatch.setattr(
+        publisher,
+        "comments",
+        lambda number: [
+            {
+                "user": {"id": 294938113},
+                "body": "<!-- ci-perf-summary:1 -->\nno json fence here",
+                "html_url": "publisher-malformed",
+            }
+        ],
+    )
+    with pytest.raises(ValueError, match="Malformed trend summary"):
+        publisher.read_history()
 
 
 def test_failed_finding_still_records_measurements(
@@ -1026,14 +1091,37 @@ def test_window_overlap_and_hours(snapshot: dict[str, Any]) -> None:
 
 
 def test_latest_window_end_picks_most_recent() -> None:
+    from datetime import datetime, timezone
+
     from collect_ci_data import latest_window_end
 
-    assert latest_window_end([]) is None
+    now = datetime(2026, 10, 1, tzinfo=timezone.utc)
+    assert latest_window_end([], now) is None
+    # Mixed Z and +00:00 inputs; the true latest is returned normalized to ...Z.
     history = [
         {"window": {"end": "2026-09-19T13:01:25Z"}},
-        {"window": {"end": "2026-09-18T21:13:35Z"}},
+        {"window": {"end": "2026-09-18T21:13:35+00:00"}},
     ]
-    assert latest_window_end(history) == "2026-09-19T13:01:25Z"
+    assert latest_window_end(history, now) == "2026-09-19T13:01:25Z"
+
+
+def test_latest_window_end_rejects_bad_window_end() -> None:
+    from datetime import datetime, timezone
+
+    from collect_ci_data import latest_window_end
+
+    now = datetime(2026, 10, 29, tzinfo=timezone.utc)
+    bad_summaries: list[dict[str, Any]] = [
+        {"window": {"end": 42}},  # not a str
+        {"window": [1, 2]},  # window is not a dict
+        {"window": {}},  # missing end
+        {"window": {"end": "2026-10-30T00:00:00"}},  # naive datetime
+        {"window": {"end": "not-a-date"}},  # non-date text
+        {"window": {"end": "2027-01-01T00:00:00Z"}},  # later than now
+    ]
+    for bad in bad_summaries:
+        with pytest.raises(ValueError):
+            latest_window_end([bad], now)
 
 
 # --- Issue 583: jobs cancelled while still queued add no runner time ---------
