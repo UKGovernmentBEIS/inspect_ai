@@ -193,11 +193,15 @@ So `SampleTiming` keeps, for the whole attempt and with no folding, one
 `_Timeline` of closed waits and closed known work: a sorted list of
 disjoint segments, each recording whether a closed wait covers it and how
 many spans' closed work covers it. Time in no segment has neither.
-Adjacent segments with the same state are merged. Two prefix sums go with
-it: the length of the waiting segments (a wait and no work), `E`, and the
-length of all segments (a wait or work), `U`. Beside the timeline the
-sample keeps the start time of the oldest open wait and the work spans
-(`_WorkSpan`) that are open or awaiting classification.
+Adjacent segments with the same state are merged. `E` is the union of the
+waiting segments (a closed wait and no closed work), and `U` the union of
+all segments (a closed wait or closed work); two prefix sums over the
+segments give the length of the intersection of each with a window.
+Beside the timeline the sample keeps a count of open waits with the start
+of the current run of overlapping open waits, and the work spans
+(`_WorkSpan`) that are open or awaiting classification. The run starts when
+the count rises from zero, and the whole run is added to the timeline as
+one closed wait when the count returns to zero.
 
 - **Adding an interval.** It is clipped to the current attempt, from the
   sample clock's start to now. Adding a wait or work, and withdrawing work,
@@ -213,8 +217,9 @@ sample keeps the start time of the oldest open wait and the work spans
   A sample has at most a few thousand spans, so memory is small. Prior
   attempts are carried as totals in the checkpoint (see "Resume
   accounting").
-- **Readings.** The live wait is `L = [oldest open wait start, now]` while
-  any known wait is open. The live work is the merged intervals of the
+- **Readings.** The live wait is `L = [start of the current run, now]`
+  while any known wait is open; it can start before every wait still open,
+  since an earlier wait in the run may have closed. The live work is the merged intervals of the
   open and unclassified spans, a handful at any time. For a window `J`,
   the waiting outside closed work is
 
