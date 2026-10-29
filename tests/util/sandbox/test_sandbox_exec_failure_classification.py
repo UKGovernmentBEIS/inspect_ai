@@ -761,6 +761,28 @@ async def test_timeout_exit_code_at_the_deadline_raises(
     assert getattr(excinfo.value, "truncated_output", None) == "partial\n"
 
 
+@pytest.mark.parametrize("returncode", [124, 137, 143])
+async def test_timeout_exit_code_just_before_the_deadline_is_returned(
+    monkeypatch: pytest.MonkeyPatch, returncode: int
+) -> None:
+    # the other side of `elapsed >= timeout`: 1.99s of a 2s timeout is not a
+    # timeout, whichever of the three exit codes the command produced.
+    exited = ExecResult(
+        success=False, returncode=returncode, stdout="partial\n", stderr=""
+    )
+    assert await _exec_taking(monkeypatch, exited, elapsed=1.99, timeout=2) == exited
+
+
+@pytest.mark.parametrize("returncode", [137, 143])
+async def test_fast_signal_death_with_a_timeout_is_returned(
+    monkeypatch: pytest.MonkeyPatch, returncode: int
+) -> None:
+    # an OOM kill (137) or stray SIGTERM (143) long before the deadline is an
+    # ordinary result, as it was before #6049.
+    killed = ExecResult(success=False, returncode=returncode, stdout="", stderr="")
+    assert await _exec_taking(monkeypatch, killed, elapsed=0.1, timeout=60) == killed
+
+
 async def test_no_wrapper_leaves_runc_launch_failures_unclassified(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
