@@ -31,7 +31,9 @@ def sandbox_identity(
     `bash_session()` and `text_editor()`. `bash()`, `python()`, `grep()`,
     `list_files()` and `read_file()` also start in `cwd`. `cwd` does not
     change where a `bash_session()` shell starts or what `text_editor()`
-    resolves relative paths against. A tool configured with a different
+    resolves relative paths against. A `bash_session()` shell created in the
+    block works only with the sandbox tools server that created it, and needs
+    inspect-sandbox-tools 1.3.0 or later. A tool configured with a different
     `user` raises `SandboxIdentityError`, and so do `computer()` and
     `web_browser()`, which cannot run as a user, and `skill()`, which does not
     yet install skills as a user. `exec_remote()` uses the

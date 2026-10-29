@@ -4,6 +4,7 @@ import json
 from collections.abc import Iterator
 from contextlib import contextmanager, nullcontext
 from typing import Any, Callable, cast
+from uuid import uuid4
 
 import pytest
 from test_helpers.sandbox import CannedSandbox
@@ -43,6 +44,8 @@ def _patch_module(monkeypatch: pytest.MonkeyPatch, module: Any) -> list[dict[str
         return FakeSandbox()
 
     async def fake_request(*_args: Any, **kwargs: Any) -> Any:
+        if kwargs["method"] == "version":
+            return str(bash_session_module.BOUND_SHELL_TOOLS_VERSION)
         calls.append(kwargs)
         if kwargs["method"] == "bash_session_new_session":
             return bash_session_module.NewSessionResult(session_name="s")
@@ -231,8 +234,9 @@ async def test_bash_session_runs_as_the_scope_user(
             await bash_session_module.bash_session(user="root", instance="other")(
                 action="read"
             )
-    new_session, _interact = calls
-    assert new_session["params"]["user"] == "w-1"
+    new_session, interact = calls
+    assert new_session["params"] == {"user": "w-1", "bind": True}
+    assert interact["params"]["owner"] == "w-1"
 
 
 async def test_bash_session_cannot_be_shared_between_scopes(
@@ -423,72 +427,181 @@ def _select_by_injection(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+class _ToolsServer(CannedSandbox):
+    """A sandbox whose tools answer bash_session requests as the tools server does.
+
+    A shell created with `bind` gets a unique name and answers only requests that
+    name its owner; other shells get counted names (`BashSession`, `BashSession_1`).
+    `replace_server()` drops every shell, as a replaced server starts empty.
+    """
+
+    def __init__(self, version: str = "1.3.0") -> None:
+        super().__init__(lambda _cmd, _user: ExecResult(True, 0, "", ""))
+        self.version = version
+        self.shells: dict[str, str | None] = {}
+        """Owner of each shell, by name (None when unbound)."""
+        self.received: list[tuple[str, dict[str, Any]]] = []
+        """Each request a shell acted on: its name and the request's params."""
+        self.methods: list[str] = []
+
+    def replace_server(self) -> None:
+        self.shells = {}
+
+    async def exec(
+        self,
+        cmd: list[str],
+        input: str | bytes | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
+        user: str | None = None,
+        timeout: int | None = None,
+        timeout_retry: bool = True,
+        concurrency: bool = True,
+    ) -> ExecResult[str]:
+        assert isinstance(input, str)
+        request = json.loads(input)
+        self.methods.append(request["method"])
+        response = {"jsonrpc": "2.0", "id": request["id"]}
+        response.update(self._answer(request["method"], request.get("params", {})))
+        return ExecResult(True, 0, json.dumps(response), "")
+
+    def _answer(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
+        if method == "version":
+            return {"result": self.version}
+        if method == "bash_session_new_session":
+            if params.get("bind"):
+                name = f"BashSession_{uuid4().hex}"
+            else:
+                count = len(self.shells)
+                name = f"BashSession_{count}" if count else "BashSession"
+            self.shells[name] = params["user"] if params.get("bind") else None
+            return {"result": {"session_name": name}}
+        assert method == "bash_session"
+        name, owner = params["session_name"], params.get("owner")
+        if name not in self.shells:
+            code = -32097 if owner is not None else -32098
+            return {"error": {"code": code, "message": f"no shell {name}"}}
+        if self.shells[name] != owner:
+            return {"error": {"code": -32096, "message": f"{name} is not {owner}'s"}}
+        self.received.append((name, params))
+        return {"result": "restarted" if params.get("restart") else "out"}
+
+
+def _received_by(server: _ToolsServer, shells: set[str]) -> list[dict[str, Any]]:
+    return [params for name, params in server.received if name in shells]
+
+
+def _session_name(instance: str) -> str:
+    from inspect_ai.util import store_as
+
+    return store_as(bash_session_module.BashSessionStore, instance=instance).session_id
+
+
 async def test_bash_session_keeps_its_sandbox_after_the_scope(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from inspect_ai.util._store import Store, init_subtask_store
 
     init_subtask_store(Store())
-    # every new session is named "s", as the first shell in each sandbox would be
-    calls = _patch_module(monkeypatch, bash_session_module)
     _select_by_injection(monkeypatch)
-    a, b = FakeSandbox(), FakeSandbox()
+    a, b = _ToolsServer(), _ToolsServer()
     team = bash_session_module.bash_session(instance="team")
-    with _environments(a=cast(SandboxEnvironment, a), b=cast(SandboxEnvironment, b)):
+    with _environments(a=a, b=b):
         await bash_session_module.bash_session(instance="unscoped")(action="read")
         with sandbox_identity("w-1", sandbox="b"):
             await team(action="read")
-        with pytest.raises(SandboxIdentityError, match="not in this sandbox"):
-            await team(action="read")
+        with pytest.raises(SandboxIdentityError, match="no longer have that shell"):
+            await team(action="type_submit", input="id")
         with sandbox_identity("w-1", sandbox="b"):
             await team(action="read")
-    assert [call["method"] for call in calls] == [
-        "bash_session_new_session",
-        "bash_session",
-        "bash_session_new_session",
-        "bash_session",
-        "bash_session",
-    ]
+    assert a.received == [("BashSession", a.received[0][1])]
+    assert [name for name, _ in b.received] == [_session_name("team")] * 2
 
 
 @pytest.mark.parametrize("scoped", [True, False], ids=["scoped", "unscoped"])
-async def test_bash_session_refuses_a_scoped_shell_restored_into_a_fresh_sandbox(
-    monkeypatch: pytest.MonkeyPatch, scoped: bool
+@pytest.mark.parametrize("restore", [False, True], ids=["replaced", "restored"])
+async def test_bash_session_refuses_a_scoped_shell_its_server_no_longer_has(
+    monkeypatch: pytest.MonkeyPatch, scoped: bool, restore: bool
 ) -> None:
     from inspect_ai.util._store import Store, init_subtask_store, store, store_jsonable
 
     init_subtask_store(Store())
-    # every new session is named "s", as the first shell in each sandbox would be
-    calls = _patch_module(monkeypatch, bash_session_module)
     _select_by_injection(monkeypatch)
     team = bash_session_module.bash_session(instance="team")
-    with _environments(b=cast(SandboxEnvironment, FakeSandbox())):
+    server = _ToolsServer()
+    with _environments(b=server):
         with sandbox_identity("w-1", sandbox="b"):
             await team(action="read")
-        # in the sandbox that created it, the shell keeps working, scoped or not
+        # with its server, the shell keeps working, scoped or not
         await team(action="read")
         with sandbox_identity("w-1", sandbox="b"):
             await team(action="read")
-        saved = json.loads(json.dumps(store_jsonable(store())))
-    assert [call["method"] for call in calls] == [
-        "bash_session_new_session",
-        "bash_session",
-        "bash_session",
-        "bash_session",
-    ]
-    calls.clear()
+    stale = _session_name("team")
+    assert server.received == [(stale, server.received[0][1])] * 3
+    assert all(params["owner"] == "w-1" for _, params in server.received)
 
-    # a checkpoint restore: the store in a fresh sandbox of the same name, where
-    # setup has already opened its own first shell, also named "s", as root
-    init_subtask_store(Store(saved))
-    with _environments(b=cast(SandboxEnvironment, FakeSandbox())):
+    if restore:
+        # a checkpoint restore: the store in a fresh sandbox of the same name
+        init_subtask_store(Store(json.loads(json.dumps(store_jsonable(store())))))
+        server = _ToolsServer()
+    else:
+        # the tools server is replaced within the same sandbox object
+        server.replace_server()
+        server.received.clear()
+    with _environments(b=server):
+        # the first shell the new server opens, as the default user
         await bash_session_module.bash_session(instance="setup")(action="read")
+        setup = _session_name("setup")
         with sandbox_identity("w-1", sandbox="b") if scoped else nullcontext():
-            with pytest.raises(SandboxIdentityError, match="before the sandbox"):
-                await team(action="read")
+            for action in ("type_submit", "read", "interrupt"):
+                with pytest.raises(SandboxIdentityError, match="no longer have"):
+                    await team(
+                        action=action, input="id" if action == "type_submit" else None
+                    )
+            assert server.received == [(setup, server.received[0][1])]
             await team(action="restart")
-    setup_new, setup_read, team_new, team_restart = calls
-    assert [setup_read["method"], team_restart["method"]] == ["bash_session"] * 2
-    assert team_new["method"] == "bash_session_new_session"
-    assert (team_new["params"].get("user") == "w-1") is scoped
-    assert team_restart["params"]["restart"] is True
+            await team(action="type_submit", input="id")
+    fresh = _session_name("team")
+    assert fresh not in (stale, setup)
+    assert (server.shells[fresh] == "w-1") is scoped
+    restart, typed = _received_by(server, {fresh})
+    assert restart["restart"] is True and typed["input"] == "id\n"
+    assert _received_by(server, {setup}) == [server.received[0][1]]
+
+
+async def test_bash_session_refuses_an_owner_the_server_does_not_have(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai.util import store_as
+    from inspect_ai.util._store import Store, init_subtask_store
+
+    init_subtask_store(Store())
+    _select_by_injection(monkeypatch)
+    server = _ToolsServer()
+    team = bash_session_module.bash_session(instance="team")
+    with _environments(b=server):
+        with sandbox_identity("w-1", sandbox="b"):
+            await team(action="read")
+        store_as(bash_session_module.BashSessionStore, instance="team").identity = "w-2"
+        with pytest.raises(SandboxIdentityError, match="not w-2's"):
+            await team(action="read")
+    assert len(server.received) == 1
+
+
+async def test_bash_session_refuses_a_scope_on_tools_without_bound_shells(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai.util._store import Store, init_subtask_store
+
+    init_subtask_store(Store())
+    _select_by_injection(monkeypatch)
+    server = _ToolsServer(version="1.2.1")
+    with _environments(b=server):
+        with sandbox_identity("w-1", sandbox="b"):
+            with pytest.raises(
+                SandboxIdentityError, match="1.2.1.*needs version 1.3.0"
+            ):
+                await bash_session_module.bash_session(instance="team")(action="read")
+        await bash_session_module.bash_session(instance="other")(action="read")
+    assert server.methods == ["version", "bash_session_new_session", "bash_session"]
+    assert server.shells == {"BashSession": None}

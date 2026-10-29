@@ -1,6 +1,7 @@
 import json
 import textwrap
 import uuid
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Iterator
 
@@ -39,7 +40,13 @@ from inspect_ai.tool import (
 from inspect_ai.tool._sandbox_tools_utils.sandbox import (
     _AMBIGUOUS_ROOT_ACCESS_WARNING,
 )
-from inspect_ai.util import ExecRemoteAwaitableOptions, sandbox, store
+from inspect_ai.util import (
+    ExecRemoteAwaitableOptions,
+    SandboxIdentityError,
+    sandbox,
+    sandbox_identity,
+    store,
+)
 from inspect_ai.util._sandbox._cli import SANDBOX_TOOLS_DIR
 from inspect_ai.util._sandbox.limits import override_max_exec_output_size
 
@@ -688,6 +695,66 @@ def test_text_editor_default_user_denied_root_path_alpine() -> None:
         dataset=[Sample(input="x")],
         solver=_create_denied("/etc/x.txt"),
         sandbox=("docker", _ALPINE_COMPOSE),
+    )
+    log = eval(task, model=get_model("mockllm/model"))[0]
+    assert log.status == "success", log.error
+
+
+_KILL_TOOLS_SERVER = (
+    "kill -9 \"$(python3 -c 'import json, sys; "
+    f'print(json.load(open(sys.argv[1]))["pid"])\' {SERVER_DIR}/server.pid)"'
+)
+
+
+@solver
+def _scoped_shell_across_a_server_restart() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        sb = sandbox()
+        assert (await sb.exec(["useradd", "-m", "w1"], user="root")).success
+        team = bash_session(instance="team")
+        with sandbox_identity("w1"):
+            out = str(await team(action="type_submit", input="id -un"))
+        assert "w1" in out, out
+        out = str(await team(action="type_submit", input="id -un"))
+        assert "w1" in out, out
+
+        kill = await sb.exec(["sh", "-c", _KILL_TOOLS_SERVER], user="root")
+        assert kill.success, kill.stderr
+        # the next request starts a new server; its first shell is the default user's
+        setup = bash_session(instance="setup")
+        out = str(await setup(action="type_submit", input="id -un"))
+        assert "nonroot" in out, out
+
+        for scope in (sandbox_identity("w1"), nullcontext()):
+            with scope:
+                try:
+                    await team(action="type_submit", input="touch /tmp/stale")
+                except SandboxIdentityError as ex:
+                    assert "no longer have that shell" in str(ex), ex
+                else:
+                    raise AssertionError("the stale shell was used")
+        assert not (await sb.exec(["test", "-e", "/tmp/stale"])).success
+
+        with sandbox_identity("w1"):
+            assert "restarted" in str(await team(action="restart"))
+            out = str(await team(action="type_submit", input="id -un"))
+        assert "w1" in out, out
+        out = str(await setup(action="type_submit", input="id -un"))
+        assert "nonroot" in out and "w1" not in out, out
+        return state
+
+    return solve
+
+
+# A scoped shell is bound to its tools server: after the server is replaced
+# mid-sample, the shell is refused (never reaching the new server's first shell)
+# and `restart` opens a new one.
+@pytest.mark.slow
+def test_scoped_bash_session_across_a_tools_server_restart() -> None:
+    task = Task(
+        dataset=[Sample(input="x")],
+        solver=_scoped_shell_across_a_server_restart(),
+        sandbox=("docker", NONROOT_COMPOSE),
     )
     log = eval(task, model=get_model("mockllm/model"))[0]
     assert log.status == "success", log.error

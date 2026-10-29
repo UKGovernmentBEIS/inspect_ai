@@ -1,3 +1,4 @@
+import secrets
 import threading
 from typing import Awaitable, Callable, Generic, TypeVar
 
@@ -12,15 +13,26 @@ class SessionController(Generic[SessionT]):
         self._sessions: dict[str, SessionT] = {}
 
     async def create_new_session(
-        self, default_name: str, session_factory: Callable[[], Awaitable[SessionT]]
+        self,
+        default_name: str,
+        session_factory: Callable[[], Awaitable[SessionT]],
+        unique: bool = False,
     ) -> str:
+        """Create a session and return its name.
+
+        Names are counted (`default_name`, `default_name_1`, ...) unless `unique`,
+        which adds a random 128-bit suffix that no other server will issue.
+        """
         with self._lock:
             current_count = len(self._sessions)
-            name = (
-                default_name
-                if current_count == 0
-                else f"{default_name}_{current_count}"
-            )
+            if unique:
+                name = f"{default_name}_{secrets.token_hex(16)}"
+            else:
+                name = (
+                    default_name
+                    if current_count == 0
+                    else f"{default_name}_{current_count}"
+                )
             self._sessions[name] = await session_factory()
             return name
 
