@@ -76,6 +76,9 @@ class _HandedCall(NamedTuple):
     handed_ids: frozenset[str] | None
     """Ids of every call in the reply (one set shared by its calls), or `None` for a reply of more than `_MAX_HANDED_IDS` calls."""
 
+    id_shared: bool
+    """Whether another call in the reply has this call's id."""
+
 
 _MAX_HANDED_IDS = 256
 """Calls in a reply beyond which its handed ids aren't kept (and its calls match only by kept id)."""
@@ -88,11 +91,18 @@ def _arguments_digest(arguments: dict[str, Any]) -> str:
 def _handed_calls(reply_id: str, calls: Sequence[ToolCall]) -> list[_HandedCall]:
     """The calls of a reply handed to the scaffold, for `_await_result_message`."""
     keys = [(call.function, _arguments_digest(call.arguments)) for call in calls]
-    handed_ids = (
-        frozenset(call.id for call in calls) if len(calls) <= _MAX_HANDED_IDS else None
-    )
+    ids = [call.id for call in calls]
+    handed_ids = frozenset(ids) if len(calls) <= _MAX_HANDED_IDS else None
     return [
-        _HandedCall(reply_id, position, call.id, *key, keys.count(key), handed_ids)
+        _HandedCall(
+            reply_id,
+            position,
+            call.id,
+            *key,
+            keys.count(key),
+            handed_ids,
+            ids.count(call.id) > 1,
+        )
         for position, (call, key) in enumerate(zip(calls, keys))
     ]
 
@@ -117,25 +127,28 @@ def _is_handed(copy_call: ToolCall, handed: _HandedCall) -> bool:
     )
 
 
-def _copy_calls(handed: _HandedCall, copy_calls: list[ToolCall]) -> list[ToolCall]:
+def _copy_calls(
+    handed: _HandedCall, copy_calls: list[ToolCall], tracked_ids: set[str]
+) -> list[ToolCall]:
     """The calls in a scaffold's copy of a reply that may be `handed`.
 
-    The one with its id, function and arguments. When no copy call has its id
-    (Google re-derives call ids), the ones with its function and arguments and
-    an id handed to no call of the reply, but only if `handed` is the reply's
-    only call with that function and arguments and its handed ids are known.
-    Identical calls can't be told apart, and the bridge can't check that a
-    scaffold's tool message holds a host result, so they are never paired.
+    None if another call in the reply has its id: an answer under that id
+    can't be told apart. Otherwise the one with its id, function and arguments.
+    When no copy call has its id (Google re-derives call ids), the ones with
+    its function and arguments and an id the bridge handed in no tracked reply
+    (`tracked_ids`), but only if `handed` is the reply's only call with that
+    function and arguments and its handed ids are known. Identical calls can't
+    be told apart, so they are never paired.
     """
+    if handed.id_shared:
+        return []
     if any(c.id == handed.call_id for c in copy_calls):
         return [
             c for c in copy_calls if c.id == handed.call_id and _is_handed(c, handed)
         ]
     if handed.identical != 1 or handed.handed_ids is None:
         return []
-    return [
-        c for c in copy_calls if c.id not in handed.handed_ids and _is_handed(c, handed)
-    ]
+    return [c for c in copy_calls if c.id not in tracked_ids and _is_handed(c, handed)]
 
 
 def _settle(
@@ -463,6 +476,7 @@ class AgentBridge:
         """
         if not self._awaited_results:
             return
+        tracked_ids: set[str] | None = None
         for index, (message, reply_id) in enumerate(zip(messages, recognized)):
             if reply_id is None or not isinstance(message, ChatMessageAssistant):
                 continue
@@ -476,8 +490,10 @@ class AgentBridge:
                 if isinstance(following, ChatMessageTool):
                     results.append(following)
             copy_calls = message.tool_calls or []
+            if tracked_ids is None:
+                tracked_ids = self._tracked_call_ids()
             candidates = {
-                call_index: _copy_calls(entry.handed, copy_calls)
+                call_index: _copy_calls(entry.handed, copy_calls, tracked_ids)
                 for call_index, entry in awaited.items()
                 if not entry.settled
             }
@@ -495,6 +511,23 @@ class AgentBridge:
                 matches = [r for r in results if r.tool_call_id == copy_call.id]
                 if matches:
                     _settle(awaited, call_index, matches)
+
+    def _tracked_call_ids(self) -> set[str]:
+        """Ids the bridge handed in the replies it still tracks.
+
+        A reply that keeps no handed ids contributes its tracked calls' ids. Ids
+        from replies dropped by `_MAX_AWAITED_RESULTS` aren't known, so a
+        scaffold that copies an earlier call and its answer into a later reply
+        can still be taken for that reply's call.
+        """
+        ids: set[str] = set()
+        for calls in self._awaited_results.values():
+            handed_ids = next(iter(calls.values())).handed.handed_ids
+            if handed_ids is not None:
+                ids.update(handed_ids)
+            else:
+                ids.update(entry.handed.call_id for entry in calls.values())
+        return ids
 
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
         """The bridged tool call that `call` makes through a dispatcher, if any.

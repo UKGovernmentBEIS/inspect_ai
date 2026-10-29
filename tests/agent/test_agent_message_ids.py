@@ -1050,3 +1050,44 @@ def test_re_derived_ids_match_only_while_handed_ids_are_kept(calls: int) -> None
     ids = _link_copy(handed, [(0, "0")], copy, [(copy[0], "0")])
 
     assert ids == (["result-0"] if calls <= bridge_types._MAX_HANDED_IDS else [None])
+
+
+def test_host_results_under_an_id_handed_to_two_calls_stay_unlinked() -> None:
+    """A kept id handed to two calls is ambiguous, even when the arguments pick one."""
+    handed = [_read("same", "a"), _read("same", "b")]
+
+    ids = _link_copy(handed, [(0, "A"), (1, "B")], [handed[0]], [(handed[0], "B")])
+
+    assert ids == [None, None]
+
+
+def test_host_result_links_to_the_answer_whatever_its_content() -> None:
+    """`message_id` names the answer to the call, not a message holding `result`."""
+    handed = [_read("a", "a")]
+
+    ids = _link_copy(handed, [(0, "A")], handed, [(handed[0], "edited")])
+
+    assert ids == ["result-0"]
+
+
+def test_host_result_is_not_claimed_through_an_earlier_replys_id() -> None:
+    """A copy carrying an earlier reply's call and answer isn't the current call."""
+    bridge = AgentBridge(AgentState(messages=[]))
+    earlier, current = _read("earlier", "a"), _read("current", "a")
+    events = []
+    for reply_id, call in (("earlier-reply", earlier), ("current-reply", current)):
+        event = ToolEvent(id=call.id, function="read", arguments=call.arguments)
+        bridge._await_result_message(_handed_calls(reply_id, [call])[0], event)
+        events.append(event)
+    answer = ChatMessageTool(
+        id="earlier-answer", content="A", tool_call_id="earlier", function="read"
+    )
+    bridge._link_result_messages(
+        [
+            ChatMessageAssistant(id="current-reply", content="", tool_calls=[earlier]),
+            answer,
+        ],
+        ["current-reply", None],
+    )
+
+    assert [event.message_id for event in events] == [None, None]

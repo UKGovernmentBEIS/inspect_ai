@@ -87,15 +87,23 @@ class ToolEvent(BaseEvent):
     The message may not stay in the conversation (react removes its `submit`
     tool's result). For a host tool a sandbox agent bridge runs for the
     scaffold, the result reaches the conversation only when the scaffold sends
-    it back, so this is set then, on the completed event: the tool message
-    after the reply handed to the scaffold that answers the call. It stays
-    `None` until then, and for good if the scaffold never sends the result,
-    the sample resumes from a checkpoint first, the reply the scaffold sends
-    back doesn't identify the call (exactly one call with its id, function and
-    arguments, or in Google its function and arguments, which another call of
-    the reply mustn't share, in a reply of at most 256 calls), the call
-    executed more than once, more than one tool message answers it, or 256
-    later host calls are tracked before its result arrives.
+    it back, so this is set then, on the completed event: the tool message the
+    scaffold sent, after the reply handed to it, as the answer to this call,
+    identified by call id. Its content may differ from `result`: scaffolds edit
+    results and dialects reshape them. It never names the answer to a different
+    call the bridge can tell apart from this one; a scaffold that copies an
+    earlier call and its answer into a later reply, once the earlier reply is no
+    longer tracked (after 256 later host calls), can be taken for the later
+    call.
+
+    It stays `None` until then, and for good if the scaffold never sends the
+    result, the sample resumes from a checkpoint first, the reply the scaffold
+    sends back doesn't identify the call (exactly one call with its id,
+    function and arguments, an id handed to no other call of the reply, or in
+    Google its function and arguments, shared by no other call of the reply, in
+    a reply of at most 256 calls), the call executed more than once, more than
+    one tool message answers it, or 256 later host calls are tracked before its
+    result arrives.
     """
 
     call_message_id: str | None = Field(default=None)
