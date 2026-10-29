@@ -295,13 +295,19 @@ sample keeps the start time of the oldest open wait and the work spans
   [`util/_subtask.py`](../src/inspect_ai/util/_subtask.py). An event's
   duration uses the waits and work known when the event completes; a
   retried attempt classified after that does not change an event that is
-  already published. A tool event's own call is known work, so its duration
-  counts as working except where the call itself was held.
+  already published. Event durations measure sample-wide working time over
+  each event's interval: a held call's interval is excluded only where no
+  other known work covers it, so a tool call held for its approval while a
+  sibling tool runs records that time as working.
 - **`working_start`** of an event is the sample's working time at the
   event's creation (`sample_working_time()`), prior attempts included once
-  they are restored (see "Resume accounting"). Events created before the
-  sample clock starts (the init span's events and `SampleInitEvent`) get
-  the raw monotonic time instead, since there is no sample clock yet.
+  they are restored (see "Resume accounting"). The init span's events and
+  `SampleInitEvent` are created before the attempt's sample clock starts.
+  On a first attempt no timing state is bound, so they get the raw
+  monotonic time. When an attempt is retried after an error, the next
+  attempt runs in the same task, so they read the preceding attempt's
+  timing, including its restored prior usage, until
+  `init_sample_working_time()` resets it.
 - **Logged `EvalSample.working_time`** is the attempt's elapsed time minus
   `sample_waiting_time(start, end)`.
 
