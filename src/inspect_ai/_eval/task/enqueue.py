@@ -109,6 +109,10 @@ class RunQueue:
         taken, self._added[start] = self._added[start], []
         return taken
 
+    def waiting(self) -> int:
+        """The number of added tasks not yet taken."""
+        return sum(len(tasks) for tasks in self._added.values())
+
     def close(self) -> list[Attempt]:
         """Refuse further additions and empty the queue.
 

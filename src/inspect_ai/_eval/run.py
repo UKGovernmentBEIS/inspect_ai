@@ -821,6 +821,8 @@ class TaskDispatcher:
         self.adding = False
         """The loop is starting up added tasks or awaiting ``next_tasks()``
         (see :meth:`run`)."""
+        self.starting_up = 0
+        """Tasks of the group being started up (counted as pending)."""
 
     async def run(self, seed: list[TaskRunOptions]) -> list[EvalLog]:
         """Run the seed and every task added while the run is in progress.
@@ -903,7 +905,11 @@ class TaskDispatcher:
         """Start up added tasks, make them ready and grow the task display's count."""
         if not group:
             return
-        options = await self.while_adding(self.group_startup(group))
+        self.starting_up = len(group)
+        try:
+            options = await self.while_adding(self.group_startup(group))
+        finally:
+            self.starting_up = 0
         self.make_ready(options)
         display().update_task_count(len(options))
 
@@ -1042,11 +1048,16 @@ class TaskDispatcher:
         self.queue.wake.set()
 
     def stats(self) -> TaskDispatcherStats:
-        """The view ``inspect ctl config`` shows of this dispatcher."""
+        """The view ``inspect ctl config`` shows of this dispatcher.
+
+        Pending counts every task waiting to start: ready attempts, tasks
+        being started up, and added tasks not yet taken (including
+        ``after_batch`` ones waiting for the run to be idle).
+        """
         return TaskDispatcherStats(
             launch=self.parallel,
             in_flight=self.in_flight,
-            pending=len(self.queue.ready),
+            pending=len(self.queue.ready) + self.starting_up + self.queue.waiting(),
         )
 
 

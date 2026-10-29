@@ -566,7 +566,11 @@ async def test_loop_retry_queues_behind_ready_tasks(
     async def drive() -> None:
         await _wait_started(harness, "a@m1")
         harness.queue.put([_task("c")], start="when_free")
-        await _wait_stats(in_flight=1, pending=2)
+        # c has started up and is ready behind b (pending also counts a task
+        # still starting up)
+        with anyio.fail_after(10):
+            while len(harness.queue.ready) != 2:
+                await anyio.sleep(0)
         harness.finish["a@m1"].set()
         await _wait_started(harness, "b@m1")
         harness.finish["b@m1"].set()
@@ -606,14 +610,15 @@ async def test_loop_after_batch_waits_for_later_when_free(
         harness.queue.put([_task("held")], start="after_batch")
         harness.queue.put([_task("free")], start="when_free")
         await _wait_started(harness, "free@m1")
-        await _wait_stats(in_flight=3, pending=0)
+        # the held task counts as pending
+        await _wait_stats(in_flight=3, pending=1)
         harness.finish["a@m1"].set()
         harness.finish["b@m1"].set()
-        await _wait_stats(in_flight=1, pending=0)
+        await _wait_stats(in_flight=1, pending=1)
         harness.queue.put([_task("later")], start="when_free")
         await _wait_started(harness, "later@m1")
         harness.finish["free@m1"].set()
-        await _wait_stats(in_flight=1, pending=0)
+        await _wait_stats(in_flight=1, pending=1)
         assert "held@m1" not in harness.started
         harness.finish["later@m1"].set()
         await _wait_started(harness, "held@m1")
@@ -717,6 +722,45 @@ async def test_loop_starts_up_added_group_whole_before_dispatch(
         ("b@m1", "success"),
         ("c@m1", "success"),
     ]
+
+
+async def test_stats_count_tasks_waiting_and_starting_up_as_pending(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # the control channel's pending count covers added tasks not yet taken and
+    # a group being started up, not only ready attempts
+    m1 = get_model("mockllm/m1")
+    harness = Harness([m1], parallel=1)
+    _install(monkeypatch, harness)
+    starting = anyio.Event()
+    release = anyio.Event()
+    start_up = harness.start_up
+
+    async def slow_start_up(group: list[ResolvedTask]) -> list[TaskRunOptions]:
+        starting.set()
+        await release.wait()
+        return await start_up(group)
+
+    seed = await harness.start_up(_resolve(["a"], [m1]))
+    monkeypatch.setattr(harness, "start_up", slow_start_up)
+
+    async def drive() -> None:
+        await _wait_started(harness, "a@m1")
+        harness.queue.put([_task("held")], start="after_batch")
+        await _wait_stats(in_flight=1, pending=1)
+        harness.queue.put([_task("b"), _task("c")], start="when_free")
+        await starting.wait()
+        await _wait_stats(in_flight=1, pending=3)
+        release.set()
+        await _wait_stats(in_flight=1, pending=3)
+        for label in ("a@m1", "b@m1", "c@m1", "held@m1"):
+            await _wait_started(harness, label)
+            harness.finish[label].set()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(drive)
+        logs = await harness.dispatcher().run(seed)
+    assert [log.eval.task for log in logs] == ["a@m1", "b@m1", "c@m1", "held@m1"]
 
 
 @pytest.mark.parametrize("during", ["start_up", "next_tasks"])

@@ -43,7 +43,8 @@ class TaskDispatcherStats(NamedTuple):
     """Tasks currently running (may exceed the limit after a lowering)."""
 
     pending: int
-    """Tasks queued and not yet started (including queued retry attempts)."""
+    """Tasks waiting to start: queued (including retry attempts), being
+    started up, or added and waiting to be taken."""
 
 
 _override: int | None = None

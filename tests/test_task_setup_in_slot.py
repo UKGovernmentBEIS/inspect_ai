@@ -260,10 +260,14 @@ async def test_max_sandboxes_retune_reaches_task_waiting_to_start() -> None:
             child = _boxed("b")
             child.solver = record_limit()
             enqueue_task(child, start="when_free")
+            # the child is queued behind this task (max_tasks=1): its sandbox
+            # type's limiter exists before its setup has run
             with anyio.fail_after(10):
-                while (stats := task_dispatcher_stats()) is None or stats.pending != 1:
+                while "slot_box" not in sandbox_limiters():
                     await anyio.sleep(0)
             assert _box.get("inits") is None
+            stats = task_dispatcher_stats()
+            assert stats is not None and (stats.in_flight, stats.pending) == (1, 1)
             views = _apply_process_knobs(
                 max_sandboxes=3,
                 max_subprocesses=None,
