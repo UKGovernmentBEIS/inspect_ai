@@ -39,7 +39,9 @@ env:
 jobs:
   release-please:
     name: Release Please
-    if: github.ref == 'refs/heads/main'
+    # Forks with Actions enabled would otherwise run Release Please on every
+    # push to their main. The jobs after this one need its tag.
+    if: github.repository == 'UKGovernmentBEIS/inspect_ai' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
@@ -208,7 +210,7 @@ jobs:
       # A Docker action, so it runs here rather than inside publish-dist.
       - name: Publish to PyPI
         if: steps.dist.outputs.count != '0'
-        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
 
   # Waits for the build so npm never gets a version that failed the PyPI gates.
   publish-npm:

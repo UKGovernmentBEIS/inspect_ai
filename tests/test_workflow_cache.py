@@ -1,4 +1,9 @@
-"""Jobs that hold credentials restore no cache (see the canary comment in build.yml)."""
+"""Jobs that hold credentials restore no cache.
+
+A malicious package installed by any job can write to the shared Actions
+cache, so a job holding secrets, an id-token or write permissions must not
+restore one.
+"""
 
 from pathlib import Path
 from typing import Any
@@ -9,7 +14,8 @@ import yaml
 REPO = Path(__file__).parents[1]
 CREDENTIAL_JOBS = [
     ("suppressions-comment.yml", "comment"),
-    ("sync_model_data.yml", "sync-models"),
+    ("sync_model_data.yml", "generate"),
+    ("sync_model_data.yml", "open-pr"),
     ("docker.yml", "build-and-push"),
     ("publish.yml", "build"),
     ("publish.yml", "publish"),
