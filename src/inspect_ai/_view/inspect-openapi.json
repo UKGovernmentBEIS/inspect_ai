@@ -315,8 +315,22 @@
       },
       "ApproverPolicyConfig": {
         "additionalProperties": true,
-        "description": "Configuration format for approver policies.\n\nFor example, here is a configuration in YAML:\n\n```yaml\napprovers:\n  - name: human\n    tools: web_browser*, bash, pyhton\n    choices: [approve, reject]\n\n  - name: auto\n    tools: *\n    decision: approve\n```",
+        "description": "Configuration format for approver policies.\n\nFor example, here is a configuration in YAML:\n\n```yaml\napprovers:\n  - name: human\n    tools: web_browser*, bash, pyhton\n    choices: [approve, reject]\n\n  - name: human\n    tools: computer\n    arguments: {action: key}\n\n  - name: auto\n    tools: *\n    decision: approve\n```",
         "properties": {
+          "arguments": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Arguments"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -7832,6 +7846,17 @@
             "title": "Model",
             "type": "string"
           },
+          "origin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin"
+          },
           "output": {
             "$ref": "#/components/schemas/ModelOutput"
           },
@@ -8636,8 +8661,22 @@
       },
       "ReviewerPolicyConfig": {
         "additionalProperties": true,
-        "description": "Configuration format for reviewer policies.\n\nFor example, here is a configuration in YAML:\n\n```yaml\nreviewers:\n  - name: mypackage/output_monitor\n    tools: bash, python\n\n  - name: human\n    tools: \"*\"\n```",
+        "description": "Configuration format for reviewer policies.\n\nFor example, here is a configuration in YAML:\n\n```yaml\nreviewers:\n  - name: mypackage/output_monitor\n    tools: bash, python\n\n  - name: mypackage/click_monitor\n    tools: computer\n    arguments: {action: \"*_click\"}\n\n  - name: human\n    tools: \"*\"\n```",
         "properties": {
+          "arguments": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Arguments"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -11756,7 +11795,7 @@
         "title": "ToolChoice"
       },
       "ToolEvent": {
-        "description": "Call to a tool.",
+        "description": "Call to a tool.\n\nA host tool that `sandbox_agent_bridge(bridged_tools=...)` runs for a\nsandboxed agent is recorded with `metadata[\"bridge\"]`: `server` and `tool`\n(the bridged server and the tool name within it, also the event's\n`function`), `function` (the name the model called it by, or `None`),\n`proposal_id` (the id of the model's proposing tool call, or `None`) and\n`grant` (`\"consumed\"` when a proposal matched, `\"denied\"` when the call\nwas refused for lack of one, `\"exempt\"` when a server registered with\n`require_proposal=False` ran it without one, or `None` when the request\nwas rejected before that check).",
         "properties": {
           "agent": {
             "anyOf": [

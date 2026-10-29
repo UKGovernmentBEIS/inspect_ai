@@ -11,6 +11,8 @@ from inspect_ai.analysis import (
 )
 from inspect_ai.analysis._dataframe.samples.table import samples_df
 from inspect_ai.analysis._prepare.score_to_float import score_to_float
+from inspect_ai.model import ModelInfo, set_model_info
+from inspect_ai.model._model_info import clear_model_info_cache
 
 LOGS_DIR = Path(__file__).parent / "test_logs"
 
@@ -133,6 +135,23 @@ def test_model_info():
     out = prepare(df, model_info())
     assert "model_display_name" in out.columns
     assert out["model_display_name"].to_list() == ["GPT-4o", "unknown_model"]
+
+
+def test_model_info_user_supplied():
+    import pandas as pd
+
+    set_model_info("custom/registered", ModelInfo(model="Registered Model"))
+    try:
+        df = pd.DataFrame({"model": ["custom/registered", "custom/argument"]})
+        out = prepare(
+            df, model_info({"custom/argument": ModelInfo(model="Argument Model")})
+        )
+    finally:
+        clear_model_info_cache()
+    assert out["model_display_name"].to_list() == [
+        "Registered Model",
+        "Argument Model",
+    ]
 
 
 def check_log_viewer(

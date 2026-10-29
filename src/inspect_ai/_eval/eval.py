@@ -50,7 +50,11 @@ from inspect_ai._sentinel._config import (
     resolve_sentinel_spec,
     sentinel_config,
 )
-from inspect_ai._util._async import current_async_backend, unwrap_exception_group
+from inspect_ai._util._async import (
+    current_async_backend,
+    raise_unwrapped,
+    unwrap_exception_group,
+)
 from inspect_ai._util.asyncfiles import with_async_fs
 from inspect_ai._util.config import parse_cli_args, resolve_args
 from inspect_ai._util.constants import (
@@ -706,7 +710,7 @@ async def eval_async(
         async with anyio.create_task_group() as tg:
             tg.start_soon(run, tg)
     except Exception as ex:
-        raise inner_exception(ex)
+        raise_unwrapped(ex, inner_exception(ex))
     except anyio.get_cancelled_exc_class():
         # Cancelled exceptions are expected and handled by _eval_async_inner
         if result is None:
@@ -1739,6 +1743,8 @@ async def eval_retry_async(
                         cleanup="finalized",
                         incomplete_action=incomplete_action,
                         incomplete_max=incomplete_max,
+                        # the retry imports the task file and runs it next
+                        trust_log=True,
                     )
                 except RecoveryThresholdExceeded as ex:
                     log.warning(
@@ -1746,7 +1752,7 @@ async def eval_retry_async(
                         f"incomplete_max; falling back to recover-and-retry: {ex}"
                     )
                     recovered = await recover_eval_log_async(
-                        eval_log.location, cleanup=False
+                        eval_log.location, cleanup=False, trust_log=True
                     )
                 retry_eval_logs[i] = recovered
                 if recovered.status == "success":

@@ -179,3 +179,42 @@ def test_timeline_fixture(fixture_name: str) -> None:
     events = _events_adapter.validate_python(fixture["events"])
     timeline = timeline_build(events)
     _assert_timeline_matches(timeline, fixture["expected"])
+
+
+def _without_origin(events: list[dict[str, Any]]) -> bool:
+    return all(
+        "origin" not in event and _without_origin(event.get("events") or [])
+        for event in events
+    )
+
+
+def _recorded_as_agent(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            **event,
+            **({"origin": "agent"} if event["event"] == "model" else {}),
+            **(
+                {"events": _recorded_as_agent(event["events"])}
+                if event.get("events")
+                else {}
+            ),
+        }
+        for event in events
+    ]
+
+
+@pytest.mark.parametrize(
+    "fixture_name",
+    [
+        name
+        for name in _fixture_names()
+        if _without_origin(_load_fixture(name)["events"])
+    ],
+)
+def test_timeline_fixture_with_every_call_recorded_as_agent(fixture_name: str) -> None:
+    # a call recorded as "agent" goes through the same rules as one with no
+    # origin, so a log written with origins keeps its tree
+    fixture = _load_fixture(fixture_name)
+    events = _events_adapter.validate_python(_recorded_as_agent(fixture["events"]))
+    timeline = timeline_build(events)
+    _assert_timeline_matches(timeline, fixture["expected"])

@@ -840,6 +840,19 @@ def test_release_jobs_follow_the_resolved_tag() -> None:
     assert "tag" in workflow[True]["workflow_dispatch"]["inputs"]
 
 
+def test_release_runs_only_in_the_upstream_repository() -> None:
+    # Every later job needs release-please's tag, so guarding it skips them all.
+    jobs = _load(".github/workflows/release.yml")["jobs"]
+    assert jobs["release-please"]["if"] == (
+        "github.repository == 'UKGovernmentBEIS/inspect_ai' "
+        "&& github.ref == 'refs/heads/main'"
+    )
+    for name, job in jobs.items():
+        if name != "release-please":
+            assert "release-please" in job["needs"], name
+            assert not re.search("always|cancelled|failure", job.get("if", "")), name
+
+
 def test_completeness_check_runs_last_when_nothing_was_resolved() -> None:
     steps = _load(".github/workflows/release.yml")["jobs"]["release-please"]["steps"]
     last = steps[-1]
@@ -906,6 +919,16 @@ def test_build_dist_builds_with_the_hashed_toolchain() -> None:
     ]
     assert "python -m build --no-isolation" in runs
 
+    # The action's own revision supplies the requirements, wherever the source is.
+    (install,) = [s for s in steps if "pip install" in s.get("run", "")]
+    path = install["env"]["REQUIREMENTS"].replace(
+        "${{ github.action_path }}", str(action_dir)
+    )
+    assert (
+        Path(path).resolve()
+        == (REPO / "scripts" / "build-dist" / "requirements.txt").resolve()
+    )
+
     # The documented refresh must not keep existing pins as preferences.
     action = (action_dir / "action.yml").read_text()
     refresh = re.search(r"#\s+(uv pip compile .*?-o requirements\.txt)", action, re.S)
@@ -913,7 +936,7 @@ def test_build_dist_builds_with_the_hashed_toolchain() -> None:
     assert "--upgrade " in refresh.group(1)
     assert '--exclude-newer "7 days"' in refresh.group(1)
 
-    requirements = (action_dir / "requirements.txt").read_text()
+    requirements = (REPO / "scripts" / "build-dist" / "requirements.txt").read_text()
     pins = re.findall(r"^([A-Za-z0-9_.-]+)==\S+ \\$", requirements, re.MULTILINE)
     assert {"build", "setuptools", "setuptools-scm"} <= set(pins)
     requirement_lines = [
@@ -926,8 +949,11 @@ def test_build_dist_builds_with_the_hashed_toolchain() -> None:
 
 def test_dependabot_updates_the_build_toolchain_with_a_cooldown() -> None:
     updates = _load(".github/dependabot.yml")["updates"]
-    (update,) = [u for u in updates if u["directory"] == "/.github/actions/build-dist"]
+    (update,) = [u for u in updates if u["directory"] == "/scripts/build-dist"]
     assert update["package-ecosystem"] == "uv"
+    # Dependabot can't open PRs that change files under .github/ for any
+    # ecosystem but github-actions (dependabot/dependabot-core#15237).
+    assert not update["directory"].startswith("/.github/")
     assert update["cooldown"]["default-days"] == 7
     assert update["schedule"]["interval"] == "weekly"
     assert [group["patterns"] for group in update["groups"].values()] == [["*"]]
