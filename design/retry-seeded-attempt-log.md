@@ -10,9 +10,10 @@ mode, and restricted to the attempt's planned samples. The attempt's log
 therefore holds every selected prior record from its first flush. The reuse
 sweep reads each planned sample's record back from that local copy and
 reuses it, carries its error history into a re-run, or runs it fresh; a
-re-run appends a superseding member under the same name. Whatever ends the
-attempt (error, cancellation, Ctrl-C, success), its log is complete, and a
-hard kill leaves either no file or a complete one. A prior in another format
+re-run appends a superseding member under the same name. Once the
+attempt's first flush has written its log, whatever ends the attempt
+(error, cancellation, Ctrl-C, success) leaves a complete log; before that
+it leaves no file, and so does a hard kill. A prior in another format
 or held in memory is re-logged sample by sample before `log_start` instead.
 
 The code is `ZipLogFile.seed_from_prior_log()` in
@@ -311,21 +312,31 @@ the inherited record wins.
 
 ## Failure behaviour
 
+The design depends on three guarantees:
+
 | When | Outcome |
 |---|---|
-| error, cancel, terminate or Ctrl-C after the seed | `log_finish` writes a complete error or cancelled log; the next attempt seeds from it and re-runs only what still needs running |
-| the prior log cannot be read | the seed fails before `log_start`; no file; the next attempt uses the same source (in-process) or the older log (eval-set). No sample ran, so no error history is lost |
-| the prior log is gone | the attempt runs unseeded: no prior record is reused; each sample resumes from a usable copied checkpoint or runs fresh |
-| the prior log's zip structure or summaries are corrupt | validation fails the seed like a read failure, before any destination write |
-| a selected sample body is corrupt in a copy adopted unchanged | the seed does not inflate bodies, so it is not detected until the reuse sweep reads that body, after the `log_start` flush; a seed that rewrites the copy decompresses kept bodies and fails during the seed |
-| hard kill during the seed | no destination file |
-| hard kill after the `log_start` flush | the destination holds the prior set plus later flushes; recovery yields a superset of the prior |
-| `log_finish` fails after earlier flushes | the `started` destination is the next source; only completions since the last flush re-run |
-| compaction fails | warning; the uncompacted log is written |
-| the stale-flush timer's flush fails | warning; the timer re-arms and retries, with `log_finish` as backstop |
-| a buffer-full flush (at a sample completion) fails | the error propagates from the completion and fails the attempt, which then tries to write its error log |
-| an on-demand flush (`flush_samples()`, `inspect ctl task log-flush`) fails | the stale-flush timer is re-armed and the error goes to the caller; the eval continues |
-| the `log_start` flush fails | the attempt fails early with nothing written, as for a fresh eval |
+| anything fails or is cancelled before the `log_start` flush succeeds: the seed (reading, validating or rewriting the prior), the startup work after it (the checkpoint copy), or the flush itself | nothing is written; the next attempt uses the same source (in-process) or the older log (eval-set), and since no sample ran, no error history is lost |
+| anything ends the attempt after the `log_start` flush (error, cancellation, terminate, Ctrl-C, a hard kill, a failed later flush or finish) | the destination holds the prior set plus every flushed completion: a terminal log written by `log_finish`, or a `started` log when the finish could not be written or the process was killed (recovery then yields a superset of the prior) |
+| the next in-process attempt | its source changes to this attempt's log only once a destination was written (`TaskLogger.destination_written`) |
+
+Seed validation reads the zip structure and summaries, not sample bodies.
+A rewriting seed decompresses kept bodies, so it also catches their
+decompression or zip-integrity failures; a body with malformed JSON or
+invalid sample fields, or any corrupt body in a copy adopted unchanged,
+surfaces when the reuse sweep parses it, after the `log_start` flush, under
+the second guarantee. A prior log that has disappeared is not a failure:
+the attempt runs unseeded (see When the seed runs).
+
+How each path behaves in detail (which flush failures propagate and which
+warn and retry, compaction failures, crash recovery) is in the code named
+above and its tests: `test_retry_seed_failure_writes_no_log_and_next_attempt_reuses`
+and `test_retry_log_finish_failure_keeps_partial_log_as_next_source` in
+[`tests/test_eval_set.py`](../tests/test_eval_set.py),
+`test_retry_attempt_dying_in_checkpoint_copy_leaves_no_log` in
+[`tests/test_eval.py`](../tests/test_eval.py), and the seed and flush
+tests in [`tests/log/test_eval_log.py`](../tests/log/test_eval_log.py) and
+[`tests/log/test_task_log.py`](../tests/log/test_task_log.py).
 
 ## Trade-offs
 
