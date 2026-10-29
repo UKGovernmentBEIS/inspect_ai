@@ -239,7 +239,7 @@ def _await_result_message(
     bridge: SandboxAgentBridge, proposal: _Proposal | None, event: ToolEvent
 ) -> None:
     if proposal is not None and proposal.reply is not None:
-        bridge._await_result_message(proposal.reply, proposal.call, event)
+        bridge._await_result_message(proposal.reply, event)
 
 
 async def _execute_granted(

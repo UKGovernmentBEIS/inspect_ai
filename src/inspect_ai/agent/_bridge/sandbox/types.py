@@ -12,7 +12,7 @@ from inspect_ai._util.json import json_equal
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge.bridge import resolve_forward_client_headers
-from inspect_ai.agent._bridge.types import AgentBridge, DispatchedCall
+from inspect_ai.agent._bridge.types import AgentBridge, DispatchedCall, _HandedCall
 from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._model import (
@@ -175,6 +175,7 @@ class SandboxAgentBridge(AgentBridge):
         for tool in tools:
             if isinstance(tool, ToolInfo):
                 declared.setdefault(tool.name, []).append(tool)
+        handed_calls = list(calls)
         for index, call in enumerate(calls):
             targets, arguments = _proposed_call(
                 self.bridged_tools, self.served_tools, call, declared
@@ -191,7 +192,7 @@ class SandboxAgentBridge(AgentBridge):
                 call,
                 span_id,
                 self._proposing_message_ids.get(call.id),
-                (self._proposing_reply_id, index)
+                _HandedCall(self._proposing_reply_id, index, handed_calls)
                 if self._proposing_reply_id is not None
                 else None,
             )
@@ -364,7 +365,7 @@ class _Proposal:
         call: ToolCall,
         span_id: str | None,
         message_id: str | None,
-        reply: tuple[str, int] | None,
+        reply: _HandedCall | None,
     ) -> None:
         self.call = call
         """The proposing call, with the function name as the model saw it."""
@@ -376,7 +377,7 @@ class _Proposal:
         """Id of the assistant message the call is in, or `None` if unknown."""
 
         self.reply = reply
-        """Id of the reply handed to the scaffold and the call's index in it."""
+        """The call in the reply handed to the scaffold, or `None` if unknown."""
 
         self.paired = False
         """Whether an execution has already taken `call.id`."""

@@ -4974,10 +4974,16 @@ def test_host_tool_events_name_their_result_message(
     events = [e for e in sample.events if isinstance(e, ToolEvent)]
     assert len(events) == 4
     if dialect == "google" and mode == "approval":
-        # the approver makes each round's calls identical, and Google tells
-        # identical calls apart only by position
+        # the approver makes each round's calls identical, and their results
+        # differ, so Google (which tells identical calls apart only by position)
+        # leaves them unlinked
         assert all(e.message_id is None for e in events)
         return
+    _assert_linked(sample, events)
+
+
+def _assert_linked(sample: EvalSample, events: list[ToolEvent]) -> None:
+    """Each event names a distinct tool message, answering its proposing reply, that holds its result."""
     positions = {m.id: i for i, m in enumerate(sample.messages)}
     for event in events:
         assert event.message_id is not None
@@ -4990,4 +4996,117 @@ def test_host_tool_events_name_their_result_message(
             if isinstance(m, ChatMessageAssistant)
         )
         assert result.tool_call_id in [c.id for c in proposing.tool_calls or []]
-    assert len({e.message_id for e in events}) == 4
+    assert len({e.message_id for e in events}) == len(events)
+
+
+@agent
+def identical_host_scaffold(
+    results: Literal["equal", "numbered"], reorder: bool, executed: int | None
+) -> Agent:
+    """A Google scaffold running identical parallel calls as host tools.
+
+    It runs the first `executed` calls (all when `None`), and with `reorder`
+    sends the calls back, and their results, in reverse order.
+    """
+
+    async def execute(state: AgentState) -> AgentState:
+        tool = (
+            AsyncMock(return_value="same contents")
+            if results == "equal"
+            else _numbered_results()
+        )
+        bridge = SandboxAgentBridge(
+            state=state,
+            filter=None,
+            retry_refusals=None,
+            compaction=None,
+            port=13131,
+            model=None,
+            bridged_tools={"host": {"read_file": read_file(tool)}},
+        )
+        [info] = declare("mcp__host__read_file")
+        conversation = _HostConversation("google", state.messages[0].text, info)
+        while True:
+            calls = await conversation.request(bridge)
+            if not calls:
+                return bridge.state
+            run = calls if executed is None else calls[:executed]
+            outputs: list[JsonValue] = list(
+                await tg_collect(
+                    [
+                        partial(call_host_tool(bridge), "host", "read_file", arguments)
+                        for _, arguments in run
+                    ]
+                )
+            )
+            outputs += ["not run"] * (len(calls) - len(run))
+            if reorder:
+                parts = conversation.history[-1]["parts"]
+                conversation.history[-1]["parts"] = [
+                    p for p in parts if "functionCall" not in p
+                ] + [p for p in reversed(parts) if "functionCall" in p]
+                calls, outputs = calls[::-1], outputs[::-1]
+            conversation.results(calls, outputs)
+
+    return execute
+
+
+@pytest.mark.parametrize(
+    "results,reorder,count,executed,linked",
+    [
+        ("equal", False, 2, None, True),
+        ("equal", True, 2, None, True),
+        ("numbered", False, 2, None, False),
+        ("numbered", True, 2, None, False),
+        ("equal", False, 3, 2, False),
+    ],
+    ids=[
+        "equal results",
+        "equal results, reordered",
+        "different results",
+        "different results, reordered",
+        "one of three not executed",
+    ],
+)
+def test_identical_google_host_calls_link_only_with_equal_results(
+    results: Literal["equal", "numbered"],
+    reorder: bool,
+    count: int,
+    executed: int | None,
+    linked: bool,
+    tmp_path: Path,
+) -> None:
+    """Google identical calls pair by position only when every result is the same."""
+    name = "mcp__host__read_file"
+    log = eval(
+        Task(
+            dataset=[Sample(input="Read a twice.")],
+            solver=identical_host_scaffold(results, reorder, executed),
+        ),
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                tool_calls_output(
+                    *[
+                        ToolCall(id=f"call_{n}", function=name, arguments={"path": "a"})
+                        for n in range(count)
+                    ]
+                ),
+                ModelOutput.from_content("mockllm/model", "done"),
+            ],
+        ),
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    read = read_eval_log(log.location)
+    assert read.samples
+    sample = resolve_sample_attachments(read.samples[0], "full")
+    assert_message_ids(sample)
+
+    events = [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert len(events) == (executed or count)
+    if linked:
+        _assert_linked(sample, events)
+        assert len({e.message_id for e in events}) == len(events)
+    else:
+        assert all(e.message_id is None for e in events)

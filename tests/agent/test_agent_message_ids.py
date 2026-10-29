@@ -24,7 +24,7 @@ from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai.agent import Agent, AgentState, agent, agent_bridge, handoff, react
 from inspect_ai.agent._bridge import types as bridge_types
-from inspect_ai.agent._bridge.types import AgentBridge
+from inspect_ai.agent._bridge.types import AgentBridge, _HandedCall
 from inspect_ai.agent._bridge.util import apply_message_ids
 from inspect_ai.dataset import Sample
 from inspect_ai.event import ModelEvent, ToolEvent
@@ -797,7 +797,9 @@ def _awaiting(
         for _ in range(executions)
     ]
     for event in events:
-        bridge._await_result_message((reply.id, index), call, event)
+        bridge._await_result_message(
+            _HandedCall(reply.id, index, reply.tool_calls), event
+        )
     return events
 
 

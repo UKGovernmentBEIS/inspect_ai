@@ -92,9 +92,11 @@ class ToolEvent(BaseEvent):
     `None` until then, and for good if the scaffold never sends the result,
     the sample resumes from a checkpoint first, the reply the scaffold sends
     back doesn't identify the call (exactly one call with its id, function and
-    arguments, or in Google its function and arguments), the call executed more
-    than once, more than one tool message answers it, or 256 later host calls
-    are tracked before its result arrives.
+    arguments, or in Google its function and arguments; in Google, calls of one
+    reply with the same function and arguments pair by position only when each
+    executed once with the same result), the call executed more than once, more
+    than one tool message answers it, or 256 later host calls are tracked
+    before its result arrives.
     """
 
     call_message_id: str | None = Field(default=None)

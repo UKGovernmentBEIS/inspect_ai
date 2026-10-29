@@ -52,10 +52,27 @@ _MAX_AWAITED_RESULTS = 256
 """Host tool calls tracked for their result message, beyond which the oldest replies' are dropped."""
 
 
+class _HandedCall(NamedTuple):
+    """A call in a reply handed to the scaffold."""
+
+    reply_id: str
+    """Id of the reply."""
+
+    position: int
+    """The call's index in the reply."""
+
+    calls: Sequence[ToolCall]
+    """Every call in the reply, as handed to the scaffold."""
+
+    @property
+    def call(self) -> ToolCall:
+        return self.calls[self.position]
+
+
 class _AwaitedResult(NamedTuple):
     """A host tool call waiting for the tool message that holds its result."""
 
-    call: ToolCall
+    handed: _HandedCall
     """The call, as handed to the scaffold."""
 
     event: "ToolEvent | None"
@@ -65,25 +82,69 @@ class _AwaitedResult(NamedTuple):
     """Whether the call was linked or found ambiguous, so later results and executions are ignored."""
 
 
-def _copy_call(
-    call: ToolCall, copy_calls: list[ToolCall], handed_ids: set[str]
-) -> ToolCall | None:
-    """The call in a scaffold's copy of a reply that is `call`, if exactly one is.
+def _same_call(a: ToolCall, b: ToolCall) -> bool:
+    return a.function == b.function and a.arguments == b.arguments
 
-    It has `call`'s id, function and arguments. When the scaffold re-derives call
-    ids (Google), a copy call with none of `handed_ids` (the reply's tracked call
-    ids) is `call` if it has its function and arguments.
+
+def _copy_calls(handed: _HandedCall, copy_calls: list[ToolCall]) -> list[ToolCall]:
+    """The calls in a scaffold's copy of a reply that may be `handed`.
+
+    The one with its id, function and arguments. When no copy call has its id
+    (Google re-derives call ids), those with none of the reply's handed ids and
+    its function and arguments.
     """
-    same = [
-        c
-        for c in copy_calls
-        if (c.id == call.id or c.id not in handed_ids)
-        and c.function == call.function
-        and c.arguments == call.arguments
-    ]
+    call = handed.call
     if any(c.id == call.id for c in copy_calls):
-        same = [c for c in same if c.id == call.id]
-    return same[0] if len(same) == 1 else None
+        return [c for c in copy_calls if c.id == call.id and _same_call(c, call)]
+    handed_ids = {c.id for c in handed.calls}
+    return [c for c in copy_calls if c.id not in handed_ids and _same_call(c, call)]
+
+
+def _settle(
+    awaited: dict[int, _AwaitedResult], call_index: int, matches: list[ChatMessageTool]
+) -> None:
+    """Settle a call answered by `matches`, linking its event if exactly one answers it."""
+    from inspect_ai.log._transcript import transcript
+
+    event = awaited[call_index].event
+    awaited[call_index] = awaited[call_index]._replace(event=None, settled=True)
+    if len(matches) == 1 and event is not None:
+        event.message_id = matches[0].id
+        transcript()._event_updated(event)
+
+
+def _link_identical_calls(
+    awaited: dict[int, _AwaitedResult],
+    call_index: int,
+    same: list[ToolCall],
+    copy_calls: list[ToolCall],
+    results: list[ChatMessageTool],
+) -> None:
+    """Link a group of calls the copy can't tell apart by position, if their results are equal.
+
+    The group is every handed call with the function and arguments of call
+    `call_index`; `same` are the copy calls that may be any of them.
+    """
+    handed = awaited[call_index].handed
+    group = [i for i, call in enumerate(handed.calls) if _same_call(call, handed.call)]
+    events = [entry.event if (entry := awaited.get(i)) else None for i in group]
+    if len(same) != len(group) or None in events:
+        return
+    outcomes = {
+        (to_json_str_safe(event.result), to_json_str_safe(event.error))
+        for event in events
+        if event is not None
+    }
+    copy_ids = [c.id for c in copy_calls]
+    answers = [[r for r in results if r.tool_call_id == c.id] for c in same]
+    if (
+        len(outcomes) != 1
+        or any(copy_ids.count(c.id) != 1 for c in same)
+        or any(len(matches) != 1 for matches in answers)
+    ):
+        return
+    for i, matches in zip(group, answers):
+        _settle(awaited, i, matches)
 
 
 class DispatchedCall(NamedTuple):
@@ -356,26 +417,22 @@ class AgentBridge:
     _proposing_reply_id: str | None = None
     """Id of the reply handed to the scaffold, while `register_tool_execution_grants` registers its calls."""
 
-    def _await_result_message(
-        self, reply: tuple[str, int], call: ToolCall, event: "ToolEvent"
-    ) -> None:
-        """Set `event.message_id` when the scaffold first sends the result of `call`.
+    def _await_result_message(self, handed: _HandedCall, event: "ToolEvent") -> None:
+        """Set `event.message_id` when the scaffold first sends the result of `handed`.
 
-        `reply` is the id of the reply handed to the scaffold and the call's index
-        in it. The result reaches the bridge only when the scaffold sends it back
-        in a later request (`_link_result_messages`). A second execution of the
-        call settles it unlinked (which execution the result holds is unknown),
-        and one after the call settled stays unlinked. At most
-        `_MAX_AWAITED_RESULTS` calls are tracked; the oldest replies' calls are
-        dropped (left unlinked) beyond that.
+        The result reaches the bridge only when the scaffold sends it back in a
+        later request (`_link_result_messages`). A second execution of the call
+        settles it unlinked (which execution the result holds is unknown), and
+        one after the call settled stays unlinked. At most `_MAX_AWAITED_RESULTS`
+        calls are tracked; the oldest replies' calls are dropped (left unlinked)
+        beyond that.
         """
-        reply_id, index = reply
-        calls = self._awaited_results.setdefault(reply_id, {})
-        tracked = calls.get(index)
+        calls = self._awaited_results.setdefault(handed.reply_id, {})
+        tracked = calls.get(handed.position)
         if tracked is None:
-            calls[index] = _AwaitedResult(call, event)
+            calls[handed.position] = _AwaitedResult(handed, event)
         elif not tracked.settled:
-            calls[index] = tracked._replace(event=None, settled=True)
+            calls[handed.position] = tracked._replace(event=None, settled=True)
         tracked_calls = sum(len(calls) for calls in self._awaited_results.values())
         while tracked_calls > _MAX_AWAITED_RESULTS:
             oldest = next(iter(self._awaited_results))
@@ -389,10 +446,17 @@ class AgentBridge:
         `recognized` is the id each message was recognized by (before an edit
         versioned it). A reply handed to the scaffold comes back as the assistant
         message recognized by its id. In that copy, a call is the one with its id,
-        function and arguments (`_copy_call`), picked by no other awaited call and
-        with an id unique in the copy. Its result is a tool message before the
-        next assistant message answering that id: exactly one links it, more than
-        one settles it unlinked.
+        function and arguments (`_copy_calls`), picked by no other awaited call
+        and with an id unique in the copy. Its result is a tool message before
+        the next assistant message answering that id: exactly one links it, more
+        than one settles it unlinked.
+
+        Where the copy re-derives call ids (Google), calls with the same function
+        and arguments can't be told apart. They link by position only when there
+        are as many in the copy as were handed over, each executed once with the
+        same result and error, and each copy call is answered by exactly one tool
+        message (`_link_identical_calls`): any pairing then gives each event a
+        message holding its result.
 
         Each call settles on its own. One the copy can't identify, or with no
         result yet, keeps waiting: results sent in separate requests, after
@@ -400,8 +464,6 @@ class AgentBridge:
         A missing result is never taken as abandoned; `_MAX_AWAITED_RESULTS`
         bounds calls whose results never come.
         """
-        from inspect_ai.log._transcript import transcript
-
         if not self._awaited_results:
             return
         for index, (message, reply_id) in enumerate(zip(messages, recognized)):
@@ -417,29 +479,30 @@ class AgentBridge:
                 if isinstance(following, ChatMessageTool):
                     results.append(following)
             copy_calls = message.tool_calls or []
-            handed_ids = {entry.call.id for entry in awaited.values()}
-            identified = {
-                call_index: _copy_call(entry.call, copy_calls, handed_ids)
+            candidates = {
+                call_index: _copy_calls(entry.handed, copy_calls)
                 for call_index, entry in awaited.items()
                 if not entry.settled
             }
+            identified = {
+                call_index: same[0]
+                for call_index, same in candidates.items()
+                if len(same) == 1
+            }
             for call_index, copy_call in identified.items():
                 if (
-                    copy_call is None
-                    or sum(c is copy_call for c in identified.values()) != 1
+                    sum(c is copy_call for c in identified.values()) != 1
                     or [c.id for c in copy_calls].count(copy_call.id) != 1
                 ):
                     continue
                 matches = [r for r in results if r.tool_call_id == copy_call.id]
-                if not matches:
-                    continue
-                event = awaited[call_index].event
-                awaited[call_index] = awaited[call_index]._replace(
-                    event=None, settled=True
-                )
-                if len(matches) == 1 and event is not None:
-                    event.message_id = matches[0].id
-                    transcript()._event_updated(event)
+                if matches:
+                    _settle(awaited, call_index, matches)
+            for call_index, same in candidates.items():
+                if len(same) > 1 and not awaited[call_index].settled:
+                    _link_identical_calls(
+                        awaited, call_index, same, copy_calls, results
+                    )
 
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
         """The bridged tool call that `call` makes through a dispatcher, if any.
