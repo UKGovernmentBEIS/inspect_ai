@@ -371,12 +371,9 @@ log (`eval.scorers[*].name`, or `results.scores[*].name` for logs without
 `eval.scorers`), `resolve_scorers()` calls `scorer_from_log_name()`, never
 `scorer_from_spec()`, so a recorded name is looked up literally in the
 registry, as score keys are ([above](#score-keys-are-registry-names)), and is
-never imported. Scorer names are recorded from the registry, so a scorer
-whose registered name contains `@` or looks like a path still resolves.
-`--scorer` goes through
-`scorer_from_spec()`, so `--scorer path.py@name` loads that file, and a bare
-`--scorer NAME` reaches `scorer_from_log_name()` (decision: Ransom,
-2026-10-14).
+never imported. `--scorer` goes through `scorer_from_spec()`, so
+`--scorer path.py@name` loads that file, and a bare `--scorer NAME` reaches
+`scorer_from_log_name()` (decision: Ransom, 2026-10-14).
 
 `scorer_from_log_name()` tries `scorer_from_registry()`; when that raises
 `ValueError` (not registered, or a registered factory rejecting the recorded
@@ -569,8 +566,12 @@ see, by caller (the user docs linked in the Overview cover the fixes):
   `edit_score()` raises before it edits.
 - `inspect log recover` / `recover_eval_log()` whose metrics or reducers do
   not resolve untrusted (a task-file metric, an extension that is not
-  installed, a forbidden option): an error before anything is written. Install
-  or import the definition, or rerun with `--trust-log` for a trusted log.
+  installed, a forbidden option): when that is the first failure, an error
+  before anything is written. Install or import the definition, or rerun with
+  `--trust-log` for a trusted log. If a registered factory fails first, the
+  log is recovered without results and a warning instead (see
+  [`edit_score()` and recovery resolve before they change
+  anything](#edit_score-and-recovery-resolve-before-they-change-anything)).
 - `inspect score --scorer ... --action overwrite` and
   `score(log, scorers, action="overwrite")`: the log's `eval.metrics` are
   rebuilt untrusted. Pass `metrics=` (`--metric`), or rescore with the log's
