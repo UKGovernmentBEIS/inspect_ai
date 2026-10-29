@@ -8,8 +8,9 @@ Uses inspect_ai's event_tree() to parse span structure.
 from __future__ import annotations
 
 import contextlib
+from bisect import bisect_left
 from collections import Counter
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from datetime import datetime, timezone
 from typing import (
     AbstractSet,
@@ -1109,7 +1110,8 @@ class _Inputs:
         # tool call id -> (the input position its result follows the call at,
         # the number of calls made with it), from each model call making it
         self._issued: dict[str, list[tuple[int, int]]] | None = None
-        # tool call id -> the pool rows answering it
+        # tool call id -> the pool rows holding a non-empty result of it,
+        # ascending
         self._tool_rows: dict[str, list[int]] | None = None
         # the pool rows holding an output of an open call, of any continuity
         # thread, by the output fingerprints added, each added once
@@ -1234,9 +1236,11 @@ class _Inputs:
     ) -> list[tuple[str, str]]:
         """The non-empty results in `event`'s input of the tool calls named, the last for each.
 
-        A result is looked for first where it follows its call, just after the output of each model call that made it, and then after the last found; failing that, in the pool rows answering the call, else by scanning the input.
+        An input stored as ranges of the pool is looked up in the pool rows holding a result of each call, a bisection per range from the last. An expanded input is looked at first where a result follows its call, just after the output of each model call that made it, and then after the last found; failing that, by scanning it.
         """
         input = self.of(event)
+        if isinstance(input, PoolView):
+            return list(self._pooled_tool_results(input, tool_call_ids).items())
         issued = self._issued_calls()
         found: dict[str, str] = {}
         missing: list[str] = []
@@ -1272,21 +1276,29 @@ class _Inputs:
             found.update(self._scan_tool_results(input, missing))
         return list(found.items())
 
+    def _pooled_tool_results(
+        self, input: PoolView, tool_call_ids: Iterable[str]
+    ) -> dict[str, str]:
+        found: dict[str, str] = {}
+        by_call = self._pool_tool_rows()
+        for tool_call_id in tool_call_ids:
+            rows = by_call.get(tool_call_id)
+            if not rows:
+                continue
+            # the last range holding such a row holds the last result
+            for (begin, end), start in zip(
+                reversed(input.refs), reversed(input.starts)
+            ):
+                at = bisect_left(rows, end) - 1
+                if at >= 0 and rows[at] >= begin:
+                    found[tool_call_id] = input[start + rows[at] - begin].text
+                    break
+        return found
+
     def _scan_tool_results(
         self, input: Sequence[ChatMessage], tool_call_ids: list[str]
     ) -> dict[str, str]:
         found: dict[str, str] = {}
-        if isinstance(input, PoolView):
-            rows = self._pool_tool_rows()
-            for tool_call_id in tool_call_ids:
-                last = -1
-                for row in rows.get(tool_call_id, []):
-                    for (begin, end), start in zip(input.refs, input.starts):
-                        if begin <= row < end and input[start + row - begin].text:
-                            last = max(last, start + row - begin)
-                if last >= 0:
-                    found[tool_call_id] = input[last].text
-            return found
         wanted = set(tool_call_ids)
         for message in input:
             if (
@@ -1314,7 +1326,11 @@ class _Inputs:
         if self._tool_rows is None:
             rows: dict[str, list[int]] = {}
             for row, message in enumerate(self._pool or []):
-                if isinstance(message, ChatMessageTool) and message.tool_call_id:
+                if (
+                    isinstance(message, ChatMessageTool)
+                    and message.tool_call_id
+                    and message.text
+                ):
                     rows.setdefault(message.tool_call_id, []).append(row)
             self._tool_rows = rows
         return self._tool_rows

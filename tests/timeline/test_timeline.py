@@ -1224,6 +1224,99 @@ def test_calls_of_falling_lengths_are_indexed_in_linear_work(
     assert large <= 2.2 * small + 10, (small, large)
 
 
+def test_a_pooled_input_s_tool_results_are_found_in_linear_work(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Codex delta 4: each pool row answering a tool call was checked against
+    # every range of the input, rows times ranges; here `calls` results share
+    # one tool call id, and only the input's first range holds one
+    from collections.abc import Iterator, Sequence
+
+    from inspect_ai._sentinel._steps import PoolView
+    from inspect_ai.event import ModelEvent
+    from inspect_ai.event import _timeline as timeline
+    from inspect_ai.model import (
+        ChatMessageTool,
+        ChatMessageUser,
+        GenerateConfig,
+        ModelOutput,
+    )
+
+    count = 0
+
+    class Counted(Sequence[Any]):
+        def __init__(self, items: Sequence[Any]) -> None:
+            self._items = items
+
+        def __len__(self) -> int:
+            return len(self._items)
+
+        def __getitem__(self, index: Any) -> Any:
+            nonlocal count
+            count += 1
+            return self._items[index]
+
+        def __iter__(self) -> Iterator[Any]:
+            nonlocal count
+            for item in self._items:
+                count += 1
+                yield item
+
+        def __reversed__(self) -> Iterator[Any]:
+            nonlocal count
+            for item in reversed(self._items):
+                count += 1
+                yield item
+
+    def work(calls: int) -> int:
+        nonlocal count
+        notes = [ChatMessageUser(content=f"Note {n}.") for n in range(calls)]
+        results = [
+            ChatMessageTool(content=f"Result {n}.", tool_call_id="t", function="f")
+            for n in range(calls)
+        ]
+        refs = [(calls, calls + 1), *((n, n + 1) for n in range(calls - 1))]
+        event = ModelEvent(
+            model="mockllm/model",
+            input=[],
+            input_refs=refs,
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=ModelOutput(model="mockllm/model"),
+        )
+        inputs = timeline._Inputs([event], [*notes, *results])
+        count = 0
+        with monkeypatch.context() as patch:
+            for name in ("refs", "starts"):
+                patch.setattr(PoolView, name, counted_property(getattr(PoolView, name)))
+            if hasattr(timeline, "bisect_left"):
+                patch.setattr(timeline, "bisect_left", counted(timeline.bisect_left))
+            found = inputs.tool_results(event, ["t"])
+        assert found == [("t", "Result 0.")]
+        stored = 2 * calls + len(refs)  # pool rows and ranges
+        assert count <= 4 * stored, (count, stored)
+        return count
+
+    def counted(function: Any) -> Any:
+        def call(*args: Any) -> Any:
+            nonlocal count
+            count += 1
+            return function(*args)
+
+        return call
+
+    def counted_property(original: property) -> property:
+        def get(view: Any) -> Counted:
+            assert original.fget is not None
+            return Counted(original.fget(view))
+
+        return property(get)
+
+    small, large = work(200), work(400)
+    assert large <= 2.2 * small + 10, (small, large)
+
+
 def _failures(calls: int, retried: bool) -> tuple[list[Any], list[Any]]:
     """With no origins: a turn, then `calls` failed calls and, with `retried`, one call sending their input again, carried on; else `calls` failed calls each with an input of its own and `calls` side calls ending like them. Events whose inputs are ranges of the returned pool."""
     from inspect_ai.event import ModelEvent, SpanBeginEvent, SpanEndEvent
