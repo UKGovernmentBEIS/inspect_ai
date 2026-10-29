@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any, NamedTuple
 from urllib.parse import urlencode
 
+from publish_ci_findings import read_history
 from summarize_ci_data import summarize
 
 # Upstream is public, so any fork's PR triggers CI there and its logs, step
@@ -73,20 +74,63 @@ def seconds_between(start: str | None, end: str | None) -> float | None:
     return (e - s).total_seconds() if s and e else None
 
 
-def fetch_runs(repo: str, limit: int, days: int = 7) -> list[dict[str, Any]]:
-    """Collect a bounded recent window, retrying stale or repeated API pages.
+def is_trusted(run: dict[str, Any]) -> bool:
+    """Whether a run's head repository is in TRUSTED_HEAD_REPOS.
+
+    Checked on the run listing, before any per-run fetch, so no job metadata or
+    log of an excluded run is requested. A run with no head repository (deleted
+    fork) is untrusted.
+    """
+    return (run.get("head_repository") or {}).get("full_name") in TRUSTED_HEAD_REPOS
+
+
+def is_action_required(run: dict[str, Any]) -> bool:
+    """Whether a run never started: its conclusion is `action_required`.
+
+    Such runs (e.g. release-please runs awaiting approval) have no jobs and 0s
+    wall, so counting them toward the budget shrinks the analyzed sample.
+    """
+    return run.get("conclusion") == "action_required"
+
+
+def is_kept(run: dict[str, Any]) -> bool:
+    """Whether a run counts toward `--limit`: trusted head repo and started."""
+    return is_trusted(run) and not is_action_required(run)
+
+
+class FetchedRuns(NamedTuple):
+    runs: list[dict[str, Any]]
+    excluded_untrusted: int
+    excluded_action_required: int
+
+
+def fetch_runs(repo: str, limit: int, days: int = 7) -> FetchedRuns:
+    """Collect `limit` kept runs from a bounded recent window.
+
+    `limit` counts runs kept for analysis, not runs fetched. A kept run has a
+    trusted head repository and a conclusion other than `action_required`:
+    community forks are roughly half of upstream's PR run volume and never-
+    started release runs come in bursts, so a fetch cap applied before those
+    predicates would collapse the analyzed window. Paging continues until
+    `limit` kept runs are in hand or the listing runs out, and both exclusion
+    counts cover only the analyzed window (from the oldest kept run onward), so
+    the last page's overshoot does not inflate them.
 
     The unfiltered endpoint has served weeks-old cached pages during live runs.
     Fix the created-at range for all pages and validate every returned record
-    against it. Do not publish a partial mix of current and stale pages.
+    against it, and retry when a page repeats. Repeat detection counts fetched
+    ids, not kept ones, so a page of purely excluded runs is not misread as a
+    repeat. Do not publish a partial mix of current and stale pages.
     """
     until = datetime.now(timezone.utc).replace(microsecond=0)
     since = until - timedelta(days=days)
     for attempt in range(3):
         by_id: dict[int, dict[str, Any]] = {}
+        kept: dict[int, dict[str, Any]] = {}
         page = 1
         stale = False
-        while len(by_id) < limit:
+        exhausted = False
+        while len(kept) < limit:
             query = urlencode(
                 {
                     "event": "pull_request",
@@ -98,6 +142,7 @@ def fetch_runs(repo: str, limit: int, days: int = 7) -> list[dict[str, Any]]:
             )
             batch = gh_api(f"repos/{repo}/actions/runs?{query}")["workflow_runs"]
             if not batch:
+                exhausted = True
                 break
             for run in batch:
                 created = parse_ts(run["created_at"])
@@ -111,13 +156,35 @@ def fetch_runs(repo: str, limit: int, days: int = 7) -> list[dict[str, Any]]:
             if len(by_id) == previous_count:
                 stale = True
                 break
+            kept.update({run["id"]: run for run in batch if is_kept(run)})
             page += 1
         if not stale:
-            runs = sorted(
+            fetched = sorted(
                 by_id.values(), key=lambda r: r["run_started_at"], reverse=True
-            )[:limit]
-            warn_on_time_gap(runs)
-            return runs
+            )
+            runs = [run for run in fetched if run["id"] in kept][:limit]
+            if exhausted and len(runs) < limit:
+                print(
+                    f"WARNING: the run listing ran out after {len(runs)} kept "
+                    f"runs; {limit} were requested (--days {days})",
+                    file=sys.stderr,
+                )
+            # The analyzed window is every fetched run from the oldest kept run
+            # onward, including excluded ones: they keep the gap check at full
+            # listing density and bound the exclusion counts to the window that
+            # is actually analyzed rather than the last page's overshoot.
+            oldest = runs[-1]["run_started_at"] if runs else None
+            window = [
+                run
+                for run in fetched
+                if oldest is None or run["run_started_at"] >= oldest
+            ]
+            warn_on_time_gap(window)
+            excluded_untrusted = sum(not is_trusted(run) for run in window)
+            excluded_action_required = sum(
+                is_trusted(run) and is_action_required(run) for run in window
+            )
+            return FetchedRuns(runs, excluded_untrusted, excluded_action_required)
         print(
             f"WARNING: stale or repeated CI page; retry {attempt + 1}/3",
             file=sys.stderr,
@@ -127,23 +194,21 @@ def fetch_runs(repo: str, limit: int, days: int = 7) -> list[dict[str, Any]]:
     )
 
 
-class TrustedRuns(NamedTuple):
-    runs: list[dict[str, Any]]
-    excluded: int
+def latest_window_end(summaries: list[dict[str, Any]]) -> str | None:
+    """`window.end` of the retained summary with the latest window end.
 
-
-def trusted_runs(runs: list[dict[str, Any]]) -> TrustedRuns:
-    """Keep runs whose head repository is in TRUSTED_HEAD_REPOS.
-
-    Applied before any per-run fetch, so no job metadata or log of an excluded
-    run is requested. A run with no head repository (deleted fork) is excluded.
+    Used to split the new snapshot's runs against the most recent previous
+    window. The tracking issue stores summaries in posting order, but a re-run
+    or manual dispatch can post an older window after a newer one, so take the
+    latest end rather than the last entry. Returns None when no summary is
+    retained.
     """
-    kept = [
-        run
-        for run in runs
-        if (run.get("head_repository") or {}).get("full_name") in TRUSTED_HEAD_REPOS
+    ends = [
+        end
+        for summary in summaries
+        if (end := (summary.get("window") or {}).get("end")) is not None
     ]
-    return TrustedRuns(kept, len(runs) - len(kept))
+    return max(ends) if ends else None
 
 
 def warn_on_time_gap(runs: list[dict[str, Any]]) -> None:
@@ -167,10 +232,37 @@ def warn_on_time_gap(runs: list[dict[str, Any]]) -> None:
         )
 
 
+def dedupe_jobs(jobs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Drop carried-over duplicate jobs, keeping the earliest attempt's copy.
+
+    With filter=all the jobs endpoint lists every attempt. A job carried over
+    unchanged into a later attempt gets a NEW job id there, but keeps the same
+    runner and start time, so dedupe by (runner_id, started_at) and keep the
+    copy from the earliest attempt regardless of listing order. Only jobs that
+    reached a runner can be carried over; skipped or never-started jobs have a
+    null runner_id and stay keyed by id so each is retained.
+    """
+    kept: dict[Any, dict[str, Any]] = {}
+    for job in jobs:
+        runner_id = job.get("runner_id")
+        key = (runner_id, job["started_at"]) if runner_id is not None else job["id"]
+        incumbent = kept.get(key)
+        if incumbent is None or job["run_attempt"] < incumbent["run_attempt"]:
+            kept[key] = job
+    return list(kept.values())
+
+
 def job_record(run: dict[str, Any], job: dict[str, Any]) -> dict[str, Any]:
     return {
         "name": job["name"],
         "conclusion": job["conclusion"],
+        # Null when the job never got a runner (cancelled/failed while queued);
+        # the summarizer then attributes no runner time to it.
+        "runner_name": job.get("runner_name"),
+        # The attempt that produced this job. filter=all returns earlier
+        # attempts' jobs, so runner time per attempt and re-run totals are
+        # recoverable even though the run only records its latest attempt.
+        "run_attempt": job.get("run_attempt"),
         "started_at": job["started_at"],
         "completed_at": job["completed_at"],
         "exec_seconds": seconds_between(job["started_at"], job["completed_at"]),
@@ -289,7 +381,13 @@ def mine_test_logs(repo: str, runs: list[dict[str, Any]], max_runs: int) -> Test
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", default="UKGovernmentBEIS/inspect_ai")
-    parser.add_argument("--limit", type=int, default=200, help="max runs to fetch")
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=200,
+        help="max runs to analyze; untrusted and never-started runs are paged "
+        "past and not counted",
+    )
     parser.add_argument(
         "--days", type=int, default=7, help="maximum run creation age in days"
     )
@@ -311,11 +409,16 @@ def main() -> None:
             "--limit and --days must be positive; --durations-runs must be nonnegative"
         )
 
-    fetched = fetch_runs(args.repo, args.limit, args.days)
-    raw_runs, excluded_untrusted = trusted_runs(fetched)
+    raw_runs, excluded_untrusted, excluded_action_required = fetch_runs(
+        args.repo, args.limit, args.days
+    )
+    # window.end of the most recent retained summary, so the summarizer can
+    # split this window into runs new since then and runs it already covered.
+    previous_window_end = latest_window_end(read_history())
     print(
-        f"fetched {len(fetched)} runs; excluded {excluded_untrusted} from "
-        "untrusted head repositories; fetching jobs...",
+        f"kept {len(raw_runs)} runs; excluded {excluded_untrusted} from untrusted "
+        f"head repositories and {excluded_action_required} never-started "
+        "(action_required); fetching jobs...",
         file=sys.stderr,
     )
 
@@ -331,9 +434,12 @@ def main() -> None:
             "wall_seconds": seconds_between(run["run_started_at"], run["updated_at"]),
             "jobs": [
                 job_record(run, job)
-                for job in gh_api(
-                    f"repos/{args.repo}/actions/runs/{run['id']}/jobs?per_page=100"
-                )["jobs"]
+                for job in dedupe_jobs(
+                    gh_api(
+                        f"repos/{args.repo}/actions/runs/{run['id']}/jobs"
+                        "?filter=all&per_page=100"
+                    )["jobs"]
+                )
             ],
         }
         for run in raw_runs
@@ -349,6 +455,8 @@ def main() -> None:
         "repo": args.repo,
         "run_count": len(runs),
         "excluded_untrusted_runs": excluded_untrusted,
+        "excluded_action_required_runs": excluded_action_required,
+        "previous_window_end": previous_window_end,
         "runs": runs,
         "pytest_durations": log_data.durations,
         "pytest_summaries": log_data.summaries,

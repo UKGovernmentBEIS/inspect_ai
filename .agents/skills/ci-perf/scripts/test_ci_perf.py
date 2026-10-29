@@ -15,6 +15,44 @@ from publish_ci_findings import publish, validate_findings
 from summarize_ci_data import render, stats, summarize
 
 
+def _paged_gh_api(pages: dict[int, list[tuple[int, bool, str]]]) -> Any:
+    """Build a fake `gh_api` paging the runs listing from a page table.
+
+    Each entry is (run id, trusted head repository, conclusion). Run ids double
+    as minute offsets from the page's `until` bound, so a smaller id is a newer
+    run and every record validates inside the collector's created-at range.
+    A page absent from the table returns an empty listing (exhausted).
+    """
+    from datetime import datetime, timedelta
+    from urllib.parse import parse_qs, urlparse
+
+    def fake(path: str) -> Any:
+        query = parse_qs(urlparse(path).query)
+        page = int(query["page"][0])
+        until = datetime.fromisoformat(query["created"][0].split("..")[1])
+        runs = []
+        for run_id, trusted, conclusion in pages.get(page, []):
+            moment = (
+                (until - timedelta(minutes=run_id)).isoformat().replace("+00:00", "Z")
+            )
+            runs.append(
+                {
+                    "id": run_id,
+                    "created_at": moment,
+                    "run_started_at": moment,
+                    "conclusion": conclusion,
+                    "head_repository": {
+                        "full_name": "UKGovernmentBEIS/inspect_ai"
+                        if trusted
+                        else "outsider/inspect_ai"
+                    },
+                }
+            )
+        return {"workflow_runs": runs}
+
+    return fake
+
+
 @pytest.fixture
 def snapshot() -> dict[str, Any]:
     return {
@@ -494,7 +532,12 @@ def test_failed_finding_still_records_measurements(
 
 def test_skipped_jobs_cannot_make_compute_negative(snapshot: dict[str, Any]) -> None:
     snapshot["runs"][0]["jobs"].append(
-        {"name": "skipped job", "conclusion": "skipped", "exec_seconds": -15113}
+        {
+            "name": "skipped job",
+            "conclusion": "skipped",
+            "exec_seconds": -15113,
+            "runner_name": "ubuntu-latest",
+        }
     )
     assert summarize(snapshot)["runner_minutes"] == 2
     snapshot["runs"][0]["jobs"][-1]["conclusion"] = "failure"
@@ -518,12 +561,18 @@ def test_collection_retries_out_of_window_page(monkeypatch: pytest.MonkeyPatch) 
         created = "2000-01-01T00:00:00Z" if calls == 1 else until
         return {
             "workflow_runs": [
-                {"id": 1, "created_at": created, "run_started_at": created}
+                {
+                    "id": 1,
+                    "created_at": created,
+                    "run_started_at": created,
+                    "conclusion": "success",
+                    "head_repository": {"full_name": "UKGovernmentBEIS/inspect_ai"},
+                }
             ]
         }
 
     monkeypatch.setattr(collector, "gh_api", fake_api)
-    assert collector.fetch_runs("owner/repo", 1)[0]["id"] == 1
+    assert collector.fetch_runs("owner/repo", 1).runs[0]["id"] == 1
     assert calls == 2
 
 
@@ -566,14 +615,19 @@ def test_collection_repeated_page_is_bounded(monkeypatch: pytest.MonkeyPatch) ->
     assert calls == 6
 
 
-def test_untrusted_head_repository_runs_are_dropped_before_any_fetch(
+def test_kept_runs_and_exclusion_counts_flow_into_snapshot_and_summary(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    """Main fetches jobs only for kept runs and records what fetch_runs carries.
+
+    The exclusion counts and the recorded previous window end reach raw.json and
+    flow into the summary window.
+    """
     import collect_ci_data as collector
 
     started, updated = "2026-09-09T00:00:00Z", "2026-09-09T00:10:00Z"
 
-    def run(run_id: int, head_repo: str | None) -> dict[str, Any]:
+    def run(run_id: int, head_repo: str) -> dict[str, Any]:
         return {
             "id": run_id,
             "name": "Build",
@@ -582,14 +636,12 @@ def test_untrusted_head_repository_runs_are_dropped_before_any_fetch(
             "run_attempt": 1,
             "run_started_at": started,
             "updated_at": updated,
-            "head_repository": {"full_name": head_repo} if head_repo else None,
+            "head_repository": {"full_name": head_repo},
         }
 
-    fetched = [
+    kept = [
         run(1, "UKGovernmentBEIS/inspect_ai"),
-        run(2, "outsider/inspect_ai"),
         run(3, "meridianlabs-ai/inspect_ai"),
-        run(4, None),
     ]
     requested: list[str] = []
 
@@ -600,9 +652,18 @@ def test_untrusted_head_repository_runs_are_dropped_before_any_fetch(
             "id": run_id * 10,
             "name": "test (3.11)",
             "conclusion": "success",
+            "run_attempt": 1,
+            "runner_name": "ubuntu-latest",
             "started_at": started,
             "completed_at": updated,
-            "steps": [],
+            "steps": [
+                {
+                    "name": "pytest",
+                    "conclusion": "success",
+                    "started_at": started,
+                    "completed_at": updated,
+                }
+            ],
         }
         return {"jobs": [job]}
 
@@ -610,7 +671,14 @@ def test_untrusted_head_repository_runs_are_dropped_before_any_fetch(
         requested.append(path)
         return "1.50s call tests/a.py::test_a\n== 1 passed in 1.50s =="
 
-    monkeypatch.setattr(collector, "fetch_runs", lambda repo, limit, days: fetched)
+    monkeypatch.setattr(
+        collector,
+        "fetch_runs",
+        lambda repo, limit, days: collector.FetchedRuns(kept, 2, 1),
+    )
+    monkeypatch.setattr(
+        collector, "read_history", lambda: [{"window": {"end": "2026-09-01T00:00:00Z"}}]
+    )
     monkeypatch.setattr(collector, "gh_api", fake_api)
     monkeypatch.setattr(collector, "gh_api_text", fake_log)
     out, summary_out = tmp_path / "raw.json", tmp_path / "summary.json"
@@ -623,13 +691,16 @@ def test_untrusted_head_repository_runs_are_dropped_before_any_fetch(
     assert [r["id"] for r in result["runs"]] == [1, 3]
     assert result["run_count"] == 2
     assert result["excluded_untrusted_runs"] == 2
+    assert result["excluded_action_required_runs"] == 1
+    assert result["previous_window_end"] == "2026-09-01T00:00:00Z"
     assert set(result["pytest_durations"]) == {"1/test (3.11)", "3/test (3.11)"}
-    assert not [p for p in requested if "/runs/2/" in p or "/jobs/20/" in p]
-    assert not [p for p in requested if "/runs/4/" in p or "/jobs/40/" in p]
+    assert not [p for p in requested if "/runs/2/" in p or "/runs/4/" in p]
+    assert all("filter=all" in p for p in requested if "/jobs?" in p)
     assert "excluded 2 from untrusted head repositories" in capsys.readouterr().err
-    assert (
-        json.loads(summary_out.read_text())["workflow_wall_seconds"]["Build"]["n"] == 2
-    )
+    summary = json.loads(summary_out.read_text())
+    assert summary["workflow_wall_seconds"]["Build"]["n"] == 2
+    assert summary["window"]["excluded_untrusted_runs"] == 2
+    assert summary["window"]["excluded_action_required_runs"] == 1
 
 
 def test_invalid_distribution_timings_are_counted_and_excluded(
@@ -846,3 +917,339 @@ def test_human_implementation_requires_boolean(value: Any) -> None:
                 }
             ]
         )
+
+
+# --- Issue 493 + 592: --limit counts kept runs, not fetched runs -------------
+
+
+def test_fetch_counts_kept_runs_and_scopes_excluded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A majority-untrusted first page still yields `limit` kept runs.
+
+    The excluded count covers only the analyzed window (no last-page overshoot).
+    """
+    import collect_ci_data as collector
+
+    pages = {
+        1: [
+            (0, True, "success"),
+            (1, False, "success"),
+            (2, False, "success"),
+            (3, False, "success"),
+            (4, False, "success"),
+        ],
+        2: [
+            (5, True, "success"),
+            (6, True, "success"),
+            (7, False, "success"),
+            (8, False, "success"),
+            (9, False, "success"),
+        ],
+    }
+    monkeypatch.setattr(collector, "gh_api", _paged_gh_api(pages))
+    result = collector.fetch_runs("owner/repo", 3)
+    assert [r["id"] for r in result.runs] == [0, 5, 6]
+    # ids 1-4 are untrusted and inside the window; ids 7-9 overshoot it.
+    assert result.excluded_untrusted == 4
+    assert result.excluded_action_required == 0
+
+
+def test_all_untrusted_page_is_not_stale(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A page of only untrusted runs adds fetched ids, so it is not stale.
+
+    Paging continues to the trusted runs on the next page.
+    """
+    import collect_ci_data as collector
+
+    pages = {
+        1: [(0, False, "success"), (1, False, "success"), (2, False, "success")],
+        2: [(3, True, "success"), (4, True, "success")],
+    }
+    monkeypatch.setattr(collector, "gh_api", _paged_gh_api(pages))
+    result = collector.fetch_runs("owner/repo", 2)
+    assert [r["id"] for r in result.runs] == [3, 4]
+    assert result.excluded_untrusted == 3
+
+
+def test_action_required_runs_excluded_from_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Never-started action_required runs do not count toward the limit.
+
+    They are reported in a distinct excluded count.
+    """
+    import collect_ci_data as collector
+
+    pages = {
+        1: [
+            (0, True, "action_required"),
+            (1, True, "action_required"),
+            (2, True, "action_required"),
+        ],
+        2: [(3, True, "success"), (4, True, "success")],
+    }
+    monkeypatch.setattr(collector, "gh_api", _paged_gh_api(pages))
+    result = collector.fetch_runs("owner/repo", 2)
+    assert [r["id"] for r in result.runs] == [3, 4]
+    assert result.excluded_action_required == 3
+    assert result.excluded_untrusted == 0
+
+
+# --- Issue 514: window span and overlap with the previous window -------------
+
+
+def test_window_overlap_and_hours(snapshot: dict[str, Any]) -> None:
+    result = summarize(snapshot)
+    window = result["window"]
+    assert window["hours"] == 2
+    assert window["previous_end"] is None
+    assert window["new_runs"] is None and window["overlap_runs"] is None
+    assert "none recorded" in render(result).lower()
+
+    # Runs start at 00:00, 01:00, 02:00; a previous window ending at 02:00 saw
+    # all of them, so none are new.
+    snapshot["previous_window_end"] = "2026-09-09T02:00:00Z"
+    window = summarize(snapshot)["window"]
+    assert window["new_runs"] == 0 and window["overlap_runs"] == 3
+    assert window["new_runs"] + window["overlap_runs"] == window["runs"]
+
+    snapshot["previous_window_end"] = "2026-09-09T00:30:00Z"
+    result = summarize(snapshot)
+    assert (result["window"]["new_runs"], result["window"]["overlap_runs"]) == (2, 1)
+    assert "2026-09-09T00:30:00Z" in render(result)
+
+    # A window that pages back entirely before the previous end: no new runs.
+    snapshot["previous_window_end"] = "2026-09-10T00:00:00Z"
+    window = summarize(snapshot)["window"]
+    assert window["new_runs"] == 0 and window["overlap_runs"] == 3
+
+
+def test_latest_window_end_picks_most_recent() -> None:
+    from collect_ci_data import latest_window_end
+
+    assert latest_window_end([]) is None
+    history = [
+        {"window": {"end": "2026-09-19T13:01:25Z"}},
+        {"window": {"end": "2026-09-18T21:13:35Z"}},
+    ]
+    assert latest_window_end(history) == "2026-09-19T13:01:25Z"
+
+
+# --- Issue 583: jobs cancelled while still queued add no runner time ---------
+
+
+def test_unstarted_jobs_excluded_from_runner_time() -> None:
+    snap = {
+        "generated_at": "2026-10-11T00:00:00Z",
+        "repo": "UKGovernmentBEIS/inspect_ai",
+        "runs": [
+            {
+                "id": 1,
+                "name": "Build",
+                "conclusion": "cancelled",
+                "run_started_at": "2026-10-11T00:00:00Z",
+                "wall_seconds": 10,
+                "jobs": [
+                    {
+                        "name": "test (3.11)",
+                        "conclusion": "cancelled",
+                        "exec_seconds": 2000,
+                        "wait_from_run_start_seconds": 0,
+                        "runner_name": None,
+                        "steps": [],
+                    },
+                    {
+                        "name": "test (3.10)",
+                        "conclusion": "cancelled",
+                        "exec_seconds": 100,
+                        "wait_from_run_start_seconds": 0,
+                        "runner_name": "ubuntu-latest",
+                        "steps": [{"name": "pytest", "seconds": 100}],
+                    },
+                ],
+            },
+            {
+                "id": 2,
+                "name": "Build",
+                "conclusion": "failure",
+                "run_started_at": "2026-10-11T01:00:00Z",
+                "wall_seconds": 10,
+                "jobs": [
+                    {
+                        "name": "mypy (3.11)",
+                        "conclusion": "failure",
+                        "exec_seconds": 500,
+                        "wait_from_run_start_seconds": 0,
+                        "steps": [],
+                    }
+                ],
+            },
+        ],
+        "pytest_summaries": {},
+        "pytest_durations": {},
+    }
+    result = summarize(snap)
+    assert result["unstarted_jobs"] == 2  # queued-cancelled + legacy empty-steps
+    assert result["runner_minutes"] == round(100 / 60, 2)  # only the started job
+    assert result["cancelled_runner_minutes"] == round(100 / 60, 2)
+    assert result["unavailable_job_timings"] == 0  # unstarted is not unavailable
+    assert "unstarted" in render(result).lower()
+
+
+# --- Issue 612: re-run attempts counted; re-run runs out of wall/wait --------
+
+
+# Attempt 1 failed; attempt 2 re-ran only the two `test` legs and carried the
+# rest over. A carried-over job gets a NEW job id in attempt 2's listing but
+# keeps the earlier attempt's runner_id and started_at (see the real listing in
+# evidence/live-run-40811123765-jobs-filter-all.json: `mypy (3.11)` is id
+# 123241411490 in attempt 1 and id 123243125471 in attempt 2, both runner_id
+# 1000462481 at 03:15:37Z). Skipped jobs never get a runner, so their runner_id
+# is null and each attempt's copy keeps its own id.
+_RERUN_JOBS = [
+    {
+        "id": 1,
+        "name": "test (3.14)",
+        "conclusion": "failure",
+        "run_attempt": 1,
+        "runner_id": 501,
+        "runner_name": "gh",
+        "started_at": "2026-10-29T00:00:00Z",
+        "completed_at": "2026-10-29T00:05:00Z",
+        "steps": [],
+    },
+    {
+        "id": 2,
+        "name": "mypy",
+        "conclusion": "success",
+        "run_attempt": 1,
+        "runner_id": 502,
+        "runner_name": "gh",
+        "started_at": "2026-10-29T00:00:00Z",
+        "completed_at": "2026-10-29T00:01:00Z",
+        "steps": [],
+    },
+    {
+        "id": 5,
+        "name": "docs",
+        "conclusion": "skipped",
+        "run_attempt": 1,
+        "runner_id": None,
+        "runner_name": None,
+        "started_at": "2026-10-29T00:00:00Z",
+        "completed_at": "2026-10-29T00:00:00Z",
+        "steps": [],
+    },
+    {
+        "id": 3,
+        "name": "test (3.14)",
+        "conclusion": "success",
+        "run_attempt": 2,
+        "runner_id": 503,
+        "runner_name": "gh",
+        "started_at": "2026-10-29T00:10:00Z",
+        "completed_at": "2026-10-29T00:17:30Z",
+        "steps": [],
+    },
+    {  # carried-over copy of id 2: new id, same runner_id and started_at
+        "id": 4,
+        "name": "mypy",
+        "conclusion": "success",
+        "run_attempt": 2,
+        "runner_id": 502,
+        "runner_name": "gh",
+        "started_at": "2026-10-29T00:00:00Z",
+        "completed_at": "2026-10-29T00:01:00Z",
+        "steps": [],
+    },
+    {
+        "id": 6,
+        "name": "docs",
+        "conclusion": "skipped",
+        "run_attempt": 2,
+        "runner_id": None,
+        "runner_name": None,
+        "started_at": "2026-10-29T00:10:00Z",
+        "completed_at": "2026-10-29T00:10:00Z",
+        "steps": [],
+    },
+]
+
+
+def test_dedupe_jobs_keeps_earliest_copy_regardless_of_order() -> None:
+    import collect_ci_data as collector
+
+    def kept_ids(jobs: list[dict[str, Any]]) -> dict[int, int]:
+        return {j["id"]: j["run_attempt"] for j in collector.dedupe_jobs(jobs)}
+
+    # id 4 is a carried-over copy of id 2; the attempt-1 copy (id 2) is kept.
+    # Skipped jobs (ids 5, 6) have no runner, so each stays by id.
+    expected = {1: 1, 2: 1, 3: 2, 5: 1, 6: 2}
+    assert kept_ids(_RERUN_JOBS) == expected
+    assert kept_ids(list(reversed(_RERUN_JOBS))) == expected
+
+
+def test_rerun_attempts_counted_and_run_excluded_from_wall(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import collect_ci_data as collector
+
+    run = {
+        "id": 100,
+        "name": "Build",
+        "head_branch": "topic",
+        "conclusion": "success",
+        "run_attempt": 2,
+        "run_started_at": "2026-10-29T00:10:00Z",
+        "updated_at": "2026-10-29T00:20:00Z",
+    }
+    jobs_payload = {"jobs": _RERUN_JOBS}
+    requested: list[str] = []
+
+    def fake_api(path: str) -> Any:
+        requested.append(path)
+        return jobs_payload
+
+    monkeypatch.setattr(
+        collector,
+        "fetch_runs",
+        lambda repo, limit, days: collector.FetchedRuns([run], 0, 0),
+    )
+    monkeypatch.setattr(collector, "read_history", lambda: [])
+    monkeypatch.setattr(collector, "gh_api", fake_api)
+    out, summary_out = tmp_path / "raw.json", tmp_path / "summary.json"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "collect",
+            "--out",
+            str(out),
+            "--summary-out",
+            str(summary_out),
+            "--durations-runs",
+            "0",
+        ],
+    )
+    collector.main()
+
+    assert any("filter=all" in p for p in requested)
+    raw = json.loads(out.read_text())
+    jobs = raw["runs"][0]["jobs"]
+    # The carried-over copy (id 4) is dropped in favor of its attempt-1 original
+    # (id 2); skipped jobs stay by id, so both copies (ids 5, 6) remain.
+    assert sorted(j["id"] for j in jobs) == [1, 2, 3, 5, 6]
+    attempts = {j["id"]: j["run_attempt"] for j in jobs}
+    assert attempts[2] == 1 and attempts[3] == 2
+
+    summary = json.loads(summary_out.read_text())
+    # attempt-1 failed leg (300s) + carried-over mypy (60s, once) + attempt-2
+    # re-run leg (450s). The carried-over copy is not double-counted.
+    assert summary["runner_minutes"] == round((300 + 60 + 450) / 60, 2)
+    assert summary["rerun_runner_minutes"] == round(450 / 60, 2)  # attempt-2 leg only
+    assert summary["rerun_runs"] == 1
+    assert summary["workflow_wall_seconds"] == {}  # the only run is a re-run
+    assert summary["excluded_timings"]["job_wait"] == 0  # carried-over waits dropped
+    assert "wait_from_run_start_seconds" not in summary["jobs"]["Build / test (3.14)"]
+    assert "re-run" in render(summary).lower()

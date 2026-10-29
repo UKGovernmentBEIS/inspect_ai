@@ -6,9 +6,37 @@ from __future__ import annotations
 import argparse
 import json
 from collections import defaultdict
+from datetime import datetime
 from pathlib import Path
 from statistics import median
 from typing import Any
+
+
+def parse_ts(ts: str) -> datetime:
+    return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+
+
+def window_hours(start: str, end: str) -> float:
+    """Span between two ISO-8601 run-start timestamps, in hours.
+
+    A fixed run count covers a variable stretch of time, so two summaries
+    cannot be weighed against each other without their spans.
+    """
+    return round((parse_ts(end) - parse_ts(start)).total_seconds() / 3600, 2)
+
+
+def job_is_unstarted(job: dict[str, Any]) -> bool:
+    """Whether a non-skipped job never got a runner, so has no runner time.
+
+    The jobs API reports `runner_name` None for a job cancelled or failed while
+    still queued (fail-fast or a concurrency cancel); its `started_at` is the
+    queue time, so its exec span is wall clock, not compute. Legacy snapshots
+    predate the recorded `runner_name`, so fall back to an empty steps list: a
+    job that reached a runner ran at least one step.
+    """
+    if "runner_name" in job:
+        return job["runner_name"] is None
+    return not job.get("steps")
 
 
 def stats(values: list[float]) -> dict[str, float | int] | None:
@@ -34,6 +62,9 @@ def summarize(snapshot: dict[str, Any]) -> dict[str, Any]:
     Wait-from-run-start includes dependency time, so it is not labeled queue
     time. Workflow wall uses the collector's updated_at proxy, not push time.
     Duration samples include only tests printed by pytest's slow-tail filter.
+    A re-run run records only its latest attempt's start, so its wall and job
+    waits measure from the re-run, not the original push; such runs are left
+    out of those distributions and counted in `rerun_runs`.
     """
     runs = snapshot["runs"]
     if not runs:
@@ -43,19 +74,28 @@ def summarize(snapshot: dict[str, Any]) -> dict[str, Any]:
     steps: dict[str, list[float]] = defaultdict(list)
     conclusions: dict[str, int] = defaultdict(int)
     runner_seconds = 0.0
+    rerun_runner_seconds = 0.0
     unavailable_jobs = 0
     unavailable_cancelled_jobs = 0
+    unstarted_jobs = 0
     cancelled_seconds = 0.0
+    rerun_runs = 0
     excluded = {"workflow_wall": 0, "job_wait": 0, "step": 0}
     for run in runs:
         conclusions[run["conclusion"]] += 1
-        if run["conclusion"] == "success":
+        is_rerun = (run.get("run_attempt") or 1) > 1
+        if is_rerun:
+            rerun_runs += 1
+        if run["conclusion"] == "success" and not is_rerun:
             if run["wall_seconds"] is None or run["wall_seconds"] < 0:
                 excluded["workflow_wall"] += 1
             else:
                 workflows[run["name"]].append(run["wall_seconds"])
         for job in run["jobs"]:
             if job["conclusion"] == "skipped":
+                continue
+            if job_is_unstarted(job):
+                unstarted_jobs += 1
                 continue
             seconds = job["exec_seconds"]
             if seconds is None or seconds < 0:
@@ -64,17 +104,21 @@ def summarize(snapshot: dict[str, Any]) -> dict[str, Any]:
                     unavailable_cancelled_jobs += 1
                 continue
             runner_seconds += seconds
+            # Legacy jobs predate the per-job attempt; fall back to the run's.
+            if (job.get("run_attempt") or run.get("run_attempt") or 1) > 1:
+                rerun_runner_seconds += seconds
             if run["conclusion"] == "cancelled":
                 cancelled_seconds += seconds
             if job["conclusion"] != "success":
                 continue
             key = f"{run['name']} / {job['name']}"
             jobs[key]["exec_seconds"].append(seconds)
-            wait = job["wait_from_run_start_seconds"]
-            if wait is None or wait < 0:
-                excluded["job_wait"] += 1
-            else:
-                jobs[key]["wait_from_run_start_seconds"].append(wait)
+            if not is_rerun:
+                wait = job["wait_from_run_start_seconds"]
+                if wait is None or wait < 0:
+                    excluded["job_wait"] += 1
+                else:
+                    jobs[key]["wait_from_run_start_seconds"].append(wait)
             for step in job.get("steps", []):
                 if step.get("conclusion") == "skipped":
                     continue
@@ -104,13 +148,42 @@ def summarize(snapshot: dict[str, Any]) -> dict[str, Any]:
         if (value := stats(samples)) is not None
     }
     starts = sorted(run["run_started_at"] for run in runs)
+    previous_end = snapshot.get("previous_window_end")
+    new_runs: int | None
+    overlap_runs: int | None
+    if previous_end is not None:
+        new_runs = sum(
+            parse_ts(run["run_started_at"]) > parse_ts(previous_end) for run in runs
+        )
+        overlap_runs = len(runs) - new_runs
+    else:
+        new_runs = overlap_runs = None
     return {
         "schema_version": 1,
         "generated_at": snapshot["generated_at"],
         "repo": snapshot["repo"],
-        "window": {"start": starts[0], "end": starts[-1], "runs": len(runs)},
+        "window": {
+            "start": starts[0],
+            "end": starts[-1],
+            "hours": window_hours(starts[0], starts[-1]),
+            "runs": len(runs),
+            # From the raw snapshot; None in legacy files that lack the fields.
+            "excluded_untrusted_runs": snapshot.get("excluded_untrusted_runs"),
+            "excluded_action_required_runs": snapshot.get(
+                "excluded_action_required_runs"
+            ),
+            # None (not zero) when no previous window was recorded.
+            "previous_end": previous_end,
+            "new_runs": new_runs,
+            "overlap_runs": overlap_runs,
+        },
         "conclusions": dict(conclusions),
         "runner_minutes": None if unavailable_jobs else round(runner_seconds / 60, 2),
+        "rerun_runner_minutes": None
+        if unavailable_jobs
+        else round(rerun_runner_seconds / 60, 2),
+        "rerun_runs": rerun_runs,
+        "unstarted_jobs": unstarted_jobs,
         "unavailable_job_timings": unavailable_jobs,
         "excluded_timings": excluded,
         "cancelled_runner_minutes": None
@@ -142,14 +215,35 @@ def summarize(snapshot: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def overlap_line(window: dict[str, Any]) -> str:
+    """State how much of the window the previous snapshot already covered.
+
+    A null `previous_end` means no earlier summary was recorded (first run, or a
+    history read that returned nothing), so overlap is unknown.
+    """
+    if window["previous_end"] is None:
+        return (
+            "Previous window: none recorded, so overlap with earlier summaries "
+            "is unknown."
+        )
+    return (
+        f"Previous window ended {window['previous_end']}: {window['new_runs']} runs "
+        f"started after it (new), {window['overlap_runs']} at or before it "
+        "(overlap, re-measuring shared runs)."
+    )
+
+
 def render(summary: dict[str, Any]) -> str:
     """Render the aggregate baseline so the report needs no raw snapshot."""
+    window = summary["window"]
     lines = [
         "# CI performance measurements",
         "",
         f"Source: {summary['repo']}. Collected: {summary['generated_at']}.",
-        f"Window: {summary['window']['start']} to {summary['window']['end']}, {summary['window']['runs']} runs.",
-        f"Runner minutes: {summary['runner_minutes']}. Cancelled-run runner minutes: {summary['cancelled_runner_minutes']}. Missing or invalid job timings: {summary['unavailable_job_timings']}. None means unavailable, not zero.",
+        f"Window: {window['start']} to {window['end']} ({window['hours']}h), {window['runs']} runs.",
+        overlap_line(window),
+        f"Excluded from the run budget: {window['excluded_untrusted_runs']} untrusted head repository, {window['excluded_action_required_runs']} never-started (action_required).",
+        f"Runner minutes: {summary['runner_minutes']} ({summary['rerun_runner_minutes']} from re-run attempts). Cancelled-run runner minutes: {summary['cancelled_runner_minutes']}. Missing or invalid job timings: {summary['unavailable_job_timings']}. Unstarted (never got a runner) jobs: {summary['unstarted_jobs']}. Re-run runs out of wall/wait: {summary['rerun_runs']}. None means unavailable, not zero.",
         "",
         f"Excluded missing or inverted observations: workflow wall {summary['excluded_timings']['workflow_wall']}, job wait {summary['excluded_timings']['job_wait']}, steps {summary['excluded_timings']['step']}.",
         "Successful runs and jobs only for timings. Workflow wall is run start to updated_at, not push-to-green. Job wait includes dependencies. Pytest counts are per outcome, not a count of unique tests across matrix jobs. Skipped steps are excluded when their status was collected. Slow-test totals include only printed phases.",
