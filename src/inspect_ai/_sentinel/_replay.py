@@ -468,10 +468,14 @@ class _Driver:
         approvals: dict[str, ApprovalEvent] = {}
         calls: list[_Call] = []
 
+        # every span first: origins are inferred, and each event's
+        # conversation given to the timeline, at the first call without one
+        for event in self.events:
+            if isinstance(event, SpanBeginEvent):
+                self.spans.add(event)
         for index, event in enumerate(self.events):
             if isinstance(event, SpanBeginEvent):
                 self.begins[event.id] = (index, event)
-                self.spans.add(event)
             elif isinstance(event, SpanEndEvent):
                 self.ends[event.id] = index
             elif isinstance(event, SentinelEvent):
