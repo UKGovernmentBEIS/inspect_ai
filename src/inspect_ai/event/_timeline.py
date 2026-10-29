@@ -1108,7 +1108,8 @@ class _Inputs:
         self._views: dict[int, Sequence[ChatMessage]] = {}
         self._fingerprints: dict[int, _Fingerprint] = {}
         # tool call id -> (the input position its result follows the call at,
-        # the number of calls made with it), from each model call making it
+        # the most calls made with it there), by position, from the model
+        # calls making it
         self._issued: dict[str, list[tuple[int, int]]] | None = None
         # tool call id -> the pool rows holding a non-empty result of it,
         # ascending
@@ -1236,7 +1237,7 @@ class _Inputs:
     ) -> list[tuple[str, str]]:
         """The non-empty results in `event`'s input of the tool calls named, the last for each.
 
-        An input stored as ranges of the pool is looked up in the pool rows holding a result of each call, a bisection per range from the last. An expanded input is looked at first where a result follows its call, just after the output of each model call that made it, and then after the last found; failing that, by scanning it.
+        An input stored as ranges of the pool is looked up in the pool rows holding a result of each call, a bisection per range from the last. An expanded input is looked at first where a result follows its call, just after the output of a model call that made it: of those the input reaches, from the last until one holds a result, and then after that result; failing that, by scanning it.
         """
         input = self.of(event)
         if isinstance(input, PoolView):
@@ -1247,18 +1248,25 @@ class _Inputs:
         for tool_call_id in tool_call_ids:
             text: str | None = None
             last = -1
-            # a reused id was issued by several model calls: the last result
-            # in the input is the one answering the latest
-            for start, count in issued.get(tool_call_id, []):
-                for position in range(start, min(start + count, len(input))):
+            # a reused id was issued by several model calls: from the last
+            # issuance within the input, the first holding a result
+            issuances = issued.get(tool_call_id, [])
+            at = bisect_left(issuances, len(input), key=lambda issuance: issuance[0])
+            for index in range(at - 1, -1, -1):
+                start, count = issuances[index]
+                for position in range(
+                    min(start + count, len(input)) - 1, start - 1, -1
+                ):
                     message = input[position]
                     if (
-                        position > last
-                        and isinstance(message, ChatMessageTool)
+                        isinstance(message, ChatMessageTool)
                         and message.tool_call_id == tool_call_id
                         and message.text
                     ):
                         text, last = message.text, position
+                        break
+                if text is not None:
+                    break
             if text is not None:
                 # the last result in the input, wherever it is, as a scan finds
                 for position in range(last + 1, len(input)):
@@ -1311,15 +1319,18 @@ class _Inputs:
 
     def _issued_calls(self) -> dict[str, list[tuple[int, int]]]:
         if self._issued is None:
-            issued: dict[str, list[tuple[int, int]]] = {}
+            counts: dict[str, dict[int, int]] = {}
             for event in self._events:
                 if isinstance(event, ModelEvent) and event.output.choices:
                     calls = event.output.choices[0].message.tool_calls or []
+                    start = len(self.of(event)) + 1
                     for call in calls:
-                        issued.setdefault(call.id, []).append(
-                            (len(self.of(event)) + 1, len(calls))
-                        )
-            self._issued = issued
+                        by_start = counts.setdefault(call.id, {})
+                        by_start[start] = max(by_start.get(start, 0), len(calls))
+            self._issued = {
+                tool_call_id: sorted(by_start.items())
+                for tool_call_id, by_start in counts.items()
+            }
         return self._issued
 
     def _pool_tool_rows(self) -> dict[str, list[int]]:

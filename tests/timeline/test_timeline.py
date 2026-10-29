@@ -1317,6 +1317,79 @@ def test_a_pooled_input_s_tool_results_are_found_in_linear_work(
     assert large <= 2.2 * small + 10, (small, large)
 
 
+class _Issuances(list[Any]):
+    """A tool call id's issuances, counting each one visited."""
+
+    visits = 0
+
+    def __getitem__(self, index: Any) -> Any:
+        _Issuances.visits += 1
+        return super().__getitem__(index)
+
+    def __iter__(self) -> Any:
+        for item in super().__iter__():
+            _Issuances.visits += 1
+            yield item
+
+    def __reversed__(self) -> Any:
+        for item in super().__reversed__():
+            _Issuances.visits += 1
+            yield item
+
+
+def _issuance_visits(events: list[Any], monkeypatch: pytest.MonkeyPatch) -> int:
+    """The issuances of tool call ids visited building the public timeline of `events`."""
+    from inspect_ai.event import _timeline as timeline
+
+    issued = timeline._Inputs._issued_calls
+
+    def counted(self: Any) -> Any:
+        found = issued(self)
+        for key, value in found.items():
+            if not isinstance(value, _Issuances):
+                found[key] = _Issuances(value)
+        return found
+
+    _Issuances.visits = 0
+    with monkeypatch.context() as patch:
+        patch.setattr(timeline._Inputs, "_issued_calls", counted)
+        timeline_build(events)
+    return _Issuances.visits
+
+
+def _reused_task_id(calls: int) -> list[Any]:
+    """A bridge task whose result never comes, then `calls` one-message calls each issuing a call with its id."""
+    from inspect_ai.event import SpanBeginEvent, SpanEndEvent
+    from inspect_ai.model import ChatMessageUser
+
+    events: list[Any] = [
+        SpanBeginEvent(id="main", name="main", type="agent"),
+        SpanBeginEvent(id="agent-task", name="sub", type="agent", parent_id="main"),
+        _model("s", "agent-task", [ChatMessageUser(content="Do it.")], _assistant("?")),
+        SpanEndEvent(id="agent-task"),
+    ]
+    for n in range(calls):
+        asked = [ChatMessageUser(content=f"Step {n}.")]
+        events.append(_model(f"m{n}", "main", asked, _assistant("", "task")))
+    events.append(SpanEndEvent(id="main"))
+    return events
+
+
+def test_a_reused_tool_call_id_s_issuances_are_visited_in_linear_work(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Ransom's ninth review B3: each later call's lookup of the waiting
+    # task's result visited every issuance of its id, in the input's bounds
+    # or not; the merge base reads each one-message input once
+    visits = [
+        _issuance_visits(_reused_task_id(calls), monkeypatch)
+        for calls in (100, 200, 400)
+    ]
+    for calls, found in zip((100, 200, 400), visits):
+        assert found <= 4 * calls, (calls, visits)
+    assert visits[2] <= 2.2 * visits[1] + 10, visits
+
+
 def _failures(calls: int, retried: bool) -> tuple[list[Any], list[Any]]:
     """With no origins: a turn, then `calls` failed calls and, with `retried`, one call sending their input again, carried on; else `calls` failed calls each with an input of its own and `calls` side calls ending like them. Events whose inputs are ranges of the returned pool."""
     from inspect_ai.event import ModelEvent, SpanBeginEvent, SpanEndEvent
