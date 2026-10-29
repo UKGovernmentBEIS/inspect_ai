@@ -210,30 +210,30 @@ required-version = ">=0.11.8"
 # Only resolve releases at least 7 days old (see CONTRIBUTING.md).
 exclude-newer = "7 days"
 
-# Exempt from the cooldown, so a new release can be adopted the day it ships:
+# A 6-hour cooldown instead, so a new release can be adopted the day it ships:
 # each model provider's own SDK or integration package (and the AWS SDKs
 # Bedrock and SageMaker use), but not infrastructure such as torch; Inspect's
 # own packages, which are released together with inspect_ai; and the CA
 # bundle (certifi), whose releases usually remove compromised roots.
 [tool.uv.exclude-newer-package]
-aiobotocore = false
-anthropic = false
-aws-bedrock-token-generator = false
-azure-ai-inference = false
-boto3 = false
-botocore = false
-certifi = false
-google-genai = false
-groq = false
-huggingface-hub = false
-inspect-scout = false
-inspect-sentinel = false
-mistralai = false
-nnterp = false
-openai = false
-sglang = false
-together = false
-transformer-lens = false
-transformers = false
-vllm = false
-xai-sdk = false
+aiobotocore = "6 hours"
+anthropic = "6 hours"
+aws-bedrock-token-generator = "6 hours"
+azure-ai-inference = "6 hours"
+boto3 = "6 hours"
+botocore = "6 hours"
+certifi = "6 hours"
+google-genai = "6 hours"
+groq = "6 hours"
+huggingface-hub = "6 hours"
+inspect-scout = "6 hours"
+inspect-sentinel = "6 hours"
+mistralai = "6 hours"
+nnterp = "6 hours"
+openai = "6 hours"
+sglang = "6 hours"
+together = "6 hours"
+transformer-lens = "6 hours"
+transformers = "6 hours"
+vllm = "6 hours"
+xai-sdk = "6 hours"

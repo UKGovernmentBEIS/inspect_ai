@@ -1,9 +1,9 @@
 """Tests for the dependency cooldown in pyproject.toml and the CI jobs around it.
 
-pyproject.toml holds back releases younger than seven days except for an
-exempt list of packages that must include every model provider's own package,
-Dependabot applies the same cooldown and exemptions to its uv.lock bumps, and
-every CI job installs from a lockfile. The model-data sync script runs without
+pyproject.toml holds back releases younger than seven days, or six hours for a
+list of packages that must include every model provider's own package,
+Dependabot applies the seven days to its uv.lock bumps and leaves that list to uv,
+and every CI job installs from a lockfile. The model-data sync script runs without
 pyproject.toml, so its own metadata repeats the policy. Testing against the
 newest releases happens in meridianlabs-ai/canaries, outside this repository.
 """
@@ -36,8 +36,11 @@ PROVIDERS = REPO / "src" / "inspect_ai" / "model" / "_providers"
 SYNC_MODELS = REPO / "src" / "inspect_ai" / "model" / "_model_data" / "sync_models.py"
 DEPENDENCY_CHECKS = {"pip_dependency_error", "verify_required_version"}
 # Packages providers need that aren't the provider's own SDK or integration
-# package. These stay under the cooldown.
+# package. These stay under the seven-day cooldown.
 PROVIDER_INFRASTRUCTURE = {"accelerate", "torch"}
+# The cooldown for packages in exclude-newer-package, and how uv.lock records it.
+EXEMPT_COOLDOWN = "6 hours"
+EXEMPT_COOLDOWN_SPAN = "PT6H"
 
 
 def uv_config() -> dict[str, Any]:
@@ -123,7 +126,8 @@ def test_dependabot_cooldown_matches_pyproject() -> None:
     cooldown = dependabot["cooldown"]
     assert cooldown["default-days"] == int(days.group(1))
     exempt = config["exclude-newer-package"]
-    assert all(value is False for value in exempt.values())
+    assert set(exempt.values()) == {EXEMPT_COOLDOWN}
+    # Dependabot's cooldown counts whole days, so it leaves these to uv.
     assert sorted(cooldown["exclude"]) == sorted(exempt)
     # The exempt packages have their own group, listed before the catch-all.
     groups = dependabot["groups"]
@@ -158,12 +162,15 @@ def test_sync_models_script_follows_the_cooldown() -> None:
     locked = {package["name"] for package in lock["package"]}
     exempt = locked & set(config["exclude-newer-package"])
     assert "certifi" in exempt
-    assert script["exclude-newer-package"] == dict.fromkeys(exempt, False)
+    assert script["exclude-newer-package"] == dict.fromkeys(exempt, EXEMPT_COOLDOWN)
     # The lock was written with these settings.
     days = re.fullmatch(r"(\d+) days", script["exclude-newer"])
     assert days
     assert lock["options"]["exclude-newer-span"] == f"P{days[1]}D"
-    assert lock["options"]["exclude-newer-package"] == script["exclude-newer-package"]
+    assert lock["options"]["exclude-newer-package"] == {
+        package: {"timestamp": "0001-01-01T00:00:00Z", "span": EXEMPT_COOLDOWN_SPAN}
+        for package in exempt
+    }
 
 
 def version(text: str) -> tuple[int, ...]:
