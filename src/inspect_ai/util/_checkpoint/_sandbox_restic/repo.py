@@ -104,7 +104,7 @@ async def run_sandbox_backup(
 ) -> ResticBackupSummary:
     """Run ``restic backup`` inside the sandbox; return the parsed summary.
 
-    ``--compression max`` (zstd level 22) for parity with the host
+    ``--compression max`` (roughly zstd level 11) for parity with the host
     backup. Mixed sandbox content (text, configs, sometimes binaries)
     benefits less than pure JSON, but the per-cycle CPU cost is small
     relative to the network/IO savings on the egress path. ``exclude``
