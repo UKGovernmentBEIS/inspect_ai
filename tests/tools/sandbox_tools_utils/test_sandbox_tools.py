@@ -1,7 +1,6 @@
 import json
 import textwrap
 import uuid
-from contextlib import nullcontext
 from pathlib import Path
 from typing import Iterator
 
@@ -20,6 +19,8 @@ from inspect_ai.model import (
     ContentText,
     get_model,
 )
+from inspect_ai.model._call_tools import execute_tools
+from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer import match
 from inspect_ai.solver import (
@@ -31,6 +32,7 @@ from inspect_ai.solver import (
     use_tools,
 )
 from inspect_ai.tool import (
+    ToolCall,
     ToolCallError,
     ToolError,
     bash_session,
@@ -42,7 +44,6 @@ from inspect_ai.tool._sandbox_tools_utils.sandbox import (
 )
 from inspect_ai.util import (
     ExecRemoteAwaitableOptions,
-    SandboxIdentityError,
     sandbox,
     sandbox_identity,
     store,
@@ -725,19 +726,27 @@ def _scoped_shell_across_a_server_restart() -> Solver:
         out = str(await setup(action="type_submit", input="id -un"))
         assert "nonroot" in out, out
 
-        for scope in (sandbox_identity("w1"), nullcontext()):
-            with scope:
-                try:
-                    await team(action="type_submit", input="touch /tmp/stale")
-                except SandboxIdentityError as ex:
-                    assert "no longer have that shell" in str(ex), ex
-                else:
-                    raise AssertionError("the stale shell was used")
-        assert not (await sb.exec(["test", "-e", "/tmp/stale"])).success
+        async def call(**arguments: str) -> ChatMessageTool:
+            tool_call = ToolCall(id="1", function="bash_session", arguments=arguments)
+            messages, _ = await execute_tools(
+                [ChatMessageAssistant(content=[], tool_calls=[tool_call])], [team]
+            )
+            assert isinstance(messages[-1], ChatMessageTool)
+            return messages[-1]
 
+        # the model is told the shell is gone, outside its scope and in it
+        stale = await call(action="type_submit", input="touch /tmp/stale")
+        assert stale.error and "only inside the sandbox identity scope" in (
+            stale.error.message
+        ), stale
         with sandbox_identity("w1"):
-            assert "restarted" in str(await team(action="restart"))
-            out = str(await team(action="type_submit", input="id -un"))
+            stale = await call(action="type_submit", input="touch /tmp/stale")
+            assert stale.error and "Use the 'restart' action" in stale.error.message
+            assert not (await sb.exec(["test", "-e", "/tmp/stale"])).success
+            # and recovers with restart, in the same scoped flow
+            restarted = await call(action="restart")
+            assert restarted.error is None, restarted
+            out = (await call(action="type_submit", input="id -un")).text
         assert "w1" in out, out
         out = str(await setup(action="type_submit", input="id -un"))
         assert "nonroot" in out and "w1" not in out, out

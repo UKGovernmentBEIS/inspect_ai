@@ -6,10 +6,23 @@ from contextlib import contextmanager, nullcontext
 from typing import Any, Callable, cast
 from uuid import uuid4
 
+import anyio
 import pytest
 from test_helpers.sandbox import CannedSandbox
 
-from inspect_ai.tool import Tool, bash, grep, list_files, python, read_file, skill
+from inspect_ai.model._call_tools import execute_tools
+from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
+from inspect_ai.tool import (
+    Tool,
+    ToolCall,
+    ToolError,
+    bash,
+    grep,
+    list_files,
+    python,
+    read_file,
+    skill,
+)
 from inspect_ai.tool._sandbox_tools_utils._legacy_helpers import (
     LEGACY_SANDBOX_CLI,
     legacy_tool_support_sandbox,
@@ -433,6 +446,8 @@ class _ToolsServer(CannedSandbox):
     A shell created with `bind` gets a unique name and answers only requests that
     name its owner; other shells get counted names (`BashSession`, `BashSession_1`).
     `replace_server()` drops every shell, as a replaced server starts empty.
+    `hold_version()` holds the next `version` request until the returned event
+    is set.
     """
 
     def __init__(self, version: str = "1.3.0") -> None:
@@ -443,9 +458,15 @@ class _ToolsServer(CannedSandbox):
         self.received: list[tuple[str, dict[str, Any]]] = []
         """Each request a shell acted on: its name and the request's params."""
         self.methods: list[str] = []
+        self.version_requested = anyio.Event()
+        self._version_hold: anyio.Event | None = None
 
     def replace_server(self) -> None:
         self.shells = {}
+
+    def hold_version(self) -> anyio.Event:
+        self._version_hold = anyio.Event()
+        return self._version_hold
 
     async def exec(
         self,
@@ -461,6 +482,10 @@ class _ToolsServer(CannedSandbox):
         assert isinstance(input, str)
         request = json.loads(input)
         self.methods.append(request["method"])
+        if request["method"] == "version" and self._version_hold is not None:
+            hold, self._version_hold = self._version_hold, None
+            self.version_requested.set()
+            await hold.wait()
         response = {"jsonrpc": "2.0", "id": request["id"]}
         response.update(self._answer(request["method"], request.get("params", {})))
         return ExecResult(True, 0, json.dumps(response), "")
@@ -510,7 +535,7 @@ async def test_bash_session_keeps_its_sandbox_after_the_scope(
         await bash_session_module.bash_session(instance="unscoped")(action="read")
         with sandbox_identity("w-1", sandbox="b"):
             await team(action="read")
-        with pytest.raises(SandboxIdentityError, match="no longer have that shell"):
+        with pytest.raises(ToolError, match="no longer have that shell"):
             await team(action="type_submit", input="id")
         with sandbox_identity("w-1", sandbox="b"):
             await team(action="read")
@@ -518,11 +543,22 @@ async def test_bash_session_keeps_its_sandbox_after_the_scope(
     assert [name for name, _ in b.received] == [_session_name("team")] * 2
 
 
-@pytest.mark.parametrize("scoped", [True, False], ids=["scoped", "unscoped"])
+async def _call_tool(tool: Tool, **arguments: Any) -> ChatMessageTool:
+    """Call `tool` as a model's tool call, through the tool executor."""
+    call = ToolCall(id="1", function="bash_session", arguments=arguments)
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])], [tool]
+    )
+    [message] = messages
+    assert isinstance(message, ChatMessageTool)
+    return message
+
+
 @pytest.mark.parametrize("restore", [False, True], ids=["replaced", "restored"])
 async def test_bash_session_refuses_a_scoped_shell_its_server_no_longer_has(
-    monkeypatch: pytest.MonkeyPatch, scoped: bool, restore: bool
+    monkeypatch: pytest.MonkeyPatch, restore: bool
 ) -> None:
+    from inspect_ai.util import store_as
     from inspect_ai.util._store import Store, init_subtask_store, store, store_jsonable
 
     init_subtask_store(Store())
@@ -552,21 +588,74 @@ async def test_bash_session_refuses_a_scoped_shell_its_server_no_longer_has(
         # the first shell the new server opens, as the default user
         await bash_session_module.bash_session(instance="setup")(action="read")
         setup = _session_name("setup")
-        with sandbox_identity("w-1", sandbox="b") if scoped else nullcontext():
-            for action in ("type_submit", "read", "interrupt"):
-                with pytest.raises(SandboxIdentityError, match="no longer have"):
-                    await team(
-                        action=action, input="id" if action == "type_submit" else None
-                    )
-            assert server.received == [(setup, server.received[0][1])]
-            await team(action="restart")
-            await team(action="type_submit", input="id")
+        # outside its scope, the model is told the shell is gone; no new shell
+        for arguments in (
+            {"action": "type_submit", "input": "id"},
+            {"action": "read"},
+            {"action": "restart"},
+        ):
+            message = await _call_tool(team, **arguments)
+            assert message.error is not None
+            assert "only inside the sandbox identity scope for 'w-1'" in (
+                message.error.message
+            )
+        assert _session_name("team") == stale
+        # in its scope, the model is told to restart, and restart recovers
+        with sandbox_identity("w-1", sandbox="b"):
+            message = await _call_tool(team, action="interrupt")
+            assert message.error is not None
+            assert "Use the 'restart' action" in message.error.message
+            assert (await _call_tool(team, action="restart")).error is None
+            assert (
+                await _call_tool(team, action="type_submit", input="id")
+            ).error is None
+        # the new shell is bound to w-1, outside the scope as well
+        assert (await _call_tool(team, action="read")).error is None
     fresh = _session_name("team")
     assert fresh not in (stale, setup)
-    assert (server.shells[fresh] == "w-1") is scoped
-    restart, typed = _received_by(server, {fresh})
+    assert server.shells[fresh] == "w-1"
+    saved = store_as(bash_session_module.BashSessionStore, instance="team")
+    assert (saved.identity, saved.identity_sandbox) == ("w-1", "b")
+    restart, typed, read = _received_by(server, {fresh})
     assert restart["restart"] is True and typed["input"] == "id\n"
+    assert {restart["owner"], typed["owner"], read["owner"]} == {"w-1"}
     assert _received_by(server, {setup}) == [server.received[0][1]]
+
+
+@pytest.mark.parametrize("other", ["w-2", None], ids=["other-scope", "unscoped"])
+async def test_bash_session_first_call_keeps_its_identity_when_another_wins(
+    monkeypatch: pytest.MonkeyPatch, other: str | None
+) -> None:
+    from inspect_ai.util._store import Store, init_subtask_store
+
+    init_subtask_store(Store())
+    _select_by_injection(monkeypatch)
+    server = _ToolsServer()
+    release = server.hold_version()
+    team = bash_session_module.bash_session(instance="team")
+    refused: list[BaseException] = []
+
+    async def first() -> None:
+        with sandbox_identity("w-1", sandbox="b"):
+            try:
+                await team(action="type_submit", input="w-1 command")
+            except SandboxIdentityError as ex:
+                refused.append(ex)
+
+    with _environments(b=server):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(first)
+            # w-1's call waits on the tools version while another caller opens
+            # the instance's shell
+            await server.version_requested.wait()
+            with sandbox_identity(other, sandbox="b") if other else nullcontext():
+                await team(action="type_submit", input="other command")
+            release.set()
+    [error] = refused
+    assert ("created as 'w-2'" if other else "outside a sandbox identity") in str(error)
+    [(name, params)] = server.received
+    assert name == _session_name("team") and params["input"] == "other command\n"
+    assert params.get("owner") == other
 
 
 async def test_bash_session_refuses_an_owner_the_server_does_not_have(
