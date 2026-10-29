@@ -85,6 +85,21 @@ class TestSkillNameUniqueness:
 
 
 class TestSkillInstallation:
+    @pytest.mark.parametrize("user", [None, "1000"])
+    async def test_install_keeps_legacy_write_interface(
+        self, user: str | None, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        files: list[str] = []
+        sandbox = CannedSandbox(lambda cmd, user: ExecResult(True, 0, "", ""))
+
+        async def write(file: str, contents: str | bytes) -> None:
+            files.append(file)
+
+        monkeypatch.setattr(sandbox, "write_file", write)
+        sk = Skill(name="example", description="Example", instructions="Example")
+        await install_skills([sk], sandbox=sandbox, user=user, dir="/skills")
+        assert files == ["/skills/example/SKILL.md"]
+
     async def test_install_as_local_current_user(self) -> None:
         if os.name != "posix":
             pytest.skip("requires POSIX user identities")
@@ -147,6 +162,24 @@ class TestSkillInstallation:
             with pytest.raises(error_type):
                 await install_skills([sk], sandbox=sandbox, user="1000", dir="/skills")
         assert [user for _, user in sandbox.exec_calls] == expected_users
+
+    async def test_nested_files_install_at_posix_paths(self, tmp_path: Path) -> None:
+        """Files in subdirectories land in the matching sandbox subdirectory."""
+        skill_dir = tmp_path / "test-skill"
+        (skill_dir / "scripts" / "bash").mkdir(parents=True)
+        (skill_dir / "assets" / "templates" / "email").mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(create_skill_md())
+        (skill_dir / "scripts" / "bash" / "run.sh").write_text("echo hello")
+        (skill_dir / "assets" / "templates" / "email" / "welcome.txt").write_text("Hi")
+
+        sandbox = CannedSandbox.returning(ExecResult(True, 0, "", ""))
+        await install_skills([skill_dir], sandbox=sandbox, dir="/skills")
+
+        assert sorted(sandbox.written) == [
+            "/skills/test-skill/SKILL.md",
+            "/skills/test-skill/assets/templates/email/welcome.txt",
+            "/skills/test-skill/scripts/bash/run.sh",
+        ]
 
 
 class TestSkillParsing:
@@ -682,7 +715,9 @@ class _FileSandbox(CannedSandbox):
             self.owners.pop(cmd[-1], None)
         return ExecResult(True, 0, "", "")
 
-    async def write_file(self, file: str, contents: str | bytes) -> None:
+    async def write_file(
+        self, file: str, contents: str | bytes, *, user: str | None = None
+    ) -> None:
         await anyio.lowlevel.checkpoint()
         await super().write_file(file, contents)
         self.files[file] = contents.encode() if isinstance(contents, str) else contents
@@ -719,7 +754,9 @@ class _BlockingSandbox(_FileSandbox):
         for cmd in self.late_cmds:
             self._answer(cmd, None)
 
-    async def write_file(self, file: str, contents: str | bytes) -> None:
+    async def write_file(
+        self, file: str, contents: str | bytes, *, user: str | None = None
+    ) -> None:
         if self.stage == "write" and self.block:
             try:
                 await self._block(file)
@@ -758,7 +795,9 @@ class _CountingLocalSandbox(LocalSandboxEnvironment):
         super().__init__()
         self.written: list[str] = []
 
-    async def write_file(self, file: str, contents: str | bytes) -> None:
+    async def write_file(
+        self, file: str, contents: str | bytes, *, user: str | None = None
+    ) -> None:
         self.written.append(file)
         await super().write_file(file, contents)
 
@@ -1048,7 +1087,9 @@ class TestSkillToolStateScope:
         class FailingSandbox(_FileSandbox):
             fail = True
 
-            async def write_file(self, file: str, contents: str | bytes) -> None:
+            async def write_file(
+                self, file: str, contents: str | bytes, *, user: str | None = None
+            ) -> None:
                 if self.fail:
                     self.fail = False
                     self.files[file] = b"part"

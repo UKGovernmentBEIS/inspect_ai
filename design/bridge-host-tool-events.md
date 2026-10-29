@@ -3,6 +3,29 @@
 Status: proposed, 2026-09-15. Issue: none (task from Ransom). Author: agent
 (Claude), reviewed by Codex; see the PR.
 
+As built (PR C, #5741), these points differ from the text below; Ransom
+confirmed each on 2026-10-07. Output truncation: #5654 had already made
+bridged results follow `truncate_tool_output`, including the native 16 KiB
+default, which supersedes the explicit-limits-only decision; PR C records the
+result as delivered and changes no limit. Argument checks: the depth bound
+runs before the grant check, but schema validation still runs after it, as on
+`main`, so an unproposed call with invalid arguments is denied, and a proposed
+one consumes its grant and pairs with its proposal. The large-argument test
+sends a request near the proxy's 50 MiB body cap (about 135 MiB at the service
+for non-ASCII text) instead of 120 MiB, which the proxy rejects, and bounds
+peak Python heap growth with `tracemalloc` rather than process RSS. ACP's
+sub-agent filter also places events by their `span_id`, so an execution
+recorded in a sub-agent span that has already closed stays filtered. Two
+items listed under "Not this design" were done after review: the ACP card
+synthesised for a proposal becomes cancelable once its host execution's
+`ToolEvent` arrives, and the eviction warning says what an evicted grant
+loses. Exempt-server pairing is first come, first served (Ransom,
+2026-10-14): an unproposed call on a `require_proposal=False` server with the
+same arguments as a pending proposal consumes its grant and takes its id, and
+the proposed call then runs with a fresh id and `grant: "exempt"`. Execution
+is unaffected. The bridge docs state this limitation, a test pins it, and the
+matching is unchanged.
+
 All `path:line` references are to `main` at `472cf7dd2` (2026-09-22, which
 includes #5464) unless a different tree is named. Viewer references are to
 the `ts-mono` submodule at the commit that tree pins (`02f2c5ad`), under
@@ -517,17 +540,22 @@ Capturing the proposing event's span, in `bridge_generate`
 
 - When the bridge has a `model_event_sink`, `bridge_generate` wraps it for
   the `model.generate()` call in a `_SpanCapturingSink` (private, in
-  `util.py`) that forwards `on_pending` and `on_complete` to the inner sink
-  and, after `on_complete`, remembers `event.span_id`. The sink protocol is
-  not widened and the inner sink is unaware. When the bridge has no sink,
+  `util.py`) that forwards `on_start` (when the inner sink has one),
+  `on_pending` and `on_complete` to the inner sink and, after `on_complete`,
+  remembers `event.span_id`. The inner sink is unaware. When the bridge has no sink,
   nothing is installed (installing one would disable partial-output
   publishing, `_model.py:1394-1401`); the `ModelEvent` was stamped with
   `current_span_id()` in this same task.
 - After approval, `register_tool_execution_grants(calls, declarations,
   span_id=captured)`, `declarations` being the `[*tools, *declared_in_input(...)]`
   list #5428 builds today, where `captured` is the remembered span if it
-  differs
-  from `current_span_id()` at that moment, else `None`. Storing only a
+  differs from `current_span_id()` at the sink's `on_pending` and at its
+  `on_complete`, else `None`. When the sink's `on_start` named another span,
+  the generation runs under it, so `current_span_id()` in those callbacks is
+  that span: the wrapper then compares against the span current when
+  `on_start` was called, and a span equal to the `on_start` span is captured. The comparison is made in the callbacks, not at
+  registration: a checkpoint can rotate while the calls await approval, and
+  the earlier checkpoint span is not a sink's choice. Storing only a
   differing span keeps executions under the checkpointer's rotating
   `checkpoint N` span when no re-attribution happened: a stored checkpoint
   id would otherwise pin a later execution under a span that has since
@@ -849,8 +877,13 @@ the `ToolEvent` docstring and in `docs/agent-bridge.qmd`.
   `checkpoint N` span via the shared `_SpanCell`
   (`src/inspect_ai/util/_span.py:135-152`,
   `src/inspect_ai/util/_checkpoint/checkpointer_impl.py:293`).
-- `ModelEventSink` is not widened. The bridge's private wrapper reads the
-  span the sink assigned; the sink neither sees tool events nor needs to.
+- `ModelEventSink`'s tool-event surface is not widened (its optional
+  `on_start` names the span a generation runs under; see the protocol's
+  docstring). The bridge's private wrapper reads the span the sink assigned; the sink neither sees tool events nor needs to.
+  The span is read when `on_complete` returns, so a sink must assign it by
+  then. The host `ToolEvent` is emitted at once; a span assigned later, or a
+  `ModelEvent` the sink holds back and emits later, is not coordinated with
+  it. Both known sinks assign the span synchronously.
 - `use_model_event_sink` is not active in the `call_tool` task, so a host
   tool that itself calls a model records its `ModelEvent` directly under the
   tool span, which is where a native tool's nested generation goes.
@@ -1490,8 +1523,9 @@ together with the Python change, as cross-repo PRs normally do.
   (`_call_tools.py:406-417`), the bridge path never does, and `ReviewEvent`s
   are therefore absent for host calls. Covering them means running the
   reviewer at the execution edge in `host_tool.py`, before the result is
-  returned to the scaffold, and deciding what `terminate` (the sample ends
-  through `bridge.request_fail`, as approval termination does) and
+  returned to the scaffold, and deciding what `terminate` (raise
+  `TerminateSampleError`, which the sandbox service dispatcher answers and
+  propagates to end the sample, as approval termination does) and
   `escalate` mean over the RPC. This design gives it the `ToolEvent` a
   `ReviewEvent` pairs with; it is a natural companion to the
   unconditional-grants follow-up.

@@ -5,7 +5,6 @@ from contextlib import ExitStack, asynccontextmanager
 from copy import copy
 from dataclasses import dataclass, replace
 from typing import (
-    TYPE_CHECKING,
     Any,
     AsyncIterator,
     Awaitable,
@@ -19,18 +18,6 @@ from typing import (
 import anyio
 from anyio.abc import TaskGroup
 from typing_extensions import Unpack
-
-from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
-from inspect_ai._util._async import Wake
-from inspect_ai._util.environ import environ_vars
-from inspect_ai._util.file import cleanup_s3_sessions
-from inspect_ai._util.task import task_display_name
-from inspect_ai._util.trace import trace_action
-from inspect_ai.util._anyio import inner_exception
-from inspect_ai.util._checkpoint import CheckpointConfig
-
-if TYPE_CHECKING:
-    from inspect_sentinel._integration import Sentinels
 
 from inspect_ai._control.eval_state import (
     clear_eval_retry_pending,
@@ -62,11 +49,21 @@ from inspect_ai._display.core.display import (
     TaskScreen,
     TaskSpec,
 )
+from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
 from inspect_ai._eval.task.scan import Scanners
-from inspect_ai._sentinel._config import resolve_sentinel_root, sentinel_config
+from inspect_ai._sentinel._config import (
+    Sentinels,
+    resolve_sentinel_root,
+    sentinel_config,
+)
+from inspect_ai._util._async import Wake, unwrap_exception_group
+from inspect_ai._util.environ import environ_vars
 from inspect_ai._util.error import PrerequisiteError, exception_message
 from inspect_ai._util.exception import TaskRetryAbandonedError
+from inspect_ai._util.file import cleanup_s3_sessions
 from inspect_ai._util.path import chdir
+from inspect_ai._util.task import task_display_name
+from inspect_ai._util.trace import trace_action
 from inspect_ai.approval._policy import ApprovalPolicy, config_from_approval_policies
 from inspect_ai.dataset._dataset import Dataset, Sample
 from inspect_ai.log import EvalConfig, EvalLog
@@ -81,6 +78,8 @@ from inspect_ai.scorer._reducer import ScoreReducer, reducer_log_names
 from inspect_ai.scorer._reducer.registry import validate_reducer
 from inspect_ai.scorer._scorer import as_scorer_spec
 from inspect_ai.solver._solver import Solver, SolverSpec
+from inspect_ai.util._anyio import inner_exception
+from inspect_ai.util._checkpoint import CheckpointConfig
 from inspect_ai.util._checkpoint._layout import (
     eval_checkpoints_dir_from_config,
 )
@@ -163,7 +162,7 @@ async def eval_run(
     epochs_reducer: list[ScoreReducer] | None = None,
     approval: list[ApprovalPolicy] | None = None,
     review: list[ReviewPolicy] | None = None,
-    sentinel: "Sentinels | None" = None,
+    sentinel: Sentinels | None = None,
     solver: Solver | SolverSpec | None = None,
     scanner: "Scanners | None" = None,
     scan_id: str | None = None,
@@ -823,7 +822,11 @@ async def run_task_retry_attempts(
             # leak them into the module-level registries)
             add_dispatch_waker(wake.set)
             register_task_dispatcher(dispatcher_stats)
-            async with anyio.create_task_group() as tg:
+            # exceptions can escape when debug_errors is True and that's okay
+            async with (
+                unwrap_exception_group("first" if debug_errors else None),
+                anyio.create_task_group() as tg,
+            ):
                 # Run-scoped periodic [Throughput] trace reporter (see
                 # design/model-throughput.md §4). Its own cancel scope: the
                 # dispatch loop below exits by `break` while the task group
@@ -1106,12 +1109,6 @@ async def run_task_retry_attempts(
                 # dispatch complete (only the `break` paths reach here) —
                 # stop the reporter so the task group can exit
                 reporter_scope.cancel()
-        # exceptions can escape when debug_errors is True and that's okay
-        except ExceptionGroup as ex:
-            if debug_errors:
-                raise ex.exceptions[0]
-            else:
-                raise
         finally:
             remove_dispatch_waker(wake.set)
             remove_task_dispatcher(dispatcher_stats)

@@ -164,7 +164,7 @@ Note if a provider's `config_files()` method returns `compose.yaml` in its list,
 If a provider is docker compatible, then the `config` argument passed to it's method may be one of the following (in addition to whatever native configuration the provider supports):
 
 1.  A path to a `Dockerfile`
-2.  A path to a `compose.yaml` file.
+2.  A path to a Compose file with a filename recognized by `is_compose_yaml()`, such as `compose.yaml` or `task-compose.yaml`.
 3.  An instance of the `ComposeConfig` class.
 
 These input for `config` might be handled as follows:
