@@ -801,6 +801,14 @@ def _awaiting(
     return events
 
 
+def _waiting(bridge: AgentBridge) -> int:
+    return sum(
+        not entry.settled
+        for calls in bridge._awaited_results.values()
+        for entry in calls.values()
+    )
+
+
 def _same_calls(*call_ids: str) -> ChatMessageAssistant:
     return ChatMessageAssistant(
         content="",
@@ -844,7 +852,7 @@ async def test_ambiguous_host_results_stay_unlinked(ambiguity: str) -> None:
     await scaffold.request([task, reply, _result("call_1")])
 
     assert all(event.message_id is None for event in events)
-    assert not scaffold.bridge._awaited_results
+    assert _waiting(scaffold.bridge) == 0
 
 
 async def test_host_results_pair_by_call_id_when_the_scaffold_reorders_calls() -> None:
@@ -878,22 +886,64 @@ async def test_host_results_of_calls_sharing_an_id_stay_unlinked() -> None:
     await scaffold.request([task, reply, _result("call_1")])
 
     assert [event.message_id for event in events] == [None, None]
-    assert not scaffold.bridge._awaited_results
 
 
-async def test_dropped_host_results_stop_waiting() -> None:
-    """A result the scaffold went on without stops waiting."""
-    task = ChatMessageUser(content="List the files.")
-    reply = _call("call_1")
+async def test_host_results_with_changed_arguments_stay_unlinked() -> None:
+    """A copy that keeps the call ids but swaps the arguments identifies neither call."""
+    task = ChatMessageUser(content="Read a.txt and b.txt.")
+    reply = ChatMessageAssistant(
+        content="",
+        tool_calls=[
+            ToolCall(id="call_a", function="bash", arguments={"cmd": "cat a.txt"}),
+            ToolCall(id="call_b", function="bash", arguments={"cmd": "cat b.txt"}),
+        ],
+    )
     scaffold = _Scaffold(AgentBridge(AgentState(messages=[task])))
     await scaffold.request([task], reply)
-    [event] = _awaiting(scaffold.bridge, reply)
+    events = [
+        *_awaiting(scaffold.bridge, reply, index=0),
+        *_awaiting(scaffold.bridge, reply, index=1),
+    ]
 
-    await scaffold.request([task, reply, ChatMessageAssistant(content="Done.")])
-    await scaffold.request([task, reply, _result("call_1")])
+    swapped = reply.model_copy(deep=True)
+    assert swapped.tool_calls is not None
+    first, second = swapped.tool_calls
+    first.arguments, second.arguments = second.arguments, first.arguments
+    await scaffold.request(
+        [task, swapped, _result("call_a", "B"), _result("call_b", "A")]
+    )
 
-    assert event.message_id is None
-    assert not scaffold.bridge._awaited_results
+    assert [event.message_id for event in events] == [None, None]
+
+
+@pytest.mark.parametrize("delay", ["split-parallel", "later-result"])
+async def test_host_results_sent_late_still_link(delay: str) -> None:
+    """A call keeps waiting while the scaffold sends other results, or goes on, without its own."""
+    task = ChatMessageUser(content="Read a.txt and b.txt.")
+    reply = ChatMessageAssistant(
+        content="",
+        tool_calls=[
+            ToolCall(id="call_a", function="bash", arguments={"cmd": "cat a.txt"}),
+            ToolCall(id="call_b", function="bash", arguments={"cmd": "cat b.txt"}),
+        ],
+    )
+    scaffold = _Scaffold(AgentBridge(AgentState(messages=[task])))
+    await scaffold.request([task], reply)
+    [event_a] = _awaiting(scaffold.bridge, reply, index=0)
+    [event_b] = _awaiting(scaffold.bridge, reply, index=1)
+
+    if delay == "split-parallel":
+        first = await scaffold.request([task, reply, _result("call_a", "A")])
+        assert (event_a.message_id, event_b.message_id) == (first[2], None)
+    else:
+        await scaffold.request([task, reply, ChatMessageAssistant(content="Working.")])
+        assert (event_a.message_id, event_b.message_id) == (None, None)
+    ids = await scaffold.request(
+        [task, reply, _result("call_a", "A"), _result("call_b", "B")]
+    )
+
+    assert (event_a.message_id, event_b.message_id) == (ids[2], ids[3])
+    assert _waiting(scaffold.bridge) == 0
 
 
 def test_host_results_waiting_are_capped() -> None:

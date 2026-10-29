@@ -89,12 +89,12 @@ class ToolEvent(BaseEvent):
     scaffold, the result reaches the conversation only when the scaffold sends
     it back, so this is set then, on the completed event: the tool message
     after the reply handed to the scaffold that answers the call. It stays
-    `None` until then, and for good if the scaffold goes on without the
-    result, the sample resumes from a checkpoint first, the call can't be told
-    apart from another call in the reply the scaffold sends back (the same
-    call id, or in Google the same function and arguments), the call executed
-    more than once, more than one tool message answers it, or more than 256
-    host calls are waiting for their results.
+    `None` until then, and for good if the scaffold never sends the result,
+    the sample resumes from a checkpoint first, the reply the scaffold sends
+    back doesn't identify the call (exactly one call with its id, function and
+    arguments, or in Google its function and arguments), the call executed more
+    than once, more than one tool message answers it, or 256 later host calls
+    are tracked before its result arrives.
     """
 
     call_message_id: str | None = Field(default=None)
