@@ -1922,6 +1922,63 @@ def test_a_legacy_check_names_its_call_s_message_after_condensing(
     ]
 
 
+def test_a_pending_legacy_check_hashes_a_shared_last_message_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # self-review after Ransom's ninth review: while a check's other keys
+    # stay pending, each call inferred not a turn looked its last message up
+    # by content, hashing a pool row as often as inputs ended on it
+    from inspect_ai.event._pool import _msg_hash
+
+    def hashes(calls: int) -> int:
+        big = ChatMessageUser(content="x" * 1000, id="big")
+        events: list[Event] = [
+            SpanBeginEvent(id="agent", name="agent", type="agent"),
+            SpanBeginEvent(
+                id="check", name="probe", type="sentinel", parent_id="agent"
+            ),
+            SentinelEvent(
+                factory="probe",
+                path="probe",
+                function="check",
+                step_id="big:1",
+                conversation="agent",
+                stage="model_input",
+                kind="observation",
+                status="reported",
+                suspicion=0.1,
+                span_id="check",
+            ),
+            SpanEndEvent(id="check"),
+        ]
+        for n in range(calls):
+            events += [
+                SpanBeginEvent(id=f"t{n}", name="f", type="tool", parent_id="agent"),
+                linked_call(f"m{n}", f"t{n}", [big], f"Done {n}.", None),
+                SpanEndEvent(id=f"t{n}"),
+            ]
+        events.append(SpanEndEvent(id="agent"))
+        count = 0
+
+        def counted(message: ChatMessage) -> str:
+            nonlocal count
+            count += 1
+            return _msg_hash(message)
+
+        with monkeypatch.context() as patch:
+            patch.setattr("inspect_ai._sentinel._replay._msg_hash", counted)
+            steps_from_events(
+                [],
+                events,
+                [],
+                sample_uuid="sample",
+                eval_info=EvalInfo(inspect_ai_version="0.3.200", sentinel=True),
+            )
+        return count
+
+    assert hashes(100) == hashes(200) <= 4
+
+
 def test_a_fork_at_the_end_without_phase_spans_keeps_the_final_messages_call() -> None:
     # Ransom's fifth review B5: in a log without phase spans the timeline's
     # root is a synthetic span around the agent's; the final messages, which

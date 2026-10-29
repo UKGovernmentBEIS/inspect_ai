@@ -439,6 +439,8 @@ class _Driver:
         self._assistants: dict[str, tuple[ChatMessageAssistant, ToolCall]] | None = None
         self._messages_by_id: dict[str, ChatMessage] | None = None
         self._last_by_id: dict[str, ChatMessage] | None = None
+        # id() of a message -> its content key (`_msg_hash`)
+        self._contents: dict[int, str] = {}
         # the origins of model calls the log records none for, by id()
         self._inferred: dict[int, str] | None = None
         # the uuids of the model calls made outside sentinel spans
@@ -653,7 +655,7 @@ class _Driver:
         input = self._input(event)
         names: list[object] = [("id", event.uuid)]
         if len(input):
-            names += [("id", input[-1].id), ("message", _msg_hash(input[-1]))]
+            names += [("id", input[-1].id), ("message", self._content(input[-1]))]
         for name in names:
             self.taken.update(keys.pop(name, []))
 
@@ -666,8 +668,15 @@ class _Driver:
             keys.append(("id", name))
             message = self._named_message(name)
             if message is not None:
-                keys.append(("message", _msg_hash(message)))
+                keys.append(("message", self._content(message)))
         return keys
+
+    def _content(self, message: ChatMessage) -> str:
+        # by identity: a pool row many inputs end on is hashed once
+        found = self._contents.get(id(message))
+        if found is None:
+            found = self._contents[id(message)] = _msg_hash(message)
+        return found
 
     def _untaken(self, spans: list[str]) -> list[str]:
         return [span for span in spans if span not in self.taken]
