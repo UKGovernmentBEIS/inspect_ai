@@ -13,7 +13,8 @@ new object from that range (`UploadPartCopy`) plus the uploaded tail. The
 result is byte-identical to a whole upload. The prefix comes from the log's
 own previous flush, or, for a seeded retry attempt's first flush, from the
 prior attempt's log. Anything that rewrites the temp file's leading bytes
-clears the prefix, and any failure falls back to a whole upload.
+clears the prefix. A changed compose source or an S3 service error falls
+back to a whole upload; cancellation and other exceptions propagate.
 
 In the test suite a verification mode digests the prefix when it is recorded
 and again before each compose, and fails the flush loudly on a mismatch.
@@ -89,9 +90,10 @@ to EOF, and returns the new ETag:
    re-raises.
 3. Copy the prefix as `UploadPartCopy` parts with
    `CopySourceIfMatch` set to the prefix's ETag, at most 32 at a time. The
-   prefix is split into equal ranges of at most 16 MiB (one part copies at
-   about 50 MB/s, so a large prefix is copied in parallel), using at most
-   5,000 parts. A `PreconditionFailed` or missing-object error raises
+   prefix is split into equal ranges of about 16 MiB (one part copies at
+   about 50 MB/s, so a large prefix is copied in parallel); the part count
+   is capped at 5,000, so beyond about 78 GiB the equal ranges grow past
+   16 MiB. A `PreconditionFailed` or missing-object error raises
    `ComposeSourceChangedError`.
 4. Upload the tail with the same part pipeline the whole-file multipart
    upload uses (`_s3_upload_parts_async`): 8 MiB parts read off the event

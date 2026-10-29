@@ -70,7 +70,11 @@ The seed is restricted to a `keep` set of `(id, epoch)` keys:
 - a dynamic feed without a limit: every prior key that matches the
   explicit sample-id filter, with an epoch within the attempt's epoch
   count, or above both that count and the prior's (epochs only an explicit
-  `enqueue_sample(..., epoch=)` can produce);
+  `enqueue_sample(..., epoch=)` can produce). Epochs above the attempt's
+  count but within the prior's (a retry with fewer epochs) are left out
+  up front; when the feed explicitly admits such an epoch,
+  `TaskLogger.seed_added_samples()` copies its prior record before it is
+  dispatched;
 - a limited dynamic feed: its sliced initial plan. As the feed admits more
   samples under the limit, `TaskLogger.seed_added_samples()` copies their
   prior records before they are dispatched, skipping keys this attempt has
@@ -179,11 +183,12 @@ serializes the reads on its lock) and resolves it with `seed.classify`:
   gets the sample's scores and metadata from the full body, and
   `note_reused_sample()` counts it as this attempt's result. Nothing is
   written.
-- **errored**: a `PreviousError`, so the re-run's `error_retries` continues
-  the prior's history of genuine failures (a cancellation is not counted);
-  a record with no such history runs fresh.
-- **invalidated**: an `InvalidatedPrior`; the re-run starts fresh and
-  discards the sample's copied checkpoint.
+- **errored or cancelled**: resumes from this attempt's checkpoint for the
+  sample when one exists. Otherwise it runs fresh as a `PreviousError`, so
+  the re-run's `error_retries` continues the prior's history of genuine
+  failures (a cancellation is not counted as one).
+- **invalidated**: an `InvalidatedPrior`; never resumes. The re-run starts
+  fresh and discards the sample's copied checkpoint.
 - **absent**: checkpoint resume if one exists, else a fresh run.
 
 The body is read rather than the summary because summaries are thinned when
