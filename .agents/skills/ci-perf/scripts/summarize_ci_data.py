@@ -242,7 +242,7 @@ def render(summary: dict[str, Any]) -> str:
         f"Source: {summary['repo']}. Collected: {summary['generated_at']}.",
         f"Window: {window['start']} to {window['end']} ({window['hours']}h), {window['runs']} runs.",
         overlap_line(window),
-        f"Excluded from the run budget: {window['excluded_untrusted_runs']} untrusted head repository, {window['excluded_action_required_runs']} never-started (action_required).",
+        f"Excluded from the run budget: {window['excluded_untrusted_runs']} runs from untrusted head repositories, {window['excluded_action_required_runs']} never-started (action_required) runs.",
         f"Runner minutes: {summary['runner_minutes']} ({summary['rerun_runner_minutes']} from re-run attempts). Cancelled-run runner minutes: {summary['cancelled_runner_minutes']}. Missing or invalid job timings: {summary['unavailable_job_timings']}. Unstarted (never got a runner) jobs: {summary['unstarted_jobs']}. Re-run runs out of wall/wait: {summary['rerun_runs']}. None means unavailable, not zero.",
         "",
         f"Excluded missing or inverted observations: workflow wall {summary['excluded_timings']['workflow_wall']}, job wait {summary['excluded_timings']['job_wait']}, steps {summary['excluded_timings']['step']}.",
