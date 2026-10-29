@@ -334,6 +334,18 @@ def _model_graded_qa_single(
                 # protocol deviation, not evidence about the submission, so it
                 # is a scoring failure rather than an incorrect answer.
                 value = None
+            if (
+                value is not None
+                and validate_offered_grades
+                and match is not None
+                and _trailing_verdict_disagrees(result.completion, match.end(), value)
+            ):
+                # The matched verdict is not the grader's last word: a final
+                # verdict in a form the pattern does not read (e.g. "Grade - I",
+                # "GRADE -> I") gives a different grade. Scoring the earlier
+                # mention would let it win over that final verdict, so this is a
+                # parse failure.
+                value = None
         if value is not None:
             return Score(
                 value=value,
@@ -492,6 +504,45 @@ actually offered (see ``model_graded_qa``).
 _PERMISSIVE_GRADE_PATTERN = (
     rf"(?is).*{_GRADE_LEAD_IN}{_GRADE_SPACING}{_GRADE_VERDICT_OPEN}(\w*)"
 )
+
+
+# A line that is a verdict in a form the default pattern does not read: it
+# starts with "GRADE" (after optional markdown or an HTML tag), then a
+# separator such as "-", "->", an em dash, a short parenthetical or a closing
+# tag, then a single word that ends the line ("Grade - I", "GRADE (final): I",
+# "<b>GRADE</b>: I"). Mentions inside a sentence are prose and never match.
+# Every part is bounded and adjacent parts start with different characters, so
+# matching stays linear in the reply length.
+_TRAILING_VERDICT_RE = re.compile(
+    r"^[ \t]*(?:(?:[*_#>`]{1,6}|<[a-z]{1,6}>)[ \t]*){0,3}"
+    r"GRADE(?!\w)"
+    r"(?P<sep>(?:[ \t]*(?:</?[a-z]{1,6}>|\([^()\n]{0,20}\))){0,3}"
+    r"[ \t]*[^\w\s<(]{0,4}[ \t]*)"
+    r"(?P<grade>[a-z]{1,12})"
+    r"(?:[ \t*_`)\].!]|</[a-z]{1,6}>){0,8}$",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def _trailing_verdict_disagrees(completion: str, start: int, value: str) -> bool:
+    """Whether the last verdict line after `start` gives a grade other than `value`.
+
+    Only the last such line counts, so a verdict the grader corrects later
+    ("Grade - I" then "Grade - C") keeps the corrected grade. A word that is
+    not a grade ("GRADE - Z") disagrees, as it does in the matched verdict. A
+    separator made only of whitespace is ordinary prose, not a verdict.
+    """
+    last = None
+    for found in _TRAILING_VERDICT_RE.finditer(completion, start):
+        if found.group("sep").strip():
+            last = found
+    if last is None:
+        return False
+    word = last.group("grade")
+    grade = _GRADE_WORD_VALUES.get(
+        word.lower(), word.upper() if len(word) == 1 else None
+    )
+    return grade != value
 
 
 def chat_history(state: TaskState) -> str:
