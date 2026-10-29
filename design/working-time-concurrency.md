@@ -266,16 +266,18 @@ sample keeps the start time of the oldest open wait and the work spans
 
 ## Limits and logged durations
 
-- **Scoped limits.** A `working_limit()` node keeps its own start time (and
-  end time, once exited). Its `usage` is `(end_or_now - start) -
-  waiting(start, end_or_now)`: the waits inside the node's own interval,
-  computed when it is read, so it always lies in `[0, elapsed]` and picks
-  up late additions. A difference of readings saved at entry would be
-  wrong: if an attempt runs 0–8, a scope starts at 5, and the attempt is
-  then classified as retried (adding `[0, 8]`), at 10 the sample's working
-  time is 2 and the value saved at entry is 5, so the difference would be
-  −3; the interval formula gives `5 - 3 = 2`. Outside a running sample
-  there is no clock, and a scoped limit measures wall-clock time.
+Working time excludes the known waits not covered by known work, and every
+duration and limit reads it from the one sample-wide timeline over its own
+interval. The exact offsets each producer records are defined by the code
+([`_util/working.py`](../src/inspect_ai/_util/working.py) and the producers
+named below), not here.
+
+- **Scoped limits.** A `working_limit()` node's `usage` is its elapsed time
+  minus the sample's waiting time over the node's own interval, computed
+  when it is read. It therefore lies in `[0, elapsed]` and picks up waits
+  recorded after the fact, such as a retried attempt that began before the
+  node was entered. Outside a running sample a scoped limit measures
+  wall-clock time.
 - **Monitor.** `monitor_working_limit` checks the sample's working limit
   once a second. An open wait stops the clock in real time, so no wait is
   credited in advance. The pause gate keeps a tick loop only to bound how
@@ -283,79 +285,41 @@ sample keeps the start time of the oldest open wait and the work spans
 - **Attempts in flight.** An attempt in flight is charged until it is known
   to have been retried, so a limit can trip during an attempt that is later
   retried.
-- **Event durations.** `ToolEvent` and `SubtaskEvent` working times use the
-  same interval formula. Each producer keeps its start time on the sample
-  clock and sets the event's working time from
-  `sample_working_time_since(start)`, which reads elapsed and waiting time
-  over one window, so the result lies in `[0, now - start]`.
-  `ToolEvent._set_result` takes that `working_time` directly. The producers
-  are the tool-stage completion and cancellation paths in
+- **Event durations.** `ToolEvent` and `SubtaskEvent` working times are the
+  sample-wide working time over the event's interval
+  (`sample_working_time_since()`), read when the event completes. A held
+  call's interval is excluded only where no other known work covers it, so
+  a tool call held for its approval while a sibling tool runs records that
+  time as working, and a retried attempt classified after the event is
+  published does not change it. The producers are the tool-stage paths in
   [`model/_call_tools.py`](../src/inspect_ai/model/_call_tools.py), the
-  bridged host tool call, and the subtask in
-  [`util/_subtask.py`](../src/inspect_ai/util/_subtask.py). An event's
-  duration uses the waits and work known when the event completes; a
-  retried attempt classified after that does not change an event that is
-  already published. Event durations measure sample-wide working time over
-  each event's interval: a held call's interval is excluded only where no
-  other known work covers it, so a tool call held for its approval while a
-  sibling tool runs records that time as working.
-- **`working_start`** of an event is the sample's working time at the
-  event's creation (`sample_working_time()`), prior attempts included once
-  they are restored (see "Resume accounting"). The init span's events and
-  `SampleInitEvent` are created before the attempt's sample clock starts.
-  On a first attempt no timing state is bound, so they get the raw
-  monotonic time. When an attempt is retried after an error, the next
-  attempt runs in the same task, so they read the preceding attempt's
-  timing, including its restored prior usage, until
-  `init_sample_working_time()` resets it.
-- **Logged `EvalSample.working_time`** is the attempt's elapsed time minus
-  `sample_waiting_time(start, end)`.
+  bridged host tool call and the subtask in
+  [`util/_subtask.py`](../src/inspect_ai/util/_subtask.py).
+- **Event offsets.** An event's `working_start` is a reading of the
+  sample's working time (`sample_working_time()`), prior attempts included
+  once they are restored.
+- **Logged `EvalSample.working_time`** is the current attempt's elapsed
+  time minus its waiting time.
 
 ## Resume accounting
 
-The checkpoint code ([`util/_checkpoint/sample_runtime.py`](../src/inspect_ai/util/_checkpoint/sample_runtime.py))
-keeps three things apart:
+A checkpoint carries the prior attempts' wall time and working time
+([`util/_checkpoint/sample_runtime.py`](../src/inspect_ai/util/_checkpoint/sample_runtime.py)),
+and restore adds them back:
 
-- Event offsets are cumulative once the prior attempts are restored.
-- Logged durations cover only the current attempt.
-- Prior usage counts toward enforcement only on a normal resume.
+- Event offsets include the prior attempts' working time.
+- Logged durations, `EvalSample.working_time` included, cover only the
+  current attempt.
+- Prior working time counts toward the root `working_limit` only on a
+  normal resume; a resume for scoring enforces nothing already spent.
 
-`P_wall` and `P_work` are the prior attempts' wall time and working time.
-`A(t)` is the current attempt's working time, measured from the sample
-clock's start, which comes before the checkpointer awaits hydration.
-`r` is the sample-clock time at which the root `working_limit` node is
-entered, and `t` is now, or the node's end time once it has exited. Root
-usage is computed over the node's own interval, like any scoped limit, not
-as a difference of readings, since late waits can change the working time
-before `r` (see "Limits and logged durations").
-
-| Quantity | Formula |
-| --- | --- |
-| `working_start` of events created after restore | `P_work + A(t)` |
-| Logged `EvalSample.working_time` | `A(end)` |
-| Root node `usage`, normal resume (`check=True`) | `P_work + (t - r) - waiting(r, t)` |
-| Root node `usage`, scoring resume (`check=False`) | `(t - r) - waiting(r, t)` |
-| Dump `sample_elapsed` | `P_wall` plus this attempt's elapsed time, measured from the sample clock's start |
-| Dump `working_elapsed` / `working_waiting` | `P_work + A(t)` / `sample_elapsed - working_elapsed` |
-
-`sample_elapsed` exists because `time_elapsed` comes from the time-limit
-node, whose origin restore resets after hydration, so it misses the time an
-attempt spends before restore: with 5 s from earlier attempts, 10 s before
-restore and 2 s after, it reads 7 instead of 17.
-
-`P_work` reaches events only from the restore on, which runs after
-hydration: an event created while the checkpointer hydrates keeps its
-attempt-local offset `A(t)`, and earlier events are not rebased.
-
-Restore reads:
-
-- **`P_wall`** from `sample_elapsed` if present, otherwise `time_elapsed`,
-  otherwise `working_elapsed + working_waiting`, otherwise 0, and not below
-  0.
-- **`P_work`** from `working_elapsed`, clamped to `[0, P_wall]`, since
-  snapshots from older versions can hold negative values.
-
-`time_elapsed` and `time_limit` enforcement are separate from this.
+The checkpoint stores `sample_elapsed` (wall time of every attempt, from
+the sample clock's start, so it includes time spent before restore),
+`working_elapsed` and `working_waiting`. Restore falls back to the fields
+older checkpoints carry when `sample_elapsed` is missing, and clamps the
+prior working time to `[0, prior wall time]`, since older snapshots can
+hold negative values. `time_elapsed` and `time_limit` enforcement are
+separate from this.
 
 ## Accepted limitations
 
@@ -414,13 +378,13 @@ say so.
   above.
 - **Checkpoints.** The `sample_elapsed` key is the only addition to the
   checkpoint payload; older versions ignore it, and restore reads older
-  payloads through the fallbacks under "Resume accounting".
+  payloads through the fallbacks described under "Resume accounting".
 
 ## Security
 
 No parser of untrusted data is involved. The checkpoint payload is read by
 `_prior_attempts()`, which keeps the prior wall time non-negative and
-clamps the prior working time to `[0, P_wall]`. Model
+clamps the prior working time to `[0, prior wall time]`. Model
 output and a sandboxed agent can affect working time only through timing:
 by provoking retryable failures, which count as waiting, or by working
 unseen while a wait is open (see "Accepted limitations"). Both lengthen the
