@@ -12,7 +12,11 @@ from inspect_ai.event._approval import ApprovalEvent
 from inspect_ai.event._compaction import CompactionEvent
 from inspect_ai.event._event import Event
 from inspect_ai.event._model import ModelEvent
-from inspect_ai.event._pool import _build_msg_index, condense_model_event_inputs
+from inspect_ai.event._pool import (
+    _build_msg_index,
+    _msg_hash,
+    condense_model_event_inputs,
+)
 from inspect_ai.event._sentinel import SentinelEvent, SentinelStage
 from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
 from inspect_ai.event._step import StepEvent
@@ -114,11 +118,26 @@ def steps_from_events(
         )
     flat, nested = _flatten(events)
     pool: list[ChatMessage] | Sequence[ChatMessage] = message_pool
+    # the last messages of expanded inputs, whose ids condensing can drop
+    last_messages: list[ChatMessage] = []
     if any(isinstance(e, ModelEvent) and e.input_refs is None for e in flat):
+        last_messages = [
+            e.input[-1]
+            for e in flat
+            if isinstance(e, ModelEvent) and e.input_refs is None and e.input
+        ]
         events, pool = _condensed(events, message_pool)
         flat, nested = _flatten(events)
     return _Driver(
-        messages, flat, nested, pool, sample_uuid, eval_info, timeline, human_approvers
+        messages,
+        flat,
+        nested,
+        pool,
+        sample_uuid,
+        eval_info,
+        timeline,
+        human_approvers,
+        last_messages,
     ).steps()
 
 
@@ -382,8 +401,10 @@ class _Driver:
         eval_info: EvalInfo,
         timeline: Timeline | None,
         human_approvers: Sequence[str],
+        last_messages: Sequence[ChatMessage] = (),
     ) -> None:
         self.messages = messages
+        self.last_messages = last_messages
         self.events = events
         self.nested = nested
         self.pool = pool
@@ -398,6 +419,11 @@ class _Driver:
         # (stage, step id) -> the sentinel span of the step
         self.step_spans: dict[tuple[SentinelStage, str], str] = {}
         self.span_events: dict[str, list[SentinelEvent]] = {}
+        # model_input sentinel spans not yet given a turn, by conversation and
+        # by what their step id can name (`_check_keys`); and those taken by
+        # a call inferred not a turn
+        self.check_keys: dict[str, dict[object, list[str]]] = {}
+        self.taken: set[str] = set()
         # the sentinel spans whose invocation raised or was cancelled
         self.failed: set[str] = set()
         self.records: dict[str, ConversationRecord] = {}
@@ -412,6 +438,7 @@ class _Driver:
         self._producers: dict[int, Producer] = {}
         self._assistants: dict[str, tuple[ChatMessageAssistant, ToolCall]] | None = None
         self._messages_by_id: dict[str, ChatMessage] | None = None
+        self._last_by_id: dict[str, ChatMessage] | None = None
         # the origins of model calls the log records none for, by id()
         self._inferred: dict[int, str] | None = None
         # the uuids of the model calls made outside sentinel spans
@@ -460,7 +487,7 @@ class _Driver:
                 if not is_agent_turn(self._origin(event)):
                     if event.origin is None:
                         inferred_other.add(event.uuid)
-                        self._take_checks(event, candidates)
+                        self._take_checks(event)
                     continue
                 turn_ids.add(event.uuid)
                 conversation = self._conversation(event)
@@ -478,8 +505,9 @@ class _Driver:
                         [(index, event)],
                         last_turn.get(conversation, -1),
                         self._next_seq(2),
-                        candidates.pop(conversation, []),
+                        self._untaken(candidates.pop(conversation, [])),
                     )
+                    self.check_keys.pop(conversation, None)
                     generates.append(group)
                 if event.error is not None:
                     open_generates[attempt_key] = group
@@ -551,6 +579,9 @@ class _Driver:
         self.step_spans[key] = span
         if event.stage == "model_input":
             candidates.setdefault(event.conversation, []).append(span)
+            keys = self.check_keys.setdefault(event.conversation, {})
+            for name in self._check_keys(event.step_id):
+                keys.setdefault(name, []).append(span)
 
     def _check_generated(self, candidates: dict[str, list[str]]) -> None:
         # a model_input step without its model call (a sentinel ended the
@@ -573,7 +604,7 @@ class _Driver:
             left = {
                 self.span_events[span][0].step_id
                 for spans in candidates.values()
-                for span in spans
+                for span in self._untaken(spans)
             }
             orphans = [
                 step_id
@@ -590,24 +621,49 @@ class _Driver:
             )
 
     def _names_message(self, step_id: str) -> bool:
-        return any(self._message_by_id(name) is not None for name in _names(step_id))
+        return any(self._named_message(name) is not None for name in _names(step_id))
 
-    def _take_checks(self, event: ModelEvent, candidates: dict[str, list[str]]) -> None:
+    def _named_message(self, message_id: str) -> ChatMessage | None:
+        # also the last message of an expanded input, under the id it was
+        # sent with, which condensing can drop
+        if self._last_by_id is None:
+            self._last_by_id = {
+                message.id: message
+                for message in self.last_messages
+                if message.id is not None
+            }
+        found = self._message_by_id(message_id)
+        return found if found is not None else self._last_by_id.get(message_id)
+
+    def _take_checks(self, event: ModelEvent) -> None:
         # a call inferred not a turn was checked live if a model_input step
         # names it, by its uuid or, before generate ids, by the last message
         # of its input: the step goes with it (and has no step), not with the
         # conversation's next turn
-        conversation = self._conversation(event)
-        spans = candidates.get(conversation)
-        if not spans:
+        keys = self.check_keys.get(self._conversation(event))
+        if not keys:
             return
         input = self._input(event)
-        names = {event.uuid, input[-1].id if len(input) else None} - {None}
-        candidates[conversation] = [
-            span
-            for span in spans
-            if names.isdisjoint(_names(self.span_events[span][0].step_id))
-        ]
+        names: list[object] = [("id", event.uuid)]
+        if len(input):
+            names += [("id", input[-1].id), ("message", _msg_hash(input[-1]))]
+        for name in names:
+            self.taken.update(keys.pop(name, []))
+
+    def _check_keys(self, step_id: str) -> list[object]:
+        # a call's uuid or a message's id, with or without a repeat suffix;
+        # and the content of the message named, which condensing keeps under
+        # the id of an equal message
+        keys: list[object] = []
+        for name in _names(step_id):
+            keys.append(("id", name))
+            message = self._named_message(name)
+            if message is not None:
+                keys.append(("message", _msg_hash(message)))
+        return keys
+
+    def _untaken(self, spans: list[str]) -> list[str]:
+        return [span for span in spans if span not in self.taken]
 
     def _sentinel_span(self, span_id: str | None) -> str | None:
         # the span tree has no cycle (_check_span_tree)

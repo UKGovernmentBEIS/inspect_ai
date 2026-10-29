@@ -1710,6 +1710,60 @@ def test_a_checked_call_recorded_as_a_turn_keeps_its_check(
     ]
 
 
+def checked_m3_after_an_equal_message(
+    check_id: str, later_turn: bool, recorded: bool, inputs: str
+) -> tuple[list[ChatMessage], list[Event], list[ChatMessage]]:
+    """`checked_m3`, m3's input holding before `u3` an equal message under another id, which condensing the inputs keeps in `u3`'s place. `inputs`: "expanded" (no sample messages), or "condensed" (the sample messages holding `u3`): the messages, events and pool."""
+    events: list[Event] = []
+    last: ChatMessage | None = None
+    for event in checked_m3(check_id, later_turn, recorded):
+        if isinstance(event, ModelEvent) and event.uuid == "m3":
+            last = event.input[-1]
+            asked = [
+                *event.input[:-1],
+                last.model_copy(update={"id": "u0"}),
+                ChatMessageAssistant(content="Noted."),
+                last,
+            ]
+            event = event.model_copy(update={"input": asked})
+        events.append(event)
+    assert last is not None
+    if inputs == "expanded":
+        return [], events, []
+    condensed, _, entries = condense_model_event_inputs(events, 0, {})
+    return [last], condensed, [message for _, message in entries]
+
+
+@pytest.mark.parametrize("inputs", ["expanded", "condensed"])
+@pytest.mark.parametrize("later_turn", [True, False])
+@pytest.mark.parametrize("check_id", ["m3", "u3", "u3:1"])
+@pytest.mark.parametrize("recorded", [False, True])
+def test_a_legacy_check_names_its_call_s_message_after_condensing(
+    recorded: bool, check_id: str, later_turn: bool, inputs: str
+) -> None:
+    # Ransom's ninth review B2: condensing keeps one message of those equal
+    # but for their ids, so m3's input ends in the pool row of the earlier
+    # `u0`; a check sentinel 0.1.x identified by `u3` still names m3's input,
+    # by the id m3 was sent with or the sample messages keep
+    messages, events, pool = checked_m3_after_an_equal_message(
+        check_id, later_turn, recorded, inputs
+    )
+    replay = steps_from_events(
+        messages,
+        events,
+        pool,
+        sample_uuid="sample",
+        eval_info=EvalInfo(inspect_ai_version="0.3.200", sentinel=True),
+    )
+
+    assert [s.id for s in replay if s.stage == "model_input"] == [
+        "m1",
+        "m2",
+        *([check_id] if recorded else []),
+        *(["m4"] if later_turn else []),
+    ]
+
+
 def test_a_fork_at_the_end_without_phase_spans_keeps_the_final_messages_call() -> None:
     # Ransom's fifth review B5: in a log without phase spans the timeline's
     # root is a synthetic span around the agent's; the final messages, which
