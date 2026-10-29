@@ -1,4 +1,6 @@
-from typing import Annotated, Literal
+from typing import Annotated, Literal, NoReturn
+from uuid import uuid4
+from weakref import WeakKeyDictionary
 
 from pydantic import BaseModel, Discriminator, Field, RootModel
 
@@ -11,7 +13,6 @@ from inspect_ai.tool._sandbox_tools_utils.sandbox import sandbox_with_injected_t
 from inspect_ai.util import StoreModel, store_as
 from inspect_ai.util._sandbox._cli import SANDBOX_CLI, tools_user_param
 from inspect_ai.util._sandbox._json_rpc_transport import SandboxJSONRPCTransport
-from inspect_ai.util._sandbox.context import sandbox_environments_context_var
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 from inspect_ai.util._sandbox.identity import (
     SandboxIdentityError,
@@ -43,6 +44,18 @@ class BashSessionStore(StoreModel):
     """User of the `sandbox_identity()` scope the session was created in."""
     identity_sandbox: str | None = Field(default=None)
     """Sandbox of the `sandbox_identity()` scope the session was created in."""
+    identity_token: str | None = Field(default=None)
+    """Token of a scoped session in `_scoped_sessions`."""
+
+
+_scoped_sessions: WeakKeyDictionary[SandboxEnvironment, set[str]] = WeakKeyDictionary()
+"""Tokens of the shells created in a `sandbox_identity()` scope, by sandbox.
+
+Held only in process memory, so a scoped session saved in the store is used only
+in the sandbox object that created it. A fresh sandbox of the same name (after a
+checkpoint restore, or in another process) can hold a shell of the same name that
+belongs to another user.
+"""
 
 
 # Action-specific parameter models
@@ -211,8 +224,12 @@ def bash_session(
         sandbox = await sandbox_with_injected_tools()
         session_user = sandbox_identity_user(sandbox, user, strict=True)
         scope = sandbox_identity_scope(sandbox)
+        if store.session_id and not _scoped_session_here(store, sandbox):
+            if action != "restart":
+                _raise_unavailable_session(resolved_instance, store)
+            store.session_id = ""
         if store.session_id:
-            _check_shared_session(resolved_instance, store, sandbox, scope)
+            _check_shared_session(resolved_instance, store, scope)
 
         # Create transport for all RPC calls
         transport = SandboxJSONRPCTransport(sandbox, SANDBOX_CLI)
@@ -237,6 +254,10 @@ def bash_session(
                 raise RuntimeError("Timed out creating new session")
             store.identity = scope.user if scope is not None else None
             store.identity_sandbox = scope.sandbox if scope is not None else None
+            store.identity_token = None
+            if scope is not None:
+                store.identity_token = uuid4().hex
+                _scoped_sessions.setdefault(sandbox, set()).add(store.identity_token)
 
         timing: dict[str, object] = {
             "wait_for_output": wait_for_output,
@@ -275,17 +296,30 @@ def bash_session(
     return execute
 
 
+def _scoped_session_here(store: BashSessionStore, sandbox: SandboxEnvironment) -> bool:
+    """Whether a saved session is unscoped, or a scoped one this sandbox created."""
+    return store.identity_sandbox is None or store.identity_token in (
+        _scoped_sessions.get(sandbox, set())
+    )
+
+
+def _raise_unavailable_session(
+    instance: str | None, store: BashSessionStore
+) -> NoReturn:
+    raise SandboxIdentityError(
+        f"bash_session instance '{instance or 'default'}' was created as "
+        f"'{store.identity}' in sandbox '{store.identity_sandbox}', and that shell "
+        "is not in this sandbox: it was created in another sandbox, or before the "
+        "sandbox was restored. Use the 'restart' action to start a new shell."
+    )
+
+
 def _check_shared_session(
     instance: str | None,
     store: BashSessionStore,
-    sandbox: SandboxEnvironment,
     scope: SandboxIdentityScope | None,
 ) -> None:
-    """Refuse a saved shell created under another sandbox identity.
-
-    A shell created in a scope stays bound to its sandbox after the scope ends:
-    the session name is only meaningful on the server that created it.
-    """
+    """Refuse a saved shell created under another sandbox identity."""
     owner = (
         f"was created as '{store.identity}' in sandbox '{store.identity_sandbox}'"
         if store.identity is not None
@@ -299,11 +333,3 @@ def _check_shared_session(
                 f"'{scope.user}' in sandbox '{scope.sandbox}'. A shell cannot be "
                 "shared between sandbox identities."
             )
-    elif store.identity_sandbox is not None and (
-        sandbox_environments_context_var.get({}).get(store.identity_sandbox)
-        is not sandbox
-    ):
-        raise SandboxIdentityError(
-            f"bash_session instance '{instance or 'default'}' {owner}, so it "
-            "cannot be used in another sandbox."
-        )

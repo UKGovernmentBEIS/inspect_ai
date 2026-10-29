@@ -1,7 +1,8 @@
 """The sandbox tools send the sandbox's default identity unless a user is given."""
 
+import json
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from typing import Any, Callable, cast
 
 import pytest
@@ -401,24 +402,18 @@ async def test_bash_session_cannot_move_to_another_sandbox(
     ]
 
 
-async def test_bash_session_keeps_its_sandbox_after_the_scope(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def _select_by_injection(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Select bash_session()'s sandbox with the real injection code, all injected."""
     from inspect_ai.util._sandbox.context import (
         SandboxInjectable,
         sandbox_with_injection,
     )
-    from inspect_ai.util._store import Store, init_subtask_store
-
-    init_subtask_store(Store())
-    # every new session is named "s", as the first shell in each sandbox would be
-    calls = _patch_module(monkeypatch, bash_session_module)
 
     async def injected(_sandbox: SandboxEnvironment) -> bool:
         return True
 
     async def never_inject(_sandbox: SandboxEnvironment) -> None:
-        raise AssertionError("both sandboxes already have the tools")
+        raise AssertionError("the sandboxes already have the tools")
 
     async def select_sandbox(**_kwargs: Any) -> SandboxEnvironment:
         return await sandbox_with_injection(SandboxInjectable(injected, never_inject))
@@ -426,13 +421,24 @@ async def test_bash_session_keeps_its_sandbox_after_the_scope(
     monkeypatch.setattr(
         bash_session_module, "sandbox_with_injected_tools", select_sandbox
     )
+
+
+async def test_bash_session_keeps_its_sandbox_after_the_scope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai.util._store import Store, init_subtask_store
+
+    init_subtask_store(Store())
+    # every new session is named "s", as the first shell in each sandbox would be
+    calls = _patch_module(monkeypatch, bash_session_module)
+    _select_by_injection(monkeypatch)
     a, b = FakeSandbox(), FakeSandbox()
     team = bash_session_module.bash_session(instance="team")
     with _environments(a=cast(SandboxEnvironment, a), b=cast(SandboxEnvironment, b)):
         await bash_session_module.bash_session(instance="unscoped")(action="read")
         with sandbox_identity("w-1", sandbox="b"):
             await team(action="read")
-        with pytest.raises(SandboxIdentityError, match="cannot be used in another"):
+        with pytest.raises(SandboxIdentityError, match="not in this sandbox"):
             await team(action="read")
         with sandbox_identity("w-1", sandbox="b"):
             await team(action="read")
@@ -443,3 +449,46 @@ async def test_bash_session_keeps_its_sandbox_after_the_scope(
         "bash_session",
         "bash_session",
     ]
+
+
+@pytest.mark.parametrize("scoped", [True, False], ids=["scoped", "unscoped"])
+async def test_bash_session_refuses_a_scoped_shell_restored_into_a_fresh_sandbox(
+    monkeypatch: pytest.MonkeyPatch, scoped: bool
+) -> None:
+    from inspect_ai.util._store import Store, init_subtask_store, store, store_jsonable
+
+    init_subtask_store(Store())
+    # every new session is named "s", as the first shell in each sandbox would be
+    calls = _patch_module(monkeypatch, bash_session_module)
+    _select_by_injection(monkeypatch)
+    team = bash_session_module.bash_session(instance="team")
+    with _environments(b=cast(SandboxEnvironment, FakeSandbox())):
+        with sandbox_identity("w-1", sandbox="b"):
+            await team(action="read")
+        # in the sandbox that created it, the shell keeps working, scoped or not
+        await team(action="read")
+        with sandbox_identity("w-1", sandbox="b"):
+            await team(action="read")
+        saved = json.loads(json.dumps(store_jsonable(store())))
+    assert [call["method"] for call in calls] == [
+        "bash_session_new_session",
+        "bash_session",
+        "bash_session",
+        "bash_session",
+    ]
+    calls.clear()
+
+    # a checkpoint restore: the store in a fresh sandbox of the same name, where
+    # setup has already opened its own first shell, also named "s", as root
+    init_subtask_store(Store(saved))
+    with _environments(b=cast(SandboxEnvironment, FakeSandbox())):
+        await bash_session_module.bash_session(instance="setup")(action="read")
+        with sandbox_identity("w-1", sandbox="b") if scoped else nullcontext():
+            with pytest.raises(SandboxIdentityError, match="before the sandbox"):
+                await team(action="read")
+            await team(action="restart")
+    setup_new, setup_read, team_new, team_restart = calls
+    assert [setup_read["method"], team_restart["method"]] == ["bash_session"] * 2
+    assert team_new["method"] == "bash_session_new_session"
+    assert (team_new["params"].get("user") == "w-1") is scoped
+    assert team_restart["params"]["restart"] is True
