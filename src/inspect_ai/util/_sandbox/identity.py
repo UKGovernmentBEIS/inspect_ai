@@ -24,14 +24,17 @@ class SandboxIdentityError(RuntimeError):
 def sandbox_identity(
     user: str, *, cwd: str | None = None, sandbox: str = "default"
 ) -> Iterator[None]:
-    """Run model-facing work in a sandbox as `user`, starting in `cwd`.
+    """Run model-facing work in a sandbox as `user`.
 
     Inside the block, built-in tools that run commands in `sandbox` run them
     as `user`: `bash()`, `python()`, `grep()`, `list_files()`, `read_file()`,
-    `skill()`, `bash_session()` and `text_editor()`. The exec-based ones also
-    start in `cwd`. A tool configured with a different `user` raises
-    `SandboxIdentityError`, and so do `computer()` and `web_browser()`, which
-    cannot run as a user. `exec_remote()` and the sandbox tools' launches use
+    `skill()`, `bash_session()` and `text_editor()`. `bash()`, `python()`,
+    `grep()`, `list_files()` and `read_file()` also start in `cwd`, and
+    `skill()` installs a relative skills directory under it. `cwd` does not
+    change where a `bash_session()` shell starts or what `text_editor()`
+    resolves relative paths against. A tool configured with a different
+    `user` raises `SandboxIdentityError`, and so do `computer()` and
+    `web_browser()`, which cannot run as a user. `exec_remote()` and the sandbox tools' launches use
     `user` and `cwd` when they are not given, and keep them when they are.
 
     Inside the block `sandbox` is also the default sandbox (as with
@@ -46,7 +49,8 @@ def sandbox_identity(
 
     Args:
        user: User to run as.
-       cwd: Working directory for commands that do not set one.
+       cwd: Working directory for the tools above and for `exec_remote()`
+          commands that do not set one.
        sandbox: Name of the sandbox environment the identity applies to.
 
     Raises:
