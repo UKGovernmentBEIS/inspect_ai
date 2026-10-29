@@ -275,12 +275,12 @@ def _render(event: Event) -> tuple[str, str]:
         (
             _sent(),
             "communication: sent",
-            "counter-6 → shared_memory: create w-1 to counter-2: hello",
+            "counter-6 → shared_memory: create w-1 to counter-2",
         ),
         (
             _rejected(),
             "communication: sent",
-            "counter-6 → shared_memory: message w-2, refused (rate): too many sends",
+            "counter-6 → shared_memory: message w-2, refused (rate)",
         ),
         (
             _delivered(),
@@ -300,7 +300,7 @@ def _render(event: Event) -> tuple[str, str]:
         (
             _swarm(),
             "swarm: member_result",
-            'counter-5: {"version":1,"status":"completed","time":13.2}',
+            "counter-5",
         ),
     ],
 )

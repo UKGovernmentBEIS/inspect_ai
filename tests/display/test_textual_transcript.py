@@ -197,12 +197,10 @@ async def _textual_output(events: list[Event], *, nested: bool = False) -> str:
         )
 
 
-# ESC/CSI, C1 CSI and bidi controls, markup-looking text, a lone surrogate and
-# ordinary Unicode
-_HOSTILE = "a\x1b[2Jb\x9bc\u202ed [/red] [bold]x[/bold] \ud800 é"
+# ESC/CSI, C1 CSI and bidi controls, markup-looking text, a lone surrogate,
+# ordinary Unicode and an unterminated OSC, which hides the rest of its field
+_HOSTILE = "a\x1b[2Jb\x9bc\u202ed [/red] [bold]x[/bold] \ud800 é\x1b]0;"
 _SHOWN = "abcd [/red] [bold]x[/bold] \\ud800 é"
-# JSON already escapes C0 controls, so data shows ESC as `\u001b`
-_SHOWN_IN_DATA = "a\\u001b[2Jbcd [/red] [bold]x[/bold] \\ud800 é"
 
 _SGR = re.compile(r"\x1b\[[0-9;]*m")
 _CONTROLS = re.compile(r"[\x00-\x1f\x7f-\x9f\u200e\u200f\u202a-\u202e\u2066-\u2069]")
@@ -255,46 +253,73 @@ def _delivered(**kwargs: Any) -> CommunicationEvent:
     )
 
 
-_LINES: list[tuple[str, Event, str]] = [
-    ("sent agent", _communication(agent=_HOSTILE), _SHOWN),
-    ("sent channel", _communication(channel=_HOSTILE), _SHOWN),
+# each case puts the hostile text in one field (and first in a list) and
+# expects the whole line, so the labels and fields after it stay visible
+_LINES: list[tuple[str, Event, list[str]]] = [
+    (
+        "sent agent",
+        _communication(agent=_HOSTILE, nested=True),
+        [f"{_SHOWN} (subagent) → bus: message w-1"],
+    ),
+    (
+        "sent channel",
+        _communication(channel=_HOSTILE),
+        [f"a → {_SHOWN}: message w-1"],
+    ),
     (
         "sent record kind",
-        _communication(record_ids=[], send=_record(kind=_HOSTILE)),
-        _SHOWN,
+        _communication(record_ids=[], send=_record(kind=_HOSTILE, to=["b"])),
+        [f"a → bus: {_SHOWN} to b"],
     ),
     (
-        "sent record id",
-        _communication(record_ids=[_HOSTILE], send=_record(id=_HOSTILE)),
-        _SHOWN,
+        "sent record ids",
+        _communication(record_ids=[_HOSTILE, "second"], send=_record(to=["b"])),
+        [f"a → bus: message {_SHOWN}, second to b"],
     ),
-    ("sent to", _communication(record_ids=[], send=_record(to=[_HOSTILE])), _SHOWN),
     (
-        "sent content",
-        _communication(record_ids=[], send=_record(content=_HOSTILE)),
-        _SHOWN,
+        "sent to",
+        _communication(
+            record_ids=[],
+            send=CommunicationSend(
+                record=CommunicationRecord(
+                    kind="message", sender="a", to=[_HOSTILE, "second"]
+                ),
+                rejected=CommunicationRejection(control="rate", reason="slow"),
+            ),
+        ),
+        [f"a → bus: message to {_SHOWN}, second, refused (rate)"],
     ),
     (
         "refused control",
         _communication(record_ids=[], send=_refused(control=_HOSTILE)),
-        _SHOWN,
+        [f"a → bus: message, refused ({_SHOWN})"],
     ),
     (
-        "refused reason",
-        _communication(record_ids=[], send=_refused(reason=_HOSTILE)),
-        _SHOWN,
+        "delivered recipients",
+        _delivered(recipients=[_HOSTILE, "second"], seq=1),
+        [f"a → bus: delivered w-1 (#1) to {_SHOWN}, second"],
     ),
-    ("delivered recipients", _delivered(recipients=[_HOSTILE], seq=1), _SHOWN),
     (
         "read record ids",
-        _communication(kind="read", send=None, record_ids=[_HOSTILE]),
-        _SHOWN,
+        _communication(kind="read", send=None, record_ids=[_HOSTILE, "second"]),
+        [f"a ← bus: read {_SHOWN}, second"],
     ),
-    ("wait channels", _wait(channels=[_HOSTILE]), _SHOWN),
-    ("wait outcome", _wait(outcome=_HOSTILE), _SHOWN),
-    ("swarm member", SwarmEvent(kind="final", member=_HOSTILE, data={}), _SHOWN),
-    ("swarm kind", SwarmEvent(kind=_HOSTILE, data={}), f"swarm: {_SHOWN}"),
-    ("swarm data", SwarmEvent(kind="final", data={"note": _HOSTILE}), _SHOWN_IN_DATA),
+    (
+        "wait channels",
+        _wait(channels=[_HOSTILE, "second"]),
+        [f"a waited 1.0s on {_SHOWN}, second: news"],
+    ),
+    ("wait outcome", _wait(outcome=_HOSTILE), [f"a waited 1.0s on bus: {_SHOWN}"]),
+    (
+        "swarm member",
+        SwarmEvent(kind="final", member=_HOSTILE, data={}),
+        ["swarm: final", _SHOWN],
+    ),
+    (
+        "swarm kind",
+        SwarmEvent(kind=_HOSTILE, member="m", data={}),
+        [f"swarm: {_SHOWN}", "m"],
+    ),
 ]
 
 
@@ -305,10 +330,52 @@ _LINES: list[tuple[str, Event, str]] = [
     "event,shown", [line[1:] for line in _LINES], ids=[line[0] for line in _LINES]
 )
 async def test_event_text_reaches_terminal_literally_and_safely(
-    event: Event, shown: str, nested: bool
+    event: Event, shown: list[str], nested: bool
 ) -> None:
     output = await _textual_output([event], nested=nested)
     output.encode("utf-8")
     text = _SGR.sub("", output)
-    assert shown in text
+    for expected in shown:
+        assert expected in text
     assert _CONTROLS.search(text) is None
+
+
+_LEFT_TO_VIEWER: list[tuple[str, Event, str]] = [
+    (
+        "record content",
+        _communication(record_ids=[], send=_record(content="hidden")),
+        "a → bus: message",
+    ),
+    (
+        "refusal reason",
+        _communication(record_ids=[], send=_refused(reason="hidden")),
+        "a → bus: message, refused (rate)",
+    ),
+    (
+        "communication data",
+        _communication(data={"note": "hidden"}),
+        "a → bus: message w-1",
+    ),
+    (
+        "swarm data",
+        SwarmEvent(kind="final", member="m", data={"note": "hidden"}),
+        "swarm: final",
+    ),
+]
+
+
+@skip_if_trio
+@pytest.mark.anyio
+@pytest.mark.parametrize("nested", [False, True], ids=["top", "nested"])
+@pytest.mark.parametrize(
+    "event,shown",
+    [line[1:] for line in _LEFT_TO_VIEWER],
+    ids=[line[0] for line in _LEFT_TO_VIEWER],
+)
+async def test_event_lines_leave_content_to_the_viewer(
+    event: Event, shown: str, nested: bool
+) -> None:
+    """Record content, refusal reasons and data are not shown in the Textual line."""
+    text = _SGR.sub("", await _textual_output([event], nested=nested))
+    assert shown in text
+    assert "hidden" not in text

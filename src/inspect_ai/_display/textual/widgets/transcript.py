@@ -1,4 +1,3 @@
-import json
 from typing import Any, Callable, NamedTuple, Sequence, Type
 
 from pydantic import JsonValue
@@ -422,52 +421,61 @@ def _display_text(value: str) -> str:
 
     Communication and swarm events carry producer and model text. Lone
     surrogates are escaped (the terminal writer cannot encode them), terminal
-    controls are removed and newlines flattened. Append the result as plain
-    `Text`, never as markup.
+    controls are removed and newlines flattened. Apply it to each field and
+    list member before joining, so an unterminated sequence in one cannot hide
+    the next, and append the result as plain `Text`, never as markup.
     """
     return _sanitize_line(_escape_surrogates(value))
 
 
+def _display_list(values: list[str]) -> str:
+    return ", ".join(_display_text(value) for value in values)
+
+
 def render_communication_event(event: CommunicationEvent) -> EventDisplay:
-    agent = f"{event.agent} (subagent)" if event.nested else event.agent
-    line = Text(_display_text(agent), style="bold")
+    # identifiers and counts only: record content, refusal reasons and data
+    # are left to the viewer and `inspect ctl --content`
+    line = Text(_display_text(event.agent), style="bold")
+    if event.nested:
+        line.append(" (subagent)", style="bold")
     if event.wait is not None:
         line.append(f" waited {event.wait.duration:.1f}s on ")
-        line.append(
-            _display_text(f"{', '.join(event.wait.channels)}: {event.wait.outcome}")
-        )
+        line.append(_display_list(event.wait.channels))
+        line.append(": ")
+        line.append(_display_text(event.wait.outcome))
         return EventDisplay(f"communication: {event.kind}", line)
 
-    arrow = "←" if event.kind == "read" else "→"
+    line.append(" ← " if event.kind == "read" else " → ")
+    line.append(_display_text(event.channel or ""))
+    line.append(": ")
     action = event.send.record.kind if event.send is not None else event.kind
-    line.append(_display_text(f" {arrow} {event.channel}: {action}"))
+    line.append(_display_text(action))
     if event.record_ids:
-        line.append(_display_text(f" {', '.join(event.record_ids)}"))
+        line.append(" ")
+        line.append(_display_list(event.record_ids))
     if event.delivery is not None:
         if event.delivery.seq is not None:
             line.append(f" (#{event.delivery.seq})")
         if event.delivery.recipients:
-            line.append(_display_text(f" to {', '.join(event.delivery.recipients)}"))
+            line.append(" to ")
+            line.append(_display_list(event.delivery.recipients))
     if event.send is not None:
         if event.send.record.to:
-            line.append(_display_text(f" to {', '.join(event.send.record.to)}"))
-        rejected = event.send.rejected
-        if rejected is not None:
-            line.append(
-                _display_text(f", refused ({rejected.control}): {rejected.reason}")
-            )
-        elif event.send.record.content:
-            line.append(_display_text(f": {event.send.record.content.splitlines()[0]}"))
+            line.append(" to ")
+            line.append(_display_list(event.send.record.to))
+        if event.send.rejected is not None:
+            line.append(", refused (")
+            line.append(_display_text(event.send.rejected.control))
+            line.append(")")
     return EventDisplay(f"communication: {event.kind}", line)
 
 
 def render_swarm_event(event: SwarmEvent) -> EventDisplay:
+    # the kind and member only: `data` is left to the viewer and
+    # `inspect ctl --content`
     line = Text()
     if event.member is not None:
         line.append(_display_text(event.member), style="bold")
-        line.append(": ")
-    data = json.dumps(event.data, ensure_ascii=False, separators=(",", ":"))
-    line.append(_display_text(data))
     # the title is a Rich Rule title, which parses markup
     return EventDisplay(f"swarm: {escape(_display_text(event.kind))}", line)
 
