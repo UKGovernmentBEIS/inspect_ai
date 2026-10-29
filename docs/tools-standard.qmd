@@ -56,7 +56,7 @@ web_search({
 
 ### OpenAI Options
 
-The `web_search()` tool can use OpenAI's built-in search capability when running on a limited number of OpenAI models (currently "gpt-4o", "gpt-4o-mini", "gpt-4.1", "o3", "o4-mini", and GPT-5 and later, including GPT-6). This provider does not require any API keys beyond what's needed for the model itself.
+The `web_search()` tool can use OpenAI's built-in search capability when running on a limited number of OpenAI models (currently "gpt-4o", "gpt-4o-mini", "gpt-4.1", "o3", and GPT-5 and later, including GPT-6). This provider does not require any API keys beyond what's needed for the model itself.
 
 For more details on OpenAI's web search parameters, see [OpenAI Web Search Documentation](https://platform.openai.com/docs/guides/tools-web-search?api-mode=responses).
 
@@ -88,17 +88,27 @@ Gemini 3 and later models can use `web_search("gemini")` alongside other tools. 
 
 ### Grok Options
 
-The `web_search()` tool can use Grok's built-in live search capability when running on Grok 3.0 models and later. This provider does not require any API keys beyond what's needed for the model itself.
+The `web_search()` tool can use Grok's built-in web search when running on Grok 4 models and later. This provider does not require any API keys beyond what's needed for the model itself. The `grok` provider options are the parameters of xAI's web search tool, such as `allowed_domains` and `excluded_domains`. For example:
 
-For more details, see [Live Search](https://docs.x.ai/docs/guides/live-search).
+``` python
+web_search({"grok": {"allowed_domains": ["arxiv.org"]}})
+```
 
-Note that when using the "grok" provider, you should also specify a fallback external provider (like "tavily", "exa", or "google") if you are also running the evaluation with non-Grok models.
+For more details, see [Web Search](https://docs.x.ai/developers/tools/web-search).
+
+Note that when using the "grok" provider, you should also specify a fallback external provider (like "tavily", "exa", or "google") if you are also running the evaluation with non-Grok models or with Grok models before Grok 4.
 
 ### Perplexity Options
 
-The `web_search()` tool can use Perplexity's built-in search capability when running on Perplexity models. This provider does not require any API keys beyond what's needed for the model itself. Search parameters can be passed using the `perplexity` provider options and will be forwarded to the model API.
+The `web_search()` tool can use Perplexity's built-in search capability when running on Perplexity models. This provider does not require any API keys beyond what's needed for the model itself. Perplexity models do not search without the `web_search()` tool, including `perplexity/sonar`. The `perplexity` provider options are the fields of the Agent API's `web_search` tool, such as `filters`, `search_type`, `max_results`, and the search token budgets `max_tokens` and `max_tokens_per_page`. For example:
 
-For more details, see [Perplexity API Documentation](https://docs.perplexity.ai/api-reference/chat-completions-post).
+``` python
+web_search({"perplexity": {"filters": {"search_domain_filter": ["arxiv.org"]}}})
+```
+
+For all the options, see Perplexity's [Web Search](https://docs.perplexity.ai/docs/agent-api/tools/web-search) documentation. Sonar search parameters such as `search_mode` and `search_context_size` are not accepted. Use the token budgets in place of `search_context_size`; Perplexity's [migration guide](https://docs.perplexity.ai/docs/agent-api/migrate-from-sonar/how-to#parameter-reference) lists the other replacements.
+
+The model decides whether to search. To make it search, set `tool_choice` to `"any"` or `ToolFunction("web_search")`.
 
 Note that when using the "perplexity" provider, you should also specify a fallback external provider (like "tavily", "exa", or "google") if you are also running the evaluation with non-Perplexity models.
 
@@ -425,17 +435,18 @@ Here is an approval policy that requires approval for key combos (e.g. `Enter` o
 ``` {.yaml filename="approval.yaml"}
 approvers:
   - name: human
-    tools:
-      - computer(action='key'
-      - computer(action='left_click'
-      - computer(action='middle_click'
-      - computer(action='double_click'
+    tools: computer
+    arguments: {action: key}
+
+  - name: human
+    tools: computer
+    arguments: {action: "*_click"}
 
   - name: auto
     tools: "*"
 ```
 
-Note that since this is a prefix match and there could be other arguments, we don't end the tool match pattern with a parentheses.
+See [Auto Approver](approval.qmd#auto-approver) for how `arguments` are matched.
 
 You can apply this policy using the `--approval` command line option:
 

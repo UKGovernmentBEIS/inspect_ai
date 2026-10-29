@@ -3,12 +3,15 @@ import json
 import os
 import subprocess
 import sys
+import tomllib
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, get_type_hints
+from typing import TYPE_CHECKING, Any, get_type_hints
 
 import pytest
+import semver
 from pydantic import ValidationError
+from test_helpers.fake_sentinel import report_version
 
 from inspect_ai import (
     Task,
@@ -19,13 +22,15 @@ from inspect_ai import (
     task,
     task_with,
 )
+from inspect_ai._cli.util import parse_cli_config
 from inspect_ai._display.core.config import task_config_str
 from inspect_ai._display.core.display import TaskProfile
 from inspect_ai._eval.eval_set_manifest import INSPECT_EVAL_SET_CAPTURE, EvalSetCapture
 from inspect_ai._eval.eval_set_overrides import INSPECT_EVAL_SET_OVERRIDES
+from inspect_ai._sentinel._config import SENTINEL_MIN_VERSION, sentinel_with_args
 from inspect_ai._sentinel._context import active_sentinel
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.registry import registry_info
+from inspect_ai._util.registry import is_registry_object, registry_info
 from inspect_ai.dataset import Sample
 from inspect_ai.event import SentinelEvent, SpanBeginEvent, ToolEvent
 from inspect_ai.log import (
@@ -36,31 +41,41 @@ from inspect_ai.log import (
     read_eval_log,
 )
 from inspect_ai.model import (
-    ChatMessageAssistant,
     GenerateConfig,
     ModelOutput,
     get_model,
 )
-from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.model._model import ModelName
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
-from inspect_ai.tool import Tool, ToolCall, tool
+from inspect_ai.tool import Tool, tool
 
-try:
+# mypy checks the tests against inspect_sentinel's API; they run on the fake
+if TYPE_CHECKING:
     from inspect_sentinel import (
         BeforeToolCall,
         Context,
         Decision,
+        Escalations,
         Monitor,
         Observation,
         Protocol,
         monitor,
-        observe_only,
         protocol,
-        threshold,
     )
-except ImportError:
-    pytest.skip("inspect_sentinel is not installed", allow_module_level=True)
+else:
+    from test_helpers.fake_sentinel import (
+        BeforeToolCall,
+        Context,
+        Decision,
+        Escalations,
+        Monitor,
+        Observation,
+        Protocol,
+        monitor,
+        protocol,
+    )
+
+pytestmark = pytest.mark.usefixtures("fake_sentinel")
 
 
 @monitor
@@ -73,7 +88,11 @@ def d2_suspicion(score: float = 0.5) -> Monitor:
 
 @protocol
 def d2_rule(reason: str = "no") -> Protocol:
-    async def decide(context: Context, step: BeforeToolCall) -> Decision | None:
+    async def decide(
+        context: Context,
+        step: BeforeToolCall,
+        escalations: Escalations,
+    ) -> Decision | None:
         return Decision.reject(reason)
 
     return decide
@@ -97,9 +116,12 @@ def addition() -> Tool:
 def record_sentinel() -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         root = active_sentinel()
-        state.metadata["sentinel"] = (
-            registry_info(root).name if root is not None else None
-        )
+        if root is None:
+            state.metadata["sentinel"] = None
+        elif is_registry_object(root):
+            state.metadata["sentinel"] = registry_info(root).name
+        else:
+            state.metadata["sentinel"] = type(root).__name__
         return state
 
     return solve
@@ -160,35 +182,6 @@ def test_no_sentinel_leaves_the_config_empty() -> None:
     )
 
 
-def test_observe_only_records_monitors_with_nothing_acting() -> None:
-    log = eval(
-        sentinel_task(observe_only({"watch": d2_suspicion(score=0.2)})),
-        model="mockllm/model",
-    )[0]
-    assert config_data(log) == {
-        "name": "observe_only",
-        "params": {},
-        "monitors": {"watch": {"name": "d2_suspicion", "params": {"score": 0.2}}},
-    }
-    assert active_root(log) == "inspect_sentinel/observe_only"
-
-
-@pytest.mark.parametrize(
-    "sentinel",
-    [
-        lambda: d2_suspicion(),
-        lambda: {"watch": d2_suspicion()},
-        lambda: [{"name": "d2_suspicion"}],
-        lambda: "d2_suspicion",
-    ],
-)
-def test_monitors_alone_fail_at_task_construction(
-    sentinel: Callable[[], Any],
-) -> None:
-    with pytest.raises(ValueError, match=r"only monitors: .*observe_only\(\)"):
-        sentinel_task(sentinel())
-
-
 def test_task_with_sets_and_clears_the_sentinel() -> None:
     log = eval(task_with(sentinel_task(), sentinel=RULE_CONFIG), model="mockllm/model")[
         0
@@ -214,25 +207,22 @@ def test_eval_sentinel_overrides_the_task() -> None:
     assert active_root(log) == "inspect_sentinel/concurrent"
 
 
-def test_config_file_and_registered_name(tmp_path: Path) -> None:
-    config = tmp_path / "sentinel.yaml"
-    config.write_text(
-        "sentinel:\n  block:\n    name: d2_rule\n    params:\n      reason: file\n"
-    )
-    log = eval(sentinel_task(), model="mockllm/model", sentinel=str(config))[0]
-    assert config_data(log) == {
-        "block": {"name": "d2_rule", "params": {"reason": "file"}}
-    }
+@protocol
+def d2_gate(monitors: list[Monitor], reject_at: float = 0.5) -> Protocol:
+    async def decide(
+        context: Context,
+        step: BeforeToolCall,
+        escalations: Escalations,
+    ) -> Decision | None:
+        return None
 
-    log = eval(sentinel_task(), model="mockllm/model", sentinel="d2_rule")[0]
-    assert config_data(log) == {"name": "d2_rule", "params": {}}
-    assert active_root(log) == "d2_rule"
+    return decide
 
 
 def test_nested_config_round_trips_through_the_log(tmp_path: Path) -> None:
     config = [
         {
-            "name": "threshold",
+            "name": "d2_gate",
             "params": {"reject_at": 0.8},
             "monitors": [{"name": "d2_suspicion", "params": {"score": 0.9}}],
         }
@@ -384,60 +374,91 @@ def test_eval_retry_rebuilds_the_sentinel(tmp_path: Path) -> None:
     assert active_root(retried) == "inspect_sentinel/concurrent"
 
 
-@solver
-def call_addition() -> Solver:
-    async def solve(state: TaskState, generate: Generate) -> TaskState:
-        state.messages.append(
-            ChatMessageAssistant(
-                content="",
-                tool_calls=[
-                    ToolCall(id="c1", function="addition", arguments={"x": 1, "y": 1})
-                ],
-            )
-        )
-        result = await execute_tools(state.messages, [addition()])
-        state.messages.extend(result.messages)
-        return state
-
-    return solve
-
-
-@task
-def d2_lone_root_task(marker: str) -> Task:
-    return Task(
-        dataset=[Sample(input="x", target="y")],
-        solver=[call_addition(), fail_once(marker)],
-        sentinel=threshold(d2_suspicion(score=0.9), reject_at=0.5),
+def test_cli_sentinel_args_become_the_entry_params() -> None:
+    args = (
+        "score=0.9",
+        "strict=true",
+        "items=[1, 2]",
+        "options={a: 1}",
+        "labels=x,y",
+        "label=first",
+        "label=second",
+        "max-turns=3",
     )
+    config = sentinel_with_args("d2_suspicion", args)
+    assert isinstance(config, SentinelConfig)
+    params = {
+        "score": 0.9,
+        "strict": True,
+        "items": [1, 2],
+        "options": {"a": 1},
+        "labels": ["x", "y"],
+        "label": "second",
+        "max_turns": 3,
+    }
+    assert config.model_dump() == {"name": "d2_suspicion", "params": params}
+    # parsed the same way as -T and -S values
+    assert params == parse_cli_config(args, None)
 
 
-def sentinel_paths(log: EvalLog) -> list[tuple[str, str]]:
-    assert log.samples
-    return [
-        (e.factory, e.path)
-        for e in log.samples[0].events
-        if isinstance(e, SentinelEvent)
-    ]
+def test_cli_sentinel_without_args_passes_through(tmp_path: Path) -> None:
+    assert sentinel_with_args("d2_rule", ()) == "d2_rule"
+    assert sentinel_with_args(None, None) is None
+    config = tmp_path / "sentinel.yaml"
+    config.write_text("sentinel:\n  name: d2_rule\n")
+    assert sentinel_with_args(str(config), ()) == str(config)
 
 
-def test_eval_retry_records_a_lone_roots_paths_as_the_first_run_did(
-    tmp_path: Path,
+@pytest.mark.parametrize("relative", [False, True])
+def test_cli_sentinel_args_reject_a_config_file(
+    tmp_path: Path, relative: bool, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    config = tmp_path / "sentinel.yaml"
+    config.write_text("sentinel:\n  name: d2_rule\n")
+    path = str(config)
+    if relative:
+        monkeypatch.chdir(tmp_path)
+        path = "sentinel.yaml"
+    with pytest.raises(
+        PrerequisiteError, match="cannot be used with the sentinel config file"
+    ):
+        sentinel_with_args(path, ("reason=cli",))
+
+
+def test_cli_sentinel_args_require_sentinel() -> None:
+    with pytest.raises(PrerequisiteError, match="--sentinel-arg requires --sentinel"):
+        sentinel_with_args(None, ("reason=cli",))
+
+
+def test_cli_sentinel_args_require_key_value() -> None:
+    with pytest.raises(PrerequisiteError, match="takes key=value, not 'reason'"):
+        sentinel_with_args("d2_rule", ("reason",))
+
+
+def test_cli_sentinel_args_unknown_name_fails_at_eval_start(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="not a registered monitor or protocol"):
+        eval(
+            sentinel_task(),
+            model="mockllm/model",
+            sentinel=sentinel_with_args("d2_missing", ("reason=cli",)),
+            log_dir=str(tmp_path),
+        )
+    assert not list(tmp_path.glob("*.eval"))
+
+
+def test_cli_sentinel_args_are_recorded_and_rebuilt_by_retry(tmp_path: Path) -> None:
     log = eval(
-        d2_lone_root_task(str(tmp_path / "marker")),
+        d2_retry_task(str(tmp_path / "marker")),
         model="mockllm/model",
+        sentinel=sentinel_with_args("d2_rule", ("reason=cli",)),
         log_dir=str(tmp_path),
     )[0]
     assert log.status == "error"
-    recorded = log.eval.config.sentinel
-    assert isinstance(recorded, SentinelConfig)
-    assert isinstance(recorded.root, SentinelEntry)
-    assert recorded.root.name == "threshold"
+    expected = {"name": "d2_rule", "params": {"reason": "cli"}}
+    assert config_data(read_eval_log(log.location)) == expected
     retried = eval_retry(log, log_dir=str(tmp_path))[0]
-    assert retried.status == "success", retried.error
-    expected = [("d2_suspicion", "d2_suspicion"), ("inspect_sentinel/threshold", "")]
-    assert sentinel_paths(log) == expected
-    assert sentinel_paths(retried) == expected
+    assert config_data(retried) == expected
+    assert active_root(retried) == "d2_rule"
 
 
 def test_eval_set_sentinel(tmp_path: Path) -> None:
@@ -509,12 +530,8 @@ def mark_ran() -> Solver:
     "sentinel,error,match",
     [
         ([{"name": "d2_missing"}], ValueError, "not a registered monitor or protocol"),
-        ([{"name": "d2_rule", "params": {"bogus": 1}}], TypeError, "sentinel\\[0\\]"),
-        ("no_such_file.yaml", ValueError, "neither a config file"),
-        ([], ValueError, "at least one monitor or protocol"),
+        ([{"name": "d2_rule", "params": {"bogus": 1}}], TypeError, "bogus"),
         (42, TypeError, "sentinel must be"),
-        ("d2_suspicion", ValueError, "observe_only"),
-        ([{"name": "d2_suspicion"}], ValueError, "observe_only"),
     ],
 )
 def test_bad_config_fails_at_eval_start(
@@ -555,6 +572,94 @@ def test_missing_package_error(monkeypatch: pytest.MonkeyPatch) -> None:
         eval(sentinel_task(), model="mockllm/model", sentinel="d2_rule")
     log = eval(sentinel_task(), model="mockllm/model")[0]
     assert active_root(log) is None
+
+
+# 0.1.4's tool steps lack message_id; 0.2.0 has no ReplayStep
+@pytest.mark.parametrize("reported", ["0.1.4", "0.2.0", f"{SENTINEL_MIN_VERSION}.dev3"])
+def test_older_package_error(
+    monkeypatch: pytest.MonkeyPatch, reported: str, tmp_path: Path
+) -> None:
+    global ran
+    ran = False
+    report_version(monkeypatch, reported)
+    with pytest.raises(PrerequisiteError) as raised:
+        sentinel_task(RULE_CONFIG)
+    message = str(raised.value.message)
+    assert f"inspect-sentinel>={SENTINEL_MIN_VERSION}" in message
+    assert f"you have version {reported} installed" in message
+    assert (
+        f'pip install --upgrade "inspect-sentinel>={SENTINEL_MIN_VERSION}"' in message
+    )
+    with pytest.raises(PrerequisiteError, match="inspect-sentinel>="):
+        eval(
+            Task(dataset=[Sample(input="x")], solver=mark_ran()),
+            model="mockllm/model",
+            sentinel="d2_rule",
+            log_dir=str(tmp_path),
+        )
+    assert not ran
+    assert not list(tmp_path.glob("*.eval"))
+    log = eval(sentinel_task(), model="mockllm/model", log_dir=str(tmp_path))[0]
+    assert active_root(log) is None
+
+
+def test_package_without_metadata_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    from importlib.metadata import PackageNotFoundError, version
+
+    def fake_version(package: str) -> str:
+        if package == "inspect-sentinel":
+            raise PackageNotFoundError(package)
+        return version(package)
+
+    monkeypatch.setattr("inspect_ai._util.version.version", fake_version)
+    monkeypatch.setattr("inspect_ai._sentinel._config.version", fake_version)
+    with pytest.raises(PrerequisiteError) as raised:
+        sentinel_task(RULE_CONFIG)
+    message = str(raised.value.message)
+    assert "has no package metadata" in message
+    assert f'pip install "inspect-sentinel>={SENTINEL_MIN_VERSION}"' in message
+
+
+REPO = Path(__file__).parents[2]
+
+
+def test_dev_requirements_floor_is_the_minimum_version() -> None:
+    [floor] = [
+        line.removeprefix("inspect-sentinel")
+        for line in (REPO / "requirements-dev.txt").read_text().splitlines()
+        if line.startswith("inspect-sentinel")
+    ]
+    assert floor == f">={SENTINEL_MIN_VERSION}"
+
+
+def test_uv_lock_floor_is_the_minimum_version() -> None:
+    lock = tomllib.loads((REPO / "uv.lock").read_text())
+    packages = {package["name"]: package for package in lock["package"]}
+    [requirement] = [
+        requirement
+        for requirement in packages["inspect-ai"]["metadata"]["requires-dist"]
+        if requirement["name"] == "inspect-sentinel"
+    ]
+    assert requirement["specifier"] == f">={SENTINEL_MIN_VERSION}"
+    locked = semver.Version.parse(packages["inspect-sentinel"]["version"])
+    assert locked >= semver.Version.parse(SENTINEL_MIN_VERSION)
+
+
+# a git install of sentinel main reports a dev build of the next release
+@pytest.mark.parametrize(
+    "reported",
+    [
+        SENTINEL_MIN_VERSION,
+        f"{semver.Version.parse(SENTINEL_MIN_VERSION).bump_patch()}.dev1",
+        str(semver.Version.parse(SENTINEL_MIN_VERSION).bump_minor()),
+    ],
+)
+def test_supported_package_versions(
+    monkeypatch: pytest.MonkeyPatch, reported: str
+) -> None:
+    report_version(monkeypatch, reported)
+    log = eval(sentinel_task(), model="mockllm/model", sentinel="d2_rule")[0]
+    assert active_root(log) == "d2_rule"
 
 
 @pytest.mark.parametrize(
@@ -600,6 +705,7 @@ CLI_TASK = """
 from inspect_ai import Task, task
 from inspect_ai._eval.eval_set_manifest import INSPECT_EVAL_SET_CAPTURE, EvalSetCapture
 from inspect_ai._eval.eval_set_overrides import INSPECT_EVAL_SET_OVERRIDES
+from inspect_ai._sentinel._config import sentinel_with_args
 from inspect_ai._sentinel._context import active_sentinel
 from inspect_ai._util.registry import registry_info
 from inspect_ai.dataset import Sample
@@ -609,7 +715,7 @@ from inspect_sentinel import BeforeToolCall, Decision, Protocol, protocol
 
 @protocol
 def cli_rule(reason: str = "no") -> Protocol:
-    async def decide(context, step: BeforeToolCall) -> Decision | None:
+    async def decide(context, step: BeforeToolCall, escalations) -> Decision | None:
         return Decision.reject(reason)
 
     return decide
@@ -630,20 +736,34 @@ def cli_task():
     return Task(dataset=[Sample(input="x", target="y")], solver=record_sentinel())
 """
 
+# the inspect CLI, with the fake installed as inspect_sentinel
+CLI_MAIN = f"""
+import sys
 
-@pytest.mark.parametrize("via", ["option", "env"])
-def test_cli_sentinel(tmp_path: Path, via: str) -> None:
+sys.path.insert(0, {str(Path(__file__).parents[1])!r})
+from test_helpers import fake_sentinel
+
+import pytest
+
+sys.modules["inspect_sentinel"] = fake_sentinel
+sys.modules["inspect_sentinel._integration"] = fake_sentinel
+fake_sentinel.report_version(pytest.MonkeyPatch())
+
+from inspect_ai._cli.main import main
+
+main()
+"""
+
+
+def run_cli_eval(
+    tmp_path: Path, args: list[str], env: dict[str, str]
+) -> subprocess.CompletedProcess[str]:
     (tmp_path / "cli_task.py").write_text(CLI_TASK)
-    (tmp_path / "sentinel.yaml").write_text(
-        "sentinel:\n  - name: cli_rule\n    params:\n      reason: cli\n"
-    )
-    args = ["--sentinel", "sentinel.yaml"] if via == "option" else []
-    env = {"INSPECT_EVAL_SENTINEL": "sentinel.yaml"} if via == "env" else {}
-    result = subprocess.run(
+    return subprocess.run(
         [
             sys.executable,
-            "-m",
-            "inspect_ai._cli.main",
+            "-c",
+            CLI_MAIN,
             "eval",
             "cli_task.py",
             "--model",
@@ -660,11 +780,46 @@ def test_cli_sentinel(tmp_path: Path, via: str) -> None:
         text=True,
         timeout=300,
     )
+
+
+def cli_log(tmp_path: Path, result: subprocess.CompletedProcess[str]) -> EvalLog:
     assert result.returncode == 0, result.stderr
     [log_file] = list((tmp_path / "logs").glob("*.eval"))
-    log = read_eval_log(str(log_file))
-    assert config_data(log) == [{"name": "cli_rule", "params": {"reason": "cli"}}]
-    assert active_root(log) == "inspect_sentinel/concurrent"
+    return read_eval_log(str(log_file))
+
+
+@pytest.mark.parametrize("via", ["option", "env"])
+def test_cli_sentinel(tmp_path: Path, via: str) -> None:
+    args = ["--sentinel", "cli_rule"] if via == "option" else []
+    env = {"INSPECT_EVAL_SENTINEL": "cli_rule"} if via == "env" else {}
+    log = cli_log(tmp_path, run_cli_eval(tmp_path, args, env))
+    assert config_data(log) == {"name": "cli_rule", "params": {}}
+    assert active_root(log) == "cli_rule"
+
+
+@pytest.mark.parametrize("via", ["option", "env"])
+def test_cli_sentinel_args(tmp_path: Path, via: str) -> None:
+    pairs = ["reason=first", "reason=second"]
+    if via == "option":
+        args = ["--sentinel", "cli_rule"]
+        args += [arg for pair in pairs for arg in ("--sentinel-arg", pair)]
+        env = {}
+    else:
+        args = []
+        env = {
+            "INSPECT_EVAL_SENTINEL": "cli_rule",
+            "INSPECT_EVAL_SENTINEL_ARGS": " ".join(pairs),
+        }
+    log = cli_log(tmp_path, run_cli_eval(tmp_path, args, env))
+    assert config_data(log) == {"name": "cli_rule", "params": {"reason": "second"}}
+    assert active_root(log) == "cli_rule"
+
+
+def test_cli_sentinel_args_without_sentinel_fail(tmp_path: Path) -> None:
+    result = run_cli_eval(tmp_path, ["--sentinel-arg", "reason=cli"], {})
+    assert result.returncode != 0
+    assert "--sentinel-arg requires --sentinel" in result.stdout + result.stderr
+    assert not (tmp_path / "logs").exists()
 
 
 @pytest.mark.parametrize("fn", [Task.__init__, eval, eval_async, eval_set])

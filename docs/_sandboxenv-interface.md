@@ -3,7 +3,7 @@
 
 ``` python
 async def write_file(
-    self, file: str, contents: str | bytes
+    self, file: str, contents: str | bytes, *, user: str | None = None
 ) -> None:
     """
     Raises:
@@ -22,7 +22,7 @@ Note that `write_file()` automatically creates parent directories as required if
 
 ``` python
 async def read_file(
-    self, file: str, text: bool = True
+    self, file: str, text: bool = True, *, user: str | None = None
 ) -> Union[str | bytes]:
     """
     Raises:
@@ -43,6 +43,30 @@ async def read_file(
 The `read_file()` method should enforce the `SandboxEnvironmentLimits.MAX_READ_FILE_SIZE` limit (default 100MB, configurable via the `INSPECT_SANDBOX_MAX_READ_FILE_SIZE` environment variable) and raise an `OutputLimitExceededError` when it is exceeded.
 
 The `read_file()` method should preserve newline constructs (e.g. crlf should be preserved not converted to lf). This is equivalent to specifying `newline=""` in a call to the Python `open()` function.
+
+Both file methods accept `user` to enforce that user's filesystem permissions,
+including when following symlinks and creating parent directories. Omitting
+`user` uses the sandbox's default execution user. A provider that cannot
+honour an explicit user must raise `SandboxUserUnsupportedError` before any
+file operation. Declare a named `user` parameter: accepting `**kwargs` alone
+does not establish support.
+
+Pass the same user as the agent's tools when reading or writing on the agent's
+behalf. Inspect does not infer this user from the tool configuration. If the
+sandbox's default user is root, omitting `user` still gives root access.
+
+```python
+contents = await sandbox().read_file("/home/agent/output.txt", user="agent")
+await sandbox().write_file("/home/agent/input.txt", contents, user="agent")
+```
+
+Older sandbox providers remain usable for calls without `user`; their existing
+default behavior is retained. Explicit-user calls through `sandbox()` are rejected
+until the sandbox provider implements this contract. Checkpoint export requests
+`user="root"` from sandbox providers that accept the parameter.
+
+Sandbox provider authors must update override signatures to type-check against
+the new base class, even though existing calls remain usable at runtime.
 
 ### connection()
 

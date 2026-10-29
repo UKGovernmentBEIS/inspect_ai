@@ -1,9 +1,10 @@
 import functools
 import logging
 import tempfile
+import traceback
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Callable, Literal, cast
+from typing import Any, Callable, Literal, NoReturn, cast
 from unittest import mock
 
 import anyio
@@ -290,6 +291,38 @@ async def test_no_concurrent_eval_async():
                 for task in tasks
             ]
         )
+
+
+def _raise_wrapped() -> NoReturn:
+    raise RuntimeError("wrapped")
+
+
+@solver
+def _fail_while_handling() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        try:
+            raise ValueError("context")
+        except ValueError:
+            _raise_wrapped()
+
+    return solve
+
+
+async def test_eval_async_debug_errors_keeps_error_context(tmp_path: Path) -> None:
+    with pytest.raises(RuntimeError, match="wrapped") as excinfo:
+        await eval_async(
+            Task(dataset=[Sample(input="x")], solver=_fail_while_handling()),
+            model="mockllm/model",
+            log_dir=str(tmp_path),
+            debug_errors=True,
+            ctl_server=False,
+        )
+    error = excinfo.value
+    assert repr(error.__context__) == "ValueError('context')"
+    assert not error.__suppress_context__
+    text = "".join(traceback.format_exception(error))
+    assert "Exception Group Traceback" not in text
+    assert text.count("RuntimeError: wrapped") == 1
 
 
 def test_eval_config_override():
@@ -1040,6 +1073,7 @@ async def test_terminal_retry_startup_releases_recorder(
                 task_args={},
                 model=None,
                 model_roles=None,
+                sandbox=None,
                 log=await read_eval_log_async(prior.location, header_only=True),
                 log_info=list_eval_logs(str(tmp_path))[0],
             ),

@@ -80,22 +80,15 @@ class TestComposerVisibility:
 
     async def _composer_row_hidden(self, interactive: bool) -> bool:
         from inspect_ai.agent._acp.tui.app import InspectAcpApp
-        from inspect_ai.agent._acp.tui.session_screen import SessionScreen
 
-        from .conftest import make_fake_client
+        from .conftest import make_fake_client, open_session_screen
 
         rows = [_row(interactive=interactive)]
         client = make_fake_client(rows)
         app = InspectAcpApp(eval_id=None, server=None, client=client)
         async with app.run_test() as pilot:
-            await pilot.pause()
-            app.screen._on_select(rows[0])  # type: ignore[attr-defined]
-            for _ in range(20):
-                await pilot.pause()
-                if isinstance(app.screen, SessionScreen):
-                    break
-            assert isinstance(app.screen, SessionScreen)
-            composer_row = app.screen.query_one("#composer-row")
+            screen = await open_session_screen(pilot, rows)
+            composer_row = screen.query_one("#composer-row")
             return not composer_row.display
 
     @skip_if_trio
@@ -110,22 +103,14 @@ class TestComposerVisibility:
 
     async def _check_actions(self, interactive: bool) -> dict[str, bool | None]:
         from inspect_ai.agent._acp.tui.app import InspectAcpApp
-        from inspect_ai.agent._acp.tui.session_screen import SessionScreen
 
-        from .conftest import make_fake_client
+        from .conftest import make_fake_client, open_session_screen
 
         rows = [_row(interactive=interactive)]
         client = make_fake_client(rows)
         app = InspectAcpApp(eval_id=None, server=None, client=client)
         async with app.run_test() as pilot:
-            await pilot.pause()
-            app.screen._on_select(rows[0])  # type: ignore[attr-defined]
-            for _ in range(20):
-                await pilot.pause()
-                if isinstance(app.screen, SessionScreen):
-                    break
-            assert isinstance(app.screen, SessionScreen)
-            screen = app.screen
+            screen = await open_session_screen(pilot, rows)
             return {
                 action: screen.check_action(action, ())
                 for action in ("submit", "newline", "interrupt")

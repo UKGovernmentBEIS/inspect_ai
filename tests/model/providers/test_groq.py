@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from test_helpers.utils import skip_if_no_groq
 
 from inspect_ai.model import (
+    ChatMessageTool,
     ChatMessageUser,
     GenerateConfig,
     ModelOutput,
@@ -27,6 +28,7 @@ from inspect_ai.model._providers.groq import (
     GroqAPI,
     GroqStreamError,
     chat_tool_choice,
+    groq_chat_message,
     groq_completion_from_stream,
 )
 from inspect_ai.model._stream import (
@@ -36,7 +38,7 @@ from inspect_ai.model._stream import (
     StreamToolCallEvent,
     model_stream_observer,
 )
-from inspect_ai.tool import ToolFunction
+from inspect_ai.tool import ToolCallError, ToolFunction
 from inspect_ai.util import json_schema
 
 
@@ -749,3 +751,22 @@ async def test_groq_output_records_response_id() -> None:
 
     assert isinstance(output, ModelOutput)
     assert output.response_id == "groq-response"
+
+
+@pytest.mark.parametrize(
+    "error,expected",
+    [
+        (None, "result text"),
+        (ToolCallError("unknown", "boom"), "Error: boom"),
+    ],
+)
+async def test_groq_tool_message_error(
+    error: ToolCallError | None, expected: str
+) -> None:
+    param = await groq_chat_message(
+        ChatMessageTool(
+            content="result text", tool_call_id="call_1", function="f", error=error
+        )
+    )
+    assert param["role"] == "tool"
+    assert param["content"] == expected

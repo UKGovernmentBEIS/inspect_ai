@@ -3,6 +3,39 @@
 Status: proposed, 2026-09-15. Issue: none (task from Ransom). Author: agent
 (Claude), reviewed by Codex; see the PR.
 
+As built (PR C, #5741), these points differ from the text below; Ransom
+confirmed each on 2026-10-07. Output truncation: #5654 had already made
+bridged results follow `truncate_tool_output`, including the native 16 KiB
+default, which supersedes the explicit-limits-only decision; PR C records the
+result as delivered and changes no limit. Argument checks: the depth bound
+runs before the grant check, but schema validation still runs after it, as on
+`main`, so an unproposed call with invalid arguments is denied, and a proposed
+one consumes its grant and pairs with its proposal. The large-argument test
+sends a request near the proxy's 50 MiB body cap (about 135 MiB at the service
+for non-ASCII text) instead of 120 MiB, which the proxy rejects, and bounds
+peak Python heap growth with `tracemalloc` rather than process RSS. ACP's
+sub-agent filter also places events by their `span_id`, so an execution
+recorded in a sub-agent span that has already closed stays filtered. Two
+items listed under "Not this design" were done after review: the ACP card
+synthesised for a proposal becomes cancelable once its host execution's
+`ToolEvent` arrives, and the eviction warning says what an evicted grant
+loses. Exempt-server pairing is first come, first served (Ransom,
+2026-10-14): an unproposed call on a `require_proposal=False` server with the
+same arguments as a pending proposal consumes its grant and takes its id, and
+the proposed call then runs with a fresh id and `grant: "exempt"`. Execution
+is unaffected. The bridge docs state this limitation, a test pins it, and the
+matching is unchanged.
+
+A limit raised in a host tool now matches a native tool (decision: Ransom,
+with Charles, 2026-10-27). A `LimitExceededError` that decides the outcome,
+bare or as the decisive leaf of a group (`decisive_tool_exception`), is
+recorded as the mapped `limit` error and reaches the scaffold as a
+`ToolError` carrying the same message ("The tool exceeded its token limit of
+1,000."). It no longer reaches the service dispatcher's limit branch, so the
+sample is not ended; a sample-level limit is enforced at the agent's next
+generation, as natively. A limit with a termination in its history still
+propagates unchanged and terminates. The sections below are updated to match.
+
 All `path:line` references are to `main` at `472cf7dd2` (2026-09-22, which
 includes #5464) unless a different tree is named. Viewer references are to
 the `ts-mono` submodule at the commit that tree pins (`02f2c5ad`), under
@@ -517,17 +550,22 @@ Capturing the proposing event's span, in `bridge_generate`
 
 - When the bridge has a `model_event_sink`, `bridge_generate` wraps it for
   the `model.generate()` call in a `_SpanCapturingSink` (private, in
-  `util.py`) that forwards `on_pending` and `on_complete` to the inner sink
-  and, after `on_complete`, remembers `event.span_id`. The sink protocol is
-  not widened and the inner sink is unaware. When the bridge has no sink,
+  `util.py`) that forwards `on_start` (when the inner sink has one),
+  `on_pending` and `on_complete` to the inner sink and, after `on_complete`,
+  remembers `event.span_id`. The inner sink is unaware. When the bridge has no sink,
   nothing is installed (installing one would disable partial-output
   publishing, `_model.py:1394-1401`); the `ModelEvent` was stamped with
   `current_span_id()` in this same task.
 - After approval, `register_tool_execution_grants(calls, declarations,
   span_id=captured)`, `declarations` being the `[*tools, *declared_in_input(...)]`
   list #5428 builds today, where `captured` is the remembered span if it
-  differs
-  from `current_span_id()` at that moment, else `None`. Storing only a
+  differs from `current_span_id()` at the sink's `on_pending` and at its
+  `on_complete`, else `None`. When the sink's `on_start` named another span,
+  the generation runs under it, so `current_span_id()` in those callbacks is
+  that span: the wrapper then compares against the span current when
+  `on_start` was called, and a span equal to the `on_start` span is captured. The comparison is made in the callbacks, not at
+  registration: a checkpoint can rotate while the calls await approval, and
+  the earlier checkpoint span is not a sink's choice. Storing only a
   differing span keeps executions under the checkpointer's rotating
   `checkpoint N` span when no re-attribution happened: a stored checkpoint
   id would otherwise pin a later execution under a span that has since
@@ -753,11 +791,9 @@ def tool_call_error(ex: Exception, function: str) -> MappedToolCallError | None:
 #5464 also settled what happens over the bridge: a mapped exception
 propagates as the RPC error the scaffold reads as tool output, an unmapped
 one is signalled through `bridge.request_fail(inner_ex)` so the sample fails
-as it would natively, and in every case the original exception is what
-leaves `call_tool`, so the sandbox service dispatcher sees what it saw
-before (a bare `LimitExceededError` still reaches its limit branch,
-`util/_sandbox/service.py:552-560`). This design keeps all of that and adds
-the event:
+as it would natively, and the original exception is what leaves
+`call_tool`, except for a limit (below). This design keeps all of that and
+adds the event:
 
 - Mapped exception: `error=mapped.error`, `result=mapped.result` when it is
   not `None` (a timeout's or output-limit's truncated output), else the
@@ -765,9 +801,12 @@ the event:
   the native wording ("Command timed out before completing.") while the
   scaffold still sees `str(ex)`, as today; the two are deliberately not
   unified, because changing the wire text is out of scope.
-- `LimitExceededError`: mapped to `limit` by `tool_call_error`; re-raise the
-  original so the dispatcher still calls `active.limit_exceeded(ex)` for a
-  bare one.
+- `LimitExceededError`, bare or deciding a group: mapped to `limit` by
+  `tool_call_error`; raise a `ToolError` with the mapped message, from the
+  original. The dispatcher's limit branch would end the sample
+  (`active.limit_exceeded(ex)`); natively the model reads the limit as a tool
+  error and the agent continues. A termination anywhere in the exception's
+  history still propagates the original, which the dispatcher enacts.
 - Unmapped exception: `failed=True`, `error=None`, the native shape
   (`_call_tools.py:326-331`), then `bridge.request_fail(inner_ex)` exactly
   where #5464 calls it (after the event is finalised, before the re-raise),
@@ -849,8 +888,13 @@ the `ToolEvent` docstring and in `docs/agent-bridge.qmd`.
   `checkpoint N` span via the shared `_SpanCell`
   (`src/inspect_ai/util/_span.py:135-152`,
   `src/inspect_ai/util/_checkpoint/checkpointer_impl.py:293`).
-- `ModelEventSink` is not widened. The bridge's private wrapper reads the
-  span the sink assigned; the sink neither sees tool events nor needs to.
+- `ModelEventSink`'s tool-event surface is not widened (its optional
+  `on_start` names the span a generation runs under; see the protocol's
+  docstring). The bridge's private wrapper reads the span the sink assigned; the sink neither sees tool events nor needs to.
+  The span is read when `on_complete` returns, so a sink must assign it by
+  then. The host `ToolEvent` is emitted at once; a span assigned later, or a
+  `ModelEvent` the sink holds back and emits later, is not coordinated with
+  it. Both known sinks assign the span synchronously.
 - `use_model_event_sink` is not active in the `call_tool` task, so a host
   tool that itself calls a model records its `ModelEvent` directly under the
   tool span, which is where a native tool's nested generation goes.
@@ -1046,7 +1090,7 @@ either way.
 | Unknown tool on a known server | fresh | `null` | `parsing` | `None` | `null` | unchanged ("Unknown tool '<tool>' in server '<server>'") |
 | Arguments fail #5464's schema validation | fresh | `null` | `parsing` | `None` | `null` | unchanged (`ToolParsingError` text) |
 | Arguments nested over 100 deep | fresh | `null` | `parsing` | `None` | `null` | **changed**: the native depth `ToolParsingError` instead of execution |
-| Tool raised `LimitExceededError` | as executed | as executed | `limit` | `None` | as executed | unchanged (limit handling and error text) |
+| Tool raised `LimitExceededError` | as executed | as executed | `limit` | `None` | as executed | **changed**: MCP error with the native limit message; the sample is not ended |
 | Operator cancel | as executed | as executed | `timeout` | `None` | as executed | new: MCP error "Command timed out before completing." |
 | Bridge teardown mid-call | as executed | as executed | `cancelled` | `None` | as executed | none (request abandoned, as today) |
 
@@ -1310,7 +1354,9 @@ tests do, and subscribe a recorder to count emissions):
   `error is None` for the unmapped one with `bridge.request_fail` called
   with the unwrapped exception (and not called for the mapped ones), and
   that the exception propagated to the caller is the original object with
-  its original message (RPC text preservation). A `ToolError` raised inside
+  its original message (RPC text preservation), except for the limit, which
+  propagates as a `ToolError` with the mapped message and does not reach the
+  dispatcher's limit branch. A `ToolError` raised inside
   an `anyio` task group in the tool is classified from the unwrapped
   exception and does not fail the sample.
 - Cancellation: operator cancel via `event._cancel()` from a sibling task
@@ -1490,8 +1536,9 @@ together with the Python change, as cross-repo PRs normally do.
   (`_call_tools.py:406-417`), the bridge path never does, and `ReviewEvent`s
   are therefore absent for host calls. Covering them means running the
   reviewer at the execution edge in `host_tool.py`, before the result is
-  returned to the scaffold, and deciding what `terminate` (the sample ends
-  through `bridge.request_fail`, as approval termination does) and
+  returned to the scaffold, and deciding what `terminate` (raise
+  `TerminateSampleError`, which the sandbox service dispatcher answers and
+  propagates to end the sample, as approval termination does) and
   `escalate` mean over the RPC. This design gives it the `ToolEvent` a
   `ReviewEvent` pairs with; it is a natural companion to the
   unconditional-grants follow-up.

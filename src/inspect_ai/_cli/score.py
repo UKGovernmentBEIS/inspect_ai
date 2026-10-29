@@ -20,9 +20,10 @@ from inspect_ai._display import display
 from inspect_ai._display.core.results import sample_coverage_messages, task_scores
 from inspect_ai._display.core.rich import rich_theme
 from inspect_ai._eval.context import init_eval_context
-from inspect_ai._eval.loader import metric_from_spec
+from inspect_ai._eval.loader import metric_from_spec, print_record
 from inspect_ai._eval.score import (
     ScoreAction,
+    log_model_record,
     resolve_scorers,
     score_async,
 )
@@ -63,7 +64,7 @@ from .common import CommonOptions, common_options, process_common_options
     multiple=True,
     type=str,
     envvar="INSPECT_SCORE_MODEL_ROLE",
-    help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-4o or --model-role grader="{model: mockllm/model, temperature: 0.5}". Bind multiple models to a role with a comma-separated list of names or a YAML/JSON list of configs. Merged over the model roles recorded in the log.',
+    help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-6-luna or --model-role grader="{model: mockllm/model, temperature: 0.5}". Bind multiple models to a role with a comma-separated list of names or a YAML/JSON list of configs. Merged over the model roles recorded in the log.',
 )
 @click.option(
     "--scorer",
@@ -130,7 +131,13 @@ def score_command(
     stream: int | bool = False,
     **common: Unpack[CommonOptions],
 ) -> None:
-    """Score a previous evaluation run."""
+    """Score a previous evaluation run.
+
+    This runs code named by the log (its task file and scorers) and uses the
+    model endpoint and other settings recorded in it. Only run it on logs you
+    trust. With --scorer, the log's metrics are rebuilt without importing its
+    task file; the log's model and model roles are still used.
+    """
     process_common_options(common)
 
     async def run_score() -> None:
@@ -184,6 +191,8 @@ async def score(
 
     recorder = create_recorder_for_location(log_file, log_dir)
     eval_log = await recorder.read_log(log_file, header_only=bool(stream))
+    if stream:
+        eval_log.reductions = await recorder.read_log_reductions(log_file)
     num_samples = (
         len(eval_log.samples)
         if eval_log.samples
@@ -208,6 +217,8 @@ async def score(
         raise ValueError(
             "Unable to resolve any scorers for this log. Please specify a scorer using the '--scorer' param."
         )
+    if override_model is None and (record := log_model_record(eval_log)) is not None:
+        print_record(record)
 
     metrics = resolve_metrics(metric)
 
@@ -251,6 +262,7 @@ async def score(
         action=action,
         copy=False,
         samples=read_sample,
+        _log_scorers=scorer is None,
     )
 
     if stream:

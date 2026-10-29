@@ -40,6 +40,8 @@
 | mistral/mistral-medium-2604 | none |
 | mistral/mistral-small-2603 | none |
 | moonshotai/kimi-k3 | max |
+| moonshotai/kimi-k3.1-pro | max |
+| moonshotai/kimi-k3.1-pro-highspeed | max |
 | openai/gpt-5 | medium |
 | openai/gpt-5-mini | medium |
 | openai/gpt-5-nano | medium |
@@ -63,6 +65,7 @@
 | openai/gpt-6-luna | medium |
 | openai/gpt-6-sol | medium |
 | openai/gpt-6.1-sol | medium |
+| openai/gpt-6.1-terra | medium |
 | z-ai/glm-5.3 | max |
 | z-ai/glm-5.3-flash | max |
 | zai-org/GLM-5.3-FP8 | max |

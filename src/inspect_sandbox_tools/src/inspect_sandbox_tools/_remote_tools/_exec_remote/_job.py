@@ -155,7 +155,12 @@ class Job:
         if self._state == "running" and self._process.returncode is not None:
             self._state = "completed"
             self._exit_code = self._process.returncode
-            # Wait for read tasks to finish draining
+
+        # Drain the readers whenever the job is no longer running. A poll
+        # cancelled here leaves the state terminal with the readers unfinished;
+        # a later poll finishes the drain so its output is not lost. Once the
+        # readers are done this does nothing.
+        if self._state != "running":
             await self._wait_for_readers()
 
         # Always limit per-poll output to keep JSON-RPC responses small.
@@ -370,19 +375,21 @@ class Job:
         await self._wait_for_readers()
 
     async def _wait_for_readers(self) -> None:
-        """Wait for background read tasks to complete."""
-        self._stdout_buffer.close()
-        self._stderr_buffer.close()
-        for task in [self._stdout_task, self._stderr_task]:
-            if not task.done():
-                try:
-                    await asyncio.wait_for(task, timeout=1.0)
-                except (asyncio.TimeoutError, asyncio.CancelledError):
-                    task.cancel()
-                    try:
-                        await task
-                    except asyncio.CancelledError:
-                        pass
+        """Wait up to 1 s for the read tasks to reach EOF, then cancel any left.
+
+        Only the tasks still running when called are awaited, so a repeated
+        call does not re-raise an error an earlier call already handled. The
+        buffers stay open while the tasks run, so output read after the leader
+        exits is kept, and cancelling a task frees a put() that waits on a full
+        buffer. A reader error is raised to the caller.
+        """
+        readers = [t for t in (self._stdout_task, self._stderr_task) if not t.done()]
+        if not readers:
+            return
+        _, pending = await asyncio.wait(readers, timeout=1.0)
+        for task in pending:
+            task.cancel()
+        await asyncio.gather(*readers)
 
     async def _read_stream(
         self, stream: asyncio.StreamReader | None, buffer: BoundedByteBuffer

@@ -8,7 +8,7 @@ llms-description: Defer scoring with --no-score, re-score logs with the inspect 
 By default, model output in evaluations is automatically scored. However, you can defer scoring by using the `--no-score` option. For example:
 
 ``` bash
-inspect eval popularity.py --model openai/gpt-4 --no-score
+inspect eval popularity.py --model openai/gpt-6-luna --no-score
 ```
 
 This will produce a log with samples that have not yet been scored and with no evaluation metrics.
@@ -27,6 +27,12 @@ inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval
 ```
 
 This will use the scorers and metrics that were declared when the evaluation was run, applying them to score each sample and generate metrics for the evaluation.
+
+::: {.callout-warning appearance="simple"}
+`inspect score` runs code named by the log (its task file and scorers) and uses the model endpoint and other settings recorded in it. Only run it on logs you trust. With `--scorer`, the log's metrics are rebuilt without importing its task file; the log's model and model roles are still used.
+
+When a scorer is not registered, `inspect score` imports the task file the log records to find it, and prints the path it imported. When it scores with the log's model at a base URL the log records, it prints the model and URL.
+:::
 
 You may choose to use a different scorer than the task scorer to score a log file. In this case, you can use the `--scorer` option to pass the name of a scorer (including one in a package) or the path to a source code file containing a scorer to use. For example:
 
@@ -83,15 +89,17 @@ inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --scorer custom_scor
 inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --scorer custom_scorer.py --action overwrite
 ```
 
+With `--action overwrite`, the log's task-level metrics are rebuilt and applied to the new scores, before any sample is scored. When you score with your own scorer (`--scorer`, or the `score()` function) they are rebuilt without importing the log's task file, and metric options that would create a model or an object other than a metric or reducer are refused. If the log's metrics can't be rebuilt this way, scoring fails with an error naming the metric. Pass `--metric` (or `metrics` to `score()`) to use your own metrics instead. When you rescore with the log's own scorers (no `--scorer`), the log's metrics are rebuilt as recorded.
+
 ## Score Function
 
 You can also use the `score()` function in your Python code to score evaluation logs. For example, if you are exploring the performance of different scorers, you might find it more useful to call the `score()` function using varying scorers or scorer options. For example:
 
 ``` python
-log = eval(popularity, model="openai/gpt-4")[0]
+log = eval(popularity, model="openai/gpt-6-luna")[0]
 
 grader_models = [
-    "openai/gpt-4",
+    "openai/gpt-6-luna",
     "anthropic/claude-3-opus-20240229",
     "google/gemini-2.5-pro",
     "mistral/mistral-large-latest"
@@ -111,7 +119,7 @@ input_log_path = "./logs/2025-02-11T15-17-00-05-00_popularity_dPiJifoWeEQBrfWsAo
 log = read_eval_log(input_log_path)
 
 grader_models = [
-    "openai/gpt-4",
+    "openai/gpt-6-luna",
     "anthropic/claude-3-opus-20240229",
     "google/gemini-2.5-pro",
     "mistral/mistral-large-latest"
@@ -127,6 +135,8 @@ for model, scored_log in zip(grader_models, scoring_logs):
     output_file = f"{base}_{model.replace('/', '_')}{ext}"
     write_eval_log(scored_log, output_file)
 ```
+
+`score()` uses the model (unless you pass `model`) and model roles recorded in the log, with their base URLs and model args, so only score logs you trust. The log's metrics are rebuilt without importing its task file.
 
 ## Editing Scores
 
