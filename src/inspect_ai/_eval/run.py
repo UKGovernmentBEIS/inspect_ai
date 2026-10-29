@@ -1531,9 +1531,16 @@ async def _in_child_task(
     except BaseExceptionGroup as group:
         # the task group wraps the one task's exception (including a
         # KeyboardInterrupt, which unwrap_exception_group leaves wrapped)
-        if len(group.exceptions) == 1:
-            raise group.exceptions[0] from group.exceptions[0].__cause__
-        raise
+        if len(group.exceptions) != 1:
+            raise
+        error = group.exceptions[0]
+        # re-raising sets the group as the error's context: restore its own
+        # (an error it was raised while handling)
+        context = error.__context__
+        try:
+            raise error
+        finally:
+            error.__context__ = context
     return changes
 
 
