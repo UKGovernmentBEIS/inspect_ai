@@ -1555,11 +1555,8 @@ def test_replay_infers_the_turns_of_the_continuity_fixtures(fixture: str) -> Non
     assert steps(events) == steps(recorded)
 
 
-def test_a_checked_call_inferred_not_a_turn_has_no_steps() -> None:
-    # a log with generate ids whose only checked model_input step is a call
-    # inferred as utility (where inference differs from live): the call was
-    # made, so the check is not an orphan, and the conversation's next turn
-    # keeps its own id
+def checked_m3(check_id: str, later_turn: bool, recorded: bool) -> list[Event]:
+    """`continuity_none`, whose m3 (a foreign-prompt call, inferred as utility) a sentinel checked as `check_id`: m3's uuid, or as sentinel 0.1.x did, the id of the last message of its input (`u3`) with a repeat suffix or without. `recorded`, every call records `origin="agent"`, as m3 was a turn live."""
     import json
 
     from pydantic import TypeAdapter
@@ -1567,7 +1564,14 @@ def test_a_checked_call_inferred_not_a_turn_has_no_steps() -> None:
     data = json.loads((CONTINUITY_FIXTURES / "continuity_none.json").read_text())
     events: list[Event] = []
     for event in TypeAdapter(list[Event]).validate_python(data["events"]):
+        if isinstance(event, ModelEvent):
+            if event.uuid == "m4" and not later_turn:
+                continue
+            if recorded:
+                event = event.model_copy(update={"origin": "agent"})
         if isinstance(event, ModelEvent) and event.uuid == "m3":
+            last = event.input[-1].model_copy(update={"id": "u3"})
+            event = event.model_copy(update={"input": [*event.input[:-1], last]})
             events += [
                 SpanBeginEvent(
                     id="check", name="probe", type="sentinel", span_id=event.span_id
@@ -1576,7 +1580,7 @@ def test_a_checked_call_inferred_not_a_turn_has_no_steps() -> None:
                     factory="probe",
                     path="probe",
                     function="check",
-                    step_id="m3",
+                    step_id=check_id,
                     conversation="agent",
                     stage="model_input",
                     kind="observation",
@@ -1587,18 +1591,53 @@ def test_a_checked_call_inferred_not_a_turn_has_no_steps() -> None:
                 SpanEndEvent(id="check", span_id=event.span_id),
             ]
         events.append(event)
+    return events
+
+
+@pytest.mark.parametrize("later_turn", [True, False])
+@pytest.mark.parametrize("check_id", ["m3", "u3", "u3:1"])
+def test_a_checked_call_inferred_not_a_turn_has_no_steps(
+    check_id: str, later_turn: bool
+) -> None:
+    # a log whose only checked model_input step is a call inferred as utility
+    # (where inference differs from live): the call was made, so the check is
+    # not an orphan, and the conversation's next turn keeps its own id and is
+    # not handed the check. Ransom's eighth review B1: a check sentinel 0.1.x
+    # identified by the last message of the call's input goes with the call
+    # that input was sent in, as one identified by the call's uuid does
     replay = steps_from_events(
         [],
-        events,
+        checked_m3(check_id, later_turn, recorded=False),
         [],
         sample_uuid="sample",
         eval_info=EvalInfo(inspect_ai_version="0.3.200", sentinel=True),
     )
 
-    assert [(s.stage, s.id) for s in replay if s.stage == "model_input"] == [
-        ("model_input", "m1"),
-        ("model_input", "m2"),
-        ("model_input", "m4"),
+    assert [s.id for s in replay if s.stage == "model_input"] == [
+        "m1",
+        "m2",
+        *(["m4"] if later_turn else []),
+    ]
+
+
+@pytest.mark.parametrize("later_turn", [True, False])
+@pytest.mark.parametrize("check_id", ["m3", "u3", "u3:1"])
+def test_a_checked_call_recorded_as_a_turn_keeps_its_check(
+    check_id: str, later_turn: bool
+) -> None:
+    replay = steps_from_events(
+        [],
+        checked_m3(check_id, later_turn, recorded=True),
+        [],
+        sample_uuid="sample",
+        eval_info=EvalInfo(inspect_ai_version="0.3.200", sentinel=True),
+    )
+
+    assert [s.id for s in replay if s.stage == "model_input"] == [
+        "m1",
+        "m2",
+        check_id,
+        *(["m4"] if later_turn else []),
     ]
 
 

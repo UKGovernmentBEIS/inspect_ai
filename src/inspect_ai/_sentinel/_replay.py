@@ -460,6 +460,7 @@ class _Driver:
                 if not is_agent_turn(self._origin(event)):
                     if event.origin is None:
                         inferred_other.add(event.uuid)
+                        self._take_checks(event, candidates)
                     continue
                 turn_ids.add(event.uuid)
                 conversation = self._conversation(event)
@@ -589,11 +590,24 @@ class _Driver:
             )
 
     def _names_message(self, step_id: str) -> bool:
-        # the same input checked again had ":<n>" appended
-        message_id, _, count = step_id.rpartition(":")
-        return self._message_by_id(step_id) is not None or (
-            count.isdigit() and self._message_by_id(message_id) is not None
-        )
+        return any(self._message_by_id(name) is not None for name in _names(step_id))
+
+    def _take_checks(self, event: ModelEvent, candidates: dict[str, list[str]]) -> None:
+        # a call inferred not a turn was checked live if a model_input step
+        # names it, by its uuid or, before generate ids, by the last message
+        # of its input: the step goes with it (and has no step), not with the
+        # conversation's next turn
+        conversation = self._conversation(event)
+        spans = candidates.get(conversation)
+        if not spans:
+            return
+        input = self._input(event)
+        names = {event.uuid, input[-1].id if len(input) else None} - {None}
+        candidates[conversation] = [
+            span
+            for span in spans
+            if names.isdisjoint(_names(self.span_events[span][0].step_id))
+        ]
 
     def _sentinel_span(self, span_id: str | None) -> str | None:
         # the span tree has no cycle (_check_span_tree)
@@ -1155,6 +1169,12 @@ class _Driver:
             call.seq + 1,
             lambda: self._record(conversation).publish([decision]),
         )
+
+
+def _names(step_id: str) -> list[str]:
+    """What a model_input step id can name: itself, and without the ":<n>" a repeat check of the same input had appended."""
+    name, _, count = step_id.rpartition(":")
+    return [step_id, name] if count.isdigit() and name else [step_id]
 
 
 def _reported(event: SentinelEvent) -> Any:
