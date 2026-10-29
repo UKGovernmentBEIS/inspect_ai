@@ -699,6 +699,68 @@ async def test_silent_success_never_checks_the_container(
     assert await _sandbox().exec(["true"], timeout=30) == ok
 
 
+# --- the in-container timeout's exit codes are also ordinary exit codes ------
+#
+# 124/137/143 come from the injected `timeout` when it fires, but a command can
+# exit with them itself (a script ending in `timeout 10 pytest` exits 124).
+# only an exec that ran for at least `timeout` seconds is a timeout (#6049).
+
+
+class _FakeClock:
+    """Stands in for the docker module's `time`; fake_compose_exec advances it."""
+
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def monotonic(self) -> float:
+        return self.now
+
+
+async def _exec_taking(
+    monkeypatch: pytest.MonkeyPatch,
+    result: ExecResult[str],
+    elapsed: float,
+    timeout: int,
+) -> ExecResult[str]:
+    clock = _FakeClock()
+
+    async def fake_compose_exec(*args: object, **kwargs: object) -> ExecResult[str]:
+        clock.now += elapsed
+        return result
+
+    monkeypatch.setattr("inspect_ai.util._sandbox.docker.docker.time", clock)
+    monkeypatch.setattr(
+        "inspect_ai.util._sandbox.docker.docker.compose_exec", fake_compose_exec
+    )
+    _stub_dead_container_probes(monkeypatch, service_dead=False)
+    return await _sandbox().exec(["sh", "-c", "the command"], timeout=timeout)
+
+
+@pytest.mark.parametrize(
+    "stdout", ["", "partial\n"], ids=["exit_124", "inner_timeout_with_output"]
+)
+async def test_command_exit_124_before_the_deadline_is_returned(
+    monkeypatch: pytest.MonkeyPatch, stdout: str
+) -> None:
+    exited_124 = ExecResult(success=False, returncode=124, stdout=stdout, stderr="")
+    assert (
+        await _exec_taking(monkeypatch, exited_124, elapsed=1.1, timeout=60)
+        == exited_124
+    )
+
+
+@pytest.mark.parametrize("returncode", [124, 137, 143])
+async def test_timeout_exit_code_at_the_deadline_raises(
+    monkeypatch: pytest.MonkeyPatch, returncode: int
+) -> None:
+    timed_out = ExecResult(
+        success=False, returncode=returncode, stdout="partial\n", stderr=""
+    )
+    with pytest.raises(TimeoutError, match="timed out after 2 seconds") as excinfo:
+        await _exec_taking(monkeypatch, timed_out, elapsed=2.0, timeout=2)
+    assert getattr(excinfo.value, "truncated_output", None) == "partial\n"
+
+
 async def test_no_wrapper_leaves_runc_launch_failures_unclassified(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
