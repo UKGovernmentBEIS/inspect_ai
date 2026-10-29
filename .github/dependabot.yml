@@ -91,9 +91,9 @@ updates:
       - dependency-name: "griffe"
         versions: [">=1.15.0"]
   # Bumps the release build toolchain pinned in
-  # .github/actions/build-dist/requirements.txt.
+  # scripts/build-dist/requirements.txt.
   - package-ecosystem: uv
-    directory: "/.github/actions/build-dist"
+    directory: "/scripts/build-dist"
     schedule:
       interval: weekly
     cooldown:

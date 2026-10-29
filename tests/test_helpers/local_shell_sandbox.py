@@ -117,17 +117,25 @@ class LocalShellSandbox(SandboxEnvironment):
             stderr=proc.stderr.decode(errors="replace"),
         )
 
-    async def write_file(self, file: str, contents: str | bytes) -> None:
+    async def write_file(
+        self, file: str, contents: str | bytes, *, user: str | None = None
+    ) -> None:
         data = contents.encode() if isinstance(contents, str) else contents
         Path(file).write_bytes(data)
 
     @overload
-    async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
+    async def read_file(
+        self, file: str, text: Literal[True] = True, *, user: str | None = None
+    ) -> str: ...
 
     @overload
-    async def read_file(self, file: str, text: Literal[False]) -> bytes: ...
+    async def read_file(
+        self, file: str, text: Literal[False], *, user: str | None = None
+    ) -> bytes: ...
 
-    async def read_file(self, file: str, text: bool = True) -> Union[str, bytes]:
+    async def read_file(
+        self, file: str, text: bool = True, *, user: str | None = None
+    ) -> Union[str, bytes]:
         if text:
             return Path(file).read_text()
         return Path(file).read_bytes()
