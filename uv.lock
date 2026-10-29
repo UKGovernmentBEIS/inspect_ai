@@ -24,27 +24,27 @@ exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for 
 exclude-newer-span = "P7D"
 
 [options.exclude-newer-package]
-aiobotocore = false
-anthropic = false
-aws-bedrock-token-generator = false
-azure-ai-inference = false
-boto3 = false
-botocore = false
-certifi = false
-google-genai = false
-groq = false
-huggingface-hub = false
-inspect-scout = false
-inspect-sentinel = false
-mistralai = false
-nnterp = false
-openai = false
-sglang = false
-together = false
-transformer-lens = false
-transformers = false
-vllm = false
-xai-sdk = false
+aiobotocore = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
+anthropic = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
+aws-bedrock-token-generator = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
+azure-ai-inference = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
+boto3 = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
+botocore = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
+certifi = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
+google-genai = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
+groq = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
+huggingface-hub = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
+inspect-scout = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
+inspect-sentinel = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
+mistralai = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
+nnterp = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
+openai = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
+sglang = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
+together = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
+transformer-lens = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
+transformers = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
+vllm = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
+xai-sdk = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
 
 [[package]]
 name = "adlfs"
