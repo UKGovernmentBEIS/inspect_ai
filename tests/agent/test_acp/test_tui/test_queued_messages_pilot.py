@@ -27,7 +27,7 @@ from inspect_ai.agent._acp.tui.client import SessionRow
 from inspect_ai.agent._acp.tui.session_screen import SessionScreen
 from inspect_ai.agent._acp.tui.state import MessageGroup
 
-from .conftest import make_fake_client
+from .conftest import make_fake_client, open_session_screen
 
 pytestmark = pytest.mark.slow
 
@@ -67,24 +67,6 @@ def _operator_chunk(text: str, *, message_id: str = "srv-1") -> SessionNotificat
     )
 
 
-async def _open_session_screen(
-    app: InspectAcpApp, pilot: Any, rows: list[SessionRow]
-) -> SessionScreen:
-    """Drive the picker → SessionScreen transition.
-
-    Mirrors the pattern used by ``test_session_screen.py``'s other
-    pilot tests.
-    """
-    await pilot.pause()
-    app.screen._on_select(rows[0])  # type: ignore[attr-defined]
-    for _ in range(20):
-        await pilot.pause()
-        if isinstance(app.screen, SessionScreen):
-            break
-    assert isinstance(app.screen, SessionScreen)
-    return app.screen
-
-
 def _queued(screen: SessionScreen) -> list[MessageGroup]:
     return [
         item
@@ -113,7 +95,7 @@ async def test_send_during_running_appends_queued_ephemeral_and_clears_composer(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        screen = await _open_session_screen(app, pilot, sample_rows)
+        screen = await open_session_screen(pilot, sample_rows)
         # Drive lifecycle into ``running`` via an in-flight tool.
         screen.state.consume(_tool_start())
         await pilot.pause()
@@ -162,7 +144,7 @@ async def test_send_during_idle_creates_ephemeral(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        screen = await _open_session_screen(app, pilot, sample_rows)
+        screen = await open_session_screen(pilot, sample_rows)
         assert screen.state.lifecycle == "idle"
 
         composer = screen.query_one("#composer", TextArea)
@@ -195,7 +177,7 @@ async def test_arriving_operator_chunk_swaps_ephemeral_for_real_group(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        screen = await _open_session_screen(app, pilot, sample_rows)
+        screen = await open_session_screen(pilot, sample_rows)
         screen.state.consume(_tool_start())
         await pilot.pause()
 
@@ -239,7 +221,7 @@ async def test_send_failure_rolls_back_the_ephemeral(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        screen = await _open_session_screen(app, pilot, sample_rows)
+        screen = await open_session_screen(pilot, sample_rows)
         screen.state.consume(_tool_start())
         await pilot.pause()
 
@@ -275,7 +257,7 @@ async def test_multiple_sends_grow_a_single_ephemeral_and_drain_as_one(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        screen = await _open_session_screen(app, pilot, sample_rows)
+        screen = await open_session_screen(pilot, sample_rows)
         screen.state.consume(_tool_start())
         await pilot.pause()
 
@@ -325,7 +307,7 @@ async def test_appending_to_queued_ephemeral_updates_mounted_widget_text(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        screen = await _open_session_screen(app, pilot, sample_rows)
+        screen = await open_session_screen(pilot, sample_rows)
         screen.state.consume(_tool_start())
         await pilot.pause()
 
