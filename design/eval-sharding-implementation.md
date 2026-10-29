@@ -2352,7 +2352,8 @@ Per PR (numbers from "Implementation plan"):
      `started` merge, with and without deletion, writing nothing and
      leaving every file byte-identical; with a ledger that holds such an
      attempt (the check bypassed), an unchanged and an interrupted
-     `delete_shards` refuse before deleting; an errored sample under
+     `delete_shards` refuse before deleting; each refusal also through the
+     async API on Trio (the producer itself runs on asyncio); an errored sample under
      `fail_on_error=False` and a queued drain still merge;
    - partial epochs: with two epochs, a running shard holding only `(x, 1)`
      is recorded with exactly that key (`samples: 1`), and after another

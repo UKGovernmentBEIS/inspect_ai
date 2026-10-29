@@ -1,3 +1,4 @@
+import functools
 import json
 import os
 import sys
@@ -20,6 +21,7 @@ from inspect_ai._util.file import FileInfo, FileSystem, local_path
 from inspect_ai.dataset import Sample
 from inspect_ai.log import (
     EvalLog,
+    ShardMergeResult,
     ShardSelectionError,
     ShardSetError,
     ShardSetIncomplete,
@@ -1468,9 +1470,23 @@ def _cancelled_while_starting(shards: str) -> EvalLog:
     return log
 
 
+def _merge_on(
+    backend: str, monkeypatch: pytest.MonkeyPatch, merged: str, **kwargs: Any
+) -> ShardMergeResult:
+    """Merge with the async API on `backend` (the drain producers run on asyncio)."""
+    from inspect_ai.log import merge_eval_log_shards_async
+
+    with monkeypatch.context() as patched:
+        patched.setenv("INSPECT_ASYNC_BACKEND", backend)
+        return anyio.run(
+            functools.partial(merge_eval_log_shards_async, merged, **kwargs),
+            backend=backend,
+        )
+
+
 @pytest.mark.parametrize("merge", ["fresh", "incremental"])
 def test_a_shard_holding_a_sample_cancelled_by_a_drain_is_refused(
-    tmp_path: Path, drains: None, merge: str
+    tmp_path: Path, drains: None, monkeypatch: pytest.MonkeyPatch, merge: str
 ) -> None:
     merged, shards = _paths(tmp_path)
     _run_drained(shards, "0", [1, 2])
@@ -1488,6 +1504,8 @@ def test_a_shard_holding_a_sample_cancelled_by_a_drain_is_refused(
     for delete in (False, True):
         with pytest.raises(ShardSetError, match="holds 2 samples but resolved only 1"):
             merge_eval_log_shards(merged, delete_shards=delete)
+        with pytest.raises(ShardSetError, match="holds 2 samples but resolved only 1"):
+            _merge_on("trio", monkeypatch, merged, delete_shards=delete)
     assert _files(str(tmp_path)) == before
 
 
@@ -1512,6 +1530,8 @@ def test_deleting_merged_attempts_rechecks_their_resolved_count(
     before = _files(str(tmp_path))
     with pytest.raises(ShardSetError, match="holds 2 samples but resolved only 1"):
         merge_eval_log_shards(merged, delete_shards=True)
+    with pytest.raises(ShardSetError, match="holds 2 samples but resolved only 1"):
+        _merge_on("trio", monkeypatch, merged, delete_shards=True)
     assert _files(str(tmp_path)) == before
 
 
