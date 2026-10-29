@@ -9,9 +9,11 @@ import os
 import shlex
 import signal
 import sys
+import time
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
+import anyio
 import pytest
 from inspect_sandbox_tools._remote_tools._exec_remote import _job as job_module
 from inspect_sandbox_tools._remote_tools._exec_remote._controller import Controller
@@ -263,3 +265,144 @@ async def test_kill_does_not_escalate_to_a_dead_leaders_group(
 
     assert signalled == [signal.SIGTERM]
     assert job._process.returncode is not None
+
+
+class TestPollDeliversOutputAfterLeaderExits:
+    """Output a child writes after the group leader exits must still reach poll."""
+
+    @staticmethod
+    async def _poll_to_completion(
+        controller: Controller, pid: int, interval: float = 0.05
+    ) -> tuple[PollResult, str, str]:
+        """Poll a job every `interval` seconds until it reports a terminal state."""
+        stdout, stderr = "", ""
+        ack_seq = 0
+        with anyio.fail_after(5):
+            while True:
+                result = await controller.poll(pid, ack_seq)
+                ack_seq = result.seq
+                stdout += result.stdout
+                stderr += result.stderr
+                if result.state != "running":
+                    return result, stdout, stderr
+                await anyio.sleep(interval)
+
+    @pytest.mark.asyncio
+    async def test_late_stdout_from_background_child_is_delivered(self) -> None:
+        controller = Controller()
+        pid = await controller.submit("(sleep 0.3; printf late) & printf early")
+        result, stdout, stderr = await self._poll_to_completion(controller, pid)
+        assert stdout == "earlylate"
+        assert result.state == "completed"
+        assert result.exit_code == 0
+
+    @pytest.mark.asyncio
+    async def test_late_stderr_from_background_child_is_delivered(self) -> None:
+        controller = Controller()
+        pid = await controller.submit("(sleep 0.3; printf late 1>&2) & printf early")
+        result, stdout, stderr = await self._poll_to_completion(controller, pid)
+        assert stdout == "early"
+        assert stderr == "late"
+        assert result.state == "completed"
+        assert result.exit_code == 0
+
+    @pytest.mark.asyncio
+    async def test_first_poll_in_submit_turn_keeps_output(self) -> None:
+        """The first poll can see the exit before the readers run; output survives.
+
+        On main the buffers are closed before the readers drain the pipe, so this
+        loses the output about half the time.
+        """
+        for _ in range(10):
+            controller = Controller()
+            pid = await controller.submit("printf hello")
+            result, stdout, stderr = await self._poll_to_completion(controller, pid)
+            assert stdout == "hello"
+            assert result.state == "completed"
+            assert result.exit_code == 0
+
+    @pytest.mark.asyncio
+    async def test_completes_within_one_second_when_a_child_writes_forever(
+        self,
+    ) -> None:
+        """A single 1 s bound covers both streams, not 1 s per stream."""
+        controller = Controller()
+        pid = await controller.submit(
+            "(while true; do printf x; sleep 0.01; done) & printf early"
+        )
+        try:
+            start = time.monotonic()
+            result, stdout, stderr = await self._poll_to_completion(controller, pid)
+            elapsed = time.monotonic() - start
+        finally:
+            _kill_group(pid)
+        assert result.state == "completed"
+        assert "early" in stdout
+        assert elapsed < 1.5
+
+    @pytest.mark.asyncio
+    async def test_cancelling_poll_waiting_for_readers_raises_in_caller(self) -> None:
+        controller = Controller()
+        pid = await controller.submit(
+            "(while true; do printf x; sleep 0.01; done) & printf early"
+        )
+        try:
+            job = controller._jobs[pid]
+            with anyio.fail_after(5):
+                while job._process.returncode is None:
+                    await anyio.sleep(0.01)
+
+            task = asyncio.create_task(controller.poll(pid, ack_seq=0))
+            await anyio.sleep(0.1)
+            assert not task.done()
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+        finally:
+            _kill_group(pid)
+
+    @pytest.mark.asyncio
+    async def test_output_survives_a_poll_cancelled_while_waiting(
+        self, tmp_path: Path
+    ) -> None:
+        """A poll cancelled while draining the readers must not lose output.
+
+        The state is already terminal, so a later poll finishes the drain and
+        still delivers the output the readers get afterwards.
+
+        A gate file holds the child's late write until the test releases it, so
+        the output cannot arrive before the poll is cancelled.
+        """
+        controller = Controller()
+        gate = shlex.quote(str(tmp_path / "gate"))
+        pid = await controller.submit(
+            f"(while [ ! -e {gate} ]; do sleep 0.01; done; printf late) & printf early"
+        )
+        try:
+            job = controller._jobs[pid]
+            with anyio.fail_after(5):
+                while job._process.returncode is None:
+                    await anyio.sleep(0.01)
+
+            task = asyncio.create_task(controller.poll(pid, ack_seq=0))
+            await anyio.sleep(0.1)
+            assert not task.done()
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+
+            (tmp_path / "gate").touch()
+            result, stdout, stderr = await self._poll_to_completion(controller, pid)
+            assert stdout == "earlylate"
+            assert result.state == "completed"
+            assert result.exit_code == 0
+        finally:
+            _kill_group(pid)
+
+
+def _kill_group(pid: int) -> None:
+    """Kill a job's process group, including children that outlived the leader."""
+    try:
+        os.killpg(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass

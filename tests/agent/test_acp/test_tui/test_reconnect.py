@@ -597,21 +597,13 @@ class TestPilotReconnectUI:
         from textual.widgets import TextArea
 
         from inspect_ai.agent._acp.tui.app import InspectAcpApp
-        from inspect_ai.agent._acp.tui.session_screen import SessionScreen
 
-        from .conftest import make_fake_client
+        from .conftest import make_fake_client, open_session_screen
 
         client = make_fake_client(sample_rows)
         app = InspectAcpApp(eval_id=None, server=None, client=client)
         async with app.run_test() as pilot:
-            await pilot.pause()
-            app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-            for _ in range(20):
-                await pilot.pause()
-                if isinstance(app.screen, SessionScreen):
-                    break
-            assert isinstance(app.screen, SessionScreen)
-            screen = app.screen
+            screen = await open_session_screen(pilot, sample_rows)
             # Type into the composer; mark state disconnected; submit.
             # The composer is a ``ComposerTextArea`` (TextArea subclass)
             # — matches the sibling pilots in
