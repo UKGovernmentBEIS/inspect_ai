@@ -1522,13 +1522,23 @@ async def _in_child_task(
     gets them in the child, as soon as ``fn`` returns: a cancellation can
     still be raised in the caller after that (asyncio raises one that arrived
     while ``fn`` shielded its work), and what ``fn`` did must not be lost.
+
+    An exception from ``fn`` is re-raised in the caller as it is: a task group
+    would wrap it in a group, and would drop a ``CancelledError`` that is not
+    the group's own.
     """
     changes: ProviderState = {}
+    error: BaseException | None = None
 
     async def run() -> None:
+        nonlocal error
         _set_provider_state(state)
         base = copy_context()
-        await fn()
+        try:
+            await fn()
+        except BaseException as ex:
+            error = ex
+            return
         changes.update(
             (var, value)
             for var, value in copy_context().items()
@@ -1536,22 +1546,10 @@ async def _in_child_task(
         )
         done(changes)
 
-    try:
-        async with anyio.create_task_group() as tg:
-            tg.start_soon(run)
-    except BaseExceptionGroup as group:
-        # the task group wraps the one task's exception (including a
-        # KeyboardInterrupt, which unwrap_exception_group leaves wrapped)
-        if len(group.exceptions) != 1:
-            raise
-        error = group.exceptions[0]
-        # re-raising sets the group as the error's context: restore its own
-        # (an error it was raised while handling)
-        context = error.__context__
-        try:
-            raise error
-        finally:
-            error.__context__ = context
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(run)
+    if error is not None:
+        raise error
     return changes
 
 
