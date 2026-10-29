@@ -2,7 +2,8 @@
 
 pytest imports every test module through its assertion rewriter: parse, rewrite
 the asserts, compile, and cache the result as a ``__pycache__/*-pytest-*.pyc``
-keyed on the source's mtime and size. Under xdist every worker collects the
+keyed on the source's mtime and size (pytest 9.1 and earlier) or its hash
+(pytest 9.2+). Under xdist every worker collects the
 whole suite, and they start simultaneously against the same cold cache, so each
 of the N workers redoes the identical rewrite of every test module (~24s of CPU
 for this suite's ~620 modules, N times over). The controller, which does not
@@ -14,7 +15,7 @@ among them, and has each write the pyc pytest itself would have written (same
 ``_rewrite_test``, same ``_write_pyc``, same config). The workers then find a
 valid cache for every module and skip straight to executing it. Only files
 whose cache is missing or stale are rewritten; a warm tree costs one 16-byte
-header read per file.
+header read per file, plus a source read and hash on pytest 9.2+.
 
 Keeps to pytest's own rewrite functions rather than reimplementing them, so the
 cached code object is identical to what a worker would produce (the marshal
@@ -28,6 +29,7 @@ from __future__ import annotations
 
 import gc
 import importlib.util
+import inspect
 import os
 import sys
 import threading
@@ -134,27 +136,44 @@ def cached_pyc_path(source: Path) -> Path:
     return get_cache_dir(source) / (source.name[:-3] + PYC_TAIL)
 
 
+_CHECKED_HASH_PYC = "source_hash" in inspect.signature(_write_pyc).parameters
+"""Whether the installed pytest writes PEP 552 checked-hash pycs (pytest 9.2+).
+
+pytest 9.1 and earlier key the rewrite cache on the source's mtime and size;
+9.2 switched to the source hash (pytest #11418), renaming ``_write_pyc``'s
+third parameter from ``source_stat`` to ``source_hash``. That rename tells the
+two header formats apart without parsing a version string.
+"""
+
+
 def pyc_is_current(source: Path) -> bool:
     """Whether ``source`` has a cached pyc whose header pytest would accept.
 
-    Checks the same fields as pytest's ``_read_pyc`` (magic, zero flags, source
-    mtime and size; PEP 552 layout) without unmarshalling the code, so scanning
-    hundreds of warm files costs milliseconds rather than a third of a second.
-    A false positive only means the worker rewrites that file itself.
+    Checks the same fields as pytest's ``_read_pyc`` (PEP 552 layout) without
+    unmarshalling the code, so scanning hundreds of warm files stays cheap: on
+    pytest 9.1 and earlier the magic, zero flags, source mtime and size; on
+    9.2+ the magic, checked-hash flags and the source hash. A false positive
+    only means the worker rewrites that file itself.
     """
     try:
-        stat = os.stat(source)
         with open(cached_pyc_path(source), "rb") as fp:
             header = fp.read(16)
+        if len(header) != 16 or header[:4] != importlib.util.MAGIC_NUMBER:
+            return False
+        if _CHECKED_HASH_PYC:
+            return (
+                header[4:8] == b"\x03\x00\x00\x00"
+                and header[8:16] == importlib.util.source_hash(source.read_bytes())[:8]
+            )
+        stat = os.stat(source)
+        return (
+            header[4:8] == b"\x00\x00\x00\x00"
+            and int.from_bytes(header[8:12], "little")
+            == int(stat.st_mtime) & 0xFFFFFFFF
+            and int.from_bytes(header[12:16], "little") == stat.st_size & 0xFFFFFFFF
+        )
     except OSError:
         return False
-    return (
-        len(header) == 16
-        and header[:4] == importlib.util.MAGIC_NUMBER
-        and header[4:8] == b"\x00\x00\x00\x00"
-        and int.from_bytes(header[8:12], "little") == int(stat.st_mtime) & 0xFFFFFFFF
-        and int.from_bytes(header[12:16], "little") == stat.st_size & 0xFFFFFFFF
-    )
 
 
 def rewrite_to_cache(
@@ -176,8 +195,8 @@ def rewrite_to_cache(
             return False
         with warnings.catch_warnings():
             warnings.simplefilter("error")
-            source_stat, code = _rewrite_test(source, config)
-        return _write_pyc(state, code, source_stat, pyc)
+            source_key, code = _rewrite_test(source, config)
+        return _write_pyc(state, code, source_key, pyc)
     except Exception:
         return False
 

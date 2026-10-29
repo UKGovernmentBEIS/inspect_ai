@@ -14,7 +14,7 @@ import anyio
 import pytest
 import yaml
 from anyio.abc import ByteReceiveStream
-from test_helpers.utils import flaky_retry, skip_if_no_docker
+from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai.util._checkpoint._copy import copy_out
 from inspect_ai.util._sandbox.docker import compose as compose_module
@@ -386,12 +386,8 @@ async def test_read_file_reports_stopped_container_as_unavailable(
 
 @pytest.mark.parametrize("returncode", [137, 143])
 @pytest.mark.parametrize("partial_output", [False, True])
-@pytest.mark.parametrize("dead", [False, True])
-async def test_read_file_signal_exit_requires_confirmation_of_dead_container(
-    returncode: int,
-    partial_output: bool,
-    dead: bool,
-    monkeypatch: pytest.MonkeyPatch,
+async def test_read_file_signal_exit_before_timeout_is_a_runtime_error(
+    returncode: int, partial_output: bool, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
         compose_module,
@@ -407,46 +403,10 @@ async def test_read_file_signal_exit_requires_confirmation_of_dead_container(
             )
         ),
     )
-    dead_mock = AsyncMock(return_value=dead)
-    monkeypatch.setattr(
-        "inspect_ai.util._sandbox.docker.diagnostics.service_dead", dead_mock
-    )
-    env = _environment()
 
-    expected = SandboxUnavailableError if dead else RuntimeError
-    with pytest.raises(expected) as ex:
-        await env.read_file("source")
-    assert type(ex.value) is expected
-    dead_mock.assert_awaited_once_with(env._service, env._project)
-
-
-@pytest.mark.parametrize("returncode", [0, 1, 2])
-async def test_read_file_does_not_probe_container_for_ordinary_outcomes(
-    returncode: int, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(
-        compose_module,
-        "compose_command",
-        AsyncMock(
-            return_value=ExecResult(
-                success=returncode == 0,
-                returncode=returncode,
-                stdout=_archive(("source", tarfile.REGTYPE, b"contents")),
-                stderr=b"",
-            )
-        ),
-    )
-    dead_mock = AsyncMock(return_value=True)
-    monkeypatch.setattr(
-        "inspect_ai.util._sandbox.docker.diagnostics.service_dead", dead_mock
-    )
-
-    if returncode == 0:
-        assert await _environment().read_file("source") == "contents"
-    else:
-        with pytest.raises(RuntimeError):
-            await _environment().read_file("source")
-    dead_mock.assert_not_awaited()
+    with pytest.raises(RuntimeError) as ex:
+        await _environment().read_file("source")
+    assert type(ex.value) is RuntimeError
 
 
 @pytest.mark.parametrize(
@@ -470,6 +430,39 @@ async def test_read_file_preserves_tar_file_errors(
     )
     with pytest.raises(expected):
         await _environment().read_file("source")
+
+
+@pytest.mark.parametrize(
+    "returncode,stdout,stderr",
+    [
+        (
+            1,
+            b"",
+            b"Error response from daemon: unable to find user agent: "
+            b"no matching entries in passwd file\n",
+        ),
+        (
+            126,
+            b"unable to find user agent: no matching entries in passwd file\r\n",
+            b"",
+        ),
+    ],
+    ids=["engine-29", "engine-28"],
+)
+async def test_read_file_reports_unknown_user_as_unsupported(
+    returncode: int, stdout: bytes, stderr: bytes, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        compose_module,
+        "compose_command",
+        AsyncMock(
+            return_value=ExecResult(
+                success=False, returncode=returncode, stdout=stdout, stderr=stderr
+            )
+        ),
+    )
+    with pytest.raises(SandboxUserUnsupportedError):
+        await _environment().read_file("source", user="agent")
 
 
 @pytest.mark.parametrize("contents", [b"contents", b""])
@@ -640,47 +633,6 @@ async def test_docker_read_file_reports_stopped_container_as_unavailable(
 
     with pytest.raises(SandboxUnavailableError, match="not running"):
         await env.read_file("/tmp/recording")
-
-
-@pytest.mark.slow
-@skip_if_no_docker
-@flaky_retry(max_retries=0)
-async def test_docker_read_file_reports_container_dying_after_partial_output(
-    docker_environment: DockerSandboxEnvironment,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    env = docker_environment
-    file = "/tmp/recording"
-    result = await env.exec(
-        ["dd", "if=/dev/zero", f"of={file}", "bs=1048576", "count=32"]
-    )
-    assert result.success, result.stderr
-    original_reader = docker_module._read_archive
-    killed = False
-
-    async def read_archive(
-        stream: ByteReceiveStream, limit: int, original_file: str
-    ) -> bytes:
-        async def chunks() -> AsyncIterator[bytes]:
-            nonlocal killed
-            async for part in stream:
-                if not killed:
-                    result = await compose_module.compose_command(
-                        ["kill", env._service], project=env._project, timeout=30
-                    )
-                    assert result.success, result.stderr
-                    killed = True
-                yield part
-
-        return await original_reader(
-            cast(ByteReceiveStream, chunks()), limit, original_file
-        )
-
-    monkeypatch.setattr(docker_module, "_read_archive", read_archive)
-    with anyio.fail_after(60):
-        with pytest.raises(SandboxUnavailableError, match="not running"):
-            await env.read_file(file)
-    assert killed
 
 
 @pytest.mark.slow
