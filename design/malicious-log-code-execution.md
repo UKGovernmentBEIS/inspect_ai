@@ -99,28 +99,29 @@ and rescoring with the user's scorers, rebuild them under the
 
 ### Score keys are registry names
 
-`eval_results()` builds a `ScorerInfo` with `ScorerInfo.from_name()` for each
-sample score key that has no `SampleScore.scorer` and is not among the
-resolved scorer names. In recompute and recovery the `SampleScore`s carry no
-`scorer=`, so a key that matches a scorer in `eval.scorers` uses that
-scorer's rebuilt metrics and options, and every other key, which is any key
-the log invents, takes this fallback. `ScorerInfo.from_name()` resolves the
-key only through `scorer_from_registry()` in `loader.py` (a registered
-`@scorer` or `@scanner` by name, built with no arguments; no path parsing, no
-file loading). A scorer it builds supplies its declared metrics, and any
-exception from it gives the default metrics (`accuracy`, `stderr`). When
-`eval_results()` is given task-level metrics (the log's `eval.metrics` in
-recompute and recovery, the task's metrics in a live run), those replace the
-fallback's metrics for the key. The catch is broad on purpose: live final,
-cancellation and display aggregation and the control server's interim
-scoring also reach it, and a solver-written score keyed by a registered
-scorer that needs arguments (`pattern`, `answer`, `multi_scorer`, ...) raises
-`TypeError` when built without them and must keep falling back like an
-unregistered key.
+`eval_results()` aggregates each sample score under the scorer that
+produced it. A key that has no `SampleScore.scorer` and is not among the
+resolved scorer names (in recompute and recovery, the names in
+`eval.scorers`, whose rebuilt metrics and options the matching keys use) goes
+to `ScorerInfo.from_name()`:
 
-A score key that names a file is treated like any other unregistered key:
-the default metrics, or the task-level metrics when there are any. Inspect
-never writes such keys.
+- The key is looked up literally in the registry with
+  `scorer_from_registry()` in `loader.py`, as a registered `@scorer` or
+  `@scanner` built with no arguments. Path syntax (`@`) and whether the key
+  names an existing file make no difference: nothing is parsed as a path and
+  no file is loaded.
+- A registered name supplies its scorer's declared metrics.
+- An unregistered key, or any exception while building it, gets the default
+  metrics (`accuracy`, `stderr`).
+- Task-level metrics passed to `eval_results()` (the log's `eval.metrics` in
+  recompute and recovery, the task's metrics in a live run) replace the
+  fallback's metrics for the key.
+
+The catch is broad on purpose: live final, cancellation and display
+aggregation and the control server's interim scoring also reach it, and a
+solver-written score keyed by a registered scorer that needs arguments
+(`pattern`, `answer`, `multi_scorer`, ...) raises `TypeError` when built
+without them and must keep falling back like an unregistered key.
 
 ### Metric reconstruction and `trust_log`
 
@@ -368,10 +369,11 @@ Scorer resolution stays in the CLI, before `score_async()`, and `score()` /
 **Recorded scorer names are registry names.** For the names taken from the
 log (`eval.scorers[*].name`, or `results.scores[*].name` for logs without
 `eval.scorers`), `resolve_scorers()` calls `scorer_from_log_name()`, never
-`scorer_from_spec()`. A recorded name containing `@`, or one that happens to
-be an existing path, is looked up in the registry like any other name and is
-never imported. Inspect writes scorer names from the registry's unqualified
-name, so no log Inspect produced is affected. `--scorer` goes through
+`scorer_from_spec()`, so a recorded name is looked up literally in the
+registry, as score keys are ([above](#score-keys-are-registry-names)), and is
+never imported. Scorer names are recorded from the registry, so a scorer
+whose registered name contains `@` or looks like a path still resolves.
+`--scorer` goes through
 `scorer_from_spec()`, so `--scorer path.py@name` loads that file, and a bare
 `--scorer NAME` reaches `scorer_from_log_name()` (decision: Ransom,
 2026-10-14).
@@ -583,8 +585,11 @@ see, by caller (the user docs linked in the Overview cover the fixes):
   `set_model_info()`.
 - Custom metrics taking a model or non-metric registry object as an option
   rebuild only with `trust_log=True` or when rescoring with the log's scorers.
-- Recorded scorer names and score keys that are paths are treated as
-  unregistered names. Inspect never writes such names.
+- Recorded scorer names and score keys are looked up literally in the
+  registry, never as paths ([Score keys are registry
+  names](#score-keys-are-registry-names)). A path-shaped name that is not
+  registered under that literal name is no longer imported; it is handled as
+  any unregistered name.
 
 A score-edit endpoint in the viewer
 ([viewer log editing](viewer_log_editing.md), Phase 3) must call
@@ -600,7 +605,8 @@ Untrusted input: every field of an eval log header and sample (`.eval` or
 an eval set resumes from.
 
 - Read operations import no file named by a log: score keys resolve through
-  the registry only, the task file needs `trust_log=True`, and eval-set's
+  the registry only ([Score keys are registry
+  names](#score-keys-are-registry-names)), the task file needs `trust_log=True`, and eval-set's
   recovery, whose task file is the user's own and already loaded, imports
   nothing.
 - Read operations construct no model provider from log values. Metric
@@ -608,20 +614,20 @@ an eval set resumes from.
   reducer registries unless the caller passes `trust_log=True`; the
   allow-list is enforced in `registry_arg()`, the code that constructs. Other
   registry lookups by log-chosen name still build installed objects, as
-  listed below (an unmatched score key builds a registered scorer or
-  scanner with no arguments).
+  listed below.
 - eval-set resume does not let a log choose the sandbox type or config of a
   task the user chose, including inline compose configs, which would
   otherwise run the log's images with the log's mounts.
 - `inspect score` imports at most the recorded task file, through the scorer
-  fallback, and records each import. Recorded scorer names are never parsed
-  as paths. With the user's scorers the log's metrics import nothing and their
+  fallback, and records each import. Recorded scorer names are registry
+  names, never paths. With the user's scorers the log's metrics import nothing and their
   options are restricted, and metric resolution happens before any scorer
   runs.
 - What remains in read operations is installed code chosen by name: entry
   points of installed packages, their registered metric and reducer factories
-  called with log arguments, registered scorer factories called with no
-  arguments by `ScorerInfo.from_name()`, and sandbox plugins'
+  called with log arguments, registered scorer and scanner factories that an
+  unmatched score key names, called with no arguments by
+  `ScorerInfo.from_name()`, and sandbox plugins'
   `config_deserialize()` during parsing. A plugin that treats a string option
   as a path or model name is trusted installed code.
 - What remains in run operations is their purpose: the task file, the solver
