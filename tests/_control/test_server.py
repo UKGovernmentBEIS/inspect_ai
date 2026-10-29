@@ -15,6 +15,17 @@ from pathlib import Path
 import httpx
 import pytest
 
+from inspect_ai.event import (
+    CommunicationDelivery,
+    CommunicationEvent,
+    CommunicationRecord,
+    CommunicationRejection,
+    CommunicationSend,
+    CommunicationWait,
+    Event,
+    SwarmEvent,
+)
+
 
 def _worker_threads() -> int:
     return sum(1 for t in threading.enumerate() if t.name == "AnyIO worker thread")
@@ -856,36 +867,155 @@ async def test_sample_events_endpoint_parses_type_and_404(
         assert missing.status_code == 404
 
 
-async def test_sample_events_endpoint_serializes_refused_surrogate_text(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A refused record's lone surrogates don't break the `content=true` response.
+_SURROGATE = "x\ud800y"
+_SURROGATE_ESCAPED = "x\\ud800y"
 
-    The producer records a refused record's text as sent, unencodable or not;
-    the projected content and reason escape the surrogate.
-    """
-    from inspect_ai._control import server as server_mod
-    from inspect_ai._control.events import _project
-    from inspect_ai.event import (
-        CommunicationEvent,
-        CommunicationRecord,
-        CommunicationRejection,
-        CommunicationSend,
+
+def _sent_event(**fields: object) -> Event:
+    record_fields: dict[str, object] = {
+        "kind": "message",
+        "sender": "a",
+        "content": fields.pop("content", "hi"),
+    }
+    rejection = CommunicationRejection(
+        control=str(fields.pop("control", "admit")),
+        reason=str(fields.pop("reason", "no")),
     )
+    event_fields: dict[str, object] = {
+        "kind": "sent",
+        "source": "inspect_swarm",
+        "agent": "a",
+        "channel": "bus",
+        "send": CommunicationSend(
+            record=CommunicationRecord.model_validate(record_fields),
+            rejected=rejection,
+        ),
+    }
+    return CommunicationEvent.model_validate(event_fields | fields)
 
-    event = CommunicationEvent(
-        kind="sent",
+
+def _delivered_event(recipients: list[str]) -> Event:
+    return CommunicationEvent(
+        kind="delivered",
         source="inspect_swarm",
         agent="a",
         channel="bus",
-        record_ids=["w-1"],
-        send=CommunicationSend(
-            record=CommunicationRecord(
-                id="w-1", kind="message", sender="a", content="invalid\ud800payload"
-            ),
-            rejected=CommunicationRejection(control="admit", reason="bad \ud800 text"),
-        ),
+        delivery=CommunicationDelivery(recipients=recipients),
     )
+
+
+def _waited_event(**fields: object) -> Event:
+    wait_fields: dict[str, object] = {"outcome": "ready", "duration": 1.0} | fields
+    return CommunicationEvent(
+        kind="waited",
+        source="inspect_swarm",
+        agent="a",
+        wait=CommunicationWait.model_validate(wait_fields),
+    )
+
+
+def _swarm_event(**fields: object) -> Event:
+    return SwarmEvent.model_validate({"kind": "final", "data": {}} | fields)
+
+
+# (projected key, expected value, content tier only, event)
+_SURROGATE_FIELDS: dict[str, tuple[str, object, bool, Event]] = {
+    "communication.source": (
+        "source",
+        _SURROGATE_ESCAPED,
+        False,
+        _sent_event(source=_SURROGATE),
+    ),
+    "communication.agent": (
+        "agent",
+        _SURROGATE_ESCAPED,
+        False,
+        _sent_event(agent=_SURROGATE),
+    ),
+    "communication.channel": (
+        "channel",
+        _SURROGATE_ESCAPED,
+        False,
+        _sent_event(channel=_SURROGATE),
+    ),
+    "communication.record_ids": (
+        "record_ids",
+        [_SURROGATE_ESCAPED],
+        False,
+        _sent_event(record_ids=[_SURROGATE]),
+    ),
+    "communication.data": (
+        "data",
+        '{"k": "x\\ud800y"}',
+        True,
+        _sent_event(data={"k": _SURROGATE}),
+    ),
+    "send.record.content": (
+        "content",
+        _SURROGATE_ESCAPED,
+        True,
+        _sent_event(content=_SURROGATE),
+    ),
+    "send.rejected.control": (
+        "rejected",
+        _SURROGATE_ESCAPED,
+        False,
+        _sent_event(control=_SURROGATE),
+    ),
+    "send.rejected.reason": (
+        "reason",
+        _SURROGATE_ESCAPED,
+        True,
+        _sent_event(reason=_SURROGATE),
+    ),
+    "delivery.recipients": (
+        "recipients",
+        [_SURROGATE_ESCAPED],
+        False,
+        _delivered_event([_SURROGATE]),
+    ),
+    "wait.channels": (
+        "channels",
+        [_SURROGATE_ESCAPED],
+        False,
+        _waited_event(channels=[_SURROGATE]),
+    ),
+    "wait.outcome": (
+        "outcome",
+        _SURROGATE_ESCAPED,
+        False,
+        _waited_event(outcome=_SURROGATE),
+    ),
+    "swarm.kind": ("kind", _SURROGATE_ESCAPED, False, _swarm_event(kind=_SURROGATE)),
+    "swarm.member": (
+        "member",
+        _SURROGATE_ESCAPED,
+        False,
+        _swarm_event(member=_SURROGATE),
+    ),
+    "swarm.data": (
+        "data",
+        '{"k": "x\\ud800y"}',
+        True,
+        _swarm_event(data={"k": _SURROGATE}),
+    ),
+}
+
+
+@pytest.mark.parametrize("content", [False, True], ids=["metadata", "content"])
+@pytest.mark.parametrize("field", list(_SURROGATE_FIELDS))
+async def test_sample_events_endpoint_serializes_surrogates_in_swarm_events(
+    monkeypatch: pytest.MonkeyPatch, field: str, content: bool
+) -> None:
+    """A lone surrogate in any projected string of the swarm events is escaped.
+
+    Producers record these strings as given, so any of them can hold one; the
+    response escapes it rather than failing to encode, at both compact tiers.
+    """
+    from inspect_ai._control import server as server_mod
+    from inspect_ai._control.events import _project
+
+    key, expected, content_only, event = _SURROGATE_FIELDS[field]
 
     async def _fake(
         eval_id: str, sample_id: str, epoch: int, *, content: bool, **kwargs: object
@@ -895,19 +1025,19 @@ async def test_sample_events_endpoint_serializes_refused_surrogate_text(
 
     monkeypatch.setattr(server_mod, "sample_events", _fake)
 
+    params = {"sample_id": "1"} | ({"content": "true"} if content else {})
     app = server_mod.ControlServer(run_id="test")._build_app()
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(
         transport=transport, base_url="http://localhost"
     ) as client:
-        response = await client.get(
-            "/evals/e1/sample/events", params={"sample_id": "1", "content": "true"}
-        )
+        response = await client.get("/evals/e1/sample/events", params=params)
     assert response.status_code == 200, response.text
     [projected] = response.json()["events"]
-    assert projected["content"] == "invalid\\ud800payload"
-    assert projected["reason"] == "bad \\ud800 text"
-    assert projected["rejected"] == "admit"
+    if content or not content_only:
+        assert projected[key] == expected
+    else:
+        assert key not in projected
 
 
 async def test_sample_messages_endpoint_round_trips_and_404(
