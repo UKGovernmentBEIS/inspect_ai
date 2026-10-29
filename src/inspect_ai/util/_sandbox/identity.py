@@ -34,8 +34,11 @@ def sandbox_identity(
     change where a `bash_session()` shell starts or what `text_editor()`
     resolves relative paths against. A tool configured with a different
     `user` raises `SandboxIdentityError`, and so do `computer()` and
-    `web_browser()`, which cannot run as a user. `exec_remote()` and the sandbox tools' launches use
-    `user` and `cwd` when they are not given, and keep them when they are.
+    `web_browser()`, which cannot run as a user. `skill()` refuses to install
+    into skill files another user already owns. `exec_remote()` uses the
+    scope's user and cwd when omitted and keeps explicit values. Other
+    sandbox-tool launches inherit the scope's user when omitted; they keep
+    their existing working-directory behavior.
 
     Inside the block `sandbox` is also the default sandbox (as with
     `sandbox_default()`), and tools that find their sandbox by injection use it.

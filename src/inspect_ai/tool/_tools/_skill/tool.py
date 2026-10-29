@@ -77,6 +77,7 @@ def skill(
                             skills_user,
                             dir,
                             cwd=sandbox_identity_cwd(sbox, None),
+                            private=scope is not None,
                         )
                     installed.owner = owner
 

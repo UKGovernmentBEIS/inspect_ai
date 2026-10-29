@@ -22,9 +22,13 @@ from inspect_ai.tool._tools._skill.read import SkillParsingError, _read_skill
 from inspect_ai.tool._tools._skill.tool import _cache_lock
 from inspect_ai.tool._tools._skill.types import Skill
 from inspect_ai.util import (
+    ComposeConfig,
+    ComposeService,
+    SandboxEnvironmentSpec,
     SandboxIdentityError,
     SandboxUserUnsupportedError,
     Store,
+    sandbox,
     sandbox_identity,
     store,
     subtask,
@@ -1263,7 +1267,16 @@ class TestSkillToolStateScope:
 
 
 class _CwdFileSandbox(_FileSandbox):
-    """Answers `pwd` with the exec's working directory, when it has one."""
+    """Answers `pwd` with the exec's working directory, when it has one.
+
+    Also answers the owner check: files not chowned are owned by root.
+    """
+
+    def _owner(self, file: str) -> str:
+        if file not in self.files:
+            return "missing\n"
+        owner = self.owners.get(file, "root")
+        return f"{0 if owner == 'root' else 1000} {owner}\n"
 
     async def exec(
         self,
@@ -1279,6 +1292,9 @@ class _CwdFileSandbox(_FileSandbox):
         if cmd[-1] == "pwd" and cwd is not None:
             self.exec_calls.append((cmd, user))
             return ExecResult(True, 0, cwd, "")
+        if "stat -c" in cmd[2]:
+            self.exec_calls.append((cmd, user))
+            return ExecResult(True, 0, "".join(self._owner(f) for f in cmd[4:]), "")
         return await super().exec(
             cmd, input, cwd, env, user, timeout, timeout_retry, concurrency
         )
@@ -1330,3 +1346,162 @@ class TestSkillSandboxIdentity:
             location = f"{cwd}/skills/example/SKILL.md"
             assert f"Base Path: {location}" in result
             assert sandboxes[sandbox_name].owners[location] == user
+
+    @pytest.mark.parametrize(
+        "shared_instance", [True, False], ids=["shared", "separate"]
+    )
+    @pytest.mark.parametrize(
+        "dir, cwds",
+        [
+            ("/skills", ("/home/w-1", "/home/w-2")),
+            (None, (None, None)),
+            (None, ("/home/shared", "/home/shared")),
+        ],
+        ids=["absolute-dir", "omitted-cwd", "shared-cwd"],
+    )
+    async def test_refuses_another_users_installation(
+        self,
+        shared_instance: bool,
+        dir: str | None,
+        cwds: tuple[str | None, str | None],
+    ) -> None:
+        sandbox = _CwdFileSandbox()
+        _use_sandbox(sandbox)
+        init_subtask_store(Store())
+        shared = skill([self.SKILL], instance="team", dir=dir)
+
+        def tool() -> Tool:
+            return shared if shared_instance else skill([self.SKILL], dir=dir)
+
+        with tool_state_scope("w-1"), sandbox_identity("w-1", cwd=cwds[0]):
+            first = str(await tool()(command="example"))
+        files, owners = dict(sandbox.files), dict(sandbox.owners)
+        written, commands = len(sandbox.written), len(sandbox.exec_calls)
+        assert list(owners.values()) == ["w-1"]
+
+        with tool_state_scope("w-2"), sandbox_identity("w-2", cwd=cwds[1]):
+            with pytest.raises(
+                SandboxIdentityError, match="owned by uid/user '1000 w-1'"
+            ):
+                await tool()(command="example")
+        # refused before any write or chown
+        assert len(sandbox.written) == written
+        assert all(
+            "chown" not in cmd and "chmod" not in cmd
+            for cmd, _user in sandbox.exec_calls[commands:]
+        )
+        assert (sandbox.files, sandbox.owners) == (files, owners)
+
+        # the first user's installation is still its own
+        with tool_state_scope("w-1"), sandbox_identity("w-1", cwd=cwds[0]):
+            assert str(await tool()(command="example")) == first
+        assert sandbox.owners == owners
+
+    @pytest.mark.parametrize(
+        "shared_instance", [True, False], ids=["shared", "separate"]
+    )
+    async def test_private_cwds_install_for_each_user(
+        self, shared_instance: bool
+    ) -> None:
+        sandbox = _CwdFileSandbox()
+        _use_sandbox(sandbox)
+        init_subtask_store(Store())
+        shared = skill([self.SKILL], instance="team")
+        for user in ("w-1", "w-2"):
+            tool = shared if shared_instance else skill([self.SKILL])
+            with tool_state_scope(user), sandbox_identity(user, cwd=f"/home/{user}"):
+                await tool(command="example")
+        assert sandbox.owners == {
+            "/home/w-1/skills/example/SKILL.md": "w-1",
+            "/home/w-2/skills/example/SKILL.md": "w-2",
+        }
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_skill_identity_scope_in_docker() -> None:
+    """Two users in one Docker sandbox: no install takes over another's files."""
+    example = Skill(
+        name="example",
+        description="Example.",
+        instructions="Do it.",
+        scripts={"run.sh": "#!/bin/sh\necho ok\n"},
+    )
+    shared_files = "/skills/example/SKILL.md /skills/example/scripts/run.sh"
+
+    @solver
+    def check() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            sbox = sandbox()
+            report: dict[str, str] = {}
+
+            async def owners(paths: str) -> str:
+                result = await sbox.exec(
+                    ["sh", "-c", f"stat -c '%n %U %a' {paths}; sha256sum {paths}"],
+                    user="root",
+                )
+                return result.stdout + result.stderr
+
+            for user in ("w1", "w2"):
+                result = await sbox.exec(
+                    ["useradd", "-m", "-d", f"/home/{user}", user], user="root"
+                )
+                assert result.success, result.stderr
+
+            shared = skill([example], instance="team", dir="/skills")
+            with sandbox_identity("w1", cwd="/home/w1"):
+                await shared(command="example")
+            report["before"] = await owners(shared_files)
+            with sandbox_identity("w2", cwd="/home/w2"):
+                try:
+                    await shared(command="example")
+                    report["w2_shared"] = "installed"
+                except SandboxIdentityError as ex:
+                    report["w2_shared"] = f"refused: {ex}"
+            report["after"] = await owners(shared_files)
+            with sandbox_identity("w1", cwd="/home/w1"):
+                report["w1_again"] = str(await shared(command="example"))
+
+            for user in ("w1", "w2"):
+                with (
+                    tool_state_scope(user),
+                    sandbox_identity(user, cwd=f"/home/{user}"),
+                ):
+                    await skill([example])(command="example")
+            report["private"] = await owners(
+                "/home/w1/skills/example/scripts/run.sh "
+                "/home/w2/skills/example/scripts/run.sh"
+            )
+            store().set("report", report)
+            return state
+
+        return solve
+
+    log = eval(
+        Task(
+            dataset=[Sample(input="x")],
+            solver=check(),
+            sandbox=SandboxEnvironmentSpec(
+                "docker",
+                ComposeConfig(
+                    services={
+                        "default": ComposeService(
+                            image="aisiuk/inspect-tool-support",
+                            init=True,
+                            network_mode="none",
+                        )
+                    }
+                ),
+            ),
+        ),
+        model="mockllm/model",
+    )[0]
+    assert log.status == "success", log.error
+    assert log.samples
+    report = log.samples[0].store["report"]
+    assert report["w2_shared"].startswith("refused:"), report
+    assert report["after"] == report["before"]
+    assert "/skills/example/scripts/run.sh w1 " in report["before"]
+    assert "Base Path: /skills/example/SKILL.md" in report["w1_again"]
+    assert "/home/w1/skills/example/scripts/run.sh w1 " in report["private"]
+    assert "/home/w2/skills/example/scripts/run.sh w2 " in report["private"]
