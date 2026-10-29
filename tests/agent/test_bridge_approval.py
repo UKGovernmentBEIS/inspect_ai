@@ -990,6 +990,186 @@ async def test_undeclared_call_registers_no_grant() -> None:
     assert len(bridge._tool_execution_grants) == 0
 
 
+async def test_renamed_declaration_is_approved_under_the_bridged_tools_name() -> None:
+    """A policy scoped to a bridged tool governs a call to it under any declared name.
+
+    The grant resolves the call by its served description, so approval must review
+    it as that tool too: reviewed under the declared name, the call would fall
+    through to the catch-all and still be granted the host tool.
+    """
+    tool = AsyncMock(return_value="secret")
+    bridge = sandbox_bridge_with_tool(
+        tool,
+        [
+            ApprovalPolicy(reject_approver("No host files."), "read_file"),
+            ApprovalPolicy(auto_approver("approve"), "*"),
+        ],
+    )
+    call = ToolCall(id="proposed", function="summarize", arguments={"path": "/secret"})
+
+    run = await run_bridge(
+        [
+            tool_calls_output(call),
+            ModelOutput.from_content(model="mockllm/model", content="Done."),
+        ],
+        bridge=bridge,
+        tools=declare("summarize"),
+    )
+
+    assert run.generations == 2
+    (result,) = run.tool_results(1)
+    assert result.error is not None
+    assert "No host files." in result.error.message
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await call_host_tool(bridge)("host", "read_file", {"path": "/secret"})
+    tool.assert_not_awaited()
+
+
+async def test_renamed_declaration_approver_sees_the_bridged_tool_call() -> None:
+    seen: list[tuple[str, ToolCall, list[ChatMessage]]] = []
+    bridge = sandbox_bridge_with_tool(
+        AsyncMock(), [ApprovalPolicy(recording_approver(seen), "read_file")]
+    )
+    call = ToolCall(id="proposed", function="summarize", arguments={"path": "a.txt"})
+
+    run = await run_bridge(
+        [tool_calls_output(call)], bridge=bridge, tools=declare("summarize")
+    )
+
+    ((_, reviewed, history),) = seen
+    assert reviewed == ToolCall(
+        id="proposed", function="read_file", arguments={"path": "a.txt"}
+    )
+    # the turn under review and the response handed over keep the declared name
+    assert isinstance(history[-1], ChatMessageAssistant)
+    assert history[-1].tool_calls == [call]
+    assert run.output.message.tool_calls == [call]
+
+
+async def test_renamed_declaration_modify_rewrites_what_the_grant_binds() -> None:
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(
+        tool,
+        [
+            ApprovalPolicy(modifying_approver({"path": "allowed.txt"}), "read_file"),
+            ApprovalPolicy(auto_approver("approve"), "*"),
+        ],
+    )
+    call = ToolCall(id="proposed", function="summarize", arguments={"path": "/secret"})
+
+    run = await run_bridge(
+        [tool_calls_output(call)], bridge=bridge, tools=declare("summarize")
+    )
+
+    assert run.output.message.tool_calls == [
+        ToolCall(id="proposed", function="summarize", arguments={"path": "allowed.txt"})
+    ]
+    execute = call_host_tool(bridge)
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await execute("host", "read_file", {"path": "/secret"})
+    assert await execute("host", "read_file", {"path": "allowed.txt"}) == "contents"
+    tool.assert_awaited_once_with(path="allowed.txt")
+
+
+def indistinct_read_and_delete(
+    approval: list[ApprovalPolicy],
+) -> tuple[SandboxAgentBridge, AsyncMock, AsyncMock]:
+    """Bridged `one/read_file` and `two/delete_file`, served the same description."""
+    read = AsyncMock(return_value="read")
+    delete = AsyncMock(return_value="deleted")
+    bridge = sandbox_bridge_with_servers(
+        {
+            "one": {"read_file": served_tool(read)},
+            "two": {"delete_file": served_tool(delete, name="delete_file")},
+        }
+    )
+    bridge.approval = approval
+    return bridge, read, delete
+
+
+async def test_call_denoting_indistinct_tools_is_approved_as_each_of_them() -> None:
+    """A proposal granting several bridged tools is rejected if any of them is."""
+    bridge, read, delete = indistinct_read_and_delete(
+        [
+            ApprovalPolicy(reject_approver("No deleting."), "delete_file"),
+            ApprovalPolicy(auto_approver("approve"), "*"),
+        ]
+    )
+    call = ToolCall(id="proposed", function="summarize", arguments={"path": "x"})
+
+    run = await run_bridge(
+        [
+            tool_calls_output(call),
+            ModelOutput.from_content(model="mockllm/model", content="Done."),
+        ],
+        bridge=bridge,
+        tools=declare("summarize"),
+    )
+
+    assert run.generations == 2
+    (result,) = run.tool_results(1)
+    assert result.error is not None
+    assert "No deleting." in result.error.message
+    assert len(bridge._tool_execution_grants) == 0
+    read.assert_not_awaited()
+    delete.assert_not_awaited()
+
+
+async def test_modify_of_a_call_denoting_indistinct_tools_fails_the_sample() -> None:
+    """The other tool's review approved the unmodified arguments, so a rewrite is refused."""
+    bridge, _, _ = indistinct_read_and_delete(
+        [
+            ApprovalPolicy(modifying_approver({"path": "y"}), "read_file"),
+            ApprovalPolicy(auto_approver("approve"), "*"),
+        ]
+    )
+    call = ToolCall(id="proposed", function="summarize", arguments={"path": "x"})
+
+    with pytest.raises(RuntimeError, match="several bridged tools sharing a"):
+        await run_bridge(
+            [tool_calls_output(call)], bridge=bridge, tools=declare("summarize")
+        )
+
+    assert isinstance(bridge._failure, RuntimeError)
+    assert len(bridge._tool_execution_grants) == 0
+
+
+async def test_dispatcher_shaped_call_to_a_bridged_tool_is_approved_as_that_tool() -> (
+    None
+):
+    """Approval follows the grant when content matching wins over dispatch.
+
+    The declaration is the bridged `host/call_mcp_tool` tool, so the grant binds
+    that tool; approval must review it, not the `other/read_file` its arguments
+    name.
+    """
+    seen: list[tuple[str, ToolCall, list[ChatMessage]]] = []
+    bridge = sandbox_bridge_with_servers(
+        {
+            "host": {
+                DISPATCHER: served_tool(
+                    AsyncMock(), "Route a call.", DISPATCHER_PARAMETERS, name=DISPATCHER
+                )
+            },
+            "other": {"read_file": served_tool(AsyncMock())},
+        }
+    )
+    bridge.approval = [ApprovalPolicy(recording_approver(seen), "*")]
+    arguments = {"ServerName": "other", "ToolName": "read_file", "Arguments": {}}
+    call = ToolCall(id="proposed", function=DISPATCHER, arguments=arguments)
+
+    await run_bridge(
+        [tool_calls_output(call)],
+        bridge=bridge,
+        tools=declare(
+            DISPATCHER, description="Route a call.", parameters=DISPATCHER_PARAMETERS
+        ),
+    )
+
+    ((_, reviewed, _),) = seen
+    assert reviewed == ToolCall(id="proposed", function=DISPATCHER, arguments=arguments)
+
+
 async def test_grants_resolve_against_the_declarations_the_filter_generated_with() -> (
     None
 ):
