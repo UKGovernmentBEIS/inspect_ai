@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import abc
+import inspect
 import logging
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -280,7 +281,9 @@ class SandboxEnvironment(abc.ABC):
         ...
 
     @abc.abstractmethod
-    async def write_file(self, file: str, contents: str | bytes) -> None:
+    async def write_file(
+        self, file: str, contents: str | bytes, *, user: str | None = None
+    ) -> None:
         """Write a file into the sandbox environment.
 
         If the parent directories of the file path do not exist they
@@ -290,6 +293,9 @@ class SandboxEnvironment(abc.ABC):
           file: Path to file (relative file paths will resolve to the
             per-sample working directory).
           contents: Text or binary file contents.
+          user: User whose permissions to enforce. Defaults to the sandbox's
+            default execution user. Providers must enforce an explicit user
+            or raise SandboxUserUnsupportedError.
 
         Raises:
           TimeoutError: If the operation times out.
@@ -297,17 +303,24 @@ class SandboxEnvironment(abc.ABC):
             write to the specified path.
           IsADirectoryError: If the file exists already and
             is a directory.
+          SandboxUserUnsupportedError: If the requested user is not supported.
         """
         ...
 
     @overload
-    async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
+    async def read_file(
+        self, file: str, text: Literal[True] = True, *, user: str | None = None
+    ) -> str: ...
 
     @overload
-    async def read_file(self, file: str, text: Literal[False]) -> bytes: ...
+    async def read_file(
+        self, file: str, text: Literal[False], *, user: str | None = None
+    ) -> bytes: ...
 
     @abc.abstractmethod
-    async def read_file(self, file: str, text: bool = True) -> Union[str | bytes]:
+    async def read_file(
+        self, file: str, text: bool = True, *, user: str | None = None
+    ) -> Union[str | bytes]:
         """Read a file from the sandbox environment.
 
         By default, file size is limited to 100 MiB. You may change this by setting the `INSPECT_SANDBOX_MAX_READ_FILE_SIZE` environment variable (specified in bytes). If exceeded, an `OutputLimitExceededError` will be raised.
@@ -320,6 +333,9 @@ class SandboxEnvironment(abc.ABC):
           file: Path to file (relative file paths will resolve to the
             per-sample working directory).
           text: Read as a utf-8 encoded text file.
+          user: User whose permissions to enforce. Defaults to the sandbox's
+            default execution user. Providers must enforce an explicit user
+            or raise SandboxUserUnsupportedError.
 
         Returns:
           Contents of file (as str or bytes for binary files)
@@ -327,6 +343,8 @@ class SandboxEnvironment(abc.ABC):
         Raises:
           TimeoutError: If the operation times out.
           FileNotFoundError: If the file does not exist.
+          SandboxUnavailableError: If provider-required file-reading tools
+            cannot be executed.
           UnicodeDecodeError: If an encoding error occurs
             while reading the file.
             (only applicable when `text = True`)
@@ -335,8 +353,23 @@ class SandboxEnvironment(abc.ABC):
           IsADirectoryError: If the file is a directory.
           OutputLimitExceededError: If the file size
             exceeds the limit.
+          SandboxUserUnsupportedError: If the requested user is not supported.
         """
         ...
+
+    def _supports_file_user(
+        self, operation: Literal["read_file", "write_file"]
+    ) -> bool:
+        """Whether the provider declares a keyword-capable ``user`` parameter.
+
+        ``**kwargs`` alone is not a declaration of permission enforcement:
+        older providers may accept and ignore unknown keywords.
+        """
+        parameter = inspect.signature(getattr(self, operation)).parameters.get("user")
+        return parameter is not None and parameter.kind in (
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            inspect.Parameter.KEYWORD_ONLY,
+        )
 
     async def connection(self, *, user: str | None = None) -> SandboxConnection:
         """Information required to connect to sandbox environment.
