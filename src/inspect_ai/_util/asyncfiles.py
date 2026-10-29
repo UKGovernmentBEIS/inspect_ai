@@ -2281,26 +2281,25 @@ async def _run_on_fsspec_loop(fs: Any, coro: Coroutine[Any, Any, _T]) -> _T:
     """Run `coro`, a coroutine of the async fsspec filesystem `fs`, on fsspec's loop.
 
     Like ``fsspec.asyn.sync()``, but the caller's event loop keeps running. On
-    cancellation it returns only once the coroutine has finished, so its own
-    cleanup has run. As with ``sync()``, a ``TimeoutError`` is raised as
-    ``FSTimeoutError``. An ``asynchronous=True`` filesystem is awaited directly.
+    cancellation it waits for the coroutine to finish, then re-raises: backends
+    such as the Azure SDK start child tasks that cancelling the coroutine would
+    not stop, so a cancel takes as long as the request in flight, with no upper
+    bound for a slow whole-object transfer. As with ``sync()``, a
+    ``TimeoutError`` is raised as ``FSTimeoutError``.
     """
     # `sync()` without its blocking wait: no thread pool is nested over
     # fsspec's loop, so the fsspec rule in AGENTS.md holds
     backend = current_async_backend()
-    if fs.asynchronous:
-        return await coro
     # as `run_coroutine_threadsafe` does: `start` can't report a failure
     if not asyncio.iscoroutine(coro):
         raise TypeError(f"A coroutine object is required, not {type(coro)!r}")
     try:
-        # raises in a forked child, as `sync()` does
-        loop = fs.loop
+        # an `asynchronous=True` filesystem runs on the caller's asyncio loop;
+        # `fs.loop` raises in a forked child, as `sync()` does
+        loop = asyncio.get_running_loop() if fs.asynchronous else fs.loop
     except BaseException:
         coro.close()
         raise
-    if backend == "asyncio" and loop is asyncio.get_running_loop():
-        return await coro
     if loop is None or loop.is_closed():
         coro.close()
         raise RuntimeError("Loop is not running")
@@ -2333,8 +2332,6 @@ async def _run_on_fsspec_loop(fs: Any, coro: Coroutine[Any, Any, _T]) -> _T:
     try:
         await done.wait()
     except BaseException:
-        # callbacks run in order, so `start` has run before this one
-        loop.call_soon_threadsafe(lambda: tasks[0].cancel())
         while not done.is_set():
             try:
                 with anyio.CancelScope(shield=True):
@@ -2342,6 +2339,9 @@ async def _run_on_fsspec_loop(fs: Any, coro: Coroutine[Any, Any, _T]) -> _T:
             except anyio.get_cancelled_exc_class():
                 # a repeated native asyncio cancel reaches through the shield
                 continue
+        if not tasks[0].cancelled():
+            # retrieved so asyncio doesn't log it; the cancellation wins
+            tasks[0].exception()
         raise
     try:
         return tasks[0].result()

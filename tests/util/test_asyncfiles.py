@@ -1,5 +1,6 @@
 import asyncio
 import functools
+import gc
 import io
 import os
 import tempfile
@@ -13,6 +14,7 @@ from unittest.mock import AsyncMock, Mock
 
 import aiohttp
 import anyio
+import anyio.lowlevel
 import boto3
 import fsspec.asyn  # type: ignore[import-untyped]  # fsspec ships no type stubs
 import pytest
@@ -3402,11 +3404,10 @@ class _GatedFS(fsspec.asyn.AsyncFileSystem):
         self.cat_calls = 0
         self.cat_ranges: list[tuple[int | None, int | None]] = []
         self.ls_calls = 0
-        self.cleaned = False
         self.cat_returned = threading.Event()
-        self.cleanup_started = threading.Event()
-        self.cleanup_release = threading.Event()
-        self.cleanup_release.set()
+        self.children_pending = 0
+        self.late_writes = 0
+        self.backend_cancelled = False
 
     async def _gate(self) -> None:
         self.entries += 1
@@ -3487,19 +3488,37 @@ class _GatedFS(fsspec.asyn.AsyncFileSystem):
         path = self._strip_protocol(rpath)
         if path not in self.files:
             raise FileNotFoundError(path)
-        partial = f"{lpath}.part"
-        with open(partial, "wb") as f:
+        if path.endswith("chunked.bin"):
+            await self._get_file_in_chunks(self.files[path], lpath)
+            return
+        await self._gate()
+        with open(lpath, "wb") as f:
             f.write(self.files[path])
-        try:
-            await self._gate()
-            os.replace(partial, lpath)
-        except BaseException:
-            # cleanup that itself awaits, like a backend closing its response
-            self.cleanup_started.set()
-            await self._wait_for(self.cleanup_release.is_set, "cleanup never released")
-            os.remove(partial)
-            self.cleaned = True
-            raise
+
+    async def _get_file_in_chunks(self, data: bytes, lpath: str) -> None:
+        """Like the Azure SDK: chunk tasks that cancelling the download leaves running."""
+        with open(lpath, "wb") as f:
+
+            async def write_chunk(offset: int) -> None:
+                try:
+                    await self._gate()
+                    # no await between seek and write: chunks share this loop
+                    f.seek(offset)
+                    f.write(data[offset : offset + 256])
+                except Exception:
+                    self.late_writes += 1
+                finally:
+                    self.children_pending -= 1
+
+            children = []
+            for offset in range(0, len(data), 256):
+                self.children_pending += 1
+                children.append(asyncio.ensure_future(write_chunk(offset)))
+            try:
+                await asyncio.wait(children)
+            except asyncio.CancelledError:
+                self.backend_cancelled = True
+                raise
 
 
 @pytest.fixture
@@ -3525,10 +3544,31 @@ async def _keep_releasing(fs: _GatedFS) -> None:
         await anyio.sleep(0.001)
 
 
-async def _cancel_when_entered(fs: _GatedFS, scope: anyio.CancelScope) -> None:
+async def _flush_fsspec_loop(fs: _GatedFS) -> None:
+    """Return once fsspec's loop has run every callback queued before this one."""
+    flushed = threading.Event()
+    fs.loop.call_soon_threadsafe(flushed.set)
+    while not flushed.is_set():
+        await anyio.sleep(0.001)
+
+
+async def _settle(fs: _GatedFS) -> None:
+    """Let the caller handle its cancellation and fsspec's loop act on it."""
+    for _ in range(5):
+        await anyio.lowlevel.checkpoint()
+    # a cancelled task's next step is queued behind the cancel itself
+    await _flush_fsspec_loop(fs)
+    await _flush_fsspec_loop(fs)
+
+
+async def _cancel_then_release(fs: _GatedFS, scope: anyio.CancelScope) -> None:
+    """Cancel once a backend call is in flight; release it once that has settled."""
     while fs.entries < 1:
         await anyio.sleep(0.001)
     scope.cancel()
+    with anyio.CancelScope(shield=True):
+        await _settle(fs)
+        fs.release.set()
 
 
 async def _get_file_and_read(afs: AsyncFilesystem, tmp: Path) -> bytes:
@@ -3667,26 +3707,29 @@ async def test_async_fsspec_recursive_iter_dirs_yields_as_it_lists(
 
 @skip_if_trio
 @pytest.mark.timeout(30, method="thread")
-async def test_repeated_native_cancel_still_waits_for_cleanup(
+async def test_repeated_native_cancel_still_waits_for_the_backend(
     gated_fs: _GatedFS, tmp_path: Path
 ) -> None:
-    gated_fs.cleanup_release.clear()
+    gated_fs.files["bucket/dir/chunked.bin"] = _PAYLOAD
+    local = tmp_path / "out.bin"
     async with AsyncFilesystem() as afs:
-        task = asyncio.create_task(afs.get_file(_GATED_URL, str(tmp_path / "out.bin")))
+        task = asyncio.create_task(
+            afs.get_file("gatedtest://bucket/dir/chunked.bin", str(local))
+        )
         while gated_fs.entries < 1:
             await anyio.sleep(0.001)
         task.cancel()
-        while not gated_fs.cleanup_started.is_set():
-            await anyio.sleep(0.001)
+        await _settle(gated_fs)
         # a native cancel reaches through anyio's shield
         task.cancel()
-        for _ in range(10):
-            await asyncio.sleep(0)
+        await _settle(gated_fs)
         assert not task.done()
-        gated_fs.cleanup_release.set()
+        assert not gated_fs.backend_cancelled
+        gated_fs.release.set()
         with pytest.raises(asyncio.CancelledError):
             await task
-    assert gated_fs.cleaned
+    assert gated_fs.children_pending == 0
+    assert local.read_bytes() == _PAYLOAD
 
 
 async def test_async_fsspec_reads_overlap(gated_fs: _GatedFS) -> None:
@@ -3699,27 +3742,45 @@ async def test_async_fsspec_reads_overlap(gated_fs: _GatedFS) -> None:
 
 
 @pytest.mark.timeout(30, method="thread")
-async def test_cancelled_async_fsspec_get_file_waits_for_cleanup(
+async def test_cancelled_get_file_waits_for_backend_child_tasks(
     gated_fs: _GatedFS, tmp_path: Path
+) -> None:
+    gated_fs.files["bucket/dir/chunked.bin"] = _PAYLOAD
+    local = tmp_path / "out.bin"
+    with anyio.CancelScope() as scope:
+        async with AsyncFilesystem() as afs, anyio.create_task_group() as tg:
+            tg.start_soon(_cancel_then_release, gated_fs, scope)
+            await afs.get_file("gatedtest://bucket/dir/chunked.bin", str(local))
+    assert scope.cancelled_caught
+    assert not gated_fs.backend_cancelled
+    assert (gated_fs.children_pending, gated_fs.late_writes) == (0, 0)
+    assert local.read_bytes() == _PAYLOAD
+
+
+@pytest.mark.timeout(30, method="thread")
+async def test_cancelled_read_retrieves_the_backend_error(
+    gated_fs: _GatedFS, caplog: pytest.LogCaptureFixture
 ) -> None:
     with anyio.CancelScope() as scope:
         async with AsyncFilesystem() as afs, anyio.create_task_group() as tg:
-            tg.start_soon(_cancel_when_entered, gated_fs, scope)
-            await afs.get_file(_GATED_URL, str(tmp_path / "out.bin"))
+            tg.start_soon(_cancel_then_release, gated_fs, scope)
+            await afs.read_file("gatedtest://bucket/timeout.bin")
     assert scope.cancelled_caught
-    assert gated_fs.cleaned
-    assert list(tmp_path.iterdir()) == []
+    gc.collect()
+    assert not [r for r in caplog.records if "never retrieved" in r.getMessage()]
 
 
 @pytest.mark.timeout(30, method="thread")
 async def test_async_fsspec_read_cancelled_before_start_does_not_hang(
     gated_fs: _GatedFS,
 ) -> None:
+    gated_fs.release.set()
     async with AsyncFilesystem() as afs:
         with anyio.CancelScope() as scope:
             scope.cancel()
             await afs.read_file(_GATED_URL)
     assert scope.cancelled_caught
+    assert gated_fs.cat_calls == 1
 
 
 @pytest.mark.timeout(30, method="thread")
@@ -3841,12 +3902,11 @@ async def test_async_remote_read_file_bytes_cancelled_receive_keeps_offset(
         stream = await afs.read_file_bytes(_RANGED_URL, start, len(ranged_file))
         with anyio.CancelScope() as scope:
             async with anyio.create_task_group() as tg:
-                tg.start_soon(_cancel_when_entered, gated_fs, scope)
+                tg.start_soon(_cancel_then_release, gated_fs, scope)
                 await stream.receive(10)
         assert scope.cancelled_caught
         # the cancelled `_cat_file` finished before the cancellation propagated
         assert gated_fs.cat_returned.is_set()
-        gated_fs.release.set()
         assert await stream.receive(10) == ranged_file[start : start + 10]
     assert gated_fs.cat_ranges == [(start, start + _RANGE)] * 2
 
