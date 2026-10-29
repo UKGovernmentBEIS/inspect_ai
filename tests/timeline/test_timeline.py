@@ -520,6 +520,63 @@ def test_a_fork_at_the_end_goes_to_the_call_in_the_final_messages(
     assert utility == ["m3"]
 
 
+def _fork_and_equal_sub_agent_answer(phases: bool) -> tuple[list[Any], list[Any]]:
+    """A main call, a fork of two calls answering "finished" and "discarded", then a sub-agent that also answers "finished" (another message, so another id); the final messages carry on "finished"."""
+    from inspect_ai.event import SpanBeginEvent, SpanEndEvent
+    from inspect_ai.model import ChatMessageUser
+
+    task = ChatMessageUser(content="Solve it.")
+    m1 = _model("m1", "main", [task], _assistant("Working."))
+    asked = [task, m1.output.message, ChatMessageUser(content="Finish.")]
+    m2 = _model("m2", "main", asked, _assistant("finished"))
+    events: list[Any] = [
+        SpanBeginEvent(id="main", name="main", type="agent"),
+        m1,
+        m2,
+        _model("m3", "main", asked, _assistant("discarded")),
+        SpanBeginEvent(id="sub", name="sub", type="agent", parent_id="main"),
+        _model(
+            "s1", "sub", [ChatMessageUser(content="Check it.")], _assistant("finished")
+        ),
+        SpanEndEvent(id="sub"),
+        SpanEndEvent(id="main"),
+    ]
+    if phases:
+        events[0] = events[0].model_copy(update={"parent_id": "solvers"})
+        events = [
+            SpanBeginEvent(id="solvers", name="solvers", type="solvers"),
+            *events,
+            SpanEndEvent(id="solvers"),
+        ]
+    return events, [*asked, m2.output.message]
+
+
+@pytest.mark.parametrize("pooled", [False, True])
+@pytest.mark.parametrize("phases", [True, False])
+def test_the_final_messages_go_to_the_call_whose_output_they_hold(
+    phases: bool, pooled: bool
+) -> None:
+    # Ransom's sixth review B2: a later sub-agent's answer equal in content to
+    # the one the final messages hold does not take them; the call whose
+    # output message (by id) they hold does, and settles its fork
+    from inspect_ai.event._timeline import _timeline_build
+    from inspect_ai.log import condense_events
+
+    events, final = _fork_and_equal_sub_agent_answer(phases)
+    if pooled:
+        condensed, data = condense_events(events)
+        root = _timeline_build(
+            condensed,
+            message_pool=data["messages"],
+            final_messages=final,
+            continuity=True,
+        ).root
+    else:
+        root = _timeline_build(events, final_messages=final, continuity=True).root
+
+    assert _utility(root) == ["m3"]
+
+
 def _wide_fork(forks: int) -> list[Any]:
     """A turn, `forks` calls that all continue it with outputs of their own, then a call that carries on the first of them, with no origins."""
     from inspect_ai.event import ModelEvent, SpanBeginEvent, SpanEndEvent

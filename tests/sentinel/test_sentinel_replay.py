@@ -1629,6 +1629,54 @@ def test_a_fork_at_the_end_without_phase_spans_keeps_the_final_messages_call() -
     assert [s.id for s in replay if s.stage == "model_input"] == ["m1", "m2"]
 
 
+@pytest.mark.parametrize("phases", [True, False])
+def test_a_sub_agent_s_equal_answer_does_not_take_the_final_messages(
+    phases: bool,
+) -> None:
+    # Ransom's sixth review B2: the final messages hold the output of m2, one
+    # of a fork; a later sub-agent answers with equal text in another message
+    user = ChatMessageUser(content="Solve it.")
+    m1 = linked_call("m1", "main", [user], "Working.", None)
+    asked: list[ChatMessage] = [
+        user,
+        m1.output.message,
+        ChatMessageUser(content="Finish."),
+    ]
+    m2 = linked_call("m2", "main", asked, "finished", None)
+    m3 = linked_call("m3", "main", asked, "discarded", None)
+    s1 = linked_call("s1", "sub", [ChatMessageUser(content="Check.")], "finished", None)
+    events: list[Event] = [
+        SpanBeginEvent(
+            id="main",
+            name="main",
+            type="agent",
+            parent_id="solvers" if phases else None,
+        ),
+        m1,
+        m2,
+        m3,
+        SpanBeginEvent(id="sub", name="sub", type="agent", parent_id="main"),
+        s1,
+        SpanEndEvent(id="sub"),
+        SpanEndEvent(id="main"),
+    ]
+    if phases:
+        events = [
+            SpanBeginEvent(id="solvers", name="solvers", type="solvers"),
+            *events,
+            SpanEndEvent(id="solvers"),
+        ]
+    replay = steps_from_events(
+        [*asked, m2.output.message],
+        events,
+        [],
+        sample_uuid="sample",
+        eval_info=EvalInfo(inspect_ai_version=None, sentinel=False),
+    )
+
+    assert [s.id for s in replay if s.stage == "model_input"] == ["m1", "m2", "s1"]
+
+
 def test_a_stored_conversation_across_source_agent_spans_drops_the_unused_alternative() -> (
     None
 ):

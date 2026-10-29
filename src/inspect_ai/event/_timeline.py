@@ -1636,7 +1636,7 @@ def _continuity(
 ) -> dict[int, bool]:
     """Whether each call with no recorded origin under `root` is a turn by continuity, by `id()` of its event.
 
-    The rule runs over each conversation's calls in log order: within each span of the tree, its conversations apart (a span can hold more than one, where the timeline unrolls a solver beside an agent; a tool's sub-agent and a branch are spans of their own); and a conversation given for events (a stored timeline's) across every span it reaches. A conversation in which no call continues another has no answers but its summarizers', so the existing rules decide its other calls. The final messages settle a fork at the end of the conversation they are from: that of the latest call whose output is one of them. Calls in `inputs.outside` are left out.
+    The rule runs over each conversation's calls in log order: within each span of the tree, its conversations apart (a span can hold more than one, where the timeline unrolls a solver beside an agent; a tool's sub-agent and a branch are spans of their own); and a conversation given for events (a stored timeline's) across every span it reaches. A conversation in which no call continues another has no answers but its summarizers', so the existing rules decide its other calls. The final messages settle a fork at the end of the conversation they are from: that of the latest call whose output message, by id, is one of them, else of the latest whose output matches one by content. Calls in `inputs.outside` are left out.
     """
     order = {id(event): index for index, event in enumerate(inputs.events)}
     # (position in the log, position in the tree, conversation, event): a call
@@ -1674,11 +1674,19 @@ def _continuity(
 
     owner: object = None
     if final_messages:
+        ids = {message.id for message in final_messages if message.id is not None}
         final = {inputs.fingerprint(message) for message in final_messages}
+        by_content: object = None
         for _, _, conversation, event in found:
             answer = _answer(event) if isinstance(event, ModelEvent) else None
-            if answer is not None and inputs.fingerprint(answer) in final:
+            if answer is None:
+                continue
+            if answer.id is not None and answer.id in ids:
                 owner = conversation
+            elif inputs.fingerprint(answer) in final:
+                by_content = conversation
+        if owner is None:
+            owner = by_content
 
     threads: dict[object, _Continuity] = {}
     for _, _, conversation, event in found:
