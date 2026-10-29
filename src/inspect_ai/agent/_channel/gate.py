@@ -39,8 +39,11 @@ class TurnGate(Protocol):
             state: The loop's state, or `None` from a loop that passes none.
 
         Returns:
-            `True` when the gate rewrote `messages` (anything other than
-            leaving it as it was or appending to it).
+            `True` after removing, replacing, reordering or inserting
+            messages, or adding a system message anywhere. `False` for an
+            unchanged conversation or an append of only non-system messages.
+            The loop's compaction handler keeps system messages in a prefix
+            saved earlier, so an appended system message counts as a rewrite.
         """
         ...
 

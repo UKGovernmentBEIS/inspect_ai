@@ -175,6 +175,12 @@ class Compact(Protocol):
         input, the ids folded into it, the token baseline and the memory
         warning flag, and replaces the prefix.
 
+        It does not remove compaction summaries from your messages. A summary
+        strategy (including `CompactionAuto`'s summary fallback) starts its
+        next compaction from the latest summary in the conversation, so
+        before resetting, remove any summaries that the changed history
+        invalidated from the conversation you pass next.
+
         Args:
             prefix: Chat messages to always preserve in compacted conversations.
         """
