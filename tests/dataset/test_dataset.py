@@ -1343,3 +1343,12 @@ def test_csv_dataset_rejects_duplicate_column_names(tmp_path: Path) -> None:
     )
     with pytest.raises(ValueError, match="Duplicate column names"):
         csv_dataset(str(csv_file2), fieldnames=["input", "target", "target"])
+
+    # trailing commas produce empty column names, which are duplicates
+    csv_file3 = tmp_path / "trailing.csv"
+    csv_file3.write_text(
+        "input,target,,\nQuestion,correct,extra,extra2\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match=r"Duplicate column names.*\(empty\)"):
+        csv_dataset(str(csv_file3))

@@ -121,8 +121,10 @@ def csv_dataset(
                     duplicates.append(name)
                 seen.add(name)
             if duplicates:
+                # Represent empty names clearly (e.g. trailing commas in header)
+                display = [f"'{name}'" if name else "(empty)" for name in duplicates]
                 raise ValueError(
-                    f"Duplicate column names in {csv_file}: {', '.join(duplicates)}"
+                    f"Duplicate column names in {csv_file}: {', '.join(display)}"
                 )
         for data in reader:
             if not data:
