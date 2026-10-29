@@ -4973,6 +4973,11 @@ def test_host_tool_events_name_their_result_message(
 
     events = [e for e in sample.events if isinstance(e, ToolEvent)]
     assert len(events) == 4
+    if dialect == "google" and mode == "approval":
+        # the approver makes each round's calls identical, and Google tells
+        # identical calls apart only by position
+        assert all(e.message_id is None for e in events)
+        return
     positions = {m.id: i for i, m in enumerate(sample.messages)}
     for event in events:
         assert event.message_id is not None

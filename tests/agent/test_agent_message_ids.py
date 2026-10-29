@@ -10,7 +10,7 @@ import copy
 import json
 from pathlib import Path
 from typing import Any, Callable, Literal, cast
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from anthropic import AsyncAnthropic
@@ -784,16 +784,31 @@ async def test_native_and_bridge_edits_of_a_message_agree() -> None:
 
 
 def _awaiting(
-    bridge: AgentBridge, reply: ChatMessage, executions: int = 1
+    bridge: AgentBridge,
+    reply: ChatMessageAssistant,
+    executions: int = 1,
+    index: int = 0,
 ) -> list[ToolEvent]:
-    """Host tool events for call 0 of `reply`, as executing a granted call records them."""
-    assert reply.id is not None
+    """Host tool events for call `index` of `reply`, as executing a granted call records them."""
+    assert reply.id is not None and reply.tool_calls is not None
+    call = reply.tool_calls[index]
     events = [
-        ToolEvent(id="call_1", function="bash", arguments={}) for _ in range(executions)
+        ToolEvent(id=call.id, function=call.function, arguments=call.arguments)
+        for _ in range(executions)
     ]
     for event in events:
-        bridge._await_result_message((reply.id, 0), "bash", event, MagicMock())
+        bridge._await_result_message((reply.id, index), call, event)
     return events
+
+
+def _same_calls(*call_ids: str) -> ChatMessageAssistant:
+    return ChatMessageAssistant(
+        content="",
+        tool_calls=[
+            ToolCall(id=call_id, function="bash", arguments={"cmd": "cat a.txt"})
+            for call_id in call_ids
+        ],
+    )
 
 
 async def test_host_result_is_linked_when_the_scaffold_first_sends_it() -> None:
@@ -830,3 +845,66 @@ async def test_ambiguous_host_results_stay_unlinked(ambiguity: str) -> None:
 
     assert all(event.message_id is None for event in events)
     assert not scaffold.bridge._awaited_results
+
+
+async def test_host_results_pair_by_call_id_when_the_scaffold_reorders_calls() -> None:
+    task = ChatMessageUser(content="Read a.txt twice.")
+    reply = _same_calls("call_a", "call_b")
+    scaffold = _Scaffold(AgentBridge(AgentState(messages=[task])))
+    await scaffold.request([task], reply)
+    [event_a] = _awaiting(scaffold.bridge, reply, index=0)
+    [event_b] = _awaiting(scaffold.bridge, reply, index=1)
+
+    reordered = reply.model_copy(deep=True)
+    reordered.tool_calls = list(reversed(reordered.tool_calls or []))
+    ids = await scaffold.request(
+        [task, reordered, _result("call_b", "B"), _result("call_a", "A")]
+    )
+
+    assert (event_a.message_id, event_b.message_id) == (ids[3], ids[2])
+
+
+async def test_host_results_of_calls_sharing_an_id_stay_unlinked() -> None:
+    """Two calls under one call id and one result: neither event can claim it."""
+    task = ChatMessageUser(content="Read a.txt twice.")
+    reply = _same_calls("call_1", "call_1")
+    scaffold = _Scaffold(AgentBridge(AgentState(messages=[task])))
+    await scaffold.request([task], reply)
+    events = [
+        *_awaiting(scaffold.bridge, reply, index=0),
+        *_awaiting(scaffold.bridge, reply, index=1),
+    ]
+
+    await scaffold.request([task, reply, _result("call_1")])
+
+    assert [event.message_id for event in events] == [None, None]
+    assert not scaffold.bridge._awaited_results
+
+
+async def test_dropped_host_results_stop_waiting() -> None:
+    """A result the scaffold went on without stops waiting."""
+    task = ChatMessageUser(content="List the files.")
+    reply = _call("call_1")
+    scaffold = _Scaffold(AgentBridge(AgentState(messages=[task])))
+    await scaffold.request([task], reply)
+    [event] = _awaiting(scaffold.bridge, reply)
+
+    await scaffold.request([task, reply, ChatMessageAssistant(content="Done.")])
+    await scaffold.request([task, reply, _result("call_1")])
+
+    assert event.message_id is None
+    assert not scaffold.bridge._awaited_results
+
+
+def test_host_results_waiting_are_capped() -> None:
+    bridge = AgentBridge(AgentState(messages=[]))
+    replies = [_call(f"call_{n}") for n in range(bridge_types._MAX_AWAITED_RESULTS + 1)]
+    events = [_awaiting(bridge, reply)[0] for reply in replies]
+    assert len(bridge._awaited_results) == bridge_types._MAX_AWAITED_RESULTS
+
+    for reply in (replies[0], replies[-1]):
+        result = _result(reply.tool_calls[0].id if reply.tool_calls else "")
+        bridge._link_result_messages([reply, result], [reply.id, None])
+
+    assert events[0].message_id is None
+    assert events[-1].message_id is not None
