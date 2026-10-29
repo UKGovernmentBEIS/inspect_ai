@@ -297,8 +297,10 @@ metrics, and a failure leaves nothing half done for the suggested retry with
     trust or `_untrusted_metrics="warn"`: the log is written without results
     and the warning "Unable to recompute metrics for recovered log: ..." is
     logged. Untrusted, nothing forbidden is built and no file is imported.
-  - A metric function that raises while computing is handled by the writer
-    the same way.
+  - An exception that escapes metric aggregation is handled by the writer the
+    same way. A metric that raises on an empty set of scored values (every
+    sample unscored) does not escape: aggregation reports NaN for it, so the
+    log keeps its results.
 
   Without results a resolving recovery (`incomplete_action` other than
   `"retry"`) does not finalize.
