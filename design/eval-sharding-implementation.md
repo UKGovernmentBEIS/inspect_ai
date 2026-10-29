@@ -1222,7 +1222,16 @@ the metrics that wrappers such as `grouped()` and `aggregate()` record as
 registry dicts in their options, at any depth), so `resolve_scorers_info`
 never reaches its `task_file` import ("Trust" under "Python API"); an
 unregistered one raises `LookupError` and nothing is written (parent:
-"fails rather than store metrics from a lossy input").
+"fails rather than store metrics from a lossy input"). A scorer's own
+metric must resolve to a factory registered under the recorded name: a
+lookup of a short name falls back to the built-in, so a task's
+`@metric(name="mean")`, recorded as `mean`, would otherwise be replaced by
+`inspect_ai/mean`. Metrics embedded in a wrapper's options are recorded
+without the `inspect_ai/` prefix, so there a custom metric with a
+built-in's short name cannot be told from the built-in; this is a
+documented limitation, and custom metrics should have names that differ
+from the built-ins or are package-qualified (decision: Ransom,
+2026-10-29).
 
 Solver-set scores (decision: Ransom, 2026-10-28). A score whose key
 matches no declared scorer (a solver set it in `state.scores`) is refused
@@ -2460,7 +2469,12 @@ Per PR (numbers from "Implementation plan"):
      wrapped in `grouped()` (and, at unit level, nested in
      `grouped(aggregate(...))`) each raise `LookupError` naming
      it, write nothing and import nothing; the same merge succeeds once
-     the module that defines it is imported; solver-set score names that
+     the module that defines it is imported; a task's own
+     `@metric(name="mean")`, when not imported, is refused with
+     `delete_shards=True` on fresh and writing incremental merges (files
+     byte-identical) and merges to its own value once imported, while a
+     built-in (`inspect_ai/mean`) and a package-qualified metric merge to
+     an unsharded run's results; solver-set score names that
      are a file-qualified scorer spec or an existing file, beside a
      declared scorer, are refused and import no file; declared scorers
      whose names collide with a per-key result name (`parts` reporting

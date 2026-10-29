@@ -79,22 +79,27 @@ def check_scoring_resolvable(header: EvalLog) -> None:
     """Refuse metrics the registry cannot resolve, and repeated scorer or reducer names.
 
     The merge never imports the log's `task_file`, so every scorer's metric
-    must already be registered: built in, from an installed package, or
-    imported by the caller. The header records the task's metrics
-    (`eval.metrics`) with each scorer they replace; otherwise they apply only
-    to solver-set scores, which the merge refuses (see
-    :func:`_declared_inputs`), so they are not checked separately. Epoch
-    reducers are not recreated (see :func:`_recompute_results`): their
-    recorded reductions are told apart by name, so two reducers with one
-    name (`at_least(1, value=0.5)` and `at_least(1)` are both `at_least_1`)
-    are refused. A scorer declared twice is refused too (see
-    :func:`_declared_inputs`).
+    must already be registered under the name the header records: built
+    in, from an installed package, or imported by the caller. A lookup of a
+    built-in's short name falls back to the built-in, so a task's own
+    `@metric(name="mean")` resolves only when registered itself. Metrics
+    embedded in a wrapper's options are recorded without the `inspect_ai/`
+    prefix, so there a custom metric with a built-in's short name cannot be
+    told from the built-in (decision: Ransom, 2026-10-29). The header
+    records the task's metrics (`eval.metrics`) with each scorer they
+    replace; otherwise they apply only to solver-set scores, which the merge
+    refuses (see :func:`_declared_inputs`), so they are not checked
+    separately. Epoch reducers are not recreated (see
+    :func:`_recompute_results`): their recorded reductions are told apart by
+    name, so two reducers with one name (`at_least(1, value=0.5)` and
+    `at_least(1)` are both `at_least_1`) are refused. A scorer declared
+    twice is refused too (see :func:`_declared_inputs`).
 
     Raises:
         LookupError: A metric is not registered.
         ShardSetError: Two scorers or two epoch reducers have the same name.
     """
-    from inspect_ai._util.registry import registry_lookup
+    from inspect_ai._util.registry import registry_info, registry_lookup
 
     scorers = [scorer.name for scorer in header.eval.scorers or []]
     duplicated = sorted({name for name in scorers if scorers.count(name) > 1})
@@ -119,7 +124,8 @@ def check_scoring_resolvable(header: EvalLog) -> None:
 
     for scorer in header.eval.scorers or []:
         for metric in _metric_definitions(scorer.metrics):
-            if registry_lookup("metric", metric.name) is None:
+            factory = registry_lookup("metric", metric.name)
+            if factory is None or registry_info(factory).name != metric.name:
                 raise LookupError(_unregistered("Metric", metric.name))
             _check_embedded(metric.options)
 

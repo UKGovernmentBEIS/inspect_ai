@@ -30,6 +30,7 @@ from inspect_ai.log import (
     write_eval_log,
 )
 from inspect_ai.log._file import is_log_file
+from inspect_ai.log._log import EvalMetricDefinition
 from inspect_ai.log._shards._plan import parse_sample_member, selection_digest
 from inspect_ai.log._shards._walk import (
     ShardDir,
@@ -2302,6 +2303,110 @@ def test_an_unregistered_metric_is_refused_until_imported(
     runpy.run_path("custom_task.py")
     header = merge_eval_log_shards(f"{NAME}.eval").log
     assert header.status == "success" and header.results is not None
+
+
+_SHADOWING_TASK = f"""
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.scorer import Metric, SampleScore, match, metric
+
+
+@metric(name="mean")
+def shard_shadowing_mean() -> Metric:
+    def compute(scores: list[SampleScore]) -> float:
+        return 7.0
+
+    return compute
+
+
+@task
+def {TASK}() -> Task:
+    return Task(
+        dataset=[Sample(id=i, input="q", target="x") for i in range(1, 5)],
+        scorer=match(),
+        metrics=[shard_shadowing_mean()],
+    )
+"""
+
+
+@pytest.mark.parametrize("incremental", [False, True], ids=["first", "incremental"])
+def test_a_custom_metric_with_a_builtin_name_is_refused_until_imported(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, incremental: bool
+) -> None:
+    import runpy
+
+    from inspect_ai._util import registry
+
+    # the task file registers `mean`; keep it out of later tests
+    monkeypatch.setattr(registry, "_registry", dict(registry._registry))
+    monkeypatch.chdir(tmp_path)
+    Path("custom_task.py").write_text(_SHADOWING_TASK)
+    merged, shards = _paths(".")
+
+    def run(k: str, ids: list[int]) -> None:
+        eval(
+            "custom_task.py",
+            model="mockllm/model",
+            log_dir=f"{shards}/{k}",
+            display="none",
+            sample_id=ids,
+        )
+
+    run("0", [1, 2])
+    if incremental:
+        merge_eval_log_shards(merged, allow_incomplete=True)
+    run("1", [3, 4])
+    header = read_eval_log(next(Path(f"{shards}/1").glob("*.eval")), header_only=True)
+    assert header.eval.scorers is not None
+    metrics = header.eval.scorers[0].metrics
+    assert metrics == [EvalMetricDefinition(name="mean", options={})]
+
+    # as in a fresh process, where `mean` would resolve to `inspect_ai/mean`
+    monkeypatch.delitem(registry._registry, "metric:mean")
+    before = _files(".")
+    with pytest.raises(LookupError, match="Metric 'mean' is not registered"):
+        merge_eval_log_shards(merged, delete_shards=True)
+    assert _files(".") == before
+    assert os.path.exists(merged) == incremental
+
+    runpy.run_path("custom_task.py")
+    log = merge_eval_log_shards(merged, delete_shards=True).log
+    assert log.results is not None
+    assert log.results.scores[0].metrics["mean"].value == 7.0
+
+
+@metric(name="shard_pkg/shard_qualified")
+def shard_qualified() -> Metric:
+    def compute(scores: list[SampleScore]) -> float:
+        return 7.0
+
+    return compute
+
+
+@pytest.mark.parametrize("qualified", [mean, shard_qualified])
+def test_builtin_and_package_qualified_metrics_merge(
+    tmp_path: Path, qualified: Callable[[], Metric]
+) -> None:
+    merged, shards = _paths(tmp_path)
+    task = Task(
+        dataset=[Sample(id=i, input="q", target="x") for i in range(1, 5)],
+        scorer=match(),
+        metrics=[qualified()],
+        name=TASK,
+    )
+    _run(shards, "0", task, sample_id=[1, 2])
+    _run(shards, "1", task, sample_id=[3, 4])
+    header = read_eval_log(next(Path(f"{shards}/1").glob("*.eval")), header_only=True)
+    assert header.eval.scorers is not None
+    metrics = header.eval.scorers[0].metrics
+    assert isinstance(metrics, list) and isinstance(metrics[0], EvalMetricDefinition)
+    assert "/" in metrics[0].name
+    unsharded = eval(
+        task, model="mockllm/model", log_dir=str(tmp_path / "u"), display="none"
+    )[0]
+    log = merge_eval_log_shards(merged, delete_shards=True).log
+    assert log.results is not None and unsharded.results is not None
+    assert log.results.scores[0].metrics == unsharded.results.scores[0].metrics
 
 
 _CUSTOM_TASKS = {
