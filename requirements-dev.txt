@@ -26,7 +26,10 @@ pandas>=2.0.0
 pandas-stubs
 panflute
 pip
-pre-commit
+# 4.4.0 adds `language: unsupported`, which .pre-commit-config.yaml uses
+pre-commit>=4.4.0
+# Hook tools run from this environment (.pre-commit-config.yaml)
+pre-commit-hooks==4.5.0
 pyarrow>=10.0.1
 pyarrow-stubs
 pytest
@@ -39,7 +42,6 @@ pytest-textual-snapshot
 pytest-timeout
 pytest-watcher
 pytest-xdist
-# match ruff version specified in .pre-commit-config.yaml
 ruff==0.9.6
 textual-dev>=0.86.2
 together>=2.0.0
@@ -58,6 +60,7 @@ types-psutil
 types-python-dateutil
 types-PyYAML
 types-regex
+typos==1.31.2
 xai_sdk>=1.18.0
 # zipfile-zstd patches zipfile to support zstd compression (for creating test fixtures)
 zipfile-zstd>=0.0.4; python_version < '3.14'

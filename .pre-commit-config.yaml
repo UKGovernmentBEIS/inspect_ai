@@ -1,34 +1,75 @@
 # See https://pre-commit.com for more information
-# See https://pre-commit.com/hooks.html for more hooks
+#
+# Every hook runs a tool from the project environment, so its version comes
+# from uv.lock (with the 7-day cooldown) rather than from a hook repo that
+# pre-commit would install on its own. `uv run --frozen` syncs the
+# environment to uv.lock first, so a fresh worktree works, without checking
+# the lock is current; the uv-lock hook does that. Each definition mirrors
+# the upstream hook at the version pinned in requirements-dev.txt.
+minimum_pre_commit_version: "4.4.0"
 repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.9.6
+  - repo: local
     hooks:
       # Run the linter.
       - id: ruff
+        name: ruff
+        entry: uv run --frozen ruff check --force-exclude
+        language: unsupported
+        types_or: [python, pyi, jupyter]
         args: [--fix]
+        require_serial: true
       # Run the formatter.
       - id: ruff-format
-  - repo: https://github.com/astral-sh/uv-pre-commit
-    # uv version.
-    rev: 0.13.5
-    hooks:
-      # Update the uv lockfile
+        name: ruff-format
+        entry: uv run --frozen ruff format --force-exclude
+        language: unsupported
+        types_or: [python, pyi, jupyter]
+        require_serial: true
+      # Update the uv lockfile, with the uv on PATH (CI pins it).
       - id: uv-lock
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
-    hooks:
+        name: uv-lock
+        entry: uv lock
+        language: unsupported
+        files: ^(uv\.lock|pyproject\.toml|uv\.toml)$
+        pass_filenames: false
       - id: check-added-large-files
+        name: check for added large files
+        entry: uv run --frozen check-added-large-files
+        language: unsupported
+        stages: [pre-commit, pre-push, manual]
       - id: check-json
+        name: check json
+        entry: uv run --frozen check-json
+        language: unsupported
+        types: [json]
         # The following are JSONC files.
         exclude: '(^\.vscode/|^tools/vscode/|jsconfig\.json$|tsconfig\.json$)'
       - id: check-yaml
+        name: check yaml
+        entry: uv run --frozen check-yaml
+        language: unsupported
+        types: [yaml]
       - id: debug-statements
+        name: debug statements (python)
+        entry: uv run --frozen debug-statement-hook
+        language: unsupported
+        types: [python]
       - id: detect-private-key
+        name: detect private key
+        entry: uv run --frozen detect-private-key
+        language: unsupported
+        types: [text]
       - id: requirements-txt-fixer
-  - repo: https://github.com/crate-ci/typos
-    rev: v1.31.2
-    hooks:
+        name: fix requirements.txt
+        entry: uv run --frozen requirements-txt-fixer
+        language: unsupported
+        files: (requirements|constraints).*\.txt$
       - id: typos
+        name: typos
+        entry: uv run --frozen typos
+        language: unsupported
+        args: [--write-changes, --force-exclude]
+        types: [text]
+        stages: [pre-commit, pre-merge-commit, pre-push, manual]
         files: docs|.md
         exclude: (\.yml|\.scss|\.xml|\.json)
