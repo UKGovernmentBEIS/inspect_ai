@@ -1,5 +1,6 @@
 import inspect
 from collections import deque
+from dataclasses import replace
 from logging import getLogger
 from os.path import commonprefix
 from typing import TYPE_CHECKING, Any, Callable, Mapping, NamedTuple, Sequence
@@ -344,7 +345,7 @@ class SandboxAgentBridge(AgentBridge):
             return super().reviewed_calls(call, tools)
         return ReviewedCalls(
             [
-                ToolCall(id=call.id, function=target.tool, arguments=proposed.arguments)
+                replace(call, function=target.tool, arguments=proposed.arguments)
                 for target in proposed.targets
             ],
             proposed.dispatch,
@@ -647,7 +648,7 @@ def _dispatched_call(
     ):
         return DispatchedCall(
             server=server,
-            target=ToolCall(id=call.id, function=tool, arguments=arguments),
+            target=replace(call, function=tool, arguments=arguments),
             dispatch=lambda modified: {**call.arguments, "Arguments": modified},
         )
     return None

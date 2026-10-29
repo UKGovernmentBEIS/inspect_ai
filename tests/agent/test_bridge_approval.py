@@ -1071,6 +1071,55 @@ async def test_renamed_declaration_modify_rewrites_what_the_grant_binds() -> Non
     tool.assert_awaited_once_with(path="allowed.txt")
 
 
+@approver(name="test_bridge_parse_aware")
+def parse_aware_approver() -> Approver:
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        if call.parse_error is not None:
+            return Approval(decision="reject", explanation=call.parse_error)
+        return Approval(decision="approve")
+
+    return approve
+
+
+@pytest.mark.parametrize("declared", ["read_file", "summarize"])
+async def test_malformed_arguments_reach_the_approver_as_a_parse_error(
+    declared: str,
+) -> None:
+    """Reviewing a call as the bridged tool keeps its parse error.
+
+    Unparseable arguments become `{}`; without the error an approver would see a
+    valid call, and the grant would run the tool with its defaults.
+    """
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(
+        tool, [ApprovalPolicy(parse_aware_approver(), "*")]
+    )
+    call = parse_tool_call("proposed", declared, "{")
+    assert call.parse_error is not None and call.arguments == {}
+
+    run = await run_bridge(
+        [
+            tool_calls_output(call),
+            ModelOutput.from_content(model="mockllm/model", content="Done."),
+        ],
+        bridge=bridge,
+        tools=declare(declared),
+    )
+
+    assert run.generations == 2
+    (result,) = run.tool_results(1)
+    assert result.error is not None
+    assert call.parse_error in result.error.message
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await call_host_tool(bridge)("host", "read_file", {})
+    tool.assert_not_awaited()
+
+
 def indistinct_read_and_delete(
     approval: list[ApprovalPolicy],
 ) -> tuple[SandboxAgentBridge, AsyncMock, AsyncMock]:
