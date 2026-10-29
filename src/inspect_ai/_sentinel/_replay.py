@@ -299,7 +299,9 @@ class _Call:
     assistant: ChatMessageAssistant | None
     proposal: ToolCall | None
     producer: ModelEvent | None
-    approval: ApprovalEvent | None
+    # in log order: an escalation chain's events, and a separate review for each
+    # tool a sandbox bridge proposal would run (`AgentBridge.reviewed_calls`)
+    approvals: list[ApprovalEvent]
     seq: int
     # the call's `tool` span, which call_tool opens just before recording the event
     tool_span: str | None
@@ -375,7 +377,7 @@ class _Driver:
         candidates: dict[str, list[str]] = {}
         turn_ids: set[str | None] = set()
         produced: dict[str, tuple[ChatMessageAssistant, ModelEvent, ToolCall]] = {}
-        approvals: dict[str, ApprovalEvent] = {}
+        approvals: dict[str, list[ApprovalEvent]] = {}
         calls: list[_Call] = []
 
         for index, event in enumerate(self.events):
@@ -426,7 +428,7 @@ class _Driver:
                     open_generates[attempt_key] = group
                 last_turn[conversation] = index
             elif isinstance(event, ApprovalEvent):
-                approvals[event.call.id] = event
+                approvals.setdefault(event.call.id, []).append(event)
             elif isinstance(event, CompactionEvent):
                 conversation = self._conversation(event)
                 self._at(index, 2, partial(self._count_compaction, conversation))
@@ -453,7 +455,7 @@ class _Driver:
                     assistant,
                     proposal,
                     producer,
-                    approvals.pop(event.id, None),
+                    approvals.pop(event.id, []),
                     self._next_seq(3),
                     self._tool_span(index, event),
                 )
@@ -675,9 +677,12 @@ class _Driver:
         after_span = self.step_spans.get(("tool_result", event.id))
         tool_span = call.tool_span
         proposal = call.proposal
-        approval = call.approval
-        if not self.eval_info.sentinel and approval is not None:
-            self._approval_decision(call, approval)
+        # the decision that let the call run: an escalation chain ends with it,
+        # and a bridged call reviewed as several tools ran only if each approved
+        approval = call.approvals[-1] if call.approvals else None
+        if not self.eval_info.sentinel:
+            for reviewed in call.approvals:
+                self._approval_decision(call, reviewed)
         if proposal is None or call.assistant is None:
             return
         recorded = before_span is not None or after_span is not None

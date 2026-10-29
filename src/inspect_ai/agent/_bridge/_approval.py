@@ -182,7 +182,13 @@ async def apply_bridge_tool_approval(
                         output, rejection_messages(output, call, explanation)
                     )
 
-                if approval is not None and approval.modified is not None:
+                # as on the native path, only a `modify` decision rewrites the
+                # call; a `modified` call attached to an `approve` is ignored
+                if (
+                    approval is not None
+                    and approval.decision == "modify"
+                    and approval.modified is not None
+                ):
                     error = modified_function_error(reviewed, approval.modified)
                     if error is None and len(reviewed_calls.calls) > 1:
                         error = (
