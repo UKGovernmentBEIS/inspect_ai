@@ -455,7 +455,7 @@ def _timeline_build(
 ) -> Timeline:
     """`timeline_build`, also over model inputs stored as ranges of a message pool (`input_refs`), as a log stores them.
 
-    With `continuity` (replay's log driver, inferring the turns of a log that does not record ``origin``), the continuity rule decides which calls without an origin are turns (``_Continuity``); the public `timeline_build`, which the viewer and Scout use, keeps the prompt rules (decided by Charles 2026-10-26). `final_messages` are the main agent's final messages (`EvalSample.messages`), which settle a fork at the end of the main span. `conversations` gives the conversation of each event it names, by UUID, in place of its innermost agent span (a stored timeline's spans and branches, such as Petri's rollbacks), so continuity follows each apart. `outside` names, by `id()`, the events already known not to be the agent's turns (a scorer's, a tool's, setup's or a sentinel's model calls, and compactions there), which continuity leaves out so they cannot move the agent's thread; they stay in the timeline.
+    With `continuity` (replay's log driver, inferring the turns of a log that does not record ``origin``), the continuity rule decides which calls without an origin are turns (``_Continuity``); the public `timeline_build`, which the viewer and Scout use, keeps the prompt rules (decided by Charles 2026-10-26). `final_messages` are the main agent's final messages (`EvalSample.messages`), which settle a fork at the end of the main span. `conversations` gives the conversation of each event it names, by UUID, in place of its innermost agent span (a stored timeline's spans and branches, such as Petri's rollbacks), so continuity follows each apart. `outside` names, by `id()`, the events already known not to be the agent's turns (a scorer's, a tool's, setup's or a sentinel's model calls, and compactions there), which are utility, as a call recording such an origin is: continuity leaves them out so they cannot move the agent's thread, and none sets the prompt the other calls are classified by; they stay in the timeline.
     """
     # provide defaults
     name = name or "Default"
@@ -1920,10 +1920,11 @@ def _wrap_utility_events(
     foreign-prompt wrapping is skipped entirely (warmup calls are still
     wrapped; they are identified independently of prompts).
 
-    A call whose recorded ``origin`` is not ``"agent"`` is utility and never
-    sets the primary prompt. A call recorded as ``"agent"`` goes through the
-    rules above, as a call with no ``origin`` does, since a bridged agent's
-    warm-ups and helper calls are recorded as ``"agent"``.
+    A call whose recorded ``origin`` is not ``"agent"``, or that is in
+    ``inputs.outside``, is utility and never sets the primary prompt. A call
+    recorded as ``"agent"`` goes through the rules above, as a call with no
+    ``origin`` does, since a bridged agent's warm-ups and helper calls are
+    recorded as ``"agent"``.
 
     With `turns` (replay's log driver only: `_continuity`), where calls
     record no ``origin`` and one of a conversation's calls continues another,
@@ -1942,7 +1943,7 @@ def _wrap_utility_events(
     primary_prompt: str | None = None
     for item in agent.content:
         if isinstance(item, TimelineEvent) and isinstance(item.event, ModelEvent):
-            if _has_tool_calls(item.event) and _may_be_turn(item.event):
+            if _has_tool_calls(item.event) and _may_be_turn(item.event, inputs):
                 primary_prompt = _get_system_prompt_for_event(item.event, inputs)
                 break
 
@@ -1965,7 +1966,7 @@ def _wrap_utility_events(
     new_content: list[TimelineEvent | TimelineSpan] = []
     for index, item in enumerate(agent.content):
         if isinstance(item, TimelineEvent) and isinstance(item.event, ModelEvent):
-            if not _may_be_turn(item.event):
+            if not _may_be_turn(item.event, inputs):
                 new_content.append(utility_wrapper(item, index))
                 continue
 
@@ -1999,9 +2000,11 @@ def _wrap_utility_events(
         _wrap_utility_events(branch, inputs, turns)
 
 
-def _may_be_turn(event: ModelEvent) -> bool:
-    """An agent turn by its recorded origin, or a call that records none."""
-    return event.origin is None or is_agent_turn(event.origin)
+def _may_be_turn(event: ModelEvent, inputs: _Inputs) -> bool:
+    """An agent turn by its recorded origin, or a call that records none and is not in `inputs.outside`."""
+    if event.origin is None:
+        return id(event) not in inputs.outside
+    return is_agent_turn(event.origin)
 
 
 def _is_warmup_call(event: ModelEvent, inputs: _Inputs) -> bool:

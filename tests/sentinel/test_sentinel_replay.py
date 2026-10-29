@@ -3068,31 +3068,38 @@ def linked_call(
     )
 
 
-def side_calls(count: int, span_id: str | None, origin: str | None) -> list[ModelEvent]:
-    """`count` calls, each but the first carrying on the one before it."""
+def side_calls(
+    count: int, span_id: str | None, origin: str | None, tooled: bool
+) -> list[ModelEvent]:
+    """`count` calls, each but the first carrying on the one before it; `tooled`, each makes a tool call under a system prompt of its own."""
     input: list[ChatMessage] = [ChatMessageUser(content="Grade the answer.")]
+    if tooled:
+        input.insert(0, ChatMessageSystem(content="You are a grader."))
     calls: list[ModelEvent] = []
     for n in range(count):
-        call = linked_call(f"s{n}", span_id, input, f"Graded {n}.", origin)
+        look = [ToolCall(id=f"g{n}", function="look", arguments={})] if tooled else []
+        call = linked_call(f"s{n}", span_id, input, f"Graded {n}.", origin, *look)
         calls.append(call)
         input = [*input, call.output.message, ChatMessageUser(content="Go on.")]
     return calls
 
 
 def region_with_side_calls(
-    region: str, count: int, recorded: bool
+    region: str, count: int, recorded: bool, tooled: bool
 ) -> tuple[list[ChatMessage], list[Event], Timeline | None]:
-    """An agent's turns, and `count` linked calls in a region that is not the agent's: between a scorer's `StepEvent`s (a log from before spans), in a sentinel's span, or in a tool's span that a stored conversation joins to the agent's."""
+    """An agent's turns, and `count` linked calls in a region that is not the agent's: between a scorer's `StepEvent`s (a log from before spans), in a sentinel's span, or in a tool's span that a stored conversation joins to the agent's. `tooled`, the agent has a system prompt and the linked calls make tool calls under another."""
     agent = "agent" if recorded else None
-    user = ChatMessageUser(content="Solve it.")
+    opening: list[ChatMessage] = [ChatMessageUser(content="Solve it.")]
+    if tooled:
+        opening.insert(0, ChatMessageSystem(content="You are a solver."))
     if region == "tool":
         call = ToolCall(id="c1", function="check", arguments={})
-        m1 = linked_call("m1", "agent", [user], "Checking.", agent, call)
+        m1 = linked_call("m1", "agent", opening, "Checking.", agent, call)
         result = ChatMessageTool(content="ok", tool_call_id="c1", function="check")
         m2 = linked_call(
-            "m2", "agent", [user, m1.output.message, result], "Solved.", agent
+            "m2", "agent", [*opening, m1.output.message, result], "Solved.", agent
         )
-        helpers = side_calls(count, "tool-c1", "tool" if recorded else None)
+        helpers = side_calls(count, "tool-c1", "tool" if recorded else None, tooled)
         events: list[Event] = [
             SpanBeginEvent(id="agent", name="agent", type="agent"),
             m1,
@@ -3114,11 +3121,11 @@ def region_with_side_calls(
                 content=[TimelineEvent(event=e) for e in (m1, *helpers, m2)],
             ),
         )
-        return [user, m1.output.message, result, m2.output.message], events, stored
-    m1 = linked_call("m1", "agent", [user], "Solved.", agent)
-    messages: list[ChatMessage] = [user, m1.output.message]
+        return [*opening, m1.output.message, result, m2.output.message], events, stored
+    m1 = linked_call("m1", "agent", opening, "Solved.", agent)
+    messages: list[ChatMessage] = [*opening, m1.output.message]
     if region == "scorer":
-        graders = side_calls(count, None, "scorer" if recorded else None)
+        graders = side_calls(count, None, "scorer" if recorded else None, tooled)
         m1.span_id = None
         return (
             messages,
@@ -3130,7 +3137,7 @@ def region_with_side_calls(
             ],
             None,
         )
-    monitors = side_calls(count, "check", "helper" if recorded else None)
+    monitors = side_calls(count, "check", "helper" if recorded else None, tooled)
     return (
         messages,
         [
@@ -3147,18 +3154,22 @@ def region_with_side_calls(
     )
 
 
+@pytest.mark.parametrize("tooled", [False, True])
 @pytest.mark.parametrize("count", [1, 2, 3])
 @pytest.mark.parametrize("region", ["scorer", "sentinel", "tool"])
 def test_linked_calls_outside_the_agent_s_turns_leave_its_turns(
-    region: str, count: int
+    region: str, count: int, tooled: bool
 ) -> None:
     # Ransom's sixth review B1: calls a region shows are not the agent's (a
     # scorer's, a sentinel's, or a tool's that a stored conversation joins to
     # the agent's) are left out of continuity, so linked ones cannot make
     # the agent's turn utility; replay without origins gives the steps it
-    # gives with them
+    # gives with them. Review 7 B1: tool-calling ones under another system
+    # prompt cannot set the prompt the agent's turns are classified by
     def steps(recorded: bool) -> list[tuple[str, str]]:
-        messages, events, stored = region_with_side_calls(region, count, recorded)
+        messages, events, stored = region_with_side_calls(
+            region, count, recorded, tooled
+        )
         return [
             (s.stage, s.id)
             for s in steps_from_events(

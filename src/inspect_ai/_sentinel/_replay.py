@@ -87,7 +87,7 @@ def steps_from_events(
 
     Every step's `agent_messages` is None: the log does not record the agent's own messages, and model input can hold messages the agent kept out of them.
 
-    A log that does not record where a model call was made (`ModelEvent.origin`, written since inspect_ai PR #5990), as an older Inspect log does not, has its turns inferred: a call made in the scorers' span (in a log from before spans, between a scorer's `StepEvent`s) is a scorer's, whatever tool or agent span holds it (live, the scorers' scope is final); one in a tool's span (or nested in its `ToolEvent`) a tool's, and one in the init span setup's; of the rest, those the timeline shows as utility (`timeline_build`'s prompt and continuity rules, continuity leaving out the calls above and a sentinel's) are not turns, and the others are. A final scope no span records reads as the region holding it: a `model_origin()` region, `score()` called by a solver or a tool, an approver's model call; where the timeline does not show such a call as utility, its call is a turn (or, in a tool, its calls are checked), as live it was not.
+    A log that does not record where a model call was made (`ModelEvent.origin`, written since inspect_ai PR #5990), as an older Inspect log does not, has its turns inferred: a call made in the scorers' span (in a log from before spans, between a scorer's `StepEvent`s) is a scorer's, whatever tool or agent span holds it (live, the scorers' scope is final); one in a tool's span (or nested in its `ToolEvent`) a tool's, and one in the init span setup's; of the rest, those the timeline shows as utility (`timeline_build`'s prompt and continuity rules, the calls above and a sentinel's taking no part in either) are not turns, and the others are. A final scope no span records reads as the region holding it: a `model_origin()` region, `score()` called by a solver or a tool, an approver's model call; where the timeline does not show such a call as utility, its call is a turn (or, in a tool, its calls are checked), as live it was not.
 
     Args:
         messages: The sample's messages (`EvalSample.messages`).
@@ -857,8 +857,9 @@ class _Driver:
 
     def _infer_origins(self) -> dict[int, str]:
         # calls known not to be the agent's turns by their region, and
-        # compactions there, are left out of continuity: a scorer's, a tool's
-        # or a sentinel's linked calls would otherwise move the agent's thread
+        # compactions there, are utility to the timeline: a scorer's, a tool's
+        # or a sentinel's calls would otherwise move the agent's thread or set
+        # the prompt its turns are classified by
         known: dict[int, str] = {}
         outside: set[int] = set()
         for event, nested in zip(self.events, self.nested):
