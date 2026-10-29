@@ -449,13 +449,13 @@ def _timeline_build(
     description: str | None = None,
     message_pool: Sequence[ChatMessage] | None = None,
     final_messages: Sequence[ChatMessage] | None = None,
-    conversations: Mapping[str, str] | None = None,
+    conversations: Mapping[int, str] | None = None,
     continuity: bool = False,
     outside: AbstractSet[int] = frozenset(),
 ) -> Timeline:
     """`timeline_build`, also over model inputs stored as ranges of a message pool (`input_refs`), as a log stores them.
 
-    With `continuity` (replay's log driver, inferring the turns of a log that does not record ``origin``), the continuity rule decides which calls without an origin are turns (``_Continuity``); the public `timeline_build`, which the viewer and Scout use, keeps the prompt rules (decided by Charles 2026-10-26). `final_messages` are the main agent's final messages (`EvalSample.messages`), which settle a fork at the end of the main span. `conversations` gives the conversation of each event it names, by UUID, in place of its innermost agent span (a stored timeline's spans and branches, such as Petri's rollbacks), so continuity follows each apart. `outside` names, by `id()`, the events already known not to be the agent's turns (a scorer's, a tool's, setup's or a sentinel's model calls, and compactions there), which are utility, as a call recording such an origin is: continuity leaves them out so they cannot move the agent's thread, and none sets the prompt the other calls are classified by; they stay in the timeline.
+    With `continuity` (replay's log driver, inferring the turns of a log that does not record ``origin``), the continuity rule decides which calls without an origin are turns (``_Continuity``); the public `timeline_build`, which the viewer and Scout use, keeps the prompt rules (decided by Charles 2026-10-26). `final_messages` are the main agent's final messages (`EvalSample.messages`), which settle a fork at the end of the main span. `conversations` gives the conversation of each event it names, by `id()`, in place of its span of the tree and innermost agent span: with a stored timeline (whose spans and branches, such as Petri's rollbacks, continuity follows apart), the conversation replay's driver puts each event in, those the stored timeline omits included. `outside` names, by `id()`, the events already known not to be the agent's turns (a scorer's, a tool's, setup's or a sentinel's model calls, and compactions there), which are utility, as a call recording such an origin is: continuity leaves them out so they cannot move the agent's thread, and none sets the prompt the other calls are classified by; they stay in the timeline.
     """
     # provide defaults
     name = name or "Default"
@@ -1098,7 +1098,7 @@ class _Inputs:
         self,
         events: Sequence[Event],
         pool: Sequence[ChatMessage] | None,
-        conversations: Mapping[str, str] | None = None,
+        conversations: Mapping[int, str] | None = None,
         outside: AbstractSet[int] = frozenset(),
     ) -> None:
         self._events = events
@@ -1140,8 +1140,8 @@ class _Inputs:
         return self._events
 
     def given(self, event: Event) -> str | None:
-        """The conversation given for the event's UUID, if any."""
-        return self._conversations.get(event.uuid) if event.uuid else None
+        """The conversation given for the event, if any."""
+        return self._conversations.get(id(event))
 
     def open_rows(self) -> "_RowSet":
         if self._open_rows is None:
@@ -1157,10 +1157,7 @@ class _Inputs:
                 rows.add(row)
 
     def conversation(self, event: Event) -> object:
-        """The conversation an event is in: the one given for its UUID, else its innermost agent span in the span tree."""
-        given = self._conversations.get(event.uuid) if event.uuid else None
-        if given is not None:
-            return ("given", given)
+        """The conversation an event is in: its innermost agent span in the span tree."""
         if self._agent_spans is None:
             self._agent_spans = AgentSpans()
             for begin in self._events:
@@ -1713,7 +1710,7 @@ def _continuity(
 ) -> dict[int, bool]:
     """Whether each call with no recorded origin under `root` is a turn by continuity, by `id()` of its event.
 
-    The rule runs over each conversation's calls in log order: within each span of the tree, its conversations apart (a span can hold more than one, where the timeline unrolls a solver beside an agent; a tool's sub-agent and a branch are spans of their own); and a conversation given for events (a stored timeline's) across every span it reaches. A conversation in which no call continues another has no answers but its summarizers', so the existing rules decide its other calls. The final messages settle a fork at the end of the conversation they are from: that of the latest call whose output is one of them by both id and content; else of the latest whose output has the id of one of them, where no other call's output has that id (an edited message keeps its id; a reused id decides nothing); else of the latest whose output matches one by content. Within that conversation, the same rule picks the head of a fork the final messages carry on, each head compared with the final message where its output would be. Calls in `inputs.outside` are left out.
+    The rule runs over each conversation's calls in log order: within each span of the tree, its conversations apart (a span can hold more than one, where the timeline unrolls a solver beside an agent; a tool's sub-agent and a branch are spans of their own); and a conversation given for events (with a stored timeline, the one replay's driver puts each in) across every span it reaches. A conversation in which no call continues another has no answers but its summarizers', so the existing rules decide its other calls. The final messages settle a fork at the end of the conversation they are from: that of the latest call whose output is one of them by both id and content; else of the latest whose output has the id of one of them, where no other call's output has that id (an edited message keeps its id; a reused id decides nothing); else of the latest whose output matches one by content. Within that conversation, the same rule picks the head of a fork the final messages carry on, each head compared with the final message where its output would be. Calls in `inputs.outside` are left out.
     """
     order = {id(event): index for index, event in enumerate(inputs.events)}
     # (position in the log, position in the tree, conversation, event): a call

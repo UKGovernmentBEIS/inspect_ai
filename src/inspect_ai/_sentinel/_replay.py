@@ -916,10 +916,12 @@ class _Driver:
             message_pool=self.pool,
             final_messages=self.messages,
             conversations={
-                key: conversation
-                for key, conversation in (self.timeline or {}).items()
-                if isinstance(key, str)
-            },
+                id(event): self._conversation(event)
+                for event in self.events
+                if isinstance(event, ModelEvent | CompactionEvent)
+            }
+            if self.timeline is not None
+            else None,
             continuity=True,
             outside=outside,
         )

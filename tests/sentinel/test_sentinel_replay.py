@@ -38,6 +38,7 @@ from inspect_ai.approval._approval import ApprovalDecision
 from inspect_ai.dataset import Sample
 from inspect_ai.event import (
     ApprovalEvent,
+    CompactionEvent,
     Event,
     ModelEvent,
     SentinelEvent,
@@ -1553,6 +1554,74 @@ def test_replay_infers_the_turns_of_the_continuity_fixtures(fixture: str) -> Non
         ]
 
     assert steps(events) == steps(recorded)
+
+
+@pytest.mark.parametrize(
+    "compaction", ["omitted", "included", "included without uuid", "no timeline"]
+)
+def test_a_stored_timeline_s_compaction_keeps_the_summarizer_a_helper(
+    compaction: str,
+) -> None:
+    # Ransom's ninth review B1: the replay driver puts a compaction a stored
+    # timeline omits (or holds without a uuid) in the conversation of its
+    # span, which the stored timeline's agent span also names; continuity
+    # follows it there, so the summarizer `sm` stays utility
+    import json
+
+    from pydantic import TypeAdapter
+
+    data = json.loads(
+        (CONTINUITY_FIXTURES / "continuity_summary_logged.json").read_text()
+    )
+    events = TypeAdapter(list[Event]).validate_python(data["events"])
+    if compaction == "included without uuid":
+        events = [
+            e.model_copy(update={"uuid": None}) if isinstance(e, CompactionEvent) else e
+            for e in events
+        ]
+    held = [
+        e
+        for e in events
+        if isinstance(e, ModelEvent)
+        or (isinstance(e, CompactionEvent) and compaction.startswith("included"))
+    ]
+    stored = (
+        Timeline(
+            name="target",
+            description="",
+            root=TimelineSpan(
+                id="agent",
+                name="agent",
+                content=[TimelineEvent(event=e) for e in held],
+            ),
+        )
+        if compaction != "no timeline"
+        else None
+    )
+    recorded = [
+        e.model_copy(update={"origin": "helper" if e.uuid == "sm" else "agent"})
+        if isinstance(e, ModelEvent)
+        else e
+        for e in events
+    ]
+
+    def steps(events: list[Event]) -> list[Any]:
+        return [
+            (s.stage, s.id, s.segment, comparable(s.step))
+            for s in steps_from_events(
+                [],
+                events,
+                [],
+                sample_uuid="sample",
+                eval_info=EvalInfo(inspect_ai_version=None, sentinel=False),
+                timeline=stored,
+            )
+        ]
+
+    inferred = steps(events)
+
+    assert inferred == steps(recorded)
+    assert not any(id == "sm" for _, id, _, _ in inferred)
 
 
 def checked_m3(check_id: str, later_turn: bool, recorded: bool) -> list[Event]:
