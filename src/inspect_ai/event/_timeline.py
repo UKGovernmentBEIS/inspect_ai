@@ -1107,10 +1107,6 @@ class _Inputs:
         self.outside = outside
         self._views: dict[int, Sequence[ChatMessage]] = {}
         self._fingerprints: dict[int, _Fingerprint] = {}
-        # tool call id -> (the input position its result follows the call at,
-        # the most calls made with it there), by position, from the model
-        # calls making it
-        self._issued: dict[str, list[tuple[int, int]]] | None = None
         # tool call id -> the pool rows holding a non-empty result of it,
         # ascending
         self._tool_rows: dict[str, list[int]] | None = None
@@ -1234,51 +1230,24 @@ class _Inputs:
     ) -> list[tuple[str, str]]:
         """The non-empty results in `event`'s input of the tool calls named, the last for each.
 
-        An input stored as ranges of the pool is looked up in the pool rows holding a result of each call, a bisection per range from the last. An expanded input is looked at first where a result follows its call, just after the output of a model call that made it: of those the input reaches, from the last until one holds a result, and then after that result; failing that, by scanning it.
+        An input stored as ranges of the pool is looked up in the pool rows holding a result of each call, a bisection per range from the last. An expanded input is read once from its end, until each call's last result is found.
         """
         input = self.of(event)
         if isinstance(input, PoolView):
             return list(self._pooled_tool_results(input, tool_call_ids).items())
-        issued = self._issued_calls()
         found: dict[str, str] = {}
-        missing: list[str] = []
-        for tool_call_id in tool_call_ids:
-            text: str | None = None
-            last = -1
-            # a reused id was issued by several model calls: from the last
-            # issuance within the input, the first holding a result
-            issuances = issued.get(tool_call_id, [])
-            at = bisect_left(issuances, len(input), key=lambda issuance: issuance[0])
-            for index in range(at - 1, -1, -1):
-                start, count = issuances[index]
-                for position in range(
-                    min(start + count, len(input)) - 1, start - 1, -1
-                ):
-                    message = input[position]
-                    if (
-                        isinstance(message, ChatMessageTool)
-                        and message.tool_call_id == tool_call_id
-                        and message.text
-                    ):
-                        text, last = message.text, position
-                        break
-                if text is not None:
+        wanted = set(tool_call_ids)
+        for position in range(len(input) - 1, -1, -1):
+            message = input[position]
+            if (
+                isinstance(message, ChatMessageTool)
+                and message.tool_call_id in wanted
+                and message.text
+            ):
+                found[message.tool_call_id] = message.text
+                wanted.discard(message.tool_call_id)
+                if not wanted:
                     break
-            if text is not None:
-                # the last result in the input, wherever it is, as a scan finds
-                for position in range(last + 1, len(input)):
-                    message = input[position]
-                    if (
-                        isinstance(message, ChatMessageTool)
-                        and message.tool_call_id == tool_call_id
-                        and message.text
-                    ):
-                        text = message.text
-                found[tool_call_id] = text
-            else:
-                missing.append(tool_call_id)
-        if missing:
-            found.update(self._scan_tool_results(input, missing))
         return list(found.items())
 
     def _pooled_tool_results(
@@ -1299,36 +1268,6 @@ class _Inputs:
                     found[tool_call_id] = input[start + rows[at] - begin].text
                     break
         return found
-
-    def _scan_tool_results(
-        self, input: Sequence[ChatMessage], tool_call_ids: list[str]
-    ) -> dict[str, str]:
-        found: dict[str, str] = {}
-        wanted = set(tool_call_ids)
-        for message in input:
-            if (
-                isinstance(message, ChatMessageTool)
-                and message.tool_call_id in wanted
-                and message.text
-            ):
-                found[message.tool_call_id] = message.text
-        return found
-
-    def _issued_calls(self) -> dict[str, list[tuple[int, int]]]:
-        if self._issued is None:
-            counts: dict[str, dict[int, int]] = {}
-            for event in self._events:
-                if isinstance(event, ModelEvent) and event.output.choices:
-                    calls = event.output.choices[0].message.tool_calls or []
-                    start = len(self.of(event)) + 1
-                    for call in calls:
-                        by_start = counts.setdefault(call.id, {})
-                        by_start[start] = max(by_start.get(start, 0), len(calls))
-            self._issued = {
-                tool_call_id: sorted(by_start.items())
-                for tool_call_id, by_start in counts.items()
-            }
-        return self._issued
 
     def _pool_tool_rows(self) -> dict[str, list[int]]:
         if self._tool_rows is None:
@@ -1822,7 +1761,7 @@ def _extract_agent_results(parent: TimelineSpan, inputs: _Inputs) -> None:
     2. Span-based agents (static flow): sibling ToolEvent with agent_span_id == span.id
     3. Bridge flow: a later sibling ModelEvent's input has the ChatMessageTool answering the call the span is named for (``agent-{tool_call_id}``)
 
-    One pass over the content: each span waiting on the bridge flow is answered by the first later model event whose input holds its result, looked up rather than scanned for (``_Inputs.tool_results``).
+    One pass over the content: each span waiting on the bridge flow is answered by the first later model event whose input holds its result (``_Inputs.tool_results``), each input looked at once for all the spans waiting.
     """
     content = parent.content
     agent_tool_events: dict[str, ToolEvent] = {}

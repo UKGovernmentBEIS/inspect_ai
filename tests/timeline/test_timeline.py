@@ -1331,30 +1331,33 @@ class _Issuances(list[Any]):
             _Issuances.visits += 1
             yield item
 
-    def __reversed__(self) -> Any:
-        for item in super().__reversed__():
-            _Issuances.visits += 1
-            yield item
 
-
-def _issuance_visits(events: list[Any], monkeypatch: pytest.MonkeyPatch) -> int:
-    """The issuances of tool call ids visited building the public timeline of `events`."""
+def _result_lookup_work(events: list[Any], monkeypatch: pytest.MonkeyPatch) -> int:
+    """The input messages read and tool call issuances visited (where the module indexes them) building the public timeline of `events`."""
+    from inspect_ai.event import ModelEvent
     from inspect_ai.event import _timeline as timeline
 
-    issued = timeline._Inputs._issued_calls
-
-    def counted(self: Any) -> Any:
-        found = issued(self)
-        for key, value in found.items():
-            if not isinstance(value, _Issuances):
-                found[key] = _Issuances(value)
-        return found
-
-    _Issuances.visits = 0
+    events = [
+        e.model_copy(update={"input": _CountingList(e.input)})
+        if isinstance(e, ModelEvent)
+        else e
+        for e in events
+    ]
+    _CountingList.reads = _Issuances.visits = 0
     with monkeypatch.context() as patch:
-        patch.setattr(timeline._Inputs, "_issued_calls", counted)
+        issued = getattr(timeline._Inputs, "_issued_calls", None)
+        if issued is not None:
+
+            def counted(self: Any) -> Any:
+                found = issued(self)
+                for key, value in found.items():
+                    if not isinstance(value, _Issuances):
+                        found[key] = _Issuances(value)
+                return found
+
+            patch.setattr(timeline._Inputs, "_issued_calls", counted)
         timeline_build(events)
-    return _Issuances.visits
+    return _CountingList.reads + _Issuances.visits
 
 
 def _reused_task_id(calls: int) -> list[Any]:
@@ -1375,19 +1378,59 @@ def _reused_task_id(calls: int) -> list[Any]:
     return events
 
 
-def test_a_reused_tool_call_id_s_issuances_are_visited_in_linear_work(
+def test_a_reused_tool_call_id_s_waiting_result_is_looked_up_in_linear_work(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Ransom's ninth review B3: each later call's lookup of the waiting
     # task's result visited every issuance of its id, in the input's bounds
     # or not; the merge base reads each one-message input once
-    visits = [
-        _issuance_visits(_reused_task_id(calls), monkeypatch)
+    works = [
+        _result_lookup_work(_reused_task_id(calls), monkeypatch)
         for calls in (100, 200, 400)
     ]
-    for calls, found in zip((100, 200, 400), visits):
-        assert found <= 4 * calls, (calls, visits)
-    assert visits[2] <= 2.2 * visits[1] + 10, visits
+    for calls, work in zip((100, 200, 400), works):
+        assert work <= 4 * calls, (calls, works)
+    assert works[2] <= 2.2 * works[1] + 10, works
+
+
+@pytest.mark.parametrize(
+    "build", ["public", "pooled", "continuity expanded", "continuity pooled"]
+)
+def test_an_adversarial_log_s_timeline_is_built_in_linear_work(build: str) -> None:
+    # after Ransom's ninth review: repeated tool call ids, an unresolved
+    # bridge task, fragmented and falling inputs and unresolved forks at
+    # once; the lines of inspect_ai executed per unit the log stores stay
+    # flat as the rounds double (the merge base's public build does too)
+    from test_helpers.adversarial_log import adversarial_log, executed_lines
+
+    from inspect_ai.event import ModelEvent
+    from inspect_ai.event._pool import condense_model_event_inputs
+
+    pooled = build.endswith("pooled")
+    per_unit = []
+    for rounds in (100, 200, 400):
+        log = adversarial_log(rounds, window=None if pooled else 16, checks=False)
+        events: list[Any] = log.events
+        pool: list[Any] = []
+        if pooled:
+            events, _, entries = condense_model_event_inputs(events, 0, {})
+            pool = [message for _, message in entries]
+        stored = len(events) + len(pool)
+        for e in events:
+            if isinstance(e, ModelEvent):
+                stored += len(e.input_refs) if pooled and e.input_refs else len(e.input)
+        if build == "public":
+            _, lines = executed_lines(timeline_build, events)
+        else:
+            _, lines = executed_lines(
+                _timeline_build,
+                events,
+                message_pool=pool or None,
+                final_messages=log.messages,
+                continuity=build.startswith("continuity"),
+            )
+        per_unit.append(lines / stored)
+    assert per_unit[2] <= 1.3 * per_unit[0], per_unit
 
 
 def _failures(calls: int, retried: bool) -> tuple[list[Any], list[Any]]:

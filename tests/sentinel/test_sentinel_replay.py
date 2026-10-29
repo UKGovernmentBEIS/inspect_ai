@@ -2160,6 +2160,41 @@ def log_work(turns: int, monkeypatch: pytest.MonkeyPatch, origins: bool = True) 
     )
 
 
+@pytest.mark.parametrize("inputs", ["expanded", "pooled"])
+def test_an_adversarial_log_replays_in_linear_work(inputs: str) -> None:
+    # after Ransom's ninth review: repeated tool call ids, an unresolved
+    # bridge task, fragmented and falling inputs, unresolved forks and
+    # sentinel 0.1.x checks named by message id (repeat suffixes included)
+    # at once; the lines of inspect_ai executed per unit the log stores stay
+    # flat as the rounds double
+    from test_helpers.adversarial_log import adversarial_log, executed_lines
+
+    pooled = inputs == "pooled"
+    per_unit = []
+    for rounds in (100, 200, 400):
+        log = adversarial_log(rounds, window=None if pooled else 16, checks=True)
+        events: list[Event] = log.events
+        pool: list[ChatMessage] = []
+        if pooled:
+            events, _, entries = condense_model_event_inputs(events, 0, {})
+            pool = [message for _, message in entries]
+        stored = len(events) + len(pool)
+        for e in events:
+            if isinstance(e, ModelEvent):
+                stored += len(e.input_refs) if pooled and e.input_refs else len(e.input)
+        replay, lines = executed_lines(
+            steps_from_events,
+            log.messages,
+            events,
+            pool,
+            sample_uuid="sample",
+            eval_info=EvalInfo(inspect_ai_version="0.3.200", sentinel=True),
+        )
+        assert len([s for s in replay if s.stage == "model_input"]) >= rounds
+        per_unit.append(lines / stored)
+    assert per_unit[2] <= 1.3 * per_unit[0], per_unit
+
+
 @pytest.mark.parametrize("origins", [True, False])
 def test_replay_reads_each_pool_row_once_and_folds_linearly(
     origins: bool, monkeypatch: pytest.MonkeyPatch
