@@ -34,25 +34,38 @@ class SandboxSetup:
     is collected here instead (so it can be shown if the setup fails)."""
 
 
-_sandbox_setup: ContextVar[SandboxSetup | None] = ContextVar(
-    "sandbox_setup", default=None
-)
+class _Scope:
+    """The setup a scope makes current, until the scope ends.
+
+    Mutable, so that work started during the call (background tasks copy the
+    context) stops seeing the setup when the call ends.
+    """
+
+    def __init__(self, setup: SandboxSetup) -> None:
+        self.setup: SandboxSetup | None = setup
+
+
+_sandbox_setup: ContextVar[_Scope | None] = ContextVar("sandbox_setup", default=None)
 
 
 def sandbox_setup() -> SandboxSetup | None:
     """The task the current sandbox setup or cleanup call is for.
 
     Returns ``None`` outside a provider's ``task_init_environment``,
-    ``task_init`` and ``task_cleanup`` (for example in ``sample_init``).
+    ``task_init`` and ``task_cleanup`` (for example in ``sample_init``, or in
+    background work such a call started, once the call has returned).
     """
-    return _sandbox_setup.get()
+    scope = _sandbox_setup.get()
+    return scope.setup if scope is not None else None
 
 
 @contextmanager
 def sandbox_setup_scope(setup: SandboxSetup) -> Iterator[None]:
     """Make ``setup`` the current sandbox setup for the block."""
-    token = _sandbox_setup.set(setup)
+    scope = _Scope(setup)
+    token = _sandbox_setup.set(scope)
     try:
         yield
     finally:
+        scope.setup = None
         _sandbox_setup.reset(token)

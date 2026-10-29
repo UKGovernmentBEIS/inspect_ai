@@ -4,7 +4,7 @@ import os
 import weakref
 from collections import Counter
 from contextlib import ExitStack, asynccontextmanager, nullcontext
-from contextvars import ContextVar, copy_context
+from contextvars import Context, ContextVar, copy_context
 from copy import copy
 from dataclasses import dataclass, replace
 from typing import (
@@ -1263,6 +1263,7 @@ class SandboxManager:
         self._state: ProviderState = {}
         self._init_lock = anyio.Lock()
         self._lifecycle = ExitStack()
+        self._cleanup_context = copy_context()
         # keyed by task, then spec: resolution folds in per-task state
         # (run_dir), so a spec-only key would leak one task's resolution to
         # another. Weak on the task, so a finished task's Task and dataset are
@@ -1273,6 +1274,9 @@ class SandboxManager:
 
     async def __aenter__(self) -> "SandboxManager":
         self._lifecycle.enter_context(sandbox_lifecycle_scope())
+        # cleanups run from here, so each sees only the provider state as it
+        # was right after its own task_init (not what later ones set)
+        self._cleanup_context = copy_context()
         return self
 
     async def __aexit__(self, *exc_info: object) -> None:
@@ -1283,17 +1287,20 @@ class SandboxManager:
         scope this manager owns. A failing cleanup is logged and the others
         still run.
         """
+
+        async def cleanup(job: _TaskCleanup) -> None:
+            with sandbox_setup_scope(SandboxSetup(job.run_dir)):
+                await job.cleanup("shutdown", job.config, self._cleanup)
+
         with anyio.CancelScope(shield=True):
             try:
                 for job in self._cleanups:
                     try:
-                        with sandbox_setup_scope(SandboxSetup(job.run_dir)):
-                            await _in_child_task(
-                                functools.partial(
-                                    job.cleanup, "shutdown", job.config, self._cleanup
-                                ),
-                                job.state,
-                            )
+                        await _in_child_task(
+                            functools.partial(cleanup, job),
+                            job.state,
+                            context=self._cleanup_context,
+                        )
                     except BaseException as ex:
                         log.warning(
                             f"Error occurred shutting down sandbox environments: {exception_message(ex)}"
@@ -1512,8 +1519,11 @@ async def _in_child_task(
     fn: Callable[[], Awaitable[None]],
     state: ProviderState,
     done: Callable[[ProviderState], None] = lambda changes: None,
+    context: Context | None = None,
 ) -> ProviderState:
     """Run ``fn`` in a child task with ``state`` set; return the ContextVars it set.
+
+    The child starts from a copy of ``context`` (default: the caller's).
 
     The child's ContextVar writes stay out of the caller's context, so only
     what ``fn`` itself sets is kept, rather than a copy of the caller's whole
@@ -1547,7 +1557,7 @@ async def _in_child_task(
         done(changes)
 
     async with anyio.create_task_group() as tg:
-        tg.start_soon(run)
+        (context or copy_context()).copy().run(tg.start_soon, run)
     if error is not None:
         raise error
     return changes
