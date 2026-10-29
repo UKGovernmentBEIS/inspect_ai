@@ -106,15 +106,21 @@ resolved scorer names. In recompute and recovery the `SampleScore`s carry no
 scorer's rebuilt metrics and options, and every other key, which is any key
 the log invents, takes this fallback. `ScorerInfo.from_name()` resolves the
 key only through `scorer_from_registry()` in `loader.py` (a registered
-`@scorer` or `@scanner` by name; no path parsing, no file loading). Any exception from it gives the default metrics (`accuracy`,
-`stderr`). The catch is broad on purpose: live final, cancellation and display
-aggregation and the control server's interim scoring also reach it, and a
-solver-written score keyed by a registered scorer that needs arguments
-(`pattern`, `answer`, `multi_scorer`, ...) raises `TypeError` when built
-without them and must keep getting the defaults.
+`@scorer` or `@scanner` by name, built with no arguments; no path parsing, no
+file loading). A scorer it builds supplies its declared metrics, and any
+exception from it gives the default metrics (`accuracy`, `stderr`). When
+`eval_results()` is given task-level metrics (the log's `eval.metrics` in
+recompute and recovery, the task's metrics in a live run), those replace the
+fallback's metrics for the key. The catch is broad on purpose: live final,
+cancellation and display aggregation and the control server's interim
+scoring also reach it, and a solver-written score keyed by a registered
+scorer that needs arguments (`pattern`, `answer`, `multi_scorer`, ...) raises
+`TypeError` when built without them and must keep falling back like an
+unregistered key.
 
-A score key that names a file gets the default metrics like any other
-unregistered key. Inspect never writes such keys.
+A score key that names a file is treated like any other unregistered key:
+the default metrics, or the task-level metrics when there are any. Inspect
+never writes such keys.
 
 ### Metric reconstruction and `trust_log`
 
@@ -597,10 +603,13 @@ an eval set resumes from.
   the registry only, the task file needs `trust_log=True`, and eval-set's
   recovery, whose task file is the user's own and already loaded, imports
   nothing.
-- Read operations construct no model provider from log values and no registry
-  object outside the metric and reducer registries, unless the caller passes
-  `trust_log=True`. The allow-list is enforced in `registry_arg()`, the code
-  that constructs.
+- Read operations construct no model provider from log values. Metric
+  options from the log construct no registry object outside the metric and
+  reducer registries unless the caller passes `trust_log=True`; the
+  allow-list is enforced in `registry_arg()`, the code that constructs. Other
+  registry lookups by log-chosen name still build installed objects, as
+  listed below (an unmatched score key builds a registered scorer or
+  scanner with no arguments).
 - eval-set resume does not let a log choose the sandbox type or config of a
   task the user chose, including inline compose configs, which would
   otherwise run the log's images with the log's mounts.
