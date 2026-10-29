@@ -25,7 +25,10 @@ summaries retain the top 15 observed tests and steps. Runner minutes are
 measured job execution time, not GitHub's rounded billed minutes. Jobs are
 collected with `filter=all`, so every re-run attempt's execution counts;
 `rerun_runner_minutes` isolates attempts after the first, and carried-over jobs
-(a new id each attempt but the same runner and start time) are counted once. A re-run run records only its
+(a new id each attempt but the same runner and start time) are counted once. In
+a legacy raw file that predates the per-job attempt, a re-run's carried-over and
+re-run jobs cannot be told apart, so `rerun_runner_minutes` is reported unknown
+(null) rather than guessed from the run's attempt. A re-run run records only its
 latest attempt's start, so re-run runs are excluded from workflow wall and
 job-wait distributions and counted in `rerun_runs`. Skipped jobs
 contribute no execution time; GitHub sometimes returns inverted timestamps for

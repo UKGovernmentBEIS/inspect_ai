@@ -75,6 +75,7 @@ def summarize(snapshot: dict[str, Any]) -> dict[str, Any]:
     conclusions: dict[str, int] = defaultdict(int)
     runner_seconds = 0.0
     rerun_runner_seconds = 0.0
+    rerun_attribution_unknown = False
     unavailable_jobs = 0
     unavailable_cancelled_jobs = 0
     unstarted_jobs = 0
@@ -104,8 +105,16 @@ def summarize(snapshot: dict[str, Any]) -> dict[str, Any]:
                     unavailable_cancelled_jobs += 1
                 continue
             runner_seconds += seconds
-            # Legacy jobs predate the per-job attempt; fall back to the run's.
-            if (job.get("run_attempt") or run.get("run_attempt") or 1) > 1:
+            attempt = job.get("run_attempt")
+            if attempt is None:
+                # A legacy job record predates the per-job attempt. In a re-run
+                # its runner time cannot be attributed to the original or to the
+                # re-run (the latest-attempt listing carried first-attempt jobs
+                # over), so re-run minutes are reported unknown rather than
+                # guessed from the run's attempt.
+                if is_rerun:
+                    rerun_attribution_unknown = True
+            elif attempt > 1:
                 rerun_runner_seconds += seconds
             if run["conclusion"] == "cancelled":
                 cancelled_seconds += seconds
@@ -180,7 +189,7 @@ def summarize(snapshot: dict[str, Any]) -> dict[str, Any]:
         "conclusions": dict(conclusions),
         "runner_minutes": None if unavailable_jobs else round(runner_seconds / 60, 2),
         "rerun_runner_minutes": None
-        if unavailable_jobs
+        if unavailable_jobs or rerun_attribution_unknown
         else round(rerun_runner_seconds / 60, 2),
         "rerun_runs": rerun_runs,
         "unstarted_jobs": unstarted_jobs,

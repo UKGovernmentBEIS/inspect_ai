@@ -1380,6 +1380,55 @@ def test_rerun_attempts_counted_and_run_excluded_from_wall(
     assert "re-run" in render(summary).lower()
 
 
+def test_legacy_partial_rerun_reports_unknown_rerun_minutes() -> None:
+    """A legacy snapshot of a partial re-run reports re-run minutes as unknown.
+
+    The old collector kept the run's `run_attempt` but omitted each job's, and
+    its latest-attempt listing carried first-attempt successes over. A 60s
+    carried-over job and a 450s re-run job cannot be split with no per-job
+    attempt, so `rerun_runner_minutes` is None (unknown) rather than a guess
+    from the run's attempt that would charge all 510s to the re-run.
+    """
+    snap = {
+        "generated_at": "2026-10-29T00:00:00Z",
+        "repo": "UKGovernmentBEIS/inspect_ai",
+        "runs": [
+            {
+                "id": 1,
+                "name": "Build",
+                "conclusion": "success",
+                "run_attempt": 2,
+                "run_started_at": "2026-10-29T00:10:00Z",
+                "wall_seconds": 600,
+                "jobs": [
+                    {  # carried over from attempt 1; no per-job attempt recorded
+                        "name": "mypy",
+                        "conclusion": "success",
+                        "exec_seconds": 60,
+                        "wait_from_run_start_seconds": 0,
+                        "steps": [{"name": "mypy", "seconds": 60}],
+                    },
+                    {  # re-run in attempt 2; no per-job attempt recorded
+                        "name": "test (3.14)",
+                        "conclusion": "success",
+                        "exec_seconds": 450,
+                        "wait_from_run_start_seconds": 0,
+                        "steps": [{"name": "pytest", "seconds": 450}],
+                    },
+                ],
+            }
+        ],
+        "pytest_summaries": {},
+        "pytest_durations": {},
+    }
+    result = summarize(snap)
+    assert result["runner_minutes"] == round((60 + 450) / 60, 2)
+    assert result["rerun_runner_minutes"] is None
+    assert result["rerun_runs"] == 1
+    assert result["unavailable_job_timings"] == 0
+    assert "None from re-run attempts" in render(result)
+
+
 # --- Review round 1: paginated job listing, per-job log dedupe, overlap text --
 
 
