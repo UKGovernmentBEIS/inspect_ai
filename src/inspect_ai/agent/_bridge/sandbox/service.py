@@ -67,7 +67,8 @@ def _forward_provider_errors(
     error), which takes its own route. A group of only limits and refusals
     that holds a limit, such as a generate filter's, counts as its first
     member, as a response filter's group does: a refusal first fails the
-    sample, a limit first is recorded.
+    sample, a limit first is recorded. Other errors in a group a limit was
+    selected from are logged, as for any error forwarded with no HTTP status.
 
     A turn limit is checked after a generation, so a request that arrives
     once one is exceeded gets its error reply without another generation.
@@ -89,6 +90,7 @@ def _forward_provider_errors(
                 # only the first is raised, so later ones are not kept
                 if bridge.generation_limit is None:
                     bridge.generation_limit = control
+                _warn_other_errors(ex)
                 return {PROVIDER_ERROR_KEY: cast(JsonValue, provider_error_payload(ex))}
             failure = control or ex
             if isinstance(failure, (ModelRefusalError, ResponseFilterError)):
@@ -136,6 +138,23 @@ def _first_control(ex: Exception) -> LimitExceededError | ModelRefusalError | No
                 first = first.exceptions[0]
             return cast(LimitExceededError | ModelRefusalError, first)
     return _first_limit(ex)
+
+
+def _warn_other_errors(ex: Exception) -> None:
+    """Log the members of a group other than limits and refusals, with their traceback.
+
+    They are likely bugs (a filter's own), which the limit's error reply would
+    otherwise mask.
+    """
+    if isinstance(ex, ExceptionGroup):
+        _, rest = ex.split((LimitExceededError, ModelRefusalError))
+        if rest is not None:
+            logger.warning(
+                "Agent bridge model request reached a limit and failed with other "
+                "errors (forwarding the limit to the client as an error response): %s",
+                rest,
+                exc_info=rest,
+            )
 
 
 def _first_limit(ex: BaseException) -> LimitExceededError | None:

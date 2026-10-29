@@ -785,6 +785,37 @@ async def test_forward_provider_errors_records_a_limit_and_replies(
     assert warnings == []
 
 
+async def test_forward_provider_errors_logs_other_errors_beside_a_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Other errors in a group a limit is selected from are logged with their traceback.
+
+    The limit is still recorded and answered with the group's error reply.
+    """
+    warnings: list[tuple[Any, Any]] = []
+    monkeypatch.setattr(
+        bridge_service.logger, "warning", lambda *a, **k: warnings.append((a, k))
+    )
+    error = LimitExceededError("message", value=2, limit=1)
+    bug = RuntimeError("judge bug")
+    group = ExceptionGroup("judges", [error, bug])
+
+    async def boom(
+        json_data: dict[str, Any], headers: dict[str, str] | None = None
+    ) -> dict[str, Any]:
+        raise group
+
+    bridge = _bridge()
+    result = await _forward_provider_errors(boom, bridge)({})
+    assert result == {PROVIDER_ERROR_KEY: {"status": None, "message": str(group)}}
+    assert bridge.generation_limit is error
+    assert not bridge._failure_requested.is_set()
+    [(args, kwargs)] = warnings
+    logged = kwargs["exc_info"]
+    assert isinstance(logged, ExceptionGroup) and logged.exceptions == (bug,)
+    assert logged.__traceback__ is not None
+
+
 async def test_forward_provider_errors_keeps_only_the_first_limit() -> None:
     """Only the first limit is recorded; later ones are released once answered.
 
