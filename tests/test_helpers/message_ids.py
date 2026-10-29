@@ -32,6 +32,7 @@ def shown(message: ChatMessage) -> str:
                 {
                     "type": "reasoning",
                     "reasoning": part["reasoning"],
+                    "summary": part.get("summary"),
                     "redacted": part.get("redacted", False),
                 }
             )

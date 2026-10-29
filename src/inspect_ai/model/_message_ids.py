@@ -131,7 +131,8 @@ def edit_id(source_id: str, content: str) -> str:
 def content_hash(message: ChatMessage) -> str:
     """Hash of what a message shows: versions that differ here are different messages.
 
-    Provider-internal fields (reasoning signatures, `internal`, citations), the
+    Provider-internal fields (reasoning signatures, `internal`, citations), a cache
+    breakpoint, the `refusal` flag (not every dialect sends it back), the
     `model` and `source`, metadata and the id are left out, and string content
     equals the same text as a content list.
     """
@@ -147,7 +148,7 @@ def content_hash(message: ChatMessage) -> str:
                 [
                     ["text", item.text]
                     if isinstance(item, ContentText)
-                    else ["reasoning", item.reasoning, item.redacted]
+                    else ["reasoning", item.reasoning, item.summary, item.redacted]
                     if isinstance(item, ContentReasoning)
                     else item.model_dump(exclude_none=True, exclude={"internal"})
                     for item in items

@@ -23,7 +23,12 @@ from test_helpers.checkpoint import RecordingCheckpointer
 from test_helpers.message_ids import assert_message_ids, edited_id, tool_event_producers
 
 from inspect_ai import Task, eval
-from inspect_ai._util.content import ContentImage, ContentText
+from inspect_ai._util.content import (
+    Content,
+    ContentImage,
+    ContentReasoning,
+    ContentText,
+)
 from inspect_ai.agent import Agent, AgentState, agent, agent_bridge, handoff, react
 from inspect_ai.agent._bridge import types as bridge_types
 from inspect_ai.agent._bridge.types import AgentBridge, _handed_calls
@@ -783,6 +788,32 @@ async def test_native_and_bridge_edits_of_a_message_agree() -> None:
     native = edited_message(reply, content="Hi  there.")
 
     assert ids[1] == native.id != reply.id
+
+
+async def test_scaffold_edit_of_a_reasoning_summary_gets_a_new_id() -> None:
+    task = ChatMessageUser(content="Hello")
+    reply = ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning="signature", summary="Greet.", redacted=True),
+            ContentText(text="Hi there."),
+        ]
+    )
+    scaffold = _Scaffold(AgentBridge(AgentState(messages=[task])))
+    await scaffold.request([task], reply)
+    content: list[Content] = [
+        ContentReasoning(reasoning="signature", summary="Wave.", redacted=True),
+        ContentText(text="Hi there."),
+    ]
+
+    ids = await scaffold.request(
+        [
+            task,
+            ChatMessageAssistant(content=content),
+            ChatMessageUser(content="Again"),
+        ]
+    )
+
+    assert ids[1] == edited_message(reply, content=content).id != reply.id
 
 
 def _awaiting(
