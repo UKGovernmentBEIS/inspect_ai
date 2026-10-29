@@ -1587,15 +1587,25 @@ def test_first_limit_in_a_bridged_filter_group_is_raised(
     _assert_error_replies(outcome.replies)
 
 
-@pytest.mark.parametrize("first", ["refusal", "limit", "nested_refusal"])
+@pytest.mark.parametrize(
+    ("first", "held"),
+    [
+        ("refusal", True),
+        ("refusal", False),
+        ("limit", False),
+        ("nested_refusal", True),
+    ],
+    ids=["refusal", "refusal_completed", "limit", "nested_refusal"],
+)
 def test_first_of_a_bridged_filter_group_of_limits_and_refusals_wins(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, first: str
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, first: str, held: bool
 ) -> None:
     """A generate filter's group of only limits and refusals counts as its first member.
 
     As for a response filter's group: a refusal first, also in a nested group,
     fails the sample; a limit first is raised and the agent's `run()` handles
-    it.
+    it. A refusal's reply is held, so only the failure ends the agent, or
+    completed, so the scaffold reads it and returns.
     """
     limit = message_limit(10)
 
@@ -1618,11 +1628,7 @@ def test_first_of_a_bridged_filter_group_of_limits_and_refusals_wins(
         tmp_path,
         monkeypatch,
         limit,
-        scaffold=_Scaffold(
-            # a refusal's reply never completes: only the failure ends the agent
-            [_Request(held=first != "limit")],
-            filter=over_limit_and_refused,
-        ),
+        scaffold=_Scaffold([_Request(held=held)], filter=over_limit_and_refused),
     )
 
     if first == "limit":
