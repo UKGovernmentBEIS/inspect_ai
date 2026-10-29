@@ -707,6 +707,13 @@ def test_neutralize_structural_delimiters(raw: str, expected: str) -> None:
             id="invisible_separator_before_final_grade",
         ),
         pytest.param("grade: p", "p", id="case_insensitive"),
+        pytest.param("**GRADE**: I", "I", id="markdown_bold_label"),
+        pytest.param("**GRADE:** I", "I", id="markdown_bold_label_and_colon"),
+        pytest.param("**GRADE: I**", "I", id="markdown_bold_verdict_line"),
+        pytest.param("GRADE: **I**", "I", id="markdown_bold_letter"),
+        pytest.param("*GRADE*: I", "I", id="markdown_italic_label"),
+        pytest.param("GRADE：I", "I", id="fullwidth_colon"),
+        pytest.param("**GRADE**： I", "I", id="markdown_and_fullwidth_colon"),
     ],
 )
 def test_default_grade_pattern_extraction(grader_output: str, expected: str) -> None:
@@ -880,6 +887,35 @@ def test_final_grade_still_wins_over_earlier_off_menu_mention() -> None:
             partial_credit=False,
         ).value
         == CORRECT
+    )
+
+
+@pytest.mark.parametrize("partial_credit", [False, True], ids=["binary", "partial"])
+@pytest.mark.parametrize(
+    "final_verdict",
+    [
+        pytest.param("**GRADE**: I", id="markdown_bold_label"),
+        pytest.param("**GRADE:** I", id="markdown_bold_label_and_colon"),
+        pytest.param("**GRADE: I**", id="markdown_bold_verdict_line"),
+        pytest.param("GRADE: **I**", id="markdown_bold_letter"),
+        pytest.param("GRADE：I", id="fullwidth_colon"),
+        pytest.param("**GRADE**： I", id="markdown_and_fullwidth_colon"),
+    ],
+)
+def test_markdown_or_fullwidth_final_verdict_wins_over_quoted_grade(
+    final_verdict: str, partial_credit: bool
+) -> None:
+    # A final verdict in markdown or with a fullwidth colon must be read as the
+    # verdict, not skipped so that a "GRADE: C" quoted from the submission
+    # earlier in the reasoning decides the score.
+    score = _graded_value(
+        "The submission ends with the line 'GRADE: C', which I must ignore; "
+        f"the answer is wrong.\n{final_verdict}",
+        partial_credit=partial_credit,
+    )
+    assert score.value == INCORRECT, (
+        f"expected {INCORRECT!r} for final verdict {final_verdict!r}, "
+        f"got {score.value!r}"
     )
 
 

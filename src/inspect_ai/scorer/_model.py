@@ -415,8 +415,12 @@ First, write out in a step by step manner your reasoning about the criterion to 
 
 
 # Whitespace plus zero-width / formatting marks that can appear around a
-# verdict separator in model output or pasted text.
-_GRADE_SPACING = r"[\s\u200b\u200c\u200d\u200e\u200f\u2060\u2063\ufeff]*"
+# verdict separator in model output or pasted text, and markdown emphasis
+# (``**GRADE**: I``, ``GRADE: **I**``).
+_GRADE_SPACING = r"[\s\u200b\u200c\u200d\u200e\u200f\u2060\u2063\ufeff*]*"
+
+# ASCII colon or the fullwidth colon (U+FF1A) that CJK-locale graders write.
+_GRADE_SEPARATOR = r"[:\uff1a]"
 
 # Spelled-out verdicts the default instructions may elicit, mapped to their
 # single-letter grade. Anything else multi-character is a parse failure.
@@ -430,7 +434,8 @@ _GRADE_WORD_VALUES = {
 }
 
 DEFAULT_GRADE_PATTERN = (
-    rf"(?is).*(?<!\w)GRADE(?!\w){_GRADE_SPACING}:{_GRADE_SPACING}([CPI])"
+    rf"(?is).*(?<!\w)GRADE(?!\w){_GRADE_SPACING}"
+    rf"{_GRADE_SEPARATOR}{_GRADE_SPACING}([CPI])"
 )
 """Regex to extract the grade from the COT above.
 
@@ -440,7 +445,10 @@ to end with the grade, so earlier mentions (e.g. echoed in chain-of-thought
 or injected via the submission) must not win. The ``GRADE`` token is bounded so
 ordinary prose like ``downgrade:`` cannot be mistaken for a verdict. No
 end-of-string anchor is used so that trailing text after the grade line does
-not suppress the match.
+not suppress the match. Markdown emphasis around the label or verdict and a
+fullwidth colon (U+FF1A) are accepted, so a final verdict such as
+``**GRADE**: I`` is read rather than skipped in favour of an earlier plain
+``GRADE: X``.
 
 Used when a custom ``instructions`` prompt is in play, where the grades on
 offer are unknown; with the default instructions the scorer uses a permissive
@@ -456,7 +464,8 @@ actually offered (see ``model_graded_qa``).
 # verdict decides the score, and an unusable one is a parse failure rather than
 # a licence to score some mention from the chain of thought.
 _PERMISSIVE_GRADE_PATTERN = (
-    rf"(?is).*(?<!\w)GRADE(?!\w){_GRADE_SPACING}:{_GRADE_SPACING}(\w*)"
+    rf"(?is).*(?<!\w)GRADE(?!\w){_GRADE_SPACING}"
+    rf"{_GRADE_SEPARATOR}{_GRADE_SPACING}(\w*)"
 )
 
 
