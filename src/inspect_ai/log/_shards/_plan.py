@@ -208,6 +208,31 @@ def ledger_entry(read: AttemptRead) -> EvalShardEntry:
     )
 
 
+def check_resolved(attempt: str, shard: str, header: EvalLog, held: int) -> None:
+    """Refuse an attempt that holds samples it did not resolve.
+
+    A drain landing while a sample starts, or a sample cancel during a task
+    drain or cancel, keeps the cancelled sample's transcript in the log but
+    leaves it out of `results.logged_samples`, so a later run picks it up
+    again. Counting the record as merged coverage would complete the set and
+    let its shards be deleted. Without a recorded count (ordinary, running
+    and older attempts) every held sample counts, as in eval-set's check.
+
+    Args:
+        attempt: The attempt's location.
+        shard: Its shard directory name.
+        header: The attempt's header.
+        held: The sample records it holds.
+    """
+    logged = header.results.logged_samples if header.results is not None else None
+    if logged is not None and logged < held:
+        raise ShardSetError(
+            f"{attempt} holds {held} samples but resolved only {logged}: the "
+            "others were cancelled by a drain or cancel and have not run. Run "
+            f"shard {shard} again so it finishes them, then merge again."
+        )
+
+
 def attempt_regressed(shard: ShardDir, entry: EvalShardEntry) -> bool:
     """Whether a shard's current attempt sorts before the recorded one."""
     current = shard.current

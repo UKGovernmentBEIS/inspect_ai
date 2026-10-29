@@ -51,6 +51,7 @@ from ._plan import (
     check_headers,
     check_ledger_count,
     check_reads,
+    check_resolved,
     check_selection_covers,
     check_vanished,
     given_selection,
@@ -377,10 +378,6 @@ async def _merge_pass(
     delete_shards: bool,
 ) -> _Pass:
     listing = await list_shard_set(fs, shards_dir)
-    for shard in listing.shards:
-        check_s3_location(shard.dir, ShardSetError)
-        for attempt in shard.attempts:
-            check_s3_location(attempt.name, ShardSetError)
     if listing.stray:
         raise ShardSetError(
             f"{shards_dir} holds log files that are not shard attempts: "
@@ -413,6 +410,9 @@ async def _merge_pass(
         # what an interrupted deletion leaves: shards that lost their merged
         # attempt, and none new or changed since the merge
         check_ledger_count(existing.records, ledger.values(), merged_path)
+        await _check_merged_resolved(
+            fs, [s for s in shards if s not in changed], ledger
+        )
         return _recorded_pass(existing, given, allow_incomplete, shards_gone=False)
     for shard in regressed:
         check_attempt_order(shard, ledger[shard.name])
@@ -464,6 +464,8 @@ async def _merge_pass(
         raise _incomplete(merged_path, status)
 
     if existing is not None and not changed and selection.same_as(recorded):
+        if delete_shards:
+            await _check_merged_resolved(fs, shards, ledger)
         return _Pass(existing.header, False, existing.etag, records, 0, status, True)
 
     check_scoring_resolvable(base)
@@ -664,6 +666,7 @@ async def _read_attempt(
             assert entry is not None
             held[key] = summary
             members[key] = entry
+    check_resolved(info.name, shard.name, header, len(held))
     reductions = None
     if (
         header.eval.config.epochs_reducer
@@ -682,6 +685,27 @@ async def _read_attempt(
         reductions=reductions,
     )
     return read, reader
+
+
+async def _check_merged_resolved(
+    fs: AsyncFilesystem, shards: list[ShardDir], ledger: dict[str, EvalShardEntry]
+) -> None:
+    """Refuse deleting merged attempts that hold samples they did not resolve.
+
+    `shards` are unchanged since the merge that recorded them in `ledger`.
+    That merge read them and refused such an attempt (see `check_resolved`);
+    a pass that deletes them without reading them checks their headers again.
+    """
+    limiter = anyio.CapacityLimiter(_MAX_CONCURRENT_READS)
+
+    async def check(shard: ShardDir) -> None:
+        async with limiter:
+            header = await _read_attempt_header(fs, shard)
+        check_resolved(
+            _current(shard).name, shard.name, header, ledger[shard.name].samples
+        )
+
+    await tg_collect([functools.partial(check, s) for s in shards])
 
 
 async def _read_attempt_header(fs: AsyncFilesystem, shard: ShardDir) -> EvalLog:

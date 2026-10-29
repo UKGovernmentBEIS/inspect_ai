@@ -2,7 +2,7 @@ import json
 import os
 import sys
 import zipfile
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -1390,6 +1390,156 @@ def test_merge_of_a_drained_success_shard_stays_started(tmp_path: Path) -> None:
     # without a selection, the dataset size decides
     with pytest.raises(ShardSetIncomplete):
         merge_eval_log_shards(merged)
+
+
+# ids whose sample a drain cancels as it starts (`_MATERIALIZING`), and ids
+# whose sample stamps a drain while it runs, so the samples still queued are
+# abandoned (`_DRAINING`); module state, as for `_FAILING`
+_MATERIALIZING: set[int] = set()
+_DRAINING: set[int] = set()
+
+
+def _drain(eval_id: str) -> None:
+    from inspect_ai._control.eval_state import get_eval_state
+
+    state = get_eval_state(eval_id)
+    assert state is not None and state.task_cancel is not None
+    state.task_cancel.cancel_task("drain")
+
+
+@solver
+def _drainable() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        from inspect_ai.log._samples import sample_active
+
+        if state.sample_id in _MATERIALIZING:
+            # the drain's self-interrupt is delivered at this checkpoint
+            await anyio.sleep(10)
+        if state.sample_id in _DRAINING:
+            active = sample_active()
+            assert active is not None
+            _drain(active.eval_id)
+        return await generate(state)
+
+    return solve
+
+
+@pytest.fixture
+def drains(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Stamp a drain as each `_MATERIALIZING` sample starts.
+
+    As in `test_drain_resolution_cancels_materializing_sample`: after the
+    sample's queue-exit check, so the drain resolves it as cancelled.
+    """
+    from anyio.abc import TaskGroup
+
+    from inspect_ai.log._samples import ActiveSample
+
+    original = ActiveSample.start
+
+    def start(self: ActiveSample, tg: TaskGroup) -> None:
+        if self.sample.id in _MATERIALIZING:
+            _drain(self.eval_id)
+        original(self, tg)
+
+    monkeypatch.setattr(ActiveSample, "start", start)
+    yield
+    _MATERIALIZING.clear()
+    _DRAINING.clear()
+
+
+def _drained_task() -> Task:
+    return _task(samples=4, solver=_drainable())
+
+
+def _run_drained(shards: str, k: str, sample_id: list[int]) -> EvalLog:
+    """Run shard `k` one sample at a time, so the drain finds earlier ones done."""
+    return _run(shards, k, _drained_task(), sample_id=sample_id, max_samples=1)
+
+
+def _cancelled_while_starting(shards: str) -> EvalLog:
+    """Shard 1 for ids 3 and 4, with 4 cancelled by a drain as it starts."""
+    _MATERIALIZING.add(4)
+    log = _run_drained(shards, "1", [3, 4])
+    _MATERIALIZING.clear()
+    assert log.status == "success" and log.samples is not None
+    assert sorted(s.id for s in log.samples) == [3, 4]
+    assert log.results is not None and log.results.logged_samples == 1
+    return log
+
+
+@pytest.mark.parametrize("merge", ["fresh", "incremental"])
+def test_a_shard_holding_a_sample_cancelled_by_a_drain_is_refused(
+    tmp_path: Path, drains: None, merge: str
+) -> None:
+    merged, shards = _paths(tmp_path)
+    _run_drained(shards, "0", [1, 2])
+    if merge == "incremental":
+        # a drain that abandoned queued sample 4 leaves the set started
+        _DRAINING.add(3)
+        queued = _run_drained(shards, "1", [3, 4])
+        _DRAINING.clear()
+        assert queued.samples is not None and [s.id for s in queued.samples] == [3]
+        assert queued.results is not None and queued.results.logged_samples == 1
+        result = merge_eval_log_shards(merged, allow_incomplete=True)
+        assert result.written and result.log.status == "started"
+    _cancelled_while_starting(shards)
+    before = _files(str(tmp_path))
+    for delete in (False, True):
+        with pytest.raises(ShardSetError, match="holds 2 samples but resolved only 1"):
+            merge_eval_log_shards(merged, delete_shards=delete)
+    assert _files(str(tmp_path)) == before
+
+
+@pytest.mark.parametrize("remnant", ["unchanged", "interrupted"])
+def test_deleting_merged_attempts_rechecks_their_resolved_count(
+    tmp_path: Path, drains: None, monkeypatch: pytest.MonkeyPatch, remnant: str
+) -> None:
+    import shutil
+
+    from inspect_ai.log._shards import _api
+
+    merged, shards = _paths(tmp_path)
+    _run_drained(shards, "0", [1, 2])
+    _cancelled_while_starting(shards)
+    # a merged log whose ledger holds the attempt, as one merged without the
+    # check would
+    with monkeypatch.context() as patched:
+        patched.setattr(_api, "check_resolved", lambda *args: None, raising=False)
+        assert merge_eval_log_shards(merged).log.status == "success"
+    if remnant == "interrupted":
+        shutil.rmtree(f"{shards}/0")
+    before = _files(str(tmp_path))
+    with pytest.raises(ShardSetError, match="holds 2 samples but resolved only 1"):
+        merge_eval_log_shards(merged, delete_shards=True)
+    assert _files(str(tmp_path)) == before
+
+
+@pytest.mark.parametrize("case", ["errored", "queued_drain"])
+def test_errored_samples_and_queued_drains_merge(
+    tmp_path: Path, failing: set[int], drains: None, case: str
+) -> None:
+    merged, shards = _paths(tmp_path)
+    if case == "errored":
+        task = _task(samples=4, solver=_flaky())
+        _run(shards, "0", task, sample_id=[1, 2], fail_on_error=False)
+        failing.add(4)
+        errored = _run(shards, "1", task, sample_id=[3, 4], fail_on_error=False)
+        assert errored.status == "success" and errored.results is not None
+        assert errored.results.logged_samples is None
+    else:
+        _run_drained(shards, "0", [1, 2])
+        _DRAINING.add(3)
+        _run_drained(shards, "1", [3, 4])
+        _DRAINING.clear()
+        header = merge_eval_log_shards(merged, allow_incomplete=True).log
+        assert header.status == "started"
+        assert _keys(merged) == {("1", 1), ("2", 1), ("3", 1)}
+        _run_drained(shards, "1", [3, 4])
+    result = merge_eval_log_shards(merged, delete_shards=True)
+    assert result.written and result.shards_deleted
+    assert result.log.status == "success"
+    assert _keys(merged) == {(str(i), 1) for i in range(1, 5)}
 
 
 def test_merge_keeps_exactly_the_records_a_running_shard_holds(tmp_path: Path) -> None:
@@ -3377,6 +3527,42 @@ async def test_s3_shard_paths_s3_would_read_as_another_key_are_refused(
     before = _s3_objects(f"{s3_root}/")
     with pytest.raises(ShardSetError, match="S3 would read it as"):
         await merge_eval_log_shards_async(merged, delete_shards=True)
+    assert _s3_objects(f"{s3_root}/") == before
+
+
+@pytest.mark.parametrize("merge", ["unchanged", "fresh"])
+@pytest.mark.parametrize("separator", ["#", "?"], ids=["fragment", "query"])
+async def test_an_s3_shard_directory_s3_would_list_as_an_absent_one_is_refused(
+    s3_shards: tuple[str, str], s3_root: str, separator: str, merge: str
+) -> None:
+    from inspect_ai.log import merge_eval_log_shards_async
+
+    merged, _ = s3_shards
+    shards = f"{s3_root}/{NAME}.shards"
+    [attempt] = [k for k in _s3_keys(f"{shards}/1/") if k.endswith(".eval")]
+    held = f"{s3_root}/held/worker.eval"
+    client = boto3.client("s3")
+    client.copy_object(
+        Bucket="test-bucket",
+        Key=held,
+        CopySource={"Bucket": "test-bucket", "Key": attempt},
+    )
+    client.delete_object(Bucket="test-bucket", Key=attempt)
+    if merge == "unchanged":
+        result = await merge_eval_log_shards_async(merged, sample_ids=[1, 2, 3])
+        assert result.written and result.log.status == "success"
+    # shard 1's unmerged worker, in a directory S3 would list as the absent `1`
+    client.copy_object(
+        Bucket="test-bucket",
+        Key=f"{shards}/1{separator}tag/worker.eval",
+        CopySource={"Bucket": "test-bucket", "Key": held},
+    )
+    client.delete_object(Bucket="test-bucket", Key=held)
+    before = _s3_objects(f"{s3_root}/")
+    with pytest.raises(ShardSetError, match="S3 would read it as"):
+        await merge_eval_log_shards_async(
+            merged, sample_ids=[1, 2, 3], delete_shards=True
+        )
     assert _s3_objects(f"{s3_root}/") == before
 
 

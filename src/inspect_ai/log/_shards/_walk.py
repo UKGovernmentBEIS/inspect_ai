@@ -16,6 +16,7 @@ import anyio
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.asyncfiles import (
     AsyncFilesystem,
+    DirListing,
     is_s3_filename,
     s3_bucket_and_key,
 )
@@ -23,6 +24,8 @@ from inspect_ai._util.constants import EVAL_LOG_FORMAT
 from inspect_ai._util.file import FileInfo, basename, local_path
 from inspect_ai._util.log_layout import _RECOVERED_SUFFIX, _SHARDS_SUFFIX
 from inspect_ai.log._file import _timestamp_prefix_re, is_log_file
+
+from ._errors import ShardSetError
 
 # Shard directory listings in flight at once.
 _MAX_CONCURRENT_LISTINGS = 32
@@ -148,20 +151,31 @@ async def list_shard_set(
     directory removed during the walk, and an S3 prefix emptied during the
     walk give the same listing.
 
+    ``shards_dir`` and every name a listing returns are checked with
+    :func:`check_s3_location` before anything listed is filtered or listed
+    further, so a name S3 would read as another key is never dropped as
+    empty or read in place of another.
+
     Args:
         fs: Filesystem to list with.
         shards_dir: The ``<name>.shards`` directory: a path, ``file://`` URI
             or ``s3://`` URL. Returned paths keep this form.
         limiter: Bounds every listing, the first included, so a caller
             walking several companions can keep one cap across them.
+
+    Raises:
+        ShardSetError: ``shards_dir`` or a listed name is an S3 URL that S3
+            would read as another key.
     """
     if limiter is None:
         limiter = anyio.CapacityLimiter(_MAX_CONCURRENT_LISTINGS)
+    check_s3_location(shards_dir, ShardSetError)
     try:
         async with limiter:
             listing = await fs.list_dir(shards_dir)
     except FileNotFoundError:
         return ShardSetListing(shards=[], stray=[], unlisted_dirs=[])
+    _check_listed(listing)
 
     stray = [
         StrayFile(path=info.name, reason=_ROOT_LOG)
@@ -176,6 +190,7 @@ async def list_shard_set(
                 child = await fs.list_dir(directory)
         except FileNotFoundError:
             return None
+        _check_listed(child)
         if _name(directory).startswith("."):
             stray.extend(
                 StrayFile(path=info.name, reason=_HIDDEN_LOG)
@@ -219,6 +234,11 @@ async def list_shard_set(
     return ShardSetListing(
         shards=shards, stray=stray, unlisted_dirs=sorted(unlisted_dirs)
     )
+
+
+def _check_listed(listing: DirListing) -> None:
+    for location in [*listing.dirs, *(info.name for info in listing.files)]:
+        check_s3_location(location, ShardSetError)
 
 
 def attempt_sort_key(info: FileInfo) -> AttemptSortKey:

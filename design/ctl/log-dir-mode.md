@@ -410,7 +410,9 @@ route and handler are for reference; the mode calls none of them.
   - `storage_error`: reading the directory failed for a reason other than
     absence: permissions, credentials, throttling, a transport failure, or
     an object that kept changing under a per-sample read after the bounded
-    re-reads ("Reading a member consistently").
+    re-reads ("Reading a member consistently"), or a name in a shard set
+    that S3 would read as another key (the shared walk refuses it with
+    `ShardSetError`).
     `exception` is the package-qualified exception name as today
     (`_exception_name`, `_failure.py:167`); `status` is the HTTP status of
     an S3 `ClientError` when present. This is separate from the existing

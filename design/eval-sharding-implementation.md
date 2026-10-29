@@ -892,6 +892,21 @@ the merged header, the unchanged ones:
   one member of a multi-member sample would corrupt the merged log. The
   rule is per key, so an id containing `/` (whose monolith member is
   `samples/group/item_epoch_1.json`) is a monolith as usual.
+- **No unresolved sample.** An attempt whose `results.logged_samples` is
+  lower than the records it holds is refused (`check_resolved`, when the
+  attempt is read). A drain landing while a sample starts, or a sample
+  cancel during a task drain or cancel, keeps the cancelled sample's
+  transcript but leaves it out of that count, so eval-set runs it again;
+  counted as merged coverage, it would complete the set and let its shards
+  be deleted. Refusing keeps native drain, retry and the log format as
+  they are; the message names the attempt and says to run the shard again.
+  An attempt with no recorded count (ordinary, running and older logs)
+  resolved every record it holds, as eval-set's check treats it. A pass
+  that deletes shards without reading their attempts (unchanged, or the
+  interrupted-deletion exception below) reads the headers of the recorded
+  attempts still present and applies the same check against their ledger
+  `samples` first. A drain that abandoned queued samples holds fewer
+  records and is not refused: it leaves the set `started` ("Status").
 - **No attempt regression.** A shard's current attempt must not sort
   before the attempt its ledger entry records (`attempt_sort_key`); that
   happens only when the recorded attempt was deleted from `<k>/` while an
@@ -1450,10 +1465,14 @@ cleanup (removes the merged log too). Both use one routine,
   write and delete `logs/run`. `check_s3_location` (`log/_shards/_walk.py`)
   refuses an S3 URL whose bucket and key do not give back the URL: the
   merge argument's merged log and companion (`ValueError`, before any
-  merge I/O, with or without deletion), each listed shard directory and
-  attempt (`ShardSetError`, before any attempt is read), and a located
-  merged log in the writer guards (`ShardSetError`, before the presence
-  check). A literal `%23` is kept and merges.
+  merge I/O, with or without deletion), and a located merged log in the
+  writer guards (`ShardSetError`, before the presence check). Listed
+  names are checked in one place, `list_shard_set` (`ShardSetError`): the
+  companion it is given and every name its listings return, in the
+  companion and in each `<k>/`, before anything listed is filtered or
+  listed further. A directory `1#tag/` would otherwise list as the absent
+  `1/` and be dropped as empty, and its unmerged attempt deleted. A
+  literal `%23` is kept and merges.
   With `include_log`, the merged log is deleted first. A remote delete is
   then checked by a fresh listing, because a bulk delete can return
   normally while objects remain: s3fs ignores the per-object errors of a
@@ -1746,7 +1765,7 @@ never scans the directory.
 
    | Cause | Raised by the merge as | What the message tells the user to do |
    |---|---|---|
-   | Invalid shard set: mismatched identifier, scorers, metrics, dataset size, epochs, reducer or format version; overlapping shard selections; a shard with no recorded selection or holding samples outside it (a `SampleSource` task); a shard whose selection changed across attempts; stray files; chunked-shape samples | `ShardSetError` | fix the shards named in the message (remove or move the offending files; for a changed selection, move the new attempt to its own `<k>/` or delete `<name>.eval`), then re-run |
+   | Invalid shard set: mismatched identifier, scorers, metrics, dataset size, epochs, reducer or format version; overlapping shard selections; a shard with no recorded selection or holding samples outside it (a `SampleSource` task); a shard whose selection changed across attempts; a shard holding samples a drain or cancel left unresolved; stray files; chunked-shape samples | `ShardSetError` | fix the shards named in the message (remove or move the offending files; for a changed selection, move the new attempt to its own `<k>/` or delete `<name>.eval`), then re-run |
    | The eval set's selection is narrower than what the shards hold | `ShardSelectionError` | the message says the selection is narrower than the shards and lists up to ten held ids outside it with the total; widen `sample_id` or `limit` to include every sharded sample (or drop the selection for the whole dataset), or remove the task from the eval set, or move `<name>.eval` and `<name>.shards/` out of the log directory; if the ids are not ones the run should hold, remove the shard named as holding them; then re-run |
    | Merged log does not match its ledger (its samples were changed outside the merge) | `ShardSetError` | delete `<name>.eval` so the next merge rebuilds it from the shards, then re-run |
    | Vanished shard (shard files deleted after they were merged, for example an interrupted `delete_shards`) | `ShardSetError` | finish the deletion (`inspect log merge-shards <name>.eval --delete-shards`, or delete `<name>.shards/` by hand) or restore the files, then re-run |
@@ -1929,7 +1948,10 @@ The shard-set rules, one implementation for both consumers:
   attempt, each a `StrayFile(path, reason)`, sorted by path: a log
   (`.eval` or `.json`) directly in `<name>.shards/`, a log directly in a
   directory whose name starts with `.`, and a `.json` log in a `<k>/`. The
-  walk never raises for them. The merge refuses any stray file; ctl
+  walk never raises for them. It raises `ShardSetError` for the companion
+  or any listed name on S3 that S3 would read as another key
+  (`check_s3_location`, "Deleting shards"); ctl reports that as a
+  `storage_error`. The merge refuses any stray file; ctl
   reports them (its `unreadable` list is the natural place; that choice is
   ctl's). Together, attempts and stray files are exactly the logs
   `is_shard_path` places in the companion.
@@ -2323,6 +2345,15 @@ Per PR (numbers from "Implementation plan"):
      nothing; selection by ids, by count, and absent (whole dataset); a
      drained `success` shard holding fewer records leaves the set
      `started`;
+   - unresolved samples: a shard whose drain cancelled sample 4 as it
+     started (the native producer of
+     `test_drain_resolution_cancels_materializing_sample`) is refused on a
+     fresh merge, and on a writing incremental merge after a queued drain's
+     `started` merge, with and without deletion, writing nothing and
+     leaving every file byte-identical; with a ledger that holds such an
+     attempt (the check bypassed), an unchanged and an interrupted
+     `delete_shards` refuse before deleting; an errored sample under
+     `fail_on_error=False` and a queued drain still merge;
    - partial epochs: with two epochs, a running shard holding only `(x, 1)`
      is recorded with exactly that key (`samples: 1`), and after another
      shard changes the next pass still holds `(x, 1)` only and stays
@@ -2464,7 +2495,12 @@ Per PR (numbers from "Implementation plan"):
      leading key slash is refused with and without deletion while a shard
      set at the key S3 would read and the intended companion stay
      byte-identical; a shard directory or attempt with `#` is refused with
-     deletion enabled, the decoy object S3 would read included; the sync
+     deletion enabled, the decoy object S3 would read included; a real
+     worker at `1#tag/worker.eval` or `1?tag/worker.eval`, with no decoy at
+     `1/`, is refused by an unchanged merge selected for the other shard's
+     samples and by a fresh merge with that selection, deletion enabled,
+     every object and the merged log byte-identical (asyncio and Trio);
+     ctl log-dir mode reports such a name as a `storage_error`; the sync
      and async writer guards (asyncio and Trio) and `recompute_metrics`,
      `edit_score` (with and without recomputation) and `score` refuse a
      merged log located at a `#` name, leaving it and S3 unchanged, while a

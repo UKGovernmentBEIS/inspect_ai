@@ -120,6 +120,8 @@ Or from Python with `merge_eval_log_shards()`. You can also pass the `.shards` d
 
 The merge checks that the shards belong to one run, recomputes metrics over all their samples, and records which shard logs it merged. Running it again reads only the shards that changed and writes nothing if none did. If the set is not complete (a shard is still running or failed, or samples are missing) the merge raises an error and writes nothing; pass `--allow-incomplete` to write a `started` or `error` log instead. Without a selection the set is complete when the shards hold the whole dataset; pass `--sample-id` or `--sample-count` when they cover only part of it. Later merges reuse that selection.
 
+A shard log that holds samples cancelled by `inspect ctl task drain` or `inspect ctl task cancel` is refused, before writing or deleting anything, because those samples still need to run. Run that shard again, then merge.
+
 `--delete-shards` deletes the whole `.shards` directory after a complete merge, including any checkpoints and scan results in it.
 
 `--json` prints one JSON object on stdout for scripts and agents. On success it has the merged log's `log`, `status`, `written`, `shards`, `samples`, `new_samples`, `missing`, `running`, `failed` and `shards_deleted`. On any failure it is `{"error": {"type": ..., "message": ...}}` and the exit code is 1; for an incomplete set the error also has `status`, `missing`, `running` and `failed`. For an unexpected error, the traceback goes to stderr. Any output from metric or reducer code goes to stderr.
@@ -144,7 +146,7 @@ The merge computes metrics over the samples in sample ID order (IDs sorted as te
 -   Do not change `INSPECT_EVAL_LOG_FILE_PATTERN` while a `.shards` directory exists.
 -   Do not run `inspect log recover` on a shard's log; re-run the shard instead. A shard log recovered with `--overwrite` or to another output path cannot be told apart from a finished log, and when the task sets an epoch reducer with arguments or a value converter, the merged metrics for its samples may be wrong. Default reducers are not affected.
 -   For a remote log (for example on S3) whose location contains `*`, `?` or `[`, `--delete-shards` is refused, because the storage backend would expand those characters to other paths. Delete the `.shards` directory by hand.
--   On S3, a merged log, shards directory, shard directory or shard log whose location contains `#` or `?`, a tab or line break, or a key starting with `/` is refused, by the merge and by the commands that refuse to change a merged log while its shards exist. S3 would read such a location as another key. Rename it.
+-   On S3, a merged log, shards directory, or any file or directory in the shards directory whose location contains `#` or `?`, a tab or line break, or a key starting with `/` is refused, by the merge and by the commands that refuse to change a merged log while its shards exist. S3 would read such a location as another key. Rename it.
 -   Deleting a merged log in `inspect view` leaves its `.shards` directory, and the viewer lists the shards again. To remove a sharded run, delete the `.shards` directory as well.
 
 ## Dataset Memory {#sec-dataset-memory}
