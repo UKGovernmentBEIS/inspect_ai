@@ -66,6 +66,7 @@ from inspect_ai.dataset import Sample
 from inspect_ai.event import Event
 from inspect_ai.event._approval import ApprovalEvent
 from inspect_ai.event._info import InfoEvent
+from inspect_ai.event._logger import LoggerEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
 from inspect_ai.event._tool import ToolEvent
@@ -74,6 +75,7 @@ from inspect_ai.log._condense import condense_sample
 from inspect_ai.log._log import EvalSample
 from inspect_ai.log._samples import _sample_active
 from inspect_ai.log._transcript import Transcript, _transcript, transcript
+from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -103,6 +105,7 @@ from inspect_ai.util._sandbox.events import SandboxTimeoutError
 from inspect_ai.util._span import (
     SpanRotationScope,
     current_span_id,
+    parent_span,
     span,
     span_id_provider,
 )
@@ -492,7 +495,7 @@ async def test_modify_without_a_modified_call_is_rejected() -> None:
     run = await run_bridge(
         [tool_calls_output(original), tool_calls_output(replacement)],
         approval=[
-            ApprovalPolicy(auto_approver("modify"), "bash(cmd='rm"),
+            ApprovalPolicy(auto_approver("modify"), "bash", arguments={"cmd": "rm*"}),
             ApprovalPolicy(auto_approver("approve"), "*"),
         ],
     )
@@ -512,7 +515,9 @@ async def test_sandbox_modify_without_a_modified_call_grants_nothing() -> None:
     bridge = sandbox_bridge_with_tool(
         tool,
         [
-            ApprovalPolicy(auto_approver("modify"), "read_file(path='secret"),
+            ApprovalPolicy(
+                auto_approver("modify"), "read_file", arguments={"path": "secret*"}
+            ),
             ApprovalPolicy(auto_approver("approve"), "*"),
         ],
     )
@@ -545,7 +550,7 @@ async def test_reject_regenerates_and_hides_the_rejected_call() -> None:
     run = await run_bridge(
         [tool_calls_output(rejected), tool_calls_output(replacement)],
         approval=[
-            ApprovalPolicy(reject_approver(), "bash(cmd='rm"),
+            ApprovalPolicy(reject_approver(), "bash", arguments={"cmd": "rm*"}),
             ApprovalPolicy(auto_approver("approve"), "*"),
         ],
     )
@@ -563,7 +568,11 @@ async def test_reject_replays_the_rejection_to_the_model() -> None:
             ModelOutput.from_content(model="mockllm/model", content="understood"),
         ],
         approval=[
-            ApprovalPolicy(reject_approver("Destructive command."), "bash(cmd='rm"),
+            ApprovalPolicy(
+                reject_approver("Destructive command."),
+                "bash",
+                arguments={"cmd": "rm*"},
+            ),
             ApprovalPolicy(auto_approver("approve"), "*"),
         ],
     )
@@ -595,7 +604,11 @@ async def test_reject_all_gives_every_call_a_result_naming_the_culprit() -> None
             ModelOutput.from_content(model="mockllm/model", content="understood"),
         ],
         approval=[
-            ApprovalPolicy(reject_approver("Destructive command."), "bash(cmd='rm"),
+            ApprovalPolicy(
+                reject_approver("Destructive command."),
+                "bash",
+                arguments={"cmd": "rm*"},
+            ),
             ApprovalPolicy(auto_approver("approve"), "*"),
         ],
     )
@@ -2562,6 +2575,33 @@ async def test_unmatched_tool_is_rejected_by_the_policy_approver() -> None:
     assert "No approvers registered for tool bash" in results[0].error.message
 
 
+async def test_parsed_key_collision_raises_instead_of_approving() -> None:
+    """An argument whose keys convert to one key is not matched on the lossy text."""
+    tools = [
+        ToolInfo(
+            name="f",
+            description="f",
+            parameters=ToolParams(properties={"value": ToolParam(type="object")}),
+        )
+    ]
+    call = parse_tool_call(
+        "1", "f", '2024-01-01: blocked\n"2024-01-01": allowed', tools
+    )
+    assert call.parse_error is None
+    with pytest.raises(ValueError, match="two object keys"):
+        await run_bridge(
+            [tool_calls_output(call)],
+            approval=[
+                ApprovalPolicy(
+                    auto_approver(),
+                    "f",
+                    arguments={"value": '{"2024-01-01": "allowed"}'},
+                ),
+                ApprovalPolicy(reject_approver(), "*"),
+            ],
+        )
+
+
 async def test_track_state_is_unaffected_by_the_round_trip() -> None:
     """The retry messages stay out of the state the scaffold's impl records.
 
@@ -3408,7 +3448,10 @@ async def test_denied_host_tool_call_is_recorded_in_its_own_tool_span() -> None:
             outer = current_span_id()
             with pytest.raises(PermissionError) as raised:
                 await call_host_tool(bridge)("host", "read_file", {"path": "a"})
-        events = recorded.events
+        # The denial's warn_once becomes a LoggerEvent only on the process's
+        # first denial of host/read_file, and only once an earlier eval has
+        # installed Inspect's log handler, so it depends on test order.
+        events = [e for e in recorded.events if not isinstance(e, LoggerEvent)]
 
     assert str(raised.value) == (
         "Host tool call 'host/read_file' was not proposed by the model in a "
@@ -3447,6 +3490,7 @@ class StampingSink:
     def __init__(self, *script: set[str]) -> None:
         self.script = list(script)
         self.actions: set[str] = set()
+        self.opened = False
 
     def on_pending(self, event: ModelEvent) -> None:
         self.actions = self.script.pop(0)
@@ -3458,6 +3502,7 @@ class StampingSink:
     def on_complete(self, event: ModelEvent) -> None:
         transcript()._event(event)
         if "open" in self.actions:
+            self.opened = True
             transcript()._event(
                 SpanBeginEvent(
                     id="agent-sub",
@@ -3468,15 +3513,70 @@ class StampingSink:
             )
 
 
+class StartingStampingSink(StampingSink):
+    """As `StampingSink`, but the script runs once per generation, in `on_start`.
+
+    `stamp` names `agent-sub` as the span the generation runs under, as
+    inspect_swe's sinks do with `on_start` (beginning it first if no `open`
+    has), and `close` emits the span's end there (the per-generation
+    bookkeeping codex_cli does). `current` leaves the generation in the
+    current span by returning `None`.
+    """
+
+    def on_start(self, input: list[ChatMessage]) -> str | None:
+        self.actions = self.script.pop(0)
+        if "close" in self.actions:
+            transcript()._event(SpanEndEvent(id="agent-sub"))
+        if "stamp" in self.actions:
+            if not self.opened:
+                self.opened = True
+                transcript()._event(
+                    SpanBeginEvent(
+                        id="agent-sub",
+                        parent_id=current_span_id(),
+                        type="agent",
+                        name="sub",
+                    )
+                )
+            return "agent-sub"
+        return self.current()
+
+    def current(self) -> str | None:
+        return None
+
+    def on_pending(self, event: ModelEvent) -> None:
+        pass
+
+
+class CurrentStartingSink(StartingStampingSink):
+    """As `StartingStampingSink`, but `current` names the current span explicitly.
+
+    inspect_swe's sinks attribute a main-thread call to `current_span_id()`.
+    """
+
+    def current(self) -> str | None:
+        return current_span_id()
+
+
+SINKS = {
+    "on-pending": StampingSink,
+    "on-start": StartingStampingSink,
+    "on-start-current": CurrentStartingSink,
+}
+
+
 def sandbox_bridge_with_sink(tool: AsyncMock, sink: StampingSink) -> SandboxAgentBridge:
     bridge = sandbox_bridge_with_tool(tool, None)
     bridge.model_event_sink = sink
     return bridge
 
 
-async def test_execution_is_placed_in_the_span_a_sink_gave_its_proposal() -> None:
+@pytest.mark.parametrize("sink", SINKS)
+async def test_execution_is_placed_in_the_span_a_sink_gave_its_proposal(
+    sink: str,
+) -> None:
     bridge = sandbox_bridge_with_sink(
-        AsyncMock(return_value="contents"), StampingSink({"stamp"})
+        AsyncMock(return_value="contents"), SINKS[sink]({"stamp"})
     )
     call = ToolCall(id="proposed", function="read_file", arguments={"path": "a"})
 
@@ -3494,10 +3594,71 @@ async def test_execution_is_placed_in_the_span_a_sink_gave_its_proposal() -> Non
     assert tool_span.parent_id == "agent-sub"
 
 
-async def test_sink_attributing_to_the_current_span_stores_none() -> None:
-    """The span current at execution is followed (a checkpoint span may rotate)."""
+class MovesBackSink(StartingStampingSink):
+    """Runs the generation under `agent-sub`, then moves its event back to the span current at `on_start`."""
+
+    def on_start(self, input: list[ChatMessage]) -> str | None:
+        self.started_in = current_span_id()
+        return super().on_start(input)
+
+    def on_pending(self, event: ModelEvent) -> None:
+        event.span_id = self.started_in
+
+
+class MovingStartingSink(StartingStampingSink):
+    """Runs the generation under `agent-sub`, then moves its event to `agent-other`."""
+
+    def on_pending(self, event: ModelEvent) -> None:
+        event.span_id = "agent-other"
+
+
+async def test_execution_follows_an_on_start_sink_s_later_move_of_its_proposal() -> (
+    None
+):
+    """The grant carries the span the proposing event is logged in."""
+    bridge = sandbox_bridge_with_sink(
+        AsyncMock(return_value="contents"), MovingStartingSink({"stamp"})
+    )
+    call = ToolCall(id="proposed", function="read_file", arguments={"path": "a"})
+
+    with recorded_transcript() as recorded:
+        async with span("outer"):
+            await propose(bridge, call)
+            assert bridge._tool_execution_grants[0].proposal.span_id == "agent-other"
+            await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+
+    [model_event] = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    assert model_event.span_id == "agent-other"
+    [event] = recorded.tool_events
+    assert event.span_id == "agent-other"
+
+
+async def test_a_sink_without_on_start_is_wrapped_without_one() -> None:
+    """The bridge runs such a sink's generation as before: no span lookup at all."""
+    from inspect_ai.agent._bridge.util import _span_capturing_sink
+    from inspect_ai.model._model import _StartingModelEventSink
+
+    assert not isinstance(_span_capturing_sink(StampingSink()), _StartingModelEventSink)
+    assert isinstance(
+        _span_capturing_sink(StartingStampingSink()), _StartingModelEventSink
+    )
     bridge = sandbox_bridge_with_sink(
         AsyncMock(return_value="contents"), StampingSink({"current"})
+    )
+    call = ToolCall(id="proposed", function="read_file", arguments={"path": "a"})
+    with recorded_transcript() as recorded:
+        # a current span this transcript has no begin for
+        with parent_span("elsewhere"):
+            await propose(bridge, call)
+    [model_event] = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    assert model_event.span_id == "elsewhere"
+
+
+@pytest.mark.parametrize("sink", SINKS)
+async def test_sink_attributing_to_the_current_span_stores_none(sink: str) -> None:
+    """The span current at execution is followed (a checkpoint span may rotate)."""
+    bridge = sandbox_bridge_with_sink(
+        AsyncMock(return_value="contents"), SINKS[sink]({"current"})
     )
     call = ToolCall(id="proposed", function="read_file", arguments={"path": "a"})
 
@@ -3528,9 +3689,9 @@ def pausing_approver(approving: anyio.Event, resume: anyio.Event) -> Approver:
     return approve
 
 
-@pytest.mark.parametrize("with_sink", [True, False], ids=["sink", "no-sink"])
+@pytest.mark.parametrize("sink", [*SINKS, "on-start-moves-back", None])
 async def test_a_checkpoint_rotating_during_approval_is_followed(
-    with_sink: bool,
+    sink: str | None,
 ) -> None:
     """A rotation while the call awaits approval is not taken for a sink's own span."""
     approving, rotated = anyio.Event(), anyio.Event()
@@ -3538,8 +3699,10 @@ async def test_a_checkpoint_rotating_during_approval_is_followed(
         AsyncMock(return_value="contents"),
         [ApprovalPolicy(pausing_approver(approving, rotated), "*")],
     )
-    if with_sink:
-        bridge.model_event_sink = StampingSink({"current"})
+    if sink == "on-start-moves-back":
+        bridge.model_event_sink = MovesBackSink({"stamp"})
+    elif sink is not None:
+        bridge.model_event_sink = SINKS[sink]({"current"})
     call = ToolCall(id="proposed", function="read_file", arguments={"path": "a"})
     checkpoints = SpanRotationScope(type="checkpoint")
 
@@ -3567,11 +3730,14 @@ async def test_a_checkpoint_rotating_during_approval_is_followed(
     assert event.span_id == second
 
 
-async def test_execution_after_its_proposal_span_closed_still_nests_under_it() -> None:
-    """codex_cli closes a sub-agent span in a later generation's `on_pending`."""
+@pytest.mark.parametrize("sink", SINKS)
+async def test_execution_after_its_proposal_span_closed_still_nests_under_it(
+    sink: str,
+) -> None:
+    """codex_cli closes a sub-agent span in a later generation's `on_pending` (or `on_start`)."""
     bridge = sandbox_bridge_with_sink(
         AsyncMock(return_value="contents"),
-        StampingSink({"open"}, {"stamp"}, {"close"}),
+        SINKS[sink]({"open"}, {"stamp"}, {"close"}),
     )
     call = ToolCall(id="proposed", function="read_file", arguments={"path": "a"})
 
@@ -3611,14 +3777,15 @@ class RecordingAcpTransport(LiveAcpTransport):
             self.published.append(update)
 
 
+@pytest.mark.parametrize("sink", SINKS)
 @pytest.mark.parametrize("filtered", [True, False], ids=["filtered", "unfiltered"])
 async def test_acp_keeps_a_closed_sub_agent_spans_host_call_out_of_the_conversation(
-    filtered: bool,
+    filtered: bool, sink: str
 ) -> None:
     """ACP filters the late execution by its attributed span, live and on replay."""
     bridge = sandbox_bridge_with_sink(
         AsyncMock(return_value="contents"),
-        StampingSink({"open"}, {"stamp"}, {"close"}),
+        SINKS[sink]({"open"}, {"stamp"}, {"close"}),
     )
     call = ToolCall(id="proposed", function="read_file", arguments={"path": "a"})
 

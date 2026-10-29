@@ -7,7 +7,7 @@ from inspect_ai.event._tree import EventTree, EventTreeSpan, event_tree, walk_no
 from inspect_ai.scorer._metric import Score, ScoreEdit
 
 from ._log import EvalLog
-from ._metric import recompute_metrics as _recompute_metrics
+from ._metric import compute_log_metrics, resolve_log_metrics
 
 
 def edit_score(
@@ -17,6 +17,8 @@ def edit_score(
     edit: ScoreEdit,
     recompute_metrics: bool = True,
     epoch: int | None = None,
+    *,
+    trust_log: bool = False,
 ) -> None:
     """Edit or add a score in-place.
 
@@ -35,11 +37,20 @@ def edit_score(
             resurrect the superseded reason.
         recompute_metrics: Whether to recompute aggregate metrics after editing
         epoch: Epoch number of the sample to edit (required when there are multiple epochs)
+        trust_log: When recomputing, import the log's task file for metrics
+            that are not registered, and rebuild metric options that hold
+            models or other registry objects. This runs the task file's code,
+            so pass it only for logs you trust.
 
     Raises:
         ValueError: If the sample cannot be found, if epoch is not specified
             and there are multiple matching samples for an ID, or if creating
             a new score without providing a value.
+        LookupError: When recomputing, a metric or epoch reducer is not
+            registered. The log is left unchanged.
+        DisallowedRegistryArg: When recomputing without `trust_log`, metric
+            options name a model or a non-metric registry object (a
+            `ValueError`). The log is left unchanged.
     """
     if log.samples is None:
         raise ValueError("Log contains no samples")
@@ -67,6 +78,12 @@ def edit_score(
             )
 
         sample = samples[0]
+
+    # resolve metrics before changing anything, so a failure leaves the log
+    # unchanged and the edit can be repeated with trust_log=True
+    resolved = (
+        resolve_log_metrics(log, trust_log=trust_log) if recompute_metrics else None
+    )
 
     if sample.scores is None:
         sample.scores = {}
@@ -143,8 +160,8 @@ def edit_score(
 
     sample.events.insert(end_index, score_edit_event)
 
-    if recompute_metrics:
-        _recompute_metrics(log)
+    if resolved is not None:
+        compute_log_metrics(log, resolved)
 
 
 def _find_scorers_span(tree: EventTree) -> EventTreeSpan | None:

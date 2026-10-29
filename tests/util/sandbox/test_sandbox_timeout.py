@@ -24,7 +24,9 @@ class TimeoutSandbox(SandboxEnvironment):
     ) -> ExecResult[str]:
         raise TimeoutError("exec timed out")
 
-    async def write_file(self, file: str, contents: str | bytes) -> None:
+    async def write_file(
+        self, file: str, contents: str | bytes, *, user: str | None = None
+    ) -> None:
         raise TimeoutError("write timed out")
 
     async def read_file(  # type: ignore[override]

@@ -36,11 +36,12 @@ def _flatten_exception(exc: Exception, seen: set[int] | None = None) -> list[Exc
         else ([exc], [])
     )
 
-    # We have to use a set since the same exception is likely to be included in
-    # both __context__ and .exceptions
+    # a group's members come before its context, so the first exception is one
+    # the group raised rather than one that was being handled (`seen` drops an
+    # exception that is both)
     other_exceptions = [
         flattened_e
-        for e in set(itertools.chain(context_to_follow, children_to_follow))
+        for e in itertools.chain(children_to_follow, context_to_follow)
         for flattened_e in _flatten_exception(e, seen)
     ]
 
