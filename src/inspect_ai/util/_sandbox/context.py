@@ -203,6 +203,8 @@ async def sandbox_with_injection(
         ProcessLookupError: If there are no sandboxes available.
         ValueError: If an invalid sandbox name is specified.
         RuntimeError: If injection fails.
+        SandboxIdentityError: If, without `name` or `target`, the current
+            sandbox context no longer lists the scope's sandbox.
     """
     if isinstance(injectables, tuple):
         injectables = [injectables]

@@ -41,6 +41,8 @@ def sandbox_identity(
 
     Inside the block `sandbox` is also the default sandbox (as with
     `sandbox_default()`), and tools that find their sandbox by injection use it.
+    If code inside the block replaces the sample's sandbox environments with a
+    set that does not list `sandbox`, those tools raise `SandboxIdentityError`.
     Tools given another sandbox by name keep that sandbox and its user.
     `SandboxEnvironment.exec()`, `read_file()` and `write_file()` themselves are
     unchanged, so custom tools that call them run as the sandbox's default user
@@ -151,9 +153,28 @@ def sandbox_identity_active(env: SandboxEnvironment | None = None) -> bool:
 
 
 def sandbox_identity_environment() -> SandboxEnvironment | None:
-    """The sandbox environment of the active scope, if any."""
+    """The sandbox environment of the active scope, if any.
+
+    For tools that find their sandbox by injection. The scope's environment must
+    still be one of the current context's environments: code that replaces the
+    environment map inside the scope (as an inspect_swarm member does) can leave
+    it out, or expose it by name only.
+
+    Raises:
+       SandboxIdentityError: If the current context does not list the scope's
+          environment.
+    """
     identity = _sandbox_identity.get()
-    return identity.environment if identity is not None else None
+    if identity is None:
+        return None
+    environments = sandbox_environments_context_var.get(None) or {}
+    if not any(env is identity.environment for env in environments.values()):
+        raise SandboxIdentityError(
+            f"The sandbox identity scope for '{identity.user}' is on sandbox "
+            f"'{identity.sandbox}', which the current sandbox context does not "
+            "offer to tools that find their sandbox by injection."
+        )
+    return identity.environment
 
 
 def check_sandbox_identity_supported(env: SandboxEnvironment, tool: str) -> None:

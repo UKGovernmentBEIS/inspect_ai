@@ -1,7 +1,8 @@
 """The sandbox identity scope: resolution, default sandbox and injection target."""
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
+from typing import TypeVar, overload
 
 import anyio
 import pytest
@@ -196,3 +197,70 @@ async def test_injection_by_name_ignores_the_scope(
             is workspace
         )
         assert installed == {workspace}
+
+
+_T = TypeVar("_T")
+
+
+class _MemberEnvironments(dict[str, SandboxEnvironment]):
+    """Lists `own` only; `visible` resolve by name, as an inspect_swarm member's do."""
+
+    def __init__(
+        self,
+        own: Mapping[str, SandboxEnvironment],
+        visible: Mapping[str, SandboxEnvironment],
+    ) -> None:
+        super().__init__(own)
+        self._visible = dict(visible)
+
+    @overload
+    def get(self, key: str, default: None = None, /) -> SandboxEnvironment | None: ...
+
+    @overload
+    def get(self, key: str, default: SandboxEnvironment, /) -> SandboxEnvironment: ...
+
+    @overload
+    def get(self, key: str, default: _T, /) -> SandboxEnvironment | _T: ...
+
+    def get(self, key: str, default: object = None, /) -> object:
+        return super().get(key, self._visible.get(key, default))
+
+    def __getitem__(self, key: str) -> SandboxEnvironment:
+        if super().__contains__(key):
+            return super().__getitem__(key)
+        return self._visible[key]
+
+    def __contains__(self, key: object) -> bool:
+        return super().__contains__(key) or key in self._visible
+
+
+@pytest.mark.parametrize("by_name", [False, True], ids=["hidden", "by-name"])
+async def test_injection_refuses_a_scope_sandbox_the_context_does_not_list(
+    default: CannedSandbox, workspace: CannedSandbox, by_name: bool
+) -> None:
+    installed: set[SandboxEnvironment] = {default, workspace}
+    with _environments(default=default, workspace=workspace):
+        with sandbox_identity("w-1", sandbox="workspace"):
+            member = _MemberEnvironments(
+                {"default": default}, {"workspace": workspace} if by_name else {}
+            )
+            token = sandbox_environments_context_var.set(member)
+            try:
+                with pytest.raises(SandboxIdentityError, match="sandbox 'workspace'"):
+                    await sandbox_with_injection(_injectable(installed))
+                # a named sandbox or an explicit target is still injected into
+                assert (
+                    await sandbox_with_injection(_injectable(installed), target=default)
+                    is default
+                )
+                if by_name:
+                    assert (
+                        await sandbox_with_injection(
+                            _injectable(installed), name="workspace"
+                        )
+                        is workspace
+                    )
+            finally:
+                sandbox_environments_context_var.reset(token)
+            # back in the scope's own context, its sandbox is selected again
+            assert await sandbox_with_injection(_injectable(installed)) is workspace
