@@ -541,10 +541,11 @@ inspect log merge-shards LOG
   (`type` the exception's class name; a `ShardSetIncomplete` adds
   `status`, `missing`, `running` and `failed`) and exits 1. Without
   `--json`, other errors propagate as in other `inspect log` commands.
-  With it, any other `Exception` (a bug such as `KeyError` included) goes
-  through the same helper, after its traceback (a `PrerequisiteError`'s
-  message) is written to stderr (decision: Ransom, 2026-10-29); click's
-  own exceptions and `BaseException` pass through.
+  With it, any other `Exception` anywhere in the command, startup (hooks,
+  common options) included and a bug such as `KeyError` too, goes through
+  the same helper, after its traceback (a `PrerequisiteError`'s message) is
+  written to stderr (decision: Ransom, 2026-10-29); click's own exceptions
+  and `BaseException` pass through.
 
 The command imports the merge lazily inside the function body, as
 `recover` does, so `tests/cli/test_startup_imports.py` is unaffected.
@@ -2514,8 +2515,10 @@ Per PR (numbers from "Implementation plan"):
    object for each failure the command handles (usage error, missing log,
    `-recovered` name, incomplete set, held lock, stray log, unregistered
    metric) and for an unexpected error (`PermissionError`, `ImportError`,
-   `KeyError`: traceback on stderr; propagated without `--json`) and a
-   `PrerequisiteError` (message on stderr); with a metric that prints, success and a metric failure:
+   `KeyError`: traceback on stderr; propagated without `--json`), a
+   `PrerequisiteError` (message on stderr), a startup error (from common
+   options or platform initialization) and, in a fresh process, a missing
+   required hook; with a metric that prints, success and a metric failure:
    `--json` stdout parses and the output is on stderr, also in a real
    subprocess whose metric writes through the C library's buffered
    `printf`. `mock_s3` deletion

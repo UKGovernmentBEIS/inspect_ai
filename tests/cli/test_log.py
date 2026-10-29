@@ -1,4 +1,7 @@
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -202,3 +205,53 @@ def test_merge_shards_json_reports_a_prerequisite_error(
         "error": {"type": "PrerequisiteError", "message": "install s3fs"}
     }
     assert "install s3fs" in result.stderr and "Traceback" not in result.stderr
+
+
+@pytest.mark.parametrize(
+    "stage",
+    [
+        "inspect_ai._cli.log.process_common_options",
+        "inspect_ai._util.platform.platform_init",
+    ],
+    ids=["common_options", "platform_init"],
+)
+def test_merge_shards_json_reports_a_startup_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stage: str
+) -> None:
+    ex = PermissionError("denied at startup")
+
+    def fail(*args: Any, **kwargs: Any) -> None:
+        raise ex
+
+    monkeypatch.setattr(stage, fail)
+    merged = str(tmp_path / f"{NAME}.eval")
+    result = _merge(merged, "--json")
+    assert result.exit_code == 1, result.output
+    assert _json(result) == {
+        "error": {"type": "PermissionError", "message": "denied at startup"}
+    }
+    assert "Traceback" in result.stderr
+
+    # without --json it propagates
+    result = _merge(merged)
+    assert result.exception is ex and result.stdout == ""
+
+
+def test_merge_shards_json_reports_a_missing_required_hook(tmp_path: Path) -> None:
+    # a fresh process: hook initialization is cached per process
+    env = {**os.environ, "INSPECT_REQUIRED_HOOKS": "review_missing_hook"}
+    command = [sys.executable, "-m", "inspect_ai", "log", "merge-shards"]
+    merged = str(tmp_path / f"{NAME}.eval")
+    result = subprocess.run(
+        [*command, merged, "--json"], capture_output=True, text=True, env=env
+    )
+    assert result.returncode == 1, result.stderr
+    error = json.loads(result.stdout)["error"]
+    assert error["type"] == "PrerequisiteError"
+    assert "review_missing_hook" in error["message"]
+    assert "review_missing_hook" in result.stderr and "Traceback" not in result.stderr
+
+    # without --json the message is printed as before
+    result = subprocess.run([*command, merged], capture_output=True, text=True, env=env)
+    assert result.returncode == 1
+    assert "review_missing_hook" in result.stdout + result.stderr

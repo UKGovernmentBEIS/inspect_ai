@@ -2,9 +2,9 @@ import functools
 import os
 import sys
 import traceback
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 from json import dumps
-from typing import Any, Callable, Literal, NoReturn, TextIO, cast
+from typing import Any, Callable, Iterator, Literal, NoReturn, TextIO, cast
 from urllib.parse import urlparse
 
 import click
@@ -580,7 +580,7 @@ def merge_shards_command(
     # messages (enabled hooks) and output from metric and reducer code go to
     # stderr
     owned = _stdout_owned_for_json() if json_output else nullcontext(sys.stdout)
-    with owned as stdout:
+    with owned as stdout, _json_failures(json_output, stdout):
         process_common_options(common)
         platform_init()
         if sample_id is not None and sample_count is not None:
@@ -607,19 +607,12 @@ def merge_shards_command(
             ValueError,
         ) as ex:
             _merge_failure(json_output, ex, stdout)
-        except Exception as ex:
-            # an unregistered metric is a LookupError; KeyError and
-            # IndexError are bugs, not refusals
-            if isinstance(ex, LookupError) and not isinstance(
-                ex, (KeyError, IndexError)
-            ):
-                _merge_failure(json_output, ex, stdout)
-            if not json_output or isinstance(
-                ex,
-                (click.ClickException, click.exceptions.Exit, click.exceptions.Abort),
-            ):
+        except LookupError as ex:
+            # an unregistered metric; KeyError and IndexError are
+            # bugs, not refusals
+            if isinstance(ex, (KeyError, IndexError)):
                 raise
-            _unexpected_merge_failure(ex, stdout)
+            _merge_failure(json_output, ex, stdout)
 
         header = outcome.result.log
         ledger = header.eval.shards.ledger if header.eval.shards else []
@@ -682,20 +675,30 @@ def _merge_failure(json_output: bool, ex: Exception, stdout: TextIO) -> NoReturn
     raise SystemExit(1)
 
 
-def _unexpected_merge_failure(ex: Exception, stdout: TextIO) -> NoReturn:
-    """End `merge-shards --json` with an error object for an unexpected `ex`.
+@contextmanager
+def _json_failures(json_output: bool, stdout: TextIO) -> Iterator[None]:
+    """With `--json`, end `merge-shards` with an error object for any other error.
 
-    The traceback goes to stderr first (for a `PrerequisiteError`, its
-    message), so stdout still carries only the error object.
+    Covers the whole command, startup (hooks, common options) included. The
+    traceback goes to stderr first (for a `PrerequisiteError`, its message),
+    so stdout still carries only the error object. Without `--json`, and for
+    click's own exceptions, errors propagate unchanged.
     """
     from inspect_ai._util.error import PrerequisiteError
 
-    if isinstance(ex, PrerequisiteError):
-        print(f"\n{ex.message}\n", file=sys.stderr)
-    else:
-        traceback.print_exception(ex, file=sys.stderr)
-    sys.stderr.flush()
-    _merge_failure(True, ex, stdout)
+    try:
+        yield
+    except (click.ClickException, click.exceptions.Exit, click.exceptions.Abort):
+        raise
+    except Exception as ex:
+        if not json_output:
+            raise
+        if isinstance(ex, PrerequisiteError):
+            print(f"\n{ex.message}\n", file=sys.stderr)
+        else:
+            traceback.print_exception(ex, file=sys.stderr)
+        sys.stderr.flush()
+        _merge_failure(True, ex, stdout)
 
 
 _TS_MONO_APP = PKG_PATH / "_view" / "ts-mono" / "apps" / "inspect"
