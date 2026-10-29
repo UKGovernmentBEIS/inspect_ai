@@ -160,9 +160,22 @@ def _reset(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _describe(ex: BaseException) -> str:
+    """The exception, with any exception groups around it shown as `group[...]`.
+
+    How many groups wrap an exception depends on how many task groups it
+    passes through, which state left by earlier tests in the same process can
+    change, so nested groups are shown as one.
+    """
     if isinstance(ex, BaseExceptionGroup):
-        inner = ", ".join(_describe(e) for e in ex.exceptions)
-        return f"{type(ex).__name__}[{inner}]"
+        leaves: list[BaseException] = []
+        pending: list[BaseException] = [ex]
+        while pending:
+            current = pending.pop()
+            if isinstance(current, BaseExceptionGroup):
+                pending.extend(reversed(current.exceptions))
+            else:
+                leaves.append(current)
+        return f"group[{', '.join(repr(leaf) for leaf in leaves)}]"
     return repr(ex)
 
 
@@ -187,8 +200,8 @@ async def test_task_init_base_exception(tmp_path: Path, mode: str, where: str) -
     cleanups = sorted(r[1] for r in RECORDS if r[0] == "task_cleanup")
     # an exception group is reduced to one of its exceptions, chosen at random
     expected_raised = {
-        ("sysexit", "seed"): {"BaseExceptionGroup[SystemExit(3)]"},
-        ("sysexit", "added"): {"BaseExceptionGroup[BaseExceptionGroup[SystemExit(3)]]"},
+        ("sysexit", "seed"): {"group[SystemExit(3)]"},
+        ("sysexit", "added"): {"group[SystemExit(3)]"},
         ("group", "seed"): {"ValueError('x')", "KeyError('y')"},
         ("group", "added"): {"ValueError('x')", "KeyError('y')"},
     }[(mode, where)]
