@@ -1589,6 +1589,61 @@ def test_merge_refuses_two_shards_selecting_one_id(tmp_path: Path) -> None:
     assert not os.path.exists(merged)
 
 
+# a directory the merge would read as shard `0` (its name split at `\\`)
+_ALIAS = "prefix\\0"
+
+
+@pytest.mark.parametrize("merge", ["fresh", "incremental"])
+@pytest.mark.parametrize("form", ["path", "file_uri"])
+def test_shard_directories_read_as_one_shard_are_refused(
+    tmp_path: Path, form: str, merge: str
+) -> None:
+    import shutil
+
+    from inspect_ai._util.file import to_uri
+
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", sample_id=[1, 2, 3])
+    _run(shards, "1", sample_id=[4, 5, 6])
+    if merge == "incremental":
+        assert merge_eval_log_shards(merged).log.status == "success"
+    shutil.copytree(f"{shards}/0", f"{shards}/{_ALIAS}")
+    target = to_uri(merged) if form == "file_uri" else merged
+    before = _files(str(tmp_path))
+    for delete in (False, True):
+        with pytest.raises(ShardSetError, match="are both read as shard '0'"):
+            merge_eval_log_shards(target, delete_shards=delete)
+    assert _files(str(tmp_path)) == before
+
+
+def test_a_ledger_recording_a_shard_twice_is_refused(tmp_path: Path) -> None:
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", sample_id=[1, 2, 3])
+    _run(shards, "1", sample_id=[4, 5, 6])
+    merge_eval_log_shards(merged)
+
+    def duplicate(header: dict[str, Any]) -> None:
+        ledger = header["eval"]["shards"]["ledger"]
+        ledger.append(ledger[0])
+
+    _edit_header(merged, duplicate)
+    before = _files(str(tmp_path))
+    for delete in (False, True):
+        with pytest.raises(ShardSetError, match="records a shard more than once"):
+            merge_eval_log_shards(merged, delete_shards=delete)
+    assert _files(str(tmp_path)) == before
+
+
+def test_distinct_shard_names_with_the_same_number_merge(tmp_path: Path) -> None:
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", sample_id=[1, 2, 3])
+    _run(shards, "00", sample_id=[4, 5, 6])
+    result = merge_eval_log_shards(merged, delete_shards=True)
+    assert result.written and result.shards_deleted
+    assert result.log.status == "success" and result.log.eval.shards is not None
+    assert [e.shard for e in result.log.eval.shards.ledger] == ["0", "00"]
+
+
 def test_merge_records_and_reads_back_each_selection_form(tmp_path: Path) -> None:
     merged, shards = _paths(tmp_path)
     _run(shards, "0", sample_id=[1, 2])
@@ -3583,6 +3638,22 @@ async def test_an_s3_shard_directory_s3_would_list_as_an_absent_one_is_refused(
         await merge_eval_log_shards_async(
             merged, sample_ids=[1, 2, 3], delete_shards=True
         )
+    assert _s3_objects(f"{s3_root}/") == before
+
+
+@pytest.mark.parametrize("merge", ["fresh", "incremental"])
+def test_s3_shard_directories_read_as_one_shard_are_refused(
+    s3_shards: tuple[str, str], s3_root: str, merge: str
+) -> None:
+    merged, _ = s3_shards
+    shards = f"{s3_root}/{NAME}.shards"
+    if merge == "incremental":
+        assert merge_eval_log_shards(merged).log.status == "success"
+    _s3_copy(f"{shards}/0/", f"{shards}/{_ALIAS}/")
+    before = _s3_objects(f"{s3_root}/")
+    for delete in (False, True):
+        with pytest.raises(ShardSetError, match="are both read as shard '0'"):
+            merge_eval_log_shards(merged, delete_shards=delete)
     assert _s3_objects(f"{s3_root}/") == before
 
 

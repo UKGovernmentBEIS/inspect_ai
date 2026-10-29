@@ -53,6 +53,7 @@ from ._plan import (
     check_reads,
     check_resolved,
     check_selection_covers,
+    check_shard_names,
     check_vanished,
     given_selection,
     is_unchanged,
@@ -364,6 +365,13 @@ async def _read_merged(fs: AsyncFilesystem, merged_path: str) -> _Merged | None:
             f"{merged_path} is an ordinary log, not a merged log; refusing to "
             "overwrite it. Move or rename it, or the shards directory."
         )
+    shard_names = [entry.shard for entry in header.eval.shards.ledger]
+    if len(set(shard_names)) != len(shard_names):
+        raise ShardSetError(
+            f"{merged_path} records a shard more than once in its ledger: it was "
+            f"changed outside the merge. Delete {merged_path} so the next merge "
+            "rebuilds it from the shards."
+        )
     return _Merged(header, merged_records(cd, merged_path), reader.etag)
 
 
@@ -378,6 +386,7 @@ async def _merge_pass(
     delete_shards: bool,
 ) -> _Pass:
     listing = await list_shard_set(fs, shards_dir)
+    check_shard_names(listing.shards)
     if listing.stray:
         raise ShardSetError(
             f"{shards_dir} holds log files that are not shard attempts: "

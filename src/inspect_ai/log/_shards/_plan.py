@@ -208,6 +208,24 @@ def ledger_entry(read: AttemptRead) -> EvalShardEntry:
     )
 
 
+def check_shard_names(shards: Iterable[ShardDir]) -> None:
+    """Refuse two shard directories that the merge reads as one shard.
+
+    A shard is keyed by its directory's final name, split at `/` and at a
+    backslash, so `0/` and a directory named `prefix`, backslash, `0` would
+    both be shard `0`, and their records would share one ledger entry.
+    """
+    seen: dict[str, str] = {}
+    for shard in shards:
+        other = seen.setdefault(shard.name, shard.dir)
+        if other != shard.dir:
+            raise ShardSetError(
+                f"{other} and {shard.dir} are both read as shard {shard.name!r}, "
+                "since a shard is named by the last part of its directory name "
+                "split at '/' and '\\'. Rename one of them."
+            )
+
+
 def check_resolved(attempt: str, shard: str, header: EvalLog, held: int) -> None:
     """Refuse an attempt that holds samples it did not resolve.
 

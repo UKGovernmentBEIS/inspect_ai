@@ -886,6 +886,15 @@ the merged header, the unchanged ones:
   not in the identifier).
 - Equal `EvalLog.version` (log format version); a version newer than the
   running Inspect writes is refused.
+- **Distinct shard names.** A shard is keyed by its directory's final
+  name (`_name`, which splits at `/` and at a backslash), so `0/` and a
+  directory literally named `prefix\0/` would both be shard `0` and share
+  one ledger entry, hiding their overlap. Two listed directories with the
+  same name are refused (`check_shard_names`) before any ledger lookup or
+  read, and a merged log whose ledger records a shard twice is refused
+  when it is read (changed outside the merge: delete it to rebuild).
+  Refusing is enough; no name is parsed differently. Distinct names with
+  the same number (`0/` and `00/`) are distinct shards.
 - No chunked-shape sample: `classify_sample_shape(entry_names, id, epoch)`
   (`chunked/format.py:121`) returns `"monolith"` for every held key. Step 1
   copies monolith members only; refusing is explicit where silently copying
@@ -1765,7 +1774,7 @@ never scans the directory.
 
    | Cause | Raised by the merge as | What the message tells the user to do |
    |---|---|---|
-   | Invalid shard set: mismatched identifier, scorers, metrics, dataset size, epochs, reducer or format version; overlapping shard selections; a shard with no recorded selection or holding samples outside it (a `SampleSource` task); a shard whose selection changed across attempts; a shard holding samples a drain or cancel left unresolved; stray files; chunked-shape samples | `ShardSetError` | fix the shards named in the message (remove or move the offending files; for a changed selection, move the new attempt to its own `<k>/` or delete `<name>.eval`), then re-run |
+   | Invalid shard set: mismatched identifier, scorers, metrics, dataset size, epochs, reducer or format version; overlapping shard selections; a shard with no recorded selection or holding samples outside it (a `SampleSource` task); a shard whose selection changed across attempts; a shard holding samples a drain or cancel left unresolved; two shard directories with the same shard name; stray files; chunked-shape samples | `ShardSetError` | fix the shards named in the message (remove or move the offending files; for a changed selection, move the new attempt to its own `<k>/` or delete `<name>.eval`), then re-run |
    | The eval set's selection is narrower than what the shards hold | `ShardSelectionError` | the message says the selection is narrower than the shards and lists up to ten held ids outside it with the total; widen `sample_id` or `limit` to include every sharded sample (or drop the selection for the whole dataset), or remove the task from the eval set, or move `<name>.eval` and `<name>.shards/` out of the log directory; if the ids are not ones the run should hold, remove the shard named as holding them; then re-run |
    | Merged log does not match its ledger (its samples were changed outside the merge) | `ShardSetError` | delete `<name>.eval` so the next merge rebuilds it from the shards, then re-run |
    | Vanished shard (shard files deleted after they were merged, for example an interrupted `delete_shards`) | `ShardSetError` | finish the deletion (`inspect log merge-shards <name>.eval --delete-shards`, or delete `<name>.shards/` by hand) or restore the files, then re-run |
@@ -2345,6 +2354,11 @@ Per PR (numbers from "Implementation plan"):
      nothing; selection by ids, by count, and absent (whole dataset); a
      drained `success` shard holding fewer records leaves the set
      `started`;
+   - shard names: a copy of `0/` under a directory literally named
+     `prefix\0/` is refused on fresh and incremental merges, with and
+     without deletion, through local paths, `file://` URIs and `mock_s3`,
+     leaving every file byte-identical; a ledger recording a shard twice
+     is refused; `0/` and `00/` with disjoint selections merge;
    - unresolved samples: a shard whose drain cancelled sample 4 as it
      started (the native producer of
      `test_drain_resolution_cancels_materializing_sample`) is refused on a
