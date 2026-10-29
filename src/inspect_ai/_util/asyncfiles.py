@@ -1475,15 +1475,20 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             )
         files = []
         dirs = []
-        listed = fsw.fs._strip_protocol(base).rstrip("/")
+        listed = fsw.fs._strip_protocol(base).rstrip("/") if indirect_error else None
         for entry in fsw.fs.ls(base, detail=True):
-            parent, _, name = entry["name"].rstrip("/").rpartition("/")
-            if indirect_error is not None and (not name or parent != listed):
-                raise indirect_error(
-                    f"{base} lists {entry['name']}, which is not a file or "
-                    "directory directly in it: a name with an empty path "
-                    "component ('//') lists this way. Rename it."
-                )
+            name = entry["name"].rstrip("/").rsplit("/", 1)[-1]
+            if indirect_error is not None:
+                # compared in the backend's path form: some backends (WebHDFS)
+                # name entries with the qualified URL they were listed with
+                entry_path = fsw.fs._strip_protocol(entry["name"]).rstrip("/")
+                parent, _, child = entry_path.rpartition("/")
+                if not child or parent != listed:
+                    raise indirect_error(
+                        f"{base} lists {entry['name']}, which is not a file or "
+                        "directory directly in it: a name with an empty path "
+                        "component ('//') lists this way. Rename it."
+                    )
             if entry["type"] == "directory":
                 dirs.append(f"{prefix_path}/{name}")
             elif entry["type"] == "file":

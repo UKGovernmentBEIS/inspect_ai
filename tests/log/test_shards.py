@@ -491,6 +491,73 @@ async def test_list_shard_set_on_s3_leaves_out_a_shard_emptied_during_the_walk(
     assert [s.name for s in listing.shards] == ["0"]
 
 
+_WEBHDFS = "webhdfs://user@namenode:9870/logs"
+
+
+def _fake_webhdfs(monkeypatch: pytest.MonkeyPatch, files: list[str]) -> None:
+    """Answer WebHDFS `LISTSTATUS` calls as a name node holding `files`.
+
+    Only the service response is faked: `WebHDFS.ls` still names each entry
+    with the qualified URL it was listed with. A path with an empty component
+    lists that component as an entry with an empty suffix.
+    """
+    from types import SimpleNamespace
+    from urllib.parse import urlsplit
+
+    from inspect_ai._util.file import filesystem
+
+    def call(self: Any, op: str, path: str = "", **kwargs: Any) -> Any:
+        assert op == "LISTSTATUS"
+        directory = urlsplit(path).path.rstrip("/")
+        children: dict[str, str] = {}
+        for file in files:
+            if file.startswith(f"{directory}/"):
+                head, nested, _ = file[len(directory) + 1 :].partition("/")
+                children[head] = "DIRECTORY" if nested else "FILE"
+        if not children:
+            raise FileNotFoundError(path)
+        statuses = [
+            {"pathSuffix": name, "type": kind, "length": 1, "mtime": 1000.0}
+            for name, kind in sorted(children.items())
+        ]
+        return SimpleNamespace(json=lambda: {"FileStatuses": {"FileStatus": statuses}})
+
+    monkeypatch.setattr(type(filesystem(_WEBHDFS).fs), "_call", call)
+
+
+@pytest.mark.parametrize(
+    "hidden",
+    [None, "run.shards//worker.eval", "run.shards/1//worker.eval"],
+    ids=["ordinary", "root-empty", "shard-empty"],
+)
+async def test_list_shard_set_on_a_qualified_webhdfs_url(
+    monkeypatch: pytest.MonkeyPatch, hidden: str | None
+) -> None:
+    files = [
+        f"/logs/run.shards/0/{T1}_task_a.eval",
+        f"/logs/run.shards/1/{T1}_task_b.eval",
+        "/logs/run.shards/1/notes.txt",
+    ]
+    _fake_webhdfs(monkeypatch, files + ([f"/logs/{hidden}"] if hidden else []))
+    shards_dir = f"{_WEBHDFS}/run.shards"
+    async with AsyncFilesystem() as fs:
+        if hidden is not None:
+            with pytest.raises(ShardSetError, match="not a file or directory directly"):
+                await list_shard_set(fs, shards_dir, numeric_shards=True)
+            return
+        listing = await list_shard_set(fs, shards_dir, numeric_shards=True)
+    # locations keep the qualified URL they were listed with
+    assert [(s.name, s.dir) for s in listing.shards] == [
+        ("0", f"{shards_dir}/0"),
+        ("1", f"{shards_dir}/1"),
+    ]
+    assert [a.name for s in listing.shards for a in s.attempts] == [
+        f"{shards_dir}/0/{T1}_task_a.eval",
+        f"{shards_dir}/1/{T1}_task_b.eval",
+    ]
+    assert listing.shards[1].ancillary == [f"{shards_dir}/1/notes.txt"]
+
+
 def test_attempt_sort_key_parses_the_timestamp_as_a_datetime() -> None:
     # as text, "T10:30" sorts after "T10-45" (":" > "-"); as a time it is earlier
     colon = _info("2026-09-30T10:30:00+00:00_task_a.eval", mtime=3)

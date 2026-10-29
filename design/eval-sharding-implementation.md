@@ -1993,7 +1993,10 @@ The shard-set rules, one implementation for both consumers:
   which would turn an entry denoting the directory listed (fsspec's
   `memory://` lists `0//x.eval` this way) into a child, so the walk asks
   `AsyncFilesystem.list_dir(..., indirect_error=ShardSetError)` to check
-  each raw entry against the directory before rebuilding it. Other
+  each raw entry against the directory before rebuilding it. Both are
+  compared in the backend's own path form (`_strip_protocol`), since
+  WebHDFS names entries with the qualified URL they were listed with;
+  returned locations keep the URL as given. Other
   callers of `list_dir` pass nothing and get the listing as before. Only
   the merge passes `numeric_shards`, which refuses every directory in
   the companion not named with digits before listing any; ctl keeps its
@@ -2564,7 +2567,11 @@ Per PR (numbers from "Implementation plan"):
      directory listed) are refused by a fresh merge and beside an
      unchanged one, with and without deletion, under asyncio and Trio,
      every stored object byte-identical, while an ordinary `memory://`
-     set merges and deletes; two dated attempts of shard 0 named by the
+     set merges and deletes; a qualified `webhdfs://user@host:port/` shard
+     set (only the name node's answer faked) lists its shards, attempts and
+     ancillary files at both depths through the shard walk and ctl's walk,
+     keeping the qualified URL, and an empty component in a shard is
+     refused there (asyncio and Trio); two dated attempts of shard 0 named by the
      pattern `{task}\worker` are refused on a fresh merge, beside a merge
      of the newer one and after that one is removed, with and without
      deletion, through a path, a `file://` URI and `mock_s3`, everything

@@ -979,6 +979,58 @@ def test_cli_a_shard_name_s3_would_read_as_another_key_is_a_storage_error(
     assert message in text.stderr and "Traceback" not in text.output
 
 
+@pytest.mark.parametrize("hidden", [False, True], ids=["ordinary", "shard-empty"])
+async def test_walk_of_a_qualified_webhdfs_url(
+    monkeypatch: pytest.MonkeyPatch, hidden: bool
+) -> None:
+    from types import SimpleNamespace
+    from urllib.parse import urlsplit
+
+    from inspect_ai._util.file import filesystem
+    from inspect_ai.log import ShardSetError
+
+    name = "2026-10-16T10-00-00-00-00_task_abc"
+    files = [
+        f"/logs/{name}.eval",
+        f"/logs/{name}.shards/0/{name}.eval",
+        f"/logs/{name}.shards/1/{name}.eval",
+        "/logs/other.eval",
+    ]
+    if hidden:
+        files.append(f"/logs/{name}.shards/1//worker.eval")
+
+    def call(self: Any, op: str, path: str = "", **kwargs: Any) -> Any:
+        # the name node's answer; WebHDFS.ls names entries with the
+        # qualified URL it was given
+        directory = urlsplit(path).path.rstrip("/")
+        children: dict[str, str] = {}
+        for file in files:
+            if file.startswith(f"{directory}/"):
+                head, nested, _ = file[len(directory) + 1 :].partition("/")
+                children[head] = "DIRECTORY" if nested else "FILE"
+        statuses = [
+            {"pathSuffix": child, "type": kind, "length": 1, "mtime": 1000.0}
+            for child, kind in sorted(children.items())
+        ]
+        return SimpleNamespace(json=lambda: {"FileStatuses": {"FileStatus": statuses}})
+
+    root = "webhdfs://user@namenode:9870/logs"
+    monkeypatch.setattr(type(filesystem(root).fs), "_call", call)
+    async with AsyncFilesystem() as fs:
+        if hidden:
+            with pytest.raises(ShardSetError, match="not a file or directory directly"):
+                await walk_log_dir(fs, root)
+            return
+        listing = await walk_log_dir(fs, root)
+    [shard_set] = listing.shard_sets
+    assert shard_set.location == f"{root}/{name}.shards"
+    assert [m.location for m in shard_set.members] == [
+        f"{root}/{name}.shards/{k}/{name}.eval" for k in ("0", "1")
+    ]
+    assert [m.location for m in shard_set.merged] == [f"{root}/{name}.eval"]
+    assert [f.location for f in listing.eval_files] == [f"{root}/other.eval"]
+
+
 def test_cli_a_shard_key_with_an_empty_component_is_a_storage_error(
     mock_s3: None, finished_log: EvalLog
 ) -> None:
