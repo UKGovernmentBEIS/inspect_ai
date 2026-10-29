@@ -158,8 +158,8 @@ def check_sandbox_identity_supported(env: SandboxEnvironment, tool: str) -> None
     """Refuse a tool that cannot run as a user inside a scope for `env`."""
     if (identity := sandbox_identity_scope(env)) is not None:
         raise SandboxIdentityError(
-            f"{tool}() cannot run as a user, so it cannot run inside the sandbox "
-            f"identity scope for '{identity.user}'."
+            f"The {tool} tool cannot run as a user, so it cannot run inside the "
+            f"sandbox identity scope for '{identity.user}'."
         )
 
 

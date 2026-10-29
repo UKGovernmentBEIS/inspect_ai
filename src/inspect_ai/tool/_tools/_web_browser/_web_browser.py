@@ -18,7 +18,6 @@ from inspect_ai.tool._tool_call import ToolCall, ToolCallContent, ToolCallView
 from inspect_ai.tool._tool_info import parse_tool_info
 from inspect_ai.tool._tool_with import tool_with
 from inspect_ai.util._sandbox._json_rpc_transport import SandboxJSONRPCTransport
-from inspect_ai.util._sandbox.identity import check_sandbox_identity_supported
 from inspect_ai.util._store_model import StoreModel, store_as
 from inspect_ai.util._tool_state import tool_state_instance
 
@@ -438,8 +437,6 @@ async def _web_browser_cmd(
             "is not supported inside a tool state scope. Use the "
             "aisiuk/inspect-tool-support image instead."
         )
-
-    check_sandbox_identity_supported(sandbox_env, "web_browser")
 
     # bind to store (use instance id or tool state scope if provided)
     store = store_as(WebBrowserStore, instance=instance)

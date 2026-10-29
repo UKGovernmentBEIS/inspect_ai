@@ -99,7 +99,7 @@ async def old_web_browser_cmd(cmd: str, *args: str) -> ToolResult:
 async def _web_browser_sandbox() -> SandboxEnvironment:
     sb = await sandbox_with(WEB_CLIENT_REQUEST)
     if sb:
-        check_sandbox_identity_supported(sb, "web_browser")
+        check_sandbox_identity_supported(sb, "web browser")
         return sb
     else:
         msg = dedent(f"""
