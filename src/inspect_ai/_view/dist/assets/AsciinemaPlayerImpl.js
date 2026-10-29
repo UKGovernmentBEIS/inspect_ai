@@ -1,5 +1,6 @@
 import { i as __toESM } from "./rolldown-runtime.js";
 import { n as require_react, r as require_jsx_runtime, t as require_compiler_runtime } from "./compiler-runtime.js";
+import { t as useLatestRef } from "./useLatestRef.js";
 //#region ../../node_modules/.pnpm/asciinema-player@3.17.0/node_modules/asciinema-player/dist/logging-DeB0koVt.js
 var import_jsx_runtime = require_jsx_runtime();
 var import_compiler_runtime = require_compiler_runtime();
@@ -6619,16 +6620,19 @@ function create(src, elem, opts = {}) {
 //#region ../../packages/react/src/components/AsciinemaPlayerImpl.tsx
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 var AsciinemaPlayerImpl = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(19);
-	const { id, rows, cols, input, output, timing, cast, fit, speed, autoPlay, loop, theme, idleTimeLimit: t1, style } = t0;
+	const $ = (0, import_compiler_runtime.c)(26);
+	const { id, rows, cols, input, output, timing, cast, fit, speed, autoPlay, loop, theme, idleTimeLimit: t1, startAt, poster, controls, markers, autoFocus, clickToToggle, onPlayer, style } = t0;
 	const idleTimeLimit = t1 === void 0 ? 2 : t1;
 	const playerContainerRef = (0, import_react.useRef)(null);
+	const resumeRef = (0, import_react.useRef)(null);
+	const onPlayerRef = useLatestRef(onPlayer);
 	let t2;
 	let t3;
-	if ($[0] !== autoPlay || $[1] !== cast || $[2] !== cols || $[3] !== fit || $[4] !== idleTimeLimit || $[5] !== input || $[6] !== loop || $[7] !== output || $[8] !== rows || $[9] !== speed || $[10] !== theme || $[11] !== timing) {
+	if ($[0] !== autoFocus || $[1] !== autoPlay || $[2] !== cast || $[3] !== clickToToggle || $[4] !== cols || $[5] !== controls || $[6] !== fit || $[7] !== idleTimeLimit || $[8] !== input || $[9] !== loop || $[10] !== markers || $[11] !== onPlayerRef || $[12] !== output || $[13] !== poster || $[14] !== rows || $[15] !== speed || $[16] !== startAt || $[17] !== theme || $[18] !== timing) {
 		t2 = () => {
-			if (!playerContainerRef.current) return;
-			const player = create(cast !== void 0 ? {
+			const container = playerContainerRef.current;
+			if (!container) return;
+			const source = cast !== void 0 ? {
 				data: () => new Response(cast),
 				parser: "asciicast"
 			} : {
@@ -6638,18 +6642,61 @@ var AsciinemaPlayerImpl = (t0) => {
 					new Response(input)
 				],
 				parser: "typescript"
-			}, playerContainerRef.current, {
+			};
+			const recording = {
+				cast,
+				input,
+				output,
+				timing
+			};
+			const resume = resumeRef.current && sameRecording(resumeRef.current.recording, recording) ? resumeRef.current : null;
+			const player = create(source, container, {
 				rows,
 				cols,
-				autoPlay,
+				autoPlay: resume ? false : autoPlay,
 				loop,
 				theme,
 				speed,
-				idleTimeLimit,
-				fit
+				idleTimeLimit: idleTimeLimit ?? Number.POSITIVE_INFINITY,
+				startAt,
+				fit,
+				poster,
+				controls,
+				markers
 			});
-			player.play();
+			let playing = false;
+			player.addEventListener("playing", () => {
+				playing = true;
+			});
+			player.addEventListener("pause", () => {
+				playing = false;
+			});
+			player.addEventListener("ended", () => {
+				playing = false;
+			});
+			if (resume) runPlayback(player.seek(resume.time).then(() => resume.playing ? player.play() : void 0));
+			else if (autoPlay !== false) runPlayback(player.play());
+			if (autoFocus) player.el.focus();
+			const onPlayer_0 = onPlayerRef.current;
+			onPlayer_0?.({
+				seek: (seconds) => player.seek(seconds).then(_temp, _temp2),
+				element: player.el
+			});
+			const onClick = (e) => {
+				if (e.target instanceof Element && e.target.closest(".ap-control-bar, .ap-overlay")) return;
+				if (window.getSelection()?.toString()) return;
+				runPlayback(playing ? player.pause() : player.play());
+			};
+			if (clickToToggle) container.addEventListener("click", onClick);
 			return () => {
+				container.removeEventListener("click", onClick);
+				const time = player.getCurrentTime();
+				resumeRef.current = playing || time > 0 ? {
+					recording,
+					time,
+					playing
+				} : null;
+				onPlayer_0?.(null);
 				player.dispose();
 			};
 		};
@@ -6665,47 +6712,67 @@ var AsciinemaPlayerImpl = (t0) => {
 			theme,
 			speed,
 			idleTimeLimit,
-			fit
+			startAt,
+			fit,
+			poster,
+			controls,
+			markers,
+			autoFocus,
+			clickToToggle,
+			onPlayerRef
 		];
-		$[0] = autoPlay;
-		$[1] = cast;
-		$[2] = cols;
-		$[3] = fit;
-		$[4] = idleTimeLimit;
-		$[5] = input;
-		$[6] = loop;
-		$[7] = output;
-		$[8] = rows;
-		$[9] = speed;
-		$[10] = theme;
-		$[11] = timing;
-		$[12] = t2;
-		$[13] = t3;
+		$[0] = autoFocus;
+		$[1] = autoPlay;
+		$[2] = cast;
+		$[3] = clickToToggle;
+		$[4] = cols;
+		$[5] = controls;
+		$[6] = fit;
+		$[7] = idleTimeLimit;
+		$[8] = input;
+		$[9] = loop;
+		$[10] = markers;
+		$[11] = onPlayerRef;
+		$[12] = output;
+		$[13] = poster;
+		$[14] = rows;
+		$[15] = speed;
+		$[16] = startAt;
+		$[17] = theme;
+		$[18] = timing;
+		$[19] = t2;
+		$[20] = t3;
 	} else {
-		t2 = $[12];
-		t3 = $[13];
+		t2 = $[19];
+		t3 = $[20];
 	}
 	(0, import_react.useEffect)(t2, t3);
 	const t4 = `asciinema-player-${id || "default"}`;
 	let t5;
-	if ($[14] !== style) {
+	if ($[21] !== style) {
 		t5 = { ...style };
-		$[14] = style;
-		$[15] = t5;
-	} else t5 = $[15];
+		$[21] = style;
+		$[22] = t5;
+	} else t5 = $[22];
 	let t6;
-	if ($[16] !== t4 || $[17] !== t5) {
+	if ($[23] !== t4 || $[24] !== t5) {
 		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			id: t4,
 			ref: playerContainerRef,
 			style: t5
 		});
-		$[16] = t4;
-		$[17] = t5;
-		$[18] = t6;
-	} else t6 = $[18];
+		$[23] = t4;
+		$[24] = t5;
+		$[25] = t6;
+	} else t6 = $[25];
 	return t6;
 };
+var sameRecording = (a, b) => a.cast === b.cast && a.input === b.input && a.output === b.output && a.timing === b.timing;
+var runPlayback = (command) => {
+	command.catch(() => void 0);
+};
+function _temp() {}
+function _temp2() {}
 //#endregion
 export { AsciinemaPlayerImpl as default };
 

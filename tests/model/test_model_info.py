@@ -14,10 +14,13 @@ from inspect_ai.model import (
     get_model_info,
     set_model_info,
 )
+from inspect_ai.model._compaction._compaction import DEFAULT_CONTEXT_WINDOW
+from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_data.model_data import ModelCost
 from inspect_ai.model._model_info import (
     _get_model_info_direct,
     clear_model_info_cache,
+    get_model_input_budget,
     get_model_input_tokens,
     set_model_cost,
 )
@@ -96,17 +99,26 @@ class TestGetModelInfo:
         assert info.knowledge_cutoff_date == knowledge_cutoff
         assert info.release_date == date(2026, 9, 22)
 
-    def test_gpt_6_1_sol_model_info(self):
-        info = get_model_info("openai/gpt-6.1-sol")
+    @pytest.mark.parametrize(
+        "model_name,display_name,knowledge_cutoff,release_date",
+        [
+            ("gpt-6.1-sol", "GPT-6.1 Sol", date(2026, 4, 30), date(2026, 9, 29)),
+            ("gpt-6.1-terra", "GPT-6.1 Terra", date(2026, 6, 1), date(2026, 10, 26)),
+        ],
+    )
+    def test_gpt_6_1_model_info(
+        self, model_name, display_name, knowledge_cutoff, release_date
+    ):
+        info = get_model_info(f"openai/{model_name}")
         assert info is not None
-        assert info.model == "GPT-6.1 Sol"
+        assert info.model == display_name
         assert info.context_length == 1050000
         assert info.output_tokens == 128000
         assert info.input_tokens == 922000
         assert info.reasoning is True
         assert info.reasoning_effort_default == "medium"
-        assert info.knowledge_cutoff_date == date(2026, 4, 30)
-        assert info.release_date == date(2026, 9, 29)
+        assert info.knowledge_cutoff_date == knowledge_cutoff
+        assert info.release_date == release_date
 
     def test_known_kimi_model(self):
         """Test lookup of a known Moonshot AI Kimi model."""
@@ -828,6 +840,80 @@ class TestGetModelInputTokens:
         tokens = get_model_input_tokens(frontier)
         assert tokens is not None
         assert tokens != 4242
+
+
+class TestGetModelInputBudget:
+    """Tests for get_model_input_budget function."""
+
+    def test_window_minus_reserve_for_a_known_model(self):
+        set_model_info("mockllm/model", ModelInfo(context_length=200_000))
+        model = get_model("mockllm/model")
+        # mockllm has no provider max_tokens default, so the reserve is
+        # inspect_ai's own default output reserve (4096)
+        assert get_model_input_budget(model) == 200_000 - 4096
+
+    def test_config_max_tokens_changes_the_reserve(self):
+        set_model_info("mockllm/model", ModelInfo(context_length=200_000))
+        model = get_model("mockllm/model")
+        assert (
+            get_model_input_budget(model, GenerateConfig(max_tokens=1000))
+            == 200_000 - 1000
+        )
+
+    def test_reserve_is_capped_at_half_the_window(self):
+        set_model_info("mockllm/model", ModelInfo(context_length=200_000))
+        model = get_model("mockllm/model")
+        assert (
+            get_model_input_budget(model, GenerateConfig(max_tokens=500_000))
+            == 200_000 // 2
+        )
+
+    def test_active_model_generate_config_follows_into_the_reserve(self):
+        """The reserve follows the active generate config, as generate does.
+
+        The monitor role falls back to active_model() and the eval's
+        --max-tokens reaches generate through _resolve_config, so the budget
+        must reserve that max_tokens even when no config is passed here.
+        """
+        from inspect_ai.model._generate_config import (
+            active_generate_config_context_var,
+        )
+        from inspect_ai.model._model import (
+            active_model_context_var,
+            init_active_model,
+        )
+
+        set_model_info("mockllm/model", ModelInfo(context_length=200_000))
+        model = get_model("mockllm/model")
+        model_token = active_model_context_var.set(active_model_context_var.get(None))
+        config_token = active_generate_config_context_var.set(
+            active_generate_config_context_var.get()
+        )
+        try:
+            init_active_model(model, GenerateConfig(max_tokens=20_000))
+            assert get_model_input_budget(model) == 200_000 - 20_000
+        finally:
+            active_model_context_var.reset(model_token)
+            active_generate_config_context_var.reset(config_token)
+
+    def test_unknown_window_falls_back_to_default_and_warns_once(
+        self, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+    ):
+        import inspect_ai._util.logger as logger_module
+
+        monkeypatch.setattr(logger_module, "_warned", [])
+        model = get_model("noload/unknown-window")
+        assert get_model_input_tokens(model) is None
+        with caplog.at_level("WARNING"):
+            first = get_model_input_budget(model, GenerateConfig(max_tokens=4096))
+            second = get_model_input_budget(model, GenerateConfig(max_tokens=4096))
+        assert first == second == DEFAULT_CONTEXT_WINDOW - 4096
+        warnings = [
+            r.getMessage()
+            for r in caplog.records
+            if "Unable to determine context window" in r.getMessage()
+        ]
+        assert len(warnings) == 1
 
 
 class TestResultCaching:

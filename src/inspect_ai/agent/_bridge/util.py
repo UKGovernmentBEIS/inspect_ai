@@ -23,6 +23,7 @@ from shortuuid import uuid
 from typing_extensions import TypeIs
 
 from inspect_ai._sentinel._agent_state import bridge_request
+from inspect_ai._util._async import raise_unwrapped
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
@@ -64,6 +65,7 @@ from inspect_ai.model._model import (
     ModelRefusalError,
     ModelResolver,
     ModelResponseFilter,
+    _StartingModelEventSink,
     active_model,
     get_model,
     model_roles,
@@ -473,7 +475,7 @@ async def _apply_response_filter(
                 while isinstance(inner, ExceptionGroup):
                     inner = inner.exceptions[0]
         if isinstance(inner, control_flow):
-            raise inner
+            raise_unwrapped(ex, inner)
         raise ResponseFilterError(f"{type(inner).__name__}: {inner}") from ex
     if filtered is None:
         return output
@@ -953,7 +955,7 @@ async def _bridge_generate_impl(
         config = original_config
 
         sink = (
-            _SpanCapturingSink(bridge.model_event_sink)
+            _span_capturing_sink(bridge.model_event_sink)
             if bridge.model_event_sink is not None
             else None
         )
@@ -1095,27 +1097,55 @@ async def _bridge_generate_impl(
 class _SpanCapturingSink:
     """Forward to a bridge's `ModelEventSink`, remembering the span it placed the event in.
 
-    A sink can attribute a generation to a span other than the current one (a
-    sub-agent's). Host tool events pair with their proposing `ModelEvent` by
-    being recorded in that same span, so `bridge_generate` reads it here
-    without widening the sink protocol. `span_id` is that span, or `None` when
-    the event is in the span current during generation: decided here, since a
-    checkpoint span can rotate while the calls await approval.
+    A sink can place a generation in a span other than the current one (a
+    sub-agent's), through `on_start` or by moving the event in `on_pending`.
+    Host tool events pair with their proposing `ModelEvent` by being recorded
+    in that same span, so `bridge_generate` reads it here. `span_id` is that
+    span, or `None` when the event is in the span current outside the
+    generation: decided here, since a checkpoint span can rotate while the
+    calls await approval. That span is read per attempt, and when the
+    generation starts for a sink with `on_start` (`_StartingSpanCapturingSink`)
+    unless `on_start` chose another span, which the attempts then run in. A sink
+    without `on_start` is wrapped without one, so the generation is run as that
+    sink would have it.
     """
 
     def __init__(self, inner: ModelEventSink) -> None:
         self.inner = inner
         self.span_id: str | None = None
         self._current: str | None = None
+        self._started: str | None = None
 
     def on_pending(self, event: "ModelEvent") -> None:
-        self._current = current_span_id()
+        if self._started is None:
+            self._current = current_span_id()
         self.inner.on_pending(event)
 
     def on_complete(self, event: "ModelEvent") -> None:
         self.inner.on_complete(event)
-        current = (self._current, current_span_id())
-        self.span_id = event.span_id if event.span_id not in current else None
+        if self._started is not None and event.span_id == self._started:
+            self.span_id = self._started
+        else:
+            current = (self._current, current_span_id())
+            self.span_id = event.span_id if event.span_id not in current else None
+
+
+class _StartingSpanCapturingSink(_SpanCapturingSink):
+    def __init__(self, inner: _StartingModelEventSink) -> None:
+        super().__init__(inner)
+        self.starting = inner
+
+    def on_start(self, input: list[ChatMessage]) -> str | None:
+        self._current = current_span_id()
+        span_id = self.starting.on_start(input)
+        self._started = span_id if span_id != self._current else None
+        return span_id
+
+
+def _span_capturing_sink(inner: ModelEventSink) -> _SpanCapturingSink:
+    if isinstance(inner, _StartingModelEventSink):
+        return _StartingSpanCapturingSink(inner)
+    return _SpanCapturingSink(inner)
 
 
 def resolve_generate_config(

@@ -122,7 +122,8 @@ def is_ijson_float_overflow_error(
     The ijson C backend (yajl2_c) with use_float=True raises "numeric (floating
     point) overflow" for literals like 1e309, which are valid JSON and parse to
     inf with pydantic. This helper identifies these errors so callers can parse
-    again without use_float.
+    again with something that accepts them (json.loads, or ijson without
+    use_float).
 
     Args:
         ex: Exception from ijson parsing (ValueError, IncompleteJSONError,
@@ -188,6 +189,19 @@ class ExcludingObjectBuilder:
 
 JSONType = Literal["string", "integer", "number", "boolean", "array", "object", "null"]
 """Valid types within JSON schema."""
+
+
+def json_equal(a: Any, b: Any) -> bool:
+    """Equality by JSON semantics: 5 == 5.0, but True != 1 (unlike Python `==`)."""
+    if isinstance(a, bool) or isinstance(b, bool):
+        return isinstance(a, bool) and isinstance(b, bool) and a == b
+    if isinstance(a, int | float) and isinstance(b, int | float):
+        return a == b
+    if isinstance(a, dict) and isinstance(b, dict):
+        return a.keys() == b.keys() and all(json_equal(v, b[k]) for k, v in a.items())
+    if isinstance(a, list) and isinstance(b, list):
+        return len(a) == len(b) and all(json_equal(x, y) for x, y in zip(a, b))
+    return type(a) is type(b) and bool(a == b)
 
 
 def jsonable_python(x: Any) -> Any:

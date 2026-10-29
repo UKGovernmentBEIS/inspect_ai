@@ -2,13 +2,14 @@
 
 pyproject.toml holds back releases younger than seven days except for an
 exempt list of packages that must include every model provider's own package,
-Dependabot applies the same cooldown and exemptions
-to its uv.lock bumps, and the canary jobs in build.yml opt out of the cooldown
-so they keep installing the newest releases. The model-data sync script runs
-without pyproject.toml, so its own metadata repeats the policy.
+Dependabot applies the same cooldown and exemptions to its uv.lock bumps, and
+every CI job installs from a lockfile. The model-data sync script runs without
+pyproject.toml, so its own metadata repeats the policy. Testing against the
+newest releases happens in meridianlabs-ai/canaries, outside this repository.
 """
 
 import ast
+import json
 import pathlib
 import re
 import tomllib
@@ -20,7 +21,17 @@ import yaml
 REPO = pathlib.Path(__file__).parents[1]
 WORKFLOWS = REPO / ".github" / "workflows"
 BUILD = WORKFLOWS / "build.yml"
-LOCKED_JOBS = ["mypy", "test", "slow-tests", "slow-tool-tests-release"]
+LOCKED_JOBS = {
+    "mypy": "uv sync --locked",
+    "pre-commit": "uv sync --locked",
+    "test": "uv sync --locked",
+    "slow-tests": "uv sync --locked",
+    "slow-tool-tests-dev": "uv sync --locked",
+    "slow-tool-tests-release": "uv sync --locked",
+    "docs": "uv sync --locked --extra doc --no-default-groups",
+    "package": "uv sync --locked --no-default-groups --extra dist --no-install-project",
+}
+SANDBOX_TOOLS_TEST_LOCK = "src/inspect_sandbox_tools/tests/requirements.txt"
 PROVIDERS = REPO / "src" / "inspect_ai" / "model" / "_providers"
 SYNC_MODELS = REPO / "src" / "inspect_ai" / "model" / "_model_data" / "sync_models.py"
 DEPENDENCY_CHECKS = {"pip_dependency_error", "verify_required_version"}
@@ -51,10 +62,11 @@ def build_job(name: str) -> dict[str, Any]:
 
 
 def run_lines(job: dict[str, Any]) -> list[str]:
+    # Joins backslash continuations so a command's flags stay on one line.
     return [
         line.strip()
         for step in job.get("steps", [])
-        for line in step.get("run", "").splitlines()
+        for line in step.get("run", "").replace("\\\n", " ").splitlines()
         if line.strip()
     ]
 
@@ -130,6 +142,13 @@ def script_uv_config() -> dict[str, Any]:
     return config
 
 
+def test_setuptools_scm_fallback_version_is_the_released_version() -> None:
+    # Dependabot's uv.lock bumps need it; see the comment in pyproject.toml.
+    pyproject = tomllib.loads((REPO / "pyproject.toml").read_text())
+    manifest = json.loads((REPO / ".release-please-manifest.json").read_text())
+    assert pyproject["tool"]["setuptools_scm"]["fallback_version"] == manifest["."]
+
+
 def test_sync_models_script_follows_the_cooldown() -> None:
     config = uv_config()
     script = script_uv_config()
@@ -161,15 +180,12 @@ def test_pinned_uv_versions_meet_required_version() -> None:
         for workflow in [
             "build.yml",
             "log_viewer.yml",
+            "sandbox-tools-build.yml",
             "suppressions.yml",
             "suppressions-comment.yml",
             "sync_model_data.yml",
         ]
     }
-    pre_commit = yaml.safe_load((REPO / ".pre-commit-config.yaml").read_text())
-    (pinned["pre-commit"],) = [
-        repo["rev"] for repo in pre_commit["repos"] if "uv-pre-commit" in repo["repo"]
-    ]
     devcontainer = (REPO / ".devcontainer" / "Dockerfile").read_text()
     devcontainer_uv = re.search(r"^ARG UV_VERSION=(\S+)$", devcontainer, re.M)
     assert devcontainer_uv
@@ -178,19 +194,65 @@ def test_pinned_uv_versions_meet_required_version() -> None:
         assert version(pin) >= version(required[1]), f"{where}: uv {pin}"
 
 
-@pytest.mark.parametrize("name", LOCKED_JOBS)
-def test_locked_jobs_install_from_the_lockfile(name: str) -> None:
+def test_no_workflow_uses_the_build_and_inspect_action() -> None:
+    # hynek/build-and-inspect-python-package installs the newest uv with
+    # curl | bash and apt-installs tree.
+    for path in (REPO / ".github").rglob("*.y*ml"):
+        assert "build-and-inspect-python-package" not in path.read_text(), path
+
+
+def test_pre_commit_hooks_run_locked_tools() -> None:
+    # A hook repo would make pre-commit install the hook's tool and its
+    # dependencies itself, outside uv.lock and the cooldown.
+    config = yaml.safe_load((REPO / ".pre-commit-config.yaml").read_text())
+    for repo in config["repos"]:
+        assert repo["repo"] == "local", repo["repo"]
+        for hook in repo["hooks"]:
+            assert hook["language"] == "unsupported", hook["id"]
+            if hook["id"] == "uv-lock":
+                assert hook["entry"] == "uv lock"
+            else:
+                assert hook["entry"].startswith("uv run --frozen "), hook["id"]
+    requirements = (REPO / "requirements-dev.txt").read_text().splitlines()
+    for tool in ["pre-commit-hooks", "ruff", "typos"]:
+        assert any(re.fullmatch(rf"{tool}==[\d.]+", line) for line in requirements)
+
+
+def test_no_workflow_uses_the_pre_commit_action() -> None:
+    # pre-commit/action pip-installs the newest pre-commit, outside uv.lock.
+    for workflow in WORKFLOWS.glob("*.yml"):
+        assert "pre-commit/action" not in workflow.read_text(), workflow.name
+
+
+@pytest.mark.parametrize("name,sync", LOCKED_JOBS.items())
+def test_locked_jobs_install_from_the_lockfile(name: str, sync: str) -> None:
     syncs = [line for line in run_lines(build_job(name)) if line.startswith("uv sync")]
-    assert syncs == ["uv sync --locked"]
+    assert syncs == [sync]
+
+
+def test_sandbox_tools_unit_installs_from_its_hashed_lock() -> None:
+    installs = [
+        line
+        for line in run_lines(build_job("sandbox-tools-unit"))
+        if line.startswith("uv pip")
+    ]
+    assert installs == [
+        f"uv pip sync --require-hashes {SANDBOX_TOOLS_TEST_LOCK}",
+        "uv pip install --no-deps ./src/inspect_sandbox_tools",
+    ]
 
 
 def workflow_run_lines() -> list[tuple[str, str]]:
-    return [
+    lines = [
         (f"{path.name}:{name}", line)
         for path in sorted(WORKFLOWS.glob("*.yml"))
         for name, job in yaml.safe_load(path.read_text())["jobs"].items()
         for line in run_lines(job)
     ]
+    for path in sorted((REPO / ".github" / "actions").glob("*/action.yml")):
+        runs = yaml.safe_load(path.read_text())["runs"]
+        lines += [(f"{path.parent.name}/action.yml", line) for line in run_lines(runs)]
+    return lines
 
 
 # A bare `uv run` or `uv sync` re-resolves an out-of-date uv.lock and installs
@@ -209,51 +271,25 @@ def test_uv_never_relocks() -> None:
     assert unlocked == []
 
 
-# pip installs skip uv.lock, so only the canaries' floating installs and
-# dependency-free installs of local packages may use them.
-def test_pip_installs_are_canaries_or_dependency_free() -> None:
+# pip installs skip uv.lock, so they may only add local packages without their
+# dependencies, or install a hashed lock (`-r` or `uv pip sync`).
+def test_pip_installs_are_dependency_free_or_hashed() -> None:
     unlocked = [
         (where, line)
         for where, line in workflow_run_lines()
-        if re.search(r"\bpip3? install\b", line)
-        and "--exclude-newer false" not in line
-        and "--no-deps" not in line.split()
+        if (re.search(r"\bpip3? install\b", line) and "--no-deps" not in line.split())
+        or (
+            re.search(r"\bpip sync\b|\bpip3? install\b.* -r\b", line)
+            and "--require-hashes" not in line.split()
+        )
     ]
     assert unlocked == []
 
 
-def canary_jobs() -> list[tuple[str, str]]:
-    return [
-        (path.name, name)
-        for path in sorted(WORKFLOWS.glob("*.yml"))
-        for name, job in yaml.safe_load(path.read_text())["jobs"].items()
-        if any("--exclude-newer false" in line for line in run_lines(job))
+def test_no_workflow_opts_out_of_the_cooldown() -> None:
+    floating = [
+        (where, line)
+        for where, line in workflow_run_lines()
+        if re.search(r"--exclude-newer(=|\s+)false", line)
     ]
-
-
-def test_canary_jobs_are_found() -> None:
-    assert {
-        ("build.yml", "docs"),
-        ("build.yml", "sandbox-tools-unit"),
-        ("build.yml", "slow-tool-tests-dev"),
-    } <= set(canary_jobs())
-
-
-# Keeps honest canary runs from putting unvetted releases into the cache. A
-# malicious release can still write to it, so jobs that hold credentials
-# restore no cache (test_workflow_cache.py).
-@pytest.mark.parametrize("workflow,name", canary_jobs())
-def test_canary_jobs_float_without_secrets_or_cache_saves(
-    workflow: str, name: str
-) -> None:
-    job = yaml.safe_load((WORKFLOWS / workflow).read_text())["jobs"][name]
-    installs = [line for line in run_lines(job) if line.startswith("uv pip install")]
-    assert installs
-    assert all("--exclude-newer false" in line for line in installs)
-    (setup_uv,) = [
-        step
-        for step in job["steps"]
-        if step.get("uses", "").startswith("astral-sh/setup-uv@")
-    ]
-    assert setup_uv["with"]["save-cache"] is False
-    assert "secrets" not in yaml.safe_dump(job)
+    assert floating == []

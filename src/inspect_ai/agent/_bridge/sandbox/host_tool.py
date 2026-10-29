@@ -5,7 +5,8 @@ import anyio
 from pydantic import JsonValue, TypeAdapter
 from shortuuid import uuid
 
-from inspect_ai._sentinel._scope import AgentScope, sentinel_scope
+from inspect_ai._sentinel._scope import sentinel_scope
+from inspect_ai._util._async import raise_unwrapped
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
@@ -22,6 +23,7 @@ from inspect_ai.log._transcript import transcript
 from inspect_ai.model._call_tools import (
     _exceeds_max_depth,
     _max_depth_parse_error,
+    decisive_tool_exception,
     tool_call_error,
     tool_result_content_list,
     truncate_tool_output,
@@ -31,6 +33,7 @@ from inspect_ai.tool._tool import Tool, ToolError, ToolParsingError, ToolResult
 from inspect_ai.tool._tool_call import ToolCallContent, ToolCallError
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util._anyio import inner_exception
+from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox.service import find_control_flow
 from inspect_ai.util._span import parent_span, span
 
@@ -59,16 +62,18 @@ async def execute_host_tool(
     rest are validated against the tool's schema as for a native call, so a
     scaffold's malformed arguments surface as a `ToolParsingError` the model
     can recover from; they are otherwise forwarded as the scaffold sent them.
-    Exceptions are classified after unwrapping any task-group
-    `ExceptionGroup`, as `execute_tools` does, and with the same
-    `tool_call_error` mapping. Those a native call would show the model
-    propagate unchanged as the RPC error the scaffold reads as tool output. A
+    An `ExceptionGroup` is decided by its most serious leaf
+    (`decisive_tool_exception`), as in `execute_tools`, and classified with the
+    same `tool_call_error` mapping. Those a native call would show the model
+    propagate unchanged as the RPC error the scaffold reads as tool output,
+    except a `LimitExceededError`: the service dispatcher routes a bare one to
+    the sample, so a group decided by a limit raises that limit. A
     termination (`TerminateSampleError`, anywhere in the exception as
     `find_control_flow` finds it) also propagates unchanged: the service
     dispatcher answers the RPC and propagates the termination out of the service
     task, which ends the sample as a native tool's termination does. Any other
     exception is a bug in the eval's tool, which natively fails the sample: the
-    unwrapped exception is signalled through `bridge.request_fail` so the
+    decisive exception is signalled through `bridge.request_fail` so the
     bridge's monitor task ends the sample at once, and the original still
     propagates so the RPC unwinds with an error reply (the teardown may
     pre-empt its delivery; the scaffold's turn is over either way). An error
@@ -251,10 +256,10 @@ async def _execute_granted(
         )
     except Exception as ex:
         # classified as an exception from the tool itself (below)
-        inner_ex = inner_exception(ex)
-        mapped = tool_call_error(inner_ex, tool)
+        decisive = decisive_tool_exception(ex)
+        mapped = tool_call_error(decisive, tool)
         if mapped is None:
-            bridge.request_fail(inner_ex)
+            bridge.request_fail(decisive)
         await _record_rejection(
             bridge,
             tool,
@@ -305,7 +310,7 @@ async def _execute_granted(
                         event._set_cancel_fn(scope.cancel)
                         # as in call_tool: the tool's own model calls are not
                         # agent turns
-                        with sentinel_scope(AgentScope.OFF), known_work():
+                        with sentinel_scope("tool"), known_work():
                             result = await tool_fn(**call_arguments)
                         output, truncated = _recorded_result(
                             tool, result, tool_def.max_output
@@ -320,6 +325,9 @@ async def _execute_granted(
                     # mixed exception group
                     if not scope.cancel_called:
                         outcome = _raised(ex, tool, tool_def.max_output)
+                        raised = outcome.raised
+                        if raised is not None and raised is not ex:
+                            raise_unwrapped(ex, raised)
                         raise
             # `cancel_called`, not `cancelled_caught`: a tool that absorbs the
             # cancellation and returns was still cancelled
@@ -393,20 +401,29 @@ def _reply(output: ToolResult, result: ToolResult) -> JsonValue:
 
 
 def _raised(ex: Exception, tool: str, max_output: int | None) -> _Outcome:
-    """A call whose tool (or reply) raised `ex`, which the RPC raises unchanged.
+    """A call whose tool (or reply) raised `ex`, which the RPC raises.
 
-    The unwrapped exception is classified, but the original propagates: the
-    service dispatcher special-cases a bare LimitExceededError (ending the
-    sample), and unwrapping a grouped one would newly route it there.
+    A group is handled as its decisive leaf would be if raised bare, but the
+    original propagates so the scaffold's error reply is unchanged, except that
+    a decided limit is raised itself: the service dispatcher routes a bare
+    LimitExceededError to the sample. A termination anywhere in the group still
+    leaves the original to the dispatcher.
     """
-    inner_ex = inner_exception(ex)
-    mapped = tool_call_error(inner_ex, tool)
+    decisive = decisive_tool_exception(ex)
+    mapped = tool_call_error(decisive, tool)
     if mapped is None:
         # a termination is the service dispatcher's to enact
-        fatal = inner_ex if find_control_flow(ex) is None else None
+        fatal = decisive if find_control_flow(ex) is None else None
         return _Outcome(failed=True, raised=ex, fatal=fatal)
     output, truncated = _recorded_result(tool, mapped.result or "", max_output)
-    return _Outcome(output, truncated, error=mapped.error, raised=ex)
+    raised = (
+        decisive
+        if decisive is not ex
+        and isinstance(decisive, LimitExceededError)
+        and find_control_flow(ex) is None
+        else ex
+    )
+    return _Outcome(output, truncated, error=mapped.error, raised=raised)
 
 
 def _recorded_result(
