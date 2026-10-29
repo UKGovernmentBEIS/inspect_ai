@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import contextlib
 from bisect import bisect_left, insort
+from collections import Counter
 from collections.abc import Iterator
 from datetime import datetime, timezone
 from typing import (
@@ -1550,9 +1551,9 @@ class _Continuity:
     def _end(self, final: bool) -> None:
         """End the thread: a lone head is its last turn, and a fork goes to the head in the final messages (with `final`). An unresolved fork, and candidates still open, get no answer: nothing showed the thread going on without them."""
         heads = self._heads.calls
-        found = [h for h in heads if final and self._in_final(h)]
-        if found:
-            self._settle(found[-1], heads)
+        found = self._in_final(heads) if final else None
+        if found is not None:
+            self._settle(found, heads)
         elif len(heads) == 1:
             self._settle(heads[0], heads)
 
@@ -1612,15 +1613,61 @@ class _Continuity:
             == self._inputs.fingerprint(earlier.output)
         )
 
-    def _in_final(self, head: _Call) -> bool:
-        at = len(head.input)
-        return (
-            self._final is not None
-            and head.output is not None
-            and at < len(self._final)
-            and self._inputs.fingerprint(self._final[at])
-            == self._inputs.fingerprint(head.output)
-        )
+    def _in_final(self, heads: list[_Call]) -> _Call | None:
+        """The head the final messages carry on (`_held`), each compared with the final message where its output would be."""
+        matches: list[_Match] = []
+        for index, head in enumerate(heads):
+            at = len(head.input)
+            if self._final is None or head.output is None or at >= len(self._final):
+                continue
+            message = self._final[at]
+            by_id = head.output.id is not None and head.output.id == message.id
+            by_content = self._inputs.fingerprint(message) == self._inputs.fingerprint(
+                head.output
+            )
+            matches.append(
+                _Match(
+                    call=index,
+                    output_id=head.output.id,
+                    by_id=by_id,
+                    exact=by_id and by_content,
+                    by_content=by_content,
+                )
+            )
+        found = _held(matches)
+        return heads[found] if found is not None else None
+
+
+class _Match(NamedTuple):
+    """A call's output as the final messages hold it."""
+
+    call: int
+    """The call's position among those compared."""
+    output_id: str | None
+    """The output message's id."""
+    by_id: bool
+    """A final message has the output's id."""
+    exact: bool
+    """That message also has the output's content."""
+    by_content: bool
+    """A final message has the output's content."""
+
+
+def _held(matches: Sequence[_Match]) -> int | None:
+    """Of calls in log order, the latest whose output a final message holds by id and content; else the latest held by an id no other of the calls' outputs has; else the latest held by content."""
+    exact = [m.call for m in matches if m.exact]
+    if exact:
+        return exact[-1]
+    ids = Counter(m.output_id for m in matches if m.output_id is not None)
+    unique = [
+        m.call
+        for m in matches
+        if m.by_id and m.output_id is not None and ids[m.output_id] == 1
+    ]
+    if unique:
+        return unique[-1]
+    content = [m.call for m in matches if m.by_content]
+    return content[-1] if content else None
 
 
 def _answer(event: ModelEvent) -> ChatMessage | None:
@@ -1636,7 +1683,7 @@ def _continuity(
 ) -> dict[int, bool]:
     """Whether each call with no recorded origin under `root` is a turn by continuity, by `id()` of its event.
 
-    The rule runs over each conversation's calls in log order: within each span of the tree, its conversations apart (a span can hold more than one, where the timeline unrolls a solver beside an agent; a tool's sub-agent and a branch are spans of their own); and a conversation given for events (a stored timeline's) across every span it reaches. A conversation in which no call continues another has no answers but its summarizers', so the existing rules decide its other calls. The final messages settle a fork at the end of the conversation they are from: that of the latest call whose output message, by id, is one of them, else of the latest whose output matches one by content. Calls in `inputs.outside` are left out.
+    The rule runs over each conversation's calls in log order: within each span of the tree, its conversations apart (a span can hold more than one, where the timeline unrolls a solver beside an agent; a tool's sub-agent and a branch are spans of their own); and a conversation given for events (a stored timeline's) across every span it reaches. A conversation in which no call continues another has no answers but its summarizers', so the existing rules decide its other calls. The final messages settle a fork at the end of the conversation they are from: that of the latest call whose output is one of them by both id and content; else of the latest whose output has the id of one of them, where no other call's output has that id (an edited message keeps its id; a reused id decides nothing); else of the latest whose output matches one by content. Within that conversation, the same rule picks the head of a fork the final messages carry on, each head compared with the final message where its output would be. Calls in `inputs.outside` are left out.
     """
     order = {id(event): index for index, event in enumerate(inputs.events)}
     # (position in the log, position in the tree, conversation, event): a call
@@ -1674,19 +1721,33 @@ def _continuity(
 
     owner: object = None
     if final_messages:
-        ids = {message.id for message in final_messages if message.id is not None}
+        by_id = {
+            message.id: inputs.fingerprint(message)
+            for message in final_messages
+            if message.id is not None
+        }
         final = {inputs.fingerprint(message) for message in final_messages}
-        by_content: object = None
+        conversations: list[object] = []
+        matches: list[_Match] = []
         for _, _, conversation, event in found:
             answer = _answer(event) if isinstance(event, ModelEvent) else None
             if answer is None:
                 continue
-            if answer.id is not None and answer.id in ids:
-                owner = conversation
-            elif inputs.fingerprint(answer) in final:
-                by_content = conversation
-        if owner is None:
-            owner = by_content
+            fingerprint = inputs.fingerprint(answer)
+            held = by_id.get(answer.id) if answer.id is not None else None
+            matches.append(
+                _Match(
+                    call=len(conversations),
+                    output_id=answer.id,
+                    by_id=held is not None,
+                    exact=held == fingerprint,
+                    by_content=fingerprint in final,
+                )
+            )
+            conversations.append(conversation)
+        found_at = _held(matches)
+        if found_at is not None:
+            owner = conversations[found_at]
 
     threads: dict[object, _Continuity] = {}
     for _, _, conversation, event in found:

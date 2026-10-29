@@ -1629,12 +1629,15 @@ def test_a_fork_at_the_end_without_phase_spans_keeps_the_final_messages_call() -
     assert [s.id for s in replay if s.stage == "model_input"] == ["m1", "m2"]
 
 
+@pytest.mark.parametrize("case", ["distinct_id", "edited", "reused_id"])
 @pytest.mark.parametrize("phases", [True, False])
 def test_a_sub_agent_s_equal_answer_does_not_take_the_final_messages(
-    phases: bool,
+    phases: bool, case: str
 ) -> None:
     # Ransom's sixth review B2: the final messages hold the output of m2, one
-    # of a fork; a later sub-agent answers with equal text in another message
+    # of a fork; a later sub-agent answers with equal text in another message.
+    # The delta review: the final messages hold m2's output edited under its
+    # id, or the sub-agent answers other text under m2's id
     user = ChatMessageUser(content="Solve it.")
     m1 = linked_call("m1", "main", [user], "Working.", None)
     asked: list[ChatMessage] = [
@@ -1644,7 +1647,18 @@ def test_a_sub_agent_s_equal_answer_does_not_take_the_final_messages(
     ]
     m2 = linked_call("m2", "main", asked, "finished", None)
     m3 = linked_call("m3", "main", asked, "discarded", None)
-    s1 = linked_call("s1", "sub", [ChatMessageUser(content="Check.")], "finished", None)
+    s1 = linked_call(
+        "s1",
+        "sub",
+        [ChatMessageUser(content="Check.")],
+        "different" if case == "reused_id" else "finished",
+        None,
+    )
+    if case == "reused_id":
+        s1.output.message.id = m2.output.message.id
+    final = m2.output.message
+    if case == "edited":
+        final = final.model_copy(update={"content": "edited finished"})
     events: list[Event] = [
         SpanBeginEvent(
             id="main",
@@ -1667,7 +1681,7 @@ def test_a_sub_agent_s_equal_answer_does_not_take_the_final_messages(
             SpanEndEvent(id="solvers"),
         ]
     replay = steps_from_events(
-        [*asked, m2.output.message],
+        [*asked, final],
         events,
         [],
         sample_uuid="sample",

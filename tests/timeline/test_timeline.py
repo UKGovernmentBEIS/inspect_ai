@@ -520,8 +520,13 @@ def test_a_fork_at_the_end_goes_to_the_call_in_the_final_messages(
     assert utility == ["m3"]
 
 
-def _fork_and_equal_sub_agent_answer(phases: bool) -> tuple[list[Any], list[Any]]:
-    """A main call, a fork of two calls answering "finished" and "discarded", then a sub-agent that also answers "finished" (another message, so another id); the final messages carry on "finished"."""
+def _fork_and_equal_sub_agent_answer(
+    phases: bool, case: str = "distinct_id"
+) -> tuple[list[Any], list[Any]]:
+    """A main call, a fork of two calls answering "finished" and "discarded", then a sub-agent; the final messages carry on "finished".
+
+    The sub-agent's answer: `distinct_id`, also "finished", in another message, so another id; `edited`, the same, and the final messages hold "finished" edited under its id; `reused_id`, "different" under the id of "finished".
+    """
     from inspect_ai.event import SpanBeginEvent, SpanEndEvent
     from inspect_ai.model import ChatMessageUser
 
@@ -529,15 +534,19 @@ def _fork_and_equal_sub_agent_answer(phases: bool) -> tuple[list[Any], list[Any]
     m1 = _model("m1", "main", [task], _assistant("Working."))
     asked = [task, m1.output.message, ChatMessageUser(content="Finish.")]
     m2 = _model("m2", "main", asked, _assistant("finished"))
+    answer = _assistant("different" if case == "reused_id" else "finished")
+    if case == "reused_id":
+        answer.id = m2.output.message.id
+    final = m2.output.message
+    if case == "edited":
+        final = final.model_copy(update={"content": "edited finished"})
     events: list[Any] = [
         SpanBeginEvent(id="main", name="main", type="agent"),
         m1,
         m2,
         _model("m3", "main", asked, _assistant("discarded")),
         SpanBeginEvent(id="sub", name="sub", type="agent", parent_id="main"),
-        _model(
-            "s1", "sub", [ChatMessageUser(content="Check it.")], _assistant("finished")
-        ),
+        _model("s1", "sub", [ChatMessageUser(content="Check it.")], answer),
         SpanEndEvent(id="sub"),
         SpanEndEvent(id="main"),
     ]
@@ -548,21 +557,24 @@ def _fork_and_equal_sub_agent_answer(phases: bool) -> tuple[list[Any], list[Any]
             *events,
             SpanEndEvent(id="solvers"),
         ]
-    return events, [*asked, m2.output.message]
+    return events, [*asked, final]
 
 
+@pytest.mark.parametrize("case", ["distinct_id", "edited", "reused_id"])
 @pytest.mark.parametrize("pooled", [False, True])
 @pytest.mark.parametrize("phases", [True, False])
 def test_the_final_messages_go_to_the_call_whose_output_they_hold(
-    phases: bool, pooled: bool
+    phases: bool, pooled: bool, case: str
 ) -> None:
     # Ransom's sixth review B2: a later sub-agent's answer equal in content to
     # the one the final messages hold does not take them; the call whose
-    # output message (by id) they hold does, and settles its fork
+    # output message (by id) they hold does, and settles its fork. The delta
+    # review: so does a final message edited under that id, and a reused id
+    # with other content does not take them
     from inspect_ai.event._timeline import _timeline_build
     from inspect_ai.log import condense_events
 
-    events, final = _fork_and_equal_sub_agent_answer(phases)
+    events, final = _fork_and_equal_sub_agent_answer(phases, case)
     if pooled:
         condensed, data = condense_events(events)
         root = _timeline_build(
