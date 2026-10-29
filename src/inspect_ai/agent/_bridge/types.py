@@ -481,9 +481,9 @@ class AgentBridge:
         function and arguments (`_copy_calls`), picked by no other awaited call
         and with an id unique in the copy. Its result is a tool message before
         the next assistant message answering that id: exactly one links it, more
-        than one settles it unlinked. A kept id another tracked reply also
-        handed links only if that reply's call was linked to another message
-        (`_tracked_call_ids`).
+        than one settles it unlinked. A message already linked to a tracked call
+        isn't linked again, and a kept id another tracked reply also handed
+        doesn't link while that reply's call is unlinked (`_tracked_call_ids`).
 
         Each call settles on its own. One the copy can't identify, or with no
         result yet, keeps waiting: results sent in separate requests, after
@@ -494,6 +494,7 @@ class AgentBridge:
         if not self._awaited_results:
             return
         tracked_ids: dict[str, list[tuple[str, str | None]]] | None = None
+        linked_ids: set[str] = set()
         for index, (message, reply_id) in enumerate(zip(messages, recognized)):
             if reply_id is None or not isinstance(message, ChatMessageAssistant):
                 continue
@@ -509,6 +510,12 @@ class AgentBridge:
             copy_calls = message.tool_calls or []
             if tracked_ids is None:
                 tracked_ids = self._tracked_call_ids()
+                linked_ids = {
+                    linked
+                    for ids in tracked_ids.values()
+                    for _, linked in ids
+                    if linked
+                }
             tracked = tracked_ids
             candidates = {
                 call_index: _copy_calls(entry.handed, copy_calls, tracked_ids)
@@ -527,22 +534,28 @@ class AgentBridge:
                 ):
                     continue
                 matches = [r for r in results if r.tool_call_id == copy_call.id]
-                if len(matches) == 1 and any(
-                    linked is None or linked == matches[0].id
-                    for other, linked in tracked.get(copy_call.id, [])
-                    if other != reply_id
+                if len(matches) == 1 and (
+                    matches[0].id in linked_ids
+                    or any(
+                        linked is None
+                        for other, linked in tracked.get(copy_call.id, [])
+                        if other != reply_id
+                    )
                 ):
                     continue
                 if matches:
                     _settle(awaited, call_index, matches)
+                    linked = awaited[call_index].message_id
+                    if linked is not None:
+                        linked_ids.add(linked)
 
     def _tracked_call_ids(self) -> dict[str, list[tuple[str, str | None]]]:
         """Ids the bridge handed in the replies it still tracks.
 
         Each id maps to the replies that handed it, with the tool message that
         reply's call under it was linked to (`None` if it isn't linked). An id
-        another tracked reply handed is ambiguous unless that reply's call was
-        linked to a different message. A reply that keeps no handed ids
+        another tracked reply handed is ambiguous while that reply's call is
+        unlinked. A reply that keeps no handed ids
         contributes its tracked calls' ids. Ids from replies dropped by
         `_MAX_AWAITED_RESULTS` aren't known, so a scaffold that copies an
         earlier call and its answer into a later reply can still be taken for

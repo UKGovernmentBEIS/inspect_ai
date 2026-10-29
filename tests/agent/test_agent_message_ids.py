@@ -1280,3 +1280,37 @@ def test_kept_id_reused_after_the_earlier_call_linked(copied: bool) -> None:
     assert (first.message_id, second.message_id) == (
         ("old", None) if copied else ("old", "new")
     )
+
+
+@pytest.mark.parametrize("copied", [True, False])
+def test_answer_linked_through_a_re_derived_id_is_not_claimed_again(
+    copied: bool,
+) -> None:
+    """An answer linked to an earlier call isn't taken for a later call's, whatever id carried it."""
+    bridge = AgentBridge(AgentState(messages=[]))
+    first_call, second_call = _read("handed-1", "a"), _read("handed-2", "a")
+    # Google re-derives both calls' ids as the same one
+    back = _read("re-derived", "a")
+    first = ToolEvent(id="handed-1", function="read", arguments=back.arguments)
+    bridge._await_result_message(_handed_calls("first", [first_call])[0], first)
+    old = ChatMessageTool(
+        id="old", content="OLD", tool_call_id="re-derived", function="read"
+    )
+    first_reply = ChatMessageAssistant(id="first", content="", tool_calls=[back])
+    bridge._link_result_messages([first_reply, old], ["first", None])
+
+    second = ToolEvent(id="handed-2", function="read", arguments=back.arguments)
+    bridge._await_result_message(_handed_calls("second", [second_call])[0], second)
+    answer = (
+        old
+        if copied
+        else ChatMessageTool(
+            id="new", content="NEW", tool_call_id="re-derived", function="read"
+        )
+    )
+    second_reply = ChatMessageAssistant(id="second", content="", tool_calls=[back])
+    bridge._link_result_messages([second_reply, answer], ["second", None])
+
+    assert (first.message_id, second.message_id) == (
+        ("old", None) if copied else ("old", "new")
+    )
