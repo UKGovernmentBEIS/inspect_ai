@@ -1434,21 +1434,22 @@ class SandboxManager:
                         nullcontext() if self.in_slot else display().suspend_task_app()
                     ):
                         for sandboxenv in new:
-                            state |= await self._init_one(sandboxenv, state)
+                            state |= await self._init_one(sandboxenv, state, shared)
                         # space above the task display ("none" has none and must
                         # keep stdout machine-readable, e.g. --json)
                         if not self.in_slot and display_type() != "none":
                             print("")
-            if shared:
-                self._state = state
         _set_provider_state(state)
 
     async def _init_one(
-        self, sandboxenv: TaskSandboxEnvironment, state: ProviderState
+        self, sandboxenv: TaskSandboxEnvironment, state: ProviderState, shared: bool
     ) -> ProviderState:
         """Run one sandboxenv's `task_init` from ``state``; return what it set.
 
-        Records its cleanup, to run with ``state`` plus what it set.
+        As soon as it returns, the sandboxenv is recorded as started, with its
+        cleanup (to run with ``state`` plus what it set), and with ``shared``
+        what it set is added to the run's provider state: even if the rest of
+        the setup then fails or is cancelled.
         """
         sandboxenv_type = registry_find_sandboxenv(sandboxenv.sandbox.type)
         # pre-register the type's resizable concurrency limiter before
@@ -1463,13 +1464,29 @@ class SandboxManager:
             dict(sandboxenv.env),
             output=[] if self.in_slot else None,
         )
+        task_cleanup = cast(TaskCleanup, getattr(sandboxenv_type, "task_cleanup"))
+
+        def started(changes: ProviderState) -> None:
+            self._started.add(sandboxenv)
+            self._cleanups.append(
+                _TaskCleanup(
+                    task_cleanup,
+                    sandboxenv.sandbox.config,
+                    sandboxenv.run_dir,
+                    state | changes,
+                )
+            )
+            if shared:
+                self._state = self._state | changes
+
         with sandbox_setup_scope(setup):
             try:
                 # from the state earlier task_inits left, so a provider's
                 # get-or-create finds it
-                changes = await _in_child_task(
+                return await _in_child_task(
                     functools.partial(task_init, "startup", sandboxenv.sandbox.config),
                     state,
+                    done=started,
                 )
             except Exception as ex:
                 if setup.output:
@@ -1478,27 +1495,22 @@ class SandboxManager:
                         + "".join(setup.output)[-_SETUP_OUTPUT_SHOWN:]
                     )
                 raise
-        self._started.add(sandboxenv)
-        self._cleanups.append(
-            _TaskCleanup(
-                cast(TaskCleanup, getattr(sandboxenv_type, "task_cleanup")),
-                sandboxenv.sandbox.config,
-                sandboxenv.run_dir,
-                state | changes,
-            )
-        )
-        return changes
 
 
 async def _in_child_task(
-    fn: Callable[[], Awaitable[None]], state: ProviderState
+    fn: Callable[[], Awaitable[None]],
+    state: ProviderState,
+    done: Callable[[ProviderState], None] = lambda changes: None,
 ) -> ProviderState:
     """Run ``fn`` in a child task with ``state`` set; return the ContextVars it set.
 
     The child's ContextVar writes stay out of the caller's context, so only
     what ``fn`` itself sets is kept, rather than a copy of the caller's whole
     context, which would keep the caller's state (its task display, a running
-    task's settings) alive and visible to a later ``task_cleanup``.
+    task's settings) alive and visible to a later ``task_cleanup``. ``done``
+    gets them in the child, as soon as ``fn`` returns: a cancellation can
+    still be raised in the caller after that (asyncio raises one that arrived
+    while ``fn`` shielded its work), and what ``fn`` did must not be lost.
     """
     changes: ProviderState = {}
 
@@ -1511,6 +1523,7 @@ async def _in_child_task(
             for var, value in copy_context().items()
             if base.get(var, _UNSET) is not value
         )
+        done(changes)
 
     try:
         async with anyio.create_task_group() as tg:

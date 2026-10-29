@@ -1,3 +1,4 @@
+import codecs
 import contextlib
 import functools
 import io
@@ -548,8 +549,11 @@ async def _collect_stream(
     kept.
     """
     if stream is not None:
+        # incremental, so a character split between chunks decodes whole
+        decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
         async for chunk in stream:
-            collected.append(chunk.decode(errors="replace"))
+            collected.append(decoder.decode(chunk))
+        collected.append(decoder.decode(b"", final=True))
     return bytes()
 
 
