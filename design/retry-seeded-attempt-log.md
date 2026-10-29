@@ -12,10 +12,13 @@ sweep reads each planned sample's record back from that local copy and
 reuses it, carries its error history into a re-run, or runs it fresh; a
 re-run appends a superseding member under the same name. Once the
 attempt's first flush has written its log, whatever ends the attempt
-(error, cancellation, Ctrl-C, success) leaves a complete log. A failure or
-hard kill before that first write begins leaves no file; a first write that
-fails may still have been committed by the store, and then leaves the
-seeded log, which already holds the whole prior set. A prior in another format
+(error, cancellation, Ctrl-C, success) leaves a log holding every selected
+prior record, except that an abandoned attempt's destination is removed and
+a non-atomic remote write can leave a truncated file (see Failure
+behaviour). A failure or hard kill before that first write begins leaves no
+file; a first write that fails may still have been committed by the store,
+and then leaves the seeded log, which already holds every selected prior
+record. A prior in another format
 or held in memory is re-logged sample by sample before `log_start` instead.
 
 The code is `ZipLogFile.seed_from_prior_log()` in
@@ -42,7 +45,15 @@ time, interleaved with live work, and the attempt errors part way), that
 log would become the task's newest, the next attempt would re-run every
 completed sample missing from it, and retry cleanup would delete the older
 log that held them. Seeding before any work runs makes the attempt's log a
-superset of the prior at every instant.
+superset of the prior's selected records at every instant.
+
+"Superset" is over the keys the attempt selects (its `keep` set, below). A
+retry that narrows the selection (`sample_id`, `limit`, fewer epochs)
+deliberately leaves the other prior records out, and a natural success
+prunes a dynamic feed's unresolved records. Eval-set's task identity does
+not include those selection settings, so retry cleanup then deletes the
+older log that held the excluded records: cleanup is lossless only for the
+selected keys.
 
 Out of scope: how eval-set selects the source (newest log per task), the
 meaning of `retry_cleanup`, and the per-attempt log identity (one log file
@@ -276,9 +287,10 @@ loop:
 - **unfinished, destination written** (a later flush or `log_finish`
   failed): also the attempt's log, through the same
   `eval_log_sample_source()` with its checkpoint directory. It holds the
-  seeded prior set plus every flushed completion under a `started` header,
-  a superset of every earlier log. `reinit()` releases the recorder entry
-  and buffer database and leaves the file in place.
+  selected prior records plus every flushed completion, usually under a
+  `started` header; if the final write was committed but its response
+  lost, it is already the complete terminal log. `reinit()` releases the
+  recorder entry and buffer database and leaves the file in place.
 - **no write acknowledged** (the seed, the startup copy or the `log_start`
   flush failed): the same source the attempt ran with.
   `destination_written` records acknowledged success, so a failed first
@@ -286,13 +298,16 @@ loop:
 
 Eval-set selects the newest log per task on disk, so an attempt that wrote
 nothing leaves the older log as the source, and a failed first write that
-was committed leaves its seeded `started` log, which holds the whole prior
-set. An abandoned attempt's destination
-holds the prior set and nothing new, and its discard removes it.
+was committed leaves its seeded `started` log, which holds every selected
+prior record. Eval-set classifies a log by the status persisted in it, not
+by whether this process saw the write acknowledged. An abandoned attempt's
+destination holds the selected prior records and nothing new, and its
+discard removes it.
 
 With `retry_cleanup`, eval-set removes each task's older logs, including
 older `started` logs: every log is seeded from its prior, so an older log
-holds nothing the newest lacks. A `started` log is removed, with its sample
+holds nothing the newest lacks among the keys the newest selected (see
+Self-contained logs for records outside that selection). A `started` log is removed, with its sample
 buffer, only when its run id is one of the `eval()` calls this eval-set
 invocation made, and only once that buffer has finished shutting down;
 nothing on disk shows that another process has stopped writing one, so
@@ -300,9 +315,9 @@ nothing on disk shows that another process has stopped writing one, so
 
 ## Crash recovery
 
-After the `log_start` flush the destination holds the prior set, so
-buffer-database recovery of a crashed attempt yields a superset of the
-prior. Recovery must not mistake an inherited record for one this attempt
+After the `log_start` flush the destination holds the selected prior
+records, so buffer-database recovery of a crashed attempt yields a superset
+of them. Recovery must not mistake an inherited record for one this attempt
 flushed: a seeded errored sample whose re-run completed (or was running)
 only in the buffer would otherwise recover as the old failure.
 `_superseded_by_buffer()` in
@@ -322,8 +337,8 @@ The design depends on three guarantees:
 
 | When | Outcome |
 |---|---|
-| anything fails or is cancelled before the `log_start` flush begins writing: the seed (reading, validating or rewriting the prior) or the startup work after it (the checkpoint copy) | nothing is written; the next attempt uses the same source (in-process) or the older log (eval-set), and since no sample ran, no error history is lost. If the `log_start` flush itself fails or is cancelled, its outcome can be uncertain (S3 may commit an upload whose response is lost); a committed object is the complete seeded log, a superset of the prior |
-| anything ends the attempt after the `log_start` flush (error, cancellation, terminate, Ctrl-C, a hard kill, a failed later flush or finish) | the destination holds the prior set plus every flushed completion: a terminal log written by `log_finish`, or a `started` log when the finish could not be written or the process was killed (recovery then yields a superset of the prior) |
+| anything fails or is cancelled before the `log_start` flush begins writing: the seed (reading, validating or rewriting the prior) or the startup work after it (the checkpoint copy) | nothing is written; the next attempt uses the same source (in-process) or the older log (eval-set), and since no sample ran, no error history is lost. If the `log_start` flush itself fails or is cancelled, its outcome can be uncertain (S3 may commit an upload whose response is lost); a committed object is the complete seeded log |
+| anything ends the attempt after the `log_start` flush (error, cancellation, terminate, Ctrl-C, a hard kill, a failed later flush or finish), other than an abandon, whose discard removes the destination (see The next attempt's source) | the destination holds the selected prior records plus every flushed completion: a terminal log written by `log_finish`, or the last successful `started` snapshot when the finish could not be written or the process was killed (recovery then yields a superset of the selected prior records). This holds for local writes (atomic replace) and native S3 uploads (atomic at completion). Other remote filesystems (GCS, Azure through fsspec) write the destination in place, so a flush that fails part way can leave a truncated file that the next attempt cannot read |
 | the next in-process attempt | its source changes to this attempt's log only once a write was acknowledged (`TaskLogger.destination_written`); a later eval-set pass lists whatever is on disk, so it can select a committed but unacknowledged `started` log |
 
 Seed validation reads the zip structure and summaries, not sample bodies.
@@ -357,7 +372,7 @@ tests in [`tests/log/test_eval_log.py`](../tests/log/test_eval_log.py) and
    reclaims them, and retry cleanup removes the intermediate logs.
 3. **A `log_images=False` retry of a `log_images=True` log keeps the prior
    samples' images**, since they are copied, not condensed.
-4. **The first flush carries the whole prior set.** On S3 under asyncio it
+4. **The first flush carries every selected prior record.** On S3 under asyncio it
    is composed from the prior object; elsewhere it uploads the seeded log.
 5. **A dynamic feed's unplanned prior records stay until a natural
    success**, and remain in a non-success log or a graceful resolution's
@@ -366,11 +381,14 @@ tests in [`tests/log/test_eval_log.py`](../tests/log/test_eval_log.py) and
    admitted batch; an interrupted limited retry keeps the batches fully
    copied, and a cancelled admission keeps only the records copied so far
    and does not dispatch the batch.
-6. **A `log_finish` failure after earlier flushes leaves a `started` log as
-   the task's newest.** It lacks only the header (status, task-level error,
-   stats, results), and `started` is accurate for an attempt still running
-   when its write failed. Finalizing the header would be another write to
-   storage that has just failed.
+6. **A `log_finish` failure after earlier flushes usually leaves a
+   `started` log as the task's newest.** It lacks only the header (status,
+   task-level error, stats, results), and `started` is accurate for an
+   attempt still running when its write failed. Finalizing the header would
+   be another write to storage that has just failed. The terminal header is
+   written into the temp zip before the final flush, so a final write the
+   store committed before its response was lost leaves the complete terminal
+   log instead; eval-set reads the persisted status either way.
 
 ## Performance
 
