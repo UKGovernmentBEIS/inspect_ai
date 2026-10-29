@@ -47,6 +47,7 @@ from ._plan import (
     Status,
     attempt_regressed,
     build_header,
+    check_attempt_names,
     check_attempt_order,
     check_headers,
     check_ledger_count,
@@ -371,6 +372,14 @@ async def _read_merged(fs: AsyncFilesystem, merged_path: str) -> _Merged | None:
             f"changed outside the merge. Delete {merged_path} so the next merge "
             "rebuilds it from the shards."
         )
+    for entry in header.eval.shards.ledger:
+        if "\\" in entry.log:
+            raise ShardSetError(
+                f"{merged_path} records the attempt {entry.log} for shard "
+                f"{entry.shard}, a name with a backslash, which the merge never "
+                f"records: it was changed outside the merge. Delete {merged_path} "
+                "so the next merge rebuilds it from the shards."
+            )
     return _Merged(header, merged_records(cd, merged_path), reader.etag)
 
 
@@ -385,6 +394,7 @@ async def _merge_pass(
     delete_shards: bool,
 ) -> _Pass:
     listing = await list_shard_set(fs, shards_dir, numeric_shards=True)
+    check_attempt_names(listing.shards)
     if listing.stray:
         raise ShardSetError(
             f"{shards_dir} holds log files that are not shard attempts: "

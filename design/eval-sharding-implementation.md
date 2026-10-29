@@ -898,6 +898,17 @@ the merged header, the unchanged ones:
   refused as a non-number. `0/` and `00/` are distinct shards. A merged
   log whose ledger records a shard twice is refused when it is read
   (changed outside the merge: delete it to rebuild).
+- **Attempt file names hold no backslash** (decision: Ransom,
+  2026-10-29). Attempts are ordered and recorded in the ledger by the
+  name `_name` reads, which takes a backslash as a separator, so dated
+  attempts named by a pattern such as `{task}\worker` would all read as
+  `worker.eval` and lose the timestamp that orders them. The merge
+  refuses any attempt whose raw file name (`raw_name`, a `file://` name
+  percent-decoded) contains a backslash, right after the listing and
+  before any ledger lookup, read, publication or deletion
+  (`check_attempt_names`), and a merged log whose ledger records an
+  attempt name with a backslash, when it is read. These names are not
+  supported one at a time; `_name` is unchanged.
 - No chunked-shape sample: `classify_sample_shape(entry_names, id, epoch)`
   (`chunked/format.py:121`) returns `"monolith"` for every held key. Step 1
   copies monolith members only; refusing is explicit where silently copying
@@ -1303,6 +1314,14 @@ score key as `SampleScore.scorer`. A retried log's metrics can therefore
 differ from a fresh run's when a solver changes metadata a metric reads.
 The merge follows the fresh run; `eval_retry` and the log format are not
 changed.
+
+Known limitation (decision: Ransom, 2026-10-29): a shard finished by
+`eval_retry()` carries the reductions `eval_retry()` wrote, and
+`eval_retry()` recreates epoch reducers from their recorded names
+(`Epochs(config.epochs, config.epochs_reducer)` in `_eval/eval.py`), so a
+reducer's options are lost, as in an unsharded retry. The merge takes
+those reductions as recorded. The docs say to re-run a shard rather
+than retry it when a reducer has options.
 
 Known limitation (decision: Ransom, 2026-10-23): a recovered attempt is
 recognised only by the `-recovered` suffix `inspect log recover` gives
@@ -1781,7 +1800,7 @@ never scans the directory.
 
    | Cause | Raised by the merge as | What the message tells the user to do |
    |---|---|---|
-   | Invalid shard set: mismatched identifier, scorers, metrics, dataset size, epochs, reducer or format version; overlapping shard selections; a shard with no recorded selection or holding samples outside it (a `SampleSource` task); a shard whose selection changed across attempts; a shard holding samples a drain or cancel left unresolved; a shard directory not named with digits; an entry the listing would hide (an S3 key with an empty path component); stray files; chunked-shape samples | `ShardSetError` | fix the shards named in the message (remove or move the offending files; for a changed selection, move the new attempt to its own `<k>/` or delete `<name>.eval`), then re-run |
+   | Invalid shard set: mismatched identifier, scorers, metrics, dataset size, epochs, reducer or format version; overlapping shard selections; a shard with no recorded selection or holding samples outside it (a `SampleSource` task); a shard whose selection changed across attempts; a shard holding samples a drain or cancel left unresolved; a shard directory not named with digits; an attempt file name with a backslash; an entry the listing would hide (a key with an empty path component); stray files; chunked-shape samples | `ShardSetError` | fix the shards named in the message (remove or move the offending files; for a changed selection, move the new attempt to its own `<k>/` or delete `<name>.eval`), then re-run |
    | The eval set's selection is narrower than what the shards hold | `ShardSelectionError` | the message says the selection is narrower than the shards and lists up to ten held ids outside it with the total; widen `sample_id` or `limit` to include every sharded sample (or drop the selection for the whole dataset), or remove the task from the eval set, or move `<name>.eval` and `<name>.shards/` out of the log directory; if the ids are not ones the run should hold, remove the shard named as holding them; then re-run |
    | Merged log does not match its ledger (its samples were changed outside the merge) | `ShardSetError` | delete `<name>.eval` so the next merge rebuilds it from the shards, then re-run |
    | Vanished shard (shard files deleted after they were merged, for example an interrupted `delete_shards`) | `ShardSetError` | finish the deletion (`inspect log merge-shards <name>.eval --delete-shards`, or delete `<name>.shards/` by hand) or restore the files, then re-run |
@@ -1968,10 +1987,19 @@ The shard-set rules, one implementation for both consumers:
   or any listed name on S3 that S3 would read as another key
   (`check_s3_location`, "Deleting shards"), and for a listed entry that is
   not a non-empty name directly in the directory listed; ctl reports both
-  as a `storage_error`. With `numeric_shards` (the merge) it also refuses
-  every directory in the companion not named with digits before listing
-  any; ctl does not pass it, so ctl keeps listing dot directories for
-  stray logs and other directories as shards. The merge refuses any stray file; ctl
+  as a `storage_error`. Local and S3 listings keep each entry's raw name,
+  so the walk checks the names returned; other fsspec backends rebuild a
+  child's location from the last component of the entry `ls` returned,
+  which would turn an entry denoting the directory listed (fsspec's
+  `memory://` lists `0//x.eval` this way) into a child, so the walk asks
+  `AsyncFilesystem.list_dir(..., indirect_error=ShardSetError)` to check
+  each raw entry against the directory before rebuilding it. Other
+  callers of `list_dir` pass nothing and get the listing as before. Only
+  the merge passes `numeric_shards`, which refuses every directory in
+  the companion not named with digits before listing any; ctl keeps its
+  read-only discovery of dot directories, checkpoints and other
+  directories as shard rows, and both keep the empty-component and S3
+  refusals (decision: Ransom, 2026-10-29). The merge refuses any stray file; ctl
   reports them (its `unreadable` list is the natural place; that choice is
   ctl's). Together, attempts and stray files are exactly the logs
   `is_shard_path` places in the companion.
@@ -2531,7 +2559,17 @@ Per PR (numbers from "Implementation plan"):
      path component) is refused the same way, with and without deletion,
      beside an unchanged merge and on a fresh one, under asyncio and Trio,
      while ordinary folder markers and an attempt named with a literal
-     `%23` still merge;
+     `%23` still merge; on fsspec's `memory://`, native workers copied in
+     with shard 1's at `run.shards//` or `1//` (which `ls` lists as the
+     directory listed) are refused by a fresh merge and beside an
+     unchanged one, with and without deletion, under asyncio and Trio,
+     every stored object byte-identical, while an ordinary `memory://`
+     set merges and deletes; two dated attempts of shard 0 named by the
+     pattern `{task}\worker` are refused on a fresh merge, beside a merge
+     of the newer one and after that one is removed, with and without
+     deletion, through a path, a `file://` URI and `mock_s3`, everything
+     byte-identical, and a merged log whose ledger records an attempt name
+     with a backslash is refused;
      ctl log-dir mode reports such a name as a `storage_error`; the sync
      and async writer guards (asyncio and Trio) and `recompute_metrics`,
      `edit_score` (with and without recomputation) and `score` refuse a

@@ -1637,6 +1637,85 @@ def test_a_ledger_recording_a_shard_twice_is_refused(tmp_path: Path) -> None:
     assert _files(str(tmp_path)) == before
 
 
+def test_a_ledger_recording_an_attempt_name_with_a_backslash_is_refused(
+    tmp_path: Path,
+) -> None:
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", sample_id=[1, 2, 3])
+    _run(shards, "1", sample_id=[4, 5, 6])
+    merge_eval_log_shards(merged)
+
+    def backslash(header: dict[str, Any]) -> None:
+        entry = header["eval"]["shards"]["ledger"][0]
+        entry["log"] = f"prefix\\{entry['log']}"
+
+    _edit_header(merged, backslash)
+    before = _files(str(tmp_path))
+    for delete in (False, True):
+        with pytest.raises(ShardSetError, match="a name with a backslash"):
+            merge_eval_log_shards(merged, delete_shards=delete)
+    assert _files(str(tmp_path)) == before
+
+
+# a file name pattern whose names `_name` would read as `worker.eval`, losing
+# the timestamp that orders a shard's attempts
+_BACKSLASH_PATTERN = "{task}\\worker"
+_OLDER = "2026-01-01T00-00-00-00-00"
+
+
+def _backslash_attempts(
+    shards: str, monkeypatch: pytest.MonkeyPatch, move: Callable[[str, str], None]
+) -> str:
+    """Shard 0 with two dated attempts and shard 1, named by `_BACKSLASH_PATTERN`.
+
+    Returns the newer attempt of shard 0.
+    """
+    with monkeypatch.context() as patched:
+        patched.setenv("INSPECT_EVAL_LOG_FILE_PATTERN", _BACKSLASH_PATTERN)
+        older = _run(shards, "0", sample_id=[1, 2, 3])
+        directory, _, name = older.location.rpartition("/")
+        assert name.endswith(f"_{TASK}\\worker.eval")
+        # an earlier date, so the two attempts' names differ
+        move(older.location, f"{directory}/{_OLDER}_{name.split('_', 1)[1]}")
+        newer = _run(shards, "0", sample_id=[1, 2, 3])
+        _run(shards, "1", sample_id=[4, 5, 6])
+    return newer.location
+
+
+def _merge_unchecked(monkeypatch: pytest.MonkeyPatch, merged: str) -> None:
+    """Merge as a merge without the attempt-name check would."""
+    from inspect_ai.log._shards import _api
+
+    with monkeypatch.context() as patched:
+        patched.setattr(_api, "check_attempt_names", lambda shards: None, raising=False)
+        assert merge_eval_log_shards(merged).log.status == "success"
+
+
+_BACKSLASH = "its file name contains a backslash"
+
+
+@pytest.mark.parametrize("state", ["fresh", "unchanged", "removed"])
+@pytest.mark.parametrize("form", ["path", "file_uri"])
+def test_attempt_names_with_a_backslash_are_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, form: str, state: str
+) -> None:
+    from inspect_ai._util.file import to_uri
+
+    merged, shards = _paths(tmp_path)
+    newer = _backslash_attempts(shards, monkeypatch, os.rename)
+    if state != "fresh":
+        _merge_unchecked(monkeypatch, merged)
+    if state == "removed":
+        # what an interrupted deletion leaves: the older attempt is current
+        os.remove(newer)
+    target = to_uri(merged) if form == "file_uri" else merged
+    before = _files(str(tmp_path))
+    for delete in (False, True):
+        with pytest.raises(ShardSetError, match=_BACKSLASH):
+            merge_eval_log_shards(target, delete_shards=delete)
+    assert _files(str(tmp_path)) == before
+
+
 def test_distinct_shard_names_with_the_same_number_merge(tmp_path: Path) -> None:
     merged, shards = _paths(tmp_path)
     _run(shards, "0", sample_id=[1, 2, 3])
@@ -3656,6 +3735,122 @@ async def test_an_s3_worker_the_listing_would_hide_is_refused(
             await merge_eval_log_shards_async(
                 merged, sample_ids=[1, 2, 3], delete_shards=delete
             )
+    assert _s3_objects(f"{s3_root}/") == before
+
+
+def _memory_store(root: str) -> dict[str, bytes]:
+    from inspect_ai._util.file import filesystem
+
+    memory = filesystem(root).fs
+    prefix = memory._strip_protocol(root)
+    return {
+        path: data.getvalue()
+        for path, data in memory.store.items()
+        if path.startswith(prefix)
+    }
+
+
+def _memory_shard_set(tmp_path: Path, hidden: str | None) -> tuple[str, str]:
+    """Two native workers copied to a memory filesystem.
+
+    Shard 1's goes under `hidden` (relative to the shards directory) when
+    given. Returns the merged log and the memory root.
+    """
+    import shortuuid
+
+    from inspect_ai._util.file import filesystem
+
+    _, local = _paths(tmp_path)
+    workers = [_run(local, "0", sample_id=[1, 2, 3]), _run(local, "1", sample_id=[4])]
+    root = f"memory://{shortuuid.uuid()}/logs"
+    memory = filesystem(root).fs
+    merged, shards = _paths(root)
+    for k, worker in enumerate(workers):
+        name = Path(worker.location).name
+        key = f"{k}/{name}" if k == 0 or hidden is None else hidden
+        memory.pipe(f"{shards}/{key}", Path(worker.location).read_bytes())
+    return merged, root
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_merge_on_a_memory_filesystem(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, backend: str
+) -> None:
+    from inspect_ai._util.file import filesystem
+
+    merged, root = _memory_shard_set(tmp_path, hidden=None)
+    result = _merge_on(backend, monkeypatch, merged, sample_ids=[1, 2, 3, 4])
+    assert result.written and result.log.status == "success"
+    result = _merge_on(backend, monkeypatch, merged, delete_shards=True)
+    assert not result.written and result.shards_deleted
+    memory = filesystem(root).fs
+    assert list(_memory_store(root)) == [memory._strip_protocol(merged)]
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+@pytest.mark.parametrize("merge", ["unchanged", "fresh"])
+@pytest.mark.parametrize(
+    "hidden", ["/worker.eval", "1//worker.eval"], ids=["root", "shard"]
+)
+def test_a_memory_worker_the_listing_would_hide_is_refused(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    hidden: str,
+    merge: str,
+    backend: str,
+) -> None:
+    from inspect_ai._util.file import filesystem
+
+    merged, root = _memory_shard_set(tmp_path, hidden=hidden)
+    if merge == "unchanged":
+        # a merge of shard 0, made before the hidden worker was written
+        memory = filesystem(root).fs
+        hidden_key = f"{_paths(root)[1]}/{hidden}"
+        data = memory.cat_file(hidden_key)
+        memory.rm_file(hidden_key)
+        result = _merge_on(backend, monkeypatch, merged, sample_ids=[1, 2, 3])
+        assert result.log.status == "success"
+        memory.pipe(hidden_key, data)
+    before = _memory_store(root)
+    for delete in (False, True):
+        with pytest.raises(ShardSetError, match=_NOT_DIRECTLY):
+            _merge_on(
+                backend,
+                monkeypatch,
+                merged,
+                sample_ids=[1, 2, 3],
+                delete_shards=delete,
+            )
+    assert _memory_store(root) == before
+
+
+@pytest.mark.parametrize("state", ["fresh", "unchanged", "removed"])
+def test_s3_attempt_names_with_a_backslash_are_refused(
+    s3_root: str, monkeypatch: pytest.MonkeyPatch, state: str
+) -> None:
+    client = boto3.client("s3")
+
+    def move(source: str, destination: str) -> None:
+        prefix = "s3://test-bucket/"
+        client.copy_object(
+            Bucket="test-bucket",
+            Key=destination.removeprefix(prefix),
+            CopySource={"Bucket": "test-bucket", "Key": source.removeprefix(prefix)},
+        )
+        client.delete_object(Bucket="test-bucket", Key=source.removeprefix(prefix))
+
+    merged, shards = _paths(f"s3://test-bucket/{s3_root}")
+    newer = _backslash_attempts(shards, monkeypatch, move)
+    if state != "fresh":
+        _merge_unchecked(monkeypatch, merged)
+    if state == "removed":
+        client.delete_object(
+            Bucket="test-bucket", Key=newer.removeprefix("s3://test-bucket/")
+        )
+    before = _s3_objects(f"{s3_root}/")
+    for delete in (False, True):
+        with pytest.raises(ShardSetError, match=_BACKSLASH):
+            merge_eval_log_shards(merged, delete_shards=delete)
     assert _s3_objects(f"{s3_root}/") == before
 
 

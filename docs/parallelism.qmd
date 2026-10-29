@@ -103,6 +103,7 @@ inspect eval mytask.py --sample-id 4,5,6 \
 Whoever launches the workers must:
 
 -   Name each shard directory with digits only (`0`, `1`, ...). The merge refuses a `.shards` directory that holds any other directory.
+-   Keep backslashes out of shard log file names, and so out of `INSPECT_EVAL_LOG_FILE_PATTERN`. The merge refuses a shard log whose name contains one.
 -   Give each shard directory its own fixed selection, with `--sample-id` or a `--limit` range. Selections must not overlap. A worker re-run in a shard directory must select the same samples; the newest log in the directory is the one merged.
 -   Run every worker with the same task, task arguments, model, scorers and epochs, from the same working directory.
 -   Write the logs straight to the shard directories rather than staging them elsewhere, so `inspect view` shows them as they run.
@@ -145,6 +146,7 @@ The merge computes metrics over the samples in sample ID order (IDs sorted as te
 -   Delete shards only when every worker has exited and no other merge or deletion of the same log is running. If a deletion is interrupted, fails for some objects, or cannot be checked because the `.shards` directory cannot be listed, the merge fails and keeps the merged log; run it again or delete the `.shards` directory by hand. Until then, a merge without `--delete-shards` refuses when a shard is missing or left with an older log; if every shard still has the log that was merged, or none has a log, it returns the merged log as it is.
 -   `eval_retry()` refuses a merged log that was merged with `--sample-id` or `--sample-count`. Re-run the incomplete shards and merge again instead.
 -   Do not change `INSPECT_EVAL_LOG_FILE_PATTERN` while a `.shards` directory exists.
+-   A shard finished with `eval_retry()` carries the reductions `eval_retry()` wrote, and `eval_retry()` loses the options of an epoch reducer (for example `at_least(2, value=0.5)`). When a reducer has options, re-run the shard instead of retrying it.
 -   Do not run `inspect log recover` on a shard's log; re-run the shard instead. A shard log recovered with `--overwrite` or to another output path cannot be told apart from a finished log, and when the task sets an epoch reducer with arguments or a value converter, the merged metrics for its samples may be wrong. Default reducers are not affected.
 -   For a remote log (for example on S3) whose location contains `*`, `?` or `[`, `--delete-shards` is refused, because the storage backend would expand those characters to other paths. Delete the `.shards` directory by hand.
 -   On S3, a merged log, shards directory, or any file or directory in the shards directory whose location contains `#` or `?`, a tab or line break, or a key starting with `/` is refused, by the merge and by the commands that refuse to change a merged log while its shards exist. S3 would read such a location as another key. Rename it.

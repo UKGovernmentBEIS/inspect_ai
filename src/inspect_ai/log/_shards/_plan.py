@@ -33,7 +33,7 @@ from inspect_ai.log._recorders.recorder import SampleRecordKey
 from inspect_ai.model._model_output import ModelUsage
 
 from ._errors import ShardSelectionError, ShardSetError
-from ._walk import ShardDir, _name, attempt_sort_key
+from ._walk import ShardDir, _name, attempt_sort_key, raw_name
 
 _SAMPLES_PREFIX = "samples/"
 _EPOCH_SEPARATOR = "_epoch_"
@@ -174,6 +174,25 @@ class AttemptRead(NamedTuple):
     def selection(self) -> frozenset[str] | None:
         ids = self.header.eval.dataset.sample_ids
         return frozenset(str(i) for i in ids) if ids is not None else None
+
+
+def check_attempt_names(shards: Iterable[ShardDir]) -> None:
+    r"""Refuse an attempt whose file name contains a backslash.
+
+    Attempts are ordered and recorded in the ledger by the name `_name`
+    reads, which takes a backslash as a separator: dated attempts named
+    `<created>_task\worker.eval` would all read as `worker.eval`, without
+    the timestamp that orders them.
+    """
+    for shard in shards:
+        for attempt in shard.attempts:
+            if "\\" in raw_name(attempt.name):
+                raise ShardSetError(
+                    f"{attempt.name} cannot be merged: its file name contains a "
+                    "backslash, which the merge would read as a path separator. "
+                    "Rename it, and keep backslashes out of "
+                    "INSPECT_EVAL_LOG_FILE_PATTERN."
+                )
 
 
 def is_unchanged(entry: EvalShardEntry | None, current: FileInfo) -> bool:

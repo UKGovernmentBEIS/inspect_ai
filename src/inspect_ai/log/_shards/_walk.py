@@ -156,9 +156,9 @@ async def list_shard_set(
     anything listed is filtered or listed further: with
     :func:`check_s3_location`, so a name S3 would read as another key is
     never dropped as empty or read in place of another, and as a non-empty
-    name directly in the directory listed. S3 lists a key with an empty
-    path component (``run.shards//x.eval``) as its own parent directory,
-    which would otherwise hide it.
+    name directly in the directory listed. S3 and other remote backends list
+    a key with an empty path component (``run.shards//x.eval``) as the
+    directory listed, which would otherwise hide it.
 
     Args:
         fs: Filesystem to list with.
@@ -181,13 +181,13 @@ async def list_shard_set(
     check_s3_location(shards_dir, ShardSetError)
     try:
         async with limiter:
-            listing = await fs.list_dir(shards_dir)
+            listing = await fs.list_dir(shards_dir, indirect_error=ShardSetError)
     except FileNotFoundError:
         return ShardSetListing(shards=[], stray=[], unlisted_dirs=[])
     _check_listed(shards_dir, listing)
     if numeric_shards:
         for directory in listing.dirs:
-            if not _is_number(directory.rpartition("/")[2]):
+            if not _is_number(raw_name(directory)):
                 raise ShardSetError(
                     f"{directory} is not a shard directory: the directories in "
                     f"{shards_dir} must be named with digits only (the shard "
@@ -204,7 +204,7 @@ async def list_shard_set(
     async def list_child(directory: str) -> ShardDir | None:
         try:
             async with limiter:
-                child = await fs.list_dir(directory)
+                child = await fs.list_dir(directory, indirect_error=ShardSetError)
         except FileNotFoundError:
             return None
         _check_listed(directory, child)
@@ -268,6 +268,17 @@ def _check_listed(base: str, listing: DirListing) -> None:
                 "directly in it: S3 lists a key with an empty path component "
                 "('//') this way. Rename it."
             )
+
+
+def raw_name(location: str) -> str:
+    """A listed location's last component as the backend named it.
+
+    Unlike :func:`_name`, a backslash is kept rather than read as a
+    separator. A ``file://`` URI's name is percent-decoded.
+    """
+    if location.startswith("file://"):
+        return os.path.basename(local_path(location))
+    return location.rpartition("/")[2]
 
 
 def _is_number(name: str) -> bool:
