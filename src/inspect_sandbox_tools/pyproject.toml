@@ -93,6 +93,7 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
+    "certifi>=2026.10.23",
     "aiohttp",
     "httpx",
     "jsonrpcserver",

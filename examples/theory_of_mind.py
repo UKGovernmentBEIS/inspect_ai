@@ -19,4 +19,4 @@ def theory_of_mind(critique=False):
 
 
 if __name__ == "__main__":
-    eval(theory_of_mind(critique=True), model="openai/gpt-4o")
+    eval(theory_of_mind(critique=True), model="openai/gpt-6-luna")

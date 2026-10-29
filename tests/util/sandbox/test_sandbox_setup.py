@@ -222,23 +222,33 @@ class HangingSetupSandbox(SandboxEnvironment):
         await anyio.sleep_forever()
         raise AssertionError("sleep_forever() returned")
 
-    async def write_file(self, file: str, contents: str | bytes) -> None:
+    async def write_file(
+        self, file: str, contents: str | bytes, *, user: str | None = None
+    ) -> None:
         pass
 
     @overload
-    async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
+    async def read_file(
+        self, file: str, text: Literal[True] = True, *, user: str | None = None
+    ) -> str: ...
 
     @overload
-    async def read_file(self, file: str, text: Literal[False]) -> bytes: ...
+    async def read_file(
+        self, file: str, text: Literal[False], *, user: str | None = None
+    ) -> bytes: ...
 
-    async def read_file(self, file: str, text: bool = True) -> str | bytes:
+    async def read_file(
+        self, file: str, text: bool = True, *, user: str | None = None
+    ) -> str | bytes:
         raise NotImplementedError
 
 
 class HangingCopySandbox(HangingSetupSandbox):
     """Variant whose ``write_file`` blocks, to cancel from inside the file-copy phase."""
 
-    async def write_file(self, file: str, contents: str | bytes) -> None:
+    async def write_file(
+        self, file: str, contents: str | bytes, *, user: str | None = None
+    ) -> None:
         self.started.set()
         await anyio.sleep_forever()
 

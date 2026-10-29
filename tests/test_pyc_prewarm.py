@@ -8,12 +8,14 @@ speedup depends on: pytest accepts the prewarmed pyc as valid for the source
 and the code in it is what pytest's own rewrite produces.
 """
 
+import importlib.util
 import sys
 import warnings
 from pathlib import Path
 
 import pytest
 from _pytest.assertion.rewrite import _read_pyc, _rewrite_test, assertstate_key
+from test_helpers import pyc_prewarm
 from test_helpers.pyc_prewarm import (
     PrewarmResult,
     cached_pyc_path,
@@ -70,6 +72,34 @@ def test_rewrite_to_cache_writes_pyc_pytest_accepts(
     assert cached is not None, "pytest rejected the prewarmed pyc"
     _, expected = _rewrite_test(source, pytestconfig)
     assert cached == expected
+
+
+def test_pyc_is_current_reads_checked_hash_header(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # pytest 9.2 writes a PEP 552 checked-hash pyc (flags 03000000 + the source
+    # hash). The installed pytest here writes the old mtime/size format, so
+    # force the hash branch to prove it reads that header regardless.
+    monkeypatch.setattr(pyc_prewarm, "_CHECKED_HASH_PYC", True)
+    source = _write_test_module(tmp_path / "test_mod.py")
+
+    def write_header(flags: bytes, source_bytes: bytes) -> None:
+        pyc = cached_pyc_path(source)
+        pyc.parent.mkdir(parents=True, exist_ok=True)
+        hash8 = importlib.util.source_hash(source_bytes)[:8]
+        pyc.write_bytes(importlib.util.MAGIC_NUMBER + flags + hash8 + b"payload")
+
+    # accepted when the stored hash matches the current source
+    write_header(b"\x03\x00\x00\x00", source.read_bytes())
+    assert pyc_is_current(source)
+
+    # editing the source makes the stored hash stale, so it is rejected
+    source.write_text(_TEST_SOURCE + "y = 1\n")
+    assert not pyc_is_current(source)
+
+    # rejected on the old-format flags even when the hash matches
+    write_header(b"\x00\x00\x00\x00", source.read_bytes())
+    assert not pyc_is_current(source)
 
 
 def test_rewrite_to_cache_leaves_unparsable_source_to_the_worker(
@@ -143,8 +173,9 @@ def test_prewarm_files_rewrites_only_stale_and_reports(
         candidates=5, stale=0, rewritten=0, processes=0, failed_processes=0, seconds=0.0
     )
 
-    # editing a source (size changes, so mtime granularity is irrelevant)
-    # invalidates only its own entry
+    # editing a source changes its size and content, so it invalidates its own
+    # entry under either cache key (mtime+size or source hash), whatever the
+    # mtime granularity
     sources[2].write_text(_TEST_SOURCE + "y = 'changed'\n")
     assert _counts(prewarm_files(sources, pytestconfig, processes=2)) == PrewarmResult(
         candidates=5, stale=1, rewritten=1, processes=1, failed_processes=0, seconds=0.0
