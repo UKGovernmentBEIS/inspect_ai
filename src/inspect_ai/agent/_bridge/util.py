@@ -571,7 +571,7 @@ def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
                 original_messages[index] if index < len(original_messages) else None,
             )
             if source is not None:
-                with_edited_id(source, message)
+                with_edited_id(source, message, keep_provider_state=False)
 
 
 def _check_provider_owned_content(original: ModelOutput, filtered: ModelOutput) -> None:

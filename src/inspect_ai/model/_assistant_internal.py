@@ -59,6 +59,17 @@ def init_sample_assistant_internal(value: JsonValue | None = None) -> None:
             pass
 
 
+def copy_assistant_internal(source_id: str, edited_id: str) -> None:
+    """Record provider state kept under message `source_id` under its edit too."""
+    if _HAS_ANTHROPIC:
+        try:
+            from inspect_ai.model._providers.anthropic import copy_server_tool_state
+
+            copy_server_tool_state(source_id, edited_id)
+        except ImportError:
+            pass
+
+
 def dump_sample_assistant_internal() -> JsonValue | None:
     """Dump per-provider assistant-internal state as a JSON value.
 

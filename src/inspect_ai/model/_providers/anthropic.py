@@ -4059,12 +4059,9 @@ class _AssistantInternal:
     Replayed as the `container` request param when a turn left code
     execution pending (see `_pending_container_for_input`).
 
-    Unlike `server_tool_span_index`, there is no fallback for message ids
-    rewritten by the agent bridge: a pending span has produced no content,
-    so no bridge-surviving key exists to index by. Pending-work resumption
-    therefore does not survive a bridge id rewrite (the bridge does not
-    carry server tool state in general -- its anthropic impl handles
-    neither `server_tool_use` blocks nor the `container` param)."""
+    Unlike `server_tool_span_index`, there is no content-keyed fallback: a
+    pending span has produced no content. An edit of the message, which gets
+    an id of its own, is recorded here by `copy_server_tool_state`."""
 
 
 def assistant_internal() -> _AssistantInternal:
@@ -4246,6 +4243,22 @@ def merge_server_tool_spans(head_id: str | None, tail_id: str | None) -> None:
         # the tail response's own container (the same container, re-reported)
         # wins if present
         internal.containers.setdefault(tail_id, head_container)
+
+
+def copy_server_tool_state(source_id: str, edited_id: str) -> None:
+    """Record the spans and container of message `source_id` under its edit too.
+
+    An edit of a turn (approved arguments, a scaffold's changed copy) is still
+    the turn that left work pending, so it replays that work; `source_id` keeps
+    its own record.
+    """
+    internal = assistant_internal()
+    spans = internal.server_tool_spans.get(source_id)
+    if spans:
+        internal.server_tool_spans.setdefault(edited_id, list(spans))
+    container = internal.containers.get(source_id)
+    if container is not None:
+        internal.containers.setdefault(edited_id, container)
 
 
 def _prior_turn_server_tool_use(tool_use_id: str) -> BetaServerToolUseBlock | None:

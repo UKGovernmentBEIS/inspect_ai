@@ -19,6 +19,7 @@ from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.log._condense import ATTACHMENT_PROTOCOL
+from inspect_ai.model._assistant_internal import copy_assistant_internal
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -655,13 +656,16 @@ class AgentBridge:
 
         Different content never shares an id. A scaffold that sends a message back
         changed (even in whitespace) has edited it: the edit gets an id derived
-        from the id it was recognized by and its content.
+        from the id it was recognized by and its content, and an edited reply keeps
+        the provider state recorded under that id.
         """
         content = content_hash(message)
         if self._content_by_id.setdefault(message_id, content) == content:
             return message_id
         edited_id = edit_id(message_id, content)
         self._content_by_id.setdefault(edited_id, content)
+        if isinstance(message, ChatMessageAssistant):
+            copy_assistant_internal(message_id, edited_id)
         return edited_id
 
     def _align_with_tracked(

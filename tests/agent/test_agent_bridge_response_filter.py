@@ -48,6 +48,7 @@ from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.agent._bridge.util import (
     _apply_response_filter,
     _settle_message_ids,
+    apply_message_ids,
     bridge_generate,
 )
 from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
@@ -60,6 +61,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._message_ids import edited_message
 from inspect_ai.model._model import (
     GenerateFilter,
     GenerateInput,
@@ -2087,6 +2089,131 @@ async def test_response_filter_keeps_pending_work_with_its_server_items(
     # the provider's output and its replay record are untouched
     assert await _render_anthropic(provider_output.message) == original_blocks
     assert _pending_container_for_input([provider_output.message]) == CONTAINER_ID
+
+
+@approver
+def _modifying_approver() -> Approver:
+    async def approve(
+        message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
+    ) -> Approval:
+        return Approval(
+            decision="modify",
+            modified=ToolCall(id=call.id, function=call.function, arguments={"q": "y"}),
+        )
+
+    return approve
+
+
+async def _pending_container_output() -> ModelOutput:
+    """A turn ending on a client tool call while a code execution is pending."""
+    return await _anthropic_output(
+        [
+            {"type": "text", "text": "Checking."},
+            {
+                "type": "server_tool_use",
+                "id": "srvtoolu_pending",
+                "name": "code_execution",
+                "input": {"code": PENDING_CODE},
+                "caller": {"type": "direct"},
+            },
+            {
+                "type": "tool_use",
+                "id": "toolu_client",
+                "name": "lookup",
+                "input": {"q": "x"},
+            },
+        ],
+        [ToolInfo(name="lookup", description="Look something up.")],
+        stop_reason="tool_use",
+        container=CONTAINER_ID,
+    )
+
+
+@pytest.mark.parametrize("path", get_args(BridgePath))
+async def test_modified_arguments_keep_pending_server_work(path: BridgePath) -> None:
+    """An approver's rewrite of a client call is an edit that keeps the turn's pending work."""
+    from inspect_ai.model._providers.anthropic import _pending_container_for_input
+
+    init_sample_anthropic_assistant_internal()
+    provider_output = await _pending_container_output()
+    original_blocks = await _render_anthropic(provider_output.message)
+    model = get_model("mockllm/model", custom_outputs=[provider_output])
+    approval = [ApprovalPolicy(_modifying_approver(), "lookup")]
+
+    match path:
+        case "in_process":
+            bridge = AgentBridge(AgentState(messages=[]), approval=approval)
+            output, _ = await bridge_generate(
+                bridge,
+                model,
+                [ChatMessageUser(content="hi")],
+                [],
+                None,
+                GenerateConfig(),
+                requested_model=None,
+            )
+            handed = output.message
+        case "sandbox":
+            sandbox_bridge = SandboxAgentBridge(
+                state=AgentState(messages=[]),
+                filter=None,
+                retry_refusals=None,
+                compaction=None,
+                port=13131,
+                model=None,
+                model_aliases={"inspect": model},
+                approval=approval,
+            )
+            reply = await _forward_provider_errors(
+                generate_anthropic(None, None, sandbox_bridge), sandbox_bridge
+            )(
+                {
+                    "model": "inspect",
+                    "max_tokens": 1024,
+                    "messages": CHAT_REQUEST["messages"],
+                }
+            )
+            assert PROVIDER_ERROR_KEY not in reply
+            content = cast(list[dict[str, Any]], reply["content"])
+            assert [b["type"] for b in content] == [b["type"] for b in original_blocks]
+            handed = sandbox_bridge.state.output.message
+        case _:
+            assert_never(path)
+
+    assert handed.id == edited_id(provider_output.message.id, handed)
+    assert handed.tool_calls and handed.tool_calls[0].arguments == {"q": "y"}
+    blocks = await _render_anthropic(handed)
+    assert [b["type"] for b in blocks] == [b["type"] for b in original_blocks]
+    assert _pending_container_for_input([handed]) == CONTAINER_ID
+    # the model's output keeps its own record
+    assert await _render_anthropic(provider_output.message) == original_blocks
+    assert _pending_container_for_input([provider_output.message]) == CONTAINER_ID
+
+
+@pytest.mark.parametrize("edit", ["native", "scaffold"])
+async def test_edits_of_a_pending_turn_keep_its_work(edit: str) -> None:
+    """An edit of the turn (Inspect's, or a scaffold's changed copy) keeps its pending work."""
+    from inspect_ai.model._providers.anthropic import _pending_container_for_input
+
+    init_sample_anthropic_assistant_internal()
+    provider_output = await _pending_container_output()
+    original_blocks = await _render_anthropic(provider_output.message)
+    content = [ContentText(text="Checking.  ")]
+    if edit == "native":
+        edited = edited_message(provider_output.message, content=content)
+    else:
+        task = ChatMessageUser(content="hi")
+        bridge = AgentBridge(AgentState(messages=[task]))
+        await bridge._track_state([task], provider_output)
+        edited = provider_output.message.model_copy(
+            update={"id": "wire", "content": content}
+        )
+        apply_message_ids(bridge, [task.model_copy(update={"id": "wire-task"}), edited])
+
+    assert edited.id == edited_id(provider_output.message.id, edited)
+    blocks = await _render_anthropic(edited)
+    assert [b["type"] for b in blocks] == [b["type"] for b in original_blocks]
+    assert _pending_container_for_input([edited]) == CONTAINER_ID
 
 
 async def test_response_filter_rejects_merging_server_items_across_choices() -> None:

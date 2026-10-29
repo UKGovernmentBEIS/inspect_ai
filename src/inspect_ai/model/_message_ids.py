@@ -11,6 +11,7 @@ from shortuuid import uuid as shortuuid
 
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai._util.hash import mm3_hash
+from inspect_ai.model._assistant_internal import copy_assistant_internal
 
 from ._chat_message import (
     ChatMessage,
@@ -101,13 +102,17 @@ def edited_message(source: EditedT, **update: Any) -> EditedT:
     return with_edited_id(source, cast(EditedT, source.model_copy(update=update)))
 
 
-def with_edited_id(source: ChatMessage, edited: EditedT) -> EditedT:
+def with_edited_id(
+    source: ChatMessage, edited: EditedT, keep_provider_state: bool = True
+) -> EditedT:
     """`edited` under an id of its own, derived from `source`'s id and its content.
 
     Different content never shares an id. The same edit of a message on every
     model call is one message, and an edit of an edit is derived from the edit
     it was made from. An edit that leaves the content unchanged keeps the
-    source's id.
+    source's id. An edit of an assistant message keeps the provider state
+    recorded under the source's id (Anthropic's pending server work) unless
+    `keep_provider_state` is False.
     """
     content = content_hash(edited)
     if source.id is None:
@@ -116,6 +121,8 @@ def with_edited_id(source: ChatMessage, edited: EditedT) -> EditedT:
         edited.id = source.id
     else:
         edited.id = edit_id(source.id, content)
+        if keep_provider_state and isinstance(source, ChatMessageAssistant):
+            copy_assistant_internal(source.id, edited.id)
     return edited
 
 
