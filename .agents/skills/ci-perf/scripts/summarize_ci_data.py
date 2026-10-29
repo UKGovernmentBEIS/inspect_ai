@@ -227,9 +227,9 @@ def overlap_line(window: dict[str, Any]) -> str:
             "is unknown."
         )
     return (
-        f"Previous window ended {window['previous_end']}: {window['new_runs']} runs "
-        f"started after it (new), {window['overlap_runs']} at or before it "
-        "(overlap, re-measuring shared runs)."
+        f"Previous window ended {window['previous_end']}: by run start time, "
+        f"{window['new_runs']} started after it, "
+        f"{window['overlap_runs']} at or before it."
     )
 
 

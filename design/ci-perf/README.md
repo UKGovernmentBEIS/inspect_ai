@@ -42,7 +42,11 @@ the Meridian fork and whose conclusion is not `action_required` (never started),
 paging until it has that many, and records the excluded counts in
 `excluded_untrusted_runs` and `excluded_action_required_runs` (both scoped to
 the analyzed window). Each summary's `window` also carries its span in hours and,
-against the most recent retained summary, `new_runs`/`overlap_runs`.
+against the most recent retained summary, `new_runs`/`overlap_runs`. That split is
+by run start time against the previous window's end; because the collector fetches
+completed runs only, a run that started before that end but finished after the
+previous collection is counted in `overlap_runs` even though the earlier snapshot
+did not hold it.
 
 `report.md` and `prs.md` are historical records. Their referenced snapshots
 are available in Git history.

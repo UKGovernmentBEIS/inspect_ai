@@ -45,6 +45,22 @@ def gh_api(path: str) -> Any:
     return json.loads(result.stdout)
 
 
+def gh_api_pages(path: str) -> list[Any]:
+    """Fetch every page of a paginated endpoint as a list of page payloads.
+
+    `--slurp` collects each page's JSON response into one array, so the caller
+    flattens the field it needs. publish_ci_findings.py uses the same idiom for
+    the issues and comments listings.
+    """
+    result = subprocess.run(
+        ["gh", "api", "--paginate", "--slurp", path],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return json.loads(result.stdout)
+
+
 def gh_api_text(path: str) -> str:
     """Fetch a text API response (job logs).
 
@@ -232,6 +248,19 @@ def warn_on_time_gap(runs: list[dict[str, Any]]) -> None:
         )
 
 
+def fetch_jobs(repo: str, run_id: int) -> list[dict[str, Any]]:
+    """All jobs across every page of a run's filter=all listing.
+
+    filter=all lists every attempt, so a run re-run a few times can exceed one
+    100-job page; page through the whole listing before dedupe drops the
+    carried-over copies, or later pages' jobs are silently lost.
+    """
+    pages = gh_api_pages(
+        f"repos/{repo}/actions/runs/{run_id}/jobs?filter=all&per_page=100"
+    )
+    return [job for page in pages for job in page["jobs"]]
+
+
 def dedupe_jobs(jobs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Drop carried-over duplicate jobs, keeping the earliest attempt's copy.
 
@@ -359,9 +388,19 @@ def mine_test_logs(repo: str, runs: list[dict[str, Any]], max_runs: int) -> Test
         r for r in runs if r["name"] == "Build" and r["conclusion"] == "success"
     ][:max_runs]
     for run in build_runs:
+        # "Re-run all jobs" leaves a successful copy of a test job in more than
+        # one attempt, all under the same {run_id}/{job_name} key; mine the
+        # latest attempt's so the retained sample does not depend on listing order.
+        latest: dict[str, dict[str, Any]] = {}
         for job in run["jobs"]:
             if not job["name"].startswith("test") or job["conclusion"] != "success":
                 continue
+            incumbent = latest.get(job["name"])
+            if incumbent is None or (job.get("run_attempt") or 1) > (
+                incumbent.get("run_attempt") or 1
+            ):
+                latest[job["name"]] = job
+        for job in latest.values():
             try:
                 log = gh_api_text(f"repos/{repo}/actions/jobs/{job['id']}/logs")
             except subprocess.CalledProcessError as error:
@@ -434,12 +473,7 @@ def main() -> None:
             "wall_seconds": seconds_between(run["run_started_at"], run["updated_at"]),
             "jobs": [
                 job_record(run, job)
-                for job in dedupe_jobs(
-                    gh_api(
-                        f"repos/{args.repo}/actions/runs/{run['id']}/jobs"
-                        "?filter=all&per_page=100"
-                    )["jobs"]
-                )
+                for job in dedupe_jobs(fetch_jobs(args.repo, run["id"]))
             ],
         }
         for run in raw_runs

@@ -645,7 +645,7 @@ def test_kept_runs_and_exclusion_counts_flow_into_snapshot_and_summary(
     ]
     requested: list[str] = []
 
-    def fake_api(path: str) -> Any:
+    def fake_pages(path: str) -> Any:
         requested.append(path)
         run_id = int(path.split("/runs/")[1].split("/")[0])
         job = {
@@ -665,7 +665,7 @@ def test_kept_runs_and_exclusion_counts_flow_into_snapshot_and_summary(
                 }
             ],
         }
-        return {"jobs": [job]}
+        return [{"jobs": [job]}]
 
     def fake_log(path: str) -> str:
         requested.append(path)
@@ -679,7 +679,7 @@ def test_kept_runs_and_exclusion_counts_flow_into_snapshot_and_summary(
     monkeypatch.setattr(
         collector, "read_history", lambda: [{"window": {"end": "2026-09-01T00:00:00Z"}}]
     )
-    monkeypatch.setattr(collector, "gh_api", fake_api)
+    monkeypatch.setattr(collector, "gh_api_pages", fake_pages)
     monkeypatch.setattr(collector, "gh_api_text", fake_log)
     out, summary_out = tmp_path / "raw.json", tmp_path / "summary.json"
     monkeypatch.setattr(
@@ -1207,9 +1207,9 @@ def test_rerun_attempts_counted_and_run_excluded_from_wall(
     jobs_payload = {"jobs": _RERUN_JOBS}
     requested: list[str] = []
 
-    def fake_api(path: str) -> Any:
+    def fake_pages(path: str) -> Any:
         requested.append(path)
-        return jobs_payload
+        return [jobs_payload]
 
     monkeypatch.setattr(
         collector,
@@ -1217,7 +1217,7 @@ def test_rerun_attempts_counted_and_run_excluded_from_wall(
         lambda repo, limit, days: collector.FetchedRuns([run], 0, 0),
     )
     monkeypatch.setattr(collector, "read_history", lambda: [])
-    monkeypatch.setattr(collector, "gh_api", fake_api)
+    monkeypatch.setattr(collector, "gh_api_pages", fake_pages)
     out, summary_out = tmp_path / "raw.json", tmp_path / "summary.json"
     monkeypatch.setattr(
         sys,
@@ -1253,3 +1253,76 @@ def test_rerun_attempts_counted_and_run_excluded_from_wall(
     assert summary["excluded_timings"]["job_wait"] == 0  # carried-over waits dropped
     assert "wait_from_run_start_seconds" not in summary["jobs"]["Build / test (3.14)"]
     assert "re-run" in render(summary).lower()
+
+
+# --- Review round 1: paginated job listing, per-job log dedupe, overlap text --
+
+
+def test_jobs_listing_collects_every_page(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A multi-page filter=all job listing contributes all of its jobs.
+
+    With filter=all a run with several attempts can exceed one 100-job page, so
+    the collector must page through the listing before dedupe rather than read
+    page 1 only.
+    """
+    import collect_ci_data as collector
+
+    requested: list[str] = []
+
+    def fake_pages(path: str) -> Any:
+        requested.append(path)
+        return [
+            {"jobs": [{"id": 1, "run_attempt": 1}, {"id": 2, "run_attempt": 1}]},
+            {"jobs": [{"id": 3, "run_attempt": 1}, {"id": 4, "run_attempt": 1}]},
+        ]
+
+    monkeypatch.setattr(collector, "gh_api_pages", fake_pages)
+    jobs = collector.fetch_jobs("owner/repo", 100)
+    assert sorted(job["id"] for job in jobs) == [1, 2, 3, 4]
+    assert "filter=all" in requested[0]
+
+
+def test_mine_test_logs_keeps_latest_attempt(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Two successful attempts of one test job keep the latest attempt's log.
+
+    "Re-run all jobs" gives each attempt its own successful copy under the same
+    `{run_id}/{job_name}` key, so mining must pick by `run_attempt`, not by the
+    order the jobs happen to be listed.
+    """
+    import collect_ci_data as collector
+
+    def job(job_id: int, attempt: int) -> dict[str, Any]:
+        return {
+            "id": job_id,
+            "name": "test (3.11)",
+            "conclusion": "success",
+            "run_attempt": attempt,
+        }
+
+    logs = {
+        11: "1.00s call tests/a.py::test_old\n== 1 passed in 1.00s ==",
+        12: "2.00s call tests/a.py::test_new\n== 2 passed in 2.00s ==",
+    }
+
+    def fake_log(path: str) -> str:
+        return logs[int(path.split("/jobs/")[1].split("/")[0])]
+
+    monkeypatch.setattr(collector, "gh_api_text", fake_log)
+    attempts = [job(11, 1), job(12, 2)]
+    for order in (attempts, list(reversed(attempts))):
+        run = {"id": 1, "name": "Build", "conclusion": "success", "jobs": order}
+        data = collector.mine_test_logs("owner/repo", [run], 10)
+        assert data.summaries["1/test (3.11)"]["passed"] == 2
+        assert data.durations["1/test (3.11)"][0]["test"] == "tests/a.py::test_new"
+
+
+def test_overlap_line_is_neutral_and_by_start_time(snapshot: dict[str, Any]) -> None:
+    """The overlap render states its basis without claiming shared coverage.
+
+    It reports the split by run start time, not as runs the previous snapshot held.
+    """
+    snapshot["previous_window_end"] = "2026-09-09T00:30:00Z"
+    text = render(summarize(snapshot))
+    assert "re-measuring shared runs" not in text
+    assert "run start time" in text
+    assert "started after it" in text and "at or before it" in text
