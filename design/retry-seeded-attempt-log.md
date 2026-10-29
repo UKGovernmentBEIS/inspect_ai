@@ -12,8 +12,10 @@ sweep reads each planned sample's record back from that local copy and
 reuses it, carries its error history into a re-run, or runs it fresh; a
 re-run appends a superseding member under the same name. Once the
 attempt's first flush has written its log, whatever ends the attempt
-(error, cancellation, Ctrl-C, success) leaves a complete log; before that
-it leaves no file, and so does a hard kill. A prior in another format
+(error, cancellation, Ctrl-C, success) leaves a complete log. A failure or
+hard kill before that first write begins leaves no file; a first write that
+fails may still have been committed by the store, and then leaves the
+seeded log, which already holds the whole prior set. A prior in another format
 or held in memory is re-logged sample by sample before `log_start` instead.
 
 The code is `ZipLogFile.seed_from_prior_log()` in
@@ -277,11 +279,15 @@ loop:
   seeded prior set plus every flushed completion under a `started` header,
   a superset of every earlier log. `reinit()` releases the recorder entry
   and buffer database and leaves the file in place.
-- **nothing written** (the seed or the `log_start` flush failed): the same
-  source the attempt ran with.
+- **no write acknowledged** (the seed, the startup copy or the `log_start`
+  flush failed): the same source the attempt ran with.
+  `destination_written` records acknowledged success, so a failed first
+  write that the store committed anyway is not used here.
 
-Eval-set selects the newest log per task, so an attempt that wrote nothing
-leaves the older log as the source. An abandoned attempt's destination
+Eval-set selects the newest log per task on disk, so an attempt that wrote
+nothing leaves the older log as the source, and a failed first write that
+was committed leaves its seeded `started` log, which holds the whole prior
+set. An abandoned attempt's destination
 holds the prior set and nothing new, and its discard removes it.
 
 With `retry_cleanup`, eval-set removes each task's older logs, including
@@ -316,9 +322,9 @@ The design depends on three guarantees:
 
 | When | Outcome |
 |---|---|
-| anything fails or is cancelled before the `log_start` flush succeeds: the seed (reading, validating or rewriting the prior), the startup work after it (the checkpoint copy), or the flush itself | nothing is written; the next attempt uses the same source (in-process) or the older log (eval-set), and since no sample ran, no error history is lost |
+| anything fails or is cancelled before the `log_start` flush begins writing: the seed (reading, validating or rewriting the prior) or the startup work after it (the checkpoint copy) | nothing is written; the next attempt uses the same source (in-process) or the older log (eval-set), and since no sample ran, no error history is lost. If the `log_start` flush itself fails or is cancelled, its outcome can be uncertain (S3 may commit an upload whose response is lost); a committed object is the complete seeded log, a superset of the prior |
 | anything ends the attempt after the `log_start` flush (error, cancellation, terminate, Ctrl-C, a hard kill, a failed later flush or finish) | the destination holds the prior set plus every flushed completion: a terminal log written by `log_finish`, or a `started` log when the finish could not be written or the process was killed (recovery then yields a superset of the prior) |
-| the next in-process attempt | its source changes to this attempt's log only once a destination was written (`TaskLogger.destination_written`) |
+| the next in-process attempt | its source changes to this attempt's log only once a write was acknowledged (`TaskLogger.destination_written`); a later eval-set pass lists whatever is on disk, so it can select a committed but unacknowledged `started` log |
 
 Seed validation reads the zip structure and summaries, not sample bodies.
 A rewriting seed decompresses kept bodies, so it also catches their

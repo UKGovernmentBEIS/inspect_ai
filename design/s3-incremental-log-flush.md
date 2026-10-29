@@ -187,9 +187,11 @@ rule into a test failure instead of a corrupt `.eval`.
   touching the temp file or the destination, and so does `close()` after
   releasing the temp file. The stale-flush timer catches exceptions, logs
   "Stale eval log flush failed" and re-arms, so the eval fails at its next
-  awaited flush (a buffer-full flush, `flush_samples()`, or the final flush)
-  with the violation in its error, and the destination keeps its last
-  complete object.
+  eval-owned flush (a buffer-full flush or the final flush) with the
+  violation in its error, and the destination keeps its last complete
+  object. An on-demand `flush_samples()` request (`inspect ctl task
+  log-flush`) fails on its own without ending the eval; the violation stays
+  for the next eval-owned flush.
 - **Why a local digest suffices.** When a prefix is recorded, the local
   bytes and the object's leading bytes are the same by construction (the
   write just sent them, or the seed just received them from that object
