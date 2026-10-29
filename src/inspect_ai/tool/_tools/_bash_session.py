@@ -1,4 +1,4 @@
-from typing import Annotated, Literal
+from typing import Annotated, Literal, NoReturn
 
 from pydantic import BaseModel, Discriminator, Field, RootModel
 
@@ -11,6 +11,11 @@ from inspect_ai.tool._sandbox_tools_utils.sandbox import sandbox_with_injected_t
 from inspect_ai.util import StoreModel, store_as
 from inspect_ai.util._sandbox._cli import SANDBOX_CLI, tools_user_param
 from inspect_ai.util._sandbox._json_rpc_transport import SandboxJSONRPCTransport
+from inspect_ai.util._sandbox.identity import (
+    SandboxIdentityError,
+    sandbox_identity_active,
+    sandbox_identity_user,
+)
 from inspect_ai.util._sandbox.limits import SandboxEnvironmentLimits
 from inspect_ai.util._tool_state import tool_state_instance
 
@@ -31,6 +36,8 @@ class BashRestartResult(BaseModel):
 
 class BashSessionStore(StoreModel):
     session_id: str = Field(default_factory=str)
+    identity: str | None = Field(default=None)
+    """User of the `sandbox_identity()` scope the session was created in."""
 
 
 # Action-specific parameter models
@@ -194,15 +201,20 @@ def bash_session(
                         f"Do not provide 'input' with '{action}' action."
                     )
 
-        store = store_as(BashSessionStore, instance=tool_state_instance(instance))
+        resolved_instance = tool_state_instance(instance)
+        store = store_as(BashSessionStore, instance=resolved_instance)
         sandbox = await sandbox_with_injected_tools()
+        session_user = sandbox_identity_user(sandbox, user, strict=True)
+        identity = session_user if sandbox_identity_active(sandbox) else None
+        if store.session_id and identity is not None and store.identity != identity:
+            _raise_shared_session(resolved_instance, store.identity, identity)
 
         # Create transport for all RPC calls
         transport = SandboxJSONRPCTransport(sandbox, SANDBOX_CLI)
 
         if not store.session_id:
             params: dict[str, object] = {}
-            if (run_as := tools_user_param(sandbox, user)) is not None:
+            if (run_as := tools_user_param(sandbox, session_user)) is not None:
                 params["user"] = run_as
             try:
                 store.session_id = (
@@ -218,6 +230,7 @@ def bash_session(
                 ).session_name
             except TimeoutError:
                 raise RuntimeError("Timed out creating new session")
+            store.identity = identity
 
         timing: dict[str, object] = {
             "wait_for_output": wait_for_output,
@@ -254,3 +267,18 @@ def bash_session(
         )
 
     return execute
+
+
+def _raise_shared_session(
+    instance: str | None, created_as: str | None, identity: str
+) -> NoReturn:
+    owner = (
+        f"was created as '{created_as}'"
+        if created_as is not None
+        else "was created outside a sandbox identity scope"
+    )
+    raise SandboxIdentityError(
+        f"bash_session instance '{instance or 'default'}' {owner}, so it cannot be "
+        f"used inside the sandbox identity scope for '{identity}'. A shell cannot "
+        "be shared between sandbox identities."
+    )

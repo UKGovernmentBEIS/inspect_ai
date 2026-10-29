@@ -192,6 +192,9 @@ async def sandbox_with_injection(
             Each injectable is a (detector, injector) tuple.
         name: Optional sandbox environment name.
         target: Optional sandbox instance to inject into directly.
+            Without `name` or `target`, the sandbox of an active
+            `sandbox_identity()` scope, else the sandbox needing the fewest
+            injections.
 
     Returns:
         SandboxEnvironment instance that satisfies all injection requirements.
@@ -204,11 +207,16 @@ async def sandbox_with_injection(
     if isinstance(injectables, tuple):
         injectables = [injectables]
 
+    from .identity import sandbox_identity_environment
+
     if target is not None:
         target_sandbox = target
     elif name:
         # Named sandbox: inject directly into the specified sandbox
         target_sandbox = sandbox(name)
+    elif (identity_sandbox := sandbox_identity_environment()) is not None:
+        # model-facing tools inside a sandbox_identity() scope use its sandbox
+        target_sandbox = identity_sandbox
     else:
         # Unnamed sandbox: find best candidate (fewest injections needed)
         target_sandbox, _ = await _get_injection_target(injectables)

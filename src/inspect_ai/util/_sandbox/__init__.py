@@ -32,6 +32,13 @@ from .exec_remote import (
     ExecStderr,
     ExecStdout,
 )
+from .identity import (
+    SandboxIdentityError,
+    sandbox_identity,
+    sandbox_identity_active,
+    sandbox_identity_cwd,
+    sandbox_identity_user,
+)
 from .limits import (
     OutputLimitExceededError,
     SandboxEnvironmentLimits,
@@ -66,6 +73,7 @@ __all__ = [
     "SandboxEnvironmentSpec",
     "SandboxEnvironmentType",
     "SandboxConnection",
+    "SandboxIdentityError",
     "SandboxTimeoutError",
     "SandboxUnavailableError",
     "SandboxUserUnsupportedError",
@@ -73,5 +81,9 @@ __all__ = [
     "sandbox",
     "sandbox_with",
     "sandbox_default",
+    "sandbox_identity",
+    "sandbox_identity_active",
+    "sandbox_identity_cwd",
+    "sandbox_identity_user",
     "sandbox_service",
 ]

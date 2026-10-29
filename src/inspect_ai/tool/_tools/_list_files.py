@@ -1,4 +1,8 @@
 from inspect_ai.util import sandbox as sandbox_env
+from inspect_ai.util._sandbox.identity import (
+    sandbox_identity_cwd,
+    sandbox_identity_user,
+)
 
 from .._tool import Tool, ToolError, tool
 
@@ -36,7 +40,13 @@ def list_files(
             cmd.extend(["-maxdepth", str(depth)])
         cmd.append("-print")
 
-        result = await sandbox_env(sandbox).exec(cmd=cmd, timeout=timeout, user=user)
+        sbox = sandbox_env(sandbox)
+        result = await sbox.exec(
+            cmd=cmd,
+            cwd=sandbox_identity_cwd(sbox, None),
+            timeout=timeout,
+            user=sandbox_identity_user(sbox, user, strict=True),
+        )
 
         if not result.success:
             raise ToolError(

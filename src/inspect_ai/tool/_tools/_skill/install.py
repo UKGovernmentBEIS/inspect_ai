@@ -60,6 +60,8 @@ async def install_skills_shared(
     sbox: SandboxEnvironment,
     user: str | None,
     dir: str | None,
+    *,
+    cwd: str | None = None,
 ) -> list[SkillInfo]:
     """Install skills into a sandbox directory shared by several skill tools.
 
@@ -78,6 +80,8 @@ async def install_skills_shared(
         sbox: Sandbox environment to copy skills to.
         user: User to write skills files with.
         dir: Directory to install into (defaults to "./skills").
+        cwd: Directory a relative `dir` is relative to (defaults to `user`'s
+            working directory).
 
     Returns:
         List of `SkillInfo` with skill names, descriptions, and locations.
@@ -90,7 +94,7 @@ async def install_skills_shared(
     """
     for skill in skills:
         _check_file_names(skill)
-    skills_dir = await _resolve_skills_dir(sbox, user, dir)
+    skills_dir = await _resolve_skills_dir(sbox, user, dir, cwd)
     for skill in skills:
         files = _skill_files(skills_dir, skill)
         missing: list[_SkillFile] = []
@@ -183,12 +187,16 @@ async def _checked_exec(
 
 
 async def _resolve_skills_dir(
-    sbox: SandboxEnvironment, user: str | None, dir: str | None
+    sbox: SandboxEnvironment,
+    user: str | None,
+    dir: str | None,
+    cwd: str | None = None,
 ) -> PurePosixPath:
     skills_dir = PurePosixPath(dir or "skills")
     if not skills_dir.is_absolute():
         skills_dir = (
-            PurePosixPath(await _checked_exec(sbox, user, ["pwd"])) / skills_dir
+            PurePosixPath(await _checked_exec(sbox, user, ["pwd"], cwd=cwd))
+            / skills_dir
         )
     return skills_dir
 

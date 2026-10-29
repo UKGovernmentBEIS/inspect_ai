@@ -14,6 +14,7 @@ from inspect_ai.util import SandboxEnvironment, StoreModel, sandbox_with, store_
 from inspect_ai.util._sandbox.docker.internal import (
     INSPECT_WEB_BROWSER_IMAGE_DOCKERHUB_DEPRECATED,
 )
+from inspect_ai.util._sandbox.identity import check_sandbox_identity_supported
 
 logger = getLogger("web_browser")
 
@@ -98,6 +99,7 @@ async def old_web_browser_cmd(cmd: str, *args: str) -> ToolResult:
 async def _web_browser_sandbox() -> SandboxEnvironment:
     sb = await sandbox_with(WEB_CLIENT_REQUEST)
     if sb:
+        check_sandbox_identity_supported(sb, "web_browser")
         return sb
     else:
         msg = dedent(f"""

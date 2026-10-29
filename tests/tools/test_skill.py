@@ -22,8 +22,10 @@ from inspect_ai.tool._tools._skill.read import SkillParsingError, _read_skill
 from inspect_ai.tool._tools._skill.tool import _cache_lock
 from inspect_ai.tool._tools._skill.types import Skill
 from inspect_ai.util import (
+    SandboxIdentityError,
     SandboxUserUnsupportedError,
     Store,
+    sandbox_identity,
     store,
     subtask,
     tool_state_scope,
@@ -1258,3 +1260,47 @@ class TestSkillToolStateScope:
                     await local.read_file(asset, text=False)
         finally:
             local.directory.cleanup()
+
+
+class _CwdFileSandbox(_FileSandbox):
+    """Answers `pwd` with the exec's working directory, when it has one."""
+
+    async def exec(
+        self,
+        cmd: list[str],
+        input: str | bytes | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
+        user: str | None = None,
+        timeout: int | None = None,
+        timeout_retry: bool = True,
+        concurrency: bool = True,
+    ) -> ExecResult[str]:
+        if cmd[-1] == "pwd" and cwd is not None:
+            self.exec_calls.append((cmd, user))
+            return ExecResult(True, 0, cwd, "")
+        return await super().exec(
+            cmd, input, cwd, env, user, timeout, timeout_retry, concurrency
+        )
+
+
+class TestSkillSandboxIdentity:
+    SKILL = Skill(name="example", description="Example.", instructions="Do it.")
+
+    async def test_installs_as_the_scope_user_in_its_cwd(self) -> None:
+        sandbox = _CwdFileSandbox()
+        _use_sandbox(sandbox)
+        init_subtask_store(Store())
+        with sandbox_identity("w-1", cwd="/home/w-1"):
+            await skill([self.SKILL])(command="example")
+        assert sandbox.owners == {"/home/w-1/skills/example/SKILL.md": "w-1"}
+
+    async def test_refuses_another_user(self) -> None:
+        sandbox = _CwdFileSandbox()
+        _use_sandbox(sandbox)
+        init_subtask_store(Store())
+        tool = skill([self.SKILL], user="root")
+        with sandbox_identity("w-1"):
+            with pytest.raises(SandboxIdentityError, match="'root'"):
+                await tool(command="example")
+        assert sandbox.written == []

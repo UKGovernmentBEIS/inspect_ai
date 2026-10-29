@@ -165,6 +165,21 @@ The `ComposeConfig` and `ComposeService` classes mirror the structure of Docker 
 
 Bind-mount sources and `env_file` paths in a `ComposeConfig` must be absolute (or start with `~/`). The generated Compose file is stored outside the task directory, so Inspect rejects a relative bind-mount source or `env_file` rather than let Compose resolve it there. Build such paths from the task file, for example `Path(__file__).parent / "data"`.
 
+## Sandbox Identity {#sec-sandbox-identity}
+
+Use the `sandbox_identity()` context manager to run an agent's tools as a given user, for example when several agents share one sandbox and each has its own Linux user:
+
+``` python
+from inspect_ai.util import sandbox_identity
+
+with sandbox_identity("agent1", cwd="/home/agent1"):
+    state = await agent(state)
+```
+
+Inside the block, `bash()`, `python()`, `grep()`, `list_files()`, `read_file()`, `skill()`, `bash_session()` and `text_editor()` run as the user, and the ones that run a command start it in `cwd`. `exec_remote()` uses the user and `cwd` unless given others. A tool created with a different `user` raises `SandboxIdentityError` when called, as do `computer()` and `web_browser()`, which cannot run as a user. A `bash_session()` cannot be shared between users: one created outside the block, or for another user, raises when called inside it.
+
+The identity applies to one sandbox (`sandbox="default"` unless given), which is also the default sandbox inside the block. Tools given another sandbox by name run there as before. The user must already exist in the sandbox. Custom tools that call `sandbox().exec()` run as the sandbox's default user unless they get their user from `sandbox_identity_user()`.
+
 ## Sandbox Limits {#sec-sandbox-limits}
 
 By default, sandboxes limit the size of file reads to 100MB and execution output to 10MB. These limits exist to prevent boundary cases of outputs or executions that don't terminate and result in OOM or hung evaluations (i.e. they usually indicate an error by the model).

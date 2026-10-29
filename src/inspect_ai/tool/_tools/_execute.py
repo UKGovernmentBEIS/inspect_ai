@@ -1,4 +1,8 @@
 from inspect_ai.util import sandbox as sandbox_env
+from inspect_ai.util._sandbox.identity import (
+    sandbox_identity_cwd,
+    sandbox_identity_user,
+)
 
 from .._tool import Tool, tool
 from .._tool_call import ToolCall, ToolCallContent, ToolCallView, ToolCallViewer
@@ -102,8 +106,12 @@ def bash(
           The output of the command.
         """
         # execute the command
-        result = await sandbox_env(sandbox).exec(
-            cmd=["bash", "--login", "-c", command], timeout=timeout, user=user
+        sbox = sandbox_env(sandbox)
+        result = await sbox.exec(
+            cmd=["bash", "--login", "-c", command],
+            cwd=sandbox_identity_cwd(sbox, None),
+            timeout=timeout,
+            user=sandbox_identity_user(sbox, user, strict=True),
         )
         # return output (including stderr if any)
         output = ""
@@ -161,11 +169,13 @@ def python(
         Returns:
           The output of the Python code.
         """
-        result = await sandbox_env(sandbox).exec(
+        sbox = sandbox_env(sandbox)
+        result = await sbox.exec(
             cmd=["bash", "--login", "-c", "python3 -"],
             input=code,
+            cwd=sandbox_identity_cwd(sbox, None),
             timeout=timeout,
-            user=user,
+            user=sandbox_identity_user(sbox, user, strict=True),
         )
         # return output (including stderr if any)
         output = ""

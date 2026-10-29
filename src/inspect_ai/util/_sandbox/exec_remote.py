@@ -99,13 +99,15 @@ class ExecRemoteCommonOptions:
     """Standard input to send to the command"""
 
     cwd: str | None = None
-    """Working directory for command execution"""
+    """Working directory for command execution (defaults to the working
+    directory of an active `sandbox_identity()` scope for the sandbox)"""
 
     env: dict[str, str] | None = None
     """Additional environment variables"""
 
     user: str | None = None
-    """User to run the command as"""
+    """User to run the command as (defaults to the user of an active
+    `sandbox_identity()` scope for the sandbox)"""
 
     poll_interval: float | None = None
     """Interval between poll requests in seconds"""
@@ -351,8 +353,10 @@ class ExecRemoteProcess:
             params["stdin_open"] = True
         if self._options.env:
             params["env"] = self._options.env
-        if self._options.cwd:
-            params["cwd"] = self._options.cwd
+        from .identity import sandbox_identity_cwd
+
+        if cwd := sandbox_identity_cwd(self._sandbox, self._options.cwd):
+            params["cwd"] = cwd
         if (user := tools_user_param(self._sandbox, self._options.user)) is not None:
             params["user"] = user
 

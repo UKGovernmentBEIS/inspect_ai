@@ -1,4 +1,8 @@
 from inspect_ai.util import sandbox as sandbox_env
+from inspect_ai.util._sandbox.identity import (
+    sandbox_identity_cwd,
+    sandbox_identity_user,
+)
 
 from .._tool import Tool, ToolError, tool
 
@@ -50,10 +54,12 @@ def read_file(
         # Pure argv — no shell interpolation of file_path.
         # Prefix with ./ if path starts with - to prevent awk option parsing.
         safe_path = f"./{file_path}" if file_path.startswith("-") else file_path
-        result = await sandbox_env(sandbox).exec(
+        sbox = sandbox_env(sandbox)
+        result = await sbox.exec(
             cmd=["awk", awk_prog, safe_path],
+            cwd=sandbox_identity_cwd(sbox, None),
             timeout=timeout,
-            user=user,
+            user=sandbox_identity_user(sbox, user, strict=True),
         )
 
         if not result.success:
