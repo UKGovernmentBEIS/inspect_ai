@@ -1231,36 +1231,11 @@ which loads a file-qualified name (`task.py@scorer`, or an existing
 file) as a module. No task in inspect_evals, the examples or inspect_swe
 sets one. A score name in a log therefore never imports a file.
 
-Metric order (decision: Ransom, 2026-10-28). The merge passes samples to
-metrics in its own fixed order (by `str(id)`, then epoch), not in the
-order a single run's plan gives them, and records no plan order. The
-contract is the same values, not the same order. A metric whose value for
-each key does not depend on input order gives a single run's values:
-mean, accuracy, stderr, std, var and the built-in reducers. A metric that
-returns a dictionary in first-seen key order (`grouped()`, inspect_evals
-SciKnowEval's `metrics_by_task`, a dictionary metric whose samples have
-the same keys in a different order) gives the same value for each key, but
-its rows can come out in another order, and without a task
-`headline_metric` the default headline (the first metric of the first
-score) can differ; a task's `headline_metric` pins it. The built-in
-cases where values change are refused. A scorer's dictionary metrics
-(`{"*": [...]}`, `{"alpha": [...]}`) take their keys from the first
-sample's score: a pattern is expanded from its keys, a named key it lacks
-is dropped, and a later score lacking a resolved key raises. So when two
-samples' dictionary scores for that scorer differ in the keys those
-metrics name or match (other keys do not matter), the merge raises
-`ShardSetError` before publishing or deleting, naming a sample, its log
-and the score (`_check_dict_metric_keys`). The check covers the raw
-scores (the unreduced and default-reduced views) and, with recorded epoch
-reducers, each recorded reduction a scorer's reduced metrics consume, since
-a reducer can change a score's keys; it runs on every pass that writes,
-carried samples included. A `grouped()` metric, at any depth of a
-wrapper's options, whose `name_template` can give two groups one name
-(any field other than a plain `{group_name}`) is refused in
-`check_scoring_resolvable`: the group seen last keeps the name.
-A registered metric that reads the first score, or whose
-values otherwise depend on input order, is not supported and not
-detected.
+Metric order (decision: Ransom, 2026-10-29). The merge computes metrics
+over the samples in sample ID order (by `str(id)`), then epoch, and its
+results equal those of an unsharded run of the same samples in that order.
+A metric whose results depend on sample order can differ from a particular
+unsharded run, just as it differs between runs with a shuffled dataset.
 
 Epoch reducers (decision: Ransom, 2026-10-23). A log records each reducer
 by name only (`config.epochs_reducer`, from `reducer_log_name`), without
@@ -2494,15 +2469,7 @@ Per PR (numbers from "Implementation plan"):
    - metric order: with ids `[2, 10]` (merge order `"10"`, `"2"`) and a
      `{"*": [mean()]}` scorer, dictionary scores with the same keys in
      different orders merge, fresh and incrementally, to an unsharded
-     run's value for each key, and a task `headline_metric` gives its
-     headline; scores with different keys are refused, fresh and
-     incrementally, with nothing written and the shards byte-identical, as
-     are scores lacking a named key (`{"alpha": [...]}` declared directly
-     and in a list) and recorded reductions with different keys (a reducer
-     turning scalars into dictionaries), while differing keys a named
-     metric does not select merge to the run's values; a `grouped()`
-     template `{group_name[0]}` is refused and `group-{group_name}` merges
-     to the run's values, and templates nested in wrappers are checked;
+     run's value for each key;
    - epoch reducers: `at_least(1, value=0.5)` with one epoch and with two,
      `pass_at(2, value=0.5)`, `pass_k(2, value=0.5)` and a `mean` with a
      value converter, beside a default-reducer control, on a scorer with

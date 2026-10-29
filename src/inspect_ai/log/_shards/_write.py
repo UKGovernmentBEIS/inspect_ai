@@ -1,10 +1,7 @@
 """Building the merged log's zip, recomputing metrics as samples pass through."""
 
-import fnmatch
 import functools
 import json
-import re
-import string
 import zipfile
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from typing import TYPE_CHECKING, Any, BinaryIO, NamedTuple
@@ -37,7 +34,7 @@ from inspect_ai.scorer._reducer.types import ScoreReducer
 from ._errors import ShardSetError
 
 if TYPE_CHECKING:
-    from inspect_ai._eval.task.results import Metrics, ScorerInfo
+    from inspect_ai._eval.task.results import ScorerInfo
 
 
 class _SampleInputs(NamedTuple):
@@ -91,13 +88,11 @@ def check_scoring_resolvable(header: EvalLog) -> None:
     recorded reductions are told apart by name, so two reducers with one
     name (`at_least(1, value=0.5)` and `at_least(1)` are both `at_least_1`)
     are refused. A scorer declared twice is refused too (see
-    :func:`_declared_inputs`), and so is a `grouped()` template that can
-    give two groups one name (see :func:`_check_group_names`).
+    :func:`_declared_inputs`).
 
     Raises:
         LookupError: A metric is not registered.
-        ShardSetError: Two scorers or two epoch reducers have the same name,
-            or a `grouped()` name template is not supported.
+        ShardSetError: Two scorers or two epoch reducers have the same name.
     """
     from inspect_ai._util.registry import registry_lookup
 
@@ -127,7 +122,6 @@ def check_scoring_resolvable(header: EvalLog) -> None:
             if registry_lookup("metric", metric.name) is None:
                 raise LookupError(_unregistered("Metric", metric.name))
             _check_embedded(metric.options)
-            _check_group_names(scorer.name, metric.name, metric.options)
 
 
 def _check_embedded(value: Any) -> None:
@@ -149,60 +143,6 @@ def _check_embedded(value: Any) -> None:
     elif isinstance(value, (list, tuple)):
         for item in value:
             _check_embedded(item)
-
-
-def _check_group_names(scorer: str, name: str, options: Any) -> None:
-    """Refuse a `grouped()` metric, at any depth, whose template can merge groups.
-
-    `grouped()` names each group with `name_template`; when two groups get
-    one name the group it sees last wins, and the merge orders samples
-    differently from a single run. Templates that use `{group_name}` whole
-    (no index, attribute, format spec or conversion) give distinct groups
-    distinct names and are supported.
-
-    Raises:
-        ShardSetError: A `grouped()` template uses `group_name` otherwise, or
-            not at all.
-    """
-    from inspect_ai._util.registry import is_registry_dict
-
-    # a header records `inspect_ai/grouped`, a wrapper's options `grouped`
-    if name in ("grouped", "inspect_ai/grouped") and isinstance(options, dict):
-        template = options.get("name_template", "{group_name}")
-        if not _whole_group_name(template):
-            raise ShardSetError(
-                f"The grouped() metric of scorer '{scorer}' has the name "
-                f"template {template!r}, which can give two groups one name; the "
-                "metric then keeps the group it sees last, and the merge orders "
-                "samples differently from a single run, so it cannot merge the "
-                "metric. Use a template with {group_name} whole (for example "
-                "'group-{group_name}') and re-run the shards."
-            )
-    values = list(options.values()) if isinstance(options, dict) else options
-    if isinstance(values, (list, tuple)):
-        for value in values:
-            if is_registry_dict(value):
-                _check_group_names(scorer, value["name"], value["params"])
-            elif isinstance(value, (dict, list, tuple)):
-                _check_group_names(scorer, "", value)
-
-
-def _whole_group_name(template: Any) -> bool:
-    """Whether every field of `template` is a plain `{group_name}` (and one is)."""
-    if not isinstance(template, str):
-        return False
-    try:
-        fields = [
-            (field, spec, conversion)
-            for _, field, spec, conversion in string.Formatter().parse(template)
-            if field is not None
-        ]
-    except ValueError:
-        return False
-    return bool(fields) and all(
-        field == "group_name" and not spec and conversion is None
-        for field, spec, conversion in fields
-    )
 
 
 def _unregistered(kind: str, name: str) -> str:
@@ -344,7 +284,7 @@ async def _recompute_results(
 
     Raises:
         ShardSetError: A reduction cannot be taken from its log, or see
-            :func:`_declared_inputs` and :func:`_check_dict_metric_keys`.
+            :func:`_declared_inputs`.
     """
     from inspect_ai._eval.score import resolve_scorers_info
     from inspect_ai._eval.task.results import RecordedReductions, eval_results
@@ -393,10 +333,7 @@ async def _recompute_results(
                     "log so the next merge rebuilds it from the shards."
                 )
             return None, held_reductions.reductions
-        _check_dict_metric_keys(infos, scores, by_view, held_reductions.sources)
         reducers = RecordedReductions(names, functools.partial(_recorded, by_view))
-    else:
-        _check_dict_metric_keys(infos, scores, {}, held_reductions.sources)
     return eval_results(
         samples=total_samples,
         scores=scores,
@@ -463,90 +400,6 @@ def _declared_inputs(
             }
         )
     return scores
-
-
-def _check_dict_metric_keys(
-    declared: list["ScorerInfo"],
-    scores: list[dict[str, SampleScore]],
-    views: Mapping[tuple[str, str | None], Mapping[str, EvalSampleScore]],
-    sources: Mapping[str, str],
-) -> None:
-    """Refuse dictionary scores whose metric keys differ between samples.
-
-    A scorer's dictionary metrics (`{"*": [mean()]}`, `{"alpha": [mean()]}`)
-    take their keys from the first sample's score: a pattern is expanded
-    from its keys and a named key the first score lacks is dropped, while a
-    later score lacking one raises. The merge orders samples by id and epoch,
-    not as a single run does, so when the samples' scores differ in the keys
-    those metrics select, the merged metrics could differ from the run's.
-    With the same selected keys only the order of the result rows can differ
-    (decision: Ransom, 2026-10-28). The raw scores are checked, and so are
-    the recorded reductions in `views` that the scorer's reduced metrics
-    consume, since a reducer can change a score's keys.
-
-    Raises:
-        ShardSetError: Two samples' dictionary scores for a scorer select
-            different keys of its dictionary metrics.
-    """
-    from inspect_ai._eval.task.results import _filter_metrics_by_scores
-
-    ids = list(dict.fromkeys(str(s.sample_id) for row in scores for s in row.values()))
-    for info in declared:
-        raw = [
-            (str(row[info.name].sample_id), row[info.name].score.value)
-            for row in scores
-            if info.name in row
-        ]
-        _check_selected_keys(info.name, None, _metric_keys(info.metrics), raw, sources)
-        reduced = _filter_metrics_by_scores(info.metrics, {"auto", "reduced"})
-        for (scorer, reducer), view in views.items():
-            if scorer == info.name and reduced is not None:
-                values = [(id, view[id].value) for id in ids if id in view]
-                _check_selected_keys(
-                    info.name, reducer, _metric_keys(reduced), values, sources
-                )
-
-
-def _metric_keys(metrics: "Metrics") -> list[re.Pattern[str]]:
-    """The keys of the dictionary metrics in `metrics`, as `resolve_glob_metric_keys` matches them."""
-    groups = metrics if isinstance(metrics, list) else [metrics]
-    return [
-        re.compile(fnmatch.translate(key))
-        for group in groups
-        if isinstance(group, dict)
-        for key in group
-    ]
-
-
-def _check_selected_keys(
-    scorer: str,
-    reducer: str | None,
-    keys: list[re.Pattern[str]],
-    values: list[tuple[str, Any]],
-    sources: Mapping[str, str],
-) -> None:
-    if not keys:
-        return
-    first: tuple[str, set[str]] | None = None
-    for id, value in values:
-        if not isinstance(value, dict):
-            continue
-        selected = {k for k in value if any(key.match(k) for key in keys)}
-        if first is None:
-            first = (id, selected)
-        elif selected != first[1]:
-            first_id, first_selected = first
-            view = "" if reducer is None else f" (reduced by '{reducer}')"
-            raise ShardSetError(
-                f"Sample {id!r} in {sources[id]} has the score '{scorer}'{view} "
-                f"with the keys {sorted(selected)} for its dictionary metrics, "
-                f"but sample {first_id!r} in {sources[first_id]} has "
-                f"{sorted(first_selected)}. Dictionary metrics take their keys "
-                "from the first sample's score, and the merge orders samples "
-                "differently from a single run, so it cannot merge these "
-                "scores. Give every sample's score the keys its scorer's "
-                "dictionary metrics name, and re-run the shards."
-            )
 
 
 def check_retained_reductions(
