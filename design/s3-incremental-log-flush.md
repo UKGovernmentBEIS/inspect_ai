@@ -85,9 +85,9 @@ to EOF, and returns the new ETag:
    `prefix.length`, or a missing object raises `ComposeSourceChangedError`.
    The check exists because some S3-compatible stores (moto among them)
    ignore `CopySourceIfMatch`; real S3 enforces both.
-2. `CreateMultipartUpload` on the destination. Every exit other than a
-   successful complete aborts the upload under a shielded 30 s timeout and
-   re-raises.
+2. `CreateMultipartUpload` on the destination. Once it returns an upload
+   ID, every exit other than a successful complete aborts the upload under
+   a shielded 30 s timeout and re-raises.
 3. Copy the prefix as `UploadPartCopy` parts with
    `CopySourceIfMatch` set to the prefix's ETag, at most 32 at a time. The
    prefix is split into equal ranges of about 16 MiB (one part copies at
@@ -225,6 +225,15 @@ timer and `flush_samples()` do not pass it and still flush whatever is
 pending. So N completions during a flush cause one follow-up flush when
 N ≥ `flush_buffer`, and none otherwise.
 
+## Known limitations
+
+- **A lost `CreateMultipartUpload` response leaves nothing to abort.** If
+  the creation commits but its response is lost or cancelled, there is no
+  upload ID, so the incomplete upload stays until the bucket's lifecycle
+  rule removes it (see Compatibility).
+- **A hard kill during a write** likewise leaves an incomplete upload for
+  the lifecycle rule.
+
 ## Performance
 
 Measured on real S3 from an office link (about 7–10 MB/s each way), verify
@@ -331,8 +340,8 @@ for byte.
 - **IAM.** `UploadPartCopy` needs `s3:GetObject` on the source and
   `s3:PutObject` on the destination, which the recorder already uses; a
   policy that denies the copy surfaces as the one-time warning.
-- **Incomplete multipart uploads.** A hard kill during a write leaves an
-  incomplete upload billed as storage, and composing makes every flush
+- **Incomplete multipart uploads.** An upload left incomplete (see Known
+  limitations) is billed as storage, and composing makes every flush
   multipart. The [Amazon S3](../docs/eval-logs.qmd#sec-amazon-s3) section of
   the log docs recommends a lifecycle rule that aborts them.
 
