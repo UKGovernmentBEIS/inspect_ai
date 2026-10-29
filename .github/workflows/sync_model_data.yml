@@ -6,28 +6,33 @@ on:
     - cron: "0 6 * * 1"
   workflow_dispatch:
 
-permissions:
-  contents: write
-  pull-requests: write
+# The job that runs the script and its dependencies holds the provider keys
+# but only a read-only token; the job that can push and open the PR holds no
+# keys and installs nothing.
+permissions: {}
 
 env:
   UV_VERSION: 0.13.5
 
 jobs:
-  sync-models:
+  generate:
     if: github.repository == 'UKGovernmentBEIS/inspect_ai'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa # v10.3.1
         with:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"
-          # This job holds API keys and write permissions, so it restores no
-          # cache (tests/test_workflow_cache.py).
+          # This job holds API keys, so it restores no cache
+          # (tests/test_workflow_cache.py).
           enable-cache: false
 
       # The script is self-contained (no inspect_ai imports), so run the file
@@ -43,6 +48,38 @@ jobs:
         run: |
           uv run --no-config --locked --script \
             src/inspect_ai/model/_model_data/sync_models.py --source all
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: model-data
+          path: |
+            src/inspect_ai/model/_model_data/together.yml
+            src/inspect_ai/model/_model_data/fireworks.yml
+          if-no-files-found: error
+          retention-days: 1
+
+  open-pr:
+    needs: generate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: model-data
+          path: ${{ runner.temp }}/model-data
+
+      # Copy only the two generated files; nothing else from the artifact
+      # reaches the checkout.
+      - name: Apply the generated files
+        run: |
+          for FILE in together.yml fireworks.yml; do
+            cp "$RUNNER_TEMP/model-data/$FILE" "src/inspect_ai/model/_model_data/$FILE"
+          done
 
       # The generated header embeds a run timestamp, so each file is dirty
       # after every run even when no model data changed; revert in that case

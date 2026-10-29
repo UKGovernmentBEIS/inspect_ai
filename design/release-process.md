@@ -19,8 +19,11 @@ and published to PyPI and npm by GitHub Actions with trusted publishing.
 2. **Release PR.** On every push to `main`, `release.yml` runs Release Please,
    which opens or updates the release PR (branch
    `release-please--branches--main`, title `chore(main): release X.Y.Z`). The
-   PR bumps the manifest and adds the version's section to `CHANGELOG.md` (see
-   [Changelog](#changelog)). `release.yml` then renames the breaking changes
+   PR bumps the manifest and `fallback_version` in `pyproject.toml`, and adds
+   the version's section to `CHANGELOG.md` (see [Changelog](#changelog)).
+   setuptools-scm uses `fallback_version` only in a checkout with no release
+   tags, such as Dependabot's, so that it still satisfies the co-released
+   packages' `inspect-ai` floors. `release.yml` then renames the breaking changes
    heading (see [Changelog](#changelog)) and dispatches `build.yml`,
    `changelog-lint.yml` and `release-pr-checks.yml` on the branch. `build.yml`
    and `changelog-lint.yml` provide `main`'s required status checks, which
@@ -30,8 +33,8 @@ and published to PyPI and npm by GitHub Actions with trusted publishing.
    artifact pinned in `SHA256SUMS` is not on S3 with its digest, or if the PR
    head fails the build gates (`build-dist`). `publish-parity.yml`, which
    rebuilds PyPI's latest version and compares it with PyPI, runs on PRs that
-   change the build or publish files, not on the release PR, which does not
-   change the build.
+   change the build or publish files, not on the release PR, whose only
+   build-file change is `fallback_version`, which tagged builds don't read.
 4. **Merge on Monday** by default; merge sooner for an urgent fix. To refresh
    the changelog date first, run the Release workflow from the Actions tab. The
    release PR changes `.release-please-manifest.json`, which
@@ -211,7 +214,9 @@ Re-running the Release workflow is safe at any point.
   tag push no longer triggers npm, so dispatch `npm-publish.yml` on the tag).
 
 After any release made outside the release PR, open a PR that sets
-`.release-please-manifest.json` to the released version; otherwise the next
+`.release-please-manifest.json` and `fallback_version` in `pyproject.toml` to
+the released version (`tests/test_dependency_cooldown.py` checks that they
+match); otherwise the next
 release PR proposes the same version and its checks fail. `CHANGELOG.md` gets
 no section for that version: its notes are only in the GitHub Release, and
 the next release's section lists the commits since its tag.

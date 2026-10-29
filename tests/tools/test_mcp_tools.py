@@ -6,7 +6,7 @@ import sys
 import weakref
 from pathlib import Path
 from types import SimpleNamespace, TracebackType
-from typing import Any, AsyncIterator, Callable
+from typing import Any, AsyncIterator, Callable, cast
 from uuid import uuid4
 
 import anyio
@@ -19,9 +19,10 @@ from test_helpers.utils import (
 
 from inspect_ai import Task, eval, task
 from inspect_ai._util.environ import environ_var
+from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent import react
 from inspect_ai.dataset import MemoryDataset, Sample
-from inspect_ai.model import get_model
+from inspect_ai.model import ChatMessageTool, get_model
 from inspect_ai.solver import solver
 from inspect_ai.tool import (
     MCPServer,
@@ -32,8 +33,10 @@ from inspect_ai.tool import (
     mcp_tools,
 )
 from inspect_ai.tool._mcp.tools import MCPToolSourceLocal
+from inspect_ai.tool._tool_call import ToolCallError
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util import sandbox
+from inspect_ai.util._limit import LimitExceededError
 
 MCP_TEST_SERVER = str(Path(__file__).parent / "mcp_test_server.py")
 
@@ -193,8 +196,8 @@ async def test_mcp_tool_call_timeout_becomes_tool_error() -> None:
     a JSON-RPC error for the pending request (see ``sandbox_client``); the MCP
     client raises ``McpError``, which ``_local.py`` maps to ``ToolError``.
 
-    Also asserts ``inner_exception()`` (used by ``_call_tools.py``) unwraps the
-    surrounding ExceptionGroup back to the ToolError the model needs to see.
+    Also asserts ``decisive_tool_exception()`` (used by ``_call_tools.py``)
+    reduces the surrounding ExceptionGroup to the ToolError the model needs to see.
     """
     from mcp.shared.message import SessionMessage
     from mcp.types import (
@@ -204,9 +207,9 @@ async def test_mcp_tool_call_timeout_becomes_tool_error() -> None:
     )
     from mcp.types import Tool as MCPTool
 
+    from inspect_ai.model._call_tools import decisive_tool_exception
     from inspect_ai.tool._mcp._compat import jsonrpc_message
     from inspect_ai.tool._mcp._local import MCPServerLocalSession
-    from inspect_ai.util._anyio import inner_exception
 
     def on_tool_call(root: Any) -> SessionMessage:
         return SessionMessage(
@@ -246,12 +249,133 @@ async def test_mcp_tool_call_timeout_becomes_tool_error() -> None:
         for exc in leaves
     )
 
-    # _call_tools.py:167-169 unwraps the group via inner_exception() before its
-    # except ToolError clause; verify that path resolves to ToolError.
+    # execute_tools reduces the group with decisive_tool_exception() before
+    # classifying it; verify that path resolves to ToolError.
     assert isinstance(exc_info.value, Exception)
-    unwrapped = inner_exception(exc_info.value)
+    unwrapped = decisive_tool_exception(exc_info.value)
     assert isinstance(unwrapped, ToolError)
     assert "simulated transport timeout" in str(unwrapped)
+
+
+_MCP_GROUP_REPEATS = 50
+"""Order-sensitive group cases repeat with fresh exceptions: a group's leaves
+were once ordered by a set (object addresses), so one order could pass by
+chance."""
+
+
+class _RaisingSession:
+    """An MCP client session whose `call_tool` raises fresh `leaves()`."""
+
+    def __init__(self, leaves: Callable[[], list[Exception]] | Exception) -> None:
+        self._leaves = leaves
+
+    async def call_tool(self, *args: Any, **kwargs: Any) -> Any:
+        if isinstance(self._leaves, Exception):
+            raise self._leaves
+        raise ExceptionGroup("MCP task failures", self._leaves())
+
+
+async def _execute_mcp_tool(
+    leaves: Callable[[], list[Exception]] | Exception,
+) -> Any:
+    """Run an MCP tool whose session raises `leaves` through `execute_tools`.
+
+    Returns the tool message, or the exception `execute_tools` raised.
+    """
+    from mcp.client.session import ClientSession
+    from mcp.types import Tool as MCPTool
+
+    from inspect_ai.log._transcript import Transcript, init_transcript
+    from inspect_ai.model._call_tools import execute_tools
+    from inspect_ai.model._chat_message import ChatMessageAssistant
+    from inspect_ai.tool._mcp._local import MCPServerLocalSession
+    from inspect_ai.tool._tool_call import ToolCall
+
+    session = MCPServerLocalSession(_no_transport_client, name="grouped", events=False)
+    session._session = cast(ClientSession, _RaisingSession(leaves))
+    tool_def = session._tool_def_from_mcp_tool(
+        MCPTool.model_validate(
+            {
+                "name": "flaky",
+                "description": "Fail.",
+                "inputSchema": {"type": "object", "properties": {}},
+            }
+        )
+    )
+    init_transcript(Transcript())
+    call = ToolCall(id="call-1", function="flaky", arguments={})
+    try:
+        messages, _ = await execute_tools(
+            [ChatMessageAssistant(content=[], tool_calls=[call])], [tool_def]
+        )
+    except Exception as ex:
+        return ex
+    return messages[-1]
+
+
+_MCP_TIMEOUT_ERROR = ToolCallError(
+    "unknown", "Tool 'flaky' timed out before completing."
+)
+
+
+@skip_if_no_mcp_package
+@pytest.mark.parametrize("grouped", [False, True], ids=["bare", "all-timeouts"])
+async def test_mcp_timeout_becomes_a_timeout_tool_error(grouped: bool) -> None:
+    """Control: a timeout alone (bare or grouped) is the model's timeout error."""
+    leaves: Callable[[], list[Exception]] | Exception = (
+        (lambda: [TimeoutError("slow"), TimeoutError("slower")])
+        if grouped
+        else TimeoutError("slow")
+    )
+    message = await _execute_mcp_tool(leaves)
+    assert isinstance(message, ChatMessageTool)
+    assert message.error == _MCP_TIMEOUT_ERROR
+
+
+@skip_if_no_mcp_package
+@pytest.mark.parametrize("timeout_first", [False, True])
+@pytest.mark.parametrize(
+    "sibling",
+    [
+        lambda: RuntimeError("fatal defect"),
+        lambda: TerminateSampleError("stop"),
+    ],
+    ids=["fatal", "termination"],
+)
+async def test_mcp_timeout_does_not_hide_a_raising_sibling(
+    timeout_first: bool, sibling: Callable[[], Exception]
+) -> None:
+    """A defect or termination beside a timeout is raised, not reported as the timeout."""
+    expected = type(sibling())
+
+    def leaves() -> list[Exception]:
+        group = [TimeoutError("slow"), sibling()]
+        return group if timeout_first else group[::-1]
+
+    for _ in range(_MCP_GROUP_REPEATS):
+        raised = await _execute_mcp_tool(leaves)
+        assert isinstance(raised, expected)
+
+
+@skip_if_no_mcp_package
+@pytest.mark.parametrize("timeout_first", [False, True])
+async def test_mcp_timeout_does_not_hide_a_limit(timeout_first: bool) -> None:
+    """A limit beside a timeout is reported as the limit, as a bare limit is."""
+    bare = await _execute_mcp_tool(LimitExceededError("token", value=1001, limit=1000))
+    assert isinstance(bare, ChatMessageTool)
+    assert bare.error is not None and bare.error.type == "limit"
+
+    def leaves() -> list[Exception]:
+        group: list[Exception] = [
+            TimeoutError("slow"),
+            LimitExceededError("token", value=1001, limit=1000),
+        ]
+        return group if timeout_first else group[::-1]
+
+    for _ in range(_MCP_GROUP_REPEATS):
+        message = await _execute_mcp_tool(leaves)
+        assert isinstance(message, ChatMessageTool)
+        assert message.error == bare.error
 
 
 def _patch_sandbox_module(monkeypatch, exec_model_request_impl):
