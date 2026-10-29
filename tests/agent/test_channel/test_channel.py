@@ -24,6 +24,7 @@ from inspect_ai.agent._channel.observer import (
     NullExecutionObserver,
     null_execution_observer,
 )
+from inspect_ai.agent._channel.ref import AgentRef
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -697,6 +698,68 @@ async def test_gate_exception_propagates_from_before_turn() -> None:
             with pytest.raises(ValueError, match="refused"):
                 await ch.before_turn([ChatMessageUser(content="prior")])
             assert ch._take_rewritten() is False
+
+
+async def test_cancelled_gate_unwinds_channel(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Cancelling a gate while it waits closes the channel and releases ACP."""
+
+    class FakeTransport:
+        def __init__(self) -> None:
+            self.bound: list[AgentRef] = []
+            self.unbound: list[AgentRef] = []
+
+        def maybe_bind(self, channel: AgentChannel, ref: AgentRef) -> bool:
+            self.bound.append(ref)
+            return True
+
+        def unbind(self, ref: AgentRef) -> None:
+            self.unbound.append(ref)
+
+    class FakeSample:
+        acp_transport = FakeTransport()
+
+    monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: FakeSample())
+
+    class WaitingGate(_RecordingGate):
+        def __init__(self) -> None:
+            super().__init__()
+            self.entered = anyio.Event()
+
+        async def before_turn(
+            self,
+            channel: AgentChannel,
+            messages: Sequence[ChatMessage],
+            state: AgentState | None,
+        ) -> bool:
+            self.entered.set()
+            await anyio.sleep_forever()
+            return False
+
+    gate = WaitingGate()
+    opened: list[AgentChannel] = []
+    after_cancel: list[AgentChannel] = []
+
+    async def run_loop() -> None:
+        with turn_gate(gate):
+            try:
+                async with agent_channel() as ch:
+                    opened.append(ch)
+                    await ch.before_turn([ChatMessageUser(content="prior")])
+            except anyio.get_cancelled_exc_class():
+                after_cancel.append(current_agent_channel())
+                raise
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(run_loop)
+        await gate.entered.wait()
+        tg.cancel_scope.cancel()
+
+    assert len(opened) == 1
+    assert after_cancel == [_INERT_CHANNEL]
+    assert gate.closed_channels == opened
+    transport = FakeSample.acp_transport
+    assert len(transport.bound) == 1
+    assert transport.unbound == transport.bound
 
 
 async def test_nested_channels_share_gate_and_report_closed() -> None:
