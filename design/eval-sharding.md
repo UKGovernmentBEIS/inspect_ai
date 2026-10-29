@@ -251,7 +251,9 @@ Decision (Ransom, 2026-09-21): no marker in the shard header; the layout is
 the marker, and it mirrors sandbox checkpointing. The merged (canonical) log
 is `<dir>/<name>.eval`. Its shards live in the sibling directory
 `<dir>/<name>.shards/`, one subdirectory per shard, `<name>.shards/<k>/`,
-where `<k>` is a number assigned by the launcher. Sandbox checkpointing
+where `<k>` is a number assigned by the launcher: one or more ASCII
+digits, and the merge refuses any other directory directly in
+`<name>.shards/` (decision: Ransom, 2026-10-29). Sandbox checkpointing
 places a log's companion at `<name>.checkpoints/` by the same rule: strip
 `.eval` from the basename, append a dotted suffix (`log_basename` and
 `eval_checkpoints_dir`,

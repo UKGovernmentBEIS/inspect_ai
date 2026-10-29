@@ -102,6 +102,7 @@ inspect eval mytask.py --sample-id 4,5,6 \
 
 Whoever launches the workers must:
 
+-   Name each shard directory with digits only (`0`, `1`, ...). The merge refuses a `.shards` directory that holds any other directory.
 -   Give each shard directory its own fixed selection, with `--sample-id` or a `--limit` range. Selections must not overlap. A worker re-run in a shard directory must select the same samples; the newest log in the directory is the one merged.
 -   Run every worker with the same task, task arguments, model, scorers and epochs, from the same working directory.
 -   Write the logs straight to the shard directories rather than staging them elsewhere, so `inspect view` shows them as they run.

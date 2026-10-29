@@ -886,15 +886,18 @@ the merged header, the unchanged ones:
   not in the identifier).
 - Equal `EvalLog.version` (log format version); a version newer than the
   running Inspect writes is refused.
-- **Distinct shard names.** A shard is keyed by its directory's final
-  name (`_name`, which splits at `/` and at a backslash), so `0/` and a
-  directory literally named `prefix\0/` would both be shard `0` and share
-  one ledger entry, hiding their overlap. Two listed directories with the
-  same name are refused (`check_shard_names`) before any ledger lookup or
-  read, and a merged log whose ledger records a shard twice is refused
-  when it is read (changed outside the merge: delete it to rebuild).
-  Refusing is enough; no name is parsed differently. Distinct names with
-  the same number (`0/` and `00/`) are distinct shards.
+- **Shard directories are numbers** (decision: Ransom, 2026-10-29).
+  `<k>` is the number the launcher assigns ("Shard layout" in
+  [`eval-sharding.md`](eval-sharding.md)), and the merge refuses every
+  directory directly in `<name>.shards/` whose name is not one or more
+  ASCII digits, before any directory is listed further, read, published
+  or deleted (`list_shard_set(..., numeric_shards=True)`). That includes
+  dot directories and ancillary directories in the companion root, which
+  ctl lists (below). Odd names are not supported one at a time: a name
+  such as `prefix\0`, which a backslash split would read as shard `0`, is
+  refused as a non-number. `0/` and `00/` are distinct shards. A merged
+  log whose ledger records a shard twice is refused when it is read
+  (changed outside the merge: delete it to rebuild).
 - No chunked-shape sample: `classify_sample_shape(entry_names, id, epoch)`
   (`chunked/format.py:121`) returns `"monolith"` for every held key. Step 1
   copies monolith members only; refusing is explicit where silently copying
@@ -1481,7 +1484,11 @@ cleanup (removes the merged log too). Both use one routine,
   companion and in each `<k>/`, before anything listed is filtered or
   listed further. A directory `1#tag/` would otherwise list as the absent
   `1/` and be dropped as empty, and its unmerged attempt deleted. A
-  literal `%23` is kept and merges.
+  literal `%23` is kept and merges. The same listing check refuses an
+  entry that is not a non-empty name directly in the directory listed:
+  S3 lists `run.shards//x.eval` (and `///`, or `0//x.eval` in a shard) as
+  the directory listed itself, which would hide the key from the merge
+  and leave it to be deleted.
   With `include_log`, the merged log is deleted first. A remote delete is
   then checked by a fresh listing, because a bulk delete can return
   normally while objects remain: s3fs ignores the per-object errors of a
@@ -1774,7 +1781,7 @@ never scans the directory.
 
    | Cause | Raised by the merge as | What the message tells the user to do |
    |---|---|---|
-   | Invalid shard set: mismatched identifier, scorers, metrics, dataset size, epochs, reducer or format version; overlapping shard selections; a shard with no recorded selection or holding samples outside it (a `SampleSource` task); a shard whose selection changed across attempts; a shard holding samples a drain or cancel left unresolved; two shard directories with the same shard name; stray files; chunked-shape samples | `ShardSetError` | fix the shards named in the message (remove or move the offending files; for a changed selection, move the new attempt to its own `<k>/` or delete `<name>.eval`), then re-run |
+   | Invalid shard set: mismatched identifier, scorers, metrics, dataset size, epochs, reducer or format version; overlapping shard selections; a shard with no recorded selection or holding samples outside it (a `SampleSource` task); a shard whose selection changed across attempts; a shard holding samples a drain or cancel left unresolved; a shard directory not named with digits; an entry the listing would hide (an S3 key with an empty path component); stray files; chunked-shape samples | `ShardSetError` | fix the shards named in the message (remove or move the offending files; for a changed selection, move the new attempt to its own `<k>/` or delete `<name>.eval`), then re-run |
    | The eval set's selection is narrower than what the shards hold | `ShardSelectionError` | the message says the selection is narrower than the shards and lists up to ten held ids outside it with the total; widen `sample_id` or `limit` to include every sharded sample (or drop the selection for the whole dataset), or remove the task from the eval set, or move `<name>.eval` and `<name>.shards/` out of the log directory; if the ids are not ones the run should hold, remove the shard named as holding them; then re-run |
    | Merged log does not match its ledger (its samples were changed outside the merge) | `ShardSetError` | delete `<name>.eval` so the next merge rebuilds it from the shards, then re-run |
    | Vanished shard (shard files deleted after they were merged, for example an interrupted `delete_shards`) | `ShardSetError` | finish the deletion (`inspect log merge-shards <name>.eval --delete-shards`, or delete `<name>.shards/` by hand) or restore the files, then re-run |
@@ -1959,8 +1966,12 @@ The shard-set rules, one implementation for both consumers:
   directory whose name starts with `.`, and a `.json` log in a `<k>/`. The
   walk never raises for them. It raises `ShardSetError` for the companion
   or any listed name on S3 that S3 would read as another key
-  (`check_s3_location`, "Deleting shards"); ctl reports that as a
-  `storage_error`. The merge refuses any stray file; ctl
+  (`check_s3_location`, "Deleting shards"), and for a listed entry that is
+  not a non-empty name directly in the directory listed; ctl reports both
+  as a `storage_error`. With `numeric_shards` (the merge) it also refuses
+  every directory in the companion not named with digits before listing
+  any; ctl does not pass it, so ctl keeps listing dot directories for
+  stray logs and other directories as shards. The merge refuses any stray file; ctl
   reports them (its `unreadable` list is the natural place; that choice is
   ctl's). Together, attempts and stray files are exactly the logs
   `is_shard_path` places in the companion.
@@ -2354,11 +2365,12 @@ Per PR (numbers from "Implementation plan"):
      nothing; selection by ids, by count, and absent (whole dataset); a
      drained `success` shard holding fewer records leaves the set
      `started`;
-   - shard names: a copy of `0/` under a directory literally named
-     `prefix\0/` is refused on fresh and incremental merges, with and
-     without deletion, through local paths, `file://` URIs and `mock_s3`,
-     leaving every file byte-identical; a ledger recording a shard twice
-     is refused; `0/` and `00/` with disjoint selections merge;
+   - shard names: a worker for the last sample in `a/`, `1#tag/` or
+     `prefix\0/` is refused on fresh merges and beside an existing merge,
+     with and without deletion, through local paths, `file://` URIs and
+     `mock_s3`, leaving every file and object byte-identical; a ledger
+     recording a shard twice is refused; `0/` and `00/` with disjoint
+     selections merge;
    - unresolved samples: a shard whose drain cancelled sample 4 as it
      started (the native producer of
      `test_drain_resolution_cancels_materializing_sample`) is refused on a
@@ -2515,6 +2527,11 @@ Per PR (numbers from "Implementation plan"):
      `1/`, is refused by an unchanged merge selected for the other shard's
      samples and by a fresh merge with that selection, deletion enabled,
      every object and the merged log byte-identical (asyncio and Trio);
+     a real worker at `run.shards//`, `run.shards///` or `0//` (an empty
+     path component) is refused the same way, with and without deletion,
+     beside an unchanged merge and on a fresh one, under asyncio and Trio,
+     while ordinary folder markers and an attempt named with a literal
+     `%23` still merge;
      ctl log-dir mode reports such a name as a `storage_error`; the sync
      and async writer guards (asyncio and Trio) and `recompute_metrics`,
      `edit_score` (with and without recomputation) and `score` refuse a

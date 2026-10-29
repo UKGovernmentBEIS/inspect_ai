@@ -979,6 +979,27 @@ def test_cli_a_shard_name_s3_would_read_as_another_key_is_a_storage_error(
     assert message in text.stderr and "Traceback" not in text.output
 
 
+def test_cli_a_shard_key_with_an_empty_component_is_a_storage_error(
+    mock_s3: None, finished_log: EvalLog
+) -> None:
+    import json
+
+    prefix = "log-dir-empty-component"
+    _upload(finished_log.location, f"{prefix}/run.shards/0/worker.eval")
+    _upload(finished_log.location, f"{prefix}/run.shards//hidden.eval")
+    root = f"s3://test-bucket/{prefix}"
+    listed = _ctl(root, "task", "list", "--json")
+    assert listed.exit_code == 1
+    error = json.loads(listed.stdout)["error"]
+    assert error["kind"] == "storage_error"
+    assert error["exception"] == "inspect_ai.ShardSetError"
+    assert error["message"] == (
+        f"{root}/run.shards lists {root}/run.shards, which is not a file or "
+        "directory directly in it: S3 lists a key with an empty path component "
+        "('//') this way. Rename it."
+    )
+
+
 @pytest.fixture
 def no_discovery(monkeypatch: pytest.MonkeyPatch) -> None:
     def forbidden() -> Any:

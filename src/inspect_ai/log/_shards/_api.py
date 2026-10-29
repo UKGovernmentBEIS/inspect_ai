@@ -53,7 +53,6 @@ from ._plan import (
     check_reads,
     check_resolved,
     check_selection_covers,
-    check_shard_names,
     check_vanished,
     given_selection,
     is_unchanged,
@@ -385,8 +384,7 @@ async def _merge_pass(
     allow_incomplete: bool,
     delete_shards: bool,
 ) -> _Pass:
-    listing = await list_shard_set(fs, shards_dir)
-    check_shard_names(listing.shards)
+    listing = await list_shard_set(fs, shards_dir, numeric_shards=True)
     if listing.stray:
         raise ShardSetError(
             f"{shards_dir} holds log files that are not shard attempts: "

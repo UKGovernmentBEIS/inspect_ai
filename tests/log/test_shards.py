@@ -1589,30 +1589,33 @@ def test_merge_refuses_two_shards_selecting_one_id(tmp_path: Path) -> None:
     assert not os.path.exists(merged)
 
 
-# a directory the merge would read as shard `0` (its name split at `\\`)
-_ALIAS = "prefix\\0"
+# shard directory names other than digits; `prefix\\0` would read as shard `0`
+_NOT_NUMBERS = ["a", "1#tag", "prefix\\0"]
 
 
-@pytest.mark.parametrize("merge", ["fresh", "incremental"])
+@pytest.mark.parametrize("merge", ["fresh", "existing"])
 @pytest.mark.parametrize("form", ["path", "file_uri"])
-def test_shard_directories_read_as_one_shard_are_refused(
-    tmp_path: Path, form: str, merge: str
+@pytest.mark.parametrize("name", _NOT_NUMBERS)
+def test_a_shard_directory_not_named_with_digits_is_refused(
+    tmp_path: Path, name: str, form: str, merge: str
 ) -> None:
-    import shutil
-
     from inspect_ai._util.file import to_uri
 
     merged, shards = _paths(tmp_path)
     _run(shards, "0", sample_id=[1, 2, 3])
-    _run(shards, "1", sample_id=[4, 5, 6])
-    if merge == "incremental":
-        assert merge_eval_log_shards(merged).log.status == "success"
-    shutil.copytree(f"{shards}/0", f"{shards}/{_ALIAS}")
+    _run(shards, "1", sample_id=[4, 5])
+    if merge == "existing":
+        result = merge_eval_log_shards(merged, sample_ids=[1, 2, 3, 4, 5])
+        assert result.log.status == "success"
+    # a worker for the last sample, in a directory not named with digits
+    _run(shards, name, sample_id=[6])
     target = to_uri(merged) if form == "file_uri" else merged
     before = _files(str(tmp_path))
     for delete in (False, True):
-        with pytest.raises(ShardSetError, match="are both read as shard '0'"):
-            merge_eval_log_shards(target, delete_shards=delete)
+        with pytest.raises(ShardSetError, match="must be named with digits only"):
+            merge_eval_log_shards(
+                target, sample_ids=list(range(1, 7)), delete_shards=delete
+            )
     assert _files(str(tmp_path)) == before
 
 
@@ -2241,7 +2244,6 @@ def test_delete_shards_deletes_the_whole_shards_directory(tmp_path: Path) -> Non
         f"0/{Path(failed.location).stem}.checkpoints/1/data",
         "0/scans/scan_id=x/rows.parquet",
         "notes.txt",
-        f".hidden/sub/{T1}_task_g.eval",
     ):
         _touch(Path(f"{shards}/{other}"))
 
@@ -3605,10 +3607,23 @@ async def test_s3_shard_paths_s3_would_read_as_another_key_are_refused(
     assert _s3_objects(f"{s3_root}/") == before
 
 
+_NOT_DIRECTLY = "is not a file or directory directly in it"
+
+
 @pytest.mark.parametrize("merge", ["unchanged", "fresh"])
-@pytest.mark.parametrize("separator", ["#", "?"], ids=["fragment", "query"])
-async def test_an_s3_shard_directory_s3_would_list_as_an_absent_one_is_refused(
-    s3_shards: tuple[str, str], s3_root: str, separator: str, merge: str
+@pytest.mark.parametrize(
+    "hidden,match",
+    [
+        ("1#tag/worker.eval", "S3 would read it as"),
+        ("1?tag/worker.eval", "S3 would read it as"),
+        ("/worker.eval", _NOT_DIRECTLY),
+        ("//worker.eval", _NOT_DIRECTLY),
+        ("0//worker.eval", _NOT_DIRECTLY),
+    ],
+    ids=["fragment", "query", "root-empty", "root-empty-twice", "shard-empty"],
+)
+async def test_an_s3_worker_the_listing_would_hide_is_refused(
+    s3_shards: tuple[str, str], s3_root: str, hidden: str, match: str, merge: str
 ) -> None:
     from inspect_ai.log import merge_eval_log_shards_async
 
@@ -3626,34 +3641,82 @@ async def test_an_s3_shard_directory_s3_would_list_as_an_absent_one_is_refused(
     if merge == "unchanged":
         result = await merge_eval_log_shards_async(merged, sample_ids=[1, 2, 3])
         assert result.written and result.log.status == "success"
-    # shard 1's unmerged worker, in a directory S3 would list as the absent `1`
+    # shard 1's unmerged worker, under a key the listing would drop: a
+    # directory S3 would list as the absent `1`, or an empty path component
+    # that lists as the directory listed
     client.copy_object(
         Bucket="test-bucket",
-        Key=f"{shards}/1{separator}tag/worker.eval",
+        Key=f"{shards}/{hidden}",
         CopySource={"Bucket": "test-bucket", "Key": held},
     )
     client.delete_object(Bucket="test-bucket", Key=held)
     before = _s3_objects(f"{s3_root}/")
-    with pytest.raises(ShardSetError, match="S3 would read it as"):
-        await merge_eval_log_shards_async(
-            merged, sample_ids=[1, 2, 3], delete_shards=True
-        )
+    for delete in (False, True):
+        with pytest.raises(ShardSetError, match=match):
+            await merge_eval_log_shards_async(
+                merged, sample_ids=[1, 2, 3], delete_shards=delete
+            )
     assert _s3_objects(f"{s3_root}/") == before
 
 
-@pytest.mark.parametrize("merge", ["fresh", "incremental"])
-def test_s3_shard_directories_read_as_one_shard_are_refused(
-    s3_shards: tuple[str, str], s3_root: str, merge: str
+def test_a_literal_percent_sign_in_an_s3_attempt_name_merges(
+    s3_shards: tuple[str, str], s3_root: str
 ) -> None:
     merged, _ = s3_shards
     shards = f"{s3_root}/{NAME}.shards"
-    if merge == "incremental":
-        assert merge_eval_log_shards(merged).log.status == "success"
-    _s3_copy(f"{shards}/0/", f"{shards}/{_ALIAS}/")
+    [attempt] = [k for k in _s3_keys(f"{shards}/0/") if k.endswith(".eval")]
+    client = boto3.client("s3")
+    client.copy_object(
+        Bucket="test-bucket",
+        Key=f"{shards}/0/worker%23tag.eval",
+        CopySource={"Bucket": "test-bucket", "Key": attempt},
+    )
+    client.delete_object(Bucket="test-bucket", Key=attempt)
+    result = merge_eval_log_shards(merged, delete_shards=True)
+    assert result.written and result.shards_deleted
+    assert result.log.status == "success" and result.log.eval.shards is not None
+    assert result.log.eval.shards.ledger[0].log == "worker%23tag.eval"
+
+
+@pytest.mark.parametrize("merge", ["fresh", "existing"])
+@pytest.mark.parametrize(
+    "name,match",
+    [
+        ("a", "must be named with digits only"),
+        ("1#tag", "S3 would read it as"),
+        ("prefix\\0", "must be named with digits only"),
+    ],
+)
+def test_an_s3_shard_directory_not_named_with_digits_is_refused(
+    s3_shards: tuple[str, str], s3_root: str, name: str, match: str, merge: str
+) -> None:
+    merged, _ = s3_shards
+    shards = f"{s3_root}/{NAME}.shards"
+    [attempt] = [k for k in _s3_keys(f"{shards}/1/") if k.endswith(".eval")]
+    held = f"{s3_root}/held/worker.eval"
+    client = boto3.client("s3")
+    client.copy_object(
+        Bucket="test-bucket",
+        Key=held,
+        CopySource={"Bucket": "test-bucket", "Key": attempt},
+    )
+    client.delete_object(Bucket="test-bucket", Key=attempt)
+    if merge == "existing":
+        result = merge_eval_log_shards(merged, sample_ids=[1, 2, 3])
+        assert result.log.status == "success"
+    # shard 1's worker, in a directory not named with digits
+    client.copy_object(
+        Bucket="test-bucket",
+        Key=f"{shards}/{name}/worker.eval",
+        CopySource={"Bucket": "test-bucket", "Key": held},
+    )
+    client.delete_object(Bucket="test-bucket", Key=held)
     before = _s3_objects(f"{s3_root}/")
     for delete in (False, True):
-        with pytest.raises(ShardSetError, match="are both read as shard '0'"):
-            merge_eval_log_shards(merged, delete_shards=delete)
+        with pytest.raises(ShardSetError, match=match):
+            merge_eval_log_shards(
+                merged, sample_ids=list(range(1, 7)), delete_shards=delete
+            )
     assert _s3_objects(f"{s3_root}/") == before
 
 

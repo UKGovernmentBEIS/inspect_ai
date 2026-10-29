@@ -130,6 +130,7 @@ async def list_shard_set(
     shards_dir: str,
     *,
     limiter: anyio.CapacityLimiter | None = None,
+    numeric_shards: bool = False,
 ) -> ShardSetListing:
     """List a shards directory and each directory directly under it.
 
@@ -151,10 +152,13 @@ async def list_shard_set(
     directory removed during the walk, and an S3 prefix emptied during the
     walk give the same listing.
 
-    ``shards_dir`` and every name a listing returns are checked with
-    :func:`check_s3_location` before anything listed is filtered or listed
-    further, so a name S3 would read as another key is never dropped as
-    empty or read in place of another.
+    ``shards_dir`` and every name a listing returns are checked before
+    anything listed is filtered or listed further: with
+    :func:`check_s3_location`, so a name S3 would read as another key is
+    never dropped as empty or read in place of another, and as a non-empty
+    name directly in the directory listed. S3 lists a key with an empty
+    path component (``run.shards//x.eval``) as its own parent directory,
+    which would otherwise hide it.
 
     Args:
         fs: Filesystem to list with.
@@ -162,10 +166,15 @@ async def list_shard_set(
             or ``s3://`` URL. Returned paths keep this form.
         limiter: Bounds every listing, the first included, so a caller
             walking several companions can keep one cap across them.
+        numeric_shards: Refuse every directory in ``shards_dir`` whose name
+            is not ASCII digits (the ``<k>`` a launcher assigns), before any
+            is listed. The merge sets it.
 
     Raises:
         ShardSetError: ``shards_dir`` or a listed name is an S3 URL that S3
-            would read as another key.
+            would read as another key, a listed name is not directly in the
+            directory listed, or (with ``numeric_shards``) a directory in
+            ``shards_dir`` is not named with digits.
     """
     if limiter is None:
         limiter = anyio.CapacityLimiter(_MAX_CONCURRENT_LISTINGS)
@@ -175,7 +184,15 @@ async def list_shard_set(
             listing = await fs.list_dir(shards_dir)
     except FileNotFoundError:
         return ShardSetListing(shards=[], stray=[], unlisted_dirs=[])
-    _check_listed(listing)
+    _check_listed(shards_dir, listing)
+    if numeric_shards:
+        for directory in listing.dirs:
+            if not _is_number(directory.rpartition("/")[2]):
+                raise ShardSetError(
+                    f"{directory} is not a shard directory: the directories in "
+                    f"{shards_dir} must be named with digits only (the shard "
+                    "number the launcher assigns). Move or remove it."
+                )
 
     stray = [
         StrayFile(path=info.name, reason=_ROOT_LOG)
@@ -190,7 +207,7 @@ async def list_shard_set(
                 child = await fs.list_dir(directory)
         except FileNotFoundError:
             return None
-        _check_listed(child)
+        _check_listed(directory, child)
         if _name(directory).startswith("."):
             stray.extend(
                 StrayFile(path=info.name, reason=_HIDDEN_LOG)
@@ -236,9 +253,25 @@ async def list_shard_set(
     )
 
 
-def _check_listed(listing: DirListing) -> None:
+def _check_listed(base: str, listing: DirListing) -> None:
     for location in [*listing.dirs, *(info.name for info in listing.files)]:
         check_s3_location(location, ShardSetError)
+        parent, _, name = location.rpartition("/")
+        if base.startswith("file://"):
+            # a file:// child is built from its local path (see list_dir)
+            direct = local_path(parent) == local_path(base.rstrip("/"))
+        else:
+            direct = parent == base.rstrip("/")
+        if not name or not direct:
+            raise ShardSetError(
+                f"{base} lists {location}, which is not a file or directory "
+                "directly in it: S3 lists a key with an empty path component "
+                "('//') this way. Rename it."
+            )
+
+
+def _is_number(name: str) -> bool:
+    return name.isascii() and name.isdigit()
 
 
 def attempt_sort_key(info: FileInfo) -> AttemptSortKey:
@@ -296,7 +329,7 @@ def is_shard_path(root: str, path: str) -> bool:
 
 def _shard_sort_key(shard: ShardDir) -> tuple[bool, int, str]:
     """Order shard directories with all-digit names numerically, then by name."""
-    numeric = shard.name.isascii() and shard.name.isdigit()
+    numeric = _is_number(shard.name)
     return (not numeric, int(shard.name) if numeric else 0, shard.name)
 
 
