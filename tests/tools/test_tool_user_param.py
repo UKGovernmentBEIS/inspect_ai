@@ -294,3 +294,36 @@ async def test_web_browser_refuses_a_scope(monkeypatch: pytest.MonkeyPatch) -> N
         with pytest.raises(SandboxIdentityError, match="web_browser\\(\\)"):
             await web_browser_module.web_browser_go()(url="https://example.com")
     assert default.calls == []
+
+
+async def test_bash_session_cannot_move_to_another_sandbox(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai.util._sandbox.identity import sandbox_identity_environment
+    from inspect_ai.util._store import Store, init_subtask_store
+
+    init_subtask_store(Store())
+    # every new session is named "s", as the first shell in each sandbox would be
+    calls = _patch_module(monkeypatch, bash_session_module)
+
+    async def scope_sandbox(**_kwargs: Any) -> Any:
+        return sandbox_identity_environment()
+
+    monkeypatch.setattr(
+        bash_session_module, "sandbox_with_injected_tools", scope_sandbox
+    )
+    a, b = FakeSandbox(), FakeSandbox()
+    tool = bash_session_module.bash_session(instance="team")
+    with _environments(a=cast(SandboxEnvironment, a), b=cast(SandboxEnvironment, b)):
+        with sandbox_identity("w-1", sandbox="a"):
+            await tool(action="read")
+        with sandbox_identity("w-1", sandbox="b"):
+            with pytest.raises(SandboxIdentityError, match="in sandbox 'a'"):
+                await tool(action="read")
+        with sandbox_identity("w-1", sandbox="a"):
+            await tool(action="read")
+    assert [call["method"] for call in calls] == [
+        "bash_session_new_session",
+        "bash_session",
+        "bash_session",
+    ]

@@ -1304,3 +1304,29 @@ class TestSkillSandboxIdentity:
             with pytest.raises(SandboxIdentityError, match="'root'"):
                 await tool(command="example")
         assert sandbox.written == []
+
+    @pytest.mark.parametrize(
+        "first, second",
+        [
+            (("default", "w-1", "/home/w-1"), ("default", "w-2", "/home/w-2")),
+            (("default", "w-1", "/home/w-1"), ("default", "w-1", "/work/w-1")),
+            (("default", "w-1", "/home/w-1"), ("other", "w-1", "/home/w-1")),
+        ],
+        ids=["user", "cwd", "sandbox"],
+    )
+    async def test_shared_instance_installs_again_in_another_scope(
+        self, first: tuple[str, str, str], second: tuple[str, str, str]
+    ) -> None:
+        sandboxes = {"default": _CwdFileSandbox(), "other": _CwdFileSandbox()}
+        sandbox_environments_context_var.set(dict(sandboxes))
+        sandbox_default_context_var.set("default")
+        init_subtask_store(Store())
+        tool = skill([self.SKILL], instance="team")
+        results: list[str] = []
+        for sandbox_name, user, cwd in (first, second, first):
+            with sandbox_identity(user, cwd=cwd, sandbox=sandbox_name):
+                results.append(str(await tool(command="example")))
+        for result, (sandbox_name, user, cwd) in zip(results, (first, second, first)):
+            location = f"{cwd}/skills/example/SKILL.md"
+            assert f"Base Path: {location}" in result
+            assert sandboxes[sandbox_name].owners[location] == user

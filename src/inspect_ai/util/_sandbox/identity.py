@@ -77,7 +77,7 @@ def sandbox_identity(
             f" Available environments: {', '.join(environments)}."
         )
 
-    token = _sandbox_identity.set(_SandboxIdentity(user, cwd, environment))
+    token = _sandbox_identity.set(SandboxIdentityScope(user, cwd, name, environment))
     try:
         with sandbox_default(name):
             yield
@@ -105,7 +105,7 @@ def sandbox_identity_user(
     Raises:
        SandboxIdentityError: If `strict` and `user` is not the scope's user.
     """
-    identity = _identity_for(env)
+    identity = sandbox_identity_scope(env)
     if identity is None:
         return user
     if user is None or user == identity.user:
@@ -130,7 +130,7 @@ def sandbox_identity_cwd(env: SandboxEnvironment, cwd: str | None) -> str | None
     """
     if cwd is not None:
         return cwd
-    identity = _identity_for(env)
+    identity = sandbox_identity_scope(env)
     return identity.cwd if identity is not None else None
 
 
@@ -152,24 +152,33 @@ def sandbox_identity_environment() -> SandboxEnvironment | None:
 
 def check_sandbox_identity_supported(env: SandboxEnvironment, tool: str) -> None:
     """Refuse a tool that cannot run as a user inside a scope for `env`."""
-    if (identity := _identity_for(env)) is not None:
+    if (identity := sandbox_identity_scope(env)) is not None:
         raise SandboxIdentityError(
             f"{tool}() cannot run as a user, so it cannot run inside the sandbox "
             f"identity scope for '{identity.user}'."
         )
 
 
-class _SandboxIdentity(NamedTuple):
+class SandboxIdentityScope(NamedTuple):
+    """An active `sandbox_identity()` scope."""
+
     user: str
     cwd: str | None
+    sandbox: str
+    """Name of the sandbox environment."""
     environment: SandboxEnvironment
 
 
-def _identity_for(env: SandboxEnvironment) -> _SandboxIdentity | None:
+def sandbox_identity_scope(env: SandboxEnvironment) -> SandboxIdentityScope | None:
+    """The active scope for `env`, if any.
+
+    For tools that cache sandbox state across calls, so they can tell whether a
+    later call runs in the same scope.
+    """
     identity = _sandbox_identity.get()
     return identity if identity is not None and identity.environment is env else None
 
 
-_sandbox_identity: ContextVar[_SandboxIdentity | None] = ContextVar(
+_sandbox_identity: ContextVar[SandboxIdentityScope | None] = ContextVar(
     "sandbox_identity", default=None
 )

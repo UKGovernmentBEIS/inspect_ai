@@ -13,7 +13,8 @@ from inspect_ai.util._sandbox._cli import SANDBOX_CLI, tools_user_param
 from inspect_ai.util._sandbox._json_rpc_transport import SandboxJSONRPCTransport
 from inspect_ai.util._sandbox.identity import (
     SandboxIdentityError,
-    sandbox_identity_active,
+    SandboxIdentityScope,
+    sandbox_identity_scope,
     sandbox_identity_user,
 )
 from inspect_ai.util._sandbox.limits import SandboxEnvironmentLimits
@@ -38,6 +39,8 @@ class BashSessionStore(StoreModel):
     session_id: str = Field(default_factory=str)
     identity: str | None = Field(default=None)
     """User of the `sandbox_identity()` scope the session was created in."""
+    identity_sandbox: str | None = Field(default=None)
+    """Sandbox of the `sandbox_identity()` scope the session was created in."""
 
 
 # Action-specific parameter models
@@ -205,9 +208,13 @@ def bash_session(
         store = store_as(BashSessionStore, instance=resolved_instance)
         sandbox = await sandbox_with_injected_tools()
         session_user = sandbox_identity_user(sandbox, user, strict=True)
-        identity = session_user if sandbox_identity_active(sandbox) else None
-        if store.session_id and identity is not None and store.identity != identity:
-            _raise_shared_session(resolved_instance, store.identity, identity)
+        scope = sandbox_identity_scope(sandbox)
+        if (
+            store.session_id
+            and scope is not None
+            and (store.identity, store.identity_sandbox) != (scope.user, scope.sandbox)
+        ):
+            _raise_shared_session(resolved_instance, store, scope)
 
         # Create transport for all RPC calls
         transport = SandboxJSONRPCTransport(sandbox, SANDBOX_CLI)
@@ -230,7 +237,8 @@ def bash_session(
                 ).session_name
             except TimeoutError:
                 raise RuntimeError("Timed out creating new session")
-            store.identity = identity
+            store.identity = scope.user if scope is not None else None
+            store.identity_sandbox = scope.sandbox if scope is not None else None
 
         timing: dict[str, object] = {
             "wait_for_output": wait_for_output,
@@ -270,15 +278,15 @@ def bash_session(
 
 
 def _raise_shared_session(
-    instance: str | None, created_as: str | None, identity: str
+    instance: str | None, store: BashSessionStore, scope: SandboxIdentityScope
 ) -> NoReturn:
     owner = (
-        f"was created as '{created_as}'"
-        if created_as is not None
+        f"was created as '{store.identity}' in sandbox '{store.identity_sandbox}'"
+        if store.identity is not None
         else "was created outside a sandbox identity scope"
     )
     raise SandboxIdentityError(
         f"bash_session instance '{instance or 'default'}' {owner}, so it cannot be "
-        f"used inside the sandbox identity scope for '{identity}'. A shell cannot "
-        "be shared between sandbox identities."
+        f"used inside the sandbox identity scope for '{scope.user}' in sandbox "
+        f"'{scope.sandbox}'. A shell cannot be shared between sandbox identities."
     )
