@@ -115,7 +115,8 @@ def steps_from_events(
     flat, nested = _flatten(events)
     pool: list[ChatMessage] | Sequence[ChatMessage] = message_pool
     if any(isinstance(e, ModelEvent) and e.input_refs is None for e in flat):
-        flat, pool = _condensed(flat, message_pool)
+        events, pool = _condensed(events, message_pool)
+        flat, nested = _flatten(events)
     return _Driver(
         messages, flat, nested, pool, sample_uuid, eval_info, timeline, human_approvers
     ).steps()
@@ -138,13 +139,28 @@ def _flatten(events: Sequence[Event]) -> tuple[list[Event], list[bool]]:
 
 
 def _condensed(
-    events: list[Event], pool: Sequence[ChatMessage]
+    events: Sequence[Event], pool: Sequence[ChatMessage]
 ) -> tuple[list[Event], list[ChatMessage]]:
+    """`events` with their model inputs condensed, those a `ToolEvent` nests too, so the tree and its flattening hold the same events; and the pool."""
+    flat, _ = _flatten(events)
     rows = list(pool)
     condensed, _, entries = condense_model_event_inputs(
-        events, len(rows), _build_msg_index(rows)
+        flat, len(rows), _build_msg_index(rows)
     )
-    return condensed, [*rows, *(message for _, message in entries)]
+    copies = {id(old): new for old, new in zip(flat, condensed) if new is not old}
+
+    def rebuild(events: Sequence[Event]) -> list[Event]:
+        rebuilt: list[Event] = []
+        for event in events:
+            event = copies.get(id(event), event)
+            if isinstance(event, ToolEvent) and event.events:
+                inner = rebuild(event.events)
+                if any(new is not old for new, old in zip(inner, event.events)):
+                    event = event.model_copy(update={"events": inner})
+            rebuilt.append(event)
+        return rebuilt
+
+    return rebuild(events), [*rows, *(message for _, message in entries)]
 
 
 class _PoolKeys:

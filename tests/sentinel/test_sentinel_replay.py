@@ -49,6 +49,7 @@ from inspect_ai.event import (
     TimelineSpan,
     ToolEvent,
 )
+from inspect_ai.event._pool import condense_model_event_inputs
 from inspect_ai.event._sentinel import SentinelStage
 from inspect_ai.log import EvalLog, EvalSample, read_eval_log
 from inspect_ai.log._transcript import transcript
@@ -3187,6 +3188,90 @@ def test_linked_calls_outside_the_agent_s_turns_leave_its_turns(
     assert inferred == steps(recorded=True)
     assert ("model_input", "m1") in inferred
     assert not any(id.startswith("s") for _, id in inferred)
+
+
+def handoff_with_side_calls(
+    count: int, recorded: bool, inputs: str
+) -> tuple[list[ChatMessage], list[Event], list[ChatMessage], Timeline]:
+    """An agent's turns around a legacy handoff whose `ToolEvent` nests `count` linked calls, a stored conversation joining them. `inputs`: "expanded", "pooled" (the nested calls' too), or "adapter" (only the top-level calls pooled, as the companion adapter pools them)."""
+    agent = "agent" if recorded else None
+    user = ChatMessageUser(content="Solve it.")
+    call = ToolCall(id="c1", function="transfer_to_checker", arguments={})
+    m1 = linked_call("m1", "agent", [user], "Handing off.", agent, call)
+    result = ChatMessageTool(
+        content="ok", tool_call_id="c1", function="transfer_to_checker"
+    )
+    m2 = linked_call("m2", "agent", [user, m1.output.message, result], "Done.", agent)
+    helpers: list[Event] = list(
+        side_calls(count, "agent", "tool" if recorded else None, False)
+    )
+    stored = Timeline(
+        name="target",
+        description="",
+        root=TimelineSpan(
+            id="target",
+            name="target",
+            content=[TimelineEvent(event=e) for e in (m1, *helpers, m2)],
+        ),
+    )
+    pool: list[ChatMessage] = []
+    if inputs == "pooled":
+        condensed, _, entries = condense_model_event_inputs([m1, *helpers, m2], 0, {})
+        calls = cast(list[ModelEvent], condensed)
+        m1, m2, helpers = calls[0], calls[-1], [*calls[1:-1]]
+        pool = [message for _, message in entries]
+    handoff = ToolEvent(
+        id="c1",
+        function="transfer_to_checker",
+        arguments={},
+        result="ok",
+        agent="checker",
+        events=helpers,
+        span_id="agent",
+    )
+    events: list[Event] = [
+        SpanBeginEvent(id="agent", name="agent", type="agent"),
+        m1,
+        handoff,
+        m2,
+        SpanEndEvent(id="agent"),
+    ]
+    if inputs == "adapter":
+        events, _, entries = condense_model_event_inputs(events, 0, {})
+        pool = [message for _, message in entries]
+    messages: list[ChatMessage] = [user, m1.output.message, result, m2.output.message]
+    return messages, events, pool, stored
+
+
+@pytest.mark.parametrize("count", [1, 2])
+@pytest.mark.parametrize("inputs", ["expanded", "pooled", "adapter"])
+def test_calls_nested_in_a_handoff_leave_the_agent_s_turns(
+    inputs: str, count: int
+) -> None:
+    # Ransom's seventh review B2: inputs condensed for replay are condensed in
+    # the handoff's ToolEvent too, so the calls it nests are left out of
+    # continuity whether the log's inputs are expanded, pooled, or pooled at
+    # the top level only
+    def steps(recorded: bool) -> list[tuple[str, str]]:
+        messages, events, pool, stored = handoff_with_side_calls(
+            count, recorded, inputs
+        )
+        return [
+            (s.stage, s.id)
+            for s in steps_from_events(
+                messages,
+                events,
+                pool,
+                sample_uuid="sample",
+                eval_info=EvalInfo(inspect_ai_version=None, sentinel=False),
+                timeline=stored,
+            )
+        ]
+
+    inferred = steps(recorded=False)
+
+    assert inferred == steps(recorded=True)
+    assert [id for stage, id in inferred if stage == "model_input"] == ["m1", "m2"]
 
 
 @solver
