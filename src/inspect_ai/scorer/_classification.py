@@ -23,7 +23,7 @@ def f1(
 
     Args:
        answer_fn: Custom function to extract the answer from the completion (defaults to using the completion).
-       stop_words: Stop words to include in answer tokenization.
+       stop_words: Stop words to exclude from answer tokenization.
     """
 
     async def score(state: TaskState, target: Target) -> Score:
