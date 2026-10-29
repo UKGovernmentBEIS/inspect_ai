@@ -28,7 +28,10 @@ collected with `filter=all`, so every re-run attempt's execution counts;
 (a new id each attempt but the same runner and start time) are counted once. In
 a legacy raw file that predates the per-job attempt, a re-run's carried-over and
 re-run jobs cannot be told apart, so `rerun_runner_minutes` is reported unknown
-(null) rather than guessed from the run's attempt. A re-run run records only its
+(null) rather than guessed from the run's attempt. This holds for any legacy
+re-run that has job records, including one whose jobs were all skipped or
+cancelled while queued: the old collector listed only the latest attempt, so an
+earlier attempt's compute may be absent from the file. A re-run run records only its
 latest attempt's start, so re-run runs are excluded from workflow wall and
 job-wait distributions and counted in `rerun_runs`. Skipped jobs
 contribute no execution time; GitHub sometimes returns inverted timestamps for

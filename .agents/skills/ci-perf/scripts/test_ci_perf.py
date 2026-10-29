@@ -1558,6 +1558,102 @@ def test_legacy_partial_rerun_reports_unknown_rerun_minutes() -> None:
     assert "None from re-run attempts" in render(result)
 
 
+def test_legacy_rerun_of_queued_cancelled_jobs_reports_unknown_rerun_minutes() -> None:
+    """A legacy re-run whose jobs were all cancelled while queued is unknown.
+
+    The jobs never got a runner (no `runner_name`, no steps), so they add no
+    runner time and the re-run's own compute is zero. But a legacy record omits
+    the per-job attempt, so the snapshot predates per-job attribution: the old
+    collector listed only the latest attempt, and an earlier attempt may have
+    consumed runner time the listing discarded. The re-run's share therefore
+    cannot be isolated and `rerun_runner_minutes` is None (unknown), not 0.
+    """
+    snap = {
+        "generated_at": "2026-10-29T00:00:00Z",
+        "repo": "UKGovernmentBEIS/inspect_ai",
+        "runs": [
+            {
+                "id": 1,
+                "name": "Build",
+                "conclusion": "cancelled",
+                "run_attempt": 3,
+                "run_started_at": "2026-10-29T00:10:00Z",
+                "wall_seconds": 600,
+                "jobs": [
+                    {  # cancelled while queued; no runner, no per-job attempt
+                        "name": "mypy",
+                        "conclusion": "cancelled",
+                        "exec_seconds": None,
+                        "wait_from_run_start_seconds": None,
+                        "steps": [],
+                    },
+                    {
+                        "name": "test (3.14)",
+                        "conclusion": "cancelled",
+                        "exec_seconds": None,
+                        "wait_from_run_start_seconds": None,
+                        "steps": [],
+                    },
+                ],
+            }
+        ],
+        "pytest_summaries": {},
+        "pytest_durations": {},
+    }
+    result = summarize(snap)
+    assert result["rerun_runner_minutes"] is None
+    assert result["rerun_runs"] == 1
+    assert result["unstarted_jobs"] == 2
+    assert "None from re-run attempts" in render(result)
+
+
+def test_new_collector_rerun_of_queued_cancelled_jobs_reports_zero() -> None:
+    """A new-collector re-run of only queued-cancelled jobs is a true zero.
+
+    With per-job attempts present, `filter=all` lists every attempt, so absent
+    re-run compute is genuinely zero rather than an artifact of latest-attempt
+    listing. The re-run jobs got no runner, so `rerun_runner_minutes` is 0.0.
+    """
+    snap = {
+        "generated_at": "2026-10-29T00:00:00Z",
+        "repo": "UKGovernmentBEIS/inspect_ai",
+        "runs": [
+            {
+                "id": 1,
+                "name": "Build",
+                "conclusion": "cancelled",
+                "run_attempt": 2,
+                "run_started_at": "2026-10-29T00:10:00Z",
+                "wall_seconds": 600,
+                "jobs": [
+                    {
+                        "name": "mypy",
+                        "conclusion": "cancelled",
+                        "run_attempt": 2,
+                        "exec_seconds": None,
+                        "wait_from_run_start_seconds": None,
+                        "steps": [],
+                    },
+                    {
+                        "name": "test (3.14)",
+                        "conclusion": "cancelled",
+                        "run_attempt": 2,
+                        "exec_seconds": None,
+                        "wait_from_run_start_seconds": None,
+                        "steps": [],
+                    },
+                ],
+            }
+        ],
+        "pytest_summaries": {},
+        "pytest_durations": {},
+    }
+    result = summarize(snap)
+    assert result["rerun_runner_minutes"] == 0.0
+    assert result["rerun_runs"] == 1
+    assert result["unstarted_jobs"] == 2
+
+
 # --- Review round 1: paginated job listing, per-job log dedupe, overlap text --
 
 

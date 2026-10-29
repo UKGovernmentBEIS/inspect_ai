@@ -87,6 +87,15 @@ def summarize(snapshot: dict[str, Any]) -> dict[str, Any]:
         is_rerun = (run.get("run_attempt") or 1) > 1
         if is_rerun:
             rerun_runs += 1
+            # A legacy job record omits the per-job attempt. If a re-run holds
+            # any such record — whatever that job's conclusion — the snapshot
+            # predates per-job attribution: the old collector listed only the
+            # latest attempt, so earlier attempts' compute is absent and the
+            # re-run's share cannot be isolated. Decide this per run, before any
+            # per-job skip, so a re-run of only skipped or unstarted jobs still
+            # reports re-run minutes unknown rather than a false zero.
+            if any(job.get("run_attempt") is None for job in run["jobs"]):
+                rerun_attribution_unknown = True
         if run["conclusion"] == "success" and not is_rerun:
             if run["wall_seconds"] is None or run["wall_seconds"] < 0:
                 excluded["workflow_wall"] += 1
@@ -105,16 +114,11 @@ def summarize(snapshot: dict[str, Any]) -> dict[str, Any]:
                     unavailable_cancelled_jobs += 1
                 continue
             runner_seconds += seconds
+            # A legacy record (no per-job attempt) already marked the re-run's
+            # attribution unknown above; here only new-collector jobs, which
+            # carry a per-job attempt, add to the re-run total.
             attempt = job.get("run_attempt")
-            if attempt is None:
-                # A legacy job record predates the per-job attempt. In a re-run
-                # its runner time cannot be attributed to the original or to the
-                # re-run (the latest-attempt listing carried first-attempt jobs
-                # over), so re-run minutes are reported unknown rather than
-                # guessed from the run's attempt.
-                if is_rerun:
-                    rerun_attribution_unknown = True
-            elif attempt > 1:
+            if attempt is not None and attempt > 1:
                 rerun_runner_seconds += seconds
             if run["conclusion"] == "cancelled":
                 cancelled_seconds += seconds
