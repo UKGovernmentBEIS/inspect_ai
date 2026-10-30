@@ -83,6 +83,7 @@ from inspect_ai.model._stream import (
     ModelStreamObserver,
     StreamEvent,
     StreamReasoningEvent,
+    StreamRetryEvent,
     StreamTextEvent,
     StreamToolCallEvent,
     model_stream_observer,
@@ -1787,13 +1788,30 @@ async def test_streamed_continuation_is_combined() -> None:
     assert len(model_call.response["responses"]) == 2
 
 
+_EMPTY_PART_PLACEMENTS = pytest.mark.parametrize(
+    ("before", "after"),
+    [([], []), ([Part()], []), ([], [Part()])],
+    ids=["no-empty-part", "empty-part-before", "empty-part-after"],
+)
+
+
 @pytest.mark.anyio
-async def test_continuation_joins_text_split_across_legs() -> None:
-    """Output text split at a leg boundary stays one text, so JSON stays valid."""
+@_EMPTY_PART_PLACEMENTS
+async def test_continuation_joins_text_split_across_legs(
+    before: list[Part], after: list[Part]
+) -> None:
+    """Output text split at a leg boundary stays one text, so JSON stays valid.
+
+    Empty parts at the boundary do not split it either.
+    """
     output, _, _ = await _generate_with_legs(
         [
-            _leg([Part(text='{"answer":"hel')], FinishReason.CONTINUATION, b"t1"),
-            _leg([Part(text='lo"}')], FinishReason.STOP),
+            _leg(
+                [Part(text='{"answer":"hel'), *before],
+                FinishReason.CONTINUATION,
+                b"t1",
+            ),
+            _leg([*after, Part(text='lo"}')], FinishReason.STOP),
         ]
     )
 
@@ -1806,12 +1824,21 @@ async def test_continuation_joins_text_split_across_legs() -> None:
 
 
 @pytest.mark.anyio
-async def test_streamed_continuation_joins_text_split_across_legs() -> None:
+@_EMPTY_PART_PLACEMENTS
+async def test_streamed_continuation_joins_text_split_across_legs(
+    before: list[Part], after: list[Part]
+) -> None:
     """A streamed leg boundary inside output text adds no newline either."""
     output, _, _ = await _generate_streamed(
         [
-            [_chunk([Part(text='{"answer":"hel')], FinishReason.CONTINUATION, b"t1")],
-            [_chunk([Part(text='lo"}')], FinishReason.STOP)],
+            [
+                _chunk([Part(text='{"answer":"hel')]),
+                _chunk(before or None, FinishReason.CONTINUATION, b"t1"),
+            ],
+            [
+                _chunk(after or None),
+                _chunk([Part(text='lo"}')], FinishReason.STOP),
+            ],
         ]
     )
 
@@ -1819,29 +1846,49 @@ async def test_streamed_continuation_joins_text_split_across_legs() -> None:
 
 
 @pytest.mark.anyio
-async def test_continuation_keeps_signed_parts_apart() -> None:
-    """Text parts that both carry a thought signature are not joined."""
+@pytest.mark.parametrize(
+    ("left", "right"),
+    [(b"s1", None), (None, b"s2"), (b"s1", b"s2")],
+    ids=["signed-left", "signed-right", "both-signed"],
+)
+async def test_continuation_joins_signed_text_and_replays_its_parts(
+    left: bytes | None, right: bytes | None
+) -> None:
+    """Signed text split at a leg boundary reads as one text, and replays as it came.
+
+    The thought signatures stay on the parts they came on.
+    """
     output, _, _ = await _generate_with_legs(
         [
             _leg(
-                [Part(text="one", thought_signature=b"s1")],
+                [Part(text='{"answer":"hel', thought_signature=left)],
                 FinishReason.CONTINUATION,
                 b"t1",
             ),
-            _leg([Part(text="two", thought_signature=b"s2")], FinishReason.STOP),
+            _leg([Part(text='lo"}', thought_signature=right)], FinishReason.STOP),
         ]
     )
 
-    content = output.message.content
-    assert isinstance(content, list)
-    assert [c.text for c in content if isinstance(c, ContentText)] == ["one", "two"]
-    signatures = [
-        c.reasoning for c in content if isinstance(c, ContentReasoning) and c.redacted
+    assert output.completion == '{"answer":"hello"}'
+    message = output.message
+    assert isinstance(message.content, list)
+    assert [type(c) for c in message.content] == [ContentText]
+
+    replayed = await content(MagicMock(), message)
+    assert replayed.parts == [
+        Part(text='{"answer":"hel', thought_signature=left),
+        Part(text='lo"}', thought_signature=right),
     ]
-    assert signatures == [
-        base64.b64encode(b"s1").decode(),
-        base64.b64encode(b"s2").decode(),
-    ]
+
+    # text edited since it was generated is replayed as plain text
+    edited = message.model_copy(
+        update={
+            "content": [
+                ContentText(text="edited", internal=message.content[0].internal)
+            ]
+        }
+    )
+    assert (await content(MagicMock(), edited)).parts == [Part(text="edited")]
 
 
 def _blocked_leg() -> GenerateContentResponse:
@@ -1987,16 +2034,26 @@ async def test_cut_off_stream_resumes_from_its_checkpoint() -> None:
     The text after the checkpoint is dropped, since the next leg resumes from
     the checkpoint, and the leg's usage is its usage at the checkpoint.
     """
-    output, model_call, mock_stream = await _generate_streamed(
-        [
-            [
-                _chunk([Part(text="kept")], token=b"t1", usage=(10, 2, 3)),
-                _chunk([Part(text=" lost")], usage=(10, 4, 3)),
-            ],
-            [_chunk([Part(text=" rest")], FinishReason.STOP, usage=(20, 1, 0))],
-        ]
-    )
+    events: list[StreamEvent] = []
 
+    async def collect(event: StreamEvent) -> None:
+        events.append(event)
+
+    with model_stream_observer(
+        ModelStreamObserver(model="google/test", on_stream=collect)
+    ):
+        output, model_call, mock_stream = await _generate_streamed(
+            [
+                [
+                    _chunk([Part(text="kept")], token=b"t1", usage=(10, 2, 3)),
+                    _chunk([Part(text=" lost")], usage=(10, 4, 3)),
+                ],
+                [_chunk([Part(text=" rest")], FinishReason.STOP, usage=(20, 1, 0))],
+            ]
+        )
+
+    # observers are told to drop the discarded text and are sent the kept text
+    assert _streamed_text(events) == "kept rest"
     assert mock_stream.call_count == 2
     tokens = [c.kwargs["config"].continuation_token for c in mock_stream.call_args_list]
     assert tokens == [None, b"t1"]
@@ -2005,6 +2062,115 @@ async def test_cut_off_stream_resumes_from_its_checkpoint() -> None:
     assert output.usage is not None
     assert output.usage.output_tokens == 5 + 1
     assert len(model_call.response["responses"]) == 2
+
+
+def _streamed_text(events: list[StreamEvent]) -> str:
+    """The text an accumulating stream consumer ends with."""
+    text = ""
+    for event in events:
+        if isinstance(event, StreamRetryEvent):
+            text = ""
+        elif isinstance(event, StreamTextEvent):
+            text += event.text
+    return text
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("finished", [False, True], ids=["cut-off", "finished"])
+async def test_stream_with_trailing_metadata_chunk(finished: bool) -> None:
+    """A last chunk with only usage neither hides a finish nor a cut-off stream."""
+    usage_only = _with_usage(GenerateContentResponse(), 10, 2, 3)
+    first_leg = [
+        _chunk(
+            [Part(text="kept")],
+            FinishReason.STOP if finished else None,
+            token=None if finished else b"t1",
+        ),
+        usage_only,
+    ]
+    output, _, mock_stream = await _generate_streamed(
+        [first_leg]
+        if finished
+        else [first_leg, [_chunk([Part(text=" rest")], FinishReason.STOP)]]
+    )
+
+    assert mock_stream.call_count == (1 if finished else 2)
+    assert output.completion == ("kept" if finished else "kept rest")
+    assert output.stop_reason == "stop"
+
+
+@pytest.mark.anyio
+async def test_dropped_stream_resumes_from_its_checkpoint() -> None:
+    """A stream that raises a transport error after a checkpoint is resumed."""
+
+    async def dropped() -> Any:
+        yield _chunk([Part(text="kept")], token=b"t1", usage=(10, 2, 3))
+        yield _chunk([Part(text=" lost")])
+        raise aiohttp.ServerDisconnectedError()
+
+    mock_stream = AsyncMock(
+        side_effect=[
+            dropped(),
+            _leg_chunks([_chunk([Part(text=" rest")], FinishReason.STOP)]),
+        ]
+    )
+    mock_client = _create_mock_google_client(AsyncMock())
+    mock_client.aio.models.generate_content_stream = mock_stream
+    output, model_call = await _generate_with_client(
+        mock_client, model_args=dict(streaming=True)
+    )
+
+    tokens = [c.kwargs["config"].continuation_token for c in mock_stream.call_args_list]
+    assert tokens == [None, b"t1"]
+    # every request is sent with the SDK's own continuation turned off
+    assert all(
+        c.kwargs["config"].automatic_continuation is False
+        for c in mock_stream.call_args_list
+    )
+    assert output.completion == "kept rest"
+    assert len(model_call.response["responses"]) == 2
+
+
+def _capture_model_calls(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
+    """Collect the model calls the Google provider creates."""
+    import inspect_ai.model._providers.google as google_module
+    from inspect_ai.log._samples import set_active_model_event_call as create
+
+    calls: list[Any] = []
+
+    def capture(*args: Any, **kwargs: Any) -> Any:
+        call = create(*args, **kwargs)
+        calls.append(call)
+        return call
+
+    monkeypatch.setattr(google_module, "set_active_model_event_call", capture)
+    return calls
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "error",
+    [
+        ServerError(503, {"error": {"code": 503, "message": "Unavailable"}}),
+        aiohttp.ServerDisconnectedError(),
+    ],
+    ids=["server-error", "transport-error"],
+)
+async def test_continuation_error_logs_earlier_legs(
+    error: Exception, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A later leg's error is raised, with the earlier legs logged beside it."""
+    calls = _capture_model_calls(monkeypatch)
+    with pytest.raises(type(error)):
+        await _generate_with_legs(
+            [_leg([Part(text="partial")], FinishReason.CONTINUATION, b"t1"), error]
+        )
+
+    [model_call] = calls
+    assert model_call.error is True
+    assert len(model_call.response["responses"]) == 1
+    if isinstance(error, ServerError):
+        assert model_call.response["error"]["code"] == 503
 
 
 @pytest.mark.anyio
@@ -3429,29 +3595,21 @@ async def test_google_output_records_response_id() -> None:
 
 @pytest.mark.anyio
 async def test_google_streamed_response_keeps_response_id() -> None:
-    async def chunks() -> Any:
-        for text in ["hel", "lo"]:
-            yield GenerateContentResponse(
-                candidates=[
-                    Candidate(
-                        content=Content(parts=[Part(text=text)], role="model"),
-                        index=0,
-                    )
-                ],
-                response_id="g-stream-response",
-            )
+    chunks = [
+        GenerateContentResponse(
+            candidates=[
+                Candidate(
+                    content=Content(parts=[Part(text=text)], role="model"), index=0
+                )
+            ],
+            response_id="g-stream-response",
+        )
+        for text in ["hel", "lo"]
+    ]
 
-    client = MagicMock()
-    client.aio.models.generate_content_stream = AsyncMock(return_value=chunks())
-    api = GoogleGenAIAPI(
-        model_name="gemini-2.0-flash", base_url=None, api_key="test-key"
-    )
+    output, _, _ = await _generate_streamed([chunks])
 
-    response = await api._stream_generate_content(
-        client, "gemini-2.0-flash", [], GenerateContentConfig()
-    )
-
-    assert response.response_id == "g-stream-response"
+    assert output.response_id == "g-stream-response"
 
 
 def test_google_explicit_api_key_overrides_ambient_adc(

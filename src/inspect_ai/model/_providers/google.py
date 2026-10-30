@@ -15,7 +15,10 @@ from typing import Any, Literal, NamedTuple, cast
 import aiohttp
 import anyio
 from google.genai import Client
-from google.genai._extra_utils import merge_continuation_responses
+from google.genai._extra_utils import (
+    StreamContinuation,
+    merge_continuation_responses,
+)
 from google.genai.errors import APIError, ClientError
 from google.genai.types import (
     Candidate,
@@ -197,6 +200,10 @@ DEFAULT_GOOGLE_HTTP_TIMEOUT = 60 * 60
 # relative to other content blocks (visible thought, server tool calls).
 _GEMINI_FUNCTION_CALL_ID_KEY = "gemini_function_call_id"
 
+# Key under ContentText.internal holding the original parts of a text joined
+# across continuation legs, so that their thought signatures replay unchanged.
+_GEMINI_PARTS_KEY = "gemini_parts"
+
 # Server-side tool_call types that we round-trip as ContentToolUse(tool_type="web_search").
 # Anything outside this set is warned-and-skipped by server_tool_use_from_tool_call.
 _SUPPORTED_SERVER_TOOL_TYPES: frozenset[ToolType] = frozenset(
@@ -259,6 +266,185 @@ class _ContinuationChain:
             if len(self.responses) == 1
             else {"responses": self.responses}
         )
+
+
+class _StreamedLeg:
+    """The chunks of one streamed request, accumulated into one response."""
+
+    def __init__(self) -> None:
+        self.parts: dict[int, list[Part]] = {}
+        self.candidates: dict[int, Candidate] = {}
+        self.finish_reasons: dict[int, FinishReason] = {}
+        # the latest checkpoint token of each candidate and how many of its
+        # parts it covers
+        self.checkpoints: dict[int, tuple[bytes, int]] = {}
+        self.usage: GenerateContentResponseUsageMetadata | None = None
+        self.checkpoint_usage: GenerateContentResponseUsageMetadata | None = None
+        self.prompt_feedback: GenerateContentResponsePromptFeedback | None = None
+        self.last_chunk: GenerateContentResponse | None = None
+
+    @property
+    def finished(self) -> bool:
+        """Whether the stream ended with a finish reason or prompt feedback."""
+        return 0 in self.finish_reasons or self.prompt_feedback is not None
+
+    @property
+    def discarded(self) -> bool:
+        """Whether parts after the last checkpoint were reported to observers."""
+        checkpoint = self.checkpoints.get(0)
+        return len(self.parts.get(0, [])) > (checkpoint[1] if checkpoint else 0)
+
+    async def add(self, chunk: GenerateContentResponse) -> None:
+        """Add a chunk, reporting its progress and content to stream observers."""
+        self.last_chunk = chunk
+        if chunk.usage_metadata is not None:
+            self.usage = chunk.usage_metadata
+        if chunk.prompt_feedback is not None:
+            self.prompt_feedback = chunk.prompt_feedback
+
+        # report cumulative output tokens when the chunk carries usage
+        # (candidates + thoughts, matching usage_metadata_to_model_usage's
+        # output_tokens convention), else a bare heartbeat
+        output_tokens: int | None = None
+        if chunk.usage_metadata is not None:
+            output_tokens = (chunk.usage_metadata.candidates_token_count or 0) + (
+                chunk.usage_metadata.thoughts_token_count or 0
+            ) or None
+        report_model_stream_progress(output_tokens)
+
+        for candidate in chunk.candidates or []:
+            if candidate.index is None:
+                continue
+            idx = candidate.index
+            parts = self.parts.setdefault(idx, [])
+            self.candidates[idx] = candidate
+            if candidate.finish_reason is not None:
+                self.finish_reasons[idx] = candidate.finish_reason
+            if candidate.content and candidate.content.parts:
+                parts.extend(candidate.content.parts)
+                # report content deltas for the first candidate only —
+                # interleaving multiple candidates' fragments into the
+                # single delta stream would corrupt accumulating
+                # consumers
+                if idx == 0:
+                    for part in candidate.content.parts:
+                        await _report_stream_part_delta(part)
+            if candidate.continuation_token:
+                self.checkpoints[idx] = (candidate.continuation_token, len(parts))
+                self.checkpoint_usage = self.usage
+
+    def response(self, cut_off: bool) -> GenerateContentResponse | None:
+        """The response streamed so far, or None if no chunk arrived.
+
+        A cut-off response keeps only the parts up to the last checkpoint, and
+        the usage reported at it (a dropped stream is billed up to its last
+        checkpoint).
+        """
+        if self.last_chunk is None:
+            return None
+        candidates: list[Candidate] = []
+        for idx in sorted(self.parts):
+            parts = self.parts[idx]
+            checkpoint = self.checkpoints.get(idx)
+            if cut_off:
+                parts = parts[: checkpoint[1] if checkpoint else 0]
+            last = self.candidates[idx]
+            candidates.append(
+                Candidate(
+                    content=Content(parts=_merge_streamed_parts(parts), role="model"),
+                    finish_reason=None if cut_off else self.finish_reasons.get(idx),
+                    safety_ratings=last.safety_ratings,
+                    citation_metadata=last.citation_metadata,
+                    token_count=last.token_count,
+                    grounding_metadata=last.grounding_metadata,
+                    avg_logprobs=last.avg_logprobs,
+                    continuation_token=checkpoint[0] if checkpoint else None,
+                    index=idx,
+                )
+            )
+        return GenerateContentResponse(
+            candidates=candidates,
+            usage_metadata=self.checkpoint_usage if cut_off else self.usage,
+            prompt_feedback=self.prompt_feedback,
+            model_version=self.last_chunk.model_version,
+            response_id=self.last_chunk.response_id,
+        )
+
+
+def _merge_streamed_parts(accumulated_parts: list[Part]) -> list[Part]:
+    """Join a streamed candidate's text and thought fragments into whole parts."""
+    merged_parts: list[Part] = []
+    thinking_texts: list[str] = []
+    output_texts: list[str] = []
+
+    for part in accumulated_parts:
+        if part.thought_signature:
+            if thinking_texts:
+                merged_parts.append(Part(thought=True, text="".join(thinking_texts)))
+                thinking_texts = []
+
+            if part.text:
+                combined_text = "".join(output_texts) + part.text
+                merged_parts.append(
+                    Part(
+                        thought_signature=part.thought_signature,
+                        text=combined_text,
+                    )
+                )
+                output_texts = []
+            elif part.function_call or part.executable_code:
+                if output_texts:
+                    merged_parts.append(Part(text="".join(output_texts)))
+                    output_texts = []
+
+                if part.function_call:
+                    merged_parts.append(
+                        Part(
+                            thought_signature=part.thought_signature,
+                            function_call=part.function_call,
+                        )
+                    )
+                elif part.executable_code:
+                    merged_parts.append(
+                        Part(
+                            thought_signature=part.thought_signature,
+                            executable_code=part.executable_code,
+                        )
+                    )
+            else:
+                if output_texts:
+                    merged_parts.append(
+                        Part(
+                            thought_signature=part.thought_signature,
+                            text="".join(output_texts),
+                        )
+                    )
+                    output_texts = []
+
+        elif part.thought is True and part.text:
+            if output_texts:
+                merged_parts.append(Part(text="".join(output_texts)))
+                output_texts = []
+            thinking_texts.append(part.text)
+        elif part.text:
+            if thinking_texts:
+                merged_parts.append(Part(thought=True, text="".join(thinking_texts)))
+                thinking_texts = []
+            output_texts.append(part.text)
+        else:
+            if thinking_texts:
+                merged_parts.append(Part(thought=True, text="".join(thinking_texts)))
+                thinking_texts = []
+            if output_texts:
+                merged_parts.append(Part(text="".join(output_texts)))
+                output_texts = []
+            merged_parts.append(part)
+
+    if thinking_texts:
+        merged_parts.append(Part(thought=True, text="".join(thinking_texts)))
+    if output_texts:
+        merged_parts.append(Part(text="".join(output_texts)))
+    return merged_parts
 
 
 class CategorizedTools(NamedTuple):
@@ -566,6 +752,7 @@ class GoogleGenAIAPI(ModelAPI):
 
                 response: GenerateContentResponse | None = None
                 legs: list[GenerateContentResponse] = []
+                joined_text_parts: dict[int, list[Part]] = {}
                 # every request of the retry loop below (and every continuation
                 # of each) is billed; the first one is the request built from
                 # the input
@@ -579,7 +766,7 @@ class GoogleGenAIAPI(ModelAPI):
                         legs = await self._generate_with_continuations(
                             client, gemini_contents, parameters, chain
                         )
-                        response = _merge_continuation_legs(legs)
+                        response, joined_text_parts = _merge_continuation_legs(legs)
                         # retry for MALFORMED_FUNCTION_CALL
                         if (
                             response.candidates
@@ -621,6 +808,20 @@ class GoogleGenAIAPI(ModelAPI):
                         handled.usage = chain.usage
                         handled.input_context_tokens = chain.input_context_tokens
                     return handled, model_call
+                except Exception as ex:
+                    # keep the responses of the requests that completed before
+                    # the error (the model layer records only the error)
+                    if chain.responses:
+                        model_call.set_error(
+                            {
+                                "error": {"message": str(ex.message), "code": ex.code}
+                                if isinstance(ex, APIError)
+                                else {"message": str(ex)},
+                                "responses": chain.responses,
+                            },
+                            http_hooks.end_request(request_id),
+                        )
+                    raise
 
                 assert response is not None  # mypy confused by retry loop
 
@@ -634,7 +835,7 @@ class GoogleGenAIAPI(ModelAPI):
                     for tool in gemini_tools
                 )
                 choices = completion_choices_from_candidates(
-                    model_name, response, has_computer_use
+                    model_name, response, has_computer_use, joined_text_parts
                 )
                 # a continuation blocked with no candidate: keep the earlier
                 # legs' content, but report the block
@@ -678,10 +879,27 @@ class GoogleGenAIAPI(ModelAPI):
         Returns:
             The response of every leg, in order.
         """
+        if not self._batcher and (
+            self.streaming is True
+            or (self.streaming is None and model_stream_requested())
+        ):
+            return await self._stream_with_continuations(
+                client, contents, parameters, chain
+            )
+
         legs: list[GenerateContentResponse] = []
         leg_parameters = parameters
         while True:
-            response = await self._generate_content(client, contents, leg_parameters)
+            if self._batcher:
+                response = await self._batcher.generate_for_request(
+                    batch_request_dict(leg_parameters, contents)
+                )
+            else:
+                response = await client.aio.models.generate_content(
+                    model=self.service_model_name(),
+                    contents=contents,  # type: ignore[arg-type]
+                    config=leg_parameters,
+                )
             legs.append(response)
             chain.add(response)
             continuation_token = _continuation_token(response)
@@ -693,248 +911,100 @@ class GoogleGenAIAPI(ModelAPI):
                 update={"continuation_token": continuation_token}
             )
 
-    async def _generate_content(
+    async def _stream_with_continuations(
         self,
         client: Client,
         contents: list[Content],
         parameters: GenerateContentConfig,
-    ) -> GenerateContentResponse:
-        """Send one request through the batcher, a stream or a plain call."""
-        if self._batcher:
-            return await self._batcher.generate_for_request(
-                batch_request_dict(parameters, contents)
-            )
-        elif self.streaming is True or (
-            self.streaming is None and model_stream_requested()
-        ):
-            return await self._stream_generate_content(
-                client=client,
-                model=self.service_model_name(),
-                contents=contents,  # type: ignore[arg-type]
-                config=parameters,
-            )
-        else:
-            return await client.aio.models.generate_content(
-                model=self.service_model_name(),
-                contents=contents,  # type: ignore[arg-type]
-                config=parameters,
-            )
+        chain: _ContinuationChain,
+    ) -> list[GenerateContentResponse]:
+        """Stream a request and its continuations, one leg per streamed request.
 
-    async def _stream_generate_content(
+        The SDK's own `StreamContinuation` decides whether to send another
+        request and with which token: after `CONTINUATION`, and after a stream
+        that ended or dropped without a finish reason once it passed a
+        checkpoint. A leg cut off that way keeps only its parts up to the
+        checkpoint (the next leg resumes from there), and stream observers are
+        reset to the kept output.
+
+        Returns:
+            The response of every leg, in order.
+        """
+        # the state continues on its own (automatic_continuation unset), while
+        # each request turns it off so that the SDK does not continue it too
+        state = StreamContinuation(
+            parameters.model_copy(update={"automatic_continuation": None})
+        )
+        legs: list[GenerateContentResponse] = []
+        while True:
+            request_config = state.start_hop()
+            assert isinstance(request_config, GenerateContentConfig)
+            leg = _StreamedLeg()
+            error = await self._stream_leg(
+                client,
+                contents,
+                request_config.model_copy(update={"automatic_continuation": False}),
+                state,
+                leg,
+            )
+            try:
+                resume = state.end_hop(error)
+            except Exception:
+                if (response := leg.response(cut_off=True)) is not None:
+                    chain.add(response)
+                raise
+            cut_off = resume and not leg.finished
+            response = leg.response(cut_off=cut_off)
+            if response is None:
+                if resume:
+                    continue
+                raise NoStreamDataError(
+                    "No response chunks received from streaming API for model "
+                    f"{self.service_model_name()}"
+                )
+            legs.append(response)
+            chain.add(response)
+            if len(response.candidates or []) > 1:
+                _continuation_token(response)
+                return legs
+            if not resume:
+                return legs
+            if cut_off and leg.discarded:
+                await report_model_stream_restart()
+                for kept in legs:
+                    if kept.candidates and kept.candidates[0].content:
+                        for part in kept.candidates[0].content.parts or []:
+                            await _report_stream_part_delta(part)
+
+    async def _stream_leg(
         self,
         client: Client,
-        model: str,
-        contents: list[ContentUnion],
+        contents: list[Content],
         config: GenerateContentConfig,
-    ) -> GenerateContentResponse:
-        """Stream content generation and accumulate response.
-
-        Accumulates parts from streaming chunks and constructs a response
-        that matches non-streaming structure, allowing existing parsing logic
-        to handle the conversion to Inspect format.
-
-        A long stream sends checkpoint continuation tokens before it ends. If it
-        ends after a new checkpoint without a finish reason (cut off), the
-        response is returned as of that checkpoint with finish reason
-        `CONTINUATION`, so the next leg resumes from it.
-
-        Raises:
-            RuntimeError: If no chunks received from stream
-        """
-        candidates_parts: dict[int, list[Part]] = {}
-        # the latest token for each candidate and how many of its parts it
-        # covers (the parts after it are lost if the stream is cut off)
-        checkpoints: dict[int, tuple[bytes, int]] = {}
-        usage: GenerateContentResponseUsageMetadata | None = None
-        checkpoint_usage: GenerateContentResponseUsageMetadata | None = None
-        prompt_feedback: GenerateContentResponsePromptFeedback | None = None
-        last_chunk: GenerateContentResponse | None = None
-
-        stream = await client.aio.models.generate_content_stream(
-            model=model,
-            contents=contents,
-            config=config,
-        )
+        state: StreamContinuation,
+        leg: _StreamedLeg,
+    ) -> Exception | None:
+        """Stream one request into `leg`, returning the error that ended it (if any)."""
+        try:
+            stream = await client.aio.models.generate_content_stream(
+                model=self.service_model_name(),
+                contents=contents,  # type: ignore[arg-type]
+                config=config,
+            )
+            iterator = aiter(stream)
+        except Exception as ex:
+            return ex
 
         report_model_stream_start()
-
-        async for chunk in stream:
-            last_chunk = chunk
-            if chunk.usage_metadata is not None:
-                usage = chunk.usage_metadata
-            if chunk.prompt_feedback is not None:
-                prompt_feedback = chunk.prompt_feedback
-
-            # report cumulative output tokens when the chunk carries usage
-            # (candidates + thoughts, matching usage_metadata_to_model_usage's
-            # output_tokens convention), else a bare heartbeat
-            output_tokens: int | None = None
-            if chunk.usage_metadata is not None:
-                output_tokens = (chunk.usage_metadata.candidates_token_count or 0) + (
-                    chunk.usage_metadata.thoughts_token_count or 0
-                ) or None
-            report_model_stream_progress(output_tokens)
-
-            if chunk.candidates:
-                for candidate in chunk.candidates:
-                    if candidate.index is None:
-                        continue
-
-                    idx = candidate.index
-                    if idx not in candidates_parts:
-                        candidates_parts[idx] = []
-
-                    if candidate.content and candidate.content.parts:
-                        candidates_parts[idx].extend(candidate.content.parts)
-                        # report content deltas for the first candidate only —
-                        # interleaving multiple candidates' fragments into the
-                        # single delta stream would corrupt accumulating
-                        # consumers
-                        if idx == 0:
-                            for part in candidate.content.parts:
-                                await _report_stream_part_delta(part)
-
-                    if candidate.continuation_token:
-                        checkpoints[idx] = (
-                            candidate.continuation_token,
-                            len(candidates_parts[idx]),
-                        )
-                        checkpoint_usage = usage
-
-        if last_chunk is None:
-            raise NoStreamDataError(
-                f"No response chunks received from streaming API for model {model}"
-            )
-
-        final_candidates = []
-        interrupted = False
-        for idx in sorted(candidates_parts.keys()):
-            last_candidate_for_idx = None
-            if last_chunk.candidates:
-                for c in last_chunk.candidates:
-                    if c.index == idx:
-                        last_candidate_for_idx = c
-                        break
-
-            accumulated_parts = candidates_parts[idx]
-            finish_reason = (
-                last_candidate_for_idx.finish_reason if last_candidate_for_idx else None
-            )
-            checkpoint = checkpoints.get(idx)
-            continuation_token = checkpoint[0] if checkpoint else None
-            if (
-                finish_reason is None
-                and prompt_feedback is None
-                and checkpoint is not None
-                and checkpoint[0] != config.continuation_token
-            ):
-                accumulated_parts = accumulated_parts[: checkpoint[1]]
-                finish_reason = FinishReason.CONTINUATION
-                interrupted = True
-
-            merged_parts: list[Part] = []
-            thinking_texts: list[str] = []
-            output_texts: list[str] = []
-
-            for part in accumulated_parts:
-                if part.thought_signature:
-                    if thinking_texts:
-                        merged_parts.append(
-                            Part(thought=True, text="".join(thinking_texts))
-                        )
-                        thinking_texts = []
-
-                    if part.text:
-                        combined_text = "".join(output_texts) + part.text
-                        merged_parts.append(
-                            Part(
-                                thought_signature=part.thought_signature,
-                                text=combined_text,
-                            )
-                        )
-                        output_texts = []
-                    elif part.function_call or part.executable_code:
-                        if output_texts:
-                            merged_parts.append(Part(text="".join(output_texts)))
-                            output_texts = []
-
-                        if part.function_call:
-                            merged_parts.append(
-                                Part(
-                                    thought_signature=part.thought_signature,
-                                    function_call=part.function_call,
-                                )
-                            )
-                        elif part.executable_code:
-                            merged_parts.append(
-                                Part(
-                                    thought_signature=part.thought_signature,
-                                    executable_code=part.executable_code,
-                                )
-                            )
-                    else:
-                        if output_texts:
-                            merged_parts.append(
-                                Part(
-                                    thought_signature=part.thought_signature,
-                                    text="".join(output_texts),
-                                )
-                            )
-                            output_texts = []
-
-                elif part.thought is True and part.text:
-                    if output_texts:
-                        merged_parts.append(Part(text="".join(output_texts)))
-                        output_texts = []
-                    thinking_texts.append(part.text)
-                elif part.text:
-                    if thinking_texts:
-                        merged_parts.append(
-                            Part(thought=True, text="".join(thinking_texts))
-                        )
-                        thinking_texts = []
-                    output_texts.append(part.text)
-                else:
-                    if thinking_texts:
-                        merged_parts.append(
-                            Part(thought=True, text="".join(thinking_texts))
-                        )
-                        thinking_texts = []
-                    if output_texts:
-                        merged_parts.append(Part(text="".join(output_texts)))
-                        output_texts = []
-                    merged_parts.append(part)
-
-            if thinking_texts:
-                merged_parts.append(Part(thought=True, text="".join(thinking_texts)))
-            if output_texts:
-                merged_parts.append(Part(text="".join(output_texts)))
-
-            if last_candidate_for_idx:
-                final_candidates.append(
-                    Candidate(
-                        content=Content(parts=merged_parts, role="model"),
-                        finish_reason=finish_reason,
-                        safety_ratings=last_candidate_for_idx.safety_ratings,
-                        citation_metadata=last_candidate_for_idx.citation_metadata,
-                        token_count=last_candidate_for_idx.token_count,
-                        grounding_metadata=last_candidate_for_idx.grounding_metadata,
-                        avg_logprobs=last_candidate_for_idx.avg_logprobs,
-                        continuation_token=continuation_token,
-                        index=idx,
-                    )
-                )
-
-        return GenerateContentResponse(
-            candidates=final_candidates,
-            # a cut-off stream is billed up to its last checkpoint
-            usage_metadata=checkpoint_usage
-            if interrupted
-            else last_chunk.usage_metadata,
-            prompt_feedback=prompt_feedback,
-            model_version=last_chunk.model_version,
-            response_id=last_chunk.response_id,
-        )
+        while True:
+            try:
+                chunk = await anext(iterator)
+            except StopAsyncIteration:
+                return None
+            except Exception as ex:
+                return ex
+            state.observe(chunk)
+            await leg.add(chunk)
 
     @override
     async def count_tokens(
@@ -1787,6 +1857,14 @@ async def content(
                                 None,
                             )
 
+                    # text joined across continuation legs from signed parts
+                    elif isinstance(content, ContentText) and (
+                        joined_parts := _joined_text_replay_parts(content)
+                    ):
+                        parts_to_append = joined_parts
+                        # the original parts carry their own signatures
+                        working_reasoning_block = None
+
                     # other content
                     else:
                         parts_to_append = [await content_part(client, content)]
@@ -2085,7 +2163,10 @@ def _consolidate_thought_signature(
 
 
 def completion_choice_from_candidate(
-    model: str, candidate: Candidate, computer_use: bool = False
+    model: str,
+    candidate: Candidate,
+    computer_use: bool = False,
+    joined_text_parts: dict[int, list[Part]] | None = None,
 ) -> ChatCompletionChoice:
     # content we'll return
     content: list[
@@ -2247,7 +2328,22 @@ def completion_choice_from_candidate(
                     )
 
                 if part.text is not None:
-                    content.append(ContentText(text=part.text))
+                    original_parts = (joined_text_parts or {}).get(i)
+                    content.append(
+                        ContentText(
+                            text=part.text,
+                            internal={
+                                _GEMINI_PARTS_KEY: [
+                                    original.model_dump(
+                                        exclude_none=True, by_alias=True, mode="json"
+                                    )
+                                    for original in original_parts
+                                ]
+                            }
+                            if original_parts
+                            else None,
+                        )
+                    )
 
     # distribute citations to individual ContentText parts with adjusted indexes
     citations = get_candidate_citations(candidate)
@@ -2387,13 +2483,19 @@ def completion_choices_from_candidates(
     model: str,
     response: GenerateContentResponse,
     computer_use: bool = False,
+    joined_text_parts: dict[int, list[Part]] | None = None,
 ) -> list[ChatCompletionChoice]:
     candidates = response.candidates
     if candidates:
         candidates_list = sorted(candidates, key=lambda c: c.index or 0)
         return [
-            completion_choice_from_candidate(model, candidate, computer_use)
-            for candidate in candidates_list
+            completion_choice_from_candidate(
+                model,
+                candidate,
+                computer_use,
+                joined_text_parts if i == 0 else None,
+            )
+            for i, candidate in enumerate(candidates_list)
         ]
     elif response.prompt_feedback:
         prompt_feedback = response.prompt_feedback
@@ -2917,9 +3019,18 @@ def _continuation_token(response: GenerateContentResponse) -> bytes | None:
     return candidates[0].continuation_token
 
 
-def _merge_continuation_legs(
-    legs: list[GenerateContentResponse],
-) -> GenerateContentResponse:
+class _MergedLegs(NamedTuple):
+    response: GenerateContentResponse
+    """The legs merged into one response."""
+
+    joined_text_parts: dict[int, list[Part]]
+    """The original parts of each signed text part joined across a leg boundary.
+
+    Keyed by the joined part's index in the first candidate's parts.
+    """
+
+
+def _merge_continuation_legs(legs: list[GenerateContentResponse]) -> _MergedLegs:
     """Merge the legs of a continued response into one response.
 
     `merge_continuation_responses` keeps each leg's parts apart and shifts
@@ -2929,12 +3040,14 @@ def _merge_continuation_legs(
     - Grounding segment offsets are read as offsets into the response's
       output text (see `get_candidate_citations`), so a later leg's segments
       are moved past the output text of the legs before it.
-    - Output text split at a leg boundary is joined into one part, so it
-      converts to one `ContentText` rather than two (which a reader joins with
-      a newline). Parts that both carry a thought signature stay apart.
+    - Output text split at a leg boundary (with any empty parts around it) is
+      joined into one part, so it converts to one `ContentText` rather than
+      several (which a reader joins with newlines). When the joined parts
+      carried thought signatures, the originals are returned in
+      `joined_text_parts` so that replay can send them as they were.
     """
     if len(legs) == 1:
-        return legs[0]
+        return _MergedLegs(legs[0], {})
 
     shifted_legs: list[GenerateContentResponse] = []
     boundaries: list[int] = []
@@ -2963,43 +3076,98 @@ def _merge_continuation_legs(
 
     merged = merge_continuation_responses(shifted_legs)
     if not merged.candidates:
-        return merged
+        return _MergedLegs(merged, {})
     candidate = merged.candidates[0]
     if candidate.content is None or not candidate.content.parts:
-        return merged
-    parts = list(candidate.content.parts)
-    for boundary in sorted(set(boundaries), reverse=True):
-        if boundary >= len(parts):
-            continue
-        before, after = parts[boundary - 1], parts[boundary]
-        if (
-            before.text is not None
-            and after.text is not None
-            and not before.thought
-            and not after.thought
-            and not (before.thought_signature and after.thought_signature)
-        ):
-            parts[boundary - 1 : boundary + 1] = [
-                before.model_copy(
-                    update={
-                        "text": before.text + after.text,
-                        "thought_signature": before.thought_signature
-                        or after.thought_signature,
-                    }
-                )
-            ]
-    return merged.model_copy(
+        return _MergedLegs(merged, {})
+
+    parts = candidate.content.parts
+    joined_parts: list[Part] = []
+    joined_text_parts: dict[int, list[Part]] = {}
+    next_part = 0
+    for start, end in _boundary_text_runs(parts, boundaries):
+        joined_parts.extend(parts[next_part:start])
+        run = [part for part in parts[start:end] if not _is_empty_part(part)]
+        if any(part.thought_signature for part in run):
+            joined_text_parts[len(joined_parts)] = run
+        joined_parts.append(Part(text="".join(part.text or "" for part in run)))
+        next_part = end
+    joined_parts.extend(parts[next_part:])
+    merged = merged.model_copy(
         update={
             "candidates": [
                 candidate.model_copy(
                     update={
-                        "content": candidate.content.model_copy(update={"parts": parts})
+                        "content": candidate.content.model_copy(
+                            update={"parts": joined_parts}
+                        )
                     }
                 ),
                 *merged.candidates[1:],
             ]
         }
     )
+    return _MergedLegs(merged, joined_text_parts)
+
+
+def _boundary_text_runs(
+    parts: list[Part], boundaries: list[int]
+) -> list[tuple[int, int]]:
+    """The runs of output text parts that cross a leg boundary.
+
+    A run goes from the last text part before a boundary to the first text
+    part after it, across any empty parts between them; runs that share a
+    part are combined. Each run is a `(start, end)` slice of `parts`.
+    """
+    runs: list[tuple[int, int]] = []
+    for boundary in sorted(set(boundaries)):
+        start = boundary - 1
+        while start >= 0 and _is_empty_part(parts[start]):
+            start -= 1
+        end = boundary
+        while end < len(parts) and _is_empty_part(parts[end]):
+            end += 1
+        if (
+            start < 0
+            or end >= len(parts)
+            or not _is_output_text_part(parts[start])
+            or not _is_output_text_part(parts[end])
+        ):
+            continue
+        if runs and start < runs[-1][1]:
+            runs[-1] = (runs[-1][0], end + 1)
+        else:
+            runs.append((start, end + 1))
+    return runs
+
+
+def _is_output_text_part(part: Part) -> bool:
+    """Whether a part is output text (possibly signed) and nothing else."""
+    return (
+        part.text is not None
+        and not part.thought
+        and set(part.model_dump(exclude_none=True)) <= {"text", "thought_signature"}
+    )
+
+
+def _is_empty_part(part: Part) -> bool:
+    return not part.model_dump(exclude_none=True)
+
+
+def _joined_text_replay_parts(content: ContentText) -> list[Part] | None:
+    """The original parts of a text joined across continuation legs, if unchanged.
+
+    Text edited since it was generated is replayed as plain text.
+    """
+    if not isinstance(content.internal, dict):
+        return None
+    gemini_parts = content.internal.get(_GEMINI_PARTS_KEY)
+    if not isinstance(gemini_parts, list):
+        return None
+    parts = [Part.model_validate(part) for part in gemini_parts]
+    if "".join(part.text or "" for part in parts) != content.text:
+        return None
+    return parts
 
 
 def _shift_grounding_segments(candidate: Candidate, offset: int) -> Candidate:
