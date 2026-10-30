@@ -16,6 +16,7 @@ from __future__ import annotations
 from typing import Any, cast
 from unittest.mock import MagicMock
 
+import anyio
 import pytest
 from test_helpers.utils import skip_if_trio
 from textual.binding import Binding
@@ -24,8 +25,9 @@ from textual.widgets import Static, TextArea
 from inspect_ai.agent._acp.tui.app import InspectAcpApp
 from inspect_ai.agent._acp.tui.client import SessionRow
 from inspect_ai.agent._acp.tui.session_screen import SessionScreen
+from inspect_ai.agent._acp.tui.widgets.plan import PlanStripWidget
 
-from .conftest import make_fake_client
+from .conftest import make_fake_client, open_session_screen
 
 pytestmark = pytest.mark.slow
 
@@ -44,19 +46,39 @@ def _bindings_by_key() -> dict[str, Binding]:
 
 @skip_if_trio
 @pytest.mark.anyio
+async def test_open_session_screen_waits_for_widget_on_mount(
+    sample_rows: list[SessionRow], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The shared helper returns only after every widget's on_mount has run.
+
+    SessionScreen is on the stack before its widgets finish mounting; a
+    slow on_mount widens that window so a test can observe it.
+    """
+    on_mount = PlanStripWidget.on_mount
+    mounted: list[PlanStripWidget] = []
+
+    async def slow_on_mount(self: PlanStripWidget) -> None:
+        await anyio.sleep(0.05)
+        on_mount(self)
+        mounted.append(self)
+
+    monkeypatch.setattr(PlanStripWidget, "on_mount", slow_on_mount)
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        screen = await open_session_screen(pilot, sample_rows)
+        assert mounted == [screen.query_one(PlanStripWidget)]
+
+
+@skip_if_trio
+@pytest.mark.anyio
 async def test_session_screen_meta_row_renders_all_fields(
     sample_rows: list[SessionRow],
 ) -> None:
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        await pilot.pause()
-        # Drive the row select directly.
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, sample_rows)
         assert isinstance(app.screen, SessionScreen)
         meta = app.screen.query_one("#meta-text", Static)
         # ``meta.content`` returns the raw markup (with [dim]…[/dim]);
@@ -97,12 +119,7 @@ async def test_session_screen_meta_row_handles_missing_agent_name(
     client = make_fake_client(rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, rows)
         meta = app.screen.query_one("#meta-text", Static)
         # Em-dash placeholder rather than a literal "None".
         text = meta.render_str(str(meta.content)).plain
@@ -126,12 +143,7 @@ async def test_composer_has_top_margin_for_separation_from_transcript(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, sample_rows)
         composer_row = app.screen.query_one("#composer-row", Horizontal)
         assert composer_row.styles.margin.top == 1
 
@@ -145,12 +157,7 @@ async def test_composer_text_area_grows_but_caps_height(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, sample_rows)
         assert isinstance(app.screen, SessionScreen)
         composer = app.screen.query_one("#composer", TextArea)
         height = composer.styles.height
@@ -179,12 +186,7 @@ async def test_session_screen_switch_sample_returns_to_picker(
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     notifications: list[tuple[str, str | None]] = []
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, sample_rows)
         assert isinstance(app.screen, SessionScreen)
 
         # Capture any notify() calls so we can assert the toast doesn't
@@ -220,12 +222,7 @@ async def test_session_screen_binds_ctrl_s_to_switch_sample(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, sample_rows)
         assert isinstance(app.screen, SessionScreen)
         by_key = _bindings_by_key()
         assert "ctrl+s" in by_key, "expected a ctrl+s binding on SessionScreen"
@@ -291,12 +288,7 @@ async def test_action_newline_inserts_literal_newline_into_composer(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, sample_rows)
         assert isinstance(app.screen, SessionScreen)
         composer = app.screen.query_one("#composer", TextArea)
         composer.text = "line one"
@@ -320,12 +312,7 @@ async def test_composer_enter_converts_terminal_shift_enter_backslash_to_newline
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, sample_rows)
         assert isinstance(app.screen, SessionScreen)
         composer = app.screen.query_one("#composer", TextArea)
         composer.text = "line one\\"
@@ -350,12 +337,7 @@ async def test_composer_enter_submits_from_text_area_key_handler(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, sample_rows)
         assert isinstance(app.screen, SessionScreen)
         composer = app.screen.query_one("#composer", TextArea)
         composer.text = "please continue"
@@ -387,12 +369,7 @@ async def test_action_submit_sends_prompt_and_clears_composer(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, sample_rows)
         assert isinstance(app.screen, SessionScreen)
         composer = app.screen.query_one("#composer", TextArea)
         # Composer must be enabled — Phase 3 makes it interactive.
@@ -433,12 +410,7 @@ async def test_action_submit_with_focused_button_delegates_to_button(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, sample_rows)
         assert isinstance(app.screen, SessionScreen)
 
         # Mount a focusable Button using the APPROVAL id prefix
@@ -489,12 +461,7 @@ async def test_action_submit_with_focused_non_approval_button_does_not_delegate(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, sample_rows)
         assert isinstance(app.screen, SessionScreen)
 
         composer = app.screen.query_one("#composer", TextArea)
@@ -530,12 +497,7 @@ async def test_action_submit_with_empty_composer_is_noop(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, sample_rows)
         assert isinstance(app.screen, SessionScreen)
         composer = app.screen.query_one("#composer", TextArea)
         composer.text = "   "
@@ -554,12 +516,7 @@ async def test_action_interrupt_clears_draft_when_composer_nonempty(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, sample_rows)
         assert isinstance(app.screen, SessionScreen)
         composer = app.screen.query_one("#composer", TextArea)
         composer.text = "draft text"
@@ -586,12 +543,7 @@ async def test_action_interrupt_sends_cancel_when_agent_working(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, sample_rows)
         assert isinstance(app.screen, SessionScreen)
         composer = app.screen.query_one("#composer", TextArea)
         composer.text = ""
@@ -633,12 +585,7 @@ async def test_action_interrupt_is_noop_when_awaiting_input(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, sample_rows)
         assert isinstance(app.screen, SessionScreen)
         composer = app.screen.query_one("#composer", TextArea)
         composer.text = ""
@@ -669,12 +616,7 @@ async def test_action_interrupt_is_noop_during_quiescence_tail(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, sample_rows)
         assert isinstance(app.screen, SessionScreen)
         composer = app.screen.query_one("#composer", TextArea)
         composer.text = ""
@@ -705,12 +647,7 @@ async def test_session_screen_lifecycle_pill_starts_idle_and_hidden(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, sample_rows)
         pill = app.screen.query_one("#lifecycle-indicator", Static)
         assert pill.has_class("idle")
         # The ``.idle`` rule hides the pill via display: none — pin
@@ -730,12 +667,7 @@ async def test_session_screen_lifecycle_pill_flips_to_running(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, sample_rows)
         assert isinstance(app.screen, SessionScreen)
         # Inject a pending signal into state.
         chunk = AgentMessageChunk(
@@ -764,12 +696,7 @@ async def test_session_screen_lifecycle_pill_flips_to_interrupted(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, sample_rows)
         assert isinstance(app.screen, SessionScreen)
         # Pending first so the interrupt actually tears something down.
         chunk = AgentMessageChunk(
@@ -806,12 +733,7 @@ async def test_peer_disconnect_marks_complete_and_closes_session(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, sample_rows)
         assert isinstance(app.screen, SessionScreen)
         # Spy on close so we can assert it was called by the watcher.
         session = cast(Any, app.screen)._session
@@ -861,12 +783,7 @@ async def test_action_submit_is_noop_when_session_complete(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, sample_rows)
         assert isinstance(app.screen, SessionScreen)
         # Force the lifecycle into ``complete`` without going through
         # the disconnect path so we isolate the submit-guard.
@@ -900,12 +817,7 @@ async def test_action_newline_is_noop_when_session_complete(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, sample_rows)
         assert isinstance(app.screen, SessionScreen)
         app.screen.state.mark_complete()
         await pilot.pause()
@@ -976,12 +888,7 @@ async def test_pressing_a_resolves_approve_via_screen_binding(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, sample_rows)
         assert isinstance(app.screen, SessionScreen)
 
         # Reproduce live use: the composer TextArea has focus when the
@@ -1021,12 +928,7 @@ async def test_action_approval_decide_resolves_pending_approval(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, sample_rows)
         assert isinstance(app.screen, SessionScreen)
 
         pending = _bar_pending(_bar_pending_request("tc-1"))
@@ -1059,12 +961,7 @@ async def test_action_approval_decide_noop_outside_approval_lifecycle(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, sample_rows)
         assert isinstance(app.screen, SessionScreen)
         # No pending approval → lifecycle is not "approval".
         assert app.screen.state.lifecycle != "approval"
@@ -1097,12 +994,7 @@ async def test_action_approval_decide_noop_when_option_not_in_request(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, sample_rows)
         assert isinstance(app.screen, SessionScreen)
 
         # Request with only approve + reject — no terminate.
@@ -1147,12 +1039,7 @@ async def test_check_action_gates_prompt_letter_outside_approval(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, sample_rows)
         assert isinstance(app.screen, SessionScreen)
 
         # No approval pending → gate must close.
@@ -1194,12 +1081,7 @@ async def test_composer_row_hidden_while_approval_card_mounted(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, sample_rows)
         assert isinstance(app.screen, SessionScreen)
         composer_row = app.screen.query_one("#composer-row")
         # Default: visible (no card mounted, lifecycle still pre-complete).
@@ -1230,12 +1112,7 @@ async def test_action_submit_noop_during_approval_with_stranded_focus(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, sample_rows)
         assert isinstance(app.screen, SessionScreen)
 
         # Seed a draft, then enter approval lifecycle.
@@ -1276,12 +1153,7 @@ async def test_action_newline_noop_during_approval(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, sample_rows)
         assert isinstance(app.screen, SessionScreen)
 
         composer = app.screen.query_one("#composer", TextArea)
@@ -1354,12 +1226,7 @@ async def test_action_submit_noop_while_elicitation_card_mounted(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, sample_rows)
         assert isinstance(app.screen, SessionScreen)
 
         composer = app.screen.query_one("#composer", TextArea)
@@ -1397,12 +1264,7 @@ async def test_action_newline_noop_while_elicitation_card_mounted(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, sample_rows)
         assert isinstance(app.screen, SessionScreen)
 
         composer = app.screen.query_one("#composer", TextArea)
@@ -1446,12 +1308,7 @@ async def test_escape_with_elicitation_card_mounted_declines(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, sample_rows)
         assert isinstance(app.screen, SessionScreen)
 
         # Seed an elicitation; let the apply-loop mount the card.
@@ -1523,12 +1380,7 @@ async def test_escape_while_cancel_rpc_in_flight_does_not_clear_pending(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, sample_rows)
         assert isinstance(app.screen, SessionScreen)
 
         slow = _SlowConnection()
@@ -1604,12 +1456,7 @@ async def test_escape_with_both_cards_mounted_dismisses_cancel_first(
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
+        await open_session_screen(pilot, sample_rows)
         assert isinstance(app.screen, SessionScreen)
 
         # Park the elicitation first (the agent asked a question

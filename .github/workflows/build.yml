@@ -474,6 +474,12 @@ jobs:
               # binary, so restic-only changes must trigger the area too.
               - "src/inspect_ai/util/_restic/**"
               - "tests/checkpoint/**"
+            # On a PR that edits injectable source this job has no -dev
+            # sandbox tools binary; test_exec_remote.py's fixture then skips
+            # its tests rather than failing.
+            util/sandbox:
+              - "src/inspect_ai/util/_sandbox/**"
+              - "tests/util/sandbox/**"
 
   # Fast gate: confirm sandbox_tools_version.txt is bumped above N (normally
   # N+1) when the injectable source changed. Blocks downstream slow jobs on

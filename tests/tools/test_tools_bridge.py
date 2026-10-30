@@ -43,7 +43,7 @@ from inspect_ai.model._generate_config import (
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer import includes
 from inspect_ai.solver import Solver, solver
-from inspect_ai.tool import Tool, ToolError, tool
+from inspect_ai.tool import Tool, ToolCallError, ToolError, tool
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._tool import ToolParsingError
 from inspect_ai.tool._tool_def import ToolDef
@@ -1587,15 +1587,25 @@ async def test_bridged_group_with_fatal_leaf_fails_the_sample(
         assert active.limit_exceeded.call_count == 0
 
 
+LIMIT_REPLY = (
+    "Error calling method call_tool: The tool exceeded its token limit of 1,000."
+)
+
+
 @pytest.mark.parametrize("limit_first", [False, True])
-async def test_bridged_group_with_limit_leaf_reaches_the_sample(
+async def test_bridged_limit_replies_with_the_native_tool_error(
     monkeypatch: pytest.MonkeyPatch, limit_first: bool
 ) -> None:
-    """The dispatcher routes the limit to the sample, as it does a bare one."""
-    bare_reply, bare_active, _ = await _serve_grouped(
+    """A limit, bare or deciding a group, is a tool error as natively.
+
+    The dispatcher does not route it to the sample, so the agent continues.
+    """
+    bare_reply, bare_active, bare_bridge = await _serve_grouped(
         monkeypatch, _grouped_host_tool(_token_limit())
     )
-    assert bare_active.limit_exceeded.call_count == 1
+    assert bare_reply == LIMIT_REPLY
+    assert bare_active.limit_exceeded.call_count == 0
+    assert bare_bridge._failure is None
 
     def leaves() -> list[Exception]:
         return _ordered([ToolError("retry"), _token_limit()], limit_first)
@@ -1604,10 +1614,8 @@ async def test_bridged_group_with_limit_leaf_reaches_the_sample(
         reply, active, bridge = await _serve_grouped(
             monkeypatch, _grouped_host_tool(leaves)
         )
-        assert reply == bare_reply
-        assert active.limit_exceeded.call_count == 1
-        (routed,) = active.limit_exceeded.call_args.args
-        assert isinstance(routed, LimitExceededError)
+        assert reply == LIMIT_REPLY
+        assert active.limit_exceeded.call_count == 0
         assert bridge._failure is None
 
 
@@ -1669,7 +1677,7 @@ def _limit_handling_a_termination() -> LimitExceededError:
 
 
 @pytest.mark.parametrize("limit_first", [False, True])
-async def test_bridged_group_decided_by_a_limit_keeps_a_termination_in_its_history(
+async def test_bridged_limit_keeps_a_termination_in_its_history(
     monkeypatch: pytest.MonkeyPatch, limit_first: bool
 ) -> None:
     def leaves() -> list[Exception]:
@@ -1677,24 +1685,13 @@ async def test_bridged_group_decided_by_a_limit_keeps_a_termination_in_its_histo
             [ToolError("retry"), _limit_handling_a_termination()], limit_first
         )
 
+    with pytest.raises(TerminateSampleError):
+        await _serve_grouped(
+            monkeypatch, _grouped_host_tool(_limit_handling_a_termination())
+        )
     for _ in range(_GROUP_REPEATS):
         with pytest.raises(TerminateSampleError):
             await _serve_grouped(monkeypatch, _grouped_host_tool(leaves))
-
-
-async def test_bridged_group_decided_by_a_limit_routes_it_with_its_own_cause(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    cause = OSError("quota service")
-
-    def leaves() -> list[Exception]:
-        limit = _token_limit()
-        limit.__cause__ = cause
-        return [ToolError("retry"), limit]
-
-    _, active, _ = await _serve_grouped(monkeypatch, _grouped_host_tool(leaves))
-    (routed,) = active.limit_exceeded.call_args.args
-    assert routed.__cause__ is cause
 
 
 @skip_if_no_docker
@@ -1948,6 +1945,48 @@ def test_sandbox_bridge_host_tool_error_does_not_end_the_sample() -> None:
         return solve
 
     eval_bridged_tools_task(test_solver())
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_sandbox_bridge_host_tool_limit_does_not_end_the_sample() -> None:
+    """A limit raised in a host tool is tool output for the model, as natively."""
+    responses: list[dict] = []
+    continued: list[bool] = []
+
+    @solver
+    def test_solver():
+        async def solve(state, generate):
+            async with sandbox_agent_bridge(
+                bridged_tools=[
+                    BridgedToolsSpec(
+                        name="srv",
+                        tools=[raising_tool(_token_limit())],
+                        require_proposal=False,
+                    )
+                ]
+            ) as bridge:
+                config = bridge.mcp_server_configs[0]
+                responses.append(
+                    await call_mcp_tool(config, "raising_tool", {"text": "hi"})
+                )
+                continued.append(True)
+            return state
+
+        return solve
+
+    log = eval_bridged_tools_task(test_solver())
+
+    assert responses[0]["error"]["message"].endswith(
+        "The tool exceeded its token limit of 1,000."
+    )
+    assert continued == [True]
+    assert log.samples is not None
+    assert log.samples[0].limit is None
+    [event] = host_tool_events(log)
+    assert event.error == ToolCallError(
+        "limit", "The tool exceeded its token limit of 1,000."
+    )
 
 
 @skip_if_no_docker
