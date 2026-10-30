@@ -11,6 +11,7 @@ from inspect_sandbox_tools._remote_tools._bash_session import (
     _controller,
     json_rpc_methods,
 )
+from inspect_sandbox_tools._util.common_types import ServerErrorCode
 from jsonrpcserver import async_dispatch
 
 # Binding a shell to the current user needs no user switch, so no root.
@@ -93,11 +94,15 @@ async def test_a_replaced_server_never_has_a_bound_shell(
     first = await new_session()
     assert first == "BashSession"
     assert await new_session(user=ME, bind=True) not in (bound, first)
-    assert error_code(await interact(bound, owner=ME)) == -32097
+    assert (
+        error_code(await interact(bound, owner=ME)) == ServerErrorCode.SESSION_NOT_FOUND
+    )
     restart = await call("bash_session", session_name=bound, owner=ME, restart=True)
-    assert error_code(restart) == -32097
+    assert error_code(restart) == ServerErrorCode.SESSION_NOT_FOUND
     # an unbound name the server does not have fails as before
-    assert error_code(await interact("BashSession_9")) == -32098
+    assert (
+        error_code(await interact("BashSession_9")) == ServerErrorCode.UNEXPECTED_ERROR
+    )
 
 
 async def test_a_bound_shell_answers_only_its_owner(
@@ -108,10 +113,13 @@ async def test_a_bound_shell_answers_only_its_owner(
     shell = server.session_for_name(bound)
     assert isinstance(shell, FakeSession) and shell.owner == ME
 
-    assert error_code(await interact(bound, owner="someone-else")) == -32096
-    assert error_code(await interact(bound)) == -32096
+    assert (
+        error_code(await interact(bound, owner="someone-else"))
+        == ServerErrorCode.SESSION_OWNER
+    )
+    assert error_code(await interact(bound)) == ServerErrorCode.SESSION_OWNER
     restart = await call("bash_session", session_name=bound, restart=True)
-    assert error_code(restart) == -32096
+    assert error_code(restart) == ServerErrorCode.SESSION_OWNER
     assert shell.requests == []
 
     assert (await interact(bound, owner=ME))["result"] == "out"
@@ -120,7 +128,9 @@ async def test_a_bound_shell_answers_only_its_owner(
     assert shell.requests == ["id\n", "restart"]
 
     # an owner never reaches an unbound shell either
-    assert error_code(await interact(unbound, owner=ME)) == -32096
+    assert (
+        error_code(await interact(unbound, owner=ME)) == ServerErrorCode.SESSION_OWNER
+    )
     assert (await interact(unbound))["result"] == "out"
 
 
@@ -131,5 +141,5 @@ async def test_binding_needs_a_username(
     server: _controller.Controller, user: object
 ) -> None:
     response = await call("bash_session_new_session", user=user, bind=True)
-    assert error_code(response) == -32099
+    assert error_code(response) == ServerErrorCode.TOOL_ERROR
     assert server._sessions == {}

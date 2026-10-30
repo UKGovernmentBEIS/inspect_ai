@@ -1,7 +1,7 @@
 import asyncio
 import pwd
 
-from ..._util.common_types import ToolException
+from ..._util.common_types import ServerErrorCode, ToolException
 from ..._util.session_controller import SessionController
 from ..._util.user_switch import RunAs, switch_target
 from ._session import Session
@@ -13,13 +13,13 @@ DEFAULT_SESSION_NAME = "BashSession"
 class SessionNotFoundError(ToolException):
     """A request for a bound shell this server does not have."""
 
-    code = -32097
+    code = ServerErrorCode.SESSION_NOT_FOUND
 
 
 class SessionOwnerError(ToolException):
     """A request whose owner is not the user the shell is bound to."""
 
-    code = -32096
+    code = ServerErrorCode.SESSION_OWNER
 
 
 class Controller(SessionController[Session]):

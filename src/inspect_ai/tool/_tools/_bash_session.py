@@ -12,6 +12,7 @@ from inspect_ai._util._json_rpc import (
 from inspect_ai.tool import ToolResult
 from inspect_ai.tool._sandbox_tools_utils._error_mapper import (
     SandboxToolsErrorMapper,
+    ServerErrorCode,
 )
 from inspect_ai.tool._sandbox_tools_utils.sandbox import sandbox_with_injected_tools
 from inspect_ai.util import StoreModel, store_as
@@ -73,9 +74,9 @@ class _BashSessionErrorMapper(SandboxToolsErrorMapper):
         code: int, message: str, method: str, params: JSONRPCParamsType
     ) -> Exception:
         match code:
-            case -32097:  # the server does not have the bound shell
+            case ServerErrorCode.SESSION_NOT_FOUND:
                 return _SessionNotFoundError(message)
-            case -32096:  # the bound shell belongs to another user
+            case ServerErrorCode.SESSION_OWNER:
                 return SandboxIdentityError(message)
             case _:
                 return SandboxToolsErrorMapper.server_error(

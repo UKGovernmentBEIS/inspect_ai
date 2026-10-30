@@ -23,6 +23,7 @@ from inspect_ai.tool import (
     read_file,
     skill,
 )
+from inspect_ai.tool._sandbox_tools_utils._error_mapper import ServerErrorCode
 from inspect_ai.tool._sandbox_tools_utils._legacy_helpers import (
     LEGACY_SANDBOX_CLI,
     legacy_tool_support_sandbox,
@@ -510,10 +511,19 @@ class _ToolsServer(CannedSandbox):
         assert method == "bash_session"
         name, owner = params["session_name"], params.get("owner")
         if name not in self.shells:
-            code = -32097 if owner is not None else -32098
+            code = (
+                ServerErrorCode.SESSION_NOT_FOUND
+                if owner is not None
+                else ServerErrorCode.UNEXPECTED_ERROR
+            )
             return {"error": {"code": code, "message": f"no shell {name}"}}
         if self.shells[name] != owner:
-            return {"error": {"code": -32096, "message": f"{name} is not {owner}'s"}}
+            return {
+                "error": {
+                    "code": ServerErrorCode.SESSION_OWNER,
+                    "message": f"{name} is not {owner}'s",
+                }
+            }
         self.received.append((name, params))
         return {"result": "restarted" if params.get("restart") else "out"}
 
