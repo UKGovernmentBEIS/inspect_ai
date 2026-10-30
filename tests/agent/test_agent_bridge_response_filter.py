@@ -687,6 +687,9 @@ class _RecordingCompact:
     ) -> None:
         self.recorded.append((input, output))
 
+    async def reset(self, prefix: list[ChatMessage]) -> None:
+        pass
+
 
 async def test_response_filter_runs_after_compaction_baseline_update() -> None:
     """A replacing filter must not blind compaction to the real generate usage.
@@ -1246,9 +1249,9 @@ async def test_sandbox_forwarding_preserves_response_filter_limit() -> None:
     """A limit hit in a response filter reaches the sandbox service unchanged.
 
     Drives the real generate_completions -> bridge_generate -> forwarder path: the
-    sandbox service ends the sample on a `LimitExceededError` from a model method,
-    whereas a wrapped one would fail the sample, and one returned as an error reply
-    would leave it running.
+    scaffold gets an error reply and the bridge records the `LimitExceededError`
+    itself, to raise on the agent's side, where the scope that applied the limit
+    handles it, whereas a wrapped one would fail the sample.
     """
     limit_error = LimitExceededError("token", value=102, limit=JUDGE_TOKEN_LIMIT)
 
@@ -1259,9 +1262,10 @@ async def test_sandbox_forwarding_preserves_response_filter_limit() -> None:
 
     bridge = _sandbox_bridge(over_limit_filter)
     generate = _forward_provider_errors(generate_completions(bridge), bridge)
-    with pytest.raises(LimitExceededError) as exc_info:
-        await generate(CHAT_REQUEST)
-    assert exc_info.value is limit_error
+    reply = await generate(CHAT_REQUEST)
+    assert PROVIDER_ERROR_KEY in reply
+    assert bridge.generation_limit is limit_error
+    assert not bridge._failure_requested.is_set()
 
 
 @pytest.mark.parametrize(
@@ -1466,7 +1470,9 @@ async def test_response_filter_limit_propagates(
 ) -> None:
     """A limit a response filter hits, also from a task group, leaves the bridge unwrapped.
 
-    Async, so it also runs under Trio, whose task groups and cancellation differ.
+    The sandbox bridge records it after answering the scaffold, to raise once
+    the agent has unwound. Async, so it also runs under Trio, whose task groups
+    and cancellation differ.
     """
     response_filter = _failing_response_filter(failure)
     with token_limit(JUDGE_TOKEN_LIMIT):
@@ -1486,9 +1492,12 @@ async def test_response_filter_limit_propagates(
                     )
                 case "sandbox":
                     sandbox_bridge = _sandbox_bridge(response_filter)
-                    await _forward_provider_errors(
+                    reply = await _forward_provider_errors(
                         generate_completions(sandbox_bridge), sandbox_bridge
                     )(CHAT_REQUEST)
+                    assert PROVIDER_ERROR_KEY in reply
+                    assert sandbox_bridge.generation_limit is not None
+                    raise sandbox_bridge.generation_limit
                 case _:
                     assert_never(path)
     assert exc_info.value.type == "token"

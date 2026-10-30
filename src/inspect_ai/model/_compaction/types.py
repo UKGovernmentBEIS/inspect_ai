@@ -165,3 +165,23 @@ class Compact(Protocol):
             output: The ModelOutput from the generate call.
         """
         ...
+
+    async def reset(self, prefix: list[ChatMessage]) -> None:
+        """Start again from the next conversation passed to `compact_input()`.
+
+        Call this after the conversation was rewritten (messages changed,
+        removed or reordered), which `compact_input()` does not detect: it
+        adds only messages whose ids it has not seen. Clears the compacted
+        input, the ids folded into it, the token baseline and the memory
+        warning flag, and replaces the prefix.
+
+        It does not remove compaction summaries from your messages. A summary
+        strategy (including `CompactionAuto`'s summary fallback) starts its
+        next compaction from the latest summary in the conversation, so
+        before resetting, remove any summaries that the changed history
+        invalidated from the conversation you pass next.
+
+        Args:
+            prefix: Chat messages to always preserve in compacted conversations.
+        """
+        ...

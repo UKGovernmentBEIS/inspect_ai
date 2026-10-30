@@ -58,12 +58,12 @@ jobs:
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
         uses: astral-sh/ruff-action@278981a28ce3188b1e39527901f38254bf3aac89 # v4.1.0
         with:
-          version-file: requirements-dev.txt
+          version-file: pyproject.toml
       - name: Format with Ruff
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
         uses: astral-sh/ruff-action@278981a28ce3188b1e39527901f38254bf3aac89 # v4.1.0
         with:
-          version-file: requirements-dev.txt
+          version-file: pyproject.toml
           args: "format --check"
 
   mypy:
@@ -173,7 +173,6 @@ jobs:
               - 'src/inspect_sandbox_tools/**'
             docs:
               - 'docs/**'
-              - 'requirements-doc.txt'
               - 'uv.lock'
 
   # Validate the Quarto docs site whenever docs change — on docs-only PRs
@@ -222,7 +221,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .docs-render-ok
-          key: docs-render-${{ hashFiles('docs/**', 'requirements-doc.txt', 'uv.lock', '.docs-src-delta') }}
+          key: docs-render-${{ hashFiles('docs/**', 'uv.lock', '.docs-src-delta') }}
 
       - name: Install uv
         if: steps.render-cache.outputs.cache-hit != 'true'
