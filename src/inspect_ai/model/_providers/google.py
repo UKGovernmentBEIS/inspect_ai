@@ -242,6 +242,13 @@ class _ContinuationChain:
     input_context_tokens: int | None = None
     """Input size of the first request, the one built from the generate input."""
 
+    model_call: ModelCall | None = None
+    """Model call that logs the responses as they complete.
+
+    Logging each response as it arrives keeps the completed requests when a
+    later one is cancelled (e.g. by an attempt timeout).
+    """
+
     def add(self, response: GenerateContentResponse) -> None:
         """Add a request's response."""
         self.responses.append(response)
@@ -249,6 +256,8 @@ class _ContinuationChain:
         self.usage = sum_usage(self.usage, usage)
         if len(self.responses) == 1:
             self.input_context_tokens = usage_input_tokens(usage)
+        if self.model_call is not None:
+            self.model_call.set_response(self.model_call_response())
 
     def model_call_response(self) -> Any:
         """The model call's response: the one response, or all of them.
@@ -806,7 +815,7 @@ class GoogleGenAIAPI(ModelAPI):
                 # every request of the retry loop below (and every continuation
                 # of each) is billed; the first one is the request built from
                 # the input
-                chain = _ContinuationChain()
+                chain = _ContinuationChain(model_call=model_call)
 
                 try:
                     # google sometimes requires retries for malformed function calls
@@ -910,8 +919,8 @@ class GoogleGenAIAPI(ModelAPI):
                 )
                 # a leg boundary can split a text (or JSON) anywhere, so a
                 # continued turn's text is not its text parts joined by lines
-                if len(legs) > 1:
-                    output.completion = _output_text(response)
+                if len(legs) > 1 and (text := _output_text(response)):
+                    output.completion = text
 
                 return output, model_call
 

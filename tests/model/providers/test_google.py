@@ -2034,6 +2034,41 @@ async def test_continuation_replays_text_signature_before_tool_call(
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("streaming", [False, True], ids=["plain", "streamed"])
+async def test_continuation_with_only_empty_text_keeps_its_completion(
+    streaming: bool,
+) -> None:
+    """A continued turn with no text takes the message's text as its completion.
+
+    So the completion is the same after the output is reloaded.
+    """
+    call = Part(
+        function_call=FunctionCall(name="calculator", args={"expr": "2+2"}),
+        thought_signature=b"s3",
+    )
+    first = [_signed("")]
+    last = [_signed("", b"s2"), call]
+    if streaming:
+        output, _, _ = await _generate_streamed(
+            [
+                [_chunk(first), _chunk(None, FinishReason.CONTINUATION, b"t1")],
+                [*(_chunk([part]) for part in last), _chunk(None, FinishReason.STOP)],
+            ]
+        )
+    else:
+        output, _, _ = await _generate_with_legs(
+            [
+                _leg(first, FinishReason.CONTINUATION, b"t1"),
+                _leg(last, FinishReason.STOP),
+            ]
+        )
+
+    assert output.completion == output.message.text == "\n"
+    stored = ModelOutput.model_validate_json(output.model_dump_json())
+    assert stored.completion == output.completion
+
+
+@pytest.mark.anyio
 @pytest.mark.parametrize("bridge", ["google", "chat-completions"])
 async def test_continuation_bridges_like_one_response(bridge: str) -> None:
     """A continued turn goes through the agent bridges as one response would.
@@ -2571,6 +2606,63 @@ async def test_continuation_error_logs_earlier_legs(
     assert len(model_call.response["responses"]) == 1
     if isinstance(error, ServerError):
         assert model_call.response["error"]["code"] == 503
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("streaming", [False, True], ids=["plain", "streamed"])
+@pytest.mark.parametrize("ending", ["cancelled", "timed-out"])
+async def test_cancelled_continuation_logs_earlier_legs(
+    ending: str, streaming: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A continuation cancelled (or timed out) mid-request keeps the legs before it.
+
+    The completed leg and its usage stay in the model call, and the client is
+    closed; the cancelled request's partial output is not logged as a leg.
+    """
+    calls = _capture_model_calls(monkeypatch)
+    first = _leg([Part(text="partial")], FinishReason.CONTINUATION, b"t1", (10, 2, 3))
+    scope = anyio.CancelScope()
+
+    def end_attempt() -> None:
+        if ending == "cancelled":
+            scope.cancel()
+        else:
+            scope.deadline = anyio.current_time()
+
+    async def plain(*args: Any, **kwargs: Any) -> GenerateContentResponse:
+        if mock.call_count == 1:
+            return first
+        end_attempt()
+        await anyio.sleep_forever()
+        raise AssertionError("not cancelled")
+
+    async def dropped() -> Any:
+        yield _chunk([Part(text=" lost")], usage=(20, 1, 0))
+        end_attempt()
+        await anyio.sleep_forever()
+
+    async def streamed(*args: Any, **kwargs: Any) -> Any:
+        return _leg_chunks([first]) if mock.call_count == 1 else dropped()
+
+    mock = AsyncMock(side_effect=streamed if streaming else plain)
+    mock_client = _create_mock_google_client(mock)
+    if streaming:
+        mock_client.aio.models.generate_content_stream = mock
+
+    with scope:
+        await _generate_with_client(mock_client, model_args=dict(streaming=streaming))
+    assert scope.cancelled_caught
+    assert mock.call_count == 2
+    # the client is closed on the way out
+    mock_client.aio.__aexit__.assert_awaited_once()
+
+    [model_call] = calls
+    assert not model_call.error
+    assert model_call.response["candidates"][0]["content"]["parts"] == [
+        {"text": "partial"}
+    ]
+    assert model_call.response["usageMetadata"]["promptTokenCount"] == 10
+    assert model_call.response["usageMetadata"]["candidatesTokenCount"] == 2
 
 
 @pytest.mark.anyio
