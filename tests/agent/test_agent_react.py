@@ -1790,15 +1790,28 @@ def _silent_child() -> Agent:
     return execute
 
 
+@agent
+def _replying_child() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        """Reply once."""
+        state.output = await get_model().generate(state.messages)
+        state.messages.append(state.output.message)
+        return state
+
+    return execute
+
+
 @pytest.mark.parametrize("gated", [True, False])
 @pytest.mark.parametrize("agent_kind", ["react", "deepagent"])
-async def test_react_no_submit_stops_after_empty_handoff(
-    agent_kind: str, gated: bool
+@pytest.mark.parametrize("child", ["silent", "replying"])
+async def test_react_no_submit_stops_after_handoff(
+    child: str, agent_kind: str, gated: bool
 ) -> None:
     async def stop(state: AgentState) -> bool:
         return False
 
-    tools = [handoff(_silent_child())]
+    child_agent = _silent_child() if child == "silent" else _replying_child()
+    tools = [handoff(child_agent)]
     inner = (
         react(tools=tools, submit=False, on_continue=stop)
         if agent_kind == "react"
@@ -1809,17 +1822,24 @@ async def test_react_no_submit_stops_after_empty_handoff(
         dataset=[Sample(input="Test")],
         solver=_gated(gate, inner) if gated else inner,
     )
-    model = get_model(
-        "mockllm/model", custom_outputs=[_tool_turn("transfer_to__silent_child")]
-    )
+    outputs = [_tool_turn(f"transfer_to__{child}_child")]
+    if child == "replying":
+        outputs.append(_reply("CHILD"))
+    model = get_model("mockllm/model", custom_outputs=outputs)
 
     log = (await eval_async(task, model=model))[0]
 
     assert log.status == "success"
     assert log.samples
-    assert log.samples[0].output.empty
-    assert len(_model_inputs(log)) == 1
-    # the turn made a tool call, so it is not an answer
+    output = log.samples[0].output
+    if child == "silent":
+        assert output.empty
+    else:
+        # the handoff replaced the parent's output with the child's reply
+        assert output.completion == "CHILD"
+    # the parent generated once, and the child as many times as it does
+    assert len(_model_inputs(log)) == len(outputs)
+    # the parent's turn made a tool call, so it is not an answer
     assert gate.answer_calls == []
 
 

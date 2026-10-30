@@ -560,8 +560,10 @@ def react_no_submit(
                             else:
                                 consecutive_content_filter = 0
 
-                            # resolve tool calls (if any)
-                            if state.output.message.tool_calls:
+                            # resolve tool calls (if any); a handoff can replace
+                            # the output, so note whether this turn called tools
+                            called_tools = bool(state.output.message.tool_calls)
+                            if called_tools:
                                 # call tool functions
                                 messages, output = await execute_tools(
                                     state.messages,
@@ -592,13 +594,7 @@ def react_no_submit(
                             state.messages = do_continue.messages
                             state.output = do_continue.output
                         else:
-                            # a handoff whose child did not generate leaves an
-                            # empty output, after a turn that made tool calls
-                            if (
-                                not state.output.empty
-                                and not state.output.message.tool_calls
-                                and await after_answer(ch, state)
-                            ):
+                            if not called_tools and await after_answer(ch, state):
                                 continue
                             break
                     elif not state.output.message.tool_calls:
