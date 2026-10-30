@@ -89,10 +89,11 @@ Decisions:
   `sandbox_tools_version.txt` entry). PyPI installs need it at runtime to
   verify the on-demand musl download; the version file and sums file must
   always travel together.
-- **Lives outside the injectable tree**, so editing it never triggers the
-  `injectable_src` CI filter (which would demand a version bump). It is
-  deliberately not added to `_check_main_divergence`'s pathspec groups
-  either; see "Install-state detection" below.
+- **Not an injectable input**, so editing it never sets `injectable_src` (it
+  is absent from `injectable_paths.txt`, the pathspec list the CI gate and
+  `_check_main_divergence` both read), which would otherwise demand a version
+  bump. It is deliberately not added to `_check_main_divergence`'s pathspec
+  groups either; see "Install-state detection" below.
 
 A small stdlib-only module `_digests.py` in `_sandbox_tools_utils` owns
 reading/writing/parsing (parse tolerates the optional `*` binary marker, as

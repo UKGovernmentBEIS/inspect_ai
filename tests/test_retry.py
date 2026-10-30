@@ -820,6 +820,17 @@ def test_eval_retry_keeps_untrusted_content_and_task_viewer() -> None:
     assert log2.eval.viewer.task_samples_view == TaskSamplesView(name="Custom")
 
 
+def test_eval_retry_help_says_trusted_logs_only() -> None:
+    from click.testing import CliRunner
+
+    from inspect_ai._cli.eval import eval_retry_command
+
+    result = CliRunner().invoke(eval_retry_command, ["--help"])
+    help_text = " ".join(result.output.split())
+    assert "Only run it on logs you trust." in help_text
+    assert "Hugging Face repo" in help_text
+
+
 @task
 def retry_sample_id_task() -> Task:
     sample_id: int | str = os.environ.get("RETRY_SAMPLE_ID", 1)
