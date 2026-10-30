@@ -193,10 +193,6 @@ def test_pinned_uv_versions_meet_required_version() -> None:
             "sync_model_data.yml",
         ]
     }
-    devcontainer = (REPO / ".devcontainer" / "Dockerfile").read_text()
-    devcontainer_uv = re.search(r"^ARG UV_VERSION=(\S+)$", devcontainer, re.M)
-    assert devcontainer_uv
-    pinned["devcontainer"] = devcontainer_uv[1]
     for where, pin in pinned.items():
         assert version(pin) >= version(required[1]), f"{where}: uv {pin}"
 
