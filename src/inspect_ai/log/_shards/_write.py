@@ -222,13 +222,16 @@ def _check_function_options(
     dictionaries (with `str` keys) whose elements are `str`, numbers,
     `None`, `Literal`s of those or such containers; anything else, an
     unannotated or unresolvable parameter, and a `**kwargs` option are
-    refused (decision: Ransom, 2026-10-30). Embedded registered metrics,
-    alone or in containers, are checked by :func:`_check_embedded`.
+    refused (decision: Ransom, 2026-10-30). An embedded registered metric
+    is checked by :func:`_check_embedded`; a container of only those needs
+    lists, sequences or `str`-keyed dictionaries ending in `Metric` (see
+    :func:`_metric_container`).
 
     A log records an enum option by its value when the enum derives from
     `str`, `int` or `float`, and by its member name otherwise; the option
     is restored to the member the factory received. A value that is not a
-    member, or an enum in a union with other types, is refused.
+    member, an enum in a union with other types, and any value for a
+    `Literal` of enum members (which is not restored) are refused.
 
     Returns:
         The options, with enum members restored.
@@ -239,13 +242,18 @@ def _check_function_options(
     restored = dict(options or {})
     if not options or not callable(factory):
         return restored
+    from inspect_ai._util.registry import is_registry_dict
+
     for argument, value in options.items():
-        if _registered_only(value):
+        if is_registry_dict(value):
             continue
         resolved = _parameter_annotation(factory, argument)
         if isinstance(value, (list, tuple, dict)):
+            restorable = (
+                _metric_container if _registered_only(value) else _plain_container
+            )
             reason = resolved.reason
-            if reason is None and not _plain_container(resolved.annotation):
+            if reason is None and not restorable(resolved.annotation):
                 reason = "whose element types are not plain"
             if reason is not None:
                 kind = "a dictionary" if isinstance(value, dict) else "a list"
@@ -260,6 +268,18 @@ def _check_function_options(
                     "builds the configuration inside its factory."
                 )
             continue
+        if (
+            value is not None
+            and resolved.reason is None
+            and _enum_literal(resolved.annotation)
+        ):
+            raise ShardSetError(
+                f"The metric '{name}' records {value!r} for '{argument}', whose "
+                "Literal holds enum members, which the merge does not restore, "
+                "so it does not merge such shards. Annotate the parameter with "
+                "the enum itself, or use a registered metric that creates the "
+                "option inside its factory."
+            )
         if resolved.reason is None and _enums(resolved.annotation):
             if value is not None:
                 restored[argument] = _restore_enum(
@@ -390,6 +410,46 @@ def _holds_no_function(annotation: object) -> bool:
         ):
             return False
     return True
+
+
+def _metric_container(annotation: object) -> bool:
+    """Whether a container of registered metrics is restored for this type.
+
+    Lists, sequences and `str`-keyed dictionaries whose elements are
+    `Metric`s or such containers, alone or in a union with `None` or a
+    class; a tuple becomes a list and other keys become strings.
+    """
+    from inspect_ai.scorer._metric import MetricDeprecated, MetricProtocol
+
+    def element(annotation: object) -> bool:
+        return all(
+            member in (MetricProtocol, MetricDeprecated) or _metric_container(member)
+            for member in _members(_unannotated(annotation))
+        )
+
+    for member in _members(_unannotated(annotation)):
+        origin = typing.get_origin(member)
+        args = typing.get_args(member)
+        if member is type(None) or origin is type:
+            continue
+        if origin in (list, collections.abc.Sequence) and len(args) == 1:
+            if not element(args[0]):
+                return False
+        elif origin in (dict, collections.abc.Mapping) and len(args) == 2:
+            if not (_str_keys(args[0]) and element(args[1])):
+                return False
+        else:
+            return False
+    return True
+
+
+def _enum_literal(annotation: object) -> bool:
+    """Whether a `Literal` in the type holds an enum member (or other non-plain value)."""
+    return any(
+        typing.get_origin(member) is typing.Literal
+        and not all(type(value) in _PLAIN for value in typing.get_args(member))
+        for member in _members(_unannotated(annotation))
+    )
 
 
 def _registered_only(value: object) -> bool:

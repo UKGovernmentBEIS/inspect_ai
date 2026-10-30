@@ -1319,7 +1319,12 @@ metric that
 compares or formats its enum options gets the same members as the live
 run. A value that is not a member (a composite plain `Flag`, whose name
 the merge does not parse, or a corrupted log) and an enum in a union with
-other types are refused before anything is written.
+other types are refused before anything is written. A `Literal` holds
+plain values only (strings, numbers, booleans, `None`): an option whose
+annotation includes a `Literal` of enum members (`Literal[Scale.HIGH]`,
+recorded as the member's value or name) is refused whatever its recorded
+value, since the merge restores members only for a directly annotated
+enum.
 
 Container options (decision: Ransom, 2026-10-30). The producer records
 a list, tuple or dictionary option with each element as a plain value
@@ -1335,10 +1340,14 @@ a tuple or set annotation, an unannotated or unresolvable parameter, and
 a `**kwargs` option are refused with `ShardSetError` in
 `recreate_scorers`, naming the metric and argument; the fix is plain
 element types or a registered metric that builds the configuration
-inside its factory. There is no restoration inside containers. Embedded
-registered metrics, alone or in containers (a `list[Metric]` option
-records registry dicts), stay supported and are checked by
-`_check_embedded`. Built-in `frequency(categories=[...])` and MLRC's
+inside its factory. There is no restoration inside containers. An
+embedded registered metric given directly stays supported and is checked
+by `_check_embedded`. A container whose leaves are all registered metrics
+(a `list[Metric]` option records registry dicts) needs an annotation of
+lists, sequences or `str`-keyed dictionaries ending in `Metric`, at any
+depth: `dict[int, Metric]` (its keys become strings) and
+`tuple[Metric, ...]` (it becomes a list) are refused, and a container
+mixing metrics with other values follows the plain-element rule. Built-in `frequency(categories=[...])` and MLRC's
 `list[str]` options merge; ANIMA's `dimension_normalized_avg(dims_by_name:
 dict[str, AnimaDimension])` is refused until wrapped in a registered
 metric.
@@ -2275,13 +2284,15 @@ today.
   Ransom, 2026-10-30); a registered metric that creates the function
   inside its factory merges. A custom metric given a string option merges
   only when that parameter's annotation resolves to `str`, a number, an
-  enum or a `Literal` of those; other types (`Any`, `Hashable`, ...) and
-  unannotated or unresolvable parameters are refused. Enum options reach
-  the recreated metric as members; an enum in a union with other types is
-  refused. A list or dictionary option merges only when its parameter is
-  annotated with plain element types; containers of enums, functions or
-  models (ANIMA's `dict[str, AnimaDimension]`) and unannotated containers
-  are refused. The
+  enum or a `Literal` of plain values; other types (`Any`, `Hashable`,
+  ...) and unannotated or unresolvable parameters are refused. Enum
+  options reach the recreated metric as members; an enum in a union with
+  other types and a `Literal` of enum members are refused. A list or
+  dictionary option merges only when its parameter is annotated with plain
+  element types, or with `list[Metric]`/`dict[str, Metric]` shapes for
+  registered metrics; containers of enums, functions or models (ANIMA's
+  `dict[str, AnimaDimension]`), non-`str` keys, tuples and unannotated
+  containers are refused. The
   `@metric` wrapper now sets
   `__wrapped__`, so `inspect.signature()` of a metric factory reports the
   factory's parameters instead of `(*args, **kwargs)`.
@@ -2751,6 +2762,13 @@ Per PR (numbers from "Implementation plan"):
      and Trio, with every file byte-identical, while `list[str]` and
      `dict[str, float]` options (MLRC-style), `frequency(categories=...)`
      and a list of registered metrics merge to the native values;
+     registered metrics in `dict[int, Metric]`, nested
+     `dict[str, dict[int, Metric]]` and `tuple[Metric, ...]` options
+     (direct and inside `grouped()`), and `Literal`s of `IntEnum`,
+     `IntFlag` (inside `Annotated`) and `float`-mixin enum members (direct
+     and inside `grouped()`), are refused the same way, while
+     `dict[str, Metric]` and a numeric `Literal[1, 2]` merge to the native
+     values;
    - delete-only S3 identity: `remove_shards_dir` refuses a merged log
      with `#`, a tab, CR, LF or a leading key slash, with and without
      `include_log`, on asyncio and Trio, deleting nothing (including the

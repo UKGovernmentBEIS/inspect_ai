@@ -1460,6 +1460,48 @@ def shard_containers(
     return compute
 
 
+@metric(name="shard_metric_map")
+def shard_metric_map(
+    by_index: dict[int, Metric] | None = None,
+    by_group: dict[str, dict[int, Metric]] | None = None,
+    ordered: tuple[Metric, ...] | None = None,
+    by_name: dict[str, Metric] | None = None,
+) -> Metric:
+    """A metric given registered metrics in containers."""
+
+    def compute(scores: list[SampleScore]) -> Value:
+        return sum(
+            cast(float, cast(MetricProtocol, m)(scores))
+            for m in (by_name or {}).values()
+        )
+
+    return compute
+
+
+class Scale(enum.IntEnum):
+    LOW = 1
+    HIGH = 2
+
+
+class Ratio(float, enum.Enum):
+    HALF = 0.5
+
+
+@metric(name="shard_scaled")
+def shard_scaled(
+    scale: Literal[Scale.HIGH] | None = None,
+    flags: Annotated[Literal[Perm.R], "doc"] | None = None,
+    ratio: Literal[Ratio.HALF] | None = None,
+    plain: Literal[1, 2] | None = None,
+) -> Metric:
+    """A metric with Literal options, of enum members and of plain values."""
+
+    def compute(scores: list[SampleScore]) -> Value:
+        return float(scale is Scale.HIGH) + float(plain or 0)
+
+    return compute
+
+
 @metric(name="shard_untyped_list")
 def shard_untyped_list(labels=None) -> Metric:
     """A metric whose list parameter has no annotation."""
@@ -1532,6 +1574,8 @@ async def _verdict(state: TaskState, target: Target) -> Score:
         ),
         shard_mean_keys(["points"], {"points": 2.0}, excluded_sample_ids=["1"]),
         shard_sum_of([aggregate("points", mean()), aggregate("verdict", accuracy())]),
+        shard_metric_map(by_name={"points": aggregate("points", mean())}),
+        shard_scaled(plain=2),
     ]
 )
 def verdicts() -> Scorer:
@@ -1620,6 +1664,8 @@ def test_metrics_with_their_own_converters_merge_to_the_unsharded_values(
     assert expected[("verdicts", "shard_mean_keys")] == 4.0
     assert expected[("verdicts", "shard_sum_of")] == 1.75 + 0.5
     assert expected[("labels", "P")] == 0.0
+    assert expected[("verdicts", "shard_metric_map")] == 1.75
+    assert expected[("verdicts", "shard_scaled")] == 2.0
     assert expected[("verdicts", "shard_quoted")] == 1
     assert ("ratings", "krippendorff_alpha") in expected
 
@@ -1628,6 +1674,20 @@ def _not_plain(kind: str, argument: str) -> str:
     return (
         f"'shard_containers' was given {kind} for '{argument}', whose element "
         "types are not plain"
+    )
+
+
+def _metric_container_refused(kind: str, argument: str) -> str:
+    return (
+        f"'shard_metric_map' was given {kind} for '{argument}', whose element "
+        "types are not plain"
+    )
+
+
+def _enum_literal_refused(argument: str) -> str:
+    return (
+        f"'shard_scaled' records \\S+ for '{argument}', whose Literal holds enum "
+        "members"
     )
 
 
@@ -1719,6 +1779,46 @@ _FUNCTION_OPTIONS: dict[str, tuple[Callable[[], list[Any]], str, bool]] = {
         lambda: [shard_containers(converter_tuple=(value_to_float(correct=2),))],
         _not_plain("a list", "converter_tuple"),
         False,
+    ),
+    "metric-int-keys": (
+        lambda: [shard_metric_map(by_index={1: mean()})],
+        _metric_container_refused("a dictionary", "by_index"),
+        True,
+    ),
+    "metric-nested-int-keys": (
+        lambda: [shard_metric_map(by_group={"a": {1: mean()}})],
+        _metric_container_refused("a dictionary", "by_group"),
+        True,
+    ),
+    "metric-tuple": (
+        lambda: [shard_metric_map(ordered=(mean(), accuracy()))],
+        _metric_container_refused("a list", "ordered"),
+        True,
+    ),
+    "metric-int-keys-grouped": (
+        lambda: [grouped(shard_metric_map(by_index={1: mean()}), "group")],
+        _metric_container_refused("a dictionary", "by_index"),
+        True,
+    ),
+    "enum-literal": (
+        lambda: [shard_scaled(scale=Scale.HIGH)],
+        _enum_literal_refused("scale"),
+        True,
+    ),
+    "flag-literal": (
+        lambda: [shard_scaled(flags=Perm.R)],
+        _enum_literal_refused("flags"),
+        True,
+    ),
+    "float-enum-literal": (
+        lambda: [shard_scaled(ratio=Ratio.HALF)],
+        _enum_literal_refused("ratio"),
+        True,
+    ),
+    "enum-literal-grouped": (
+        lambda: [grouped(shard_scaled(scale=Scale.HIGH), "group")],
+        _enum_literal_refused("scale"),
+        True,
     ),
     "untyped-list": (
         lambda: [shard_untyped_list(labels=["a"])],
