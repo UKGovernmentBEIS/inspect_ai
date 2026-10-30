@@ -13,6 +13,7 @@ from google.genai import Client
 from google.genai.errors import APIError, ClientError, ServerError
 from google.genai.types import (
     Blob,
+    BlockedReason,
     Candidate,
     Content,
     File,
@@ -23,10 +24,16 @@ from google.genai.types import (
     FunctionResponse,
     GenerateContentConfig,
     GenerateContentResponse,
+    GenerateContentResponsePromptFeedback,
     GenerateContentResponseUsageMetadata,
+    GroundingChunk,
+    GroundingChunkWeb,
+    GroundingMetadata,
+    GroundingSupport,
     HttpOptions,
     JobState,
     Part,
+    Segment,
 )
 from test_helpers.utils import skip_if_no_google
 
@@ -1650,7 +1657,10 @@ async def test_continuation_error_keeps_earlier_usage() -> None:
     assert output.usage.input_tokens == 9
     assert output.usage.output_tokens == 32
     assert output.input_context_tokens == 10
+    # the completed leg is logged with the error
     assert model_call.error is True
+    assert model_call.response["error"]["code"] == 400
+    assert len(model_call.response["responses"]) == 1
 
 
 @pytest.mark.anyio
@@ -1680,11 +1690,13 @@ async def test_continuation_then_malformed_function_call_retry() -> None:
             _with_usage(_create_success_response_with_tool_call(), 30, 6, 7),
         ]
     )
-    output, _ = await _generate_with_client(
+    output, model_call = await _generate_with_client(
         _create_mock_google_client(mock_generate), tools=[_create_test_tool()]
     )
 
     assert mock_generate.call_count == 3
+    # every request's response is logged, the retried attempt's included
+    assert len(model_call.response["responses"]) == 3
     tokens = [
         c.kwargs["config"].continuation_token for c in mock_generate.call_args_list
     ]
@@ -1697,48 +1709,61 @@ async def test_continuation_then_malformed_function_call_retry() -> None:
     assert output.input_context_tokens == 10
 
 
+def _leg_chunks(chunks: list[GenerateContentResponse]) -> Any:
+    async def stream() -> Any:
+        for chunk in chunks:
+            yield chunk
+
+    return stream()
+
+
+def _chunk(
+    parts: list[Part] | None,
+    finish_reason: FinishReason | None = None,
+    token: bytes | None = None,
+    usage: tuple[int, int, int] | None = None,
+) -> GenerateContentResponse:
+    response = GenerateContentResponse(
+        candidates=[
+            Candidate(
+                content=Content(role="model", parts=parts),
+                finish_reason=finish_reason,
+                continuation_token=token,
+                index=0,
+            )
+        ]
+    )
+    return _with_usage(response, *usage) if usage else response
+
+
+async def _generate_streamed(
+    legs: list[list[GenerateContentResponse]],
+) -> tuple[ModelOutput, Any, AsyncMock]:
+    mock_stream = AsyncMock(side_effect=[_leg_chunks(leg) for leg in legs])
+    mock_client = _create_mock_google_client(AsyncMock())
+    mock_client.aio.models.generate_content_stream = mock_stream
+    output, model_call = await _generate_with_client(
+        mock_client, model_args=dict(streaming=True)
+    )
+    return output, model_call, mock_stream
+
+
 @pytest.mark.anyio
 async def test_streamed_continuation_is_combined() -> None:
     """Streamed legs are continued, taking a token sent before the last chunk."""
-
-    def leg_chunks(chunks: list[GenerateContentResponse]) -> Any:
-        async def stream() -> Any:
-            for chunk in chunks:
-                yield chunk
-
-        return stream()
-
-    def chunk(
-        parts: list[Part] | None,
-        finish_reason: FinishReason | None = None,
-        token: bytes | None = None,
-        usage: tuple[int, int, int] | None = None,
-    ) -> GenerateContentResponse:
-        response = GenerateContentResponse(
-            candidates=[
-                Candidate(
-                    content=Content(role="model", parts=parts),
-                    finish_reason=finish_reason,
-                    continuation_token=token,
-                    index=0,
-                )
-            ]
-        )
-        return _with_usage(response, *usage) if usage else response
-
     mock_stream = AsyncMock(
         side_effect=[
-            leg_chunks(
+            _leg_chunks(
                 [
-                    chunk([_thought("a1")]),
-                    chunk([_thought("a2")], token=b"t1"),
-                    chunk(None, FinishReason.CONTINUATION, usage=(10, 2, 30)),
+                    _chunk([_thought("a1")]),
+                    _chunk([_thought("a2")], token=b"t1"),
+                    _chunk(None, FinishReason.CONTINUATION, usage=(10, 2, 30)),
                 ]
             ),
-            leg_chunks(
+            _leg_chunks(
                 [
-                    chunk([_thought("b")]),
-                    chunk([Part(text="done")], FinishReason.STOP, usage=(20, 4, 5)),
+                    _chunk([_thought("b")]),
+                    _chunk([Part(text="done")], FinishReason.STOP, usage=(20, 4, 5)),
                 ]
             ),
         ]
@@ -1759,6 +1784,226 @@ async def test_streamed_continuation_is_combined() -> None:
     assert output.usage is not None
     assert output.usage.output_tokens == 32 + 9
     assert output.input_context_tokens == 10
+    assert len(model_call.response["responses"]) == 2
+
+
+@pytest.mark.anyio
+async def test_continuation_joins_text_split_across_legs() -> None:
+    """Output text split at a leg boundary stays one text, so JSON stays valid."""
+    output, _, _ = await _generate_with_legs(
+        [
+            _leg([Part(text='{"answer":"hel')], FinishReason.CONTINUATION, b"t1"),
+            _leg([Part(text='lo"}')], FinishReason.STOP),
+        ]
+    )
+
+    assert output.completion == '{"answer":"hello"}'
+    content = output.message.content
+    assert isinstance(content, list)
+    assert [c.text for c in content if isinstance(c, ContentText)] == [
+        '{"answer":"hello"}'
+    ]
+
+
+@pytest.mark.anyio
+async def test_streamed_continuation_joins_text_split_across_legs() -> None:
+    """A streamed leg boundary inside output text adds no newline either."""
+    output, _, _ = await _generate_streamed(
+        [
+            [_chunk([Part(text='{"answer":"hel')], FinishReason.CONTINUATION, b"t1")],
+            [_chunk([Part(text='lo"}')], FinishReason.STOP)],
+        ]
+    )
+
+    assert output.completion == '{"answer":"hello"}'
+
+
+@pytest.mark.anyio
+async def test_continuation_keeps_signed_parts_apart() -> None:
+    """Text parts that both carry a thought signature are not joined."""
+    output, _, _ = await _generate_with_legs(
+        [
+            _leg(
+                [Part(text="one", thought_signature=b"s1")],
+                FinishReason.CONTINUATION,
+                b"t1",
+            ),
+            _leg([Part(text="two", thought_signature=b"s2")], FinishReason.STOP),
+        ]
+    )
+
+    content = output.message.content
+    assert isinstance(content, list)
+    assert [c.text for c in content if isinstance(c, ContentText)] == ["one", "two"]
+    signatures = [
+        c.reasoning for c in content if isinstance(c, ContentReasoning) and c.redacted
+    ]
+    assert signatures == [
+        base64.b64encode(b"s1").decode(),
+        base64.b64encode(b"s2").decode(),
+    ]
+
+
+def _blocked_leg() -> GenerateContentResponse:
+    return _with_usage(
+        GenerateContentResponse(
+            prompt_feedback=GenerateContentResponsePromptFeedback(
+                block_reason=BlockedReason.PROHIBITED_CONTENT
+            )
+        ),
+        20,
+        0,
+        0,
+    )
+
+
+@pytest.mark.anyio
+async def test_continuation_blocked_without_candidate() -> None:
+    """A continuation blocked with no candidate reports the block, not a stop."""
+    output, _, _ = await _generate_with_legs(
+        [
+            _leg([Part(text="partial")], FinishReason.CONTINUATION, b"t1", (10, 2, 3)),
+            _blocked_leg(),
+        ]
+    )
+
+    assert output.completion == "partial"
+    assert output.stop_reason == "content_filter"
+    assert output.choices[0].stop_details is not None
+    assert output.choices[0].stop_details.type == "PROHIBITED_CONTENT"
+    assert output.usage is not None
+    assert output.usage.input_tokens == 9 + 19
+    assert output.input_context_tokens == 10
+
+
+@pytest.mark.anyio
+async def test_streamed_continuation_blocked_without_candidate() -> None:
+    """A streamed continuation blocked with no candidate reports the block."""
+    output, _, _ = await _generate_streamed(
+        [
+            [_chunk([Part(text="partial")], FinishReason.CONTINUATION, b"t1")],
+            [_blocked_leg()],
+        ]
+    )
+
+    assert output.completion == "partial"
+    assert output.stop_reason == "content_filter"
+
+
+def _grounded_leg(
+    parts: list[Part],
+    url: str,
+    start: int,
+    end: int,
+    finish_reason: FinishReason,
+    token: bytes | None = None,
+) -> GenerateContentResponse:
+    response = _leg(parts, finish_reason, token)
+    assert response.candidates
+    response.candidates[0].grounding_metadata = GroundingMetadata(
+        grounding_chunks=[GroundingChunk(web=GroundingChunkWeb(uri=url, title=url))],
+        grounding_supports=[
+            GroundingSupport(
+                grounding_chunk_indices=[0],
+                segment=Segment(start_index=start, end_index=end),
+            )
+        ],
+    )
+    return response
+
+
+def _citations(output: ModelOutput) -> list[tuple[str, list[Any]]]:
+    content = output.message.content
+    assert isinstance(content, list)
+    return [
+        (
+            c.text,
+            [
+                (citation.url, citation.cited_text)
+                for citation in c.citations or []
+                if isinstance(citation, UrlCitation)
+            ],
+        )
+        for c in content
+        if isinstance(c, ContentText)
+    ]
+
+
+@pytest.mark.anyio
+async def test_continuation_citations_follow_their_leg() -> None:
+    """A later leg's grounding cites its own text, not the first leg's."""
+    output, _, _ = await _generate_with_legs(
+        [
+            _grounded_leg(
+                [Part(text="Alpha")],
+                "https://a",
+                0,
+                5,
+                FinishReason.CONTINUATION,
+                b"t1",
+            ),
+            _grounded_leg([Part(text="Bravo")], "https://b", 0, 5, FinishReason.STOP),
+        ]
+    )
+
+    assert _citations(output) == [
+        ("AlphaBravo", [("https://a", (0, 5)), ("https://b", (5, 10))])
+    ]
+
+
+@pytest.mark.anyio
+async def test_continuation_citations_after_reasoning() -> None:
+    """A later leg's citations stay on its text when reasoning comes before it."""
+    output, _, _ = await _generate_with_legs(
+        [
+            _grounded_leg(
+                [Part(text="Alpha")],
+                "https://a",
+                0,
+                5,
+                FinishReason.CONTINUATION,
+                b"t1",
+            ),
+            _grounded_leg(
+                [_thought("checking"), Part(text="Bravo")],
+                "https://b",
+                0,
+                5,
+                FinishReason.STOP,
+            ),
+        ]
+    )
+
+    assert _citations(output) == [
+        ("Alpha", [("https://a", (0, 5))]),
+        ("Bravo", [("https://b", (0, 5))]),
+    ]
+
+
+@pytest.mark.anyio
+async def test_cut_off_stream_resumes_from_its_checkpoint() -> None:
+    """A stream that ends after a checkpoint with no finish reason is continued.
+
+    The text after the checkpoint is dropped, since the next leg resumes from
+    the checkpoint, and the leg's usage is its usage at the checkpoint.
+    """
+    output, model_call, mock_stream = await _generate_streamed(
+        [
+            [
+                _chunk([Part(text="kept")], token=b"t1", usage=(10, 2, 3)),
+                _chunk([Part(text=" lost")], usage=(10, 4, 3)),
+            ],
+            [_chunk([Part(text=" rest")], FinishReason.STOP, usage=(20, 1, 0))],
+        ]
+    )
+
+    assert mock_stream.call_count == 2
+    tokens = [c.kwargs["config"].continuation_token for c in mock_stream.call_args_list]
+    assert tokens == [None, b"t1"]
+    assert output.completion == "kept rest"
+    assert output.stop_reason == "stop"
+    assert output.usage is not None
+    assert output.usage.output_tokens == 5 + 1
     assert len(model_call.response["responses"]) == 2
 
 

@@ -6,7 +6,7 @@ import json
 import os
 import ssl
 from copy import copy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from io import BytesIO
 from logging import getLogger
 from typing import Any, Literal, NamedTuple, cast
@@ -230,8 +230,8 @@ DEFAULT_SAFETY_SETTINGS: list[SafetySettingDict] = [
 class _ContinuationChain:
     """The requests sent so far for one generate call (continuations and retries)."""
 
-    requests: int = 0
-    """Number of requests that returned a response."""
+    responses: list[GenerateContentResponse] = field(default_factory=list)
+    """Response of each request that returned one, in order."""
 
     usage: ModelUsage | None = None
     """Usage summed over those requests (each one is billed)."""
@@ -239,12 +239,26 @@ class _ContinuationChain:
     input_context_tokens: int | None = None
     """Input size of the first request, the one built from the generate input."""
 
-    def add(self, usage: ModelUsage | None) -> None:
-        """Add a request's usage."""
-        self.requests += 1
+    def add(self, response: GenerateContentResponse) -> None:
+        """Add a request's response."""
+        self.responses.append(response)
+        usage = usage_metadata_to_model_usage(response.usage_metadata)
         self.usage = sum_usage(self.usage, usage)
-        if self.requests == 1:
+        if len(self.responses) == 1:
             self.input_context_tokens = usage_input_tokens(usage)
+
+    def model_call_response(self) -> Any:
+        """The model call's response: the one response, or all of them.
+
+        A continuation's request is the request before it plus that response's
+        `continuation_token`; a malformed function call retry's request adds
+        the retry messages to the contents.
+        """
+        return (
+            self.responses[0]
+            if len(self.responses) == 1
+            else {"responses": self.responses}
+        )
 
 
 class CategorizedTools(NamedTuple):
@@ -565,7 +579,7 @@ class GoogleGenAIAPI(ModelAPI):
                         legs = await self._generate_with_continuations(
                             client, gemini_contents, parameters, chain
                         )
-                        response = merge_continuation_responses(legs)
+                        response = _merge_continuation_legs(legs)
                         # retry for MALFORMED_FUNCTION_CALL
                         if (
                             response.candidates
@@ -596,10 +610,12 @@ class GoogleGenAIAPI(ModelAPI):
                         else:
                             break
                 except ClientError as ex:
-                    model_call.set_error(
-                        {"error": {"message": str(ex.message), "code": ex.code}},
-                        http_hooks.end_request(request_id),
-                    )
+                    error: dict[str, Any] = {
+                        "error": {"message": str(ex.message), "code": ex.code}
+                    }
+                    if chain.responses:
+                        error["responses"] = chain.responses
+                    model_call.set_error(error, http_hooks.end_request(request_id))
                     handled = self.handle_client_error(ex)
                     if isinstance(handled, ModelOutput):
                         handled.usage = chain.usage
@@ -608,11 +624,8 @@ class GoogleGenAIAPI(ModelAPI):
 
                 assert response is not None  # mypy confused by retry loop
 
-                # a continuation leg's request is the first leg's request plus
-                # the continuation_token of the leg before it
                 model_call.set_response(
-                    legs[0] if len(legs) == 1 else {"responses": legs},
-                    http_hooks.end_request(request_id),
+                    chain.model_call_response(), http_hooks.end_request(request_id)
                 )
 
                 model_name = response.model_version or self.service_model_name()
@@ -620,11 +633,26 @@ class GoogleGenAIAPI(ModelAPI):
                     isinstance(tool, Tool) and tool.computer_use is not None
                     for tool in gemini_tools
                 )
+                choices = completion_choices_from_candidates(
+                    model_name, response, has_computer_use
+                )
+                # a continuation blocked with no candidate: keep the earlier
+                # legs' content, but report the block
+                if (
+                    len(legs) > 1
+                    and not legs[-1].candidates
+                    and (prompt_feedback := legs[-1].prompt_feedback) is not None
+                ):
+                    for choice in choices:
+                        choice.stop_reason = "content_filter"
+                        choice.stop_details = collect_stop_details(
+                            "google",
+                            logger,
+                            lambda: prompt_feedback_stop_details(prompt_feedback),
+                        )
                 output = ModelOutput(
                     model=model_name,
-                    choices=completion_choices_from_candidates(
-                        model_name, response, has_computer_use
-                    ),
+                    choices=choices,
                     usage=chain.usage,
                     input_context_tokens=chain.input_context_tokens,
                     response_id=response.response_id,
@@ -655,7 +683,7 @@ class GoogleGenAIAPI(ModelAPI):
         while True:
             response = await self._generate_content(client, contents, leg_parameters)
             legs.append(response)
-            chain.add(usage_metadata_to_model_usage(response.usage_metadata))
+            chain.add(response)
             continuation_token = _continuation_token(response)
             if continuation_token is None:
                 return legs
@@ -703,13 +731,21 @@ class GoogleGenAIAPI(ModelAPI):
         that matches non-streaming structure, allowing existing parsing logic
         to handle the conversion to Inspect format.
 
+        A long stream sends checkpoint continuation tokens before it ends. If it
+        ends after a new checkpoint without a finish reason (cut off), the
+        response is returned as of that checkpoint with finish reason
+        `CONTINUATION`, so the next leg resumes from it.
+
         Raises:
             RuntimeError: If no chunks received from stream
         """
         candidates_parts: dict[int, list[Part]] = {}
-        # the latest token seen for each candidate, as a chunk before the last
-        # may carry it
-        continuation_tokens: dict[int, bytes] = {}
+        # the latest token for each candidate and how many of its parts it
+        # covers (the parts after it are lost if the stream is cut off)
+        checkpoints: dict[int, tuple[bytes, int]] = {}
+        usage: GenerateContentResponseUsageMetadata | None = None
+        checkpoint_usage: GenerateContentResponseUsageMetadata | None = None
+        prompt_feedback: GenerateContentResponsePromptFeedback | None = None
         last_chunk: GenerateContentResponse | None = None
 
         stream = await client.aio.models.generate_content_stream(
@@ -722,6 +758,10 @@ class GoogleGenAIAPI(ModelAPI):
 
         async for chunk in stream:
             last_chunk = chunk
+            if chunk.usage_metadata is not None:
+                usage = chunk.usage_metadata
+            if chunk.prompt_feedback is not None:
+                prompt_feedback = chunk.prompt_feedback
 
             # report cumulative output tokens when the chunk carries usage
             # (candidates + thoughts, matching usage_metadata_to_model_usage's
@@ -741,8 +781,6 @@ class GoogleGenAIAPI(ModelAPI):
                     idx = candidate.index
                     if idx not in candidates_parts:
                         candidates_parts[idx] = []
-                    if candidate.continuation_token:
-                        continuation_tokens[idx] = candidate.continuation_token
 
                     if candidate.content and candidate.content.parts:
                         candidates_parts[idx].extend(candidate.content.parts)
@@ -754,14 +792,43 @@ class GoogleGenAIAPI(ModelAPI):
                             for part in candidate.content.parts:
                                 await _report_stream_part_delta(part)
 
+                    if candidate.continuation_token:
+                        checkpoints[idx] = (
+                            candidate.continuation_token,
+                            len(candidates_parts[idx]),
+                        )
+                        checkpoint_usage = usage
+
         if last_chunk is None:
             raise NoStreamDataError(
                 f"No response chunks received from streaming API for model {model}"
             )
 
         final_candidates = []
+        interrupted = False
         for idx in sorted(candidates_parts.keys()):
+            last_candidate_for_idx = None
+            if last_chunk.candidates:
+                for c in last_chunk.candidates:
+                    if c.index == idx:
+                        last_candidate_for_idx = c
+                        break
+
             accumulated_parts = candidates_parts[idx]
+            finish_reason = (
+                last_candidate_for_idx.finish_reason if last_candidate_for_idx else None
+            )
+            checkpoint = checkpoints.get(idx)
+            continuation_token = checkpoint[0] if checkpoint else None
+            if (
+                finish_reason is None
+                and prompt_feedback is None
+                and checkpoint is not None
+                and checkpoint[0] != config.continuation_token
+            ):
+                accumulated_parts = accumulated_parts[: checkpoint[1]]
+                finish_reason = FinishReason.CONTINUATION
+                interrupted = True
 
             merged_parts: list[Part] = []
             thinking_texts: list[str] = []
@@ -841,31 +908,28 @@ class GoogleGenAIAPI(ModelAPI):
             if output_texts:
                 merged_parts.append(Part(text="".join(output_texts)))
 
-            last_candidate_for_idx = None
-            if last_chunk.candidates:
-                for c in last_chunk.candidates:
-                    if c.index == idx:
-                        last_candidate_for_idx = c
-                        break
-
             if last_candidate_for_idx:
                 final_candidates.append(
                     Candidate(
                         content=Content(parts=merged_parts, role="model"),
-                        finish_reason=last_candidate_for_idx.finish_reason,
+                        finish_reason=finish_reason,
                         safety_ratings=last_candidate_for_idx.safety_ratings,
                         citation_metadata=last_candidate_for_idx.citation_metadata,
                         token_count=last_candidate_for_idx.token_count,
                         grounding_metadata=last_candidate_for_idx.grounding_metadata,
                         avg_logprobs=last_candidate_for_idx.avg_logprobs,
-                        continuation_token=continuation_tokens.get(idx),
+                        continuation_token=continuation_token,
                         index=idx,
                     )
                 )
 
         return GenerateContentResponse(
             candidates=final_candidates,
-            usage_metadata=last_chunk.usage_metadata,
+            # a cut-off stream is billed up to its last checkpoint
+            usage_metadata=checkpoint_usage
+            if interrupted
+            else last_chunk.usage_metadata,
+            prompt_feedback=prompt_feedback,
             model_version=last_chunk.model_version,
             response_id=last_chunk.response_id,
         )
@@ -2849,3 +2913,119 @@ def _continuation_token(response: GenerateContentResponse) -> bytes | None:
         )
         return None
     return candidates[0].continuation_token
+
+
+def _merge_continuation_legs(
+    legs: list[GenerateContentResponse],
+) -> GenerateContentResponse:
+    """Merge the legs of a continued response into one response.
+
+    `merge_continuation_responses` keeps each leg's parts apart and shifts
+    grounding chunk and part indices. Two more things are needed for the
+    merged response to convert like a single one:
+
+    - Grounding segment offsets are read as offsets into the response's
+      output text (see `get_candidate_citations`), so a later leg's segments
+      are moved past the output text of the legs before it.
+    - Output text split at a leg boundary is joined into one part, so it
+      converts to one `ContentText` rather than two (which a reader joins with
+      a newline). Parts that both carry a thought signature stay apart.
+    """
+    if len(legs) == 1:
+        return legs[0]
+
+    shifted_legs: list[GenerateContentResponse] = []
+    boundaries: list[int] = []
+    part_count = 0
+    text_length = 0
+    for leg in legs:
+        candidate = leg.candidates[0] if leg.candidates else None
+        parts = (
+            candidate.content.parts if candidate and candidate.content else None
+        ) or []
+        if part_count > 0:
+            boundaries.append(part_count)
+        if candidate is not None and text_length > 0:
+            leg = leg.model_copy(
+                update={
+                    "candidates": [_shift_grounding_segments(candidate, text_length)]
+                }
+            )
+        shifted_legs.append(leg)
+        part_count += len(parts)
+        text_length += sum(
+            len(part.text)
+            for part in parts
+            if part.text is not None and not part.thought
+        )
+
+    merged = merge_continuation_responses(shifted_legs)
+    if not merged.candidates:
+        return merged
+    candidate = merged.candidates[0]
+    if candidate.content is None or not candidate.content.parts:
+        return merged
+    parts = list(candidate.content.parts)
+    for boundary in sorted(set(boundaries), reverse=True):
+        if boundary >= len(parts):
+            continue
+        before, after = parts[boundary - 1], parts[boundary]
+        if (
+            before.text is not None
+            and after.text is not None
+            and not before.thought
+            and not after.thought
+            and not (before.thought_signature and after.thought_signature)
+        ):
+            parts[boundary - 1 : boundary + 1] = [
+                before.model_copy(
+                    update={
+                        "text": before.text + after.text,
+                        "thought_signature": before.thought_signature
+                        or after.thought_signature,
+                    }
+                )
+            ]
+    return merged.model_copy(
+        update={
+            "candidates": [
+                candidate.model_copy(
+                    update={
+                        "content": candidate.content.model_copy(update={"parts": parts})
+                    }
+                ),
+                *merged.candidates[1:],
+            ]
+        }
+    )
+
+
+def _shift_grounding_segments(candidate: Candidate, offset: int) -> Candidate:
+    """Move a candidate's grounding segment offsets later by `offset`."""
+    metadata = candidate.grounding_metadata
+    if metadata is None or not metadata.grounding_supports:
+        return candidate
+    supports = [
+        support.model_copy(
+            update={
+                "segment": support.segment.model_copy(
+                    update={
+                        "start_index": (support.segment.start_index or 0) + offset,
+                        "end_index": support.segment.end_index + offset
+                        if support.segment.end_index is not None
+                        else None,
+                    }
+                )
+            }
+        )
+        if support.segment is not None
+        else support
+        for support in metadata.grounding_supports
+    ]
+    return candidate.model_copy(
+        update={
+            "grounding_metadata": metadata.model_copy(
+                update={"grounding_supports": supports}
+            )
+        }
+    )
