@@ -81,7 +81,26 @@ class MergedScoring(NamedTuple):
     """Whether any merged sample is invalidated."""
 
 
-def check_scoring_resolvable(header: EvalLog) -> EvalLog:
+def recreate_scorers(header: EvalLog) -> list["ScorerInfo"]:
+    """The header's scorers with their metrics, recreated for the merge.
+
+    Every merge path that recreates metrics calls this, and the writing
+    passes call it before anything is written, so a refusal is raised from
+    one place. It checks the header (see :func:`_restored_header`), then
+    builds the metrics from the restored options.
+
+    Raises:
+        LookupError: A metric is not registered.
+        ShardSetError: Two scorers or two epoch reducers have the same name,
+            or a metric option cannot be recreated.
+    """
+    from inspect_ai._eval.score import resolve_scorers_info
+
+    # every metric is registered, so this never imports the task file
+    return resolve_scorers_info(_restored_header(header))
+
+
+def _restored_header(header: EvalLog) -> EvalLog:
     """Refuse metrics the registry cannot resolve, and repeated scorer or reducer names.
 
     The merge never imports the log's `task_file`, so every scorer's metric
@@ -522,11 +541,9 @@ async def _recompute_results(
         ShardSetError: A reduction cannot be taken from its log, or see
             :func:`_declared_inputs`.
     """
-    from inspect_ai._eval.score import resolve_scorers_info
     from inspect_ai._eval.task.results import RecordedReductions, eval_results
 
-    # resolve_scorers_info imports the task file for an unregistered metric
-    infos = resolve_scorers_info(check_scoring_resolvable(template))
+    infos = recreate_scorers(template)
     scores = _declared_inputs(infos, inputs, held_reductions.sources)
     # the names the worker scored samples under (each scorer is declared
     # once): aggregation must not derive them from earlier result names (a
@@ -656,13 +673,10 @@ def check_retained_reductions(
         LookupError: A metric is not registered.
         ShardSetError: A required reduction is missing.
     """
-    from inspect_ai._eval.score import resolve_scorers_info
-
     names = header.eval.config.epochs_reducer
     if not names:
         return
-    check_scoring_resolvable(header)
-    infos = resolve_scorers_info(header)
+    infos = recreate_scorers(header)
     missing = _missing_reductions(
         _reduced_score_names(infos),
         names,

@@ -3300,6 +3300,71 @@ def test_function_options_of_class_metrics_are_checked() -> None:
     _check_function_options("shard_postponed", Postponed, {"label": "x"})
 
 
+@metric(name="shard_mode_scaled")
+def shard_mode_scaled(mode: Mode) -> Metric:
+    """A metric whose factory reads its enum option's value."""
+    scale = mode.value
+
+    def compute(scores: list[SampleScore]) -> Value:
+        return scale * sum(score.score.as_float() for score in scores)
+
+    return compute
+
+
+def _mode_task() -> Task:
+    """A task with a configured reducer and enum options, direct and wrapped."""
+    epochs = Epochs(2, at_least(1, value=0.5))
+    return Task(
+        dataset=_task().dataset,
+        solver=generate(),
+        scorer=graded(),
+        metrics=[
+            shard_mode_scaled(Mode.HIGH),
+            grouped(shard_mode_scaled(Mode.HIGH), "index"),
+        ],
+        epochs=epochs,
+        name=TASK,
+    )
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+@pytest.mark.parametrize("remnant", ["unchanged", "interrupted"])
+def test_deleting_shards_after_a_merge_recreates_enum_options(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, remnant: str, backend: str
+) -> None:
+    import shutil
+
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", _mode_task(), sample_id=[1, 2, 3])
+    _run(shards, "1", _mode_task(), sample_id=[4, 5, 6])
+    first = merge_eval_log_shards(merged)
+    assert first.written and not first.shards_deleted
+    expected = _metric_values(first.log)
+    # every sample scores 0.75 in some epoch, so at_least reduces it to 1.0;
+    # Mode.HIGH.value is 2
+    assert expected[("graded", "shard_mode_scaled")] == 12.0
+    assert expected[("graded", "3")] == 2.0
+    if remnant == "interrupted":
+        shutil.rmtree(f"{shards}/1")
+    before = Path(merged).read_bytes()
+
+    result = _merge_on(backend, monkeypatch, merged, delete_shards=True)
+    assert not result.written and result.shards_deleted
+    assert _metric_values(result.log) == expected
+    assert Path(merged).read_bytes() == before
+    assert not Path(shards).exists()
+
+
+def test_merge_recreates_metrics_only_through_recreate_scorers() -> None:
+    from inspect_ai.log import _shards
+
+    calls = {
+        path.name: path.read_text().count("resolve_scorers_info(")
+        for path in Path(_shards.__file__).parent.glob("*.py")
+    }
+    assert {name: count for name, count in calls.items() if count} == {"_write.py": 1}
+
+
 def test_enum_options_are_restored_to_their_members() -> None:
     from inspect_ai._util.registry import registry_params
     from inspect_ai.log._shards._write import _check_embedded, _check_function_options

@@ -75,8 +75,8 @@ from ._walk import ShardDir, check_s3_location, is_recovered_attempt, list_shard
 from ._write import (
     HeldReductions,
     check_retained_reductions,
-    check_scoring_resolvable,
     edited_score_message,
+    recreate_scorers,
     write_merged_zip,
 )
 
@@ -493,7 +493,7 @@ async def _merge_pass(
             await _check_merged_resolved(fs, shards, ledger)
         return _Pass(existing.header, False, existing.etag, records, 0, status, True)
 
-    check_scoring_resolvable(base)
+    recreate_scorers(base)
     with tempfile.TemporaryDirectory() as temp_dir:
         carried_zip: zipfile.ZipFile | None = None
         try:

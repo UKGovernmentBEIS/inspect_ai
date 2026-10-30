@@ -1250,10 +1250,10 @@ serialized is logged without its events) is refused with
 `ShardSetError` before publishing or deleting. Reduced views take the
 metadata of the sample's first score, so grouped and clustered metrics see
 the same groups reduced or not. A task that declares one scorer twice
-(score keys `name`, `name1`) is refused in `check_scoring_resolvable`,
+(score keys `name`, `name1`) is refused in `recreate_scorers`,
 before any sample is read: a fresh run names the suffixed scores' scorer
 `name`, a retry names it `name1`. After the last sample it calls
-`eval_results(samples=..., scores=..., reducers=..., scorers=resolve_scorers_info(h),
+`eval_results(samples=..., scores=..., reducers=..., scorers=recreate_scorers(h),
 metrics=None, completed_samples=...,
 headline_metric=h.eval.headline_metric)` with the template header `h`
 (`eval_results` applies task metrics only to solver-set scores, which
@@ -1265,7 +1265,7 @@ Carried samples are read from the merged log's temp copy on every pass that
 writes, because the merged log's sample members are the only lossless
 source (summaries are lossy, parent "Constraints"). Before reading any
 sample the merge checks that the registry resolves every metric of `h`
-(`check_scoring_resolvable`: a registry lookup per metric name, including
+(`recreate_scorers`: a registry lookup per metric name, including
 the metrics that wrappers such as `grouped()` and `aggregate()` record as
 registry dicts in their options, at any depth), so `resolve_scorers_info`
 never reaches its `task_file` import ("Trust" under "Python API"); an
@@ -1286,7 +1286,7 @@ option given as a function by its name only (`registry_params`), so
 `mean(to_float=value_to_float(correct=2))` is recorded as
 `{"to_float": "to_float"}` and cannot be recreated, and a recorded string
 cannot be told from a function's name. At each metric definition it
-visits, direct or embedded at any depth, `check_scoring_resolvable`
+visits, direct or embedded at any depth, `recreate_scorers`
 checks every option whose recorded value is a string, and fails closed.
 It accepts the option only when that parameter's own annotation resolves
 to a type none of whose values can be a function: `str`, a number, `None`,
@@ -1313,13 +1313,21 @@ metrics are not checked otherwise.
 Enum options. The producer records an enum member by its value when the
 enum derives from `str`, `int` or `float` (`IntEnum`, `IntFlag`, a `str`
 mixin such as Fortress's `GroupKey`), and by its member name otherwise.
-`check_scoring_resolvable` returns a copy of the header, never written,
-whose options hold the members restored from those representations, and
-`_recompute_results` recreates the metrics from it, so a metric that
+`recreate_scorers` restores the members in a copy of the header, never
+written, and builds the metrics (`resolve_scorers_info`) from it, so a
+metric that
 compares or formats its enum options gets the same members as the live
 run. A value that is not a member (a composite plain `Flag`, whose name
 the merge does not parse, or a corrupted log) and an enum in a union with
 other types are refused before anything is written.
+
+`recreate_scorers` is the only place the merge recreates metrics
+(decision: Ransom, 2026-10-30): the writing passes call it before
+anything is written (and again when recomputing), and the unchanged and
+interrupted-deletion passes call it to check the retained reductions, so
+every path gets the same checks and the same restored options, and a
+refusal is raised from one place. No other merge code calls
+`resolve_scorers_info` or reads metric options.
 
 The `@metric` wrapper sets `__wrapped__` to the factory so its signature
 can be read. Of the 135 `@metric` factories in inspect_evals, inspect_swe,
@@ -2703,6 +2711,12 @@ Per PR (numbers from "Implementation plan"):
      and inside `grouped()`, merge to the native value with deletion, and
      restore to members of the right type at unit level, while a value
      that is not a member and an enum in a union with `str` are refused;
+     with a configured reducer and an enum option read as `mode.value`,
+     direct and inside `grouped()`, a merge without deletion followed by
+     an unchanged or interrupted `delete_shards=True` pass writes nothing,
+     keeps the merged bytes and results and deletes the shards, on
+     asyncio and Trio; a source check keeps `resolve_scorers_info` to the
+     one call in `recreate_scorers`;
    - solver-set scores: with `delete_shards=True`, a solver-set score on a
      task with no scorer and task metrics, on a task with no scorer whose
      workers recorded the default `accuracy` and `stderr`, and beside a
