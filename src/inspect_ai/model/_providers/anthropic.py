@@ -412,6 +412,8 @@ class _ResolvedCacheTtl(NamedTuple):
 
 _CACHE_DIAGNOSIS_BETA = "cache-diagnosis-2026-04-07"
 _THINKING_BINDING_BETA = "thinking-binding-controls-2026-08-01"
+_CLAUDE_NAME = re.compile(r"claude-[a-zA-Z]")
+_KNOWN_CLAUDE_5 = re.compile(r"claude-(?:fable|mythos|opus|sonnet|haiku)-5")
 _CACHE_MISS_WARNING = (
     "anthropic cache diagnostics: cache miss detected (reason: {reason})."
 )
@@ -1684,8 +1686,12 @@ class AnthropicAPI(ModelAPI):
         drop_block such an edit fails the replay with a 400. Applied to every
         request for these models — not only those replaying thinking blocks —
         so the beta header stays uniform across a task's requests (the batcher
-        submits a single header set per batch). Mythos 5.1 does not run the
-        binding check, so it is excluded. Applied on the first-party API and,
+        submits a single header set per batch). Mythos does not run the
+        binding check, so it is excluded. Claude names Inspect doesn't
+        recognise (a new codename, or a version newer than any known release)
+        are assumed to bind as well: models that don't bind accept the opt-in
+        (verified live on Claude 4.6 through Fable 5). Applied on the
+        first-party API and,
         for Sonnet 5.5 (verified live), on Bedrock: the binding-controls beta
         arrives per model on bedrock/vertex and is not offered on foundry, so
         other model/platform pairs stay opted out until verified, and a
@@ -1697,22 +1703,30 @@ class AnthropicAPI(ModelAPI):
         `extra_body.thinking` shallow-merges over the request body and
         replaces this binding config.
         """
-        binds_thinking = (
-            (
-                self.is_claude_fable_5_1_or_later()
-                and "mythos" not in self.model_family()
-            )
+        family = self.model_family()
+        binds_thinking = "mythos" not in family and (
+            self.is_claude_fable_5_1_or_later()
             or self.is_claude_opus_5_5_or_later()
             or self.is_claude_sonnet_5_5_or_later()
             or self.is_claude_haiku_5_5_or_later()
+            or (
+                # is_claude_latest() also matches non-Claude names (e.g. a
+                # compatible endpoint), which must not have thinking forced on
+                _CLAUDE_NAME.search(family) is not None
+                and (
+                    self.is_claude_latest()
+                    or (self.is_claude_5() and _KNOWN_CLAUDE_5.search(family) is None)
+                )
+            )
         )
         binding_offered = not (
             self.is_bedrock() or self.is_vertex() or self.is_azure()
         ) or (self.is_bedrock() and self.is_claude_sonnet_5_5_or_later())
         if binds_thinking and binding_offered:
             betas.append(_THINKING_BINDING_BETA)
-            # adaptive thinking is the server default for these models, so
-            # sending it explicitly is accepted when the field was omitted
+            # adaptive thinking is the server default for these models (assumed
+            # for unrecognised names), so sending it explicitly is accepted
+            # when the field was omitted
             thinking = request.setdefault("thinking", {"type": "adaptive"})
             if thinking.get("type") == "adaptive":
                 thinking["block_binding"] = {"prefix_mismatch_behavior": "drop_block"}
