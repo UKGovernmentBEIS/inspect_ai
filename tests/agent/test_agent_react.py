@@ -1,11 +1,21 @@
 import re
-from typing import Literal
+from dataclasses import dataclass
+from typing import Any, Callable, Literal, Sequence
 
+import anyio
 import pytest
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.agent._agent import Agent, AgentState, agent
+from inspect_ai.agent._channel import (
+    AgentChannel,
+    Cancel,
+    UserMessage,
+    current_agent_channel,
+)
+from inspect_ai.agent._channel.gate import turn_gate
+from inspect_ai.agent._deepagent.deepagent import deepagent
 from inspect_ai.agent._filter import MessageFilter
 from inspect_ai.agent._handoff import handoff
 from inspect_ai.agent._react import react
@@ -16,12 +26,14 @@ from inspect_ai.agent._types import (
     AgentSubmit,
 )
 from inspect_ai.dataset import Sample
-from inspect_ai.event import ModelEvent
+from inspect_ai.event import CompactionEvent, ModelEvent
 from inspect_ai.log import EvalLog, read_eval_log
 from inspect_ai.model import (
     ChatMessageUser,
     GenerateConfig,
+    Model,
     ModelOutput,
+    ModelUsage,
     get_model,
 )
 from inspect_ai.model._chat_message import (
@@ -30,10 +42,15 @@ from inspect_ai.model._chat_message import (
     ChatMessageSystem,
     ChatMessageTool,
 )
+from inspect_ai.model._compaction._compaction import compaction
+from inspect_ai.model._compaction.auto import CompactionAuto
+from inspect_ai.model._compaction.native import CompactionNative
+from inspect_ai.model._compaction.trim import CompactionTrim
 from inspect_ai.scorer import Score, Target, accuracy, includes, scorer
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.tool import Tool, ToolCall, tool
 from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.tool._tool_info import ToolInfo
 
 
 @tool
@@ -1164,3 +1181,414 @@ def test_react_agent_fail_on_refusal_no_submit() -> None:
     assert log.samples
     assert log.samples[0].error is not None
     assert _model_event_count(log) == 2
+
+
+# ---------------------------------------------------------------------------
+# Turn gate
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class _GateCall:
+    texts: list[str]
+    last_role: str
+    has_assistant: bool
+    state_matches: bool
+    interrupted: bool
+    redirected: bool
+
+
+# rewrite hook: (boundary index, messages) -> whether it rewrote them
+_GateRewrite = Callable[[int, list[ChatMessage]], bool]
+
+
+class _TestGate:
+    """Turn gate that records the boundaries of the first loop it sees."""
+
+    def __init__(self, rewrite: _GateRewrite | None = None) -> None:
+        self.rewrite = rewrite
+        self.channel: AgentChannel | None = None
+        self.calls: list[_GateCall] = []
+        self.interrupted: anyio.Event | None = None
+        self.redirected = False
+
+    async def before_turn(
+        self,
+        channel: AgentChannel,
+        messages: Sequence[ChatMessage],
+        state: AgentState | None,
+    ) -> bool:
+        if self.channel is None:
+            self.channel = channel
+            channel.subscribe_turn_state(self._on_turn_state)
+        if channel is not self.channel:
+            return False
+        assert isinstance(messages, list)
+        self.calls.append(
+            _GateCall(
+                texts=[m.text for m in messages],
+                last_role=messages[-1].role,
+                has_assistant=any(m.role == "assistant" for m in messages),
+                state_matches=state is not None and state.messages is messages,
+                interrupted=self.interrupted is not None and self.interrupted.is_set(),
+                redirected=self.redirected,
+            )
+        )
+        return self.rewrite(len(self.calls) - 1, messages) if self.rewrite else False
+
+    def closed(self, channel: AgentChannel) -> None:
+        pass
+
+    def _on_turn_state(self, turn_state: str) -> None:
+        if turn_state == "cancelled" and self.interrupted is not None:
+            self.interrupted.set()
+
+
+@agent
+def _gated(gate: _TestGate, inner: Agent) -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        with turn_gate(gate):
+            return await inner(state)
+
+    return execute
+
+
+@agent
+def _gated_with_redirect(gate: _TestGate, inner: Agent) -> Agent:
+    """Post an operator redirect once the loop's turn is interrupted."""
+
+    async def execute(state: AgentState) -> AgentState:
+        interrupted = anyio.Event()
+        gate.interrupted = interrupted
+
+        async def redirect() -> None:
+            await interrupted.wait()
+            gate.redirected = True
+            assert gate.channel is not None
+            gate.channel._post(UserMessage(message=ChatMessageUser(content="REDIRECT")))
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(redirect)
+            with turn_gate(gate):
+                state = await inner(state)
+            tg.cancel_scope.cancel()
+        return state
+
+    return execute
+
+
+@tool
+def lookup() -> Tool:
+    async def execute() -> str:
+        """Look up a value."""
+        return "ORIGINAL RESULT"
+
+    return execute
+
+
+@tool
+def stall() -> Tool:
+    async def execute() -> str:
+        """Wait until interrupted."""
+        current_agent_channel()._interrupt(Cancel())
+        await anyio.sleep_forever()
+        return "never"
+
+    return execute
+
+
+def _tool_turn(name: str = "lookup") -> ModelOutput:
+    return ModelOutput.for_tool_call(
+        model="mockllm/model", tool_name=name, tool_arguments={}
+    )
+
+
+def _overflow() -> ModelOutput:
+    return ModelOutput.from_content(
+        model="mockllm/model", content="overflow", stop_reason="model_length"
+    )
+
+
+def _done(submit: bool) -> ModelOutput:
+    if submit:
+        return ModelOutput.for_tool_call(
+            model="mockllm/model", tool_name="submit", tool_arguments={"answer": "done"}
+        )
+    return ModelOutput.from_content(model="mockllm/model", content="done")
+
+
+def _model_inputs(log: EvalLog) -> list[list[str]]:
+    assert log.samples
+    return [
+        [m.text for m in e.input]
+        for e in log.samples[0].events
+        if isinstance(e, ModelEvent)
+    ]
+
+
+def _forced_compactions(log: EvalLog) -> int:
+    assert log.samples
+    return len(
+        [
+            e
+            for e in log.samples[0].events
+            if isinstance(e, CompactionEvent)
+            and (e.metadata or {}).get("trigger") == "forced"
+        ]
+    )
+
+
+def _count_resets(monkeypatch: pytest.MonkeyPatch) -> list[int]:
+    """Count `reset()` calls on the compaction handlers react creates."""
+    import inspect_ai.agent._react as react_module
+
+    resets: list[int] = []
+
+    def create_counting(**kwargs: Any) -> Any:
+        handler = compaction(**kwargs)
+        reset = handler.reset
+
+        async def counting_reset(prefix: list[ChatMessage]) -> None:
+            resets.append(len(prefix))
+            await reset(prefix)
+
+        setattr(handler, "reset", counting_reset)
+        return handler
+
+    monkeypatch.setattr(react_module, "create_compaction", create_counting)
+    return resets
+
+
+def _replace_tool_result(messages: list[ChatMessage]) -> None:
+    index = next(i for i, m in enumerate(messages) if m.role == "tool")
+    messages[index] = messages[index].model_copy(update={"content": "REWRITTEN RESULT"})
+
+
+_SUBMIT_IDS = ["react", "react_no_submit"]
+
+
+@pytest.mark.parametrize("submit", [True, False], ids=_SUBMIT_IDS)
+def test_react_turn_gate_runs_at_every_boundary(submit: bool) -> None:
+    gate = _TestGate()
+    task = Task(
+        dataset=[Sample(input="Test")],
+        solver=_gated(
+            gate,
+            react(
+                tools=[lookup()],
+                submit=submit,
+                compaction=CompactionTrim(threshold=10_000),
+            ),
+        ),
+    )
+    model = get_model(
+        "mockllm/model", custom_outputs=[_tool_turn(), _overflow(), _done(submit)]
+    )
+
+    log = eval(task, model=model)[0]
+
+    assert log.status == "success"
+    assert len(_model_inputs(log)) == 3
+    # before the first generation, after a tool turn, after a recovered overflow
+    assert [(c.has_assistant, c.last_role) for c in gate.calls] == [
+        (False, "user"),
+        (True, "tool"),
+        (True, "tool"),
+    ]
+    assert all(c.state_matches for c in gate.calls)
+
+
+@pytest.mark.parametrize("submit", [True, False], ids=_SUBMIT_IDS)
+def test_react_turn_gate_runs_after_interrupt_redirect(submit: bool) -> None:
+    gate = _TestGate()
+    task = Task(
+        dataset=[Sample(input="Test")],
+        solver=_gated_with_redirect(gate, react(tools=[stall()], submit=submit)),
+    )
+    model = get_model(
+        "mockllm/model", custom_outputs=[_tool_turn("stall"), _done(submit)]
+    )
+
+    log = eval(task, model=model)[0]
+
+    assert log.status == "success"
+    # never called while after_cancel() waits for the redirect
+    assert [(c.interrupted, c.redirected) for c in gate.calls] == [
+        (False, False),
+        (True, True),
+    ]
+    assert gate.calls[1].texts[-1] == "REDIRECT"
+
+
+@pytest.mark.parametrize("agent_kind", ["react", "deepagent"])
+@pytest.mark.parametrize("change", ["replace", "delete", "append"])
+def test_react_turn_gate_rewrite_reaches_model_input(
+    agent_kind: str, change: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    resets = _count_resets(monkeypatch)
+
+    def rewrite(index: int, messages: list[ChatMessage]) -> bool:
+        if index != 1:
+            return False
+        if change == "replace":
+            _replace_tool_result(messages)
+            return True
+        if change == "delete":
+            messages[:] = [m for m in messages if m.text != "DELETE-ME"]
+            return True
+        messages.append(ChatMessageUser(content="APPENDED"))
+        return False
+
+    gate = _TestGate(rewrite)
+    inner = (
+        react(tools=[lookup()], compaction=CompactionTrim(threshold=10_000))
+        if agent_kind == "react"
+        else deepagent(tools=[lookup()])
+    )
+    task = Task(
+        dataset=[
+            Sample(
+                input=[
+                    ChatMessageUser(content="KEEP"),
+                    ChatMessageUser(content="DELETE-ME"),
+                ]
+            )
+        ],
+        solver=_gated(gate, inner),
+    )
+    model = get_model("mockllm/model", custom_outputs=[_tool_turn(), _done(True)])
+
+    log = eval(task, model=model)[0]
+
+    assert log.status == "success"
+    first, second = _model_inputs(log)
+    assert "ORIGINAL RESULT" not in first and "DELETE-ME" in first
+    if change == "replace":
+        assert "REWRITTEN RESULT" in second
+        assert "ORIGINAL RESULT" not in second
+    elif change == "delete":
+        assert "DELETE-ME" not in second
+    else:
+        assert second[-1] == "APPENDED"
+    assert len(resets) == (0 if change == "append" else 1)
+
+
+@pytest.mark.parametrize("submit", [True, False], ids=_SUBMIT_IDS)
+@pytest.mark.parametrize("rewrite_after_overflow", [True, False])
+def test_react_overflow_after_rewrite_forces_compaction_again(
+    submit: bool, rewrite_after_overflow: bool
+) -> None:
+    def rewrite(index: int, messages: list[ChatMessage]) -> bool:
+        # boundary 3 follows the overflow that forced compaction recovered
+        if index == 3 and rewrite_after_overflow:
+            _replace_tool_result(messages)
+            return True
+        return False
+
+    task = Task(
+        dataset=[Sample(input="Test")],
+        solver=_gated(
+            _TestGate(rewrite),
+            react(
+                tools=[lookup()],
+                submit=submit,
+                compaction=CompactionTrim(threshold=10_000),
+                truncation="disabled",
+            ),
+        ),
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            _tool_turn(),
+            _tool_turn(),
+            _overflow(),
+            _overflow(),
+            _done(submit),
+        ],
+    )
+
+    log = eval(task, model=model)[0]
+
+    assert log.status == "success"
+    assert log.samples
+    completion = log.samples[0].output.completion or ""
+    if rewrite_after_overflow:
+        assert _forced_compactions(log) == 2
+        assert "done" in completion
+    else:
+        assert _forced_compactions(log) == 1
+        assert "done" not in completion
+
+
+def _anthropic_shaped_compact() -> Callable[..., Any]:
+    """A stub `Model.compact()` returning Anthropic's shape: no system message."""
+
+    async def compact(
+        self: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        instructions: str | None = None,
+    ) -> tuple[list[ChatMessage], ModelUsage | None]:
+        return [
+            ChatMessageAssistant(content="[COMPACTED BLOCK]"),
+            ChatMessageUser(content="Please continue working."),
+        ], None
+
+    return compact
+
+
+@pytest.mark.parametrize("submit", [True, False], ids=_SUBMIT_IDS)
+@pytest.mark.parametrize("strategy", ["native", "auto"])
+@pytest.mark.parametrize(
+    ("boundary", "role"), [(0, "system"), (1, "system"), (1, "user")]
+)
+def test_react_native_compaction_keeps_message_appended_at_boundary(
+    submit: bool,
+    strategy: str,
+    boundary: int,
+    role: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(Model, "compact", _anthropic_shaped_compact())
+    resets = _count_resets(monkeypatch)
+
+    def append(index: int, messages: list[ChatMessage]) -> bool:
+        if index != boundary:
+            return False
+        if role == "system":
+            # an appended system message is a rewrite, as a runtime's gate
+            # reports it, so the handler's saved prefix includes it
+            messages.append(ChatMessageSystem(content="EXTRA SYSTEM"))
+            return True
+        messages.append(ChatMessageUser(content="EXTRA USER"))
+        return False
+
+    compaction_strategy = (
+        CompactionNative(threshold=10_000)
+        if strategy == "native"
+        else CompactionAuto(threshold=10_000)
+    )
+    task = Task(
+        dataset=[Sample(input="Test")],
+        solver=_gated(
+            _TestGate(append),
+            react(tools=[lookup()], submit=submit, compaction=compaction_strategy),
+        ),
+    )
+    outputs = [_overflow(), _done(submit)]
+    if boundary == 1:
+        outputs.insert(0, _tool_turn())
+    model = get_model("mockllm/model", custom_outputs=outputs)
+
+    log = eval(task, model=model)[0]
+
+    assert log.status == "success"
+    assert _forced_compactions(log) == 1
+    after_compaction = _model_inputs(log)[-1]
+    assert "[COMPACTED BLOCK]" in after_compaction
+    if role == "system":
+        assert "EXTRA SYSTEM" in after_compaction
+        assert len(resets) == 1
+    else:
+        assert len(resets) == 0
