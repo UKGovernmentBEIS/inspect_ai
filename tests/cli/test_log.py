@@ -173,17 +173,23 @@ def test_merge_shards_json_errors(tmp_path: Path) -> None:
         "gs://bucket/logs",
         "webhdfs://user@namenode:9870/logs",
         "memory://bucket/logs",
+        "file:///tmp/cache::memory://bucket/logs",
+        "s3://bucket/cache::memory://bucket/logs",
     ],
-    ids=["abfs", "gs", "webhdfs", "memory"],
+    ids=["abfs", "gs", "webhdfs", "memory", "file-chain", "s3-chain"],
 )
 def test_merge_shards_json_refuses_unsupported_storage(
     monkeypatch: pytest.MonkeyPatch, root: str
 ) -> None:
+    from inspect_ai._util.asyncfiles import AsyncFilesystem
+
     def refuse(*args: Any, **kwargs: Any) -> Any:
         raise AssertionError("storage was accessed")
 
     monkeypatch.setattr("fsspec.core.url_to_fs", refuse)
     monkeypatch.setattr("fsspec.filesystem", refuse)
+    monkeypatch.setattr(AsyncFilesystem, "s3_client", refuse)
+    monkeypatch.setattr(AsyncFilesystem, "s3_client_async", refuse)
     merged = f"{root}/{NAME}.eval"
     for args in ([], ["--delete-shards"]):
         result = _merge(merged, *args, "--json")

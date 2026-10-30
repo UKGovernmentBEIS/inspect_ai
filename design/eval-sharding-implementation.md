@@ -428,8 +428,8 @@ Parameters:
 - `log`: the merged log `<dir>/<name>.eval` or its companion
   `<dir>/<name>.shards` (trailing slash allowed); each is derived from the
   other with `eval_shards_dir` / `eval_log_for_shards_dir` ("Layout
-  helpers"). Plain paths, `file://` and `s3://` (and other
-  fsspec URLs, without the overlap guard; see "Overlap guards"). A `.eval`
+  helpers"). Plain paths, `file://` URIs and `s3://` URLs only; other
+  storage is refused. A `.eval`
   argument is the output path; a companion argument writes `<name>.eval`.
   A `.eval` argument named `<name>-recovered.eval` raises `ValueError`
   before anything is read, naming `<name>.eval` and the companion as the
@@ -771,7 +771,8 @@ forms every Inspect path-handling feature supports (decision: Ransom,
 2026-10-30). Before step 1, `check_supported_location` (`_publish.py`)
 refuses any other location with `ValueError`, reading only the argument's
 text: another protocol (`az://`, `abfs://`, `gs://`, `webhdfs://`,
-`memory://`, ...) or a chained URL (`simplecache::s3://...`). Nothing is
+`memory://`, ...) or any `::` chain, before or after a supported prefix
+(`simplecache::s3://...`, `s3://bucket/cache::memory://...`). Nothing is
 constructed, listed, read, written or deleted first, with or without
 `delete_shards`. Other fsspec backends differ in how they list, name and
 version objects, and each needs its own support and tests.

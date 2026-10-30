@@ -2890,17 +2890,21 @@ _UNSUPPORTED_ROOTS = [
     "hdfs://namenode/logs",
     "sftp://host/logs",
     "simplecache::s3://test-bucket/logs",
+    "file:///tmp/cache::memory://bucket/logs",
+    "s3://test-bucket/cache::memory://bucket/logs",
 ]
 
 
 def _refuse_storage(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Fail on any fsspec filesystem construction (every non-S3 storage call)."""
+    """Fail on any fsspec filesystem construction or S3 client creation."""
 
     def refuse(*args: Any, **kwargs: Any) -> Any:
         raise AssertionError("storage was accessed")
 
     monkeypatch.setattr("fsspec.core.url_to_fs", refuse)
     monkeypatch.setattr("fsspec.filesystem", refuse)
+    monkeypatch.setattr(AsyncFilesystem, "s3_client", refuse)
+    monkeypatch.setattr(AsyncFilesystem, "s3_client_async", refuse)
 
 
 def _memory_objects(root: str) -> dict[str, bytes]:
@@ -2917,7 +2921,9 @@ def _memory_objects(root: str) -> dict[str, bytes]:
 
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
 @pytest.mark.parametrize(
-    "root", _UNSUPPORTED_ROOTS, ids=[r.split(":")[0] for r in _UNSUPPORTED_ROOTS]
+    "root",
+    _UNSUPPORTED_ROOTS,
+    ids=[r.split(":")[0] for r in _UNSUPPORTED_ROOTS[:-2]] + ["file-chain", "s3-chain"],
 )
 def test_a_merge_of_unsupported_storage_is_refused_before_any_io(
     monkeypatch: pytest.MonkeyPatch, root: str, backend: str

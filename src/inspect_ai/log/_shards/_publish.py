@@ -32,14 +32,15 @@ def check_supported_location(location: str) -> None:
     The merge supports only these (decision: Ransom, 2026-10-30): other
     fsspec backends differ in how they list, name and version objects. The
     location is checked as text, so nothing is constructed, listed or read
-    first. A chained URL (``simplecache::s3://...``) is refused too.
+    first. A chained URL (``simplecache::s3://...``, or ``::`` after a
+    supported prefix) is refused too.
 
     Raises:
         ValueError: `location` names another protocol.
     """
-    if location.startswith(("s3://", "file://")):
-        return
-    if "://" in location or "::" in location:
+    if "::" in location or (
+        "://" in location and not location.startswith(("s3://", "file://"))
+    ):
         raise ValueError(
             f"{location} cannot be merged: shard merging supports local paths, "
             "file:// URIs and s3:// URLs only."
