@@ -29,6 +29,7 @@ from .llama31 import Llama31Handler
 from .util import (
     environment_prerequisite_error,
     forced_tool_choice_degraded_metadata,
+    is_claude_4_0_model,
     is_claude_fable_5_1_model,
     is_claude_haiku_5_5_model,
     is_claude_opus_5_5_model,
@@ -53,6 +54,7 @@ __all__ = [
     "should_retry_chat_api_error",
     "classify_chat_api_error",
     "forced_tool_choice_degraded_metadata",
+    "is_claude_4_0_model",
     "is_claude_fable_5_1_model",
     "is_claude_haiku_5_5_model",
     "is_claude_opus_5_5_model",
