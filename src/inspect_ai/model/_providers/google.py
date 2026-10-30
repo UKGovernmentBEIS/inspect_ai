@@ -1001,10 +1001,8 @@ class GoogleGenAIAPI(ModelAPI):
                 )
             legs.append(response)
             chain.add(response)
-            if len(response.candidates or []) > 1:
+            if len(response.candidates or []) > 1 or not resume:
                 _continuation_token(response)
-                return legs
-            if not resume:
                 return legs
             if cut_off and leg.discarded:
                 await report_model_stream_restart()
@@ -3189,8 +3187,10 @@ def _boundary_text_runs(
 
 
 def _is_blank_part(part: Part) -> bool:
-    """Whether a part is empty or an empty output text (possibly signed)."""
-    return _is_empty_part(part) or (_is_output_text_part(part) and part.text == "")
+    """Whether a part is empty, only a thought signature, or empty output text."""
+    return _part_fields(part) <= {"thought_signature"} or (
+        _is_output_text_part(part) and part.text == ""
+    )
 
 
 def _is_output_text_part(part: Part) -> bool:

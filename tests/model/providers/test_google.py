@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import hashlib
+import json
 import time
 from pathlib import Path
 from typing import Any, NamedTuple
@@ -1932,6 +1933,30 @@ async def test_continuation_joins_after_signed_empty_text() -> None:
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("leg", ["first", "last"])
+async def test_continuation_joins_across_signature_only_part(leg: str) -> None:
+    """A part with only a thought signature at the boundary does not split text.
+
+    The joined text replays with the signature part where it came, also after
+    the output goes through its JSON form.
+    """
+    signature = Part(thought_signature=b"s1")
+    first = [Part(text='{"answer":"hel')] + ([signature] if leg == "first" else [])
+    last = ([signature] if leg == "last" else []) + [Part(text='lo"}')]
+    output, _, _ = await _generate_with_legs(
+        [
+            _leg(first, FinishReason.CONTINUATION, b"t1"),
+            _leg(last, FinishReason.STOP),
+        ]
+    )
+
+    assert json.loads(output.completion) == {"answer": "hello"}
+    stored = ModelOutput.model_validate_json(output.model_dump_json())
+    replayed = await content(MagicMock(), stored.message)
+    assert replayed.parts == first + last
+
+
+@pytest.mark.anyio
 async def test_continuation_keeps_later_signatures_after_joined_text() -> None:
     """A signature after signed joined text replays on its own part.
 
@@ -2461,6 +2486,23 @@ async def test_continuation_error_logs_earlier_legs(
     assert len(model_call.response["responses"]) == 1
     if isinstance(error, ServerError):
         assert model_call.response["error"]["code"] == 503
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("streaming", [False, True], ids=["plain", "streamed"])
+async def test_continuation_without_token_is_not_continued(streaming: bool) -> None:
+    """A CONTINUATION without a token is returned as cut at max_tokens, with a warning."""
+    response = _chunk([Part(text="partial")], FinishReason.CONTINUATION)
+    with patch("inspect_ai.model._providers.google.warn_once") as warn:
+        if streaming:
+            output, _, mock_request = await _generate_streamed([[response]])
+        else:
+            output, _, mock_request = await _generate_with_legs([response])
+
+    assert mock_request.call_count == 1
+    assert output.stop_reason == "max_tokens"
+    [call] = warn.call_args_list
+    assert "without a continuation token" in call.args[1]
 
 
 @pytest.mark.anyio
