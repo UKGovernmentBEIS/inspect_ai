@@ -10,19 +10,21 @@ from test_helpers.sandbox import CannedSandbox
 
 from inspect_ai.util import (
     SandboxEnvironment,
-    SandboxIdentityError,
     sandbox,
     sandbox_default,
-    sandbox_identity,
-    sandbox_identity_active,
-    sandbox_identity_cwd,
-    sandbox_identity_user,
 )
 from inspect_ai.util._sandbox.context import (
     SandboxInjectable,
     sandbox_default_context_var,
     sandbox_environments_context_var,
     sandbox_with_injection,
+)
+from inspect_ai.util._sandbox.identity import (
+    SandboxIdentityError,
+    sandbox_identity,
+    sandbox_identity_active,
+    sandbox_identity_cwd,
+    sandbox_identity_user,
 )
 from inspect_ai.util._subprocess import ExecResult
 

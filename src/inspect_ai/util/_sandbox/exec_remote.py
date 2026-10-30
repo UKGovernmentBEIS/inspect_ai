@@ -99,15 +99,13 @@ class ExecRemoteCommonOptions:
     """Standard input to send to the command"""
 
     cwd: str | None = None
-    """Working directory for command execution (defaults to the working
-    directory of an active `sandbox_identity()` scope for the sandbox)"""
+    """Working directory for command execution"""
 
     env: dict[str, str] | None = None
     """Additional environment variables"""
 
     user: str | None = None
-    """User to run the command as (defaults to the user of an active
-    `sandbox_identity()` scope for the sandbox)"""
+    """User to run the command as"""
 
     poll_interval: float | None = None
     """Interval between poll requests in seconds"""

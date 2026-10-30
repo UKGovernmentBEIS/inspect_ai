@@ -22,7 +22,6 @@ from inspect_ai.tool._sandbox_tools_utils.sandbox import (
     SandboxInjectionError,
     _inject_container_tools_code,
 )
-from inspect_ai.util import sandbox_identity
 from inspect_ai.util._sandbox.context import (
     sandbox_default_context_var,
     sandbox_environments_context_var,
@@ -44,6 +43,7 @@ from inspect_ai.util._sandbox.exec_remote import (
     exec_remote_awaitable,
     exec_remote_streaming,
 )
+from inspect_ai.util._sandbox.identity import sandbox_identity
 from inspect_ai.util._subprocess import ExecResult
 
 # ============================================================================

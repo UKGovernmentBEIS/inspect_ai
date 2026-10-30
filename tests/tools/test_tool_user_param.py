@@ -30,7 +30,7 @@ from inspect_ai.tool._sandbox_tools_utils._legacy_helpers import (
 from inspect_ai.tool._tools import _bash_session as bash_session_module
 from inspect_ai.tool._tools import _text_editor as text_editor_module
 from inspect_ai.tool._tools._skill.types import Skill
-from inspect_ai.util import SandboxIdentityError, sandbox_identity
+from inspect_ai.util import tool_state_scope
 from inspect_ai.util._sandbox.context import (
     sandbox_default_context_var,
     sandbox_environments_context_var,
@@ -40,6 +40,7 @@ from inspect_ai.util._sandbox.environment import (
     SandboxDefaultUser,
     SandboxEnvironment,
 )
+from inspect_ai.util._sandbox.identity import SandboxIdentityError, sandbox_identity
 from inspect_ai.util._subprocess import ExecResult
 
 DEFAULT_USER = SandboxDefaultUser(uid=1111, gid=1111, groups=[1111], home="/h")
@@ -718,6 +719,47 @@ async def test_bash_session_first_call_keeps_its_identity_when_another_wins(
     [(name, params)] = server.received
     assert name == _session_name("team") and params["input"] == "other command\n"
     assert params.get("owner") == other
+
+
+async def test_bash_session_gives_concurrent_scoped_users_their_own_shells(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai.util._store import Store, init_subtask_store
+
+    init_subtask_store(Store())
+    _select_by_injection(monkeypatch)
+    server = _ToolsServer()
+    release = server.hold_version()
+    shared = bash_session_module.bash_session()
+    opened = {"w-1": anyio.Event(), "w-2": anyio.Event()}
+    names: dict[str, str] = {}
+
+    async def worker(user: str, other: str) -> None:
+        with tool_state_scope(user), sandbox_identity(user):
+            if user == "w-2":
+                # w-1's first call is still waiting on the tools version
+                await server.version_requested.wait()
+            await shared(action="type_submit", input=f"{user} one")
+            names[user] = _session_name(f"@{user}")
+            opened[user].set()
+            if user == "w-2":
+                release.set()
+            await opened[other].wait()
+            await shared(action="type_submit", input=f"{user} two")
+
+    with _environments(default=server):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(worker, "w-1", "w-2")
+            tg.start_soon(worker, "w-2", "w-1")
+    assert names["w-1"] != names["w-2"]
+    assert server.shells == {names["w-1"]: "w-1", names["w-2"]: "w-2"}
+    for user in ("w-1", "w-2"):
+        received = _received_by(server, {names[user]})
+        assert [params["input"] for params in received] == [
+            f"{user} one\n",
+            f"{user} two\n",
+        ]
+        assert {params["owner"] for params in received} == {user}
 
 
 async def test_bash_session_refuses_an_owner_the_server_does_not_have(

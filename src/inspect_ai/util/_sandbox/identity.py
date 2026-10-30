@@ -48,8 +48,7 @@ def sandbox_identity(
     set that does not list `sandbox`, those tools raise `SandboxIdentityError`.
     Tools given another sandbox by name keep that sandbox and its user.
     `SandboxEnvironment.exec()`, `read_file()` and `write_file()` themselves are
-    unchanged, so custom tools that call them run as the sandbox's default user
-    unless they resolve their user with `sandbox_identity_user()`.
+    unchanged: they run as the sandbox's default user unless given one.
 
     The scope is held in a context variable, so tasks started inside the block
     inherit it.
