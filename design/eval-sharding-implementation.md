@@ -1321,6 +1321,28 @@ run. A value that is not a member (a composite plain `Flag`, whose name
 the merge does not parse, or a corrupted log) and an enum in a union with
 other types are refused before anything is written.
 
+Container options (decision: Ransom, 2026-10-30). The producer records
+a list, tuple or dictionary option with each element as a plain value
+(a tuple becomes a list; an enum, function or model element becomes its
+value, its name or a dictionary), so a container's elements cannot be
+restored. A container option is accepted
+only when its parameter's own annotation resolves to lists, sequences
+and dictionaries with `str` keys whose elements are `str`, numbers,
+`None`, `Literal`s of those or such containers, at any depth (`Annotated`
+unwrapped; a `type[...]` member of the union, recorded as a class name,
+is ignored). A container of enums, functions, models or any other type,
+a tuple or set annotation, an unannotated or unresolvable parameter, and
+a `**kwargs` option are refused with `ShardSetError` in
+`recreate_scorers`, naming the metric and argument; the fix is plain
+element types or a registered metric that builds the configuration
+inside its factory. There is no restoration inside containers. Embedded
+registered metrics, alone or in containers (a `list[Metric]` option
+records registry dicts), stay supported and are checked by
+`_check_embedded`. Built-in `frequency(categories=[...])` and MLRC's
+`list[str]` options merge; ANIMA's `dimension_normalized_avg(dims_by_name:
+dict[str, AnimaDimension])` is refused until wrapped in a registered
+metric.
+
 `recreate_scorers` is the only place the merge recreates metrics
 (decision: Ransom, 2026-10-30): the writing passes call it before
 anything is written (and again when recomputing), and the unchanged and
@@ -1553,7 +1575,9 @@ cleanup (removes the merged log too). Both use one routine,
   write and delete `logs/run`. `check_s3_location` (`log/_shards/_walk.py`)
   refuses an S3 URL whose bucket and key do not give back the URL: the
   merge argument's merged log and companion (`ValueError`, before any
-  merge I/O, with or without deletion), and a located merged log in the
+  merge I/O, with or without deletion), the same two at the delete-only
+  entry `remove_shards_dir` (`ValueError`, before any storage access,
+  with or without `include_log`), and a located merged log in the
   writer guards (`ShardSetError`, before the presence check). Listed
   names are checked in one place, `list_shard_set` (`ShardSetError`): the
   companion it is given and every name its listings return, in the
@@ -2254,7 +2278,10 @@ today.
   enum or a `Literal` of those; other types (`Any`, `Hashable`, ...) and
   unannotated or unresolvable parameters are refused. Enum options reach
   the recreated metric as members; an enum in a union with other types is
-  refused. The
+  refused. A list or dictionary option merges only when its parameter is
+  annotated with plain element types; containers of enums, functions or
+  models (ANIMA's `dict[str, AnimaDimension]`) and unannotated containers
+  are refused. The
   `@metric` wrapper now sets
   `__wrapped__`, so `inspect.signature()` of a metric factory reports the
   factory's parameters instead of `(*args, **kwargs)`.
@@ -2716,7 +2743,19 @@ Per PR (numbers from "Implementation plan"):
      an unchanged or interrupted `delete_shards=True` pass writes nothing,
      keeps the merged bytes and results and deletes the shards, on
      asyncio and Trio; a source check keeps `resolve_scorers_info` to the
-     one call in `recreate_scorers`;
+     one call in `recreate_scorers`; enum lists, nested enum
+     dictionaries, enum tuples and a `grouped()` enum-list metric over
+     scored samples, and converter lists, dictionaries and tuples over
+     unscored samples, and an unannotated list, are refused on fresh and
+     writing incremental merges with and without deletion, on asyncio
+     and Trio, with every file byte-identical, while `list[str]` and
+     `dict[str, float]` options (MLRC-style), `frequency(categories=...)`
+     and a list of registered metrics merge to the native values;
+   - delete-only S3 identity: `remove_shards_dir` refuses a merged log
+     with `#`, a tab, CR, LF or a leading key slash, with and without
+     `include_log`, on asyncio and Trio, deleting nothing (including the
+     keys S3 would read), while a literal `%23` name deletes exactly its
+     own log and companion;
    - solver-set scores: with `delete_shards=True`, a solver-set score on a
      task with no scorer and task metrics, on a task with no scorer whose
      workers recorded the default `accuracy` and `stderr`, and beside a

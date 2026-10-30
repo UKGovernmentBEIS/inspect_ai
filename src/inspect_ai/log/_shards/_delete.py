@@ -24,6 +24,7 @@ from inspect_ai._util.log_layout import eval_shards_dir
 
 from ._errors import ShardSetError
 from ._publish import check_supported_location, is_local
+from ._walk import check_s3_location
 
 # fsspec expands these in paths it deletes, also inside a recursive delete
 _GLOB_CHARS = re.compile(r"[*?[]")
@@ -48,13 +49,16 @@ async def remove_shards_dir(
     Raises:
         ValueError: `log` is not a local path, ``file://`` URI or ``s3://``
             URL (see :func:`check_supported_location`), or is an S3 URL that
-            holds glob characters (see :func:`check_deletable`); nothing is
-            deleted.
+            holds glob characters (see :func:`check_deletable`) or that S3
+            would read as another key (see :func:`check_s3_location`);
+            nothing is deleted.
         ShardSetError: S3 reported an object it did not delete, or objects
             remain under the shards directory after the delete returned.
     """
     check_supported_location(log)
     check_deletable(log)
+    check_s3_location(log)
+    check_s3_location(eval_shards_dir(log))
     if fs is None:
         async with AsyncFilesystem() as owned:
             await remove_shards_dir(log, include_log=include_log, fs=owned)

@@ -8,7 +8,7 @@ import zipfile
 from collections.abc import Callable, Hashable, Iterator
 from io import BytesIO
 from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, cast
 
 import anyio
 import boto3
@@ -56,6 +56,7 @@ from inspect_ai.scorer import (
     accuracy,
     aggregate,
     at_least,
+    frequency,
     grouped,
     krippendorff_alpha,
     match,
@@ -1442,6 +1443,63 @@ def shard_enums(
     return compute
 
 
+@metric(name="shard_containers")
+def shard_containers(
+    enum_list: list[Mode] | None = None,
+    enum_dicts: dict[str, dict[str, Mode]] | None = None,
+    enum_tuple: tuple[Mode, ...] | None = None,
+    converters: list[ValueToFloat] | None = None,
+    converter_map: dict[str, ValueToFloat] | None = None,
+    converter_tuple: tuple[ValueToFloat, ...] | None = None,
+) -> Metric:
+    """A metric whose container options hold values a log records lossily."""
+
+    def compute(scores: list[SampleScore]) -> Value:
+        return 0.0
+
+    return compute
+
+
+@metric(name="shard_untyped_list")
+def shard_untyped_list(labels=None) -> Metric:
+    """A metric whose list parameter has no annotation."""
+
+    def compute(scores: list[SampleScore]) -> Value:
+        return float(len(labels or []))
+
+    return compute
+
+
+@metric(name="shard_mean_keys")
+def shard_mean_keys(
+    keys: list[str],
+    weights: dict[str, float],
+    excluded_sample_ids: list[str] | None = None,
+) -> Metric:
+    """A metric with plain container options, like MLRC's numeric-keys mean."""
+
+    def compute(scores: list[SampleScore]) -> Value:
+        values = [
+            weights[key] * float(score.score.as_dict()[key] or 0)
+            for score in scores
+            if str(score.sample_id) not in (excluded_sample_ids or [])
+            for key in keys
+        ]
+        return sum(values) / len(values)
+
+    return compute
+
+
+@metric(name="shard_sum_of")
+def shard_sum_of(metrics: list[Metric]) -> Metric:
+    """A metric given a list of registered metrics."""
+
+    def compute(scores: list[SampleScore]) -> Value:
+        return sum(cast(float, cast(MetricProtocol, m)(scores)) for m in metrics)
+
+    return compute
+
+
 @metric(name="shard_key_sum")
 class ShardKeySum(MetricDeprecated):
     """A class metric with a string option (class metrics get `Score`s)."""
@@ -1472,6 +1530,8 @@ async def _verdict(state: TaskState, target: Target) -> Score:
             shard_enums(Mode.HIGH, Label.ARS, Level.TWO, Perm.R | Perm.W, Colour.BLUE),
             "group",
         ),
+        shard_mean_keys(["points"], {"points": 2.0}, excluded_sample_ids=["1"]),
+        shard_sum_of([aggregate("points", mean()), aggregate("verdict", accuracy())]),
     ]
 )
 def verdicts() -> Scorer:
@@ -1491,6 +1551,15 @@ async def _ratings(state: TaskState, target: Target) -> Score:
     return Score(value=list(state.metadata["ratings"]))
 
 
+async def _label(state: TaskState, target: Target) -> Score:
+    return Score(value=CORRECT if state.metadata["index"] % 2 else INCORRECT)
+
+
+@scorer(metrics=[frequency(categories=[CORRECT, INCORRECT, "P"])])
+def labels() -> Scorer:
+    return _label
+
+
 @scorer(metrics=[krippendorff_alpha(level="ordinal")])
 def ratings() -> Scorer:
     return _ratings
@@ -1502,7 +1571,7 @@ def _verdict_task(metrics: list[Any] | None = None, scored: bool = True) -> Task
     With `scored=False`, every sample is unscored.
     """
     if metrics is None:
-        scorers = [verdicts(), ratings(), match()]
+        scorers = [verdicts(), ratings(), match(), labels()]
     else:
         scorers = [verdicts() if scored else unscored()]
     return Task(
@@ -1547,8 +1616,19 @@ def test_metrics_with_their_own_converters_merge_to_the_unsharded_values(
     # each enum option reached the metric as its member
     assert expected[("verdicts", "shard_enums")] == 31
     assert expected[("verdicts", "odd2")] == 31
+    # samples 2 to 6, points index / 2, weighted 2
+    assert expected[("verdicts", "shard_mean_keys")] == 4.0
+    assert expected[("verdicts", "shard_sum_of")] == 1.75 + 0.5
+    assert expected[("labels", "P")] == 0.0
     assert expected[("verdicts", "shard_quoted")] == 1
     assert ("ratings", "krippendorff_alpha") in expected
+
+
+def _not_plain(kind: str, argument: str) -> str:
+    return (
+        f"'shard_containers' was given {kind} for '{argument}', whose element "
+        "types are not plain"
+    )
 
 
 # the metrics, the refusal, and whether samples are scored: over unscored
@@ -1603,6 +1683,46 @@ _FUNCTION_OPTIONS: dict[str, tuple[Callable[[], list[Any]], str, bool]] = {
         lambda: [shard_hashable(option=len)],
         "'shard_hashable' was given a string for 'option', whose type can also "
         "hold a function",
+        True,
+    ),
+    "enum-list": (
+        lambda: [shard_containers(enum_list=[Mode.HIGH])],
+        _not_plain("a list", "enum_list"),
+        True,
+    ),
+    "enum-dicts": (
+        lambda: [shard_containers(enum_dicts={"a": {"b": Mode.HIGH}})],
+        _not_plain("a dictionary", "enum_dicts"),
+        True,
+    ),
+    "enum-tuple": (
+        lambda: [shard_containers(enum_tuple=(Mode.HIGH, Mode.LOW))],
+        _not_plain("a list", "enum_tuple"),
+        True,
+    ),
+    "enum-list-grouped": (
+        lambda: [grouped(shard_containers(enum_list=[Mode.HIGH]), "group")],
+        _not_plain("a list", "enum_list"),
+        True,
+    ),
+    "converter-list": (
+        lambda: [shard_containers(converters=[value_to_float(correct=2)])],
+        _not_plain("a list", "converters"),
+        False,
+    ),
+    "converter-map": (
+        lambda: [shard_containers(converter_map={"a": value_to_float(correct=2)})],
+        _not_plain("a dictionary", "converter_map"),
+        False,
+    ),
+    "converter-tuple": (
+        lambda: [shard_containers(converter_tuple=(value_to_float(correct=2),))],
+        _not_plain("a list", "converter_tuple"),
+        False,
+    ),
+    "untyped-list": (
+        lambda: [shard_untyped_list(labels=["a"])],
+        "'shard_untyped_list' was given a list for 'labels', which has no annotation",
         True,
     ),
 }
@@ -3416,6 +3536,68 @@ def test_enum_options_are_restored_to_their_members() -> None:
     mixed.__annotations__ = {"mode": "Mode | str"}
     with pytest.raises(ShardSetError, match="records 'HIGH' for 'mode'"):
         _check_function_options("mixed", mixed, {"mode": "HIGH"})
+
+
+# merged-log locations under a root, by the S3 parse that loses part of them
+_S3_READ_AS_OTHER = {
+    "hash": "s3://test-bucket/{root}/run#tag.eval",
+    "tab": "s3://test-bucket/{root}/run\ttab.eval",
+    "cr": "s3://test-bucket/{root}/run\rcr.eval",
+    "lf": "s3://test-bucket/{root}/run\nlf.eval",
+    "leading-slash": "s3://test-bucket//{root}/run.eval",
+}
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+@pytest.mark.parametrize("include_log", [False, True])
+@pytest.mark.parametrize("name", list(_S3_READ_AS_OTHER))
+def test_s3_deletion_refuses_keys_s3_would_read_as_others(
+    s3_root: str,
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+    include_log: bool,
+    backend: str,
+) -> None:
+    from inspect_ai.log._shards._delete import remove_shards_dir
+
+    client = boto3.client("s3")
+    # the keys S3 would read those locations as, and their neighbours
+    for key in ["run", "run/0/a.eval", "run.eval", "run.shards/0/a.eval"] + [
+        f"run{suffix}{tail}"
+        for suffix in ["tag", "tab", "cr", "lf"]
+        for tail in [".eval", ".shards/0/a.eval"]
+    ]:
+        client.put_object(Bucket="test-bucket", Key=f"{s3_root}/{key}", Body=b"x")
+    before = _s3_keys(f"{s3_root}/")
+    location = _S3_READ_AS_OTHER[name].format(root=s3_root)
+
+    with monkeypatch.context() as patched:
+        patched.setenv("INSPECT_ASYNC_BACKEND", backend)
+        with pytest.raises(ValueError, match="S3 would read it as"):
+            anyio.run(
+                functools.partial(remove_shards_dir, location, include_log=include_log),
+                backend=backend,
+            )
+    assert _s3_keys(f"{s3_root}/") == before
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_s3_deletion_of_a_literal_percent_23_name(
+    s3_root: str, monkeypatch: pytest.MonkeyPatch, backend: str
+) -> None:
+    from inspect_ai.log._shards._delete import remove_shards_dir
+
+    client = boto3.client("s3")
+    for key in ["run%23tag.eval", "run%23tag.shards/0/a.eval", "run.eval", "run"]:
+        client.put_object(Bucket="test-bucket", Key=f"{s3_root}/{key}", Body=b"x")
+    location = f"s3://test-bucket/{s3_root}/run%23tag.eval"
+    with monkeypatch.context() as patched:
+        patched.setenv("INSPECT_ASYNC_BACKEND", backend)
+        anyio.run(
+            functools.partial(remove_shards_dir, location, include_log=True),
+            backend=backend,
+        )
+    assert _s3_keys(f"{s3_root}/") == [f"{s3_root}/run", f"{s3_root}/run.eval"]
 
 
 @pytest.mark.parametrize(

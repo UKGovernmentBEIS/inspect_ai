@@ -214,7 +214,16 @@ def _check_function_options(
     matches no named parameter (one passed through `**kwargs`) are refused
     (decision: Ransom, 2026-10-30). Each annotation is resolved on its own,
     so another parameter's or the return annotation does not affect it.
-    Other option values are checked only for an enum parameter.
+    Other scalar option values are checked only for an enum parameter.
+
+    A log records the elements of a list, tuple or dictionary option only
+    as plain values, and a tuple as a list. A container option is accepted
+    only when its parameter's annotation resolves to lists, sequences and
+    dictionaries (with `str` keys) whose elements are `str`, numbers,
+    `None`, `Literal`s of those or such containers; anything else, an
+    unannotated or unresolvable parameter, and a `**kwargs` option are
+    refused (decision: Ransom, 2026-10-30). Embedded registered metrics,
+    alone or in containers, are checked by :func:`_check_embedded`.
 
     A log records an enum option by its value when the enum derives from
     `str`, `int` or `float`, and by its member name otherwise; the option
@@ -231,7 +240,26 @@ def _check_function_options(
     if not options or not callable(factory):
         return restored
     for argument, value in options.items():
+        if _registered_only(value):
+            continue
         resolved = _parameter_annotation(factory, argument)
+        if isinstance(value, (list, tuple, dict)):
+            reason = resolved.reason
+            if reason is None and not _plain_container(resolved.annotation):
+                reason = "whose element types are not plain"
+            if reason is not None:
+                kind = "a dictionary" if isinstance(value, dict) else "a list"
+                raise ShardSetError(
+                    f"The metric '{name}' was given {kind} for '{argument}', "
+                    f"{reason}. A log records the elements of a list or "
+                    "dictionary option only as plain values (strings, numbers, "
+                    "booleans, None), so the merge cannot recreate other "
+                    "elements and does not merge such shards. Annotate "
+                    f"'{argument}' with plain element types, such as list[str] "
+                    "or dict[str, float], or use a registered metric that "
+                    "builds the configuration inside its factory."
+                )
+            continue
         if resolved.reason is None and _enums(resolved.annotation):
             if value is not None:
                 restored[argument] = _restore_enum(
@@ -362,6 +390,67 @@ def _holds_no_function(annotation: object) -> bool:
         ):
             return False
     return True
+
+
+def _registered_only(value: object) -> bool:
+    """Whether `value` is a registry dict, or a container of only those."""
+    from inspect_ai._util.registry import is_registry_dict
+
+    if is_registry_dict(value):
+        return True
+    if isinstance(value, dict):
+        return bool(value) and all(_registered_only(v) for v in value.values())
+    if isinstance(value, (list, tuple)):
+        return bool(value) and all(_registered_only(v) for v in value)
+    return False
+
+
+def _plain_container(annotation: object) -> bool:
+    """Whether a container recorded for a parameter of this type is restored.
+
+    Every member of the union is :func:`_plain`, or a class (`type[...]`,
+    recorded by name, so never a container).
+    """
+    return all(
+        typing.get_origin(member) is type or _plain(member)
+        for member in _members(_unannotated(annotation))
+    )
+
+
+def _plain(annotation: object) -> bool:
+    """Whether every value of this type is recorded and restored unchanged.
+
+    `str`, `int`, `float`, `bool`, `None` and `Literal`s of those, and
+    lists, sequences and `str`-keyed dictionaries of such values, alone or
+    in a union. Enums, tuples, sets and every other type are not.
+    """
+    for member in _members(_unannotated(annotation)):
+        member = _unannotated(member)
+        origin = typing.get_origin(member)
+        args = typing.get_args(member)
+        if origin is typing.Literal:
+            plain = all(type(value) in _PLAIN for value in args)
+        elif origin in (list, collections.abc.Sequence) and len(args) == 1:
+            plain = _plain(args[0])
+        elif origin in (dict, collections.abc.Mapping) and len(args) == 2:
+            plain = _str_keys(args[0]) and _plain(args[1])
+        else:
+            plain = member in _PLAIN
+        if not plain:
+            return False
+    return True
+
+
+def _str_keys(annotation: object) -> bool:
+    """Whether a dictionary key type survives the log's JSON unchanged."""
+    return all(
+        member is str
+        or (
+            typing.get_origin(member) is typing.Literal
+            and all(type(value) is str for value in typing.get_args(member))
+        )
+        for member in _members(_unannotated(annotation))
+    )
 
 
 def _enums(annotation: object) -> list[type[enum.Enum]]:
