@@ -448,37 +448,27 @@ async def test_running_task_unaffected_after_another_task_set_up() -> None:
 async def test_task_on_a_config_being_set_up_waits_unstarted(
     record_cancels: Any,
 ) -> None:
-    # a's setup of W blocks; b (also W) has setup to do too, so it waits for
-    # the setup lane without starting (it holds no slot, though one is free).
-    # a's setup then finishes, both run, and W is set up and cleaned up once
-    a_entered = anyio.Event()
-    release = anyio.Event()
-    started_during_setup: list[str] = []
+    # a's setup of W runs; b (also W) has setup to do too, so it waits for the
+    # setup lane without starting (it holds no slot, though one is free). a's
+    # setup then finishes, both run, and W is set up and cleaned up once
+    from inspect_ai._control.max_tasks import task_dispatcher_stats
 
-    async def block_first(name: str) -> None:
-        a_entered.set()
+    seen: dict[str, Any] = {}
+
+    async def record(name: str) -> None:
         # the tasks started so far (each start creates its TaskCancel)
-        started_during_setup.extend(CANCEL_TASKS)
-        with anyio.fail_after(10):
-            await release.wait()
+        seen["started"] = list(CANCEL_TASKS)
+        stats = task_dispatcher_stats()
+        assert stats is not None
+        seen["in_flight, pending"] = (stats.in_flight, stats.pending)
 
-    HOOKS["task_init"] = block_first
-
-    async def release_after_a_while() -> None:
-        await a_entered.wait()
-        for _ in range(50):
-            await anyio.sleep(0)
-        assert CANCEL_TASKS == started_during_setup
-        release.set()
-
+    HOOKS["task_init"] = record
     with anyio.fail_after(30):
-        async with anyio.create_task_group() as tg:
-            tg.start_soon(release_after_a_while)
-            logs = await eval_async(
-                [boxed("a", "W"), boxed("b", "W")], model="mockllm/model", max_tasks=2
-            )
+        logs = await eval_async(
+            [boxed("a", "W"), boxed("b", "W")], model="mockllm/model", max_tasks=2
+        )
     assert statuses(logs) == [("a", "success"), ("b", "success")]
-    assert started_during_setup == ["a"]
+    assert seen == {"started": ["a"], "in_flight, pending": (1, 1)}
     assert len(events("task_init_done")) == 1
     assert [e[1] for e in events("task_cleanup")] == ["W"]
 

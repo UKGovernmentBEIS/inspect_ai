@@ -11,10 +11,11 @@ lifecycle (hooks, control channel, log) is that of any started task.
 
 import os
 from pathlib import Path
-from typing import Any, Literal, overload
+from typing import Any, Awaitable, Callable, Iterator, Literal, cast, overload
 
 import anyio
 import pytest
+from test_helpers.utils import skip_if_trio
 from typing_extensions import override
 
 from inspect_ai import SampleSource, Task, enqueue_task, eval_async
@@ -27,9 +28,11 @@ from inspect_ai.hooks import Hooks, RunEnd, TaskEnd, TaskStart, hooks
 from inspect_ai.log import EvalLog, list_eval_logs, read_eval_log_async
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.util import (
+    EarlyStopping,
     ExecResult,
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
+    sandbox_setup,
     sandboxenv,
     subprocess,
 )
@@ -255,7 +258,6 @@ async def test_max_sandboxes_retune_reaches_task_waiting_to_start(
     # a retune while it waits for the setup lane (behind another task's
     # setup) reaches it
     from inspect_ai._control.limits import _apply_process_knobs
-    from inspect_ai.util import sandbox_setup
     from inspect_ai.util._concurrency import sandbox_limiters
 
     first_dir, child_dir = tmp_path / "first", tmp_path / "child"
@@ -410,7 +412,7 @@ class _Lifecycle(Hooks):
 
 
 @pytest.fixture
-def lifecycle() -> Any:
+def lifecycle() -> Iterator[_Lifecycle]:
     @hooks("slot_lifecycle", description="Records task lifecycle events")
     def get_hooks() -> type[_Lifecycle]:
         return _Lifecycle
@@ -423,7 +425,7 @@ def lifecycle() -> Any:
         del _registry["hooks:slot_lifecycle"]
 
 
-async def _agreed_attempts(
+async def _checked_attempts(
     lifecycle: _Lifecycle, log_dir: Path
 ) -> list[tuple[str, str]]:
     """Check that hooks, eval states and logs agree on every attempt; return them.
@@ -441,7 +443,7 @@ async def _agreed_attempts(
             for info in list_eval_logs(str(log_dir))
         ]
     }
-    starts = dict((eval_id, task) for task, eval_id in lifecycle.starts)
+    starts = {eval_id: task for task, eval_id in lifecycle.starts}
     assert len(starts) == len(lifecycle.starts), lifecycle.starts
     assert lifecycle.states is not None
     assert set(on_disk) == set(starts) == set(lifecycle.states), (
@@ -499,7 +501,7 @@ async def test_failed_setup_ends_a_task_others_can_see(
         )
     assert _statuses(logs) == [("parent", "success"), ("child", "error")]
     assert seen == {"child_ended_while_parent_ran": True}
-    assert await _agreed_attempts(lifecycle, tmp_path / "logs") == [
+    assert await _checked_attempts(lifecycle, tmp_path / "logs") == [
         ("child", "error"),
         ("parent", "success"),
     ]
@@ -519,34 +521,30 @@ async def _fail_once() -> None:
         raise RuntimeError("transient registry error")
 
 
+async def _succeed() -> None:
+    pass
+
+
 @pytest.mark.parametrize(
-    "ending,retries,expected",
+    "task_init,retries,expected",
     [
-        ("success", 0, [("child", "success")]),
-        ("fail", 0, [("child", "error")]),
-        ("fail_once", 1, [("child", "error"), ("child", "success")]),
-        ("abort", 1, [("child", "error")]),
+        (_succeed, 0, [("child", "success")]),
+        (_fail_once, 1, [("child", "error"), ("child", "success")]),
+        (_abort_child_in_setup, 1, [("child", "error")]),
     ],
+    ids=["success", "fail_then_retry", "abort"],
 )
 async def test_lifecycle_of_a_task_by_how_its_setup_ends(
     tmp_path: Path,
     lifecycle: _Lifecycle,
-    ending: str,
+    task_init: Callable[[], Awaitable[None]],
     retries: int,
     expected: list[tuple[str, str]],
 ) -> None:
     # every way a setup ends gives the hooks, control-channel states and logs
-    # of any started task; an abort during setup is not retried
-    async def fail() -> None:
-        raise RuntimeError("setup failed")
-
-    endings = {
-        "success": None,
-        "fail": fail,
-        "fail_once": _fail_once,
-        "abort": _abort_child_in_setup,
-    }
-    _box["task_init"] = endings[ending]
+    # of any started task; an abort during setup is not retried (a plain
+    # failure: test_failed_setup_ends_a_task_others_can_see)
+    _box["task_init"] = task_init
     with anyio.fail_after(30):
         await eval_async(
             _plain("parent", add_child_and_watch(_boxed("child"), {})),
@@ -554,7 +552,7 @@ async def test_lifecycle_of_a_task_by_how_its_setup_ends(
             max_tasks=2,
             task_retry_attempts=retries,
         )
-    attempts = await _agreed_attempts(lifecycle, tmp_path / "logs")
+    attempts = await _checked_attempts(lifecycle, tmp_path / "logs")
     assert attempts == sorted(expected + [("parent", "success")])
 
 
@@ -562,17 +560,19 @@ async def test_abort_while_waiting_for_a_slot_after_setup(
     tmp_path: Path, lifecycle: _Lifecycle, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # max_tasks=1: the parent holds the slot, the child sets up in the lane and
-    # waits for the slot; aborted there, it ends as any started task does
+    # waits for the slot; aborted there, it ends as any started task does.
+    # Nothing outside the dispatcher shows that the child waits for a slot, so
+    # the test wraps the lane's wait to know
     import inspect_ai._eval.run as run_module
 
     waiting = anyio.Event()
-    real_take_slot = run_module._LaneAttempt.take_slot
+    real_wait_for_slot = run_module._LaneAttempt.wait_for_slot
 
-    async def take_slot(self: Any) -> None:
+    async def wait_for_slot(self: Any) -> None:
         waiting.set()
-        await real_take_slot(self)
+        await real_wait_for_slot(self)
 
-    monkeypatch.setattr(run_module._LaneAttempt, "take_slot", take_slot)
+    monkeypatch.setattr(run_module._LaneAttempt, "wait_for_slot", wait_for_slot)
 
     @solver
     def abort_waiting_child() -> Solver:
@@ -597,7 +597,7 @@ async def test_abort_while_waiting_for_a_slot_after_setup(
     assert _statuses(logs) == [("parent", "success"), ("child", "error")]
     error = logs[1].error
     assert error is not None and "abort" in error.message
-    assert await _agreed_attempts(lifecycle, tmp_path / "logs") == [
+    assert await _checked_attempts(lifecycle, tmp_path / "logs") == [
         ("child", "error"),
         ("parent", "success"),
     ]
@@ -638,13 +638,23 @@ async def test_run_cancel_during_setup_beside_a_running_task(
                     model="mockllm/model",
                     max_tasks=2,
                 )
-    assert await _agreed_attempts(lifecycle, tmp_path / "logs") == [
+    assert await _checked_attempts(lifecycle, tmp_path / "logs") == [
         ("child", "cancelled"),
         ("parent", "cancelled"),
     ]
 
 
 # --- the setup lane: setups do not hold task slots --------------------------------
+
+
+@solver
+def _wait_for(event: anyio.Event) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        with anyio.fail_after(10):
+            await event.wait()
+        return state
+
+    return solve
 
 
 async def test_tasks_waiting_for_setup_hold_no_task_slot(
@@ -654,8 +664,6 @@ async def test_tasks_waiting_for_setup_hold_no_task_slot(
     # with its own config) and one plain task. The first sandboxed task sets up
     # in the lane; the second waits for the lane without starting; the plain
     # task takes the free slot and finishes during the first setup
-    from inspect_ai.util import sandbox_setup
-
     dirs = {name: tmp_path / name for name in ("box1", "box2")}
     for path in dirs.values():
         path.mkdir()
@@ -715,17 +723,7 @@ async def test_tasks_waiting_for_setup_hold_no_task_slot(
         "started_during_box1_setup": ["box1", "parent", "plain"],
         "pending_during_box1_setup": 1,
     }
-    await _agreed_attempts(lifecycle, tmp_path / "logs")
-
-
-@solver
-def _wait_for(event: anyio.Event) -> Solver:
-    async def solve(state: TaskState, generate: Generate) -> TaskState:
-        with anyio.fail_after(10):
-            await event.wait()
-        return state
-
-    return solve
+    await _checked_attempts(lifecycle, tmp_path / "logs")
 
 
 async def test_task_with_no_sandboxed_samples_yet_skips_the_setup_lane(
@@ -739,8 +737,6 @@ async def test_task_with_no_sandboxed_samples_yet_skips_the_setup_lane(
     feed_dir.mkdir()
 
     async def init() -> None:
-        from inspect_ai.util import sandbox_setup
-
         setup = sandbox_setup()
         assert setup is not None
         if setup.task_dir == str(a_dir):
@@ -768,3 +764,128 @@ async def test_task_with_no_sandboxed_samples_yet_skips_the_setup_lane(
         )
     assert _statuses(logs) == [("a", "success"), ("feed", "success")]
     assert len(_box["inits"]) == 2
+
+
+async def test_task_on_a_started_config_does_not_wait_behind_another_setup(
+    tmp_path: Path,
+) -> None:
+    # max_tasks=3. a1 has set up config A and adds b (config B) and a2 (config
+    # A). b sets up in the lane; a2's sandboxes are already started, so it has
+    # no setup to do and runs in a free slot during b's setup (from review
+    # round 6 A)
+    dirs = {name: tmp_path / name for name in ("A", "B")}
+    for path in dirs.values():
+        path.mkdir()
+    a2_ran = anyio.Event()
+    seen: dict[str, bool] = {}
+
+    async def init() -> None:
+        setup = sandbox_setup()
+        assert setup is not None
+        if setup.task_dir == str(dirs["B"]):
+            with anyio.fail_after(10):
+                await a2_ran.wait()
+            seen["a2_ran_during_b_setup"] = True
+
+    @solver
+    def mark_ran() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            a2_ran.set()
+            return state
+
+        return solve
+
+    @solver
+    def add_b_and_a2() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            a2 = _boxed("a2", dirs["A"])
+            a2.solver = mark_ran()
+            enqueue_task([_boxed("b", dirs["B"]), a2], start="when_free")
+            return state
+
+        return solve
+
+    a1 = _boxed("a1", dirs["A"])
+    a1.solver = add_b_and_a2()
+    _box["task_init"] = init
+    with anyio.fail_after(30):
+        logs = await eval_async(a1, model="mockllm/model", max_tasks=3)
+    assert sorted(_statuses(logs)) == [
+        ("a1", "success"),
+        ("a2", "success"),
+        ("b", "success"),
+    ]
+    assert seen == {"a2_ran_during_b_setup": True}
+
+
+async def test_score_directive_during_setup_finds_the_tasks_scorers() -> None:
+    # the task is visible to the control channel during its setup, and its
+    # interim-scoring handle is published before the setup, so `ctl task
+    # score` there does not answer "task has no scorers" (from review round 6
+    # A)
+    from inspect_ai._control.scoring import start_score_pass
+    from inspect_ai.scorer import match
+
+    seen: dict[str, Any] = {}
+
+    async def score_self() -> None:
+        seen["result"] = await start_score_pass(_child_state().task_id, dry_run=True)
+
+    child = Task(
+        name="child",
+        dataset=[Sample(input="x", target="x")],
+        solver=noop(),
+        scorer=match(),
+        sandbox="slot_box",
+    )
+
+    @solver
+    def add_child() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            enqueue_task(child, start="when_free")
+            return state
+
+        return solve
+
+    _box["task_init"] = score_self
+    with anyio.fail_after(30):
+        await eval_async(
+            _plain("parent", add_child()), model="mockllm/model", max_tasks=2
+        )
+    result = seen["result"]
+    assert result is not None
+    assert "no scorers" not in str(result.get("error", "")), result
+
+
+class _CancelOnStart:
+    """Early stopping whose start raises a cancellation out of task code."""
+
+    async def start_task(self, task: Any, samples: Any, epochs: int) -> str:
+        raise anyio.get_cancelled_exc_class()()
+
+    async def schedule_sample(self, id: Any, epoch: int) -> None:
+        return None
+
+    async def complete_sample(self, id: Any, epoch: int, scores: Any) -> None:
+        pass
+
+    async def complete_task(self) -> dict[str, Any]:
+        return {}
+
+
+@skip_if_trio  # trio's Cancelled can't be raised by task code
+async def test_lane_task_ends_when_another_task_ends_cancelled() -> None:
+    # max_tasks=1. x takes the slot, b starts in the setup lane. x's log comes
+    # back cancelled though the run is not cancelled, which stops dispatch;
+    # b has started, so it still gets the slot and ends. A hang would end at
+    # move_on_after, whose cancellation the run absorbs (from review round 6 A)
+    x = Task(
+        name="x",
+        dataset=[Sample(input="x")],
+        solver=noop(),
+        early_stopping=cast(EarlyStopping, _CancelOnStart()),
+    )
+    with anyio.move_on_after(10) as deadline:
+        logs = await eval_async([x, _boxed("b")], model="mockllm/model", max_tasks=1)
+    assert not deadline.cancel_called
+    assert _statuses(logs) == [("x", "cancelled"), ("b", "success")]

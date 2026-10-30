@@ -133,14 +133,13 @@ T = TypeVar("T")
 def setup_in_slot() -> bool:
     """Whether each task starts its own sandboxes, while other tasks run.
 
-    A prototype mode (``INSPECT_TASK_SETUP_IN_SLOT=1``). By default each group
-    of tasks starts its sandboxes before any of it is dispatched, and the
-    scheduling loop waits meanwhile. In this mode a task starts its sandboxes
-    once it has started (in ``task_run``, before its samples), beside running
-    tasks, and a task that has setup to do starts in the dispatcher's setup
-    lane rather than in a ``max_tasks`` slot (see :class:`TaskDispatcher`):
-    provider state reaches only that task, a setup failure ends only that
-    task, and setup output is collected for the task.
+    A prototype mode, "slot mode" (``INSPECT_TASK_SETUP_IN_SLOT=1``). By
+    default each group of tasks starts its sandboxes before any of it is
+    dispatched, and the scheduling loop waits meanwhile. In slot mode a task
+    starts its sandboxes once it has started (in ``task_run``, before its
+    samples), beside running tasks (see :class:`TaskDispatcher` for where it
+    runs meanwhile): provider state reaches only that task, a setup failure
+    ends only that task, and setup output is collected for the task.
     """
     return os.environ.get("INSPECT_TASK_SETUP_IN_SLOT") == "1"
 
@@ -386,7 +385,7 @@ class TaskSettings:
             initial_role_usage=resolved_task.initial_role_usage,
             task_source=self.task_source,
             startup_sandboxes=sandboxes.added_samples,
-            sandbox_setup=sandboxes.own_samples,
+            sandbox_setup=sandboxes.own_setup,
             input_media_policy=resolved_task.input_media_policy,
         )
 
@@ -468,9 +467,9 @@ SampleSandboxStartup = Callable[[Iterable[Sample]], Awaitable[None]]
 class TaskSandboxStarts(NamedTuple):
     """The sandbox start-ups a task runs itself, once it is running."""
 
-    own_samples: TaskSandboxSetup | None
-    """For the task's own samples, before they run (when each task starts its
-    own sandboxes)."""
+    own_setup: TaskSandboxSetup | None
+    """The setup of the task's own samples' sandboxes, run before they run (in
+    slot mode, for a task with setup to do)."""
 
     added_samples: SampleSandboxStartup | None
     """For samples a ``SampleSource`` adds while the task runs."""
@@ -496,8 +495,9 @@ class GroupStartup:
         group's sandboxes, configuration, logger init. The group starts up
         whole, before any of it runs, so a failure fails the run before any of
         the group runs and each log's ``created`` time (which names its file)
-        follows the sandbox start-up. When each task starts its own sandboxes,
-        only the sandbox types' ``ctl`` limiters are registered here.
+        follows the sandbox start-up. In slot mode the tasks start their own
+        sandboxes later; here each task's setup is prepared (if it has setup
+        to do) and the sandbox types' ``ctl`` limiters are registered.
 
         At a launch limit of 1 the group is ordered by sequence: the scheduling
         loop breaks ties in queue order, so all of a task's model fan-outs run
@@ -511,22 +511,24 @@ class GroupStartup:
         )
         for resolved_task in group:
             ensure_sample_ids(resolved_task.task.dataset)
-        starts = (
+        own_setups = (
             await self._prepare_resources(group)
             if self.settings.run_samples
-            else [TaskSandboxStarts(None, None)] * len(group)
+            else [None] * len(group)
         )
         options = [
-            self.settings.task_options(t, self.task_names, task_starts)
-            for t, task_starts in zip(group, starts)
+            self.settings.task_options(
+                t, self.task_names, self._sandbox_starts(t, own_setup)
+            )
+            for t, own_setup in zip(group, own_setups)
         ]
         await _init_loggers(options)
         return options
 
     async def _prepare_resources(
         self, group: list[ResolvedTask]
-    ) -> list[TaskSandboxStarts]:
-        """Model controllers, then the group's sandboxes (or their tasks' setups)."""
+    ) -> "list[TaskSandboxes | None]":
+        """Model controllers, then the group's sandboxes (in slot mode, each task's setup)."""
         for resolved_task in group:
             await ensure_model_controller(
                 resolved_task.model,
@@ -535,18 +537,18 @@ class GroupStartup:
                 ),
             )
         if self.sandboxes.in_slot:
-            setups = await self.sandboxes.task_setups(group, self.task_names)
-        else:
-            if any(t.has_sandbox for t in group):
-                await self.sandboxes.start(group, self.task_names)
-            setups = [None] * len(group)
-        return [self._sandbox_starts(task, setup) for task, setup in zip(group, setups)]
+            return await self.sandboxes.task_setups(group, self.task_names)
+        elif any(t.has_sandbox for t in group):
+            await self.sandboxes.start(group, self.task_names)
+        return [None] * len(group)
 
     def _sandbox_starts(
-        self, resolved_task: ResolvedTask, own: "TaskSandboxes | None"
+        self, resolved_task: ResolvedTask, own_setup: "TaskSandboxes | None"
     ) -> TaskSandboxStarts:
+        if not self.settings.run_samples:
+            return TaskSandboxStarts(None, None)
         return TaskSandboxStarts(
-            own_samples=own,
+            own_setup=own_setup,
             added_samples=(
                 functools.partial(self.sandboxes.start_for_samples, resolved_task)
                 if resolved_task.task.sample_source is not None
@@ -822,9 +824,10 @@ class TaskDispatcher:
         self.task_retry_attempts = task_retry_attempts
         self.source = source
         self.debug_errors = debug_errors
-        self.in_flight = 0
+        self.in_slots = 0
+        """Attempts running in task slots (counted against ``max_tasks``)."""
         self.model_counts: Counter[Model] = Counter()
-        """Running attempts per model. Keyed by the ``Model`` object, not its
+        """Attempts running in task slots, per model. Keyed by the ``Model`` object, not its
         name: a provider may rewrite its model name mid-run (e.g. vLLM resolving
         a LoRA spec on the first generate), and the connection pool that
         balancing spreads load across belongs to the instance."""
@@ -882,20 +885,33 @@ class TaskDispatcher:
         return [log for _, log in sorted(self.results.items())]
 
     async def loop(self, tg: TaskGroup) -> None:
-        """Start ready attempts while there is capacity; when idle, add more or finish."""
+        """Start ready attempts while there is capacity; when idle, add more or finish.
+
+        Once dispatch stops on a cancelled run, an attempt in the setup lane
+        has still started, so it is still given a slot when one frees.
+        """
         while not self.cancelled:
             await self.add_group(self.queue.take("when_free"))
             await self.drop_abandoned_retries()
             self.start_ready(tg)
             if self.cancelled:
                 break
-            if self.queue.ready or self.in_flight or self.lane is not None:
+            if self.queue.ready or self.started:
                 await self.queue.wake.wait()
             elif not await self.add_when_idle():
                 # no await before returning: an addition accepted after this
                 # point would never run
                 self.queue.close()
                 break
+        while self.lane is not None:
+            self.start_ready(tg)
+            if self.lane is not None:
+                await self.queue.wake.wait()
+
+    @property
+    def started(self) -> int:
+        """Attempts started and not finished: in task slots and in the setup lane."""
+        return self.in_slots + (self.lane is not None)
 
     async def add_when_idle(self) -> bool:
         """Add more work once nothing is ready or running; ``False`` if there is none.
@@ -973,49 +989,61 @@ class TaskDispatcher:
 
         A free slot goes first to the lane's attempt once it has set up, then
         to a ready attempt with no setup to do; the lane, once free, takes a
-        ready attempt that has setup to do. Paused attempts are skipped (a
-        resume fires the dispatch waker). The limit is read live for each
-        slot (a ``ctl config --max-tasks`` set fires the waker too). A method
-        of its own so the loop keeps no reference to the last attempt it
-        started, which would keep that task's ``Task`` and dataset alive
-        after it finishes.
+        ready attempt that has setup to do. Paused attempts are passed over,
+        the lane's included (a resume fires the dispatch waker). The limit is
+        read live for each slot (a ``ctl config --max-tasks`` set fires the
+        waker too). Once dispatch has stopped (``cancelled``), only the lane's
+        attempt, which has started, is still given a slot. A method of its
+        own so the loop keeps no reference to the last attempt it started,
+        which would keep that task's ``Task`` and dataset alive after it
+        finishes.
         """
-        while not self.cancelled:
-            slot_free = self.in_flight < effective_max_tasks(self.parallel)
-            if slot_free and self.lane is not None and self.lane.set_up:
-                self.lane.slot.set()
+        while True:
+            slot_free = self.in_slots < effective_max_tasks(self.parallel)
+            lane = self.lane
+            if (
+                slot_free
+                and lane is not None
+                and lane.setup_done
+                and not _dispatch_paused(lane.attempt)
+            ):
                 self.lane = None
-                self.in_flight += 1
-            elif self.lane is None and (attempt := self.pick(setup=True)):
+                self.take_slot(lane.attempt)
+                lane.grant_slot()
+            elif self.cancelled:
+                return
+            elif lane is None and (attempt := self.pick(setup=True)):
                 self.lane = _LaneAttempt(attempt, self.queue.wake.set)
-                self.start_attempt(tg, attempt, self.lane)
+                self.queue.ready.remove(attempt)
+                tg.start_soon(self.run_one, attempt, self.lane)
             elif slot_free and (attempt := self.pick(setup=False)):
-                self.in_flight += 1
-                self.start_attempt(tg, attempt, None)
+                self.queue.ready.remove(attempt)
+                self.take_slot(attempt)
+                tg.start_soon(self.run_one, attempt, None)
             else:
                 return
 
     def pick(self, *, setup: bool) -> Attempt | None:
-        """The next ready attempt that has (or has no) setup to do (see :func:`pick_balanced`)."""
+        """The next ready attempt that has (or has no) setup to do.
+
+        See :func:`pick_balanced`.
+        """
         return pick_balanced(
             [a for a in self.queue.ready if needs_setup(a) == setup],
             self.model_counts,
         )
 
-    def start_attempt(
-        self, tg: TaskGroup, attempt: Attempt, lane: "_LaneAttempt | None"
-    ) -> None:
-        """Start a ready attempt, in a task slot or (with ``lane``) in the setup lane."""
-        self.queue.ready.remove(attempt)
+    def take_slot(self, attempt: Attempt) -> None:
+        """Count an attempt as running in a task slot (and against its model)."""
+        self.in_slots += 1
         self.model_counts[attempt.options.model] += 1
-        tg.start_soon(self.run_one, attempt, lane)
 
     async def run_one(self, attempt: Attempt, lane: "_LaneAttempt | None") -> None:
         """Run one attempt, then settle its log, its retry and its slot (or the lane)."""
         options = (
             attempt.options
             if lane is None
-            else replace(attempt.options, task_slot=lane.take_slot)
+            else replace(attempt.options, wait_for_task_slot=lane.wait_for_slot)
         )
         retry: Attempt | None = None
         try:
@@ -1024,7 +1052,7 @@ class TaskDispatcher:
                 # its never-started log entry goes; the task keeps its previous
                 # attempt's errored log (already in the results)
                 await options.logger.discard()
-                self.finish(attempt, task_log=None, retry=None)
+                self.finish(attempt, lane, task_log=None, retry=None)
                 return
             if run.log is None or run.log.status == "cancelled":
                 self.cancelled = True
@@ -1043,7 +1071,7 @@ class TaskDispatcher:
                 # cancel stamp during the log write already cleared it)
                 clear_eval_retry_pending(run.log.eval.eval_id)
             await _release_unfinished(options.logger)
-        self.finish(attempt, task_log=run.log, retry=retry)
+        self.finish(attempt, lane, task_log=run.log, retry=retry)
 
     async def next_attempt(self, attempt: Attempt, failed: EvalLog) -> Attempt:
         """The retry of a failed attempt: a fresh log entry reusing its completed samples."""
@@ -1069,19 +1097,24 @@ class TaskDispatcher:
         )
 
     def finish(
-        self, attempt: Attempt, *, task_log: EvalLog | None, retry: Attempt | None
+        self,
+        attempt: Attempt,
+        lane: "_LaneAttempt | None",
+        *,
+        task_log: EvalLog | None,
+        retry: Attempt | None,
     ) -> None:
-        """Free the attempt's slot (or the setup lane), record its log and queue its retry.
+        """Free the attempt's slot or the setup lane, record its log, queue its retry.
 
         No await, so the loop never sees the freed slot without the retry.
         """
         options = attempt.options
-        if self.lane is not None and self.lane.attempt is attempt:
-            # it ended before taking a slot
+        if lane is not None and self.lane is lane:
+            # it ended in the lane, before it was given a slot
             self.lane = None
         else:
-            self.in_flight -= 1
-        self.model_counts[options.model] -= 1
+            self.in_slots -= 1
+            self.model_counts[options.model] -= 1
         if task_log is not None:
             self.results[attempt.idx] = task_log
         if retry is not None:
@@ -1103,7 +1136,7 @@ class TaskDispatcher:
         """
         return TaskDispatcherStats(
             launch=self.parallel,
-            in_flight=self.in_flight + (self.lane is not None),
+            in_flight=self.started,
             pending=len(self.queue.ready) + self.starting_up + self.queue.waiting(),
         )
 
@@ -1113,26 +1146,23 @@ class _LaneAttempt:
 
     def __init__(self, attempt: Attempt, wake: Callable[[], None]) -> None:
         self.attempt = attempt
-        self.set_up = False
+        self.setup_done = False
         """Its setup has finished; it waits for a task slot."""
-        self.slot = anyio.Event()
-        """Set when the dispatcher gives it a task slot."""
+        self._slot_granted = anyio.Event()
         self._wake = wake
 
-    async def take_slot(self) -> None:
-        """Wait for a task slot (the attempt's ``task_slot``, run after its setup)."""
-        self.set_up = True
+    async def wait_for_slot(self) -> None:
+        """Mark the attempt's setup done and wait until the dispatcher grants it a slot."""
+        self.setup_done = True
         self._wake()
-        await self.slot.wait()
+        await self._slot_granted.wait()
+
+    def grant_slot(self) -> None:
+        self._slot_granted.set()
 
 
 def needs_setup(attempt: Attempt) -> bool:
-    """Whether an attempt has sandbox setup to do before its samples can run.
-
-    True for an attempt of a task that starts its own sandboxes and whose
-    sandboxes are not known to be started: its first attempt, and a retry
-    whose setup did not finish.
-    """
+    """Whether an attempt has sandbox setup to do before its samples can run (slot mode)."""
     setup = attempt.options.sandbox_setup
     return setup is not None and not setup.started()
 
@@ -1154,21 +1184,26 @@ def pick_balanced(ready: list[Attempt], model_counts: Counter[Model]) -> Attempt
     Among attempts not held by a pause latch, the earliest one whose model has
     the fewest running attempts, so as many models as possible run at once.
     Ties go to queue order, so at a launch limit of 1 a sequence-ordered queue
-    keeps all of a task's model fan-outs together. The model name is passed to
-    the latch because a task that has not started has no EvalState for the
-    latch to resolve its model from.
+    keeps all of a task's model fan-outs together (in slot mode, a task with
+    no setup to do can still start while an earlier one sets up).
     """
-    candidates = [
-        a
-        for a in ready
-        if not task_dispatch_paused(
-            a.options.logger.eval.task_id, model=dispatch_model_name(a.options.model)
-        )
-    ]
+    candidates = [a for a in ready if not _dispatch_paused(a)]
     if not candidates:
         return None
     fewest = min(model_counts[a.options.model] for a in candidates)
     return next(a for a in candidates if model_counts[a.options.model] == fewest)
+
+
+def _dispatch_paused(attempt: Attempt) -> bool:
+    """Whether a pause latch holds the attempt back from taking a task slot.
+
+    The model name is passed to the latch because a task that has not started
+    has no EvalState for the latch to resolve its model from.
+    """
+    return task_dispatch_paused(
+        attempt.options.logger.eval.task_id,
+        model=dispatch_model_name(attempt.options.model),
+    )
 
 
 def wants_retry(cancel_type: CancelType, task_log: EvalLog, attempt: Attempt) -> bool:
@@ -1403,21 +1438,22 @@ class SandboxManager:
     ) -> list["TaskSandboxes | None"]:
         """The setup of each task's own sandboxes, for tasks that start them themselves.
 
-        ``None`` for a task none of whose selected samples uses a sandbox (so
-        it has no setup to do). Also registers the ``ctl`` limiter of each
-        sandbox type the tasks use, so a ``ctl config --max-sandboxes`` retune
-        reaches a type whose task is still waiting to start.
+        Resolves the sandboxenvs of each task's selected samples now, as
+        :meth:`start` does (a resolution error fails the start-up), so whether
+        a task has setup to do is known before it starts. ``None`` for a task
+        none of whose selected samples uses a sandbox. Also registers the
+        ``ctl`` limiter of each sandbox type the tasks use, so a ``ctl config
+        --max-sandboxes`` retune reaches a type whose task is still waiting to
+        start.
         """
         setups: list[TaskSandboxes | None] = []
         types: set[str] = set()
         for task in tasks:
-            task_types = {
-                spec.type
-                for sample in self._selected_samples(task, task_names)
-                if (spec := await self._sandbox_spec(task, sample)) is not None
-            }
-            types |= task_types
-            setups.append(TaskSandboxes(self, task) if task_types else None)
+            sandboxenvs = await self._resolve_sandboxenvs(
+                task, self._selected_samples(task, task_names)
+            )
+            types |= {env.sandbox.type for env in sandboxenvs}
+            setups.append(TaskSandboxes(self, sandboxenvs) if sandboxenvs else None)
         for sandbox_type in types:
             await ensure_sandbox_limiter(
                 registry_find_sandboxenv(sandbox_type),
@@ -1426,19 +1462,14 @@ class SandboxManager:
             )
         return setups
 
-    async def start_for_task(
-        self, task: ResolvedTask, samples: Iterable[Sample]
-    ) -> set[TaskSandboxEnvironment]:
+    async def start_for_task(self, sandboxenvs: set[TaskSandboxEnvironment]) -> None:
         """Start a task's sandboxenvs from inside the task, once it has started.
 
         For tasks that start their own sandboxes (:class:`TaskSandboxes`). As
         with :meth:`start`, the provider state reaches later tasks too (one
-        whose config was already started needs it). Returns the sandboxenvs
-        the samples use.
+        whose config was already started needs it).
         """
-        sandboxenvs = await self._resolve_sandboxenvs(task, samples)
         await self._start_sandboxenvs(sandboxenvs, shared=True)
-        return sandboxenvs
 
     def all_started(self, sandboxenvs: set[TaskSandboxEnvironment]) -> bool:
         """Whether every one of `sandboxenvs` has had its `task_init` run."""
@@ -1603,28 +1634,23 @@ class SandboxManager:
 
 
 class TaskSandboxes:
-    """The sandboxes of one task's own samples, which the task starts itself.
+    """The sandboxes a task's own samples use, which the task starts itself.
 
-    A task's :class:`~inspect_ai._eval.task.run.TaskSandboxSetup` when each
-    task starts its own sandboxes. Which sandboxes the task uses is known only
-    after a call has started them (resolving them runs the provider's
-    ``task_init_environment``, part of the setup), so until then
-    :meth:`started` is ``False``. The task's retries share this object, so a
-    retry whose sandboxes are all started has no setup to do.
+    A task's :class:`~inspect_ai._eval.task.run.TaskSandboxSetup` in slot
+    mode (see :meth:`SandboxManager.task_setups`).
     """
 
-    def __init__(self, manager: SandboxManager, task: ResolvedTask) -> None:
+    def __init__(
+        self, manager: SandboxManager, sandboxenvs: set[TaskSandboxEnvironment]
+    ) -> None:
         self._manager = manager
-        self._task = task
-        self._sandboxenvs: set[TaskSandboxEnvironment] | None = None
+        self._sandboxenvs = sandboxenvs
 
     def started(self) -> bool:
-        return self._sandboxenvs is not None and self._manager.all_started(
-            self._sandboxenvs
-        )
+        return self._manager.all_started(self._sandboxenvs)
 
-    async def __call__(self, samples: Iterable[Sample]) -> None:
-        self._sandboxenvs = await self._manager.start_for_task(self._task, samples)
+    async def __call__(self) -> None:
+        await self._manager.start_for_task(self._sandboxenvs)
 
 
 async def _in_child_task(

@@ -7,16 +7,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from logging import getLogger
 from pathlib import PurePath
-from typing import (
-    Any,
-    Awaitable,
-    Callable,
-    Iterable,
-    Literal,
-    NamedTuple,
-    Protocol,
-    TypeAlias,
-)
+from typing import Any, Awaitable, Callable, Literal, NamedTuple, Protocol, TypeAlias
 
 import anyio
 from anyio.abc import TaskGroup
@@ -639,19 +630,14 @@ def _sample_transcript_config(
 
 
 class TaskSandboxSetup(Protocol):
-    """The setup of a task's own sandboxes, which the task runs once it has started.
-
-    Used when the run sets each task up on its own, beside running tasks: the
-    task runs it right after its start (so a failed setup is one of its
-    errors), before its samples.
-    """
+    """The setup of a task's own sandboxes (slot mode), run once the task has started."""
 
     def started(self) -> bool:
-        """Whether every sandbox the task's samples use is known to be started."""
+        """Whether every sandbox the task's samples use has been started."""
         ...
 
-    async def __call__(self, samples: Iterable[Sample]) -> None:
-        """Start the sandboxes `samples` use that are not started yet.
+    async def __call__(self) -> None:
+        """Start the task's sandboxes that are not started yet.
 
         Gives the calling task the provider state its samples need.
         """
@@ -691,10 +677,10 @@ class TaskRunOptions:
         default=None
     )
     """Run-level incremental sandbox startup for samples a SampleSource adds."""
-    sandbox_setup: "TaskSandboxSetup | None" = field(default=None)
+    sandbox_setup: TaskSandboxSetup | None = field(default=None)
     """Starts the task's own sandboxes once it has started, before its samples
-    (when the run sets each task up on its own, beside running tasks)."""
-    task_slot: Callable[[], Awaitable[None]] | None = field(default=None)
+    (slot mode)."""
+    wait_for_task_slot: Callable[[], Awaitable[None]] | None = field(default=None)
     """Waits for a task slot, after the setup of a task that started in the
     run's setup lane (outside the ``max_tasks`` slots)."""
     input_media_policy: InputMediaPolicy = field(default="inline_only")
@@ -1266,15 +1252,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # ends with neither a log nor an end hook)
             await emit_task_start(logger, eval_plan)
 
-            # after the task has started (control channel, hook), so a failed
-            # setup ends it as any other error does
-            if options.sandbox_setup is not None:
-                await options.sandbox_setup(
-                    sample_store[i] for i in range(len(sample_store))
-                )
-            if options.task_slot is not None:
-                await options.task_slot()
-
             # publish the interim-scoring capability (the task's scorers and
             # scoring inputs as resolved at eval start) for the control
             # channel's `task score` directive — see
@@ -1295,6 +1272,13 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     score_on_error=config.score_on_error or False,
                 ),
             )
+
+            # after the task has started (control channel, hook, scoring
+            # handle), so a failed setup ends it as any other error does
+            if options.sandbox_setup is not None:
+                await options.sandbox_setup()
+            if options.wait_for_task_slot is not None:
+                await options.wait_for_task_slot()
 
             # call early stopping if we have it
             stopping_manager: str = ""

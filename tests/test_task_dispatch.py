@@ -775,7 +775,7 @@ class _FakeSetup:
     def started(self) -> bool:
         return self.done
 
-    async def __call__(self, samples: Any) -> None:
+    async def __call__(self) -> None:
         harness = self.harness
         if self.done:
             harness.events.append(f"setup-done {self.label}")
@@ -822,13 +822,13 @@ class LaneHarness(Harness):
         if options.sandbox_setup is not None:
             self.events.append(f"start {label}")
             try:
-                await options.sandbox_setup([])
+                await options.sandbox_setup()
             except RuntimeError:
                 self.events.append(f"end {label} error")
                 logger.finished = True
                 return TaskRunResult(EvalLog(eval=logger.eval, status="error"), None)
-            if options.task_slot is not None:
-                await options.task_slot()
+            if options.wait_for_task_slot is not None:
+                await options.wait_for_task_slot()
             self.events.append(f"slot {label}")
         return await super().run_task(options, can_retry)
 
@@ -864,10 +864,6 @@ async def test_setup_lane_sets_up_one_task_at_a_time_outside_the_slots(
         await _wait_stats(in_flight=2, pending=2)
         harness.setup_finish["box1@m1"].set()
         await _wait_event(harness, "set-up box1@m1")
-        for _ in range(20):
-            await anyio.sleep(0)
-        assert "start box2@m1" not in harness.events
-        assert "slot box1@m1" not in harness.events
         harness.finish["plain1@m1"].set()
         await _wait_started(harness, "box1@m1")
         await _wait_in_setup(harness, "box2@m1")
@@ -892,8 +888,10 @@ async def test_setup_lane_sets_up_one_task_at_a_time_outside_the_slots(
     assert of("plain1@m1") == ["start", "end"]
     assert of("plain2@m1") == ["start", "end"]
     order = harness.events.index
-    # box2 enters the lane only once box1 has left it for the slot (freed by
-    # plain1); the slot goes to the set-up lane task before plain2
+    # box1, set up, waits for the slot plain1 holds and keeps the lane: box2
+    # enters the lane only once box1 has the slot; the slot goes to the
+    # set-up lane task before plain2
+    assert order("end plain1@m1 success") < order("slot box1@m1")
     assert order("end plain1@m1 success") < order("start box2@m1")
     assert order("end box1@m1 success") < order("slot box2@m1")
     assert order("end box2@m1 success") < order("start plain2@m1")
@@ -966,6 +964,141 @@ async def test_retry_whose_setup_finished_takes_a_slot_beside_the_lane(
     assert harness.events.index("setup box2@m1") < retry_start
     assert harness.events.index("slot box2@m1") > retry_start
     assert [log.status for log in logs] == ["success", "success"]
+
+
+class _CancellingHarness(LaneHarness):
+    """A lane harness in which a task can end with a ``cancelled`` log."""
+
+    def __init__(self, models: list[Model], **kwargs: Any) -> None:
+        super().__init__(models, **kwargs)
+        self.cancel_next: set[str] = set()
+
+    async def run_task(
+        self, options: TaskRunOptions, can_retry: bool = False
+    ) -> TaskRunResult:
+        logger = cast(FakeLogger, options.logger)
+        label = logger.label
+        if label not in self.cancel_next:
+            return await super().run_task(options, can_retry)
+        self.events.append(f"start {label}")
+        self.started[label].set()
+        await self.finish[label].wait()
+        self.events.append(f"end {label} cancelled")
+        logger.finished = True
+        return TaskRunResult(EvalLog(eval=logger.eval, status="cancelled"), None)
+
+
+@pytest.mark.parametrize("set_up_first", [True, False])
+async def test_lane_task_still_gets_a_slot_after_dispatch_stops(
+    monkeypatch: pytest.MonkeyPatch, set_up_first: bool
+) -> None:
+    # max_tasks=1: plain1 runs in the slot, box1 sets up in the lane. plain1
+    # ends cancelled, which stops dispatch (no more attempts start). box1 has
+    # started, so it is still given the slot and ends (from review round 6 B).
+    # A hang would end at fail_after, whose cancellation the dispatcher
+    # absorbs: box1's log would then be missing
+    m1 = get_model("mockllm/m1")
+    harness = _CancellingHarness([m1], parallel=1)
+    harness.cancel_next.add("plain1@m1")
+    _install(monkeypatch, harness)
+
+    async def drive() -> None:
+        await _wait_in_setup(harness, "box1@m1")
+        await _wait_started(harness, "plain1@m1")
+        if set_up_first:
+            harness.setup_finish["box1@m1"].set()
+            await _wait_event(harness, "set-up box1@m1")
+            harness.finish["plain1@m1"].set()
+        else:
+            harness.finish["plain1@m1"].set()
+            await _wait_event(harness, "end plain1@m1 cancelled")
+            harness.setup_finish["box1@m1"].set()
+        await _wait_event(harness, "slot box1@m1")
+        await _wait_started(harness, "box1@m1")
+        harness.finish["box1@m1"].set()
+
+    with anyio.fail_after(10):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(drive)
+            logs = await harness.run(_resolve(["box1", "plain1", "plain2"], [m1]))
+
+    assert [(log.eval.task, log.status) for log in logs] == [
+        ("box1@m1", "success"),
+        ("plain1@m1", "cancelled"),
+    ]
+    assert "start plain2@m1" not in harness.events
+
+
+async def test_lane_task_of_a_paused_task_waits_for_its_slot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # max_tasks=1: box@m1 sets up in the lane while plain@m2 runs; m1 is then
+    # paused. When plain@m2 ends, the set-up box@m1 is passed over, as a
+    # paused ready attempt is, and plain2@m2 takes the slot; box@m1 takes it
+    # after the resume (from review round 6 B)
+    from inspect_ai._control.pause import fire_dispatch_wakers
+
+    m1, m2 = get_model("mockllm/m1"), get_model("mockllm/m2")
+    harness = LaneHarness([m1, m2], parallel=1)
+    paused: set[str] = set()
+    monkeypatch.setattr(
+        "inspect_ai._eval.run.task_dispatch_paused",
+        lambda task_id, model=None: model in paused,
+    )
+    _install(monkeypatch, harness)
+
+    async def drive() -> None:
+        await _wait_in_setup(harness, "box@m1")
+        await _wait_started(harness, "plain@m2")
+        paused.add("mockllm/m1")
+        harness.setup_finish["box@m1"].set()
+        await _wait_event(harness, "set-up box@m1")
+        harness.finish["plain@m2"].set()
+        await _wait_started(harness, "plain2@m2")
+        harness.events.append("resume")
+        paused.clear()
+        fire_dispatch_wakers()
+        harness.finish["plain2@m2"].set()
+        await _wait_started(harness, "box@m1")
+        harness.finish["box@m1"].set()
+
+    with anyio.fail_after(10):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(drive)
+            await harness.run(
+                _resolve(["box"], [m1]) + _resolve(["plain", "plain2"], [m2])
+            )
+
+    assert harness.events.index("resume") < harness.events.index("slot box@m1")
+
+
+async def test_lane_task_counts_for_its_model_only_once_in_a_slot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # model balancing counts tasks running in slots: while box@m1 sets up, the
+    # slot goes to the earliest ready task (plain@m1), not to plain@m2 as if
+    # m1 were busy
+    m1, m2 = get_model("mockllm/m1"), get_model("mockllm/m2")
+    harness = LaneHarness([m1, m2], parallel=1)
+    _install(monkeypatch, harness)
+
+    async def drive() -> None:
+        await _wait_in_setup(harness, "box@m1")
+        await _wait_started(harness, "plain@m1")
+        harness.finish["plain@m1"].set()
+        harness.setup_finish["box@m1"].set()
+        await _wait_started(harness, "box@m1")
+        harness.finish["box@m1"].set()
+        await _wait_started(harness, "plain@m2")
+        harness.finish["plain@m2"].set()
+
+    with anyio.fail_after(10):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(drive)
+            await harness.run(_resolve(["box"], [m1]) + _resolve(["plain"], [m1, m2]))
+
+    starts = _starts(harness)
+    assert starts.index("plain@m1") < starts.index("plain@m2")
 
 
 @pytest.mark.parametrize("during", ["start_up", "next_tasks"])
