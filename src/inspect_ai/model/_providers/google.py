@@ -249,6 +249,15 @@ class _ContinuationChain:
     later one is cancelled (e.g. by an attempt timeout).
     """
 
+    http_hooks: HttpHooks | None = None
+    """Hooks tracking the requests under `request_id`."""
+
+    request_id: str | None = None
+    """Request id the requests are sent with."""
+
+    time: float = 0
+    """Time spent on the requests that returned responses."""
+
     def add(self, response: GenerateContentResponse) -> None:
         """Add a request's response."""
         self.responses.append(response)
@@ -258,6 +267,20 @@ class _ContinuationChain:
             self.input_context_tokens = usage_input_tokens(usage)
         if self.model_call is not None:
             self.model_call.set_response(self.model_call_response())
+        # the next request (a continuation or a malformed function call retry)
+        # is a new one, not an HTTP retry of this one
+        if self.http_hooks is not None and self.request_id is not None:
+            self.time += self.http_hooks.restart_request(self.request_id)
+
+    def end_request(self) -> float:
+        """End the request id, returning the time spent on all its requests.
+
+        Each request counts from its last attempt, so the SDK's failed
+        attempts and retry waits are left out.
+        """
+        if self.http_hooks is None or self.request_id is None:
+            return self.time
+        return self.time + self.http_hooks.end_request(self.request_id)
 
     def model_call_response(self) -> Any:
         """The model call's response: the one response, or all of them.
@@ -815,7 +838,11 @@ class GoogleGenAIAPI(ModelAPI):
                 # every request of the retry loop below (and every continuation
                 # of each) is billed; the first one is the request built from
                 # the input
-                chain = _ContinuationChain(model_call=model_call)
+                chain = _ContinuationChain(
+                    model_call=model_call,
+                    http_hooks=http_hooks,
+                    request_id=request_id,
+                )
 
                 try:
                     # google sometimes requires retries for malformed function calls
@@ -861,7 +888,7 @@ class GoogleGenAIAPI(ModelAPI):
                     }
                     if chain.responses:
                         error["responses"] = chain.responses
-                    model_call.set_error(error, http_hooks.end_request(request_id))
+                    model_call.set_error(error, chain.end_request())
                     handled = self.handle_client_error(ex)
                     if isinstance(handled, ModelOutput):
                         handled.usage = chain.usage
@@ -878,14 +905,14 @@ class GoogleGenAIAPI(ModelAPI):
                                 else {"message": str(ex)},
                                 "responses": chain.responses,
                             },
-                            http_hooks.end_request(request_id),
+                            chain.end_request(),
                         )
                     raise
 
                 assert response is not None  # mypy confused by retry loop
 
                 model_call.set_response(
-                    chain.model_call_response(), http_hooks.end_request(request_id)
+                    chain.model_call_response(), chain.end_request()
                 )
 
                 model_name = response.model_version or self.service_model_name()

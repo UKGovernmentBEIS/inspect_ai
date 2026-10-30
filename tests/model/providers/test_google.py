@@ -4,6 +4,7 @@ import hashlib
 import json
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, NamedTuple
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -2663,6 +2664,107 @@ async def test_cancelled_continuation_logs_earlier_legs(
     ]
     assert model_call.response["usageMetadata"]["promptTokenCount"] == 10
     assert model_call.response["usageMetadata"]["candidatesTokenCount"] == 2
+
+
+def _timed_requests(
+    case: str,
+) -> list[tuple[list[tuple[int, int, int]], GenerateContentResponse]]:
+    """Each request: its attempts as (seconds until the response, status, seconds of backoff after it), and its response."""
+    return {
+        "single": [([(100, 200, 0)], _leg([Part(text="a")], FinishReason.STOP))],
+        "continued": [
+            ([(100, 200, 0)], _leg([Part(text="a")], FinishReason.CONTINUATION, b"t1")),
+            ([(10, 200, 0)], _leg([Part(text="b")], FinishReason.STOP)),
+        ],
+        "retried-then-continued": [
+            (
+                [(4, 429, 6), (100, 200, 0)],
+                _leg([Part(text="a")], FinishReason.CONTINUATION, b"t1"),
+            ),
+            ([(10, 200, 0)], _leg([Part(text="b")], FinishReason.STOP)),
+        ],
+        "malformed-then-continued": [
+            ([(100, 200, 0)], _leg([], FinishReason.MALFORMED_FUNCTION_CALL)),
+            ([(10, 200, 0)], _leg([Part(text="a")], FinishReason.CONTINUATION, b"t1")),
+            ([(5, 200, 0)], _leg([Part(text="b")], FinishReason.STOP)),
+        ],
+    }[case]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("streaming", [False, True], ids=["plain", "streamed"])
+@pytest.mark.parametrize(
+    ("case", "seconds", "retries"),
+    [
+        ("single", 100, 0),
+        ("continued", 110, 0),
+        ("retried-then-continued", 110, 1),
+        ("malformed-then-continued", 115, 0),
+    ],
+)
+async def test_continuation_request_time_and_retries(
+    case: str,
+    seconds: float,
+    retries: int,
+    streaming: bool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Each request of a call counts its time, and only real retries count as retries.
+
+    A request's time runs from its last attempt, so an SDK's failed attempt
+    and backoff are left out. A continuation (or a malformed function call
+    retry) is a new request, not an HTTP retry.
+    """
+    import inspect_ai.model._providers.util.hooks as hooks_module
+
+    clock = [0.0]
+    monkeypatch.setattr(
+        hooks_module, "time", SimpleNamespace(monotonic=lambda: clock[0])
+    )
+    reported: list[Any] = []
+    monkeypatch.setattr(
+        hooks_module, "report_http_retry", lambda **kwargs: reported.append(kwargs)
+    )
+    calls = _capture_model_calls(monkeypatch)
+    http_client = SimpleNamespace(event_hooks={"request": [], "response": []})
+    requests = iter(_timed_requests(case))
+
+    async def send(config: GenerateContentConfig) -> GenerateContentResponse:
+        attempts, response = next(requests)
+        assert config.http_options and config.http_options.headers
+        headers = dict(config.http_options.headers)
+        request = SimpleNamespace(method="POST", url="u", headers=headers)
+        for seconds_to_response, status, backoff in attempts:
+            for hook in http_client.event_hooks["request"]:
+                await hook(request)
+            clock[0] += seconds_to_response
+            for hook in http_client.event_hooks["response"]:
+                await hook(
+                    SimpleNamespace(
+                        request=request,
+                        status_code=status,
+                        http_version="HTTP/1.1",
+                        reason_phrase="",
+                        headers={},
+                    )
+                )
+            clock[0] += backoff
+        return response
+
+    async def plain(**kwargs: Any) -> GenerateContentResponse:
+        return await send(kwargs["config"])
+
+    async def streamed(**kwargs: Any) -> Any:
+        return _leg_chunks([await send(kwargs["config"])])
+
+    mock_client = _create_mock_google_client(AsyncMock(side_effect=plain))
+    mock_client.aio.models.generate_content_stream = AsyncMock(side_effect=streamed)
+    mock_client._api_client._async_httpx_client = http_client
+    await _generate_with_client(mock_client, model_args=dict(streaming=streaming))
+
+    [model_call] = calls
+    assert model_call.time == seconds
+    assert len(reported) == retries
 
 
 @pytest.mark.anyio
