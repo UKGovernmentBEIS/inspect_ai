@@ -1,4 +1,5 @@
 import dataclasses
+import enum
 import functools
 import json
 import os
@@ -7,7 +8,7 @@ import zipfile
 from collections.abc import Callable, Iterator
 from io import BytesIO
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import anyio
 import boto3
@@ -1354,6 +1355,28 @@ class ShardConverted(MetricProtocol):
         return {"converted": self.to_float(CORRECT)}
 
 
+@metric(name="shard_untyped")
+def shard_untyped(to_float=None) -> Metric:
+    """A metric whose converter parameter has no annotation."""
+
+    def compute(scores: list[SampleScore]) -> Value:
+        return {"converted": to_float(CORRECT)}
+
+    return compute
+
+
+def _hidden_return(to_float: ValueToFloat = value_to_float()) -> Metric:
+    def compute(scores: list[SampleScore]) -> Value:
+        return {"converted": to_float(CORRECT)}
+
+    return compute
+
+
+# postponed annotations whose return type is imported only for type checking
+_hidden_return.__annotations__ = {"to_float": "ValueToFloat", "return": "HiddenReturn"}
+shard_hidden_return = metric(name="shard_hidden_return")(_hidden_return)
+
+
 @metric(name="shard_key_sum")
 class ShardKeySum(MetricDeprecated):
     """A class metric with a string option (class metrics get `Score`s)."""
@@ -1453,17 +1476,17 @@ def test_metrics_with_their_own_converters_merge_to_the_unsharded_values(
     assert ("ratings", "krippendorff_alpha") in expected
 
 
-# the metrics, the name the refusal gives, and whether samples are scored:
-# over unscored samples a class metric's failure would become NaN and publish
+# the metrics, the refusal, and whether samples are scored: over unscored
+# samples a metric's failure would become NaN and publish
 _FUNCTION_OPTIONS: dict[str, tuple[Callable[[], list[Any]], str, bool]] = {
     "direct": (
         lambda: [mean(to_float=value_to_float(correct=2))],
-        "inspect_ai/mean",
+        "'inspect_ai/mean' was given a function for 'to_float'",
         True,
     ),
     "aggregate": (
         lambda: [aggregate("verdict", mean(), to_float=value_to_float())],
-        "inspect_ai/aggregate",
+        "'inspect_ai/aggregate' was given a function for 'to_float'",
         True,
     ),
     "nested": (
@@ -1473,22 +1496,32 @@ _FUNCTION_OPTIONS: dict[str, tuple[Callable[[], list[Any]], str, bool]] = {
                 "group",
             )
         ],
-        "mean",
+        "'mean' was given a function for 'to_float'",
         True,
     ),
     "keyed": (
         lambda: [{"verdict": [accuracy(to_float=value_to_float(correct=2))]}],
-        "inspect_ai/accuracy",
+        "'inspect_ai/accuracy' was given a function for 'to_float'",
         True,
     ),
     "class": (
         lambda: [ShardConverted(to_float=value_to_float(correct=2))],
-        "shard_converted",
+        "'shard_converted' was given a function for 'to_float'",
         False,
     ),
     "class-nested": (
         lambda: [grouped(ShardConverted(to_float=value_to_float(correct=2)), "group")],
-        "shard_converted",
+        "'shard_converted' was given a function for 'to_float'",
+        False,
+    ),
+    "untyped": (
+        lambda: [shard_untyped(to_float=value_to_float(correct=2))],
+        "'shard_untyped' was given a string for 'to_float', which has no annotation",
+        False,
+    ),
+    "hidden-return": (
+        lambda: [shard_hidden_return(to_float=value_to_float(correct=2))],
+        "'shard_hidden_return' was given a function for 'to_float'",
         False,
     ),
 }
@@ -1501,7 +1534,7 @@ def test_a_metric_given_a_function_is_refused(
 ) -> None:
     from inspect_ai.log._shards import _write
 
-    metrics, name, scored = _FUNCTION_OPTIONS[option]
+    metrics, message, scored = _FUNCTION_OPTIONS[option]
 
     def task() -> Task:
         return _verdict_task(metrics(), scored)
@@ -1519,7 +1552,6 @@ def test_a_metric_given_a_function_is_refused(
     _run(shards, "0", task(), sample_id=[1, 2, 3])
     _run(shards, "1", task(), sample_id=[4, 5, 6])
     before = _files(str(tmp_path))
-    message = f"metric '{name}' was given a function for 'to_float'"
     for delete in (False, True):
         with pytest.raises(ShardSetError, match=message):
             merge_eval_log_shards(merged, delete_shards=delete)
@@ -3052,22 +3084,43 @@ def test_metrics_nested_in_wrappers_are_checked(
         _check_embedded(options)
 
 
-def test_function_options_are_checked_only_where_annotated() -> None:
+class _Level(enum.Enum):
+    LOW = "low"
+
+
+def test_string_options_need_a_resolvable_annotation() -> None:
     from inspect_ai.log._shards._write import _check_function_options
 
-    def factory(to_float=None, convert=None):
+    def factory(to_float=None, label=None, other=None):
         return None
 
-    recorded = {"to_float": "to_float", "convert": "convert"}
-    _check_function_options("unannotated", factory, recorded)
-    # one annotation does not resolve: the evaluated one is still checked
-    factory.__annotations__ = {"to_float": "NotDefined", "convert": Callable[[], int]}
-    with pytest.raises(
-        ShardSetError, match="'partial' was given a function for 'convert'"
-    ):
-        _check_function_options("partial", factory, recorded)
-    factory.__annotations__ = {"to_float": "NotDefined"}
-    _check_function_options("unresolved", factory, recorded)
+    def keywords(**kwargs):
+        return None
+
+    def check(annotations: dict[str, Any], options: dict[str, Any]) -> None:
+        factory.__annotations__ = annotations
+        _check_function_options("custom", factory, options)
+
+    def refused(annotations: dict[str, Any], argument: str, reason: str) -> None:
+        with pytest.raises(ShardSetError, match=f"'custom' was given {reason}"):
+            check(annotations, {argument: "x"})
+
+    # as with postponed annotations whose names are imported only for typing:
+    # another parameter's or the return annotation does not matter
+    unrelated = {"other": "NotDefined", "return": "HiddenReturn"}
+    refused({"to_float": "ValueToFloat", **unrelated}, "to_float", "a function")
+    refused({"to_float": "Any"}, "to_float", "a function")
+    for annotation in ["str", "str | None", "_Level", str, Literal["a", "b"]]:
+        check({"label": annotation, **unrelated}, {"label": "x"})
+    check({"other": "NotDefined"}, {"other": 1})
+    refused({}, "label", "a string for 'label', which has no annotation")
+    refused(
+        {"label": "NotDefined"},
+        "label",
+        "a string for 'label', whose annotation the merge cannot resolve",
+    )
+    with pytest.raises(ShardSetError, match="'kw' was given a string for 'label', "):
+        _check_function_options("kw", keywords, {"label": "x"})
 
 
 def test_function_options_of_class_metrics_are_checked() -> None:
@@ -3114,6 +3167,30 @@ def test_function_options_of_class_metrics_are_checked() -> None:
     embedded = registry_params(grouped(ShardConverted(value_to_float()), "g"))
     with pytest.raises(ShardSetError, match="'shard_converted' was given a function"):
         _check_embedded(embedded)
+
+    class PostponedClass(MetricProtocol):
+        def __init__(self, to_float=None, label=None, other=None):
+            self.to_float = to_float
+
+        def __call__(self, scores: list[SampleScore]) -> Value:
+            return 0.0
+
+    # postponed annotations, one of them unresolvable
+    PostponedClass.__init__.__annotations__ = {
+        "to_float": "ValueToFloat",
+        "label": "str",
+        "other": "NotDefined",
+        "return": "None",
+    }
+    Postponed = metric(name="shard_postponed")(PostponedClass)
+    with pytest.raises(ShardSetError, match="'shard_postponed' was given a function"):
+        _check_function_options("shard_postponed", Postponed, recorded)
+    _check_function_options("shard_postponed", Postponed, {"label": "x"})
+    embedded = registry_params(grouped(Postponed(to_float=value_to_float()), "g"))
+    with pytest.raises(ShardSetError, match="'shard_postponed' was given a function"):
+        _check_embedded(embedded)
+    with pytest.raises(ShardSetError, match="'shard_postponed' was given a string"):
+        _check_function_options("shard_postponed", Postponed, {"other": "x"})
 
 
 @pytest.mark.parametrize(
