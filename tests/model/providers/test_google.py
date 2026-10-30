@@ -53,6 +53,7 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.kvstore import KVStore
 from inspect_ai.agent._bridge.google_api_impl import messages_from_google_contents
 from inspect_ai.dataset import Sample
+from inspect_ai.event._model import ModelEvent, model_event_progress
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
@@ -1891,6 +1892,23 @@ async def test_continuation_joins_signed_text_and_replays_its_parts(
     assert (await content(MagicMock(), edited)).parts == [Part(text="edited")]
 
 
+@pytest.mark.anyio
+async def test_continuation_joins_text_marked_not_thought() -> None:
+    """Parts marked thought=False are output text, and empty ones are skipped."""
+    output, _, _ = await _generate_with_legs(
+        [
+            _leg(
+                [Part(text='{"a":"hel', thought=False), Part(thought=False)],
+                FinishReason.CONTINUATION,
+                b"t1",
+            ),
+            _leg([Part(text='lo"}', thought=False)], FinishReason.STOP),
+        ]
+    )
+
+    assert output.completion == '{"a":"hello"}'
+
+
 def _blocked_leg() -> GenerateContentResponse:
     return _with_usage(
         GenerateContentResponse(
@@ -2039,9 +2057,20 @@ async def test_cut_off_stream_resumes_from_its_checkpoint() -> None:
     async def collect(event: StreamEvent) -> None:
         events.append(event)
 
-    with model_stream_observer(
-        ModelStreamObserver(model="google/test", on_stream=collect)
-    ):
+    observer = ModelStreamObserver(
+        model="google/test", on_stream=collect, publish_partial=False
+    )
+    event = ModelEvent(
+        model="google/test",
+        input=[],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput(),
+        pending=True,
+    )
+    await observer.begin_attempt(event)
+    with model_stream_observer(observer):
         output, model_call, mock_stream = await _generate_streamed(
             [
                 [
@@ -2052,8 +2081,11 @@ async def test_cut_off_stream_resumes_from_its_checkpoint() -> None:
             ]
         )
 
-    # observers are told to drop the discarded text and are sent the kept text
+    # observers are told to drop the discarded text and are sent the kept
+    # text, with its token count
     assert _streamed_text(events) == "kept rest"
+    progress = model_event_progress(event)
+    assert progress is not None and progress.output_tokens == 5 + 1
     assert mock_stream.call_count == 2
     tokens = [c.kwargs["config"].continuation_token for c in mock_stream.call_args_list]
     assert tokens == [None, b"t1"]
@@ -2091,12 +2123,19 @@ async def test_stream_with_trailing_metadata_chunk(finished: bool) -> None:
     output, _, mock_stream = await _generate_streamed(
         [first_leg]
         if finished
-        else [first_leg, [_chunk([Part(text=" rest")], FinishReason.STOP)]]
+        else [
+            first_leg,
+            [_chunk([Part(text=" rest")], FinishReason.STOP, usage=(20, 1, 0))],
+        ]
     )
 
     assert mock_stream.call_count == (1 if finished else 2)
     assert output.completion == ("kept" if finished else "kept rest")
     assert output.stop_reason == "stop"
+    # the trailing usage is the first leg's, at its checkpoint when cut off
+    assert output.usage is not None
+    assert output.usage.output_tokens == (5 if finished else 5 + 1)
+    assert output.input_context_tokens == 10
 
 
 @pytest.mark.anyio

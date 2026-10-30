@@ -307,9 +307,7 @@ class _StreamedLeg:
         # output_tokens convention), else a bare heartbeat
         output_tokens: int | None = None
         if chunk.usage_metadata is not None:
-            output_tokens = (chunk.usage_metadata.candidates_token_count or 0) + (
-                chunk.usage_metadata.thoughts_token_count or 0
-            ) or None
+            output_tokens = _output_token_count(chunk.usage_metadata) or None
         report_model_stream_progress(output_tokens)
 
         for candidate in chunk.candidates or []:
@@ -331,7 +329,15 @@ class _StreamedLeg:
                         await _report_stream_part_delta(part)
             if candidate.continuation_token:
                 self.checkpoints[idx] = (candidate.continuation_token, len(parts))
-                self.checkpoint_usage = self.usage
+
+        # usage that arrives before any part after the checkpoint (on the
+        # checkpoint's chunk or a later metadata-only one) is the checkpoint's
+        if (
+            chunk.usage_metadata is not None
+            and 0 in self.checkpoints
+            and not self.discarded
+        ):
+            self.checkpoint_usage = self.usage
 
     def response(self, cut_off: bool) -> GenerateContentResponse | None:
         """The response streamed so far, or None if no chunk arrived.
@@ -369,6 +375,13 @@ class _StreamedLeg:
             model_version=self.last_chunk.model_version,
             response_id=self.last_chunk.response_id,
         )
+
+
+def _output_token_count(usage: GenerateContentResponseUsageMetadata | None) -> int:
+    """Output tokens of a usage report: candidates and thoughts."""
+    if usage is None:
+        return 0
+    return (usage.candidates_token_count or 0) + (usage.thoughts_token_count or 0)
 
 
 def _merge_streamed_parts(accumulated_parts: list[Part]) -> list[Part]:
@@ -975,6 +988,12 @@ class GoogleGenAIAPI(ModelAPI):
                     if kept.candidates and kept.candidates[0].content:
                         for part in kept.candidates[0].content.parts or []:
                             await _report_stream_part_delta(part)
+                # restore the kept output's token count, when every leg has one
+                if all(kept.usage_metadata for kept in legs):
+                    report_model_stream_start()
+                    report_model_stream_progress(
+                        sum(_output_token_count(kept.usage_metadata) for kept in legs)
+                    )
 
     async def _stream_leg(
         self,
@@ -3143,15 +3162,23 @@ def _boundary_text_runs(
 
 def _is_output_text_part(part: Part) -> bool:
     """Whether a part is output text (possibly signed) and nothing else."""
-    return (
-        part.text is not None
-        and not part.thought
-        and set(part.model_dump(exclude_none=True)) <= {"text", "thought_signature"}
-    )
+    return part.text is not None and _part_fields(part) <= {
+        "text",
+        "thought_signature",
+    }
 
 
 def _is_empty_part(part: Part) -> bool:
-    return not part.model_dump(exclude_none=True)
+    return not _part_fields(part)
+
+
+def _part_fields(part: Part) -> set[str]:
+    """The fields a part sets, counting `thought=False` as unset."""
+    return {
+        name
+        for name, value in part.model_dump(exclude_none=True).items()
+        if not (name == "thought" and value is False)
+    }
 
 
 def _joined_text_replay_parts(content: ContentText) -> list[Part] | None:
