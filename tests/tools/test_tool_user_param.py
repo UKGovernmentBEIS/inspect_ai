@@ -447,8 +447,9 @@ class _ToolsServer(CannedSandbox):
     A shell created with `bind` gets a unique name and answers only requests that
     name its owner; other shells get counted names (`BashSession`, `BashSession_1`).
     `replace_server()` drops every shell, as a replaced server starts empty.
-    `hold_version()` holds the next `version` request until the returned event
-    is set. `lose_next_shell` replaces the server just after it opens a shell.
+    `hold(method)` holds the response to the next `method` request (after the
+    server has acted on it) until the returned event is set, and sets
+    `requested[method]` when that request arrives. `lose_next_shell` replaces the server just after it opens a shell.
     """
 
     def __init__(self, version: str = "1.3.0") -> None:
@@ -459,16 +460,17 @@ class _ToolsServer(CannedSandbox):
         self.received: list[tuple[str, dict[str, Any]]] = []
         """Each request a shell acted on: its name and the request's params."""
         self.methods: list[str] = []
-        self.version_requested = anyio.Event()
+        self.requested: dict[str, anyio.Event] = {}
         self.lose_next_shell = False
-        self._version_hold: anyio.Event | None = None
+        self._holds: dict[str, anyio.Event] = {}
 
     def replace_server(self) -> None:
         self.shells = {}
 
-    def hold_version(self) -> anyio.Event:
-        self._version_hold = anyio.Event()
-        return self._version_hold
+    def hold(self, method: str) -> anyio.Event:
+        self.requested[method] = anyio.Event()
+        self._holds[method] = anyio.Event()
+        return self._holds[method]
 
     async def exec(
         self,
@@ -484,12 +486,11 @@ class _ToolsServer(CannedSandbox):
         assert isinstance(input, str)
         request = json.loads(input)
         self.methods.append(request["method"])
-        if request["method"] == "version" and self._version_hold is not None:
-            hold, self._version_hold = self._version_hold, None
-            self.version_requested.set()
-            await hold.wait()
         response = {"jsonrpc": "2.0", "id": request["id"]}
         response.update(self._answer(request["method"], request.get("params", {})))
+        if (hold := self._holds.pop(request["method"], None)) is not None:
+            self.requested[request["method"]].set()
+            await hold.wait()
         return ExecResult(True, 0, json.dumps(response), "")
 
     def _answer(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
@@ -694,7 +695,7 @@ async def test_bash_session_first_call_keeps_its_identity_when_another_wins(
     init_subtask_store(Store())
     _select_by_injection(monkeypatch)
     server = _ToolsServer()
-    release = server.hold_version()
+    release = server.hold("version")
     team = bash_session_module.bash_session(instance="team")
     refused: list[BaseException] = []
 
@@ -710,7 +711,7 @@ async def test_bash_session_first_call_keeps_its_identity_when_another_wins(
             tg.start_soon(first)
             # w-1's call waits on the tools version while another caller opens
             # the instance's shell
-            await server.version_requested.wait()
+            await server.requested["version"].wait()
             with sandbox_identity(other, sandbox="b") if other else nullcontext():
                 await team(action="type_submit", input="other command")
             release.set()
@@ -721,6 +722,135 @@ async def test_bash_session_first_call_keeps_its_identity_when_another_wins(
     assert params.get("owner") == other
 
 
+_W1_A = ("w-1", "a")
+_W1_B = ("w-1", "b")
+_W2_B = ("w-2", "b")
+
+
+def _identity(identity: tuple[str, str] | None) -> Any:
+    return (
+        sandbox_identity(identity[0], sandbox=identity[1])
+        if identity
+        else nullcontext()
+    )
+
+
+@pytest.mark.parametrize(
+    "first, other",
+    [(_W1_B, _W2_B), (_W1_B, None), (None, _W1_B), (_W1_A, _W1_B)],
+    ids=["other-scope", "unscoped-wins", "scoped-wins", "other-sandbox"],
+)
+async def test_bash_session_first_call_whose_shell_loses_the_race_is_refused(
+    monkeypatch: pytest.MonkeyPatch,
+    first: tuple[str, str] | None,
+    other: tuple[str, str] | None,
+) -> None:
+    from inspect_ai.util import store_as
+    from inspect_ai.util._store import Store, init_subtask_store
+
+    init_subtask_store(Store())
+    _select_by_injection(monkeypatch)
+    servers = {"a": _ToolsServer(), "b": _ToolsServer()}
+    # unscoped injection selects `a`
+    first_server = servers[first[1] if first else "a"]
+    release = first_server.hold("bash_session_new_session")
+    team = bash_session_module.bash_session(instance="team")
+    refused: list[BaseException] = []
+
+    async def first_call() -> None:
+        with _identity(first):
+            try:
+                await team(action="type_submit", input="first command")
+            except SandboxIdentityError as ex:
+                refused.append(ex)
+
+    with _environments(**servers):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(first_call)
+            # the first call's shell is open, its creation not yet returned
+            await first_server.requested["bash_session_new_session"].wait()
+            with _identity(other):
+                await team(action="type_submit", input="other command")
+            release.set()
+        # the winner keeps the instance
+        with _identity(other):
+            await team(action="type_submit", input="other again")
+    [error] = refused
+    assert "by a concurrent call" in str(error)
+    saved = store_as(bash_session_module.BashSessionStore, instance="team")
+    owner, sandbox = other if other else (None, None)
+    assert (saved.identity, saved.identity_sandbox) == (owner, sandbox)
+    received = [
+        (name, params)
+        for server in servers.values()
+        for name, params in server.received
+    ]
+    assert [name for name, _ in received] == [saved.session_id] * 2
+    assert [params["input"] for _, params in received] == [
+        "other command\n",
+        "other again\n",
+    ]
+    assert {params.get("owner") for _, params in received} == {owner}
+
+
+async def test_bash_session_unscoped_calls_racing_to_open_a_shell_both_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai.util._store import Store, init_subtask_store
+
+    init_subtask_store(Store())
+    _select_by_injection(monkeypatch)
+    server = _ToolsServer()
+    release = server.hold("bash_session_new_session")
+    team = bash_session_module.bash_session(instance="team")
+
+    async def first_call() -> None:
+        await team(action="type_submit", input="first command")
+
+    with _environments(b=server):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(first_call)
+            await server.requested["bash_session_new_session"].wait()
+            await team(action="type_submit", input="other command")
+            release.set()
+        await team(action="type_submit", input="again")
+    # as before scopes: each runs in its shell, and the last one opened is kept
+    assert server.received == [
+        ("BashSession_1", server.received[0][1]),
+        ("BashSession", server.received[1][1]),
+        ("BashSession", server.received[2][1]),
+    ]
+    assert _session_name("team") == "BashSession"
+
+
+async def test_bash_session_cancelled_first_call_leaves_the_instance_free(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai.util._store import Store, init_subtask_store
+
+    init_subtask_store(Store())
+    _select_by_injection(monkeypatch)
+    server = _ToolsServer()
+    server.hold("bash_session_new_session")
+    team = bash_session_module.bash_session(instance="team")
+
+    async def first_call() -> None:
+        with sandbox_identity("w-1", sandbox="b"):
+            await team(action="type_submit", input="first command")
+
+    with _environments(b=server):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(first_call)
+            await server.requested["bash_session_new_session"].wait()
+            tg.cancel_scope.cancel()
+        assert _session_name("team") == ""
+        with sandbox_identity("w-2", sandbox="b"):
+            await team(action="type_submit", input="w-2 command")
+    [(name, params)] = server.received
+    assert name == _session_name("team") and server.shells[name] == "w-2"
+    assert params["owner"] == "w-2"
+
+
 async def test_bash_session_gives_concurrent_scoped_users_their_own_shells(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -729,7 +859,7 @@ async def test_bash_session_gives_concurrent_scoped_users_their_own_shells(
     init_subtask_store(Store())
     _select_by_injection(monkeypatch)
     server = _ToolsServer()
-    release = server.hold_version()
+    release = server.hold("bash_session_new_session")
     shared = bash_session_module.bash_session()
     opened = {"w-1": anyio.Event(), "w-2": anyio.Event()}
     names: dict[str, str] = {}
@@ -737,8 +867,8 @@ async def test_bash_session_gives_concurrent_scoped_users_their_own_shells(
     async def worker(user: str, other: str) -> None:
         with tool_state_scope(user), sandbox_identity(user):
             if user == "w-2":
-                # w-1's first call is still waiting on the tools version
-                await server.version_requested.wait()
+                # w-1's shell is open but its creation has not returned
+                await server.requested["bash_session_new_session"].wait()
             await shared(action="type_submit", input=f"{user} one")
             names[user] = _session_name(f"@{user}")
             opened[user].set()

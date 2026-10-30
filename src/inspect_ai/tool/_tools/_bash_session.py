@@ -268,7 +268,11 @@ def bash_session(
                     f"'{store.identity}' in sandbox '{store.identity_sandbox}'."
                 )
 
-        async def new_session() -> _Session:
+        async def new_session(replacing: str) -> _Session:
+            """Open a shell and save it, unless another identity saved one first.
+
+            `replacing` is the session the store held when this call read it.
+            """
             params: dict[str, object] = {}
             if (run_as := tools_user_param(sandbox, session_user)) is not None:
                 params["user"] = run_as
@@ -293,6 +297,12 @@ def bash_session(
                 scope.user if scope is not None else None,
                 scope.sandbox if scope is not None else None,
             )
+            # a concurrent call may have saved a shell during the request
+            if store.session_id != replacing and (
+                store.identity,
+                store.identity_sandbox,
+            ) != (session.owner, session.sandbox):
+                raise _concurrent_session_error(resolved_instance, store, scope)
             store.session_id, store.identity, store.identity_sandbox = session
             return session
 
@@ -303,7 +313,7 @@ def bash_session(
             _check_shared_session(resolved_instance, store, scope)
             session = _Session(store.session_id, store.identity, store.identity_sandbox)
         else:
-            session = await new_session()
+            session = await new_session("")
 
         timing: dict[str, object] = {
             "wait_for_output": wait_for_output,
@@ -344,7 +354,7 @@ def bash_session(
             if action != "restart" or scope is None:
                 raise _lost_session_error(resolved_instance, session, scope) from None
             # Recover once: a new shell lost before its first request is reported.
-            session = await new_session()
+            session = await new_session(session.name)
             try:
                 result = await send(session)
             except _SessionNotFoundError:
@@ -421,11 +431,7 @@ def _check_shared_session(
     scope: SandboxIdentityScope | None,
 ) -> None:
     """Refuse a saved shell created under another sandbox identity."""
-    owner = (
-        f"was created as '{store.identity}' in sandbox '{store.identity_sandbox}'"
-        if store.identity is not None
-        else "was created outside a sandbox identity scope"
-    )
+    owner = _created_as(store)
     if scope is not None:
         if (store.identity, store.identity_sandbox) != (scope.user, scope.sandbox):
             raise SandboxIdentityError(
@@ -434,3 +440,30 @@ def _check_shared_session(
                 f"'{scope.user}' in sandbox '{scope.sandbox}'. A shell cannot be "
                 "shared between sandbox identities."
             )
+
+
+def _concurrent_session_error(
+    instance: str | None,
+    store: BashSessionStore,
+    scope: SandboxIdentityScope | None,
+) -> SandboxIdentityError:
+    """Refuse a first call whose shell lost the race to another identity's."""
+    caller = (
+        f"inside the sandbox identity scope for '{scope.user}' in sandbox "
+        f"'{scope.sandbox}'"
+        if scope is not None
+        else "outside a sandbox identity scope"
+    )
+    return SandboxIdentityError(
+        f"bash_session instance '{instance or 'default'}' {_created_as(store)} by "
+        f"a concurrent call, so it cannot be used {caller}. A shell cannot be "
+        "shared between sandbox identities."
+    )
+
+
+def _created_as(store: BashSessionStore) -> str:
+    return (
+        f"was created as '{store.identity}' in sandbox '{store.identity_sandbox}'"
+        if store.identity is not None
+        else "was created outside a sandbox identity scope"
+    )
