@@ -1781,6 +1781,48 @@ async def test_react_after_answer_not_called_at_other_ends(end: str) -> None:
     assert gate.answer_calls == []
 
 
+@agent
+def _silent_child() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        """Return without generating."""
+        return state
+
+    return execute
+
+
+@pytest.mark.parametrize("gated", [True, False])
+@pytest.mark.parametrize("agent_kind", ["react", "deepagent"])
+async def test_react_no_submit_stops_after_empty_handoff(
+    agent_kind: str, gated: bool
+) -> None:
+    async def stop(state: AgentState) -> bool:
+        return False
+
+    tools = [handoff(_silent_child())]
+    inner = (
+        react(tools=tools, submit=False, on_continue=stop)
+        if agent_kind == "react"
+        else deepagent(tools=tools, submit=False, on_continue=stop)
+    )
+    gate = _TestGate(answers=1)
+    task = Task(
+        dataset=[Sample(input="Test")],
+        solver=_gated(gate, inner) if gated else inner,
+    )
+    model = get_model(
+        "mockllm/model", custom_outputs=[_tool_turn("transfer_to__silent_child")]
+    )
+
+    log = (await eval_async(task, model=model))[0]
+
+    assert log.status == "success"
+    assert log.samples
+    assert log.samples[0].output.empty
+    assert len(_model_inputs(log)) == 1
+    # the turn made a tool call, so it is not an answer
+    assert gate.answer_calls == []
+
+
 @pytest.mark.parametrize(
     "end",
     ["attempts_used", "check_passed", "no_submit_reply", "no_submit_on_continue_false"],

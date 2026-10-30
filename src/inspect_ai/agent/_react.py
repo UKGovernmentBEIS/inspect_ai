@@ -592,8 +592,12 @@ def react_no_submit(
                             state.messages = do_continue.messages
                             state.output = do_continue.output
                         else:
-                            if not state.output.message.tool_calls and (
-                                await after_answer(ch, state)
+                            # a handoff whose child did not generate leaves an
+                            # empty output, after a turn that made tool calls
+                            if (
+                                not state.output.empty
+                                and not state.output.message.tool_calls
+                                and await after_answer(ch, state)
                             ):
                                 continue
                             break
