@@ -20,7 +20,7 @@ cd inspect_ai
 uv sync
 ```
 
-This installs Inspect in editable mode with its development dependencies at the versions recorded in `uv.lock`. Project dependencies are declared in `requirements*.txt` and exposed through `pyproject.toml`. When changing dependencies, update the appropriate requirements file and run `uv lock` rather than relying on `uv add`. uv only resolves releases that are at least seven days old, except for model provider SDKs and Inspect's own packages; see [CONTRIBUTING.md](CONTRIBUTING.md#working-on-your-issue) for how to adopt a newer release.
+This installs Inspect in editable mode with its development dependencies at the versions recorded in `uv.lock`. Project dependencies are declared in `pyproject.toml` (`dependencies` and the `optional-dependencies` extras). When changing dependencies, edit them there and run `uv lock`. uv only resolves releases that are at least seven days old, except for model provider SDKs and Inspect's own packages; see [CONTRIBUTING.md](CONTRIBUTING.md#working-on-your-issue) for how to adopt a newer release.
 
 Optionally install pre-commit hooks via
 
