@@ -6,7 +6,7 @@ from typing import Any, Callable, Literal, Sequence
 import anyio
 import pytest
 
-from inspect_ai import Task, eval
+from inspect_ai import Task, eval, eval_async
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.agent._agent import Agent, AgentState, agent, agent_with
 from inspect_ai.agent._channel import (
@@ -1642,7 +1642,7 @@ def _continue_after(on_continue_calls: list[str]) -> Callable[..., Any]:
 
 @pytest.mark.parametrize("agent_kind", ["react", "deepagent"])
 @pytest.mark.parametrize("end", ["attempts_used", "check_passed"])
-def test_react_after_answer_continues_after_submission(
+async def test_react_after_answer_continues_after_submission(
     agent_kind: str, end: str
 ) -> None:
     on_continue_calls: list[str] = []
@@ -1664,7 +1664,7 @@ def test_react_after_answer_continues_after_submission(
         custom_outputs=[_tool_turn(), _submit("ONE"), _submit("TWO")],
     )
 
-    log = eval(task, model=model)[0]
+    log = (await eval_async(task, model=model))[0]
 
     assert log.status == "success"
     assert log.samples
@@ -1685,7 +1685,7 @@ def test_react_after_answer_continues_after_submission(
     assert log.samples[0].output.completion.endswith("TWO")
 
 
-def test_react_after_answer_resets_attempts() -> None:
+async def test_react_after_answer_resets_attempts() -> None:
     gate = _TestGate(answers=1)
     task = Task(
         dataset=[Sample(input="Test", target="RIGHT")],
@@ -1702,7 +1702,7 @@ def test_react_after_answer_resets_attempts() -> None:
         ],
     )
 
-    log = eval(task, model=model)[0]
+    log = (await eval_async(task, model=model))[0]
 
     assert log.status == "success"
     assert log.samples
@@ -1717,7 +1717,7 @@ def test_react_after_answer_resets_attempts() -> None:
 
 
 @pytest.mark.parametrize("end", ["no_on_continue", "on_continue_false"])
-def test_react_no_submit_after_answer_continues_after_reply(end: str) -> None:
+async def test_react_no_submit_after_answer_continues_after_reply(end: str) -> None:
     async def stop(state: AgentState) -> bool:
         return False
 
@@ -1730,7 +1730,7 @@ def test_react_no_submit_after_answer_continues_after_reply(end: str) -> None:
     task = Task(dataset=[Sample(input="Test")], solver=_gated(gate, inner))
     model = get_model("mockllm/model", custom_outputs=[_reply("ONE"), _reply("TWO")])
 
-    log = eval(task, model=model)[0]
+    log = (await eval_async(task, model=model))[0]
 
     assert log.status == "success"
     assert log.samples
@@ -1752,7 +1752,7 @@ def test_react_no_submit_after_answer_continues_after_reply(end: str) -> None:
         "no_submit_on_continue_false_after_tools",
     ],
 )
-def test_react_after_answer_not_called_at_other_ends(end: str) -> None:
+async def test_react_after_answer_not_called_at_other_ends(end: str) -> None:
     async def stop(state: AgentState) -> bool:
         return False
 
@@ -1774,7 +1774,7 @@ def test_react_after_answer_not_called_at_other_ends(end: str) -> None:
     )
     model = get_model("mockllm/model", custom_outputs=outputs)
 
-    log = eval(task, model=model)[0]
+    log = (await eval_async(task, model=model))[0]
 
     assert log.status == "success"
     assert len(_model_inputs(log)) == len(outputs)
@@ -1785,14 +1785,14 @@ def test_react_after_answer_not_called_at_other_ends(end: str) -> None:
     "end",
     ["attempts_used", "check_passed", "no_submit_reply", "no_submit_on_continue_false"],
 )
-def test_react_after_answer_false_returns_as_without_gate(end: str) -> None:
+async def test_react_after_answer_false_returns_as_without_gate(end: str) -> None:
     async def stop(state: AgentState) -> bool:
         return False
 
     # a stopping on_continue would end the loop at the tool turn
     first = [] if end == "no_submit_on_continue_false" else [_tool_turn()]
 
-    def run(gate: _TestGate | None) -> EvalLog:
+    async def run(gate: _TestGate | None) -> EvalLog:
         if end.startswith("no_submit"):
             inner = react(
                 tools=[lookup()],
@@ -1809,10 +1809,10 @@ def test_react_after_answer_false_returns_as_without_gate(end: str) -> None:
             scorer=includes(),
         )
         model = get_model("mockllm/model", custom_outputs=outputs)
-        return eval(task, model=model)[0]
+        return (await eval_async(task, model=model))[0]
 
     gate = _TestGate(answers=0)
-    gated, ungated = run(gate), run(None)
+    gated, ungated = await run(gate), await run(None)
 
     assert gate.answer_calls == ["ONE"]
     assert gated.samples and ungated.samples
