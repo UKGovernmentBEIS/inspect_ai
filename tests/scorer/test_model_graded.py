@@ -1018,6 +1018,8 @@ def test_unread_final_verdict_does_not_fall_back_to_earlier_grade(
             "GRADE: C\nI have considered the grade - I\nam confident it is correct.",
             id="pronoun_before_line_break",
         ),
+        pytest.param("GRADE: C\nGrade - done", id="closing_remark_word"),
+        pytest.param("GRADE: C\nGrade -> final", id="closing_remark_arrow"),
     ],
 )
 def test_trailing_mention_that_agrees_or_is_prose_keeps_grade(

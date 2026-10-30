@@ -528,9 +528,11 @@ def _trailing_verdict_disagrees(completion: str, start: int, value: str) -> bool
     """Whether the last verdict line after `start` gives a grade other than `value`.
 
     Only the last such line counts, so a verdict the grader corrects later
-    ("Grade - I" then "Grade - C") keeps the corrected grade. A word that is
-    not a grade ("GRADE - Z") disagrees, as it does in the matched verdict. A
-    separator made only of whitespace is ordinary prose, not a verdict.
+    ("Grade - I" then "Grade - C") keeps the corrected grade. A single letter
+    that is not a grade ("GRADE - Z") disagrees, as it does in the matched
+    verdict; a longer word that is not a grade ("Grade - done") is a closing
+    remark, not a verdict. A separator made only of whitespace is ordinary
+    prose, not a verdict.
     """
     last = None
     for found in _TRAILING_VERDICT_RE.finditer(completion, start):
@@ -542,7 +544,7 @@ def _trailing_verdict_disagrees(completion: str, start: int, value: str) -> bool
     grade = _GRADE_WORD_VALUES.get(
         word.lower(), word.upper() if len(word) == 1 else None
     )
-    return grade != value
+    return grade is not None and grade != value
 
 
 def chat_history(state: TaskState) -> str:
