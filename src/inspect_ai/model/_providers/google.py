@@ -1012,6 +1012,17 @@ class GoogleGenAIAPI(ModelAPI):
                 state,
                 leg,
             )
+            # several candidates are never continued (see `_continuation_token`),
+            # so a stream that drops or ends early is not resumed either
+            if len(leg.parts) > 1:
+                if error is not None:
+                    raise error
+                response = leg.response(cut_off=False, continued=bool(legs))
+                assert response is not None
+                legs.append(response)
+                chain.add(response)
+                _continuation_token(response)
+                return legs
             resume = state.end_hop(error)
             cut_off = resume and not leg.finished
             response = leg.response(cut_off=cut_off, continued=resume or bool(legs))
@@ -1024,7 +1035,7 @@ class GoogleGenAIAPI(ModelAPI):
                 )
             legs.append(response)
             chain.add(response)
-            if len(response.candidates or []) > 1 or not resume:
+            if not resume:
                 _continuation_token(response)
                 return legs
             if cut_off and leg.discarded:

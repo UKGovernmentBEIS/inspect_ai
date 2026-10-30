@@ -2838,6 +2838,86 @@ async def test_continuation_with_several_candidates_is_not_continued() -> None:
     assert [c.stop_reason for c in output.choices] == ["max_tokens", "max_tokens"]
 
 
+def _candidates_chunk(
+    texts: list[str],
+    finish_reason: FinishReason | None = None,
+    token: bytes | None = None,
+) -> GenerateContentResponse:
+    """A streamed chunk with one candidate per text, the token on the first."""
+    return GenerateContentResponse(
+        candidates=[
+            Candidate(
+                content=Content(role="model", parts=[Part(text=text)]),
+                finish_reason=finish_reason,
+                continuation_token=token if i == 0 else None,
+                index=i,
+            )
+            for i, text in enumerate(texts)
+        ]
+    )
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("candidates", [1, 2])
+@pytest.mark.parametrize("ending", ["eof", "dropped", "continuation"])
+async def test_streamed_continuation_with_several_candidates_is_not_resumed(
+    ending: str, candidates: int
+) -> None:
+    """A stream with several candidates is not resumed, as one with one is.
+
+    With several, a stream that drops raises its error, one that ends early
+    returns what arrived (nothing trimmed), and CONTINUATION returns the
+    candidates cut at max_tokens. One candidate resumes in each case.
+    """
+    texts = ["a", "b"][:candidates]
+
+    async def first_leg() -> Any:
+        if ending == "continuation":
+            yield _candidates_chunk(texts, FinishReason.CONTINUATION, b"t1")
+            return
+        yield _candidates_chunk(texts, token=b"t1")
+        yield _candidates_chunk([" more"] * candidates)
+        if ending == "dropped":
+            raise aiohttp.ServerDisconnectedError()
+
+    mock_stream = AsyncMock(
+        side_effect=[
+            first_leg(),
+            _leg_chunks([_chunk([Part(text=" rest")], FinishReason.STOP)]),
+        ]
+    )
+    mock_client = _create_mock_google_client(AsyncMock())
+    mock_client.aio.models.generate_content_stream = mock_stream
+
+    if candidates == 1:
+        output, _ = await _generate_with_client(
+            mock_client, model_args=dict(streaming=True)
+        )
+        assert mock_stream.call_count == 2
+        assert output.completion == "a rest"
+        assert output.stop_reason == "stop"
+    elif ending == "dropped":
+        with pytest.raises(aiohttp.ServerDisconnectedError):
+            await _generate_with_client(mock_client, model_args=dict(streaming=True))
+        assert mock_stream.call_count == 1
+    else:
+        output, _ = await _generate_with_client(
+            mock_client, model_args=dict(streaming=True)
+        )
+        assert mock_stream.call_count == 1
+        if ending == "eof":
+            # untrimmed, and with no finish reason read as STOP, as before
+            # continuations were handled
+            assert [c.message.text for c in output.choices] == ["a more", "b more"]
+            assert [c.stop_reason for c in output.choices] == ["stop", "stop"]
+        else:
+            assert [c.message.text for c in output.choices] == ["a", "b"]
+            assert [c.stop_reason for c in output.choices] == [
+                "max_tokens",
+                "max_tokens",
+            ]
+
+
 def test_batch_request_dict_omits_automatic_continuation() -> None:
     """automatic_continuation is an SDK setting, not part of the REST request."""
     from inspect_ai.model._providers._google_batch import batch_request_dict
