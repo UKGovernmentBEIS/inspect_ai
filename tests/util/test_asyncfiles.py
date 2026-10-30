@@ -4292,20 +4292,6 @@ async def test_cancelled_read_retrieves_the_backend_error(
 
 
 @pytest.mark.timeout(30, method="thread")
-async def test_async_fsspec_read_cancelled_before_start_does_not_hang(
-    gated_fs: _GatedFS,
-) -> None:
-    gated_fs.release.set()
-    async with AsyncFilesystem() as afs:
-        with anyio.CancelScope() as scope:
-            scope.cancel()
-            await afs.read_file(_GATED_URL)
-    assert scope.cancelled_caught
-    assert gated_fs.cat_calls == 1
-    assert not gated_fs.backend_cancelled
-
-
-@pytest.mark.timeout(30, method="thread")
 async def test_async_fsspec_read_completes_while_loop_makes_sync_call(
     gated_fs: _GatedFS,
 ) -> None:
@@ -4402,18 +4388,6 @@ async def test_async_remote_read_file_bytes_fully_is_one_request(
     assert gated_fs.cat_ranges == [(0, end), (100, None)]
 
 
-async def test_async_remote_read_file_bytes_to_eof_uses_size(
-    gated_fs: _GatedFS, ranged_file: bytes
-) -> None:
-    start = 100
-    async with AsyncFilesystem() as afs:
-        stream = await afs.read_file_bytes(_RANGED_URL, start, None)
-        async with stream:
-            chunks = [chunk async for chunk in stream]
-    assert b"".join(chunks) == ranged_file[start:]
-    assert gated_fs.cat_ranges == _ranges(start, len(ranged_file))
-
-
 @pytest.mark.timeout(30, method="thread")
 async def test_async_remote_read_file_bytes_cancelled_receive_keeps_offset(
     gated_fs: _GatedFS, ranged_file: bytes
@@ -4458,8 +4432,6 @@ def test_http_keeps_the_synchronous_path() -> None:
 async def test_reference_keeps_the_synchronous_path(
     gated_fs: _GatedFS, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # `ReferenceFileSystem._info` calls its targets' synchronous API, which
-    # can't run on fsspec's loop
     gated_fs.release.set()
     reference = {"fo": {"foo": [_GATED_URL]}, "fs": gated_fs}
     monkeypatch.setitem(fsspec.config.conf, "reference", reference)

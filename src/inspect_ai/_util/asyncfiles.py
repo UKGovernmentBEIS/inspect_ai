@@ -1044,12 +1044,11 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         ``if_match`` pins an S3 read to that ETag: if the object has changed,
         the read raises :class:`ObjectChangedError`. Other backends ignore it.
 
-        An async fsspec file (``gs://``, ``az://``, ...) is fetched in
-        ``_REMOTE_RANGE_SIZE`` ranges on fsspec's loop as the stream is
-        consumed: a reader that stops early fetches only what it read, and
-        memory is bounded by one range, at the cost of one request per range
-        rather than one for the whole range (:meth:`read_file_bytes_fully`
-        keeps the single request).
+        An async fsspec file (``gs://``, ``az://``, ...) is fetched in 8 MiB
+        ranges on fsspec's loop as the stream is consumed: a reader that
+        stops early fetches only what it read, and memory is bounded by one
+        range, at the cost of one request per range rather than one for the
+        whole range (:meth:`read_file_bytes_fully` keeps the single request).
         """
         if is_s3_filename(filename):
             bucket, key = s3_bucket_and_key(filename)
