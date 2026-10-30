@@ -2121,6 +2121,70 @@ async def test_continuation_replays_search_and_answer_signatures(
 
 @pytest.mark.anyio
 @pytest.mark.parametrize("streaming", [False, True], ids=["plain", "streamed"])
+@pytest.mark.parametrize(
+    "text", [None, "", "answer"], ids=["signature-only", "signed-empty", "signed-text"]
+)
+@pytest.mark.parametrize(
+    "tool_type", [ToolType.GOOGLE_SEARCH_WEB, ToolType.GOOGLE_SEARCH_IMAGE]
+)
+async def test_continuation_unsigned_call_after_search_and_signed_text(
+    tool_type: ToolType, text: str | None, streaming: bool
+) -> None:
+    """An unsigned function call after a search and signed text stays unsigned.
+
+    As in the SDK's merge, the search's signature does not move onto the call
+    across the signed text, after the output goes through its JSON form.
+    """
+    first = [
+        Part(
+            thought_signature=b"s1",
+            tool_call=GeminiToolCall(
+                id="search-1", tool_type=tool_type, args={"queries": ["q"]}
+            ),
+        ),
+        Part(
+            thought_signature=b"r1",
+            tool_response=ToolResponse(
+                id="search-1", tool_type=tool_type, response={"results": ["r"]}
+            ),
+        ),
+    ]
+    last = [
+        _signed(text, b"s2"),
+        Part(function_call=FunctionCall(name="calculator", args={"expr": "2+2"})),
+    ]
+    if streaming:
+        output, _, _ = await _generate_streamed(
+            [
+                [*(_chunk([part]) for part in first)]
+                + [_chunk(None, FinishReason.CONTINUATION, b"t1")],
+                [*(_chunk([part]) for part in last), _chunk(None, FinishReason.STOP)],
+            ]
+        )
+    else:
+        output, _, _ = await _generate_with_legs(
+            [
+                _leg(first, FinishReason.CONTINUATION, b"t1"),
+                _leg(last, FinishReason.STOP),
+            ]
+        )
+
+    stored = ModelOutput.model_validate_json(output.model_dump_json())
+    replayed = await content(MagicMock(), stored.message)
+    assert replayed.parts is not None
+    search, result, signed, call = replayed.parts
+    assert (search.tool_call is not None, search.thought_signature) == (True, b"s1")
+    assert (result.tool_response is not None, result.thought_signature) == (
+        True,
+        b"r1",
+    )
+    assert signed == _signed(text or "", b"s2")
+    assert call.function_call is not None
+    assert call.thought_signature is None
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("streaming", [False, True], ids=["plain", "streamed"])
 async def test_continuation_with_only_empty_text_keeps_its_completion(
     streaming: bool,
 ) -> None:

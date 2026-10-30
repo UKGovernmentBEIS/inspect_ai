@@ -1961,6 +1961,9 @@ async def content(
                             parts_to_append[0].thought_signature = base64.b64decode(
                                 working_reasoning_block.reasoning.encode()
                             )
+                            # a later unsigned function_call must not borrow a
+                            # server tool's signature across this signed part
+                            server_tool_signature = None
                         else:
                             logger.warning(
                                 "Reasoning block must have a reasoning signature to set thought_signature."
