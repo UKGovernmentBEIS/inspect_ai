@@ -1,6 +1,7 @@
 """Building the merged log's zip, recomputing metrics as samples pass through."""
 
 import collections.abc
+import enum
 import functools
 import inspect
 import json
@@ -80,7 +81,7 @@ class MergedScoring(NamedTuple):
     """Whether any merged sample is invalidated."""
 
 
-def check_scoring_resolvable(header: EvalLog) -> None:
+def check_scoring_resolvable(header: EvalLog) -> EvalLog:
     """Refuse metrics the registry cannot resolve, and repeated scorer or reducer names.
 
     The merge never imports the log's `task_file`, so every scorer's metric
@@ -98,14 +99,19 @@ def check_scoring_resolvable(header: EvalLog) -> None:
     :func:`_recompute_results`): their recorded reductions are told apart by
     name, so two reducers with one name (`at_least(1, value=0.5)` and
     `at_least(1)` are both `at_least_1`) are refused. A scorer declared
-    twice is refused too (see :func:`_declared_inputs`). So is a string
-    option of a metric, direct or embedded, that may be a function's name
-    (see :func:`_check_function_options`).
+    twice is refused too (see :func:`_declared_inputs`). So is a metric
+    option, direct or embedded, that the merge cannot recreate (see
+    :func:`_check_function_options`).
+
+    Returns:
+        A copy of the header whose metric options hold the values the
+        metric factories receive (enum members restored), to recreate the
+        metrics from. It is never written.
 
     Raises:
         LookupError: A metric is not registered.
         ShardSetError: Two scorers or two epoch reducers have the same name,
-            or a metric's string option may be a function's name.
+            or a metric option cannot be recreated.
     """
     from inspect_ai._util.registry import registry_info, registry_lookup
 
@@ -130,20 +136,30 @@ def check_scoring_resolvable(header: EvalLog) -> None:
             "tell their reductions apart and does not merge such shards."
         )
 
-    for scorer in header.eval.scorers or []:
+    scorers_copy = [
+        scorer.model_copy(deep=True) for scorer in header.eval.scorers or []
+    ]
+    for scorer in scorers_copy:
         for metric in _metric_definitions(scorer.metrics):
             factory = registry_lookup("metric", metric.name)
             if factory is None or registry_info(factory).name != metric.name:
                 raise LookupError(_unregistered("Metric", metric.name))
-            _check_function_options(metric.name, factory, metric.options)
-            _check_embedded(metric.options)
+            options = _check_function_options(metric.name, factory, metric.options)
+            metric.options = _check_embedded(options)
+    if header.eval.scorers is None:
+        return header
+    return header.model_copy(
+        update={"eval": header.eval.model_copy(update={"scorers": scorers_copy})}
+    )
 
 
-def _check_embedded(value: Any) -> None:
+def _check_embedded(value: Any) -> Any:
     """Refuse unregistered registry objects in a metric's options.
 
     Wrappers such as `grouped()` and `aggregate()` record the metrics they
     wrap as registry dicts, at any depth, which `registry_arg` creates.
+    Returns `value` with the options of embedded metrics checked and
+    restored (see :func:`_check_function_options`).
     """
     from inspect_ai._util.registry import is_registry_dict, registry_lookup
 
@@ -152,44 +168,60 @@ def _check_embedded(value: Any) -> None:
         if factory is None:
             kind = "Metric" if value["type"] == "metric" else value["type"]
             raise LookupError(_unregistered(kind, value["name"]))
+        params = value["params"]
         if value["type"] == "metric":
-            _check_function_options(value["name"], factory, value["params"])
-        _check_embedded(value["params"])
+            params = _check_function_options(value["name"], factory, params)
+        return {**value, "params": _check_embedded(params)}
     elif isinstance(value, dict):
-        for item in value.values():
-            _check_embedded(item)
+        return {key: _check_embedded(item) for key, item in value.items()}
     elif isinstance(value, (list, tuple)):
-        for item in value:
-            _check_embedded(item)
+        return type(value)(_check_embedded(item) for item in value)
+    return value
 
 
 def _check_function_options(
     name: str, factory: object, options: Mapping[str, Any] | None
-) -> None:
-    """Refuse a metric string option that may be a function's name.
+) -> dict[str, Any]:
+    """Refuse a metric option the merge cannot recreate; restore enum members.
 
     A log records a function option by its name only, so
     `mean(to_float=value_to_float(correct=2))` is recorded as
     `{"to_float": "to_float"}` and the merge cannot recreate it. A string
     option is accepted only when its parameter's own annotation resolves to
-    a type that does not take a function (`str`, a `Literal`, an enum,
-    either with `None`). A parameter annotated to take a function, one with
-    no annotation or one whose annotation does not resolve, and an option
-    that matches no named parameter (one passed through `**kwargs`) are
-    refused (decision: Ransom, 2026-10-30). Each annotation is resolved on
-    its own, so another parameter's or the return annotation does not
-    affect it. Other option values are not checked.
+    a type whose values cannot be functions: `str`, a `Literal` of plain
+    values, an enum, numbers, either with `None`. A parameter annotated with
+    any other type (a function type, `Any`, `Hashable`, ...), one with no
+    annotation or one whose annotation does not resolve, and an option that
+    matches no named parameter (one passed through `**kwargs`) are refused
+    (decision: Ransom, 2026-10-30). Each annotation is resolved on its own,
+    so another parameter's or the return annotation does not affect it.
+    Other option values are checked only for an enum parameter.
+
+    A log records an enum option by its value when the enum derives from
+    `str`, `int` or `float`, and by its member name otherwise; the option
+    is restored to the member the factory received. A value that is not a
+    member, or an enum in a union with other types, is refused.
+
+    Returns:
+        The options, with enum members restored.
 
     Raises:
-        ShardSetError: A string option may be a function's name.
+        ShardSetError: An option cannot be recreated.
     """
+    restored = dict(options or {})
     if not options or not callable(factory):
-        return
+        return restored
     for argument, value in options.items():
+        resolved = _parameter_annotation(factory, argument)
+        if resolved.reason is None and _enums(resolved.annotation):
+            if value is not None:
+                restored[argument] = _restore_enum(
+                    name, argument, resolved.annotation, value
+                )
+            continue
         if not isinstance(value, str):
             continue
-        reason = _string_option_refusal(factory, argument)
-        if reason == _TAKES_FUNCTION:
+        if resolved.reason is None and _is_function_type(resolved.annotation):
             raise ShardSetError(
                 f"The metric '{name}' was given a function for '{argument}'. "
                 "A log records a function option only by its name, not its "
@@ -198,43 +230,55 @@ def _check_function_options(
                 "creates the function inside its factory, such as an @metric "
                 "that returns mean(to_float=value_to_float(correct=2))."
             )
+        reason = resolved.reason
+        if reason is None and not _holds_no_function(resolved.annotation):
+            reason = "whose type can also hold a function"
         if reason is not None:
             raise ShardSetError(
                 f"The metric '{name}' was given a string for '{argument}', "
                 f"{reason}. A log records a function option only by its name, "
                 "so the merge cannot tell a function's name from a string and "
                 f"does not merge such shards. Annotate '{argument}' with a "
-                "type the merge can resolve that does not take a function, "
-                "such as str, or, if it takes a function, use a registered "
-                "metric that creates the function inside its factory."
+                "type the merge can resolve whose values cannot be functions, "
+                "such as str, a Literal or an enum, or, if it takes a function, "
+                "use a registered metric that creates the function inside its "
+                "factory."
             )
+    return restored
 
 
-_TAKES_FUNCTION = "which takes a function"
+class _Annotation(NamedTuple):
+    annotation: object
+    reason: str | None
+    """Why the parameter's annotation cannot be used, or None."""
 
 
-def _string_option_refusal(factory: Callable[..., object], argument: str) -> str | None:
-    """Why a string recorded for `argument` is refused, or None.
+def _parameter_annotation(factory: Callable[..., object], argument: str) -> _Annotation:
+    """The resolved annotation of the factory's parameter `argument`.
 
     `inspect.signature` follows the `@metric` wrapper to the factory, and
     for a class gives its constructor's parameters (`__init__` or `__new__`,
-    inherited or generated by a dataclass).
+    inherited or generated by a dataclass). The annotation is resolved
+    alone, with nested and quoted forward references.
     """
     parameter = inspect.signature(factory).parameters.get(argument)
     if parameter is None or parameter.kind in (
         inspect.Parameter.VAR_POSITIONAL,
         inspect.Parameter.VAR_KEYWORD,
     ):
-        return "which is not a named parameter of the metric"
-    annotation = parameter.annotation
-    if annotation is inspect.Parameter.empty:
-        return "which has no annotation"
-    if isinstance(annotation, str):
-        try:
-            annotation = eval(annotation, *_annotation_namespace(factory))
-        except (NameError, AttributeError, SyntaxError, TypeError):
-            return "whose annotation the merge cannot resolve"
-    return _TAKES_FUNCTION if _takes_function(annotation) else None
+        return _Annotation(None, "which is not a named parameter of the metric")
+    if parameter.annotation is inspect.Parameter.empty:
+        return _Annotation(None, "which has no annotation")
+
+    def alone() -> None:
+        pass
+
+    alone.__annotations__ = {argument: parameter.annotation}
+    try:
+        hints = typing.get_type_hints(alone, *_annotation_namespace(factory))
+    except (NameError, AttributeError, SyntaxError, TypeError):
+        return _Annotation(None, "whose annotation the merge cannot resolve")
+    return _Annotation(_unannotated(hints[argument]), None)
 
 
 def _annotation_namespace(
@@ -254,26 +298,87 @@ def _annotation_namespace(
     return getattr(target, "__globals__", {}), None
 
 
-def _takes_function(annotation: object) -> bool:
-    """Whether a value of this type can be a function (unknown forms can)."""
+def _unannotated(annotation: object) -> object:
+    """`annotation` without `Annotated` metadata, at any depth of a union."""
     origin = typing.get_origin(annotation)
     if origin is typing.Annotated:
-        return _takes_function(typing.get_args(annotation)[0])
+        return _unannotated(typing.get_args(annotation)[0])
     if origin is typing.Union or origin is types.UnionType:
-        return any(_takes_function(a) for a in typing.get_args(annotation))
-    if origin is typing.Literal:
-        return False
-    if annotation is typing.Any or annotation is object or annotation is type:
-        return True
-    if annotation is collections.abc.Callable or origin in (
-        collections.abc.Callable,
-        type,
-    ):
-        return True
-    target = origin if isinstance(origin, type) else annotation
-    if isinstance(target, type):
-        return any("__call__" in vars(base) for base in target.__mro__)
+        return typing.Union[tuple(_unannotated(a) for a in typing.get_args(annotation))]
+    return annotation
+
+
+def _members(annotation: object) -> tuple[object, ...]:
+    origin = typing.get_origin(annotation)
+    if origin is typing.Union or origin is types.UnionType:
+        return typing.get_args(annotation)
+    return (annotation,)
+
+
+def _is_function_type(annotation: object) -> bool:
+    """Whether the type names functions (`Callable`, alone or in a union)."""
+    return any(
+        member is collections.abc.Callable
+        or typing.get_origin(member) is collections.abc.Callable
+        for member in _members(annotation)
+    )
+
+
+_PLAIN = (str, int, float, bool, type(None))
+
+
+def _holds_no_function(annotation: object) -> bool:
+    """Whether no value of this type can be a function.
+
+    Only `str`, numbers, `None`, enums and `Literal`s of those qualify;
+    every other type is treated as able to hold one.
+    """
+    for member in _members(annotation):
+        if typing.get_origin(member) is typing.Literal:
+            if not all(type(value) in _PLAIN for value in typing.get_args(member)):
+                return False
+        elif not (
+            isinstance(member, type)
+            and (issubclass(member, _PLAIN) or issubclass(member, enum.Enum))
+        ):
+            return False
     return True
+
+
+def _enums(annotation: object) -> list[type[enum.Enum]]:
+    return [
+        member
+        for member in _members(annotation)
+        if isinstance(member, type) and issubclass(member, enum.Enum)
+    ]
+
+
+def _restore_enum(
+    name: str, argument: str, annotation: object, value: object
+) -> enum.Enum:
+    """The member the producer recorded as `value` (see `registry_params`).
+
+    Raises:
+        ShardSetError: `value` is not a member, or the enum is in a union
+            with other types, whose values it cannot be told apart from.
+    """
+    enums = _enums(annotation)
+    others = [m for m in _members(annotation) if m not in enums and m is not type(None)]
+    if len(enums) == 1 and not others:
+        try:
+            if issubclass(enums[0], (str, int, float)):
+                return enums[0](value)
+            if isinstance(value, str):
+                return enums[0][value]
+        except (ValueError, KeyError):
+            pass
+    raise ShardSetError(
+        f"The metric '{name}' records {value!r} for '{argument}', which the "
+        "merge cannot restore to the enum member the metric was given, so it "
+        "does not merge such shards. Annotate the parameter with a single "
+        "enum (optionally with None), or use a registered metric that "
+        "creates the option inside its factory."
+    )
 
 
 def _unregistered(kind: str, name: str) -> str:
@@ -421,8 +526,7 @@ async def _recompute_results(
     from inspect_ai._eval.task.results import RecordedReductions, eval_results
 
     # resolve_scorers_info imports the task file for an unregistered metric
-    check_scoring_resolvable(template)
-    infos = resolve_scorers_info(template)
+    infos = resolve_scorers_info(check_scoring_resolvable(template))
     scores = _declared_inputs(infos, inputs, held_reductions.sources)
     # the names the worker scored samples under (each scorer is declared
     # once): aggregation must not derive them from earlier result names (a

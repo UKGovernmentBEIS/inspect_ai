@@ -5,10 +5,10 @@ import json
 import os
 import sys
 import zipfile
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Hashable, Iterator
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 import anyio
 import boto3
@@ -1377,6 +1377,71 @@ _hidden_return.__annotations__ = {"to_float": "ValueToFloat", "return": "HiddenR
 shard_hidden_return = metric(name="shard_hidden_return")(_hidden_return)
 
 
+@metric(name="shard_hashable")
+def shard_hashable(option: Hashable) -> Metric:
+    """A metric whose option type can also hold a function."""
+
+    def compute(scores: list[SampleScore]) -> Value:
+        return float(callable(option))
+
+    return compute
+
+
+def _quoted(label: str) -> Metric:
+    def compute(scores: list[SampleScore]) -> Value:
+        return float(label == "points")
+
+    return compute
+
+
+# a quoted annotation under postponed annotations is recorded as "'str'"
+_quoted.__annotations__ = {"label": "'str'", "return": "Metric"}
+shard_quoted = metric(name="shard_quoted")(_quoted)
+
+
+class Mode(enum.Enum):
+    LOW = 1
+    HIGH = 2
+
+
+class Label(str, enum.Enum):
+    ARS = "ARS"
+    ORS = "ORS"
+
+
+class Level(enum.IntEnum):
+    ONE = 1
+    TWO = 2
+
+
+class Perm(enum.IntFlag):
+    R = 4
+    W = 2
+
+
+class Colour(enum.Flag):
+    RED = enum.auto()
+    BLUE = enum.auto()
+
+
+@metric(name="shard_enums")
+def shard_enums(
+    mode: Mode, label: Label, level: Level, perm: Perm, colour: Colour | None = None
+) -> Metric:
+    """A metric that tells its enum options from their recorded values."""
+
+    def compute(scores: list[SampleScore]) -> Value:
+        return (
+            float(mode is Mode.HIGH)
+            + 2 * float(label is Label.ARS)
+            + 4 * float(level is Level.TWO)
+            + 8 * float(isinstance(perm, Perm) and perm == Perm.R | Perm.W)
+            + 16 * float(colour is Colour.BLUE)
+        )
+
+    return compute
+
+
 @metric(name="shard_key_sum")
 class ShardKeySum(MetricDeprecated):
     """A class metric with a string option (class metrics get `Score`s)."""
@@ -1401,6 +1466,12 @@ async def _verdict(state: TaskState, target: Target) -> Score:
         aggregate("verdict", accuracy()),
         shard_verdict_mean_2(),
         ShardKeySum("points"),
+        shard_quoted("points"),
+        shard_enums(Mode.HIGH, Label.ARS, Level.TWO, Perm.R | Perm.W, Colour.BLUE),
+        grouped(
+            shard_enums(Mode.HIGH, Label.ARS, Level.TWO, Perm.R | Perm.W, Colour.BLUE),
+            "group",
+        ),
     ]
 )
 def verdicts() -> Scorer:
@@ -1473,6 +1544,10 @@ def test_metrics_with_their_own_converters_merge_to_the_unsharded_values(
     assert _metric_values(log) == pytest.approx(expected)
     assert ("verdicts", "shard_verdict_mean_2") in expected
     assert ("verdicts", "shard_key_sum") in expected
+    # each enum option reached the metric as its member
+    assert expected[("verdicts", "shard_enums")] == 31
+    assert expected[("verdicts", "odd2")] == 31
+    assert expected[("verdicts", "shard_quoted")] == 1
     assert ("ratings", "krippendorff_alpha") in expected
 
 
@@ -1524,6 +1599,12 @@ _FUNCTION_OPTIONS: dict[str, tuple[Callable[[], list[Any]], str, bool]] = {
         "'shard_hidden_return' was given a function for 'to_float'",
         False,
     ),
+    "hashable": (
+        lambda: [shard_hashable(option=len)],
+        "'shard_hashable' was given a string for 'option', whose type can also "
+        "hold a function",
+        True,
+    ),
 }
 
 
@@ -1546,7 +1627,10 @@ def test_a_metric_given_a_function_is_refused(
         _as_running(running, keep=set())
         with monkeypatch.context() as patched:
             patched.setattr(
-                _write, "_check_function_options", lambda *args: None, raising=False
+                _write,
+                "_check_function_options",
+                lambda name, factory, options: dict(options or {}),
+                raising=False,
             )
             assert merge_eval_log_shards(merged, allow_incomplete=True).written
     _run(shards, "0", task(), sample_id=[1, 2, 3])
@@ -3109,9 +3193,29 @@ def test_string_options_need_a_resolvable_annotation() -> None:
     # another parameter's or the return annotation does not matter
     unrelated = {"other": "NotDefined", "return": "HiddenReturn"}
     refused({"to_float": "ValueToFloat", **unrelated}, "to_float", "a function")
-    refused({"to_float": "Any"}, "to_float", "a function")
-    for annotation in ["str", "str | None", "_Level", str, Literal["a", "b"]]:
-        check({"label": annotation, **unrelated}, {"label": "x"})
+    for annotation in ["Any", "object", "Hashable", "Hashable | None", "list[str]"]:
+        refused(
+            {"label": annotation, **unrelated},
+            "label",
+            "a string for 'label', whose type can also hold a function",
+        )
+    refused(
+        {"label": Annotated[Hashable, "doc"]},
+        "label",
+        "a string for 'label', whose type can also hold a function",
+    )
+    accepted: list[tuple[object, str]] = [
+        ("str", "x"),
+        ("str | None", "x"),
+        ("'str'", "x"),
+        (str, "x"),
+        (Literal["a", "b"], "a"),
+        (Annotated[str, "doc"], "x"),
+        ("_Level", "LOW"),
+        ("'_Level | None'", "LOW"),
+    ]
+    for annotation_type, value in accepted:
+        check({"label": annotation_type, **unrelated}, {"label": value})
     check({"other": "NotDefined"}, {"other": 1})
     refused({}, "label", "a string for 'label', which has no annotation")
     refused(
@@ -3191,6 +3295,56 @@ def test_function_options_of_class_metrics_are_checked() -> None:
         _check_embedded(embedded)
     with pytest.raises(ShardSetError, match="'shard_postponed' was given a string"):
         _check_function_options("shard_postponed", Postponed, {"other": "x"})
+    # a quoted postponed annotation on a constructor
+    PostponedClass.__init__.__annotations__ = {"label": "'str'"}
+    _check_function_options("shard_postponed", Postponed, {"label": "x"})
+
+
+def test_enum_options_are_restored_to_their_members() -> None:
+    from inspect_ai._util.registry import registry_params
+    from inspect_ai.log._shards._write import _check_embedded, _check_function_options
+
+    live = shard_enums(Mode.HIGH, Label.ARS, Level.TWO, Perm.R | Perm.W, Colour.BLUE)
+
+    def logged(metric: Metric) -> dict[str, Any]:
+        """The options as the log stores them."""
+        definition = EvalMetricDefinition(name="m", options=registry_params(metric))
+        return json.loads(definition.model_dump_json())["options"]
+
+    recorded = logged(live)
+    assert recorded == {
+        "mode": "HIGH",
+        "label": "ARS",
+        "level": 2,
+        "perm": 6,
+        "colour": "BLUE",
+    }
+    restored = _check_function_options("shard_enums", shard_enums, recorded)
+    assert restored == {
+        "mode": Mode.HIGH,
+        "label": Label.ARS,
+        "level": Level.TWO,
+        "perm": Perm.R | Perm.W,
+        "colour": Colour.BLUE,
+    }
+    assert all(type(restored[k]) is type(v) for k, v in restored.items())
+    assert _check_function_options("shard_enums", shard_enums, {"colour": None}) == {
+        "colour": None
+    }
+    embedded = logged(grouped(live, "group"))
+    assert _check_embedded(embedded)["metric"]["params"] == restored
+
+    # values the producer cannot have recorded, and an enum in a union
+    for argument, value in [("mode", "MIDDLE"), ("mode", 2), ("level", 7)]:
+        with pytest.raises(ShardSetError, match=f"records {value!r} for '{argument}'"):
+            _check_function_options("shard_enums", shard_enums, {argument: value})
+
+    def mixed(mode=None):
+        return None
+
+    mixed.__annotations__ = {"mode": "Mode | str"}
+    with pytest.raises(ShardSetError, match="records 'HIGH' for 'mode'"):
+        _check_function_options("mixed", mixed, {"mode": "HIGH"})
 
 
 @pytest.mark.parametrize(
