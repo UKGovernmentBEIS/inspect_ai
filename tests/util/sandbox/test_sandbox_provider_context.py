@@ -360,7 +360,7 @@ def all_samples(provider: str) -> set[str]:
     }
 
 
-# whether the test runs with each task starting its sandboxes in its own slot
+# whether the test runs with each task starting its own sandboxes
 # (INSPECT_TASK_SETUP_IN_SLOT=1) or with each group started up before dispatch
 IN_SLOT = False
 

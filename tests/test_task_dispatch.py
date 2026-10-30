@@ -10,6 +10,7 @@ controls.
 
 import os
 from collections import Counter
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Literal, cast, overload
@@ -761,6 +762,210 @@ async def test_stats_count_tasks_waiting_and_starting_up_as_pending(
         tg.start_soon(drive)
         logs = await harness.dispatcher().run(seed)
     assert [log.eval.task for log in logs] == ["a@m1", "b@m1", "c@m1", "held@m1"]
+
+
+class _FakeSetup:
+    """A task's own sandbox setup (slot mode), finished by the test."""
+
+    def __init__(self, harness: "LaneHarness", label: str) -> None:
+        self.harness = harness
+        self.label = label
+        self.done = False
+
+    def started(self) -> bool:
+        return self.done
+
+    async def __call__(self, samples: Any) -> None:
+        harness = self.harness
+        if self.done:
+            harness.events.append(f"setup-done {self.label}")
+            return
+        harness.events.append(f"setup {self.label}")
+        harness.in_setup[self.label].set()
+        await harness.setup_finish[self.label].wait()
+        harness.setup_finish[self.label] = anyio.Event()
+        if self.label in harness.fail_setup:
+            harness.fail_setup.discard(self.label)
+            raise RuntimeError(f"setup of {self.label} failed")
+        self.done = True
+        harness.events.append(f"set-up {self.label}")
+
+
+class LaneHarness(Harness):
+    """A harness whose tasks named ``box*`` set up their own sandboxes."""
+
+    def __init__(self, models: list[Model], **kwargs: Any) -> None:
+        super().__init__(models, **kwargs)
+        self.in_setup: dict[str, anyio.Event] = {}
+        self.setup_finish: dict[str, anyio.Event] = {}
+        self.fail_setup: set[str] = set()
+
+    async def start_up(self, group: list[ResolvedTask]) -> list[TaskRunOptions]:
+        options = await super().start_up(group)
+        for i, task_options in enumerate(options):
+            label = cast(FakeLogger, task_options.logger).label
+            if label.startswith("box"):
+                self.in_setup[label] = anyio.Event()
+                self.setup_finish[label] = anyio.Event()
+                options[i] = replace(
+                    task_options, sandbox_setup=_FakeSetup(self, label)
+                )
+        return options
+
+    async def run_task(
+        self, options: TaskRunOptions, can_retry: bool = False
+    ) -> TaskRunResult:
+        # as task_run: the task starts, then sets up, then (in the setup lane)
+        # waits for its task slot, then runs
+        logger = cast(FakeLogger, options.logger)
+        label = logger.label
+        if options.sandbox_setup is not None:
+            self.events.append(f"start {label}")
+            try:
+                await options.sandbox_setup([])
+            except RuntimeError:
+                self.events.append(f"end {label} error")
+                logger.finished = True
+                return TaskRunResult(EvalLog(eval=logger.eval, status="error"), None)
+            if options.task_slot is not None:
+                await options.task_slot()
+            self.events.append(f"slot {label}")
+        return await super().run_task(options, can_retry)
+
+
+async def _wait_in_setup(harness: LaneHarness, label: str) -> None:
+    with anyio.fail_after(10):
+        while label not in harness.in_setup:
+            await anyio.sleep(0)
+        await harness.in_setup[label].wait()
+    harness.in_setup[label] = anyio.Event()
+
+
+async def _wait_event(harness: Harness, event: str) -> None:
+    with anyio.fail_after(10):
+        while event not in harness.events:
+            await anyio.sleep(0)
+
+
+async def test_setup_lane_sets_up_one_task_at_a_time_outside_the_slots(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # max_tasks=1. box1 sets up in the lane while plain1 runs in the slot;
+    # box2 waits for the lane, unstarted. Once set up, box1 waits for the slot
+    # and still holds the lane; when plain1 ends, box1 takes the slot ahead of
+    # plain2 (it started first), and box2 enters the lane
+    m1 = get_model("mockllm/m1")
+    harness = LaneHarness([m1], parallel=1)
+    _install(monkeypatch, harness)
+
+    async def drive() -> None:
+        await _wait_in_setup(harness, "box1@m1")
+        await _wait_started(harness, "plain1@m1")
+        await _wait_stats(in_flight=2, pending=2)
+        harness.setup_finish["box1@m1"].set()
+        await _wait_event(harness, "set-up box1@m1")
+        for _ in range(20):
+            await anyio.sleep(0)
+        assert "start box2@m1" not in harness.events
+        assert "slot box1@m1" not in harness.events
+        harness.finish["plain1@m1"].set()
+        await _wait_started(harness, "box1@m1")
+        await _wait_in_setup(harness, "box2@m1")
+        await _wait_stats(in_flight=2, pending=1)
+        harness.setup_finish["box2@m1"].set()
+        await _wait_event(harness, "set-up box2@m1")
+        harness.finish["box1@m1"].set()
+        await _wait_started(harness, "box2@m1")
+        harness.finish["box2@m1"].set()
+        await _wait_started(harness, "plain2@m1")
+        harness.finish["plain2@m1"].set()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(drive)
+        logs = await harness.run(_resolve(["box1", "plain1", "box2", "plain2"], [m1]))
+
+    def of(task: str) -> list[str]:
+        return [e.split()[0] for e in harness.events if e.split()[1] == task]
+
+    assert of("box1@m1") == ["start", "setup", "set-up", "slot", "start", "end"]
+    assert of("box2@m1") == ["start", "setup", "set-up", "slot", "start", "end"]
+    assert of("plain1@m1") == ["start", "end"]
+    assert of("plain2@m1") == ["start", "end"]
+    order = harness.events.index
+    # box2 enters the lane only once box1 has left it for the slot (freed by
+    # plain1); the slot goes to the set-up lane task before plain2
+    assert order("end plain1@m1 success") < order("start box2@m1")
+    assert order("end box1@m1 success") < order("slot box2@m1")
+    assert order("end box2@m1 success") < order("start plain2@m1")
+    assert [log.status for log in logs] == ["success"] * 4
+
+
+async def test_setup_lane_failed_setup_frees_the_lane_and_its_retry_sets_up_again(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    m1 = get_model("mockllm/m1")
+    harness = LaneHarness([m1], parallel=1, retries=1)
+    harness.fail_setup.add("box1@m1")
+    _install(monkeypatch, harness)
+
+    async def drive() -> None:
+        await _wait_in_setup(harness, "box1@m1")
+        harness.setup_finish["box1@m1"].set()
+        # the retry still has setup to do, so it goes through the lane again
+        await _wait_in_setup(harness, "box1@m1")
+        harness.setup_finish["box1@m1"].set()
+        await _wait_started(harness, "box1@m1")
+        harness.finish["box1@m1"].set()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(drive)
+        logs = await harness.run(_resolve(["box1"], [m1]))
+
+    assert harness.events == [
+        "start box1@m1",
+        "setup box1@m1",
+        "end box1@m1 error",
+        "start box1@m1",
+        "setup box1@m1",
+        "set-up box1@m1",
+        "slot box1@m1",
+        "start box1@m1",
+        "end box1@m1 success",
+    ]
+    assert [log.status for log in logs] == ["success"]
+
+
+async def test_retry_whose_setup_finished_takes_a_slot_beside_the_lane(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # max_tasks=1. box1 sets up, runs and fails; its retry has no setup left,
+    # so it takes the slot while box2 sets up in the lane
+    m1 = get_model("mockllm/m1")
+    harness = LaneHarness([m1], parallel=1, retries=1)
+    harness.fail_next.add("box1@m1")
+    _install(monkeypatch, harness)
+
+    async def drive() -> None:
+        await _wait_in_setup(harness, "box1@m1")
+        harness.setup_finish["box1@m1"].set()
+        await _wait_started(harness, "box1@m1")
+        await _wait_in_setup(harness, "box2@m1")
+        harness.finish["box1@m1"].set()
+        await _wait_event(harness, "setup-done box1@m1")
+        await _wait_started(harness, "box1@m1")
+        harness.finish["box1@m1"].set()
+        harness.setup_finish["box2@m1"].set()
+        await _wait_started(harness, "box2@m1")
+        harness.finish["box2@m1"].set()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(drive)
+        logs = await harness.run(_resolve(["box1", "box2"], [m1]))
+
+    retry_start = harness.events.index("setup-done box1@m1")
+    assert harness.events.index("setup box2@m1") < retry_start
+    assert harness.events.index("slot box2@m1") > retry_start
+    assert [log.status for log in logs] == ["success", "success"]
 
 
 @pytest.mark.parametrize("during", ["start_up", "next_tasks"])

@@ -638,6 +638,26 @@ def _sample_transcript_config(
         return False, None
 
 
+class TaskSandboxSetup(Protocol):
+    """The setup of a task's own sandboxes, which the task runs once it has started.
+
+    Used when the run sets each task up on its own, beside running tasks: the
+    task runs it right after its start (so a failed setup is one of its
+    errors), before its samples.
+    """
+
+    def started(self) -> bool:
+        """Whether every sandbox the task's samples use is known to be started."""
+        ...
+
+    async def __call__(self, samples: Iterable[Sample]) -> None:
+        """Start the sandboxes `samples` use that are not started yet.
+
+        Gives the calling task the provider state its samples need.
+        """
+        ...
+
+
 @dataclass
 class TaskRunOptions:
     task: Task
@@ -671,11 +691,12 @@ class TaskRunOptions:
         default=None
     )
     """Run-level incremental sandbox startup for samples a SampleSource adds."""
-    start_task_sandboxes: Callable[[Iterable[Sample]], Awaitable[None]] | None = field(
-        default=None
-    )
-    """Starts the task's own sandboxes when it starts running, before its
-    samples (when the run sets each task up in its own slot)."""
+    sandbox_setup: "TaskSandboxSetup | None" = field(default=None)
+    """Starts the task's own sandboxes once it has started, before its samples
+    (when the run sets each task up on its own, beside running tasks)."""
+    task_slot: Callable[[], Awaitable[None]] | None = field(default=None)
+    """Waits for a task slot, after the setup of a task that started in the
+    run's setup lane (outside the ``max_tasks`` slots)."""
     input_media_policy: InputMediaPolicy = field(default="inline_only")
     """Authority granted to media references in the sliced seed dataset."""
 
@@ -1162,12 +1183,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             if not options.run_samples:
                 return await logger.log_finish("started", stats)
 
-            # inside the try, so a failed sandbox setup is this task's error
-            if options.start_task_sandboxes is not None:
-                await options.start_task_sandboxes(
-                    sample_store[i] for i in range(len(sample_store))
-                )
-
             sample_semaphore = create_sample_semaphore(
                 config,
                 model.config.merge(generate_config),
@@ -1250,6 +1265,15 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # start must be paired with a task end, and an abandoned attempt
             # ends with neither a log nor an end hook)
             await emit_task_start(logger, eval_plan)
+
+            # after the task has started (control channel, hook), so a failed
+            # setup ends it as any other error does
+            if options.sandbox_setup is not None:
+                await options.sandbox_setup(
+                    sample_store[i] for i in range(len(sample_store))
+                )
+            if options.task_slot is not None:
+                await options.task_slot()
 
             # publish the interim-scoring capability (the task's scorers and
             # scoring inputs as resolved at eval start) for the control

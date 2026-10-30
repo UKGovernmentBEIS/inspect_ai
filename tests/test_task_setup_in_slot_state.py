@@ -445,55 +445,40 @@ async def test_running_task_unaffected_after_another_task_set_up() -> None:
     assert cleanups == {"A": "A", "B": "B"}
 
 
-async def test_abort_while_waiting_for_another_tasks_setup(
-    record_cancels: Any, monkeypatch: pytest.MonkeyPatch
+async def test_task_on_a_config_being_set_up_waits_unstarted(
+    record_cancels: Any,
 ) -> None:
-    # a's setup of W blocks; b (also W) waits on the setup lock and is
-    # aborted there. b ends with an error, a's setup then finishes and a runs;
-    # W is set up and cleaned up once
+    # a's setup of W blocks; b (also W) has setup to do too, so it waits for
+    # the setup lane without starting (it holds no slot, though one is free).
+    # a's setup then finishes, both run, and W is set up and cleaned up once
     a_entered = anyio.Event()
     release = anyio.Event()
-    in_setup: list[str] = []
+    started_during_setup: list[str] = []
 
     async def block_first(name: str) -> None:
-        # the task whose slot runs this setup
-        in_setup.append(_running_task.get())
         a_entered.set()
+        # the tasks started so far (each start creates its TaskCancel)
+        started_during_setup.extend(CANCEL_TASKS)
         with anyio.fail_after(10):
             await release.wait()
 
     HOOKS["task_init"] = block_first
 
-    import inspect_ai._eval.run as run_module
-
-    managers: list[Any] = []
-    real_init = run_module.SandboxManager.__init__
-
-    def recording_init(self: Any, *args: Any, **kwargs: Any) -> None:
-        real_init(self, *args, **kwargs)
-        managers.append(self)
-
-    monkeypatch.setattr(run_module.SandboxManager, "__init__", recording_init)
-
-    async def abort_b() -> None:
+    async def release_after_a_while() -> None:
         await a_entered.wait()
-        # until b waits on the setup lock a holds (a condition, polled)
-        lock = managers[0]._init_lock
-        while lock.statistics().tasks_waiting == 0:
-            await anyio.sleep(0.01)
-        (waiting,) = [n for n in CANCEL_TASKS if n != in_setup[0]]
-        CANCELS[CANCEL_TASKS.index(waiting)].cancel_task("abort")
+        for _ in range(50):
+            await anyio.sleep(0)
+        assert CANCEL_TASKS == started_during_setup
         release.set()
 
     with anyio.fail_after(30):
         async with anyio.create_task_group() as tg:
-            tg.start_soon(abort_b)
+            tg.start_soon(release_after_a_while)
             logs = await eval_async(
                 [boxed("a", "W"), boxed("b", "W")], model="mockllm/model", max_tasks=2
             )
-    expected = {in_setup[0]: "success"}
-    expected[next(n for n in ("a", "b") if n != in_setup[0])] = "error"
-    assert dict(statuses(logs)) == expected
+    assert statuses(logs) == [("a", "success"), ("b", "success")]
+    assert started_during_setup == ["a"]
     assert len(events("task_init_done")) == 1
     assert [e[1] for e in events("task_cleanup")] == ["W"]
 
@@ -504,13 +489,28 @@ _CTRL_C_SCRIPT = """
 import os, signal, sys, tempfile
 import anyio
 from inspect_ai import Task, eval
+from inspect_ai._control.eval_state import get_eval_states
 from inspect_ai.dataset import Sample
+from inspect_ai.hooks import Hooks, hooks
 from inspect_ai.log import list_eval_logs, read_eval_log
 from inspect_ai.solver import solver
 import test_task_setup_in_slot_state as t
 
 os.environ["INSPECT_TASK_SETUP_IN_SLOT"] = "1"
 STATE = {}
+STARTS = []
+STATES = {}
+
+
+@hooks("ctrl_c_lifecycle", description="Records task starts and eval states")
+class Lifecycle(Hooks):
+    async def on_task_start(self, data):
+        STARTS.append(data.eval_id)
+
+    async def on_run_end(self, data):
+        STATES.update(
+            (s.eval_id, s.completed_at is not None) for s in get_eval_states()
+        )
 
 
 def started():
@@ -546,13 +546,15 @@ try:
     )
 except KeyboardInterrupt as ex:
     assert type(ex) is KeyboardInterrupt, repr(ex)
-on_disk = sorted(
-    (log.eval.task, log.status)
-    for log in (read_eval_log(i.name) for i in list_eval_logs(log_dir))
-)
+logs = [read_eval_log(i.name) for i in list_eval_logs(log_dir)]
+on_disk = sorted((log.eval.task, log.status) for log in logs)
 print("ON_DISK", on_disk, flush=True)
 print("EVENTS", t.EVENTS, flush=True)
+print("STARTS", STARTS, "STATES", STATES, flush=True)
 assert on_disk == [("a", "cancelled"), ("b", "cancelled")], on_disk
+# both started (hook, control channel) and their eval states finished
+assert sorted(STARTS) == sorted(log.eval.eval_id for log in logs)
+assert STATES == {eval_id: True for eval_id in STARTS}, STATES
 # the interrupted setup registered no cleanup
 assert [e for e in t.EVENTS if e[0] == "task_cleanup"] == [], t.EVENTS
 print("OK")
