@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+from typing import Sequence
+
 import anyio
 import pytest
 
 from inspect_ai.agent import (
     AgentChannel,
     AgentInterrupted,
+    AgentState,
     agent_channel,
 )
 from inspect_ai.agent._channel import (
@@ -16,10 +19,12 @@ from inspect_ai.agent._channel import (
     UserMessage,
     current_agent_channel,
 )
+from inspect_ai.agent._channel.gate import turn_gate
 from inspect_ai.agent._channel.observer import (
     NullExecutionObserver,
     null_execution_observer,
 )
+from inspect_ai.agent._channel.ref import AgentRef
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -601,6 +606,192 @@ async def test_after_cancel_blocks_for_redirect_with_existing_user_messages() ->
         assert len(received) == 1
         assert isinstance(received[0], ChatMessageUser)
         assert received[0].content == "redirect"
+
+
+# ---------------------------------------------------------------------------
+# Turn gate
+# ---------------------------------------------------------------------------
+
+
+class _RecordingGate:
+    """Turn gate that records its calls and returns a set result."""
+
+    def __init__(self, rewrite: bool = False) -> None:
+        self.rewrite = rewrite
+        self.calls: list[
+            tuple[AgentChannel, Sequence[ChatMessage], AgentState | None, int]
+        ] = []
+        self.closed_channels: list[AgentChannel] = []
+
+    async def before_turn(
+        self,
+        channel: AgentChannel,
+        messages: Sequence[ChatMessage],
+        state: AgentState | None,
+    ) -> bool:
+        self.calls.append((channel, messages, state, len(channel._queue)))
+        return self.rewrite
+
+    def closed(self, channel: AgentChannel) -> None:
+        self.closed_channels.append(channel)
+
+
+async def test_before_turn_awaits_gate_before_draining() -> None:
+    gate = _RecordingGate()
+    with turn_gate(gate):
+        async with agent_channel() as ch:
+            ch._post(UserMessage(message=ChatMessageUser(content="queued")))
+            messages: list[ChatMessage] = [ChatMessageUser(content="prior")]
+            state = AgentState(messages=messages)
+            result = await ch.before_turn(state.messages, state=state)
+            await ch.before_turn(messages)
+
+    assert [m.content for m in result] == ["queued"]
+    (channel, seen, seen_state, queued), (_, _, no_state, _) = gate.calls
+    assert channel is ch
+    assert seen is state.messages
+    assert seen_state is state
+    # the queue was not drained yet when the gate ran
+    assert queued == 1
+    assert no_state is None
+
+
+async def test_before_turn_returns_messages_posted_during_gate() -> None:
+    class PostingGate(_RecordingGate):
+        async def before_turn(
+            self,
+            channel: AgentChannel,
+            messages: Sequence[ChatMessage],
+            state: AgentState | None,
+        ) -> bool:
+            channel._post(UserMessage(message=ChatMessageUser(content="late")))
+            return False
+
+    with turn_gate(PostingGate()):
+        async with agent_channel() as ch:
+            result = await ch.before_turn([ChatMessageUser(content="prior")])
+    assert [m.content for m in result] == ["late"]
+
+
+@pytest.mark.parametrize("rewrite", [True, False])
+async def test_gate_result_marks_channel_rewritten(rewrite: bool) -> None:
+    with turn_gate(_RecordingGate(rewrite=rewrite)):
+        async with agent_channel() as ch:
+            await ch.before_turn([ChatMessageUser(content="prior")])
+            assert ch._take_rewritten() is rewrite
+            # reading the mark clears it
+            assert ch._take_rewritten() is False
+
+
+async def test_gate_exception_propagates_from_before_turn() -> None:
+    class RaisingGate(_RecordingGate):
+        async def before_turn(
+            self,
+            channel: AgentChannel,
+            messages: Sequence[ChatMessage],
+            state: AgentState | None,
+        ) -> bool:
+            raise ValueError("refused")
+
+    with turn_gate(RaisingGate()):
+        async with agent_channel() as ch:
+            with pytest.raises(ValueError, match="refused"):
+                await ch.before_turn([ChatMessageUser(content="prior")])
+            assert ch._take_rewritten() is False
+
+
+async def test_cancelled_gate_unwinds_channel(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Cancelling a gate while it waits closes the channel and releases ACP."""
+
+    class FakeTransport:
+        def __init__(self) -> None:
+            self.bound: list[AgentRef] = []
+            self.unbound: list[AgentRef] = []
+
+        def maybe_bind(self, channel: AgentChannel, ref: AgentRef) -> bool:
+            self.bound.append(ref)
+            return True
+
+        def unbind(self, ref: AgentRef) -> None:
+            self.unbound.append(ref)
+
+    class FakeSample:
+        acp_transport = FakeTransport()
+
+    monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: FakeSample())
+
+    class WaitingGate(_RecordingGate):
+        def __init__(self) -> None:
+            super().__init__()
+            self.entered = anyio.Event()
+
+        async def before_turn(
+            self,
+            channel: AgentChannel,
+            messages: Sequence[ChatMessage],
+            state: AgentState | None,
+        ) -> bool:
+            self.entered.set()
+            await anyio.sleep_forever()
+            return False
+
+    gate = WaitingGate()
+    opened: list[AgentChannel] = []
+    after_cancel: list[AgentChannel] = []
+
+    async def run_loop() -> None:
+        with turn_gate(gate):
+            try:
+                async with agent_channel() as ch:
+                    opened.append(ch)
+                    await ch.before_turn([ChatMessageUser(content="prior")])
+            except anyio.get_cancelled_exc_class():
+                after_cancel.append(current_agent_channel())
+                raise
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(run_loop)
+        await gate.entered.wait()
+        tg.cancel_scope.cancel()
+
+    assert len(opened) == 1
+    assert after_cancel == [_INERT_CHANNEL]
+    assert gate.closed_channels == opened
+    transport = FakeSample.acp_transport
+    assert len(transport.bound) == 1
+    assert transport.unbound == transport.bound
+
+
+async def test_nested_channels_share_gate_and_report_closed() -> None:
+    gate = _RecordingGate()
+    with turn_gate(gate):
+        async with agent_channel() as outer:
+            async with agent_channel() as inner:
+                await inner.before_turn([ChatMessageUser(content="inner")])
+                assert gate.closed_channels == []
+            assert gate.closed_channels == [inner]
+            await outer.before_turn([ChatMessageUser(content="outer")])
+    assert [call[0] for call in gate.calls] == [inner, outer]
+    assert gate.closed_channels == [inner, outer]
+
+
+async def test_channel_opened_outside_turn_gate_has_no_gate() -> None:
+    gate = _RecordingGate()
+    with turn_gate(gate):
+        # the inert channel never calls a gate
+        assert (
+            await current_agent_channel().before_turn(
+                [ChatMessageUser(content="prior")]
+            )
+            == []
+        )
+        with turn_gate(None):
+            async with agent_channel() as ch:
+                await ch.before_turn([ChatMessageUser(content="prior")])
+    async with agent_channel() as ch:
+        await ch.before_turn([ChatMessageUser(content="prior")])
+    assert gate.calls == []
+    assert gate.closed_channels == []
 
 
 # ---------------------------------------------------------------------------

@@ -81,9 +81,14 @@ class _FakeAgentChannel:
     def __init__(self, events: list[str]) -> None:
         self._events = events
 
-    async def before_turn(self, _messages: object) -> list[object]:
+    async def before_turn(
+        self, _messages: object, state: object = None
+    ) -> list[object]:
         self._events.append("before_turn")
         return []
+
+    def _take_rewritten(self) -> bool:
+        return False
 
     @contextmanager
     def turn_scope(self) -> Iterator[None]:

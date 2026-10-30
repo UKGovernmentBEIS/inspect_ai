@@ -687,6 +687,9 @@ class _RecordingCompact:
     ) -> None:
         self.recorded.append((input, output))
 
+    async def reset(self, prefix: list[ChatMessage]) -> None:
+        pass
+
 
 async def test_response_filter_runs_after_compaction_baseline_update() -> None:
     """A replacing filter must not blind compaction to the real generate usage.
