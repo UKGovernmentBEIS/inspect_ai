@@ -3332,7 +3332,13 @@ def test_enum_options_are_restored_to_their_members() -> None:
         "colour": None
     }
     embedded = logged(grouped(live, "group"))
-    assert _check_embedded(embedded)["metric"]["params"] == restored
+
+    # by enum and member name: an eval_retry() test in this module reloads it
+    # from its file, so the registered factory can hold another copy of Mode
+    def members(options: dict[str, Any]) -> dict[str, tuple[str, str | None]]:
+        return {k: (type(v).__name__, v.name) for k, v in options.items()}
+
+    assert members(_check_embedded(embedded)["metric"]["params"]) == members(restored)
 
     # values the producer cannot have recorded, and an enum in a union
     for argument, value in [("mode", "MIDDLE"), ("mode", 2), ("level", 7)]:
