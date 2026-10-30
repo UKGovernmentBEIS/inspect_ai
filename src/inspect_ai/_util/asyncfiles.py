@@ -235,24 +235,28 @@ class _RangedRemoteByteReceiveStream(ByteReceiveStream):
     async def receive(self, max_bytes: int = 65536) -> bytes:
         """Receive up to max_bytes, fetching the next range once the buffer is spent.
 
-        An empty response before ``end`` (the object is shorter than its
-        reported size) ends the stream, and no further range is requested. A
-        receive cancelled while its range is in flight leaves the offset where
-        it was: the next receive requests that range again.
+        A response shorter than requested (the object is shorter than its
+        reported size) ends the stream there, and no further range is
+        requested. A receive cancelled while its range is in flight leaves the
+        offset where it was: the next receive requests that range again.
         """
         if self._position >= len(self._buffer):
             if self._next >= self._end:
                 raise EndOfStream
             stop = min(self._next + _REMOTE_RANGE_SIZE, self._end)
+            # drop the spent range first, so memory holds at most one
+            self._buffer = b""
             self._buffer = await _run_on_fsspec_loop(
                 self._fs, self._fs._cat_file(self._path, start=self._next, end=stop)
             )
             self._position = 0
-            if not self._buffer:
-                # the object ends before `end`: the stream ends short
-                self._next = self._end
-                raise EndOfStream
             self._next += len(self._buffer)
+            if self._next < stop:
+                # the object ends here: gcsfs and adlfs reject a range that
+                # starts past the end (HTTP 416) rather than returning b""
+                self._end = self._next
+            if not self._buffer:
+                raise EndOfStream
 
         chunk = self._buffer[self._position : self._position + max_bytes]
         self._position += len(chunk)
@@ -1086,8 +1090,8 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                 # as the file object's `seek` does; `_cat_file` would read a suffix
                 if start < 0:
                     raise ValueError(f"Negative start offset: {start}")
-                # the file object looks the file up and returns b"" here; some
-                # `_cat_file`s send an unsatisfiable range request instead
+                # the file object looks the file up and returns b"" here; older
+                # gcsfs releases' `_cat_file` sends an unsatisfiable range instead
                 if end is not None and end <= start:
                     await _run_on_fsspec_loop(fs.fs, fs.fs._info(path))
                     return _BytesByteReceiveStream(b"")
@@ -2511,11 +2515,13 @@ def _is_async_remote(fsw: FileSystem) -> bool:
     fs = fsw.fs
     # a `DirFileSystem` is async by class even over a synchronous filesystem,
     # whose coroutines it then calls
-    if "dir" in _protocols(fs):
+    while "dir" in _protocols(fs):
         fs = fs.fs
-    # HTTP keeps the file-object path: its `_cat_file` doesn't check that the
-    # server honoured the range, and its size can be unknown (the file streams)
-    return bool(fs.async_impl) and not {"http", "https"} & _protocols(fs)
+    # These keep the file-object path. HTTP's `_cat_file` doesn't check that
+    # the server honoured the range, and its size can be unknown (the file
+    # streams). `ReferenceFileSystem._info` calls its targets' synchronous API,
+    # which can't run on fsspec's loop.
+    return bool(fs.async_impl) and not {"http", "https", "reference"} & _protocols(fs)
 
 
 def _protocols(fs: Any) -> set[str]:
