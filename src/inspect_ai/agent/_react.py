@@ -327,11 +327,13 @@ def react(
                                         state.output.completion = f"{state.output.completion}{submit.answer_delimiter}{answer}".strip()
 
                                     # also populate the message text (as the submit tool will be removed)
+                                    generated_content: str | list[Content] | None = None
                                     if (
                                         not submit.keep_in_messages
                                         and len(state.output.choices) > 0
                                     ):
                                         message = state.output.choices[0].message
+                                        generated_content = copy(message.content)
                                         if isinstance(message.content, str):
                                             message.content = f"{message.content}{submit.answer_delimiter}{answer}".strip()
                                         else:
@@ -345,6 +347,7 @@ def react(
                                     if attempt_count >= attempts.attempts:
                                         if await after_answer(ch, state):
                                             attempt_count = 0
+                                            _restore_generated(state, generated_content)
                                             continue
                                         break
 
@@ -356,6 +359,7 @@ def react(
                                     ):
                                         if await after_answer(ch, state):
                                             attempt_count = 0
+                                            _restore_generated(state, generated_content)
                                             continue
                                         break
 
@@ -875,6 +879,16 @@ def _resolve_agent(agent: Agent, name: str | None, description: str | None) -> A
         return agent_with(agent, name=name, description=description)
     else:
         return agent
+
+
+def _restore_generated(state: AgentState, content: str | list[Content] | None) -> None:
+    """Give the answer's message back its generated content, for a loop that continues.
+
+    The answer is added to the message text because the submit call is removed
+    when the loop returns; a loop that continues keeps the call and its result.
+    """
+    if content is not None:
+        state.output.choices[0].message.content = content
 
 
 def _remove_submit_tool(

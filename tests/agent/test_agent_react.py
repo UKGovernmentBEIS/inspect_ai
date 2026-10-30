@@ -1682,6 +1682,8 @@ async def test_react_after_answer_continues_after_submission(
     assert isinstance(last_assistant, ChatMessageAssistant)
     assert last_assistant.tool_calls
     assert last_assistant.tool_calls[0].function == "submit"
+    # its text is as generated, without the answer added for a return
+    assert last_assistant.text == _submit("ONE").message.text
     assert log.samples[0].output.completion.endswith("TWO")
 
 
