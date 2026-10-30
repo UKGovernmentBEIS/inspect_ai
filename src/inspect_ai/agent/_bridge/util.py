@@ -514,6 +514,10 @@ async def _apply_response_filter(
         raise ResponseFilterError(
             "response_filter returned a ModelOutput with no choices"
         )
+    if output.choices and filtered.choices[0].message == output.choices[0].message:
+        # the provider's completion can differ from message.text (e.g. Gemini
+        # text continued across requests is joined with no separator)
+        filtered.completion = output.completion
     _check_provider_owned_content(output, filtered)
     _settle_message_ids(output, filtered)
     return filtered

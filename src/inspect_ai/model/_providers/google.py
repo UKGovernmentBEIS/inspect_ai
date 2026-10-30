@@ -1819,6 +1819,15 @@ async def content(
         if isinstance(message.content, str):
             content_parts.append(Part(text=message.content or NO_CONTENT))
         else:
+            # function calls anchored in place carry their own signatures, so a
+            # signature before other content is that content's; without anchors
+            # (older logs) it goes on the first tool call
+            signatures_in_place = message.tool_calls is None or any(
+                isinstance(c, ContentReasoning)
+                and isinstance(c.internal, dict)
+                and _GEMINI_FUNCTION_CALL_ID_KEY in c.internal
+                for c in message.content
+            )
             for i, content in enumerate(message.content):
                 if isinstance(content, ContentReasoning):
                     if emulate_reasoning:
@@ -1924,7 +1933,7 @@ async def content(
                         and not content.text
                         and working_reasoning_block is not None
                         and working_reasoning_block.redacted
-                        and message.tool_calls is None
+                        and signatures_in_place
                     ):
                         parts_to_append = [Part(text="")]
 
@@ -1937,13 +1946,10 @@ async def content(
 
                     # If previously there was a reasoning block, we need to set the "thought_signature"
                     # using the reasoning from that block.
-                    # However, if there are tool calls in this message, the signature should go on
-                    # the first tool call instead, not on text or server tool use parts
-                    # (per Gemini API docs).
-                    if (
-                        working_reasoning_block is not None
-                        and message.tool_calls is None
-                    ):
+                    # However, if there are unanchored tool calls in this message, the signature
+                    # should go on the first tool call instead, not on text or server tool use
+                    # parts (per Gemini API docs).
+                    if working_reasoning_block is not None and signatures_in_place:
                         if (
                             working_reasoning_block.reasoning is not None
                             and working_reasoning_block.redacted
@@ -2389,6 +2395,8 @@ def completion_choice_from_candidate(
 
                 if part.text is not None:
                     content.append(ContentText(text=part.text))
+                    # a signature after this text is not the earlier reasoning's
+                    working_reasoning_block = None
 
     # distribute citations to individual ContentText parts with adjusted indexes
     citations = get_candidate_citations(candidate)

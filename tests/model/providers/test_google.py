@@ -1928,6 +1928,25 @@ _SIGNED_BOUNDARIES = {
         [_signed(""), Part(text='{"answer":"hello"}')],
         None,
     ),
+    # a later signature is not the reasoning's when output text came between
+    "signed-right-after-thinking-and-text": (
+        [_thought("thinking"), _HEL],
+        [_signed('lo"}', b"s2")],
+        [_thought("thinking"), _HEL, _signed('lo"}', b"s2")],
+        None,
+    ),
+    "signature-only-starts-leg-after-thinking-and-text": (
+        [_thought("thinking"), _HEL],
+        [_signed(None, b"s2"), _LO],
+        [_thought("thinking"), _HEL, _signed("", b"s2"), _LO],
+        None,
+    ),
+    "signed-empty-starts-leg-after-thinking-and-text": (
+        [_thought("thinking"), _HEL],
+        [_signed("", b"s2"), _LO],
+        [_thought("thinking"), _HEL, _signed("", b"s2"), _LO],
+        None,
+    ),
 }
 
 
@@ -1967,6 +1986,51 @@ async def test_continuation_replays_signatures_in_place(
     assert replayed.parts == ((streaming and streamed_replay) or replay)
     signatures = sum(part.thought_signature is not None for part in first + last)
     assert json.dumps(model_call.response).count("thoughtSignature") == signatures
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("streaming", [False, True], ids=["plain", "streamed"])
+@pytest.mark.parametrize(
+    "text", [None, "", "hel"], ids=["signature-only", "signed-empty", "signed-text"]
+)
+async def test_continuation_replays_text_signature_before_tool_call(
+    text: str | None, streaming: bool
+) -> None:
+    """A signed text part keeps its signature when a tool call follows it.
+
+    The function call keeps its own signature and place.
+    """
+    first = [_signed(text)]
+    last = [
+        Part(
+            function_call=FunctionCall(name="calculator", args={"expr": "2+2"}),
+            thought_signature=b"s2",
+        )
+    ]
+    if streaming:
+        output, _, _ = await _generate_streamed(
+            [
+                [_chunk(first), _chunk(None, FinishReason.CONTINUATION, b"t1")],
+                [_chunk(last), _chunk(None, FinishReason.STOP)],
+            ]
+        )
+    else:
+        output, _, _ = await _generate_with_legs(
+            [
+                _leg(first, FinishReason.CONTINUATION, b"t1"),
+                _leg(last, FinishReason.STOP),
+            ]
+        )
+
+    assert output.completion == (text or "")
+    stored = ModelOutput.model_validate_json(output.model_dump_json())
+    replayed = await content(MagicMock(), stored.message)
+    assert replayed.parts is not None
+    text_part, call_part = replayed.parts
+    assert text_part == _signed(text or "")
+    assert call_part.function_call is not None
+    assert call_part.function_call.name == "calculator"
+    assert call_part.thought_signature == b"s2"
 
 
 @pytest.mark.anyio
