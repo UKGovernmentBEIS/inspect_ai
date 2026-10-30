@@ -495,34 +495,36 @@ def test_rollback_restores_pool_indices(
     assert last["input_refs"] == [[0, 2]]
 
 
-def test_buffer_pool_dedup_uses_content_hash_not_msg_id(
+def test_buffer_pool_dedup_keeps_msg_id(
     db: SampleBufferDatabase,
 ) -> None:
-    """Messages with same content but different .id fields dedup to one pool entry."""
+    """Copies of a message share a pool entry; the same content under another id does not."""
     sample = EvalSampleSummary(id="s1", epoch=1, input="test", target="target")
     db.start_sample(sample)
 
-    # Two distinct ChatMessage objects with identical content but different .id
     msg_1 = ChatMessageUser(content="Hello").model_copy(update={"id": "uuid-aaa"})
+    copy_1 = msg_1.model_copy()
     msg_2 = ChatMessageUser(content="Hello").model_copy(update={"id": "uuid-bbb"})
 
     db.log_events([SampleEvent(id="s1", epoch=1, event=_make_model_event([msg_1]))])
     db.log_events(
-        [SampleEvent(id="s1", epoch=1, event=_make_model_event([msg_1, msg_2]))]
+        [
+            SampleEvent(
+                id="s1", epoch=1, event=_make_model_event([copy_1, msg_2, copy_1])
+            )
+        ]
     )
 
     data = db.get_sample_data("s1", 1)
     assert data is not None
 
-    # Same content -> should be 1 pool entry, not 2
-    assert len(data.message_pool) == 1, (
-        f"Expected 1 pool entry for identical content, got {len(data.message_pool)}"
-    )
-
-    # both occurrences in the second event resolve to pool position 0
+    assert [json.loads(m.data)["id"] for m in data.message_pool] == [
+        "uuid-aaa",
+        "uuid-bbb",
+    ]
     last = data.events[-1].event
     assert isinstance(last, dict)
-    assert last["input_refs"] == [[0, 1], [0, 1]]
+    assert last["input_refs"] == [[0, 2], [0, 1]]
 
 
 def test_get_sample_data_is_consistent_with_concurrent_removal(

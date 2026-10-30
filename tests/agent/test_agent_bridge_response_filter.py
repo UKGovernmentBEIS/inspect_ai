@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock
 import anyio
 import pytest
 from pydantic import JsonValue
+from test_helpers.message_ids import edited_id
 from test_helpers.service_dispatch import (
     REQUEST_FILE,
     REQUEST_ID,
@@ -44,7 +45,11 @@ from inspect_ai.agent._bridge.sandbox.service import (
 )
 from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
 from inspect_ai.agent._bridge.types import AgentBridge
-from inspect_ai.agent._bridge.util import _apply_response_filter, bridge_generate
+from inspect_ai.agent._bridge.util import (
+    _apply_response_filter,
+    _settle_message_ids,
+    bridge_generate,
+)
 from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
 from inspect_ai.event import ModelEvent
 from inspect_ai.log import EvalLog
@@ -1868,7 +1873,11 @@ async def test_response_filter_replacement_drops_pending_server_work(
             ("text", REPLACED_SENTINEL)
         ]
         assert state_output.message.content == [ContentText(text=REPLACED_SENTINEL)]
+        assert state_output.message.id == edited_id(
+            provider_output.message.id, state_output.message
+        )
     else:
+        assert state_output.message.id == provider_output.message.id
         assert PENDING_CODE in json.dumps(blocks)
         assert [b["type"] for b in blocks] == [b["type"] for b in original_blocks]
     # the provider's output and its replay record are untouched
@@ -2619,3 +2628,48 @@ def test_live_response_filter_anthropic_native_content(
             assert first_reply_types == []
         case _:
             assert_never(mode)
+
+
+def test_settle_message_ids_derives_a_replacement_from_what_it_replaces() -> None:
+    """A fresh replacement is an edit of the original at its index; an unchanged choice keeps its id."""
+    original = ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(message=ChatMessageAssistant(content=text))
+            for text in ["one", "two"]
+        ],
+    )
+    replaced = ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(message=ChatMessageAssistant(content="replacement")),
+            original.choices[1].model_copy(),
+            ChatCompletionChoice(message=ChatMessageAssistant(content="extra")),
+        ],
+    )
+
+    extra_id = replaced.choices[2].message.id
+    _settle_message_ids(original, replaced)
+
+    first = replaced.choices[0].message
+    assert first.id == edited_id(original.choices[0].message.id, first)
+    assert replaced.choices[1].message.id == original.choices[1].message.id
+    assert replaced.choices[2].message.id == extra_id
+    assert all(choice.message.metadata is None for choice in replaced.choices)
+
+
+def test_settle_message_ids_gives_the_same_edit_the_same_id() -> None:
+    """Filtering the same output the same way (e.g. a cache hit) is the same message."""
+    original = ModelOutput.from_content("mockllm/model", "before")
+
+    def edited(text: str) -> ModelOutput:
+        copy = original.model_copy(deep=True)
+        copy.message.content = text
+        _settle_message_ids(original, copy)
+        return copy
+
+    first, second, other = edited("after"), edited("after"), edited("other")
+
+    assert first.message.id == second.message.id != original.message.id
+    assert other.message.id not in {first.message.id, original.message.id}
+    assert first.message.id == edited_id(original.message.id, first.message)

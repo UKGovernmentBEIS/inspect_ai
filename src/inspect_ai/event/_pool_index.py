@@ -569,13 +569,10 @@ def condense_model_event_with_indices(
         in-memory indices consistent with storage.
 
         Identity-bucket entries are only registered for messages that are new
-        to the pool (hash miss). A message whose content duplicates an
-        already-pooled entry under a different id is re-walked and re-hashed
-        on each event that re-sends it. This is a bounded cost (duplicate-
-        content messages are rare), and avoids O(events × history) pinned
-        objects for fresh-id scaffolds (bridge-style agents) where a hash hit
-        would leave a useless bucket entry that could never produce a future
-        identity hit.
+        to the pool (hash miss). A message whose walked form duplicates an
+        already-pooled entry (a copy re-sent as a different object) is
+        re-walked and re-hashed on each event that re-sends it. This is a
+        bounded cost, and avoids pinning an object for every copy.
     """
     update: dict[str, Any] = {}
 

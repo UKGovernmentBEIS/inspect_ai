@@ -24,6 +24,7 @@ from inspect_ai.model._compaction import (
 from inspect_ai.model._compaction import (
     compaction as create_compaction,
 )
+from inspect_ai.model._message_ids import edited_message
 from inspect_ai.model._model import Model, ModelRefusalError, get_model
 from inspect_ai.model._trim import partition_messages, trim_messages
 from inspect_ai.review._policy import ReviewPolicy
@@ -324,12 +325,30 @@ def react(
                                         and len(state.output.choices) > 0
                                     ):
                                         message = state.output.choices[0].message
-                                        if isinstance(message.content, str):
-                                            message.content = f"{message.content}{submit.answer_delimiter}{answer}".strip()
-                                        else:
-                                            message.content.append(
-                                                ContentText(text=answer)
-                                            )
+                                        answered = edited_message(
+                                            message,
+                                            content=f"{message.content}{submit.answer_delimiter}{answer}".strip()
+                                            if isinstance(message.content, str)
+                                            else [
+                                                *message.content,
+                                                ContentText(text=answer),
+                                            ],
+                                        )
+                                        # a copy: the recorded model event shares the choice
+                                        state.output = state.output.model_copy(
+                                            update={
+                                                "choices": [
+                                                    state.output.choices[0].model_copy(
+                                                        update={"message": answered}
+                                                    ),
+                                                    *state.output.choices[1:],
+                                                ]
+                                            }
+                                        )
+                                        state.messages = [
+                                            answered if m is message else m
+                                            for m in state.messages
+                                        ]
 
                                     # exit if we are at max_attempts
                                     attempt_count += 1
@@ -860,11 +879,8 @@ def _remove_submit_tool(
                         new_content.pop(indices[-1])
 
                 # update w/ new tool calls and new content
-                message = message.model_copy(
-                    update=dict(
-                        tool_calls=new_tools_calls,
-                        content=new_content,
-                    ),
+                message = edited_message(
+                    message, tool_calls=new_tools_calls, content=new_content
                 )
 
         # always append message

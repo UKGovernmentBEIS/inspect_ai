@@ -19,7 +19,6 @@ from typing import (
 
 from pydantic import ValidationError
 from pydantic_core import PydanticSerializationError
-from shortuuid import uuid
 from typing_extensions import TypeIs
 
 from inspect_ai._sentinel._agent_state import bridge_request
@@ -55,6 +54,7 @@ from inspect_ai.model._generate_config import (
     ResponseSchema,
     active_generate_config,
 )
+from inspect_ai.model._message_ids import with_edited_id
 from inspect_ai.model._model import (
     GenerateFilter,
     GenerateInput,
@@ -531,6 +531,11 @@ def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
     gets a new id if it still has an original one, and drops the work.
     Content-keyed replay state (kept server tool items, signed thinking) does not
     depend on the message id.
+
+    A changed or new message that keeps none replaces the original whose id it
+    had, else the original choice at its index: it gets an id derived from that
+    original's and its own content (`with_edited_id`), so the same edit is the
+    same message.
     """
     owners = {
         content.id: choice.message.id
@@ -540,8 +545,7 @@ def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
         if isinstance(content, ContentToolUse)
     }
     original_messages = [choice.message for choice in original.choices]
-    original_ids = {message.id for message in original_messages if message.id}
-    for choice in filtered.choices:
+    for index, choice in enumerate(filtered.choices):
         message = choice.message
         kept_owners = (
             {
@@ -561,8 +565,13 @@ def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
             owner = next(iter(kept_owners))
             if owner is not None:
                 message.id = owner
-        elif message.id in original_ids and message not in original_messages:
-            message.id = uuid()
+        elif message not in original_messages:
+            source = next(
+                (m for m in original_messages if m.id == message.id),
+                original_messages[index] if index < len(original_messages) else None,
+            )
+            if source is not None:
+                with_edited_id(source, message)
 
 
 def _check_provider_owned_content(original: ModelOutput, filtered: ModelOutput) -> None:
@@ -1031,6 +1040,8 @@ async def _bridge_generate_impl(
                         else:
                             raise
 
+        generated = output
+
         # Update the compaction baseline with the actual input token count
         # from the generate call (most accurate source of truth). Record it
         # before the response filter: a replacement (e.g.
@@ -1078,11 +1089,26 @@ async def _bridge_generate_impl(
                 declarations.extend(declared_in_input(input_messages))
             # executions are placed in the proposing ModelEvent's span; only one
             # a sink chose is stored, so a rotating checkpoint span is followed
-            bridge.register_tool_execution_grants(
-                reviewed.output.message.tool_calls or [],
-                declarations,
-                span_id=sink.span_id if sink is not None else None,
-            )
+            # a call the model proposed names its output, though a response
+            # filter or an approver may have changed the message handed over
+            proposed = {
+                (call.id, call.function) for call in generated.message.tool_calls or []
+            }
+            bridge._proposing_message_ids = {
+                call.id: generated.message.id
+                for call in reviewed.output.message.tool_calls or []
+                if (call.id, call.function) in proposed and generated.message.id
+            }
+            bridge._proposing_reply_id = reviewed.output.message.id
+            try:
+                bridge.register_tool_execution_grants(
+                    reviewed.output.message.tool_calls or [],
+                    declarations,
+                    span_id=sink.span_id if sink is not None else None,
+                )
+            finally:
+                bridge._proposing_message_ids = {}
+                bridge._proposing_reply_id = None
             return reviewed.output, c_message
 
         rejections += 1
@@ -1579,11 +1605,5 @@ async def validate_bridge_media(
 
 
 def apply_message_ids(bridge: AgentBridge, messages: list[ChatMessage]) -> None:
-    # clear the ids so we can apply new ones
-    for message in messages:
-        message.id = None
-
-    # allocate ids based on message content (re-applying the same id for the same
-    # content, but also ensuring that if an id is already used we generate a new one)
-    for message in messages:
-        message.id = bridge._id_for_message(message, messages)
+    """Replace the ids made up while rebuilding a request with the ids the bridge knows."""
+    bridge._assign_message_ids(messages)

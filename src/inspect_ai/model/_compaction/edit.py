@@ -1,6 +1,5 @@
 from typing import Any, Literal, cast
 
-from shortuuid import uuid
 from typing_extensions import override
 
 from inspect_ai._util.content import (
@@ -15,6 +14,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
+from inspect_ai.model._message_ids import edited_message
 from inspect_ai.model._model import Model
 from inspect_ai.model._trim import strip_citations
 from inspect_ai.tool import ToolCall
@@ -192,8 +192,8 @@ class CompactionEdit(CompactionStrategy):
         for assistant_idx, tool_call, tool_idx in reversed(client_to_clear):
             if self.keep_tool_inputs:
                 # Just clear the result content
-                result[tool_idx] = result[tool_idx].model_copy(
-                    update={"id": uuid(), "content": TOOL_RESULT_REMOVED}
+                result[tool_idx] = edited_message(
+                    result[tool_idx], content=TOOL_RESULT_REMOVED
                 )
             else:
                 # Remove tool message entirely
@@ -270,8 +270,8 @@ def _clear_reasoning(msg: ChatMessageAssistant) -> ChatMessageAssistant:
         if not isinstance(c, ContentReasoning) or _is_replay_anchor(c)
     ]
     if not new_content:
-        return msg.model_copy(update={"id": uuid(), "content": ""})
-    return msg.model_copy(update={"id": uuid(), "content": new_content})
+        return edited_message(msg, content="")
+    return edited_message(msg, content=new_content)
 
 
 def _is_replay_anchor(content: ContentReasoning) -> bool:
@@ -317,12 +317,10 @@ def _replace_tool_call_with_text(
     else:
         new_content = list(msg.content) + [placeholder]
 
-    return msg.model_copy(
-        update={
-            "id": uuid(),
-            "tool_calls": new_tool_calls if new_tool_calls else None,
-            "content": new_content,
-        }
+    return edited_message(
+        msg,
+        tool_calls=new_tool_calls if new_tool_calls else None,
+        content=new_content,
     )
 
 
@@ -361,6 +359,6 @@ def _apply_server_tool_clearing(
             )
             content_list[content_idx] = cleared_tool_use
 
-        result[msg_idx] = msg.model_copy(update={"id": uuid(), "content": content_list})
+        result[msg_idx] = edited_message(msg, content=content_list)
 
     return result

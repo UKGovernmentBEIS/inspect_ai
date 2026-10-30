@@ -1,15 +1,30 @@
+import json
 from enum import IntEnum
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, Callable, NamedTuple, NoReturn, Sequence, Set
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Collection,
+    NamedTuple,
+    NoReturn,
+    Sequence,
+)
 
 from shortuuid import uuid
 
+from inspect_ai._util.content import ContentReasoning, ContentText, ContentToolUse
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.log._condense import ATTACHMENT_PROTOCOL
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageTool,
+    ChatMessageUser,
+)
 from inspect_ai.model._compaction import (
     Compact,
     CompactionStrategy,
@@ -17,6 +32,7 @@ from inspect_ai.model._compaction import (
 from inspect_ai.model._compaction import (
     compaction as create_compaction,
 )
+from inspect_ai.model._message_ids import content_hash, edit_id
 from inspect_ai.model._model import (
     GenerateFilter,
     Model,
@@ -37,6 +53,129 @@ if TYPE_CHECKING:
     # cycles back through partially-initialized modules). Same reason
     # `model/_call_tools.py` defers it.
     from inspect_ai.approval._policy import ApprovalPolicy
+    from inspect_ai.event._tool import ToolEvent
+
+
+_MAX_AWAITED_RESULTS = 256
+"""Host tool calls tracked for their result message, beyond which the oldest replies' are dropped."""
+
+
+class _HandedCall(NamedTuple):
+    """A call in a reply handed to the scaffold, as much of it as matching needs."""
+
+    reply_id: str
+    """Id of the reply."""
+
+    position: int
+    """The call's index in the reply."""
+
+    call_id: str
+    """The call's id."""
+
+    function: str
+    """The call's function."""
+
+    arguments: str
+    """Digest of the call's arguments (`_arguments_digest`)."""
+
+    identical: int
+    """Calls in the reply with this function and arguments, this one included."""
+
+    handed_ids: frozenset[str] | None
+    """Ids of every call in the reply (one set shared by its calls), or `None` for a reply of more than `_MAX_HANDED_IDS` calls."""
+
+    id_shared: bool
+    """Whether another call in the reply has this call's id."""
+
+
+_MAX_HANDED_IDS = 256
+"""Calls in a reply beyond which its handed ids aren't kept (and its calls match only by kept id)."""
+
+
+def _arguments_digest(arguments: dict[str, Any]) -> str:
+    return mm3_hash(json.dumps(arguments, sort_keys=True, default=str))
+
+
+def _handed_calls(reply_id: str, calls: Sequence[ToolCall]) -> list[_HandedCall]:
+    """The calls of a reply handed to the scaffold, for `_await_result_message`."""
+    keys = [(call.function, _arguments_digest(call.arguments)) for call in calls]
+    ids = [call.id for call in calls]
+    handed_ids = frozenset(ids) if len(calls) <= _MAX_HANDED_IDS else None
+    return [
+        _HandedCall(
+            reply_id,
+            position,
+            call.id,
+            *key,
+            keys.count(key),
+            handed_ids,
+            ids.count(call.id) > 1,
+        )
+        for position, (call, key) in enumerate(zip(calls, keys))
+    ]
+
+
+class _AwaitedResult(NamedTuple):
+    """A host tool call waiting for the tool message that holds its result."""
+
+    handed: _HandedCall
+    """The call, as handed to the scaffold."""
+
+    event: "ToolEvent | None"
+    """The call's execution, or `None` once settled."""
+
+    settled: bool = False
+    """Whether the call was linked or found ambiguous, so later results and executions are ignored."""
+
+    message_id: str | None = None
+    """Id of the tool message the call was linked to, once settled."""
+
+
+def _is_handed(copy_call: ToolCall, handed: _HandedCall) -> bool:
+    return (
+        copy_call.function == handed.function
+        and _arguments_digest(copy_call.arguments) == handed.arguments
+    )
+
+
+def _copy_calls(
+    handed: _HandedCall, copy_calls: list[ToolCall], tracked_ids: Collection[str]
+) -> list[ToolCall]:
+    """The calls in a scaffold's copy of a reply that may be `handed`.
+
+    None if another call in the reply has its id: an answer under that id
+    can't be told apart. Otherwise the one with its id, function and arguments.
+    When no copy call has its id (Google re-derives call ids), the ones with
+    its function and arguments and an id the bridge handed in no tracked reply
+    (`tracked_ids`), but only if `handed` is the reply's only call with that
+    function and arguments and its handed ids are known. Identical calls can't
+    be told apart, so they are never paired.
+    """
+    if handed.id_shared:
+        return []
+    if any(c.id == handed.call_id for c in copy_calls):
+        return [
+            c for c in copy_calls if c.id == handed.call_id and _is_handed(c, handed)
+        ]
+    if handed.identical != 1 or handed.handed_ids is None:
+        return []
+    return [c for c in copy_calls if c.id not in tracked_ids and _is_handed(c, handed)]
+
+
+def _settle(
+    awaited: dict[int, _AwaitedResult], call_index: int, matches: list[ChatMessageTool]
+) -> None:
+    """Settle a call answered by `matches`, linking its event if exactly one answers it."""
+    from inspect_ai.log._transcript import transcript
+
+    event = awaited[call_index].event
+    linked = matches[0].id if len(matches) == 1 and event is not None else None
+    awaited[call_index] = awaited[call_index]._replace(
+        event=None, settled=True, message_id=linked
+    )
+    if event is not None and linked is not None:
+        event.message_id = linked
+        transcript()._event_updated(event)
 
 
 class DispatchedCall(NamedTuple):
@@ -118,6 +257,24 @@ class AgentBridge:
             state.messages.copy(),
             value_type=list[ChatMessage],
         )
+        # checkpointed hashes: changing `content_hash` or `edit_id` changes what a
+        # resumed sample matches against
+        self._content_by_id = self._cp.track(
+            "bridge_message_content",
+            lambda: self._content_by_id,
+            {},
+            value_type=dict[str, str],
+        )
+        self._keys_by_id: dict[str, set[str]] = {}
+        for key, ids in self._message_ids.items():
+            for id in ids:
+                self._keys_by_id.setdefault(id, set()).add(key)
+        self._record_input_message_ids(self._compaction_prefix)
+        # the tracked thread's ids, from the checkpoint on resume (which isn't
+        # handed back to the scaffold, see above)
+        self._tracked_ids = [
+            (m.id, m.role) for m in restored_messages if m.id is not None
+        ]
         self.filter = filter
         self.response_filter = response_filter
         self.retry_refusals = retry_refusals
@@ -144,6 +301,7 @@ class AgentBridge:
         self._tracked_descends: _Descent | None = None
         self._candidate_fps: list[_MessageFingerprint] | None = None
         self._pending_operator = 0
+        self._awaited_results: dict[str, dict[int, _AwaitedResult]] = {}
         self._operator_keys: set[str] = set()
         self._warned_request_settings: set[str] = set()
 
@@ -280,6 +438,125 @@ class AgentBridge:
         bind later service requests to the calls the model actually made.
         """
 
+    _proposing_message_ids: dict[str, str] = {}
+    """Generated output message id by call id, for the calls `register_tool_execution_grants` is registering.
+
+    Set by `bridge_generate` around the call (the hook's signature is public). A
+    call a response filter added has none.
+    """
+
+    _proposing_reply_id: str | None = None
+    """Id of the reply handed to the scaffold, while `register_tool_execution_grants` registers its calls."""
+
+    def _await_result_message(self, handed: _HandedCall, event: "ToolEvent") -> None:
+        """Set `event.message_id` when the scaffold first sends the result of `handed`.
+
+        The result reaches the bridge only when the scaffold sends it back in a
+        later request (`_link_result_messages`). A second execution of the call
+        settles it unlinked (which execution the result holds is unknown), and
+        one after the call settled stays unlinked. At most `_MAX_AWAITED_RESULTS`
+        calls are tracked; the oldest replies' calls are dropped (left unlinked)
+        beyond that.
+        """
+        calls = self._awaited_results.setdefault(handed.reply_id, {})
+        tracked = calls.get(handed.position)
+        if tracked is None:
+            calls[handed.position] = _AwaitedResult(handed, event)
+        elif not tracked.settled:
+            calls[handed.position] = tracked._replace(event=None, settled=True)
+        tracked_calls = sum(len(calls) for calls in self._awaited_results.values())
+        while tracked_calls > _MAX_AWAITED_RESULTS:
+            oldest = next(iter(self._awaited_results))
+            tracked_calls -= len(self._awaited_results.pop(oldest))
+
+    def _link_result_messages(
+        self, messages: list[ChatMessage], recognized: list[str | None]
+    ) -> None:
+        """Link awaited host tool events to their result messages in a request.
+
+        `recognized` is the id each message was recognized by (before an edit
+        versioned it). A reply handed to the scaffold comes back as the assistant
+        message recognized by its id. In that copy, a call is the one with its id,
+        function and arguments (`_copy_calls`), picked by no other awaited call
+        and with an id unique in the copy. Its result is a tool message before
+        the next assistant message answering that id: exactly one links it, more
+        than one settles it unlinked. A kept id another tracked reply also
+        handed links only if that reply's call was linked to another message
+        (`_tracked_call_ids`).
+
+        Each call settles on its own. One the copy can't identify, or with no
+        result yet, keeps waiting: results sent in separate requests, after
+        another assistant message, or after a side call without them still link.
+        A missing result is never taken as abandoned; `_MAX_AWAITED_RESULTS`
+        bounds calls whose results never come.
+        """
+        if not self._awaited_results:
+            return
+        tracked_ids: dict[str, list[tuple[str, str | None]]] | None = None
+        for index, (message, reply_id) in enumerate(zip(messages, recognized)):
+            if reply_id is None or not isinstance(message, ChatMessageAssistant):
+                continue
+            awaited = self._awaited_results.get(reply_id)
+            if awaited is None:
+                continue
+            results: list[ChatMessageTool] = []
+            for following in messages[index + 1 :]:
+                if isinstance(following, ChatMessageAssistant):
+                    break
+                if isinstance(following, ChatMessageTool):
+                    results.append(following)
+            copy_calls = message.tool_calls or []
+            if tracked_ids is None:
+                tracked_ids = self._tracked_call_ids()
+            tracked = tracked_ids
+            candidates = {
+                call_index: _copy_calls(entry.handed, copy_calls, tracked_ids)
+                for call_index, entry in awaited.items()
+                if not entry.settled
+            }
+            identified = {
+                call_index: same[0]
+                for call_index, same in candidates.items()
+                if len(same) == 1
+            }
+            for call_index, copy_call in identified.items():
+                if (
+                    sum(c is copy_call for c in identified.values()) != 1
+                    or [c.id for c in copy_calls].count(copy_call.id) != 1
+                ):
+                    continue
+                matches = [r for r in results if r.tool_call_id == copy_call.id]
+                if len(matches) == 1 and any(
+                    linked is None or linked == matches[0].id
+                    for other, linked in tracked.get(copy_call.id, [])
+                    if other != reply_id
+                ):
+                    continue
+                if matches:
+                    _settle(awaited, call_index, matches)
+
+    def _tracked_call_ids(self) -> dict[str, list[tuple[str, str | None]]]:
+        """Ids the bridge handed in the replies it still tracks.
+
+        Each id maps to the replies that handed it, with the tool message that
+        reply's call under it was linked to (`None` if it isn't linked). An id
+        another tracked reply handed is ambiguous unless that reply's call was
+        linked to a different message. A reply that keeps no handed ids
+        contributes its tracked calls' ids. Ids from replies dropped by
+        `_MAX_AWAITED_RESULTS` aren't known, so a scaffold that copies an
+        earlier call and its answer into a later reply can still be taken for
+        that reply's call.
+        """
+        ids: dict[str, list[tuple[str, str | None]]] = {}
+        for reply_id, calls in self._awaited_results.items():
+            linked = {
+                entry.handed.call_id: entry.message_id for entry in calls.values()
+            }
+            handed_ids = next(iter(calls.values())).handed.handed_ids
+            for call_id in handed_ids if handed_ids is not None else linked:
+                ids.setdefault(call_id, []).append((reply_id, linked.get(call_id)))
+        return ids
+
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
         """The bridged tool call that `call` makes through a dispatcher, if any.
 
@@ -331,31 +608,162 @@ class AgentBridge:
         """
         self._pending_operator += 1
 
-    def _id_for_message(
-        self, message: ChatMessage, conversation: list[ChatMessage]
-    ) -> str:
-        # message_id we will return
-        message_id: str | None = None
+    def _assign_message_ids(self, messages: list[ChatMessage]) -> None:
+        """Give each message of a request the id the bridge knows it by, or a new one.
 
-        # turn message into a hash so it can be a dictionary key
-        message_key = message_json_hash(to_json_str_safe(message))
+        Messages that line up with the tracked thread (`_align_with_tracked`) take
+        its ids. Others take the first id recorded for their strongest key that
+        isn't already used in the request, so the k-th repeat of a message gets the
+        k-th id.
+        """
+        keys = [_message_id_keys(message) for message in messages]
+        aligned = self._align_with_tracked(messages, keys)
+        reserved = set(aligned.values())
+        used: set[str] = set()
+        # per key, the first recorded id not yet taken (ids only become taken)
+        cursors: dict[str, int] = {}
 
-        # do we already have an id for this message that isn't in the conversation?
-        conversation_ids: Set[str] = {m.id for m in conversation if m.id is not None}
-        message_ids = self._message_ids.get(message_key, [])
-        for id in message_ids:
-            if id not in conversation_ids:
-                message_id = id
-                break
+        def recorded_id(message_keys: list[str]) -> str | None:
+            for key in message_keys:
+                ids = self._message_ids.get(key, [])
+                cursor = cursors.get(key, 0)
+                while cursor < len(ids) and (
+                    ids[cursor] in used or ids[cursor] in reserved
+                ):
+                    cursor += 1
+                cursors[key] = cursor
+                if cursor < len(ids):
+                    return ids[cursor]
+            return None
 
-        # if we didn't find an id then generate a new one and update our record
-        if message_id is None:
-            message_id = uuid()
-            message_ids.append(message_id)
-            self._message_ids[message_key] = message_ids
+        recognized: list[str | None] = []
+        for index, (message, message_keys) in enumerate(zip(messages, keys)):
+            message_id = aligned.get(index) or recorded_id(message_keys)
+            recognized.append(message_id)
+            if message_id is None:
+                message.id = uuid()
+                self._content_by_id[message.id] = content_hash(message)
+            else:
+                used.add(message_id)
+                message.id = self._version_id(message_id, message)
+            used.add(message.id)
+            self._record_message_id(message_keys, message.id)
+        self._link_result_messages(messages, recognized)
 
-        # return the id
-        return message_id
+    def _version_id(self, message_id: str, message: ChatMessage) -> str:
+        """`message_id`, or the id of an edited version if `message`'s content differs.
+
+        Different content never shares an id. A scaffold that sends a message back
+        changed (even in whitespace) has edited it: the edit gets an id derived
+        from the id it was recognized by and its content.
+        """
+        content = content_hash(message)
+        if self._content_by_id.setdefault(message_id, content) == content:
+            return message_id
+        edited_id = edit_id(message_id, content)
+        self._content_by_id.setdefault(edited_id, content)
+        return edited_id
+
+    def _align_with_tracked(
+        self, messages: list[ChatMessage], keys: list[list[str]]
+    ) -> dict[int, str]:
+        """Pair request messages with the tracked thread's, in order.
+
+        Each run of consecutive matches starts at the tracked message sharing the
+        strongest key, then the longest run (one that reaches the end of the
+        tracked thread continues it), then the latest position (scaffold
+        compaction keeps the tail). A same-role message between two runs, at the
+        same offset in both, is an edit of the tracked one.
+
+        Only the position continuing the last run and the latest
+        `_MAX_ALIGN_CANDIDATES` positions per key are considered, and runs are
+        measured only for the strongest, so the cost stays linear in the length
+        of a conversation that repeats the same messages.
+        """
+        tracked = self._tracked_ids
+        tracked_keys = [self._keys_by_id.get(id, set()) for id, _ in tracked]
+        positions: dict[str, list[int]] = {}
+        for position, position_keys in enumerate(tracked_keys):
+            for key in position_keys:
+                positions.setdefault(key, []).append(position)
+
+        def strength(i: int, j: int) -> int:
+            return max(
+                (_key_strength(key) for key in keys[i] if key in tracked_keys[j]),
+                default=0,
+            )
+
+        def run(i: int, j: int) -> int:
+            length = 0
+            while (
+                i + length < len(messages)
+                and j + length < len(tracked)
+                and strength(i + length, j + length)
+            ):
+                length += 1
+            return length
+
+        aligned: dict[int, str] = {}
+        i, next_j = 0, 0
+        last: tuple[int, int] | None = None
+        while i < len(messages):
+            diagonal = next_j + (i - last[0]) if last is not None else i
+            candidates = {
+                j
+                for key in keys[i]
+                for j in positions.get(key, [])[-_MAX_ALIGN_CANDIDATES:]
+                if j >= next_j
+            }
+            if diagonal < len(tracked) and strength(i, diagonal):
+                candidates.add(diagonal)
+            if not candidates:
+                i += 1
+                continue
+            strengths = {j: strength(i, j) for j in candidates}
+            strongest = max(strengths.values())
+            runs = {j: run(i, j) for j in candidates if strengths[j] == strongest}
+            j = max(
+                runs,
+                key=lambda j: (
+                    len(messages) - i if j + runs[j] == len(tracked) else runs[j],
+                    j,
+                ),
+            )
+            if last is not None and i - last[0] == j - last[1]:
+                for offset in range(i - last[0]):
+                    gap_id, gap_role = tracked[last[1] + offset]
+                    if messages[last[0] + offset].role == gap_role:
+                        aligned[last[0] + offset] = gap_id
+            length = runs[j]
+            for offset in range(length):
+                aligned[i + offset] = tracked[j + offset][0]
+            i, next_j = i + length, j + length
+            last = (i, next_j)
+        return aligned
+
+    def _record_message_id(self, keys: list[str], message_id: str) -> None:
+        # `_keys_by_id` mirrors `_message_ids`, so membership is a set lookup
+        known = self._keys_by_id.setdefault(message_id, set())
+        for key in keys:
+            if key not in known:
+                self._message_ids.setdefault(key, []).append(message_id)
+                known.add(key)
+
+    def _record_input_message_ids(self, messages: list[ChatMessage]) -> None:
+        """Record the input's ids, including the condensed and quoted forms `_position_descent` accepts."""
+        for message in messages:
+            if message.id is None:
+                continue
+            keys = _message_id_keys(message)
+            if message.role == "user" and message.text:
+                text = message.text.strip()
+                for variant in (
+                    f"{ATTACHMENT_PROTOCOL}{mm3_hash(message.text)}",
+                    f'"{text}"',
+                ):
+                    keys.append(_loose_message_key(message, variant))
+            self._record_message_id(keys, message.id)
+            self._content_by_id.setdefault(message.id, content_hash(message))
 
     _message_ids: dict[str, list[str]]
 
@@ -408,6 +816,12 @@ class AgentBridge:
           further calls (candidate promotion) or by the longer-descending-call
           displacement above when it makes only one.
         """
+        if output.message.id is not None:
+            self._record_message_id(_message_id_keys(output.message), output.message.id)
+            self._content_by_id.setdefault(
+                output.message.id, content_hash(output.message)
+            )
+
         messages = input + [output.message]
         fps = [_message_fingerprint(m) for m in messages]
 
@@ -472,6 +886,7 @@ class AgentBridge:
         """
         self.state.messages = messages
         self.state.output = output
+        self._tracked_ids = [(m.id, m.role) for m in messages if m.id is not None]
         self._tracked_fps = fps
         self._tracked_calls = calls
         self._tracked_descends = self._descends_from_initial(messages, fps)
@@ -542,6 +957,66 @@ class AgentBridge:
 @lru_cache(maxsize=100)
 def message_json_hash(message_json: str) -> str:
     return mm3_hash(message_json)
+
+
+def _message_id_keys(message: ChatMessage) -> list[str]:
+    """Keys a message sent back by a scaffold is recognized by, strongest first.
+
+    Scaffolds don't echo message ids. Besides the exact content, an assistant
+    message keeps its tool call ids (every dialect but Google), a tool message
+    its call id, and the loose key
+    ignores whitespace, JSON key order, call ids and reasoning.
+    """
+    keys = [
+        message_json_hash(to_json_str_safe(message.model_copy(update={"id": None})))
+    ]
+    if isinstance(message, ChatMessageAssistant) and message.tool_calls:
+        keys.append("calls:" + "\n".join(call.id for call in message.tool_calls))
+    if isinstance(message, ChatMessageTool) and message.tool_call_id:
+        keys.append(f"result:{message.tool_call_id}")
+    keys.append(_loose_message_key(message, message.text))
+    return keys
+
+
+_MAX_ALIGN_CANDIDATES = 8
+
+
+def _key_strength(key: str) -> int:
+    if key.startswith("loose:"):
+        return 1
+    if key.startswith(("calls:", "result:")):
+        return 2
+    return 3
+
+
+def _loose_message_key(message: ChatMessage, text: str) -> str:
+    content = [] if isinstance(message.content, str) else message.content
+    return "loose:" + mm3_hash(
+        json.dumps(
+            [
+                message.role,
+                " ".join(text.split()),
+                message.tool_call_id if isinstance(message, ChatMessageTool) else None,
+                [
+                    [
+                        call.function,
+                        json.dumps(call.arguments, sort_keys=True, default=str),
+                    ]
+                    for call in message.tool_calls or []
+                ]
+                if isinstance(message, ChatMessageAssistant)
+                else None,
+                [
+                    c.id
+                    if isinstance(c, ContentToolUse)
+                    else c.model_dump_json(exclude_none=True)
+                    for c in content
+                    if not isinstance(c, ContentText | ContentReasoning)
+                ],
+            ],
+            default=str,
+        )
+    )
 
 
 class _MessageFingerprint(NamedTuple):

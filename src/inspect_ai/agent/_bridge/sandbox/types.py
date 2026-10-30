@@ -12,7 +12,12 @@ from inspect_ai._util.json import json_equal
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge.bridge import resolve_forward_client_headers
-from inspect_ai.agent._bridge.types import AgentBridge, DispatchedCall
+from inspect_ai.agent._bridge.types import (
+    AgentBridge,
+    DispatchedCall,
+    _handed_calls,
+    _HandedCall,
+)
 from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._model import (
@@ -175,7 +180,12 @@ class SandboxAgentBridge(AgentBridge):
         for tool in tools:
             if isinstance(tool, ToolInfo):
                 declared.setdefault(tool.name, []).append(tool)
-        for call in calls:
+        handed = (
+            _handed_calls(self._proposing_reply_id, calls)
+            if self._proposing_reply_id is not None
+            else None
+        )
+        for index, call in enumerate(calls):
             targets, arguments = _proposed_call(
                 self.bridged_tools, self.served_tools, call, declared
             )
@@ -187,7 +197,12 @@ class SandboxAgentBridge(AgentBridge):
                     + ", ".join(f"{t.server}/{t.tool}" for t in targets)
                     + "); an execution grant was registered for each of them.",
                 )
-            proposal = _Proposal(call, span_id)
+            proposal = _Proposal(
+                call,
+                span_id,
+                self._proposing_message_ids.get(call.id),
+                handed[index] if handed is not None else None,
+            )
             for target in targets:
                 if (
                     len(self._tool_execution_grants)
@@ -350,14 +365,26 @@ class _Proposal:
     and no pairing state outlives the bounded grant store.
     """
 
-    __slots__ = ("call", "span_id", "paired")
+    __slots__ = ("call", "span_id", "message_id", "reply", "paired")
 
-    def __init__(self, call: ToolCall, span_id: str | None) -> None:
+    def __init__(
+        self,
+        call: ToolCall,
+        span_id: str | None,
+        message_id: str | None,
+        reply: _HandedCall | None,
+    ) -> None:
         self.call = call
         """The proposing call, with the function name as the model saw it."""
 
         self.span_id = span_id
         """Span to record executions under, or `None` for the span current then."""
+
+        self.message_id = message_id
+        """Id of the assistant message the call is in, or `None` if unknown."""
+
+        self.reply = reply
+        """The call in the reply handed to the scaffold, or `None` if unknown."""
 
         self.paired = False
         """Whether an execution has already taken `call.id`."""

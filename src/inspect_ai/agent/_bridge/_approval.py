@@ -29,6 +29,7 @@ from inspect_ai._util.format import format_function_call
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
+from inspect_ai.model._message_ids import with_edited_id
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool_call import ToolCall, ToolCallError
 
@@ -207,6 +208,7 @@ def with_modified_arguments(
     for call in result.message.tool_calls or []:
         if call.id in modified:
             call.arguments = modified[call.id]
+    with_edited_id(output.message, result.message)
     return result
 
 

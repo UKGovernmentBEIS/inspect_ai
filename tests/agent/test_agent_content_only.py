@@ -1,5 +1,7 @@
 from copy import copy
 
+from test_helpers.message_ids import edited_id
+
 from inspect_ai._util.content import (
     Content,
     ContentImage,
@@ -60,7 +62,8 @@ async def test_converts_tool_messages_to_user() -> None:
 
     assert len(filtered) == 1
     assert isinstance(filtered[0], ChatMessageUser)
-    assert filtered[0].id == "tool-456"
+    assert filtered[0].id == edited_id("tool-456", filtered[0])
+    assert filtered[0].metadata is None
     assert filtered[0].content == "Tool result"
 
 
@@ -288,10 +291,11 @@ async def test_preserves_message_ids() -> None:
 
     filtered = await content_only(messages)
 
+    # unchanged content keeps its id; the tool message became a user message
     assert len(filtered) == 3
     assert filtered[0].id == "user-001"
     assert filtered[1].id == "assistant-002"
-    assert filtered[2].id == "tool-003"
+    assert filtered[2].id == edited_id("tool-003", filtered[2])
 
 
 async def test_handles_tool_use_with_error() -> None:

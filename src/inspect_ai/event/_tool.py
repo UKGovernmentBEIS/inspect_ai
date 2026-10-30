@@ -82,7 +82,42 @@ class ToolEvent(BaseEvent):
     """Did the tool call fail with a hard error?."""
 
     message_id: str | None = Field(default=None)
-    """Id of ChatMessageTool associated with this event."""
+    """Id of ChatMessageTool associated with this event.
+
+    The message may not stay in the conversation (react removes its `submit`
+    tool's result). For a host tool a sandbox agent bridge runs for the
+    scaffold, the result reaches the conversation only when the scaffold sends
+    it back, so this is set then, on the completed event: the tool message the
+    scaffold sent, after the reply handed to it, as the answer to this call,
+    identified by call id. Its content may differ from `result`: scaffolds edit
+    results and dialects reshape them. It never names the answer to a different
+    call the bridge can tell apart from this one; a scaffold that copies an
+    earlier call and its answer into a later reply, once the earlier reply is no
+    longer tracked (after 256 later host calls), can be taken for the later
+    call.
+
+    It stays `None` until then, and for good if the scaffold never sends the
+    result, the sample resumes from a checkpoint first, the reply the scaffold
+    sends back doesn't identify the call (exactly one call with its id,
+    function and arguments, an id handed to no other call of the reply, or in
+    Google its function and arguments, shared by no other call of the reply, in
+    a reply of at most 256 calls), the call executed more than once, more than
+    one tool message answers it, or 256 later host calls are tracked before its
+    result arrives.
+    """
+
+    call_message_id: str | None = Field(default=None)
+    """Id of the assistant message that proposed this tool call.
+
+    The output of the `ModelEvent` that generated the call. In the agent bridge
+    this is the generated output even when a response filter or approval
+    changed the message handed to the scaffold; `None` for a call the model
+    did not propose.
+    It identifies the proposing message, not necessarily one model call: a
+    cached output reused by several model calls (even within one sample and
+    epoch) has one id, so a join that matches more than one `ModelEvent` is
+    ambiguous. `message_id` is the id of the tool message holding its result.
+    """
 
     def _set_result(
         self,
