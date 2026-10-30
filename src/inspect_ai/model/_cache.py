@@ -1,13 +1,17 @@
+import json
 import logging
+import numbers
 import os
 import pickle
 import re
 from contextvars import ContextVar
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
+from decimal import Decimal
 from hashlib import md5
-from pathlib import Path, PurePosixPath, PureWindowsPath
+from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
 from shutil import rmtree
 from typing import Any, Optional
+from uuid import UUID
 
 from dateutil.relativedelta import relativedelta
 from pydantic import BaseModel, Field, ValidationInfo, model_validator
@@ -167,6 +171,8 @@ class CacheEntry:
         config(GenerateConfig): The configuration used to generate the output.
         input(list[ChatMessage]): The messages exchanged with the model.
         model(str): The model name.
+        model_args(dict[str, Any]): The model creation args, which providers read
+          to build the request (e.g. ``extra_body``).
         policy(CachePolicy): The `CachePolicy` defining things like additional
           metadata for the cache key, expiry time, and other settings which
           affect all individual cached entries.
@@ -183,11 +189,13 @@ class CacheEntry:
         policy: CachePolicy,
         tool_choice: ToolChoice | None,
         tools: list[ToolInfo],
+        model_args: dict[str, Any] | None = None,
     ):
         self.base_url = base_url
         self.config = config
         self.input = input
         self.model = model
+        self.model_args = model_args if model_args is not None else {}
         self.tool_choice = tool_choice
         self.tools = tools
         self.policy = policy
@@ -240,8 +248,112 @@ def _cache_key_config(config: BaseModel) -> dict[str, Any]:
     return values
 
 
+# Model args that cannot change what the provider returns: credentials, which
+# only say who is asking, and the runtime knobs of the same name that
+# `_CACHE_KEY_DROPPED_FIELDS` drops from the generate config. Endpoint and
+# region args (`aws_region`, `base_url`) stay in the key: they pick the server
+# that answers. Credentials that arrive inside a header arg (`default_headers`,
+# `extra_headers`) are not detected here and still split the cache.
+#
+# Dropping the knobs assumes a provider treats them as transport settings. A
+# provider that forwards unknown model args into the request body would make
+# this wrong, so add a name here only if it is a transport setting.
+_CACHE_KEY_MODEL_ARGS_DROPPED = {
+    "api_key",
+    "aws_access_key_id",
+    "aws_secret_access_key",
+    "aws_session_token",
+    "aws_profile",
+    "timeout",
+    "max_retries",
+    "max_connections",
+    "adaptive_connections",
+}
+
+# Guards a self-referential or absurdly deep structure: the key is computed
+# while generate() builds its cache entry, so raising here would fail the call
+# rather than miss the cache.
+_CACHE_KEY_MAX_DEPTH = 64
+
+
+def _cache_key_stable(value: Any, seen: frozenset[int] = frozenset()) -> Any:
+    """A JSON-representable projection of `value` that is stable across runs.
+
+    Model args hold values the key can't hash as they come: dicts in call
+    order, sets whose iteration order follows ``PYTHONHASHSEED``, and objects
+    whose ``repr`` carries a per-process id. Sorting containers, rendering
+    scalars in a fixed form, and replacing a genuinely opaque value with its
+    type keeps one configuration on one key.
+    """
+    if len(seen) > _CACHE_KEY_MAX_DEPTH:
+        return "<depth>"
+    if value is None or isinstance(value, str):
+        return value
+    # before Integral: bool is an Integral, and True must not read as 1
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (bytes, bytearray)):
+        return {"<bytes>": bytes(value).hex()}
+    if isinstance(value, numbers.Integral):
+        return int(value)
+    if isinstance(value, numbers.Real):
+        return float(value)
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    if isinstance(value, (Decimal, UUID, PurePath)):
+        return str(value)
+    if isinstance(value, dict):
+        if id(value) in seen:
+            return "<cycle>"
+        inner = seen | {id(value)}
+        # pairs, not a dict: a non-str key keeps its type instead of colliding
+        # with its string form
+        return sorted(
+            [
+                [_cache_key_stable(key, inner), _cache_key_stable(item, inner)]
+                for key, item in value.items()
+            ],
+            key=lambda pair: json.dumps(pair[0], sort_keys=True, default=str),
+        )
+    if isinstance(value, (list, tuple)):
+        if id(value) in seen:
+            return "<cycle>"
+        inner = seen | {id(value)}
+        return [_cache_key_stable(item, inner) for item in value]
+    if isinstance(value, (set, frozenset)):
+        if id(value) in seen:
+            return "<cycle>"
+        inner = seen | {id(value)}
+        items = [_cache_key_stable(item, inner) for item in value]
+        return sorted(
+            items, key=lambda item: json.dumps(item, sort_keys=True, default=str)
+        )
+    # opaque: the type keeps two different kinds of object apart, the instance
+    # would break the key on every run
+    return f"<{type(value).__module__}.{type(value).__qualname__}>"
+
+
+def _cache_key_model_args(model_args: dict[str, Any]) -> Any | None:
+    """The model creation args as the cache key sees them, or None if inert.
+
+    Providers read model args to build the request (``extra_body``,
+    ``emulate_tools``, ``enable_thinking`` and so on), so two runs that differ
+    only in their model args must not share an entry. Returns None when nothing
+    that affects the request is left, so a model without model args keeps the
+    key it had before they were part of it.
+    """
+    args = {
+        name: value
+        for name, value in model_args.items()
+        if name not in _CACHE_KEY_MODEL_ARGS_DROPPED
+    }
+    if not args:
+        return None
+    return _cache_key_stable(args)
+
+
 def _cache_key(entry: CacheEntry) -> str:
-    components = [
+    components: list[Any] = [
         _cache_key_config(entry.config),
         ",".join(
             [
@@ -259,6 +371,16 @@ def _cache_key(entry: CacheEntry) -> str:
         entry.base_url,
         entry.tool_choice,
         entry.tools,
+    ]
+
+    # a model with no request-affecting model args keeps the key it had before
+    # they were part of it: only the entries that could be confused with
+    # another configuration are rewritten
+    model_args = _cache_key_model_args(entry.model_args)
+    if model_args is not None:
+        components.append(model_args)
+
+    components += [
         _parse_expiry(entry.policy.expiry) if entry.policy.expiry is not None else None,
         entry.policy.scopes,
     ]
