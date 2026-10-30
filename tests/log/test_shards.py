@@ -1,3 +1,4 @@
+import dataclasses
 import functools
 import json
 import os
@@ -50,6 +51,7 @@ from inspect_ai.scorer import (
     Scorer,
     Target,
     Value,
+    ValueToFloat,
     accuracy,
     aggregate,
     at_least,
@@ -64,6 +66,7 @@ from inspect_ai.scorer import (
     scorer,
     value_to_float,
 )
+from inspect_ai.scorer._metric import MetricDeprecated, MetricProtocol
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 
 T1 = "2026-09-30T10-00-00-00-00"
@@ -1340,6 +1343,28 @@ def shard_verdict_mean_2() -> Metric:
     return aggregate("verdict", mean(), to_float=value_to_float(correct=2))
 
 
+@metric(name="shard_converted")
+class ShardConverted(MetricProtocol):
+    """A class metric whose constructor takes a converter."""
+
+    def __init__(self, to_float: ValueToFloat = value_to_float()) -> None:
+        self.to_float = to_float
+
+    def __call__(self, scores: list[SampleScore]) -> Value:
+        return {"converted": self.to_float(CORRECT)}
+
+
+@metric(name="shard_key_sum")
+class ShardKeySum(MetricDeprecated):
+    """A class metric with a string option (class metrics get `Score`s)."""
+
+    def __init__(self, key: str) -> None:
+        self.key = key
+
+    def __call__(self, scores: list[Score]) -> Value:
+        return sum(float(score.as_dict()[self.key] or 0) for score in scores)
+
+
 async def _verdict(state: TaskState, target: Target) -> Score:
     index = state.metadata["index"]
     verdict = CORRECT if index % 2 else INCORRECT
@@ -1352,10 +1377,20 @@ async def _verdict(state: TaskState, target: Target) -> Score:
         grouped(aggregate("points", mean()), "group"),
         aggregate("verdict", accuracy()),
         shard_verdict_mean_2(),
+        ShardKeySum("points"),
     ]
 )
 def verdicts() -> Scorer:
     return _verdict
+
+
+async def _unscored(state: TaskState, target: Target) -> Score:
+    return Score.unscored()
+
+
+@scorer(metrics=[mean()])
+def unscored() -> Scorer:
+    return _unscored
 
 
 async def _ratings(state: TaskState, target: Target) -> Score:
@@ -1367,9 +1402,15 @@ def ratings() -> Scorer:
     return _ratings
 
 
-def _verdict_task(metrics: list[Any] | None = None) -> Task:
-    """Six samples scored by `verdicts()`, or with `metrics` in its place."""
-    scorers = [verdicts(), ratings(), match()] if metrics is None else verdicts()
+def _verdict_task(metrics: list[Any] | None = None, scored: bool = True) -> Task:
+    """Six samples scored by `verdicts()`, or with `metrics` in its place.
+
+    With `scored=False`, every sample is unscored.
+    """
+    if metrics is None:
+        scorers = [verdicts(), ratings(), match()]
+    else:
+        scorers = [verdicts() if scored else unscored()]
     return Task(
         dataset=[
             Sample(
@@ -1408,14 +1449,22 @@ def test_metrics_with_their_own_converters_merge_to_the_unsharded_values(
     expected = _metric_values(unsharded)
     assert _metric_values(log) == pytest.approx(expected)
     assert ("verdicts", "shard_verdict_mean_2") in expected
+    assert ("verdicts", "shard_key_sum") in expected
     assert ("ratings", "krippendorff_alpha") in expected
 
 
-_FUNCTION_OPTIONS: dict[str, tuple[Callable[[], list[Any]], str]] = {
-    "direct": (lambda: [mean(to_float=value_to_float(correct=2))], "inspect_ai/mean"),
+# the metrics, the name the refusal gives, and whether samples are scored:
+# over unscored samples a class metric's failure would become NaN and publish
+_FUNCTION_OPTIONS: dict[str, tuple[Callable[[], list[Any]], str, bool]] = {
+    "direct": (
+        lambda: [mean(to_float=value_to_float(correct=2))],
+        "inspect_ai/mean",
+        True,
+    ),
     "aggregate": (
         lambda: [aggregate("verdict", mean(), to_float=value_to_float())],
         "inspect_ai/aggregate",
+        True,
     ),
     "nested": (
         lambda: [
@@ -1425,10 +1474,22 @@ _FUNCTION_OPTIONS: dict[str, tuple[Callable[[], list[Any]], str]] = {
             )
         ],
         "mean",
+        True,
     ),
     "keyed": (
         lambda: [{"verdict": [accuracy(to_float=value_to_float(correct=2))]}],
         "inspect_ai/accuracy",
+        True,
+    ),
+    "class": (
+        lambda: [ShardConverted(to_float=value_to_float(correct=2))],
+        "shard_converted",
+        False,
+    ),
+    "class-nested": (
+        lambda: [grouped(ShardConverted(to_float=value_to_float(correct=2)), "group")],
+        "shard_converted",
+        False,
     ),
 }
 
@@ -1440,19 +1501,23 @@ def test_a_metric_given_a_function_is_refused(
 ) -> None:
     from inspect_ai.log._shards import _write
 
-    metrics, name = _FUNCTION_OPTIONS[option]
+    metrics, name, scored = _FUNCTION_OPTIONS[option]
+
+    def task() -> Task:
+        return _verdict_task(metrics(), scored)
+
     merged, shards = _paths(tmp_path)
     if merge == "incremental":
         # a merged log written before the refusal, from a shard with no samples
-        running = _run(shards, "0", _verdict_task(metrics()), sample_id=[1, 2, 3])
+        running = _run(shards, "0", task(), sample_id=[1, 2, 3])
         _as_running(running, keep=set())
         with monkeypatch.context() as patched:
             patched.setattr(
                 _write, "_check_function_options", lambda *args: None, raising=False
             )
             assert merge_eval_log_shards(merged, allow_incomplete=True).written
-    _run(shards, "0", _verdict_task(metrics()), sample_id=[1, 2, 3])
-    _run(shards, "1", _verdict_task(metrics()), sample_id=[4, 5, 6])
+    _run(shards, "0", task(), sample_id=[1, 2, 3])
+    _run(shards, "1", task(), sample_id=[4, 5, 6])
     before = _files(str(tmp_path))
     message = f"metric '{name}' was given a function for 'to_float'"
     for delete in (False, True):
@@ -3003,6 +3068,52 @@ def test_function_options_are_checked_only_where_annotated() -> None:
         _check_function_options("partial", factory, recorded)
     factory.__annotations__ = {"to_float": "NotDefined"}
     _check_function_options("unresolved", factory, recorded)
+
+
+def test_function_options_of_class_metrics_are_checked() -> None:
+    from inspect_ai._util.registry import registry_params
+    from inspect_ai.log._shards._write import _check_embedded, _check_function_options
+
+    class Base(MetricProtocol):
+        def __init__(self, to_float: ValueToFloat | None = None) -> None:
+            self.to_float = to_float
+
+        def __call__(self, scores: list[SampleScore]) -> Value:
+            return 0.0
+
+    @metric(name="shard_inherited")
+    class Inherited(Base):
+        pass
+
+    @metric(name="shard_constructed")
+    class Constructed(MetricProtocol):
+        def __new__(cls, to_float: ValueToFloat | None = None) -> "Constructed":
+            return super().__new__(cls)
+
+        def __call__(self, scores: list[SampleScore]) -> Value:
+            return 0.0
+
+    @metric(name="shard_fields")
+    @dataclasses.dataclass
+    class Fields:
+        to_float: ValueToFloat = value_to_float()
+
+        def __call__(self, scores: list[SampleScore]) -> Value:
+            return 0.0
+
+    recorded = {"to_float": "to_float"}
+    for name, factory in [
+        ("shard_converted", ShardConverted),
+        ("shard_inherited", Inherited),
+        ("shard_constructed", Constructed),
+        ("shard_fields", Fields),
+    ]:
+        with pytest.raises(ShardSetError, match=f"'{name}' was given a function"):
+            _check_function_options(name, factory, recorded)
+    _check_function_options("shard_key_sum", ShardKeySum, {"key": "points"})
+    embedded = registry_params(grouped(ShardConverted(value_to_float()), "g"))
+    with pytest.raises(ShardSetError, match="'shard_converted' was given a function"):
+        _check_embedded(embedded)
 
 
 @pytest.mark.parametrize(
