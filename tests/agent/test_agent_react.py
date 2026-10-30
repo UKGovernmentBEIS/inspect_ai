@@ -1682,9 +1682,11 @@ async def test_react_after_answer_continues_after_submission(
     assert isinstance(last_assistant, ChatMessageAssistant)
     assert last_assistant.tool_calls
     assert last_assistant.tool_calls[0].function == "submit"
-    # its text is as generated, without the answer added for a return
-    assert last_assistant.text == _submit("ONE").message.text
     assert log.samples[0].output.completion.endswith("TWO")
+    # with the submit calls removed on return, both answers stay in the
+    # returned history as assistant text
+    returned = [m.text for m in log.samples[0].messages if m.role == "assistant"]
+    assert [text.split()[-1] for text in returned[-2:]] == ["ONE", "TWO"]
 
 
 async def test_react_after_answer_resets_attempts() -> None:
