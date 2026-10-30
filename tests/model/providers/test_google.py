@@ -2027,20 +2027,44 @@ async def test_continuation_with_several_candidates_is_not_continued() -> None:
     assert [c.stop_reason for c in output.choices] == ["max_tokens", "max_tokens"]
 
 
-def test_batch_request_dict_sends_continuation_token() -> None:
-    """A batch continuation sends its token at the top level, as base64."""
+def test_batch_request_dict_omits_automatic_continuation() -> None:
+    """automatic_continuation is an SDK setting, not part of the REST request."""
     from inspect_ai.model._providers._google_batch import batch_request_dict
 
-    config = GenerateContentConfig(
-        temperature=0.5, automatic_continuation=False, continuation_token=b"\x00tok"
-    )
+    config = GenerateContentConfig(temperature=0.5, automatic_continuation=False)
     request = batch_request_dict(
         config, [Content(role="user", parts=[Part.from_text(text="hi")])]
     )
 
-    assert request["continuation_token"] == base64.b64encode(b"\x00tok").decode()
-    # automatic_continuation is an SDK setting, not part of the REST request
     assert request["generation_config"] == {"temperature": 0.5}
+
+
+@pytest.mark.anyio
+async def test_batch_continuation_is_not_continued() -> None:
+    """The batch API has no continuations, so a batch response is never continued."""
+    mock_client = _create_mock_google_client(AsyncMock())
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.5-pro", base_url=None, api_key="test-key"
+        )
+        batcher = MagicMock()
+        batcher.generate_for_request = AsyncMock(
+            return_value=_leg([Part(text="partial")], FinishReason.CONTINUATION, b"t1")
+        )
+        api._batcher = batcher
+        result = await api.generate(
+            input=[ChatMessageUser(content="Think hard")],
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+
+    assert isinstance(result, tuple)
+    output = result[0]
+    assert isinstance(output, ModelOutput)
+    assert batcher.generate_for_request.call_count == 1
+    assert output.completion == "partial"
+    assert output.stop_reason == "max_tokens"
 
 
 # Tests for count_tokens with unpaired tool messages

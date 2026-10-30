@@ -685,7 +685,9 @@ class GoogleGenAIAPI(ModelAPI):
             legs.append(response)
             chain.add(response)
             continuation_token = _continuation_token(response)
-            if continuation_token is None:
+            # the batch API has no continuations: it rejects max_output_tokens
+            # above one request's cap
+            if continuation_token is None or self._batcher:
                 return legs
             leg_parameters = parameters.model_copy(
                 update={"continuation_token": continuation_token}
