@@ -827,10 +827,11 @@ class TaskDispatcher:
         self.in_slots = 0
         """Attempts running in task slots (counted against ``max_tasks``)."""
         self.model_counts: Counter[Model] = Counter()
-        """Attempts running in task slots, per model. Keyed by the ``Model`` object, not its
-        name: a provider may rewrite its model name mid-run (e.g. vLLM resolving
-        a LoRA spec on the first generate), and the connection pool that
-        balancing spreads load across belongs to the instance."""
+        """Attempts running in task slots, per model. Keyed by the ``Model``
+        object, not its name: a provider may rewrite its model name mid-run
+        (e.g. vLLM resolving a LoRA spec on the first generate), and the
+        connection pool that balancing spreads load across belongs to the
+        instance."""
         self.results: dict[int, EvalLog] = {}
         self.next_index = 0
         self.cancelled = False
