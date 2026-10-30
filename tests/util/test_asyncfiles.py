@@ -3994,6 +3994,9 @@ class _GatedFS(fsspec.asyn.AsyncFileSystem):
                 raise TimeoutError(path)
             if path not in self.files:
                 raise FileNotFoundError(path)
+            if start is not None and 0 < len(self.files[path]) <= start:
+                # as gcsfs and adlfs do (HTTP 416)
+                raise OSError(f"range starting at {start} is past the end of {path}")
             return self.files[path][start:end]
         except asyncio.CancelledError:
             self.backend_cancelled = True
@@ -4341,7 +4344,7 @@ async def test_async_fsspec_read_range_edges(gated_fs: _GatedFS) -> None:
             await afs.read_file_bytes_fully("gatedtest://bucket/missing.bin", 0, 0)
         with pytest.raises(ValueError):
             await afs.read_file_bytes_fully(_GATED_URL, -1, None)
-    # gcsfs's `_cat_file` sends an unsatisfiable range for an empty one
+    # older gcsfs releases' `_cat_file` sends an unsatisfiable range for an empty one
     assert gated_fs.cat_calls == 0
 
 
@@ -4431,7 +4434,7 @@ async def test_async_remote_read_file_bytes_cancelled_receive_keeps_offset(
     assert gated_fs.cat_ranges == [(start, start + _RANGE)] * 2
 
 
-async def test_async_remote_read_file_bytes_ends_short_on_empty_range(
+async def test_async_remote_read_file_bytes_ends_at_a_short_piece(
     gated_fs: _GatedFS, ranged_file: bytes
 ) -> None:
     short = 2 * _RANGE - 48
@@ -4444,23 +4447,26 @@ async def test_async_remote_read_file_bytes_ends_short_on_empty_range(
             with pytest.raises(EndOfStream):
                 await stream.receive()
     assert b"".join(chunks) == ranged_file[:short]
-    # the empty response ends the stream; nothing is requested after it
-    assert gated_fs.cat_ranges == _ranges(0, 2 * _RANGE) + [(short, short + _RANGE)]
+    # the short piece ends the stream; a range after it would start past the end
+    assert gated_fs.cat_ranges == _ranges(0, 2 * _RANGE)
 
 
 def test_http_keeps_the_synchronous_path() -> None:
     assert not asyncfiles._is_async_remote(filesystem("https://example.com/x.eval"))
 
 
-async def test_async_fsspec_read_file_into_strips_the_protocol(
-    monkeypatch: pytest.MonkeyPatch,
+async def test_reference_keeps_the_synchronous_path(
+    gated_fs: _GatedFS, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # as `fsspec.open()` did: `ReferenceFileSystem._info` doesn't strip it
-    monkeypatch.setitem(fsspec.config.conf, "reference", {"fo": {"foo": "contents"}})
+    # `ReferenceFileSystem._info` calls its targets' synchronous API, which
+    # can't run on fsspec's loop
+    gated_fs.release.set()
+    reference = {"fo": {"foo": [_GATED_URL]}, "fs": gated_fs}
+    monkeypatch.setitem(fsspec.config.conf, "reference", reference)
     dest = io.BytesIO()
     async with AsyncFilesystem() as afs:
         await afs.read_file_into("reference://foo", dest)
-    assert dest.getvalue() == b"contents"
+    assert dest.getvalue() == _PAYLOAD
 
 
 async def test_dir_over_a_sync_filesystem_keeps_the_synchronous_path(
