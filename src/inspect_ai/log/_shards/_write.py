@@ -1,7 +1,11 @@
 """Building the merged log's zip, recomputing metrics as samples pass through."""
 
+import collections.abc
 import functools
+import inspect
 import json
+import types
+import typing
 import zipfile
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from typing import TYPE_CHECKING, Any, BinaryIO, NamedTuple
@@ -93,11 +97,14 @@ def check_scoring_resolvable(header: EvalLog) -> None:
     :func:`_recompute_results`): their recorded reductions are told apart by
     name, so two reducers with one name (`at_least(1, value=0.5)` and
     `at_least(1)` are both `at_least_1`) are refused. A scorer declared
-    twice is refused too (see :func:`_declared_inputs`).
+    twice is refused too (see :func:`_declared_inputs`). So is a metric,
+    direct or embedded, given a function as an option (see
+    :func:`_check_function_options`).
 
     Raises:
         LookupError: A metric is not registered.
-        ShardSetError: Two scorers or two epoch reducers have the same name.
+        ShardSetError: Two scorers or two epoch reducers have the same name,
+            or a metric was given a function as an option.
     """
     from inspect_ai._util.registry import registry_info, registry_lookup
 
@@ -127,6 +134,7 @@ def check_scoring_resolvable(header: EvalLog) -> None:
             factory = registry_lookup("metric", metric.name)
             if factory is None or registry_info(factory).name != metric.name:
                 raise LookupError(_unregistered("Metric", metric.name))
+            _check_function_options(metric.name, factory, metric.options)
             _check_embedded(metric.options)
 
 
@@ -139,9 +147,12 @@ def _check_embedded(value: Any) -> None:
     from inspect_ai._util.registry import is_registry_dict, registry_lookup
 
     if is_registry_dict(value):
-        if registry_lookup(value["type"], value["name"]) is None:
+        factory = registry_lookup(value["type"], value["name"])
+        if factory is None:
             kind = "Metric" if value["type"] == "metric" else value["type"]
             raise LookupError(_unregistered(kind, value["name"]))
+        if value["type"] == "metric":
+            _check_function_options(value["name"], factory, value["params"])
         _check_embedded(value["params"])
     elif isinstance(value, dict):
         for item in value.values():
@@ -149,6 +160,64 @@ def _check_embedded(value: Any) -> None:
     elif isinstance(value, (list, tuple)):
         for item in value:
             _check_embedded(item)
+
+
+def _check_function_options(
+    name: str, factory: object, options: Mapping[str, Any] | None
+) -> None:
+    """Refuse a metric given a function as an option.
+
+    A log records a function option by its name only, so
+    `mean(to_float=value_to_float(correct=2))` is recorded as
+    `{"to_float": "to_float"}` and the merge cannot recreate it (decision:
+    Ransom, 2026-10-30). A string recorded for a parameter annotated as
+    callable (`ValueToFloat` or `Callable[...]`, alone or with `None`) is
+    refused. Parameters with no annotation, or one that cannot be resolved,
+    are not checked.
+
+    Raises:
+        ShardSetError: A metric was given a function as an option.
+    """
+    if not options or not callable(factory):
+        return
+    functions = _callable_parameters(factory)
+    for argument, value in options.items():
+        if argument in functions and isinstance(value, str):
+            raise ShardSetError(
+                f"The metric '{name}' was given a function for '{argument}'. "
+                "A log records only the function's name, not its "
+                "configuration, so the merge cannot recreate the metric and "
+                "does not merge such shards. Use a registered metric that "
+                "creates the function inside its factory, such as an @metric "
+                "that returns mean(to_float=value_to_float(correct=2))."
+            )
+
+
+def _callable_parameters(factory: Callable[..., object]) -> set[str]:
+    """The factory's parameters annotated as callable."""
+    function = inspect.unwrap(factory)
+    try:
+        hints = typing.get_type_hints(function)
+    except (NameError, TypeError, SyntaxError):
+        # a forward reference that does not resolve: keep the evaluated ones
+        hints = {
+            name: annotation
+            for name, annotation in inspect.get_annotations(function).items()
+            if not isinstance(annotation, str)
+        }
+    return {
+        name
+        for name, annotation in hints.items()
+        if name != "return" and _is_callable(annotation)
+    }
+
+
+def _is_callable(annotation: object) -> bool:
+    origin = typing.get_origin(annotation)
+    if origin is typing.Union or origin is types.UnionType:
+        members = [a for a in typing.get_args(annotation) if a is not type(None)]
+        return bool(members) and all(_is_callable(a) for a in members)
+    return annotation is collections.abc.Callable or origin is collections.abc.Callable
 
 
 def _unregistered(kind: str, name: str) -> str:

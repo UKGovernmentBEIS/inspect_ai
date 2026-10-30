@@ -1281,6 +1281,23 @@ documented limitation, and custom metrics should have names that differ
 from the built-ins or are package-qualified (decision: Ransom,
 2026-10-29).
 
+Function options (decision: Ransom, 2026-10-30). A log records a metric
+option given as a function by its name only (`registry_params`), so
+`mean(to_float=value_to_float(correct=2))` is recorded as
+`{"to_float": "to_float"}` and cannot be recreated. At each metric
+definition it visits, direct or embedded at any depth,
+`check_scoring_resolvable` reads the factory's parameter annotations and
+refuses with `ShardSetError` a recorded string for a parameter annotated
+as callable (`ValueToFloat` or `Callable[...]`, alone or with `None`).
+The message names the metric and the argument and points to the
+workaround: a registered metric that creates the function inside its
+factory. The refusal comes before anything is written, published or
+deleted. A parameter with no annotation, or one that does not resolve
+(a forward reference in a custom metric), is not checked and keeps the
+behaviour without this check: aggregation fails before publishing. The
+`@metric` wrapper sets `__wrapped__` to the factory so its annotations
+can be read.
+
 Solver-set scores (decision: Ransom, 2026-10-28). A score whose key
 matches no declared scorer (a solver set it in `state.scores`) is refused
 with `ShardSetError` before publishing or deleting, whether or not the
@@ -2190,6 +2207,14 @@ today.
   any I/O (a known limitation, decision: Ransom, 2026-10-30). Workers can
   still write shards elsewhere, and ctl's read-only discovery lists them;
   merging them needs support for that backend in its own change.
+- **Metrics given a function as an option** (`mean(to_float=...)`,
+  `aggregate(..., to_float=...)`) are refused by the merge, because the
+  log records only the function's name (a known limitation, decision:
+  Ransom, 2026-10-30); a registered metric that creates the function
+  inside its factory merges. Unannotated or unresolvable custom
+  parameters are not checked. The `@metric` wrapper now sets
+  `__wrapped__`, so `inspect.signature()` of a metric factory reports the
+  factory's parameters instead of `(*args, **kwargs)`.
 - **`eval_retry` of a merged log** is refused unless it was merged with
   no selection (`"none"`), which excludes every merged log `eval_set()`
   writes; `eval_set()` over the directory finishes those. An older Inspect
@@ -2612,6 +2637,17 @@ Per PR (numbers from "Implementation plan"):
      whose names collide with a per-key result name (`parts` reporting
      `other`, then `other`) merge to the same results as an unsharded
      run, with deletion enabled;
+   - function options: `mean(to_float=value_to_float(correct=2))`,
+     `aggregate(..., to_float=value_to_float())`,
+     `grouped(aggregate(..., mean(to_float=...)))` and a keyed
+     `{"verdict": [accuracy(to_float=...)]}` are refused on fresh and
+     writing incremental merges, with and without deletion, on asyncio
+     and Trio, with every file byte-identical; default converters, nested
+     wrappers with default converters, string and scalar options
+     (`grouped(group_key=...)`, `krippendorff_alpha(level=...)`) and a
+     registered metric that creates its converter merge to an unsharded
+     run's values; unannotated and unresolvable parameters are not
+     checked;
    - solver-set scores: with `delete_shards=True`, a solver-set score on a
      task with no scorer and task metrics, on a task with no scorer whose
      workers recorded the default `accuracy` and `stderr`, and beside a

@@ -51,8 +51,10 @@ from inspect_ai.scorer import (
     Target,
     Value,
     accuracy,
+    aggregate,
     at_least,
     grouped,
+    krippendorff_alpha,
     match,
     mean,
     mean_score,
@@ -1330,6 +1332,135 @@ def test_a_merge_holding_no_scores_needs_no_recorded_reductions(
     assert header.results is not None and header.results.scores[0].scored_samples == 0
     held = _keys(merged)
     assert held == (set() if snapshot == "startup" else {("1", 1), ("1", 2)})
+
+
+@metric
+def shard_verdict_mean_2() -> Metric:
+    """A registered metric that creates its converter itself."""
+    return aggregate("verdict", mean(), to_float=value_to_float(correct=2))
+
+
+async def _verdict(state: TaskState, target: Target) -> Score:
+    index = state.metadata["index"]
+    verdict = CORRECT if index % 2 else INCORRECT
+    return Score(value={"verdict": verdict, "points": index / 2})
+
+
+@scorer(
+    metrics=[
+        aggregate("points", mean()),
+        grouped(aggregate("points", mean()), "group"),
+        aggregate("verdict", accuracy()),
+        shard_verdict_mean_2(),
+    ]
+)
+def verdicts() -> Scorer:
+    return _verdict
+
+
+async def _ratings(state: TaskState, target: Target) -> Score:
+    return Score(value=list(state.metadata["ratings"]))
+
+
+@scorer(metrics=[krippendorff_alpha(level="ordinal")])
+def ratings() -> Scorer:
+    return _ratings
+
+
+def _verdict_task(metrics: list[Any] | None = None) -> Task:
+    """Six samples scored by `verdicts()`, or with `metrics` in its place."""
+    scorers = [verdicts(), ratings(), match()] if metrics is None else verdicts()
+    return Task(
+        dataset=[
+            Sample(
+                id=i,
+                input=f"question {i}",
+                target=MATCH if i % 2 else "something else",
+                metadata={
+                    "index": i,
+                    "group": "odd" if i % 2 else "even",
+                    "ratings": [i % 3, (i + i // 3) % 3],
+                },
+            )
+            for i in range(1, 7)
+        ],
+        solver=generate(),
+        scorer=scorers,
+        metrics=metrics,
+        name=TASK,
+    )
+
+
+def test_metrics_with_their_own_converters_merge_to_the_unsharded_values(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    unsharded = eval(
+        _verdict_task(),
+        model="mockllm/model",
+        log_dir=str(tmp_path / "unsharded"),
+        display="none",
+    )[0]
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", _verdict_task(), sample_id=[1, 2, 3])
+    assert merge_eval_log_shards(merged, allow_incomplete=True).written
+    _run(shards, "1", _verdict_task(), sample_id=[4, 5, 6])
+    log = _merge_on("trio", monkeypatch, merged, delete_shards=True).log
+    expected = _metric_values(unsharded)
+    assert _metric_values(log) == pytest.approx(expected)
+    assert ("verdicts", "shard_verdict_mean_2") in expected
+    assert ("ratings", "krippendorff_alpha") in expected
+
+
+_FUNCTION_OPTIONS: dict[str, tuple[Callable[[], list[Any]], str]] = {
+    "direct": (lambda: [mean(to_float=value_to_float(correct=2))], "inspect_ai/mean"),
+    "aggregate": (
+        lambda: [aggregate("verdict", mean(), to_float=value_to_float())],
+        "inspect_ai/aggregate",
+    ),
+    "nested": (
+        lambda: [
+            grouped(
+                aggregate("verdict", mean(to_float=value_to_float(correct=2))),
+                "group",
+            )
+        ],
+        "mean",
+    ),
+    "keyed": (
+        lambda: [{"verdict": [accuracy(to_float=value_to_float(correct=2))]}],
+        "inspect_ai/accuracy",
+    ),
+}
+
+
+@pytest.mark.parametrize("merge", ["fresh", "incremental"])
+@pytest.mark.parametrize("option", list(_FUNCTION_OPTIONS))
+def test_a_metric_given_a_function_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, option: str, merge: str
+) -> None:
+    from inspect_ai.log._shards import _write
+
+    metrics, name = _FUNCTION_OPTIONS[option]
+    merged, shards = _paths(tmp_path)
+    if merge == "incremental":
+        # a merged log written before the refusal, from a shard with no samples
+        running = _run(shards, "0", _verdict_task(metrics()), sample_id=[1, 2, 3])
+        _as_running(running, keep=set())
+        with monkeypatch.context() as patched:
+            patched.setattr(
+                _write, "_check_function_options", lambda *args: None, raising=False
+            )
+            assert merge_eval_log_shards(merged, allow_incomplete=True).written
+    _run(shards, "0", _verdict_task(metrics()), sample_id=[1, 2, 3])
+    _run(shards, "1", _verdict_task(metrics()), sample_id=[4, 5, 6])
+    before = _files(str(tmp_path))
+    message = f"metric '{name}' was given a function for 'to_float'"
+    for delete in (False, True):
+        with pytest.raises(ShardSetError, match=message):
+            merge_eval_log_shards(merged, delete_shards=delete)
+        with pytest.raises(ShardSetError, match=message):
+            _merge_on("trio", monkeypatch, merged, delete_shards=delete)
+    assert _files(str(tmp_path)) == before
 
 
 def _check_invalidated(merged: str, expected: bool) -> None:
@@ -2854,6 +2985,24 @@ def test_metrics_nested_in_wrappers_are_checked(
     monkeypatch.delitem(registry._registry, "metric:shard_custom_nested")
     with pytest.raises(LookupError, match="Metric 'shard_custom_nested'"):
         _check_embedded(options)
+
+
+def test_function_options_are_checked_only_where_annotated() -> None:
+    from inspect_ai.log._shards._write import _check_function_options
+
+    def factory(to_float=None, convert=None):
+        return None
+
+    recorded = {"to_float": "to_float", "convert": "convert"}
+    _check_function_options("unannotated", factory, recorded)
+    # one annotation does not resolve: the evaluated one is still checked
+    factory.__annotations__ = {"to_float": "NotDefined", "convert": Callable[[], int]}
+    with pytest.raises(
+        ShardSetError, match="'partial' was given a function for 'convert'"
+    ):
+        _check_function_options("partial", factory, recorded)
+    factory.__annotations__ = {"to_float": "NotDefined"}
+    _check_function_options("unresolved", factory, recorded)
 
 
 @pytest.mark.parametrize(
