@@ -417,6 +417,23 @@ async def test_modify_rewrites_arguments_handed_to_the_scaffold() -> None:
     assert run.output.message.tool_calls[0].arguments == {"cmd": "ls"}
 
 
+async def test_modify_rewrites_only_its_call_when_ids_are_shared() -> None:
+    risky = ToolCall(id="1", function="bash", arguments={"cmd": "rm -rf /"})
+    read = ToolCall(id="1", function="read_file", arguments={"path": "a.txt"})
+    run = await run_bridge(
+        [tool_calls_output(risky, read)],
+        approval=[
+            ApprovalPolicy(modifying_approver({"cmd": "ls"}), "bash"),
+            ApprovalPolicy(auto_approver(), "*"),
+        ],
+    )
+
+    assert run.output.message.tool_calls == [
+        ToolCall(id="1", function="bash", arguments={"cmd": "ls"}),
+        read,
+    ]
+
+
 async def test_modify_preserves_the_original_call_in_the_transcript() -> None:
     """The log must still show what the model proposed, not what was approved.
 
@@ -786,7 +803,11 @@ async def test_sandbox_approver_termination_ends_the_sample_once(
 
     assert [type(ex) for ex in unwound] == [TerminateSampleError]
     reason = cast(TerminateSampleError, unwound[0]).reason
-    assert reason.startswith("Tool call approver ")
+    assert reason.startswith(
+        f"Tool call approval or the sentinel rejected {MAX_CONSECUTIVE_REJECTIONS} "
+        if repeated
+        else "Tool call approver requested termination"
+    )
     assert replies == [f"Terminating: {reason}"]
     assert not bridge._failure_requested.is_set()
 

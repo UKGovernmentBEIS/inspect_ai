@@ -23,6 +23,7 @@ from shortuuid import uuid
 from typing_extensions import TypeIs
 
 from inspect_ai._sentinel._agent_state import bridge_request
+from inspect_ai._sentinel._context import checks_tool_calls
 from inspect_ai._util._async import raise_unwrapped
 from inspect_ai._util.content import (
     Content,
@@ -46,10 +47,19 @@ from inspect_ai.agent._bridge._approval import (
     terminate_for_repeated_rejections,
 )
 from inspect_ai.agent._bridge._errors import BridgePolicyError, ResponseFilterError
+from inspect_ai.agent._bridge._sentinel import (
+    Produced,
+    sentinel_tokens,
+    sentinel_tool_results,
+)
 from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
 from inspect_ai.model._agent_message import validate_agent_message
 from inspect_ai.model._call_tools import get_tools_info
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageUser,
+)
 from inspect_ai.model._generate_config import (
     GenerateConfig,
     ResponseSchema,
@@ -69,6 +79,7 @@ from inspect_ai.model._model import (
     active_model,
     get_model,
     model_roles,
+    observe_generations,
     requested_model,
     use_model_event_sink,
 )
@@ -84,7 +95,7 @@ from inspect_ai.tool._tools._web_search._web_search import (
 )
 from inspect_ai.util._json import JSONSchema
 from inspect_ai.util._limit import LimitExceededError
-from inspect_ai.util._span import current_span_id
+from inspect_ai.util._span import current_agent_span_id, current_span_id
 
 if TYPE_CHECKING:
     from inspect_ai.event._model import ModelEvent
@@ -869,10 +880,13 @@ async def bridge_generate(
     returns None when the scaffold sent no model, and both reset when the
     request completes.
 
-    Tool calls in the output are approved before it is handed back to the scaffold. A
-    rejected call is not edited out of the response — instead the model is told it was
-    rejected and generation is retried, so the scaffold sees only the replacement (see
-    `_approval.apply_bridge_tool_approval`).
+    Tool calls in the output are approved, and go through the sentinel's `tool_call`
+    stage, before it is handed back to the scaffold. A rejected call is not edited
+    out of the response — instead the model is told it was rejected and generation
+    is retried, so the scaffold sees only the replacement (see
+    `_approval.apply_bridge_tool_approval`). Tool results in `input` for calls an
+    earlier response handed over go through the sentinel's `tool_result` stage
+    first.
 
     `routing` is how the dialect resolved `model`. Its requested name is recorded
     on the `ModelEvent` of the client's request (whether the filter or the default
@@ -886,7 +900,15 @@ async def bridge_generate(
     if routing is not None and routing.redirected:
         _warn_redirect(routing, bridge.model)
 
-    with bridged_request_scope(requested_model), bridge_request():
+    generations = _Generations()
+    with (
+        bridged_request_scope(requested_model),
+        bridge_request(),
+        # only the sentinel's tool steps need to know what produced the response
+        observe_generations(generations.record)
+        if checks_tool_calls()
+        else nullcontext(),
+    ):
         return await _bridge_generate_impl(
             bridge,
             model,
@@ -897,6 +919,7 @@ async def bridge_generate(
             declared_in_input,
             routing,
             finalize_config,
+            generations,
         )
 
 
@@ -914,6 +937,7 @@ async def _bridge_generate_impl(
         GenerateConfig,
     ]
     | None,
+    generations: "_Generations",
 ) -> tuple[ModelOutput, ChatMessageUser | None]:
     """Implementation of bridge_generate (see wrapper)."""
     # restore operator provenance lost to a bridged scaffold's round-trip (e.g.
@@ -921,6 +945,8 @@ async def _bridge_generate_impl(
     # before compaction/recording so the restored source persists in both the
     # ModelEvent input and state.messages (and thus the eval log).
     _restore_operator_message_source(bridge, input)
+
+    await sentinel_tool_results(bridge, input)
 
     # get compaction function and run compaction once before retry loop
     compact = bridge.compaction(tools, model)
@@ -942,6 +968,7 @@ async def _bridge_generate_impl(
 
     refusals = 0
     rejections = 0
+    replayed: list[ChatMessage] = []
     while True:
         # Re-stamp the ambient context to the default so a filter-set context
         # from a refused attempt doesn't leak into the next retry — attempt
@@ -1039,17 +1066,23 @@ async def _bridge_generate_impl(
             await compact.record_output(input_messages, output)
 
         # Inside the refusal-retry loop so a content_filter replacement is retried.
+        # what produced the response, by the object handed over: the
+        # generation's output, or what the response filter returned
+        produced: ModelOutput | None = output
         if bridge.response_filter is not None:
             # under the bridge's approval policies, as a filter may generate
             with bridge_approval_scope(bridge.approval):
-                output = await _apply_response_filter(
-                    bridge.response_filter,
+                filtered = await _apply_response_filter(
+                    generations.tracking(bridge.response_filter, output),
                     model,
                     output,
                     GenerateInput(
                         input_messages, get_tools_info(tools), tool_choice, config
                     ),
                 )
+            if filtered is not output:
+                produced = generations.returned
+            output = filtered
 
         # Check for refusal and retry if needed
         if not output.empty and output.stop_reason == "content_filter":
@@ -1070,20 +1103,35 @@ async def _bridge_generate_impl(
         # in-input declarations alike), which a filter may have rewritten. Approval
         # review is "utility" work — an approver's own model calls should read as
         # utility, not as the agent whose calls are under review.
+        declarations: list[ToolInfo | Tool] = list(tools)
+        if declared_in_input is not None:
+            declarations.extend(declared_in_input(input_messages))
         with agent_bridge_context_scope(_UTILITY_CONTEXT):
-            reviewed = await apply_bridge_tool_approval(bridge, output, input_messages)
+            reviewed = await apply_bridge_tool_approval(
+                bridge,
+                output,
+                input_messages,
+                input + replayed,
+                declarations,
+                producer=generations.producer(produced),
+            )
         if reviewed.rejection is None:
-            declarations: list[ToolInfo | Tool] = list(tools)
-            if declared_in_input is not None:
-                declarations.extend(declared_in_input(input_messages))
+            # with a sentinel, each call is handed over under a token identifying
+            # its execution, which its result comes back under
+            output, checks = (
+                sentinel_tokens(bridge, reviewed.output, reviewed.sentinel)
+                if reviewed.sentinel is not None
+                else (reviewed.output, None)
+            )
             # executions are placed in the proposing ModelEvent's span; only one
             # a sink chose is stored, so a rotating checkpoint span is followed
-            bridge.register_tool_execution_grants(
-                reviewed.output.message.tool_calls or [],
+            bridge._register_tool_execution_grants(
+                output.message.tool_calls or [],
                 declarations,
+                checks,
                 span_id=sink.span_id if sink is not None else None,
             )
-            return reviewed.output, c_message
+            return output, c_message
 
         rejections += 1
         if rejections >= MAX_CONSECUTIVE_REJECTIONS:
@@ -1092,6 +1140,7 @@ async def _bridge_generate_impl(
         # accumulate onto original_input (rather than input_messages) since that is
         # what the top of the loop resets to, and any filter rewrite is per-attempt
         original_input = original_input + reviewed.rejection
+        replayed = replayed + reviewed.rejection
 
 
 class _SpanCapturingSink:
@@ -1146,6 +1195,74 @@ def _span_capturing_sink(inner: ModelEventSink) -> _SpanCapturingSink:
     if isinstance(inner, _StartingModelEventSink):
         return _StartingSpanCapturingSink(inner)
     return _SpanCapturingSink(inner)
+
+
+class _Generations:
+    """The generations of one bridged request, by the output object each returned.
+
+    The sentinel's tool steps take what the model was sent from the generation
+    that produced the response handed over. Messages from different
+    generations can be equal and share an id (a response filter that
+    regenerates, or concurrent bridges), so only the object identifies the
+    generation. A response filter's argument is a copy of the generation's
+    output, so it is recorded as that generation too.
+
+    An output has a producer only while its response is unchanged since its
+    generation (`_same_response` to the event's snapshot of it): one a filter
+    edited, or grafted another generation's message or calls into, no longer
+    answers that input.
+    Nor does an output that is no recorded generation's (a filter's copy or
+    replacement), or one two generations returned, or one whose event kept a
+    live message (one it could not serialize), since an edit to that message
+    changes the snapshot too.
+
+    Each generation is recorded with the agent span current while it ran (a
+    model event sink's `on_start` can choose it), so the call's steps are in
+    the conversation its generation's stages were.
+    """
+
+    def __init__(self) -> None:
+        # the outputs are held, so their ids are not reused while recorded; an
+        # output two generations returned is recorded without a producer
+        self._producers: dict[int, tuple[ModelOutput, Produced | None]] = {}
+        self.returned: ModelOutput | None = None
+        """What the response filter last returned, before it is validated."""
+
+    def record(self, output: ModelOutput, event: "ModelEvent") -> None:
+        recorded = self._producers.get(id(output))
+        twice = recorded is not None and recorded[0] is output
+        produced = Produced(event, current_agent_span_id())
+        self._producers[id(output)] = (output, None if twice else produced)
+
+    def producer(self, output: ModelOutput | None) -> Produced | None:
+        recorded = self._producers.get(id(output)) if output is not None else None
+        if recorded is None or recorded[0] is not output or recorded[1] is None:
+            return None
+        produced = recorded[1]
+        logged = produced.event.output
+        if any(
+            ours.message is theirs.message
+            for ours, theirs in zip(output.choices, logged.choices)
+        ):
+            return None
+        return produced if _same_response(output, logged) else None
+
+    def tracking(
+        self, response_filter: ModelResponseFilter, generated: ModelOutput
+    ) -> ModelResponseFilter:
+        """`response_filter`, recording its argument as `generated` and what it returns."""
+
+        async def tracked(
+            model: Model, output: ModelOutput, input: GenerateInput
+        ) -> ModelOutput | None:
+            produced = self.producer(generated)
+            if produced is not None:
+                self._producers[id(output)] = (output, produced)
+            self.returned = None
+            self.returned = await response_filter(model, output, input)
+            return self.returned
+
+        return tracked
 
 
 def resolve_generate_config(
@@ -1587,3 +1704,24 @@ def apply_message_ids(bridge: AgentBridge, messages: list[ChatMessage]) -> None:
     # content, but also ensuring that if an id is already used we generate a new one)
     for message in messages:
         message.id = bridge._id_for_message(message, messages)
+
+
+def _same_response(output: ModelOutput, logged: ModelOutput) -> bool:
+    """Whether `output` hands over the response `logged` recorded, as the model gave it.
+
+    Display-only annotations a model event sink may add to the logged snapshot
+    are not compared: a tool call's `view` (inspect_swe's consumers attach
+    their own renderings in `on_complete`), and a message's `metadata` and
+    `source`, which never reach a model. Everything else in each choice's
+    message is: its id, content and tool calls.
+    """
+    return len(output.choices) == len(logged.choices) and all(
+        _handed(ours.message) == _handed(theirs.message)
+        for ours, theirs in zip(output.choices, logged.choices)
+    )
+
+
+def _handed(message: ChatMessageAssistant) -> dict[str, Any]:
+    return message.model_dump(
+        exclude={"metadata": True, "source": True, "tool_calls": {"__all__": {"view"}}}
+    )

@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, AsyncIterator
 import anyio
 from shortuuid import uuid
 
-from inspect_ai._sentinel._context import warn_sentinel_bridged
 from inspect_ai._util._async import raise_unwrapped
 from inspect_ai._util.working import untracked_sandbox_execs
 from inspect_ai.model._compaction.types import CompactionStrategy
@@ -204,8 +203,6 @@ async def sandbox_agent_bridge(
             (see ``ModelResponseFilter``). Return ``None`` to pass through;
             return a ``ModelOutput`` to replace the response.
     """
-    warn_sentinel_bridged()
-
     # instance id for this bridge
     instance = f"proxy_{uuid()}"
 

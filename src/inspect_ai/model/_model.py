@@ -1097,6 +1097,11 @@ class Model:
             # snapshot at emission time) pick up the timing fields set above
             transcript()._event_updated(event)
 
+            # before a refusal is raised, which carries this same output
+            observer = _generation_observer.get()
+            if observer is not None:
+                observer(output, event)
+
             # fail the sample on a refusal if requested. Raised here, after the
             # ModelEvent is complete (so the transcript shows the refusal and
             # then the error) and after usage/refusal accounting has run.
@@ -3219,6 +3224,29 @@ def _model_event_sink_span(input: list[ChatMessage]) -> Iterator[None]:
             yield
     else:
         yield
+
+
+_generation_observer: ContextVar[Callable[[ModelOutput, "ModelEvent"], None] | None] = (
+    ContextVar("_generation_observer", default=None)
+)
+
+
+@contextlib.contextmanager
+def observe_generations(
+    observer: Callable[[ModelOutput, "ModelEvent"], None],
+) -> Iterator[None]:
+    """Call `observer` with each output `generate()` returns and its `ModelEvent`.
+
+    For the duration of the block, in this context and tasks started from it.
+    The output is the object `generate()` returns (or a `ModelRefusalError`
+    carries), so a caller can tell which generation produced an output it is
+    handed by identity. An inner block replaces the observer for its duration.
+    """
+    token = _generation_observer.set(observer)
+    try:
+        yield
+    finally:
+        _generation_observer.reset(token)
 
 
 _requested_model: ContextVar[str | None] = ContextVar("_requested_model", default=None)

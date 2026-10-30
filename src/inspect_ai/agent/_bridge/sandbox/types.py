@@ -24,7 +24,8 @@ from inspect_ai.model._model import (
 )
 from inspect_ai.tool import Tool
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
-from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool_call import ToolCall, ToolCallViewer
+from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._checkpoint.checkpointer import Checkpointer
 
@@ -33,6 +34,8 @@ if TYPE_CHECKING:
     # through approval -> event -> scorer while `inspect_ai.agent` is still
     # initializing. Same reason `model/_call_tools.py` defers it.
     from inspect_ai.approval._policy import ApprovalPolicy
+
+    from .._sentinel import SentinelCheck
 
 
 logger = getLogger(__name__)
@@ -171,14 +174,28 @@ class SandboxAgentBridge(AgentBridge):
         the response never reached the scaffold, but only ever authorizes the
         exact proposed action.
         """
+        self._register_tool_execution_grants(calls, tools, None, span_id=span_id)
+
+    def _register_tool_execution_grants(
+        self,
+        calls: Sequence[ToolCall],
+        tools: Sequence[ToolInfo | Tool],
+        checks: Sequence["SentinelCheck"] | None,
+        *,
+        span_id: str | None = None,
+    ) -> None:
+        # a call's sentinel check is held with its proposal, so an evicted grant
+        # takes the check with it and the call is denied (or, on an exempt
+        # server, checked without the proposal's context)
         declared: dict[str, list[ToolInfo]] = {}
         for tool in tools:
             if isinstance(tool, ToolInfo):
                 declared.setdefault(tool.name, []).append(tool)
-        for call in calls:
+        for index, call in enumerate(calls):
             targets, arguments = _proposed_call(
                 self.bridged_tools, self.served_tools, call, declared
             )
+            check = checks[index] if checks is not None else None
             if len(targets) > 1:
                 warn_once(
                     logger,
@@ -187,7 +204,7 @@ class SandboxAgentBridge(AgentBridge):
                     + ", ".join(f"{t.server}/{t.tool}" for t in targets)
                     + "); an execution grant was registered for each of them.",
                 )
-            proposal = _Proposal(call, span_id)
+            proposal = _Proposal(call, span_id, check)
             for target in targets:
                 if (
                     len(self._tool_execution_grants)
@@ -277,6 +294,17 @@ class SandboxAgentBridge(AgentBridge):
         keeps exact matching, since an undeclared key there can be a real
         argument.
         """
+        matched = self._matching_grants(server, tool, arguments)
+        if not matched:
+            return None
+        grant = self._tool_execution_grants[matched[0]]
+        del self._tool_execution_grants[matched[0]]
+        return grant
+
+    def _matching_grants(
+        self, server: str, tool: str, arguments: dict[str, Any]
+    ) -> list[int]:
+        """Indices of the pending grants `consume_tool_execution_grant` could consume, oldest first."""
         schema = self.served_tools.get(_BridgedToolId(server=server, tool=tool))
         declared_properties = (
             schema.parameters.properties
@@ -288,36 +316,59 @@ class SandboxAgentBridge(AgentBridge):
             for index, grant in enumerate(self._tool_execution_grants)
             if grant.server == server and grant.tool == tool
         ]
-        matched = next(
-            (index for index, granted in pending if json_equal(granted, arguments)),
-            None,
-        )
-        if matched is None and declared_properties is not None:
-            matched = next(
-                (
-                    index
-                    for index, granted in pending
-                    if isinstance(granted, dict)
-                    and json_equal(
-                        {
-                            key: value
-                            for key, value in granted.items()
-                            if key in declared_properties
-                        },
-                        arguments,
-                    )
-                ),
-                None,
-            )
-        if matched is None:
-            return None
-        grant = self._tool_execution_grants[matched]
-        del self._tool_execution_grants[matched]
-        return grant
+        matched = [
+            index for index, granted in pending if json_equal(granted, arguments)
+        ]
+        if not matched and declared_properties is not None:
+            matched = [
+                index
+                for index, granted in pending
+                if isinstance(granted, dict)
+                and json_equal(
+                    {
+                        key: value
+                        for key, value in granted.items()
+                        if key in declared_properties
+                    },
+                    arguments,
+                )
+            ]
+        return matched
+
+    def _candidate_checks(
+        self, server: str, tool: str, arguments: dict[str, Any]
+    ) -> list["SentinelCheck"]:
+        """The sentinel checks of the distinct proposals a host call could execute."""
+        checks: dict[str | None, "SentinelCheck"] = {}
+        for index in self._matching_grants(server, tool, arguments):
+            check = self._tool_execution_grants[index].proposal.check
+            if check is not None:
+                checks.setdefault(check.token, check)
+        return list(checks.values())
 
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
         """The bridged tool call `call` makes through a dispatcher (`_dispatched_call`)."""
         return _dispatched_call(self.bridged_tools, call)
+
+    def _host_tool_viewer(
+        self, call: ToolCall, tools: Sequence[ToolInfo | Tool]
+    ) -> ToolCallViewer | None:
+        dispatched = self.dispatched_call(call)
+        if dispatched is not None:
+            target = _BridgedToolId(
+                server=dispatched.server, tool=dispatched.target.function
+            )
+        else:
+            declarations = [
+                tool
+                for tool in tools
+                if isinstance(tool, ToolInfo) and tool.name == call.function
+            ]
+            targets = _resolve_by_served_content(self.served_tools, declarations)
+            if len(targets) != 1:
+                return None
+            target = targets[0]
+        return ToolDef(self.bridged_tools[target.server][target.tool]).viewer
 
     def request_fail(self, error: Exception) -> None:
         """Fail the sample with `error` from a bridged generation or tool call.
@@ -350,14 +401,19 @@ class _Proposal:
     and no pairing state outlives the bounded grant store.
     """
 
-    __slots__ = ("call", "span_id", "paired")
+    __slots__ = ("call", "span_id", "check", "paired")
 
-    def __init__(self, call: ToolCall, span_id: str | None) -> None:
+    def __init__(
+        self, call: ToolCall, span_id: str | None, check: "SentinelCheck | None"
+    ) -> None:
         self.call = call
         """The proposing call, with the function name as the model saw it."""
 
         self.span_id = span_id
         """Span to record executions under, or `None` for the span current then."""
+
+        self.check = check
+        """The sentinel's `tool_result` check for the call, if one is active."""
 
         self.paired = False
         """Whether an execution has already taken `call.id`."""

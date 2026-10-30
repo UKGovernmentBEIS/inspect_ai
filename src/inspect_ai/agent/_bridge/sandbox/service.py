@@ -18,7 +18,7 @@ from ..bridge import filter_sandbox_client_headers
 from ..completions import inspect_completions_api_request
 from ..google_api import inspect_google_api_request
 from ..responses import inspect_responses_api_request
-from .host_tool import execute_host_tool
+from .host_tool import CALL_TOOL_METHOD, execute_host_tool
 from .types import SandboxAgentBridge
 
 logger = getLogger(__name__)
@@ -119,7 +119,7 @@ async def run_model_service(
                 generate_google(web_search, code_execution, bridge), bridge
             ),
             "list_tools": list_tools(bridge),
-            "call_tool": call_tool(bridge),
+            CALL_TOOL_METHOD: call_tool(bridge),
         },
         until=lambda: False,
         sandbox=sandbox,

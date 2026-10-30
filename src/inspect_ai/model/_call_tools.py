@@ -1034,7 +1034,7 @@ async def _apply_tool_review(
             call,
             result,
             output,
-            truncated,
+            truncated or False,
             tool_def.viewer if tool_def else None,
             conversation,
         )
