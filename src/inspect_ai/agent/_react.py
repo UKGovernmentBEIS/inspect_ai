@@ -260,7 +260,14 @@ def react(
                 # or if a message or token limit is hit
                 while True:
                     # drain any operator-supplied messages for this turn
-                    state.messages.extend(await ch.before_turn(state.messages))
+                    state.messages.extend(
+                        await ch.before_turn(state.messages, state=state)
+                    )
+                    if ch._take_rewritten():
+                        await _reset_compaction(compact, state.messages)
+                        # the reduced input this flag describes is gone, so
+                        # the next overflow may force compaction again
+                        overflow_compacted = False
 
                     # checkpoint at turn boundary (no-op when policy says so)
                     await cp.tick()
@@ -501,7 +508,14 @@ def react_no_submit(
                 # main loop
                 while True:
                     # drain any operator-supplied messages for this turn
-                    state.messages.extend(await ch.before_turn(state.messages))
+                    state.messages.extend(
+                        await ch.before_turn(state.messages, state=state)
+                    )
+                    if ch._take_rewritten():
+                        await _reset_compaction(compact, state.messages)
+                        # the reduced input this flag describes is gone, so
+                        # the next overflow may force compaction again
+                        overflow_compacted = False
 
                     # checkpoint at turn boundary (no-op when policy says so)
                     await cp.tick()
@@ -698,21 +712,40 @@ def _agent_compact(
 ) -> Compact | None:
     # create compact function
     if compaction is not None:
-        # derive the always-preserve prefix (system messages + sample input)
-        # rather than using `messages` wholesale: on a checkpoint resume
-        # `messages` is the full restored conversation, and treating it all
-        # as prefix would make every subsequent compaction re-prepend the
-        # entire pre-crash history to its output.
-        partitioned = partition_messages(messages)
         return create_compaction(
             strategy=compaction,
-            prefix=partitioned.system + partitioned.input,
+            prefix=_compaction_prefix(messages),
             tools=tools,
             model=model if isinstance(model, str | Model | None) else None,
             checkpointer=checkpointer,
         )
     else:
         return None
+
+
+def _compaction_prefix(messages: list[ChatMessage]) -> list[ChatMessage]:
+    """The always-preserve prefix: system messages and sample input.
+
+    Not `messages` wholesale: on a checkpoint resume `messages` is the full
+    restored conversation, and treating it all as prefix would make every
+    subsequent compaction re-prepend the entire pre-crash history to its
+    output.
+    """
+    partitioned = partition_messages(messages)
+    return partitioned.system + partitioned.input
+
+
+async def _reset_compaction(
+    compact: Compact | None, messages: list[ChatMessage]
+) -> None:
+    """Rebuild the handler's view of a conversation the turn gate rewrote.
+
+    The handler adds only messages whose ids it has not seen, so without a
+    reset a changed or removed message would stay in the model input as it
+    was.
+    """
+    if compact is not None:
+        await compact.reset(_compaction_prefix(messages))
 
 
 def _absorb(state: AgentState, generated: AgentState) -> None:

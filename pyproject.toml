@@ -2,13 +2,6 @@
 requires = ["setuptools>=64", "setuptools_scm[toml]>=9"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools.dynamic]
-dependencies = { file = ["requirements.txt"] }
-optional-dependencies.dev = { file = ["requirements-dev.txt"] }
-optional-dependencies.doc = { file = ["requirements-doc.txt"] }
-optional-dependencies.dist = { file = ["requirements-dist.txt"] }
-optional-dependencies.math = { file = ["requirements-math.txt"] }
-
 [tool.setuptools_scm]
 # The base version for a checkout with no release tags, such as Dependabot's
 # tagless shallow clone. Without it the project builds as 0.1.devN, below the
@@ -169,7 +162,49 @@ authors = [{ name = "UK AI Security Institute" }]
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT License" }
-dynamic = ["version", "dependencies", "optional-dependencies"]
+dynamic = ["version"]
+dependencies = [
+  "agent-client-protocol>=0.12.0",  # 0.12 renamed UntitledMultiSelectItems and added the ElicitationOtherPropertySchema catch-all
+  "aiobotocore>=2.18.0",
+  "anyio>=4.14.2",  # 4.14 fixes asyncio Lock/Semaphore waiter deadlock after cancellation (agronholm/anyio#1145); 4.14.2 adds Process._transport, used by run_subprocess to close pipes (agronholm/anyio#1166)
+  "beautifulsoup4>=4.10.0",
+  "boto3",
+  "click>=8.1.3,!=8.2.0,!=8.2.2,!=8.3.0,!=8.3.1",  # 8.2.2/8.3.0/8.3.1 break optional flag values (pallets/click#3084, fixed in 8.3.2)
+  "debugpy",
+  "docstring-parser>=0.16",
+  "fastapi>=0.119.0",
+  "fsspec>=2023.1.0,<=2026.6.0",  # align with hf datasets to prevent pip errors
+  "httpx",
+  "ijson>=3.2.0",
+  "jsonlines>=3.0.0",
+  "jsonpatch>=1.32",
+  "jsonpath-ng>=1.8.0",
+  "jsonref>=1.1.0",
+  "jsonschema>3.1.1",
+  "markdown-it-py>=2.2.0",
+  "mmh3>3.1.0",
+  "nest_asyncio2>=1.7.4",
+  "numpy",
+  "platformdirs>=2.3.0",
+  "psutil",
+  "pydantic>=2.13.0",
+  "python-dotenv>=0.16.0",
+  "pyyaml",
+  "rich>=13.3.3,!=14.0.0",
+  "s3fs>=2023",
+  "semver>=3.0.0",
+  "shortuuid",
+  "sniffio",
+  "tenacity",
+  "textual>=6.2.0",
+  "tiktoken>=0.12.0",
+  "typing_extensions>=4.14.0",
+  "universal-pathlib>=0.2.6",
+  "uvicorn",
+  "zipfile-zstd>=0.0.4; python_version < '3.14'",
+  "zipp>=3.19.1",  # not directly required, pinned by Snyk to avoid a vulnerability
+  "zstandard>=0.20.0",
+]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Environment :: Console",
@@ -181,6 +216,96 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
   "Typing :: Typed",
   "Operating System :: OS Independent",
+]
+
+[project.optional-dependencies]
+dev = [
+  "adlfs>=2025.8.0",
+  "anthropic>=2.0.0",
+  "antlr4-python3-runtime>=4.9.3,<=4.13.2,!=4.10.*,!=4.12.*,!=4.13.0,!=4.13.1",
+  "apprise",
+  "aws-bedrock-token-generator",
+  "azure-ai-inference",
+  "azure-identity",
+  "brotli",  # tests decode the agent bridge's forwarded Accept-Encoding: br; not a runtime dependency, since it makes httpx advertise br on every request
+  "google-genai>=2.14.0",
+  "griffe>=2",
+  "groq>=0.28.0",
+  "huggingface_hub>=1.6.0",
+  "inspect-scout>=0.5.5",
+  "inspect-sentinel>=0.3.0",
+  "ipython",
+  "jsonpath-ng",
+  "latex2sympy2-extended==1.11.0",
+  "markdown",
+  "mcp>=1.10.0",
+  "mistralai>=3.0.0",
+  "moto[server]>=5.1.5",
+  "mypy>=2.3.0",  # older mypy emits a `misc` error at a site where the ignore was removed as unused
+  "nbformat",
+  "openai>=3.4.0",
+  "pandas>=2.0.0",
+  "pandas-stubs",
+  "panflute",
+  "pip",
+  # 4.4.0 adds `language: unsupported`, which .pre-commit-config.yaml uses
+  "pre-commit>=4.4.0",
+  # Hook tools run from this environment (.pre-commit-config.yaml)
+  "pre-commit-hooks==4.5.0",
+  "pyarrow>=10.0.1",
+  "pyarrow-stubs",
+  "pytest",
+  "pytest-cov",
+  "pytest-dotenv",
+  "pytest-mock",
+  # --report-log records per-worker test order for scripts/pytest_bisect.py
+  "pytest-reportlog",
+  "pytest-textual-snapshot",
+  "pytest-timeout",
+  "pytest-watcher",
+  "pytest-xdist",
+  "ruff==0.9.6",
+  "textual-dev>=0.86.2",
+  "together>=2.0.0",
+  "trio",
+  "trustme",
+  "types-aiobotocore",
+  "types-beautifulsoup4",
+  "types-boto3",
+  "types-botocore",
+  "types-grpcio",
+  "types-jsonpatch",
+  "types-jsonschema",
+  "types-Markdown",
+  "types-protobuf",
+  "types-psutil",
+  "types-python-dateutil",
+  "types-PyYAML",
+  "types-regex",
+  "typos==1.31.2",
+  "xai_sdk>=1.18.0",
+  # zipfile-zstd patches zipfile to support zstd compression (for creating test fixtures)
+  "zipfile-zstd>=0.0.4; python_version < '3.14'",
+]
+doc = [
+  "click>=8.2.0",
+  "griffe>=2",
+  "jupyter",
+  "markdown",
+  "nbclient",
+  "panflute",
+  "pyyaml",
+  "quarto-cli>=1.9.36",
+  "types-PyYAML",
+]
+dist = [
+  "build",
+  "check-wheel-contents",
+  "twine",
+]
+math = [
+  "antlr4-python3-runtime>=4.9.3,<=4.13.2,!=4.10.*,!=4.12.*,!=4.13.0,!=4.13.1",
+  "latex2sympy2-extended==1.11.0",
 ]
 
 [project.urls]

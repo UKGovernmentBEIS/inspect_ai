@@ -37,7 +37,7 @@ from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 
 # brotli ships no type stubs; binding it via importlib keeps mypy clean without a
-# suppression. requirements-dev.txt installs it for these tests; Inspect does not
+# suppression. the dev extra installs it for these tests; Inspect does not
 # depend on it. PyPy gets brotlicffi instead, as httpx does.
 try:
     brotli = importlib.import_module("brotli")
