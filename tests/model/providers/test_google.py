@@ -1504,6 +1504,300 @@ async def test_malformed_function_call_retry_error_keeps_earlier_usage():
     assert output.input_context_tokens == 10
 
 
+def _leg(
+    parts: list[Part],
+    finish_reason: FinishReason,
+    token: bytes | None = None,
+    usage: tuple[int, int, int] = (10, 2, 3),
+) -> GenerateContentResponse:
+    """One leg of a continuation chain: a response with usage (prompt, output, thoughts)."""
+    return _with_usage(
+        GenerateContentResponse(
+            candidates=[
+                Candidate(
+                    content=Content(role="model", parts=parts),
+                    finish_reason=finish_reason,
+                    continuation_token=token,
+                    index=0,
+                )
+            ]
+        ),
+        *usage,
+    )
+
+
+def _thought(text: str) -> Part:
+    return Part(thought=True, text=text)
+
+
+async def _generate_with_client(
+    mock_client: MagicMock,
+    tools: list[ToolInfo] | None = None,
+    model_args: dict[str, Any] | None = None,
+) -> tuple[ModelOutput, Any]:
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.5-pro",
+            base_url=None,
+            api_key="test-key",
+            **(model_args or {}),
+        )
+        result = await api.generate(
+            input=[ChatMessageUser(content="Think hard")],
+            tools=tools or [],
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+    assert isinstance(result, tuple)
+    output, model_call = result
+    assert isinstance(output, ModelOutput)
+    return output, model_call
+
+
+async def _generate_with_legs(
+    side_effect: list[Any],
+) -> tuple[ModelOutput, Any, AsyncMock]:
+    mock_generate = AsyncMock(side_effect=side_effect)
+    output, model_call = await _generate_with_client(
+        _create_mock_google_client(mock_generate)
+    )
+    return output, model_call, mock_generate
+
+
+def _reasoning_texts(output: ModelOutput) -> list[str]:
+    content = output.choices[0].message.content
+    assert isinstance(content, list)
+    return [c.reasoning for c in content if isinstance(c, ContentReasoning)]
+
+
+@pytest.mark.anyio
+async def test_continuation_is_sent_and_combined() -> None:
+    """A CONTINUATION response is continued with its token in the same generate."""
+    output, model_call, mock_generate = await _generate_with_legs(
+        [
+            _leg([_thought("part one")], FinishReason.CONTINUATION, b"tok-1"),
+            _leg([_thought("part two"), Part(text="42")], FinishReason.STOP),
+        ]
+    )
+
+    assert mock_generate.call_count == 2
+    first, second = (c.kwargs for c in mock_generate.call_args_list)
+    # the SDK must not continue on its own, or a leg would go unlogged
+    assert first["config"].automatic_continuation is False
+    assert first["config"].continuation_token is None
+    assert second["config"].continuation_token == b"tok-1"
+    # the continuation resends the same contents
+    assert second["contents"] == first["contents"]
+
+    assert _reasoning_texts(output) == ["part one", "part two"]
+    assert output.completion == "42"
+    assert output.stop_reason == "stop"
+    # every leg's response is in the model call
+    assert model_call.response is not None
+    assert len(model_call.response["responses"]) == 2
+
+
+@pytest.mark.anyio
+async def test_several_continuations_sum_usage() -> None:
+    """Usage covers every leg; the context size is the first leg's prompt."""
+    output, _, mock_generate = await _generate_with_legs(
+        [
+            _leg([_thought("a")], FinishReason.CONTINUATION, b"t1", (10, 2, 30)),
+            _leg([_thought("b")], FinishReason.CONTINUATION, b"t2", (20, 4, 50)),
+            _leg([Part(text="done")], FinishReason.MAX_TOKENS, None, (30, 6, 0)),
+        ]
+    )
+
+    assert mock_generate.call_count == 3
+    tokens = [
+        c.kwargs["config"].continuation_token for c in mock_generate.call_args_list
+    ]
+    assert tokens == [None, b"t1", b"t2"]
+    assert _reasoning_texts(output) == ["a", "b"]
+    assert output.completion == "done"
+    # the final leg's stop reason
+    assert output.stop_reason == "max_tokens"
+    assert output.usage is not None
+    # input excludes the 1 cached token per request
+    assert output.usage.input_tokens == 9 + 19 + 29
+    assert output.usage.input_tokens_cache_read == 3
+    assert output.usage.output_tokens == 32 + 54 + 6
+    assert output.usage.reasoning_tokens == 30 + 50
+    assert output.input_context_tokens == 10
+
+
+@pytest.mark.anyio
+async def test_continuation_error_keeps_earlier_usage() -> None:
+    """A continuation rejected as too long keeps the usage of the legs before it."""
+    output, model_call, _ = await _generate_with_legs(
+        [
+            _leg([_thought("a")], FinishReason.CONTINUATION, b"t1", (10, 2, 30)),
+            ClientError(
+                400,
+                {
+                    "error": {
+                        "code": 400,
+                        "message": "input exceeds the maximum number of tokens",
+                        "status": "INVALID_ARGUMENT",
+                    }
+                },
+            ),
+        ]
+    )
+
+    assert output.stop_reason == "model_length"
+    assert output.usage is not None
+    assert output.usage.input_tokens == 9
+    assert output.usage.output_tokens == 32
+    assert output.input_context_tokens == 10
+    assert model_call.error is True
+
+
+@pytest.mark.anyio
+async def test_continuation_content_filter_keeps_earlier_legs() -> None:
+    """A continuation stopped by the content filter returns every leg's content."""
+    output, _, _ = await _generate_with_legs(
+        [
+            _leg([_thought("a")], FinishReason.CONTINUATION, b"t1", (10, 2, 30)),
+            _leg([_thought("b")], FinishReason.SAFETY, None, (20, 4, 5)),
+        ]
+    )
+
+    assert output.stop_reason == "content_filter"
+    assert _reasoning_texts(output) == ["a", "b"]
+    assert output.usage is not None
+    assert output.usage.output_tokens == 32 + 9
+    assert output.input_context_tokens == 10
+
+
+@pytest.mark.anyio
+async def test_continuation_then_malformed_function_call_retry() -> None:
+    """A malformed call ending a continued response retries, summing every request."""
+    mock_generate = AsyncMock(
+        side_effect=[
+            _leg([_thought("a")], FinishReason.CONTINUATION, b"t1", (10, 2, 30)),
+            _with_usage(_create_malformed_response(), 20, 4, 5),
+            _with_usage(_create_success_response_with_tool_call(), 30, 6, 7),
+        ]
+    )
+    output, _ = await _generate_with_client(
+        _create_mock_google_client(mock_generate), tools=[_create_test_tool()]
+    )
+
+    assert mock_generate.call_count == 3
+    tokens = [
+        c.kwargs["config"].continuation_token for c in mock_generate.call_args_list
+    ]
+    # the retry is a new request, not a continuation
+    assert tokens == [None, b"t1", None]
+    assert output.choices[0].message.tool_calls is not None
+    assert output.usage is not None
+    assert output.usage.input_tokens == 9 + 19 + 29
+    assert output.usage.output_tokens == 32 + 9 + 13
+    assert output.input_context_tokens == 10
+
+
+@pytest.mark.anyio
+async def test_streamed_continuation_is_combined() -> None:
+    """Streamed legs are continued, taking a token sent before the last chunk."""
+
+    def leg_chunks(chunks: list[GenerateContentResponse]) -> Any:
+        async def stream() -> Any:
+            for chunk in chunks:
+                yield chunk
+
+        return stream()
+
+    def chunk(
+        parts: list[Part] | None,
+        finish_reason: FinishReason | None = None,
+        token: bytes | None = None,
+        usage: tuple[int, int, int] | None = None,
+    ) -> GenerateContentResponse:
+        response = GenerateContentResponse(
+            candidates=[
+                Candidate(
+                    content=Content(role="model", parts=parts),
+                    finish_reason=finish_reason,
+                    continuation_token=token,
+                    index=0,
+                )
+            ]
+        )
+        return _with_usage(response, *usage) if usage else response
+
+    mock_stream = AsyncMock(
+        side_effect=[
+            leg_chunks(
+                [
+                    chunk([_thought("a1")]),
+                    chunk([_thought("a2")], token=b"t1"),
+                    chunk(None, FinishReason.CONTINUATION, usage=(10, 2, 30)),
+                ]
+            ),
+            leg_chunks(
+                [
+                    chunk([_thought("b")]),
+                    chunk([Part(text="done")], FinishReason.STOP, usage=(20, 4, 5)),
+                ]
+            ),
+        ]
+    )
+    mock_client = _create_mock_google_client(AsyncMock())
+    mock_client.aio.models.generate_content_stream = mock_stream
+
+    output, model_call = await _generate_with_client(
+        mock_client, model_args=dict(streaming=True)
+    )
+
+    assert mock_stream.call_count == 2
+    tokens = [c.kwargs["config"].continuation_token for c in mock_stream.call_args_list]
+    assert tokens == [None, b"t1"]
+    assert _reasoning_texts(output) == ["a1a2", "b"]
+    assert output.completion == "done"
+    assert output.stop_reason == "stop"
+    assert output.usage is not None
+    assert output.usage.output_tokens == 32 + 9
+    assert output.input_context_tokens == 10
+    assert len(model_call.response["responses"]) == 2
+
+
+@pytest.mark.anyio
+async def test_continuation_with_several_candidates_is_not_continued() -> None:
+    """Several candidates are not continued; they are returned as cut at max_tokens."""
+    response = GenerateContentResponse(
+        candidates=[
+            Candidate(
+                content=Content(role="model", parts=[Part(text=f"partial {i}")]),
+                finish_reason=FinishReason.CONTINUATION,
+                continuation_token=b"t1",
+                index=i,
+            )
+            for i in range(2)
+        ]
+    )
+    output, _, mock_generate = await _generate_with_legs([response])
+
+    assert mock_generate.call_count == 1
+    assert [c.stop_reason for c in output.choices] == ["max_tokens", "max_tokens"]
+
+
+def test_batch_request_dict_sends_continuation_token() -> None:
+    """A batch continuation sends its token at the top level, as base64."""
+    from inspect_ai.model._providers._google_batch import batch_request_dict
+
+    config = GenerateContentConfig(
+        temperature=0.5, automatic_continuation=False, continuation_token=b"\x00tok"
+    )
+    request = batch_request_dict(
+        config, [Content(role="user", parts=[Part.from_text(text="hi")])]
+    )
+
+    assert request["continuation_token"] == base64.b64encode(b"\x00tok").decode()
+    # automatic_continuation is an SDK setting, not part of the REST request
+    assert request["generation_config"] == {"temperature": 0.5}
+
+
 # Tests for count_tokens with unpaired tool messages
 
 

@@ -6,6 +6,7 @@ import json
 import os
 import ssl
 from copy import copy
+from dataclasses import dataclass
 from io import BytesIO
 from logging import getLogger
 from typing import Any, Literal, NamedTuple, cast
@@ -14,6 +15,7 @@ from typing import Any, Literal, NamedTuple, cast
 import aiohttp
 import anyio
 from google.genai import Client
+from google.genai._extra_utils import merge_continuation_responses
 from google.genai.errors import APIError, ClientError
 from google.genai.types import (
     Candidate,
@@ -222,6 +224,27 @@ DEFAULT_SAFETY_SETTINGS: list[SafetySettingDict] = [
         "threshold": HarmBlockThreshold.BLOCK_NONE,
     },
 ]
+
+
+@dataclass
+class _ContinuationChain:
+    """The requests sent so far for one generate call (continuations and retries)."""
+
+    requests: int = 0
+    """Number of requests that returned a response."""
+
+    usage: ModelUsage | None = None
+    """Usage summed over those requests (each one is billed)."""
+
+    input_context_tokens: int | None = None
+    """Input size of the first request, the one built from the generate input."""
+
+    def add(self, usage: ModelUsage | None) -> None:
+        """Add a request's usage."""
+        self.requests += 1
+        self.usage = sum_usage(self.usage, usage)
+        if self.requests == 1:
+            self.input_context_tokens = usage_input_tokens(usage)
 
 
 class CategorizedTools(NamedTuple):
@@ -508,6 +531,9 @@ class GoogleGenAIAPI(ModelAPI):
                     system_instruction=system_instruction,  # type: ignore[arg-type]
                     thinking_config=self.chat_thinking_config(config),
                     response_modalities=response_modalities,
+                    # continuations are sent by `_generate_with_continuations`
+                    # so that every leg is billed and logged
+                    automatic_continuation=False,
                 )
                 if config.response_schema is not None:
                     parameters.response_mime_type = "application/json"
@@ -525,41 +551,21 @@ class GoogleGenAIAPI(ModelAPI):
                 )
 
                 response: GenerateContentResponse | None = None
-                # every attempt of the retry loop below is billed; the first one
-                # is the request built from the input
-                usage: ModelUsage | None = None
-                input_context_tokens: int | None = None
+                legs: list[GenerateContentResponse] = []
+                # every request of the retry loop below (and every continuation
+                # of each) is billed; the first one is the request built from
+                # the input
+                chain = _ContinuationChain()
 
                 try:
                     # google sometimes requires retries for malformed function calls
                     # (see https://github.com/googleapis/python-genai/issues/430#issuecomment-3592369131)
                     tool_calling_attempts = 0
                     while tool_calling_attempts < MAX_TOOL_CALLING_ATTEMPTS:
-                        if self._batcher:
-                            response = await self._batcher.generate_for_request(
-                                batch_request_dict(parameters, gemini_contents)
-                            )
-                        elif self.streaming is True or (
-                            self.streaming is None and model_stream_requested()
-                        ):
-                            response = await self._stream_generate_content(
-                                client=client,
-                                model=self.service_model_name(),
-                                contents=gemini_contents,  # type: ignore[arg-type]
-                                config=parameters,
-                            )
-                        else:
-                            response = await client.aio.models.generate_content(
-                                model=self.service_model_name(),
-                                contents=gemini_contents,  # type: ignore[arg-type]
-                                config=parameters,
-                            )
-                        attempt_usage = usage_metadata_to_model_usage(
-                            response.usage_metadata
+                        legs = await self._generate_with_continuations(
+                            client, gemini_contents, parameters, chain
                         )
-                        if tool_calling_attempts == 0:
-                            input_context_tokens = usage_input_tokens(attempt_usage)
-                        usage = sum_usage(usage, attempt_usage)
+                        response = merge_continuation_responses(legs)
                         # retry for MALFORMED_FUNCTION_CALL
                         if (
                             response.candidates
@@ -596,13 +602,18 @@ class GoogleGenAIAPI(ModelAPI):
                     )
                     handled = self.handle_client_error(ex)
                     if isinstance(handled, ModelOutput):
-                        handled.usage = usage
-                        handled.input_context_tokens = input_context_tokens
+                        handled.usage = chain.usage
+                        handled.input_context_tokens = chain.input_context_tokens
                     return handled, model_call
 
                 assert response is not None  # mypy confused by retry loop
 
-                model_call.set_response(response, http_hooks.end_request(request_id))
+                # a continuation leg's request is the first leg's request plus
+                # the continuation_token of the leg before it
+                model_call.set_response(
+                    legs[0] if len(legs) == 1 else {"responses": legs},
+                    http_hooks.end_request(request_id),
+                )
 
                 model_name = response.model_version or self.service_model_name()
                 has_computer_use = gemini_tools is not None and any(
@@ -614,12 +625,70 @@ class GoogleGenAIAPI(ModelAPI):
                     choices=completion_choices_from_candidates(
                         model_name, response, has_computer_use
                     ),
-                    usage=usage,
-                    input_context_tokens=input_context_tokens,
+                    usage=chain.usage,
+                    input_context_tokens=chain.input_context_tokens,
                     response_id=response.response_id,
                 )
 
                 return output, model_call
+
+    async def _generate_with_continuations(
+        self,
+        client: Client,
+        contents: list[Content],
+        parameters: GenerateContentConfig,
+        chain: _ContinuationChain,
+    ) -> list[GenerateContentResponse]:
+        """Send a request, then a continuation for as long as Gemini asks for one.
+
+        A response that stops with finish reason `CONTINUATION` carries a
+        `continuation_token`; the next leg resends the same contents and config
+        with that token (https://ai.google.dev/api/generate-content). Each leg
+        is added to `chain` as it completes, so a caller can still report the
+        billed usage when a later leg raises.
+
+        Returns:
+            The response of every leg, in order.
+        """
+        legs: list[GenerateContentResponse] = []
+        leg_parameters = parameters
+        while True:
+            response = await self._generate_content(client, contents, leg_parameters)
+            legs.append(response)
+            chain.add(usage_metadata_to_model_usage(response.usage_metadata))
+            continuation_token = _continuation_token(response)
+            if continuation_token is None:
+                return legs
+            leg_parameters = parameters.model_copy(
+                update={"continuation_token": continuation_token}
+            )
+
+    async def _generate_content(
+        self,
+        client: Client,
+        contents: list[Content],
+        parameters: GenerateContentConfig,
+    ) -> GenerateContentResponse:
+        """Send one request through the batcher, a stream or a plain call."""
+        if self._batcher:
+            return await self._batcher.generate_for_request(
+                batch_request_dict(parameters, contents)
+            )
+        elif self.streaming is True or (
+            self.streaming is None and model_stream_requested()
+        ):
+            return await self._stream_generate_content(
+                client=client,
+                model=self.service_model_name(),
+                contents=contents,  # type: ignore[arg-type]
+                config=parameters,
+            )
+        else:
+            return await client.aio.models.generate_content(
+                model=self.service_model_name(),
+                contents=contents,  # type: ignore[arg-type]
+                config=parameters,
+            )
 
     async def _stream_generate_content(
         self,
@@ -638,6 +707,9 @@ class GoogleGenAIAPI(ModelAPI):
             RuntimeError: If no chunks received from stream
         """
         candidates_parts: dict[int, list[Part]] = {}
+        # the latest token seen for each candidate, as a chunk before the last
+        # may carry it
+        continuation_tokens: dict[int, bytes] = {}
         last_chunk: GenerateContentResponse | None = None
 
         stream = await client.aio.models.generate_content_stream(
@@ -669,6 +741,8 @@ class GoogleGenAIAPI(ModelAPI):
                     idx = candidate.index
                     if idx not in candidates_parts:
                         candidates_parts[idx] = []
+                    if candidate.continuation_token:
+                        continuation_tokens[idx] = candidate.continuation_token
 
                     if candidate.content and candidate.content.parts:
                         candidates_parts[idx].extend(candidate.content.parts)
@@ -784,6 +858,7 @@ class GoogleGenAIAPI(ModelAPI):
                         token_count=last_candidate_for_idx.token_count,
                         grounding_metadata=last_candidate_for_idx.grounding_metadata,
                         avg_logprobs=last_candidate_for_idx.avg_logprobs,
+                        continuation_token=continuation_tokens.get(idx),
                         index=idx,
                     )
                 )
@@ -2483,7 +2558,9 @@ def finish_reason_to_stop_reason(finish_reason: FinishReason) -> StopReason:
     match finish_reason:
         case FinishReason.STOP:
             return "stop"
-        case FinishReason.MAX_TOKENS:
+        case FinishReason.MAX_TOKENS | FinishReason.CONTINUATION:
+            # CONTINUATION reaches an output only when it cannot be continued
+            # (see `_continuation_token`), which leaves it cut at a token limit
             return "max_tokens"
         case (
             FinishReason.SAFETY
@@ -2742,3 +2819,33 @@ def _malformed_function_message(candidate: Candidate | GenerateContentResponse) 
         return candidate.finish_message
     else:
         return DEFAULT_MALFORMED_FUNCTION_MESSAGE
+
+
+def _continuation_token(response: GenerateContentResponse) -> bytes | None:
+    """The token to continue a response with, or None if it is complete.
+
+    Only a response with a single candidate is continued: a continuation
+    resumes the request, not one candidate of several. Otherwise the
+    `CONTINUATION` candidates are returned as they are, with stop reason
+    `max_tokens`.
+    """
+    candidates = response.candidates or []
+    if not any(c.finish_reason == FinishReason.CONTINUATION for c in candidates):
+        return None
+    if len(candidates) != 1:
+        warn_once(
+            logger,
+            "Gemini returned a CONTINUATION response with several candidates, "
+            "which Inspect does not continue. The truncated candidates are "
+            "returned with stop reason 'max_tokens'.",
+        )
+        return None
+    if not candidates[0].continuation_token:
+        warn_once(
+            logger,
+            "Gemini returned a CONTINUATION response without a continuation "
+            "token. The truncated response is returned with stop reason "
+            "'max_tokens'.",
+        )
+        return None
+    return candidates[0].continuation_token

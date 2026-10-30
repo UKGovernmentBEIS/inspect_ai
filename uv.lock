@@ -1639,7 +1639,7 @@ requests = [
 
 [[package]]
 name = "google-genai"
-version = "2.19.0"
+version = "2.34.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -1653,9 +1653,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/37/1a/a834dfed90cf32dba900b533a1d14dcdefbda398bda5661d2a5a60fdc9fc/google_genai-2.19.0.tar.gz", hash = "sha256:d8f4126643793a7de230c396bcd142d21c948c8bb57507580e152549a7a41d9d", size = 659496, upload-time = "2026-08-19T23:05:43.276Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/22/89/4621aee9cb183efa5b8a187f0e315c49fddcfb8cd7f238b4a3bf4946dcd0/google_genai-2.34.0.tar.gz", hash = "sha256:8e182cf3f73384167b96861cf0aef5102b5070f2db1ea11002879e913806ef37", size = 791853, upload-time = "2026-10-29T06:43:23.706Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/01/e8/de0accd8cd004cf11252ca53fc5c3dda59bcf1856abfc7609842ceba7363/google_genai-2.19.0-py3-none-any.whl", hash = "sha256:36e0326dd886b52ef765be4c46042732b46b21f637abbe060e3db7c3de23974c", size = 1051056, upload-time = "2026-08-19T23:05:41.462Z" },
+    { url = "https://files.pythonhosted.org/packages/2e/42/c24db865d9231b1c672ea26242a4dcf340e200bb1a9823dce4aa9c4c07a4/google_genai-2.34.0-py3-none-any.whl", hash = "sha256:a4cb02aebc4c357f863d2938132f0e3f7967fc5e00b8a4078673f68aad340665", size = 1258155, upload-time = "2026-10-29T06:43:21.121Z" },
 ]
 
 [[package]]
@@ -2189,7 +2189,7 @@ requires-dist = [
     { name = "docstring-parser", specifier = ">=0.16" },
     { name = "fastapi", specifier = ">=0.119.0" },
     { name = "fsspec", specifier = ">=2023.1.0,<=2026.6.0" },
-    { name = "google-genai", marker = "extra == 'dev'", specifier = ">=2.14.0" },
+    { name = "google-genai", marker = "extra == 'dev'", specifier = ">=2.31.0" },
     { name = "griffe", marker = "extra == 'dev'", specifier = ">=2" },
     { name = "griffe", marker = "extra == 'doc'", specifier = ">=2" },
     { name = "groq", marker = "extra == 'dev'", specifier = ">=0.28.0" },

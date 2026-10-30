@@ -1,3 +1,4 @@
+import base64
 import time
 from datetime import datetime, timezone
 from typing import Any, TypeAlias
@@ -36,6 +37,7 @@ _REQUEST_TOP_LEVEL_FIELDS = {
     "tool_config",
     "system_instruction",
     "cached_content",
+    "continuation_token",
 }
 
 # SDK-only fields that don't appear in the REST schema at all.
@@ -44,6 +46,7 @@ _SDK_ONLY_FIELDS = {
     "automatic_function_calling",
     "should_return_http_response",
     "labels",
+    "automatic_continuation",
 }
 
 
@@ -94,6 +97,11 @@ def batch_request_dict(
         top_level["system_instruction"] = _normalize_system_instruction_for_batch(
             top_level["system_instruction"]
         )
+    if "continuation_token" in top_level:
+        # a JSON bytes field is base64
+        top_level["continuation_token"] = base64.b64encode(
+            top_level["continuation_token"]
+        ).decode("ascii")
     generation_config = {
         k: v
         for k, v in params.items()
