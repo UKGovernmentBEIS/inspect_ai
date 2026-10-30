@@ -343,10 +343,11 @@ class _StreamedLeg:
     def response(self, cut_off: bool) -> GenerateContentResponse | None:
         """The response streamed so far, or None if no chunk arrived.
 
-        A cut-off response keeps only the parts up to the last checkpoint, and
-        the usage reported at it (a dropped stream is billed up to its last
-        checkpoint). With no checkpoint and no parts (a reconnect retried from
-        its starting token), it keeps the usage reported.
+        A cut-off response keeps only the parts up to the last checkpoint (the
+        next request resumes from there). Its usage and metadata are
+        approximate, as an interrupted stream is rare: see `_cut_off_usage`,
+        and a trimmed candidate drops its grounding and citation metadata, as
+        it may cite the discarded text.
         """
         if self.last_chunk is None:
             return None
@@ -354,17 +355,17 @@ class _StreamedLeg:
         for idx in sorted(self.parts):
             parts = self.parts[idx]
             checkpoint = self.checkpoints.get(idx)
-            if cut_off:
-                parts = parts[: checkpoint[1] if checkpoint else 0]
+            kept = parts[: checkpoint[1] if checkpoint else 0] if cut_off else parts
+            trimmed = len(kept) < len(parts)
             last = self.candidates[idx]
             candidates.append(
                 Candidate(
-                    content=Content(parts=_merge_streamed_parts(parts), role="model"),
+                    content=Content(parts=_merge_streamed_parts(kept), role="model"),
                     finish_reason=None if cut_off else self.finish_reasons.get(idx),
                     safety_ratings=last.safety_ratings,
-                    citation_metadata=last.citation_metadata,
+                    citation_metadata=None if trimmed else last.citation_metadata,
                     token_count=last.token_count,
-                    grounding_metadata=last.grounding_metadata,
+                    grounding_metadata=None if trimmed else last.grounding_metadata,
                     avg_logprobs=last.avg_logprobs,
                     continuation_token=checkpoint[0] if checkpoint else None,
                     index=idx,
@@ -379,9 +380,25 @@ class _StreamedLeg:
         )
 
     def _cut_off_usage(self) -> GenerateContentResponseUsageMetadata | None:
-        if 0 in self.checkpoints:
+        """Usage of a cut-off request, approximate when it discarded output.
+
+        The request is billed the usage it reported, with its prompt wherever
+        that report arrived. When it discarded output, its output tokens are
+        those reported at the checkpoint, or none if no usage came by then.
+        """
+        if self.usage is None or not self.discarded:
+            return self.usage
+        if self.checkpoint_usage is not None:
             return self.checkpoint_usage
-        return None if self.discarded else self.usage
+        return self.usage.model_copy(
+            update={
+                "candidates_token_count": None,
+                "candidates_tokens_details": None,
+                "thoughts_token_count": None,
+                "total_token_count": (self.usage.total_token_count or 0)
+                - _output_token_count(self.usage),
+            }
+        )
 
 
 def _output_token_count(usage: GenerateContentResponseUsageMetadata | None) -> int:

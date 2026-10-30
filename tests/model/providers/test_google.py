@@ -2032,7 +2032,12 @@ def _grounded_leg(
     finish_reason: FinishReason,
     token: bytes | None = None,
 ) -> GenerateContentResponse:
-    response = _leg(parts, finish_reason, token)
+    return _ground(_leg(parts, finish_reason, token), url, start, end)
+
+
+def _ground(
+    response: GenerateContentResponse, url: str, start: int, end: int
+) -> GenerateContentResponse:
     assert response.candidates
     response.candidates[0].grounding_metadata = GroundingMetadata(
         grounding_chunks=[GroundingChunk(web=GroundingChunkWeb(uri=url, title=url))],
@@ -2112,6 +2117,46 @@ async def test_continuation_citations_after_reasoning() -> None:
         ("Alpha", [("https://a", (0, 5))]),
         ("Bravo", [("https://b", (0, 5))]),
     ]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("first_leg", ["continued", "cut-off", "trimmed"])
+async def test_streamed_continuation_citations(first_leg: str) -> None:
+    """A leg keeps its citations unless it was trimmed to its checkpoint.
+
+    A trimmed leg's grounding may cite the discarded text, so it is dropped
+    rather than moved onto the text that replaced it.
+    """
+    legs = {
+        "continued": [
+            _ground(
+                _chunk([Part(text="kept")], FinishReason.CONTINUATION, b"t1"),
+                "https://kept",
+                0,
+                4,
+            )
+        ],
+        "cut-off": [
+            _ground(_chunk([Part(text="kept")], token=b"t1"), "https://kept", 0, 4)
+        ],
+        "trimmed": [
+            _chunk([Part(text="kept")], token=b"t1"),
+            _ground(_chunk([Part(text=" lost")]), "https://lost", 4, 9),
+        ],
+    }
+    output, _, _ = await _generate_streamed(
+        [
+            legs[first_leg],
+            [_chunk([Part(text=" rest")], FinishReason.STOP)],
+        ]
+    )
+
+    assert output.completion == "kept rest"
+    citations = [cited for _, cited in _citations(output)]
+    if first_leg == "trimmed":
+        assert citations == [[]]
+    else:
+        assert citations == [[("https://kept", (0, 4))]]
 
 
 @pytest.mark.anyio
@@ -2242,6 +2287,64 @@ async def test_cut_off_stream_usage_at_its_checkpoint(usage_at: str) -> None:
     assert output.usage is not None
     assert output.usage.output_tokens == 5 + 1
     assert output.input_context_tokens == 10
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("then", ["stop", "too-long"])
+async def test_cut_off_stream_usage_first_reported_after_its_checkpoint(
+    then: str,
+) -> None:
+    """Usage first reported on discarded output still gives the prompt.
+
+    The request keeps its prompt and context size, but not the discarded
+    output, whether the next request succeeds or is rejected as too long.
+    """
+    first_leg = [
+        _chunk([Part(text="kept")]),
+        _chunk(None, token=b"t1"),
+        _chunk([Part(text=" lost")], usage=(10, 9, 0)),
+    ]
+    too_long = ClientError(
+        400,
+        {
+            "error": {
+                "code": 400,
+                "message": "input exceeds the maximum number of tokens",
+                "status": "INVALID_ARGUMENT",
+            }
+        },
+    )
+    mock_stream = AsyncMock(
+        side_effect=[
+            _leg_chunks(first_leg),
+            _leg_chunks(
+                [_chunk([Part(text=" rest")], FinishReason.STOP, usage=(20, 1, 0))]
+            )
+            if then == "stop"
+            else too_long,
+        ]
+    )
+    mock_client = _create_mock_google_client(AsyncMock())
+    mock_client.aio.models.generate_content_stream = mock_stream
+    output, model_call = await _generate_with_client(
+        mock_client, model_args=dict(streaming=True)
+    )
+
+    assert mock_stream.call_count == 2
+    assert output.usage is not None
+    assert output.input_context_tokens == 10
+    if then == "stop":
+        assert output.completion == "kept rest"
+        assert output.usage.input_tokens == 9 + 19
+        assert output.usage.output_tokens == 1
+    else:
+        assert output.stop_reason == "model_length"
+        assert output.usage.input_tokens == 9
+        assert output.usage.output_tokens == 0
+        assert model_call.error is True
+        [response] = model_call.response["responses"]
+        assert response["usageMetadata"]["promptTokenCount"] == 10
+        assert "candidatesTokenCount" not in response["usageMetadata"]
 
 
 @pytest.mark.anyio
