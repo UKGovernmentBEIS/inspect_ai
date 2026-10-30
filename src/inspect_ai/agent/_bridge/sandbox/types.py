@@ -33,6 +33,7 @@ from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._checkpoint.checkpointer import Checkpointer
+from inspect_ai.util._limit import LimitExceededError
 
 if TYPE_CHECKING:
     # deferred: importing `inspect_ai.approval` at module scope here cycles
@@ -102,6 +103,8 @@ class SandboxAgentBridge(AgentBridge):
         )
         self._failure_requested = anyio.Event()
         self._failure: Exception | None = None
+        self.generation_limit: LimitExceededError | None = None
+        """The first limit reached in a bridged generation, raised by `sandbox_agent_bridge`."""
 
     port: int
     """Model proxy server port."""

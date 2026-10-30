@@ -22,16 +22,37 @@ and runner minutes. It was generated with `summarize_ci_data.summarize`, then
 `slow_tests_seconds` and `slow_steps_seconds` were removed from each summary.
 The baseline omits individual runs, steps, and test identities. Recurring
 summaries retain the top 15 observed tests and steps. Runner minutes are
-measured job execution time, not GitHub's rounded billed minutes. Skipped jobs
+measured job execution time, not GitHub's rounded billed minutes. Jobs are
+collected with `filter=all`, so every re-run attempt's execution counts;
+`rerun_runner_minutes` isolates attempts after the first, and carried-over jobs
+(a new id each attempt but the same runner and start time) are counted once. In
+a legacy raw file that predates the per-job attempt, a re-run's carried-over and
+re-run jobs cannot be told apart, so `rerun_runner_minutes` is reported unknown
+(null) rather than guessed from the run's attempt. This holds for any legacy
+re-run that has job records, including one whose jobs were all skipped or
+cancelled while queued: the old collector listed only the latest attempt, so an
+earlier attempt's compute may be absent from the file. A re-run run records only its
+latest attempt's start, so re-run runs are excluded from workflow wall and
+job-wait distributions and counted in `rerun_runs`. Skipped jobs
 contribute no execution time; GitHub sometimes returns inverted timestamps for
-them. Missing or inverted execution times on non-skipped jobs make compute totals
+them. A non-skipped job that never got a runner (cancelled or failed while
+still queued, so `runner_name` is null or empty — or, in legacy raw files,
+with no steps) adds no runner time and is counted in `unstarted_jobs`. Missing or inverted execution times on non-skipped jobs make compute totals
 unavailable, with the count recorded in `unavailable_job_timings`. Missing or
 inverted workflow wall, job wait, and step observations are excluded from their
 distributions and counted in `excluded_timings`. The collector retains step
 status so the summarizer can omit skipped steps; legacy raw files lack that
-status, and the baseline does not retain step distributions. The collector keeps
-only runs whose PR head repository is upstream or the Meridian fork and records
-the number dropped in `excluded_untrusted_runs`.
+status, and the baseline does not retain step distributions. `--limit` counts
+kept runs: the collector keeps only runs whose PR head repository is upstream or
+the Meridian fork and whose conclusion is not `action_required` (never started),
+paging until it has that many, and records the excluded counts in
+`excluded_untrusted_runs` and `excluded_action_required_runs` (both scoped to
+the analyzed window). Each summary's `window` also carries its span in hours and,
+against the most recent retained summary, `new_runs`/`overlap_runs`. That split is
+by run start time against the previous window's end; because the collector fetches
+completed runs only, a run that started before that end but finished after the
+previous collection is counted in `overlap_runs` even though the earlier snapshot
+did not hold it.
 
 `report.md` and `prs.md` are historical records. Their referenced snapshots
 are available in Git history.
