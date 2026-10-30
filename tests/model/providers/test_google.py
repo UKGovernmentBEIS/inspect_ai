@@ -36,7 +36,10 @@ from google.genai.types import (
     JobState,
     Part,
     Segment,
+    ToolResponse,
+    ToolType,
 )
+from google.genai.types import ToolCall as GeminiToolCall
 from openai.types.chat import ChatCompletionAssistantMessageParam
 from test_helpers.utils import skip_if_no_google
 
@@ -1643,33 +1646,61 @@ async def test_several_continuations_sum_usage() -> None:
 
 
 @pytest.mark.anyio
-async def test_continuation_error_keeps_earlier_usage() -> None:
-    """A continuation rejected as too long keeps the usage of the legs before it."""
-    output, model_call, _ = await _generate_with_legs(
-        [
-            _leg([_thought("a")], FinishReason.CONTINUATION, b"t1", (10, 2, 30)),
-            ClientError(
-                400,
-                {
-                    "error": {
-                        "code": 400,
-                        "message": "input exceeds the maximum number of tokens",
-                        "status": "INVALID_ARGUMENT",
-                    }
-                },
-            ),
-        ]
-    )
+@pytest.mark.parametrize("streaming", [False, True], ids=["plain", "streamed"])
+@pytest.mark.parametrize("error", ["too-long", "server-error"])
+async def test_continuation_failing_partway_fails_like_one_request(
+    error: str, streaming: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A continuation that fails fails the call as a single request would.
 
-    assert output.stop_reason == "model_length"
-    assert output.usage is not None
-    assert output.usage.input_tokens == 9
-    assert output.usage.output_tokens == 32
-    assert output.input_context_tokens == 10
-    # the completed leg is logged with the error
-    assert model_call.error is True
-    assert model_call.response["error"]["code"] == 400
-    assert len(model_call.response["responses"]) == 1
+    As in the SDK, the earlier legs and their usage are not kept, and only the
+    error is logged.
+    """
+    calls = _capture_model_calls(monkeypatch)
+    first = _leg([_thought("a")], FinishReason.CONTINUATION, b"t1", (10, 2, 30))
+    exception = (
+        ClientError(
+            400,
+            {
+                "error": {
+                    "code": 400,
+                    "message": "input exceeds the maximum number of tokens",
+                    "status": "INVALID_ARGUMENT",
+                }
+            },
+        )
+        if error == "too-long"
+        else ServerError(503, {"error": {"code": 503, "message": "Unavailable"}})
+    )
+    mock = AsyncMock(
+        side_effect=[_leg_chunks([first]) if streaming else first, exception]
+    )
+    mock_client = _create_mock_google_client(mock)
+    if streaming:
+        mock_client.aio.models.generate_content_stream = mock
+
+    if error == "too-long":
+        output, model_call = await _generate_with_client(
+            mock_client, model_args=dict(streaming=streaming)
+        )
+        assert output.stop_reason == "model_length"
+        assert output.usage is None
+        assert output.input_context_tokens is None
+        assert model_call.error is True
+        assert model_call.response == {
+            "error": {
+                "message": "input exceeds the maximum number of tokens",
+                "code": 400,
+            }
+        }
+    else:
+        with pytest.raises(ServerError):
+            await _generate_with_client(
+                mock_client, model_args=dict(streaming=streaming)
+            )
+        [model_call] = calls
+        assert model_call.response is None
+    assert mock.call_count == 2
 
 
 @pytest.mark.anyio
@@ -2032,6 +2063,60 @@ async def test_continuation_replays_text_signature_before_tool_call(
     assert call_part.function_call is not None
     assert call_part.function_call.name == "calculator"
     assert call_part.thought_signature == b"s2"
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("streaming", [False, True], ids=["plain", "streamed"])
+@pytest.mark.parametrize(
+    "tool_type", [ToolType.GOOGLE_SEARCH_WEB, ToolType.GOOGLE_SEARCH_IMAGE]
+)
+async def test_continuation_replays_search_and_answer_signatures(
+    tool_type: ToolType, streaming: bool
+) -> None:
+    """A server-side search ends the reasoning before it, so a later signature is the answer's.
+
+    The search call, its result and the answer each replay with their own
+    signature, after the output goes through its JSON form.
+    """
+    search = Part(
+        thought_signature=b"s1",
+        tool_call=GeminiToolCall(
+            id="search-1", tool_type=tool_type, args={"queries": ["q"]}
+        ),
+    )
+    result = Part(
+        thought_signature=b"r1",
+        tool_response=ToolResponse(
+            id="search-1", tool_type=tool_type, response={"results": ["r"]}
+        ),
+    )
+    first = [_thought("thinking"), search, result]
+    last = [_signed("answer", b"s2")]
+    if streaming:
+        output, _, _ = await _generate_streamed(
+            [
+                [*(_chunk([part]) for part in first)]
+                + [_chunk(None, FinishReason.CONTINUATION, b"t1")],
+                [*(_chunk([part]) for part in last), _chunk(None, FinishReason.STOP)],
+            ]
+        )
+    else:
+        output, _, _ = await _generate_with_legs(
+            [
+                _leg(first, FinishReason.CONTINUATION, b"t1"),
+                _leg(last, FinishReason.STOP),
+            ]
+        )
+
+    stored = ModelOutput.model_validate_json(output.model_dump_json())
+    replayed = await content(MagicMock(), stored.message)
+    assert replayed.parts is not None
+    signatures = {
+        "call": [p.thought_signature for p in replayed.parts if p.tool_call],
+        "result": [p.thought_signature for p in replayed.parts if p.tool_response],
+        "answer": [p.thought_signature for p in replayed.parts if p.text == "answer"],
+    }
+    assert signatures == {"call": [b"s1"], "result": [b"r1"], "answer": [b"s2"]}
 
 
 @pytest.mark.anyio
@@ -2436,61 +2521,29 @@ async def test_cut_off_stream_usage_at_its_checkpoint(usage_at: str) -> None:
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize("then", ["stop", "too-long"])
-async def test_cut_off_stream_usage_first_reported_after_its_checkpoint(
-    then: str,
-) -> None:
+async def test_cut_off_stream_usage_first_reported_after_its_checkpoint() -> None:
     """Usage first reported on discarded output still gives the prompt.
 
     The request keeps its prompt and context size, but not the discarded
-    output, whether the next request succeeds or is rejected as too long.
+    output.
     """
-    first_leg = [
-        _chunk([Part(text="kept")]),
-        _chunk(None, token=b"t1"),
-        _chunk([Part(text=" lost")], usage=(10, 9, 0)),
-    ]
-    too_long = ClientError(
-        400,
-        {
-            "error": {
-                "code": 400,
-                "message": "input exceeds the maximum number of tokens",
-                "status": "INVALID_ARGUMENT",
-            }
-        },
-    )
-    mock_stream = AsyncMock(
-        side_effect=[
-            _leg_chunks(first_leg),
-            _leg_chunks(
-                [_chunk([Part(text=" rest")], FinishReason.STOP, usage=(20, 1, 0))]
-            )
-            if then == "stop"
-            else too_long,
+    output, _, mock_stream = await _generate_streamed(
+        [
+            [
+                _chunk([Part(text="kept")]),
+                _chunk(None, token=b"t1"),
+                _chunk([Part(text=" lost")], usage=(10, 9, 0)),
+            ],
+            [_chunk([Part(text=" rest")], FinishReason.STOP, usage=(20, 1, 0))],
         ]
-    )
-    mock_client = _create_mock_google_client(AsyncMock())
-    mock_client.aio.models.generate_content_stream = mock_stream
-    output, model_call = await _generate_with_client(
-        mock_client, model_args=dict(streaming=True)
     )
 
     assert mock_stream.call_count == 2
+    assert output.completion == "kept rest"
     assert output.usage is not None
+    assert output.usage.input_tokens == 9 + 19
+    assert output.usage.output_tokens == 1
     assert output.input_context_tokens == 10
-    if then == "stop":
-        assert output.completion == "kept rest"
-        assert output.usage.input_tokens == 9 + 19
-        assert output.usage.output_tokens == 1
-    else:
-        assert output.stop_reason == "model_length"
-        assert output.usage.input_tokens == 9
-        assert output.usage.output_tokens == 0
-        assert model_call.error is True
-        [response] = model_call.response["responses"]
-        assert response["usageMetadata"]["promptTokenCount"] == 10
-        assert "candidatesTokenCount" not in response["usageMetadata"]
 
 
 @pytest.mark.anyio
@@ -2581,89 +2634,6 @@ def _capture_model_calls(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
 
     monkeypatch.setattr(google_module, "set_active_model_event_call", capture)
     return calls
-
-
-@pytest.mark.anyio
-@pytest.mark.parametrize(
-    "error",
-    [
-        ServerError(503, {"error": {"code": 503, "message": "Unavailable"}}),
-        aiohttp.ServerDisconnectedError(),
-    ],
-    ids=["server-error", "transport-error"],
-)
-async def test_continuation_error_logs_earlier_legs(
-    error: Exception, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A later leg's error is raised, with the earlier legs logged beside it."""
-    calls = _capture_model_calls(monkeypatch)
-    with pytest.raises(type(error)):
-        await _generate_with_legs(
-            [_leg([Part(text="partial")], FinishReason.CONTINUATION, b"t1"), error]
-        )
-
-    [model_call] = calls
-    assert model_call.error is True
-    assert len(model_call.response["responses"]) == 1
-    if isinstance(error, ServerError):
-        assert model_call.response["error"]["code"] == 503
-
-
-@pytest.mark.anyio
-@pytest.mark.parametrize("streaming", [False, True], ids=["plain", "streamed"])
-@pytest.mark.parametrize("ending", ["cancelled", "timed-out"])
-async def test_cancelled_continuation_logs_earlier_legs(
-    ending: str, streaming: bool, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A continuation cancelled (or timed out) mid-request keeps the legs before it.
-
-    The completed leg and its usage stay in the model call, and the client is
-    closed; the cancelled request's partial output is not logged as a leg.
-    """
-    calls = _capture_model_calls(monkeypatch)
-    first = _leg([Part(text="partial")], FinishReason.CONTINUATION, b"t1", (10, 2, 3))
-    scope = anyio.CancelScope()
-
-    def end_attempt() -> None:
-        if ending == "cancelled":
-            scope.cancel()
-        else:
-            scope.deadline = anyio.current_time()
-
-    async def plain(*args: Any, **kwargs: Any) -> GenerateContentResponse:
-        if mock.call_count == 1:
-            return first
-        end_attempt()
-        await anyio.sleep_forever()
-        raise AssertionError("not cancelled")
-
-    async def dropped() -> Any:
-        yield _chunk([Part(text=" lost")], usage=(20, 1, 0))
-        end_attempt()
-        await anyio.sleep_forever()
-
-    async def streamed(*args: Any, **kwargs: Any) -> Any:
-        return _leg_chunks([first]) if mock.call_count == 1 else dropped()
-
-    mock = AsyncMock(side_effect=streamed if streaming else plain)
-    mock_client = _create_mock_google_client(mock)
-    if streaming:
-        mock_client.aio.models.generate_content_stream = mock
-
-    with scope:
-        await _generate_with_client(mock_client, model_args=dict(streaming=streaming))
-    assert scope.cancelled_caught
-    assert mock.call_count == 2
-    # the client is closed on the way out
-    mock_client.aio.__aexit__.assert_awaited_once()
-
-    [model_call] = calls
-    assert not model_call.error
-    assert model_call.response["candidates"][0]["content"]["parts"] == [
-        {"text": "partial"}
-    ]
-    assert model_call.response["usageMetadata"]["promptTokenCount"] == 10
-    assert model_call.response["usageMetadata"]["candidatesTokenCount"] == 2
 
 
 def _timed_requests(

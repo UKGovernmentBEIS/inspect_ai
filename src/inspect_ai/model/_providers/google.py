@@ -242,13 +242,6 @@ class _ContinuationChain:
     input_context_tokens: int | None = None
     """Input size of the first request, the one built from the generate input."""
 
-    model_call: ModelCall | None = None
-    """Model call that logs the responses as they complete.
-
-    Logging each response as it arrives keeps the completed requests when a
-    later one is cancelled (e.g. by an attempt timeout).
-    """
-
     http_hooks: HttpHooks | None = None
     """Hooks tracking the requests under `request_id`."""
 
@@ -265,8 +258,6 @@ class _ContinuationChain:
         self.usage = sum_usage(self.usage, usage)
         if len(self.responses) == 1:
             self.input_context_tokens = usage_input_tokens(usage)
-        if self.model_call is not None:
-            self.model_call.set_response(self.model_call_response())
         # the next request (a continuation or a malformed function call retry)
         # is a new one, not an HTTP retry of this one
         if self.http_hooks is not None and self.request_id is not None:
@@ -500,9 +491,7 @@ def _merge_streamed_parts(
                     )
                     output_texts = []
                 elif keep_unattached_signatures:
-                    merged_parts.append(
-                        Part(thought_signature=part.thought_signature, text=part.text)
-                    )
+                    merged_parts.append(part)
 
         elif part.thought is True and part.text:
             if output_texts:
@@ -838,11 +827,11 @@ class GoogleGenAIAPI(ModelAPI):
                 # every request of the retry loop below (and every continuation
                 # of each) is billed; the first one is the request built from
                 # the input
-                chain = _ContinuationChain(
-                    model_call=model_call,
-                    http_hooks=http_hooks,
-                    request_id=request_id,
-                )
+                chain = _ContinuationChain(http_hooks=http_hooks, request_id=request_id)
+                # usage of the retry loop's completed attempts: as in the SDK, a
+                # continued attempt that fails partway fails like one request
+                attempts_usage: ModelUsage | None = None
+                attempts_input_context_tokens: int | None = None
 
                 try:
                     # google sometimes requires retries for malformed function calls
@@ -852,6 +841,8 @@ class GoogleGenAIAPI(ModelAPI):
                         legs = await self._generate_with_continuations(
                             client, gemini_contents, parameters, chain
                         )
+                        attempts_usage = chain.usage
+                        attempts_input_context_tokens = chain.input_context_tokens
                         response = _merge_continuation_legs(legs)
                         # retry for MALFORMED_FUNCTION_CALL
                         if (
@@ -883,31 +874,15 @@ class GoogleGenAIAPI(ModelAPI):
                         else:
                             break
                 except ClientError as ex:
-                    error: dict[str, Any] = {
-                        "error": {"message": str(ex.message), "code": ex.code}
-                    }
-                    if chain.responses:
-                        error["responses"] = chain.responses
-                    model_call.set_error(error, chain.end_request())
+                    model_call.set_error(
+                        {"error": {"message": str(ex.message), "code": ex.code}},
+                        chain.end_request(),
+                    )
                     handled = self.handle_client_error(ex)
                     if isinstance(handled, ModelOutput):
-                        handled.usage = chain.usage
-                        handled.input_context_tokens = chain.input_context_tokens
+                        handled.usage = attempts_usage
+                        handled.input_context_tokens = attempts_input_context_tokens
                     return handled, model_call
-                except Exception as ex:
-                    # keep the responses of the requests that completed before
-                    # the error (the model layer records only the error)
-                    if chain.responses:
-                        model_call.set_error(
-                            {
-                                "error": {"message": str(ex.message), "code": ex.code}
-                                if isinstance(ex, APIError)
-                                else {"message": str(ex)},
-                                "responses": chain.responses,
-                            },
-                            chain.end_request(),
-                        )
-                    raise
 
                 assert response is not None  # mypy confused by retry loop
 
@@ -963,8 +938,8 @@ class GoogleGenAIAPI(ModelAPI):
         A response that stops with finish reason `CONTINUATION` carries a
         `continuation_token`; the next leg resends the same contents and config
         with that token (https://ai.google.dev/api/generate-content). Each leg
-        is added to `chain` as it completes, so a caller can still report the
-        billed usage when a later leg raises.
+        is added to `chain` as it completes. As in the SDK, an error in a later
+        leg propagates.
 
         Returns:
             The response of every leg, in order.
@@ -1037,14 +1012,7 @@ class GoogleGenAIAPI(ModelAPI):
                 state,
                 leg,
             )
-            try:
-                resume = state.end_hop(error)
-            except Exception:
-                if (
-                    response := leg.response(cut_off=True, continued=bool(legs))
-                ) is not None:
-                    chain.add(response)
-                raise
+            resume = state.end_hop(error)
             cut_off = resume and not leg.finished
             response = leg.response(cut_off=cut_off, continued=resume or bool(legs))
             if response is None:
@@ -2349,6 +2317,7 @@ def completion_choice_from_candidate(
                 )
                 if server_tool_use is not None:
                     content.append(server_tool_use)
+                    working_reasoning_block = None
                 continue
 
             if part.text is None and part.executable_code is None:
