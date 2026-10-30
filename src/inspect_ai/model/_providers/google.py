@@ -200,10 +200,6 @@ DEFAULT_GOOGLE_HTTP_TIMEOUT = 60 * 60
 # relative to other content blocks (visible thought, server tool calls).
 _GEMINI_FUNCTION_CALL_ID_KEY = "gemini_function_call_id"
 
-# Key under ContentText.internal holding the original parts of a text joined
-# across continuation legs, so that their thought signatures replay unchanged.
-_GEMINI_PARTS_KEY = "gemini_parts"
-
 # Server-side tool_call types that we round-trip as ContentToolUse(tool_type="web_search").
 # Anything outside this set is warned-and-skipped by server_tool_use_from_tool_call.
 _SUPPORTED_SERVER_TOOL_TYPES: frozenset[ToolType] = frozenset(
@@ -340,8 +336,14 @@ class _StreamedLeg:
         ):
             self.checkpoint_usage = self.usage
 
-    def response(self, cut_off: bool) -> GenerateContentResponse | None:
+    def response(
+        self, cut_off: bool, continued: bool
+    ) -> GenerateContentResponse | None:
         """The response streamed so far, or None if no chunk arrived.
+
+        The response of a request in a continued turn (`continued`) keeps a
+        thought signature with no output text before it in the request as its
+        own part, as the continuation's merge keeps parts.
 
         A cut-off response keeps only the parts up to the last checkpoint (the
         next request resumes from there). Its usage and metadata are
@@ -360,7 +362,9 @@ class _StreamedLeg:
             last = self.candidates[idx]
             candidates.append(
                 Candidate(
-                    content=Content(parts=_merge_streamed_parts(kept), role="model"),
+                    content=Content(
+                        parts=_merge_streamed_parts(kept, continued), role="model"
+                    ),
                     finish_reason=None if cut_off else self.finish_reasons.get(idx),
                     safety_ratings=last.safety_ratings,
                     citation_metadata=None if trimmed else last.citation_metadata,
@@ -408,8 +412,14 @@ def _output_token_count(usage: GenerateContentResponseUsageMetadata | None) -> i
     return (usage.candidates_token_count or 0) + (usage.thoughts_token_count or 0)
 
 
-def _merge_streamed_parts(accumulated_parts: list[Part]) -> list[Part]:
-    """Join a streamed candidate's text and thought fragments into whole parts."""
+def _merge_streamed_parts(
+    accumulated_parts: list[Part], keep_unattached_signatures: bool = False
+) -> list[Part]:
+    """Join a streamed candidate's text and thought fragments into whole parts.
+
+    A thought signature with no output text before it to go on is dropped,
+    unless `keep_unattached_signatures`, which keeps its part as it came.
+    """
     merged_parts: list[Part] = []
     thinking_texts: list[str] = []
     output_texts: list[str] = []
@@ -457,6 +467,10 @@ def _merge_streamed_parts(accumulated_parts: list[Part]) -> list[Part]:
                         )
                     )
                     output_texts = []
+                elif keep_unattached_signatures:
+                    merged_parts.append(
+                        Part(thought_signature=part.thought_signature, text=part.text)
+                    )
 
         elif part.thought is True and part.text:
             if output_texts:
@@ -789,7 +803,6 @@ class GoogleGenAIAPI(ModelAPI):
 
                 response: GenerateContentResponse | None = None
                 legs: list[GenerateContentResponse] = []
-                joined_text_parts: dict[int, list[Part]] = {}
                 # every request of the retry loop below (and every continuation
                 # of each) is billed; the first one is the request built from
                 # the input
@@ -803,7 +816,7 @@ class GoogleGenAIAPI(ModelAPI):
                         legs = await self._generate_with_continuations(
                             client, gemini_contents, parameters, chain
                         )
-                        response, joined_text_parts = _merge_continuation_legs(legs)
+                        response = _merge_continuation_legs(legs)
                         # retry for MALFORMED_FUNCTION_CALL
                         if (
                             response.candidates
@@ -872,7 +885,7 @@ class GoogleGenAIAPI(ModelAPI):
                     for tool in gemini_tools
                 )
                 choices = completion_choices_from_candidates(
-                    model_name, response, has_computer_use, joined_text_parts
+                    model_name, response, has_computer_use
                 )
                 # a continuation blocked with no candidate: keep the earlier
                 # legs' content, but report the block
@@ -895,6 +908,10 @@ class GoogleGenAIAPI(ModelAPI):
                     input_context_tokens=chain.input_context_tokens,
                     response_id=response.response_id,
                 )
+                # a leg boundary can split a text (or JSON) anywhere, so a
+                # continued turn's text is not its text parts joined by lines
+                if len(legs) > 1:
+                    output.completion = _output_text(response)
 
                 return output, model_call
 
@@ -987,11 +1004,13 @@ class GoogleGenAIAPI(ModelAPI):
             try:
                 resume = state.end_hop(error)
             except Exception:
-                if (response := leg.response(cut_off=True)) is not None:
+                if (
+                    response := leg.response(cut_off=True, continued=bool(legs))
+                ) is not None:
                     chain.add(response)
                 raise
             cut_off = resume and not leg.finished
-            response = leg.response(cut_off=cut_off)
+            response = leg.response(cut_off=cut_off, continued=resume or bool(legs))
             if response is None:
                 if resume:
                     continue
@@ -1898,13 +1917,16 @@ async def content(
                                 None,
                             )
 
-                    # text joined across continuation legs from signed parts
-                    elif isinstance(content, ContentText) and (
-                        joined_parts := _joined_text_replay_parts(content)
+                    # an empty text that carries a signature (as Gemini sends
+                    # one) is replayed as it came, not as placeholder text
+                    elif (
+                        isinstance(content, ContentText)
+                        and not content.text
+                        and working_reasoning_block is not None
+                        and working_reasoning_block.redacted
+                        and message.tool_calls is None
                     ):
-                        parts_to_append = joined_parts
-                        # the original parts carry their own signatures
-                        working_reasoning_block = None
+                        parts_to_append = [Part(text="")]
 
                     # other content
                     else:
@@ -2204,10 +2226,7 @@ def _consolidate_thought_signature(
 
 
 def completion_choice_from_candidate(
-    model: str,
-    candidate: Candidate,
-    computer_use: bool = False,
-    joined_text_parts: dict[int, list[Part]] | None = None,
+    model: str, candidate: Candidate, computer_use: bool = False
 ) -> ChatCompletionChoice:
     # content we'll return
     content: list[
@@ -2369,26 +2388,7 @@ def completion_choice_from_candidate(
                     )
 
                 if part.text is not None:
-                    original_parts = (joined_text_parts or {}).get(i)
-                    if original_parts:
-                        # the original parts carry their own signatures, so a
-                        # later signature belongs to what follows them
-                        working_reasoning_block = None
-                    content.append(
-                        ContentText(
-                            text=part.text,
-                            internal={
-                                _GEMINI_PARTS_KEY: [
-                                    original.model_dump(
-                                        exclude_none=True, by_alias=True, mode="json"
-                                    )
-                                    for original in original_parts
-                                ]
-                            }
-                            if original_parts
-                            else None,
-                        )
-                    )
+                    content.append(ContentText(text=part.text))
 
     # distribute citations to individual ContentText parts with adjusted indexes
     citations = get_candidate_citations(candidate)
@@ -2528,19 +2528,13 @@ def completion_choices_from_candidates(
     model: str,
     response: GenerateContentResponse,
     computer_use: bool = False,
-    joined_text_parts: dict[int, list[Part]] | None = None,
 ) -> list[ChatCompletionChoice]:
     candidates = response.candidates
     if candidates:
         candidates_list = sorted(candidates, key=lambda c: c.index or 0)
         return [
-            completion_choice_from_candidate(
-                model,
-                candidate,
-                computer_use,
-                joined_text_parts if i == 0 else None,
-            )
-            for i, candidate in enumerate(candidates_list)
+            completion_choice_from_candidate(model, candidate, computer_use)
+            for candidate in candidates_list
         ]
     elif response.prompt_feedback:
         prompt_feedback = response.prompt_feedback
@@ -3064,47 +3058,29 @@ def _continuation_token(response: GenerateContentResponse) -> bytes | None:
     return candidates[0].continuation_token
 
 
-class _MergedLegs(NamedTuple):
-    response: GenerateContentResponse
-    """The legs merged into one response."""
-
-    joined_text_parts: dict[int, list[Part]]
-    """The original parts of each signed text part joined across a leg boundary.
-
-    Keyed by the joined part's index in the first candidate's parts.
-    """
-
-
-def _merge_continuation_legs(legs: list[GenerateContentResponse]) -> _MergedLegs:
+def _merge_continuation_legs(
+    legs: list[GenerateContentResponse],
+) -> GenerateContentResponse:
     """Merge the legs of a continued response into one response.
 
-    `merge_continuation_responses` keeps each leg's parts apart and shifts
-    grounding chunk and part indices. Two more things are needed for the
-    merged response to convert like a single one:
+    `merge_continuation_responses` keeps each leg's parts apart, signatures
+    included, and shifts grounding chunk and part indices. Two more things are
+    needed for the merged response to convert like a single one:
 
     - Grounding segment offsets are read as offsets into the response's
       output text (see `get_candidate_citations`), so a later leg's segments
       are moved past the output text of the legs before it.
-    - Output text split at a leg boundary (with any empty parts around it) is
-      joined into one part, so it converts to one `ContentText` rather than
-      several (which a reader joins with newlines). When the joined parts
-      carried thought signatures, the originals are returned in
-      `joined_text_parts` so that replay can send them as they were.
+    - A part with only a thought signature becomes signed empty text, so that
+      it converts and replays in its place, and an empty part without one is
+      dropped (it has nothing to replay).
     """
     if len(legs) == 1:
-        return _MergedLegs(legs[0], {})
+        return legs[0]
 
     shifted_legs: list[GenerateContentResponse] = []
-    boundaries: list[int] = []
-    part_count = 0
     text_length = 0
     for leg in legs:
         candidate = leg.candidates[0] if leg.candidates else None
-        parts = (
-            candidate.content.parts if candidate and candidate.content else None
-        ) or []
-        if part_count > 0:
-            boundaries.append(part_count)
         if candidate is not None and text_length > 0:
             leg = leg.model_copy(
                 update={
@@ -3112,97 +3088,41 @@ def _merge_continuation_legs(legs: list[GenerateContentResponse]) -> _MergedLegs
                 }
             )
         shifted_legs.append(leg)
-        part_count += len(parts)
-        text_length += sum(
-            len(part.text)
-            for part in parts
-            if part.text is not None and not part.thought
-        )
+        text_length += len(_output_text(leg))
 
     merged = merge_continuation_responses(shifted_legs)
     if not merged.candidates:
-        return _MergedLegs(merged, {})
+        return merged
     candidate = merged.candidates[0]
     if candidate.content is None or not candidate.content.parts:
-        return _MergedLegs(merged, {})
+        return merged
 
-    parts = candidate.content.parts
-    joined_parts: list[Part] = []
-    joined_text_parts: dict[int, list[Part]] = {}
-    next_part = 0
-    for start, end in _boundary_text_runs(parts, boundaries):
-        joined_parts.extend(parts[next_part:start])
-        run = [part for part in parts[start:end] if not _is_empty_part(part)]
-        if any(part.thought_signature for part in run):
-            joined_text_parts[len(joined_parts)] = run
-        joined_parts.append(Part(text="".join(part.text or "" for part in run)))
-        next_part = end
-    joined_parts.extend(parts[next_part:])
-    merged = merged.model_copy(
+    parts = [
+        continued
+        for part in candidate.content.parts
+        if (continued := _continued_part(part)) is not None
+    ]
+    return merged.model_copy(
         update={
             "candidates": [
                 candidate.model_copy(
                     update={
-                        "content": candidate.content.model_copy(
-                            update={"parts": joined_parts}
-                        )
+                        "content": candidate.content.model_copy(update={"parts": parts})
                     }
                 ),
                 *merged.candidates[1:],
             ]
         }
     )
-    return _MergedLegs(merged, joined_text_parts)
 
 
-def _boundary_text_runs(
-    parts: list[Part], boundaries: list[int]
-) -> list[tuple[int, int]]:
-    """The runs of output text parts that cross a leg boundary.
-
-    A run goes across the empty parts and empty texts on either side of a
-    boundary, plus the output text part next to them on each side, when that
-    takes in more than one text; runs that share a part are combined. Each
-    run is a `(start, end)` slice of `parts`.
-    """
-    runs: list[tuple[int, int]] = []
-    for boundary in sorted(set(boundaries)):
-        start = boundary
-        while start > 0 and _is_blank_part(parts[start - 1]):
-            start -= 1
-        if start > 0 and _is_output_text_part(parts[start - 1]):
-            start -= 1
-        end = boundary
-        while end < len(parts) and _is_blank_part(parts[end]):
-            end += 1
-        if end < len(parts) and _is_output_text_part(parts[end]):
-            end += 1
-        if sum(part.text is not None for part in parts[start:end]) < 2:
-            continue
-        if runs and start < runs[-1][1]:
-            runs[-1] = (runs[-1][0], end)
-        else:
-            runs.append((start, end))
-    return runs
-
-
-def _is_blank_part(part: Part) -> bool:
-    """Whether a part is empty, only a thought signature, or empty output text."""
-    return _part_fields(part) <= {"thought_signature"} or (
-        _is_output_text_part(part) and part.text == ""
-    )
-
-
-def _is_output_text_part(part: Part) -> bool:
-    """Whether a part is output text (possibly signed) and nothing else."""
-    return part.text is not None and _part_fields(part) <= {
-        "text",
-        "thought_signature",
-    }
-
-
-def _is_empty_part(part: Part) -> bool:
-    return not _part_fields(part)
+def _continued_part(part: Part) -> Part | None:
+    """A part of a continued response as it converts (see `_merge_continuation_legs`)."""
+    if part.text or _part_fields(part) - {"text", "thought_signature"}:
+        return part
+    if part.thought_signature:
+        return Part(text="", thought_signature=part.thought_signature)
+    return None
 
 
 def _part_fields(part: Part) -> set[str]:
@@ -3214,20 +3134,14 @@ def _part_fields(part: Part) -> set[str]:
     }
 
 
-def _joined_text_replay_parts(content: ContentText) -> list[Part] | None:
-    """The original parts of a text joined across continuation legs, if unchanged.
+def _output_text(response: GenerateContentResponse) -> str:
+    """The first candidate's output text, as the SDK's `response.text` reads it.
 
-    Text edited since it was generated is replayed as plain text.
+    Its text parts other than thoughts, with nothing between them.
     """
-    if not isinstance(content.internal, dict):
-        return None
-    gemini_parts = content.internal.get(_GEMINI_PARTS_KEY)
-    if not isinstance(gemini_parts, list):
-        return None
-    parts = [Part.model_validate(part) for part in gemini_parts]
-    if "".join(part.text or "" for part in parts) != content.text:
-        return None
-    return parts
+    candidate = response.candidates[0] if response.candidates else None
+    parts = (candidate.content.parts if candidate and candidate.content else None) or []
+    return "".join(part.text or "" for part in parts if not part.thought)
 
 
 def _shift_grounding_segments(candidate: Candidate, offset: int) -> Candidate:

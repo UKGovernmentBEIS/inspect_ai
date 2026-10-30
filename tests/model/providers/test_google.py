@@ -36,6 +36,7 @@ from google.genai.types import (
     Part,
     Segment,
 )
+from openai.types.chat import ChatCompletionAssistantMessageParam
 from test_helpers.utils import skip_if_no_google
 
 from inspect_ai import Task, eval
@@ -52,7 +53,10 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.kvstore import KVStore
-from inspect_ai.agent._bridge.google_api_impl import messages_from_google_contents
+from inspect_ai.agent._bridge.google_api_impl import (
+    gemini_response_from_output,
+    messages_from_google_contents,
+)
 from inspect_ai.dataset import Sample
 from inspect_ai.event._model import ModelEvent, model_event_progress
 from inspect_ai.model import (
@@ -65,6 +69,7 @@ from inspect_ai.model import (
 from inspect_ai.model._chat_message import ChatMessageUser
 from inspect_ai.model._generate_config import BatchConfig, GenerateConfig
 from inspect_ai.model._model import ModelAPI, RetryDecision
+from inspect_ai.model._openai import messages_from_openai, openai_chat_choices
 from inspect_ai.model._providers import google as google_provider
 from inspect_ai.model._providers._google_citations import (
     distribute_citations_to_text_parts,
@@ -1811,12 +1816,13 @@ _EMPTY_PART_PLACEMENTS = pytest.mark.parametrize(
 
 @pytest.mark.anyio
 @_EMPTY_PART_PLACEMENTS
-async def test_continuation_joins_text_split_across_legs(
+async def test_continuation_text_split_across_legs(
     before: list[Part], after: list[Part]
 ) -> None:
-    """Output text split at a leg boundary stays one text, so JSON stays valid.
+    """Output text split at a leg boundary reads as one text, so JSON stays valid.
 
-    Empty parts at the boundary do not split it either.
+    Each leg's parts stay apart, as the SDK keeps them; empty parts without a
+    signature have nothing to replay and are dropped.
     """
     output, _, _ = await _generate_with_legs(
         [
@@ -1830,16 +1836,19 @@ async def test_continuation_joins_text_split_across_legs(
     )
 
     assert output.completion == '{"answer":"hello"}'
-    content = output.message.content
-    assert isinstance(content, list)
-    assert [c.text for c in content if isinstance(c, ContentText)] == [
-        '{"answer":"hello"}'
+    content_list = output.message.content
+    assert isinstance(content_list, list)
+    assert [c.text for c in content_list if isinstance(c, ContentText)] == [
+        '{"answer":"hel',
+        'lo"}',
     ]
+    replayed = await content(MagicMock(), output.message)
+    assert replayed.parts == [Part(text='{"answer":"hel'), Part(text='lo"}')]
 
 
 @pytest.mark.anyio
 @_EMPTY_PART_PLACEMENTS
-async def test_streamed_continuation_joins_text_split_across_legs(
+async def test_streamed_continuation_text_split_across_legs(
     before: list[Part], after: list[Part]
 ) -> None:
     """A streamed leg boundary inside output text adds no newline either."""
@@ -1859,135 +1868,146 @@ async def test_streamed_continuation_joins_text_split_across_legs(
     assert output.completion == '{"answer":"hello"}'
 
 
+def _signed(text: str | None, signature: bytes | None = b"s1") -> Part:
+    return Part(text=text, thought_signature=signature)
+
+
+_HEL = Part(text='{"answer":"hel')
+_LO = Part(text='lo"}')
+
+# (first leg, last leg, replayed parts, replayed parts when streamed): a
+# streamed request joins a signature onto the output text before it in that
+# request, as it always has
+_SIGNED_BOUNDARIES = {
+    "signed-left": (
+        [_signed('{"answer":"hel')],
+        [_LO],
+        [_signed('{"answer":"hel'), _LO],
+        None,
+    ),
+    "signed-right": (
+        [_HEL],
+        [_signed('lo"}', b"s2")],
+        [_HEL, _signed('lo"}', b"s2")],
+        None,
+    ),
+    "both-signed": (
+        [_signed('{"answer":"hel')],
+        [_signed('lo"}', b"s2")],
+        [_signed('{"answer":"hel'), _signed('lo"}', b"s2")],
+        None,
+    ),
+    "signature-only-ends-leg": (
+        [_HEL, _signed(None)],
+        [_LO],
+        [_HEL, _signed(""), _LO],
+        [_signed('{"answer":"hel'), _LO],
+    ),
+    "signature-only-starts-leg": (
+        [_HEL],
+        [_signed(None), _LO],
+        [_HEL, _signed(""), _LO],
+        None,
+    ),
+    "signed-empty-ends-leg": (
+        [_HEL, _signed("")],
+        [_LO],
+        [_HEL, _signed(""), _LO],
+        [_signed('{"answer":"hel'), _LO],
+    ),
+    "signed-empty-starts-leg": (
+        [_HEL],
+        [_signed(""), _LO],
+        [_HEL, _signed(""), _LO],
+        None,
+    ),
+    # visible thinking is not replayed, as for a single response
+    "signed-empty-after-thinking": (
+        [_thought("thinking"), _signed("")],
+        [Part(text='{"answer":"hello"}')],
+        [_signed(""), Part(text='{"answer":"hello"}')],
+        None,
+    ),
+}
+
+
 @pytest.mark.anyio
-@pytest.mark.parametrize(
-    ("left", "right"),
-    [(b"s1", None), (None, b"s2"), (b"s1", b"s2")],
-    ids=["signed-left", "signed-right", "both-signed"],
-)
-async def test_continuation_joins_signed_text_and_replays_its_parts(
-    left: bytes | None, right: bytes | None
+@pytest.mark.parametrize("streaming", [False, True], ids=["plain", "streamed"])
+@pytest.mark.parametrize("case", list(_SIGNED_BOUNDARIES))
+async def test_continuation_replays_signatures_in_place(
+    case: str, streaming: bool
 ) -> None:
-    """Signed text split at a leg boundary reads as one text, and replays as it came.
+    """Every signed part of a continued turn replays with its signature in place.
 
-    The thought signatures stay on the parts they came on.
+    Checked after the output goes through its JSON form, as a log stores it.
+    A part with only a signature replays as signed empty text. Each request's
+    logged response keeps its signatures.
     """
-    output, _, _ = await _generate_with_legs(
-        [
-            _leg(
-                [Part(text='{"answer":"hel', thought_signature=left)],
-                FinishReason.CONTINUATION,
-                b"t1",
-            ),
-            _leg([Part(text='lo"}', thought_signature=right)], FinishReason.STOP),
-        ]
-    )
-
-    assert output.completion == '{"answer":"hello"}'
-    message = output.message
-    assert isinstance(message.content, list)
-    assert [type(c) for c in message.content] == [ContentText]
-
-    replayed = await content(MagicMock(), message)
-    assert replayed.parts == [
-        Part(text='{"answer":"hel', thought_signature=left),
-        Part(text='lo"}', thought_signature=right),
-    ]
-
-    # text edited since it was generated is replayed as plain text
-    edited = message.model_copy(
-        update={
-            "content": [
-                ContentText(text="edited", internal=message.content[0].internal)
+    first, last, replay, streamed_replay = _SIGNED_BOUNDARIES[case]
+    if streaming:
+        output, model_call, _ = await _generate_streamed(
+            [
+                [*(_chunk([part]) for part in first)]
+                + [_chunk(None, FinishReason.CONTINUATION, b"t1")],
+                [*(_chunk([part]) for part in last)]
+                + [_chunk(None, FinishReason.STOP)],
             ]
-        }
-    )
-    assert (await content(MagicMock(), edited)).parts == [Part(text="edited")]
+        )
+    else:
+        output, model_call, _ = await _generate_with_legs(
+            [
+                _leg(first, FinishReason.CONTINUATION, b"t1"),
+                _leg(last, FinishReason.STOP),
+            ]
+        )
+
+    assert json.loads(output.completion) == {"answer": "hello"}
+    stored = ModelOutput.model_validate_json(output.model_dump_json())
+    replayed = await content(MagicMock(), stored.message)
+    assert replayed.parts == ((streaming and streamed_replay) or replay)
+    signatures = sum(part.thought_signature is not None for part in first + last)
+    assert json.dumps(model_call.response).count("thoughtSignature") == signatures
 
 
 @pytest.mark.anyio
-async def test_continuation_joins_after_signed_empty_text() -> None:
-    """A leg that ends in signed empty text adds no newline, and replays as it came.
+@pytest.mark.parametrize("bridge", ["google", "chat-completions"])
+async def test_continuation_bridges_like_one_response(bridge: str) -> None:
+    """A continued turn goes through the agent bridges as one response would.
 
-    A leg spent on thinking can end with an empty text part that carries the
-    thought signature.
+    The continued output holds the same content as a single response with
+    the same parts, so the bridges need nothing more for it.
     """
-    output, _, _ = await _generate_with_legs(
-        [
-            _leg(
-                [_thought("thinking"), Part(text="", thought_signature=b"s1")],
-                FinishReason.CONTINUATION,
-                b"t1",
-            ),
-            _leg([Part(text="answer")], FinishReason.STOP),
-        ]
-    )
-
-    assert output.completion == "answer"
-    replayed = await content(MagicMock(), output.message)
-    assert replayed.parts == [
-        Part(text="thinking", thought=True),
-        Part(text="", thought_signature=b"s1"),
-        Part(text="answer"),
-    ]
-
-
-@pytest.mark.anyio
-@pytest.mark.parametrize("leg", ["first", "last"])
-async def test_continuation_joins_across_signature_only_part(leg: str) -> None:
-    """A part with only a thought signature at the boundary does not split text.
-
-    The joined text replays with the signature part where it came, also after
-    the output goes through its JSON form.
-    """
-    signature = Part(thought_signature=b"s1")
-    first = [Part(text='{"answer":"hel')] + ([signature] if leg == "first" else [])
-    last = ([signature] if leg == "last" else []) + [Part(text='lo"}')]
-    output, _, _ = await _generate_with_legs(
+    first = [_signed('{"answer":"hel')]
+    last = [_signed('lo"}', b"s2")]
+    continued, _, _ = await _generate_with_legs(
         [
             _leg(first, FinishReason.CONTINUATION, b"t1"),
             _leg(last, FinishReason.STOP),
         ]
     )
+    single, _, _ = await _generate_with_legs([_leg(first + last, FinishReason.STOP)])
+    assert continued.message.content == single.message.content
 
-    assert json.loads(output.completion) == {"answer": "hello"}
-    stored = ModelOutput.model_validate_json(output.model_dump_json())
-    replayed = await content(MagicMock(), stored.message)
-    assert replayed.parts == first + last
+    async def round_trip(output: ModelOutput) -> tuple[Any, list[Part] | None]:
+        if bridge == "google":
+            response = gemini_response_from_output(output, "gemini-2.5-pro")
+            wire = response["candidates"][0]["content"]
+            messages = messages_from_google_contents([wire], None)
+        else:
+            [choice] = openai_chat_choices(output.choices)
+            wire = ChatCompletionAssistantMessageParam(
+                role="assistant", content=choice.message.content
+            )
+            messages = await messages_from_openai([wire])
+        message = messages[-1]
+        assert isinstance(message, ChatMessageAssistant)
+        return wire, (await content(MagicMock(), message)).parts
 
-
-@pytest.mark.anyio
-async def test_continuation_keeps_later_signatures_after_joined_text() -> None:
-    """A signature after signed joined text replays on its own part.
-
-    Checked after the output goes through its JSON form, as a log stores it.
-    """
-    output, _, _ = await _generate_with_legs(
-        [
-            _leg(
-                [_thought("reason"), Part(text="a", thought_signature=b"s1")],
-                FinishReason.CONTINUATION,
-                b"t1",
-            ),
-            _leg(
-                [Part(text="b"), Part(text="c", thought_signature=b"s2")],
-                FinishReason.STOP,
-            ),
-        ]
-    )
-
-    stored = ModelOutput.model_validate_json(output.model_dump_json())
-    replayed = await content(MagicMock(), stored.message)
-    assert replayed.parts == [
-        Part(text="reason", thought=True),
-        Part(text="a", thought_signature=b"s1"),
-        Part(text="b"),
-        Part(text="c", thought_signature=b"s2"),
-    ]
+    assert await round_trip(continued) == await round_trip(single)
 
 
 @pytest.mark.anyio
-async def test_continuation_joins_text_marked_not_thought() -> None:
+async def test_continuation_text_marked_not_thought() -> None:
     """Parts marked thought=False are output text, and empty ones are skipped."""
     output, _, _ = await _generate_with_legs(
         [
@@ -2111,7 +2131,8 @@ async def test_continuation_citations_follow_their_leg() -> None:
     )
 
     assert _citations(output) == [
-        ("AlphaBravo", [("https://a", (0, 5)), ("https://b", (5, 10))])
+        ("Alpha", [("https://a", (0, 5))]),
+        ("Bravo", [("https://b", (0, 5))]),
     ]
 
 
@@ -2179,9 +2200,9 @@ async def test_streamed_continuation_citations(first_leg: str) -> None:
     assert output.completion == "kept rest"
     citations = [cited for _, cited in _citations(output)]
     if first_leg == "trimmed":
-        assert citations == [[]]
+        assert citations == [[], []]
     else:
-        assert citations == [[("https://kept", (0, 4))]]
+        assert citations == [[("https://kept", (0, 4))], []]
 
 
 @pytest.mark.anyio
