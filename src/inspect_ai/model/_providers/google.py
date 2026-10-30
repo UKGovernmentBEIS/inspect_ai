@@ -329,6 +329,7 @@ class _StreamedLeg:
                         await _report_stream_part_delta(part)
             if candidate.continuation_token:
                 self.checkpoints[idx] = (candidate.continuation_token, len(parts))
+                self.checkpoint_usage = self.usage
 
         # usage that arrives before any part after the checkpoint (on the
         # checkpoint's chunk or a later metadata-only one) is the checkpoint's
@@ -2348,6 +2349,10 @@ def completion_choice_from_candidate(
 
                 if part.text is not None:
                     original_parts = (joined_text_parts or {}).get(i)
+                    if original_parts:
+                        # the original parts carry their own signatures, so a
+                        # later signature belongs to what follows them
+                        working_reasoning_block = None
                     content.append(
                         ContentText(
                             text=part.text,
@@ -3134,30 +3139,35 @@ def _boundary_text_runs(
 ) -> list[tuple[int, int]]:
     """The runs of output text parts that cross a leg boundary.
 
-    A run goes from the last text part before a boundary to the first text
-    part after it, across any empty parts between them; runs that share a
-    part are combined. Each run is a `(start, end)` slice of `parts`.
+    A run goes across the empty parts and empty texts on either side of a
+    boundary, plus the output text part next to them on each side, when that
+    takes in more than one text; runs that share a part are combined. Each
+    run is a `(start, end)` slice of `parts`.
     """
     runs: list[tuple[int, int]] = []
     for boundary in sorted(set(boundaries)):
-        start = boundary - 1
-        while start >= 0 and _is_empty_part(parts[start]):
+        start = boundary
+        while start > 0 and _is_blank_part(parts[start - 1]):
+            start -= 1
+        if start > 0 and _is_output_text_part(parts[start - 1]):
             start -= 1
         end = boundary
-        while end < len(parts) and _is_empty_part(parts[end]):
+        while end < len(parts) and _is_blank_part(parts[end]):
             end += 1
-        if (
-            start < 0
-            or end >= len(parts)
-            or not _is_output_text_part(parts[start])
-            or not _is_output_text_part(parts[end])
-        ):
+        if end < len(parts) and _is_output_text_part(parts[end]):
+            end += 1
+        if sum(part.text is not None for part in parts[start:end]) < 2:
             continue
         if runs and start < runs[-1][1]:
-            runs[-1] = (runs[-1][0], end + 1)
+            runs[-1] = (runs[-1][0], end)
         else:
-            runs.append((start, end + 1))
+            runs.append((start, end))
     return runs
+
+
+def _is_blank_part(part: Part) -> bool:
+    """Whether a part is empty or an empty output text (possibly signed)."""
+    return _is_empty_part(part) or (_is_output_text_part(part) and part.text == "")
 
 
 def _is_output_text_part(part: Part) -> bool:

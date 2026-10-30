@@ -1791,8 +1791,20 @@ async def test_streamed_continuation_is_combined() -> None:
 
 _EMPTY_PART_PLACEMENTS = pytest.mark.parametrize(
     ("before", "after"),
-    [([], []), ([Part()], []), ([], [Part()])],
-    ids=["no-empty-part", "empty-part-before", "empty-part-after"],
+    [
+        ([], []),
+        ([Part()], []),
+        ([], [Part()]),
+        ([Part(text="")], []),
+        ([], [Part(text="")]),
+    ],
+    ids=[
+        "no-empty-part",
+        "empty-part-before",
+        "empty-part-after",
+        "empty-text-before",
+        "empty-text-after",
+    ],
 )
 
 
@@ -1890,6 +1902,63 @@ async def test_continuation_joins_signed_text_and_replays_its_parts(
         }
     )
     assert (await content(MagicMock(), edited)).parts == [Part(text="edited")]
+
+
+@pytest.mark.anyio
+async def test_continuation_joins_after_signed_empty_text() -> None:
+    """A leg that ends in signed empty text adds no newline, and replays as it came.
+
+    A leg spent on thinking can end with an empty text part that carries the
+    thought signature.
+    """
+    output, _, _ = await _generate_with_legs(
+        [
+            _leg(
+                [_thought("thinking"), Part(text="", thought_signature=b"s1")],
+                FinishReason.CONTINUATION,
+                b"t1",
+            ),
+            _leg([Part(text="answer")], FinishReason.STOP),
+        ]
+    )
+
+    assert output.completion == "answer"
+    replayed = await content(MagicMock(), output.message)
+    assert replayed.parts == [
+        Part(text="thinking", thought=True),
+        Part(text="", thought_signature=b"s1"),
+        Part(text="answer"),
+    ]
+
+
+@pytest.mark.anyio
+async def test_continuation_keeps_later_signatures_after_joined_text() -> None:
+    """A signature after signed joined text replays on its own part.
+
+    Checked after the output goes through its JSON form, as a log stores it.
+    """
+    output, _, _ = await _generate_with_legs(
+        [
+            _leg(
+                [_thought("reason"), Part(text="a", thought_signature=b"s1")],
+                FinishReason.CONTINUATION,
+                b"t1",
+            ),
+            _leg(
+                [Part(text="b"), Part(text="c", thought_signature=b"s2")],
+                FinishReason.STOP,
+            ),
+        ]
+    )
+
+    stored = ModelOutput.model_validate_json(output.model_dump_json())
+    replayed = await content(MagicMock(), stored.message)
+    assert replayed.parts == [
+        Part(text="reason", thought=True),
+        Part(text="a", thought_signature=b"s1"),
+        Part(text="b"),
+        Part(text="c", thought_signature=b"s2"),
+    ]
 
 
 @pytest.mark.anyio
@@ -2135,6 +2204,43 @@ async def test_stream_with_trailing_metadata_chunk(finished: bool) -> None:
     # the trailing usage is the first leg's, at its checkpoint when cut off
     assert output.usage is not None
     assert output.usage.output_tokens == (5 if finished else 5 + 1)
+    assert output.input_context_tokens == 10
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("usage_at", ["before", "on", "after"])
+async def test_cut_off_stream_usage_at_its_checkpoint(usage_at: str) -> None:
+    """A cut-off leg is billed its usage at the checkpoint, not after it.
+
+    The usage can come on a chunk before the checkpoint's own chunk, on it, or
+    on a metadata-only chunk right after it. Usage after a later part is not
+    the checkpoint's.
+    """
+    checkpoint_usage = (10, 5, 0)
+    first_leg = [
+        _chunk(
+            [Part(text="kept")],
+            usage=checkpoint_usage if usage_at == "before" else None,
+        ),
+        _chunk(None, token=b"t1", usage=checkpoint_usage if usage_at == "on" else None),
+        *(
+            [_with_usage(GenerateContentResponse(), *checkpoint_usage)]
+            if usage_at == "after"
+            else []
+        ),
+        _chunk([Part(text=" lost")], usage=(10, 9, 0)),
+    ]
+    output, _, mock_stream = await _generate_streamed(
+        [
+            first_leg,
+            [_chunk([Part(text=" rest")], FinishReason.STOP, usage=(20, 1, 0))],
+        ]
+    )
+
+    assert mock_stream.call_count == 2
+    assert output.completion == "kept rest"
+    assert output.usage is not None
+    assert output.usage.output_tokens == 5 + 1
     assert output.input_context_tokens == 10
 
 
