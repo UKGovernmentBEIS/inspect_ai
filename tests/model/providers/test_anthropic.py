@@ -2235,6 +2235,8 @@ def test_anthropic_thinking_block_binding_unrecognised_model(model_name: str) ->
         "claude-sonnet-5",
         "claude-opus-5-1",
         "claude-opus-4-8",
+        "claude-sonnet-4",
+        "claude-opus-4",
         "claude-2.1",
         "deepseek-chat",
         "glm-4.6",
@@ -2248,6 +2250,17 @@ def test_anthropic_no_binding_on_non_binding_model(model_name: str) -> None:
     api.apply_thinking_block_binding(request, betas)
     assert betas == []
     assert "thinking" not in request
+
+
+@pytest.mark.parametrize("model_name", ["claude-sonnet-4", "claude-opus-4"])
+def test_anthropic_claude_4_0_base_name_uses_extended_thinking(model_name: str) -> None:
+    """Base Claude 4 names get budget thinking; adaptive is a 400 on Claude 4.0."""
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    params, _e, _h, _b = api.completion_config(
+        GenerateConfig(max_tokens=64, reasoning_effort="medium")
+    )
+    assert params["thinking"]["type"] == "enabled"
+    assert "output_config" not in params
 
 
 @pytest.mark.parametrize(

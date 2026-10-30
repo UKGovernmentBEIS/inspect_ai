@@ -230,6 +230,7 @@ from .util import (
     check_azure_deployment_mismatch,
     environment_prerequisite_error,
     forced_tool_choice_degraded_metadata,
+    is_claude_4_0_model,
     is_claude_fable_5_1_model,
     is_claude_haiku_5_5_model,
     is_claude_opus_5_5_model,
@@ -1791,9 +1792,7 @@ class AnthropicAPI(ModelAPI):
         return re.search(r"claude-[a-zA-Z]+-4", self.model_family()) is not None
 
     def is_claude_4_0(self) -> bool:
-        return self._is_claude_4_x(0) or (
-            re.search(r"claude-[a-zA-Z]+-4[-@]20\d{6}", self.model_family()) is not None
-        )
+        return is_claude_4_0_model(self.model_family())
 
     def is_claude_4_1(self) -> bool:
         return self._is_claude_4_x(1)
