@@ -17,14 +17,13 @@ import anyio
 from inspect_ai._util._async import current_async_backend
 from inspect_ai._util.asyncfiles import (
     AsyncFilesystem,
-    is_s3_filename,
     s3_bucket_and_key,
 )
-from inspect_ai._util.file import filesystem, local_path
+from inspect_ai._util.file import local_path
 from inspect_ai._util.log_layout import eval_shards_dir
 
 from ._errors import ShardSetError
-from ._publish import is_local
+from ._publish import check_supported_location, is_local
 
 # fsspec expands these in paths it deletes, also inside a recursive delete
 _GLOB_CHARS = re.compile(r"[*?[]")
@@ -38,11 +37,8 @@ async def remove_shards_dir(
     Everything under ``<name>.shards/`` is deleted: shard attempts, sample
     buffers, checkpoint directories, S3 folder markers and any other object.
     On S3 the objects are listed and deleted with the `AsyncFilesystem`
-    client (s3fs is not supported under a configured Trio backend). Another
-    remote directory is deleted with one recursive delete on the filesystem
-    built from `log` itself, so connection details in the URL (an Azure
-    account, a WebHDFS host) are kept. A remote deletion is then checked by
-    a fresh listing. A missing directory is not an error.
+    client (s3fs is not supported under a configured Trio backend), then
+    checked by a fresh listing. A missing directory is not an error.
 
     Args:
         log: The merged log ``<dir>/<name>.eval``.
@@ -50,12 +46,14 @@ async def remove_shards_dir(
         fs: Filesystem to use (a new one when omitted).
 
     Raises:
-        ValueError: A remote `log` holds glob characters (see
-            :func:`check_deletable`); nothing is deleted.
-        ShardSetError: S3 reported an object it did not delete, objects
-            remain under a remote shards directory after the delete returned,
-            or the directory could not be listed to check.
+        ValueError: `log` is not a local path, ``file://`` URI or ``s3://``
+            URL (see :func:`check_supported_location`), or is an S3 URL that
+            holds glob characters (see :func:`check_deletable`); nothing is
+            deleted.
+        ShardSetError: S3 reported an object it did not delete, or objects
+            remain under the shards directory after the delete returned.
     """
+    check_supported_location(log)
     check_deletable(log)
     if fs is None:
         async with AsyncFilesystem() as owned:
@@ -71,18 +69,12 @@ async def remove_shards_dir(
     if is_local(shards_dir):
         await anyio.to_thread.run_sync(_remove_local_dir, shards_dir)
         return
-    if is_s3_filename(shards_dir):
-        bucket, prefix = s3_bucket_and_key(shards_dir)
-        # boto3, not fsspec, so a worker thread is safe
-        await anyio.to_thread.run_sync(
-            _remove_s3_prefix, fs.s3_client(), bucket, prefix.rstrip("/") + "/"
-        )
-    else:
-        # on the loop thread: to_thread over remote fsspec work can deadlock
-        with suppress(FileNotFoundError):
-            filesystem(shards_dir).rm(shards_dir, recursive=True)
-    # a bulk delete can return normally while objects remain (s3fs ignores
-    # the per-object errors of a DeleteObjects response)
+    bucket, prefix = s3_bucket_and_key(shards_dir)
+    # boto3, not fsspec, so a worker thread is safe
+    await anyio.to_thread.run_sync(
+        _remove_s3_prefix, fs.s3_client(), bucket, prefix.rstrip("/") + "/"
+    )
+    # a bulk delete can return normally while objects remain
     remnant = await _remnant(fs, shards_dir)
     if remnant is not None:
         raise ShardSetError(
@@ -110,36 +102,23 @@ def check_deletable(log: str) -> None:
 
 
 async def _remnant(fs: AsyncFilesystem, shards_dir: str) -> str | None:
-    """An object still under a remote `shards_dir`, from a fresh listing.
+    """An object still under the S3 `shards_dir`, from a fresh listing.
 
-    On S3 this is one list-objects call for the prefix, limited to one key and
-    unfiltered, so a folder marker (a key ending in `/`) counts: the
-    `AsyncFilesystem` listings skip markers.
+    One list-objects call for the prefix, limited to one key and unfiltered,
+    so a folder marker (a key ending in `/`) counts: the `AsyncFilesystem`
+    listings skip markers.
     """
-    if is_s3_filename(shards_dir):
-        bucket, prefix = s3_bucket_and_key(shards_dir)
-        list_first = dict(Bucket=bucket, Prefix=prefix.rstrip("/") + "/", MaxKeys=1)
-        if current_async_backend() == "asyncio":
-            client = await fs.s3_client_async()
-            response = await client.list_objects_v2(**list_first)
-        else:
-            response = await anyio.to_thread.run_sync(
-                partial(fs.s3_client().list_objects_v2, **list_first)
-            )
-        keys = [obj["Key"] for obj in response.get("Contents", [])]
-        return f"s3://{bucket}/{keys[0]}" if keys else None
-    try:
-        # not recursive: fsspec's walk omits the subtrees it cannot list, and
-        # any entry is a remnant. FileSystem.ls drops fsspec's cached listing.
-        listing = filesystem(shards_dir).ls(shards_dir)
-    except FileNotFoundError:
-        return None
-    except OSError as ex:
-        raise ShardSetError(
-            f"Cannot check that {shards_dir} was deleted: listing it failed "
-            f"({ex}). Delete it by hand, or merge again with delete_shards."
-        ) from ex
-    return listing[0].name if listing else None
+    bucket, prefix = s3_bucket_and_key(shards_dir)
+    list_first = dict(Bucket=bucket, Prefix=prefix.rstrip("/") + "/", MaxKeys=1)
+    if current_async_backend() == "asyncio":
+        client = await fs.s3_client_async()
+        response = await client.list_objects_v2(**list_first)
+    else:
+        response = await anyio.to_thread.run_sync(
+            partial(fs.s3_client().list_objects_v2, **list_first)
+        )
+    keys = [obj["Key"] for obj in response.get("Contents", [])]
+    return f"s3://{bucket}/{keys[0]}" if keys else None
 
 
 def _remove_s3_prefix(s3: Any, bucket: str, prefix: str) -> None:

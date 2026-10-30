@@ -766,6 +766,16 @@ publication), `_delete.py` (companion deletion).
 One pass, in order. Steps 1–9 run on every call; the merged log is
 downloaded and rewritten only when step 10 says so.
 
+The merge supports a local path, a `file://` URI and an `s3://` URL, the
+forms every Inspect path-handling feature supports (decision: Ransom,
+2026-10-30). Before step 1, `check_supported_location` (`_publish.py`)
+refuses any other location with `ValueError`, reading only the argument's
+text: another protocol (`az://`, `abfs://`, `gs://`, `webhdfs://`,
+`memory://`, ...) or a chained URL (`simplecache::s3://...`). Nothing is
+constructed, listed, read, written or deleted first, with or without
+`delete_shards`. Other fsspec backends differ in how they list, name and
+version objects, and each needs its own support and tests.
+
 1. **Derive the pair.** From `log`, derive `<name>.eval` (or the given
    `.eval` path) and `<name>.shards/` with `eval_shards_dir` /
    `eval_log_for_shards_dir`. Open one `AsyncFilesystem` scope for
@@ -856,8 +866,7 @@ downloaded and rewritten only when step 10 says so.
     a second temp file ("Building the merged log"), recomputing metrics as
     members stream through ("Metric recomputation"), and publish it: local
     `atomic_write`; S3 conditional upload with `IfMatch: E0`, or
-    `IfNoneMatch: *` for a first merge; other backends
-    `write_file_streaming`.
+    `IfNoneMatch: *` for a first merge.
 12. **Delete shards** when `delete_shards` is set and the merged log's
     status is `success` ("Deleting shards"). This runs whether or not step
     11 wrote; when it did not and shard attempts remain, the merged log's
@@ -1467,15 +1476,7 @@ cleanup (removes the merged log too). Both use one routine,
   everything in it: shard attempts, buffers, checkpoint directories, scan
   results and any other file. Locally that is one recursive delete of the
   directory by its exact path (`shutil.rmtree`, which does not follow
-  symbolic links). On fsspec backends other than S3 it is one call,
-  `filesystem(shards_dir).rm(shards_dir, recursive=True)`, on the
-  filesystem built from the location the caller gave, so it keeps
-  connection details in the URL (an Azure account in
-  `abfss://container@account.dfs.core.windows.net/...`, a WebHDFS host
-  and user) that names from a listing can lose (decision: Ransom,
-  2026-10-22). It runs on the event loop thread, as the non-S3 branch of
-  `AsyncFilesystem.delete_file` does, since `to_thread` over remote fsspec
-  work can deadlock. On S3 the merge does not use s3fs, which a configured
+  symbolic links). On S3 the merge does not use s3fs, which a configured
   Trio backend (`INSPECT_ASYNC_BACKEND=trio`) refuses: it lists every key
   under `<name>.shards/`, folder markers included, with the
   `AsyncFilesystem` boto3 client (its endpoint and client settings, in a
@@ -1483,11 +1484,11 @@ cleanup (removes the merged log too). Both use one routine,
   1000 keys with one `DeleteObjects` call. A per-object error in the
   response raises `ShardSetError` naming the key. A marker-only remnant is
   deleted too, and a sibling `<name>.shards-other/` is left alone.
-  fsspec expands glob characters in the paths it deletes (`run?.shards` would also delete `run1.shards`), so a
-  remote log whose URL holds `*`, `?` or `[` anywhere is refused with
+  An S3 log whose URL holds `*`, `?` or `[` anywhere is refused with
   `ValueError` before anything is deleted, by `delete_shards` before the
   merge reads anything and by `remove_shards_dir` itself (for retry
-  cleanup); such a companion is deleted by hand. Local paths are deleted
+  cleanup); such a companion is deleted by hand. The boto3 deletion
+  matches keys literally, so this is stricter than S3 needs; it is kept. Local paths are deleted
   by their exact path and are not refused. It neither classifies objects
   nor orders the deletes, and a missing companion is not an error.
   The S3 helpers take a URL's bucket and key with `urlparse`, which drops
@@ -1508,19 +1509,13 @@ cleanup (removes the merged log too). Both use one routine,
   S3 lists `run.shards//x.eval` (and `///`, or `0//x.eval` in a shard) as
   the directory listed itself, which would hide the key from the merge
   and leave it to be deleted.
-  With `include_log`, the merged log is deleted first. A remote delete is
+  With `include_log`, the merged log is deleted first. An S3 delete is
   then checked by a fresh listing, because a bulk delete can return
-  normally while objects remain: s3fs ignores the per-object errors of a
-  `DeleteObjects` response. On S3 the check is one `list_objects_v2` call
+  normally while objects remain. The check is one `list_objects_v2` call
   with prefix `<name>.shards/` and `MaxKeys=1`, made with the
   `AsyncFilesystem` client, so any key counts, a folder marker included
   (the `AsyncFilesystem` listings skip keys ending in `/`), and a sibling
-  `<name>.shards-other/` does not. Elsewhere it is one `FileSystem.ls` of
-  the directory itself, which drops fsspec's cached listing: any entry is
-  a remnant, so no subtree needs listing (fsspec's recursive `walk` omits
-  the subtrees it cannot list). A missing directory is deleted; a listing
-  that fails otherwise (`OSError`, `PermissionError`) raises
-  `ShardSetError`, since the deletion cannot be checked. An object left
+  `<name>.shards-other/` does not. An object left
   behind raises
   `ShardSetError` naming it, `shards_deleted` is never reported, the
   merged log is kept, and a re-run finishes the deletion.
@@ -1714,10 +1709,9 @@ The merge's first publish uses `if_none_match=True`; later ones
 `if_match=E0`. `write_file_streaming` and every existing caller stay
 unconditional.
 
-**Other backends** (GCS, Azure and other fsspec filesystems) publish with
-`write_file_streaming` and keep only the contract; the docstring says so.
-The parent defers per-backend preconditions to a future remote lock
-protocol.
+**Other backends** (GCS, Azure and other fsspec filesystems) are refused
+before the merge starts (see "The merge"), so every merge that publishes
+is guarded.
 
 ### Eval-set integration
 
@@ -1988,8 +1982,8 @@ The shard-set rules, one implementation for both consumers:
   (`check_s3_location`, "Deleting shards"), and for a listed entry that is
   not a non-empty name directly in the directory listed; ctl reports both
   as a `storage_error`. Local and S3 listings keep each entry's raw name,
-  so the walk checks the names returned; other fsspec backends rebuild a
-  child's location from the last component of the entry `ls` returned,
+  so the walk checks the names returned; other fsspec backends (which ctl
+  lists and the merge refuses) rebuild a child's location from the last component of the entry `ls` returned,
   which would turn an entry denoting the directory listed (fsspec's
   `memory://` lists `0//x.eval` this way) into a child, so the walk asks
   `AsyncFilesystem.list_dir(..., indirect_error=ShardSetError)` to check
@@ -2190,6 +2184,11 @@ today.
   the ordinary finished `.eval` members. Shard headers are unchanged.
   The merged header's only per-sample data is what an ordinary header
   carries (`dataset.sample_ids`; `config.sample_id` is left unset).
+- **Storage.** The merge, with or without deletion, supports local
+  paths, `file://` URIs and `s3://` URLs and refuses other storage before
+  any I/O (a known limitation, decision: Ransom, 2026-10-30). Workers can
+  still write shards elsewhere, and ctl's read-only discovery lists them;
+  merging them needs support for that backend in its own change.
 - **`eval_retry` of a merged log** is refused unless it was merged with
   no selection (`"none"`), which excludes every merged log `eval_set()`
   writes; `eval_set()` over the directory finishes those. An older Inspect
@@ -2543,12 +2542,10 @@ Per PR (numbers from "Implementation plan"):
      verification failure leaves the shards; combined with
      `allow_incomplete` it is a `ValueError`; local names with reserved
      characters are deleted by their exact path, and neighbours with the
-     decoded names are kept; on fsspec's `memory://` backend the recursive
-     delete removes the companion and keeps a `<name>.shards-other/`
-     sibling; on `memory://`, a remote log whose name or parent holds `?`,
-     `*` or `[` is refused by `delete_shards` and by `remove_shards_dir`
-     (with `include_log`), and every neighbouring companion and log the
-     glob would match is kept; on `mock_s3`, a merge argument with `#` in
+     decoded names are kept; on `mock_s3`, an S3 log whose name or parent
+     holds `*` or `[` is refused by `delete_shards` and by
+     `remove_shards_dir` (with `include_log`), and every neighbouring
+     companion and log the glob would match is kept; a merge argument with `#` in
      its name, its `.shards` form or a parent, `?` in its name, or a
      leading key slash is refused with and without deletion while a shard
      set at the key S3 would read and the intended companion stay
@@ -2562,16 +2559,18 @@ Per PR (numbers from "Implementation plan"):
      path component) is refused the same way, with and without deletion,
      beside an unchanged merge and on a fresh one, under asyncio and Trio,
      while ordinary folder markers and an attempt named with a literal
-     `%23` still merge; on fsspec's `memory://`, native workers copied in
-     with shard 1's at `run.shards//` or `1//` (which `ls` lists as the
-     directory listed) are refused by a fresh merge and beside an
-     unchanged one, with and without deletion, under asyncio and Trio,
-     every stored object byte-identical, while an ordinary `memory://`
-     set merges and deletes; a qualified `webhdfs://user@host:port/` shard
+     `%23` still merge; a qualified `webhdfs://user@host:port/` shard
      set (only the name node's answer faked) lists its shards, attempts and
-     ancillary files at both depths through the shard walk and ctl's walk,
-     keeping the qualified URL, and an empty component in a shard is
-     refused there (asyncio and Trio); two dated attempts of shard 0 named by the
+     ancillary files at both depths through ctl's walk and
+     `list_shard_set`, keeping the qualified URL, and an empty component
+     at either depth is refused there (asyncio and Trio); a merge of an
+     `az://`, `abfs://`, `abfss://`, `gs://`, `webhdfs://`, `memory://`,
+     `hdfs://`, `sftp://` or `simplecache::s3://` location, as the merged
+     log or its `.shards` form, is refused with `ValueError` through
+     `merge_eval_log_shards_async` (asyncio and Trio), the sync API and
+     `inspect log merge-shards --json`, with and without deletion, while
+     every fsspec filesystem constructor and `AsyncFilesystem` raise, and a
+     `memory://` shard set stays intact; two dated attempts of shard 0 named by the
      pattern `{task}\worker` are refused on a fresh merge, beside a merge
      of the newer one and after that one is removed, with and without
      deletion, through a path, a `file://` URI and `mock_s3`, everything
@@ -2674,10 +2673,8 @@ Per PR (numbers from "Implementation plan"):
    a `DeleteObjects` error) raises with the merged log intact, and a
    re-run finishes; a `<name>.shards-other/` sibling is not a remnant; the
    deletion succeeds with `INSPECT_ASYNC_BACKEND=trio` set inside a Trio
-   loop; a recording filesystem shows remote deletion is one recursive
-   `rm` of the account-qualified URL the caller gave, then one listing of
-   it; on `memory://`, a root listing that raises `PermissionError` or
-   `OSError`, or a remnant whose own listing is denied, raises.
+   loop; `remove_shards_dir` refuses a location other than local or S3
+   before deleting anything.
 6. **Eval-set integration.** `tests/test_eval_set.py`: `log_samples_complete`
    on a `success` merged log is true when its `dataset.sample_ids` equals the
    eval set's selection (for each recorded form: ids, count, neither) and

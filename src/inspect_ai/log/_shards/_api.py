@@ -64,7 +64,13 @@ from ._plan import (
     recorded_selection,
     selected_total,
 )
-from ._publish import is_local, merge_guard, merged_log_copy, publish
+from ._publish import (
+    check_supported_location,
+    is_local,
+    merge_guard,
+    merged_log_copy,
+    publish,
+)
 from ._walk import ShardDir, check_s3_location, is_recovered_attempt, list_shard_set
 from ._write import (
     HeldReductions,
@@ -124,10 +130,9 @@ def merge_eval_log_shards(
     `edit_score()`, `recompute_metrics()` and `score()` refuse a merged log
     while its shards directory exists: merge with `delete_shards` first.
 
-    A local merged log is guarded by a lock file beside it and an S3 one by a
-    conditional upload, so a merge that overlaps another is refused. Other
-    storage backends have no guard: callers must not run two merges of one
-    log at once.
+    The merged log and its shards must be local or on S3. A local merged log
+    is guarded by a lock file beside it and an S3 one by a conditional
+    upload, so a merge that overlaps another is refused.
 
     Metrics are resolved from the registry only: built in, from installed
     packages, or imported by the caller. The merge never imports the log's
@@ -152,7 +157,9 @@ def merge_eval_log_shards(
 
     Args:
         log: The merged log `<dir>/<name>.eval`, or its shards directory
-            `<dir>/<name>.shards`. A `<name>-recovered.eval` path is refused.
+            `<dir>/<name>.shards`, as a local path, `file://` URI or `s3://`
+            URL. Other storage is refused, as is a `<name>-recovered.eval`
+            path.
         sample_ids: Intended selection as sample ids. Replaces the selection
             recorded in the merged log; once the shards are deleted, it must
             equal the recorded one.
@@ -182,9 +189,9 @@ def merge_eval_log_shards(
             Run the merge again later.
         FileNotFoundError: Neither the merged log nor any shard exists.
         LookupError: A metric is not registered. Nothing is written.
-        ValueError: Invalid arguments, or `delete_shards` for a remote log
-            whose location holds a glob character (`*`, `?`, `[`), which the
-            storage backend would expand to other paths.
+        ValueError: Invalid arguments: `log` is not a local path, `file://`
+            URI or `s3://` URL, or `delete_shards` is given for an S3 log
+            whose location holds a glob character (`*`, `?`, `[`).
     """
     return run_coroutine(
         merge_eval_log_shards_async(
@@ -261,6 +268,7 @@ async def merge_shards(
     delete_shards: bool = False,
 ) -> MergeOutcome:
     """Implement :func:`merge_eval_log_shards`, reporting what the CLI shows."""
+    check_supported_location(log)
     given = given_selection(sample_ids, sample_count)
     if delete_shards and allow_incomplete:
         raise ValueError("delete_shards cannot be combined with allow_incomplete.")

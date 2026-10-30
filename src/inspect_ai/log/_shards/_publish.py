@@ -2,8 +2,8 @@
 
 Callers serialise merges of one log; these guards turn a broken contract
 into a refused publish. A local merged log is guarded by a lock file beside
-it, an S3 one by a conditional upload against the ETag the merge read. Other
-backends publish unconditionally and rely on the contract alone.
+it, an S3 one by a conditional upload against the ETag the merge read. The
+merge supports no other storage (see :func:`check_supported_location`).
 """
 
 import os
@@ -26,6 +26,26 @@ from ._walk import _name
 _LOCK_SUFFIX = ".merge.lock"
 
 
+def check_supported_location(location: str) -> None:
+    """Refuse a location that is not a local path, ``file://`` URI or ``s3://`` URL.
+
+    The merge supports only these (decision: Ransom, 2026-10-30): other
+    fsspec backends differ in how they list, name and version objects. The
+    location is checked as text, so nothing is constructed, listed or read
+    first. A chained URL (``simplecache::s3://...``) is refused too.
+
+    Raises:
+        ValueError: `location` names another protocol.
+    """
+    if location.startswith(("s3://", "file://")):
+        return
+    if "://" in location or "::" in location:
+        raise ValueError(
+            f"{location} cannot be merged: shard merging supports local paths, "
+            "file:// URIs and s3:// URLs only."
+        )
+
+
 def is_local(location: str) -> bool:
     return not is_s3_filename(location) and filesystem(location).is_local()
 
@@ -38,7 +58,7 @@ def merge_lock_path(merged: str) -> str:
 
 @contextmanager
 def merge_guard(merged: str) -> Iterator[None]:
-    """Hold the merge lock of a local merged log; nothing for other backends.
+    """Hold the merge lock of a local merged log; nothing for S3.
 
     Raises:
         WriteConflictError: Another merge holds the lock, or one crashed
@@ -59,19 +79,16 @@ async def merged_log_copy(
 
     A local log is read in place (the merge lock keeps other merges out). An
     S3 log is downloaded in ranges pinned to `etag`, so every byte comes from
-    the version whose header the merge read. Other backends are copied as
-    they are.
+    the version whose header the merge read.
 
     Raises:
         WriteConflictError: The S3 object changed since it was read.
     """
     if is_local(merged):
         return local_path(merged)
+    assert is_s3_filename(merged) and etag is not None, "S3 reads report an ETag"
     copy = os.path.join(temp_dir, _name(merged))
-    if is_s3_filename(merged) and etag is not None:
-        await fs.get_file_if_match(merged, copy, etag)
-    else:
-        await fs.get_file(merged, copy)
+    await fs.get_file_if_match(merged, copy, etag)
     return copy
 
 
@@ -87,7 +104,6 @@ async def publish(
 
     Local: an atomic replace. S3: a conditional upload, ``IfMatch`` the ETag
     the merge read, or ``IfNoneMatch: *`` when there was no merged log.
-    Other backends: an unconditional streaming write.
 
     Raises:
         WriteConflictError: S3 only: another merge published first, or the
@@ -97,12 +113,11 @@ async def publish(
     if is_local(merged):
         await anyio.to_thread.run_sync(_replace_local, local_path(merged), source)
         return None
-    if is_s3_filename(merged):
-        if exists:
-            assert etag is not None, "S3 reads report an ETag"
-            return await fs.write_file_conditional(merged, source, if_match=etag)
-        return await fs.write_file_conditional(merged, source, if_none_match=True)
-    return await fs.write_file_streaming(merged, source)
+    assert is_s3_filename(merged), "the merge supports local and S3 logs only"
+    if exists:
+        assert etag is not None, "S3 reads report an ETag"
+        return await fs.write_file_conditional(merged, source, if_match=etag)
+    return await fs.write_file_conditional(merged, source, if_none_match=True)
 
 
 def _replace_local(path: str, source: BinaryIO) -> None:

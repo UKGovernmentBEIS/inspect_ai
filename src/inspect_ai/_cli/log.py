@@ -566,7 +566,8 @@ def merge_shards_command(
 ) -> None:
     """Merge the shard logs of a sharded run into one eval log.
 
-    LOG is the merged log (<name>.eval) or its shards directory (<name>.shards).
+    LOG is the merged log (<name>.eval) or its shards directory (<name>.shards),
+    as a local path, file:// URI or s3:// URL.
     """
     from inspect_ai._cli.eval import _stdout_owned_for_json
     from inspect_ai._util._async import run_coroutine

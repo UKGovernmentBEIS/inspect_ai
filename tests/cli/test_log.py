@@ -166,6 +166,37 @@ def test_merge_shards_json_errors(tmp_path: Path) -> None:
     assert stray["type"] == "ShardSetError" and "not shard attempts" in stray["message"]
 
 
+@pytest.mark.parametrize(
+    "root",
+    [
+        "abfs://container@account.dfs.core.windows.net/logs",
+        "gs://bucket/logs",
+        "webhdfs://user@namenode:9870/logs",
+        "memory://bucket/logs",
+    ],
+    ids=["abfs", "gs", "webhdfs", "memory"],
+)
+def test_merge_shards_json_refuses_unsupported_storage(
+    monkeypatch: pytest.MonkeyPatch, root: str
+) -> None:
+    def refuse(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("storage was accessed")
+
+    monkeypatch.setattr("fsspec.core.url_to_fs", refuse)
+    monkeypatch.setattr("fsspec.filesystem", refuse)
+    merged = f"{root}/{NAME}.eval"
+    for args in ([], ["--delete-shards"]):
+        result = _merge(merged, *args, "--json")
+        assert result.exit_code == 1, result.output
+        assert _json(result) == {
+            "error": {
+                "type": "ValueError",
+                "message": f"{merged} cannot be merged: shard merging supports "
+                "local paths, file:// URIs and s3:// URLs only.",
+            }
+        }
+
+
 def _merge_raising(monkeypatch: pytest.MonkeyPatch, ex: Exception) -> None:
     async def merge_shards(*args: Any, **kwargs: Any) -> Any:
         raise ex

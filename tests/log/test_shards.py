@@ -17,7 +17,7 @@ from inspect_ai import Epochs, Task, eval, eval_retry, task
 from inspect_ai._util.async_zip import AsyncZipReader, ZipCrcError
 from inspect_ai._util.asyncfiles import AsyncFilesystem, DirListing
 from inspect_ai._util.error import WriteConflictError
-from inspect_ai._util.file import FileInfo, FileSystem, local_path
+from inspect_ai._util.file import FileInfo, local_path
 from inspect_ai.dataset import Sample
 from inspect_ai.log import (
     EvalLog,
@@ -543,9 +543,9 @@ async def test_list_shard_set_on_a_qualified_webhdfs_url(
     async with AsyncFilesystem() as fs:
         if hidden is not None:
             with pytest.raises(ShardSetError, match="not a file or directory directly"):
-                await list_shard_set(fs, shards_dir, numeric_shards=True)
+                await list_shard_set(fs, shards_dir)
             return
-        listing = await list_shard_set(fs, shards_dir, numeric_shards=True)
+        listing = await list_shard_set(fs, shards_dir)
     # locations keep the qualified URL they were listed with
     assert [(s.name, s.dir) for s in listing.shards] == [
         ("0", f"{shards_dir}/0"),
@@ -2857,123 +2857,101 @@ def test_metrics_nested_in_wrappers_are_checked(
 
 
 @pytest.mark.parametrize(
-    "name", ["run?", "run*", "run[1]", "lo?s/run"], ids=["?", "*", "[]", "parent"]
+    "name", ["run*", "run[1]", "lo*s/run"], ids=["*", "[]", "parent"]
 )
-def test_remote_deletion_refuses_glob_characters(name: str) -> None:
-    import shortuuid
-
-    from inspect_ai._util.file import filesystem
+def test_s3_deletion_refuses_glob_characters(s3_root: str, name: str) -> None:
     from inspect_ai.log._shards._delete import remove_shards_dir
 
-    root = f"memory://{shortuuid.uuid()}/logs"
-    memory = filesystem(root).fs
-    targets = [f"{root}/{name}.shards/0/a.eval", f"{root}/{name}.eval"]
-    neighbours = [f"{root}/run1.shards/0/a.eval", f"{root}/run1.eval"]
-    neighbours += [f"{root}/logs/run1.shards/0/a.eval", f"{root}/logs/run1.eval"]
-    for path in targets + neighbours:
-        memory.pipe(path, b"x")
-    before = sorted(memory.find(root))
+    client = boto3.client("s3")
+    root = f"s3://test-bucket/{s3_root}"
+    targets = [f"{name}.shards/0/a.eval", f"{name}.eval"]
+    neighbours = ["run1.shards/0/a.eval", "run1.eval"]
+    neighbours += ["logs/run1.shards/0/a.eval", "logs/run1.eval"]
+    for key in targets + neighbours:
+        client.put_object(Bucket="test-bucket", Key=f"{s3_root}/{key}", Body=b"x")
+    before = _s3_keys(f"{s3_root}/")
 
     with pytest.raises(ValueError, match="glob character"):
         anyio.run(lambda: remove_shards_dir(f"{root}/{name}.eval", include_log=True))
     with pytest.raises(ValueError, match="glob character"):
         merge_eval_log_shards(f"{root}/{name}.eval", delete_shards=True)
-    assert sorted(memory.find(root)) == before
+    assert _s3_keys(f"{s3_root}/") == before
 
 
-def test_remove_shards_dir_deletes_a_remote_directory(tmp_path: Path) -> None:
-    import shortuuid
+_UNSUPPORTED = "supports local paths, file:// URIs and s3:// URLs only"
 
+_UNSUPPORTED_ROOTS = [
+    "az://container/logs",
+    "abfs://container@account.dfs.core.windows.net/logs",
+    "abfss://container@account.dfs.core.windows.net/logs",
+    "gs://bucket/logs",
+    "webhdfs://user@namenode:9870/logs",
+    "memory://{uuid}/logs",
+    "hdfs://namenode/logs",
+    "sftp://host/logs",
+    "simplecache::s3://test-bucket/logs",
+]
+
+
+def _refuse_storage(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fail on any fsspec filesystem construction (every non-S3 storage call)."""
+
+    def refuse(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("storage was accessed")
+
+    monkeypatch.setattr("fsspec.core.url_to_fs", refuse)
+    monkeypatch.setattr("fsspec.filesystem", refuse)
+
+
+def _memory_objects(root: str) -> dict[str, bytes]:
     from inspect_ai._util.file import filesystem
-    from inspect_ai.log._shards._delete import remove_shards_dir
 
-    root = f"memory://{shortuuid.uuid()}/logs"
     memory = filesystem(root).fs
-    merged, shards = _paths(root)
-    for name in ["0/a.eval", "0/.buffer/x/segment.0.zip", "1/b.checkpoints/1/data"]:
-        memory.pipe(f"{shards}/{name}", b"x")
-    memory.pipe(merged, b"x")
-    memory.pipe(f"{root}/{NAME}.shards-other/0/a.eval", b"x")
-    anyio.run(lambda: remove_shards_dir(merged, include_log=True))
-    assert memory.find(root) == [
-        memory._strip_protocol(f"{root}/{NAME}.shards-other/0/a.eval")
-    ]
-    # a missing directory is not an error
-    anyio.run(lambda: remove_shards_dir(merged))
+    prefix = memory._strip_protocol(root)
+    return {
+        path: data.getvalue()
+        for path, data in memory.store.items()
+        if path.startswith(prefix)
+    }
 
 
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
 @pytest.mark.parametrize(
-    "denied,error",
-    [("root", PermissionError), ("root", OSError), ("nested", PermissionError)],
+    "root", _UNSUPPORTED_ROOTS, ids=[r.split(":")[0] for r in _UNSUPPORTED_ROOTS]
 )
-def test_a_remote_deletion_that_cannot_be_checked_is_refused(
-    monkeypatch: pytest.MonkeyPatch, denied: str, error: type[OSError]
+def test_a_merge_of_unsupported_storage_is_refused_before_any_io(
+    monkeypatch: pytest.MonkeyPatch, root: str, backend: str
 ) -> None:
     import shortuuid
 
     from inspect_ai._util.file import filesystem
     from inspect_ai.log._shards._delete import remove_shards_dir
 
-    root = f"memory://{shortuuid.uuid()}/logs"
-    memory = filesystem(root).fs
+    root = root.format(uuid=shortuuid.uuid())
     merged, shards = _paths(root)
-    for name in ["0/a.eval", "1/b.eval", "1/b.checkpoints/1/data"]:
-        memory.pipe(f"{shards}/{name}", b"x")
-    memory.pipe(merged, b"x")
-    # the delete leaves shard 1, whose listing is denied, as is the root's
-    unlisted = memory._strip_protocol(shards if denied == "root" else f"{shards}/1")
-    left = memory._strip_protocol(f"{shards}/1")
-    ls = type(memory).ls
-
-    def partial_rm(self: Any, path: str, recursive: bool = False) -> None:
-        for found in memory.find(path):
-            if not found.startswith(left):
-                memory.rm_file(found)
-
-    def denied_ls(self: Any, path: str, detail: bool = True, **kwargs: Any) -> Any:
-        if self._strip_protocol(path) == unlisted:
-            raise error(f"listing {path} denied")
-        return ls(self, path, detail=detail, **kwargs)
-
-    monkeypatch.setattr(FileSystem, "rm", partial_rm)
-    monkeypatch.setattr(type(memory), "ls", denied_ls)
-    match = "Cannot check" if denied == "root" else "left objects behind"
-    with pytest.raises(ShardSetError, match=match):
-        anyio.run(lambda: remove_shards_dir(merged))
-    assert memory.exists(merged) and memory.exists(f"{shards}/1/b.eval")
-
-
-def test_remove_shards_dir_addresses_the_given_url(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from inspect_ai.log._shards import _delete
-
-    calls: list[tuple[str, ...]] = []
-
-    class Recording:
-        def rm(self, path: str, recursive: bool = False) -> None:
-            calls.append(("rm", path, str(recursive)))
-
-        def ls(self, path: str, recursive: bool = False) -> list[FileInfo]:
-            calls.append(("ls", path, str(recursive)))
-            return []
-
-    def recording_filesystem(path: str) -> Recording:
-        calls.append(("filesystem", path))
-        return Recording()
-
-    monkeypatch.setattr(_delete, "filesystem", recording_filesystem)
-    monkeypatch.setattr(_delete, "is_local", lambda location: False)
-    # an account-qualified URL whose listed names would lose the account
-    root = "abfss://container@account.dfs.core.windows.net/logs"
-    anyio.run(lambda: _delete.remove_shards_dir(f"{root}/{NAME}.eval"))
-    assert calls == [
-        ("filesystem", f"{root}/{NAME}.shards"),
-        ("rm", f"{root}/{NAME}.shards", "True"),
-        # the check that nothing remains lists the same URL
-        ("filesystem", f"{root}/{NAME}.shards"),
-        ("ls", f"{root}/{NAME}.shards", "False"),
-    ]
+    before: dict[str, bytes] = {}
+    if root.startswith("memory://"):
+        memory = filesystem(root).fs
+        for name in ["0/a.eval", "1/b.eval", "1/b.checkpoints/1/data"]:
+            memory.pipe(f"{shards}/{name}", b"x")
+        memory.pipe(merged, b"x")
+        before = _memory_objects(root)
+    with monkeypatch.context() as patched:
+        _refuse_storage(patched)
+        for location in (merged, shards):
+            for delete in (False, True):
+                with pytest.raises(ValueError, match=_UNSUPPORTED):
+                    _merge_on(backend, monkeypatch, location, delete_shards=delete)
+                if backend == "asyncio":
+                    with pytest.raises(ValueError, match=_UNSUPPORTED):
+                        merge_eval_log_shards(location, delete_shards=delete)
+        with pytest.raises(ValueError, match=_UNSUPPORTED):
+            anyio.run(
+                functools.partial(remove_shards_dir, merged, include_log=True),
+                backend=backend,
+            )
+    if root.startswith("memory://"):
+        assert before and _memory_objects(root) == before
 
 
 def _s3_keys(prefix: str) -> list[str]:
@@ -3803,92 +3781,6 @@ async def test_an_s3_worker_the_listing_would_hide_is_refused(
                 merged, sample_ids=[1, 2, 3], delete_shards=delete
             )
     assert _s3_objects(f"{s3_root}/") == before
-
-
-def _memory_store(root: str) -> dict[str, bytes]:
-    from inspect_ai._util.file import filesystem
-
-    memory = filesystem(root).fs
-    prefix = memory._strip_protocol(root)
-    return {
-        path: data.getvalue()
-        for path, data in memory.store.items()
-        if path.startswith(prefix)
-    }
-
-
-def _memory_shard_set(tmp_path: Path, hidden: str | None) -> tuple[str, str]:
-    """Two native workers copied to a memory filesystem.
-
-    Shard 1's goes under `hidden` (relative to the shards directory) when
-    given. Returns the merged log and the memory root.
-    """
-    import shortuuid
-
-    from inspect_ai._util.file import filesystem
-
-    _, local = _paths(tmp_path)
-    workers = [_run(local, "0", sample_id=[1, 2, 3]), _run(local, "1", sample_id=[4])]
-    root = f"memory://{shortuuid.uuid()}/logs"
-    memory = filesystem(root).fs
-    merged, shards = _paths(root)
-    for k, worker in enumerate(workers):
-        name = Path(worker.location).name
-        key = f"{k}/{name}" if k == 0 or hidden is None else hidden
-        memory.pipe(f"{shards}/{key}", Path(worker.location).read_bytes())
-    return merged, root
-
-
-@pytest.mark.parametrize("backend", ["asyncio", "trio"])
-def test_merge_on_a_memory_filesystem(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, backend: str
-) -> None:
-    from inspect_ai._util.file import filesystem
-
-    merged, root = _memory_shard_set(tmp_path, hidden=None)
-    result = _merge_on(backend, monkeypatch, merged, sample_ids=[1, 2, 3, 4])
-    assert result.written and result.log.status == "success"
-    result = _merge_on(backend, monkeypatch, merged, delete_shards=True)
-    assert not result.written and result.shards_deleted
-    memory = filesystem(root).fs
-    assert list(_memory_store(root)) == [memory._strip_protocol(merged)]
-
-
-@pytest.mark.parametrize("backend", ["asyncio", "trio"])
-@pytest.mark.parametrize("merge", ["unchanged", "fresh"])
-@pytest.mark.parametrize(
-    "hidden", ["/worker.eval", "1//worker.eval"], ids=["root", "shard"]
-)
-def test_a_memory_worker_the_listing_would_hide_is_refused(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    hidden: str,
-    merge: str,
-    backend: str,
-) -> None:
-    from inspect_ai._util.file import filesystem
-
-    merged, root = _memory_shard_set(tmp_path, hidden=hidden)
-    if merge == "unchanged":
-        # a merge of shard 0, made before the hidden worker was written
-        memory = filesystem(root).fs
-        hidden_key = f"{_paths(root)[1]}/{hidden}"
-        data = memory.cat_file(hidden_key)
-        memory.rm_file(hidden_key)
-        result = _merge_on(backend, monkeypatch, merged, sample_ids=[1, 2, 3])
-        assert result.log.status == "success"
-        memory.pipe(hidden_key, data)
-    before = _memory_store(root)
-    for delete in (False, True):
-        with pytest.raises(ShardSetError, match=_NOT_DIRECTLY):
-            _merge_on(
-                backend,
-                monkeypatch,
-                merged,
-                sample_ids=[1, 2, 3],
-                delete_shards=delete,
-            )
-    assert _memory_store(root) == before
 
 
 @pytest.mark.parametrize("state", ["fresh", "unchanged", "removed"])

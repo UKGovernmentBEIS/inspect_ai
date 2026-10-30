@@ -118,7 +118,7 @@ When the workers are done, merge the shards into `<name>.eval`:
 inspect log merge-shards logs/2026-10-16T10-00-00-00-00_mytask_RLGk3vGh7Az.eval
 ```
 
-Or from Python with `merge_eval_log_shards()`. You can also pass the `.shards` directory.
+Or from Python with `merge_eval_log_shards()`. You can also pass the `.shards` directory. The log can be a local path, a `file://` URI or an `s3://` URL; other storage is refused.
 
 The merge checks that the shards belong to one run, recomputes metrics over all their samples, and records which shard logs it merged. Running it again reads only the shards that changed and writes nothing if none did. If the set is not complete (a shard is still running or failed, or samples are missing) the merge raises an error and writes nothing; pass `--allow-incomplete` to write a `started` or `error` log instead. Without a selection the set is complete when the shards hold the whole dataset; pass `--sample-id` or `--sample-count` when they cover only part of it. Later merges reuse that selection.
 
@@ -148,7 +148,7 @@ The merge computes metrics over the samples in sample ID order (IDs sorted as te
 -   Do not change `INSPECT_EVAL_LOG_FILE_PATTERN` while a `.shards` directory exists.
 -   A shard finished with `eval_retry()` carries the reductions `eval_retry()` wrote, and `eval_retry()` loses the options of an epoch reducer (for example `at_least(2, value=0.5)`). When a reducer has options, re-run the shard instead of retrying it.
 -   Do not run `inspect log recover` on a shard's log; re-run the shard instead. A shard log recovered with `--overwrite` or to another output path cannot be told apart from a finished log, and when the task sets an epoch reducer with arguments or a value converter, the merged metrics for its samples may be wrong. Default reducers are not affected.
--   For a remote log (for example on S3) whose location contains `*`, `?` or `[`, `--delete-shards` is refused, because the storage backend would expand those characters to other paths. Delete the `.shards` directory by hand.
+-   For an S3 log whose location contains `*`, `?` or `[`, `--delete-shards` is refused. Delete the `.shards` directory by hand.
 -   On S3, a merged log, shards directory, or any file or directory in the shards directory whose location contains `#` or `?`, a tab or line break, or a key starting with `/` is refused, by the merge and by the commands that refuse to change a merged log while its shards exist. S3 would read such a location as another key. Rename it.
 -   Deleting a merged log in `inspect view` leaves its `.shards` directory, and the viewer lists the shards again. To remove a sharded run, delete the `.shards` directory as well.
 
