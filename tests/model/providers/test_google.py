@@ -2245,6 +2245,48 @@ async def test_cut_off_stream_usage_at_its_checkpoint(usage_at: str) -> None:
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("dropped", [False, True], ids=["eof", "transport-error"])
+async def test_reconnect_without_checkpoint_keeps_its_usage(dropped: bool) -> None:
+    """A reconnect that reports usage but no checkpoint or part is billed.
+
+    The SDK sends it again from the same token; its usage is counted, as the
+    SDK's own usage total counts it.
+    """
+
+    async def metadata_only() -> Any:
+        yield _with_usage(GenerateContentResponse(), 20, 0, 0)
+        if dropped:
+            raise aiohttp.ServerDisconnectedError()
+
+    mock_stream = AsyncMock(
+        side_effect=[
+            _leg_chunks([_chunk([Part(text="kept")], token=b"t1", usage=(10, 2, 0))]),
+            metadata_only(),
+            _leg_chunks(
+                [_chunk([Part(text=" rest")], FinishReason.STOP, usage=(20, 1, 0))]
+            ),
+        ]
+    )
+    mock_client = _create_mock_google_client(AsyncMock())
+    mock_client.aio.models.generate_content_stream = mock_stream
+    output, model_call = await _generate_with_client(
+        mock_client, model_args=dict(streaming=True)
+    )
+
+    tokens = [c.kwargs["config"].continuation_token for c in mock_stream.call_args_list]
+    assert tokens == [None, b"t1", b"t1"]
+    assert output.completion == "kept rest"
+    assert output.usage is not None
+    # each request's prompt (10, 20, 20) less its 1 cached token
+    assert output.usage.input_tokens == 9 + 19 + 19
+    assert output.usage.output_tokens == 2 + 1
+    assert output.input_context_tokens == 10
+    responses = model_call.response["responses"]
+    assert len(responses) == 3
+    assert responses[1]["usageMetadata"]["promptTokenCount"] == 20
+
+
+@pytest.mark.anyio
 async def test_dropped_stream_resumes_from_its_checkpoint() -> None:
     """A stream that raises a transport error after a checkpoint is resumed."""
 

@@ -345,7 +345,8 @@ class _StreamedLeg:
 
         A cut-off response keeps only the parts up to the last checkpoint, and
         the usage reported at it (a dropped stream is billed up to its last
-        checkpoint).
+        checkpoint). With no checkpoint and no parts (a reconnect retried from
+        its starting token), it keeps the usage reported.
         """
         if self.last_chunk is None:
             return None
@@ -371,11 +372,16 @@ class _StreamedLeg:
             )
         return GenerateContentResponse(
             candidates=candidates,
-            usage_metadata=self.checkpoint_usage if cut_off else self.usage,
+            usage_metadata=self._cut_off_usage() if cut_off else self.usage,
             prompt_feedback=self.prompt_feedback,
             model_version=self.last_chunk.model_version,
             response_id=self.last_chunk.response_id,
         )
+
+    def _cut_off_usage(self) -> GenerateContentResponseUsageMetadata | None:
+        if 0 in self.checkpoints:
+            return self.checkpoint_usage
+        return None if self.discarded else self.usage
 
 
 def _output_token_count(usage: GenerateContentResponseUsageMetadata | None) -> int:
