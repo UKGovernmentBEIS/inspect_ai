@@ -319,12 +319,14 @@ def _model_graded_qa_single(
             # their letter. A multi-character verdict that is not one of the
             # spelled-out grades (e.g. "GRADE: CI") is a protocol deviation,
             # not evidence about the submission, so it is a parse failure
-            # rather than a silently laundered first letter.
-            normalized = value.strip().lower()
+            # rather than a silently laundered first letter. "\w" includes "_",
+            # so the closing marks of "__I__" are stripped from the capture.
+            stripped = value.strip().strip("_")
+            normalized = stripped.lower()
             if normalized in _GRADE_WORD_VALUES:
                 value = _GRADE_WORD_VALUES[normalized]
-            elif len(value.strip()) == 1:
-                value = value.strip().upper()
+            elif len(stripped) == 1:
+                value = stripped.upper()
             else:
                 value = None
             if validate_offered_grades and value not in offered_grades:
@@ -418,6 +420,33 @@ First, write out in a step by step manner your reasoning about the criterion to 
 # verdict separator in model output or pasted text.
 _GRADE_SPACING = r"[\s\u200b\u200c\u200d\u200e\u200f\u2060\u2063\ufeff]*"
 
+# Markdown emphasis or inline-code marks around the label or separator
+# (``**GRADE**: I``, ``__GRADE__: I``, ``**GRADE:** I``). They are accepted only
+# directly against the label or separator, never as spacing, so a bare
+# ``GRADE:`` followed by a ``* ...`` bullet list is not read as a verdict.
+_GRADE_EMPHASIS = r"[*_`]*"
+
+# Marks that may open a wrapped verdict (``**I**``, ``__I__``, ```I```, ``[I]``,
+# ``(I)``), directly against the verdict.
+_GRADE_VERDICT_OPEN = r"[*_`\[(]*"
+
+# ASCII colon, the fullwidth colon (U+FF1A) that CJK-locale graders write, or an
+# equals sign.
+_GRADE_SEPARATOR = r"[:=\uff1a]"
+
+# The ``GRADE`` token with optional emphasis, bounded so that prose such as
+# ``downgrade:`` or an identifier such as ``snake_GRADE`` is not a label.
+_GRADE_LABEL = rf"(?<!\w){_GRADE_EMPHASIS}GRADE{_GRADE_EMPHASIS}(?!\w)"
+
+# ``GRADE`` plus a separator, or a markdown heading that is just ``GRADE`` with
+# the verdict alone on the next line. The lookahead keeps a heading followed by
+# ordinary prose from being read as a verdict.
+_GRADE_LEAD_IN = (
+    rf"(?:{_GRADE_LABEL}{_GRADE_SPACING}{_GRADE_SEPARATOR}{_GRADE_EMPHASIS}"
+    rf"|(?<![^\n])\#{{1,6}}[ \t]+{_GRADE_LABEL}[ \t]*"
+    rf"(?=\r?\n{_GRADE_SPACING}{_GRADE_VERDICT_OPEN}\w+[*_`\])]*[ \t.]*(?:\r?\n|$)))"
+)
+
 # Spelled-out verdicts the default instructions may elicit, mapped to their
 # single-letter grade. Anything else multi-character is a parse failure.
 _GRADE_WORD_VALUES = {
@@ -430,7 +459,7 @@ _GRADE_WORD_VALUES = {
 }
 
 DEFAULT_GRADE_PATTERN = (
-    rf"(?is).*(?<!\w)GRADE(?!\w){_GRADE_SPACING}:{_GRADE_SPACING}([CPI])"
+    rf"(?is).*{_GRADE_LEAD_IN}{_GRADE_SPACING}{_GRADE_VERDICT_OPEN}([CPI])"
 )
 """Regex to extract the grade from the COT above.
 
@@ -440,7 +469,12 @@ to end with the grade, so earlier mentions (e.g. echoed in chain-of-thought
 or injected via the submission) must not win. The ``GRADE`` token is bounded so
 ordinary prose like ``downgrade:`` cannot be mistaken for a verdict. No
 end-of-string anchor is used so that trailing text after the grade line does
-not suppress the match.
+not suppress the match. Markdown emphasis or inline code around the label or
+verdict (``**GRADE**: I``, ``__GRADE__: I``, ``GRADE: `I```), a bracketed
+verdict (``GRADE: [I]``, ``GRADE: (I)``), a fullwidth colon (U+FF1A) or ``=`` as
+the separator, and a ``## GRADE`` heading with the verdict alone on the next
+line are accepted, so such a final verdict is read rather than skipped in favor
+of an earlier plain ``GRADE: X``.
 
 Used when a custom ``instructions`` prompt is in play, where the grades on
 offer are unknown; with the default instructions the scorer uses a permissive
@@ -456,7 +490,7 @@ actually offered (see ``model_graded_qa``).
 # verdict decides the score, and an unusable one is a parse failure rather than
 # a licence to score some mention from the chain of thought.
 _PERMISSIVE_GRADE_PATTERN = (
-    rf"(?is).*(?<!\w)GRADE(?!\w){_GRADE_SPACING}:{_GRADE_SPACING}(\w*)"
+    rf"(?is).*{_GRADE_LEAD_IN}{_GRADE_SPACING}{_GRADE_VERDICT_OPEN}(\w*)"
 )
 
 
