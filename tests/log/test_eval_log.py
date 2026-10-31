@@ -9,7 +9,7 @@ import tempfile
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, BinaryIO, Literal, cast
+from typing import Any, BinaryIO, Literal, cast, get_args
 from unittest.mock import patch
 from zipfile import ZipFile
 
@@ -1685,7 +1685,7 @@ def test_non_finite_scores_survive_log_round_trip(
 
 
 def test_non_finite_serialization_configured_on_all_wire_roots() -> None:
-    """Known serialization roots for score-bearing data emit NaN constants.
+    """Known serialization roots for score-bearing data and events emit NaN constants.
 
     Pydantic reads ser_json_inf_nan from the dump-root model only -- a
     nested Score's own config is ignored -- so each model that is itself
@@ -1697,8 +1697,7 @@ def test_non_finite_serialization_configured_on_all_wire_roots() -> None:
     design/nan-serialization.md).
     """
     from inspect_ai.agent._human.state import IntermediateScoring
-    from inspect_ai.event._score import ScoreEvent
-    from inspect_ai.event._score_edit import ScoreEditEvent
+    from inspect_ai.event._event import Event
     from inspect_ai.log._log import EvalSampleReductions, EvalSampleSummary
     from inspect_ai.log._recorders.buffer.filestore import Manifest
     from inspect_ai.log._recorders.buffer.types import SampleData, Samples
@@ -1707,8 +1706,7 @@ def test_non_finite_serialization_configured_on_all_wire_roots() -> None:
     wire_roots: list[type[BaseModel]] = [
         Score,
         ScoreEdit,
-        ScoreEvent,
-        ScoreEditEvent,
+        *get_args(Event),
         EvalSample,
         EvalSampleSummary,
         EvalSampleReductions,

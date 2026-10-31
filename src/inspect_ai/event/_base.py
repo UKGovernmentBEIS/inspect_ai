@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field, field_serializer
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 from shortuuid import uuid
 
 from inspect_ai._util.constants import DESERIALIZING
@@ -14,6 +14,10 @@ from inspect_ai._util.working import sample_working_time
 
 
 class BaseEvent(BaseModel):
+    # each event is its own dump root in the realtime buffer and chunked logs
+    # (see design/nan-serialization.md)
+    model_config = ConfigDict(ser_json_inf_nan="constants")
+
     uuid: str | None = Field(default=None)
     """Unique identifer for event."""
 
