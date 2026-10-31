@@ -967,7 +967,7 @@ class GoogleGenAIAPI(ModelAPI):
                 )
             legs.append(response)
             chain.add(response)
-            continuation_token = _continuation_token(response)
+            continuation_token = _continuation_token(response, parameters)
             # the batch API has no continuations: it rejects max_output_tokens
             # above one request's cap
             if continuation_token is None or self._batcher:
@@ -1014,16 +1014,12 @@ class GoogleGenAIAPI(ModelAPI):
             )
             # several candidates are never continued (see `_continuation_token`),
             # so a stream that drops or ends early is not resumed either
-            if len(leg.parts) > 1:
+            if len(leg.parts) > 1 or (parameters.candidate_count or 1) > 1:
                 if error is not None:
                     raise error
-                response = leg.response(cut_off=False, continued=bool(legs))
-                assert response is not None
-                legs.append(response)
-                chain.add(response)
-                _continuation_token(response)
-                return legs
-            resume = state.end_hop(error)
+                resume = False
+            else:
+                resume = state.end_hop(error)
             cut_off = resume and not leg.finished
             response = leg.response(cut_off=cut_off, continued=resume or bool(legs))
             if response is None:
@@ -1036,7 +1032,7 @@ class GoogleGenAIAPI(ModelAPI):
             legs.append(response)
             chain.add(response)
             if not resume:
-                _continuation_token(response)
+                _continuation_token(response, parameters)
                 return legs
             if cut_off and leg.discarded:
                 await report_model_stream_restart()
@@ -3055,10 +3051,12 @@ def _malformed_function_message(candidate: Candidate | GenerateContentResponse) 
         return DEFAULT_MALFORMED_FUNCTION_MESSAGE
 
 
-def _continuation_token(response: GenerateContentResponse) -> bytes | None:
+def _continuation_token(
+    response: GenerateContentResponse, parameters: GenerateContentConfig
+) -> bytes | None:
     """The token to continue a response with, or None if it is complete.
 
-    Only a response with a single candidate is continued: a continuation
+    Only a request for a single candidate is continued: a continuation
     resumes the request, not one candidate of several. Otherwise the
     `CONTINUATION` candidates are returned as they are, with stop reason
     `max_tokens`.
@@ -3066,7 +3064,7 @@ def _continuation_token(response: GenerateContentResponse) -> bytes | None:
     candidates = response.candidates or []
     if not any(c.finish_reason == FinishReason.CONTINUATION for c in candidates):
         return None
-    if len(candidates) != 1:
+    if len(candidates) != 1 or (parameters.candidate_count or 1) > 1:
         warn_once(
             logger,
             "Gemini returned a CONTINUATION response with several candidates, "

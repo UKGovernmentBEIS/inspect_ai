@@ -1553,6 +1553,7 @@ async def _generate_with_client(
     mock_client: MagicMock,
     tools: list[ToolInfo] | None = None,
     model_args: dict[str, Any] | None = None,
+    config: GenerateConfig | None = None,
 ) -> tuple[ModelOutput, Any]:
     with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
         api = GoogleGenAIAPI(
@@ -1565,7 +1566,7 @@ async def _generate_with_client(
             input=[ChatMessageUser(content="Think hard")],
             tools=tools or [],
             tool_choice="auto",
-            config=GenerateConfig(),
+            config=config or GenerateConfig(),
         )
     assert isinstance(result, tuple)
     output, model_call = result
@@ -2819,8 +2820,14 @@ async def test_continuation_without_token_is_not_continued(streaming: bool) -> N
 
 
 @pytest.mark.anyio
-async def test_continuation_with_several_candidates_is_not_continued() -> None:
-    """Several candidates are not continued; they are returned as cut at max_tokens."""
+@pytest.mark.parametrize("arrived", [2, 1])
+async def test_continuation_with_several_candidates_is_not_continued(
+    arrived: int,
+) -> None:
+    """A request for several candidates is not continued, however many arrive.
+
+    The CONTINUATION candidates are returned as cut at max_tokens.
+    """
     response = GenerateContentResponse(
         candidates=[
             Candidate(
@@ -2829,13 +2836,17 @@ async def test_continuation_with_several_candidates_is_not_continued() -> None:
                 continuation_token=b"t1",
                 index=i,
             )
-            for i in range(2)
+            for i in range(arrived)
         ]
     )
-    output, _, mock_generate = await _generate_with_legs([response])
+    mock_generate = AsyncMock(side_effect=[response])
+    output, _ = await _generate_with_client(
+        _create_mock_google_client(mock_generate),
+        config=GenerateConfig(num_choices=2),
+    )
 
     assert mock_generate.call_count == 1
-    assert [c.stop_reason for c in output.choices] == ["max_tokens", "max_tokens"]
+    assert [c.stop_reason for c in output.choices] == ["max_tokens"] * arrived
 
 
 def _candidates_chunk(
@@ -2858,25 +2869,30 @@ def _candidates_chunk(
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize("candidates", [1, 2])
+@pytest.mark.parametrize(
+    ("requested", "arrived"),
+    [(1, 1), (2, 2), (2, 1)],
+    ids=["one", "several", "several-requested-one-arrived"],
+)
 @pytest.mark.parametrize("ending", ["eof", "dropped", "continuation"])
 async def test_streamed_continuation_with_several_candidates_is_not_resumed(
-    ending: str, candidates: int
+    ending: str, requested: int, arrived: int
 ) -> None:
-    """A stream with several candidates is not resumed, as one with one is.
+    """A stream for several candidates is not resumed, as one for one is.
 
-    With several, a stream that drops raises its error, one that ends early
-    returns what arrived (nothing trimmed), and CONTINUATION returns the
-    candidates cut at max_tokens. One candidate resumes in each case.
+    With several requested, however many arrive, a stream that drops raises
+    its error, one that ends early returns what arrived (nothing trimmed),
+    and CONTINUATION returns the candidates cut at max_tokens. One requested
+    candidate resumes in each case.
     """
-    texts = ["a", "b"][:candidates]
+    texts = ["a", "b"][:arrived]
 
     async def first_leg() -> Any:
         if ending == "continuation":
             yield _candidates_chunk(texts, FinishReason.CONTINUATION, b"t1")
             return
         yield _candidates_chunk(texts, token=b"t1")
-        yield _candidates_chunk([" more"] * candidates)
+        yield _candidates_chunk([" more"] * arrived)
         if ending == "dropped":
             raise aiohttp.ServerDisconnectedError()
 
@@ -2889,33 +2905,36 @@ async def test_streamed_continuation_with_several_candidates_is_not_resumed(
     mock_client = _create_mock_google_client(AsyncMock())
     mock_client.aio.models.generate_content_stream = mock_stream
 
-    if candidates == 1:
+    async def generate() -> ModelOutput:
         output, _ = await _generate_with_client(
-            mock_client, model_args=dict(streaming=True)
+            mock_client,
+            model_args=dict(streaming=True),
+            config=GenerateConfig(num_choices=requested),
         )
+        return output
+
+    if requested == 1:
+        output = await generate()
         assert mock_stream.call_count == 2
         assert output.completion == "a rest"
         assert output.stop_reason == "stop"
     elif ending == "dropped":
         with pytest.raises(aiohttp.ServerDisconnectedError):
-            await _generate_with_client(mock_client, model_args=dict(streaming=True))
+            await generate()
         assert mock_stream.call_count == 1
     else:
-        output, _ = await _generate_with_client(
-            mock_client, model_args=dict(streaming=True)
-        )
+        output = await generate()
         assert mock_stream.call_count == 1
         if ending == "eof":
             # untrimmed, and with no finish reason read as STOP, as before
             # continuations were handled
-            assert [c.message.text for c in output.choices] == ["a more", "b more"]
-            assert [c.stop_reason for c in output.choices] == ["stop", "stop"]
-        else:
-            assert [c.message.text for c in output.choices] == ["a", "b"]
-            assert [c.stop_reason for c in output.choices] == [
-                "max_tokens",
-                "max_tokens",
+            assert [c.message.text for c in output.choices] == [
+                f"{text} more" for text in texts
             ]
+            assert [c.stop_reason for c in output.choices] == ["stop"] * arrived
+        else:
+            assert [c.message.text for c in output.choices] == texts
+            assert [c.stop_reason for c in output.choices] == ["max_tokens"] * arrived
 
 
 def test_batch_request_dict_omits_automatic_continuation() -> None:
