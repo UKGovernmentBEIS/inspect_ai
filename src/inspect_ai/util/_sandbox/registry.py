@@ -21,14 +21,14 @@ _SANDBOX_PACKAGES: dict[str, str] = {
 T = TypeVar("T", bound=SandboxEnvironment)
 
 
-def sandboxenv(name: str) -> Callable[..., Type[T]]:
+def sandboxenv(name: str) -> Callable[[Type[T] | Callable[[], Type[T]]], Type[T]]:
     r"""Decorator for registering sandbox environments.
 
     Args:
         name (str): Name of SandboxEnvironment type
     """
 
-    def wrapper(sandboxenv_type: Type[T] | Callable[..., Type[T]]) -> Type[T]:
+    def wrapper(sandboxenv_type: Type[T] | Callable[[], Type[T]]) -> Type[T]:
         # resolve if its a function
         if not isinstance(sandboxenv_type, type):
             sandboxenv_type = sandboxenv_type()

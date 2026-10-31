@@ -628,7 +628,9 @@ class Hooks:
 T = TypeVar("T", bound=Hooks)
 
 
-def hooks(name: str, description: str) -> Callable[..., Type[T]]:
+def hooks(
+    name: str, description: str
+) -> Callable[[Type[T] | Callable[[], Type[T]]], Type[T]]:
     """Decorator for registering a hook subscriber.
 
     Either decorate a subclass of `Hooks`, or a function which returns the type
@@ -646,7 +648,7 @@ def hooks(name: str, description: str) -> Callable[..., Type[T]]:
             S3 bucket for auditing.").
     """
 
-    def wrapper(hook_type: Type[T] | Callable[..., Type[T]]) -> Type[T]:
+    def wrapper(hook_type: Type[T] | Callable[[], Type[T]]) -> Type[T]:
         # Resolve the hook type if it's a function.
         if not isinstance(hook_type, type):
             hook_type = hook_type()
