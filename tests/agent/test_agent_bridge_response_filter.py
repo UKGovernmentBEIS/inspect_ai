@@ -1049,6 +1049,48 @@ async def test_response_filter_control_flow_keeps_its_context(
     assert text.count(f"{type(error).__name__}: ") == 1
 
 
+@pytest.mark.parametrize("changed", [False, True], ids=["unchanged", "changed"])
+async def test_response_filter_keeps_the_completion_of_an_unchanged_message(
+    changed: bool,
+) -> None:
+    """A replacement with the message unchanged keeps the provider's completion.
+
+    A provider can set a completion that differs from the message's text (Google
+    joins text continued across requests with no separator). A changed message
+    has its completion rebuilt from its text.
+    """
+    output = ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content=[
+                        ContentText(text='{"answer":"hel'),
+                        ContentText(text='lo"}'),
+                    ]
+                ),
+                stop_reason="stop",
+            )
+        ],
+        completion='{"answer":"hello"}',
+    )
+
+    async def replacing_filter(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        if changed:
+            output.message.content = [ContentText(text="replaced")]
+        return output
+
+    filtered = await _apply_response_filter(
+        replacing_filter,
+        get_model("mockllm/model"),
+        output,
+        GenerateInput([], [], "auto", GenerateConfig()),
+    )
+    assert filtered.completion == ("replaced" if changed else '{"answer":"hello"}')
+
+
 async def test_response_filter_termination_on_a_wrapper_ends_the_request(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

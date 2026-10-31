@@ -1,8 +1,10 @@
 import asyncio
 import base64
 import hashlib
+import json
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, NamedTuple
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -13,6 +15,7 @@ from google.genai import Client
 from google.genai.errors import APIError, ClientError, ServerError
 from google.genai.types import (
     Blob,
+    BlockedReason,
     Candidate,
     Content,
     File,
@@ -23,11 +26,21 @@ from google.genai.types import (
     FunctionResponse,
     GenerateContentConfig,
     GenerateContentResponse,
+    GenerateContentResponsePromptFeedback,
     GenerateContentResponseUsageMetadata,
+    GroundingChunk,
+    GroundingChunkWeb,
+    GroundingMetadata,
+    GroundingSupport,
     HttpOptions,
     JobState,
     Part,
+    Segment,
+    ToolResponse,
+    ToolType,
 )
+from google.genai.types import ToolCall as GeminiToolCall
+from openai.types.chat import ChatCompletionAssistantMessageParam
 from test_helpers.utils import skip_if_no_google
 
 from inspect_ai import Task, eval
@@ -44,8 +57,12 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.kvstore import KVStore
-from inspect_ai.agent._bridge.google_api_impl import messages_from_google_contents
+from inspect_ai.agent._bridge.google_api_impl import (
+    gemini_response_from_output,
+    messages_from_google_contents,
+)
 from inspect_ai.dataset import Sample
+from inspect_ai.event._model import ModelEvent, model_event_progress
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
@@ -56,6 +73,7 @@ from inspect_ai.model import (
 from inspect_ai.model._chat_message import ChatMessageUser
 from inspect_ai.model._generate_config import BatchConfig, GenerateConfig
 from inspect_ai.model._model import ModelAPI, RetryDecision
+from inspect_ai.model._openai import messages_from_openai, openai_chat_choices
 from inspect_ai.model._providers import google as google_provider
 from inspect_ai.model._providers._google_citations import (
     distribute_citations_to_text_parts,
@@ -76,6 +94,7 @@ from inspect_ai.model._stream import (
     ModelStreamObserver,
     StreamEvent,
     StreamReasoningEvent,
+    StreamRetryEvent,
     StreamTextEvent,
     StreamToolCallEvent,
     model_stream_observer,
@@ -1504,6 +1523,1460 @@ async def test_malformed_function_call_retry_error_keeps_earlier_usage():
     assert output.input_context_tokens == 10
 
 
+def _leg(
+    parts: list[Part],
+    finish_reason: FinishReason,
+    token: bytes | None = None,
+    usage: tuple[int, int, int] = (10, 2, 3),
+) -> GenerateContentResponse:
+    """One leg of a continuation chain: a response with usage (prompt, output, thoughts)."""
+    return _with_usage(
+        GenerateContentResponse(
+            candidates=[
+                Candidate(
+                    content=Content(role="model", parts=parts),
+                    finish_reason=finish_reason,
+                    continuation_token=token,
+                    index=0,
+                )
+            ]
+        ),
+        *usage,
+    )
+
+
+def _thought(text: str) -> Part:
+    return Part(thought=True, text=text)
+
+
+async def _generate_with_client(
+    mock_client: MagicMock,
+    tools: list[ToolInfo] | None = None,
+    model_args: dict[str, Any] | None = None,
+    config: GenerateConfig | None = None,
+) -> tuple[ModelOutput, Any]:
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.5-pro",
+            base_url=None,
+            api_key="test-key",
+            **(model_args or {}),
+        )
+        result = await api.generate(
+            input=[ChatMessageUser(content="Think hard")],
+            tools=tools or [],
+            tool_choice="auto",
+            config=config or GenerateConfig(),
+        )
+    assert isinstance(result, tuple)
+    output, model_call = result
+    assert isinstance(output, ModelOutput)
+    return output, model_call
+
+
+async def _generate_with_legs(
+    side_effect: list[Any],
+) -> tuple[ModelOutput, Any, AsyncMock]:
+    mock_generate = AsyncMock(side_effect=side_effect)
+    output, model_call = await _generate_with_client(
+        _create_mock_google_client(mock_generate)
+    )
+    return output, model_call, mock_generate
+
+
+def _reasoning_texts(output: ModelOutput) -> list[str]:
+    content = output.choices[0].message.content
+    assert isinstance(content, list)
+    return [c.reasoning for c in content if isinstance(c, ContentReasoning)]
+
+
+@pytest.mark.anyio
+async def test_continuation_is_sent_and_combined() -> None:
+    """A CONTINUATION response is continued with its token in the same generate."""
+    output, model_call, mock_generate = await _generate_with_legs(
+        [
+            _leg([_thought("part one")], FinishReason.CONTINUATION, b"tok-1"),
+            _leg([_thought("part two"), Part(text="42")], FinishReason.STOP),
+        ]
+    )
+
+    assert mock_generate.call_count == 2
+    first, second = (c.kwargs for c in mock_generate.call_args_list)
+    # the SDK must not continue on its own, or a leg would go unlogged
+    assert first["config"].automatic_continuation is False
+    assert first["config"].continuation_token is None
+    assert second["config"].continuation_token == b"tok-1"
+    # the continuation resends the same contents
+    assert second["contents"] == first["contents"]
+
+    assert _reasoning_texts(output) == ["part one", "part two"]
+    assert output.completion == "42"
+    assert output.stop_reason == "stop"
+    # every leg's response is in the model call
+    assert model_call.response is not None
+    assert len(model_call.response["responses"]) == 2
+
+
+@pytest.mark.anyio
+async def test_several_continuations_sum_usage() -> None:
+    """Usage covers every leg; the context size is the first leg's prompt."""
+    output, _, mock_generate = await _generate_with_legs(
+        [
+            _leg([_thought("a")], FinishReason.CONTINUATION, b"t1", (10, 2, 30)),
+            _leg([_thought("b")], FinishReason.CONTINUATION, b"t2", (20, 4, 50)),
+            _leg([Part(text="done")], FinishReason.MAX_TOKENS, None, (30, 6, 0)),
+        ]
+    )
+
+    assert mock_generate.call_count == 3
+    tokens = [
+        c.kwargs["config"].continuation_token for c in mock_generate.call_args_list
+    ]
+    assert tokens == [None, b"t1", b"t2"]
+    assert _reasoning_texts(output) == ["a", "b"]
+    assert output.completion == "done"
+    # the final leg's stop reason
+    assert output.stop_reason == "max_tokens"
+    assert output.usage is not None
+    # input excludes the 1 cached token per request
+    assert output.usage.input_tokens == 9 + 19 + 29
+    assert output.usage.input_tokens_cache_read == 3
+    assert output.usage.output_tokens == 32 + 54 + 6
+    assert output.usage.reasoning_tokens == 30 + 50
+    assert output.input_context_tokens == 10
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("streaming", [False, True], ids=["plain", "streamed"])
+@pytest.mark.parametrize("error", ["too-long", "server-error"])
+async def test_continuation_failing_partway_fails_like_one_request(
+    error: str, streaming: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A continuation that fails fails the call as a single request would.
+
+    As in the SDK, the earlier legs and their usage are not kept, and only the
+    error is logged.
+    """
+    calls = _capture_model_calls(monkeypatch)
+    first = _leg([_thought("a")], FinishReason.CONTINUATION, b"t1", (10, 2, 30))
+    exception = (
+        ClientError(
+            400,
+            {
+                "error": {
+                    "code": 400,
+                    "message": "input exceeds the maximum number of tokens",
+                    "status": "INVALID_ARGUMENT",
+                }
+            },
+        )
+        if error == "too-long"
+        else ServerError(503, {"error": {"code": 503, "message": "Unavailable"}})
+    )
+    mock = AsyncMock(
+        side_effect=[_leg_chunks([first]) if streaming else first, exception]
+    )
+    mock_client = _create_mock_google_client(mock)
+    if streaming:
+        mock_client.aio.models.generate_content_stream = mock
+
+    if error == "too-long":
+        output, model_call = await _generate_with_client(
+            mock_client, model_args=dict(streaming=streaming)
+        )
+        assert output.stop_reason == "model_length"
+        assert output.usage is None
+        assert output.input_context_tokens is None
+        assert model_call.error is True
+        assert model_call.response == {
+            "error": {
+                "message": "input exceeds the maximum number of tokens",
+                "code": 400,
+            }
+        }
+    else:
+        with pytest.raises(ServerError):
+            await _generate_with_client(
+                mock_client, model_args=dict(streaming=streaming)
+            )
+        [model_call] = calls
+        assert model_call.response is None
+    assert mock.call_count == 2
+
+
+@pytest.mark.anyio
+async def test_continuation_content_filter_keeps_earlier_legs() -> None:
+    """A continuation stopped by the content filter returns every leg's content."""
+    output, _, _ = await _generate_with_legs(
+        [
+            _leg([_thought("a")], FinishReason.CONTINUATION, b"t1", (10, 2, 30)),
+            _leg([_thought("b")], FinishReason.SAFETY, None, (20, 4, 5)),
+        ]
+    )
+
+    assert output.stop_reason == "content_filter"
+    assert _reasoning_texts(output) == ["a", "b"]
+    assert output.usage is not None
+    assert output.usage.output_tokens == 32 + 9
+    assert output.input_context_tokens == 10
+
+
+@pytest.mark.anyio
+async def test_continuation_then_malformed_function_call_retry() -> None:
+    """A malformed call ending a continued response retries, summing every request."""
+    mock_generate = AsyncMock(
+        side_effect=[
+            _leg([_thought("a")], FinishReason.CONTINUATION, b"t1", (10, 2, 30)),
+            _with_usage(_create_malformed_response(), 20, 4, 5),
+            _with_usage(_create_success_response_with_tool_call(), 30, 6, 7),
+        ]
+    )
+    output, model_call = await _generate_with_client(
+        _create_mock_google_client(mock_generate), tools=[_create_test_tool()]
+    )
+
+    assert mock_generate.call_count == 3
+    # every request's response is logged, the retried attempt's included
+    assert len(model_call.response["responses"]) == 3
+    tokens = [
+        c.kwargs["config"].continuation_token for c in mock_generate.call_args_list
+    ]
+    # the retry is a new request, not a continuation
+    assert tokens == [None, b"t1", None]
+    assert output.choices[0].message.tool_calls is not None
+    assert output.usage is not None
+    assert output.usage.input_tokens == 9 + 19 + 29
+    assert output.usage.output_tokens == 32 + 9 + 13
+    assert output.input_context_tokens == 10
+
+
+def _leg_chunks(chunks: list[GenerateContentResponse]) -> Any:
+    async def stream() -> Any:
+        for chunk in chunks:
+            yield chunk
+
+    return stream()
+
+
+def _chunk(
+    parts: list[Part] | None,
+    finish_reason: FinishReason | None = None,
+    token: bytes | None = None,
+    usage: tuple[int, int, int] | None = None,
+) -> GenerateContentResponse:
+    response = GenerateContentResponse(
+        candidates=[
+            Candidate(
+                content=Content(role="model", parts=parts),
+                finish_reason=finish_reason,
+                continuation_token=token,
+                index=0,
+            )
+        ]
+    )
+    return _with_usage(response, *usage) if usage else response
+
+
+async def _generate_streamed(
+    legs: list[list[GenerateContentResponse]],
+) -> tuple[ModelOutput, Any, AsyncMock]:
+    mock_stream = AsyncMock(side_effect=[_leg_chunks(leg) for leg in legs])
+    mock_client = _create_mock_google_client(AsyncMock())
+    mock_client.aio.models.generate_content_stream = mock_stream
+    output, model_call = await _generate_with_client(
+        mock_client, model_args=dict(streaming=True)
+    )
+    return output, model_call, mock_stream
+
+
+@pytest.mark.anyio
+async def test_streamed_continuation_is_combined() -> None:
+    """Streamed legs are continued, taking a token sent before the last chunk."""
+    mock_stream = AsyncMock(
+        side_effect=[
+            _leg_chunks(
+                [
+                    _chunk([_thought("a1")]),
+                    _chunk([_thought("a2")], token=b"t1"),
+                    _chunk(None, FinishReason.CONTINUATION, usage=(10, 2, 30)),
+                ]
+            ),
+            _leg_chunks(
+                [
+                    _chunk([_thought("b")]),
+                    _chunk([Part(text="done")], FinishReason.STOP, usage=(20, 4, 5)),
+                ]
+            ),
+        ]
+    )
+    mock_client = _create_mock_google_client(AsyncMock())
+    mock_client.aio.models.generate_content_stream = mock_stream
+
+    output, model_call = await _generate_with_client(
+        mock_client, model_args=dict(streaming=True)
+    )
+
+    assert mock_stream.call_count == 2
+    tokens = [c.kwargs["config"].continuation_token for c in mock_stream.call_args_list]
+    assert tokens == [None, b"t1"]
+    assert _reasoning_texts(output) == ["a1a2", "b"]
+    assert output.completion == "done"
+    assert output.stop_reason == "stop"
+    assert output.usage is not None
+    assert output.usage.output_tokens == 32 + 9
+    assert output.input_context_tokens == 10
+    assert len(model_call.response["responses"]) == 2
+
+
+_EMPTY_PART_PLACEMENTS = pytest.mark.parametrize(
+    ("before", "after"),
+    [
+        ([], []),
+        ([Part()], []),
+        ([], [Part()]),
+        ([Part(text="")], []),
+        ([], [Part(text="")]),
+    ],
+    ids=[
+        "no-empty-part",
+        "empty-part-before",
+        "empty-part-after",
+        "empty-text-before",
+        "empty-text-after",
+    ],
+)
+
+
+@pytest.mark.anyio
+@_EMPTY_PART_PLACEMENTS
+async def test_continuation_text_split_across_legs(
+    before: list[Part], after: list[Part]
+) -> None:
+    """Output text split at a leg boundary reads as one text, so JSON stays valid.
+
+    Each leg's parts stay apart, as the SDK keeps them; empty parts without a
+    signature have nothing to replay and are dropped.
+    """
+    output, _, _ = await _generate_with_legs(
+        [
+            _leg(
+                [Part(text='{"answer":"hel'), *before],
+                FinishReason.CONTINUATION,
+                b"t1",
+            ),
+            _leg([*after, Part(text='lo"}')], FinishReason.STOP),
+        ]
+    )
+
+    assert output.completion == '{"answer":"hello"}'
+    content_list = output.message.content
+    assert isinstance(content_list, list)
+    assert [c.text for c in content_list if isinstance(c, ContentText)] == [
+        '{"answer":"hel',
+        'lo"}',
+    ]
+    replayed = await content(MagicMock(), output.message)
+    assert replayed.parts == [Part(text='{"answer":"hel'), Part(text='lo"}')]
+
+
+@pytest.mark.anyio
+@_EMPTY_PART_PLACEMENTS
+async def test_streamed_continuation_text_split_across_legs(
+    before: list[Part], after: list[Part]
+) -> None:
+    """A streamed leg boundary inside output text adds no newline either."""
+    output, _, _ = await _generate_streamed(
+        [
+            [
+                _chunk([Part(text='{"answer":"hel')]),
+                _chunk(before or None, FinishReason.CONTINUATION, b"t1"),
+            ],
+            [
+                _chunk(after or None),
+                _chunk([Part(text='lo"}')], FinishReason.STOP),
+            ],
+        ]
+    )
+
+    assert output.completion == '{"answer":"hello"}'
+
+
+def _signed(text: str | None, signature: bytes | None = b"s1") -> Part:
+    return Part(text=text, thought_signature=signature)
+
+
+_HEL = Part(text='{"answer":"hel')
+_LO = Part(text='lo"}')
+
+# (first leg, last leg, replayed parts, replayed parts when streamed): a
+# streamed request joins a signature onto the output text before it in that
+# request, as it always has
+_SIGNED_BOUNDARIES = {
+    "signed-left": (
+        [_signed('{"answer":"hel')],
+        [_LO],
+        [_signed('{"answer":"hel'), _LO],
+        None,
+    ),
+    "signed-right": (
+        [_HEL],
+        [_signed('lo"}', b"s2")],
+        [_HEL, _signed('lo"}', b"s2")],
+        None,
+    ),
+    "both-signed": (
+        [_signed('{"answer":"hel')],
+        [_signed('lo"}', b"s2")],
+        [_signed('{"answer":"hel'), _signed('lo"}', b"s2")],
+        None,
+    ),
+    "signature-only-ends-leg": (
+        [_HEL, _signed(None)],
+        [_LO],
+        [_HEL, _signed(""), _LO],
+        [_signed('{"answer":"hel'), _LO],
+    ),
+    "signature-only-starts-leg": (
+        [_HEL],
+        [_signed(None), _LO],
+        [_HEL, _signed(""), _LO],
+        None,
+    ),
+    "signed-empty-ends-leg": (
+        [_HEL, _signed("")],
+        [_LO],
+        [_HEL, _signed(""), _LO],
+        [_signed('{"answer":"hel'), _LO],
+    ),
+    "signed-empty-starts-leg": (
+        [_HEL],
+        [_signed(""), _LO],
+        [_HEL, _signed(""), _LO],
+        None,
+    ),
+    # visible thinking is not replayed, as for a single response
+    "signed-empty-after-thinking": (
+        [_thought("thinking"), _signed("")],
+        [Part(text='{"answer":"hello"}')],
+        [_signed(""), Part(text='{"answer":"hello"}')],
+        None,
+    ),
+    # a later signature is not the reasoning's when output text came between
+    "signed-right-after-thinking-and-text": (
+        [_thought("thinking"), _HEL],
+        [_signed('lo"}', b"s2")],
+        [_thought("thinking"), _HEL, _signed('lo"}', b"s2")],
+        None,
+    ),
+    "signature-only-starts-leg-after-thinking-and-text": (
+        [_thought("thinking"), _HEL],
+        [_signed(None, b"s2"), _LO],
+        [_thought("thinking"), _HEL, _signed("", b"s2"), _LO],
+        None,
+    ),
+    "signed-empty-starts-leg-after-thinking-and-text": (
+        [_thought("thinking"), _HEL],
+        [_signed("", b"s2"), _LO],
+        [_thought("thinking"), _HEL, _signed("", b"s2"), _LO],
+        None,
+    ),
+}
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("streaming", [False, True], ids=["plain", "streamed"])
+@pytest.mark.parametrize("case", list(_SIGNED_BOUNDARIES))
+async def test_continuation_replays_signatures_in_place(
+    case: str, streaming: bool
+) -> None:
+    """Every signed part of a continued turn replays with its signature in place.
+
+    Checked after the output goes through its JSON form, as a log stores it.
+    A part with only a signature replays as signed empty text. Each request's
+    logged response keeps its signatures.
+    """
+    first, last, replay, streamed_replay = _SIGNED_BOUNDARIES[case]
+    if streaming:
+        output, model_call, _ = await _generate_streamed(
+            [
+                [*(_chunk([part]) for part in first)]
+                + [_chunk(None, FinishReason.CONTINUATION, b"t1")],
+                [*(_chunk([part]) for part in last)]
+                + [_chunk(None, FinishReason.STOP)],
+            ]
+        )
+    else:
+        output, model_call, _ = await _generate_with_legs(
+            [
+                _leg(first, FinishReason.CONTINUATION, b"t1"),
+                _leg(last, FinishReason.STOP),
+            ]
+        )
+
+    assert json.loads(output.completion) == {"answer": "hello"}
+    stored = ModelOutput.model_validate_json(output.model_dump_json())
+    replayed = await content(MagicMock(), stored.message)
+    assert replayed.parts == ((streaming and streamed_replay) or replay)
+    signatures = sum(part.thought_signature is not None for part in first + last)
+    assert json.dumps(model_call.response).count("thoughtSignature") == signatures
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("streaming", [False, True], ids=["plain", "streamed"])
+@pytest.mark.parametrize(
+    "text", [None, "", "hel"], ids=["signature-only", "signed-empty", "signed-text"]
+)
+async def test_continuation_replays_text_signature_before_tool_call(
+    text: str | None, streaming: bool
+) -> None:
+    """A signed text part keeps its signature when a tool call follows it.
+
+    The function call keeps its own signature and place.
+    """
+    first = [_signed(text)]
+    last = [
+        Part(
+            function_call=FunctionCall(name="calculator", args={"expr": "2+2"}),
+            thought_signature=b"s2",
+        )
+    ]
+    if streaming:
+        output, _, _ = await _generate_streamed(
+            [
+                [_chunk(first), _chunk(None, FinishReason.CONTINUATION, b"t1")],
+                [_chunk(last), _chunk(None, FinishReason.STOP)],
+            ]
+        )
+    else:
+        output, _, _ = await _generate_with_legs(
+            [
+                _leg(first, FinishReason.CONTINUATION, b"t1"),
+                _leg(last, FinishReason.STOP),
+            ]
+        )
+
+    assert output.completion == (text or "")
+    stored = ModelOutput.model_validate_json(output.model_dump_json())
+    replayed = await content(MagicMock(), stored.message)
+    assert replayed.parts is not None
+    text_part, call_part = replayed.parts
+    assert text_part == _signed(text or "")
+    assert call_part.function_call is not None
+    assert call_part.function_call.name == "calculator"
+    assert call_part.thought_signature == b"s2"
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("streaming", [False, True], ids=["plain", "streamed"])
+@pytest.mark.parametrize(
+    "tool_type", [ToolType.GOOGLE_SEARCH_WEB, ToolType.GOOGLE_SEARCH_IMAGE]
+)
+async def test_continuation_replays_search_and_answer_signatures(
+    tool_type: ToolType, streaming: bool
+) -> None:
+    """A server-side search ends the reasoning before it, so a later signature is the answer's.
+
+    The search call, its result and the answer each replay with their own
+    signature, after the output goes through its JSON form.
+    """
+    search = Part(
+        thought_signature=b"s1",
+        tool_call=GeminiToolCall(
+            id="search-1", tool_type=tool_type, args={"queries": ["q"]}
+        ),
+    )
+    result = Part(
+        thought_signature=b"r1",
+        tool_response=ToolResponse(
+            id="search-1", tool_type=tool_type, response={"results": ["r"]}
+        ),
+    )
+    first = [_thought("thinking"), search, result]
+    last = [_signed("answer", b"s2")]
+    if streaming:
+        output, _, _ = await _generate_streamed(
+            [
+                [*(_chunk([part]) for part in first)]
+                + [_chunk(None, FinishReason.CONTINUATION, b"t1")],
+                [*(_chunk([part]) for part in last), _chunk(None, FinishReason.STOP)],
+            ]
+        )
+    else:
+        output, _, _ = await _generate_with_legs(
+            [
+                _leg(first, FinishReason.CONTINUATION, b"t1"),
+                _leg(last, FinishReason.STOP),
+            ]
+        )
+
+    stored = ModelOutput.model_validate_json(output.model_dump_json())
+    replayed = await content(MagicMock(), stored.message)
+    assert replayed.parts is not None
+    signatures = {
+        "call": [p.thought_signature for p in replayed.parts if p.tool_call],
+        "result": [p.thought_signature for p in replayed.parts if p.tool_response],
+        "answer": [p.thought_signature for p in replayed.parts if p.text == "answer"],
+    }
+    assert signatures == {"call": [b"s1"], "result": [b"r1"], "answer": [b"s2"]}
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("streaming", [False, True], ids=["plain", "streamed"])
+@pytest.mark.parametrize(
+    "text", [None, "", "answer"], ids=["signature-only", "signed-empty", "signed-text"]
+)
+@pytest.mark.parametrize(
+    "tool_type", [ToolType.GOOGLE_SEARCH_WEB, ToolType.GOOGLE_SEARCH_IMAGE]
+)
+async def test_continuation_unsigned_call_after_search_and_signed_text(
+    tool_type: ToolType, text: str | None, streaming: bool
+) -> None:
+    """An unsigned function call after a search and signed text stays unsigned.
+
+    As in the SDK's merge, the search's signature does not move onto the call
+    across the signed text, after the output goes through its JSON form.
+    """
+    first = [
+        Part(
+            thought_signature=b"s1",
+            tool_call=GeminiToolCall(
+                id="search-1", tool_type=tool_type, args={"queries": ["q"]}
+            ),
+        ),
+        Part(
+            thought_signature=b"r1",
+            tool_response=ToolResponse(
+                id="search-1", tool_type=tool_type, response={"results": ["r"]}
+            ),
+        ),
+    ]
+    last = [
+        _signed(text, b"s2"),
+        Part(function_call=FunctionCall(name="calculator", args={"expr": "2+2"})),
+    ]
+    if streaming:
+        output, _, _ = await _generate_streamed(
+            [
+                [*(_chunk([part]) for part in first)]
+                + [_chunk(None, FinishReason.CONTINUATION, b"t1")],
+                [*(_chunk([part]) for part in last), _chunk(None, FinishReason.STOP)],
+            ]
+        )
+    else:
+        output, _, _ = await _generate_with_legs(
+            [
+                _leg(first, FinishReason.CONTINUATION, b"t1"),
+                _leg(last, FinishReason.STOP),
+            ]
+        )
+
+    stored = ModelOutput.model_validate_json(output.model_dump_json())
+    replayed = await content(MagicMock(), stored.message)
+    assert replayed.parts is not None
+    search, result, signed, call = replayed.parts
+    assert (search.tool_call is not None, search.thought_signature) == (True, b"s1")
+    assert (result.tool_response is not None, result.thought_signature) == (
+        True,
+        b"r1",
+    )
+    assert signed == _signed(text or "", b"s2")
+    assert call.function_call is not None
+    assert call.thought_signature is None
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("streaming", [False, True], ids=["plain", "streamed"])
+async def test_continuation_with_only_empty_text_keeps_its_completion(
+    streaming: bool,
+) -> None:
+    """A continued turn with no text takes the message's text as its completion.
+
+    So the completion is the same after the output is reloaded.
+    """
+    call = Part(
+        function_call=FunctionCall(name="calculator", args={"expr": "2+2"}),
+        thought_signature=b"s3",
+    )
+    first = [_signed("")]
+    last = [_signed("", b"s2"), call]
+    if streaming:
+        output, _, _ = await _generate_streamed(
+            [
+                [_chunk(first), _chunk(None, FinishReason.CONTINUATION, b"t1")],
+                [*(_chunk([part]) for part in last), _chunk(None, FinishReason.STOP)],
+            ]
+        )
+    else:
+        output, _, _ = await _generate_with_legs(
+            [
+                _leg(first, FinishReason.CONTINUATION, b"t1"),
+                _leg(last, FinishReason.STOP),
+            ]
+        )
+
+    assert output.completion == output.message.text == "\n"
+    stored = ModelOutput.model_validate_json(output.model_dump_json())
+    assert stored.completion == output.completion
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("bridge", ["google", "chat-completions"])
+async def test_continuation_bridges_like_one_response(bridge: str) -> None:
+    """A continued turn goes through the agent bridges as one response would.
+
+    The continued output holds the same content as a single response with
+    the same parts, so the bridges need nothing more for it.
+    """
+    first = [_signed('{"answer":"hel')]
+    last = [_signed('lo"}', b"s2")]
+    continued, _, _ = await _generate_with_legs(
+        [
+            _leg(first, FinishReason.CONTINUATION, b"t1"),
+            _leg(last, FinishReason.STOP),
+        ]
+    )
+    single, _, _ = await _generate_with_legs([_leg(first + last, FinishReason.STOP)])
+    assert continued.message.content == single.message.content
+
+    async def round_trip(output: ModelOutput) -> tuple[Any, list[Part] | None]:
+        if bridge == "google":
+            response = gemini_response_from_output(output, "gemini-2.5-pro")
+            wire = response["candidates"][0]["content"]
+            messages = messages_from_google_contents([wire], None)
+        else:
+            [choice] = openai_chat_choices(output.choices)
+            wire = ChatCompletionAssistantMessageParam(
+                role="assistant", content=choice.message.content
+            )
+            messages = await messages_from_openai([wire])
+        message = messages[-1]
+        assert isinstance(message, ChatMessageAssistant)
+        return wire, (await content(MagicMock(), message)).parts
+
+    assert await round_trip(continued) == await round_trip(single)
+
+
+@pytest.mark.anyio
+async def test_continuation_text_marked_not_thought() -> None:
+    """Parts marked thought=False are output text, and empty ones are skipped."""
+    output, _, _ = await _generate_with_legs(
+        [
+            _leg(
+                [Part(text='{"a":"hel', thought=False), Part(thought=False)],
+                FinishReason.CONTINUATION,
+                b"t1",
+            ),
+            _leg([Part(text='lo"}', thought=False)], FinishReason.STOP),
+        ]
+    )
+
+    assert output.completion == '{"a":"hello"}'
+
+
+def _blocked_leg() -> GenerateContentResponse:
+    return _with_usage(
+        GenerateContentResponse(
+            prompt_feedback=GenerateContentResponsePromptFeedback(
+                block_reason=BlockedReason.PROHIBITED_CONTENT
+            )
+        ),
+        20,
+        0,
+        0,
+    )
+
+
+@pytest.mark.anyio
+async def test_continuation_blocked_without_candidate() -> None:
+    """A continuation blocked with no candidate reports the block, not a stop."""
+    output, _, _ = await _generate_with_legs(
+        [
+            _leg([Part(text="partial")], FinishReason.CONTINUATION, b"t1", (10, 2, 3)),
+            _blocked_leg(),
+        ]
+    )
+
+    assert output.completion == "partial"
+    assert output.stop_reason == "content_filter"
+    assert output.choices[0].stop_details is not None
+    assert output.choices[0].stop_details.type == "PROHIBITED_CONTENT"
+    assert output.usage is not None
+    assert output.usage.input_tokens == 9 + 19
+    assert output.input_context_tokens == 10
+
+
+@pytest.mark.anyio
+async def test_streamed_continuation_blocked_without_candidate() -> None:
+    """A streamed continuation blocked with no candidate reports the block."""
+    output, _, _ = await _generate_streamed(
+        [
+            [_chunk([Part(text="partial")], FinishReason.CONTINUATION, b"t1")],
+            [_blocked_leg()],
+        ]
+    )
+
+    assert output.completion == "partial"
+    assert output.stop_reason == "content_filter"
+
+
+def _grounded_leg(
+    parts: list[Part],
+    url: str,
+    start: int,
+    end: int,
+    finish_reason: FinishReason,
+    token: bytes | None = None,
+) -> GenerateContentResponse:
+    return _ground(_leg(parts, finish_reason, token), url, start, end)
+
+
+def _ground(
+    response: GenerateContentResponse, url: str, start: int, end: int
+) -> GenerateContentResponse:
+    assert response.candidates
+    response.candidates[0].grounding_metadata = GroundingMetadata(
+        grounding_chunks=[GroundingChunk(web=GroundingChunkWeb(uri=url, title=url))],
+        grounding_supports=[
+            GroundingSupport(
+                grounding_chunk_indices=[0],
+                segment=Segment(start_index=start, end_index=end),
+            )
+        ],
+    )
+    return response
+
+
+def _citations(output: ModelOutput) -> list[tuple[str, list[Any]]]:
+    content = output.message.content
+    assert isinstance(content, list)
+    return [
+        (
+            c.text,
+            [
+                (citation.url, citation.cited_text)
+                for citation in c.citations or []
+                if isinstance(citation, UrlCitation)
+            ],
+        )
+        for c in content
+        if isinstance(c, ContentText)
+    ]
+
+
+@pytest.mark.anyio
+async def test_continuation_citations_follow_their_leg() -> None:
+    """A later leg's grounding cites its own text, not the first leg's."""
+    output, _, _ = await _generate_with_legs(
+        [
+            _grounded_leg(
+                [Part(text="Alpha")],
+                "https://a",
+                0,
+                5,
+                FinishReason.CONTINUATION,
+                b"t1",
+            ),
+            _grounded_leg([Part(text="Bravo")], "https://b", 0, 5, FinishReason.STOP),
+        ]
+    )
+
+    assert _citations(output) == [
+        ("Alpha", [("https://a", (0, 5))]),
+        ("Bravo", [("https://b", (0, 5))]),
+    ]
+
+
+@pytest.mark.anyio
+async def test_continuation_citations_after_reasoning() -> None:
+    """A later leg's citations stay on its text when reasoning comes before it."""
+    output, _, _ = await _generate_with_legs(
+        [
+            _grounded_leg(
+                [Part(text="Alpha")],
+                "https://a",
+                0,
+                5,
+                FinishReason.CONTINUATION,
+                b"t1",
+            ),
+            _grounded_leg(
+                [_thought("checking"), Part(text="Bravo")],
+                "https://b",
+                0,
+                5,
+                FinishReason.STOP,
+            ),
+        ]
+    )
+
+    assert _citations(output) == [
+        ("Alpha", [("https://a", (0, 5))]),
+        ("Bravo", [("https://b", (0, 5))]),
+    ]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("first_leg", ["continued", "cut-off", "trimmed"])
+async def test_streamed_continuation_citations(first_leg: str) -> None:
+    """A leg keeps its citations unless it was trimmed to its checkpoint.
+
+    A trimmed leg's grounding may cite the discarded text, so it is dropped
+    rather than moved onto the text that replaced it.
+    """
+    legs = {
+        "continued": [
+            _ground(
+                _chunk([Part(text="kept")], FinishReason.CONTINUATION, b"t1"),
+                "https://kept",
+                0,
+                4,
+            )
+        ],
+        "cut-off": [
+            _ground(_chunk([Part(text="kept")], token=b"t1"), "https://kept", 0, 4)
+        ],
+        "trimmed": [
+            _chunk([Part(text="kept")], token=b"t1"),
+            _ground(_chunk([Part(text=" lost")]), "https://lost", 4, 9),
+        ],
+    }
+    output, _, _ = await _generate_streamed(
+        [
+            legs[first_leg],
+            [_chunk([Part(text=" rest")], FinishReason.STOP)],
+        ]
+    )
+
+    assert output.completion == "kept rest"
+    citations = [cited for _, cited in _citations(output)]
+    if first_leg == "trimmed":
+        assert citations == [[], []]
+    else:
+        assert citations == [[("https://kept", (0, 4))], []]
+
+
+@pytest.mark.anyio
+async def test_cut_off_stream_resumes_from_its_checkpoint() -> None:
+    """A stream that ends after a checkpoint with no finish reason is continued.
+
+    The text after the checkpoint is dropped, since the next leg resumes from
+    the checkpoint, and the leg's usage is its usage at the checkpoint.
+    """
+    events: list[StreamEvent] = []
+
+    async def collect(event: StreamEvent) -> None:
+        events.append(event)
+
+    observer = ModelStreamObserver(
+        model="google/test", on_stream=collect, publish_partial=False
+    )
+    event = ModelEvent(
+        model="google/test",
+        input=[],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput(),
+        pending=True,
+    )
+    await observer.begin_attempt(event)
+    with model_stream_observer(observer):
+        output, model_call, mock_stream = await _generate_streamed(
+            [
+                [
+                    _chunk([Part(text="kept")], token=b"t1", usage=(10, 2, 3)),
+                    _chunk([Part(text=" lost")], usage=(10, 4, 3)),
+                ],
+                [_chunk([Part(text=" rest")], FinishReason.STOP, usage=(20, 1, 0))],
+            ]
+        )
+
+    # observers are told to drop the discarded text and are sent the kept
+    # text, with its token count
+    assert _streamed_text(events) == "kept rest"
+    progress = model_event_progress(event)
+    assert progress is not None and progress.output_tokens == 5 + 1
+    assert mock_stream.call_count == 2
+    tokens = [c.kwargs["config"].continuation_token for c in mock_stream.call_args_list]
+    assert tokens == [None, b"t1"]
+    assert output.completion == "kept rest"
+    assert output.stop_reason == "stop"
+    assert output.usage is not None
+    assert output.usage.output_tokens == 5 + 1
+    assert len(model_call.response["responses"]) == 2
+
+
+def _streamed_text(events: list[StreamEvent]) -> str:
+    """The text an accumulating stream consumer ends with."""
+    text = ""
+    for event in events:
+        if isinstance(event, StreamRetryEvent):
+            text = ""
+        elif isinstance(event, StreamTextEvent):
+            text += event.text
+    return text
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("finished", [False, True], ids=["cut-off", "finished"])
+async def test_stream_with_trailing_metadata_chunk(finished: bool) -> None:
+    """A last chunk with only usage neither hides a finish nor a cut-off stream."""
+    usage_only = _with_usage(GenerateContentResponse(), 10, 2, 3)
+    first_leg = [
+        _chunk(
+            [Part(text="kept")],
+            FinishReason.STOP if finished else None,
+            token=None if finished else b"t1",
+        ),
+        usage_only,
+    ]
+    output, _, mock_stream = await _generate_streamed(
+        [first_leg]
+        if finished
+        else [
+            first_leg,
+            [_chunk([Part(text=" rest")], FinishReason.STOP, usage=(20, 1, 0))],
+        ]
+    )
+
+    assert mock_stream.call_count == (1 if finished else 2)
+    assert output.completion == ("kept" if finished else "kept rest")
+    assert output.stop_reason == "stop"
+    # the trailing usage is the first leg's, at its checkpoint when cut off
+    assert output.usage is not None
+    assert output.usage.output_tokens == (5 if finished else 5 + 1)
+    assert output.input_context_tokens == 10
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("usage_at", ["before", "on", "after"])
+async def test_cut_off_stream_usage_at_its_checkpoint(usage_at: str) -> None:
+    """A cut-off leg is billed its usage at the checkpoint, not after it.
+
+    The usage can come on a chunk before the checkpoint's own chunk, on it, or
+    on a metadata-only chunk right after it. Usage after a later part is not
+    the checkpoint's.
+    """
+    checkpoint_usage = (10, 5, 0)
+    first_leg = [
+        _chunk(
+            [Part(text="kept")],
+            usage=checkpoint_usage if usage_at == "before" else None,
+        ),
+        _chunk(None, token=b"t1", usage=checkpoint_usage if usage_at == "on" else None),
+        *(
+            [_with_usage(GenerateContentResponse(), *checkpoint_usage)]
+            if usage_at == "after"
+            else []
+        ),
+        _chunk([Part(text=" lost")], usage=(10, 9, 0)),
+    ]
+    output, _, mock_stream = await _generate_streamed(
+        [
+            first_leg,
+            [_chunk([Part(text=" rest")], FinishReason.STOP, usage=(20, 1, 0))],
+        ]
+    )
+
+    assert mock_stream.call_count == 2
+    assert output.completion == "kept rest"
+    assert output.usage is not None
+    assert output.usage.output_tokens == 5 + 1
+    assert output.input_context_tokens == 10
+
+
+@pytest.mark.anyio
+async def test_cut_off_stream_usage_first_reported_after_its_checkpoint() -> None:
+    """Usage first reported on discarded output still gives the prompt.
+
+    The request keeps its prompt and context size, but not the discarded
+    output.
+    """
+    output, _, mock_stream = await _generate_streamed(
+        [
+            [
+                _chunk([Part(text="kept")]),
+                _chunk(None, token=b"t1"),
+                _chunk([Part(text=" lost")], usage=(10, 9, 0)),
+            ],
+            [_chunk([Part(text=" rest")], FinishReason.STOP, usage=(20, 1, 0))],
+        ]
+    )
+
+    assert mock_stream.call_count == 2
+    assert output.completion == "kept rest"
+    assert output.usage is not None
+    assert output.usage.input_tokens == 9 + 19
+    assert output.usage.output_tokens == 1
+    assert output.input_context_tokens == 10
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("dropped", [False, True], ids=["eof", "transport-error"])
+async def test_reconnect_without_checkpoint_keeps_its_usage(dropped: bool) -> None:
+    """A reconnect that reports usage but no checkpoint or part is billed.
+
+    The SDK sends it again from the same token; its usage is counted, as the
+    SDK's own usage total counts it.
+    """
+
+    async def metadata_only() -> Any:
+        yield _with_usage(GenerateContentResponse(), 20, 0, 0)
+        if dropped:
+            raise aiohttp.ServerDisconnectedError()
+
+    mock_stream = AsyncMock(
+        side_effect=[
+            _leg_chunks([_chunk([Part(text="kept")], token=b"t1", usage=(10, 2, 0))]),
+            metadata_only(),
+            _leg_chunks(
+                [_chunk([Part(text=" rest")], FinishReason.STOP, usage=(20, 1, 0))]
+            ),
+        ]
+    )
+    mock_client = _create_mock_google_client(AsyncMock())
+    mock_client.aio.models.generate_content_stream = mock_stream
+    output, model_call = await _generate_with_client(
+        mock_client, model_args=dict(streaming=True)
+    )
+
+    tokens = [c.kwargs["config"].continuation_token for c in mock_stream.call_args_list]
+    assert tokens == [None, b"t1", b"t1"]
+    assert output.completion == "kept rest"
+    assert output.usage is not None
+    # each request's prompt (10, 20, 20) less its 1 cached token
+    assert output.usage.input_tokens == 9 + 19 + 19
+    assert output.usage.output_tokens == 2 + 1
+    assert output.input_context_tokens == 10
+    responses = model_call.response["responses"]
+    assert len(responses) == 3
+    assert responses[1]["usageMetadata"]["promptTokenCount"] == 20
+
+
+@pytest.mark.anyio
+async def test_dropped_stream_resumes_from_its_checkpoint() -> None:
+    """A stream that raises a transport error after a checkpoint is resumed."""
+
+    async def dropped() -> Any:
+        yield _chunk([Part(text="kept")], token=b"t1", usage=(10, 2, 3))
+        yield _chunk([Part(text=" lost")])
+        raise aiohttp.ServerDisconnectedError()
+
+    mock_stream = AsyncMock(
+        side_effect=[
+            dropped(),
+            _leg_chunks([_chunk([Part(text=" rest")], FinishReason.STOP)]),
+        ]
+    )
+    mock_client = _create_mock_google_client(AsyncMock())
+    mock_client.aio.models.generate_content_stream = mock_stream
+    output, model_call = await _generate_with_client(
+        mock_client, model_args=dict(streaming=True)
+    )
+
+    tokens = [c.kwargs["config"].continuation_token for c in mock_stream.call_args_list]
+    assert tokens == [None, b"t1"]
+    # every request is sent with the SDK's own continuation turned off
+    assert all(
+        c.kwargs["config"].automatic_continuation is False
+        for c in mock_stream.call_args_list
+    )
+    assert output.completion == "kept rest"
+    assert len(model_call.response["responses"]) == 2
+
+
+def _capture_model_calls(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
+    """Collect the model calls the Google provider creates."""
+    import inspect_ai.model._providers.google as google_module
+    from inspect_ai.log._samples import set_active_model_event_call as create
+
+    calls: list[Any] = []
+
+    def capture(*args: Any, **kwargs: Any) -> Any:
+        call = create(*args, **kwargs)
+        calls.append(call)
+        return call
+
+    monkeypatch.setattr(google_module, "set_active_model_event_call", capture)
+    return calls
+
+
+def _timed_requests(
+    case: str,
+) -> list[tuple[list[tuple[int, int, int]], GenerateContentResponse]]:
+    """Each request: its attempts as (seconds until the response, status, seconds of backoff after it), and its response."""
+    return {
+        "single": [([(100, 200, 0)], _leg([Part(text="a")], FinishReason.STOP))],
+        "continued": [
+            ([(100, 200, 0)], _leg([Part(text="a")], FinishReason.CONTINUATION, b"t1")),
+            ([(10, 200, 0)], _leg([Part(text="b")], FinishReason.STOP)),
+        ],
+        "retried-then-continued": [
+            (
+                [(4, 429, 6), (100, 200, 0)],
+                _leg([Part(text="a")], FinishReason.CONTINUATION, b"t1"),
+            ),
+            ([(10, 200, 0)], _leg([Part(text="b")], FinishReason.STOP)),
+        ],
+        "malformed-then-continued": [
+            ([(100, 200, 0)], _leg([], FinishReason.MALFORMED_FUNCTION_CALL)),
+            ([(10, 200, 0)], _leg([Part(text="a")], FinishReason.CONTINUATION, b"t1")),
+            ([(5, 200, 0)], _leg([Part(text="b")], FinishReason.STOP)),
+        ],
+    }[case]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("streaming", [False, True], ids=["plain", "streamed"])
+@pytest.mark.parametrize(
+    ("case", "seconds", "retries"),
+    [
+        ("single", 100, 0),
+        ("continued", 110, 0),
+        ("retried-then-continued", 110, 1),
+        ("malformed-then-continued", 115, 0),
+    ],
+)
+async def test_continuation_request_time_and_retries(
+    case: str,
+    seconds: float,
+    retries: int,
+    streaming: bool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Each request of a call counts its time, and only real retries count as retries.
+
+    A request's time runs from its last attempt, so an SDK's failed attempt
+    and backoff are left out. A continuation (or a malformed function call
+    retry) is a new request, not an HTTP retry.
+    """
+    import inspect_ai.model._providers.util.hooks as hooks_module
+
+    clock = [0.0]
+    monkeypatch.setattr(
+        hooks_module, "time", SimpleNamespace(monotonic=lambda: clock[0])
+    )
+    reported: list[Any] = []
+    monkeypatch.setattr(
+        hooks_module, "report_http_retry", lambda **kwargs: reported.append(kwargs)
+    )
+    calls = _capture_model_calls(monkeypatch)
+    http_client = SimpleNamespace(event_hooks={"request": [], "response": []})
+    requests = iter(_timed_requests(case))
+
+    async def send(config: GenerateContentConfig) -> GenerateContentResponse:
+        attempts, response = next(requests)
+        assert config.http_options and config.http_options.headers
+        headers = dict(config.http_options.headers)
+        request = SimpleNamespace(method="POST", url="u", headers=headers)
+        for seconds_to_response, status, backoff in attempts:
+            for hook in http_client.event_hooks["request"]:
+                await hook(request)
+            clock[0] += seconds_to_response
+            for hook in http_client.event_hooks["response"]:
+                await hook(
+                    SimpleNamespace(
+                        request=request,
+                        status_code=status,
+                        http_version="HTTP/1.1",
+                        reason_phrase="",
+                        headers={},
+                    )
+                )
+            clock[0] += backoff
+        return response
+
+    async def plain(**kwargs: Any) -> GenerateContentResponse:
+        return await send(kwargs["config"])
+
+    async def streamed(**kwargs: Any) -> Any:
+        return _leg_chunks([await send(kwargs["config"])])
+
+    mock_client = _create_mock_google_client(AsyncMock(side_effect=plain))
+    mock_client.aio.models.generate_content_stream = AsyncMock(side_effect=streamed)
+    mock_client._api_client._async_httpx_client = http_client
+    await _generate_with_client(mock_client, model_args=dict(streaming=streaming))
+
+    [model_call] = calls
+    assert model_call.time == seconds
+    assert len(reported) == retries
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("streaming", [False, True], ids=["plain", "streamed"])
+async def test_continuation_without_token_is_not_continued(streaming: bool) -> None:
+    """A CONTINUATION without a token is returned as cut at max_tokens, with a warning."""
+    response = _chunk([Part(text="partial")], FinishReason.CONTINUATION)
+    with patch("inspect_ai.model._providers.google.warn_once") as warn:
+        if streaming:
+            output, _, mock_request = await _generate_streamed([[response]])
+        else:
+            output, _, mock_request = await _generate_with_legs([response])
+
+    assert mock_request.call_count == 1
+    assert output.stop_reason == "max_tokens"
+    [call] = warn.call_args_list
+    assert "without a continuation token" in call.args[1]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("arrived", [2, 1])
+async def test_continuation_with_several_candidates_is_not_continued(
+    arrived: int,
+) -> None:
+    """A request for several candidates is not continued, however many arrive.
+
+    The CONTINUATION candidates are returned as cut at max_tokens.
+    """
+    response = GenerateContentResponse(
+        candidates=[
+            Candidate(
+                content=Content(role="model", parts=[Part(text=f"partial {i}")]),
+                finish_reason=FinishReason.CONTINUATION,
+                continuation_token=b"t1",
+                index=i,
+            )
+            for i in range(arrived)
+        ]
+    )
+    mock_generate = AsyncMock(side_effect=[response])
+    output, _ = await _generate_with_client(
+        _create_mock_google_client(mock_generate),
+        config=GenerateConfig(num_choices=2),
+    )
+
+    assert mock_generate.call_count == 1
+    assert [c.stop_reason for c in output.choices] == ["max_tokens"] * arrived
+
+
+def _candidates_chunk(
+    texts: list[str],
+    finish_reason: FinishReason | None = None,
+    token: bytes | None = None,
+) -> GenerateContentResponse:
+    """A streamed chunk with one candidate per text, the token on the first."""
+    return GenerateContentResponse(
+        candidates=[
+            Candidate(
+                content=Content(role="model", parts=[Part(text=text)]),
+                finish_reason=finish_reason,
+                continuation_token=token if i == 0 else None,
+                index=i,
+            )
+            for i, text in enumerate(texts)
+        ]
+    )
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("requested", "arrived"),
+    [(1, 1), (2, 2), (2, 1)],
+    ids=["one", "several", "several-requested-one-arrived"],
+)
+@pytest.mark.parametrize("ending", ["eof", "dropped", "continuation"])
+async def test_streamed_continuation_with_several_candidates_is_not_resumed(
+    ending: str, requested: int, arrived: int
+) -> None:
+    """A stream for several candidates is not resumed, as one for one is.
+
+    With several requested, however many arrive, a stream that drops raises
+    its error, one that ends early returns what arrived (nothing trimmed),
+    and CONTINUATION returns the candidates cut at max_tokens. One requested
+    candidate resumes in each case.
+    """
+    texts = ["a", "b"][:arrived]
+
+    async def first_leg() -> Any:
+        if ending == "continuation":
+            yield _candidates_chunk(texts, FinishReason.CONTINUATION, b"t1")
+            return
+        yield _candidates_chunk(texts, token=b"t1")
+        yield _candidates_chunk([" more"] * arrived)
+        if ending == "dropped":
+            raise aiohttp.ServerDisconnectedError()
+
+    mock_stream = AsyncMock(
+        side_effect=[
+            first_leg(),
+            _leg_chunks([_chunk([Part(text=" rest")], FinishReason.STOP)]),
+        ]
+    )
+    mock_client = _create_mock_google_client(AsyncMock())
+    mock_client.aio.models.generate_content_stream = mock_stream
+
+    async def generate() -> ModelOutput:
+        output, _ = await _generate_with_client(
+            mock_client,
+            model_args=dict(streaming=True),
+            config=GenerateConfig(num_choices=requested),
+        )
+        return output
+
+    if requested == 1:
+        output = await generate()
+        assert mock_stream.call_count == 2
+        assert output.completion == "a rest"
+        assert output.stop_reason == "stop"
+    elif ending == "dropped":
+        with pytest.raises(aiohttp.ServerDisconnectedError):
+            await generate()
+        assert mock_stream.call_count == 1
+    else:
+        output = await generate()
+        assert mock_stream.call_count == 1
+        if ending == "eof":
+            # untrimmed, and with no finish reason read as STOP, as before
+            # continuations were handled
+            assert [c.message.text for c in output.choices] == [
+                f"{text} more" for text in texts
+            ]
+            assert [c.stop_reason for c in output.choices] == ["stop"] * arrived
+        else:
+            assert [c.message.text for c in output.choices] == texts
+            assert [c.stop_reason for c in output.choices] == ["max_tokens"] * arrived
+
+
+def test_batch_request_dict_omits_automatic_continuation() -> None:
+    """automatic_continuation is an SDK setting, not part of the REST request."""
+    from inspect_ai.model._providers._google_batch import batch_request_dict
+
+    config = GenerateContentConfig(temperature=0.5, automatic_continuation=False)
+    request = batch_request_dict(
+        config, [Content(role="user", parts=[Part.from_text(text="hi")])]
+    )
+
+    assert request["generation_config"] == {"temperature": 0.5}
+
+
+@pytest.mark.anyio
+async def test_batch_continuation_is_not_continued() -> None:
+    """The batch API has no continuations, so a batch response is never continued."""
+    mock_client = _create_mock_google_client(AsyncMock())
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.5-pro", base_url=None, api_key="test-key"
+        )
+        batcher = MagicMock()
+        batcher.generate_for_request = AsyncMock(
+            return_value=_leg([Part(text="partial")], FinishReason.CONTINUATION, b"t1")
+        )
+        api._batcher = batcher
+        result = await api.generate(
+            input=[ChatMessageUser(content="Think hard")],
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+
+    assert isinstance(result, tuple)
+    output = result[0]
+    assert isinstance(output, ModelOutput)
+    assert batcher.generate_for_request.call_count == 1
+    assert output.completion == "partial"
+    assert output.stop_reason == "max_tokens"
+
+
 # Tests for count_tokens with unpaired tool messages
 
 
@@ -2866,29 +4339,21 @@ async def test_google_output_records_response_id() -> None:
 
 @pytest.mark.anyio
 async def test_google_streamed_response_keeps_response_id() -> None:
-    async def chunks() -> Any:
-        for text in ["hel", "lo"]:
-            yield GenerateContentResponse(
-                candidates=[
-                    Candidate(
-                        content=Content(parts=[Part(text=text)], role="model"),
-                        index=0,
-                    )
-                ],
-                response_id="g-stream-response",
-            )
+    chunks = [
+        GenerateContentResponse(
+            candidates=[
+                Candidate(
+                    content=Content(parts=[Part(text=text)], role="model"), index=0
+                )
+            ],
+            response_id="g-stream-response",
+        )
+        for text in ["hel", "lo"]
+    ]
 
-    client = MagicMock()
-    client.aio.models.generate_content_stream = AsyncMock(return_value=chunks())
-    api = GoogleGenAIAPI(
-        model_name="gemini-2.0-flash", base_url=None, api_key="test-key"
-    )
+    output, _, _ = await _generate_streamed([chunks])
 
-    response = await api._stream_generate_content(
-        client, "gemini-2.0-flash", [], GenerateContentConfig()
-    )
-
-    assert response.response_id == "g-stream-response"
+    assert output.response_id == "g-stream-response"
 
 
 def test_google_explicit_api_key_overrides_ambient_adc(
