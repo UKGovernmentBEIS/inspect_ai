@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 # tagless shallow clone. Without it the project builds as 0.1.devN, below the
 # inspect-ai floor of dev dependencies like inspect-scout, and `uv lock` fails.
 # Release Please updates it with each release.
-fallback_version = "0.3.286"
+fallback_version = "0.3.287"
 git_describe_command = [
   'git',
   'describe',
@@ -228,7 +228,7 @@ dev = [
   "azure-ai-inference",
   "azure-identity",
   "brotli",  # tests decode the agent bridge's forwarded Accept-Encoding: br; not a runtime dependency, since it makes httpx advertise br on every request
-  "google-genai>=2.14.0",
+  "google-genai>=2.31.0",
   "griffe>=2",
   "groq>=0.28.0",
   "huggingface_hub>=1.6.0",
