@@ -402,3 +402,19 @@ async def test_numeric_match_exact_still_matches_clean_number():
 
     assert result is not None
     assert result.text == CORRECT
+
+
+@pytest.mark.anyio
+async def test_numeric_match_digit_run_before_chinese_unit():
+    # 12万 is 120_000, not 2·10⁴: the digits before the unit are a run
+    scorer = match(numeric=True)
+    state = simple_task_state(model_output="The population is 12万")
+
+    result = await scorer(state, Target(["120000"]))
+    assert result is not None
+    assert result.text == CORRECT
+    assert result.answer is not None and float(result.answer) == 120_000.0
+
+    result = await scorer(state, Target(["20000"]))
+    assert result is not None
+    assert result.text == INCORRECT

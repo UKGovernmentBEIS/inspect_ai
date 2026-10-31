@@ -245,6 +245,54 @@ def test_chinese_large_units() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        # Digits before a unit are a run, not a single digit.
+        ("12万", 120_000.0),
+        ("10万", 100_000.0),
+        ("007万", 70_000.0),
+        ("25億", 2_500_000_000.0),
+        ("12兆", 12_000_000_000_000.0),
+        ("１２３万", 1_230_000.0),  # fullwidth digits
+        ("٣٠万", 300_000.0),  # Arabic-Indic digits
+        # A unit ends the run, so later digits start a new one.
+        ("12万34", 120_034.0),
+        ("12万034", 120_034.0),
+        ("1亿2345万6789", 123_456_789.0),
+        ("12万3千4百5十6", 123_456.0),
+        # Signs, spaces and a fractional tail leave the run intact.
+        ("-12万", -120_000.0),
+        ("12 万", 120_000.0),
+        ("12万.5", 120_000.5),
+    ],
+)
+def test_digit_run_before_chinese_unit(value: str, expected: float) -> None:
+    assert unicode_number_to_float(value) == expected
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        # Chinese digit characters keep their place-value reading.
+        ("十二万", 120_000.0),
+        ("1万2千", 12_000.0),
+        ("三千2", 3_002.0),
+        ("2千3百", 2_300.0),
+    ],
+)
+def test_chinese_units_with_chinese_digits(value: str, expected: float) -> None:
+    assert unicode_number_to_float(value) == expected
+
+
+@pytest.mark.parametrize("value", ["12.5万", "1,000万"])
+def test_chinese_unit_forms_still_rejected(value: str) -> None:
+    # A decimal or a grouped number before a unit is not parsed; pin it so a
+    # later change to this path cannot start accepting them silently.
+    with pytest.raises(ValueError):
+        unicode_number_to_float(value)
+
+
 def test_error_cases() -> None:
     with pytest.raises(ValueError):
         unicode_number_to_float("abc")
