@@ -15,7 +15,13 @@ from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._pool import _build_msg_index, condense_model_event_inputs
 from inspect_ai.event._sentinel import SentinelEvent, SentinelStage
 from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
-from inspect_ai.event._timeline import Timeline, TimelineEvent, TimelineSpan
+from inspect_ai.event._step import StepEvent
+from inspect_ai.event._timeline import (
+    Timeline,
+    TimelineEvent,
+    TimelineSpan,
+    _timeline_build,
+)
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -81,49 +87,80 @@ def steps_from_events(
 
     Every step's `agent_messages` is None: the log does not record the agent's own messages, and model input can hold messages the agent kept out of them.
 
+    A log that does not record where a model call was made (`ModelEvent.origin`, written since inspect_ai PR #5990), as an older Inspect log does not, has its turns inferred: a call made in the scorers' span (in a log from before spans, between a scorer's `StepEvent`s) is a scorer's, whatever tool or agent span holds it (live, the scorers' scope is final); one in a tool's span (or nested in its `ToolEvent`) a tool's, and one in the init span setup's; of the rest, those the timeline shows as utility (`timeline_build`'s prompt and continuity rules, the calls above and a sentinel's taking no part in either) are not turns, and the others are. A final scope no span records reads as the region holding it: a `model_origin()` region, `score()` called by a solver or a tool, an approver's model call; where the timeline does not show such a call as utility, its call is a turn (or, in a tool, its calls are checked), as live it was not.
+
     Args:
         messages: The sample's messages (`EvalSample.messages`).
         events: The sample's events, with model inputs condensed (`input_refs` into `message_pool`), as the log stores them; inputs given expanded are condensed first. Attachments must be resolved (`resolve_attachments`), or monitors are handed `attachment://` references.
         message_pool: The sample's message pool (`EvalSample.events_data["messages"]`).
         sample_uuid: The sample's uuid: the conversation of calls made outside any agent span.
-        eval_info: What the log's header says about the eval.
-        timeline: A stored timeline whose spans define which conversation each event is in (such as Petri's `"target"`), in place of the span tree.
+        eval_info: What the log's header says about the eval (`EvalInfo.from_eval`).
+        timeline: A stored timeline whose spans define which conversation each event is in (such as Petri's `"target"`), in place of the span tree; a log without origins has its turns inferred within those conversations, its events matched to the stored timeline's by UUID.
         human_approvers: The registry names of approvers that are people, whose `ApprovalEvent`s are `human_decisions` in a log from an eval that ran no sentinel.
 
     Returns:
         The steps, in the order they ran live.
 
     Raises:
+        ValueError: `eval_info` is `None`. A transcript imported from another source has no log header, and its events do not record which model call its messages came from; replay it from its messages with inspect_sentinel's `steps_from_messages`.
         MalformedLogError: Two steps of one stage have one step id, the span tree has a `parent_id` cycle, or a model input names rows outside the message pool.
-        NotImplementedError: The log does not record where its model calls were made (`ModelEvent.origin`, written since inspect_ai PR #5990), for which turns from the timeline come later; or a sentinel checked a model_input step whose model call was not made (a sentinel ended the sample there or failed, or a token or cost limit or a cancellation stopped the call before it was recorded), whose input the log does not record.
+        NotImplementedError: A sentinel checked a model_input step whose model call was not made (a sentinel ended the sample there or failed, or a token or cost limit or a cancellation stopped the call before it was recorded), whose input the log does not record.
     """
-    flat = _flatten(events)
+    if eval_info is None:
+        raise ValueError(
+            "steps_from_events replays an Inspect log, and needs its header "
+            "(EvalInfo.from_eval); replay a transcript imported from another "
+            "source from its messages with inspect_sentinel's steps_from_messages."
+        )
+    flat, nested = _flatten(events)
     pool: list[ChatMessage] | Sequence[ChatMessage] = message_pool
     if any(isinstance(e, ModelEvent) and e.input_refs is None for e in flat):
-        flat, pool = _condensed(flat, message_pool)
+        events, pool = _condensed(events, message_pool)
+        flat, nested = _flatten(events)
     return _Driver(
-        messages, flat, pool, sample_uuid, eval_info, timeline, human_approvers
+        messages, flat, nested, pool, sample_uuid, eval_info, timeline, human_approvers
     ).steps()
 
 
-def _flatten(events: Sequence[Event]) -> list[Event]:
-    # older logs nest a tool call's events inside its ToolEvent
+def _flatten(events: Sequence[Event]) -> tuple[list[Event], list[bool]]:
+    """The events with those older logs nest inside a tool call's `ToolEvent` after it, and whether each was nested."""
     flat: list[Event] = []
-    for event in events:
-        flat.append(event)
-        if isinstance(event, ToolEvent) and event.events:
-            flat.extend(_flatten(event.events))
-    return flat
+    nested: list[bool] = []
+
+    def walk(events: Sequence[Event], inside: bool) -> None:
+        for event in events:
+            flat.append(event)
+            nested.append(inside)
+            if isinstance(event, ToolEvent) and event.events:
+                walk(event.events, True)
+
+    walk(events, False)
+    return flat, nested
 
 
 def _condensed(
-    events: list[Event], pool: Sequence[ChatMessage]
+    events: Sequence[Event], pool: Sequence[ChatMessage]
 ) -> tuple[list[Event], list[ChatMessage]]:
+    """`events` with their model inputs condensed, those a `ToolEvent` nests too, so the tree and its flattening hold the same events; and the pool."""
+    flat, _ = _flatten(events)
     rows = list(pool)
     condensed, _, entries = condense_model_event_inputs(
-        events, len(rows), _build_msg_index(rows)
+        flat, len(rows), _build_msg_index(rows)
     )
-    return condensed, [*rows, *(message for _, message in entries)]
+    copies = {id(old): new for old, new in zip(flat, condensed) if new is not old}
+
+    def rebuild(events: Sequence[Event]) -> list[Event]:
+        rebuilt: list[Event] = []
+        for event in events:
+            event = copies.get(id(event), event)
+            if isinstance(event, ToolEvent) and event.events:
+                inner = rebuild(event.events)
+                if any(new is not old for new, old in zip(inner, event.events)):
+                    event = event.model_copy(update={"events": inner})
+            rebuilt.append(event)
+        return rebuilt
+
+    return rebuild(events), [*rows, *(message for _, message in entries)]
 
 
 class _PoolKeys:
@@ -305,6 +342,19 @@ class _Call:
     tool_span: str | None
 
 
+class _Region(NamedTuple):
+    """Where a span sits, as origin inference reads it."""
+
+    kind: str | None
+    """The type of the innermost agent or tool span holding it."""
+
+    phase: str | None
+    """The phase span (`"init"`, `"scorers"`) holding it."""
+
+    sentinel: bool
+    """Whether a sentinel's span holds it."""
+
+
 class _Action(NamedTuple):
     position: int
     # at one position: steps built before the event there (1), the event's own
@@ -326,6 +376,7 @@ class _Driver:
         self,
         messages: Sequence[ChatMessage],
         events: list[Event],
+        nested: list[bool],
         pool: Sequence[ChatMessage],
         sample_uuid: str,
         eval_info: EvalInfo,
@@ -334,6 +385,7 @@ class _Driver:
     ) -> None:
         self.messages = messages
         self.events = events
+        self.nested = nested
         self.pool = pool
         self.keys = _PoolKeys(pool)
         self.eval_info = eval_info
@@ -360,6 +412,15 @@ class _Driver:
         self._producers: dict[int, Producer] = {}
         self._assistants: dict[str, tuple[ChatMessageAssistant, ToolCall]] | None = None
         self._messages_by_id: dict[str, ChatMessage] | None = None
+        # the origins of model calls the log records none for, by id()
+        self._inferred: dict[int, str] | None = None
+        # the uuids of the model calls made outside sentinel spans
+        self.calls_made: set[str | None] = set()
+        # span id -> the region holding it
+        self._regions: dict[str | None, _Region] = {}
+        self._span_begins: dict[str, SpanBeginEvent] | None = None
+        # id() of the events in a scorer's StepEvents (logs from before spans)
+        self._scored: set[int] | None = None
 
     # ---- the first pass: read the events in log order
 
@@ -374,6 +435,8 @@ class _Driver:
         last_turn: dict[str, int] = {}
         candidates: dict[str, list[str]] = {}
         turn_ids: set[str | None] = set()
+        # calls made whose origin is inferred, not as turns
+        inferred_other: set[str | None] = set()
         produced: dict[str, tuple[ChatMessageAssistant, ModelEvent, ToolCall]] = {}
         approvals: dict[str, ApprovalEvent] = {}
         calls: list[_Call] = []
@@ -389,19 +452,15 @@ class _Driver:
             elif isinstance(event, ModelEvent):
                 if self._in_sentinel_span(event.span_id):
                     continue
-                if event.origin is None:
-                    raise NotImplementedError(
-                        "This log does not record where its model calls were made "
-                        "(ModelEvent.origin), so replay cannot tell which calls were "
-                        "agent turns; replaying such logs from their timeline is not "
-                        "built yet."
-                    )
                 message_id = producing_message_id(event)
                 if message_id is not None:
                     message = event.output.choices[0].message
                     for tool_call in message.tool_calls or []:
                         produced[tool_call.id] = (message, event, tool_call)
-                if not is_agent_turn(event.origin):
+                if not is_agent_turn(self._origin(event)):
+                    if event.origin is None:
+                        inferred_other.add(event.uuid)
+                        self._take_checks(event, candidates)
                     continue
                 turn_ids.add(event.uuid)
                 conversation = self._conversation(event)
@@ -459,7 +518,8 @@ class _Driver:
                 )
                 calls.append(entry)
 
-        self._check_generated(candidates, turn_ids)
+        self.calls_made = turn_ids | inferred_other
+        self._check_generated(candidates)
         for group in generates:
             self._generate(group)
         for entry in calls:
@@ -492,19 +552,19 @@ class _Driver:
         if event.stage == "model_input":
             candidates.setdefault(event.conversation, []).append(span)
 
-    def _check_generated(
-        self, candidates: dict[str, list[str]], turn_ids: set[str | None]
-    ) -> None:
+    def _check_generated(self, candidates: dict[str, list[str]]) -> None:
         # a model_input step without its model call (a sentinel ended the
         # sample there, or failed and the scaffold carried on, or a limit or
         # cancellation stopped the call): the input it was handed is not in
-        # the log
+        # the log. A step whose call was made but whose inferred origin is not
+        # a turn is where inference differs from what was recorded live; it
+        # has no step, as the other calls inferred so
         inputs = [
             step_id for stage, step_id in self.step_spans if stage == "model_input"
         ]
-        if any(step_id in turn_ids for step_id in inputs):
+        if any(step_id in self.calls_made for step_id in inputs):
             # the log identifies generates by id, so each step names its call
-            orphans = [step_id for step_id in inputs if step_id not in turn_ids]
+            orphans = [step_id for step_id in inputs if step_id not in self.calls_made]
         else:
             # an id from before generate ids names the last message of the
             # step's input, and the step goes with its conversation's next
@@ -530,11 +590,24 @@ class _Driver:
             )
 
     def _names_message(self, step_id: str) -> bool:
-        # the same input checked again had ":<n>" appended
-        message_id, _, count = step_id.rpartition(":")
-        return self._message_by_id(step_id) is not None or (
-            count.isdigit() and self._message_by_id(message_id) is not None
-        )
+        return any(self._message_by_id(name) is not None for name in _names(step_id))
+
+    def _take_checks(self, event: ModelEvent, candidates: dict[str, list[str]]) -> None:
+        # a call inferred not a turn was checked live if a model_input step
+        # names it, by its uuid or, before generate ids, by the last message
+        # of its input: the step goes with it (and has no step), not with the
+        # conversation's next turn
+        conversation = self._conversation(event)
+        spans = candidates.get(conversation)
+        if not spans:
+            return
+        input = self._input(event)
+        names = {event.uuid, input[-1].id if len(input) else None} - {None}
+        candidates[conversation] = [
+            span
+            for span in spans
+            if names.isdisjoint(_names(self.span_events[span][0].step_id))
+        ]
 
     def _sentinel_span(self, span_id: str | None) -> str | None:
         # the span tree has no cycle (_check_span_tree)
@@ -608,9 +681,14 @@ class _Driver:
             # a log from before generate ids: the only model_input step of
             # the conversation since its previous turn
             candidate = group.candidates[0]
-            if self.begins[candidate][0] > group.previous:
+            step_id = self.span_events[candidate][0].step_id
+            if (
+                self.begins[candidate][0] > group.previous
+                # a generate id names its own call, one inferred not a turn
+                and step_id not in self.calls_made
+            ):
                 before_span = candidate
-                before_id = self.span_events[candidate][0].step_id
+                before_id = step_id
         if before_id is None:
             before_id = f"{conversation}:{first_index}"
         input = self._input(first)
@@ -790,11 +868,122 @@ class _Driver:
     def _checks_tool_calls(self, event: ToolEvent, producer: ModelEvent | None) -> bool:
         """Whether live checked the calls a model call produced, inferred from the region the model call was made in.
 
-        Live decides by the region that runs the call (`checks_tool_calls()` in `call_tool`), which the log does not record, so a call run in a region other than the one its producer was made in is replayed by its producer's. A call no model call produced (a pre-filled message) is taken as checked. A call a sandbox bridge ran on the host (`metadata["bridge"]`) is not: the host executor runs no tool stage.
+        Live decides by the region that runs the call (`checks_tool_calls()` in `call_tool`), which the log does not record, so a call run in a region other than the one its producer was made in is replayed by its producer's. A call no model call produced (a pre-filled message) is taken as checked, unless it ran in the scorers' phase, whose scope is final live. A call a sandbox bridge ran on the host (`metadata["bridge"]`) is not: the host executor runs no tool stage.
         """
         if event.metadata is not None and "bridge" in event.metadata:
             return False
-        return producer is None or producer.origin in _NON_FINAL
+        if producer is None:
+            return not self._scoring(event)
+        return self._origin(producer) in _NON_FINAL
+
+    # ---- origins the log does not record
+
+    def _origin(self, event: ModelEvent) -> str:
+        if event.origin is not None:
+            return event.origin
+        if self._inferred is None:
+            self._inferred = self._infer_origins()
+        return self._inferred.get(id(event), "agent")
+
+    def _infer_origins(self) -> dict[int, str]:
+        # calls known not to be the agent's turns by their region, and
+        # compactions there, are utility to the timeline: a scorer's, a tool's
+        # or a sentinel's calls would otherwise move the agent's thread or set
+        # the prompt its turns are classified by
+        known: dict[int, str] = {}
+        outside: set[int] = set()
+        for event, nested in zip(self.events, self.nested):
+            if not isinstance(event, ModelEvent | CompactionEvent):
+                continue
+            region = self._region(event.span_id)
+            if self._scoring(event):
+                # live, the scorers' scope is final: nothing inside it, a tool
+                # or an agent, changes it
+                origin: str | None = "scorer"
+            elif nested or region.kind == "tool":
+                origin = "tool"
+            elif region.phase == "init":
+                origin = "setup"
+            else:
+                origin = None
+            if origin is not None or region.sentinel:
+                outside.add(id(event))
+            if origin is not None:
+                known[id(event)] = origin
+        top = [e for e, nested in zip(self.events, self.nested) if not nested]
+        timeline = _timeline_build(
+            top,
+            message_pool=self.pool,
+            final_messages=self.messages,
+            conversations={
+                key: conversation
+                for key, conversation in (self.timeline or {}).items()
+                if isinstance(key, str)
+            },
+            continuity=True,
+            outside=outside,
+        )
+        utility: set[int] = set()
+
+        def walk(span: TimelineSpan, inside: bool) -> None:
+            for item in span.content:
+                if isinstance(item, TimelineEvent):
+                    if inside and isinstance(item.event, ModelEvent):
+                        utility.add(id(item.event))
+                else:
+                    walk(item, inside or item.utility)
+            for branch in span.branches:
+                walk(branch, inside or branch.utility)
+
+        walk(timeline.root, timeline.root.utility)
+        inferred: dict[int, str] = {}
+        for event in self.events:
+            if not isinstance(event, ModelEvent) or event.origin is not None:
+                continue
+            inferred[id(event)] = known.get(
+                id(event), "helper" if id(event) in utility else "agent"
+            )
+        return inferred
+
+    def _scoring(self, event: Event) -> bool:
+        """Whether `event` was recorded in the scorers' phase: under the top-level `scorers` span, or, in a log from before spans, between a scorer's `StepEvent`s."""
+        if self._scored is None:
+            scored: set[int] = set()
+            steps = 0
+            for each in self.events:
+                if isinstance(each, StepEvent) and each.type == "scorer":
+                    steps = steps + 1 if each.action == "begin" else max(steps - 1, 0)
+                elif steps > 0:
+                    scored.add(id(each))
+            self._scored = scored
+        return (
+            id(event) in self._scored or self._region(event.span_id).phase == "scorers"
+        )
+
+    def _region(self, span_id: str | None) -> _Region:
+        found = self._regions.get(span_id)
+        if found is not None:
+            return found
+        if self._span_begins is None:
+            self._span_begins = {
+                e.id: e for e in self.events if isinstance(e, SpanBeginEvent)
+            }
+        begin = self._span_begins.get(span_id) if span_id is not None else None
+        if begin is None:
+            found = _Region(kind=None, phase=None, sentinel=False)
+        else:
+            parent = self._region(begin.parent_id)
+            found = _Region(
+                kind=begin.type
+                if begin.type in (AGENT_SPAN_TYPE, "tool")
+                else parent.kind,
+                phase=begin.name
+                if begin.parent_id is None and begin.name in ("init", "scorers")
+                else parent.phase,
+                sentinel=parent.sentinel or begin.type == "sentinel",
+            )
+        self._regions[span_id] = found
+        return found
 
     # ---- effects of the second pass
 
@@ -980,6 +1169,12 @@ class _Driver:
             call.seq + 1,
             lambda: self._record(conversation).publish([decision]),
         )
+
+
+def _names(step_id: str) -> list[str]:
+    """What a model_input step id can name: itself, and without the ":<n>" a repeat check of the same input had appended."""
+    name, _, count = step_id.rpartition(":")
+    return [step_id, name] if count.isdigit() and name else [step_id]
 
 
 def _reported(event: SentinelEvent) -> Any:

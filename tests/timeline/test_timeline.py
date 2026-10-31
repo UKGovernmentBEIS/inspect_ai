@@ -3,10 +3,13 @@
 Each test runs a scenario from generate.py and validates the resulting timeline.
 """
 
-from typing import Any, Callable
+from typing import Any, Callable, NamedTuple
+
+import pytest
 
 from inspect_ai import eval
 from inspect_ai.event import Timeline, timeline_build
+from inspect_ai.event._timeline import TimelineSpan, _timeline_build
 
 from .generate import (
     scenario_deep_nesting,
@@ -117,6 +120,7 @@ def test_wrap_utility_uuidless_ids_unique() -> None:
     from inspect_ai.event._timeline import (
         TimelineEvent,
         TimelineSpan,
+        _Inputs,
         _wrap_utility_events,
     )
 
@@ -154,8 +158,1590 @@ def test_wrap_utility_uuidless_ids_unique() -> None:
             TimelineEvent(event=warmup_event("2026-01-01T00:00:02Z")),
         ],
     )
-    _wrap_utility_events(span)
+    _wrap_utility_events(span, _Inputs([], None))
 
     wrappers = [item for item in span.content if isinstance(item, TimelineSpan)]
     assert [w.id for w in wrappers] == ["utility-agent-0", "utility-agent-1"]
     assert all(w.utility for w in wrappers)
+
+
+# nothing quadratic: over a log without origins, the continuity rule and the
+# bridge flow's agent results read and fingerprint a constant number of
+# messages per model call, so twice the turns cost twice the work
+
+
+class _CountingList(list[Any]):
+    reads = 0
+
+    def __getitem__(self, index: Any) -> Any:
+        _CountingList.reads += 1
+        return super().__getitem__(index)
+
+    def __iter__(self) -> Any:
+        for item in super().__iter__():
+            _CountingList.reads += 1
+            yield item
+
+
+def _bridged_turns(turns: int, compaction: bool) -> tuple[list[Any], list[Any]]:
+    """A main agent with no origins whose turns each hand a task to a bridged sub-agent (`agent-{call id}`) beside a plain tool call, with `compaction` a summary compaction halfway: events whose inputs are ranges of the returned pool."""
+    from inspect_ai.event import (
+        CompactionEvent,
+        ModelEvent,
+        SpanBeginEvent,
+        SpanEndEvent,
+        ToolEvent,
+    )
+    from inspect_ai.event._pool import _compress_refs
+    from inspect_ai.model import (
+        ChatCompletionChoice,
+        ChatMessageAssistant,
+        ChatMessageSystem,
+        ChatMessageTool,
+        ChatMessageUser,
+        GenerateConfig,
+        ModelOutput,
+    )
+    from inspect_ai.tool import ToolCall
+
+    pool: list[Any] = [
+        ChatMessageSystem(content="You are the main agent."),
+        ChatMessageUser(content="Do the tasks."),
+    ]
+    events: list[Any] = [
+        SpanBeginEvent(id="solvers", name="solvers", type="solvers"),
+        SpanBeginEvent(id="main", name="main", type="agent", parent_id="solvers"),
+    ]
+
+    def add(message: Any) -> int:
+        pool.append(message)
+        return len(pool) - 1
+
+    def model(span: str, rows: list[int], output: Any) -> None:
+        events.append(
+            ModelEvent(
+                span_id=span,
+                model="mockllm/model",
+                input=[],
+                input_refs=_compress_refs(rows),
+                tools=[],
+                tool_choice="auto",
+                config=GenerateConfig(),
+                output=ModelOutput(
+                    model="mockllm/model",
+                    choices=[ChatCompletionChoice(message=output, stop_reason="stop")],
+                ),
+            )
+        )
+
+    history = [0, 1]
+    for turn in range(turns):
+        if compaction and turn == turns // 2:
+            summary = ChatMessageAssistant(content=f"Summary of {turn} turns.")
+            model(
+                "main", [*history, add(ChatMessageUser(content="Summarize."))], summary
+            )
+            events.append(CompactionEvent(span_id="main", type="summary"))
+            history = [0, add(ChatMessageUser(content=summary.text))]
+        task = ToolCall(id=f"task{turn}", function="task", arguments={"n": turn})
+        plain = ToolCall(id=f"add{turn}", function="addition", arguments={"n": turn})
+        output = ChatMessageAssistant(content="", tool_calls=[task, plain])
+        model("main", history, output)
+        history = [*history, add(output)]
+        sub = f"agent-{task.id}"
+        events.append(
+            SpanBeginEvent(id=sub, name="sub", type="agent", parent_id="main")
+        )
+        model(
+            sub,
+            [
+                add(ChatMessageSystem(content="You are a sub-agent.")),
+                add(ChatMessageUser(content=f"Task {turn}.")),
+            ],
+            ChatMessageAssistant(content=f"result {turn}"),
+        )
+        events.append(SpanEndEvent(id=sub))
+        events.append(
+            ToolEvent(id=plain.id, function="addition", arguments={}, span_id="main")
+        )
+        history.append(
+            add(ChatMessageTool(content=f"result {turn}", tool_call_id=task.id))
+        )
+        history.append(add(ChatMessageTool(content="2", tool_call_id=plain.id)))
+    model("main", history, ChatMessageAssistant(content="done"))
+    events += [SpanEndEvent(id="main"), SpanEndEvent(id="solvers")]
+    return events, pool
+
+
+def _model_events(span: TimelineSpan) -> list[Any]:
+    from inspect_ai.event import ModelEvent
+    from inspect_ai.event._timeline import TimelineEvent
+
+    return [
+        item.event
+        for item in span.content
+        if isinstance(item, TimelineEvent) and isinstance(item.event, ModelEvent)
+    ]
+
+
+class _TimelineWork(NamedTuple):
+    reads: int
+    """Messages read from inputs (pool rows, or entries of expanded inputs)."""
+    entries: int
+    """Entries of the model inputs, expanded."""
+    fingerprints: int
+    """Messages fingerprinted."""
+    looked_up: int
+    """Fingerprints continuity looked up."""
+
+
+def _timeline_work(
+    turns: int, pooled: bool, compaction: bool, monkeypatch: pytest.MonkeyPatch
+) -> _TimelineWork:
+    from inspect_ai._util.hash import mm3_hash
+    from inspect_ai.event import ModelEvent
+    from inspect_ai.event import _timeline as timeline
+    from inspect_ai.event._pool import resolve_model_event_inputs
+
+    events, pool = _bridged_turns(turns, compaction)
+    entries = sum(
+        end - start
+        for e in events
+        if isinstance(e, ModelEvent)
+        for start, end in e.input_refs or []
+    )
+    if not pooled:
+        events = [
+            e.model_copy(update={"input": _CountingList(e.input)})
+            if isinstance(e, ModelEvent)
+            else e
+            for e in resolve_model_event_inputs(events, pool)
+        ]
+    fingerprints = looked_up = 0
+    fingerprint = timeline._Inputs.fingerprint
+
+    def counting_hash(text: str) -> str:
+        nonlocal fingerprints
+        fingerprints += 1
+        return mm3_hash(text)
+
+    def counting_fingerprint(self: Any, message: Any) -> Any:
+        nonlocal looked_up
+        looked_up += 1
+        return fingerprint(self, message)
+
+    _CountingList.reads = 0
+    with monkeypatch.context() as patch:
+        patch.setattr("inspect_ai.event._timeline.mm3_hash", counting_hash)
+        patch.setattr(timeline._Inputs, "fingerprint", counting_fingerprint)
+        built = timeline._timeline_build(
+            events,
+            message_pool=_CountingList(pool) if pooled else None,
+            continuity=True,
+        )
+    main = built.root
+    results = {
+        item.id: item.agent_result
+        for item in main.content
+        if isinstance(item, TimelineSpan) and item.id.startswith("agent-")
+    }
+    # the result of the task before a compaction reaches only the summary
+    # call, which is utility, and is kept (Ransom's review B3)
+    assert results == {f"agent-task{turn}": f"result {turn}" for turn in range(turns)}
+    utility = [
+        event.output.message.text
+        for item in main.content
+        if isinstance(item, TimelineSpan) and item.id.startswith("utility-")
+        for event in _model_events(item)
+    ]
+    # the summary call is the only one of the main agent's that is not a turn
+    assert utility == ([f"Summary of {turns // 2} turns."] if compaction else [])
+    return _TimelineWork(_CountingList.reads, entries, fingerprints, looked_up)
+
+
+@pytest.mark.parametrize(
+    "pooled,compaction", [(True, True), (True, False), (False, False)]
+)
+def test_continuity_and_agent_results_are_linear(
+    pooled: bool, compaction: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    small = _timeline_work(50, pooled, compaction, monkeypatch)
+    large = _timeline_work(100, pooled, compaction, monkeypatch)
+    for field in ("reads", "fingerprints", "looked_up"):
+        assert getattr(large, field) <= 2.2 * getattr(small, field) + 10, (
+            field,
+            small,
+            large,
+        )
+    # a handful of messages per model call (each turn makes two)
+    assert large.reads <= 10 * 2 * 100
+
+
+def test_an_agent_result_that_never_follows_its_call_reads_expanded_inputs_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # expanded inputs have no ranges to look a result up in, so once a result
+    # is not where its call puts it each later input is read once, for every
+    # span still waiting: within the entries the inputs hold, not a scan per
+    # span
+    work = _timeline_work(100, False, True, monkeypatch)
+    assert work.reads <= work.entries + 10 * 2 * 100
+    # each call fingerprints one new message and looks up a few
+    assert work.fingerprints <= 2 * 100 + 10
+    assert work.looked_up <= 8 * 2 * 100
+
+
+def _reused_bridge_id() -> list[Any]:
+    """Two bridge tasks with one tool call id, the second's next input holding both results."""
+    from inspect_ai.event import ModelEvent, SpanBeginEvent, SpanEndEvent
+    from inspect_ai.model import (
+        ChatCompletionChoice,
+        ChatMessageAssistant,
+        ChatMessageSystem,
+        ChatMessageTool,
+        ChatMessageUser,
+        GenerateConfig,
+        ModelOutput,
+    )
+    from inspect_ai.tool import ToolCall
+
+    def model(span: str, input: list[Any], output: Any) -> ModelEvent:
+        return ModelEvent(
+            span_id=span,
+            model="mockllm/model",
+            input=input,
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=ModelOutput(
+                model="mockllm/model",
+                choices=[ChatCompletionChoice(message=output, stop_reason="stop")],
+            ),
+        )
+
+    def task() -> ChatMessageAssistant:
+        call = ToolCall(id="task", function="task", arguments={})
+        return ChatMessageAssistant(content="", tool_calls=[call])
+
+    def sub(result: str) -> list[Any]:
+        return [
+            SpanBeginEvent(id="agent-task", name="sub", type="agent", parent_id="main"),
+            model(
+                "agent-task",
+                [ChatMessageUser(content="Do the task.")],
+                ChatMessageAssistant(content=result),
+            ),
+            SpanEndEvent(id="agent-task"),
+        ]
+
+    history: list[Any] = [
+        ChatMessageSystem(content="You are the main agent."),
+        ChatMessageUser(content="Go."),
+    ]
+    first, second = task(), task()
+    events: list[Any] = [SpanBeginEvent(id="main", name="main", type="agent")]
+    events += [model("main", list(history), first), *sub("earlier result")]
+    history += [first, ChatMessageTool(content="earlier result", tool_call_id="task")]
+    events += [model("main", list(history), second), *sub("new result")]
+    history += [second, ChatMessageTool(content="new result", tool_call_id="task")]
+    events += [
+        model("main", list(history), ChatMessageAssistant(content="done")),
+        SpanEndEvent(id="main"),
+    ]
+    return events
+
+
+@pytest.mark.parametrize("pooled", [False, True])
+def test_a_reused_bridge_call_id_keeps_each_task_s_result(pooled: bool) -> None:
+    # Ransom's fifth review B1: the later task's result is the last in the
+    # next input, as on main
+    from inspect_ai.log import condense_events
+
+    events = _reused_bridge_id()
+    if pooled:
+        condensed, data = condense_events(events)
+        root = _timeline_build(condensed, message_pool=data["messages"]).root
+    else:
+        root = timeline_build(events).root
+    results: list[str | None] = []
+
+    def walk(span: TimelineSpan) -> None:
+        for item in span.content:
+            if isinstance(item, TimelineSpan):
+                if item.id == "agent-task":
+                    results.append(item.agent_result)
+                walk(item)
+
+    walk(root)
+    assert results == ["earlier result", "new result"]
+
+
+@pytest.mark.parametrize("phases", [True, False])
+def test_a_fork_at_the_end_goes_to_the_call_in_the_final_messages(
+    phases: bool,
+) -> None:
+    # without phase spans (Ransom's fifth review B5), the timeline's root is a
+    # synthetic span around the agent's, which the final messages still reach
+    import json
+    from pathlib import Path
+
+    from pydantic import TypeAdapter
+
+    from inspect_ai.event import Event, ModelEvent, SpanBeginEvent, SpanEndEvent
+    from inspect_ai.event._timeline import _timeline_build
+
+    fixture = Path(__file__).parent / "fixtures/events/continuity_fork_at_end.json"
+    events = TypeAdapter(list[Event]).validate_python(
+        json.loads(fixture.read_text())["events"]
+    )
+    if not phases:
+        events = [
+            e.model_copy(update={"parent_id": None})
+            if isinstance(e, SpanBeginEvent) and e.parent_id == "solvers"
+            else e
+            for e in events
+            if not (isinstance(e, SpanBeginEvent | SpanEndEvent) and e.id == "solvers")
+        ]
+    m2 = next(e for e in events if isinstance(e, ModelEvent) and e.uuid == "m2")
+    # the main agent's final messages carry on the earlier call of the fork
+    final = [*m2.input, m2.output.message]
+    root = _timeline_build(events, final_messages=final, continuity=True).root
+    utility: list[str | None] = []
+
+    def walk(span: TimelineSpan) -> None:
+        for item in span.content:
+            if isinstance(item, TimelineSpan):
+                if item.utility:
+                    utility.extend(event.uuid for event in _model_events(item))
+                else:
+                    walk(item)
+
+    walk(root)
+    assert utility == ["m3"]
+
+
+def _fork_and_equal_sub_agent_answer(
+    phases: bool, case: str = "distinct_id"
+) -> tuple[list[Any], list[Any]]:
+    """A main call, a fork of two calls answering "finished" and "discarded", then a sub-agent; the final messages carry on "finished".
+
+    The sub-agent's answer: `distinct_id`, also "finished", in another message, so another id; `edited`, the same, and the final messages hold "finished" edited under its id; `reused_id`, "different" under the id of "finished".
+    """
+    from inspect_ai.event import SpanBeginEvent, SpanEndEvent
+    from inspect_ai.model import ChatMessageUser
+
+    task = ChatMessageUser(content="Solve it.")
+    m1 = _model("m1", "main", [task], _assistant("Working."))
+    asked = [task, m1.output.message, ChatMessageUser(content="Finish.")]
+    m2 = _model("m2", "main", asked, _assistant("finished"))
+    answer = _assistant("different" if case == "reused_id" else "finished")
+    if case == "reused_id":
+        answer.id = m2.output.message.id
+    final = m2.output.message
+    if case == "edited":
+        final = final.model_copy(update={"content": "edited finished"})
+    events: list[Any] = [
+        SpanBeginEvent(id="main", name="main", type="agent"),
+        m1,
+        m2,
+        _model("m3", "main", asked, _assistant("discarded")),
+        SpanBeginEvent(id="sub", name="sub", type="agent", parent_id="main"),
+        _model("s1", "sub", [ChatMessageUser(content="Check it.")], answer),
+        SpanEndEvent(id="sub"),
+        SpanEndEvent(id="main"),
+    ]
+    if phases:
+        events[0] = events[0].model_copy(update={"parent_id": "solvers"})
+        events = [
+            SpanBeginEvent(id="solvers", name="solvers", type="solvers"),
+            *events,
+            SpanEndEvent(id="solvers"),
+        ]
+    return events, [*asked, final]
+
+
+@pytest.mark.parametrize("case", ["distinct_id", "edited", "reused_id"])
+@pytest.mark.parametrize("pooled", [False, True])
+@pytest.mark.parametrize("phases", [True, False])
+def test_the_final_messages_go_to_the_call_whose_output_they_hold(
+    phases: bool, pooled: bool, case: str
+) -> None:
+    # Ransom's sixth review B2: a later sub-agent's answer equal in content to
+    # the one the final messages hold does not take them; the call whose
+    # output message (by id) they hold does, and settles its fork. The delta
+    # review: so does a final message edited under that id, and a reused id
+    # with other content does not take them
+    from inspect_ai.event._timeline import _timeline_build
+    from inspect_ai.log import condense_events
+
+    events, final = _fork_and_equal_sub_agent_answer(phases, case)
+    if pooled:
+        condensed, data = condense_events(events)
+        root = _timeline_build(
+            condensed,
+            message_pool=data["messages"],
+            final_messages=final,
+            continuity=True,
+        ).root
+    else:
+        root = _timeline_build(events, final_messages=final, continuity=True).root
+
+    assert _utility(root) == ["m3"]
+
+
+def _wide_fork(forks: int) -> list[Any]:
+    """A turn, `forks` calls that all continue it with outputs of their own, then a call that carries on the first of them, with no origins."""
+    from inspect_ai.event import ModelEvent, SpanBeginEvent, SpanEndEvent
+    from inspect_ai.model import (
+        ChatCompletionChoice,
+        ChatMessageAssistant,
+        ChatMessageSystem,
+        ChatMessageUser,
+        GenerateConfig,
+        ModelOutput,
+    )
+
+    def model(uuid: str, input: list[Any], output: Any) -> ModelEvent:
+        return ModelEvent(
+            uuid=uuid,
+            span_id="main",
+            model="mockllm/model",
+            input=input,
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=ModelOutput(
+                model="mockllm/model",
+                choices=[ChatCompletionChoice(message=output, stop_reason="stop")],
+            ),
+        )
+
+    opening = [
+        ChatMessageSystem(content="You are the main agent."),
+        ChatMessageUser(content="Pick a number."),
+    ]
+    first = ChatMessageAssistant(content="Thinking.")
+    asked = [*opening, first, ChatMessageUser(content="Go on.")]
+    tries = [ChatMessageAssistant(content=f"Try {n}.") for n in range(forks)]
+    return [
+        SpanBeginEvent(id="main", name="main", type="agent"),
+        model("m0", opening, first),
+        *[model(f"f{n}", asked, tries[n]) for n in range(forks)],
+        model("last", [*asked, tries[0], ChatMessageUser(content="And?")], first),
+        SpanEndEvent(id="main"),
+    ]
+
+
+@pytest.mark.parametrize("forks", [5, 50])
+def test_a_fork_carried_on_is_the_turn_however_many_alternatives_it_has(
+    forks: int,
+) -> None:
+    [main] = [
+        item
+        for item in _timeline_build(_wide_fork(forks), continuity=True).root.content
+        if isinstance(item, TimelineSpan)
+    ]
+    utility = [
+        event.uuid
+        for item in main.content
+        if isinstance(item, TimelineSpan) and item.utility
+        for event in _model_events(item)
+    ]
+    assert utility == [f"f{n}" for n in range(1, forks)]
+
+
+def test_a_wide_fork_s_lookups_are_linear(monkeypatch: pytest.MonkeyPatch) -> None:
+    from inspect_ai.event import _timeline as timeline
+
+    fingerprint = timeline._Inputs.fingerprint
+
+    def looked_up(forks: int) -> int:
+        count = 0
+
+        def counting(self: Any, message: Any) -> Any:
+            nonlocal count
+            count += 1
+            return fingerprint(self, message)
+
+        with monkeypatch.context() as patch:
+            patch.setattr(timeline._Inputs, "fingerprint", counting)
+            timeline._timeline_build(_wide_fork(forks), continuity=True)
+        return count
+
+    small, large = looked_up(100), looked_up(200)
+    assert large <= 2.2 * small + 10, (small, large)
+
+
+def _plain_model(uuid: str, input: list[Any], output: Any) -> Any:
+    from inspect_ai.event import ModelEvent
+    from inspect_ai.model import ChatCompletionChoice, GenerateConfig, ModelOutput
+
+    return ModelEvent(
+        uuid=uuid,
+        span_id="main",
+        model="mockllm/model",
+        input=input,
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput(
+            model="mockllm/model",
+            choices=[ChatCompletionChoice(message=output, stop_reason="stop")],
+        ),
+    )
+
+
+def _moves_past_side_calls(segments: int) -> list[Any]:
+    """`segments` times: the agent rebuilds its input, makes four side calls with inputs of four other lengths, then carries on the rebuilt call; no origins."""
+    from inspect_ai.event import SpanBeginEvent, SpanEndEvent
+    from inspect_ai.model import (
+        ChatMessageAssistant,
+        ChatMessageSystem,
+        ChatMessageUser,
+    )
+
+    system = ChatMessageSystem(content="You are the main agent.")
+    events: list[Any] = [SpanBeginEvent(id="main", name="main", type="agent")]
+    for k in range(segments):
+        rebuilt = [system, ChatMessageUser(content=f"Earlier, part {k}.")]
+        answer = ChatMessageAssistant(content=f"Part {k}.")
+        events.append(_plain_model(f"r{k}", rebuilt, answer))
+        for n in range(4):
+            notes = [ChatMessageUser(content=f"Note {k}.{i}.") for i in range(n + 2)]
+            side = ChatMessageAssistant(content="noted")
+            events.append(_plain_model(f"s{k}.{n}", [system, *notes], side))
+        go_on = ChatMessageUser(content="Go on.")
+        carried = ChatMessageAssistant(content=f"Done {k}.")
+        events.append(_plain_model(f"m{k}", [*rebuilt, answer, go_on], carried))
+    events.append(SpanEndEvent(id="main"))
+    return events
+
+
+def _looked_up(events: list[Any], monkeypatch: pytest.MonkeyPatch) -> tuple[int, Any]:
+    from inspect_ai.event import _timeline as timeline
+
+    fingerprint = timeline._Inputs.fingerprint
+    count = 0
+
+    def counting(self: Any, message: Any) -> Any:
+        nonlocal count
+        count += 1
+        return fingerprint(self, message)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(timeline._Inputs, "fingerprint", counting)
+        built = timeline._timeline_build(events, continuity=True)
+    return count, built
+
+
+def test_moving_past_side_calls_of_many_lengths_is_linear(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    small, _ = _looked_up(_moves_past_side_calls(50), monkeypatch)
+    large, built = _looked_up(_moves_past_side_calls(100), monkeypatch)
+    assert large <= 2.2 * small + 10, (small, large)
+    [main] = [item for item in built.root.content if isinstance(item, TimelineSpan)]
+    utility = {
+        event.uuid
+        for item in main.content
+        if isinstance(item, TimelineSpan) and item.utility
+        for event in _model_events(item)
+    }
+    assert utility == {f"s{k}.{n}" for k in range(100) for n in range(4)}
+
+
+def test_calls_that_continue_nothing_cost_at_most_their_inputs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # the costly case of looking up every open input length: a long run of
+    # calls none of which continues another, each with an input of a new
+    # length, is looked up at every shorter open length, which reads at most
+    # the positions the inputs hold
+    from inspect_ai.event import SpanBeginEvent, SpanEndEvent
+    from inspect_ai.model import ChatMessageAssistant, ChatMessageUser
+
+    notes = [ChatMessageUser(content=f"Note {i}.") for i in range(200)]
+    calls = [
+        _plain_model(f"c{n}", notes[: n + 1], ChatMessageAssistant(content=f"{n}"))
+        for n in range(200)
+    ]
+    events = [
+        SpanBeginEvent(id="main", name="main", type="agent"),
+        *calls,
+        SpanEndEvent(id="main"),
+    ]
+    looked_up, _ = _looked_up(events, monkeypatch)
+    entries = sum(len(call.input) for call in calls)
+    assert looked_up <= entries + 2 * len(calls)
+
+
+def _pooled_lengths(calls: int) -> tuple[list[Any], list[Any]]:
+    """`calls` model calls with inputs of lengths 1 to `calls`, each one range of a shared pool, none continuing another; no origins."""
+    from inspect_ai.event import ModelEvent, SpanBeginEvent, SpanEndEvent
+    from inspect_ai.model import (
+        ChatCompletionChoice,
+        ChatMessageAssistant,
+        ChatMessageUser,
+        GenerateConfig,
+        ModelOutput,
+    )
+
+    pool = [ChatMessageUser(content=f"Note {n}.") for n in range(calls)]
+    events: list[Any] = [SpanBeginEvent(id="main", name="main", type="agent")]
+    for n in range(1, calls + 1):
+        events.append(
+            ModelEvent(
+                span_id="main",
+                model="mockllm/model",
+                input=[],
+                input_refs=[(0, n)],
+                tools=[],
+                tool_choice="auto",
+                config=GenerateConfig(),
+                output=ModelOutput(
+                    model="mockllm/model",
+                    choices=[
+                        ChatCompletionChoice(
+                            message=ChatMessageAssistant(content=f"Answer {n}."),
+                            stop_reason="stop",
+                        )
+                    ],
+                ),
+            )
+        )
+    events.append(SpanEndEvent(id="main"))
+    return events, pool
+
+
+def test_calls_of_many_lengths_in_a_pooled_log_are_looked_up_in_linear_work(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # the log driver's timeline reads inputs as pool ranges, so its lookups
+    # are counted against the log as stored (pool rows and ranges), not the
+    # expanded inputs, which are quadratic here
+    def work(calls: int) -> int:
+        events, pool = _pooled_lengths(calls)
+        count = _pooled_work(events, pool, monkeypatch)
+        stored = len(pool) + 2 * calls  # pool rows, one range and one output each
+        assert count <= 4 * stored, (count, stored)
+        return count
+
+    small, large = work(200), work(400)
+    assert large <= 2.2 * small + 10, (small, large)
+
+
+def _summarized_turns(turns: int) -> tuple[list[Any], list[Any]]:
+    """A tool loop with no origins, its summary call and summary compaction every four turns, the next input holding the summary wrapped as Inspect wraps it: events whose inputs are ranges of the returned pool."""
+    from inspect_ai.event import (
+        CompactionEvent,
+        ModelEvent,
+        SpanBeginEvent,
+        SpanEndEvent,
+    )
+    from inspect_ai.event._pool import _compress_refs
+    from inspect_ai.model import (
+        ChatCompletionChoice,
+        ChatMessageAssistant,
+        ChatMessageSystem,
+        ChatMessageTool,
+        ChatMessageUser,
+        GenerateConfig,
+        ModelOutput,
+    )
+    from inspect_ai.tool import ToolCall
+
+    pool: list[Any] = [
+        ChatMessageSystem(content="You are the main agent."),
+        ChatMessageUser(content="Add up the numbers."),
+    ]
+    events: list[Any] = [SpanBeginEvent(id="main", name="main", type="agent")]
+
+    def add(message: Any) -> int:
+        pool.append(message)
+        return len(pool) - 1
+
+    def model(uuid: str, rows: list[int], output: Any) -> None:
+        events.append(
+            ModelEvent(
+                uuid=uuid,
+                span_id="main",
+                model="mockllm/model",
+                input=[],
+                input_refs=_compress_refs(rows),
+                tools=[],
+                tool_choice="auto",
+                config=GenerateConfig(),
+                output=ModelOutput(
+                    model="mockllm/model",
+                    choices=[ChatCompletionChoice(message=output, stop_reason="stop")],
+                ),
+            )
+        )
+
+    history = [0, 1]
+    for turn in range(turns):
+        if turn and turn % 4 == 0:
+            text = (
+                f"<analysis>Turns to {turn}.</analysis>\n<summary>Sum {turn}.</summary>"
+            )
+            model(
+                f"sm{turn}",
+                [*history, add(ChatMessageUser(content="Summarize."))],
+                ChatMessageAssistant(content=text),
+            )
+            events.append(CompactionEvent(span_id="main", type="summary"))
+            wrapped = f"[CONTEXT COMPACTION SUMMARY]\n\n<summary>Sum {turn}.</summary>"
+            history = [0, 1, add(ChatMessageUser(content=wrapped))]
+        call = ToolCall(id=f"c{turn}", function="add", arguments={"n": turn})
+        output = ChatMessageAssistant(content="", tool_calls=[call])
+        model(f"m{turn}", history, output)
+        history = [
+            *history,
+            add(output),
+            add(ChatMessageTool(content="ok", tool_call_id=call.id)),
+        ]
+    model("last", history, ChatMessageAssistant(content="done"))
+    events.append(SpanEndEvent(id="main"))
+    return events, pool
+
+
+def test_summary_compactions_are_settled_in_linear_work(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai.event import _timeline as timeline
+
+    fingerprint = timeline._Inputs.fingerprint
+
+    def work(turns: int) -> int:
+        count = 0
+
+        def counting(self: Any, message: Any) -> Any:
+            nonlocal count
+            count += 1
+            return fingerprint(self, message)
+
+        events, pool = _summarized_turns(turns)
+        counted = _CountingList(pool)
+        _CountingList.reads = 0
+        with monkeypatch.context() as patch:
+            patch.setattr(timeline._Inputs, "fingerprint", counting)
+            built = timeline._timeline_build(
+                events, message_pool=counted, continuity=True
+            )
+        [main] = [item for item in built.root.content if isinstance(item, TimelineSpan)]
+        utility = {
+            event.uuid
+            for item in main.content
+            if isinstance(item, TimelineSpan) and item.utility
+            for event in _model_events(item)
+        }
+        assert utility == {f"sm{turn}" for turn in range(4, turns, 4)}
+        return count + _CountingList.reads
+
+    small, large = work(100), work(200)
+    assert large <= 2.2 * small + 10, (small, large)
+
+
+def _open_at_summary(calls: int) -> tuple[list[Any], list[Any]]:
+    """With no origins: `calls` side calls none continuing another, a summary call, a summary compaction, and a call whose input holds `calls` facts and the summary: events whose inputs are ranges of the returned pool."""
+    from inspect_ai.event import (
+        CompactionEvent,
+        ModelEvent,
+        SpanBeginEvent,
+        SpanEndEvent,
+    )
+    from inspect_ai.model import (
+        ChatCompletionChoice,
+        ChatMessageAssistant,
+        ChatMessageSystem,
+        ChatMessageUser,
+        GenerateConfig,
+        ModelOutput,
+    )
+
+    pool: list[Any] = [
+        ChatMessageSystem(content="You are the main agent."),
+        ChatMessageUser(content="Summarize."),
+        ChatMessageUser(content="[COMPACTED] Facts so far."),
+        *[ChatMessageUser(content=f"Note {n}.") for n in range(calls)],
+        *[ChatMessageUser(content=f"Fact {n}.") for n in range(calls)],
+    ]
+    events: list[Any] = [SpanBeginEvent(id="main", name="main", type="agent")]
+
+    def model(uuid: str, refs: list[tuple[int, int]], text: str) -> None:
+        events.append(
+            ModelEvent(
+                uuid=uuid,
+                span_id="main",
+                model="mockllm/model",
+                input=[],
+                input_refs=refs,
+                tools=[],
+                tool_choice="auto",
+                config=GenerateConfig(),
+                output=ModelOutput(
+                    model="mockllm/model",
+                    choices=[
+                        ChatCompletionChoice(
+                            message=ChatMessageAssistant(content=text),
+                            stop_reason="stop",
+                        )
+                    ],
+                ),
+            )
+        )
+
+    for n in range(calls):
+        model(f"s{n}", [(0, 1), (3 + n, 4 + n)], f"Side {n}.")
+    model("sm", [(0, 2)], "Facts so far.")
+    events.append(CompactionEvent(span_id="main", type="summary"))
+    model("m", [(0, 1), (3 + calls, 3 + 2 * calls), (2, 3)], "Done.")
+    events.append(SpanEndEvent(id="main"))
+    return events, pool
+
+
+def test_a_summary_compaction_reads_the_next_input_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # delta review d1: every call open at the compaction was looked for in
+    # the next input, calls times its messages
+    from inspect_ai.event import _timeline as timeline
+
+    fingerprint = timeline._Inputs.fingerprint
+
+    def work(calls: int) -> int:
+        count = 0
+
+        def counting(self: Any, message: Any) -> Any:
+            nonlocal count
+            count += 1
+            return fingerprint(self, message)
+
+        events, pool = _open_at_summary(calls)
+        counted = _CountingList(pool)
+        _CountingList.reads = 0
+        with monkeypatch.context() as patch:
+            patch.setattr(timeline._Inputs, "fingerprint", counting)
+            built = timeline._timeline_build(
+                events, message_pool=counted, continuity=True
+            )
+        [main] = [item for item in built.root.content if isinstance(item, TimelineSpan)]
+        utility = {
+            event.uuid
+            for item in main.content
+            if isinstance(item, TimelineSpan) and item.utility
+            for event in _model_events(item)
+        }
+        assert utility == {"sm"}
+        return count + _CountingList.reads
+
+    small, large = work(200), work(400)
+    assert large <= 2.2 * small + 10, (small, large)
+
+
+def test_a_row_set_counts_and_lists_rows_by_interval() -> None:
+    import random
+
+    from inspect_ai.event._timeline import _RowSet
+
+    chooser = random.Random(7)
+    for _ in range(300):
+        size = chooser.randint(1, 60)
+        rows = chooser.sample(range(size), chooser.randint(0, size))
+        found = _RowSet(size)
+        for row in rows:
+            found.add(row)
+        begin, end = sorted(chooser.sample(range(size + 1), 2))
+        expected = sorted(row for row in rows if begin <= row < end)
+        assert found.count(begin, end) == len(expected)
+        assert list(found.between(begin, end)) == expected
+
+
+def _shared_outputs(calls: int, interleaved: bool) -> tuple[list[Any], list[Any]]:
+    """`calls` model calls with no origins, none continuing another, all answering "ok", with a pool holding `calls` rows of "ok" told apart by metadata: apart from the inputs, or with `interleaved` between the inputs' notes, never where an open call's output would be."""
+    from inspect_ai.event import ModelEvent, SpanBeginEvent, SpanEndEvent
+    from inspect_ai.model import (
+        ChatCompletionChoice,
+        ChatMessageAssistant,
+        ChatMessageUser,
+        GenerateConfig,
+        ModelOutput,
+    )
+
+    notes = [ChatMessageUser(content=f"Note {n}.") for n in range(calls)]
+    oks = [ChatMessageAssistant(content="ok", metadata={"n": n}) for n in range(calls)]
+    pool: list[Any] = (
+        [m for pair in zip(notes, oks) for m in pair] if interleaved else notes + oks
+    )
+    events: list[Any] = [SpanBeginEvent(id="main", name="main", type="agent")]
+    for n in range(1, calls + 1):
+        events.append(
+            ModelEvent(
+                span_id="main",
+                model="mockllm/model",
+                input=[],
+                # interleaved: notes at even rows, and an input of even length
+                # 2n puts each open call's output position on a note
+                input_refs=[(0, 2 * n if interleaved else n)],
+                tools=[],
+                tool_choice="auto",
+                config=GenerateConfig(),
+                output=ModelOutput(
+                    model="mockllm/model",
+                    choices=[
+                        ChatCompletionChoice(
+                            message=ChatMessageAssistant(content="ok"),
+                            stop_reason="stop",
+                        )
+                    ],
+                ),
+            )
+        )
+    events.append(SpanEndEvent(id="main"))
+    return events, pool
+
+
+def _pooled_work(
+    events: list[Any], pool: list[Any], monkeypatch: pytest.MonkeyPatch
+) -> int:
+    """Fingerprints, bisections and row-set steps while building, and each sorted insert by the elements it shifts."""
+    from bisect import bisect_left, bisect_right, insort
+
+    from inspect_ai.event import _timeline as timeline
+
+    count = 0
+
+    def counted(function: Any) -> Any:
+        def call(*args: Any, **kwargs: Any) -> Any:
+            nonlocal count
+            count += 1
+            return function(*args, **kwargs)
+
+        return call
+
+    def shifting(a: list[Any], x: Any) -> None:
+        nonlocal count
+        count += 1 + len(a) - bisect_right(a, x)
+        insort(a, x)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            timeline._Inputs, "fingerprint", counted(timeline._Inputs.fingerprint)
+        )
+        if hasattr(timeline, "bisect_left"):
+            patch.setattr(timeline, "bisect_left", counted(bisect_left))
+        if hasattr(timeline, "insort"):
+            patch.setattr(timeline, "insort", shifting)
+        row_set = getattr(timeline, "_RowSet", None)
+        for name in ("add", "_below", "_kth") if row_set is not None else ():
+            patch.setattr(row_set, name, counted(getattr(row_set, name)))
+        timeline._timeline_build(events, message_pool=pool, continuity=True)
+    return count
+
+
+def test_an_output_many_pool_rows_hold_is_indexed_in_linear_work(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # review pass 4: every open call was indexed against every pool row
+    # holding its output, calls times rows
+    def work(calls: int) -> int:
+        events, pool = _shared_outputs(calls, interleaved=False)
+        found = _pooled_work(events, pool, monkeypatch)
+        stored = len(pool) + 2 * calls  # pool rows, one range and one output each
+        assert found <= 20 * stored, (found, stored)
+        return found
+
+    small, large = work(200), work(400)
+    assert large <= 2.2 * small + 10, (small, large)
+
+
+def test_a_pooled_log_s_lookups_walk_the_smaller_of_lengths_and_rows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # the known superlinear case: each input covers many open lengths and many
+    # rows holding open outputs, never lined up, so each range walks the
+    # smaller set; within the positions the inputs hold
+    events, pool = _shared_outputs(200, interleaved=True)
+    entries = sum(2 * n for n in range(1, 201))
+    assert _pooled_work(events, pool, monkeypatch) <= entries + 20 * len(pool)
+
+
+def _descending(calls: int, heads: bool) -> tuple[list[Any], list[Any]]:
+    """`calls` model calls with no origins whose inputs, each one prefix range of a shared pool, get shorter call by call, their outputs in no pool row: with `heads`, each carries on one first call (the heads of a fork nothing resolves); else none carries on another (candidates)."""
+    from inspect_ai.event import ModelEvent, SpanBeginEvent, SpanEndEvent
+    from inspect_ai.model import (
+        ChatCompletionChoice,
+        ChatMessageAssistant,
+        ChatMessageUser,
+        GenerateConfig,
+        ModelOutput,
+    )
+
+    first = ChatMessageAssistant(content="First.")
+    pool: list[Any] = [ChatMessageUser(content="Go."), *([first] if heads else [])]
+    pool += [ChatMessageUser(content=f"Note {n}.") for n in range(calls)]
+    events: list[Any] = [SpanBeginEvent(id="main", name="main", type="agent")]
+
+    def model(refs: list[tuple[int, int]], output: Any) -> None:
+        events.append(
+            ModelEvent(
+                span_id="main",
+                model="mockllm/model",
+                input=[],
+                input_refs=refs,
+                tools=[],
+                tool_choice="auto",
+                config=GenerateConfig(),
+                output=ModelOutput(
+                    model="mockllm/model",
+                    choices=[ChatCompletionChoice(message=output, stop_reason="stop")],
+                ),
+            )
+        )
+
+    if heads:
+        model([(0, 1)], first)
+    for n in range(calls):
+        model([(0, len(pool) - n)], ChatMessageAssistant(content=f"Answer {n}."))
+    events.append(SpanEndEvent(id="main"))
+    return events, pool
+
+
+@pytest.mark.parametrize("heads", [False, True])
+def test_calls_of_falling_lengths_are_indexed_in_linear_work(
+    heads: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Ransom's eighth review B2: each shorter input length was inserted ahead
+    # of the open ones in a sorted list, shifting them all
+    def work(calls: int) -> int:
+        events, pool = _descending(calls, heads)
+        found = _pooled_work(events, pool, monkeypatch)
+        stored = len(pool) + 2 * calls  # pool rows, one range and one output each
+        assert found <= 20 * stored, (found, stored)
+        return found
+
+    small, large = work(200), work(400)
+    assert large <= 2.2 * small + 10, (small, large)
+
+
+def test_a_pooled_input_s_tool_results_are_found_in_linear_work(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Codex delta 4: each pool row answering a tool call was checked against
+    # every range of the input, rows times ranges; here `calls` results share
+    # one tool call id, and only the input's first range holds one
+    from collections.abc import Iterator, Sequence
+
+    from inspect_ai._sentinel._steps import PoolView
+    from inspect_ai.event import ModelEvent
+    from inspect_ai.event import _timeline as timeline
+    from inspect_ai.model import (
+        ChatMessageTool,
+        ChatMessageUser,
+        GenerateConfig,
+        ModelOutput,
+    )
+
+    count = 0
+
+    class Counted(Sequence[Any]):
+        def __init__(self, items: Sequence[Any]) -> None:
+            self._items = items
+
+        def __len__(self) -> int:
+            return len(self._items)
+
+        def __getitem__(self, index: Any) -> Any:
+            nonlocal count
+            count += 1
+            return self._items[index]
+
+        def __iter__(self) -> Iterator[Any]:
+            nonlocal count
+            for item in self._items:
+                count += 1
+                yield item
+
+        def __reversed__(self) -> Iterator[Any]:
+            nonlocal count
+            for item in reversed(self._items):
+                count += 1
+                yield item
+
+    def work(calls: int) -> int:
+        nonlocal count
+        notes = [ChatMessageUser(content=f"Note {n}.") for n in range(calls)]
+        results = [
+            ChatMessageTool(content=f"Result {n}.", tool_call_id="t", function="f")
+            for n in range(calls)
+        ]
+        refs = [(calls, calls + 1), *((n, n + 1) for n in range(calls - 1))]
+        event = ModelEvent(
+            model="mockllm/model",
+            input=[],
+            input_refs=refs,
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=ModelOutput(model="mockllm/model"),
+        )
+        inputs = timeline._Inputs([event], [*notes, *results])
+        count = 0
+        with monkeypatch.context() as patch:
+            for name in ("refs", "starts"):
+                patch.setattr(PoolView, name, counted_property(getattr(PoolView, name)))
+            if hasattr(timeline, "bisect_left"):
+                patch.setattr(timeline, "bisect_left", counted(timeline.bisect_left))
+            found = inputs.tool_results(event, ["t"])
+        assert found == [("t", "Result 0.")]
+        stored = 2 * calls + len(refs)  # pool rows and ranges
+        assert count <= 4 * stored, (count, stored)
+        return count
+
+    def counted(function: Any) -> Any:
+        def call(*args: Any) -> Any:
+            nonlocal count
+            count += 1
+            return function(*args)
+
+        return call
+
+    def counted_property(original: property) -> property:
+        def get(view: Any) -> Counted:
+            assert original.fget is not None
+            return Counted(original.fget(view))
+
+        return property(get)
+
+    small, large = work(200), work(400)
+    assert large <= 2.2 * small + 10, (small, large)
+
+
+def _failures(calls: int, retried: bool) -> tuple[list[Any], list[Any]]:
+    """With no origins: a turn, then `calls` failed calls and, with `retried`, one call sending their input again, carried on; else `calls` failed calls each with an input of its own and `calls` side calls ending like them. Events whose inputs are ranges of the returned pool."""
+    from inspect_ai.event import ModelEvent, SpanBeginEvent, SpanEndEvent
+    from inspect_ai.model import (
+        ChatCompletionChoice,
+        ChatMessageAssistant,
+        ChatMessageSystem,
+        ChatMessageUser,
+        GenerateConfig,
+        ModelOutput,
+    )
+
+    system = ChatMessageSystem(content="You are the main agent.")
+    ask = ChatMessageUser(content="Answer in one word.")
+    pool: list[Any] = [system, ask]
+    events: list[Any] = [SpanBeginEvent(id="main", name="main", type="agent")]
+
+    def model(uuid: str, refs: list[tuple[int, int]], text: str | None) -> None:
+        output = ModelOutput(
+            model="mockllm/model",
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(content=text), stop_reason="stop"
+                )
+            ]
+            if text is not None
+            else [],
+        )
+        events.append(
+            ModelEvent(
+                uuid=uuid,
+                span_id="main",
+                model="mockllm/model",
+                input=[],
+                input_refs=refs,
+                tools=[],
+                tool_choice="auto",
+                config=GenerateConfig(),
+                output=output,
+                error=None if text is not None else "overloaded",
+            )
+        )
+
+    def add(message: Any) -> int:
+        pool.append(message)
+        return len(pool) - 1
+
+    model("m0", [(0, 2)], "Thinking.")
+    if retried:
+        nudge = add(ChatMessageUser(content="Go on."))
+        for n in range(calls):
+            model(f"f{n}", [(0, 3), (nudge, nudge + 1)], None)
+        model("r", [(0, 3), (nudge, nudge + 1)], "One.")
+        answer = add(ChatMessageAssistant(content="One."))
+        model("m1", [(0, 3), (nudge, nudge + 1), (answer, answer + 1)], "Two.")
+    else:
+        for n in range(calls):
+            plan = add(ChatMessageUser(content=f"Plan {n}."))
+            model(f"f{n}", [(plan, plan + 1), (1, 2)], None)
+        for n in range(calls):
+            other = add(ChatMessageUser(content=f"Other {n}."))
+            model(f"s{n}", [(other, other + 1), (1, 2)], "yes")
+    events.append(SpanEndEvent(id="main"))
+    return events, pool
+
+
+@pytest.mark.parametrize("retried", [True, False])
+def test_failed_calls_are_matched_to_retries_in_linear_work(
+    retried: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # review pass 4: a run of failures matched by one retry was removed one by
+    # one, and side calls sharing their length and last message were compared
+    # with every failure waiting
+    from inspect_ai.event import _timeline as timeline
+
+    fingerprint = timeline._Inputs.fingerprint
+
+    def work(calls: int) -> int:
+        count = 0
+
+        def counting(self: Any, message: Any) -> Any:
+            nonlocal count
+            count += 1
+            return fingerprint(self, message)
+
+        events, pool = _failures(calls, retried)
+        with monkeypatch.context() as patch:
+            patch.setattr(timeline._Inputs, "fingerprint", counting)
+            built = timeline._timeline_build(events, message_pool=pool, continuity=True)
+        [main] = [item for item in built.root.content if isinstance(item, TimelineSpan)]
+        utility = {
+            event.uuid
+            for item in main.content
+            if isinstance(item, TimelineSpan) and item.utility
+            for event in _model_events(item)
+        }
+        # the retried failures are what their retry is, a turn; failures never
+        # retried are turns
+        assert not utility & {f"f{n}" for n in range(calls)}
+        return count
+
+    small, large = work(200), work(400)
+    assert large <= 2.2 * small + 10, (small, large)
+
+
+def test_an_input_s_identity_is_the_same_pooled_or_expanded() -> None:
+    # delta review d1: a retry's input stored at other pool rows, as rows
+    # holding equal messages with other metadata, matched no failed call
+    import random
+
+    from inspect_ai._sentinel._steps import PoolView
+    from inspect_ai.event._pool import _compress_refs
+    from inspect_ai.event._timeline import _Inputs
+    from inspect_ai.model import ChatMessageUser
+
+    chooser = random.Random(11)
+    for _ in range(200):
+        pool = [
+            ChatMessageUser(content=f"{chooser.randint(0, 3)}", metadata={"row": row})
+            for row in range(chooser.randint(1, 30))
+        ]
+        inputs = _Inputs([], pool)
+        rows = [chooser.randrange(len(pool)) for _ in range(chooser.randint(0, 20))]
+        other = [
+            chooser.choice([r for r, m in enumerate(pool) if m.text == pool[row].text])
+            for row in rows
+        ]
+        pooled = PoolView(pool, _compress_refs(rows))
+        assert inputs.identity(pooled) == inputs.identity(list(pooled))
+        assert inputs.identity(pooled) == inputs.identity(
+            PoolView(pool, _compress_refs(other))
+        )
+        differing = [
+            r for r, m in enumerate(pool) if rows and m.text != pool[rows[0]].text
+        ]
+        if differing:
+            changed = [differing[0], *rows[1:]]
+            assert inputs.identity(pooled) != inputs.identity(
+                PoolView(pool, _compress_refs(changed))
+            )
+
+
+# Fresh-context review of fc19f0412: public parity of agent results, and
+# continuity's conversations within the tree
+
+
+def _model(uuid: str, span: str | None, input: list[Any], output: Any) -> Any:
+    from inspect_ai.event import ModelEvent
+    from inspect_ai.model import ChatCompletionChoice, GenerateConfig, ModelOutput
+
+    return ModelEvent(
+        uuid=uuid,
+        span_id=span,
+        model="mockllm/model",
+        input=list(input),
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput(
+            model="mockllm/model",
+            choices=[ChatCompletionChoice(message=output, stop_reason="stop")],
+        ),
+    )
+
+
+def _assistant(text: str = "", *calls: str) -> Any:
+    from inspect_ai.model import ChatMessageAssistant
+    from inspect_ai.tool import ToolCall
+
+    return ChatMessageAssistant(
+        content=text,
+        tool_calls=[ToolCall(id=c, function="f", arguments={}) for c in calls] or None,
+    )
+
+
+def _utility(root: TimelineSpan) -> list[str | None]:
+    from inspect_ai.event import ModelEvent
+    from inspect_ai.event._timeline import TimelineEvent
+
+    found: list[str | None] = []
+
+    def walk(span: TimelineSpan, inside: bool) -> None:
+        for item in span.content:
+            if isinstance(item, TimelineEvent):
+                if inside and isinstance(item.event, ModelEvent):
+                    found.append(item.event.uuid)
+            else:
+                walk(item, inside or item.utility)
+        for branch in span.branches:
+            walk(branch, inside or branch.utility)
+
+    walk(root, root.utility)
+    return found
+
+
+@pytest.mark.parametrize("pooled", [False, True])
+@pytest.mark.parametrize("reminder", [False, True])
+def test_a_bridge_task_s_result_is_the_last_in_the_input(
+    pooled: bool, reminder: bool
+) -> None:
+    # the input holds a result where the issuing call puts it and a later one
+    # elsewhere (a reminder inserted before it, or a rewrite): as on main, the
+    # last is the task's
+    from inspect_ai.event import SpanBeginEvent, SpanEndEvent
+    from inspect_ai.log import condense_events
+    from inspect_ai.model import ChatMessageSystem, ChatMessageTool, ChatMessageUser
+
+    system, go = ChatMessageSystem(content="main"), ChatMessageUser(content="Go.")
+    first, again = _assistant("", "x"), _assistant("", "x")
+    history = [system, go, first, ChatMessageTool(content="A", tool_call_id="x")]
+    history += [ChatMessageUser(content="again")]
+    if reminder:
+        history += [ChatMessageUser(content="<reminder>")]
+    history += [again, ChatMessageTool(content="B", tool_call_id="x")]
+    events: list[Any] = [
+        SpanBeginEvent(id="main", name="main", type="agent"),
+        _model("m1", "main", [system, go], first),
+        SpanBeginEvent(id="agent-x", name="sub", type="agent", parent_id="main"),
+        _model("s1", "agent-x", [ChatMessageUser(content="do")], _assistant("r")),
+        SpanEndEvent(id="agent-x"),
+        _model("m2", "main", history, _assistant("done")),
+        SpanEndEvent(id="main"),
+    ]
+    if pooled:
+        condensed, data = condense_events(events)
+        root = _timeline_build(condensed, message_pool=data["messages"]).root
+    else:
+        root = timeline_build(events).root
+    results: list[str | None] = []
+
+    def walk(span: TimelineSpan) -> None:
+        for item in span.content:
+            if isinstance(item, TimelineSpan):
+                if item.id == "agent-x":
+                    results.append(item.agent_result)
+                walk(item)
+
+    walk(root)
+    assert results == ["B"]
+
+
+def _tool_span_sub_agent(fork: bool) -> tuple[list[Any], list[Any]]:
+    """A main agent whose call's tool runs a two-call loop of its own in a tool span, then carries on (with `fork`, after a fork of two calls)."""
+    from inspect_ai.event import SpanBeginEvent, SpanEndEvent
+    from inspect_ai.model import ChatMessageSystem, ChatMessageTool, ChatMessageUser
+
+    system, go = ChatMessageSystem(content="main"), ChatMessageUser(content="Go.")
+    events: list[Any] = [SpanBeginEvent(id="main", name="main", type="agent")]
+    input: list[Any] = [system, go]
+    if fork:
+        first = _assistant("one", "c0")
+        events.append(_model("t1", "main", input, first))
+        input = [*input, first, ChatMessageTool(content="r0", tool_call_id="c0")]
+    asked = _assistant("", "c1")
+    events.append(_model("h1", "main", input, asked))
+    if fork:
+        events.append(_model("h2", "main", input, _assistant("", "c9")))
+    helper = [ChatMessageSystem(content="helper"), ChatMessageUser(content="q")]
+    searched = _assistant("", "k")
+    events += [
+        SpanBeginEvent(id="tool-c1", name="research", type="tool", parent_id="main"),
+        _model("s1", "tool-c1", helper, searched),
+        _model(
+            "s2",
+            "tool-c1",
+            [*helper, searched, ChatMessageTool(content="hits", tool_call_id="k")],
+            _assistant("answer"),
+        ),
+        SpanEndEvent(id="tool-c1"),
+    ]
+    final = [*input, asked, ChatMessageTool(content="answer", tool_call_id="c1")]
+    events += [_model("t3", "main", final, _assistant("done")), SpanEndEvent(id="main")]
+    return events, [*final, _assistant("done")]
+
+
+@pytest.mark.parametrize("fork", [False, True])
+def test_a_tool_s_own_calls_do_not_move_the_agent_s_thread(fork: bool) -> None:
+    # fc19f0412 grouped a tool's own model calls with the agent's (its
+    # conversation by agent span), so their chain made the agent's first turn
+    # utility, or kept an unused alternative; the tool's span is its own
+    events, final = _tool_span_sub_agent(fork)
+    root = _timeline_build(events, final_messages=final, continuity=True).root
+    assert _utility(root) == (["h2"] if fork else [])
+
+
+def test_an_older_log_s_nested_calls_do_not_end_the_agent_s_thread() -> None:
+    # a log from before spans nests a handoff's calls in its ToolEvent; they
+    # are a sub-agent's, and the fork at the end the final messages settle is
+    # the main agent's
+    from inspect_ai.event import ToolEvent
+    from inspect_ai.model import ChatMessageSystem, ChatMessageTool, ChatMessageUser
+
+    system, go = ChatMessageSystem(content="main"), ChatMessageUser(content="Go.")
+    transfer = _assistant("", "c1")
+    second = [system, go, transfer, ChatMessageTool(content="done", tool_call_id="c1")]
+    thought = _assistant("let me think")
+    last = [*second, thought, ChatMessageUser(content="continue")]
+    kept, dropped = _assistant("answer one"), _assistant("answer two")
+    sub = [ChatMessageSystem(content="sub"), ChatMessageUser(content="task")]
+    searched = _assistant("", "k")
+    nested = [
+        _model("s1", None, sub, searched),
+        _model(
+            "s2",
+            None,
+            [*sub, searched, ChatMessageTool(content="x", tool_call_id="k")],
+            _assistant("done"),
+        ),
+    ]
+    events: list[Any] = [
+        _model("t1", None, [system, go], transfer),
+        ToolEvent(
+            id="c1",
+            function="transfer",
+            arguments={},
+            agent="sub",
+            events=nested,
+            result="done",
+        ),
+        _model("t2", None, second, thought),
+        _model("h1", None, last, kept),
+        _model("h2", None, last, dropped),
+    ]
+    root = _timeline_build(events, final_messages=[*last, kept], continuity=True).root
+    assert _utility(root) == ["h2"]
+
+
+def test_a_rollback_branch_does_not_join_the_trunk_s_thread() -> None:
+    # without a stored timeline, a timeline_branch span is a conversation of
+    # its own: its calls do not settle the trunk's fork against the turn the
+    # final messages carry on
+    from inspect_ai.event import (
+        AnchorEvent,
+        BranchEvent,
+        SpanBeginEvent,
+        SpanEndEvent,
+    )
+    from inspect_ai.model import ChatMessageSystem, ChatMessageTool, ChatMessageUser
+
+    system, go = ChatMessageSystem(content="main"), ChatMessageUser(content="Go.")
+    o1, o2, o3 = _assistant("one", "c1"), _assistant("two", "c2"), _assistant("three")
+    i1 = [system, go]
+    i2 = [*i1, o1, ChatMessageTool(content="r1", tool_call_id="c1")]
+    i3 = [*i2, o2, ChatMessageTool(content="r2", tool_call_id="c2")]
+    b3 = _assistant("three-b", "c3")
+    events: list[Any] = [
+        SpanBeginEvent(id="main", name="main", type="agent"),
+        _model("t1", "main", i1, o1),
+        _model("t2", "main", i2, o2),
+        AnchorEvent(anchor_id="a2"),
+        _model("t3", "main", i3, o3),
+        SpanBeginEvent(id="branch", name="rollback", type="branch", parent_id="main"),
+        BranchEvent(from_anchor="a2", span_id="branch"),
+        _model("b3", "branch", i3, b3),
+        _model(
+            "b4",
+            "branch",
+            [*i3, b3, ChatMessageTool(content="r3", tool_call_id="c3")],
+            _assistant("four-b"),
+        ),
+        SpanEndEvent(id="branch"),
+        SpanEndEvent(id="main"),
+    ]
+    root = _timeline_build(events, final_messages=[*i3, o3], continuity=True).root
+    assert _utility(root) == []
+
+
+def test_conversations_sharing_an_output_add_its_rows_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # each continuity thread added every pool row of an output it opened, so
+    # n sub-agents answering alike cost n * n; the rows are shared
+    from inspect_ai.event import SpanBeginEvent, SpanEndEvent
+    from inspect_ai.event import _timeline as timeline
+    from inspect_ai.log import condense_events
+    from inspect_ai.model import (
+        ChatMessageAssistant,
+        ChatMessageSystem,
+        ChatMessageTool,
+        ChatMessageUser,
+    )
+
+    def added(n: int) -> int:
+        history: list[Any] = [
+            ChatMessageSystem(content="main"),
+            ChatMessageUser(content="Go."),
+        ]
+        events: list[Any] = [SpanBeginEvent(id="main", name="main", type="agent")]
+        for k in range(n):
+            task = _assistant("", f"t{k}")
+            events.append(_model(f"m{k}", "main", list(history), task))
+            history.append(task)
+            asked = [ChatMessageSystem(content="sub"), ChatMessageUser(content=f"{k}")]
+            done = ChatMessageAssistant(content="Done.", metadata={"k": k})
+            events += [
+                SpanBeginEvent(
+                    id=f"agent-t{k}", name="sub", type="agent", parent_id="main"
+                ),
+                _model(f"s{k}", f"agent-t{k}", asked, done),
+                _model(
+                    f"z{k}",
+                    f"agent-t{k}",
+                    [*asked, done, ChatMessageUser(content="sure?")],
+                    _assistant("Yes."),
+                ),
+                SpanEndEvent(id=f"agent-t{k}"),
+            ]
+            history.append(ChatMessageTool(content="Done.", tool_call_id=f"t{k}"))
+        events += [
+            _model("end", "main", list(history), _assistant("fin")),
+            SpanEndEvent(id="main"),
+        ]
+        condensed, data = condense_events(events)
+        count = 0
+        add = timeline._RowSet.add
+
+        def counting(self: Any, row: int) -> None:
+            nonlocal count
+            count += 1
+            add(self, row)
+
+        with monkeypatch.context() as patch:
+            patch.setattr(timeline._RowSet, "add", counting)
+            _timeline_build(condensed, message_pool=data["messages"], continuity=True)
+        return count
+
+    small, large = added(100), added(200)
+    assert large <= 2.2 * small + 10, (small, large)

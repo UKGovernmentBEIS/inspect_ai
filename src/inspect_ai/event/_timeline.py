@@ -8,8 +8,21 @@ Uses inspect_ai's event_tree() to parse span structure.
 from __future__ import annotations
 
 import contextlib
+from bisect import bisect_left
+from collections import Counter
+from collections.abc import Iterable, Iterator
 from datetime import datetime, timezone
-from typing import Annotated, Any, AsyncIterator, Callable, Literal, Sequence
+from typing import (
+    AbstractSet,
+    Annotated,
+    Any,
+    AsyncIterator,
+    Callable,
+    Literal,
+    Mapping,
+    NamedTuple,
+    Sequence,
+)
 
 from pydantic import (
     BaseModel,
@@ -22,16 +35,22 @@ from pydantic import (
 )
 
 from inspect_ai._sentinel._scope import is_agent_turn
+from inspect_ai._sentinel._steps import PoolView
+from inspect_ai._util.hash import mm3_hash
 from inspect_ai.model import (
+    ChatMessage,
     ChatMessageSystem,
     ChatMessageTool,
     ChatMessageUser,
 )
+from inspect_ai.util._span import AgentSpans
 
 from ._anchor import AnchorEvent
 from ._branch import BranchEvent
+from ._compaction import CompactionEvent
 from ._event import Event
 from ._model import ModelEvent
+from ._span import SpanBeginEvent
 from ._tool import ToolEvent
 from ._tree import EventTreeSpan, event_sequence, event_tree
 
@@ -420,9 +439,28 @@ def timeline_build(
     Returns:
         A Timeline with a hierarchical root TimelineSpan.
     """
+    return _timeline_build(events, name=name, description=description)
+
+
+def _timeline_build(
+    events: list[Event],
+    *,
+    name: str | None = None,
+    description: str | None = None,
+    message_pool: Sequence[ChatMessage] | None = None,
+    final_messages: Sequence[ChatMessage] | None = None,
+    conversations: Mapping[str, str] | None = None,
+    continuity: bool = False,
+    outside: AbstractSet[int] = frozenset(),
+) -> Timeline:
+    """`timeline_build`, also over model inputs stored as ranges of a message pool (`input_refs`), as a log stores them.
+
+    With `continuity` (replay's log driver, inferring the turns of a log that does not record ``origin``), the continuity rule decides which calls without an origin are turns (``_Continuity``); the public `timeline_build`, which the viewer and Scout use, keeps the prompt rules (decided by Charles 2026-10-26). `final_messages` are the main agent's final messages (`EvalSample.messages`), which settle a fork at the end of the main span. `conversations` gives the conversation of each event it names, by UUID, in place of its innermost agent span (a stored timeline's spans and branches, such as Petri's rollbacks), so continuity follows each apart. `outside` names, by `id()`, the events already known not to be the agent's turns (a scorer's, a tool's, setup's or a sentinel's model calls, and compactions there), which are utility, as a call recording such an origin is: continuity leaves them out so they cannot move the agent's thread, and none sets the prompt the other calls are classified by; they stay in the timeline.
+    """
     # provide defaults
     name = name or "Default"
     description = description or ""
+    inputs = _Inputs(events, message_pool, conversations, outside)
 
     # no events
     if not events:
@@ -494,7 +532,7 @@ def timeline_build(
         if agent_node is not None:
             agent_node.name = "main"
 
-            _classify_spans(agent_node)
+            _classify_spans(agent_node, inputs, final_messages, continuity)
 
             # Prepend init span to agent content
             if init_span_obj:
@@ -522,7 +560,7 @@ def timeline_build(
     else:
         # No phase spans - treat entire tree as agent
         root = _build_agent_from_tree(tree)
-        _classify_spans(root)
+        _classify_spans(root, inputs, final_messages, continuity)
 
     return Timeline(name=name, description=description, root=root)
 
@@ -549,11 +587,23 @@ async def timeline_branch(
         yield
 
 
-def _classify_spans(root: TimelineSpan) -> None:
-    """Run all span classification passes on a root span."""
-    _wrap_utility_events(root)
-    _classify_utility_agents(root)
-    _extract_agent_results(root)
+def _classify_spans(
+    root: TimelineSpan,
+    inputs: _Inputs,
+    final_messages: Sequence[ChatMessage] | None = None,
+    continuity: bool = False,
+) -> None:
+    """Run all span classification passes on a root span.
+
+    With `continuity`, agent results are extracted first, while every model call is still in its span's content: a result can reach only a call continuity then wraps as utility, such as a summary call just after the sub-agent finished.
+    """
+    if continuity:
+        _extract_agent_results(root, inputs)
+    turns = _continuity(root, inputs, final_messages) if continuity else None
+    _wrap_utility_events(root, inputs, turns)
+    _classify_utility_agents(root, inputs)
+    if not continuity:
+        _extract_agent_results(root, inputs)
 
 
 def _unwrap_solver_span(span: EventTreeSpan) -> EventTreeSpan:
@@ -1017,6 +1067,726 @@ def _process_span_as_content(
 
 
 # =============================================================================
+# Model Inputs
+# =============================================================================
+
+
+class _Fingerprint(NamedTuple):
+    """A message as continuity matches it: its role, a hash of its text and the tool calls it makes, by id and function.
+
+    Message ids do not survive a scaffold's round trip, so messages are matched by role and text, as the agent bridge matches them; tool call ids do, since a provider needs them to pair results with calls, and they tell apart turns that make calls with no text (fixture ``continuity_tool_call_ids``). So, unlike the bridge and the design's role and text, a scaffold that sends a tool call back under a new id does not continue the turn that made it (``continuity_renamed_tool_call_id``).
+    """
+
+    role: str
+    text_hash: str
+    calls: tuple[tuple[str, str], ...]
+
+
+# an input's identity hashes its messages' fingerprints as a polynomial
+# modulo this prime
+_MODULUS = (1 << 61) - 1
+_BASE = 0x9E3779B97F4A7C15 % _MODULUS
+
+
+class _Inputs:
+    """Model inputs as the classification passes read them.
+
+    An input stored as ranges of the message pool (``input_refs``) is read as a view over the pool, so no input is expanded; each message is fingerprinted once, the first time it is compared.
+    """
+
+    def __init__(
+        self,
+        events: Sequence[Event],
+        pool: Sequence[ChatMessage] | None,
+        conversations: Mapping[str, str] | None = None,
+        outside: AbstractSet[int] = frozenset(),
+    ) -> None:
+        self._events = events
+        self._pool = pool
+        self._conversations = conversations or {}
+        self.outside = outside
+        self._views: dict[int, Sequence[ChatMessage]] = {}
+        self._fingerprints: dict[int, _Fingerprint] = {}
+        # tool call id -> (the input position its result follows the call at,
+        # the number of calls made with it), from each model call making it
+        self._issued: dict[str, list[tuple[int, int]]] | None = None
+        # tool call id -> the pool rows holding a non-empty result of it,
+        # ascending
+        self._tool_rows: dict[str, list[int]] | None = None
+        # the pool rows holding an output of an open call, of any continuity
+        # thread, by the output fingerprints added, each added once
+        self._open_rows: _RowSet | None = None
+        self._open_fingerprints: set[_Fingerprint] = set()
+        # message fingerprint -> the pool rows holding it
+        self._rows_by_fingerprint: dict[_Fingerprint, list[int]] | None = None
+        # message fingerprint -> its number in an input's identity; the hash
+        # of the pool's first rows, by count, and the powers of _BASE
+        self._codes: dict[_Fingerprint, int] = {}
+        self._prefix: list[int] | None = None
+        self._powers: list[int] = [1]
+        self._agent_spans: AgentSpans | None = None
+
+    def of(self, event: ModelEvent) -> Sequence[ChatMessage]:
+        if event.input_refs is None or self._pool is None:
+            return event.input
+        found = self._views.get(id(event))
+        if found is None:
+            found = self._views[id(event)] = PoolView(self._pool, event.input_refs)
+        return found
+
+    @property
+    def events(self) -> Sequence[Event]:
+        return self._events
+
+    def given(self, event: Event) -> str | None:
+        """The conversation given for the event's UUID, if any."""
+        return self._conversations.get(event.uuid) if event.uuid else None
+
+    def open_rows(self) -> "_RowSet":
+        if self._open_rows is None:
+            self._open_rows = _RowSet(self.pool_size)
+        return self._open_rows
+
+    def open_output(self, output: _Fingerprint) -> None:
+        """Add the pool rows holding `output` to `open_rows()`, once."""
+        if output not in self._open_fingerprints:
+            self._open_fingerprints.add(output)
+            rows = self.open_rows()
+            for row in self.rows_with(output):
+                rows.add(row)
+
+    def conversation(self, event: Event) -> object:
+        """The conversation an event is in: the one given for its UUID, else its innermost agent span in the span tree."""
+        given = self._conversations.get(event.uuid) if event.uuid else None
+        if given is not None:
+            return ("given", given)
+        if self._agent_spans is None:
+            self._agent_spans = AgentSpans()
+            for begin in self._events:
+                if isinstance(begin, SpanBeginEvent):
+                    self._agent_spans.add(begin)
+        try:
+            return self._agent_spans.agent_span(event.span_id)
+        except ValueError:
+            # a parent_id cycle: its calls are taken as one conversation
+            return None
+
+    @property
+    def pool_size(self) -> int:
+        return len(self._pool) if self._pool is not None else 0
+
+    def row(self, row: int) -> ChatMessage:
+        assert self._pool is not None
+        return self._pool[row]
+
+    def rows_with(self, fingerprint: _Fingerprint) -> list[int]:
+        """The pool rows holding a message with this fingerprint, each row fingerprinted once; none without a pool."""
+        if self._rows_by_fingerprint is None:
+            rows: dict[_Fingerprint, list[int]] = {}
+            for row, message in enumerate(self._pool or []):
+                rows.setdefault(self.fingerprint(message), []).append(row)
+            self._rows_by_fingerprint = rows
+        return self._rows_by_fingerprint.get(fingerprint, [])
+
+    def identity(self, input: Sequence[ChatMessage]) -> tuple[int, int]:
+        """An input as a retry matches it: its length and a hash of its messages' fingerprints.
+
+        An input stored as pool ranges is hashed a step per range, from the hashes of the pool's first rows, so the same messages stored at other rows (as the pool keeps messages that differ only in metadata) have the same identity.
+        """
+        hashed = 0
+        if isinstance(input, PoolView):
+            prefix = self._pool_prefix()
+            for begin, end in input.refs:
+                power = self._powers[end - begin]
+                part = (prefix[end] - prefix[begin] * power) % _MODULUS
+                hashed = (hashed * power + part) % _MODULUS
+        else:
+            for message in input:
+                hashed = (hashed * _BASE + self._code(message)) % _MODULUS
+        return len(input), hashed
+
+    def _code(self, message: ChatMessage) -> int:
+        fingerprint = self.fingerprint(message)
+        return self._codes.setdefault(fingerprint, len(self._codes) + 1)
+
+    def _pool_prefix(self) -> list[int]:
+        if self._prefix is None:
+            prefix = [0]
+            for message in self._pool or []:
+                prefix.append((prefix[-1] * _BASE + self._code(message)) % _MODULUS)
+                self._powers.append(self._powers[-1] * _BASE % _MODULUS)
+            self._prefix = prefix
+        return self._prefix
+
+    def fingerprint(self, message: ChatMessage) -> _Fingerprint:
+        # keyed by identity: inputs read from a pool, or expanded from one,
+        # share its message objects, which outlive the build
+        found = self._fingerprints.get(id(message))
+        if found is None:
+            calls = message.tool_calls if message.role == "assistant" else None
+            found = self._fingerprints[id(message)] = _Fingerprint(
+                message.role,
+                mm3_hash(message.text),
+                tuple((call.id, call.function) for call in calls or []),
+            )
+        return found
+
+    def tool_results(
+        self, event: ModelEvent, tool_call_ids: Sequence[str] | dict[str, Any]
+    ) -> list[tuple[str, str]]:
+        """The non-empty results in `event`'s input of the tool calls named, the last for each.
+
+        An input stored as ranges of the pool is looked up in the pool rows holding a result of each call, a bisection per range from the last. An expanded input is looked at first where a result follows its call, just after the output of each model call that made it, and then after the last found; failing that, by scanning it.
+        """
+        input = self.of(event)
+        if isinstance(input, PoolView):
+            return list(self._pooled_tool_results(input, tool_call_ids).items())
+        issued = self._issued_calls()
+        found: dict[str, str] = {}
+        missing: list[str] = []
+        for tool_call_id in tool_call_ids:
+            text: str | None = None
+            last = -1
+            # a reused id was issued by several model calls: the last result
+            # in the input is the one answering the latest
+            for start, count in issued.get(tool_call_id, []):
+                for position in range(start, min(start + count, len(input))):
+                    message = input[position]
+                    if (
+                        position > last
+                        and isinstance(message, ChatMessageTool)
+                        and message.tool_call_id == tool_call_id
+                        and message.text
+                    ):
+                        text, last = message.text, position
+            if text is not None:
+                # the last result in the input, wherever it is, as a scan finds
+                for position in range(last + 1, len(input)):
+                    message = input[position]
+                    if (
+                        isinstance(message, ChatMessageTool)
+                        and message.tool_call_id == tool_call_id
+                        and message.text
+                    ):
+                        text = message.text
+                found[tool_call_id] = text
+            else:
+                missing.append(tool_call_id)
+        if missing:
+            found.update(self._scan_tool_results(input, missing))
+        return list(found.items())
+
+    def _pooled_tool_results(
+        self, input: PoolView, tool_call_ids: Iterable[str]
+    ) -> dict[str, str]:
+        found: dict[str, str] = {}
+        by_call = self._pool_tool_rows()
+        for tool_call_id in tool_call_ids:
+            rows = by_call.get(tool_call_id)
+            if not rows:
+                continue
+            # the last range holding such a row holds the last result
+            for (begin, end), start in zip(
+                reversed(input.refs), reversed(input.starts)
+            ):
+                at = bisect_left(rows, end) - 1
+                if at >= 0 and rows[at] >= begin:
+                    found[tool_call_id] = input[start + rows[at] - begin].text
+                    break
+        return found
+
+    def _scan_tool_results(
+        self, input: Sequence[ChatMessage], tool_call_ids: list[str]
+    ) -> dict[str, str]:
+        found: dict[str, str] = {}
+        wanted = set(tool_call_ids)
+        for message in input:
+            if (
+                isinstance(message, ChatMessageTool)
+                and message.tool_call_id in wanted
+                and message.text
+            ):
+                found[message.tool_call_id] = message.text
+        return found
+
+    def _issued_calls(self) -> dict[str, list[tuple[int, int]]]:
+        if self._issued is None:
+            issued: dict[str, list[tuple[int, int]]] = {}
+            for event in self._events:
+                if isinstance(event, ModelEvent) and event.output.choices:
+                    calls = event.output.choices[0].message.tool_calls or []
+                    for call in calls:
+                        issued.setdefault(call.id, []).append(
+                            (len(self.of(event)) + 1, len(calls))
+                        )
+            self._issued = issued
+        return self._issued
+
+    def _pool_tool_rows(self) -> dict[str, list[int]]:
+        if self._tool_rows is None:
+            rows: dict[str, list[int]] = {}
+            for row, message in enumerate(self._pool or []):
+                if (
+                    isinstance(message, ChatMessageTool)
+                    and message.tool_call_id
+                    and message.text
+                ):
+                    rows.setdefault(message.tool_call_id, []).append(row)
+            self._tool_rows = rows
+        return self._tool_rows
+
+
+# =============================================================================
+# Continuity
+# =============================================================================
+
+
+class _Call(NamedTuple):
+    event: ModelEvent
+    input: Sequence[ChatMessage]
+    # the message the call answered with; None for a call that failed
+    output: ChatMessage | None
+
+
+class _RowSet:
+    """A set of pool rows (or input lengths), counted and listed by interval in logarithmic steps: a Fenwick tree over ``0..size``, kept sparse, that doubles to hold a larger row."""
+
+    def __init__(self, size: int) -> None:
+        self._size = size
+        self._tree: dict[int, int] = {}
+        self._rows: set[int] = set()
+
+    def add(self, row: int) -> None:
+        if row in self._rows:
+            return
+        if row >= self._size:
+            rows = self._rows
+            self._size, self._tree, self._rows = max(row + 1, 2 * self._size), {}, set()
+            for each in rows:
+                self.add(each)
+        self._rows.add(row)
+        at = row + 1
+        while at <= self._size:
+            self._tree[at] = self._tree.get(at, 0) + 1
+            at += at & -at
+
+    def count(self, begin: int, end: int) -> int:
+        """The rows in ``begin..end``."""
+        return self._below(end) - self._below(begin)
+
+    def between(self, begin: int, end: int) -> Iterator[int]:
+        """The rows in ``begin..end``, ascending."""
+        for k in range(self._below(begin) + 1, self._below(end) + 1):
+            yield self._kth(k)
+
+    def _below(self, end: int) -> int:
+        total, at = 0, min(end, self._size)
+        while at > 0:
+            total += self._tree.get(at, 0)
+            at -= at & -at
+        return total
+
+    def _kth(self, k: int) -> int:
+        at, step = 0, 1 << self._size.bit_length()
+        while step:
+            below = self._tree.get(at + step, 0)
+            if at + step <= self._size and below < k:
+                at += step
+                k -= below
+            step >>= 1
+        return at
+
+
+class _OpenCalls:
+    """Calls a later call may continue, looked up where it would hold their output: at the position of their input's length.
+
+    Every call stays open until the thread settles them, which it does whenever it advances or compacts.
+
+    A later call whose input is a list (the timeline of expanded events, as the viewer and Scout read it) is looked up at each open length shorter than its input, a fingerprint each. Forks of one tip share their input, and so their length, and side calls between two turns are few; the costly case is a long run of calls none of which continues another, each with an input of a new length, whose lookups then read at most the positions their inputs hold (pinned by ``test_calls_that_continue_nothing_cost_at_most_their_inputs``).
+
+    A later call whose input is stored as ranges of the message pool (the log driver's) is looked up range by range. A range of rows ``begin..end`` placed at position ``start`` holds, at each position ``L`` it covers, the row ``L + begin - start``, so it can continue only an open call whose length it covers, at a row holding that call's output. The open input lengths, and the pool rows holding open calls' outputs (each fingerprint's rows added once), are kept in sets counted and listed by interval in logarithmic steps (``_RowSet``), so adding one shifts none of the others (``test_calls_of_falling_lengths_are_indexed_in_linear_work``); each range walks the smaller of the open lengths it covers and those rows it covers, checking each in constant time. So the work is linear in the log as stored except where a range covers both many open lengths and many rows holding open outputs that never line up with them, pinned by ``test_a_pooled_log_s_lookups_walk_the_smaller_of_lengths_and_rows``.
+    """
+
+    def __init__(self, inputs: _Inputs) -> None:
+        self._inputs = inputs
+        self.calls: list[_Call] = []
+        # input length -> output fingerprint -> the latest such call's index
+        self._index: dict[int, dict[_Fingerprint, int]] = {}
+        # the input lengths in the index
+        self._lengths = _RowSet(0)
+        # the pool rows holding an output of a call opened in any thread
+        # (`_Inputs.open_rows`): a row of another's only adds to a range's count
+        self._rows = inputs.open_rows()
+
+    def add(self, call: _Call) -> None:
+        assert call.output is not None
+        at = len(call.input)
+        output = self._inputs.fingerprint(call.output)
+        by_output = self._index.get(at)
+        if by_output is None:
+            by_output = self._index[at] = {}
+            self._lengths.add(at)
+        by_output[output] = len(self.calls)
+        self._inputs.open_output(output)
+        self.calls.append(call)
+
+    def continued_by(self, call: _Call) -> _Call | None:
+        """The latest open call that `call` continues."""
+        best = -1
+        if isinstance(call.input, PoolView):
+            for (begin, end), start in zip(call.input.refs, call.input.starts):
+                lengths = self._lengths.count(start, start + end - begin)
+                if lengths == 0:
+                    continue
+                rows = self._rows.count(begin, end)
+                if rows == 0:
+                    continue
+                if lengths <= rows:
+                    for at in self._lengths.between(start, start + end - begin):
+                        best = max(best, self._open_at(at, begin + at - start))
+                else:
+                    for row in self._rows.between(begin, end):
+                        best = max(best, self._open_at(row - begin + start, row))
+        else:
+            for at in self._lengths.between(0, len(call.input)):
+                found = self._index[at].get(
+                    self._inputs.fingerprint(call.input[at]), -1
+                )
+                best = max(best, found)
+        return self.calls[best] if best >= 0 else None
+
+    def _open_at(self, at: int, row: int) -> int:
+        """The latest open call of input length `at` whose output the pool row holds, else -1."""
+        by_output = self._index.get(at)
+        if by_output is None:
+            return -1
+        return by_output.get(self._inputs.fingerprint(self._inputs.row(row)), -1)
+
+    def clear(self) -> None:
+        self.calls, self._index, self._lengths = [], {}, _RowSet(0)
+
+
+# where a summarizer's summary begins, after any analysis before it
+_SUMMARY_TAG = "<summary>"
+
+
+class _Continuity:
+    """The continuity rule: which of a conversation's model calls in a span are its turns, by which calls carry on the others' output.
+
+    An offline form of the agent bridge's thread tracking, for calls that do not record their ``origin``. Calls are taken in order, and the thread's tip is the last turn:
+
+    - A call whose input continues the tip, holding the tip's output at position ``len(tip.input)``, is on the thread, a *head*. Two heads of one tip are a fork: the one a later call continues is the turn, and the others are utility.
+    - A call that continues nothing is a *candidate*; if a later call continues it, the thread moves to it (a compaction the log does not show). The candidates a thread goes on without, by advancing or moving to another, are utility; those still open where the thread ends (a scaffold that keeps a window of fixed length, so no later call continues anything) get no answer, and the existing rules decide them.
+    - A summary ``CompactionEvent`` resets the tip, and the call just before it is the summarizer, utility, if its output appears in the next call's input (decided by Charles 2026-10-26): Inspect's summary call continues the tip, and the next turn's input holds its summary. The calls still open end the thread as the end of the span does, so a log that records no summary call keeps its last turn. Only the last call is looked for, so each compaction reads the next input once; a summary call followed by another call before the compaction stays a turn. The output appears where a message of that input contains its text, or its text from its last ``<summary>`` tag (Inspect drops the ``<analysis>`` before it); a summary reworded on the way in is not recognized, and its call stays a turn. An edit or trim ends the thread as the end of the span does.
+    - A failed call is a turn or utility as its retry, the next call in its conversation with the same input (the same messages by fingerprint, wherever the pool stores them), is; one not retried is a turn.
+    - Where the thread ends (the end of the span, an edit or trim, or a move to a candidate), a lone head is its last turn, and a fork goes to the head whose output is in the span's final messages; a fork no later call or final message resolves gets no answer, and the existing rules decide its calls (a scaffold that sends one input again and again would otherwise lose all but its last call).
+
+    So a call is utility only where the conversation went on without it, or where its output is the summary a compaction put in its place.
+
+    A span in which no call continues another has no answer (``linked`` is False), so the existing rules decide, apart from its summarizers: the next input holding a call's output is evidence enough. Each call is looked up at the input lengths of the calls still open (``_OpenCalls``), which the thread settles whenever it advances.
+    """
+
+    def __init__(
+        self, inputs: _Inputs, final_messages: Sequence[ChatMessage] | None
+    ) -> None:
+        self._inputs = inputs
+        self._final = final_messages
+        self.turns: dict[int, bool] = {}
+        self.linked = False
+        self._tip: _Call | None = None
+        self._heads = _OpenCalls(inputs)
+        self._candidates = _OpenCalls(inputs)
+        # failed calls not yet retried, by their input, and each retried one
+        # with its retry
+        self._failed: dict[tuple[int, int], list[_Call]] = {}
+        self._retried: list[tuple[_Call, _Call]] = []
+        # the last call, and the heads open at each summary compaction, until
+        # the next call's input shows whether the last call summarized
+        self._last: _Call | None = None
+        self._summarized: list[tuple[list[_Call], _Call | None]] = []
+        self._summarizer_calls: list[_Call] = []
+
+    def call(self, event: ModelEvent) -> None:
+        call = _Call(event, self._inputs.of(event), _answer(event))
+        if self._summarized:
+            self._summarizers(call.input)
+        self._last = call
+        if call.output is None:
+            self._failed.setdefault(self._inputs.identity(call.input), []).append(call)
+            return
+        if self._failed:
+            for failed in self._failed.pop(self._inputs.identity(call.input), []):
+                self._retried.append((failed, call))
+        head = self._heads.continued_by(call)
+        if head is not None:
+            self._settle(head, self._heads.calls)
+            self._close(self._candidates.calls)
+            self._advance(head, call)
+            return
+        if self._tip is not None and self._continues(call, self._tip):
+            self._heads.add(call)
+            self.linked = True
+            return
+        candidate = self._candidates.continued_by(call)
+        if candidate is not None:
+            self._end(final=False)
+            self._settle(candidate, self._candidates.calls)
+            self._advance(candidate, call)
+            return
+        self._candidates.add(call)
+
+    def compaction(self, event: CompactionEvent) -> None:
+        if event.type == "summary":
+            self._summarized.append((self._heads.calls, self._last))
+        else:
+            self._end(final=False)
+        self._last = None
+        self._tip = None
+        self._heads.clear()
+        self._candidates.clear()
+
+    def finish(self) -> dict[int, bool]:
+        if self._summarized:
+            self._summarizers(None)
+        self._end(final=True)
+        for failed, retry in self._retried:
+            if id(retry.event) in self.turns:
+                self.turns[id(failed.event)] = self.turns[id(retry.event)]
+        for waiting in self._failed.values():
+            for failed in waiting:
+                self.turns[id(failed.event)] = True
+        if self.linked:
+            return self.turns
+        # no call continued another: only the summarizers, and the failed calls
+        # they retried, are answered
+        answered = {id(call.event) for call in self._summarizer_calls}
+        answered.update(
+            id(failed.event)
+            for failed, retry in self._retried
+            if id(retry.event) in answered
+        )
+        return {event: turn for event, turn in self.turns.items() if event in answered}
+
+    def _end(self, final: bool) -> None:
+        """End the thread: a lone head is its last turn, and a fork goes to the head in the final messages (with `final`). An unresolved fork, and candidates still open, get no answer: nothing showed the thread going on without them."""
+        heads = self._heads.calls
+        found = self._in_final(heads) if final else None
+        if found is not None:
+            self._settle(found, heads)
+        elif len(heads) == 1:
+            self._settle(heads[0], heads)
+
+    def _summarizers(self, input: Sequence[ChatMessage] | None) -> None:
+        """Settle the calls open at each summary compaction since the last call, given the next call's input (None at the span's end): the call before the compaction is the summarizer, utility, if its output appears in it; of the other heads, a lone head is the thread's last turn."""
+        for heads, last in self._summarized:
+            summarizer = None
+            if last is not None and input is not None and self._summarizes(last, input):
+                summarizer = last
+                self._close([summarizer])
+                self._summarizer_calls.append(summarizer)
+            kept = [h for h in heads if h is not summarizer]
+            if len(kept) == 1:
+                self._settle(kept[0], kept)
+        self._summarized = []
+
+    def _summarizes(self, call: _Call, input: Sequence[ChatMessage]) -> bool:
+        """Whether `call`'s output appears in `input`: a message of it holds the output's text, or its text from its last ``<summary>`` tag."""
+        if call.output is None or not call.output.text:
+            return False
+        text = call.output.text
+        texts = {self._inputs.fingerprint(call.output).text_hash}
+        needles = [text]
+        if (at := text.rfind(_SUMMARY_TAG)) > 0:
+            needles.append(text[at:])
+        for message in input:
+            # an exact match by the fingerprint each message already has, else
+            # the summary within a message the compaction wrapped it in
+            if self._inputs.fingerprint(message).text_hash in texts:
+                return True
+            if any(needle in message.text for needle in needles):
+                return True
+        return False
+
+    def _advance(self, turn: _Call, call: _Call) -> None:
+        self.turns[id(turn.event)] = True
+        self._tip = turn
+        self._heads.clear()
+        self._candidates.clear()
+        self._heads.add(call)
+        self.linked = True
+
+    def _settle(self, turn: _Call, calls: list[_Call]) -> None:
+        for call in calls:
+            self.turns[id(call.event)] = call is turn
+
+    def _close(self, calls: list[_Call]) -> None:
+        for call in calls:
+            self.turns[id(call.event)] = False
+
+    def _continues(self, call: _Call, earlier: _Call) -> bool:
+        at = len(earlier.input)
+        return (
+            earlier.output is not None
+            and at < len(call.input)
+            and self._inputs.fingerprint(call.input[at])
+            == self._inputs.fingerprint(earlier.output)
+        )
+
+    def _in_final(self, heads: list[_Call]) -> _Call | None:
+        """The head the final messages carry on (`_held`), each compared with the final message where its output would be."""
+        matches: list[_Match] = []
+        for index, head in enumerate(heads):
+            at = len(head.input)
+            if self._final is None or head.output is None or at >= len(self._final):
+                continue
+            message = self._final[at]
+            by_id = head.output.id is not None and head.output.id == message.id
+            by_content = self._inputs.fingerprint(message) == self._inputs.fingerprint(
+                head.output
+            )
+            matches.append(
+                _Match(
+                    call=index,
+                    output_id=head.output.id,
+                    by_id=by_id,
+                    exact=by_id and by_content,
+                    by_content=by_content,
+                )
+            )
+        found = _held(matches)
+        return heads[found] if found is not None else None
+
+
+class _Match(NamedTuple):
+    """A call's output as the final messages hold it."""
+
+    call: int
+    """The call's position among those compared."""
+    output_id: str | None
+    """The output message's id."""
+    by_id: bool
+    """A final message has the output's id."""
+    exact: bool
+    """That message also has the output's content."""
+    by_content: bool
+    """A final message has the output's content."""
+
+
+def _held(matches: Sequence[_Match]) -> int | None:
+    """Of calls in log order, the latest whose output a final message holds by id and content; else the latest held by an id no other of the calls' outputs has; else the latest held by content."""
+    exact = [m.call for m in matches if m.exact]
+    if exact:
+        return exact[-1]
+    ids = Counter(m.output_id for m in matches if m.output_id is not None)
+    unique = [
+        m.call
+        for m in matches
+        if m.by_id and m.output_id is not None and ids[m.output_id] == 1
+    ]
+    if unique:
+        return unique[-1]
+    content = [m.call for m in matches if m.by_content]
+    return content[-1] if content else None
+
+
+def _answer(event: ModelEvent) -> ChatMessage | None:
+    if event.error is not None or event.pending or not event.output.choices:
+        return None
+    return event.output.choices[0].message
+
+
+def _continuity(
+    root: TimelineSpan,
+    inputs: _Inputs,
+    final_messages: Sequence[ChatMessage] | None,
+) -> dict[int, bool]:
+    """Whether each call with no recorded origin under `root` is a turn by continuity, by `id()` of its event.
+
+    The rule runs over each conversation's calls in log order: within each span of the tree, its conversations apart (a span can hold more than one, where the timeline unrolls a solver beside an agent; a tool's sub-agent and a branch are spans of their own); and a conversation given for events (a stored timeline's) across every span it reaches. A conversation in which no call continues another has no answers but its summarizers', so the existing rules decide its other calls. The final messages settle a fork at the end of the conversation they are from: that of the latest call whose output is one of them by both id and content; else of the latest whose output has the id of one of them, where no other call's output has that id (an edited message keeps its id; a reused id decides nothing); else of the latest whose output matches one by content. Within that conversation, the same rule picks the head of a fork the final messages carry on, each head compared with the final message where its output would be. Calls in `inputs.outside` are left out.
+    """
+    order = {id(event): index for index, event in enumerate(inputs.events)}
+    # (position in the log, position in the tree, conversation, event): a call
+    # the log does not list at the top (nested in a ToolEvent) takes the
+    # position of the event before it in the tree
+    found: list[tuple[int, int, object, Event]] = []
+    at = -1
+
+    def walk(span: TimelineSpan) -> None:
+        nonlocal at
+        for item in span.content:
+            if isinstance(item, TimelineSpan):
+                walk(item)
+                continue
+            at = order.get(id(item.event), at)
+            if id(item.event) in inputs.outside:
+                continue
+            if isinstance(item.event, ModelEvent):
+                if item.event.origin is not None or _is_warmup_call(item.event, inputs):
+                    continue
+            elif not isinstance(item.event, CompactionEvent):
+                continue
+            given = inputs.given(item.event)
+            conversation = (
+                ("given", given)
+                if given is not None
+                else (id(span), inputs.conversation(item.event))
+            )
+            found.append((at, len(found), conversation, item.event))
+        for branch in span.branches:
+            walk(branch)
+
+    walk(root)
+    found.sort(key=lambda entry: entry[:2])
+
+    owner: object = None
+    if final_messages:
+        by_id = {
+            message.id: inputs.fingerprint(message)
+            for message in final_messages
+            if message.id is not None
+        }
+        final = {inputs.fingerprint(message) for message in final_messages}
+        conversations: list[object] = []
+        matches: list[_Match] = []
+        for _, _, conversation, event in found:
+            answer = _answer(event) if isinstance(event, ModelEvent) else None
+            if answer is None:
+                continue
+            fingerprint = inputs.fingerprint(answer)
+            held = by_id.get(answer.id) if answer.id is not None else None
+            matches.append(
+                _Match(
+                    call=len(conversations),
+                    output_id=answer.id,
+                    by_id=held is not None,
+                    exact=held == fingerprint,
+                    by_content=fingerprint in final,
+                )
+            )
+            conversations.append(conversation)
+        found_at = _held(matches)
+        if found_at is not None:
+            owner = conversations[found_at]
+
+    threads: dict[object, _Continuity] = {}
+    for _, _, conversation, event in found:
+        thread = threads.get(conversation)
+        if thread is None:
+            thread = threads[conversation] = _Continuity(
+                inputs, final_messages if conversation == owner else None
+            )
+        if isinstance(event, ModelEvent):
+            thread.call(event)
+        else:
+            assert isinstance(event, CompactionEvent)
+            thread.compaction(event)
+    turns: dict[int, bool] = {}
+    for thread in threads.values():
+        turns.update(thread.finish())
+    return turns
+
+
+# =============================================================================
 # Agent Result Extraction
 # =============================================================================
 
@@ -1036,62 +1806,55 @@ def _extract_tool_event_result(result: Any) -> str | None:
     return None
 
 
-def _extract_agent_results(parent: TimelineSpan) -> None:
+def _extract_agent_results(parent: TimelineSpan, inputs: _Inputs) -> None:
     """Extract agent_result for each agent sub-span.
 
     Three sources (checked in order):
     1. Tool-spawned agents: result already set during _event_to_node
     2. Span-based agents (static flow): sibling ToolEvent with agent_span_id == span.id
-    3. Bridge flow: next ModelEvent's input has ChatMessageTool with function == span.name
+    3. Bridge flow: a later sibling ModelEvent's input has the ChatMessageTool answering the call the span is named for (``agent-{tool_call_id}``)
+
+    One pass over the content: each span waiting on the bridge flow is answered by the first later model event whose input holds its result, looked up rather than scanned for (``_Inputs.tool_results``).
     """
     content = parent.content
-    for i, item in enumerate(content):
-        if not isinstance(item, TimelineSpan):
-            continue
-        if item.span_type != "agent":
-            # Recurse into non-agent spans
-            _extract_agent_results(item)
+    agent_tool_events: dict[str, ToolEvent] = {}
+    for sibling in content:
+        if (
+            isinstance(sibling, TimelineEvent)
+            and isinstance(sibling.event, ToolEvent)
+            and sibling.event.agent_span_id is not None
+        ):
+            agent_tool_events.setdefault(sibling.event.agent_span_id, sibling.event)
+
+    # tool call id -> the spans waiting on the bridge flow for its result
+    waiting: dict[str, list[TimelineSpan]] = {}
+    for item in content:
+        if isinstance(item, TimelineEvent):
+            if waiting and isinstance(item.event, ModelEvent):
+                for tool_call_id, text in inputs.tool_results(item.event, waiting):
+                    for span in waiting.pop(tool_call_id):
+                        span.agent_result = text
             continue
 
         # Skip if already set (e.g. from tool-spawned agent construction)
-        if item.agent_result is not None:
-            _extract_agent_results(item)
-            continue
-
-        # Flow 1: sibling ToolEvent with agent_span_id matching this span
-        for sibling in content:
-            if (
-                isinstance(sibling, TimelineEvent)
-                and isinstance(sibling.event, ToolEvent)
-                and sibling.event.agent_span_id == item.id
-            ):
-                result_text = _extract_tool_event_result(sibling.event.result)
+        if item.span_type == "agent" and item.agent_result is None:
+            # Flow 1: sibling ToolEvent with agent_span_id matching this span
+            tool_event = agent_tool_events.get(item.id)
+            if tool_event is not None:
+                result_text = _extract_tool_event_result(tool_event.result)
                 if result_text:
                     item.agent_result = result_text
-                break
 
-        # Flow 2: next model event's input has ChatMessageTool with matching tool_call_id
-        # The span ID follows the pattern "agent-{tool_call_id}" in bridge flow.
-        tool_call_id = item.id[6:] if item.id.startswith("agent-") else None
-
-        if item.agent_result is None and tool_call_id:
-            for j in range(i + 1, len(content)):
-                next_item = content[j]
-                if not isinstance(next_item, TimelineEvent):
-                    continue
-                if isinstance(next_item.event, ModelEvent):
-                    for msg in next_item.event.input:
-                        if (
-                            isinstance(msg, ChatMessageTool)
-                            and msg.tool_call_id == tool_call_id
-                        ):
-                            if msg.text:
-                                item.agent_result = msg.text
-                    if item.agent_result is not None:
-                        break
+            # Flow 2: the bridge flow's span id is "agent-{tool_call_id}"
+            if (
+                item.agent_result is None
+                and len(item.id) > 6
+                and item.id.startswith("agent-")
+            ):
+                waiting.setdefault(item.id[6:], []).append(item)
 
         # Recurse into child spans
-        _extract_agent_results(item)
+        _extract_agent_results(item, inputs)
 
 
 # =============================================================================
@@ -1122,11 +1885,12 @@ def _normalize_system_prompt(prompt: str) -> str:
     return prompt
 
 
-def _get_system_prompt_for_event(event: ModelEvent) -> str | None:
+def _get_system_prompt_for_event(event: ModelEvent, inputs: _Inputs) -> str | None:
     """Extract and normalize the system prompt from a single ModelEvent.
 
     Args:
         event: The ModelEvent to inspect.
+        inputs: The model inputs.
 
     Returns:
         The normalized system prompt text, or None if no system message is
@@ -1135,7 +1899,7 @@ def _get_system_prompt_for_event(event: ModelEvent) -> str | None:
         empty prompts out of primary-trajectory comparisons and prompt
         inheritance.
     """
-    for msg in event.input:
+    for msg in inputs.of(event):
         if isinstance(msg, ChatMessageSystem):
             if isinstance(msg.content, str):
                 raw = msg.content
@@ -1156,7 +1920,11 @@ def _has_tool_calls(event: ModelEvent) -> bool:
     return False
 
 
-def _wrap_utility_events(agent: TimelineSpan) -> None:
+def _wrap_utility_events(
+    agent: TimelineSpan,
+    inputs: _Inputs,
+    turns: Mapping[int, bool] | None = None,
+) -> None:
     """Wrap foreign-prompt model calls as synthetic utility spans.
 
     Within bridge-based agent spans (e.g. Claude Code), short extraction
@@ -1171,23 +1939,31 @@ def _wrap_utility_events(agent: TimelineSpan) -> None:
     foreign-prompt wrapping is skipped entirely (warmup calls are still
     wrapped; they are identified independently of prompts).
 
-    A call whose recorded ``origin`` is not ``"agent"`` is utility and never
-    sets the primary prompt. A call recorded as ``"agent"`` goes through the
-    rules above, as a call with no ``origin`` does, since a bridged agent's
-    warm-ups and helper calls are recorded as ``"agent"``.
+    A call whose recorded ``origin`` is not ``"agent"``, or that is in
+    ``inputs.outside``, is utility and never sets the primary prompt. A call
+    recorded as ``"agent"`` goes through the rules above, as a call with no
+    ``origin`` does, since a bridged agent's warm-ups and helper calls are
+    recorded as ``"agent"``.
+
+    With `turns` (replay's log driver only: `_continuity`), where calls
+    record no ``origin`` and one of a conversation's calls continues another,
+    the continuity rule decides which of its calls are turns in place of the
+    prompt rules (``_Continuity``); warm-ups stay utility.
 
     Operates recursively on the entire span tree.
 
     Args:
         agent: The span node to process (mutated in place).
+        inputs: The model inputs.
+        turns: Whether each call with no recorded origin is a turn by continuity, by `id()` of its event.
     """
     # The primary prompt comes only from a tool-calling ModelEvent: without
     # an agentic loop there is no primary trajectory (see docstring).
     primary_prompt: str | None = None
     for item in agent.content:
         if isinstance(item, TimelineEvent) and isinstance(item.event, ModelEvent):
-            if _has_tool_calls(item.event) and _may_be_turn(item.event):
-                primary_prompt = _get_system_prompt_for_event(item.event)
+            if _has_tool_calls(item.event) and _may_be_turn(item.event, inputs):
+                primary_prompt = _get_system_prompt_for_event(item.event, inputs)
                 break
 
     def utility_wrapper(item: TimelineEvent, index: int) -> TimelineSpan:
@@ -1202,22 +1978,29 @@ def _wrap_utility_events(agent: TimelineSpan) -> None:
         wrapper.utility = True
         return wrapper
 
+    turns = turns or {}
+
     # --- Scan and wrap utility candidates ---
     original_spans = [item for item in agent.content if isinstance(item, TimelineSpan)]
     new_content: list[TimelineEvent | TimelineSpan] = []
     for index, item in enumerate(agent.content):
         if isinstance(item, TimelineEvent) and isinstance(item.event, ModelEvent):
-            if not _may_be_turn(item.event):
+            if not _may_be_turn(item.event, inputs):
                 new_content.append(utility_wrapper(item, index))
                 continue
 
             # Warmup/cache-priming call (max_tokens=1)
-            if _is_warmup_call(item.event):
+            if _is_warmup_call(item.event, inputs):
                 new_content.append(utility_wrapper(item, index))
                 continue
 
-            if primary_prompt is not None and not _has_tool_calls(item.event):
-                evt_prompt = _get_system_prompt_for_event(item.event)
+            turn = turns.get(id(item.event))
+            if turn is not None:
+                if not turn:
+                    new_content.append(utility_wrapper(item, index))
+                    continue
+            elif primary_prompt is not None and not _has_tool_calls(item.event):
+                evt_prompt = _get_system_prompt_for_event(item.event, inputs)
                 if evt_prompt is not None and evt_prompt != primary_prompt:
                     new_content.append(utility_wrapper(item, index))
                     continue
@@ -1231,22 +2014,24 @@ def _wrap_utility_events(agent: TimelineSpan) -> None:
     # Branches are trajectories like any span: process their own direct
     # events too (mirrors the TS port), which also covers their children.
     for item in original_spans:
-        _wrap_utility_events(item)
+        _wrap_utility_events(item, inputs, turns)
     for branch in agent.branches:
-        _wrap_utility_events(branch)
+        _wrap_utility_events(branch, inputs, turns)
 
 
-def _may_be_turn(event: ModelEvent) -> bool:
-    """An agent turn by its recorded origin, or a call that records none."""
-    return event.origin is None or is_agent_turn(event.origin)
+def _may_be_turn(event: ModelEvent, inputs: _Inputs) -> bool:
+    """An agent turn by its recorded origin, or a call that records none and is not in `inputs.outside`."""
+    if event.origin is None:
+        return id(event) not in inputs.outside
+    return is_agent_turn(event.origin)
 
 
-def _is_warmup_call(event: ModelEvent) -> bool:
+def _is_warmup_call(event: ModelEvent, inputs: _Inputs) -> bool:
     """Detect cache-priming warmup calls (max_tokens=1, single-word user prompt)."""
     if event.config.max_tokens is None or event.config.max_tokens > 1:
         return False
     # Check that the last user message is a single word
-    for msg in reversed(event.input):
+    for msg in reversed(inputs.of(event)):
         if isinstance(msg, ChatMessageUser):
             if isinstance(msg.content, str):
                 return len(msg.content.split()) <= 1
@@ -1259,11 +2044,12 @@ def _is_warmup_call(event: ModelEvent) -> bool:
 # =============================================================================
 
 
-def _get_system_prompt(agent: TimelineSpan) -> str | None:
+def _get_system_prompt(agent: TimelineSpan, inputs: _Inputs) -> str | None:
     """Extract the system prompt from the first ModelEvent in agent's direct content.
 
     Args:
         agent: The span node to extract the system prompt from.
+        inputs: The model inputs.
 
     Returns:
         The normalized system prompt text (see ``_get_system_prompt_for_event``),
@@ -1271,7 +2057,7 @@ def _get_system_prompt(agent: TimelineSpan) -> str | None:
     """
     for item in agent.content:
         if isinstance(item, TimelineEvent) and isinstance(item.event, ModelEvent):
-            return _get_system_prompt_for_event(item.event)
+            return _get_system_prompt_for_event(item.event, inputs)
     return None  # No ModelEvent found
 
 
@@ -1326,6 +2112,7 @@ def _has_agentic_loop(span: TimelineSpan) -> bool:
 
 def _classify_utility_agents(
     node: TimelineSpan,
+    inputs: _Inputs,
     parent_system_prompt: str | None = None,
     parent_has_loop: bool = False,
 ) -> None:
@@ -1339,11 +2126,12 @@ def _classify_utility_agents(
 
     Args:
         node: The span node to classify (and recurse into).
+        inputs: The model inputs.
         parent_system_prompt: The system prompt of the parent agent.
         parent_has_loop: Whether the parent has a tool-calling ModelEvent
             in its direct content.
     """
-    agent_system_prompt = _get_system_prompt(node)
+    agent_system_prompt = _get_system_prompt(node, inputs)
 
     # Classify this node (root agent is never utility). Tool-invoked
     # subagents (task/as_tool/handoff) are explicit user-intended
@@ -1370,7 +2158,7 @@ def _classify_utility_agents(
     )
     for item in node.content:
         if isinstance(item, TimelineSpan):
-            _classify_utility_agents(item, effective_prompt, effective_has_loop)
+            _classify_utility_agents(item, inputs, effective_prompt, effective_has_loop)
 
 
 # =============================================================================

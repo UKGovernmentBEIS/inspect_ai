@@ -7,6 +7,7 @@ import random
 from collections.abc import Callable, Sequence
 from dataclasses import replace
 from functools import partial
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 import anyio
@@ -41,11 +42,14 @@ from inspect_ai.event import (
     ModelEvent,
     SentinelEvent,
     SpanBeginEvent,
+    SpanEndEvent,
+    StepEvent,
     Timeline,
     TimelineEvent,
     TimelineSpan,
     ToolEvent,
 )
+from inspect_ai.event._pool import condense_model_event_inputs
 from inspect_ai.event._sentinel import SentinelStage
 from inspect_ai.log import EvalLog, EvalSample, read_eval_log
 from inspect_ai.log._transcript import transcript
@@ -64,7 +68,7 @@ from inspect_ai.model import (
     model_origin,
     modelapi,
 )
-from inspect_ai.model._call_tools import execute_tools
+from inspect_ai.model._call_tools import TOOL_CALLS_FAIL_FAST, execute_tools
 from inspect_ai.model._providers.mockllm import MockLLM
 from inspect_ai.scorer import Score, Scorer, Target, scorer
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
@@ -73,6 +77,7 @@ from inspect_ai.tool import (
     ToolCall,
     ToolCallContent,
     ToolCallView,
+    ToolError,
     ToolInfo,
     tool,
 )
@@ -253,9 +258,10 @@ def assert_replay_equals_live(
     differences: Sequence[str] = (),
     sample: Sample | None = None,
     status: str = "success",
+    inferred: str | None = None,
     **task_kwargs: Any,
 ) -> list["ReplayStep"]:
-    """Run the eval with a probe watching every stage, rebuild its steps from the log, and compare.
+    """Run the eval with a probe watching every stage, rebuild its steps from the log, and compare; then compare those with the steps replayed with the log's origins removed and the turns inferred.
 
     Args:
         solver: The eval's solver.
@@ -264,6 +270,7 @@ def assert_replay_equals_live(
         differences: Fields known to differ, as `"stage.field"`, each a known difference of replay.
         sample: The sample to run.
         status: The status the eval ends with.
+        inferred: Why the steps replayed with the turns inferred differ from those replayed with the recorded origins; None where they are equal.
         **task_kwargs: More `Task` arguments.
     """
     seen: dict[str, Step] = {}
@@ -275,13 +282,16 @@ def assert_replay_equals_live(
     )
     log = eval(task, model=model)[0]
     assert log.status == status, log.error
-    return assert_logged_replay_equals_live(log, seen, differences)
+    return assert_logged_replay_equals_live(log, seen, differences, inferred)
 
 
 def assert_logged_replay_equals_live(
-    log: EvalLog, seen: dict[str, Step], differences: Sequence[str] = ()
+    log: EvalLog,
+    seen: dict[str, Step],
+    differences: Sequence[str] = (),
+    inferred: str | None = None,
 ) -> list["ReplayStep"]:
-    """Rebuild the steps of a log that `r7_probe(seen, copies=True)` watched, and compare."""
+    """Rebuild the steps of a log that `r7_probe(seen, copies=True)` watched, and compare; then compare those with the steps replayed with the log's origins removed and the turns inferred (`inferred` as for `assert_replay_equals_live`)."""
     assert log.samples
     live = live_steps(log.samples[0], seen)
     replay = replayed(log)
@@ -309,7 +319,72 @@ def assert_logged_replay_equals_live(
                 ours, theirs = ours.call, theirs.call
             ids = f.name not in POOLED
             assert comparable(ours, ids) == comparable(theirs, ids), f"{key} {f.name}"
+    assert_inferred(log, replay, inferred)
     return replay
+
+
+class Disagreement(NamedTuple):
+    """How the steps replayed with turns inferred differ from those replayed with the recorded origins."""
+
+    steps: int
+    # (stage, step id) of steps on one side only
+    missing: list[tuple[str, str]]
+    extra: list[tuple[str, str]]
+    # (stage, step id, field) of fields that differ
+    fields: list[tuple[str, str, str]]
+
+
+def without_origins(events: Sequence[Event]) -> list[Event]:
+    def stripped(event: Event) -> Event:
+        if isinstance(event, ModelEvent):
+            return event.model_copy(update={"origin": None})
+        if isinstance(event, ToolEvent) and event.events:
+            return event.model_copy(
+                update={"events": [stripped(e) for e in event.events]}
+            )
+        return event
+
+    return [stripped(event) for event in events]
+
+
+def inferred_disagreement(
+    log: EvalLog, recorded: Sequence["ReplayStep"]
+) -> Disagreement:
+    """Replay the log with every `ModelEvent.origin` removed and compare its steps with `recorded`, field by field."""
+    sample = logged_sample(log)
+    inferred = steps_from_events(
+        sample.messages,
+        without_origins(sample.events),
+        [],
+        sample_uuid=sample.uuid or "",
+        eval_info=EvalInfo.from_eval(log.eval),
+    )
+    ours = {(s.stage, s.id): s for s in inferred}
+    theirs = {(s.stage, s.id): s for s in recorded}
+    fields: list[tuple[str, str, str]] = []
+    for key in sorted(set(ours) & set(theirs)):
+        a, b = ours[key], theirs[key]
+        if a.segment != b.segment:
+            fields.append((*key, "segment"))
+        for f in dataclasses.fields(a.step):
+            if comparable(getattr(a.step, f.name)) != comparable(
+                getattr(b.step, f.name)
+            ):
+                fields.append((*key, f.name))
+    return Disagreement(
+        steps=len(theirs),
+        missing=sorted(set(theirs) - set(ours)),
+        extra=sorted(set(ours) - set(theirs)),
+        fields=fields,
+    )
+
+
+def assert_inferred(
+    log: EvalLog, recorded: Sequence["ReplayStep"], differs: str | None
+) -> None:
+    disagreement = inferred_disagreement(log, recorded)
+    agrees = not (disagreement.missing or disagreement.extra or disagreement.fields)
+    assert agrees == (differs is None), disagreement
 
 
 @solver
@@ -1040,8 +1115,13 @@ def test_a_bridged_host_tool_call_has_no_tool_steps() -> None:
 
 
 def run_logged(
-    solver: Solver | list[Solver], model: Any, **task_kwargs: Any
+    solver: Solver | list[Solver],
+    model: Any,
+    *,
+    inferred: str | None = None,
+    **task_kwargs: Any,
 ) -> EvalLog:
+    """Run the eval, and check that its steps replayed with the turns inferred are those replayed with the recorded origins, unless `inferred` names why they differ."""
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target="2")],
         solver=solver,
@@ -1049,6 +1129,7 @@ def run_logged(
     )
     log = eval(task, model=model)[0]
     assert log.status == "success", log.error
+    assert_inferred(log, replay_events(log, logged_sample(log).events), inferred)
     return log
 
 
@@ -1101,14 +1182,67 @@ def test_a_span_tree_cycle_no_step_walks_through_fails_the_replay() -> None:
         replay_events(log, [a, b, *events])
 
 
-def test_a_log_without_origins_is_not_replayed_yet() -> None:
-    log = run_logged(tool_loop(addition()), agent_model())
-    events = logged_sample(log).events
-    for event in events:
-        if isinstance(event, ModelEvent):
-            event.origin = None
-    with pytest.raises(NotImplementedError, match="origin"):
-        replay_events(log, events)
+# react with a summary compaction, run by `inspect eval` with inspect_ai 0.3.285,
+# which records no ModelEvent.origin: the solver and model of
+# test_a_log_from_before_recorded_origins_replays_with_the_timeline_s_turns
+OLD_LOG = Path(__file__).parent / "fixtures" / "react_compaction_0.3.285.json"
+
+
+def react_with_a_summary_compaction() -> tuple[Solver, Any]:
+    from inspect_ai.model._compaction.summary import CompactionSummary
+
+    turns = [call("addition", x=turn, y=turn) for turn in range(6)]
+    solver = as_solver(
+        react(
+            tools=[addition()],
+            compaction=CompactionSummary(threshold=300),
+            submit=False,
+        )
+    )
+    return solver, outputs(*turns, *[done("summary")] * 3, *turns, done())
+
+
+def test_a_log_from_before_recorded_origins_replays_with_the_timeline_s_turns() -> None:
+    old = read_eval_log(str(OLD_LOG), resolve_attachments="full")
+    assert old.eval.packages["inspect_ai"] == "0.3.285"
+    [sample] = old.samples or []
+    models = [e for e in sample.events if isinstance(e, ModelEvent)]
+    assert models and all(e.origin is None for e in models)
+    inferred = steps_from_events(
+        sample.messages,
+        sample.events,
+        sample.events_data["messages"] if sample.events_data else [],
+        sample_uuid=sample.uuid or "",
+        eval_info=EvalInfo.from_eval(old.eval),
+    )
+    # the same eval now, which records origins
+    solver, model = react_with_a_summary_compaction()
+    log = run_logged(solver, model)
+    recorded = replay_events(log, logged_sample(log).events)
+
+    def arguments(step: Step) -> Any:
+        call = getattr(step, "call", None)
+        return call.arguments if call is not None else None
+
+    def shape(steps: Sequence["ReplayStep"]) -> list[Any]:
+        # react's prompts changed since 0.3.285, so compare the messages'
+        # roles, and the steps' tool calls
+        return [
+            (
+                s.stage,
+                s.segment[1],
+                [m.role for m in s.step.history or []],
+                [m.role for m in s.step.input or []],
+                arguments(s.step),
+            )
+            for s in steps
+        ]
+
+    assert shape(inferred) == shape(recorded)
+    # the two summary calls are not turns, so neither has steps
+    generates = {s.id for s in inferred if s.stage == "model_input"}
+    assert len(generates) == len(models) - 2
+    assert max(s.segment[1] for s in inferred) == 2
 
 
 @protocol
@@ -1300,6 +1434,369 @@ def test_a_stored_timeline_gives_one_conversation_per_branch() -> None:
         for s in replay_events(log, events, timeline=timeline)
         if s.stage == "model_input"
     ] == ["target", "rollback"]
+
+
+@solver
+def r7_rolls_back() -> Solver:
+    """A turn, then two alternatives to the next turn, each in a span of its own as Petri's rollbacks are, the second carried on."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model()
+        task = ChatMessageUser(content="What is 1 + 1?")
+        async with span("target", type="trajectory"):
+            first = (await model.generate([task])).message
+        async with span("first", type="trajectory"):
+            await model.generate([task, first, ChatMessageUser(content="Try A.")])
+        async with span("second", type="trajectory"):
+            asked: list[ChatMessage] = [task, first, ChatMessageUser(content="Try B.")]
+            answer = (await model.generate(asked)).message
+            state.output = await model.generate(
+                [*asked, answer, ChatMessageUser(content="Go on.")]
+            )
+        return state
+
+    return solve
+
+
+def test_a_stored_timeline_s_branches_keep_their_turns_without_origins() -> None:
+    # Ransom's review B1: inferred over the span tree, the rollback's
+    # branches are one conversation, so carrying on the second alternative
+    # made the first branch's generate utility
+    log = run_logged(
+        r7_rolls_back(),
+        outputs(done("Two."), done("A."), done("B."), done("Done.")),
+        inferred="without a stored timeline, the branches are one conversation",
+    )
+    events = logged_sample(log).events
+    spans = {e.name: e.id for e in events if isinstance(e, SpanBeginEvent)}
+    target, first, second = [
+        [
+            TimelineEvent(event=e)
+            for e in events
+            if isinstance(e, ModelEvent) and e.span_id == spans[branch]
+        ]
+        for branch in ("target", "first", "second")
+    ]
+    timeline = Timeline(
+        name="target",
+        description="",
+        root=TimelineSpan(
+            id="target",
+            name="target",
+            content=list(target),
+            branches=[
+                TimelineSpan(id="first", name="first", content=list(first)),
+                TimelineSpan(id="second", name="second", content=list(second)),
+            ],
+        ),
+    )
+
+    def steps(steps: Sequence["ReplayStep"]) -> list[Any]:
+        return [(s.stage, s.id, s.segment, comparable(s.step)) for s in steps]
+
+    recorded = replay_events(log, events, timeline=timeline)
+    inferred = replay_events(log, without_origins(events), timeline=timeline)
+    assert len([s for s in recorded if s.stage == "model_input"]) == 4
+    assert steps(inferred) == steps(recorded)
+
+
+# the shared continuity fixtures, whose "expected_continuity" (else
+# "expected") gives the turns replay's log driver infers
+CONTINUITY_FIXTURES = Path(__file__).parent.parent / "timeline" / "fixtures" / "events"
+
+
+@pytest.mark.parametrize(
+    "fixture",
+    sorted(
+        path.stem
+        for path in CONTINUITY_FIXTURES.glob("*.json")
+        if path.stem.startswith(("continuity_", "agent_result_"))
+    ),
+)
+def test_replay_infers_the_turns_of_the_continuity_fixtures(fixture: str) -> None:
+    # continuity applies only in replay's log driver (decided by Charles
+    # 2026-10-26): a log without origins replays as one recording, for the
+    # main agent's calls, the origins its continuity tree shows
+    import json
+
+    from pydantic import TypeAdapter
+
+    data = json.loads((CONTINUITY_FIXTURES / f"{fixture}.json").read_text())
+    events = TypeAdapter(list[Event]).validate_python(data["events"])
+    main = data.get("expected_continuity", data["expected"])["agent"]
+    turns = set(main["event_uuids"])
+    utility = {
+        uuid
+        for child in main.get("children", [])
+        if child.get("utility")
+        for uuid in child["event_uuids"]
+    }
+    recorded = [
+        event.model_copy(
+            update={"origin": "agent" if event.uuid in turns else "helper"}
+        )
+        if isinstance(event, ModelEvent) and event.uuid in turns | utility
+        else event
+        for event in events
+    ]
+
+    def steps(events: list[Event]) -> list[Any]:
+        return [
+            (s.stage, s.id, s.segment, comparable(s.step))
+            for s in steps_from_events(
+                [],
+                events,
+                [],
+                sample_uuid="sample",
+                eval_info=EvalInfo(inspect_ai_version=None, sentinel=False),
+            )
+        ]
+
+    assert steps(events) == steps(recorded)
+
+
+def checked_m3(check_id: str, later_turn: bool, recorded: bool) -> list[Event]:
+    """`continuity_none`, whose m3 (a foreign-prompt call, inferred as utility) a sentinel checked as `check_id`: m3's uuid, or as sentinel 0.1.x did, the id of the last message of its input (`u3`) with a repeat suffix or without. `recorded`, every call records `origin="agent"`, as m3 was a turn live."""
+    import json
+
+    from pydantic import TypeAdapter
+
+    data = json.loads((CONTINUITY_FIXTURES / "continuity_none.json").read_text())
+    events: list[Event] = []
+    for event in TypeAdapter(list[Event]).validate_python(data["events"]):
+        if isinstance(event, ModelEvent):
+            if event.uuid == "m4" and not later_turn:
+                continue
+            if recorded:
+                event = event.model_copy(update={"origin": "agent"})
+        if isinstance(event, ModelEvent) and event.uuid == "m3":
+            last = event.input[-1].model_copy(update={"id": "u3"})
+            event = event.model_copy(update={"input": [*event.input[:-1], last]})
+            events += [
+                SpanBeginEvent(
+                    id="check", name="probe", type="sentinel", span_id=event.span_id
+                ),
+                SentinelEvent(
+                    factory="probe",
+                    path="probe",
+                    function="check",
+                    step_id=check_id,
+                    conversation="agent",
+                    stage="model_input",
+                    kind="observation",
+                    status="reported",
+                    suspicion=0.1,
+                    span_id="check",
+                ),
+                SpanEndEvent(id="check", span_id=event.span_id),
+            ]
+        events.append(event)
+    return events
+
+
+@pytest.mark.parametrize("later_turn", [True, False])
+@pytest.mark.parametrize("check_id", ["m3", "u3", "u3:1"])
+def test_a_checked_call_inferred_not_a_turn_has_no_steps(
+    check_id: str, later_turn: bool
+) -> None:
+    # a log whose only checked model_input step is a call inferred as utility
+    # (where inference differs from live): the call was made, so the check is
+    # not an orphan, and the conversation's next turn keeps its own id and is
+    # not handed the check. Ransom's eighth review B1: a check sentinel 0.1.x
+    # identified by the last message of the call's input goes with the call
+    # that input was sent in, as one identified by the call's uuid does
+    replay = steps_from_events(
+        [],
+        checked_m3(check_id, later_turn, recorded=False),
+        [],
+        sample_uuid="sample",
+        eval_info=EvalInfo(inspect_ai_version="0.3.200", sentinel=True),
+    )
+
+    assert [s.id for s in replay if s.stage == "model_input"] == [
+        "m1",
+        "m2",
+        *(["m4"] if later_turn else []),
+    ]
+
+
+@pytest.mark.parametrize("later_turn", [True, False])
+@pytest.mark.parametrize("check_id", ["m3", "u3", "u3:1"])
+def test_a_checked_call_recorded_as_a_turn_keeps_its_check(
+    check_id: str, later_turn: bool
+) -> None:
+    replay = steps_from_events(
+        [],
+        checked_m3(check_id, later_turn, recorded=True),
+        [],
+        sample_uuid="sample",
+        eval_info=EvalInfo(inspect_ai_version="0.3.200", sentinel=True),
+    )
+
+    assert [s.id for s in replay if s.stage == "model_input"] == [
+        "m1",
+        "m2",
+        check_id,
+        *(["m4"] if later_turn else []),
+    ]
+
+
+def test_a_fork_at_the_end_without_phase_spans_keeps_the_final_messages_call() -> None:
+    # Ransom's fifth review B5: in a log without phase spans the timeline's
+    # root is a synthetic span around the agent's; the final messages, which
+    # carry on the earlier call of the fork, reach it
+    import json
+
+    from pydantic import TypeAdapter
+
+    data = json.loads((CONTINUITY_FIXTURES / "continuity_fork_at_end.json").read_text())
+    events = [
+        e.model_copy(update={"parent_id": None})
+        if isinstance(e, SpanBeginEvent) and e.parent_id == "solvers"
+        else e
+        for e in TypeAdapter(list[Event]).validate_python(data["events"])
+        if not (isinstance(e, SpanBeginEvent | SpanEndEvent) and e.id == "solvers")
+    ]
+    m2 = next(e for e in events if isinstance(e, ModelEvent) and e.uuid == "m2")
+    replay = steps_from_events(
+        [*m2.input, m2.output.message],
+        events,
+        [],
+        sample_uuid="sample",
+        eval_info=EvalInfo(inspect_ai_version=None, sentinel=False),
+    )
+
+    assert [s.id for s in replay if s.stage == "model_input"] == ["m1", "m2"]
+
+
+@pytest.mark.parametrize("case", ["distinct_id", "edited", "reused_id"])
+@pytest.mark.parametrize("phases", [True, False])
+def test_a_sub_agent_s_equal_answer_does_not_take_the_final_messages(
+    phases: bool, case: str
+) -> None:
+    # Ransom's sixth review B2: the final messages hold the output of m2, one
+    # of a fork; a later sub-agent answers with equal text in another message.
+    # The delta review: the final messages hold m2's output edited under its
+    # id, or the sub-agent answers other text under m2's id
+    user = ChatMessageUser(content="Solve it.")
+    m1 = linked_call("m1", "main", [user], "Working.", None)
+    asked: list[ChatMessage] = [
+        user,
+        m1.output.message,
+        ChatMessageUser(content="Finish."),
+    ]
+    m2 = linked_call("m2", "main", asked, "finished", None)
+    m3 = linked_call("m3", "main", asked, "discarded", None)
+    s1 = linked_call(
+        "s1",
+        "sub",
+        [ChatMessageUser(content="Check.")],
+        "different" if case == "reused_id" else "finished",
+        None,
+    )
+    if case == "reused_id":
+        s1.output.message.id = m2.output.message.id
+    final = m2.output.message
+    if case == "edited":
+        final = final.model_copy(update={"content": "edited finished"})
+    events: list[Event] = [
+        SpanBeginEvent(
+            id="main",
+            name="main",
+            type="agent",
+            parent_id="solvers" if phases else None,
+        ),
+        m1,
+        m2,
+        m3,
+        SpanBeginEvent(id="sub", name="sub", type="agent", parent_id="main"),
+        s1,
+        SpanEndEvent(id="sub"),
+        SpanEndEvent(id="main"),
+    ]
+    if phases:
+        events = [
+            SpanBeginEvent(id="solvers", name="solvers", type="solvers"),
+            *events,
+            SpanEndEvent(id="solvers"),
+        ]
+    replay = steps_from_events(
+        [*asked, final],
+        events,
+        [],
+        sample_uuid="sample",
+        eval_info=EvalInfo(inspect_ai_version=None, sentinel=False),
+    )
+
+    assert [s.id for s in replay if s.stage == "model_input"] == ["m1", "m2", "s1"]
+
+
+def test_a_stored_conversation_across_source_agent_spans_drops_the_unused_alternative() -> (
+    None
+):
+    # Ransom's fifth review B6: one stored span (as Petri groups a target's
+    # trajectory) holds a first turn and two alternatives to the next in one
+    # source agent span, and a continuation of the second in another;
+    # continuity follows the stored conversation across them
+    system = ChatMessageSystem(content="You are the target.")
+    user = ChatMessageUser(content="Begin.")
+
+    def turn(uuid: str, span: str, input: list[ChatMessage], text: str) -> ModelEvent:
+        return ModelEvent(
+            uuid=uuid,
+            span_id=span,
+            model="mockllm/model",
+            input=input,
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=ModelOutput.from_content("mockllm/model", text),
+        )
+
+    m1 = turn("m1", "a1", [system, user], "First.")
+    asked: list[ChatMessage] = [
+        system,
+        user,
+        m1.output.message,
+        ChatMessageUser(content="Next?"),
+    ]
+    m2 = turn("m2", "a1", asked, "Alternative A.")
+    m3 = turn("m3", "a1", asked, "Alternative B.")
+    m4 = turn(
+        "m4",
+        "a2",
+        [*asked, m3.output.message, ChatMessageUser(content="Go on.")],
+        "Carried on.",
+    )
+    events: list[Event] = [
+        SpanBeginEvent(id="a1", name="target", type="agent"),
+        m1,
+        m2,
+        m3,
+        SpanEndEvent(id="a1"),
+        SpanBeginEvent(id="a2", name="target", type="agent"),
+        m4,
+        SpanEndEvent(id="a2"),
+    ]
+    stored = Timeline(
+        name="target",
+        description="",
+        root=TimelineSpan(
+            id="target",
+            name="target",
+            content=[TimelineEvent(event=e) for e in (m1, m2, m3, m4)],
+        ),
+    )
+    replay = steps_from_events(
+        [],
+        events,
+        [],
+        sample_uuid="sample",
+        eval_info=EvalInfo(inspect_ai_version=None, sentinel=False),
+        timeline=stored,
+    )
+
+    assert [s.id for s in replay if s.stage == "model_input"] == ["m1", "m3", "m4"]
 
 
 def test_a_person_s_approval_is_a_human_decision_without_a_sentinel(
@@ -1523,12 +2020,13 @@ def assert_linear(small: Work, large: Work, doubles: bool = True) -> None:
         assert large.entries <= 2.2 * small.entries + 10, (small, large)
 
 
-def log_work(turns: int, monkeypatch: pytest.MonkeyPatch) -> Work:
+def log_work(turns: int, monkeypatch: pytest.MonkeyPatch, origins: bool = True) -> Work:
     from inspect_ai._sentinel import _replay
 
     log = long_run(turns)
     sample = logged_sample(log)
-    events, pool = _replay._condensed(sample.events, [])
+    events = sample.events if origins else without_origins(sample.events)
+    events, pool = _replay._condensed(events, [])
     return replay_work(
         monkeypatch,
         sample.messages,
@@ -1539,10 +2037,13 @@ def log_work(turns: int, monkeypatch: pytest.MonkeyPatch) -> Work:
     )
 
 
+@pytest.mark.parametrize("origins", [True, False])
 def test_replay_reads_each_pool_row_once_and_folds_linearly(
-    monkeypatch: pytest.MonkeyPatch,
+    origins: bool, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    assert_linear(log_work(20, monkeypatch), log_work(40, monkeypatch))
+    assert_linear(
+        log_work(20, monkeypatch, origins), log_work(40, monkeypatch, origins)
+    )
 
 
 def turn_event(
@@ -1955,6 +2456,352 @@ def test_a_person_s_approval_decision_reaches_later_steps(
         assert [d.step_id for d in after.step.human_decisions or []][-1:] == [after.id]
 
 
+def tool_steps(steps: Sequence["ReplayStep"]) -> list[tuple[Any, ...]]:
+    return [
+        (
+            s.stage,
+            s.id,
+            s.step.call.function,
+            s.step.call.arguments,
+            s.step.result.text if isinstance(s.step, AfterToolCall) else None,
+        )
+        for s in steps
+        if isinstance(s.step, BeforeToolCall | AfterToolCall)
+    ]
+
+
+# transcripts shaped as Scout's importers write them, built by hand: no
+# origins, no tools offered, and model inputs expanded
+
+
+def imported_call(
+    uuid: str, input: Sequence[ChatMessage], span_id: str, *calls: ToolCall
+) -> ModelEvent:
+    return ModelEvent(
+        uuid=uuid,
+        span_id=span_id,
+        model="imported",
+        input=list(input),
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput(
+            model="imported",
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(
+                        content=f"turn {uuid}",
+                        tool_calls=list(calls) or None,
+                        model="imported",
+                    ),
+                    stop_reason="tool_calls" if calls else "stop",
+                )
+            ],
+        ),
+    )
+
+
+def imported_conversation(
+    span_id: str, *turns: list[ToolCall]
+) -> tuple[list[ChatMessage], list[ModelEvent]]:
+    """A model call for each of `turns` and one for the final answer, each call answered by a tool message `result of <id> in turn <n>`."""
+    messages: list[ChatMessage] = [ChatMessageUser(content="Find the config file.")]
+    calls: list[ModelEvent] = []
+    for n, turn in enumerate([*turns, []]):
+        event = imported_call(f"m{n}", messages, span_id, *turn)
+        calls.append(event)
+        messages.append(event.output.message)
+        messages.extend(
+            ChatMessageTool(
+                content=f"result of {call.id} in turn {n}",
+                tool_call_id=call.id,
+                function=call.function,
+            )
+            for call in turn
+        )
+    return messages, calls
+
+
+def imported_tool_event(
+    call: ToolCall,
+    turn: int,
+    span_id: str,
+    id: str | None = None,
+    function: str | None = None,
+) -> ToolEvent:
+    return ToolEvent(
+        id=id or call.id,
+        function=function or call.function,
+        arguments=call.arguments,
+        result=f"result of {call.id} in turn {turn}",
+        span_id=span_id,
+    )
+
+
+READ = ToolCall(id="call_read", function="read_file", arguments={"path": "a.cfg"})
+LIST = ToolCall(id="call_list", function="list_dir", arguments={"path": "."})
+GREP = ToolCall(id="call_grep", function="grep", arguments={"pattern": "port"})
+
+
+def as_copies(
+    messages: list[ChatMessage], calls: list[ModelEvent]
+) -> tuple[list[ChatMessage], list[ModelEvent]]:
+    """The conversation as LangSmith and Weave write it: each model call's output, in the messages and in later inputs, a copy without its id or model."""
+    copies = {
+        id(event.output.message): event.output.message.model_copy(
+            update={"id": f"copy-{event.uuid}", "model": None}
+        )
+        for event in calls
+    }
+
+    def copied(written: list[ChatMessage]) -> list[ChatMessage]:
+        return [copies.get(id(m), m) for m in written]
+
+    return copied(messages), [
+        event.model_copy(update={"input": copied(event.input)}) for event in calls
+    ]
+
+
+def claude_code_transcript() -> tuple[list[ChatMessage], list[Event]]:
+    # a Task call is written in the sub-agent's span, with no tool span; a
+    # Bash call in its tool span
+    task = ToolCall(id="toolu_task", function="Task", arguments={"prompt": "Look."})
+    bash = ToolCall(id="toolu_bash", function="Bash", arguments={"command": "ls"})
+    messages, (m0, m1, m2) = imported_conversation("session", [task], [bash])
+    task_event = imported_tool_event(task, 0, "agent-toolu_task")
+    task_event.agent_span_id = "agent-toolu_task"
+    return messages, [
+        SpanBeginEvent(id="session", name="session", type="agent"),
+        m0,
+        SpanBeginEvent(
+            id="agent-toolu_task", name="Explore", type="agent", parent_id="session"
+        ),
+        task_event,
+        imported_call("sub", [ChatMessageUser(content="Look.")], "agent-toolu_task"),
+        SpanEndEvent(id="agent-toolu_task"),
+        m1,
+        SpanBeginEvent(id="tool-bash", name="Bash", type="tool", parent_id="session"),
+        imported_tool_event(bash, 1, "tool-bash"),
+        SpanEndEvent(id="tool-bash"),
+        m2,
+        SpanEndEvent(id="session"),
+    ]
+
+
+def spanless_transcript(
+    span_type: str | None, tool_event_ids: bool, copies: bool
+) -> tuple[list[ChatMessage], list[Event]]:
+    # ToolEvents in the run's span, with the call's id or with their own
+    messages, calls = imported_conversation("run", [READ, LIST], [GREP])
+    if copies:
+        messages, calls = as_copies(messages, calls)
+    m0, m1, m2 = calls
+
+    def tool_event(call: ToolCall, turn: int) -> ToolEvent:
+        if tool_event_ids:
+            return imported_tool_event(call, turn, "run")
+        return imported_tool_event(
+            call, turn, "run", id=f"run-{call.id}", function=f"tools.{call.function}"
+        )
+
+    return messages, [
+        SpanBeginEvent(id="run", name="agent run", type=span_type),
+        m0,
+        *[tool_event(call, 0) for call in [READ, LIST]],
+        m1,
+        tool_event(GREP, 1),
+        m2,
+        SpanEndEvent(id="run"),
+    ]
+
+
+def atif_transcript() -> tuple[list[ChatMessage], list[Event]]:
+    # model calls in an agent span, and no ToolEvents
+    messages, calls = imported_conversation("terminus", [READ, LIST], [GREP])
+    return messages, [
+        SpanBeginEvent(id="terminus", name="terminus_2", type="agent"),
+        *calls,
+        SpanEndEvent(id="terminus"),
+    ]
+
+
+IMPORTERS: dict[str, Callable[[], tuple[list[ChatMessage], list[Event]]]] = {
+    "claude_code": claude_code_transcript,
+    # Phoenix: a chain span of no type, ToolEvents keyed by the call's id
+    "phoenix": partial(spanless_transcript, None, True, False),
+    # Logfire: an agent span, ToolEvents keyed by the call's id
+    "logfire": partial(spanless_transcript, "agent", True, False),
+    # LangSmith: an agent span, ToolEvents keyed by their run's id, and copies
+    # of each output in the messages and later inputs
+    "langsmith": partial(spanless_transcript, "agent", False, True),
+    # Weave: a span of no type, ToolEvents keyed by their call's id in Weave,
+    # and copies of each output
+    "weave": partial(spanless_transcript, None, False, True),
+    "atif": atif_transcript,
+}
+
+
+@pytest.mark.parametrize("importer", IMPORTERS)
+def test_an_imported_transcript_is_replayed_from_its_messages(importer: str) -> None:
+    # a transcript with no log header is replayed by sentinel's messages
+    # projection, not from its events
+    messages, events = IMPORTERS[importer]()
+
+    with pytest.raises(ValueError, match="steps_from_messages"):
+        steps_from_events(
+            messages,
+            events,
+            [],
+            sample_uuid="transcript",
+            eval_info=cast(EvalInfo, None),
+        )
+
+
+@tool
+def not_found() -> Tool:
+    async def execute() -> str:
+        """Fail with a tool error."""
+        raise ToolError("not found")
+
+    return execute
+
+
+def test_a_call_a_fail_fast_tool_halted_has_no_tool_steps() -> None:
+    # Inspect writes the halted call's ToolEvent without a tool span; live ran
+    # no tool stage for it, so replay of a log Inspect wrote builds none
+    def model() -> Any:
+        halting = calls(("not_found", {}), ("not_found", {}))
+        halting.message.metadata = {TOOL_CALLS_FAIL_FAST: ["not_found"]}
+        return outputs(halting, done())
+
+    replay = assert_replay_equals_live(tool_loop(not_found()), model())
+    log = run_logged(tool_loop(not_found()), model())
+    sample = logged_sample(log)
+    [halted] = [
+        index
+        for index, e in enumerate(sample.events)
+        if isinstance(e, ToolEvent) and e.id == "t0c1"
+    ]
+    # a log whose header records no inspect_ai version is still Inspect's
+    unversioned = steps_from_events(
+        sample.messages,
+        sample.events,
+        [],
+        sample_uuid=sample.uuid or "",
+        eval_info=EvalInfo.from_eval(log.eval.model_copy(update={"packages": {}})),
+    )
+
+    assert not isinstance(sample.events[halted - 1], SpanBeginEvent)
+    for steps in (replay, unversioned):
+        assert [(s.stage, s.id) for s in steps if s.stage.startswith("tool")] == [
+            ("tool_call", "t0c0"),
+            ("tool_result", "t0c0"),
+        ]
+
+
+@pytest.mark.parametrize("version", ["0.3.200", None])
+def test_an_inspect_log_s_calls_without_a_tool_span_keep_no_tool_steps(
+    version: str | None,
+) -> None:
+    # live runs no tool stage for a call it records without a tool span (a
+    # call not executed after an earlier one failed), so a log written by
+    # Inspect, with or without a version in its header, keeps reading its
+    # calls from events
+    messages, events = spanless_transcript(None, True, False)
+    replay = steps_from_events(
+        messages,
+        events,
+        [],
+        sample_uuid="transcript",
+        eval_info=EvalInfo(inspect_ai_version=version, sentinel=False),
+    )
+
+    assert tool_steps(replay) == []
+
+
+def answers_as_a_person(decision: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Have the built-in `human` approver's panel decide `decision`; a modify sets x to 7."""
+    from inspect_ai.approval._human import acp as acp_module
+    from inspect_ai.approval._human import approver as approver_module
+
+    async def acp(**kwargs: object) -> Approval | None:
+        return None
+
+    async def panel(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: object,
+        choices: list[str],
+    ) -> Approval:
+        if decision == "modify":
+            return Approval(
+                decision="modify",
+                modified=replace(call, arguments={**call.arguments, "x": 7}),
+                explanation="seven",
+            )
+        return Approval(
+            decision=cast(ApprovalDecision, decision), explanation=f"{decision} it"
+        )
+
+    monkeypatch.setattr(acp_module, "request_human_approval_via_acp", acp)
+    monkeypatch.setattr(approver_module, "panel_approval", panel)
+
+
+@pytest.mark.parametrize(
+    "decision,action",
+    [
+        ("approve", "proceed"),
+        ("reject", "reject"),
+        ("terminate", "terminate"),
+        ("modify", "modify"),
+        ("escalate", None),
+    ],
+)
+def test_a_human_approver_s_decision_reaches_later_steps_in_a_log_without_origins(
+    decision: str, action: str | None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai.approval import auto_approver, human_approver
+
+    answers_as_a_person(decision, monkeypatch)
+    policies = [ApprovalPolicy(human_approver(), "*")]
+    if decision == "escalate":
+        # the person passes the call on to the next approver
+        policies.append(ApprovalPolicy(auto_approver(), "*"))
+    log = run_logged(
+        r7_continues_after_a_termination()
+        if decision == "terminate"
+        else tool_loop(addition()),
+        agent_model(2),
+        approval=policies,
+    )
+    sample = logged_sample(log)
+    replay = steps_from_events(
+        sample.messages,
+        without_origins(sample.events),
+        [],
+        sample_uuid=sample.uuid or "",
+        eval_info=EvalInfo.from_eval(log.eval),
+        human_approvers=("human",),
+    )
+    # a call the person rejected or ended never reached its tool_call step
+    first = next(e.id for e in sample.events if isinstance(e, ToolEvent))
+    later = [s for s in replay if s.stage == "model_input"][-1]
+    decisions = list(later.step.human_decisions or [])
+    if action is None:
+        assert decisions == []
+        return
+    assert decisions
+    assert decisions[0].step_id == first
+    assert decisions[0].call_ids == (first,)
+    reported = decisions[0].decided
+    assert (reported.name, reported.path) == ("human", "human")
+    assert reported.report.action == action
+    if action == "modify":
+        assert reported.report.modified is not None
+        assert reported.report.modified.arguments["x"] == 7
+
+
 @tool
 def times_out() -> Tool:
     async def execute() -> str:
@@ -2109,6 +2956,9 @@ def test_a_call_run_in_a_final_region_has_no_tool_steps() -> None:
     replay = assert_replay_equals_live(
         r7_runs_a_helpers_call_in_its_region(),
         outputs(call("addition", x=1, y=1), done()),
+        # a model_origin() region is not in the span tree, so without origins
+        # the helper's call is a turn and its calls are checked
+        inferred="a model_origin() region",
     )
     assert not [s for s in replay if s.stage.startswith("tool")]
 
@@ -2133,6 +2983,334 @@ def test_a_task_scorer_s_tool_calls_have_no_tool_steps() -> None:
         scorer=r7_scores_with_a_tool_loop(),
     )
     assert not [s for s in replay if s.stage.startswith("tool")]
+
+
+@scorer(metrics=[])
+def r7_scores_with_a_helper_tool() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        tools = [asks_a_helper()]
+        output = await get_model().generate("Check the sum.", tools)
+        await execute_tools(
+            [ChatMessageUser(content="Check the sum."), output.message], tools
+        )
+        return Score(value=1)
+
+    return score
+
+
+@scorer(metrics=[])
+def r7_scores_in_an_agent_span() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        async with span("checker", type="agent"):
+            tools = [asks_a_helper()]
+            output = await get_model().generate("Check the sum.", tools)
+            await execute_tools(
+                [ChatMessageUser(content="Check the sum."), output.message], tools
+            )
+        return Score(value=1)
+
+    return score
+
+
+@pytest.mark.parametrize("arrangement", ["helper_tool", "agent_span"])
+def test_a_task_scorer_s_nested_calls_have_no_tool_steps_without_origins(
+    arrangement: str,
+) -> None:
+    # Ransom's fourth review: the scorers' scope is final live, through a
+    # tool whose helper model proposes and runs a call, directly or inside an
+    # agent span; with origins removed their calls are a scorer's, and none
+    # has tool steps
+    replay = assert_replay_equals_live(
+        generate(),
+        outputs(done(), call("asks_a_helper")),
+        scorer=r7_scores_with_a_helper_tool()
+        if arrangement == "helper_tool"
+        else r7_scores_in_an_agent_span(),
+    )
+    assert [s.stage for s in replay] == ["model_input", "model_output"]
+
+
+@scorer(metrics=[])
+def r7_scores_with_a_prefilled_call() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        prefilled = ChatMessageAssistant(content="", tool_calls=[addition_call("p")])
+        asked: list[ChatMessage] = [ChatMessageUser(content="Check."), prefilled]
+        result = await execute_tools(asked, [addition()])
+        await get_model().generate([*asked, *result.messages])
+        return Score(value=1)
+
+    return score
+
+
+def test_a_pre_filled_call_a_scorer_runs_has_no_tool_steps() -> None:
+    # review of 06bf969be: a call no model call made, run in the scorers'
+    # final scope, was taken as checked, with origins recorded or not
+    replay = assert_replay_equals_live(
+        generate(),
+        outputs(done(), done("ok")),
+        scorer=r7_scores_with_a_prefilled_call(),
+    )
+    assert [s.stage for s in replay] == ["model_input", "model_output"]
+
+
+def test_a_log_from_before_spans_keeps_its_scorer_s_call_from_the_turns() -> None:
+    # review of 06bf969be: inspect_ai 0.3.43 marks the scorers' phase with
+    # StepEvents, not spans; the grader's call there is a scorer's
+    log = read_eval_log(
+        str(Path(__file__).parent.parent / "log" / "test_list_logs" / "custom.eval"),
+        resolve_attachments="full",
+    )
+    [sample] = log.samples or []
+    replay = steps_from_events(
+        sample.messages,
+        sample.events,
+        [],
+        sample_uuid=sample.uuid or "sample",
+        eval_info=EvalInfo.from_eval(log.eval),
+    )
+
+    assert [s.stage for s in replay] == ["model_input", "model_output"]
+    assert not any(
+        "comparing a submitted answer" in m.text
+        for s in replay
+        for m in s.step.input or []
+    )
+
+
+def linked_call(
+    uuid: str,
+    span_id: str | None,
+    input: list[ChatMessage],
+    text: str,
+    origin: str | None,
+    *calls: ToolCall,
+) -> ModelEvent:
+    return ModelEvent(
+        uuid=uuid,
+        span_id=span_id,
+        model="mockllm/model",
+        origin=origin,
+        input=input,
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput(
+            model="mockllm/model",
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(
+                        content=text, tool_calls=list(calls) or None
+                    ),
+                    stop_reason="tool_calls" if calls else "stop",
+                )
+            ],
+        ),
+    )
+
+
+def side_calls(
+    count: int, span_id: str | None, origin: str | None, tooled: bool
+) -> list[ModelEvent]:
+    """`count` calls, each but the first carrying on the one before it; `tooled`, each makes a tool call under a system prompt of its own."""
+    input: list[ChatMessage] = [ChatMessageUser(content="Grade the answer.")]
+    if tooled:
+        input.insert(0, ChatMessageSystem(content="You are a grader."))
+    calls: list[ModelEvent] = []
+    for n in range(count):
+        look = [ToolCall(id=f"g{n}", function="look", arguments={})] if tooled else []
+        call = linked_call(f"s{n}", span_id, input, f"Graded {n}.", origin, *look)
+        calls.append(call)
+        input = [*input, call.output.message, ChatMessageUser(content="Go on.")]
+    return calls
+
+
+def region_with_side_calls(
+    region: str, count: int, recorded: bool, tooled: bool
+) -> tuple[list[ChatMessage], list[Event], Timeline | None]:
+    """An agent's turns, and `count` linked calls in a region that is not the agent's: between a scorer's `StepEvent`s (a log from before spans), in a sentinel's span, or in a tool's span that a stored conversation joins to the agent's. `tooled`, the agent has a system prompt and the linked calls make tool calls under another."""
+    agent = "agent" if recorded else None
+    opening: list[ChatMessage] = [ChatMessageUser(content="Solve it.")]
+    if tooled:
+        opening.insert(0, ChatMessageSystem(content="You are a solver."))
+    if region == "tool":
+        call = ToolCall(id="c1", function="check", arguments={})
+        m1 = linked_call("m1", "agent", opening, "Checking.", agent, call)
+        result = ChatMessageTool(content="ok", tool_call_id="c1", function="check")
+        m2 = linked_call(
+            "m2", "agent", [*opening, m1.output.message, result], "Solved.", agent
+        )
+        helpers = side_calls(count, "tool-c1", "tool" if recorded else None, tooled)
+        events: list[Event] = [
+            SpanBeginEvent(id="agent", name="agent", type="agent"),
+            m1,
+            SpanBeginEvent(id="tool-c1", name="check", type="tool", parent_id="agent"),
+            *helpers,
+            ToolEvent(
+                id="c1", function="check", arguments={}, result="ok", span_id="tool-c1"
+            ),
+            SpanEndEvent(id="tool-c1"),
+            m2,
+            SpanEndEvent(id="agent"),
+        ]
+        stored = Timeline(
+            name="target",
+            description="",
+            root=TimelineSpan(
+                id="target",
+                name="target",
+                content=[TimelineEvent(event=e) for e in (m1, *helpers, m2)],
+            ),
+        )
+        return [*opening, m1.output.message, result, m2.output.message], events, stored
+    m1 = linked_call("m1", "agent", opening, "Solved.", agent)
+    messages: list[ChatMessage] = [*opening, m1.output.message]
+    if region == "scorer":
+        graders = side_calls(count, None, "scorer" if recorded else None, tooled)
+        m1.span_id = None
+        return (
+            messages,
+            [
+                m1,
+                StepEvent(action="begin", type="scorer", name="match"),
+                *graders,
+                StepEvent(action="end", type="scorer", name="match"),
+            ],
+            None,
+        )
+    monitors = side_calls(count, "check", "helper" if recorded else None, tooled)
+    return (
+        messages,
+        [
+            SpanBeginEvent(id="agent", name="agent", type="agent"),
+            m1,
+            SpanBeginEvent(
+                id="check", name="probe", type="sentinel", parent_id="agent"
+            ),
+            *monitors,
+            SpanEndEvent(id="check"),
+            SpanEndEvent(id="agent"),
+        ],
+        None,
+    )
+
+
+@pytest.mark.parametrize("tooled", [False, True])
+@pytest.mark.parametrize("count", [1, 2, 3])
+@pytest.mark.parametrize("region", ["scorer", "sentinel", "tool"])
+def test_linked_calls_outside_the_agent_s_turns_leave_its_turns(
+    region: str, count: int, tooled: bool
+) -> None:
+    # Ransom's sixth review B1: calls a region shows are not the agent's (a
+    # scorer's, a sentinel's, or a tool's that a stored conversation joins to
+    # the agent's) are left out of continuity, so linked ones cannot make
+    # the agent's turn utility; replay without origins gives the steps it
+    # gives with them. Review 7 B1: tool-calling ones under another system
+    # prompt cannot set the prompt the agent's turns are classified by
+    def steps(recorded: bool) -> list[tuple[str, str]]:
+        messages, events, stored = region_with_side_calls(
+            region, count, recorded, tooled
+        )
+        return [
+            (s.stage, s.id)
+            for s in steps_from_events(
+                messages,
+                events,
+                [],
+                sample_uuid="sample",
+                eval_info=EvalInfo(inspect_ai_version=None, sentinel=False),
+                timeline=stored,
+            )
+        ]
+
+    inferred = steps(recorded=False)
+
+    assert inferred == steps(recorded=True)
+    assert ("model_input", "m1") in inferred
+    assert not any(id.startswith("s") for _, id in inferred)
+
+
+def handoff_with_side_calls(
+    count: int, recorded: bool, inputs: str
+) -> tuple[list[ChatMessage], list[Event], list[ChatMessage], Timeline]:
+    """An agent's turns around a legacy handoff whose `ToolEvent` nests `count` linked calls, a stored conversation joining them. `inputs`: "expanded", "pooled" (the nested calls' too), or "adapter" (only the top-level calls pooled, as the companion adapter pools them)."""
+    agent = "agent" if recorded else None
+    user = ChatMessageUser(content="Solve it.")
+    call = ToolCall(id="c1", function="transfer_to_checker", arguments={})
+    m1 = linked_call("m1", "agent", [user], "Handing off.", agent, call)
+    result = ChatMessageTool(
+        content="ok", tool_call_id="c1", function="transfer_to_checker"
+    )
+    m2 = linked_call("m2", "agent", [user, m1.output.message, result], "Done.", agent)
+    helpers: list[Event] = list(
+        side_calls(count, "agent", "tool" if recorded else None, False)
+    )
+    stored = Timeline(
+        name="target",
+        description="",
+        root=TimelineSpan(
+            id="target",
+            name="target",
+            content=[TimelineEvent(event=e) for e in (m1, *helpers, m2)],
+        ),
+    )
+    pool: list[ChatMessage] = []
+    if inputs == "pooled":
+        condensed, _, entries = condense_model_event_inputs([m1, *helpers, m2], 0, {})
+        calls = cast(list[ModelEvent], condensed)
+        m1, m2, helpers = calls[0], calls[-1], [*calls[1:-1]]
+        pool = [message for _, message in entries]
+    handoff = ToolEvent(
+        id="c1",
+        function="transfer_to_checker",
+        arguments={},
+        result="ok",
+        agent="checker",
+        events=helpers,
+        span_id="agent",
+    )
+    events: list[Event] = [
+        SpanBeginEvent(id="agent", name="agent", type="agent"),
+        m1,
+        handoff,
+        m2,
+        SpanEndEvent(id="agent"),
+    ]
+    if inputs == "adapter":
+        events, _, entries = condense_model_event_inputs(events, 0, {})
+        pool = [message for _, message in entries]
+    messages: list[ChatMessage] = [user, m1.output.message, result, m2.output.message]
+    return messages, events, pool, stored
+
+
+@pytest.mark.parametrize("count", [1, 2])
+@pytest.mark.parametrize("inputs", ["expanded", "pooled", "adapter"])
+def test_calls_nested_in_a_handoff_leave_the_agent_s_turns(
+    inputs: str, count: int
+) -> None:
+    # Ransom's seventh review B2: inputs condensed for replay are condensed in
+    # the handoff's ToolEvent too, so the calls it nests are left out of
+    # continuity whether the log's inputs are expanded, pooled, or pooled at
+    # the top level only
+    def steps(recorded: bool) -> list[tuple[str, str]]:
+        messages, events, pool, stored = handoff_with_side_calls(
+            count, recorded, inputs
+        )
+        return [
+            (s.stage, s.id)
+            for s in steps_from_events(
+                messages,
+                events,
+                pool,
+                sample_uuid="sample",
+                eval_info=EvalInfo(inspect_ai_version=None, sentinel=False),
+                timeline=stored,
+            )
+        ]
+
+    inferred = steps(recorded=False)
+
+    assert inferred == steps(recorded=True)
+    assert [id for stage, id in inferred if stage == "model_input"] == ["m1", "m2"]
 
 
 @solver
@@ -2272,7 +3450,7 @@ def test_a_result_is_the_message_the_tool_event_names() -> None:
     logged = ChatMessageTool(
         id="m1", content="as the model saw it", tool_call_id="c1", function="f"
     )
-    driver = _Driver([], [], [logged], "sample", EvalInfo(None, True), None, ())
+    driver = _Driver([], [], [], [logged], "sample", EvalInfo(None, True), None, ())
     event = ToolEvent(id="c1", function="f", arguments={}, result="", message_id="m1")
     assert driver._result(event) is logged
     unknown = event.model_copy(update={"message_id": "m2", "result": "rebuilt"})
@@ -2453,6 +3631,9 @@ def test_batches_that_overlap_replay_as_they_ran(
             calls(("synchronised", {"kind": "B1"}), turn=2),
             done("C"),
         ),
+        # two threads in one span: continuity follows the one carried on, so
+        # without origins the other's turn is utility
+        inferred="two threads in one conversation",
     )
     assert len([s for s in replay if s.stage == "tool_result"]) == 3
 

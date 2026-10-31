@@ -7,7 +7,11 @@ TypeScript timeline builders consistent without duplicating test logic.
 
 Fixture format: {"description": ..., "events": [...], "expected": {...}}
 with expected sections "init", "agent", and "scoring" (see the assertion
-helpers below for the supported expectation fields).
+helpers below for the supported expectation fields). A fixture whose events
+record no origin also runs with every model call recorded as "agent", which
+timeline_build treats alike. Continuity applies only in replay's log driver
+(``_timeline_build(continuity=True)``); a fixture whose tree it changes gives
+the driver's tree as "expected_continuity".
 """
 
 import json
@@ -212,9 +216,52 @@ def _recorded_as_agent(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ],
 )
 def test_timeline_fixture_with_every_call_recorded_as_agent(fixture_name: str) -> None:
-    # a call recorded as "agent" goes through the same rules as one with no
-    # origin, so a log written with origins keeps its tree
+    # timeline_build gives a call recorded as "agent" the rules it gives one
+    # with no origin
     fixture = _load_fixture(fixture_name)
     events = _events_adapter.validate_python(_recorded_as_agent(fixture["events"]))
     timeline = timeline_build(events)
     _assert_timeline_matches(timeline, fixture["expected"])
+
+
+@pytest.mark.parametrize("fixture_name", _fixture_names())
+def test_timeline_fixture_with_continuity(fixture_name: str) -> None:
+    # the timeline replay's log driver builds to infer turns
+    from inspect_ai.event._timeline import _timeline_build
+
+    fixture = _load_fixture(fixture_name)
+    events = _events_adapter.validate_python(fixture["events"])
+    timeline = _timeline_build(events, continuity=True)
+    _assert_timeline_matches(
+        timeline, fixture.get("expected_continuity", fixture["expected"])
+    )
+
+
+def _utility_uuids(span: TimelineSpan) -> list[str]:
+    uuids: list[str] = []
+    for item in span.content:
+        if isinstance(item, TimelineSpan):
+            if item.utility:
+                uuids.extend(_all_event_uuids(item))
+            else:
+                uuids.extend(_utility_uuids(item))
+    for branch in span.branches:
+        uuids.extend(_utility_uuids(branch))
+    return uuids
+
+
+@pytest.mark.parametrize("fixture_name", _fixture_names())
+def test_timeline_fixture_reads_pooled_inputs_as_expanded_ones(
+    fixture_name: str,
+) -> None:
+    # the log driver builds the timeline over model inputs stored as ranges
+    # of the message pool, which continuity looks up by range
+    from inspect_ai.event._pool import condense_model_event_inputs
+    from inspect_ai.event._timeline import _timeline_build
+
+    events = _events_adapter.validate_python(_load_fixture(fixture_name)["events"])
+    condensed, _, entries = condense_model_event_inputs(events, 0, {})
+    pool = [message for _, message in entries]
+    expanded = _timeline_build(events, continuity=True).root
+    pooled = _timeline_build(condensed, message_pool=pool, continuity=True).root
+    assert _utility_uuids(pooled) == _utility_uuids(expanded)
