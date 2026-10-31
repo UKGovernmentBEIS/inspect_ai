@@ -1,9 +1,11 @@
 """Tests for trailing-edge throttle decorator."""
 
+import logging
 from collections.abc import Callable
 from unittest.mock import patch
 
 import anyio
+import pytest
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai._util.background import (
@@ -459,6 +461,47 @@ class TestThrottleAsync:
                 assert calls[1][2] == {"key": "deferred_val"}
 
         await self._with_task_group(run)
+
+    async def test_deferred_error_is_logged_not_raised(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A raising trailing call must not escape into the background task group.
+
+        The background task group is the eval's run-level one, so an escaping
+        error would fail the whole eval. The failed call is also consumed: the
+        next call after the window fires immediately, not the failed one again.
+        """
+        clock = FakeClock()
+        calls: list[str] = []
+
+        @throttle(1.0)
+        def fn(name: str) -> None:
+            calls.append(name)
+            if name == "failing":
+                raise RuntimeError("trailing call failed")
+
+        async def run(tg):
+            with (
+                patch("inspect_ai.util._throttle.time") as mock_time,
+                patch("inspect_ai.util._throttle.anyio") as mock_anyio,
+            ):
+                mock_time.time = clock.time
+
+                async def fake_sleep(secs):
+                    clock.advance(secs)
+
+                mock_anyio.sleep = fake_sleep
+                fn("first")
+                fn("failing")
+                await _flush_background()
+                assert calls == ["first", "failing"]
+                clock.advance(1.5)
+                fn("after")
+                assert calls == ["first", "failing", "after"]
+
+        with caplog.at_level(logging.ERROR, logger="inspect_ai.util._throttle"):
+            await self._with_task_group(run)
+        assert "trailing call failed" in caplog.text
 
 
 # ---------------------------------------------------------------------------

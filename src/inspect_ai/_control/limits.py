@@ -992,10 +992,10 @@ def _apply_process_knobs(
 
     # The max_tasks view (re-read after applying, like the others). `limit`
     # is the effective dispatch cap (override ?? launch); `launch` /
-    # `in_flight` / `pending` are None when no dispatcher is live (during
-    # batch startup, between `enqueue_task`-driven batches) — a set still
-    # applies then, hence `adjustable` is unconditionally True. After a
-    # lowering, `in_flight` may exceed `limit` until it drains (never
+    # `in_flight` / `pending` are None when no dispatcher is live (run
+    # startup before the dispatcher registers, or after dispatch ends) — a
+    # set still applies then, hence `adjustable` is unconditionally True.
+    # After a lowering, `in_flight` may exceed `limit` until it drains (never
     # preempts).
     override = max_tasks_override()
     dispatcher = task_dispatcher_stats()

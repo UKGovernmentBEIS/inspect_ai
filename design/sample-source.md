@@ -144,7 +144,7 @@ adds samples to the running task from *arbitrary* code (a solver, a scorer, a
 tool). Backed by a `ContextVar`-scoped `SampleEnqueuer` registered by
 `task_run` for the task's lifetime — per-task, so concurrent tasks in one
 process can't cross-enqueue. Unlike `enqueue_task` (which works on plain runs
-as a follow-up batch), `enqueue_sample` **requires** the running task to be
+too), `enqueue_sample` **requires** the running task to be
 SampleSource-driven: a plain task's fixed `tg_collect` path has no loop to run
 additions, so the call raises a clear `RuntimeError` instead of silently
 dropping samples.
@@ -243,11 +243,11 @@ dropping samples.
   batch's live samples and its final cleanup are untouched either way) —
   and `task_cleanup` releases the entries it
   processes so repeat calls (one per started config) are no-ops. Because the
-  scope is per `eval_run`, sequential `TaskSource` batches (which reuse the
-  outer task) and independent evaluations in one process each start from an
-  empty registry; a process-wide mutable default would instead have carried
-  one batch's projects into the next batch's cleanup or "not yet cleaned up"
-  report. Outside any scope (the provider driven directly, without a
+  scope is per `eval_run` (one per evaluation, shared by every task the run
+  adds with `enqueue_task` or from a `TaskSource`), independent evaluations in
+  one process each start from an empty registry; a process-wide mutable
+  default would instead have carried one evaluation's projects into the next
+  one's cleanup or "not yet cleaned up" report. Outside any scope (the provider driven directly, without a
   `SandboxManager`) a registry belongs to the task whose `task_init` bound it,
   for one lifecycle: a `task_init` in another task (a child that inherited
   the binding) or after that registry's `task_cleanup` binds its own, so
@@ -292,7 +292,9 @@ scope, including two overlapping child-task lifecycles after a parent's; and,
 through `eval_async`
 (asyncio and trio): the first Docker sample arriving via `next_samples`,
 `enqueue_sample` or a `sample_complete` return; a late config alongside the
-seed's; a late config failing while the seed sample is live; two sequential
-`TaskSource` batches with a cancel in the second; two independent evaluations
+seed's; a late config failing while the seed sample is live; two `TaskSource`
+generations with a cancel in the second; a plain evaluation whose task adds a
+follow-up task with another Docker config (startup resources kept until the
+end of the run); two independent evaluations
 (the first retaining its container). One real-Docker test runs the empty-seed
 dynamic evaluation.
