@@ -7,6 +7,9 @@ from ..._util.user_switch import RunAs
 
 class BashBaseParams(BaseModel):
     session_name: str
+    owner: str | None = None
+    """The user a bound shell was created as. Required for a bound shell and
+    refused for any other: the server answers only when it matches the shell."""
     model_config = {"extra": "forbid"}
 
 
@@ -44,6 +47,10 @@ class NewSessionParams(BaseModel):
     """User to run as: a username, or the sandbox default user's identity as
     captured by the host. Switching requires the server to run as root, unless
     the server already runs as that identity."""
+    bind: bool = False
+    """Bind the shell to `user`, which must be a username: the shell gets a name
+    that no other server issues, and serves only requests whose `owner` is that
+    user."""
     model_config = {"extra": "forbid"}
 
 

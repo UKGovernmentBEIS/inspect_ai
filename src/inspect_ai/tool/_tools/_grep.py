@@ -1,6 +1,10 @@
 from typing import Literal
 
 from inspect_ai.util import sandbox as sandbox_env
+from inspect_ai.util._sandbox.identity import (
+    sandbox_identity_cwd,
+    sandbox_identity_user,
+)
 
 from .._tool import Tool, ToolError, tool
 
@@ -64,7 +68,13 @@ def grep(
             cmd.append("-c")
         cmd.extend(["--", pattern, path])
 
-        result = await sandbox_env(sandbox).exec(cmd=cmd, timeout=timeout, user=user)
+        sbox = sandbox_env(sandbox)
+        result = await sbox.exec(
+            cmd=cmd,
+            cwd=sandbox_identity_cwd(sbox, None),
+            timeout=timeout,
+            user=sandbox_identity_user(sbox, user, strict=True),
+        )
 
         # exit code 1 means no matches (not an error)
         if result.returncode == 1:

@@ -4,6 +4,7 @@ import uuid
 from pathlib import Path
 from typing import Iterator
 
+import anyio
 import pytest
 from test_helpers.tool_call_utils import (
     get_tool_call,
@@ -19,6 +20,8 @@ from inspect_ai.model import (
     ContentText,
     get_model,
 )
+from inspect_ai.model._call_tools import execute_tools
+from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer import match
 from inspect_ai.solver import (
@@ -30,6 +33,7 @@ from inspect_ai.solver import (
     use_tools,
 )
 from inspect_ai.tool import (
+    ToolCall,
     ToolCallError,
     ToolError,
     bash_session,
@@ -39,8 +43,14 @@ from inspect_ai.tool import (
 from inspect_ai.tool._sandbox_tools_utils.sandbox import (
     _AMBIGUOUS_ROOT_ACCESS_WARNING,
 )
-from inspect_ai.util import ExecRemoteAwaitableOptions, sandbox, store
+from inspect_ai.util import (
+    ExecRemoteAwaitableOptions,
+    sandbox,
+    store,
+    tool_state_scope,
+)
 from inspect_ai.util._sandbox._cli import SANDBOX_TOOLS_DIR
+from inspect_ai.util._sandbox.identity import sandbox_identity
 from inspect_ai.util._sandbox.limits import override_max_exec_output_size
 
 NONROOT_COMPOSE = str(Path(__file__).parent / ".." / "test_sandbox_compose.yaml")
@@ -688,6 +698,142 @@ def test_text_editor_default_user_denied_root_path_alpine() -> None:
         dataset=[Sample(input="x")],
         solver=_create_denied("/etc/x.txt"),
         sandbox=("docker", _ALPINE_COMPOSE),
+    )
+    log = eval(task, model=get_model("mockllm/model"))[0]
+    assert log.status == "success", log.error
+
+
+_KILL_TOOLS_SERVER = (
+    "kill -9 \"$(python3 -c 'import json, sys; "
+    f'print(json.load(open(sys.argv[1]))["pid"])\' {SERVER_DIR}/server.pid)"'
+)
+
+
+@solver
+def _scoped_shell_across_a_server_restart() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        sb = sandbox()
+        assert (await sb.exec(["useradd", "-m", "w1"], user="root")).success
+        team = bash_session(instance="team")
+        with sandbox_identity("w1"):
+            out = str(await team(action="type_submit", input="id -un"))
+        assert "w1" in out, out
+        out = str(await team(action="type_submit", input="id -un"))
+        assert "w1" in out, out
+
+        kill = await sb.exec(["sh", "-c", _KILL_TOOLS_SERVER], user="root")
+        assert kill.success, kill.stderr
+        # the next request starts a new server; its first shell is the default user's
+        setup = bash_session(instance="setup")
+        out = str(await setup(action="type_submit", input="id -un"))
+        assert "nonroot" in out, out
+
+        async def call(**arguments: str) -> ChatMessageTool:
+            tool_call = ToolCall(id="1", function="bash_session", arguments=arguments)
+            messages, _ = await execute_tools(
+                [ChatMessageAssistant(content=[], tool_calls=[tool_call])], [team]
+            )
+            assert isinstance(messages[-1], ChatMessageTool)
+            return messages[-1]
+
+        # the model is told the shell is gone, outside its scope and in it
+        stale = await call(action="type_submit", input="touch /tmp/stale")
+        assert stale.error and "only inside the sandbox identity scope" in (
+            stale.error.message
+        ), stale
+        with sandbox_identity("w1"):
+            stale = await call(action="type_submit", input="touch /tmp/stale")
+            assert stale.error and "Use the 'restart' action" in stale.error.message
+            assert not (await sb.exec(["test", "-e", "/tmp/stale"])).success
+            # and recovers with restart, in the same scoped flow
+            restarted = await call(action="restart")
+            assert restarted.error is None, restarted
+            out = (await call(action="type_submit", input="id -un")).text
+        assert "w1" in out, out
+        out = str(await setup(action="type_submit", input="id -un"))
+        assert "nonroot" in out and "w1" not in out, out
+        return state
+
+    return solve
+
+
+# A scoped shell is bound to its tools server: after the server is replaced
+# mid-sample, the shell is refused (never reaching the new server's first shell)
+# and `restart` opens a new one.
+@pytest.mark.slow
+def test_scoped_bash_session_across_a_tools_server_restart() -> None:
+    task = Task(
+        dataset=[Sample(input="x")],
+        solver=_scoped_shell_across_a_server_restart(),
+        sandbox=("docker", NONROOT_COMPOSE),
+    )
+    log = eval(task, model=get_model("mockllm/model"))[0]
+    assert log.status == "success", log.error
+
+
+@solver
+def _two_scoped_users_share_one_bash_session() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        sb = sandbox()
+        for user in ("w1", "w2"):
+            created = await sb.exec(
+                ["sh", "-c", f"useradd -m {user} && chmod 700 /home/{user}"],
+                user="root",
+            )
+            assert created.success, created.stderr
+        shared = bash_session()
+        opened = {"w1": anyio.Event(), "w2": anyio.Event()}
+
+        async def worker(user: str, other: str) -> None:
+            # $M keeps the echoed input from matching the output
+            with tool_state_scope(user), sandbox_identity(user):
+                out = str(
+                    await shared(
+                        action="type_submit",
+                        input=f'M=ok MARK={user}-shell; echo "user-$M=$(id -un)"',
+                    )
+                )
+                assert f"user-ok={user}" in out, out
+                opened[user].set()
+                await opened[other].wait()
+                out = str(
+                    await shared(
+                        action="type_submit",
+                        input=f"touch /home/{user}/mine; "
+                        f'ls /home/{other} >/dev/null 2>&1 || echo "denied-$M"',
+                    )
+                )
+                assert "denied-ok" in out, out
+                out = str(
+                    await shared(
+                        action="type_submit",
+                        input='echo "mark-$M=$MARK user-$M=$(id -un)"',
+                    )
+                )
+                assert f"mark-ok={user}-shell user-ok={user}" in out, out
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(worker, "w1", "w2")
+            tg.start_soon(worker, "w2", "w1")
+        for user in ("w1", "w2"):
+            owner = await sb.exec(
+                ["stat", "-c", "%U", f"/home/{user}/mine"], user="root"
+            )
+            assert owner.stdout.strip() == user, owner
+        return state
+
+    return solve
+
+
+# The swarm shape: two users in one sample, each in its own tool state scope and
+# sandbox identity, share one bash_session() at the default instance and each
+# gets its own shell.
+@pytest.mark.slow
+def test_two_scoped_users_share_one_bash_session() -> None:
+    task = Task(
+        dataset=[Sample(input="x")],
+        solver=_two_scoped_users_share_one_bash_session(),
+        sandbox=("docker", NONROOT_COMPOSE),
     )
     log = eval(task, model=get_model("mockllm/model"))[0]
     assert log.status == "success", log.error

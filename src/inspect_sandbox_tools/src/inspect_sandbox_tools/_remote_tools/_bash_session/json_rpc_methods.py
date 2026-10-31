@@ -20,7 +20,7 @@ _can_switch_user = os.getuid() == 0
 async def bash_session_new_session(params: NewSessionParams) -> NewSessionResult:
     return NewSessionResult(
         session_name=await controller.new_session(
-            user=params.user, can_switch_user=_can_switch_user
+            user=params.user, can_switch_user=_can_switch_user, bind=params.bind
         )
     )
 
@@ -32,6 +32,7 @@ async def bash_session(
     match params.root:
         case InteractParams(
             session_name=session_name,
+            owner=owner,
             input=input_text,
             wait_for_output=wait_for_output,
             idle_timeout=idle_timeout,
@@ -39,10 +40,11 @@ async def bash_session(
         ):
             return await controller.interact(
                 session_name,
+                owner,
                 input_text,
                 wait_for_output,
                 idle_timeout,
                 max_output_bytes,
             )
-        case RestartParams(session_name=session_name):
-            return await controller.restart(session_name)
+        case RestartParams(session_name=session_name, owner=owner):
+            return await controller.restart(session_name, owner)

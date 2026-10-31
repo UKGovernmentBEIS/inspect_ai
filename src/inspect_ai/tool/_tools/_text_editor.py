@@ -11,6 +11,7 @@ from inspect_ai.tool._sandbox_tools_utils._error_mapper import (
 from inspect_ai.tool._sandbox_tools_utils.sandbox import sandbox_with_injected_tools
 from inspect_ai.util._sandbox._cli import SANDBOX_CLI, tools_user_param
 from inspect_ai.util._sandbox._json_rpc_transport import SandboxJSONRPCTransport
+from inspect_ai.util._sandbox.identity import sandbox_identity_user
 
 from .._tool import Tool, tool
 
@@ -123,7 +124,10 @@ def text_editor(timeout: int | None = None, user: str | None = None) -> Tool:
         }
 
         # Pass the user via a reserved param for CLI-side setuid (in-process tool)
-        if (run_as := tools_user_param(sandbox, user)) is not None:
+        run_as = tools_user_param(
+            sandbox, sandbox_identity_user(sandbox, user, strict=True)
+        )
+        if run_as is not None:
             params["_run_as"] = run_as
 
         return await exec_scalar_request(

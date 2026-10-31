@@ -1,20 +1,34 @@
-from typing import Annotated, Literal
+from typing import Annotated, Literal, NamedTuple
+from weakref import WeakSet
 
+import semver
 from pydantic import BaseModel, Discriminator, Field, RootModel
 
-from inspect_ai._util._json_rpc import exec_model_request, exec_scalar_request
+from inspect_ai._util._json_rpc import (
+    JSONRPCParamsType,
+    exec_model_request,
+    exec_scalar_request,
+)
 from inspect_ai.tool import ToolResult
 from inspect_ai.tool._sandbox_tools_utils._error_mapper import (
     SandboxToolsErrorMapper,
+    ServerErrorCode,
 )
 from inspect_ai.tool._sandbox_tools_utils.sandbox import sandbox_with_injected_tools
 from inspect_ai.util import StoreModel, store_as
 from inspect_ai.util._sandbox._cli import SANDBOX_CLI, tools_user_param
 from inspect_ai.util._sandbox._json_rpc_transport import SandboxJSONRPCTransport
+from inspect_ai.util._sandbox.environment import SandboxEnvironment
+from inspect_ai.util._sandbox.identity import (
+    SandboxIdentityError,
+    SandboxIdentityScope,
+    sandbox_identity_scope,
+    sandbox_identity_user,
+)
 from inspect_ai.util._sandbox.limits import SandboxEnvironmentLimits
 from inspect_ai.util._tool_state import tool_state_instance
 
-from .._tool import Tool, ToolParsingError, tool
+from .._tool import Tool, ToolError, ToolParsingError, tool
 
 # These models are cloned from the container code. If/when we decide to create
 # a package that is shared between the inspect and tool-container codebases, we'll
@@ -31,6 +45,43 @@ class BashRestartResult(BaseModel):
 
 class BashSessionStore(StoreModel):
     session_id: str = Field(default_factory=str)
+    identity: str | None = Field(default=None)
+    """User of the `sandbox_identity()` scope the session was created in."""
+    identity_sandbox: str | None = Field(default=None)
+    """Sandbox of the `sandbox_identity()` scope the session was created in."""
+
+
+BOUND_SHELL_TOOLS_VERSION = semver.Version(1, 3, 0)
+"""First inspect-sandbox-tools version with bound shells.
+
+A shell created in a `sandbox_identity()` scope is bound to the scope's user: the
+tools server gives it a name no other server issues and answers only requests that
+name that user. A replaced server (or another sandbox) does not have the name, so a
+saved scoped shell can never reach a shell another user opened under the same name.
+"""
+
+_bound_shell_sandboxes: WeakSet[SandboxEnvironment] = WeakSet()
+"""Sandboxes whose tools were checked for `BOUND_SHELL_TOOLS_VERSION`."""
+
+
+class _SessionNotFoundError(Exception):
+    pass
+
+
+class _BashSessionErrorMapper(SandboxToolsErrorMapper):
+    @staticmethod
+    def server_error(
+        code: int, message: str, method: str, params: JSONRPCParamsType
+    ) -> Exception:
+        match code:
+            case ServerErrorCode.SESSION_NOT_FOUND:
+                return _SessionNotFoundError(message)
+            case ServerErrorCode.SESSION_OWNER:
+                return SandboxIdentityError(message)
+            case _:
+                return SandboxToolsErrorMapper.server_error(
+                    code, message, method, params
+                )
 
 
 # Action-specific parameter models
@@ -194,18 +245,42 @@ def bash_session(
                         f"Do not provide 'input' with '{action}' action."
                     )
 
-        store = store_as(BashSessionStore, instance=tool_state_instance(instance))
+        resolved_instance = tool_state_instance(instance)
+        store = store_as(BashSessionStore, instance=resolved_instance)
         sandbox = await sandbox_with_injected_tools()
+        session_user = sandbox_identity_user(sandbox, user, strict=True)
+        scope = sandbox_identity_scope(sandbox)
 
         # Create transport for all RPC calls
         transport = SandboxJSONRPCTransport(sandbox, SANDBOX_CLI)
 
-        if not store.session_id:
+        if scope is not None or store.identity is not None:
+            old_tools = await _tools_without_bound_shells(sandbox, transport)
+            if old_tools is not None and scope is not None:
+                raise SandboxIdentityError(
+                    f"The sandbox has inspect-sandbox-tools {old_tools}, but "
+                    "bash_session() in a sandbox identity scope needs version "
+                    f"{BOUND_SHELL_TOOLS_VERSION} or later."
+                )
+            if old_tools is not None:
+                raise ToolError(
+                    "This sandbox's tools cannot use the saved shell. A new shell "
+                    "can be started only inside the sandbox identity scope for "
+                    f"'{store.identity}' in sandbox '{store.identity_sandbox}'."
+                )
+
+        async def new_session(replacing: str) -> _Session:
+            """Open a shell and save it, unless another identity saved one first.
+
+            `replacing` is the session the store held when this call read it.
+            """
             params: dict[str, object] = {}
-            if (run_as := tools_user_param(sandbox, user)) is not None:
+            if (run_as := tools_user_param(sandbox, session_user)) is not None:
                 params["user"] = run_as
+            if scope is not None:
+                params["bind"] = True
             try:
-                store.session_id = (
+                name = (
                     await exec_model_request(
                         method="bash_session_new_session",
                         params=params,
@@ -218,6 +293,28 @@ def bash_session(
                 ).session_name
             except TimeoutError:
                 raise RuntimeError("Timed out creating new session")
+            session = _Session(
+                name,
+                scope.user if scope is not None else None,
+                scope.sandbox if scope is not None else None,
+            )
+            # a concurrent call may have saved a shell during the request
+            if store.session_id != replacing and (
+                store.identity,
+                store.identity_sandbox,
+            ) != (session.owner, session.sandbox):
+                raise _concurrent_session_error(resolved_instance, store, scope)
+            store.session_id, store.identity, store.identity_sandbox = session
+            return session
+
+        # Choose the shell with no await after reading the store, and send to that
+        # shell: a concurrent call can save another shell for this instance
+        # meanwhile.
+        if store.session_id:
+            _check_shared_session(resolved_instance, store, scope)
+            session = _Session(store.session_id, store.identity, store.identity_sandbox)
+        else:
+            session = await new_session("")
 
         timing: dict[str, object] = {
             "wait_for_output": wait_for_output,
@@ -236,15 +333,33 @@ def bash_session(
             "restart": {"restart": True},
         }
 
-        result = await exec_scalar_request(
-            method="bash_session",
-            params={"session_name": store.session_id, **(action_specific[action])},
-            result_type=str,
-            transport=transport,
-            error_mapper=SandboxToolsErrorMapper,
-            timeout=timeout,
-            user=sandbox._tools_user,
-        )
+        async def send(session: _Session) -> str:
+            params: dict[str, object] = {"session_name": session.name}
+            if session.owner is not None:
+                params["owner"] = session.owner
+            return await exec_scalar_request(
+                method="bash_session",
+                params={**params, **(action_specific[action])},
+                result_type=str,
+                transport=transport,
+                error_mapper=_BashSessionErrorMapper,
+                timeout=timeout,
+                user=sandbox._tools_user,
+            )
+
+        try:
+            result = await send(session)
+        except _SessionNotFoundError:
+            # A shell is bound only in its own scope, so this caller's scope (if
+            # any) is the shell's, and a new shell opened here is bound the same.
+            if action != "restart" or scope is None:
+                raise _lost_session_error(resolved_instance, session, scope) from None
+            # Recover once: a new shell lost before its first request is reported.
+            session = await new_session(session.name)
+            try:
+                result = await send(session)
+            except _SessionNotFoundError:
+                raise _lost_session_error(resolved_instance, session, scope) from None
 
         # Return the appropriate response
         return (
@@ -254,3 +369,102 @@ def bash_session(
         )
 
     return execute
+
+
+class _Session(NamedTuple):
+    name: str
+    owner: str | None
+    """User of the scope the shell is bound to (None when unbound)."""
+    sandbox: str | None
+    """Sandbox of that scope."""
+
+
+def _lost_session_error(
+    instance: str | None, session: _Session, scope: SandboxIdentityScope | None
+) -> ToolError:
+    """The model-visible error for a bound shell the tools server no longer has.
+
+    It is a tool error, not a `SandboxIdentityError`: the shell is the caller's
+    own, and inside its scope the model recovers with the 'restart' action.
+    """
+    recovery = (
+        "Use the 'restart' action to start a new shell."
+        if scope is not None
+        else "A new shell can be started only inside the sandbox identity scope "
+        f"for '{session.owner}' in sandbox '{session.sandbox}'."
+    )
+    return ToolError(
+        f"bash_session instance '{instance or 'default'}' was created as "
+        f"'{session.owner}' in sandbox '{session.sandbox}', and the sandbox tools "
+        "no longer have that shell: they were restarted, the sandbox was "
+        f"restored, or this is another sandbox. {recovery}"
+    )
+
+
+async def _tools_without_bound_shells(
+    sandbox: SandboxEnvironment, transport: SandboxJSONRPCTransport
+) -> str | None:
+    """The version of the sandbox's tools if they predate bound shells, else None.
+
+    Older tools would give a scoped shell a counted name that a replaced server
+    reissues to the next shell, whoever opens it.
+    """
+    if sandbox in _bound_shell_sandboxes:
+        return None
+    version = await exec_scalar_request(
+        method="version",
+        params={},
+        result_type=str,
+        transport=transport,
+        error_mapper=SandboxToolsErrorMapper,
+        timeout=TRANSPORT_TIMEOUT,
+        user=sandbox._tools_user,
+    )
+    if semver.Version.parse(version) < BOUND_SHELL_TOOLS_VERSION:
+        return version
+    _bound_shell_sandboxes.add(sandbox)
+    return None
+
+
+def _check_shared_session(
+    instance: str | None,
+    store: BashSessionStore,
+    scope: SandboxIdentityScope | None,
+) -> None:
+    """Refuse a saved shell created under another sandbox identity."""
+    owner = _created_as(store)
+    if scope is not None:
+        if (store.identity, store.identity_sandbox) != (scope.user, scope.sandbox):
+            raise SandboxIdentityError(
+                f"bash_session instance '{instance or 'default'}' {owner}, so it "
+                f"cannot be used inside the sandbox identity scope for "
+                f"'{scope.user}' in sandbox '{scope.sandbox}'. A shell cannot be "
+                "shared between sandbox identities."
+            )
+
+
+def _concurrent_session_error(
+    instance: str | None,
+    store: BashSessionStore,
+    scope: SandboxIdentityScope | None,
+) -> SandboxIdentityError:
+    """Refuse a first call whose shell lost the race to another identity's."""
+    caller = (
+        f"inside the sandbox identity scope for '{scope.user}' in sandbox "
+        f"'{scope.sandbox}'"
+        if scope is not None
+        else "outside a sandbox identity scope"
+    )
+    return SandboxIdentityError(
+        f"bash_session instance '{instance or 'default'}' {_created_as(store)} by "
+        f"a concurrent call, so it cannot be used {caller}. A shell cannot be "
+        "shared between sandbox identities."
+    )
+
+
+def _created_as(store: BashSessionStore) -> str:
+    return (
+        f"was created as '{store.identity}' in sandbox '{store.identity_sandbox}'"
+        if store.identity is not None
+        else "was created outside a sandbox identity scope"
+    )

@@ -7,12 +7,21 @@ from .tool_types import BashRestartResult, InteractResult
 
 class Session:
     @classmethod
-    async def create(cls, user: str | RunAs | None = None) -> "Session":
-        return cls(await Process.create(user=user), user=user)
+    async def create(
+        cls, user: str | RunAs | None = None, owner: str | None = None
+    ) -> "Session":
+        return cls(await Process.create(user=user), user=user, owner=owner)
 
-    def __init__(self, process: Process, user: str | RunAs | None = None) -> None:
+    def __init__(
+        self,
+        process: Process,
+        user: str | RunAs | None = None,
+        owner: str | None = None,
+    ) -> None:
         self._process = process
         self._user = user
+        self.owner = owner
+        """The user a bound shell was created as; None for an unbound shell."""
         self._retired_processes: list[Process] = []
 
     async def interact(
