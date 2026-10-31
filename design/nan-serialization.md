@@ -47,9 +47,10 @@ serialization root for score-bearing data must therefore repeat the config:
 known roots and keeps their configs from being dropped -- it cannot discover
 new ones. Anything that dumps score-bearing models directly (as
 `store_jsonable()` does for `IntermediateScoring`) must be added to the list
-and covered by a round-trip test at its call site. FastAPI response serialization wraps response models in its own
-type adapter (a dump root without the config), so `/pending-samples` builds
-its `InspectJsonResponse` explicitly rather than returning the model.
+and covered by a round-trip test at its call site. FastAPI serializes a response through a type adapter for the
+declared response type. A model keeps its config there, but a container type
+such as `list[EvalLog]` is a dump root without it, so `/log-headers` builds its
+`InspectJsonResponse` explicitly, as `/pending-samples` does.
 
 ## Reader tolerance
 
