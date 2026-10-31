@@ -96,7 +96,7 @@ EvalTask: list[Column] = [
 EvalModel: list[Column] = [
     EvalColumn("model", path="eval.model", required=True),
     EvalColumn("model_base_url", path="eval.model_base_url"),
-    EvalColumn("model_args", path="eval.model_base_url"),
+    EvalColumn("model_args", path="eval.model_args"),
     EvalColumn("model_generate_config", path="eval.model_generate_config"),
     EvalColumn("model_roles", path="eval.model_roles"),
 ]

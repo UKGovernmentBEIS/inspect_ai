@@ -366,6 +366,17 @@ def test_evals_df_sentinel_column(tmp_path: Path) -> None:
     assert df["sentinel"].isna().all()
 
 
+def test_evals_df_model_args_column(tmp_path: Path) -> None:
+    model = get_model(
+        "mockllm/model", base_url="http://example.invalid/v1", custom_arg=123
+    )
+    eval(Task(), model=model, log_dir=str(tmp_path))
+
+    df = evals_df(tmp_path)
+    assert df["model_base_url"].to_list() == ["http://example.invalid/v1"]
+    assert df["model_args"].to_list() == ['{"custom_arg": 123}']
+
+
 def test_messages_df():
     df = messages_df(LOGS_DIR)
     assert len(df) == 34
