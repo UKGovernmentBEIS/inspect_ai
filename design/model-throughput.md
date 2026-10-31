@@ -150,8 +150,8 @@ per model regardless of request rate — a per-request deque would grow with
 throughput, which is exactly the case we care about.
 
 Scheduled backoff deliberately stays **out of the ring**. Sleeps reach 30
-minutes (`wait_exponential_jitter(initial=3, max=30*60)` in
-`model/_retry.py`) — attributing one to its schedule-time bucket would
+minutes (exponential backoff from 3 s, capped at 30 minutes, up to 3 s jitter,
+in `model/_retry.py`) — attributing one to its schedule-time bucket would
 swamp any window containing its start, but pre-writing it into the buckets
 covering `[now, now + s]` fights the ring's slot reuse: a future bucket is
 physically the same slot as one of the oldest past buckets, so the

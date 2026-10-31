@@ -7,6 +7,7 @@ Docker container to verify the full host-to-container path.
 
 import contextlib
 import json
+import warnings
 from collections.abc import Iterator
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -234,6 +235,20 @@ class TestPollRetryExhaustion:
         # stop_after_attempt(5) pins the attempt count; keep the assertion
         # exact so a stop-config regression is caught
         assert sandbox.exec.call_count == 5
+
+
+class TestPollRetryWait:
+    async def test_poll_retry_wait_builds_without_warning(self) -> None:
+        """Each poll builds its retry wait without tenacity's `initial` warning."""
+        sandbox = _make_sandbox_mock([_start_response(), _poll_response()])
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings("error", message="The 'initial' parameter")
+            result = await exec_remote_awaitable(
+                sandbox, ["cmd"], 5, ExecRemoteCommonOptions(poll_interval=0)
+            )
+
+        assert result.success is True
 
 
 # ============================================================================
