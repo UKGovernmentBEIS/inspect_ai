@@ -14,7 +14,7 @@ from inspect_ai import Task, TaskSource, eval, eval_async, task_source
 from inspect_ai._eval.loader import resolve_tasks
 from inspect_ai._eval.task.enqueue import enqueue_task
 from inspect_ai.dataset import Sample
-from inspect_ai.log import EvalLog, EvalSample
+from inspect_ai.log import EnqueueTaskOrigin, EvalLog, EvalSample
 from inspect_ai.model import get_model
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 from inspect_ai.util._display import init_display_type
@@ -230,7 +230,9 @@ def test_sample_abandoned_fires_for_queued_sample_cancel() -> None:
     With one slot, whichever seed wins it cancels the parked sibling before it
     starts. Nothing is ever logged for the sibling, so the source hears about
     it via `sample_abandoned` (with the sample, epoch and task) rather than
-    `sample_complete`, which fires only for the sample that ran.
+    `sample_complete`, which fires only for the sample that ran. The callback
+    runs in the task's context, so a task it adds with `enqueue_task()`
+    records the task as its origin, while a task it returns records none.
     """
     from inspect_ai._control.cancel import cancel_sample
     from inspect_ai._control.eval_state import get_eval_states
@@ -240,11 +242,14 @@ def test_sample_abandoned_fires_for_queued_sample_cancel() -> None:
     ran: list[str] = []
 
     async def on_complete(sample: EvalSample, task: Task) -> list[Task] | None:
-        completed.append(str(sample.id))
+        if task.name == "queued_cancel":
+            completed.append(str(sample.id))
         return None
 
-    async def on_abandoned(sample: Sample, epoch: int, task: Task) -> None:
+    async def on_abandoned(sample: Sample, epoch: int, task: Task) -> list[Task]:
         abandoned.append((str(sample.id), epoch, task.name))
+        enqueue_task(_task("enqueued-in-sample-abandoned"))
+        return [_task("returned-from-sample-abandoned")]
 
     @solver(name="task_source_queued_cancel_solver")
     def cancel_parked_sibling() -> Solver:
@@ -279,12 +284,19 @@ def test_sample_abandoned_fires_for_queued_sample_cancel() -> None:
         sample_abandoned=on_abandoned,
     )
     logs = eval(tasks=source, model="mockllm/model", display="none", max_samples=1)
-    assert logs[0].status == "success"
+    (seed,) = [log for log in logs if log.eval.task == "queued_cancel"]
+    assert seed.status == "success"
     (running,) = ran
     parked = "b" if running == "a" else "a"
     assert completed == [running]
     assert abandoned == [(parked, 1, "queued_cancel")]
-    assert [str(s.id) for s in (logs[0].samples or [])] == [running]
+    assert [str(s.id) for s in (seed.samples or [])] == [running]
+    assert {log.eval.task: log.eval.origin for log in logs if log is not seed} == {
+        "enqueued-in-sample-abandoned": EnqueueTaskOrigin(
+            eval_id=seed.eval.eval_id, task_id=seed.eval.task_id
+        ),
+        "returned-from-sample-abandoned": None,
+    }
 
 
 def test_task_cancel_reaches_suspended_sample_abandoned() -> None:
@@ -650,3 +662,72 @@ def test_task_source_name_rejected_outside_eval() -> None:
         resolve_tasks(
             "decorated_generations", {}, get_model("mockllm/model"), None, None, None
         )
+
+
+@pytest.mark.parametrize("max_tasks", [1, 3])
+async def test_task_source_origin_follows_calling_context(max_tasks: int) -> None:
+    # tasks a TaskSource provides or returns record no origin; enqueue_task()
+    # records the task in whose context it runs: the seed's solver and the
+    # callbacks Inspect calls within the seed (sample_complete, task_complete),
+    # but not next_tasks(), which runs outside any task
+    @solver
+    def enqueue_from_sample() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            enqueue_task(_task("from-seed-solver"))
+            return state
+
+        return solve
+
+    class _Source(TaskSource):
+        def __init__(self) -> None:
+            self.next_called = False
+
+        def initial_tasks(self) -> list[Task]:
+            return [
+                Task(
+                    dataset=[Sample(id="s", input="hi")],
+                    solver=[enqueue_from_sample()],
+                    name="seed",
+                )
+            ]
+
+        async def sample_complete(
+            self, sample: EvalSample, task: Task
+        ) -> list[Task] | None:
+            if task.name != "seed":
+                return None
+            enqueue_task(_task("enqueued-in-sample-complete"))
+            return [_task("returned-from-sample-complete")]
+
+        async def task_complete(self, log: EvalLog) -> list[Task] | None:
+            if log.eval.task != "seed":
+                return None
+            enqueue_task(_task("enqueued-in-task-complete"))
+            return [_task("returned-from-task-complete")]
+
+        async def next_tasks(self) -> list[Task] | None:
+            if self.next_called:
+                return None
+            self.next_called = True
+            enqueue_task(_task("enqueued-in-next-tasks"))
+            return [_task("from-next-tasks")]
+
+    init_display_type("none")
+    logs = await eval_async(_Source(), model="mockllm/model", max_tasks=max_tasks)
+
+    origins = {log.eval.task: log.eval.origin for log in logs}
+    assert len(origins) == len(logs)
+    seed = next(log for log in logs if log.eval.task == "seed")
+    seed_origin = EnqueueTaskOrigin(
+        eval_id=seed.eval.eval_id, task_id=seed.eval.task_id
+    )
+    assert origins == {
+        "seed": None,
+        "from-seed-solver": seed_origin,
+        "enqueued-in-sample-complete": seed_origin,
+        "returned-from-sample-complete": None,
+        "enqueued-in-task-complete": seed_origin,
+        "returned-from-task-complete": None,
+        "enqueued-in-next-tasks": None,
+        "from-next-tasks": None,
+    }

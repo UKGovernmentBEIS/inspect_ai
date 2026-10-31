@@ -68,6 +68,7 @@ from inspect_ai._util.registry import (
     registry_params,
     registry_unqualified_name,
 )
+from inspect_ai._util.task import active_task
 from inspect_ai._util.working import (
     init_sample_working_time,
     sample_clock,
@@ -732,6 +733,19 @@ def _enqueue_source_samples(samples: list[Sample] | None) -> None:
 
 
 async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> EvalLog:
+    """Run a task, as the active task (``task_active()``) throughout."""
+    spec = options.logger.eval
+    with active_task(
+        run_id=spec.run_id,
+        eval_id=spec.eval_id,
+        task_id=spec.task_id,
+        task=spec.task,
+        log_location=options.logger.location,
+    ):
+        return await _task_run(options, task_cancel)
+
+
+async def _task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> EvalLog:
     from inspect_ai.hooks._hooks import (
         emit_task_end,
         emit_task_start,

@@ -1903,7 +1903,7 @@
         "type": "object"
       },
       "ContentReasoning": {
-        "description": "Reasoning content.\n\nSee the specification for [thinking blocks](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#understanding-thinking-blocks) for Claude models.",
+        "description": "Reasoning content.\n\nSee the specification for [thinking blocks](https://platform.claude.com/docs/en/build-with-claude/extended-thinking) for Claude models.",
         "properties": {
           "internal": {
             "anyOf": [
@@ -2357,6 +2357,32 @@
           "metadata"
         ],
         "title": "EarlyStoppingSummary",
+        "type": "object"
+      },
+      "EnqueueTaskOrigin": {
+        "description": "Origin of a task added with `enqueue_task()` within a running task.\n\nThe creating task ran in the run that first added this task (a retry of\nthis task runs under a new `run_id`). Find its log by `eval_id`, or by\n`task_id` if that task was retried.",
+        "properties": {
+          "eval_id": {
+            "title": "Eval Id",
+            "type": "string"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "enqueue_task",
+            "default": "enqueue_task",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "eval_id",
+          "task_id"
+        ],
+        "title": "EnqueueTaskOrigin",
         "type": "object"
       },
       "ErrorEvent": {
@@ -5137,6 +5163,27 @@
               }
             ],
             "title": "Model Roles"
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "discriminator": {
+                  "mapping": {
+                    "enqueue_task": "#/components/schemas/EnqueueTaskOrigin"
+                  },
+                  "propertyName": "type"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/EnqueueTaskOrigin"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin"
           },
           "packages": {
             "additionalProperties": {

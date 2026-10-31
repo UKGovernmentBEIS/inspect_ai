@@ -1,6 +1,6 @@
 from logging import getLogger
 from types import TracebackType
-from typing import Any, Literal, Type
+from typing import Annotated, Any, Literal, Type, TypeAlias
 
 from pydantic import (
     BaseModel,
@@ -1110,6 +1110,36 @@ class EvalShards(BaseModel):
     """One entry per shard with a current attempt, in shard order."""
 
 
+class EvalOrigin(BaseModel):
+    """How a task came to be in its run, when the run was not asked to run it.
+
+    Each kind of origin is a subclass with a `type` discriminator (see
+    `EvalOriginType`).
+    """
+
+
+class EnqueueTaskOrigin(EvalOrigin):
+    """Origin of a task added with `enqueue_task()` within a running task.
+
+    The creating task ran in the run that first added this task (a retry of
+    this task runs under a new `run_id`). Find its log by `eval_id`, or by
+    `task_id` if that task was retried.
+    """
+
+    type: Literal["enqueue_task"] = Field(default="enqueue_task")
+    """Type of origin."""
+
+    eval_id: str
+    """`eval_id` of the creating task's eval (the attempt that added this task)."""
+
+    task_id: str
+    """`task_id` of the creating task (unchanged when that task is retried)."""
+
+
+EvalOriginType: TypeAlias = Annotated[EnqueueTaskOrigin, Field(discriminator="type")]
+"""The kinds of `EvalOrigin`, discriminated by `type`."""
+
+
 class EvalSpec(BaseModel):
     """Eval target and configuration."""
 
@@ -1221,6 +1251,15 @@ class EvalSpec(BaseModel):
 
     shards: EvalShards | None = Field(default=None)
     """Shards merged into this log (merged logs only)."""
+
+    origin: EvalOriginType | None = Field(default=None)
+    """How the task came to be in its run, when the run was not asked to run it.
+
+    `EnqueueTaskOrigin` for a task added with `enqueue_task()` within a running
+    task's context (including hooks and `TaskSource` callbacks run within it).
+    `None` for tasks the run was given, for tasks a `TaskSource` provides or
+    returns, and for `enqueue_task()` calls outside any task. Kept when the
+    task is retried."""
 
     # allow field model_args
     model_config = ConfigDict(protected_namespaces=())
