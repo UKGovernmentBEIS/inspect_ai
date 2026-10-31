@@ -23,7 +23,10 @@ from inspect_ai._util.images import inline_media_data
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.version import verify_required_version
 from inspect_ai.log._samples import set_active_model_event_call
-from inspect_ai.model._reasoning import reasoning_to_think_tag
+from inspect_ai.model._reasoning import (
+    clamp_reasoning_effort_to_low_medium_high,
+    reasoning_to_think_tag,
+)
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolFunction
@@ -1019,17 +1022,21 @@ class BedrockAPI(ModelAPI):
 
     def reasoning_config(self, config: GenerateConfig) -> dict[str, Any]:
         if self.is_gpt_oss():
-            if config.reasoning_effort is not None:
-                return {"reasoning_effort": config.reasoning_effort}
+            # gpt-oss and Nova 2 accept only low/medium/high; "none" means no
+            # reasoning config at all.
+            effort = clamp_reasoning_effort_to_low_medium_high(config.reasoning_effort)
+            if effort is not None:
+                return {"reasoning_effort": effort}
         elif self.is_claude():
             return self._claude_reasoning_config(config)
         elif self.is_nova():
-            if config.reasoning_effort is not None:
+            effort = clamp_reasoning_effort_to_low_medium_high(config.reasoning_effort)
+            if effort is not None:
                 if self.supports_nova_reasoning():
                     return {
                         "reasoningConfig": {
                             "type": "enabled",
-                            "maxReasoningEffort": config.reasoning_effort,
+                            "maxReasoningEffort": effort,
                         }
                     }
                 warn_once(
