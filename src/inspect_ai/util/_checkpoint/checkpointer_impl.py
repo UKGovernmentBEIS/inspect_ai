@@ -12,6 +12,8 @@ initial inspect_ai package load — only at sample-run time, via the
 from __future__ import annotations
 
 import contextlib
+import shutil
+import tempfile
 import time
 from collections.abc import (
     AsyncIterator,
@@ -29,6 +31,7 @@ from typing import Any, Literal, TypeVar
 from pydantic import BaseModel, JsonValue, TypeAdapter
 
 from inspect_ai._util._async import tg_collect
+from inspect_ai._util.appdirs import inspect_cache_dir
 from inspect_ai._util.file import write_text_atomic
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.trace import trace_action
@@ -118,7 +121,6 @@ class _CheckpointerSetup(AbstractAsyncContextManager[Checkpointer]):
         self._epoch = epoch
         self._resume_checkpoint = resume_checkpoint
         self._cached: _EnteredCheckpointer | None = None
-        self._reset_transcript_store_on_next_enter = True
         # One-shot finalize gate. The first clean cm exit fires the
         # "agent_complete" checkpoint; subsequent ``__aexit__`` calls
         # (e.g. a hook re-entering ``checkpointer()`` after the agent
@@ -169,15 +171,12 @@ class _CheckpointerSetup(AbstractAsyncContextManager[Checkpointer]):
                     },
                 )
             )
-        reset_transcript_store = self._reset_transcript_store_on_next_enter
         self._cached = _EnteredCheckpointer(
             config=self._config,
             hydration=result,
             resume_checkpoint=self._resume_checkpoint,
-            reset_transcript_store=reset_transcript_store,
             restored=restored,
         )
-        self._reset_transcript_store_on_next_enter = False
         self._entered = True
         return self._cached
 
@@ -248,7 +247,6 @@ class _EnteredCheckpointer:
         config: ResolvedCheckpointConfig,
         hydration: HydrationResult,
         resume_checkpoint: ResumeCheckpoint | None,
-        reset_transcript_store: bool,
         restored: ResumeReport | None = None,
     ) -> None:
         self._config = config
@@ -294,10 +292,14 @@ class _EnteredCheckpointer:
         # Keep checkpoint transcript state outside the live Transcript. The
         # live transcript may evict old events in bounded mode; this store is
         # seeded once, then updated by subscription so each checkpoint can
-        # export complete host-context event files.
+        # export complete host-context event files. It lives outside the
+        # context dir because resume rebuilds it from those files, so backing
+        # it up would only add storage.
+        self._transcript_store_dir = tempfile.mkdtemp(
+            dir=inspect_cache_dir("checkpoint-transcript-store")
+        )
         self._transcript_store = TranscriptEventStore(
-            Path(self._context_dir) / CHECKPOINT_TRANSCRIPT_STORE,
-            reset=reset_transcript_store,
+            Path(self._transcript_store_dir) / CHECKPOINT_TRANSCRIPT_STORE
         )
         self._transcript_subscription: Callable[[], None] | None = None
         self._closed = False
@@ -312,6 +314,7 @@ class _EnteredCheckpointer:
             self._transcript_subscription()
             self._transcript_subscription = None
         self._transcript_store.close()
+        shutil.rmtree(self._transcript_store_dir, ignore_errors=True)
         self._closed = True
 
     @property
