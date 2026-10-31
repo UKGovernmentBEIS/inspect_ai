@@ -49,7 +49,11 @@ from openai.types.chat import (
 from openai.types.chat.chat_completion import Choice, ChoiceLogprobs
 from openai.types.chat.chat_completion_content_part_param import File, FileFile
 from openai.types.chat.chat_completion_message_function_tool_call import Function
-from openai.types.completion_usage import CompletionUsage, PromptTokensDetails
+from openai.types.completion_usage import (
+    CompletionTokensDetails,
+    CompletionUsage,
+    PromptTokensDetails,
+)
 from openai.types.shared_params.function_definition import FunctionDefinition
 from pydantic import JsonValue
 
@@ -737,12 +741,18 @@ def openai_completion_usage(usage: ModelUsage) -> CompletionUsage:
         or usage.input_tokens_cache_write is not None
         else None
     )
-    return CompletionUsage(
+        completion_tokens_details = (
+                    CompletionTokensDetails(reasoning_tokens=usage.reasoning_tokens)
+                    if usage.reasoning_tokens is not None
+                    else None
+        )
+    return CompletionUsage(        
         completion_tokens=usage.output_tokens,
-        prompt_tokens=(
+        prompt_tokens=(            
             usage.input_tokens + input_tokens_cache_read + input_tokens_cache_write
         ),
         prompt_tokens_details=prompt_tokens_details,
+                completion_tokens_details=completion_tokens_details,
         total_tokens=usage.total_tokens,
     )
 
