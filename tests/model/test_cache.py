@@ -1,8 +1,10 @@
+import io
 import pickle
 import sys
 from datetime import datetime, timezone
+from decimal import Decimal
 from pathlib import Path
-from typing import Iterator, Literal
+from typing import Any, Iterator, Literal
 
 import pytest
 from test_helpers.utils import run_example
@@ -21,8 +23,10 @@ from inspect_ai.model import (
     ChatMessageUser,
     GenerateConfig,
     ModelOutput,
+    get_model,
 )
 from inspect_ai.model import _cache as cache_module
+from inspect_ai.model import _model as model_module
 from inspect_ai.model._cache import (
     _CACHE_KEY_DROPPED_FIELDS,
     _CACHE_KEY_NEUTRALIZED_FIELDS,
@@ -192,6 +196,170 @@ def test_cache_key_excludes_fail_on_refusal():
     base_key = _key_for(GenerateConfig())
     assert _key_for(GenerateConfig(fail_on_refusal=True)) == base_key
     assert _key_for(GenerateConfig(fail_on_refusal=False)) == base_key
+
+
+def _key_for_model_args(model_args: dict[str, Any] | None) -> str:
+    return CacheEntry(
+        base_url=None,
+        config=GenerateConfig(),
+        input=[ChatMessageUser(content="Hello")],
+        model="mockllm/model",
+        model_args=model_args,
+        policy=CachePolicy(),
+        tool_choice=None,
+        tools=[],
+    ).key
+
+
+def test_cache_key_includes_model_args():
+    # providers read model args to build the request (extra_body, emulate_tools,
+    # enable_thinking ...), so two runs that differ only in their model args
+    # must not share an entry: the second would replay the first one's answer
+    base_key = _key_for_model_args(None)
+    system_3 = _key_for_model_args({"extra_body": {"system": "3"}})
+    assert system_3 != base_key
+    assert system_3 != _key_for_model_args({"extra_body": {"system": "4"}})
+    # the same args keep hitting the entry they wrote
+    assert system_3 == _key_for_model_args({"extra_body": {"system": "3"}})
+
+
+def test_cache_key_unchanged_without_model_args():
+    # entries written before model args were part of the key record none, so a
+    # model without model args must keep the key it had: this digest is what
+    # the parent commit produced for the same entry
+    assert _key_for_model_args(None) == "a3fc288e6e0b2f0f29380f323c2dc24e"
+    assert _key_for_model_args({}) == "a3fc288e6e0b2f0f29380f323c2dc24e"
+    # an arg that only says who is asking can't change the response either
+    assert (
+        _key_for_model_args({"api_key": "sk-first"})
+        == "a3fc288e6e0b2f0f29380f323c2dc24e"
+    )
+
+
+def test_cache_key_excludes_credentials_but_not_endpoint():
+    base_key = _key_for_model_args(None)
+    assert _key_for_model_args({"api_key": "sk-first"}) == base_key
+    assert _key_for_model_args({"aws_secret_access_key": "secret"}) == base_key
+    assert _key_for_model_args({"aws_session_token": "token"}) == base_key
+    # rotating a credential must not strand the entries written with the rest
+    # of the configuration, so the filter has to apply beside a real arg too
+    assert _key_for_model_args({"api_key": "sk-a", "extra_body": {"s": "1"}}) == (
+        _key_for_model_args({"api_key": "sk-b", "extra_body": {"s": "1"}})
+    )
+    assert _key_for_model_args({"api_key": "sk-a", "extra_body": {"s": "1"}}) != (
+        base_key
+    )
+    # a runtime knob is a transport setting, not a different request
+    assert _key_for_model_args({"timeout": 30, "extra_body": {"s": "1"}}) == (
+        _key_for_model_args({"timeout": 60, "extra_body": {"s": "1"}})
+    )
+    # the region picks the server that answers, so it belongs in the key
+    assert _key_for_model_args({"aws_region": "us-west-2"}) != base_key
+
+
+def test_cache_key_model_args_ignore_declaration_order():
+    # `-M a=1 -M b=2` and `-M b=2 -M a=1` are the same configuration; arg order
+    # reaching the key would make each miss the other's entries
+    assert _key_for_model_args({"a": 1, "b": 2}) == _key_for_model_args(
+        {"b": 2, "a": 1}
+    )
+    assert _key_for_model_args({"extra_body": {"x": 1, "y": 2}}) == _key_for_model_args(
+        {"extra_body": {"y": 2, "x": 1}}
+    )
+
+
+def test_cache_key_model_args_keep_key_types_apart():
+    # a non-str key rendered as str() would collide with its string form, and
+    # a dict of both would depend on insertion order
+    assert _key_for_model_args({"m": {1: "a"}}) != _key_for_model_args(
+        {"m": {"1": "a"}}
+    )
+    assert _key_for_model_args({"m": {1: "a", "1": "b"}}) == _key_for_model_args(
+        {"m": {"1": "b", 1: "a"}}
+    )
+
+
+def test_cache_key_stable_renders_scalars_by_value():
+    # values that serialize deterministically must be told apart: collapsing
+    # them onto their type would serve one configuration's answer to another
+    stable = cache_module._cache_key_stable
+    assert stable({"d": b"abc"}) != stable({"d": b"xyz"})
+    assert stable({"n": Decimal("1.0")}) != stable({"n": Decimal("2.0")})
+    assert stable({"t": datetime(2020, 1, 1, tzinfo=timezone.utc)}) != stable(
+        {"t": datetime(2021, 1, 1, tzinfo=timezone.utc)}
+    )
+    # bool is an int subclass, and True == 1 compares equal as a structure; the
+    # rendered key is what has to keep them apart
+    assert _key_for_model_args({"v": True}) != _key_for_model_args({"v": 1})
+
+
+def test_cache_key_stable_sorts_sets():
+    # sorting is what makes a set stable across processes, where iteration
+    # order follows PYTHONHASHSEED
+    assert cache_module._cache_key_stable({"tags": {"b", "a", "c"}}) == [
+        ["tags", ["a", "b", "c"]]
+    ]
+
+
+def test_cache_key_stable_survives_cycles_and_depth():
+    # the key is computed while generate() builds its cache entry, so a shape
+    # the projection can't walk must not raise
+    cyclic: dict[str, Any] = {}
+    cyclic["self"] = cyclic
+    assert cache_module._cache_key_stable(cyclic) == [["self", "<cycle>"]]
+
+    deep: Any = "leaf"
+    for _ in range(200):
+        deep = {"a": deep}
+    assert cache_module._cache_key_stable(deep) is not None
+
+
+def test_cache_key_model_args_collapse_unserializable_values():
+    # an opaque object's repr carries an id that changes every run; keeping the
+    # type instead distinguishes two kinds of object without breaking the key.
+    # refs are held so CPython can't hand the second object the first one's
+    # address, which would make this pass without any normalization
+    first, second = object(), io.StringIO()
+    assert _key_for_model_args({"client": first}) == _key_for_model_args(
+        {"client": first}
+    )
+    assert _key_for_model_args({"client": first}) != _key_for_model_args(
+        {"client": second}
+    )
+
+
+async def test_cache_entry_carries_model_args(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    # the key only helps if the entry generate() builds actually carries the
+    # model args, and if carrying them changes the key
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+    entries: list[CacheEntry] = []
+
+    def record(entry: CacheEntry) -> None:
+        entries.append(entry)
+        return None
+
+    monkeypatch.setattr(model_module, "cache_fetch", record)
+
+    def model_args_key(**model_args: Any) -> str:
+        model = get_model(
+            "mockllm/model", custom_outputs=[], memoize=False, **model_args
+        )
+        return _key_for_model_args(model.model_args)
+
+    assert model_args_key(marker="1") != model_args_key(marker="2")
+
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput.from_content(model="mockllm/model", content="hi")],
+        memoize=False,
+        marker="1",
+    )
+    await model.generate(input="Hello", cache=True)
+
+    assert entries, "generate() did not consult the cache"
+    assert entries[0].model_args.get("marker") == "1"
 
 
 # Fields inert for the cache key (they never change what the provider returns)

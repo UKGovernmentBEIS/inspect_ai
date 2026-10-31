@@ -1551,6 +1551,7 @@ class Model:
                     config=deepcopy(config),
                     input=input,
                     model=str(self),
+                    model_args=self.model_args,
                     policy=policy,
                     tool_choice=tool_choice,
                     tools=event_tools,
