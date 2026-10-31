@@ -22,12 +22,17 @@ either way:
 |------|-----|
 | Change an injectable build input (the source or a build file; see "Build inputs") and bump the version (`check-version-bump` requires both in the same PR) | PR author |
 | Review and approve | Reviewer |
-| Dispatch the CI build at the approved head commit, upload to S3, commit `SHA256SUMS` to the PR branch | Maintainer (S3 credentials), via the wizard |
+| Dispatch the CI build at the approved head commit, start the publish workflow, commit `SHA256SUMS` to the PR branch | Maintainer, via the wizard |
+| Approve the `sandbox-tools-s3` deployment so the upload runs | A required reviewer of that environment (jjallaire, dragonstyle, or epatey) |
 | Merge once `slow-tool-tests-release` is green | Maintainer |
 
-CI builds the binaries; no one builds release binaries on their own machine.
-For a contributor's PR, the maintainer pushes `SHA256SUMS` to the fork's
-branch, which needs "Allow edits by maintainers" (on by default).
+CI builds the binaries and CI uploads them; no one builds release binaries or
+uploads to S3 from their own machine. The upload runs in the
+`sandbox-tools-publish.yml` workflow under the `sandbox-tools-s3` environment,
+and only after a required reviewer approves that deployment. The maintainer who
+runs the wizard needs no AWS credentials. For a contributor's PR, the
+maintainer pushes `SHA256SUMS` to the fork's branch, which needs "Allow edits
+by maintainers" (on by default).
 
 ## Release Steps
 
@@ -199,13 +204,44 @@ Routes each artifact to the matching distro set: glibc variants across Ubuntu/De
 
 ### 5. Upload to S3
 
+The upload runs in CI, not on anyone's machine. The wizard starts the
+`sandbox-tools-publish.yml` workflow with the build run id and the version:
+
 ```bash
-python src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py {VERSION}
+gh workflow run sandbox-tools-publish.yml --repo UKGovernmentBEIS/inspect_ai \
+  --ref main -f run_id={RUN_ID} -f version={VERSION}
 ```
 
-Uploads all four artifacts (amd64/arm64 × glibc/musl) to the `inspect-sandbox-tools` bucket (us-east-2) with public-read ACL so runtime S3 downloads work without credentials.
+The workflow re-checks the build run (succeeded, first attempt, from `main`),
+reads the built commit from its title and confirms that commit's version file
+equals `{VERSION}`, downloads the four artifacts, re-verifies their
+attestations (the same check as step 3), and only then assumes the S3 role and
+runs `upload_to_s3.py {VERSION}`. The role is assumed in the last step, behind
+the `sandbox-tools-s3` environment, so the upload waits for a required
+reviewer's approval. See `design/release-process.md` for the AWS setup.
 
-The script refuses to run unless `{VERSION}` matches the committed `sandbox_tools_version.txt`, refuses to overwrite a published version with different bytes (published S3 objects are immutable — if a published object is wrong, bump the version and publish fresh artifacts; never fix a problem by re-uploading), rewrites `src/inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS` with the digests of the four local artifacts (the downloaded CI artifacts, so it matches the run's `SHA256SUMS`) before uploading, and round-trip verifies each uploaded object.
+`upload_to_s3.py` uploads all four artifacts (amd64/arm64 × glibc/musl) to the
+`inspect-sandbox-tools` bucket (us-east-2) with public-read ACL so runtime S3
+downloads work without credentials, using `aws s3api put-object
+--if-none-match '*'` so a put never overwrites. It refuses to run unless
+`{VERSION}` matches the committed `sandbox_tools_version.txt`, skips any object
+already published with matching bytes, refuses to overwrite a published version
+with different bytes (published S3 objects are immutable; if a published
+object is wrong, bump the version and publish fresh artifacts, never fix a
+problem by re-uploading), rewrites
+`src/inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS` with the digests of the
+four local artifacts (the downloaded CI artifacts, so it matches the run's
+`SHA256SUMS`), and round-trip verifies each uploaded object. After the publish
+run succeeds, the wizard runs `upload_to_s3.py {VERSION} --dry-run` locally to
+hash the same artifacts, confirm the published objects match, and write the
+committable `SHA256SUMS` (the dry run makes no network write).
+
+Emergency manual upload: if the publish workflow cannot run, an admin can
+upload by hand using the admin SSO role (not the CI role):
+`python src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py {VERSION}`
+from a checkout holding the four verified artifacts in
+`src/inspect_ai/binaries/`. This is a break-glass path; the normal path is the
+approved CI job.
 
 **URL pattern:** `https://inspect-sandbox-tools.s3.us-east-2.amazonaws.com/inspect-sandbox-tools-{arch}[-musl]-v{version}`
 
@@ -254,6 +290,8 @@ The install state detection (`_get_install_state`) determines which tiers are at
 | `src/inspect_ai/tool/_sandbox_tools_utils/injectable_paths.txt` | Pathspecs of the inputs that feed the binary; a change to any requires a version bump (read by `check-version-bump` and `sandbox.py`) |
 | `src/inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS` | Pinned digests for the four published artifacts (written by `upload_to_s3.py`; see `BINARY_INTEGRITY.md`) |
 | `.github/workflows/sandbox-tools-build.yml` | Release build (dispatched by a maintainer) |
+| `.github/workflows/sandbox-tools-publish.yml` | S3 upload (the only credentialed path; gated by the `sandbox-tools-s3` environment) |
+| `scripts/verify-sandbox-tools-attestations.sh` | Attestation check shared by the wizard and the publish workflow |
 | `src/inspect_ai/tool/_sandbox_tools_utils/build_within_container.py` | Build orchestrator |
 | `src/inspect_ai/tool/_sandbox_tools_utils/Dockerfile.pyinstaller{,.musl}` | Builder images (base images pinned by digest) |
 | `src/inspect_ai/tool/_sandbox_tools_utils/requirements.{in,txt}` | Hashed lock of the Python packages the builders install |

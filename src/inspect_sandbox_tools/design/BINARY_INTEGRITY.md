@@ -46,8 +46,10 @@ What this defends against:
 
 Residual risks, explicitly out of scope:
 
-- Compromise of the releasing maintainer's build machine. The digests pin
-  what the maintainer built, wherever it came from.
+- Compromise of the CI build or publish pipeline. The digests pin the bytes
+  built and attested by `sandbox-tools-build.yml` and published through
+  `sandbox-tools-publish.yml`; a compromise of that pipeline or of GitHub
+  Actions is out of scope.
 - Malicious commits that merge. The anchor is merge rights.
 - PyInstaller builds are not reproducible, so third parties cannot rebuild
   and compare. The digest binds "the bytes validated by `validate_distros`
@@ -479,7 +481,7 @@ exercises, differently per PR type:
 | `src/inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS` | new, seeded via TOFU (four entries, current version) |
 | `src/inspect_ai/tool/_sandbox_tools_utils/_digests.py` | new, stdlib-only read/write/lookup (dual import style like `_build_config.py`) |
 | `src/inspect_ai/tool/_sandbox_tools_utils/sandbox.py` | rewrite `_download_from_s3`: lookup, then `download()` via `to_thread`, then chmod; integrity failures fatal in strict mode, warn-by-default (soft launch); 404 unchanged; `_check_main_divergence` deliberately untouched (see Install-state detection) |
-| `src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py` | version guard, immutability guard, write sums, round-trip verify, commit reminder |
+| `src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py` | version guard, immutability guard, skip already-published matching objects, write sums, put-object with `--if-none-match '*'`, round-trip verify |
 | `scripts/pypi-release.py` | digest-verified downloads, digest-based existence check, unconditional pre-build bundle gate, post-build wheel-contents check |
 | `.github/workflows/build.yml` | release-gate lockstep check + `sha256sum -c` over all four artifacts; `check-version-bump` unbumped-direction sums check; `slow-tool-tests-dev` untouched (see "The dev gate") |
 | `pyproject.toml` | add `SHA256SUMS` to package data |
