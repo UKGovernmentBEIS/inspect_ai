@@ -477,20 +477,40 @@ def _parse_chinese_number(s: str) -> Optional[float]:
 
 
 def _parse_chinese_integer_with_units(s: str) -> Optional[int]:
+    """Parse a Chinese integer, handling compound and descending large units.
+
+    Split at the first occurrence of the largest large unit (万/亿/兆):
+    everything before it is that unit's coefficient, everything after it
+    is a lower-order remainder. This makes a smaller large unit's value the
+    coefficient of a following larger unit (一万亿 = 一万 * 亿) while keeping
+    descending sequences additive (一兆一万亿 = 一兆 + 一万亿).
+    """
+    max_val = 0
+    max_idx = -1
+    for i, ch in enumerate(s):
+        unit_val = _CH_LARGE_UNITS.get(ch)
+        if unit_val is not None and unit_val > max_val:
+            max_val = unit_val
+            max_idx = i
+    if max_idx < 0:
+        return _parse_chinese_small_segment(s)
+
+    left = s[:max_idx].strip()
+    right = s[max_idx + 1 :].strip()
+    coeff = _parse_chinese_integer_with_units(left) if left else 0
+    if coeff is None:
+        return None
+    rest = _parse_chinese_integer_with_units(right) if right else 0
+    if rest is None:
+        return None
+    return coeff * max_val + rest
+
+
+def _parse_chinese_small_segment(s: str) -> Optional[int]:
+    """Parse a Chinese integer segment with no large units (digits, 十/百/千)."""
     total = 0
     section = 0
     number = 0
-
-    def flush_section_with(large_unit: Optional[int] = None) -> None:
-        nonlocal total, section, number
-        section += number
-        number = 0
-        if large_unit is None:
-            total += section
-            section = 0
-        else:
-            total += section * large_unit
-            section = 0
 
     i = 0
     while i < len(s):
@@ -522,12 +542,6 @@ def _parse_chinese_integer_with_units(s: str) -> Optional[int]:
             number = 0
             continue
 
-        if ch in _CH_LARGE_UNITS:
-            large_val = _CH_LARGE_UNITS[ch]
-            flush_section_with(large_val)
-            continue
-
         return None
 
-    flush_section_with(None)
-    return total
+    return total + section + number
