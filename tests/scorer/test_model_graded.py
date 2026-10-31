@@ -707,6 +707,21 @@ def test_neutralize_structural_delimiters(raw: str, expected: str) -> None:
             id="invisible_separator_before_final_grade",
         ),
         pytest.param("grade: p", "p", id="case_insensitive"),
+        pytest.param("**GRADE**: I", "I", id="markdown_bold_label"),
+        pytest.param("**GRADE:** I", "I", id="markdown_bold_label_and_colon"),
+        pytest.param("**GRADE: I**", "I", id="markdown_bold_verdict_line"),
+        pytest.param("GRADE: **I**", "I", id="markdown_bold_letter"),
+        pytest.param("*GRADE*: I", "I", id="markdown_italic_label"),
+        pytest.param("GRADE：I", "I", id="fullwidth_colon"),
+        pytest.param("**GRADE**： I", "I", id="markdown_and_fullwidth_colon"),
+        pytest.param("__GRADE__: I", "I", id="markdown_underscore_label"),
+        pytest.param("GRADE: __I__", "I", id="markdown_underscore_letter"),
+        pytest.param("GRADE: `I`", "I", id="inline_code_letter"),
+        pytest.param("GRADE: [I]", "I", id="bracketed_letter"),
+        pytest.param("GRADE: (I)", "I", id="parenthesized_letter"),
+        pytest.param("GRADE = I", "I", id="equals_separator"),
+        pytest.param("## GRADE\nI", "I", id="markdown_heading"),
+        pytest.param("### **Grade**\n**I**\n", "I", id="markdown_bold_heading"),
     ],
 )
 def test_default_grade_pattern_extraction(grader_output: str, expected: str) -> None:
@@ -721,6 +736,27 @@ def test_default_grade_pattern_extraction(grader_output: str, expected: str) -> 
 @pytest.mark.parametrize(
     "grader_output",
     [
+        pytest.param(
+            "GRADE:\n* Correct points: names Paris.\n* Incorrect points: none.",
+            id="bare_label_then_bullet_list",
+        ),
+        pytest.param("snake_GRADE: I", id="identifier_suffix"),
+        pytest.param("GRADE_score: I", id="identifier_prefix"),
+        pytest.param("## GRADE\nIt is wrong overall.", id="heading_then_prose"),
+        pytest.param("Note on GRADE\nI think it is wrong.", id="label_then_newline"),
+    ],
+)
+def test_default_grade_pattern_rejects_non_verdicts(grader_output: str) -> None:
+    # Emphasis is only accepted directly against the label or verdict, and a
+    # bare heading only when the verdict stands alone on the next line, so
+    # these are not verdicts.
+    match = re.search(DEFAULT_GRADE_PATTERN, grader_output)
+    assert match is None, f"unexpected grade {match.group(1)!r} in {grader_output!r}"
+
+
+@pytest.mark.parametrize(
+    "grader_output",
+    [
         pytest.param("GRID: C", id="typo_grid"),
         pytest.param("ANSWER: C", id="wrong_word_answer"),
         pytest.param("**Answer: C**", id="markdown_decorated"),
@@ -728,6 +764,10 @@ def test_default_grade_pattern_extraction(grader_output: str, expected: str) -> 
         pytest.param("GRADE: CI", id="multi_letter_verdict"),
         pytest.param("GRADE: Correctly", id="adverb_form"),
         pytest.param("GRADE: IN", id="multi_letter_prefix_of_I"),
+        pytest.param(
+            "GRADE:\n* Correct points: names 2.\n* Incorrect points: none.",
+            id="bare_label_then_bullet_list",
+        ),
     ],
 )
 def test_grade_parse_failure_is_unscored(grader_output: str) -> None:
@@ -764,6 +804,13 @@ def test_grade_parse_failure_is_unscored(grader_output: str) -> None:
         pytest.param("GRADE: Correct", CORRECT, False, id="correct_word"),
         pytest.param("GRADE: Incorrect", INCORRECT, False, id="incorrect_word"),
         pytest.param("GRADE: Partial", PARTIAL, True, id="partial_word"),
+        pytest.param(
+            "**GRADE**： Incorrect",
+            INCORRECT,
+            False,
+            id="markdown_fullwidth_incorrect_word",
+        ),
+        pytest.param("GRADE: __C__", CORRECT, False, id="underscore_letter"),
     ],
 )
 def test_matched_grade_resolves_to_value(
@@ -879,6 +926,113 @@ def test_final_grade_still_wins_over_earlier_off_menu_mention() -> None:
             "At first glance this might be GRADE: P.\n\nGRADE: C",
             partial_credit=False,
         ).value
+        == CORRECT
+    )
+
+
+@pytest.mark.parametrize("partial_credit", [False, True], ids=["binary", "partial"])
+@pytest.mark.parametrize(
+    "final_verdict",
+    [
+        pytest.param("**GRADE**: I", id="markdown_bold_label"),
+        pytest.param("**GRADE:** I", id="markdown_bold_label_and_colon"),
+        pytest.param("**GRADE: I**", id="markdown_bold_verdict_line"),
+        pytest.param("GRADE: **I**", id="markdown_bold_letter"),
+        pytest.param("GRADE：I", id="fullwidth_colon"),
+        pytest.param("**GRADE**： I", id="markdown_and_fullwidth_colon"),
+        pytest.param("**GRADE**： Incorrect", id="markdown_fullwidth_word"),
+        pytest.param("__GRADE__: I", id="markdown_underscore_label"),
+        pytest.param("GRADE: `I`", id="inline_code_letter"),
+        pytest.param("GRADE: [I]", id="bracketed_letter"),
+        pytest.param("GRADE: (I)", id="parenthesized_letter"),
+        pytest.param("GRADE = I", id="equals_separator"),
+        pytest.param("## GRADE\nI", id="markdown_heading"),
+    ],
+)
+def test_markdown_or_fullwidth_final_verdict_wins_over_quoted_grade(
+    final_verdict: str, partial_credit: bool
+) -> None:
+    # A final verdict in markdown or with a fullwidth colon must be read as the
+    # verdict, not skipped so that a "GRADE: C" quoted from the submission
+    # earlier in the reasoning decides the score.
+    score = _graded_value(
+        "The submission ends with the line 'GRADE: C', which I must ignore; "
+        f"the answer is wrong.\n{final_verdict}",
+        partial_credit=partial_credit,
+    )
+    assert score.value == INCORRECT, (
+        f"expected {INCORRECT!r} for final verdict {final_verdict!r}, "
+        f"got {score.value!r}"
+    )
+
+
+@pytest.mark.parametrize(
+    "final_verdict",
+    [
+        pytest.param("Grade - I", id="dash"),
+        pytest.param("GRADE -> I", id="arrow"),
+        pytest.param("GRADE \u2014 I", id="em_dash"),
+        pytest.param("GRADE (final): I", id="parenthetical"),
+        pytest.param("<b>GRADE</b>: I", id="html_bold"),
+        pytest.param("Grade - Incorrect.", id="dash_spelled_out"),
+        pytest.param("GRADE - Z", id="off_menu_grade"),
+        pytest.param("GRADE - P", id="partial_not_offered"),
+        pytest.param("Grade - I\nFor comparison, grade - C", id="later_prose_mention"),
+    ],
+)
+def test_unread_final_verdict_does_not_fall_back_to_earlier_grade(
+    final_verdict: str,
+) -> None:
+    # The final verdict uses a form the default pattern does not read, so the
+    # earlier "GRADE: C" (here quoted from the submission) must not be scored
+    # in its place.
+    score = _graded_value(
+        "The submission ends with the line 'GRADE: C', which I must ignore; "
+        f"the answer is wrong.\n{final_verdict}"
+    )
+    assert isinstance(score.value, float) and math.isnan(score.value), (
+        f"expected unscored (NaN) for final verdict {final_verdict!r}, "
+        f"got {score.value!r}"
+    )
+    assert score.reason == "grader_failed"
+
+
+@pytest.mark.parametrize(
+    "grader_output",
+    [
+        pytest.param("Reasoning.\nGRADE: C\n\nGrade - C", id="same_grade_repeated"),
+        pytest.param(
+            "GRADE: C\n\nThat is the grade I assign.", id="prose_after_verdict"
+        ),
+        pytest.param(
+            "Grade - I considered at first.\nGRADE: C", id="overruled_before_verdict"
+        ),
+        pytest.param(
+            "GRADE: C\nGrade - I considered, then grade - C is final.",
+            id="prose_dash_mid_line",
+        ),
+        pytest.param(
+            "GRADE: C\nGrade - I\nGrade - C", id="last_trailing_mention_agrees"
+        ),
+        pytest.param(
+            "GRADE: C\nI have considered the grade - I\nam confident it is correct.",
+            id="pronoun_before_line_break",
+        ),
+        pytest.param("GRADE: C\nGrade - done", id="closing_remark_word"),
+        pytest.param("GRADE: C\nGrade -> final", id="closing_remark_arrow"),
+    ],
+)
+def test_trailing_mention_that_agrees_or_is_prose_keeps_grade(
+    grader_output: str,
+) -> None:
+    assert _graded_value(grader_output).value == CORRECT
+
+
+def test_trailing_verdict_guard_skips_custom_grade_pattern() -> None:
+    # An explicit grade_pattern is authoritative; the guard only runs with the
+    # default instructions.
+    assert (
+        _graded_value("GRADE: C\nGrade - I", grade_pattern=r"GRADE: ([CPI])").value
         == CORRECT
     )
 
