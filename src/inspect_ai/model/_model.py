@@ -2712,7 +2712,7 @@ def resolve_tool_model_input(
         # call the function for each tool, passing the index, total, and content
         for index, message in enumerate(tdef_tool_messages):
             model_input_content = tdef.model_input(
-                index, len(tool_messages), message.content, hints
+                index, len(tdef_tool_messages), message.content, hints
             )
             if model_input_content is not message.content:
                 message.content = model_input_content
