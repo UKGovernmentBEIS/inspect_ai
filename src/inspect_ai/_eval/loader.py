@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Callable, Tuple, cast
 
 from shortuuid import uuid
+from typing_extensions import TypeGuard
 
 from inspect_ai._eval.task.images import InputMediaPolicy
 from inspect_ai._eval.task.resolved import ResolvedTask
@@ -74,6 +75,23 @@ def _merge_model_roles(
     return merged or None
 
 
+def shuffle_requested(sample_shuffle: bool | int | None) -> TypeGuard[int]:
+    """Whether a `sample_shuffle` value asks for the dataset to be shuffled.
+
+    `None` and `False` mean no shuffle. `True` means shuffle with a random
+    seed. Any other int, including `0`, is a seed. `0` and `False` compare
+    equal in Python, so both call sites must test identity rather than
+    truthiness or `is not None`, otherwise `eval()` and `eval_retry()` resolve
+    the same value differently and retry a different set of samples.
+    """
+    return sample_shuffle is not None and sample_shuffle is not False
+
+
+def shuffle_seed(sample_shuffle: int) -> int | None:
+    """The seed to shuffle with, or `None` to shuffle with a random seed."""
+    return None if sample_shuffle is True else sample_shuffle
+
+
 def resolve_tasks(
     tasks: Tasks,
     task_args: dict[str, Any],
@@ -103,12 +121,10 @@ def resolve_tasks(
 
     def as_resolved_tasks(tasks: list[Task]) -> list[ResolvedTask]:
         # shuffle data in tasks if requested
-        if sample_shuffle:
+        if shuffle_requested(sample_shuffle):
             for task in tasks:
                 if not task.dataset.shuffled:
-                    task.dataset.shuffle(
-                        None if sample_shuffle is True else sample_shuffle
-                    )
+                    task.dataset.shuffle(shuffle_seed(sample_shuffle))
 
         return [
             ResolvedTask(
@@ -307,11 +323,9 @@ def resolve_previous_tasks(
             else:
                 loaded_task_args = previous_task.task_args
                 loaded_task = load_tasks([previous_task.task], loaded_task_args)[0]
-            if sample_shuffle is not None:
+            if shuffle_requested(sample_shuffle):
                 if not loaded_task.dataset.shuffled:
-                    loaded_task.dataset.shuffle(
-                        None if sample_shuffle is True else sample_shuffle
-                    )
+                    loaded_task.dataset.shuffle(shuffle_seed(sample_shuffle))
             result.append(
                 resolve_previous_task(
                     loaded_task,
