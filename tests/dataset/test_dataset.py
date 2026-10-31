@@ -1562,3 +1562,32 @@ def test_dataset_description_must_be_string() -> None:
     sample = rec2sample({"input": "x", "description": float("nan")})
     assert not isinstance(sample, list)
     assert sample.description is None
+
+
+def test_csv_dataset_rejects_duplicate_column_names(tmp_path: Path) -> None:
+    """Duplicate column names must raise instead of silently overwriting."""
+    csv_file = tmp_path / "dup.csv"
+    csv_file.write_text(
+        "input,target,target\nQuestion,correct,wrong\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="Duplicate column names"):
+        csv_dataset(str(csv_file))
+
+    # also with explicit fieldnames
+    csv_file2 = tmp_path / "dup2.csv"
+    csv_file2.write_text(
+        "Q,correct,wrong\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="Duplicate column names"):
+        csv_dataset(str(csv_file2), fieldnames=["input", "target", "target"])
+
+    # trailing commas produce empty column names, which are duplicates
+    csv_file3 = tmp_path / "trailing.csv"
+    csv_file3.write_text(
+        "input,target,,\nQuestion,correct,extra,extra2\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match=r"Duplicate column names.*\(empty\)"):
+        csv_dataset(str(csv_file3))
