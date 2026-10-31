@@ -1562,3 +1562,57 @@ def test_dataset_description_must_be_string() -> None:
     sample = rec2sample({"input": "x", "description": float("nan")})
     assert not isinstance(sample, list)
     assert sample.description is None
+
+
+def test_json_dataset_preserves_chat_message_metadata(tmp_path) -> None:
+    """Test that json_dataset keeps per-message metadata for chat messages."""
+    import json
+
+    records = [
+        {
+            "input": [
+                {"role": "system", "content": "sys", "metadata": {"difficulty": "hard"}},
+                {"role": "user", "content": "q", "metadata": {"difficulty": "easy"}},
+                {"role": "assistant", "content": "a", "metadata": {"difficulty": "medium"}},
+                {"role": "tool", "content": "t", "metadata": {"difficulty": "hard"}},
+            ],
+            "target": "a",
+        }
+    ]
+    path = tmp_path / "chat.json"
+    path.write_text(json.dumps(records))
+
+    dataset = json_dataset(str(path))
+    messages = dataset[0].input
+
+    assert messages[0].metadata == {"difficulty": "hard"}
+    assert messages[1].metadata == {"difficulty": "easy"}
+    assert messages[2].metadata == {"difficulty": "medium"}
+    assert messages[3].metadata == {"difficulty": "hard"}
+
+
+def test_jsonl_dataset_preserves_chat_message_metadata(tmp_path) -> None:
+    """Test that json_dataset keeps per-message metadata for JSONL chat messages."""
+    import json
+
+    record = {
+        "input": [
+            {"role": "user", "content": "q", "metadata": {"k": "v"}},
+        ],
+        "target": "a",
+    }
+    path = tmp_path / "chat.jsonl"
+    path.write_text(json.dumps(record) + "\n")
+
+    dataset = json_dataset(str(path))
+
+    assert dataset[0].input[0].metadata == {"k": "v"}
+
+
+def test_read_messages_metadata_defaults_to_none() -> None:
+    """Test that messages without metadata get None (no regression)."""
+    from inspect_ai.dataset._util import read_messages
+
+    messages = read_messages([{"role": "user", "content": "q"}])
+
+    assert messages[0].metadata is None
