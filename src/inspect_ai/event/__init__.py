@@ -3,6 +3,15 @@ from inspect_ai._util.deprecation import relocated_module_attribute
 from ._anchor import AnchorEvent
 from ._approval import ApprovalEvent
 from ._branch import BranchEvent
+from ._communication import (
+    CommunicationDelivery,
+    CommunicationEvent,
+    CommunicationKind,
+    CommunicationRecord,
+    CommunicationRejection,
+    CommunicationSend,
+    CommunicationWait,
+)
 from ._compaction import CompactionEvent
 from ._error import ErrorEvent
 from ._event import Event
@@ -23,6 +32,7 @@ from ._state import StateEvent
 from ._step import StepEvent
 from ._store import StoreEvent
 from ._subtask import SubtaskEvent
+from ._swarm import SwarmEvent
 from ._timeline import (
     Outline,
     OutlineNode,
@@ -52,6 +62,14 @@ __all__ = [
     "SentinelEvent",
     "SentinelAction",
     "SentinelSuspicion",
+    "CommunicationEvent",
+    "CommunicationKind",
+    "CommunicationRecord",
+    "CommunicationRejection",
+    "CommunicationSend",
+    "CommunicationDelivery",
+    "CommunicationWait",
+    "SwarmEvent",
     "AnchorEvent",
     "BranchEvent",
     "ErrorEvent",

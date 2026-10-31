@@ -95,6 +95,8 @@ HIGH_SIGNAL_EVENT_TYPES = frozenset(
         "sandbox",
         "logger",
         "info",
+        "communication",
+        "swarm",
         "sample_limit",
         "interrupt",
     }
@@ -548,6 +550,42 @@ def _project(event: "Event", *, content: bool, full: bool) -> dict[str, Any]:
         out["source"] = getattr(event, "source", None)
         if content:
             out["data"] = _truncate(_to_text(getattr(event, "data", None)))
+    elif et == "communication":
+        send = getattr(event, "send", None)
+        rejected = send.rejected if send is not None else None
+        delivery = getattr(event, "delivery", None)
+        wait = getattr(event, "wait", None)
+        out["source"] = getattr(event, "source", None)
+        out["kind"] = getattr(event, "kind", None)
+        out["agent"] = getattr(event, "agent", None)
+        out["nested"] = getattr(event, "nested", None)
+        out["channel"] = getattr(event, "channel", None)
+        out["record_ids"] = getattr(event, "record_ids", None)
+        if delivery is not None:
+            out["recipients"] = delivery.recipients
+            out["seq"] = delivery.seq
+        if rejected is not None:
+            out["rejected"] = rejected.control
+        if wait is not None:
+            out["channels"] = wait.channels
+            out["outcome"] = wait.outcome
+            out["duration"] = wait.duration
+        if content:
+            if send is not None:
+                record_content = send.record.content
+                out["content"] = (
+                    _truncate(record_content) if record_content is not None else None
+                )
+            if rejected is not None:
+                out["reason"] = _truncate(rejected.reason)
+            out["data"] = _truncate(_to_text(getattr(event, "data", None)))
+    elif et == "swarm":
+        out["kind"] = getattr(event, "kind", None)
+        out["member"] = getattr(event, "member", None)
+        if content:
+            out["data"] = _truncate(_to_text(getattr(event, "data", None)))
+    if et in ("communication", "swarm"):
+        out = _escape_surrogates_in(out)
     return out
 
 
@@ -560,6 +598,26 @@ def _to_text(value: Any) -> str:
         return json.dumps(value, default=str)
     except (TypeError, ValueError):
         return str(value)
+
+
+def _escape_surrogates(text: str) -> str:
+    """Escape lone surrogates, which the JSON response cannot encode."""
+    return text.encode("utf-8", errors="backslashreplace").decode("utf-8")
+
+
+def _escape_surrogates_in(value: Any) -> Any:
+    """Escape lone surrogates in every string of a projected value.
+
+    Producers record the strings of communication and swarm events as given
+    (a refused record's text included), so any of them can hold one.
+    """
+    if isinstance(value, str):
+        return _escape_surrogates(value)
+    if isinstance(value, list):
+        return [_escape_surrogates_in(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _escape_surrogates_in(item) for key, item in value.items()}
+    return value
 
 
 def _truncate(text: str, width: int = _TRUNCATE) -> str:
