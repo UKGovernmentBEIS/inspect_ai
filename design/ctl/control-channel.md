@@ -313,7 +313,7 @@ The control channel runs as an **HTTP server embedded directly in the eval proce
 ### Why HTTP
 
 - **Excellent CLI ergonomics.** `inspect ctl task cancel <task>` is one `httpx` call; shell users can hit endpoints directly with `curl`. Pipe composition works (`inspect ctl task list --json | jq ... | xargs inspect ctl task cancel`). Easy to write small monitoring scripts in any language.
-- **No new dependencies.** FastAPI, uvicorn, and starlette are already hard dependencies in `requirements.txt` (used by the `inspect view` server). Picking HTTP costs zero framework footprint.
+- **No new dependencies.** FastAPI, uvicorn, and starlette are already hard dependencies in `pyproject.toml` (used by the `inspect view` server). Picking HTTP costs zero framework footprint.
 - **Already a pattern in the codebase.** `src/inspect_ai/_view/fastapi_server.py` shows the FastAPI-server-in-Inspect template — including the bits we need: streaming responses, live in-progress reads (`api_pending_samples`, `api_sample_events`), and an OpenAPI generation pipeline (`_view/_openapi.py`). The control channel reuses the same shape.
 - **Universal tooling.** Browsers, Postman, generated OpenAPI clients, HTTP-level proxies / logging / debugging — all off the shelf.
 - **Natural fit for the operation shape.** "Cancel an eval" is request/response with optional payload — the canonical HTTP pattern. Resource-oriented URLs (`/evals/<id>/samples/<sid>`) describe what they target.

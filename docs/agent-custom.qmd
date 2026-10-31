@@ -196,6 +196,10 @@ def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):
 
 To recover from a context window overflow (`stop_reason == "model_length"`), call `compact_input()` with `force=True`, which compacts regardless of the threshold, and generate again. The handler does not check that a forced compaction reduced the input. If the retry also overflows, truncate the messages or stop rather than forcing compaction again.
 
+The handler adds only messages it has not seen before. If your agent changes, removes or reorders messages already in the history, call `reset()` with the new prefix before the next `compact_input()`, so that the next input is built from the changed history.
+
+`reset()` clears the handler's state but does not remove summaries from your messages. A summary compaction (including `CompactionAuto`'s summary fallback) starts from the latest summary in the conversation, so before resetting, remove any summaries that the changed history invalidated.
+
 ::: {.callout-note}
 The returned `compact` handler maintains internal state for a single growing conversation history. Concurrent calls within the same conversation are safe, but do not share one handler across divergent message histories — the compacted result mixes them.
 :::

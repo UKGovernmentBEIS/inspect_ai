@@ -509,12 +509,12 @@ def view_server_app(
 
     @app.get(
         "/log-headers",
+        response_model=list[EvalLog],
         response_class=InspectJsonResponse,
-        response_model_exclude_none=True,
     )
     async def api_log_headers(
         request: Request, file: list[str] = Query([])
-    ) -> list[EvalLog]:
+    ) -> Response:
         files = [normalize_uri(f) for f in file]
 
         async def _validate_and_map(f: str) -> str:
@@ -523,7 +523,13 @@ def view_server_app(
 
         mapped_files = await tg_collect([partial(_validate_and_map, f) for f in files])
 
-        return await read_eval_log_headers_async(mapped_files)
+        headers = await read_eval_log_headers_async(mapped_files)
+        return InspectJsonResponse(
+            content=[
+                header.model_dump(mode="json", by_alias=True, exclude_none=True)
+                for header in headers
+            ]
+        )
 
     @app.get("/user-info", response_model_exclude_none=True)
     async def api_user_info() -> UserInfo:
