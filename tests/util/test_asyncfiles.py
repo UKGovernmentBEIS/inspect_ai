@@ -1,5 +1,6 @@
 import asyncio
 import functools
+import gc
 import io
 import os
 import tempfile
@@ -8,12 +9,14 @@ import time
 import tracemalloc
 import uuid
 from pathlib import Path
-from typing import Any, Callable, Iterator, cast
+from typing import Any, AsyncGenerator, Awaitable, Callable, Iterator, cast
 from unittest.mock import AsyncMock, Mock
 
 import aiohttp
 import anyio
+import anyio.lowlevel
 import boto3
+import fsspec.asyn  # type: ignore[import-untyped]  # fsspec ships no type stubs
 import pytest
 from aiobotocore.awsrequest import AioAWSResponse
 from anyio import EndOfStream
@@ -46,7 +49,7 @@ from inspect_ai._util.asyncfiles import (
     s3_write_file_streaming,
 )
 from inspect_ai._util.error import WriteConflictError
-from inspect_ai._util.file import to_uri
+from inspect_ai._util.file import filesystem, to_uri
 
 S3_BUCKET = "s3://test-bucket"
 
@@ -3883,3 +3886,566 @@ async def test_get_file_if_match_memory_is_bounded_by_ranges(
     assert peak < 2 * chunk * concurrency
     if current_async_backend() == "asyncio":
         assert obj.max_in_flight == concurrency
+
+
+# =============================================================================
+# Tests for reads from async fsspec filesystems (gs://, az://, ...): they run on
+# fsspec's own event loop without blocking the caller's
+# =============================================================================
+
+_GATE_TIMEOUT = 5.0
+_GATED_URL = "gatedtest://bucket/dir/a.bin"
+_PAYLOAD = bytes(range(256)) * 4
+
+
+class _GatedFS(fsspec.asyn.AsyncFileSystem):
+    """An async fsspec filesystem whose calls finish only once released.
+
+    A task on the caller's event loop releases each call (`released`) or all of
+    them (`release`), so a call that blocks that loop never finishes: it times
+    out instead. Like adlfs, it defines `_walk` as an unrelated synchronous
+    helper and implements `_find` itself.
+    """
+
+    protocol = "gatedtest"
+
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.files = {"bucket/dir/a.bin": _PAYLOAD, "bucket/dir/sub/b.bin": b"b"}
+        self.release = threading.Event()
+        self.released = 0
+        self.entries = 0
+        self.cat_calls = 0
+        self.cat_ranges: list[tuple[int | None, int | None]] = []
+        self.ls_calls = 0
+        self.cat_returned = threading.Event()
+        self.children_pending = 0
+        self.late_writes = 0
+        self.backend_cancelled = False
+
+    async def _gate(self) -> None:
+        self.entries += 1
+        entry = self.entries
+        await self._wait_for(
+            lambda: self.release.is_set() or self.released >= entry,
+            "caller's event loop never released the gate",
+        )
+
+    async def _wait_for(
+        self, condition: Callable[[], bool], timeout_message: str
+    ) -> None:
+        deadline = time.monotonic() + _GATE_TIMEOUT
+        while not condition():
+            if time.monotonic() > deadline:
+                raise TimeoutError(timeout_message)
+            await asyncio.sleep(0.001)
+
+    def _walk(self, path: str, dirs: Any, files: Any) -> None:
+        raise AssertionError("adlfs's `_walk` is not fsspec's async walk")
+
+    async def _find(
+        self, path: str, withdirs: bool = False, detail: bool = False, **kwargs: Any
+    ) -> Any:
+        path = self._strip_protocol(path)
+        await self._gate()
+        found = {
+            key: {"name": key, "size": len(data), "type": "file"}
+            for key, data in sorted(self.files.items())
+            if key.startswith(f"{path}/")
+        }
+        return found if detail else list(found)
+
+    async def _info(self, path: str, **kwargs: Any) -> dict[str, Any]:
+        path = self._strip_protocol(path)
+        await self._gate()
+        if path in self.files:
+            return {"name": path, "size": len(self.files[path]), "type": "file"}
+        if any(key.startswith(f"{path}/") for key in self.files):
+            return {"name": path, "size": 0, "type": "directory"}
+        raise FileNotFoundError(path)
+
+    async def _ls(self, path: str, detail: bool = True, **kwargs: Any) -> list[Any]:
+        self.ls_calls += 1
+        path = self._strip_protocol(path)
+        await self._gate()
+        entries: dict[str, dict[str, Any]] = {}
+        for key, data in self.files.items():
+            if key.startswith(f"{path}/"):
+                child, _, rest = key[len(path) + 1 :].partition("/")
+                name = f"{path}/{child}"
+                entries[name] = {
+                    "name": name,
+                    "size": 0 if rest else len(data),
+                    "type": "directory" if rest else "file",
+                }
+        if not entries:
+            raise FileNotFoundError(path)
+        return list(entries.values()) if detail else list(entries)
+
+    async def _cat_file(
+        self, path: str, start: int | None = None, end: int | None = None, **kwargs: Any
+    ) -> bytes:
+        self.cat_calls += 1
+        self.cat_ranges.append((start, end))
+        path = self._strip_protocol(path)
+        try:
+            await self._gate()
+            if path.endswith("timeout.bin"):
+                raise TimeoutError(path)
+            if path not in self.files:
+                raise FileNotFoundError(path)
+            if start is not None and 0 < len(self.files[path]) <= start:
+                # as gcsfs and adlfs do (HTTP 416)
+                raise OSError(f"range starting at {start} is past the end of {path}")
+            return self.files[path][start:end]
+        except asyncio.CancelledError:
+            self.backend_cancelled = True
+            raise
+        finally:
+            self.cat_returned.set()
+
+    async def _get_file(self, rpath: str, lpath: str, **kwargs: Any) -> None:
+        path = self._strip_protocol(rpath)
+        if path not in self.files:
+            raise FileNotFoundError(path)
+        if path.endswith("chunked.bin"):
+            await self._get_file_in_chunks(self.files[path], lpath)
+            return
+        await self._gate()
+        with open(lpath, "wb") as f:
+            f.write(self.files[path])
+
+    async def _get_file_in_chunks(self, data: bytes, lpath: str) -> None:
+        """Like the Azure SDK: chunk tasks that cancelling the download leaves running."""
+        with open(lpath, "wb") as f:
+
+            async def write_chunk(offset: int) -> None:
+                try:
+                    await self._gate()
+                    # no await between seek and write: chunks share this loop
+                    f.seek(offset)
+                    f.write(data[offset : offset + 256])
+                except Exception:
+                    self.late_writes += 1
+                finally:
+                    self.children_pending -= 1
+
+            children = []
+            for offset in range(0, len(data), 256):
+                self.children_pending += 1
+                children.append(asyncio.ensure_future(write_chunk(offset)))
+            try:
+                await asyncio.wait(children)
+            except asyncio.CancelledError:
+                self.backend_cancelled = True
+                raise
+
+
+@pytest.fixture
+def gated_fs() -> Iterator[_GatedFS]:
+    fsspec.register_implementation("gatedtest", _GatedFS, clobber=True)
+    _GatedFS.clear_instance_cache()
+    fs = filesystem("gatedtest://bucket").fs
+    assert isinstance(fs, _GatedFS)
+    yield fs
+    _GatedFS.clear_instance_cache()
+
+
+async def _release_when_entered(fs: _GatedFS, entries: int = 1) -> None:
+    while fs.entries < entries:
+        await anyio.sleep(0.001)
+    fs.release.set()
+
+
+async def _keep_releasing(fs: _GatedFS) -> None:
+    """Release each gated call once the caller's loop has run since it started."""
+    while True:
+        fs.released = fs.entries
+        await anyio.sleep(0.001)
+
+
+async def _flush_fsspec_loop(fs: _GatedFS) -> None:
+    """Return once fsspec's loop has run every callback queued before this one."""
+    flushed = threading.Event()
+    fs.loop.call_soon_threadsafe(flushed.set)
+    while not flushed.is_set():
+        await anyio.sleep(0.001)
+
+
+async def _settle(fs: _GatedFS) -> None:
+    """Let the caller handle its cancellation and fsspec's loop act on it."""
+    for _ in range(5):
+        await anyio.lowlevel.checkpoint()
+    # a cancelled task's next step is queued behind the cancel itself
+    await _flush_fsspec_loop(fs)
+    await _flush_fsspec_loop(fs)
+
+
+async def _cancel_then_release(fs: _GatedFS, scope: anyio.CancelScope) -> None:
+    """Cancel once a backend call is in flight; release it once that has settled."""
+    while fs.entries < 1:
+        await anyio.sleep(0.001)
+    scope.cancel()
+    with anyio.CancelScope(shield=True):
+        await _settle(fs)
+        fs.release.set()
+
+
+async def _get_file_and_read(afs: AsyncFilesystem, tmp: Path) -> bytes:
+    local = tmp / "out.bin"
+    await afs.get_file(_GATED_URL, str(local))
+    return local.read_bytes()
+
+
+def _basename(path: str) -> str:
+    return path.rstrip("/").rsplit("/", 1)[-1]
+
+
+async def _info_fields(afs: AsyncFilesystem, tmp: Path) -> tuple[str, int, str]:
+    info = await afs.info(_GATED_URL)
+    return info.name, info.size, info.type
+
+
+async def _iter_file_names(afs: AsyncFilesystem, recursive: bool) -> set[str]:
+    base = "gatedtest://bucket/dir"
+    return {_basename(f) async for f in afs.iter_files(base, recursive=recursive)}
+
+
+async def _iter_file_info_names(afs: AsyncFilesystem, tmp: Path) -> set[str]:
+    files = afs.iter_files("gatedtest://bucket/dir", recursive=True, detail=True)
+    return {_basename(f.name) async for f in files}
+
+
+async def _iter_dir_names(afs: AsyncFilesystem, recursive: bool) -> set[str]:
+    base = "gatedtest://bucket/dir"
+    return {_basename(d) async for d in afs.iter_dirs(base, recursive=recursive)}
+
+
+async def _list_dir_names(afs: AsyncFilesystem, tmp: Path) -> tuple[set[str], set[str]]:
+    listing = await afs.list_dir("gatedtest://bucket/dir")
+    return {_basename(f.name) for f in listing.files}, {
+        _basename(d) for d in listing.dirs
+    }
+
+
+async def _read_file_info_data(afs: AsyncFilesystem, tmp: Path) -> bytes:
+    return (await afs.read_file_info(_GATED_URL)).data
+
+
+async def _read_file_suffix_fields(
+    afs: AsyncFilesystem, tmp: Path
+) -> tuple[bytes, int]:
+    suffix = await afs.read_file_suffix(_GATED_URL, 100)
+    return suffix.data, suffix.file_size
+
+
+async def _read_file_bytes_drained(afs: AsyncFilesystem, tmp: Path) -> bytes:
+    stream = await afs.read_file_bytes(_GATED_URL, 2, 5)
+    async with stream:
+        return b"".join([chunk async for chunk in stream])
+
+
+async def _read_file_into_bytes(afs: AsyncFilesystem, tmp: Path) -> bytes:
+    with tempfile.TemporaryFile() as dest:
+        await afs.read_file_into(_GATED_URL, dest, chunk_size=100)
+        dest.seek(0)
+        return dest.read()
+
+
+_NonBlockingCall = Callable[[AsyncFilesystem, Path], Awaitable[Any]]
+
+_NON_BLOCKING_CASES = [
+    pytest.param(lambda afs, tmp: afs.read_file(_GATED_URL), _PAYLOAD, id="read_file"),
+    pytest.param(_get_file_and_read, _PAYLOAD, id="get_file"),
+    pytest.param(
+        _info_fields, ("gatedtest://bucket/dir/a.bin", 1024, "file"), id="info"
+    ),
+    pytest.param(lambda afs, tmp: afs.exists(_GATED_URL), True, id="exists"),
+    pytest.param(
+        lambda afs, tmp: _iter_file_names(afs, recursive=False),
+        {"a.bin"},
+        id="iter_files",
+    ),
+    pytest.param(
+        lambda afs, tmp: _iter_file_names(afs, recursive=True),
+        {"a.bin", "b.bin"},
+        id="iter_files_recursive",
+    ),
+    pytest.param(
+        _iter_file_info_names, {"a.bin", "b.bin"}, id="iter_files_recursive_detail"
+    ),
+    pytest.param(
+        lambda afs, tmp: _iter_dir_names(afs, recursive=False),
+        {"sub"},
+        id="iter_dirs",
+    ),
+    pytest.param(
+        lambda afs, tmp: _iter_dir_names(afs, recursive=True),
+        {"sub"},
+        id="iter_dirs_recursive",
+    ),
+    pytest.param(_list_dir_names, ({"a.bin"}, {"sub"}), id="list_dir"),
+    pytest.param(_read_file_info_data, _PAYLOAD, id="read_file_info"),
+    pytest.param(_read_file_bytes_drained, _PAYLOAD[2:5], id="read_file_bytes"),
+    pytest.param(
+        lambda afs, tmp: afs.read_file_bytes_fully(_GATED_URL, 2, 5),
+        _PAYLOAD[2:5],
+        id="read_file_bytes_fully",
+    ),
+    pytest.param(
+        _read_file_suffix_fields, (_PAYLOAD[-100:], 1024), id="read_file_suffix"
+    ),
+    pytest.param(_read_file_into_bytes, _PAYLOAD, id="read_file_into"),
+]
+
+
+@pytest.mark.parametrize("call,expected", _NON_BLOCKING_CASES)
+async def test_async_fsspec_reads_do_not_block_the_loop(
+    gated_fs: _GatedFS, tmp_path: Path, call: _NonBlockingCall, expected: Any
+) -> None:
+    async with AsyncFilesystem() as afs:
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(_keep_releasing, gated_fs)
+            result = await call(afs, tmp_path)
+            tg.cancel_scope.cancel()
+    assert result == expected
+
+
+async def test_async_fsspec_recursive_iter_dirs_yields_as_it_lists(
+    gated_fs: _GatedFS,
+) -> None:
+    gated_fs.release.set()
+    async with AsyncFilesystem() as afs:
+        dirs = cast(
+            AsyncGenerator[str, None],
+            afs.iter_dirs("gatedtest://bucket/dir", recursive=True),
+        )
+        assert await anext(dirs) == "bucket/dir/sub/"
+        assert gated_fs.ls_calls == 1
+        await dirs.aclose()
+
+
+@skip_if_trio
+@pytest.mark.timeout(30, method="thread")
+async def test_repeated_native_cancel_still_waits_for_the_backend(
+    gated_fs: _GatedFS, tmp_path: Path
+) -> None:
+    gated_fs.files["bucket/dir/chunked.bin"] = _PAYLOAD
+    local = tmp_path / "out.bin"
+    async with AsyncFilesystem() as afs:
+        task = asyncio.create_task(
+            afs.get_file("gatedtest://bucket/dir/chunked.bin", str(local))
+        )
+        while gated_fs.entries < 1:
+            await anyio.sleep(0.001)
+        task.cancel()
+        await _settle(gated_fs)
+        # a native cancel reaches through anyio's shield
+        task.cancel()
+        await _settle(gated_fs)
+        assert not task.done()
+        assert not gated_fs.backend_cancelled
+        gated_fs.release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+    assert gated_fs.children_pending == 0
+    assert local.read_bytes() == _PAYLOAD
+
+
+async def test_async_fsspec_reads_overlap(gated_fs: _GatedFS) -> None:
+    # released only once both reads are inside the filesystem at the same time
+    async with AsyncFilesystem() as afs:
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(_release_when_entered, gated_fs, 2)
+            results = await tg_collect([lambda: afs.read_file(_GATED_URL)] * 2)
+    assert results == [_PAYLOAD, _PAYLOAD]
+
+
+@pytest.mark.timeout(30, method="thread")
+async def test_cancelled_get_file_waits_for_backend_child_tasks(
+    gated_fs: _GatedFS, tmp_path: Path
+) -> None:
+    gated_fs.files["bucket/dir/chunked.bin"] = _PAYLOAD
+    local = tmp_path / "out.bin"
+    with anyio.CancelScope() as scope:
+        async with AsyncFilesystem() as afs, anyio.create_task_group() as tg:
+            tg.start_soon(_cancel_then_release, gated_fs, scope)
+            await afs.get_file("gatedtest://bucket/dir/chunked.bin", str(local))
+    assert scope.cancelled_caught
+    assert not gated_fs.backend_cancelled
+    assert (gated_fs.children_pending, gated_fs.late_writes) == (0, 0)
+    assert local.read_bytes() == _PAYLOAD
+
+
+@pytest.mark.timeout(30, method="thread")
+async def test_cancelled_read_retrieves_the_backend_error(
+    gated_fs: _GatedFS, caplog: pytest.LogCaptureFixture
+) -> None:
+    with anyio.CancelScope() as scope:
+        async with AsyncFilesystem() as afs, anyio.create_task_group() as tg:
+            tg.start_soon(_cancel_then_release, gated_fs, scope)
+            await afs.read_file("gatedtest://bucket/timeout.bin")
+    assert scope.cancelled_caught
+    assert not gated_fs.backend_cancelled
+    gc.collect()
+    assert not [r for r in caplog.records if "never retrieved" in r.getMessage()]
+
+
+@pytest.mark.timeout(30, method="thread")
+async def test_async_fsspec_read_completes_while_loop_makes_sync_call(
+    gated_fs: _GatedFS,
+) -> None:
+    async def wait_for_read_task() -> None:
+        # runs on fsspec's loop: returns once the read's `_cat_file` has
+        # returned and its task's done callback has had a loop iteration to run
+        while not gated_fs.cat_returned.is_set():
+            await asyncio.sleep(0.001)
+        await asyncio.sleep(0.001)
+
+    async def release_then_block() -> None:
+        await _release_when_entered(gated_fs)
+        # blocks this loop until the read task's done callback has run on
+        # fsspec's loop; deadlocks if that callback waits for this loop
+        fsspec.asyn.sync(gated_fs.loop, wait_for_read_task)
+
+    async with AsyncFilesystem() as afs, anyio.create_task_group() as tg:
+        tg.start_soon(release_then_block)
+        assert await afs.read_file(_GATED_URL) == _PAYLOAD
+
+
+async def test_async_fsspec_errors_pass_through(gated_fs: _GatedFS) -> None:
+    gated_fs.release.set()
+    async with AsyncFilesystem() as afs:
+        with pytest.raises(FileNotFoundError):
+            await afs.read_file("gatedtest://bucket/missing.bin")
+        with pytest.raises(fsspec.FSTimeoutError):
+            await afs.read_file("gatedtest://bucket/timeout.bin")
+
+
+async def test_async_fsspec_read_range_edges(gated_fs: _GatedFS) -> None:
+    gated_fs.release.set()
+    async with AsyncFilesystem() as afs:
+        assert await afs.read_file_bytes_fully(_GATED_URL, 10, 10) == b""
+        with pytest.raises(FileNotFoundError):
+            await afs.read_file_bytes_fully("gatedtest://bucket/missing.bin", 0, 0)
+        with pytest.raises(ValueError):
+            await afs.read_file_bytes_fully(_GATED_URL, -1, None)
+    # older gcsfs releases' `_cat_file` sends an unsatisfiable range for an empty one
+    assert gated_fs.cat_calls == 0
+
+
+_RANGE = 1024
+_RANGED_URL = "gatedtest://bucket/dir/big.bin"
+
+
+@pytest.fixture
+def ranged_file(gated_fs: _GatedFS, monkeypatch: pytest.MonkeyPatch) -> bytes:
+    """A 3.5-range file on the released gated filesystem, with `_RANGE` ranges."""
+    monkeypatch.setattr(asyncfiles, "_REMOTE_RANGE_SIZE", _RANGE)
+    gated_fs.release.set()
+    payload = os.urandom(3 * _RANGE + _RANGE // 2)
+    gated_fs.files["bucket/dir/big.bin"] = payload
+    return payload
+
+
+def _ranges(start: int, end: int) -> list[tuple[int, int]]:
+    """Contiguous ranges of at most `_RANGE` bytes covering [start, end)."""
+    return [(s, min(s + _RANGE, end)) for s in range(start, end, _RANGE)]
+
+
+async def test_async_remote_read_file_bytes_streams_in_ranges(
+    gated_fs: _GatedFS, ranged_file: bytes
+) -> None:
+    start, end = 100, len(ranged_file)
+    async with AsyncFilesystem() as afs:
+        stream = await afs.read_file_bytes(_RANGED_URL, start, end)
+        async with stream:
+            chunks = [chunk async for chunk in stream]
+    assert b"".join(chunks) == ranged_file[start:end]
+    assert gated_fs.cat_ranges == _ranges(start, end)
+
+
+async def test_async_remote_read_file_bytes_stops_fetching_when_closed(
+    gated_fs: _GatedFS, ranged_file: bytes
+) -> None:
+    async with AsyncFilesystem() as afs:
+        stream = await afs.read_file_bytes(_RANGED_URL, 0, len(ranged_file))
+        assert await stream.receive(10) == ranged_file[:10]
+        await stream.aclose()
+        with pytest.raises(EndOfStream):
+            await stream.receive(10)
+    assert gated_fs.cat_ranges == [(0, _RANGE)]
+
+
+async def test_async_remote_read_file_bytes_fully_is_one_request(
+    gated_fs: _GatedFS, ranged_file: bytes
+) -> None:
+    end = len(ranged_file)
+    async with AsyncFilesystem() as afs:
+        whole = await afs.read_file_bytes_fully(_RANGED_URL, 0, end)
+        to_eof = await afs.read_file_bytes_fully(_RANGED_URL, 100, None)
+    assert (whole, to_eof) == (ranged_file, ranged_file[100:])
+    assert gated_fs.cat_ranges == [(0, end), (100, None)]
+
+
+@pytest.mark.timeout(30, method="thread")
+async def test_async_remote_read_file_bytes_cancelled_receive_keeps_offset(
+    gated_fs: _GatedFS, ranged_file: bytes
+) -> None:
+    gated_fs.release.clear()
+    start = 100
+    async with AsyncFilesystem() as afs:
+        stream = await afs.read_file_bytes(_RANGED_URL, start, len(ranged_file))
+        with anyio.CancelScope() as scope:
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(_cancel_then_release, gated_fs, scope)
+                await stream.receive(10)
+        assert scope.cancelled_caught
+        # the cancelled receive's `_cat_file` ran to completion first
+        assert gated_fs.cat_returned.is_set()
+        assert not gated_fs.backend_cancelled
+        assert await stream.receive(10) == ranged_file[start : start + 10]
+    assert gated_fs.cat_ranges == [(start, start + _RANGE)] * 2
+
+
+async def test_async_remote_read_file_bytes_ends_at_a_short_piece(
+    gated_fs: _GatedFS, ranged_file: bytes
+) -> None:
+    short = 2 * _RANGE - 48
+    async with AsyncFilesystem() as afs:
+        stream = await afs.read_file_bytes(_RANGED_URL, 0, None)
+        # the object shrank after its size was read
+        gated_fs.files["bucket/dir/big.bin"] = ranged_file[:short]
+        async with stream:
+            chunks = [chunk async for chunk in stream]
+            with pytest.raises(EndOfStream):
+                await stream.receive()
+    assert b"".join(chunks) == ranged_file[:short]
+    # the short piece ends the stream; a range after it would start past the end
+    assert gated_fs.cat_ranges == _ranges(0, 2 * _RANGE)
+
+
+def test_http_keeps_the_synchronous_path() -> None:
+    assert not asyncfiles._is_async_remote(filesystem("https://example.com/x.eval"))
+
+
+async def test_reference_keeps_the_synchronous_path(
+    gated_fs: _GatedFS, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    gated_fs.release.set()
+    reference = {"fo": {"foo": [_GATED_URL]}, "fs": gated_fs}
+    monkeypatch.setitem(fsspec.config.conf, "reference", reference)
+    dest = io.BytesIO()
+    async with AsyncFilesystem() as afs:
+        await afs.read_file_into("reference://foo", dest)
+    assert dest.getvalue() == _PAYLOAD
+
+
+async def test_dir_over_a_sync_filesystem_keeps_the_synchronous_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    (tmp_path / "a.bin").write_bytes(_PAYLOAD)
+    dir_options = {"path": str(tmp_path), "target_protocol": "file"}
+    monkeypatch.setitem(fsspec.config.conf, "dir", dir_options)
+    async with AsyncFilesystem() as afs:
+        assert await afs.read_file("dir://a.bin") == _PAYLOAD

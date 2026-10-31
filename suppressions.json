@@ -201,6 +201,11 @@
       "undescribed": 1
     }
   },
+  "src/inspect_ai/_util/asyncfiles.py": {
+    "type: ignore[import-untyped]": {
+      "count": 1
+    }
+  },
   "src/inspect_ai/_util/download.py": {
     "type: ignore[import-not-found]": {
       "count": 1,
@@ -1850,6 +1855,11 @@
     "type: ignore[import-untyped]": {
       "count": 1,
       "undescribed": 1
+    }
+  },
+  "tests/util/test_asyncfiles.py": {
+    "type: ignore[import-untyped]": {
+      "count": 1
     }
   },
   "tests/util/test_file.py": {
