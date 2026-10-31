@@ -169,10 +169,11 @@ dropping samples.
   measure early errors against a transiently small denominator (a 1-sample
   seed erroring first would trip `1 >= 0.5*1` before the source produced the
   rest). Absolute-count and any-error thresholds still abort mid-run.
-- **`--sample-id`** filters produced samples with the same
-  normalise+`fnmatch` predicate that filters the seed (`sample_id_filter` in
-  task/util.py). Callers that hold the task pass `dynamic=True` to
-  `slice_dataset` (log spec, sandbox startup, task_run) so it neither warns
+- **`--sample-id`** filters produced samples with the same predicate that
+  filters the seed (`sample_id_filter` in task/util.py): globs match visible
+  string IDs, while exact selectors retain numeric normalization. Callers that
+  hold the task pass `dynamic=True` to `slice_dataset` (log spec, sandbox
+  startup, task_run) so it neither warns
   nor raises for requested ids missing from the seed — the source may produce
   them at runtime. Filtered-out samples still register their ids (duplicate
   ids stay a hard error) but don't run and don't grow the planned totals. As
