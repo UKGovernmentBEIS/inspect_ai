@@ -10,6 +10,7 @@ from pydantic import JsonValue
 from inspect_ai import eval
 from inspect_ai._eval.task.task import Task
 from inspect_ai.analysis import (
+    EvalColumn,
     EvalInfo,
     EvalModel,
     EvalResults,
@@ -306,6 +307,27 @@ def test_evals_df_strict():
     df, errors = evals_df(LOGS_DIR, strict=False)
     assert len(df) == 4
     assert len(errors) == 0
+
+
+@pytest.mark.parametrize(
+    "reader,columns",
+    [
+        (samples_df, SampleSummary),
+        (messages_df, MessageColumns),
+        (events_df, EventInfo),
+    ],
+)
+def test_sample_readers_strict_eval_column(reader, columns):
+    missing = EvalColumn("experiment", path="metadata.experiment", required=True)
+    columns = columns + [missing]
+
+    df, errors = reader(SECURITY_GUIDE_LOG, columns=columns, strict=False)
+    assert len(df) > 0
+    assert df["experiment"].isna().all()
+    assert [error.column for error in errors] == ["experiment"]
+
+    with pytest.raises(ValueError, match="experiment"):
+        reader(SECURITY_GUIDE_LOG, columns=columns, strict=True)
 
 
 def test_evals_df_filter():
