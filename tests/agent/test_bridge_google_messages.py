@@ -1,6 +1,6 @@
-"""Regression test for functionResponse-in-model-turn handling in the Gemini bridge.
+"""Tests for message and response translation in the Gemini bridge.
 
-localharness (Google Antigravity SDK) returns tool RESULTS as a `functionResponse`
+functionResponse in a model turn: localharness (Google Antigravity SDK) returns tool RESULTS as a `functionResponse`
 part inside a `role="model"` turn (cloudcode dialect), not the public-Gemini
 `role="user"`/function turn. Before the fix, `_extract_model_parts` had no
 functionResponse branch, so the result was silently dropped -> an empty assistant turn
@@ -150,3 +150,32 @@ def test_google_response_without_logprobs_is_unchanged(
     assert response == expected
     assert "logprobsResult" not in response["candidates"][0]
     assert "avgLogprobs" not in response["candidates"][0]
+
+
+@pytest.mark.parametrize(
+    "clear_before_typing",
+    [None, False, True],
+    ids=["omitted", "false", "true"],
+)
+def test_google_response_sends_type_text_at_clear_before_typing(
+    clear_before_typing: bool | None,
+) -> None:
+    """The bridged agent clears the field when the flag is missing, so False is sent."""
+    # computer() call as made by a Gemini model given computer() as an ordinary
+    # function (e.g. gemini-2.5-pro), which leaves clear_before_typing out
+    arguments: dict[str, object] = {
+        "action": "type",
+        "text": "200",
+        "coordinate": [683, 384],
+    }
+    if clear_before_typing is not None:
+        arguments["clear_before_typing"] = clear_before_typing
+    output = ModelOutput.for_tool_call("mockllm/model", "computer", arguments)
+
+    parts = gemini_response_from_output(output, "model")["candidates"][0]["content"][
+        "parts"
+    ]
+
+    function_call = next(p["functionCall"] for p in parts if "functionCall" in p)
+    assert function_call["name"] == "type_text_at"
+    assert function_call["args"]["clear_before_typing"] is bool(clear_before_typing)

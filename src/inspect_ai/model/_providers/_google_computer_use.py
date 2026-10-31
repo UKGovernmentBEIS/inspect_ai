@@ -110,6 +110,8 @@ def gemini_action_from_tool_call(
         result: dict[str, object] = {"text": text, "x": x, "y": y}
         if "press_enter" in arguments:
             result["press_enter"] = bool(arguments["press_enter"])
+        # Gemini defaults clear_before_typing to True, so send False explicitly
+        result["clear_before_typing"] = bool(arguments.get("clear_before_typing"))
         return "type_text_at", result
 
     elif action == "scroll":
@@ -169,6 +171,7 @@ def _parse_gemini_action(name: str, args: dict[str, object]) -> dict[str, object
             "text": text,
             "coordinate": [x, y],
             "press_enter": bool(args.get("press_enter", True)),
+            "clear_before_typing": bool(args.get("clear_before_typing", True)),
         }
 
     elif name == "hover_at":
