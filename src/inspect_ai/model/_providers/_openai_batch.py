@@ -145,14 +145,29 @@ class OpenAIBatcher(FileBatcher[ResponseT, CompletedBatchInfo], Generic[Response
             )
 
         if (error := result.get("error")) is None:
-            response_body = result["response"]["body"]
-            return request_id, self._response_cls.model_validate(response_body)
-        else:
-            return request_id, (
-                self._openai_client._make_status_error_from_response(  # pyright: ignore[reportPrivateUsage]
-                    httpx2.Response(status_code=error["code"], text=error["message"])
+            response = result["response"]
+            response_body = response["body"]
+            if (
+                isinstance(response.get("status_code"), int)
+                and response["status_code"] >= 400
+                and isinstance(response_body, dict)
+                and isinstance(response_body.get("error"), dict)
+            ):
+                error = response_body["error"]
+                return request_id, self._openai_client._make_status_error_from_response(  # pyright: ignore[reportPrivateUsage]
+                    httpx2.Response(
+                        status_code=response["status_code"],
+                        text=error.get("message", ""),
+                    )
                 )
+            else:
+                return request_id, self._response_cls.model_validate(response_body)
+        assert isinstance(error, dict)
+        return request_id, (
+            self._openai_client._make_status_error_from_response(  # pyright: ignore[reportPrivateUsage]
+                httpx2.Response(status_code=error["code"], text=error["message"])
             )
+        )
 
     # Batcher overrides
 
