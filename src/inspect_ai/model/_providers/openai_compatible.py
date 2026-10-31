@@ -539,11 +539,30 @@ class OpenAICompatibleAPI(ModelAPI):
         """
         return config.prompt_logprobs is None
 
+    @property
+    def requires_strict_tools(self) -> bool:
+        """Whether the provider requires `strict=True` on every tool.
+
+        Such providers get `strict=True` even for tools whose schema doesn't
+        meet strict mode's rules, rather than the per-tool fallback.
+        """
+        return False
+
     def tools_to_openai(self, tools: list[ToolInfo]) -> list[ChatCompletionToolParam]:
-        # some inference platforms (e.g. hf-inference) require strict=True
         openai_tools = openai_chat_tools(tools, exclude=self.schema_exclude_fields)
         for tool in openai_tools:
-            tool["function"]["strict"] = self.strict_tools
+            function = tool["function"]
+            strict = self.strict_tools
+            if strict and not self.requires_strict_tools:
+                violation = _strict_schema_violation(function.get("parameters"))
+                if violation is not None:
+                    warn_once(
+                        logger,
+                        f"Tool '{function['name']}' sent with strict=false: {violation}. "
+                        "Pass -M strict_tools=false to send all tools non-strict.",
+                    )
+                    strict = False
+            function["strict"] = strict
         return openai_tools
 
     async def messages_to_openai(
@@ -681,3 +700,45 @@ class ModelInfo(ResponsesModelInfo):
 
     def is_codex(self) -> bool:
         return "codex" in self.model_family
+
+
+def _strict_schema_violation(schema: Any, path: str = "") -> str | None:
+    """Why a tool parameter schema can't be sent in strict mode.
+
+    OpenAI strict mode requires every object in the schema (top level and
+    nested) to list all of its properties in `required` and to set
+    `additionalProperties` to false. Strict-mode backends reject a request
+    with any tool that breaks either rule.
+
+    Args:
+        schema: JSON Schema of a tool's parameters, as sent to the provider.
+        path: Dotted prefix locating `schema` within the parameters.
+
+    Returns:
+        The first rule the schema breaks, or `None` if it can be strict.
+    """
+    if isinstance(schema, list):
+        for item in schema:
+            if violation := _strict_schema_violation(item, path):
+                return violation
+        return None
+    if not isinstance(schema, dict):
+        return None
+    properties: dict[str, Any] = schema.get("properties") or {}
+    schema_type = schema.get("type")
+    is_object = schema_type == "object" or (
+        isinstance(schema_type, list) and "object" in schema_type
+    )
+    if is_object or properties:
+        required = schema.get("required") or []
+        optional = [name for name in properties if name not in required]
+        if optional:
+            return f"parameter '{path}{optional[0]}' is not required"
+        if schema.get("additionalProperties") is not False:
+            return f"'{path.rstrip('.') or 'parameters'}' allows additional properties"
+    for name, child in properties.items():
+        if violation := _strict_schema_violation(child, f"{path}{name}."):
+            return violation
+    if violation := _strict_schema_violation(schema.get("items"), path):
+        return violation
+    return _strict_schema_violation(schema.get("anyOf"), path)

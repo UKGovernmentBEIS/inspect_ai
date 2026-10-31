@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from typing import Any, Literal
 
 import httpx2
@@ -15,6 +16,7 @@ from test_helpers.utils import (
     skip_if_no_together_base_url,
 )
 
+from inspect_ai._util import logger as inspect_logger
 from inspect_ai._util.environ import environ_var
 from inspect_ai.model import (
     ChatMessageUser,
@@ -32,10 +34,13 @@ from inspect_ai.model._openai import (
     openai_chat_completion_stream_final,
     openai_handle_stream_error,
 )
+from inspect_ai.model._providers.fireworks import FireworksAIAPI
+from inspect_ai.model._providers.hf_inference_providers import HFInferenceProvidersAPI
 from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
 from inspect_ai.model._providers.together import TogetherAIAPI
 from inspect_ai.model._stream import ModelStreamObserver, model_stream_observer
-from inspect_ai.tool import ToolInfo
+from inspect_ai.tool import ToolInfo, ToolParam, ToolParams
+from inspect_ai.tool._tool_info import parse_tool_info
 
 
 @skip_if_no_together
@@ -82,6 +87,145 @@ def test_strict_tools_default_true() -> None:
 
     tools = api.tools_to_openai([ToolInfo(name="test_tool", description="Test tool")])
     assert tools[0]["function"]["strict"] is True
+
+
+@pytest.fixture
+def warned() -> Iterator[list[str]]:
+    # warn_once dedupes via a module-level list; clear it so each test sees its warnings
+    inspect_logger._warned.clear()
+    yield inspect_logger._warned
+    inspect_logger._warned.clear()
+
+
+def strict_api(strict_tools: bool = True) -> OpenAICompatibleAPI:
+    return OpenAICompatibleAPI(
+        model_name="openai-api/openai/gpt-5",
+        api_key="test",
+        base_url="https://example.com",
+        strict_tools=strict_tools,
+    )
+
+
+def tool_with(properties: dict[str, ToolParam], required: list[str]) -> ToolInfo:
+    return ToolInfo(
+        name="lookup",
+        description="Test tool",
+        parameters=ToolParams(properties=properties, required=required),
+    )
+
+
+def strict_object(properties: dict[str, ToolParam]) -> ToolParam:
+    return ToolParam(
+        type="object",
+        properties=properties,
+        required=list(properties),
+        additionalProperties=False,
+    )
+
+
+@pytest.mark.parametrize(
+    "properties,required,reason",
+    [
+        (
+            {
+                "table": ToolParam(type="string"),
+                "limit": ToolParam(type="integer", default=10),
+            },
+            ["table"],
+            "parameter 'limit' is not required",
+        ),
+        (
+            {
+                "meta": ToolParam(
+                    type="object", additionalProperties=ToolParam(type="string")
+                )
+            },
+            ["meta"],
+            "'meta' allows additional properties",
+        ),
+        (
+            {
+                "rows": ToolParam(
+                    type="array",
+                    items=ToolParam(
+                        type="object",
+                        properties={
+                            "id": ToolParam(type="integer"),
+                            "name": ToolParam(type="string"),
+                        },
+                        required=["id"],
+                        additionalProperties=False,
+                    ),
+                )
+            },
+            ["rows"],
+            "parameter 'rows.name' is not required",
+        ),
+        (
+            {
+                "filter": ToolParam(
+                    anyOf=[ToolParam(type="null"), ToolParam(type="object")]
+                )
+            },
+            ["filter"],
+            "'filter' allows additional properties",
+        ),
+    ],
+    ids=["optional_parameter", "dict_parameter", "array_items", "any_of"],
+)
+def test_strict_tools_sends_non_strict_schemas_with_strict_false(
+    properties: dict[str, ToolParam],
+    required: list[str],
+    reason: str,
+    warned: list[str],
+) -> None:
+    tools = strict_api().tools_to_openai([tool_with(properties, required)])
+    assert tools[0]["function"]["strict"] is False
+    assert any(f"Tool 'lookup' sent with strict=false: {reason}" in w for w in warned)
+
+
+def test_strict_tools_keeps_strict_for_strict_schemas(warned: list[str]) -> None:
+    strict = ToolInfo(
+        name="strict",
+        description="Test tool",
+        parameters=ToolParams(
+            properties={"filter": strict_object({"mode": ToolParam(type="string")})},
+            required=["filter"],
+        ),
+    )
+    lenient = tool_with({"limit": ToolParam(type="integer", default=10)}, [])
+    tools = strict_api().tools_to_openai([lenient, strict])
+    assert [tool["function"]["strict"] for tool in tools] == [False, True]
+
+
+def test_strict_tools_checks_python_tool_defaults(warned: list[str]) -> None:
+    def sample_rows(table: str, limit: int = 10) -> str:
+        """Return a few rows from a table.
+
+        Args:
+            table: Table name.
+            limit: Rows to return.
+        """
+        return table
+
+    tools = strict_api().tools_to_openai([parse_tool_info(sample_rows)])
+    assert tools[0]["function"]["strict"] is False
+
+
+def test_strict_tools_false_sends_every_tool_non_strict(warned: list[str]) -> None:
+    tool = tool_with({"limit": ToolParam(type="integer", default=10)}, [])
+    tools = strict_api(strict_tools=False).tools_to_openai([tool])
+    assert tools[0]["function"]["strict"] is False
+    assert warned == []
+
+
+@pytest.mark.parametrize("api_class", [HFInferenceProvidersAPI, FireworksAIAPI])
+def test_providers_requiring_strict_keep_it_for_every_tool(
+    api_class: type[OpenAICompatibleAPI], warned: list[str]
+) -> None:
+    api = api_class(model_name="test-model", api_key="test")
+    tool = tool_with({"limit": ToolParam(type="integer", default=10)}, [])
+    assert api.tools_to_openai([tool])[0]["function"]["strict"] is True
 
 
 async def test_responses_phase_model_arg(monkeypatch: pytest.MonkeyPatch) -> None:
