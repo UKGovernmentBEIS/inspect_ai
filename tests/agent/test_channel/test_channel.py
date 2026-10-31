@@ -19,7 +19,7 @@ from inspect_ai.agent._channel import (
     UserMessage,
     current_agent_channel,
 )
-from inspect_ai.agent._channel.gate import turn_gate
+from inspect_ai.agent._channel.gate import after_answer, turn_gate
 from inspect_ai.agent._channel.observer import (
     NullExecutionObserver,
     null_execution_observer,
@@ -616,11 +616,13 @@ async def test_after_cancel_blocks_for_redirect_with_existing_user_messages() ->
 class _RecordingGate:
     """Turn gate that records its calls and returns a set result."""
 
-    def __init__(self, rewrite: bool = False) -> None:
+    def __init__(self, rewrite: bool = False, answer: bool = False) -> None:
         self.rewrite = rewrite
+        self.answer = answer
         self.calls: list[
             tuple[AgentChannel, Sequence[ChatMessage], AgentState | None, int]
         ] = []
+        self.answer_calls: list[tuple[AgentChannel, AgentState]] = []
         self.closed_channels: list[AgentChannel] = []
 
     async def before_turn(
@@ -631,6 +633,10 @@ class _RecordingGate:
     ) -> bool:
         self.calls.append((channel, messages, state, len(channel._queue)))
         return self.rewrite
+
+    async def after_answer(self, channel: AgentChannel, state: AgentState) -> bool:
+        self.answer_calls.append((channel, state))
+        return self.answer
 
     def closed(self, channel: AgentChannel) -> None:
         self.closed_channels.append(channel)
@@ -792,6 +798,27 @@ async def test_channel_opened_outside_turn_gate_has_no_gate() -> None:
         await ch.before_turn([ChatMessageUser(content="prior")])
     assert gate.calls == []
     assert gate.closed_channels == []
+
+
+async def test_after_answer_without_gate_is_false() -> None:
+    gate = _RecordingGate(answer=True)
+    state = AgentState(messages=[ChatMessageUser(content="prior")])
+    with turn_gate(gate):
+        # the inert channel has no gate
+        assert await after_answer(current_agent_channel(), state) is False
+    async with agent_channel() as ch:
+        assert await after_answer(ch, state) is False
+    assert gate.answer_calls == []
+
+
+@pytest.mark.parametrize("answer", [True, False])
+async def test_after_answer_returns_gate_result(answer: bool) -> None:
+    gate = _RecordingGate(answer=answer)
+    state = AgentState(messages=[ChatMessageUser(content="prior")])
+    with turn_gate(gate):
+        async with agent_channel() as ch:
+            assert await after_answer(ch, state) is answer
+    assert gate.answer_calls == [(ch, state)]
 
 
 # ---------------------------------------------------------------------------

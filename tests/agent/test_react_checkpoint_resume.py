@@ -80,6 +80,8 @@ class _ProbeContext:
 class _FakeAgentChannel:
     def __init__(self, events: list[str]) -> None:
         self._events = events
+        # no turn gate, so after_answer() lets the loop return
+        self._gate = None
 
     async def before_turn(
         self, _messages: object, state: object = None

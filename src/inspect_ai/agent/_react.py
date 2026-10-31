@@ -39,6 +39,7 @@ from ._channel import (
     AgentInterrupted,
     agent_channel,
 )
+from ._channel.gate import after_answer, mark_turn_loop
 from ._filter import MessageFilter
 from ._handoff import has_handoff
 from ._types import (
@@ -338,9 +339,13 @@ def react(
                                                 ContentText(text=answer)
                                             )
 
-                                    # exit if we are at max_attempts
+                                    # exit if we are at max_attempts (or continue
+                                    # with fresh attempts if the gate says so)
                                     attempt_count += 1
                                     if attempt_count >= attempts.attempts:
+                                        if await after_answer(ch, state):
+                                            attempt_count = 0
+                                            continue
                                         break
 
                                     # exit if the submission is successful
@@ -349,6 +354,9 @@ def react(
                                         attempts.score_value(answer_scores[0].value)
                                         == 1.0
                                     ):
+                                        if await after_answer(ch, state):
+                                            attempt_count = 0
+                                            continue
                                         break
 
                                     # otherwise notify the model that it was incorrect and continue
@@ -432,6 +440,7 @@ def react(
                     )
                 return state
 
+    mark_turn_loop(execute)
     return _resolve_agent(execute, name, description)
 
 
@@ -551,8 +560,10 @@ def react_no_submit(
                             else:
                                 consecutive_content_filter = 0
 
-                            # resolve tool calls (if any)
-                            if state.output.message.tool_calls:
+                            # resolve tool calls (if any); a handoff can replace
+                            # the output, so note whether this turn called tools
+                            called_tools = bool(state.output.message.tool_calls)
+                            if called_tools:
                                 # call tool functions
                                 messages, output = await execute_tools(
                                     state.messages,
@@ -583,12 +594,17 @@ def react_no_submit(
                             state.messages = do_continue.messages
                             state.output = do_continue.output
                         else:
+                            if not called_tools and await after_answer(ch, state):
+                                continue
                             break
                     elif not state.output.message.tool_calls:
+                        if await after_answer(ch, state):
+                            continue
                         break
 
                 return state
 
+    mark_turn_loop(execute)
     return _resolve_agent(execute, name, description)
 
 

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Literal, Sequence
 
 from inspect_ai.agent._agent import Agent, AgentState, agent
+from inspect_ai.agent._channel.gate import mark_turn_loop
 from inspect_ai.agent._react import react
 from inspect_ai.agent._types import (
     DEFAULT_SUBMIT_PROMPT,
@@ -249,6 +250,7 @@ def deepagent(
         else:
             return await inner(state)
 
+    mark_turn_loop(execute, background=background_enabled)
     return execute
 
 
