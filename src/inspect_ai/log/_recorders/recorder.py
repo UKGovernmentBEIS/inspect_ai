@@ -371,7 +371,17 @@ class Recorder(abc.ABC):
         """
 
     @abc.abstractmethod
-    async def flush(self, eval: EvalSpec) -> None: ...
+    async def flush(self, eval: EvalSpec, *, to_destination: bool = True) -> None:
+        """Write buffered samples and an intermediate snapshot to the destination.
+
+        Args:
+            eval: Spec of the eval to flush.
+            to_destination: When False, write buffered samples only to the
+                recorder's local buffer tier and leave the destination
+                unchanged. Recorders without a local tier (``.json``) write
+                nothing.
+        """
+        ...
 
     async def log_prune(self, eval: EvalSpec, keys: set[SampleRecordKey]) -> None:
         """Drop seeded sample records, including their journal summaries.

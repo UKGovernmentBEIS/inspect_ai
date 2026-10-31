@@ -29,7 +29,7 @@ from inspect_ai._eval.score import (
 )
 from inspect_ai._util._async import configured_async_backend
 from inspect_ai._util.config import parse_cli_args
-from inspect_ai._util.file import filesystem
+from inspect_ai._util.file import filesystem, local_path
 from inspect_ai._util.platform import platform_init
 from inspect_ai.log._log import EvalLog, EvalResults, EvalSample
 from inspect_ai.log._recorders import create_recorder_for_location
@@ -230,6 +230,9 @@ async def score(
 
     read_sample = None
     if stream:
+        # an existing output (often the input, which later samples are read
+        # from) is only replaced by log_finish
+        new_output = not filesystem(output_file).exists(local_path(output_file))
         sample_map = await recorder.read_log_sample_ids(log_file)
         stream_batch = len(sample_map) if stream is True else stream
         semaphore = anyio.Semaphore(stream_batch)
@@ -246,7 +249,7 @@ async def score(
                 nonlocal samples_written
                 samples_written += 1
                 if samples_written % stream_batch == 0:
-                    await write_recorder.flush(eval_log.eval)
+                    await write_recorder.flush(eval_log.eval, to_destination=new_output)
                 del sample
 
         read_sample = _read_sample
