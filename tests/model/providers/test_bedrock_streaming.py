@@ -19,6 +19,7 @@ from inspect_ai.model import ChatMessageUser, ModelOutput, RetryDecision, get_mo
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._providers.bedrock import (
     BedrockAPI,
+    ConverseResponse,
     bedrock_error_code,
     converse_response_from_stream,
     model_output_from_response,
@@ -178,6 +179,55 @@ async def test_bedrock_converse_response_from_stream() -> None:
     assert output.choices[0].message.tool_calls is not None
     assert output.choices[0].message.tool_calls[0].arguments == {"cmd": "ls"}
     assert output.usage is not None and output.usage.total_tokens == 10
+
+
+@pytest.mark.parametrize(
+    "cache_usage",
+    [
+        {"cacheReadInputTokens": 5000, "cacheWriteInputTokens": 0},
+        {"cacheReadInputTokens": 0, "cacheWriteInputTokens": 1200},
+        {},
+    ],
+)
+async def test_bedrock_stream_usage_matches_non_streamed(
+    cache_usage: dict[str, int],
+) -> None:
+    """Streamed usage carries cache reads/writes like the non-streamed path."""
+    usage: dict[str, int] = {
+        "inputTokens": 10,
+        "outputTokens": 5,
+        "totalTokens": 15 + sum(cache_usage.values()),
+        **cache_usage,
+    }
+    events: list[dict[str, Any]] = [
+        {"messageStart": {"role": "assistant"}},
+        {"contentBlockDelta": {"contentBlockIndex": 0, "delta": {"text": "hi"}}},
+        {"contentBlockStop": {"contentBlockIndex": 0}},
+        {"messageStop": {"stopReason": "end_turn"}},
+        {"metadata": {"usage": usage, "metrics": {"latencyMs": 1}}},
+    ]
+    streamed = await converse_response_from_stream(_events(events))
+    non_streamed = ConverseResponse.model_validate(
+        {
+            "output": {"message": {"role": "assistant", "content": [{"text": "hi"}]}},
+            "stopReason": "end_turn",
+            "usage": usage,
+            "metrics": {"latencyMs": 1},
+        }
+    )
+    assert streamed.usage == non_streamed.usage
+
+    streamed_usage = model_output_from_response("test-model", streamed, []).usage
+    expected_usage = model_output_from_response("test-model", non_streamed, []).usage
+    assert streamed_usage == expected_usage
+    assert streamed_usage is not None
+    assert streamed_usage.input_tokens_cache_read == cache_usage.get(
+        "cacheReadInputTokens"
+    )
+    assert streamed_usage.input_tokens_cache_write == cache_usage.get(
+        "cacheWriteInputTokens"
+    )
+    assert streamed_usage.total_tokens == usage["totalTokens"]
 
 
 async def test_bedrock_stream_gated_without_on_stream(

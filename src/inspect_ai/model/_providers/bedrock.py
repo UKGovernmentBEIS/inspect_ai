@@ -1222,6 +1222,8 @@ async def converse_response_from_stream(
                     totalTokens=event_usage.get(
                         "totalTokens", input_tokens + output_tokens
                     ),
+                    cacheReadInputTokens=event_usage.get("cacheReadInputTokens"),
+                    cacheWriteInputTokens=event_usage.get("cacheWriteInputTokens"),
                 )
             metrics = metadata.get("metrics")
             if metrics is not None:
