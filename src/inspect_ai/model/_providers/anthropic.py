@@ -1096,6 +1096,10 @@ class AnthropicAPI(ModelAPI):
         config: GenerateConfig | None = None,
     ) -> int:
         """Estimate token count for an input."""
+        # Bedrock rejects /v1/messages/count_tokens (anthropic-sdk-python#1103).
+        if self.is_bedrock():
+            return await super().count_tokens(input, config)
+
         # turn system into user for purposes of counting
         if isinstance(input, str):
             input = [ChatMessageUser(content=input)]
