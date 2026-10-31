@@ -63,6 +63,7 @@ RegistryType = Literal[
     "protocol",
     "swarm_controller",
     "swarm_channel",
+    "range_goal",
 ]
 """Enumeration of registry object types.
 
