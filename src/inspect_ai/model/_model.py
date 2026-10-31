@@ -2197,7 +2197,8 @@ Return ``None`` to keep the output, or a ``ModelOutput`` with at least one choic
 to replace it. A replacement is rebuilt from its ``model_dump()`` and validated,
 including values edited in place: valid plain dicts become models, models or
 dataclasses stored in ``metadata`` or tool-call ``arguments`` come back as plain
-dicts, and ``completion`` is re-derived from the message. Reasoning
+dicts, and ``completion`` is re-derived from the message (unless the first
+choice's message is unchanged, which keeps the original ``completion``). Reasoning
 (``ContentReasoning``) and server tool items (``ContentToolUse``) can only be
 kept unchanged or removed, and server tool items are kept all or none. A tool
 call that keeps an original call's ``id`` keeps its ``function``; give a call to
