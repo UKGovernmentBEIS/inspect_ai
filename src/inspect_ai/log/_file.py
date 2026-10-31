@@ -1423,8 +1423,9 @@ def _normalize_excluded_fields(exclude_fields: set[str] | None) -> set[str] | No
             # events_data is needed to resolve refs in events
             exclude_fields = exclude_fields - {"events_data"}
         else:
-            # no events means events_data is useless
-            exclude_fields = exclude_fields | {"events_data"}
+            # no events means events_data is useless, and timelines cannot be
+            # resolved (their event references point back into the events)
+            exclude_fields = exclude_fields | {"events_data", "timelines"}
     return exclude_fields
 
 
