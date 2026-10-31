@@ -1,7 +1,13 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field, field_serializer
+from pydantic import (
+    BaseModel,
+    Field,
+    ValidationInfo,
+    field_serializer,
+    model_validator,
+)
 from shortuuid import uuid
 
 from inspect_ai._util.constants import DESERIALIZING
@@ -31,6 +37,23 @@ class BaseEvent(BaseModel):
 
     pending: bool | None = Field(default=None)
     """Is this event pending?"""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _read_missing_working_start(cls, data: Any, info: ValidationInfo) -> Any:
+        """Read a missing `working_start` as 0.0 rather than the reader's clock.
+
+        Logs written before events recorded `working_start` would otherwise
+        read back with a different value each time.
+        """
+        if (
+            isinstance(data, dict)
+            and "working_start" not in data
+            and isinstance(info.context, dict)
+            and info.context.get(DESERIALIZING, False)
+        ):
+            data = {**data, "working_start": 0.0}
+        return data
 
     def model_post_init(self, __context: Any) -> None:
         from inspect_ai.util._span import current_span_id
