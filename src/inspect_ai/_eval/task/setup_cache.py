@@ -36,6 +36,8 @@ from typing import Any, Awaitable, Callable, Generic, Hashable, Iterable, TypeVa
 import anyio
 from anyio.abc import TaskGroup
 
+from inspect_ai._util._async import unwrap_exception_group
+
 K = TypeVar("K", bound=Hashable)
 
 SetupDone = Callable[[BaseException | None], None]
@@ -135,7 +137,10 @@ class SetupCache(Generic[K]):
         if exc_type is None:
             self._tg.cancel_scope.cancel()
         self._tg = None
-        suppress = await self._exit_stack.__aexit__(exc_type, exc, tb)
+        # jobs raise no Exception, so a group holds only the host's own error:
+        # raise it as it was raised
+        with unwrap_exception_group("single"):
+            suppress = await self._exit_stack.__aexit__(exc_type, exc, tb)
         if self._fatal is not None:
             raise self._fatal
         return suppress

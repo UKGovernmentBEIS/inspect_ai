@@ -54,6 +54,7 @@ if TYPE_CHECKING:
 
 from inspect_ai._control.eval_state import (
     clear_eval_retry_pending,
+    detach_eval_live,
     mark_eval_retry_pending,
 )
 from inspect_ai._control.max_tasks import (
@@ -1319,10 +1320,13 @@ async def _release_unfinished(logger: TaskLogger) -> None:
 async def _release_superseded(logger: TaskLogger) -> None:
     """Release the logger of an attempt that will be retried.
 
-    A destination its flushes wrote stays: it holds the seeded prior samples
+    The attempt's control-channel handles (live data, requeue, scoring) are
+    detached, so directives reach the retry rather than a dead attempt. A
+    destination its flushes wrote stays: it holds the seeded prior samples
     plus this attempt's completions, which the retry reads. Its realtime
     buffer goes (the retry has its own).
     """
+    detach_eval_live(logger.eval.eval_id)
     if not logger.finished:
         with anyio.CancelScope(shield=True):
             await logger.discard(keep_destination=True)

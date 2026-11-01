@@ -2,7 +2,7 @@ import glob
 import os
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from pydantic import JsonValue
@@ -175,28 +175,31 @@ def test_eval_with_max_dataset_memory_and_early_stopping() -> None:
     assert len(log.samples) == 3
 
 
-@pytest.mark.parametrize("abandon_at", ["start", "register"])
 def test_eval_abandoned_attempt_unlinks_paged_store(
-    abandon_at: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """An attempt abandoned by a task drain/cancel leaves no paged temp file.
 
-    The attempt-start retry-abandon checks bail out of ``task_run`` before its
-    ordinary tail runs, so the paged-to-disk store's temp file must be
-    unlinked on that path too — whether the abandon is seen by the first
-    check (before paging) or only by the pre-register backstop (after).
+    The attempt-start abandon check (right before the attempt registers with
+    the control channel) bails out of ``task_run`` before its ordinary tail
+    runs, so the paged-to-disk store's temp file must be unlinked on that
+    path too.
     """
-    import inspect_ai._eval.task.run as task_run_module
+    from dataclasses import replace
+
+    from inspect_ai._eval.run import TaskDispatcher
 
     calls = {"n": 0}
+    attempt_options = TaskDispatcher.attempt_options
 
-    def fake_task_retry_abandoned(task_id: str) -> bool:
+    def abandoned() -> bool:
         calls["n"] += 1
-        return abandon_at == "start" or calls["n"] > 1
+        return True
 
-    monkeypatch.setattr(
-        task_run_module, "task_retry_abandoned", fake_task_retry_abandoned
-    )
+    def abandoned_options(self: Any, record: Any, logger: Any) -> Any:
+        return replace(attempt_options(self, record, logger), abandoned=abandoned)
+
+    monkeypatch.setattr(TaskDispatcher, "attempt_options", abandoned_options)
     monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
 
     task = Task(dataset=_make_samples(3), solver=[generate()])
@@ -207,9 +210,8 @@ def test_eval_abandoned_attempt_unlinks_paged_store(
         log_dir=str(tmp_path / "logs"),
     )
 
-    # the abandon was seen by the intended check (the backstop is the second
-    # consult, after paging), the attempt produced no log, and the paged
-    # dataset's temp file was unlinked
-    assert calls["n"] == (1 if abandon_at == "start" else 2)
+    # the abandon was seen by the check, the attempt produced no log, and the
+    # paged dataset's temp file was unlinked
+    assert calls["n"] == 1
     assert logs == []
     assert not list(tmp_path.glob("*.pkl"))
