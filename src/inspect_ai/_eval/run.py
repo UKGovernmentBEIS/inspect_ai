@@ -1,21 +1,16 @@
 """One eval run: configuring its tasks, sandbox setup, and the scheduling loop.
 
-Concurrency model. Everything the scheduler owns (the run's task records and
-queue, its :class:`SetupCache`, the dispatcher's slot and model counts) is
-created and changed only on the run's event loop thread. It needs no locks:
-code on one event loop does not interleave between ``await`` points, so a
-method that does not await (``RunQueue.put``, ``TaskDispatcher.start`` and
-``settle``, the setup cache's bookkeeping) changes that state as one step.
-That holds whether or not the interpreter has a GIL, as long as the state
-stays on the loop thread, so entry points that code outside the scheduler
-calls (``enqueue_task()``, task handles, the control channel's queued-task
-directives) check the thread they are called on. Sandbox setup never changes
-the process's working directory or environment; see
-:class:`~inspect_ai.util.SandboxEnvironment`.
+The scheduler's state (the run's task records and queue, its
+:class:`SetupCache`, the dispatcher's slot and model counts) is used only from
+the run's event loop and changed without locks: code on one event loop does
+not interleave between ``await`` points, so a method that does not await
+(``RunQueue.put``, ``TaskDispatcher.start`` and ``settle``, the setup cache's
+bookkeeping) changes it as one step.
 """
 
 import functools
 import logging
+import math
 import os
 import weakref
 from collections import Counter, deque
@@ -23,7 +18,7 @@ from contextlib import AsyncExitStack, asynccontextmanager
 from contextvars import Context, ContextVar, copy_context
 from copy import copy
 from dataclasses import dataclass, replace
-from types import MappingProxyType, TracebackType
+from types import TracebackType
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -31,7 +26,6 @@ from typing import (
     Awaitable,
     Callable,
     Iterable,
-    Mapping,
     NamedTuple,
     Protocol,
     cast,
@@ -54,7 +48,6 @@ if TYPE_CHECKING:
 
 from inspect_ai._control.eval_state import (
     clear_eval_retry_pending,
-    detach_eval_live,
     mark_eval_retry_pending,
 )
 from inspect_ai._control.max_tasks import (
@@ -935,9 +928,10 @@ class TaskDispatcher:
                 # the run was cancelled: setups still running are cut short
                 self.setups.cancel_running()
             # records that never started (a cancelled or failed run)
-            with anyio.CancelScope(shield=True):
-                for logger in self.queue.close():
-                    await logger.discard()
+            for record in self.queue.close():
+                if record.logger is not None:
+                    await _release_queued(record.logger, record.attempt)
+                record.end(None)
             # and those whose attempt a failed run interrupted
             for record in self.queue.records:
                 if record.state is not TaskState.ENDED:
@@ -1033,10 +1027,17 @@ class TaskDispatcher:
                 except Exception as ex:
                     if self.debug_errors:
                         raise
-                    if record.state is TaskState.QUEUED:
-                        record.fail_start(ex)
+                    error: Exception | None = ex
+                except anyio.get_cancelled_exc_class() as ex:
+                    if anyio.current_effective_deadline() == -math.inf:
+                        raise
+                    # raised by provider code (asyncio), not a cancellation
+                    error = RuntimeError(f"Sandbox resolution raised {ex!r}.")
                 else:
                     record.setup_keys = keys
+                    error = None
+                if error is not None and record.state is TaskState.QUEUED:
+                    record.fail_start(error)
                 self.queue.wake.set()
 
     def ready(self, record: TaskRecord) -> bool:
@@ -1133,32 +1134,9 @@ class TaskDispatcher:
 
     async def run_one(self, record: TaskRecord, in_slot: bool) -> None:
         """Run one attempt of a record, in its slot, then settle it."""
-        assert record.configured is not None
-        logger, record.logger = record.logger, None
+        logger = await self.attempt_logger(record, in_slot)
         if logger is None:
-            logger = record.configured.new_logger()
-            logger.carry_plan(record.plan)
-            try:
-                await logger.init()
-            except BaseException as ex:
-                # nothing was logged: the entry goes
-                with anyio.CancelScope(shield=True):
-                    await logger.discard()
-                if not isinstance(ex, Exception) or self.debug_errors:
-                    raise
-                log.error(
-                    f"Task '{record.task}' could not create its log: "
-                    f"{exception_message(ex)}"
-                )
-                self.settle(
-                    record,
-                    in_slot,
-                    logger.header_log(_eval_error(ex)),
-                    retry=Retry(record.retry_source)
-                    if record.retries_remaining > 0 and not record.abandoned
-                    else None,
-                )
-                return
+            return
         options = self.attempt_options(record, logger)
         retry = False
         try:
@@ -1179,10 +1157,14 @@ class TaskDispatcher:
             raise
         if retry:
             assert run.log is not None
-            source = self.retry_source(options, run.log)
-            record.plan = logger.plan
-            await _release_superseded(logger)
-            self.settle(record, in_slot, run.log, retry=Retry(source))
+            # reinitialised for a fresh log entry when the retry starts
+            record.logger = logger
+            self.settle(
+                record,
+                in_slot,
+                run.log,
+                retry=Retry(self.retry_source(options, run.log)),
+            )
         else:
             if run.log is not None:
                 # unwind the task runner's retry-pending mark (a no-op if a
@@ -1190,6 +1172,49 @@ class TaskDispatcher:
                 clear_eval_retry_pending(run.log.eval.eval_id)
             await _release_unfinished(logger)
             self.settle(record, in_slot, run.log)
+
+    async def attempt_logger(
+        self, record: TaskRecord, in_slot: bool
+    ) -> TaskLogger | None:
+        """The logger of a record's attempt, with its log entry created.
+
+        A seed's first attempt has one from start-up, another first attempt
+        creates one, and a retry reinitialises the failed attempt's logger for
+        a fresh entry (``TaskLogger.reinit``). If that fails, the attempt ends
+        with an errored header log, as a failed log write does (retries apply),
+        and this returns ``None``.
+        """
+        assert record.configured is not None
+        logger, record.logger = record.logger, None
+        try:
+            if logger is None:
+                logger = record.configured.new_logger()
+                await logger.init()
+            elif record.attempt > 1:
+                await logger.reinit()
+            return logger
+        except BaseException as ex:
+            if logger is None or not isinstance(ex, Exception) or self.debug_errors:
+                if logger is not None:
+                    await _release_unfinished(logger)
+                raise
+            log.error(
+                f"Task '{record.task}' could not create its log: "
+                f"{exception_message(ex)}"
+            )
+            # the new entry was never written; a retry's previous log stays
+            with anyio.CancelScope(shield=True):
+                await logger.discard(keep_destination=True)
+            retry = record.retries_remaining > 0 and not record.abandoned
+            if not retry and record.log is not None:
+                clear_eval_retry_pending(record.log.eval.eval_id)
+            self.settle(
+                record,
+                in_slot,
+                logger.header_log(_eval_error(ex)),
+                retry=Retry(None) if retry else None,
+            )
+            return None
 
     def attempt_options(self, record: TaskRecord, logger: TaskLogger) -> TaskRunOptions:
         """The run options of a record's next attempt."""
@@ -1200,12 +1225,13 @@ class TaskDispatcher:
             start_error_traceback=record.start_error_traceback,
             abandoned=lambda: record.abandoned,
         )
+        if record.retry_source is not None:
+            options = replace(options, sample_source=record.retry_source)
         if record.attempt == 1:
             return options
         retries = record.attempt - 1 + record.retries_remaining
         return replace(
             options,
-            sample_source=record.retry_source,
             display_name=f"{record.task} (retry {record.attempt - 1} of {retries})",
         )
 
@@ -1242,7 +1268,8 @@ class TaskDispatcher:
             record.end(None)
         else:
             record.state = TaskState.QUEUED
-            record.retry_source = retry.sample_source
+            if retry.sample_source is not None:
+                record.retry_source = retry.sample_source
             record.attempt += 1
             record.retries_remaining -= 1
             # a setup or resolution failure is reported now; the retry tries again
@@ -1277,7 +1304,6 @@ class TaskDispatcher:
 
     def queued_tasks(self) -> list[QueuedTask]:
         """The records waiting to start, for ``inspect ctl task queued``."""
-        self.queue.loop_thread.check("Listing queued tasks")
         return [
             QueuedTask(
                 task_id=record.task_id,
@@ -1312,7 +1338,6 @@ class TaskDispatcher:
         log, a retry keeps the failed attempt's log. Its sandbox setup, if
         one is running, runs on (and is cleaned up at the end of the run).
         """
-        self.queue.loop_thread.check("Cancelling a queued task")
         record = self._find_queued(task_id)
         if record is None:
             return False
@@ -1327,7 +1352,6 @@ class TaskDispatcher:
         running attempt is not retried, and one that has not yet registered
         with the control channel ends before it does.
         """
-        self.queue.loop_thread.check("Abandoning a task's retry")
         record = self._find_queued(task_id) or next(
             (r for r in self.queue.records if r.task_id == task_id), None
         )
@@ -1353,7 +1377,7 @@ class TaskDispatcher:
         self.requested.discard(record)
         if record.logger is not None:
             assert self.tg is not None
-            self.tg.start_soon(_discard, record.logger)
+            self.tg.start_soon(_release_queued, record.logger, record.attempt)
         if record.idx is not None and record.attempt == 1:
             # counted in the task display's total, but will never run
             display().update_task_count(-1)
@@ -1361,17 +1385,25 @@ class TaskDispatcher:
         self.queue.wake.set()
 
 
-async def _discard(logger: TaskLogger) -> None:
-    """Discard a logger whose attempt never started."""
-    with anyio.CancelScope(shield=True):
-        await logger.discard()
+async def _release_queued(logger: TaskLogger, attempt: int) -> None:
+    """Release the logger a record held for an attempt that will not start.
+
+    A seed's first logger has written nothing and is discarded; a retry's is
+    the failed attempt's, whose log stays.
+    """
+    if attempt == 1:
+        with anyio.CancelScope(shield=True):
+            await logger.discard()
+    else:
+        await _release_unfinished(logger)
 
 
 class Retry(NamedTuple):
     """The retry of a failed attempt."""
 
     sample_source: EvalSampleSource | None
-    """Where it reads the completed samples of the failed attempt."""
+    """Where it reads the completed samples of the failed attempt (``None``:
+    where the failed attempt read them)."""
 
 
 def _eval_error(ex: BaseException) -> EvalError:
@@ -1387,21 +1419,6 @@ async def _release_unfinished(logger: TaskLogger) -> None:
     if not logger.finished:
         with anyio.CancelScope(shield=True):
             await logger.discard(keep_destination=True, keep_buffer=True)
-
-
-async def _release_superseded(logger: TaskLogger) -> None:
-    """Release the logger of an attempt that will be retried.
-
-    The attempt's control-channel handles (live data, requeue, scoring) are
-    detached, so directives reach the retry rather than a dead attempt. A
-    destination its flushes wrote stays: it holds the seeded prior samples
-    plus this attempt's completions, which the retry reads. Its realtime
-    buffer goes (the retry has its own).
-    """
-    detach_eval_live(logger.eval.eval_id)
-    if not logger.finished:
-        with anyio.CancelScope(shield=True):
-            await logger.discard(keep_destination=True)
 
 
 def pick_balanced(
@@ -1532,8 +1549,8 @@ def _start_throughput_reporter(tg: TaskGroup) -> anyio.CancelScope:
     return scope
 
 
-ProviderState = Mapping[ContextVar[Any], Any]
-"""ContextVars a sandbox provider set, with the values it left (read-only)."""
+ProviderState = dict[ContextVar[Any], Any]
+"""ContextVars a sandbox provider set, with the values it left."""
 
 _UNSET = object()
 
@@ -1595,7 +1612,7 @@ class SandboxManager:
         """Collect setup output (shown if the setup fails) instead of letting it
         through to the terminal: set once the task display is open."""
         self._cleanups: list[_TaskCleanup] = []
-        self._state: ProviderState = MappingProxyType({})
+        self._state: ProviderState = {}
         self._exit_stack = AsyncExitStack()
         self._context = copy_context()
         # keyed by task, then spec: resolution folds in per-task state
@@ -1775,10 +1792,10 @@ class SandboxManager:
                     task_cleanup,
                     sandboxenv.sandbox.config,
                     sandboxenv.run_dir,
-                    MappingProxyType({**state, **changes}),
+                    state | changes,
                 )
             )
-            self._state = MappingProxyType({**self._state, **changes})
+            self._state = self._state | changes
 
         try:
             await _in_child_task(init, state, done=started, context=self._context)
@@ -1813,7 +1830,7 @@ async def _in_child_task(
     would wrap it in a group, and would drop a ``CancelledError`` that is not
     the group's own.
     """
-    changes: dict[ContextVar[Any], Any] = {}
+    changes: ProviderState = {}
     error: BaseException | None = None
 
     async def run() -> None:
@@ -1830,13 +1847,13 @@ async def _in_child_task(
             for var, value in copy_context().items()
             if base.get(var, _UNSET) is not value
         )
-        done(MappingProxyType(changes))
+        done(changes)
 
     async with anyio.create_task_group() as tg:
         (context or copy_context()).copy().run(tg.start_soon, run)
     if error is not None:
         raise error
-    return MappingProxyType(changes)
+    return changes
 
 
 def _set_provider_state(state: ProviderState) -> None:

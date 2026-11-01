@@ -1165,7 +1165,8 @@ async def _eval_async_inner(
         # a run that fails before its dispatcher starts (which closes the
         # queue itself) also stops accepting additions before on_run_end
         if queue is not None:
-            queue.close()
+            for record in queue.close():
+                record.end(None)
         # a second Ctrl-C while finishing a cancelled trio run does not start
         # the hooks again
         if not trio_cancelled:

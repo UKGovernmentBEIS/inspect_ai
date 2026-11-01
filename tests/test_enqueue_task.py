@@ -1167,39 +1167,3 @@ def test_ctrl_c_while_adding_tasks_raises_keyboard_interrupt(backend: str) -> No
         timeout=300,
     )
     assert result.returncode == 0, result.stdout + result.stderr
-
-
-def test_enqueue_task_and_enqueue_sample_from_another_thread_raise(
-    tmp_path: Path,
-) -> None:
-    # the run's records and a task's sample buffer belong to the event loop:
-    # adding to them from a worker thread (a synchronous tool run in a
-    # thread) would race with it, so it raises
-    from inspect_ai import SampleSource, enqueue_sample
-
-    errors: list[str] = []
-
-    class Source(SampleSource):
-        def initial_samples(self) -> list[Sample]:
-            return [Sample(input="x")]
-
-    @solver
-    def add_from_thread() -> Solver:
-        async def solve(state: TaskState, generate: Generate) -> TaskState:
-            for add in (
-                lambda: enqueue_task(Task(dataset=[Sample(input="x")], name="t")),
-                lambda: enqueue_sample(Sample(input="y")),
-            ):
-                try:
-                    await anyio.to_thread.run_sync(add)
-                except RuntimeError as ex:
-                    errors.append(str(ex))
-            return state
-
-        return solve
-
-    task = Task(dataset=Source(), solver=add_from_thread(), name="p")
-    logs = eval(task, model="mockllm/model", display="none", log_dir=str(tmp_path))
-    assert [log.status for log in logs] == ["success"]
-    assert len(errors) == 2
-    assert all("must be called from the eval's event loop" in e for e in errors)

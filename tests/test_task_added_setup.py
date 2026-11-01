@@ -686,3 +686,38 @@ async def test_task_init_that_finishes_during_a_run_cancel_is_cleaned_up(
                 )
     assert _box.get("init_done") is True
     assert _box["cleanups"] == ["_SlotBox"]
+
+
+@pytest.mark.parametrize("retries", [0, 1])
+async def test_added_task_whose_log_cannot_be_created_ends_only_that_task(
+    monkeypatch: pytest.MonkeyPatch, retries: int
+) -> None:
+    # an added task's logger is created when it starts; if that fails, the
+    # attempt ends with an errored log (as a failed log write does), its
+    # retries apply, and the run goes on
+    from inspect_ai._eval.task.log import TaskLogger
+
+    init = TaskLogger.init
+    failed: list[str] = []
+
+    async def failing_init(logger: TaskLogger) -> None:
+        if logger.eval.task == "child" and not failed:
+            failed.append(logger.eval.eval_id)
+            raise OSError("log directory unreachable")
+        await init(logger)
+
+    monkeypatch.setattr(TaskLogger, "init", failing_init)
+    with anyio.fail_after(30):
+        logs = await eval_async(
+            _parent(_plain("child")),
+            model="mockllm/model",
+            max_tasks=2,
+            task_retry_attempts=retries,
+        )
+    assert _statuses(logs) == [
+        ("parent", "success"),
+        ("child", "error" if retries == 0 else "success"),
+    ]
+    if retries == 0:
+        error = logs[1].error
+        assert error is not None and "log directory unreachable" in error.message

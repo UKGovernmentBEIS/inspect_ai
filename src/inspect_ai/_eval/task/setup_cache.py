@@ -20,9 +20,8 @@ run once. :class:`SetupCache` keeps one job per key ("single flight"):
   short.
 - An optional timeout turns a hung setup into an ordinary failure.
 
-The cache is loop-confined, like the rest of the scheduler (see
-``inspect_ai._eval.run``): it is used only on the run's event loop thread,
-and its bookkeeping does not await.
+The cache is used only from the run's event loop, and its bookkeeping does
+not await, so it needs no lock.
 
 A ``KeyboardInterrupt`` or ``SystemExit`` raised by a setup is not a failure
 of it: it is re-raised in the job's waiters (so it reaches the run where they
@@ -55,6 +54,9 @@ class _Job(Generic[K]):
         self.done = anyio.Event()
         self.succeeded = False
         self.error: BaseException | None = None
+        self.traceback: TracebackType | None = None
+        """``error``'s traceback when the setup raised it (each waiter raises
+        it again, from there)."""
         self.on_done: list[SetupDone] = []
         self.granted = anyio.Event()
         self.scope = anyio.CancelScope()
@@ -197,7 +199,7 @@ class SetupCache(Generic[K]):
         for job in jobs:
             await job.done.wait()
             if job.error is not None:
-                raise job.error
+                raise job.error.with_traceback(job.traceback)
             if not job.succeeded:
                 raise RuntimeError("The sandbox setup was cancelled.")
 
@@ -258,6 +260,7 @@ class SetupCache(Generic[K]):
 
     def _fail(self, job: _Job[K], error: BaseException) -> None:
         job.error = error
+        job.traceback = error.__traceback__
         self._forget_key(job)
         for on_done in job.on_done:
             on_done(error)

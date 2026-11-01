@@ -119,10 +119,12 @@ class FakeLogger:
     async def init(self) -> None:
         self.initialised = True
 
-    plan: Any = None
-
-    def carry_plan(self, plan: Any) -> None:
-        self.plan = plan
+    async def reinit(self) -> None:
+        self.attempt += 1
+        self.finished = False
+        self.eval = self.eval.model_copy(
+            update=dict(eval_id=f"{self.label}-{self.attempt}")
+        )
 
     async def discard(self, **kwargs: Any) -> None:
         self.discarded += 1
@@ -433,13 +435,21 @@ def test_run_queue_close_refuses_put_and_returns_unstarted() -> None:
     [added] = queue.put([_task("w")])
     [queued] = queue.add(_resolve(["ready"], [m1]))
     queue.enqueue([queued])
-    assert queue.close() == []
-    assert queued.state is added.state is RecordState.ENDED
+    assert queue.close() == [queued, added]
     assert queue.queued == [] and queue.take("when_free") == []
     with pytest.raises(RuntimeError, match="run 'run' has finished dispatching"):
         queue.put([_task("late")])
     # refused before resolution
     assert len(resolved) == 1
+
+
+async def test_waiting_for_an_after_batch_task_raises_until_it_is_taken() -> None:
+    # it starts only once nothing runs, so a running task waiting for it would
+    # never finish
+    harness = Harness([get_model("mockllm/m1")])
+    [record] = harness.queue.put([_task("a")], start="after_batch")
+    with pytest.raises(RuntimeError, match="start='when_free'"):
+        await record.wait()
 
 
 def test_record_drops_its_task_when_it_ends() -> None:
@@ -675,7 +685,7 @@ async def test_loop_reads_max_tasks_live(monkeypatch: pytest.MonkeyPatch) -> Non
     assert [log.status for log in logs] == ["success"] * 3
 
 
-async def test_loop_retry_goes_to_the_back_with_a_fresh_logger(
+async def test_loop_retry_goes_to_the_back_and_reinitialises_its_logger(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     m1 = get_model("mockllm/m1")
@@ -701,8 +711,9 @@ async def test_loop_retry_goes_to_the_back_with_a_fresh_logger(
         logs = await harness.run(_resolve(["a", "b"], [m1]))
 
     assert _starts(harness) == ["a@m1", "b@m1", "c@m1", "a@m1"]
-    # each attempt had its own logger; the added task's was made when it started
-    assert [lg.attempt for lg in harness.loggers["a@m1"]] == [1, 2]
+    # the retry reinitialised the failed attempt's logger; the added task's
+    # logger was made when it started
+    assert [lg.attempt for lg in harness.loggers["a@m1"]] == [2]
     assert harness.loggers["c@m1"][0].initialised
     # the retry's log replaces the failed attempt's, in the task's position
     assert [(log.eval.task, log.status) for log in logs] == [

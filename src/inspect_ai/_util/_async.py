@@ -142,33 +142,6 @@ async def _completed() -> None:
     return None
 
 
-class LoopThread:
-    """The thread an event loop runs on, for code that must only run there.
-
-    State an event loop owns (an eval run's task records and queue, a task's
-    sample buffer) is changed without locks, because only that loop's thread
-    changes it. An entry point that changes such state from another thread
-    (for example from a synchronous tool run in a worker thread) would race
-    with the loop, so it calls :meth:`check` first.
-    """
-
-    def __init__(self) -> None:
-        self._ident = threading.get_ident()
-
-    def check(self, what: str) -> None:
-        """Raise unless called on the loop's thread.
-
-        Raises:
-            RuntimeError: If called from another thread.
-        """
-        if threading.get_ident() != self._ident:
-            raise RuntimeError(
-                f"{what} must be called from the eval's event loop, not from "
-                "another thread (such as a synchronous tool run in a worker "
-                "thread)."
-            )
-
-
 class Wake:
     """One-shot wake signal that can be re-armed (set on completion / injection).
 

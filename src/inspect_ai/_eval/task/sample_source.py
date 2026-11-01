@@ -33,8 +33,6 @@ from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Awaitable, Callable, NamedTuple
 
-from inspect_ai._util._async import LoopThread
-
 if TYPE_CHECKING:
     from inspect_ai.dataset import Sample
     from inspect_ai.log._log import EvalSample
@@ -222,21 +220,18 @@ class SampleEnqueuer:
     :class:`SampleSource`). ``enqueue`` buffers; ``drain`` is the non-blocking
     pull the task's dispatch loop does between cycles.
 
-    Loop-confined: ``enqueue`` must be called from the task's event loop (the
-    ``on_enqueue`` wake callback — ``anyio.Event.set`` — is not safe to fire
-    from other threads), and raises if it is called from another thread. The
-    buffer needs no lock under the event loop since neither method has a
-    yield point.
+    Not thread-safe: ``enqueue`` must be called from the task's event loop
+    (the ``on_enqueue`` wake callback — ``anyio.Event.set`` — is not safe to
+    fire from other threads). The buffer needs no lock under the event loop
+    since neither method has a yield point.
     """
 
     _pending: list[EnqueuedSample] = field(default_factory=list)
-    _loop_thread: LoopThread = field(default_factory=LoopThread)
     on_enqueue: Callable[[], None] | None = None
     """Fired after samples are buffered — used to wake the task's dispatcher."""
 
     def enqueue(self, samples: list["Sample"], epoch: int | None = None) -> None:
         """Queue ``samples`` to run in the task (as ``epoch`` only, if given)."""
-        self._loop_thread.check("enqueue_sample()")
         self._pending.extend(EnqueuedSample(sample, epoch) for sample in samples)
         if self.on_enqueue is not None:
             self.on_enqueue()
@@ -288,7 +283,7 @@ def enqueue_sample(
     set is fixed, so there is no loop to run additions. Callable from any code
     running within such a task — a solver, a scorer, a tool — but it must be
     called from the task's event loop (where those all run), not from a
-    worker thread (where it raises ``RuntimeError``).
+    worker thread.
 
     When the eval was run with ``--limit``, samples beyond the limit are
     ignored (with a warning); with ``--sample-id``, only samples matching the

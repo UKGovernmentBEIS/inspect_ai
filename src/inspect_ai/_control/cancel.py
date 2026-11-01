@@ -267,17 +267,25 @@ def _cancel_queued_task(
     action: TaskCancelAction | None,
     dry_run: bool,
 ) -> CancelTaskResult | None:
-    """Cancel or drain a task of the live run that has never started.
+    """Cancel or drain a task of the live run waiting for its first attempt.
 
     It ends without running: no log, and no retry. A score/error resolution is
     rejected (the task has no samples to resolve). ``None`` when no such task
-    is waiting in this process.
+    is waiting in this process (a queued retry is abandoned through the
+    between-attempts path instead).
     """
     from inspect_ai._control.max_tasks import task_dispatcher
 
     dispatcher = task_dispatcher()
     queued = (
-        next((t for t in dispatcher.queued_tasks() if t.task_id == task_id), None)
+        next(
+            (
+                t
+                for t in dispatcher.queued_tasks()
+                if t.task_id == task_id and t.attempt == 1
+            ),
+            None,
+        )
         if dispatcher is not None
         else None
     )
@@ -338,9 +346,14 @@ def _task_cancel_directive(
         task_retry_abandoned,
     )
 
+    # a task waiting for its first attempt in the live run (it may have an
+    # EvalState from an earlier eval() of the same eval set, which finished)
+    queued = _cancel_queued_task(task_id, stamp=stamp, action=action, dry_run=dry_run)
+    if queued is not None:
+        return queued
     state = latest_eval_for_task(task_id)
     if state is None:
-        return _cancel_queued_task(task_id, stamp=stamp, action=action, dry_run=dry_run)
+        return None
 
     active = _active_eval_samples(state.eval_id)
     in_flight = [sample for sample in active if sample.started is not None]

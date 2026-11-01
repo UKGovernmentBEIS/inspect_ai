@@ -5,11 +5,12 @@ from __future__ import annotations
 import json as json_lib
 import time
 from collections.abc import Callable
-from typing import Any, Literal, cast
+from typing import Any, Literal, NamedTuple, cast
 
 import click
 
 from inspect_ai._control.cancel import TaskCancelAction
+from inspect_ai._control.discovery import DiscoveredControlServer
 
 # Patch seam: tests monkeypatch functions on their defining module
 # (e.g. `inspect_ai._cli.ctl._http._request_json`), so cross-module
@@ -17,7 +18,7 @@ from inspect_ai._control.cancel import TaskCancelAction
 # "simplify" to `from ._http import _request_json` (see
 # design/ctl/cli-refactor.md).
 from . import _fetch, _http, _log_dir
-from ._failure import _envelope_failures
+from ._failure import _CtlFailure, _envelope_failures
 from ._group import (
     _MUTATION_ENVELOPE_HELP,
     _echo_no_running_evals,
@@ -112,8 +113,8 @@ def task_queued_command(as_json: bool) -> None:
     `after_batch`, `next_tasks`, `paused`, `sandbox resolution`, `look-ahead`
     (its sandbox setup is not requested yet), `sandbox setup`, `slot` or
     `start`. These tasks have no log yet, so `inspect ctl task list` does not
-    show them. The control endpoints `POST /tasks/<task-id>/cancel` and
-    `/drain` end such a task without running it.
+    show them. `inspect ctl task cancel <task-id>` and `drain` (given the
+    full task id) end such a task without running it.
 
     Example: inspect ctl task queued --json
     """
@@ -515,6 +516,78 @@ _TaskStopVerb = Literal["cancel", "drain"]
 """The task-stop directives sharing the cancel-stamp route family."""
 
 
+def _matches(summary: dict[str, Any], task: str) -> bool:
+    """Whether a running task's row could be what ``task`` selects (id prefix or name)."""
+    return (
+        str(summary.get("task_id", "")).startswith(task) or summary.get("task") == task
+    )
+
+
+class _QueuedTask(NamedTuple):
+    socket_path: str
+    pid: int
+    row: dict[str, Any]
+
+
+def _queued_task(
+    servers: list[DiscoveredControlServer], task_id: str
+) -> _QueuedTask | None:
+    """The task waiting for its first attempt whose full id is ``task_id``, if any.
+
+    Queued tasks have no log and are not in ``GET /tasks``, so the selector
+    resolution there cannot find them; only an exact task id is matched. A
+    server without the queued-task listing is skipped.
+    """
+    for server in servers:
+        try:
+            result = _http._request_json(
+                str(server.socket_path),
+                "/tasks/queued",
+                what=f"queued tasks of pid {server.pid}",
+                not_found="No queued-task listing on this process.",
+                pid=server.pid,
+                echo_failures=False,
+            )
+        except _CtlFailure:
+            continue
+        for row in result["tasks"]:
+            if row["task_id"] == task_id and row["attempt"] == 1:
+                return _QueuedTask(str(server.socket_path), server.pid, row)
+    return None
+
+
+def _stop_queued_task(
+    queued: _QueuedTask, verb: _TaskStopVerb, *, dry_run: bool, as_json: bool
+) -> None:
+    """Cancel or drain a task that has not started: it ends without running."""
+    task_id = queued.row["task_id"]
+    result = _http._request_json(
+        queued.socket_path,
+        f"/tasks/{task_id}/{verb}",
+        params={"dry_run": True} if dry_run else None,
+        what=f"{verb} of task {task_id}",
+        not_found=f"Task '{task_id}' is no longer waiting to start.",
+        mutate="post",
+        retry_mutation=True,
+        pid=queued.pid,
+    )
+    if as_json:
+        target = {"task_id": task_id, "task": queued.row["task"]}
+        _echo_raw(
+            json_lib.dumps(
+                _mutation_envelope(target, result, dry_run=dry_run), indent=2
+            )
+        )
+        return
+    outcome = "would end" if dry_run else "ends"
+    _echo(
+        _sanitize_line(
+            f"Task '{queued.row['task']}' ({task_id}) had not started: it "
+            f"{outcome} without running."
+        )
+    )
+
+
 def _run_task_stop_directive(
     task: str,
     *,
@@ -538,6 +611,11 @@ def _run_task_stop_directive(
     """
     servers = _http.list_discovered_servers()
     summaries = _fetch._fetch_summaries(servers).summaries
+    if not any(_matches(summary, task) for summary in summaries):
+        queued = _queued_task(servers, task)
+        if queued is not None:
+            _stop_queued_task(queued, verb, dry_run=dry_run, as_json=as_json)
+            return
     scope = _resolve_scope(
         servers, summaries, task, per_task_option=f"task {verb}", model=model
     )

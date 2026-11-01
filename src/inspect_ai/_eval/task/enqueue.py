@@ -23,14 +23,14 @@ from typing import TYPE_CHECKING, Any, Callable, Literal, cast, get_args
 
 import anyio
 
-from inspect_ai._util._async import LoopThread, Wake
+from inspect_ai._util._async import Wake
 
 if TYPE_CHECKING:
     from inspect_ai._eval.task.log import TaskLogger
     from inspect_ai._eval.task.resolved import ResolvedTask
     from inspect_ai._eval.task.run import EvalSampleSource, TaskRunOptions
     from inspect_ai._eval.task.tasks import Tasks
-    from inspect_ai.log import EvalLog, EvalPlan
+    from inspect_ai.log import EvalLog
     from inspect_ai.model import Model
 
 # Resolve submitted tasks to concrete ``ResolvedTask``s against the run's
@@ -83,13 +83,17 @@ class TaskRecord:
     configured: ConfiguredTask | None
     retries_remaining: int
     """Retry attempts left after the current one."""
+    start: TaskStartPolicy | None = None
+    """How an added task starts (``None`` for the seed and ``next_tasks()``
+    batches)."""
     state: TaskState = TaskState.QUEUED
     idx: int | None = None
     """Position of the task's log in the logs the run returns (assigned when
     the scheduling loop takes the record)."""
     logger: TaskLogger | None = None
-    """A seed task's first logger, created when the seed starts up; other
-    attempts create theirs when they start."""
+    """The logger the record's next attempt uses: a seed task's first one
+    (created when the seed starts up), or a failed attempt's, which its retry
+    reinitialises. Other first attempts create theirs when they start."""
     setup_keys: frozenset[Any] | None = None
     """The sandbox configs its selected samples use (``None`` until resolved)."""
     start_error: Exception | None = None
@@ -99,9 +103,8 @@ class TaskRecord:
     share one error object, and each attempt raises it again)."""
     attempt: int = 1
     retry_source: EvalSampleSource | None = None
-    """Where a retry attempt reads the completed samples of the failed one."""
-    plan: EvalPlan | None = None
-    """The plan an earlier attempt logged (every attempt logs the same plan)."""
+    """Where a retry attempt reads the completed samples of the failed one
+    (``None``: the task's own sample source)."""
     abandoned: bool = False
     """An operator cancelled it before it started, or abandoned its retry."""
     log: EvalLog | None = None
@@ -120,12 +123,17 @@ class TaskRecord:
         self.configured = None
         self.logger = None
         self.retry_source = None
-        self.plan = None
         self.fail_start(None)
         if self._ended is not None:
             self._ended.set()
 
     async def wait(self) -> EvalLog | None:
+        if self.start == "after_batch" and self.idx is None:
+            raise RuntimeError(
+                f"Task '{self.task}' starts only once no task is running "
+                "(start='after_batch'), so a running task waiting for it would "
+                "never finish. Add it with start='when_free' to wait for it."
+            )
         if self.state is not TaskState.ENDED:
             if self._ended is None:
                 self._ended = anyio.Event()
@@ -134,14 +142,10 @@ class TaskRecord:
 
 
 class TaskHandle:
-    """A task added to the running eval (returned by :func:`enqueue_task`).
+    """A task added to the running eval (returned by :func:`enqueue_task`)."""
 
-    Use it from the eval's event loop (see :class:`RunQueue`).
-    """
-
-    def __init__(self, record: TaskRecord, loop_thread: LoopThread) -> None:
+    def __init__(self, record: TaskRecord) -> None:
         self._record = record
-        self._loop_thread = loop_thread
 
     @property
     def task_id(self) -> str:
@@ -151,12 +155,16 @@ class TaskHandle:
     @property
     def state(self) -> TaskState:
         """Whether the task is waiting to start, running, or has ended."""
-        self._loop_thread.check("TaskHandle.state")
         return self._record.state
 
     async def wait(self) -> "EvalLog | None":
-        """Wait for the task to end; its final log, or ``None`` if it never started."""
-        self._loop_thread.check("TaskHandle.wait()")
+        """Wait for the task to end; its final log, or ``None`` if it never started.
+
+        Raises:
+            RuntimeError: If the task was added with ``start="after_batch"``
+                and has not been taken yet: it starts only once no task is
+                running, so a running task waiting for it would never finish.
+        """
         return await self._record.wait()
 
 
@@ -170,10 +178,8 @@ class RunQueue:
     takes them: ``when_free`` ones on each of its cycles, ``after_batch`` ones
     once nothing is queued or running.
 
-    Loop-confined (see ``inspect_ai._eval.run``): created and changed only on
-    the run's event loop thread, and no method awaits, so no method
-    interleaves with another and the queue needs no lock. ``put``, the entry
-    point of code outside the scheduler, checks the thread.
+    Used only from the eval's event loop, and no method awaits, so no method
+    interleaves with another and the queue needs no lock.
     """
 
     def __init__(
@@ -191,8 +197,6 @@ class RunQueue:
         self.run_id = run_id
         self.resolve = resolve
         self.default_start = default_start
-        self.loop_thread = LoopThread()
-        """The thread of the run's event loop (the queue is created on it)."""
         self.queued: list[TaskRecord] = []
         self.wake = Wake()
         """Set whenever the scheduling loop should look at the queue again."""
@@ -250,11 +254,13 @@ class RunQueue:
         Resolution and configuration errors surface to the caller; no record
         is created for any of the tasks then.
         """
-        self.loop_thread.check("enqueue_task()")
         self._accepting()
         resolved = self.resolve(tasks)
         records = self.add(resolved)
-        self._added[start or self.default_start].extend(records)
+        policy = start or self.default_start
+        for record in records:
+            record.start = policy
+        self._added[policy].extend(records)
         self.wake.set()
         # in the order the tasks were given (they start in sequence order)
         position = {id(task): i for i, task in enumerate(resolved)}
@@ -300,20 +306,17 @@ class RunQueue:
         self._closed = True
         return True
 
-    def close(self) -> list[TaskLogger]:
-        """Refuse further additions and end every record that has not started.
+    def close(self) -> list[TaskRecord]:
+        """Refuse further additions and empty the queue.
 
-        Returns the loggers those records held (a seed task's first logger),
-        which the caller discards.
+        Returns the records that will now never start; the caller releases
+        their loggers and ends them.
         """
         self._closed = True
         unstarted = [*self.queued, *self.added()]
         self.queued = []
         self._added = {"when_free": [], "after_batch": []}
-        loggers = [r.logger for r in unstarted if r.logger is not None]
-        for record in unstarted:
-            record.end(None)
-        return loggers
+        return unstarted
 
     def results(self) -> list[EvalLog]:
         """The final log of each task that wrote one, in ``idx`` order."""
@@ -368,8 +371,7 @@ def enqueue_task(
     ``next_tasks()`` runs start only after it returns, so ``next_tasks()``
     must not wait for them.
 
-    Call from the eval's event loop, not from another thread (a call from
-    another thread raises ``RuntimeError``): from a solver,
+    Call from the eval's event loop, not from another thread: from a solver,
     scorer or tool, a ``TaskSource``'s ``next_tasks()`` or completion
     callbacks, or a hook Inspect calls during a task (such as
     ``on_task_start`` or ``on_sample_end``). It raises in ``on_run_start``,
@@ -417,7 +419,4 @@ def enqueue_task(
             f"enqueue_task() run_id '{run_id}' does not match the running eval "
             f"'{queue.run_id}'."
         )
-    return [
-        TaskHandle(record, queue.loop_thread)
-        for record in queue.put(tasks, start=start)
-    ]
+    return [TaskHandle(record) for record in queue.put(tasks, start=start)]
