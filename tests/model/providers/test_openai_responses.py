@@ -1105,6 +1105,99 @@ def test_chat_messages_from_compact_response_developer_and_user_messages():
     assert result[2].content[0].data["compaction_metadata"]["id"] == "comp_123"
 
 
+def _compact_response_with_user_items(items: list[Any]) -> Any:
+    from openai.types.responses import (
+        CompactedResponse,
+        ResponseCompactionItem,
+        ResponseOutputMessage,
+    )
+    from openai.types.responses.response_usage import (
+        InputTokensDetails,
+        OutputTokensDetails,
+        ResponseUsage,
+    )
+
+    # model_construct because the SDK types restrict role to "assistant" and
+    # content to output text/refusal, while the real compact endpoint echoes
+    # user messages with their input_* items
+    user_msg = ResponseOutputMessage.model_construct(
+        id="msg_user", type="message", role="user", status="completed", content=items
+    )
+    return CompactedResponse(
+        id="resp_abc",
+        created_at=1234567890,
+        object="response.compaction",
+        output=[
+            user_msg,
+            ResponseCompactionItem(
+                id="comp_123", encrypted_content="encrypted", type="compaction"
+            ),
+        ],
+        usage=ResponseUsage(
+            input_tokens=100,
+            output_tokens=50,
+            total_tokens=150,
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=0, cache_write_tokens=0
+            ),
+            output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
+        ),
+    )
+
+
+def test_chat_messages_from_compact_response_user_media() -> None:
+    """User messages echoed with images and files convert to image/document content."""
+    from openai.types.responses import ResponseOutputRefusal, ResponseOutputText
+
+    from inspect_ai._util.content import ContentDocument, ContentImage
+    from inspect_ai.model._chat_message import ChatMessageUser
+    from inspect_ai.model._openai_responses import chat_messages_from_compact_response
+
+    # the SDK parses input_image/input_file items as ResponseOutputText with the
+    # real `type` and the other fields in model_extra
+    image_url = "data:image/png;base64,AAAA"
+    file_data = "data:application/pdf;base64,BBBB"
+    response = _compact_response_with_user_items(
+        [
+            ResponseOutputText.model_construct(type="input_text", text="look"),
+            ResponseOutputText.model_construct(
+                type="input_image", image_url=image_url, detail="high"
+            ),
+            ResponseOutputText.model_construct(
+                type="input_file", file_data=file_data, filename="r.pdf", detail="auto"
+            ),
+            ResponseOutputText(type="output_text", text="reply", annotations=[]),
+            ResponseOutputRefusal(type="refusal", refusal="no"),
+        ]
+    )
+
+    result = chat_messages_from_compact_response(response)
+
+    message = result[0]
+    assert isinstance(message, ChatMessageUser)
+    assert message.content == [
+        ContentText(text="look"),
+        ContentImage(image=image_url, detail="high"),
+        ContentDocument(document=file_data, filename="r.pdf"),
+        ContentText(text="reply"),
+        ContentText(text="no", refusal=True),
+    ]
+
+
+def test_chat_messages_from_compact_response_user_unsupported_content() -> None:
+    """An echoed user content type Inspect cannot represent raises a clear error."""
+    from openai.types.responses import ResponseOutputText
+
+    from inspect_ai.model._openai_responses import chat_messages_from_compact_response
+
+    response = _compact_response_with_user_items(
+        [ResponseOutputText.model_construct(type="input_audio", data="AAAA")]
+    )
+
+    with pytest.raises(ValueError, match="input_audio"):
+        chat_messages_from_compact_response(response)
+
+
 def test_chat_messages_from_compact_response_mixed_roles():
     """Test compact response with developer, user, compaction, and assistant items."""
     from openai.types.responses import (

@@ -2449,6 +2449,34 @@ def _output_message_role(item: ResponseOutputMessage) -> str:
     return str(getattr(item, "role", "assistant"))
 
 
+def _content_from_compact_user_item(
+    item: ResponseOutputText | ResponseOutputRefusal,
+) -> Content:
+    """Convert one content item of a user message echoed by the compact endpoint.
+
+    The endpoint returns user messages with their original `input_*` items, but
+    the SDK types them as output text or refusal: it parses an `input_image` or
+    `input_file` as a `ResponseOutputText` with that `type` and the remaining
+    fields in `model_extra`, so branch on `type` rather than the class.
+    """
+    item_type = getattr(item, "type", None)
+    if item_type in ("output_text", "input_text"):
+        return ContentText(text=cast(ResponseOutputText, item).text)
+    elif item_type == "refusal":
+        return ContentText(text=cast(ResponseOutputRefusal, item).refusal, refusal=True)
+    elif item_type in ("input_image", "input_file"):
+        return content_from_response_input_content_param(
+            cast(
+                ResponseInputContentParam,
+                {"type": item_type, **(item.model_extra or {})},
+            )
+        )
+    else:
+        raise ValueError(
+            f"Unsupported content type in compacted user message: {item_type!r}"
+        )
+
+
 def chat_messages_from_compact_response(
     response: CompactedResponse,
     model: str | None = None,
@@ -2542,13 +2570,7 @@ def chat_messages_from_compact_response(
             # Flush any pending assistant items first
             flush_pending_items()
             # Convert user message content to ChatMessageUser
-            # Content items are ResponseOutputText or ResponseOutputRefusal
-            user_content: list[Content] = [
-                ContentText(text=c.text)
-                if isinstance(c, ResponseOutputText)
-                else ContentText(text=c.refusal, refusal=True)
-                for c in item.content
-            ]
+            user_content = [_content_from_compact_user_item(c) for c in item.content]
             if user_content:
                 messages.append(
                     ChatMessageUser(content=user_content, source="generate")
