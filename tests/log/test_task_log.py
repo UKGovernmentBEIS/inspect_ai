@@ -19,7 +19,6 @@ from inspect_ai import Task, eval
 from inspect_ai._eval.loader import resolve_tasks
 from inspect_ai._eval.run import eval_run
 from inspect_ai._eval.task import log as task_log_module
-from inspect_ai._eval.task.enqueue import RunQueue
 from inspect_ai._eval.task.log import (
     TaskLogger,
     resolve_package_revision,
@@ -147,7 +146,7 @@ async def test_eval_run_discards_loggers_when_setup_fails(
             eval_checkpoint=None,
             recorder=cast(Recorder, object()),
             header_only=False,
-            queue=RunQueue("run-id", lambda tasks: [], "after_batch"),
+            resolve_added_tasks=lambda tasks: [],
             run_samples=False,
         )
 
