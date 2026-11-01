@@ -439,9 +439,5 @@ def as_stop_reason(reason: str | None) -> StopReason:
 
 
 def model_usage_input_tokens(usage: ModelUsage) -> int:
-    """Return total input tokens, including cached reads and writes."""
-    return (
-        usage.input_tokens
-        + (usage.input_tokens_cache_read or 0)
-        + (usage.input_tokens_cache_write or 0)
-    )
+    """Return provider input tokens, including cached reads but excluding cache writes."""
+    return usage.input_tokens + (usage.input_tokens_cache_read or 0)
