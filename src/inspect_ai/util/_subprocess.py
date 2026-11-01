@@ -69,6 +69,14 @@ class SubprocessRun(Generic[T]):
     """
 
 
+StdoutReader = Callable[[ByteReceiveStream], Awaitable[bytes]]
+"""Reads a subprocess's stdout for `run_subprocess(stdout_reader=...)`.
+
+Must read to EOF or raise: if it returns while the process is still writing,
+the process blocks on the full pipe until `timeout`, or indefinitely without one.
+"""
+
+
 @overload
 # type: ignore
 async def subprocess(
@@ -166,6 +174,7 @@ async def run_subprocess(
     output_limit: int | None = None,
     timeout: int | None = None,
     concurrency: bool = True,
+    stdout_reader: StdoutReader | None = None,
 ) -> SubprocessRun[str]: ...
 
 
@@ -180,6 +189,7 @@ async def run_subprocess(
     output_limit: int | None = None,
     timeout: int | None = None,
     concurrency: bool = True,
+    stdout_reader: StdoutReader | None = None,
 ) -> SubprocessRun[bytes]: ...
 
 
@@ -194,6 +204,7 @@ async def run_subprocess(
     output_limit: int | None = None,
     timeout: int | None = None,
     concurrency: bool = True,
+    stdout_reader: StdoutReader | None = None,
 ) -> SubprocessRun[str] | SubprocessRun[bytes]: ...
 
 
@@ -207,6 +218,7 @@ async def run_subprocess(
     output_limit: int | None = None,
     timeout: int | None = None,
     concurrency: bool = True,
+    stdout_reader: StdoutReader | None = None,
 ) -> SubprocessRun[str] | SubprocessRun[bytes]:
     """`subprocess()` that also reports whether `input` was fully written to the child's stdin.
 
@@ -216,7 +228,15 @@ async def run_subprocess(
     dockerd fails the exec attach under load, and such a command should be
     retried rather than have its result believed. Same arguments, raises and
     semantics as `subprocess()`; see there.
+
+    `stdout_reader` replaces the default reading of stdout, and `output_limit`
+    then applies to stderr only. If the reader raises, the process is killed
+    and the exception propagates, so a reader can stop a process whose output
+    is no longer usable. Requires `capture_output`.
     """
+    if stdout_reader is not None and not capture_output:
+        raise ValueError("stdout_reader requires capture_output.")
+
     # resolve input
     input = (
         input.encode()
@@ -256,7 +276,9 @@ async def run_subprocess(
             # that fills its stdout pipe before reading stdin would otherwise
             # block us on the write while we block it on the read.
             io_tasks: list[Callable[[], Awaitable[bytes]]] = [
-                functools.partial(consume, process.stdout),
+                functools.partial(stdout_reader, process.stdout)
+                if stdout_reader is not None and process.stdout is not None
+                else functools.partial(consume, process.stdout),
                 functools.partial(consume, process.stderr),
                 write_stdin,
             ]
@@ -305,6 +327,8 @@ async def run_subprocess(
                     if stream is not None:
                         with contextlib.suppress(Exception):
                             await stream.aclose()
+                with contextlib.suppress(Exception):
+                    _close_pipe_transports(process)
                 # Reach here on normal return (process already exited),
                 # cancellation (gracefully_terminate already SIGKILLed), or
                 # any other exception in the body — the last case can leave a
@@ -420,6 +444,24 @@ async def gracefully_terminate_cancelled_subprocess(process: Process) -> None:
         # The process may have already exited, in which case we can ignore the error.
         except ProcessLookupError:
             pass
+
+
+def _close_pipe_transports(process: Process) -> None:
+    """Close the OS pipes of a process run on anyio's asyncio backend.
+
+    Closing an asyncio stream wrapper leaves its pipe transport open, so a
+    writer blocked on a full pipe never sees a broken pipe and the file
+    descriptor stays open; that includes a grandchild still holding the pipe
+    after the process itself was killed. anyio's own `Process.aclose()` closes
+    the transports for this reason. `_transport` is private to that backend;
+    trio's streams close their pipes themselves.
+    """
+    transport = getattr(process, "_transport", None)
+    if transport is None:
+        return
+    for fd in (0, 1, 2):
+        if (pipe := transport.get_pipe_transport(fd)) is not None:
+            pipe.close()
 
 
 async def _write_stdin(stream: ByteSendStream | None, input: bytes | None) -> bool:

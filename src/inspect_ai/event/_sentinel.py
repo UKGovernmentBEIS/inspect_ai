@@ -1,18 +1,19 @@
-from typing import Any, Literal, TypeAlias
+from typing import Annotated, Any, Literal, TypeAlias
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, FiniteFloat, field_validator, model_validator
 from typing_extensions import Self
 
 from inspect_ai.event._base import BaseEvent
 from inspect_ai.scorer._metric import Reference
 from inspect_ai.tool._tool_call import ToolCall
 
-# isort: split
-# Re-exports of sentinel names defined in inspect_ai.core.
-from inspect_ai.core._sentinel import SentinelAction as SentinelAction
-from inspect_ai.core._sentinel import SentinelSuspicion as SentinelSuspicion
+SentinelAction: TypeAlias = Literal[
+    "proceed", "modify", "reject", "terminate", "escalate"
+]
+"""What a sentinel protocol can decide about the step it examined.
 
-# End of re-exports.
+Experimental: not yet a stable API; may change without notice.
+"""
 
 SentinelStage: TypeAlias = Literal[
     "model_input", "model_output", "tool_call", "tool_result"
@@ -23,6 +24,14 @@ SentinelStatus: TypeAlias = Literal[
     "reported", "cancelled", "bypassed", "superseded", "error"
 ]
 """What happened to a sentinel report."""
+
+SentinelSuspicion: TypeAlias = (
+    FiniteFloat | Annotated[dict[str, FiniteFloat], Field(min_length=1)]
+)
+"""How suspicious a step is: one finite score, or a non-empty dict of scores for several dimensions.
+
+Experimental: not yet a stable API; may change without notice.
+"""
 
 
 class SentinelEvent(BaseEvent):
@@ -43,10 +52,10 @@ class SentinelEvent(BaseEvent):
     """Instance path (e.g. "attempt/internet_attempt")."""
 
     function: str | None = Field(default=None)
-    """Name of the function that produced the report, or that raised for an `error` event, which tells apart the functions of an instance whose factory returned several. `None` for `cancelled` and `bypassed` events."""
+    """Name of the function that produced the report, or that raised for an `error` event, which tells apart the functions of an instance whose factory returned several; for the root's `error` event, the root's function, whichever layer below it raised. `None` for `cancelled` and `bypassed` events."""
 
     step_id: str
-    """The step examined: the triggering message id (`model_input`), the assistant message id (`model_output`), or the tool call id (tool stages)."""
+    """The step examined: at the generate stages (`model_input`, `model_output`) the generate's id, the `uuid` of its first `ModelEvent`, shared by both stages and by the generate's retried attempts; at the tool stages the tool call id."""
 
     conversation: str
     """The agent conversation this step belongs to."""
@@ -55,10 +64,10 @@ class SentinelEvent(BaseEvent):
     """Point in the agent loop the step belongs to."""
 
     kind: Literal["observation", "decision"]
-    """The report family: `observation` from a monitor, `decision` from a protocol."""
+    """The report family: `observation` from a monitor, `decision` from a protocol. An `error` event is an `observation`, the root's included."""
 
     status: SentinelStatus
-    """What happened to the report: `reported` carries it; `cancelled` and `bypassed` record no report; `superseded` carries a decision that did not take effect; `error` records a monitor function that raised instead of reporting."""
+    """What happened to the report: `reported` carries it; `cancelled` and `bypassed` record no report; `superseded` carries a decision that did not take effect; `error` records a monitor function that raised instead of reporting, or, at the empty path, that the step's sentinel raised (a protocol failed, or a limit or termination passed through it), so the step's `human()` decisions do not reach later steps."""
 
     suspicion: SentinelSuspicion | None = Field(default=None)
     """How suspicious the step is: one score, or scores for several dimensions."""
@@ -82,7 +91,7 @@ class SentinelEvent(BaseEvent):
     """Messages and events the report cites, which link cites such as `[M22]` in `explanation`. Empty for `cancelled`, `bypassed` and `error` events."""
 
     error: str | None = Field(default=None)
-    """The exception a monitor function raised, as its type and message, for an `error` event."""
+    """The exception a monitor function raised, or the root raised for the root's `error` event, as its type and message."""
 
     @field_validator("action", mode="before")
     @classmethod

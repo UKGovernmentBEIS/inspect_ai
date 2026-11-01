@@ -6,6 +6,7 @@ from copy import copy
 from logging import getLogger
 from typing import Any, AsyncIterator, Literal, cast
 
+import aiohttp
 from azure.ai.inference.aio import ChatCompletionsClient
 from azure.ai.inference.models import (
     AssistantMessage,
@@ -39,6 +40,9 @@ from azure.core.exceptions import (
     ServiceRequestError,
     ServiceResponseError,
 )
+
+# azure.core.pipeline.transport resolves this name lazily, which hides its type
+from azure.core.pipeline.transport._aiohttp import AioHttpTransport
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
@@ -80,6 +84,7 @@ from .._openai import (
     openai_media_filter,
     openai_stop_details,
 )
+from .._response_headers import record_response_headers
 from .._stream import (
     StreamTextEvent,
     StreamToolCallEvent,
@@ -97,6 +102,39 @@ from .util.chatapi import ChatAPIHandler
 from .util.llama31 import Llama31Handler
 
 logger = getLogger(__name__)
+
+
+async def _record_headers(
+    session: aiohttp.ClientSession,
+    context: object,
+    params: aiohttp.TraceRequestEndParams | aiohttp.TraceRequestRedirectParams,
+) -> None:
+    record_response_headers(params.response.headers)
+
+
+_header_trace = aiohttp.TraceConfig()
+_header_trace.on_request_end.append(_record_headers)
+# a redirect is a response too, and following it may get no response
+_header_trace.on_request_redirect.append(_record_headers)
+_header_trace.freeze()
+
+
+class _HeaderRecordingTransport(AioHttpTransport):
+    """Records each response's headers as they arrive.
+
+    The SDK's own response hook runs after the transport has read a
+    non-streaming body, so it never runs for a response whose body can't be
+    read.
+    """
+
+    async def open(self) -> None:
+        # untyped in the SDK
+        await cast(Any, super()).open()
+        if self.session is not None and (
+            _header_trace not in self.session.trace_configs
+        ):
+            self.session.trace_configs.append(_header_trace)
+
 
 AZUREAI_API_KEY = "AZUREAI_API_KEY"
 AZUREAI_BASE_URL = "AZUREAI_BASE_URL"
@@ -287,6 +325,7 @@ class AzureAIAPI(ModelAPI):
             credential=credential,
             model=self.service_model_name(),
             model_extras=self.model_args,
+            transport=_HeaderRecordingTransport(),
         )
 
         model_call = set_active_model_event_call(
@@ -304,14 +343,18 @@ class AzureAIAPI(ModelAPI):
         try:
             if streaming:
                 updates = cast(
-                    AsyncStreamingChatCompletions, await client.complete(**request)
+                    AsyncStreamingChatCompletions,
+                    await client.complete(**request),
                 )
                 try:
                     response = await azureai_completion_from_stream(updates)
                 finally:
                     await updates.aclose()
             else:
-                response = cast(ChatCompletions, await client.complete(**request))
+                response = cast(
+                    ChatCompletions,
+                    await client.complete(**request),
+                )
 
             model_call.set_response(response.as_dict())
 

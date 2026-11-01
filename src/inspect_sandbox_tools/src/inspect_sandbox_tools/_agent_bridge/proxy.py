@@ -38,6 +38,10 @@ READ_TIMEOUT_S = 300
 WRITE_TIMEOUT_S = 300
 STREAM_CHUNK = 8192
 
+# Request headers the proxy reads as one value; repeating one is rejected rather
+# than joined like a list-valued header.
+_SINGLE_VALUE_REQUEST_HEADERS = frozenset({"content-length", "content-type", "host"})
+
 HOP_BY_HOP = {
     "connection",
     "keep-alive",
@@ -167,11 +171,18 @@ class AsyncHTTPServer:
                 continue
             if ":" in header:
                 key, value = header.split(":", 1)
-                headers[key.strip().lower()] = value.strip()
+                key, value = key.strip().lower(), value.strip()
+                if key in headers:
+                    # A repeated list-valued header is one comma-separated value
+                    # (RFC 9110 5.3); a repeated single-valued one is ambiguous.
+                    if key in _SINGLE_VALUE_REQUEST_HEADERS:
+                        raise ValueError(f"Repeated {key} header")
+                    value = f"{headers[key]}, {value}"
+                headers[key] = value
 
         # Expect: 100-continue
-        expect = headers.get("expect")
-        if expect and expect.lower() == "100-continue":
+        expectations = headers.get("expect", "").split(",")
+        if any(item.strip().lower() == "100-continue" for item in expectations):
             try:
                 writer.write(b"HTTP/1.1 100 Continue\r\n\r\n")
                 await asyncio.wait_for(writer.drain(), timeout=WRITE_TIMEOUT_S)
@@ -765,7 +776,7 @@ async def model_proxy_server(
             stream = json_body.get("stream", False)
 
             completion = await call_bridge_model_service_async(
-                "generate_responses", json_data=json_body
+                "generate_responses", json_data=json_body, headers=request["headers"]
             )
 
             error = _provider_error(completion)
@@ -801,12 +812,23 @@ async def model_proxy_server(
 
                     seq_num = 0
 
+                    # Like the real API, created/in_progress carry no results yet:
+                    # items arrive via output_item.added (openai >= 3.31 rejects
+                    # an added index that the snapshot already holds).
+                    in_progress_resp = {
+                        **resp,
+                        "status": "in_progress",
+                        "output": [],
+                        "usage": None,
+                        "incomplete_details": None,
+                    }
+
                     # 1. response.created event
                     seq_num += 1
                     yield _sse_event(
                         "response.created",
                         {
-                            "response": resp,
+                            "response": in_progress_resp,
                             "sequence_number": seq_num,
                             "type": "response.created",
                         },
@@ -815,8 +837,6 @@ async def model_proxy_server(
 
                     # 2. response.in_progress event
                     seq_num += 1
-                    in_progress_resp = dict(resp)
-                    in_progress_resp["status"] = "in_progress"
                     yield _sse_event(
                         "response.in_progress",
                         {
@@ -1511,7 +1531,7 @@ async def model_proxy_server(
             json_body["parallel_tool_calls"] = False
 
             completion = await call_bridge_model_service_async(
-                "generate_completions", json_data=json_body
+                "generate_completions", json_data=json_body, headers=request["headers"]
             )
 
             error = _provider_error(completion)
@@ -1765,7 +1785,9 @@ async def model_proxy_server(
                     PING_INTERVAL_S = 5.0
                     task = asyncio.create_task(
                         call_bridge_model_service_async(
-                            "generate_anthropic", json_data=json_body
+                            "generate_anthropic",
+                            json_data=json_body,
+                            headers=request["headers"],
                         )
                     )
                     try:
@@ -2080,7 +2102,9 @@ async def model_proxy_server(
                 }
             else:
                 completion = await call_bridge_model_service_async(
-                    "generate_anthropic", json_data=json_body
+                    "generate_anthropic",
+                    json_data=json_body,
+                    headers=request["headers"],
                 )
                 error = _provider_error(completion)
                 if error is not None:

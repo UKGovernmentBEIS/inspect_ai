@@ -2,7 +2,7 @@ import pickle
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterator
+from typing import Iterator, Literal
 
 import pytest
 from test_helpers.utils import run_example
@@ -11,10 +11,11 @@ from inspect_ai import Task, eval
 from inspect_ai._eval.evalset import GENERATE_CONFIG_FIELDS_TO_EXCLUDE
 from inspect_ai._util import appdirs
 from inspect_ai._util import logger as inspect_logger
+from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai._util.content import ContentText
 from inspect_ai.dataset import Sample
 from inspect_ai.event._model import ModelEvent
-from inspect_ai.log import EvalSample
+from inspect_ai.log import EvalSample, read_eval_log
 from inspect_ai.model import (
     CachePolicy,
     ChatMessageUser,
@@ -76,6 +77,38 @@ def test_cache(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     # first eval should miss the cache and the second should hit it
     check_eval_with_cache(False)
     check_eval_with_cache(True)
+
+
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_cache_policy_without_expiry_round_trips(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, log_format: Literal["eval", "json"]
+):
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path / "cache"))
+    log = eval(
+        Task(dataset=[Sample(input="Hello")]),
+        model="mockllm/model",
+        cache=CachePolicy(expiry=None),
+        log_dir=str(tmp_path / "logs"),
+        log_format=log_format,
+        display="none",
+    )[0]
+
+    log = read_eval_log(log.location)
+    assert isinstance(log.eval.model_generate_config.cache, CachePolicy)
+    assert log.eval.model_generate_config.cache.expiry is None
+    assert log.samples
+    model_event = next(e for e in log.samples[0].events if isinstance(e, ModelEvent))
+    assert isinstance(model_event.config.cache, CachePolicy)
+    assert model_event.config.cache.expiry is None
+
+
+def test_cache_policy_missing_expiry_is_none_only_in_log_reads():
+    assert CachePolicy.model_validate({}).expiry == "1W"
+    assert CachePolicy().expiry == "1W"
+    assert (
+        CachePolicy.model_validate({}, context=get_deserializing_context()).expiry
+        is None
+    )
 
 
 def _key_for(config: GenerateConfig) -> str:
@@ -223,6 +256,54 @@ def test_cache_skips_content_filter(monkeypatch: pytest.MonkeyPatch, tmp_path: P
     fetched = cache_fetch(cache_entry())
     assert fetched is not None
     assert fetched.completion == "Hi"
+
+
+def test_cache_entry_from_before_input_context_tokens(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A cached output pickled before input_context_tokens existed still reads it."""
+    import pickle
+
+    from inspect_ai.model import ModelUsage
+    from inspect_ai.model._model_output import output_input_context_tokens
+
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+
+    timestamp = str(datetime.now(timezone.utc))
+
+    def run_eval() -> EvalSample:
+        log = eval(
+            Task(
+                dataset=[Sample(input=f"What is the timestamp: {timestamp}")],
+                solver=[generate(cache=True)],
+            ),
+            model="mockllm/model",
+        )[0]
+        assert log.status == "success"
+        assert log.samples
+        return log.samples[0]
+
+    run_eval()
+
+    # rewrite the stored entry in the pickle state of an older ModelOutput
+    entries = [p for p in tmp_path.rglob("*") if p.is_file()]
+    assert len(entries) == 1
+    expiry, output = pickle.loads(entries[0].read_bytes())
+    output.usage = ModelUsage(input_tokens=5, output_tokens=1, total_tokens=6)
+    del output.__dict__["input_context_tokens"]
+    output.__pydantic_fields_set__.discard("input_context_tokens")
+    entries[0].write_bytes(pickle.dumps((expiry, output)))
+
+    _, legacy = pickle.loads(entries[0].read_bytes())
+    assert legacy.input_context_tokens is None
+    assert output_input_context_tokens(legacy) == 5
+
+    # a cache hit on that entry publishes and logs a usable output
+    sample = run_eval()
+    events = [e for e in sample.events if isinstance(e, ModelEvent)]
+    assert [e.cache for e in events] == ["read"]
+    assert events[0].output.input_context_tokens is None
+    assert output_input_context_tokens(events[0].output) == 5
 
 
 def test_cache_trace_omits_key_components(

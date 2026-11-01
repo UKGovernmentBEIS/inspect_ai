@@ -11,6 +11,9 @@ description: Miscellaneous utility functions.
 ### StoreModel
 ### store_from_events
 ### store_from_events_as
+### tool_state_scope
+### tool_state_instance
+### private_tool_instance
 
 ## Limits
 
@@ -27,6 +30,7 @@ description: Miscellaneous utility functions.
 ### Limit
 ### LimitExceededError
 ### suspend_token_limit
+### suspend_working_limit
 
 ## Concurrency
 
@@ -110,7 +114,6 @@ description: Miscellaneous utility functions.
 
 ## JSON
 
-### StrEnum
 ### JSONType
 ### JSONSchema
 ### json_schema

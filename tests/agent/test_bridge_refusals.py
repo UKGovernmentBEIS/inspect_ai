@@ -72,7 +72,9 @@ async def _generate(
         filter=filter,
         retry_refusals=retry_refusals,
     )
-    output, _ = await bridge_generate(bridge, model, list(messages), [], None, config)
+    output, _ = await bridge_generate(
+        bridge, model, list(messages), [], None, config, requested_model=None
+    )
     return output, len(generations)
 
 
@@ -107,7 +109,7 @@ async def test_filter_refusal_raises_without_calling_model() -> None:
     """A refusal produced by the filter bypasses model.generate(), so the loop raises."""
 
     async def refuse(
-        model: str,
+        model: Model,
         input: list[ChatMessage],
         tools: Any,
         tool_choice: Any,
@@ -120,16 +122,41 @@ async def test_filter_refusal_raises_without_calling_model() -> None:
     bridge = AgentBridge(AgentState(messages=[]), filter=refuse)
     with pytest.raises(ModelRefusalError):
         await bridge_generate(
-            bridge, model, [ChatMessageUser(content="hi")], [], None, FAIL
+            bridge,
+            model,
+            [ChatMessageUser(content="hi")],
+            [],
+            None,
+            FAIL,
+            requested_model=None,
         )
     assert generations == []
+
+
+async def test_legacy_filter_with_postponed_annotation_receives_model_name() -> None:
+    received: list[str] = []
+
+    async def filter(
+        model: str,
+        input: list[ChatMessage],
+        tools: Any,
+        tool_choice: Any,
+        config: GenerateConfig,
+    ) -> ModelOutput | None:
+        received.append(model)
+        return None
+
+    with pytest.warns(DeprecationWarning, match="first parameter is deprecated"):
+        await _generate([ANSWER], config=GenerateConfig(), filter=filter)
+
+    assert received == [get_model("mockllm/model").name]
 
 
 async def test_filter_refusal_honours_model_config() -> None:
     """The filter path resolves fail_on_refusal from the model, like generate() does."""
 
     async def refuse(
-        model: str,
+        model: Model,
         input: list[ChatMessage],
         tools: Any,
         tool_choice: Any,
@@ -141,13 +168,19 @@ async def test_filter_refusal_honours_model_config() -> None:
     bridge = AgentBridge(AgentState(messages=[]), filter=refuse)
     with pytest.raises(ModelRefusalError):
         await bridge_generate(
-            bridge, model, [ChatMessageUser(content="hi")], [], None, GenerateConfig()
+            bridge,
+            model,
+            [ChatMessageUser(content="hi")],
+            [],
+            None,
+            GenerateConfig(),
+            requested_model=None,
         )
 
 
 async def test_filter_refusal_returned_when_option_off() -> None:
     async def refuse(
-        model: str,
+        model: Model,
         input: list[ChatMessage],
         tools: Any,
         tool_choice: Any,
@@ -166,7 +199,7 @@ async def test_filter_refusal_retries_then_model_answers() -> None:
     calls = 0
 
     async def refuse_once(
-        model: str,
+        model: Model,
         input: list[ChatMessage],
         tools: Any,
         tool_choice: Any,
@@ -225,7 +258,9 @@ async def test_sandbox_refusal_unwinds_the_bridge_task_group() -> None:
     """
     bridge = _sandbox_bridge()
 
-    async def refusing_generate(json_data: dict[str, Any]) -> dict[str, Any]:
+    async def refusing_generate(
+        json_data: dict[str, Any], headers: dict[str, str] | None = None
+    ) -> dict[str, Any]:
         raise ModelRefusalError(REFUSAL, "mockllm/model")
 
     wrapped = _forward_provider_errors(refusing_generate, bridge)

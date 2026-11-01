@@ -63,6 +63,7 @@ from .._stream import (
 )
 from .util import (
     forced_tool_choice_degraded_metadata,
+    is_claude_4_0_model,
     is_claude_fable_5_1_model,
     is_claude_opus_5_5_model,
     is_forced_tool_choice,
@@ -70,7 +71,7 @@ from .util import (
     normalize_stream_arg,
     rejects_forced_tool_choice,
 )
-from .util.hooks import ConverseHooks
+from .util.hooks import ConverseHooks, header_recording_config
 
 logger = getLogger(__name__)
 
@@ -628,9 +629,7 @@ class BedrockAPI(ModelAPI):
         misclassify them as 4.6+/4.7+ and emit adaptive thinking on a model
         that only accepts `budget_tokens`.
         """
-        return self._is_claude_4_x(0) or (
-            re.search(r"claude-[a-zA-Z]+-4[-@]20\d{6}", self.model_family()) is not None
-        )
+        return is_claude_4_0_model(self.model_family())
 
     def is_claude_4_6_or_later(self) -> bool:
         """Mirrors `is_claude_frontier` in the native anthropic provider.
@@ -653,7 +652,6 @@ class BedrockAPI(ModelAPI):
         return False
 
     def is_claude_4_7_or_later(self) -> bool:
-        # mirrors the gating used in the native anthropic provider:
         # claude 4.7+ runs adaptive-thinking-only and rejects temperature /
         # top_p / top_k. assume future minor versions of claude 4 keep the
         # 4.7 capability set unless a specific older minor is matched.
@@ -759,7 +757,6 @@ class BedrockAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
-        from aiobotocore.config import AioConfig
         from botocore.exceptions import ClientError
 
         # The bedrock client
@@ -767,7 +764,7 @@ class BedrockAPI(ModelAPI):
             async with self.session.create_client(
                 service_name="bedrock-runtime",
                 endpoint_url=self.base_url,
-                config=AioConfig(
+                config=header_recording_config(
                     read_timeout=self.read_timeout,
                     connect_timeout=self.connect_timeout,
                     retries=dict(mode="adaptive"),
@@ -802,9 +799,7 @@ class BedrockAPI(ModelAPI):
 
                 # Claude 4.7+ runs adaptive-thinking-only and rejects sampling
                 # parameters; other thinking-enabled Claude models also reject
-                # sampling params while thinking is on. Mirror the gating used
-                # in the native anthropic provider (see anthropic.py L773-L775).
-                # See issues #3765, #3766.
+                # sampling params while thinking is on. See issues #3765, #3766.
                 forbid_sampling_params = self.is_claude_4_7_or_later() or (
                     self.is_claude() and self.is_using_thinking(config)
                 )

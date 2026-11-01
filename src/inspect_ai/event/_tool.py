@@ -11,7 +11,18 @@ from ._base import BaseEvent
 
 
 class ToolEvent(BaseEvent):
-    """Call to a tool."""
+    """Call to a tool.
+
+    A host tool that `sandbox_agent_bridge(bridged_tools=...)` runs for a
+    sandboxed agent is recorded with `metadata["bridge"]`: `server` and `tool`
+    (the bridged server and the tool name within it, also the event's
+    `function`), `function` (the name the model called it by, or `None`),
+    `proposal_id` (the id of the model's proposing tool call, or `None`) and
+    `grant` (`"consumed"` when a proposal matched, `"denied"` when the call
+    was refused for lack of one, `"exempt"` when a server registered with
+    `require_proposal=False` ran it without one, or `None` when the request
+    was rejected before that check).
+    """
 
     event: Literal["tool"] = Field(default="tool")
     """Event type."""
@@ -53,7 +64,13 @@ class ToolEvent(BaseEvent):
     """Time that tool call completed (see `timestamp` for started)"""
 
     working_time: float | None = Field(default=None)
-    """Working time for tool call (i.e. time not spent waiting on semaphores)."""
+    """Working time for tool call (clock time minus the sample's waiting time).
+
+    The sample is waiting while a wait is open and no model call, sandbox
+    command or tool call is running (not counting commands run with
+    `exec_remote()` or inside `sandbox_agent_bridge()`). Other work done during a wait is not
+    counted, so set `time_limit` alongside `working_limit` to bound clock time.
+    """
 
     agent: str | None = Field(default=None)
     """Name of agent if the tool call was an agent handoff."""
@@ -72,7 +89,7 @@ class ToolEvent(BaseEvent):
         result: ToolResult,
         truncated: tuple[int, int] | None,
         error: ToolCallError | None,
-        waiting_time: float,
+        working_time: float,
         agent: str | None,
         failed: bool | None,
         message_id: str | None,
@@ -102,9 +119,8 @@ class ToolEvent(BaseEvent):
         self.result = result
         self.truncated = truncated
         self.pending = None
-        completed = datetime.now(timezone.utc)
-        self.completed = completed
-        self.working_time = (completed - self.timestamp).total_seconds() - waiting_time
+        self.completed = datetime.now(timezone.utc)
+        self.working_time = working_time
         self.agent = agent
         self.message_id = message_id
         if agent_span_id is not None:

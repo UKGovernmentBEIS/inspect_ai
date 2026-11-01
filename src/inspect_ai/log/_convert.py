@@ -153,6 +153,8 @@ async def _stream_convert_file(
     log_header = await read_eval_log_async(
         input_file, header_only=True, resolve_attachments=resolve_attachments
     )
+    # read before log_init: an in-place conversion flushes over the input
+    reductions = await input_recorder.read_log_reductions(input_file)
     await output_recorder.log_init(log_header.eval, location=output_file)
     await output_recorder.log_start(log_header.eval, log_header.plan)
 
@@ -165,7 +167,7 @@ async def _stream_convert_file(
         log_header.status,
         log_header.stats,
         log_header.results,
-        log_header.reductions,
+        reductions,
         error=log_header.error,
         invalidated=log_header.invalidated,
         log_updates=log_header.log_updates,

@@ -43,7 +43,7 @@ approvers:
 ```
 
 
-Navigational web browser tool calls (e.g. `web_browser_go`) are approved automatically via the catch-all `auto` approver at the end of the chain. Note that when listing an approver in a policy you indicate which tools it should handle using a glob or list of globs. These globs are prefix matched so the `web_browser_type` glob matches both `web_browser_type` and `web_browser_type_submit`.
+Navigational web browser tool calls (e.g. `web_browser_go`) are approved automatically via the catch-all `auto` approver at the end of the chain. Note that when listing an approver in a policy you indicate which tools it should handle using a glob or list of globs. A name with no glob characters (`*`, `?`, `[`) is prefix matched, so `web_browser_type` matches both `web_browser_type` and `web_browser_type_submit`. A glob must match the whole name, so `*bash` matches `bash` but not `bash_helper`.
 
 To use this policy, pass the path to the policy YAML file as the approver. For example:
 
@@ -51,23 +51,51 @@ To use this policy, pass the path to the policy YAML file as the approver. For e
 inspect eval browser.py --approval approval.yaml
 ```
 
-You can also match on tool arguments (for tools that dispatch many action types). For example, here is an approval policy for the [Computer Tool](tools-standard.qmd#sec-computer) which allows typing and mouse movement but requires approval for key combos (e.g. Enter or a shortcut) and typing:
-
+You can also match on tool arguments (for tools that dispatch many action types) by adding `arguments` to a policy. Each key is an argument name and each value is a glob for that argument's value. For example, here is an approval policy for the [Computer Tool](tools-standard.qmd#sec-computer) which requires approval for key combos (e.g. Enter or a shortcut) and mouse clicks:
 
 ```{.yaml filename="approval.yaml"}
 approvers:
   - name: human
-    tools:
-      - computer(action='key'
-      - computer(action='left_click'
-      - computer(action='middle_click'
-      - computer(action='double_click'
+    tools: computer
+    arguments: {action: key}
+
+  - name: human
+    tools: computer
+    arguments: {action: "*_click"}
 
   - name: auto
     tools: "*"
 ```
 
-Note that since this is a prefix match and there could be other arguments, we don't end the tool match pattern with a parentheses.
+An argument glob must match the whole value: `key` matches only `key`, while `*_click` matches `left_click`, `right_click` and the other click actions. A string is matched as is; any other value is matched as its JSON (e.g. `true` or `10`). That JSON has a space after each comma and colon, keeps object keys in the order the model sent them, and does not escape Unicode characters. `10` and `10.0` differ. For example, `'{"force": true}'` matches the object `{"force": true}`. In a glob `[` starts a character set, so write `[[]` to match a literal `[`. Every listed argument must be present and match, and the call may have other arguments. Globs must be strings, so quote boolean or numeric values in config files, for example `arguments: {timeout: "10", sudo: "true"}`.
+
+Argument globs are case-sensitive. Function names are case-sensitive too, except on Windows, where they ignore case (but not in the legacy form below).
+
+In Python, pass `arguments` to `ApprovalPolicy`:
+
+``` python
+ApprovalPolicy(human_approver(), "computer", arguments={"action": "key"})
+```
+
+::: {.callout-note}
+Earlier versions matched arguments within `tools`, as in `computer(action='key'`. This legacy form still works for one argument with a single-quoted value, with these limitations:
+
+- The function name must match exactly and cannot contain glob characters (`*`, `?`, `[`, `]`).
+- Only string argument values match. Other values never do.
+- The glob must match the whole value.
+- Matching is case-sensitive on every platform.
+- Path separators are literal, so on Windows `/` and `\` are different characters.
+- The closed form `name(arg='value')` matches only calls with no other arguments.
+- Any other `tools` pattern containing `(`, including one with an unclosed value such as `bash(cmd='rm`, raises an error.
+
+Use `arguments` for any other matching.
+
+Older logs still open, but `eval_retry()` restores the policies saved in the log and raises an error for a pattern that is no longer supported. Updating the task's current policies does not replace the saved ones. Migrate the saved approval or review configuration in a copy of the log, or start a new evaluation with migrated policies.
+:::
+
+For native tool calls, approval sees a call after its arguments pass the tool's schema and are converted to the tool's parameter types, so a call with invalid arguments fails before any approver or sentinel monitor sees it. While approval or a sentinel is active, approvers see the converted arguments serialized as JSON, including Pydantic model field defaults and any value a validator or `__post_init__` changed, and the tool runs what is rebuilt from the approved JSON. Arguments that do not convert back to the same JSON and the same value are a parsing error, for example a `SecretStr`, which serializes masked, or a field with `exclude=True`. A `modify` decision must give each argument in full, as shown: if the modified arguments do not convert back to exactly what was selected (for example, because a field with a default was left out), the call does not run. If a tool's arguments serialize to a form its schema does not accept (for example, a field serializer that turns a number into text), the call can be approved but not modified. Approvers of a bridged agent's calls get the arguments the agent supplies, without this step.
+
+Approvers and sentinel monitors change a call only by returning a `modify` decision with a new `ToolCall`. If one changes the call it was given in place and approves it, the call does not run.
 
 ## Approvers in Code
 
@@ -235,7 +263,7 @@ There are five possible approval decisions:
 
 A `modify` decision must carry the modified call in `modified`. Without one, the decision is treated as a rejection: the tool does not run, and the model is told that a modification was chosen but no modified call was supplied. The approval event still records the `modify` decision.
 
-A `modify` decision may change only the arguments of the tool call. If the modified call names a different function, neither tool runs and the sample fails with an error, since this is a bug in the approver rather than something to report to the model. For a modified call, the tool event records the arguments that ran, while the model output and the approval event keep the call the model proposed.
+A `modify` decision may change only the arguments of the tool call. If the modified call names a different function or, for a native call, has a different id, neither tool runs and the sample fails with an error, since this is a bug in the approver rather than something to report to the model. For a modified native call, the tool event records the arguments that ran, the model output keeps the call the model proposed, and the approval event keeps the call as presented for approval, with the modified call in `modified`.
 
 
 Here's a more complicated custom approver that implements an allow list for bash commands. Imagine that we've implemented this approver within a Python package named `evaltools`:
@@ -329,3 +357,5 @@ def bash(timeout: int | None = None) -> Tool:
 The `ToolCallViewer` gets passed the `ToolCall` and returns a `ToolCallView` that provides one or both of `context` (additional information for understand the call) and `call` (alternate rendering of the call). In the case of the bash tool we provide a markdown code block rendering of the bash code to be executed.
 
 The `context` is typically used for stateful tools that need to present some context from the current state. For example, the web browsing tool provides a snippet from the currently loaded page.
+
+If a viewer raises an exception when tool approval or a sentinel step before the tool runs (`BeforeToolCall`) checks the call, the call is rejected and the model is told why. Approvers and those sentinel monitors never see a fallback rendering in its place. Other steps still use the default rendering: steps that see the call when the model proposes it, such as sentinel steps after generation, and steps after the call has run, such as tool result review.

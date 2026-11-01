@@ -174,6 +174,7 @@ NAME_ORGS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
     (("glm",), ("z-ai", "zai-org")),
     (("qwen", "qwq"), ("Qwen",)),
     (("llama", "meta-llama"), ("meta-llama",)),
+    (("muse-",), ("meta",)),
     (("minimax",), ("MiniMaxAI",)),
 )
 

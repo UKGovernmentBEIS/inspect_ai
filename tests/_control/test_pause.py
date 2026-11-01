@@ -8,6 +8,7 @@ the server routes that wrap them (``POST /tasks/<id>/pause|resume``,
 fields on ``GET /tasks``.
 """
 
+import time
 from typing import Any
 
 import anyio
@@ -46,6 +47,11 @@ from inspect_ai._control.pause import (
     task_pause_sources,
     wait_generate_dispatch,
     wake_pause_waiters,
+)
+from inspect_ai._util.working import (
+    init_sample_working_time,
+    sample_timing,
+    sample_waiting_time,
 )
 from inspect_ai.hooks import Hooks, TaskEnd, hooks
 from inspect_ai.model import get_model
@@ -672,21 +678,21 @@ async def test_generate_gate_open_under_soft_pause() -> None:
     await pause_process()
     await pause_model("mockllm/model")
     model = get_model("mockllm/model", memoize=False)
-    credits: list[float] = []
+    init_sample_working_time(time.monotonic())
     with anyio.fail_after(5):
-        await wait_generate_dispatch(model, credits.append)
-    assert credits == []
+        await wait_generate_dispatch(model)
+    assert sample_waiting_time() < 0.05
 
 
 async def test_generate_gate_holds_under_process_hard_pause() -> None:
     """Process `pause --now` parks generate attempts until resume, crediting the hold."""
     await pause_process(now=True)
     model = get_model("mockllm/model", memoize=False)
-    credits: list[float] = []
+    init_sample_working_time(time.monotonic())
     passed = anyio.Event()
 
     async def attempt() -> None:
-        await wait_generate_dispatch(model, credits.append)
+        await wait_generate_dispatch(model)
         passed.set()
 
     async with anyio.create_task_group() as tg:
@@ -696,8 +702,8 @@ async def test_generate_gate_holds_under_process_hard_pause() -> None:
         await resume_process()
         with anyio.fail_after(5):
             await passed.wait()
-    # the whole hold is credited as waiting time (tail credited on release)
-    assert sum(credits) >= 0.05
+    # the whole hold is waiting time
+    assert sample_waiting_time() >= 0.05
 
 
 async def test_generate_gate_downgrade_to_soft_releases() -> None:
@@ -707,7 +713,7 @@ async def test_generate_gate_downgrade_to_soft_releases() -> None:
     passed = anyio.Event()
 
     async def attempt() -> None:
-        await wait_generate_dispatch(model, lambda _: None)
+        await wait_generate_dispatch(model)
         passed.set()
 
     async with anyio.create_task_group() as tg:
@@ -732,7 +738,7 @@ async def test_generate_gate_task_scope_counts_held_samples(
     passed = anyio.Event()
 
     async def attempt() -> None:
-        await wait_generate_dispatch(model, lambda _: None)
+        await wait_generate_dispatch(model)
         passed.set()
 
     async with anyio.create_task_group() as tg:
@@ -766,10 +772,10 @@ async def test_generate_gate_model_scope_keys_on_called_model(
 
     # calls to an un-latched model pass straight through
     with anyio.fail_after(5):
-        await wait_generate_dispatch(other, lambda _: None)
+        await wait_generate_dispatch(other)
 
     async def attempt() -> None:
-        await wait_generate_dispatch(model, lambda _: None)
+        await wait_generate_dispatch(model)
         passed.set()
 
     async with anyio.create_task_group() as tg:
@@ -784,39 +790,72 @@ async def test_generate_gate_model_scope_keys_on_called_model(
     assert task_held_count("t1") == 0
 
 
-async def test_generate_gate_credits_incrementally(
+async def test_generate_gate_hold_is_waiting_without_ticks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Held time is credited while parked, not only at hold end.
+    """Held time counts as waiting while parked, with no credit ticks.
 
-    monitor_working_limit polls every second, so a hold credited only at its
-    end would let a working_limit expire mid-hold — the credit loop must
-    report progress at the credit interval.
+    monitor_working_limit polls every second, so a hold counted only at its
+    end would let a working_limit expire mid-hold. The hold is an open wait,
+    so the clock stops at once, even with a tick interval longer than the
+    hold.
     """
     import inspect_ai._control.pause as pause_module
     from inspect_ai.util._limit import working_limit
 
-    monkeypatch.setattr(pause_module, "_HELD_CREDIT_INTERVAL", 0.02)
+    monkeypatch.setattr(pause_module, "_HELD_CREDIT_INTERVAL", 60)
     await pause_process(now=True)
     model = get_model("mockllm/model", memoize=False)
-    credits: list[float] = []
+    init_sample_working_time(time.monotonic())
+    parked = anyio.Event()
     passed = anyio.Event()
 
-    async def attempt() -> None:
-        with working_limit(60):
-            await wait_generate_dispatch(model, credits.append)
-        passed.set()
+    with working_limit(60) as limit:
+
+        async def attempt() -> None:
+            parked.set()
+            await wait_generate_dispatch(model)
+            passed.set()
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(attempt)
+            await parked.wait()
+            usage_parked = limit.usage
+            await anyio.sleep(0.2)
+            # the hold is waiting while still parked
+            assert not passed.is_set()
+            assert sample_waiting_time() >= 0.15
+            assert limit.usage - usage_parked < 0.05
+            await resume_process()
+            with anyio.fail_after(5):
+                await passed.wait()
+
+
+async def test_generate_gate_parked_calls_merge() -> None:
+    """Two calls parked at the same time count their overlap once."""
+    await pause_process(now=True)
+    model = get_model("mockllm/model", memoize=False)
+    start = time.monotonic()
+    init_sample_working_time(start)
+    timing = sample_timing()
+    assert timing is not None
 
     async with anyio.create_task_group() as tg:
-        tg.start_soon(attempt)
-        await anyio.sleep(0.2)
-        # several interval credits landed while still parked
-        assert not passed.is_set()
-        assert len(credits) >= 2
-        assert sum(credits) >= 0.05
-        await resume_process()
+        tg.start_soon(wait_generate_dispatch, model)
+        tg.start_soon(wait_generate_dispatch, model)
+        # both calls are parked
         with anyio.fail_after(5):
-            await passed.wait()
+            while timing.open_waits < 2:
+                await anyio.sleep(0.01)
+        parked = time.monotonic()
+        await anyio.sleep(0.2)
+        held = time.monotonic() - parked
+        await resume_process()
+    elapsed = time.monotonic() - start
+    waiting = sample_waiting_time()
+    # counted once: at least the shared hold, never more than clock time
+    assert held <= waiting <= elapsed
+    assert timing.open_waits == 0
 
 
 async def test_generate_gate_stamped_interrupt_escapes(
@@ -843,7 +882,7 @@ async def test_generate_gate_stamped_interrupt_escapes(
     # already stamped: passes at entry without ever counting as held
     sample.interrupt_action = "score"
     with anyio.fail_after(5):
-        await wait_generate_dispatch(model, lambda _: None)
+        await wait_generate_dispatch(model)
     assert task_held_count("t1") == 0
 
     # stamped while parked: the tick re-checks the escape and releases
@@ -851,7 +890,7 @@ async def test_generate_gate_stamped_interrupt_escapes(
     passed = anyio.Event()
 
     async def attempt() -> None:
-        await wait_generate_dispatch(model, lambda _: None)
+        await wait_generate_dispatch(model)
         passed.set()
 
     async with anyio.create_task_group() as tg:
@@ -877,10 +916,10 @@ async def test_generate_gate_cancellation_credits_tail(
 
     monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: _FakeSample())
     model = get_model("mockllm/model", memoize=False)
-    credits: list[float] = []
+    init_sample_working_time(time.monotonic())
 
     async def attempt() -> None:
-        await wait_generate_dispatch(model, credits.append)
+        await wait_generate_dispatch(model)
 
     async with anyio.create_task_group() as tg:
         tg.start_soon(attempt)
@@ -888,7 +927,9 @@ async def test_generate_gate_cancellation_credits_tail(
         assert task_held_count("t1") == 1
         tg.cancel_scope.cancel()
     assert task_held_count("t1") == 0
-    assert sum(credits) >= 0.05
+    timing = sample_timing()
+    assert timing is not None and timing.open_waits == 0
+    assert sample_waiting_time() >= 0.05
 
 
 async def test_compact_gate_holds_under_hard_pause(

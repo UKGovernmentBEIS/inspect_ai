@@ -107,6 +107,10 @@ async def test_list_shard_set_applies_the_shard_set_rules(tmp_path: Path) -> Non
     assert "json log in a shard directory" in stray[f"0/{T1}_task_a.json"]
     assert "directly in the shards directory" in stray[f"{T1}_task_e.eval"]
     assert "directly in the shards directory" in stray[f"{T1}_task_e.json"]
+    # the directories below the listed ones, buffers excepted
+    assert [
+        Path(d).relative_to(shards_dir).as_posix() for d in listing.unlisted_dirs
+    ] == [".hidden/sub", f"2/{T2}_task_c.checkpoints", "2/scans"]
 
 
 def _nested_companions(shards: Path) -> tuple[Path, Path]:
@@ -149,6 +153,17 @@ async def test_list_shard_set_reports_every_log_is_shard_path_places_in_it(
         log for log in logs if is_shard_path(location(tmp_path), location(log))
     }
     assert shard_paths == await reported(shards_dir)
+    # with the logs nested in the directories it does not list, the walk
+    # accounts for every log in the companion
+    async with AsyncFilesystem() as fs:
+        unlisted = (await list_shard_set(fs, location(shards_dir))).unlisted_dirs
+    nested_logs = {
+        log for log in logs if any(Path(local_path(d)) in log.parents for d in unlisted)
+    }
+    assert shard_paths | nested_logs == {
+        log for log in logs if shards_dir in log.parents
+    }
+    assert not shard_paths & nested_logs
     assert logs - shard_paths == {
         shards_dir / "2" / "scans" / f"{T1}_task_f.eval",
         shards_dir / ".hidden" / "sub" / f"{T1}_task_g.eval",
@@ -179,6 +194,8 @@ async def test_list_shard_set_on_s3_reports_every_log_is_shard_path_places_in_it
         f"consistency/run.shards/0/scans/{T1}_task_d.eval",
         f"consistency/run.shards/0/x.shards/1/{T1}_task_e.eval",
         f"consistency/run.shards/.hidden/y.shards/1/{T1}_task_f.eval",
+        "consistency/run.shards/0/.buffer/seg/segment.0.zip",
+        "consistency/run.shards/.buffer/stem/segment.0.zip",
         f"consistency/{T1}_task_g.eval",
     ]
     for key in keys:
@@ -195,7 +212,14 @@ async def test_list_shard_set_on_s3_reports_every_log_is_shard_path_places_in_it
         if is_shard_path(root, f"s3://test-bucket/{key}")
     }
     assert shard_paths == reported
-    assert {f"s3://test-bucket/{key}" for key in keys} - shard_paths == {
+    assert listing.unlisted_dirs == [
+        f"{root}/run.shards/.hidden/y.shards",
+        f"{root}/run.shards/0/scans",
+        f"{root}/run.shards/0/x.shards",
+    ]
+    assert {
+        f"s3://test-bucket/{key}" for key in keys if is_log_file(key, [".json"])
+    } - shard_paths == {
         f"{root}/run.shards/0/scans/{T1}_task_d.eval",
         f"{root}/run.shards/0/x.shards/1/{T1}_task_e.eval",
         f"{root}/run.shards/.hidden/y.shards/1/{T1}_task_f.eval",
@@ -234,7 +258,7 @@ async def test_list_shard_set_keeps_the_file_uri_form(tmp_path: Path) -> None:
 async def test_list_shard_set_of_a_missing_local_dir_is_empty(tmp_path: Path) -> None:
     async with AsyncFilesystem() as fs:
         listing = await list_shard_set(fs, str(tmp_path / "absent.shards"))
-    assert listing == ShardSetListing(shards=[], stray=[])
+    assert listing == ShardSetListing(shards=[], stray=[], unlisted_dirs=[])
 
 
 async def test_list_shard_set_leaves_out_a_shard_removed_during_the_walk(
@@ -284,6 +308,37 @@ async def test_list_shard_set_lists_at_most_32_shards_at_a_time(
         listing = await list_shard_set(fs, str(shards_dir))
     assert peak == 32
     assert len(listing.shards) == 40
+
+
+async def test_list_shard_set_keeps_to_a_given_limiter(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    shards_dir = tmp_path / "run.shards"
+    for k in range(10):
+        _touch(shards_dir / str(k) / f"{T1}_task_a.eval")
+    original = AsyncFilesystem.list_dir
+    in_flight = 0
+    peak = 0
+
+    async def counted(self: AsyncFilesystem, base: str) -> DirListing:
+        nonlocal in_flight, peak
+        in_flight += 1
+        peak = max(peak, in_flight)
+        try:
+            await anyio.sleep(0.01)
+            return await original(self, base)
+        finally:
+            in_flight -= 1
+
+    monkeypatch.setattr(AsyncFilesystem, "list_dir", counted)
+    limiter = anyio.CapacityLimiter(2)
+    async with AsyncFilesystem() as fs:
+        async with anyio.create_task_group() as tg:
+            # a second walk sharing the limiter
+            tg.start_soon(lambda: list_shard_set(fs, str(shards_dir), limiter=limiter))
+            listing = await list_shard_set(fs, str(shards_dir), limiter=limiter)
+    assert peak == 2
+    assert len(listing.shards) == 10
 
 
 async def test_cancelling_list_shard_set_cancels_its_listings(
@@ -362,7 +417,7 @@ async def test_list_shard_set_on_s3(mock_s3: None) -> None:
         f"{shards_dir}/{T1}_task_c.eval",
         f"{shards_dir}/{T1}_task_c.json",
     ]
-    assert empty == ShardSetListing(shards=[], stray=[])
+    assert empty == ShardSetListing(shards=[], stray=[], unlisted_dirs=[])
 
 
 async def test_list_shard_set_on_s3_leaves_out_a_shard_emptied_during_the_walk(

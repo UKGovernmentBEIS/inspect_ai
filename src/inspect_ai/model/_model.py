@@ -5,7 +5,7 @@ import functools
 import json
 import logging
 import os
-import time
+import weakref
 from contextvars import ContextVar
 from copy import copy, deepcopy
 from datetime import datetime, timezone
@@ -24,7 +24,9 @@ from typing import (
     Sequence,
     Type,
     TypeAlias,
+    TypeVar,
     cast,
+    runtime_checkable,
 )
 
 if TYPE_CHECKING:
@@ -32,6 +34,7 @@ if TYPE_CHECKING:
     from inspect_ai.tool import ToolInfo
 
 import anyio
+import mmh3
 from pydantic import BaseModel
 from pydantic_core import to_jsonable_python
 from shortuuid import uuid
@@ -72,8 +75,10 @@ from inspect_ai._util.retry import report_http_retry
 from inspect_ai._util.rich import format_traceback
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.working import (
-    report_sample_waiting_time,
-    sample_waiting,
+    ModelAttempts,
+    add_sample_wait,
+    sample_clock,
+    sample_wait,
     sample_working_time,
 )
 from inspect_ai.model._generate_overrides import generate_config_override_for_attempt
@@ -94,6 +99,12 @@ from inspect_ai.util._limit import (
     token_limit_usage,
     turn_count,
 )
+from inspect_ai.util._span import (
+    current_agent_span_id,
+    current_span_id,
+    in_agent_span,
+    in_span,
+)
 
 from ._agent_message import validate_agent_message
 from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store, epoch
@@ -111,6 +122,7 @@ from ._chat_message import (
     ChatMessageSystem,
     ChatMessageTool,
     ChatMessageUser,
+    logged_json,
 )
 from ._display import (
     display_conversation_assistant,
@@ -123,7 +135,14 @@ from ._generate_config import (
 )
 from ._model_call import ModelCall, as_error_response
 from ._model_data.model_data import ModelCost, ModelInfo
-from ._model_output import ModelFallback, ModelOutput, ModelUsage, ServedModelUsage
+from ._model_output import (
+    ModelFallback,
+    ModelOutput,
+    ModelUsage,
+    ServedModelUsage,
+    usage_input_tokens,
+)
+from ._response_headers import ResponseHeaders, track_response_headers
 from ._stream import (
     ModelStreamObserver,
     NoStreamDataError,
@@ -798,7 +817,7 @@ class ConnectionSlot:
     async def acquire(self) -> None:
         """Acquire the slot, tracking the wait as sample waiting time."""
         if not self._held:
-            async with sample_waiting():
+            with sample_wait():
                 await self._semaphore.__aenter__()
             self._held = True
 
@@ -836,7 +855,7 @@ class Model:
     For example:
 
     ```python
-    async with get_model("openai/gpt-4o") as model:
+    async with get_model("openai/gpt-6-luna") as model:
         response = await model.generate("Say hello")
     ```
     """
@@ -1006,7 +1025,6 @@ class Model:
         # normalize input to chat
         if isinstance(input, str):
             input = [ChatMessageUser(content=input)]
-        history = input
 
         # insert any system message provided in config
         if config.system_message:
@@ -1014,15 +1032,29 @@ class Model:
 
         prepared = await self._prepare_input(input, tools, tool_choice, config)
 
+        with _model_event_sink_span(prepared.input):
+            return await self._generate_prepared(prepared, config, cache, on_stream)
+
+    async def _generate_prepared(
+        self,
+        prepared: "_PreparedInput",
+        config: GenerateConfig,
+        cache: bool | CachePolicy | NotGiven,
+        on_stream: StreamHandler | None,
+    ) -> ModelOutput:
+        # the uuid of this generate's first ModelEvent, minted before the
+        # sentinel runs so that its generate stages are identified by it
+        generate_id = uuid()
+
         # outside the connection slot, since a monitor may call this model too
         generate_step = None
         if is_agent_generate():
             from inspect_ai._sentinel._dispatch import sentinel_before_generate
 
             generate_step = await sentinel_before_generate(
+                generate_id=generate_id,
                 model=str(self),
                 input=prepared.input,
-                history=history,
                 tools=prepared.tools,
                 tool_choice=prepared.tool_choice,
                 config=config,
@@ -1039,6 +1071,7 @@ class Model:
                 cache=cache,
                 connection=connection,
                 on_stream=on_stream,
+                event_uuid=generate_id,
             )
 
             # update the most recent ModelEvent with the actual start/completed
@@ -1077,7 +1110,7 @@ class Model:
         if generate_step is not None:
             from inspect_ai._sentinel._dispatch import sentinel_after_generate
 
-            await sentinel_after_generate(generate_step, output)
+            await sentinel_after_generate(generate_step, output, generate_id)
 
         return output
 
@@ -1153,6 +1186,8 @@ class Model:
 
         config = self._resolve_config(config)
 
+        attempts = ModelAttempts()
+
         # Retry handler for token counting (429/timeouts retried with the
         # same backoff as `generate`). Count-token calls still need a
         # concurrency bound -- a caller can fan out many counts inside one
@@ -1170,15 +1205,25 @@ class Model:
                     log_model_retry,
                     qualified_model_name=self.api.qualified_model_name,
                 ),
-                report_sample_waiting_time,
-                self.api.retry_wait(),
+                sample_waits=True,
+                wait=self.api.retry_wait(),
                 qualified_model_name=self.api.qualified_model_name,
+                attempts=attempts,
             )
         )
+        async def _count_tokens_retried(
+            input: str | list[ChatMessage], config: GenerateConfig | None
+        ) -> int:
+            with attempts.attempt():
+                return await self.api.count_tokens(input, config)
+
         async def _count_tokens(
             input: str | list[ChatMessage], config: GenerateConfig | None
         ) -> int:
-            return await self.api.count_tokens(input, config)
+            try:
+                return await _count_tokens_retried(input, config)
+            finally:
+                attempts.commit()
 
         model_name = ModelName(self)
         key = f"ModelCountTokens({_connection_pool_key(self.api)})"
@@ -1299,6 +1344,7 @@ class Model:
             f"{model_name}_compact", 10, key, False
         )
         async with _held_connection_slot(compact_sem.semaphore) as slot:
+            attempts = ModelAttempts()
 
             @retry(
                 **model_retry_config(
@@ -1311,24 +1357,27 @@ class Model:
                         log_model_retry,
                         qualified_model_name=self.api.qualified_model_name,
                     ),
-                    report_sample_waiting_time,
-                    self.api.retry_wait(),
+                    sample_waits=True,
+                    wait=self.api.retry_wait(),
                     qualified_model_name=self.api.qualified_model_name,
+                    attempts=attempts,
                 )
             )
             async def _compact(
                 messages: list[ChatMessage],
             ) -> tuple[list[ChatMessage], ModelUsage | None]:
-                # report_sample_waiting_time directly: unlike generate,
-                # compact has no post-call waiting reconciliation to feed
-                await wait_generate_dispatch(self, report_sample_waiting_time, slot)
-                return await self.api.compact(messages, tools, config, instructions)
+                await wait_generate_dispatch(self, slot)
+                with attempts.attempt():
+                    return await self.api.compact(messages, tools, config, instructions)
 
             from inspect_ai.log._samples import cleared_retry_wait
 
             # Call compact with retry handling
             with cleared_retry_wait():
-                compacted_messages, usage = await _compact(input)
+                try:
+                    compacted_messages, usage = await _compact(input)
+                finally:
+                    attempts.commit()
 
             # Record and check usage
             if usage:
@@ -1361,22 +1410,9 @@ class Model:
 
         _check_remote_mcp_approval(base_tools)
 
-        # if we have a specific tool selected then filter out the others
-        if isinstance(tool_choice, ToolFunction):
-            base_tools = [tool for tool in base_tools if tool.name == tool_choice.name]
-
-        # if tool_choice is "none" or if there are no tools then fully purge
-        # the tools (as some models (e.g. openai and mistral) get confused
-        # if you pass them tool definitions along with tool_choice == "none"
-        # (they both 'semi' use the tool by placing the arguments in JSON
-        # in their output!). on the other hand, anthropic actually errors if
-        # there are tools anywhere in the message stream and no tools defined.
-        if tool_choice == "none" or len(base_tools) == 0:
-            # allow model providers to implement a tools_required() method to
-            # force tools to be passed (we need this for anthropic)
-            if not self.api.tools_required():
-                base_tools = []
-            tool_choice = "none"
+        base_tools, tool_choice = tools_for_tool_choice(
+            self.api, base_tools, tool_choice
+        )
 
         # handle reasoning history
         input = resolve_reasoning_history(input, config, self.api)
@@ -1409,6 +1445,7 @@ class Model:
         cache: bool | CachePolicy | NotGiven = NOT_GIVEN,
         connection: ConnectionSlot | None = None,
         on_stream: StreamHandler | None = None,
+        event_uuid: str | None = None,
     ) -> tuple[ModelOutput, BaseModel]:
         from inspect_ai.event._model import ModelEvent
         from inspect_ai.hooks._hooks import (
@@ -1448,17 +1485,18 @@ class Model:
             publish_partial=_model_event_sink.get() is None,
         )
 
-        # track reported waiting time during this generate call
-        reported_waiting_time = 0.0
-
-        def report_waiting_time(waiting_time: float) -> None:
-            nonlocal reported_waiting_time
-            report_sample_waiting_time(waiting_time)
-            reported_waiting_time += waiting_time
-
         # Local import: model is imported very early and the pause gate is
         # only consulted per attempt (see wait_generate_dispatch's fast path).
         from inspect_ai._control.pause import wait_generate_dispatch
+
+        attempts = ModelAttempts()
+
+        # the first attempt's event takes event_uuid; a retry's mints its own
+        first_uuid = [event_uuid]
+
+        def attempt_uuid() -> str | None:
+            minted, first_uuid[0] = first_uuid[0], None
+            return minted
 
         @retry(
             **model_retry_config(
@@ -1471,15 +1509,14 @@ class Model:
                     log_model_retry,
                     qualified_model_name=self.api.qualified_model_name,
                 ),
-                report_waiting_time,
-                self.api.retry_wait(),
+                sample_waits=True,
+                wait=self.api.retry_wait(),
                 qualified_model_name=self.api.qualified_model_name,
+                attempts=attempts,
             )
         )
         async def generate() -> tuple[ModelOutput, BaseModel]:
-            # report_waiting_time (not report_sample_waiting_time): held time
-            # must also accumulate into this call's reconciliation below
-            await wait_generate_dispatch(self, report_waiting_time, connection)
+            await wait_generate_dispatch(self, connection)
 
             # type-checker can't see that we made sure tool_choice is not none in the outer frame
             assert tool_choice is not None
@@ -1528,6 +1565,7 @@ class Model:
                         cache="read",
                         output=existing,
                         call=None,
+                        event_uuid=attempt_uuid(),
                     )
                     # announce the attempt even though no provider call runs:
                     # a cache hit on a *retry* attempt (a concurrent identical
@@ -1564,6 +1602,7 @@ class Model:
                 tool_choice=tool_choice,
                 config=config,
                 cache=cache_mode,
+                event_uuid=attempt_uuid(),
             )
 
             # create timeout context manager if we have an attempt timeout
@@ -1587,9 +1626,13 @@ class Model:
                 anyio.CancelScope() if stream_idle_timeout is not None else None
             )
             idle_cm = idle_scope if idle_scope is not None else contextlib.nullcontext()
+            response_headers = ResponseHeaders()
 
-            with trace_action(logger, "Model", f"generate ({str(self)})"):
-                time_start = time.monotonic()
+            with (
+                trace_action(logger, "Model", f"generate ({str(self)})"),
+                attempts.attempt(),
+            ):
+                time_start = sample_clock()
                 try:
                     assert isinstance(event, ModelEvent)
                     # Local import to avoid an import cycle (agent → model → agent).
@@ -1613,6 +1656,7 @@ class Model:
 
                     with (
                         track_active_model_event(event),
+                        track_response_headers(response_headers),
                         _observer.track_model_event(event),
                         model_stream_observer(stream_observer),
                     ):
@@ -1663,7 +1707,8 @@ class Model:
                     stream_observer.discard_partial_output()
                     raise
                 finally:
-                    time_elapsed = time.monotonic() - time_start
+                    time_end = sample_clock()
+                    time_elapsed = time_end - time_start
 
             if isinstance(result, tuple):
                 output, call = result
@@ -1698,10 +1743,21 @@ class Model:
                     provider_message=str(output),
                 ) from output
 
+            # a provider whose generate makes one request leaves the context
+            # size to be read from its usage
+            if output.input_context_tokens is None:
+                output.input_context_tokens = usage_input_tokens(output.usage)
+
             # update output with time (call.time captures time spent
             # on the actual request that succeeds w/ status 200)
             if call and call.time is not None:
                 output.time = call.time
+                # the attempt's time before its successful request went to
+                # the provider SDK's own failed requests and retry sleeps
+                # (zero means the provider did not measure the request)
+                if call.time > 0:
+                    add_sample_wait(time_start, time_end - call.time, completed=False)
+                    attempts.exclude_before(time_end - call.time)
             else:
                 output.time = time_elapsed
 
@@ -1733,12 +1789,13 @@ class Model:
 
             return output, event
 
-        # call the model (this will do retries, etc., so report waiting time
-        # as elapsed time - actual time for successful model call)
-        time_start = time.monotonic()
+        # call the model (this will do retries, etc.)
         with cleared_retry_wait():
-            model_output, event = await generate()
-        total_time = time.monotonic() - time_start
+            try:
+                model_output, event = await generate()
+            finally:
+                # the last attempt, successful or failed without a retry
+                attempts.commit()
 
         # record any model fallback against the active sample (here in the
         # outer frame rather than alongside usage recording so that cache
@@ -1783,14 +1840,6 @@ class Model:
             and not _request_was_cache_hit.get()
         ):
             controller.notify_success()
-        if model_output.time:
-            # we've already reported some of the waiting time in tenacity callbacks
-            # any remaining waiting time will have been due to internal retry within
-            # model providers, which we can get from:
-            #    total_time - reported_waiting_time - model_call_time
-            report_sample_waiting_time(
-                total_time - reported_waiting_time - model_output.time
-            )
 
         # report refusal
         if not model_output.empty and model_output.stop_reason == "content_filter":
@@ -2007,21 +2056,26 @@ class Model:
         cache: Literal["read", "write"] | None,
         output: ModelOutput | None = None,
         call: ModelCall | None = None,
+        event_uuid: str | None = None,
     ) -> tuple[
         Callable[[ModelOutput | Exception, ModelCall | None], None],
         BaseModel,
     ]:
+        from inspect_ai._sentinel._scope import current_origin
         from inspect_ai.event._model import ModelEvent
         from inspect_ai.log._transcript import transcript
 
         # create event and add it to the transcript (or hand off to the
         # installed model-event sink, if any)
         model = str(self)
+        snapshot = _snapshot_messages(input)
         event = ModelEvent(
+            uuid=event_uuid,
             model=model,
             role=self.role,
             requested_model=_requested_model.get(),
-            input=input,
+            origin=current_origin(),
+            input=snapshot,
             tools=tools,
             tool_choice=tool_choice,
             config=config,
@@ -2030,6 +2084,12 @@ class Model:
             call=call,
             pending=output is None,
         )
+        # at creation, so a request still in flight counts as sent; the
+        # snapshot, so history keeps a message as sent, as the log does
+        if is_agent_generate():
+            from inspect_ai._sentinel._dispatch import record_agent_turn
+
+            record_agent_turn(snapshot)
         sink = _model_event_sink.get()
         if sink is None:
             transcript()._event(event)
@@ -2055,7 +2115,7 @@ class Model:
             if isinstance(result, ModelOutput):
                 if result.choices:
                     display_conversation_assistant(input, result.choices[0].message)
-                event.output = result
+                event.output = _snapshot_output(result)
             else:
                 display_conversation_assistant_error(result)
                 event.error = exception_message(result)
@@ -2118,6 +2178,54 @@ deprecated and will receive ``model.name`` instead.
 A filter may substitute for the default model generation by returning a
 ``ModelOutput``, modify the input parameters by returning a ``GenerateInput``,
 or return ``None`` to allow default processing to continue.
+"""
+
+
+ModelResponseFilter: TypeAlias = Callable[
+    [Model, ModelOutput, GenerateInput], Awaitable[ModelOutput | None]
+]
+"""Filter that can replace a model's output after generation.
+
+Receives the resolved ``Model``, a deep copy of the attempt's ``ModelOutput``,
+and a ``GenerateInput`` with the messages, tools, tool choice and config sent to
+the model. The output comes from ``model.generate()``, or is the one a request
+``filter`` substituted (then there is no ``model.generate()`` call and no
+``ModelEvent``). The ``GenerateInput`` holds the bridge's live objects, which are
+recorded in the ``ModelEvent`` and bridge state: do not mutate them.
+
+Return ``None`` to keep the output, or a ``ModelOutput`` with at least one choice
+to replace it. A replacement is rebuilt from its ``model_dump()`` and validated,
+including values edited in place: valid plain dicts become models, models or
+dataclasses stored in ``metadata`` or tool-call ``arguments`` come back as plain
+dicts, and ``completion`` is re-derived from the message (unless the first
+choice's message is unchanged, which keeps the original ``completion``). Reasoning
+(``ContentReasoning``) and server tool items (``ContentToolUse``) can only be
+kept unchanged or removed, and server tool items are kept all or none. A tool
+call that keeps an original call's ``id`` keeps its ``function``; give a call to
+a different function a new ``id``. Server work still pending at the end of the
+turn (Anthropic) goes with the server tool items: a message that keeps them
+takes the ``id`` of the message they came from and keeps that work, and a changed
+message that keeps none gets a new ``id`` and drops it. The
+filter also receives a model refusal
+under ``fail_on_refusal`` (from the default generation or a request ``filter``
+that generates), before it is retried or raised, and can replace it. An output
+still ``stop_reason="content_filter"``
+after the filter is handled like a model refusal (``retry_refusals``,
+``fail_on_refusal``). The ``ModelEvent`` keeps the model's
+own output; the replacement is what the agent, bridge state and later turns see.
+Model calls the filter makes run under the bridge's approval policies.
+
+An exception fails the sample as a ``ResponseFilterError``, except that a
+``LimitExceededError``, ``TerminateSampleError`` or ``ModelRefusalError`` keeps
+its normal outcome. A task group raising only such errors ends the sample with the
+first; one mixing them with any other exception is a ``ResponseFilterError``. A
+replacement is also a ``ResponseFilterError`` if it fails ``ModelOutput``
+validation, has no choices, has tool-call ``arguments`` the filter changed that
+are not JSON-serializable, or breaks the rules above for reasoning, server tool
+items and tool-call functions. Other failures to render a replacement for the agent
+behave as they would without a filter: on the sandbox bridge they reach the agent
+as an error reply it may retry, and in-process they raise from the agent's model
+call.
 """
 
 
@@ -2291,7 +2399,7 @@ def get_model(
     to the `Model` class. For example:
 
     ```python
-    async with get_model("openai/gpt-4o") as model:
+    async with get_model("openai/gpt-6-luna") as model:
         response = await model.generate("Say hello")
     ```
 
@@ -2692,6 +2800,27 @@ def _make_content_reducer(
 
 
 # Functions to reduce consecutive user messages to a single user message -> required for some models
+def tools_for_tool_choice(
+    api: ModelAPI, tools: list[ToolInfo], tool_choice: ToolChoice
+) -> tuple[list[ToolInfo], ToolChoice]:
+    """The tools and tool choice `Model.generate()` sends to the provider.
+
+    A `ToolFunction` choice keeps only the selected tool. With `"none"`, or no
+    tools left, the tools are purged (unless the provider's `tools_required()`
+    says otherwise) and the choice becomes `"none"`: some models (e.g. OpenAI
+    and Mistral) get confused by tool definitions alongside `"none"` and 'semi'
+    use them by placing the arguments in JSON in their output, while Anthropic
+    errors if there are tools anywhere in the message stream and none defined.
+    """
+    if isinstance(tool_choice, ToolFunction):
+        tools = [tool for tool in tools if tool.name == tool_choice.name]
+    if tool_choice == "none" or len(tools) == 0:
+        if not api.tools_required():
+            tools = []
+        tool_choice = "none"
+    return tools, tool_choice
+
+
 def collapse_consecutive_messages_for_api(
     messages: list[ChatMessage], api: ModelAPI
 ) -> list[ChatMessage]:
@@ -2917,12 +3046,14 @@ _model_roles: ContextVar[dict[str, Model | list[Model]]] = ContextVar(
 class ModelEventSink(Protocol):
     """Recipient of `ModelEvent` emissions when installed via `use_model_event_sink`.
 
-    When a sink is active, `_record_model_interaction` routes the event to the
-    sink instead of emitting it to the transcript directly. The sink can decide
-    *when* and *under which span* the event ultimately reaches the transcript.
+    A sink decides under which span each `generate()` runs, and when each of its `ModelEvent`s reaches the transcript:
 
-    All other `_record_model_interaction` behavior (call recording, usage
-    accounting, retry handling, the active-model-event context) is unaffected.
+    - `on_start(input) -> str | None` (optional): called once per `generate()`, after its input is prepared and before a sentinel's `BeforeGenerate` stage. It returns the span the whole generate runs under (`None` for the current span, which then gives the conversation as the current span's id would). The span's `SpanBeginEvent` must already be in the transcript when `on_start` returns; an unknown span, or a value that is neither `None` nor a span id, fails the generate with a `ValueError` before any event is recorded. Each attempt's `ModelEvent` is created in that span, and a live sentinel takes the generate's conversation from it: the innermost `agent` span at or above it, as replay does from the log. Bookkeeping a sink does once per generate (rather than once per attempt) belongs here.
+    - `on_pending(event)` and `on_complete(event)`: called once per attempt (retries included), when its event is created and when it completes. The sink emits the event to the transcript (`_event` and `_event_updated`) when it chooses.
+
+    A sink may still place an event in another span by setting `event.span_id` in `on_pending`. The log keeps that placement, but a live sentinel follows the `on_start` span (or the span current when `generate()` was called, without `on_start`), so its history can differ from what replay rebuilds from the log. To keep the two consistent, implement `on_start` and do not move the event afterwards.
+
+    A sentinel's own model calls (its monitors, while a generate stage runs) are not routed to the sink. All other `_record_model_interaction` behavior (call recording, usage accounting, retry handling, the active-model-event context) is unaffected.
     """
 
     def on_pending(self, event: "ModelEvent") -> None:
@@ -2934,9 +3065,107 @@ class ModelEventSink(Protocol):
         ...
 
 
+@runtime_checkable
+class _StartingModelEventSink(ModelEventSink, Protocol):
+    def on_start(self, input: list[ChatMessage]) -> str | None: ...
+
+
 _model_event_sink: ContextVar[ModelEventSink | None] = ContextVar(
     "_model_event_sink", default=None
 )
+
+
+class _Snapshot(NamedTuple):
+    message: weakref.ReferenceType[ChatMessage]
+    hash: bytes
+    """Hash of the message's `logged_json()`."""
+
+
+_message_snapshots: dict[str | int, _Snapshot] = {}
+"""Latest snapshot of each message, held while a logged event holds it.
+
+Keyed by message id, or by `id()` of the live message when it has none.
+Each hit is confirmed against the serialization hash, so an address reused
+by another message can only find a copy that serializes the same.
+"""
+
+
+def _snapshot_messages(messages: list[ChatMessage]) -> list[ChatMessage]:
+    """Copy messages so later in-place edits do not change a logged input.
+
+    Each message is deep copied unless the last copy made for it still
+    serializes the same (as the log records it), in which case that copy is
+    reused. Successive events then share the objects of unchanged messages,
+    which keeps memory proportional to message versions and lets the log's
+    message pool dedup them by identity. A completed event's output messages
+    are copied the same way (`_snapshot_output`), so an agent that edits the
+    assistant message it appended does not change the earlier event's
+    output, and the next input reuses that copy. This holds while a message
+    keeps its id (or, without one, is the same live object); preparation
+    that creates new messages with fresh ids each generation
+    (reasoning-history filtering, tool `model_input` rewriting, media
+    extraction) still copies them every time. Only the latest copy for an id
+    is reused, so alternating different versions with the same id (handoff
+    filters, concurrent epochs) copies on each switch. The comparison
+    serializes every message on each call, so its cost grows with the inline
+    media (base64 data URIs) in the history and can exceed deep copying,
+    which shares those strings.
+
+    A message that can't be serialized or deep copied (a numpy array or a
+    lock in its metadata, nesting past the recursion limit) is logged as the
+    live message, as before snapshots, so later edits to it still show in
+    the event. Serializing must leave values unchanged: an iterator in a
+    message is consumed by the comparison, as writing the log consumes it.
+    """
+    return [_snapshot_message(message) for message in messages]
+
+
+def _snapshot_output(output: ModelOutput) -> ModelOutput:
+    """Copy of `output` whose choice messages are snapshots (`_snapshot_messages`)."""
+    return output.model_copy(
+        update={
+            "choices": [
+                choice.model_copy(update={"message": _snapshot_message(choice.message)})
+                for choice in output.choices
+            ]
+        }
+    )
+
+
+_MessageT = TypeVar("_MessageT", bound=ChatMessage)
+
+
+def _snapshot_message(message: _MessageT) -> _MessageT:
+    key = message.id if message.id is not None else id(message)
+    # any value can fail to serialize or copy, in any way: log it live
+    try:
+        logged = logged_json(message)
+        if logged is None:
+            return message
+        digest = mmh3.hash_bytes(logged)
+        entry = _message_snapshots.get(key)
+        snapshot = entry.message() if entry and entry.hash == digest else None
+        # the logged JSON includes the role, so a hit has the message's type
+        if isinstance(snapshot, type(message)):
+            return snapshot
+        copied = deepcopy(message)
+    except Exception:
+        return message
+    _message_snapshots[key] = _Snapshot(
+        weakref.ref(copied, _forget_snapshot(key)), digest
+    )
+    return copied
+
+
+def _forget_snapshot(
+    key: str | int,
+) -> Callable[[weakref.ReferenceType[ChatMessage]], None]:
+    def forget(ref: weakref.ReferenceType[ChatMessage]) -> None:
+        entry = _message_snapshots.get(key)
+        if entry is not None and entry.message is ref:
+            del _message_snapshots[key]
+
+    return forget
 
 
 @contextlib.contextmanager
@@ -2953,6 +3182,44 @@ def use_model_event_sink(sink: ModelEventSink | None) -> Iterator[None]:
         yield
     finally:
         _model_event_sink.reset(token)
+
+
+@contextlib.contextmanager
+def suspend_model_event_sink() -> Iterator[None]:
+    """Emit `ModelEvent`s straight to the transcript for the block, whatever sink is installed."""
+    token = _model_event_sink.set(None)
+    try:
+        yield
+    finally:
+        _model_event_sink.reset(token)
+
+
+@contextlib.contextmanager
+def _model_event_sink_span(input: list[ChatMessage]) -> Iterator[None]:
+    sink = _model_event_sink.get()
+    if not isinstance(sink, _StartingModelEventSink):
+        yield
+        return
+    span_id = sink.on_start(input)
+    if span_id is not None and (not isinstance(span_id, str) or not span_id):
+        raise ValueError(
+            f"ModelEventSink.on_start must return None or a span id, not {span_id!r}."
+        )
+    from inspect_ai.log._transcript import transcript
+
+    current = current_span_id()
+    named = span_id if span_id is not None else current
+    agent_span_id = transcript()._agent_span(named) if named is not None else None
+    if span_id is not None and span_id != current:
+        with in_span(span_id, agent_span_id):
+            yield
+    elif agent_span_id != current_agent_span_id():
+        # the current span can be set apart from its agent span (`parent_span()`);
+        # keeping it keeps a rotating checkpoint span followed
+        with in_agent_span(agent_span_id):
+            yield
+    else:
+        yield
 
 
 _requested_model: ContextVar[str | None] = ContextVar("_requested_model", default=None)

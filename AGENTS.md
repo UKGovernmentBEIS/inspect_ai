@@ -42,6 +42,18 @@ Devin, and similar) preparing contributions. Human contributors: see
    failing test)? If the need is speculative or the fix unverified, do not
    proceed. File an issue with your evidence instead.
 
+When commenting on someone else's issue or PR without an assignment
+or review request, including when posting a PR review, identify
+yourself as an AI agent. State that you are not a project maintainer
+and that your comment or review does not represent the maintainers'
+views or decisions. Do not imply that you can accept an issue,
+approve a PR, or speak for the project. Submit an unrequested review
+as a **Comment**, never **Approve** or **Request changes**: on this
+repository those are maintainer decisions, a non-maintainer's verdict
+doesn't count toward merging, and it misleads the author about where
+their PR stands. Put any confirmation or concern in the comment text.
+This does not apply to agents acting for project maintainers.
+
 If you do open a PR: reference the accepted issue (`Fixes #NNN`); run
 `make check` and `make test` and report results honestly; for non-trivial
 changes, run at least one code review pass in a fresh context on a strong
@@ -80,6 +92,7 @@ Example:
 ```
 
 ## Build/Lint/Test Commands
+- Set up the environment: `uv sync` (installs from `uv.lock`; don't `pip install` the project). See CONTRIBUTING.md for the 7-day dependency cooldown and how to adopt a newer release
 - Run all tests: `pytest`
 - Run a single test: `pytest tests/path/to/test_file.py::test_function_name -v`
 - Format code: `ruff format`
@@ -262,7 +275,7 @@ for changes in gated-test areas, as described above.
 
 Title the PR with the user-facing outcome — the bug a user hit or the capability they gain — not the mechanism of the fix: "fix: eval hang when resuming with S3 logs", not "fix: add AsyncFilesystem to log recorder". A good test: would a user scanning titles recognize their problem or their feature request? PRs with no user-facing outcome (refactoring, dev tooling, docs) describe the change itself instead; their types (`refactor`, `ci`, `docs`, ...) are left out of the changelog, so the carve-out doesn't reach it.
 
-The title starts with a Conventional Commits type (enforced by the PR Title Lint check), as in "fix: eval hang when resuming with S3 logs" or "feat(anthropic): support Claude Haiku 5.5". The squash-merged title is what Release Please reads to version the next release: `fix`, `feat`, `perf` and `revert` make a patch release; `!` after the type or scope (`feat!:`) marks a breaking change and makes a minor release; `docs`, `refactor`, `test`, `build`, `ci`, `chore` and `style` make no release on their own. Pick the type from what users get, not from the files touched: a bug fix that also adds tests is `fix`.
+The title starts with a Conventional Commits type (enforced by the PR Title Lint check), as in "fix: eval hang when resuming with S3 logs" or "feat(anthropic): support Claude Haiku 5.5". The squash-merged title is what Release Please reads to version the next release: `fix`, `feat`, `perf` and `revert` make a patch release; `!` after the type or scope (`feat!:`) marks a breaking change, which is listed in the changelog but still makes a patch release (Release Please is configured to always bump the patch version); `docs`, `refactor`, `test`, `build`, `ci`, `chore` and `style` make no release on their own. Pick the type from what users get, not from the files touched: a bug fix that also adds tests is `fix`.
 
 Before opening a non-trivial PR, run at least one code review pass in a fresh context — a reviewer that hasn't seen the authoring conversation (e.g. `/code-review` or a subagent) — using a strong (frontier-class) model; in our experience reviews from small fast-tier models rarely surface real issues. Fix or explicitly dismiss each finding before opening, and disclose the pass in the `### Agent review` section.
 

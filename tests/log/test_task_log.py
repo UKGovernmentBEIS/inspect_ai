@@ -1,5 +1,8 @@
+import base64
+import os
 import tempfile
 import types
+import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -10,6 +13,7 @@ from zipfile import ZipExtFile
 import anyio
 import pytest
 from test_helpers.task_logger import TaskLoggerShim
+from test_helpers.utils import skip_if_trio
 
 from inspect_ai import Task, eval
 from inspect_ai._eval.loader import resolve_tasks
@@ -20,6 +24,7 @@ from inspect_ai._eval.task.log import (
     resolve_package_revision,
     resolve_task_distribution,
 )
+from inspect_ai._util.asyncfiles import AsyncFilesystem, ComposeSource
 from inspect_ai._util.background import background_task_group, set_background_task_group
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.git import GitContext
@@ -46,7 +51,7 @@ from inspect_ai.log._log import (
     EvalStats,
 )
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
-from inspect_ai.log._recorders.eval import EvalRecorder
+from inspect_ai.log._recorders.eval import ComposePrefixInvariantError, EvalRecorder
 from inspect_ai.log._recorders.json import JSONRecorder
 from inspect_ai.log._recorders.recorder import Recorder, SampleRecordKey
 from inspect_ai.model import GenerateConfig, ModelOutput, get_model
@@ -953,6 +958,77 @@ async def test_task_logger_scheduled_stale_flush_failure_recovers_on_next_timer(
     assert recorder.flush_count >= 2
     assert logger.flush_pending == []
     assert any("Stale eval log flush failed" in warning for warning in warnings)
+
+
+@skip_if_trio
+async def test_task_logger_stale_flush_compose_prefix_violation_fails_the_finish(
+    mock_s3: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # verify mode through the stale-flush timer: the timer swallows the
+    # violation and re-arms, the destination keeps its last complete object,
+    # and the finish's flush raises
+    recorder = EvalRecorder(f"s3://test-bucket/stale-verify-{uuid.uuid4().hex}")
+    logger = TaskLoggerShim(_FlushBufferDB())
+    logger.recorder = recorder
+    logger.eval = _eval_spec()
+    logger.flush_buffer = 10
+    logger._samples_completed = 0
+    location = await recorder.log_init(logger.eval)
+    await recorder.log_start(logger.eval, EvalPlan())
+    for i in range(4):
+        await recorder.log_sample(
+            logger.eval,
+            _sample().model_copy(
+                update={
+                    "id": f"large-{i}",
+                    "metadata": {
+                        "data": base64.b64encode(os.urandom(2_500_000)).decode()
+                    },
+                }
+            ),
+        )
+    await recorder.flush(logger.eval)
+    async with AsyncFilesystem() as fs:
+        written = await fs.read_file(location)
+
+    # the flush recorded the log's own object as the next flush's prefix
+    zip_log = recorder.data[recorder._log_file_key(logger.eval)]
+    assert zip_log._zip is not None and zip_log._etag is not None
+    assert zip_log._compose_prefix == ComposeSource(
+        location, zip_log._etag, zip_log._zip.start_dir
+    )
+    temp = zip_log._temp_file
+    position = temp.tell()
+    offset = zip_log._zip.start_dir // 2
+    temp.seek(offset)
+    byte = temp.read(1)[0]
+    temp.seek(offset)
+    temp.write(bytes([byte ^ 0xFF]))
+    temp.seek(position)
+
+    logger.flush_pending = [("sample", 1)]
+    logger._stale_flush_interval = 0.01
+    warnings: list[str] = []
+    rearmed = anyio.Event()
+
+    def capture_warning(message: str, *args: object, **kwargs: object) -> None:
+        warnings.append(message % args)
+        if len(warnings) >= 2:
+            rearmed.set()
+
+    monkeypatch.setattr(task_log_module.logger, "warning", capture_warning)
+    async with _running_stale_flush_timer(logger):
+        with anyio.fail_after(10):
+            await rearmed.wait()
+
+    assert all("Stale eval log flush failed" in warning for warning in warnings)
+    assert all("changed since it was recorded" in warning for warning in warnings)
+    assert logger.flush_pending == [("sample", 1)]
+    async with AsyncFilesystem() as fs:
+        assert await fs.read_file(location) == written
+    with pytest.raises(ComposePrefixInvariantError):
+        await recorder.log_finish(logger.eval, "success", EvalStats(), None, None)
+    await recorder.log_discard(logger.eval, keep_destination=True)
 
 
 @pytest.mark.anyio

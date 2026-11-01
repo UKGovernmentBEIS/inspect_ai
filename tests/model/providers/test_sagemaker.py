@@ -1,8 +1,16 @@
+import contextlib
 import json
+import struct
 import sys
-from typing import Any
+import threading
+import time
+import zlib
+from collections.abc import Iterator
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from typing import Any, AsyncIterator
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import anyio
 import pytest
 from botocore.exceptions import (
     ClientError,
@@ -11,18 +19,33 @@ from botocore.exceptions import (
     EndpointConnectionError,
     ReadTimeoutError,
 )
+from test_helpers.utils import skip_if_trio
 
-from inspect_ai.model import ChatMessageAssistant, ChatMessageUser, GenerateConfig
+from inspect_ai._util.registry import RegistryInfo, set_registry_info
+from inspect_ai._util.working import (
+    init_sample_working_time,
+    sample_waiting_time,
+    sample_working_time,
+)
+from inspect_ai.model import (
+    ChatMessageAssistant,
+    ChatMessageUser,
+    GenerateConfig,
+    ModelOutput,
+)
 from inspect_ai.model._chat_message import (
     ChatMessageSystem,
     ChatMessageTool,
 )
+from inspect_ai.model._model import Model
 from inspect_ai.model._providers.sagemaker import (
+    SagemakerAPI,
     collapse_consecutive_messages,
     model_output_from_response,
     process_chat_message,
     process_content,
 )
+from inspect_ai.model._response_headers import ResponseHeaders, track_response_headers
 from inspect_ai.model._stream import (
     ModelStreamObserver,
     StreamReasoningEvent,
@@ -74,6 +97,242 @@ OPENAI_RESPONSE = {
         "total_tokens": 15,
     },
 }
+
+
+# -- Real client ---------------------------------------------------------------
+
+STREAM_CHUNK = {
+    "id": "chatcmpl-abc123",
+    "created": 1700000000,
+    "model": "default",
+    "choices": [
+        {"index": 0, "delta": {"content": "Hello world"}, "finish_reason": "stop"}
+    ],
+}
+
+
+def _payload_part(payload: bytes) -> bytes:
+    """A PayloadPart event in the AWS event stream encoding."""
+    headers = b"".join(
+        bytes([len(name)]) + name + b"\x07" + struct.pack("!H", len(value)) + value
+        for name, value in (
+            (b":message-type", b"event"),
+            (b":event-type", b"PayloadPart"),
+        )
+    )
+    prelude = struct.pack("!II", 16 + len(headers) + len(payload), len(headers))
+    message = prelude + struct.pack("!I", zlib.crc32(prelude)) + headers + payload
+    return message + struct.pack("!I", zlib.crc32(message))
+
+
+class _EndpointHandler(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+    # set when a test is over, to let go of a response left unfinished
+    release = threading.Event()
+
+    def do_POST(self) -> None:
+        self.rfile.read(int(self.headers["Content-Length"]))
+        operation = self.path.rsplit("/", 1)[-1]
+        status = 200
+        unfinished = "/truncating-endpoint/" in self.path or (
+            "/stalling-endpoint/" in self.path
+        )
+        if "/refusing-endpoint/" in self.path:
+            status = 400
+            content_type = "application/json"
+            body = b'{"message": "no"}'
+        elif unfinished:
+            status = 503
+            content_type = "application/json"
+            body = b'{"message": "n'
+        elif "/redirecting-endpoint/" in self.path:
+            status = 307
+            content_type = "application/json"
+            body = b""
+        elif operation == "invocations-response-stream":
+            content_type = "application/vnd.amazon.eventstream"
+            body = _payload_part(
+                f"data: {json.dumps(STREAM_CHUNK)}\n\ndata: [DONE]\n\n".encode()
+            )
+        else:
+            content_type = "application/json"
+            body = json.dumps(OPENAI_RESPONSE).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        # an unfinished response promises more body than it sends
+        self.send_header("Content-Length", str(len(body) + (100 if unfinished else 0)))
+        self.send_header("X-Served-By", operation)
+        if status == 307:
+            # nothing listens there
+            self.send_header("Location", "http://127.0.0.1:1/")
+        self.end_headers()
+        self.wfile.write(body)
+        self.wfile.flush()
+        if "/stalling-endpoint/" in self.path:
+            self.release.wait(10)
+        if unfinished:
+            self.close_connection = True
+
+    def log_message(self, format: str, *args: Any) -> None:
+        pass
+
+
+@pytest.fixture
+def endpoint_server(monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
+    monkeypatch.delenv("AWS_SESSION_TOKEN", raising=False)
+    monkeypatch.delenv("AWS_PROFILE", raising=False)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _EndpointHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    _EndpointHandler.release.clear()
+    try:
+        yield f"http://127.0.0.1:{server.server_address[1]}"
+    finally:
+        _EndpointHandler.release.set()
+        server.shutdown()
+        server.server_close()
+        thread.join()
+
+
+OPERATIONS = pytest.mark.parametrize(
+    ("stream", "operation"),
+    [(False, "invocations"), (True, "invocations-response-stream")],
+)
+
+
+def _real_api(
+    endpoint_name: str, endpoint_url: str, stream: bool, region_name: str = "us-west-2"
+) -> SagemakerAPI:
+    return SagemakerAPI(
+        model_name=endpoint_name,
+        config=GenerateConfig(),
+        region_name=region_name,
+        endpoint_url=endpoint_url,
+        stream=stream,
+    )
+
+
+# aiobotocore runs on asyncio only
+@skip_if_trio
+@OPERATIONS
+async def test_real_client_records_response_headers(
+    endpoint_server: str, stream: bool, operation: str
+) -> None:
+    api = _real_api("test-endpoint", endpoint_server, stream)
+    headers = ResponseHeaders()
+
+    with track_response_headers(headers):
+        result = await api.generate(
+            [ChatMessageUser(content="hello")], [], "auto", GenerateConfig()
+        )
+
+    assert isinstance(result, tuple) and isinstance(result[0], ModelOutput)
+    assert result[0].completion == "Hello world"
+    assert headers.latest is not None
+    assert headers.latest["x-served-by"] == operation
+
+
+@skip_if_trio
+@OPERATIONS
+async def test_real_client_records_a_failed_responses_headers(
+    endpoint_server: str, stream: bool, operation: str
+) -> None:
+    api = _real_api("refusing-endpoint", endpoint_server, stream)
+    headers = ResponseHeaders()
+
+    with track_response_headers(headers), pytest.raises(ClientError) as raised:
+        await api.generate(
+            [ChatMessageUser(content="hello")], [], "auto", GenerateConfig()
+        )
+
+    assert raised.value.response["ResponseMetadata"]["HTTPStatusCode"] == 400
+    assert headers.latest is not None
+    assert headers.latest["x-served-by"] == operation
+
+
+# botocore rebuilds the client's config for a FIPS region name, and aiobotocore
+# 2.18 leaves the HTTP session class out of the result
+@skip_if_trio
+@OPERATIONS
+async def test_real_client_records_response_headers_for_a_fips_region(
+    endpoint_server: str, stream: bool, operation: str
+) -> None:
+    api = _real_api("test-endpoint", endpoint_server, stream, "us-west-2-fips")
+    headers = ResponseHeaders()
+
+    with track_response_headers(headers):
+        await api.generate(
+            [ChatMessageUser(content="hello")], [], "auto", GenerateConfig()
+        )
+
+    assert headers.latest is not None
+    assert headers.latest["x-served-by"] == operation
+
+
+# aiobotocore reads an error's body before it reports the response, so a body
+# that can't be read used to take the headers with it
+@skip_if_trio
+@OPERATIONS
+async def test_real_client_records_the_headers_of_a_response_cut_short(
+    endpoint_server: str, stream: bool, operation: str
+) -> None:
+    api = _real_api("truncating-endpoint", endpoint_server, stream)
+    headers = ResponseHeaders()
+
+    with track_response_headers(headers), pytest.raises(Exception) as raised:
+        await api.generate(
+            [ChatMessageUser(content="hello")], [], "auto", GenerateConfig()
+        )
+
+    assert not isinstance(raised.value, ClientError)
+    assert headers.latest is not None
+    assert headers.latest["x-served-by"] == operation
+
+
+@skip_if_trio
+@OPERATIONS
+async def test_real_client_records_the_headers_of_a_redirect_it_could_not_follow(
+    endpoint_server: str, stream: bool, operation: str
+) -> None:
+    api = _real_api("redirecting-endpoint", endpoint_server, stream)
+    headers = ResponseHeaders()
+
+    with track_response_headers(headers), pytest.raises(Exception) as raised:
+        await api.generate(
+            [ChatMessageUser(content="hello")], [], "auto", GenerateConfig()
+        )
+
+    assert not isinstance(raised.value, ClientError)
+    assert headers.latest is not None
+    assert headers.latest["x-served-by"] == operation
+
+
+@skip_if_trio
+@OPERATIONS
+async def test_real_client_cancelled_reading_a_body_keeps_the_headers(
+    endpoint_server: str, stream: bool, operation: str
+) -> None:
+    api = _real_api("stalling-endpoint", endpoint_server, stream)
+    headers = ResponseHeaders()
+
+    async def call() -> None:
+        await api.generate(
+            [ChatMessageUser(content="hello")], [], "auto", GenerateConfig()
+        )
+
+    with track_response_headers(headers):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(call)
+            # the headers have arrived and the rest of the body never will
+            with anyio.fail_after(5):
+                while headers.latest is None:
+                    await anyio.sleep(0.01)
+            tg.cancel_scope.cancel()
+
+    assert headers.latest is not None
+    assert headers.latest["x-served-by"] == operation
 
 
 # -- Constructor / config tests ----------------------------------------------
@@ -2041,3 +2300,54 @@ class TestCompletionModePromptLogprobs:
         assert model_output.choices[0].prompt_logprobs.content[0].logprob == -0.4
         assert model_output.choices[0].prompt_logprobs.content[1].token == "great"
         assert model_output.choices[0].prompt_logprobs.content[1].logprob == -0.9
+
+
+# -- Working time ------------------------------------------------------------
+
+
+WORKING_TIME_COMPLETION_RESPONSE = {
+    "choices": [{"text": "Hello world", "finish_reason": "stop"}],
+    "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+}
+
+
+@pytest.mark.parametrize(
+    "model_args,response",
+    [
+        ({"stream": False}, OPENAI_RESPONSE),
+        ({"stream": True}, OPENAI_RESPONSE),
+        ({"completion_mode": True}, WORKING_TIME_COMPLETION_RESPONSE),
+    ],
+)
+async def test_successful_request_is_working_time(
+    model_args: dict[str, Any], response: dict[str, Any]
+) -> None:
+    """SageMaker reports no request time, so a successful call is all working time."""
+    api = _make_api(**model_args)
+    set_registry_info(api, RegistryInfo(type="modelapi", name="sagemaker"))
+
+    @contextlib.asynccontextmanager
+    async def client() -> AsyncIterator[Any]:
+        yield MagicMock()
+
+    async def invoke(client: Any, request_body: dict[str, Any]) -> bytes:
+        await anyio.sleep(0.3)
+        return json.dumps(response).encode()
+
+    async def invoke_streaming(
+        client: Any, request_body: dict[str, Any]
+    ) -> tuple[bytes, dict[str, Any]]:
+        await anyio.sleep(0.3)
+        return b"", response
+
+    init_sample_working_time(time.monotonic())
+    with (
+        patch.object(api, "_create_client", client),
+        patch.object(api, "_invoke_endpoint", invoke),
+        patch.object(api, "_invoke_endpoint_streaming", invoke_streaming),
+    ):
+        output = await Model(api, GenerateConfig()).generate("hi")
+
+    assert output.completion == "Hello world"
+    assert sample_waiting_time() < 0.05
+    assert sample_working_time() >= 0.3

@@ -39,7 +39,9 @@ env:
 jobs:
   release-please:
     name: Release Please
-    if: github.ref == 'refs/heads/main'
+    # Forks with Actions enabled would otherwise run Release Please on every
+    # push to their main. The jobs after this one need its tag.
+    if: github.repository == 'UKGovernmentBEIS/inspect_ai' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
@@ -92,6 +94,20 @@ jobs:
             --base main --state open --json number --jq length)
           if [ "$COUNT" -gt 0 ]; then OPEN=true; else OPEN=false; fi
           echo "open=$OPEN" >> "$GITHUB_OUTPUT"
+
+      # Release Please rewrites the release PR on every update, so this renames
+      # its "### ⚠ BREAKING CHANGES" heading each run, before the checks are
+      # dispatched on the resulting head. The commit is made with GITHUB_TOKEN
+      # and starts no workflows. A failure here must not block a publish, so
+      # the step continues on error; the next run (or a re-run) renames it.
+      - name: Rename the breaking changes heading
+        if: steps.pr.outputs.open == 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 .github/scripts/release_workflow.py --repo "$GITHUB_REPOSITORY" \
+            breaking-changes-heading --branch "$RELEASE_BRANCH"
 
       # Dispatches only the workflows with no run on the release PR's current
       # head, so re-running this job retries a failed dispatch. build.yml and
@@ -149,7 +165,7 @@ jobs:
         with:
           version: ${{ needs.release-please.outputs.tag }}
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dist
           path: dist/
@@ -194,7 +210,7 @@ jobs:
       # A Docker action, so it runs here rather than inside publish-dist.
       - name: Publish to PyPI
         if: steps.dist.outputs.count != '0'
-        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
 
   # Waits for the build so npm never gets a version that failed the PyPI gates.
   publish-npm:

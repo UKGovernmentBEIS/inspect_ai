@@ -2,7 +2,7 @@
 name = "inspect_package"
 version = "0.1"
 description = "Inspect Extension Package"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 authors = [{name = "UK AISI"}]
 license = {text = "MIT"}
 classifiers = [

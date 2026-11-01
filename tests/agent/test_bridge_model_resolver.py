@@ -435,6 +435,7 @@ async def _bridged_request(
         [],
         None,
         GenerateConfig(),
+        routing.requested,
         routing=routing,
     )
     return routing

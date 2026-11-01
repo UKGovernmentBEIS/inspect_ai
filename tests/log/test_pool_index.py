@@ -4,6 +4,7 @@ import json
 import weakref
 from collections.abc import Callable, Sequence
 
+import numpy as np
 import pytest
 from pydantic import JsonValue
 
@@ -29,6 +30,18 @@ from inspect_ai.tool._tool_call import ToolCall, ToolCallContent
 def _prefix(index: CallPoolIndex, msgs: Sequence[JsonValue]) -> list[int]:
     """match_prefix's indices alone, for assertions that don't reuse the match."""
     return list(index.match_prefix(msgs).indices)
+
+
+def test_message_pool_index_comparison_error_is_a_miss() -> None:
+    """A message whose == raises (numpy metadata) is a miss, not an error."""
+    index = MessagePoolIndex()
+    stored = ChatMessageUser(id="m", content="hi", metadata={"a": np.array([1, 2])})
+    index.add(stored, "hash-a", 0)
+    edited = stored.model_copy(deep=True)
+    assert edited.metadata is not None
+    edited.metadata["a"][0] = 9
+    assert index.get(stored) == 0
+    assert index.get(edited) is None
 
 
 def test_message_pool_index_identity_and_equality_hits() -> None:

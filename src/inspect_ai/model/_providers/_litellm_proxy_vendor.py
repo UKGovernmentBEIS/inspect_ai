@@ -11,15 +11,17 @@ from urllib.parse import urlparse
 
 from ._first_party import FRONTIER_MODELS
 
-Vendor = Literal["anthropic", "openai", "google", "grok"]
+Vendor = Literal["anthropic", "openai", "google", "grok", "meta"]
 
 # LiteLLM provider segments that serve a single vendor's models (`google` is
-# how upstream names on the `gemini` route are normalized)
+# how upstream names on the `gemini` route are normalized; `meta` is the Meta
+# Model API, while `meta_llama` serves Llama models)
 _VENDOR_PROVIDERS: dict[str, Vendor] = {
     "anthropic": "anthropic",
     "xai": "grok",
     "gemini": "google",
     "google": "google",
+    "meta": "meta",
 }
 
 # LiteLLM provider for each vendor's own API, for `base_model` suggestions
@@ -28,6 +30,7 @@ _LITELLM_PROVIDERS: dict[Vendor, str] = {
     "openai": "openai",
     "google": "gemini",
     "grok": "xai",
+    "meta": "meta",
 }
 
 VENDOR_NAMES: dict[Vendor, str] = {
@@ -35,6 +38,7 @@ VENDOR_NAMES: dict[Vendor, str] = {
     "openai": "OpenAI",
     "google": "Google",
     "grok": "xAI",
+    "meta": "Meta",
 }
 """Display names, for messages."""
 
@@ -42,6 +46,11 @@ VENDOR_NAMES: dict[Vendor, str] = {
 # the org rules for database matching (`_litellm_proxy_names.NAME_ORGS`), it
 # is not the OpenAI vendor here (no OpenAI frontier suggestion for it)
 _OPENAI_MODEL = re.compile(r"(^|[/.])(gpt-(?!oss)|o\d|chatgpt|codex)")
+
+# Meta's Muse models: a bare name, or under the `meta` org (e.g. via
+# OpenRouter). Not under another host's path, where `muse-` names include
+# other vendors' models (e.g. Fireworks' muse-glimmer-30b).
+_MUSE_MODEL = re.compile(r"^(?:(?:.+/)?meta/)?muse-")
 
 
 def upstream_vendor(names: Iterable[str | None]) -> Vendor | None:
@@ -81,6 +90,10 @@ def claude_thinks_adaptively(family: str) -> bool:
 
 def _name_vendor(name: str) -> Vendor | None:
     provider = name.split("/", 1)[0] if "/" in name else None
+    # Llama under the `meta` org, as normalized from e.g. `vertex_ai/meta/...`
+    # and `nvidia_nim/meta/...`, is served as open weights, not by Meta's API
+    if provider == "meta" and "llama" in name:
+        return None
     if provider in _VENDOR_PROVIDERS:
         return _VENDOR_PROVIDERS[provider]
     if "claude" in name:
@@ -89,6 +102,8 @@ def _name_vendor(name: str) -> Vendor | None:
         return "google"
     if "grok" in name:
         return "grok"
+    if _MUSE_MODEL.search(name):
+        return "meta"
     if _OPENAI_MODEL.search(name):
         return "openai"
     return None
@@ -121,6 +136,28 @@ def is_openai_api_base(api_base: str | None) -> bool:
         return True
     host = urlparse(api_base).hostname or ""
     return host == "api.openai.com" or host.endswith(".api.openai.com")
+
+
+def is_xai_api_base(api_base: str | None) -> bool:
+    """Whether a deployment's `api_base` is xAI's own API (or unset)."""
+    if api_base is None:
+        return True
+    host = urlparse(api_base).hostname or ""
+    return host == "x.ai" or host.endswith(".x.ai")
+
+
+def is_meta_api_base(api_base: str | None) -> bool:
+    """Whether a deployment's `api_base` is the Meta Model API (or unset)."""
+    if api_base is None:
+        return True
+    host = urlparse(api_base).hostname or ""
+    return host == "meta.ai" or host.endswith(".meta.ai")
+
+
+def grok_4_or_later(family: str) -> bool:
+    """Grok 4 or later, including codenames, as in the native grok provider."""
+    family = family.lower()
+    return "grok-2" not in family and "grok-3" not in family
 
 
 def frontier_base_model(vendor: Vendor) -> str:

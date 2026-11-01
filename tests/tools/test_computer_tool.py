@@ -5,22 +5,25 @@ parser and dispatcher from `_resources/tool/` driven directly, minus X11.
 """
 
 import importlib
+import json
 import logging
+import math
 import re
 import sys
 from argparse import Namespace
 from pathlib import Path
-from types import ModuleType
-from typing import Awaitable, Callable, Iterator, NamedTuple, get_args
+from types import ModuleType, SimpleNamespace
+from typing import Any, Awaitable, Callable, Iterator, NamedTuple, get_args
 
 import pytest
 
-from inspect_ai.tool import ToolResult, computer
+from inspect_ai.tool import ToolError, ToolResult, computer
 from inspect_ai.tool._tool import ToolParsingError
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import parse_tool_info
 from inspect_ai.tool._tools._computer import _common
 from inspect_ai.tool._tools._computer._computer import Action
+from inspect_ai.util import ExecResult
 
 ACTIONS: list[str] = list(get_args(Action))
 
@@ -77,12 +80,16 @@ def container(monkeypatch: pytest.MonkeyPatch) -> Iterator[Container]:
     tool_dir = Path(_common.__file__).parent / "_resources" / "tool"
     monkeypatch.syspath_prepend(str(tool_dir))
     modules_before = set(sys.modules)
-    # computer_tool opens /proc/1/fd/1 (PID 1's stdout) at import time
+    # computer_tool opens /proc/1/fd/1 (PID 1's stdout) at import time. Keep its
+    # logger off the root handlers too: once an earlier test has run `eval()`,
+    # root logs to stdout, which would end up in the JSON the tests parse.
+    tool_logger = logging.getLogger("computer_tool")
+    monkeypatch.setattr(tool_logger, "propagate", False)
+    null_handler = logging.NullHandler()
+    tool_logger.addHandler(null_handler)
     logger_module = importlib.import_module("_logger")
     monkeypatch.setattr(
-        logger_module,
-        "setup_logger",
-        lambda level=logging.INFO: logging.getLogger("computer_tool"),
+        logger_module, "setup_logger", lambda level=logging.INFO: tool_logger
     )
     computer_tool = importlib.import_module("computer_tool")
 
@@ -92,6 +99,7 @@ def container(monkeypatch: pytest.MonkeyPatch) -> Iterator[Container]:
 
     monkeypatch.setattr(computer_tool, "wait_for_file", no_wait)
     yield Container(importlib.import_module("_args").parse_arguments, computer_tool)
+    tool_logger.removeHandler(null_handler)
     for name, module in list(sys.modules.items()):
         if name not in modules_before and str(
             getattr(module, "__file__", "")
@@ -363,3 +371,319 @@ async def test_nested_actions_repeat_rejects_invalid_values_before_pressing(
     assert tool_msg.error is not None and tool_msg.error.type == "parsing"
     assert "repeat must be" in tool_msg.error.message
     assert presses == []
+
+
+class X11(NamedTuple):
+    client: Any
+    errors: type[Exception]
+    shell_cmds: list[str]
+
+
+@pytest.fixture
+def x11(container: Container, monkeypatch: pytest.MonkeyPatch) -> X11:
+    """A 1920x1080 container-side X11Client (advertised to the model as 1366x768)."""
+    monkeypatch.setenv("WIDTH", "1920")
+    monkeypatch.setenv("HEIGHT", "1080")
+    x11_client = importlib.import_module("_x11_client")
+    client = x11_client.X11Client()
+    shell_cmds: list[str] = []
+
+    async def fake_shell(command: str, take_screenshot: bool = True) -> str:
+        shell_cmds.append(command)
+        return "ok"
+
+    monkeypatch.setattr(client, "_shell", fake_shell)
+    return X11(client, x11_client.X11ClientError, shell_cmds)
+
+
+@pytest.mark.parametrize(
+    "api,native",
+    [
+        ((0, 0), (0, 0)),
+        ((1000, 500), (1406, 703)),
+        ((1365, 767), (1919, 1079)),
+    ],
+)
+def test_x11_scale_api_coordinate_in_bounds(
+    x11: X11, api: tuple[int, int], native: tuple[int, int]
+) -> None:
+    assert x11.client._scale_coordinates("api_to_native", *api) == native
+
+
+@pytest.mark.parametrize(
+    "api",
+    [
+        (1800, 100),  # past the API width, but inside the native width
+        (100, 900),
+        (1366, 768),  # one past the last column and row
+        (1366, 100),
+        (100, 768),
+        (1920, 1080),
+        (1921, 100),
+        (-5, 100),
+        (100, -5),
+    ],
+)
+def test_x11_scale_rejects_out_of_bounds_api_coordinate(
+    x11: X11, api: tuple[int, int]
+) -> None:
+    with pytest.raises(x11.errors, match="out of bounds"):
+        x11.client._scale_coordinates("api_to_native", *api)
+
+
+def test_x11_scale_region_end_allows_screen_edge(x11: X11) -> None:
+    scale = x11.client._scale_coordinates
+    assert scale("api_to_native", 1366, 768, region_end=True) == (1920, 1080)
+    with pytest.raises(x11.errors):
+        scale("api_to_native", 1367, 768, region_end=True)
+    with pytest.raises(x11.errors):
+        scale("api_to_native", -1, 0, region_end=True)
+
+
+def test_x11_scale_native_to_api_is_not_bounds_checked(x11: X11) -> None:
+    assert x11.client._scale_coordinates("native_to_api", 1920, 1080) == (1366, 768)
+
+
+def test_x11_scale_checks_native_bounds_when_scaling_disabled(x11: X11) -> None:
+    x11.client._scaling_enabled = False
+    assert x11.client._scale_coordinates("api_to_native", 1919, 1079) == (1919, 1079)
+    for bad in [(1920, 100), (100, 1080), (-1, 100)]:
+        with pytest.raises(x11.errors):
+            x11.client._scale_coordinates("api_to_native", *bad)
+
+
+def test_x11_scale_checks_native_bounds_without_scaling_target(
+    x11: X11, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # 1:1 aspect ratio matches no entry in MAX_SCALING_TARGETS
+    monkeypatch.setattr(x11.client, "width", 1024)
+    monkeypatch.setattr(x11.client, "height", 1024)
+    assert x11.client._scale_coordinates("api_to_native", 1023, 1023) == (1023, 1023)
+    with pytest.raises(x11.errors):
+        x11.client._scale_coordinates("api_to_native", 1024, 100)
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda c: c.mouse_move((1800, 100)),
+        lambda c: c.left_click((1800, 100), None),
+        lambda c: c.scroll("down", 1, (1800, 100), None),
+        lambda c: c.left_click_drag((10, 10), (1800, 100)),
+        lambda c: c.left_click_drag((1800, 100), (10, 10)),
+        lambda c: c.zoom([0, 0, 1800, 100]),
+        lambda c: c.zoom([1366, 0, 1367, 100]),
+    ],
+    ids=[
+        "mouse_move",
+        "left_click",
+        "scroll",
+        "drag_end",
+        "drag_start",
+        "zoom_far_corner",
+        "zoom_near_corner",
+    ],
+)
+async def test_x11_actions_reject_out_of_bounds_coordinate(
+    x11: X11, call: Callable[[Any], Awaitable[object]]
+) -> None:
+    with pytest.raises(x11.errors, match="out of bounds"):
+        await call(x11.client)
+    assert not any("mousedown" in c or "click" in c for c in x11.shell_cmds)
+
+
+async def test_x11_actions_send_scaled_native_coordinates(x11: X11) -> None:
+    await x11.client.mouse_move((1000, 500))
+    await x11.client.left_click_drag((1000, 500), (1365, 767))
+    assert any("mousemove --sync 1406 703" in c for c in x11.shell_cmds)
+    assert any("mousemove --sync 1919 1079 mouseup 1" in c for c in x11.shell_cmds)
+
+
+async def test_x11_zoom_accepts_full_screen_region(
+    x11: X11, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: list[tuple[int, int, int, int]] = []
+
+    async def fake_screenshot(
+        zoom_region: tuple[int, int, int, int] | None = None,
+    ) -> str:
+        assert zoom_region is not None
+        seen.append(zoom_region)
+        return "ok"
+
+    monkeypatch.setattr(x11.client, "_screenshot", fake_screenshot)
+    await x11.client.zoom([0, 0, 1366, 768])
+    assert seen == [(0, 0, 1920, 1080)]
+    with pytest.raises(x11.errors):
+        await x11.client.zoom([0, 0, 1367, 768])
+
+
+@pytest.mark.parametrize(
+    "native,api",
+    [
+        ((1920, 1080), (1366, 768)),  # FWXGA
+        ((3840, 2160), (1366, 768)),  # FWXGA
+        ((2560, 1600), (1280, 800)),  # WXGA
+        ((1920, 1440), (1024, 768)),  # XGA
+        ((1280, 800), (1280, 800)),  # at the target size: no scaling
+        ((1024, 768), (1024, 768)),  # at the target size: no scaling
+    ],
+)
+def test_x11_scale_bounds_follow_advertised_size(
+    container: Container,
+    monkeypatch: pytest.MonkeyPatch,
+    native: tuple[int, int],
+    api: tuple[int, int],
+) -> None:
+    monkeypatch.setenv("WIDTH", str(native[0]))
+    monkeypatch.setenv("HEIGHT", str(native[1]))
+    x11_client = importlib.import_module("_x11_client")
+    client = x11_client.X11Client()
+    scale = client._scale_coordinates
+    assert (
+        client.options["display_width_px"],
+        client.options["display_height_px"],
+    ) == api
+
+    # last pixel maps within one scale step of the last native pixel
+    x, y = scale("api_to_native", api[0] - 1, api[1] - 1)
+    assert native[0] - math.ceil(native[0] / api[0]) <= x <= native[0] - 1
+    assert native[1] - math.ceil(native[1] / api[1]) <= y <= native[1] - 1
+
+    for bad in [
+        (api[0], 0),
+        (0, api[1]),
+        (-1, 0),
+        (0, -1),
+        (native[0], 0),
+        (0, native[1]),
+    ]:
+        with pytest.raises(x11_client.X11ClientError, match="out of bounds"):
+            scale("api_to_native", *bad)
+
+    # a region may end on the advertised width/height, but not beyond
+    assert scale("api_to_native", *api, region_end=True) == native
+    with pytest.raises(x11_client.X11ClientError):
+        scale("api_to_native", api[0] + 1, api[1], region_end=True)
+
+
+def _run_container_main(
+    container: Container,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    argv: list[str],
+) -> dict[str, Any]:
+    """Run `computer_tool.main()` as the sandbox does and return its JSON stdout."""
+    monkeypatch.setattr(sys, "argv", ["computer_tool.py", *argv])
+    container.computer_tool.main()
+    return json.loads(capsys.readouterr().out)
+
+
+def _patch_container_x11(
+    container: Container, monkeypatch: pytest.MonkeyPatch, x11: X11
+) -> None:
+    result_module = importlib.import_module("_tool_result")
+
+    async def fake_shell(command: str, take_screenshot: bool = True) -> object:
+        x11.shell_cmds.append(command)
+        return result_module.ToolResult(output="ok")
+
+    monkeypatch.setattr(x11.client, "_shell", fake_shell)
+    monkeypatch.setattr(container.computer_tool, "X11Client", lambda: x11.client)
+
+
+def test_container_reports_out_of_bounds_coordinate_as_error(
+    container: Container,
+    x11: X11,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _patch_container_x11(container, monkeypatch, x11)
+    out = _run_container_main(
+        container, monkeypatch, capsys, ["left_click", "--coordinate", "1800", "100"]
+    )
+    assert "out of bounds" in out["error"]
+    assert out["output"] is None and out["base64_image"] is None
+    assert not any("mousedown" in c or "click" in c for c in x11.shell_cmds)
+
+
+def test_container_reports_invalid_zoom_region_as_error(
+    container: Container,
+    x11: X11,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _patch_container_x11(container, monkeypatch, x11)
+    out = _run_container_main(
+        container, monkeypatch, capsys, ["zoom", "--region", "0", "0", "0", "0"]
+    )
+    assert out["error"] == "Invalid region"
+
+
+def test_container_valid_call_succeeds_after_out_of_bounds_call(
+    container: Container,
+    x11: X11,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _patch_container_x11(container, monkeypatch, x11)
+    bad = _run_container_main(
+        container, monkeypatch, capsys, ["left_click", "--coordinate", "1800", "100"]
+    )
+    assert bad["error"]
+    good = _run_container_main(
+        container, monkeypatch, capsys, ["left_click", "--coordinate", "1000", "500"]
+    )
+    assert good["error"] is None and good["output"] == "ok"
+    assert any("mousemove --sync 1406 703" in c for c in x11.shell_cmds)
+
+
+def test_container_other_x11_errors_still_fail_the_command(
+    container: Container,
+    x11: X11,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    async def broken_screenshot(*args: object, **kwargs: object) -> object:
+        raise importlib.import_module("_x11_client").X11ClientError(
+            "Failed to take screenshot"
+        )
+
+    monkeypatch.setattr(x11.client, "screenshot", broken_screenshot, raising=False)
+    monkeypatch.setattr(container.computer_tool, "X11Client", lambda: x11.client)
+    monkeypatch.setattr(sys, "argv", ["computer_tool.py", "screenshot"])
+    with pytest.raises(SystemExit) as exit_info:
+        container.computer_tool.main()
+    assert exit_info.value.code == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "Failed to take screenshot" in captured.err
+
+
+async def test_host_raises_tool_error_for_container_coordinate_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The container's error JSON becomes a `ToolError`, not a `RuntimeError`."""
+    stdout = json.dumps(
+        {
+            "output": None,
+            "error": "Coordinates 1800, 100 are out of bounds for a 1366x768 screen",
+            "base64_image": None,
+        }
+    )
+
+    class FakeSandbox:
+        async def exec(
+            self, cmd: list[str], timeout: int | None = None
+        ) -> ExecResult[str]:
+            return ExecResult(success=True, returncode=0, stdout=stdout, stderr="")
+
+    async def fake_computer_sandbox() -> object:
+        return FakeSandbox()
+
+    sample = SimpleNamespace(sample=SimpleNamespace(id=1))
+    monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: sample)
+    monkeypatch.setattr(_common, "computer_sandbox", fake_computer_sandbox)
+
+    with pytest.raises(ToolError, match="out of bounds"):
+        await _common._send_cmd(["left_click", "--coordinate", "1800", "100"])

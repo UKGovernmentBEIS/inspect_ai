@@ -633,7 +633,8 @@ async def test_grok_conv_id_sent_for_active_sample(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The sample's uuid pins its turns to one xAI server so the cache hits."""
-    from inspect_ai.model._providers.grok import GROK_CONV_ID_HEADER, GrokAPI
+    from inspect_ai.model._providers._grok_cache import GROK_CONV_ID_HEADER
+    from inspect_ai.model._providers.grok import GrokAPI
 
     clients = _stub_grok_client(monkeypatch)
     _stub_active_sample(monkeypatch, "sample-uuid-1")
@@ -671,7 +672,8 @@ async def test_grok_conv_id_appends_to_caller_metadata(
 
     -M metadata=... arrives as JSON, so pairs are lists rather than tuples.
     """
-    from inspect_ai.model._providers.grok import GROK_CONV_ID_HEADER, GrokAPI
+    from inspect_ai.model._providers._grok_cache import GROK_CONV_ID_HEADER
+    from inspect_ai.model._providers.grok import GrokAPI
 
     clients = _stub_grok_client(monkeypatch)
     _stub_active_sample(monkeypatch, "sample-uuid-1")
@@ -692,7 +694,8 @@ async def test_grok_metadata_model_arg_accepts_mapping(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A mapping metadata model arg yields pairs, not unpacked bare keys."""
-    from inspect_ai.model._providers.grok import GROK_CONV_ID_HEADER, GrokAPI
+    from inspect_ai.model._providers._grok_cache import GROK_CONV_ID_HEADER
+    from inspect_ai.model._providers.grok import GrokAPI
 
     clients = _stub_grok_client(monkeypatch)
     _stub_active_sample(monkeypatch, "sample-uuid-1")
@@ -744,7 +747,7 @@ def test_grok_prompt_cache_across_turns_live() -> None:
     either way. The header's measurable benefit shows up under concurrency.
     """
     from inspect_ai.event import ModelEvent
-    from inspect_ai.model._providers.grok import GROK_CONV_ID_HEADER
+    from inspect_ai.model._providers._grok_cache import GROK_CONV_ID_HEADER
     from inspect_ai.solver import Generate, TaskState, generate, solver, system_message
 
     @solver

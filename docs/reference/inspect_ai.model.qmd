@@ -12,6 +12,7 @@ description: Model interface and providers.
 ### GenerateConfig
 ### GenerateConfigArgs
 ### GenerateFilter
+### ModelResponseFilter
 ### BatchConfig
 ### ResponseSchema
 ### ModelOutput
@@ -19,6 +20,7 @@ description: Model interface and providers.
 ### ModelCall
 ### ModelRequestId
 ### ModelConversation
+### model_origin
 ### ModelUsage
 ### StopReason
 ### ChatCompletionChoice
@@ -78,6 +80,7 @@ description: Model interface and providers.
 ### compaction
 ### Compact
 ### CompactionStrategy
+### CompactionResult
 ### CompactionAuto
 ### CompactionNative
 ### CompactionEdit
@@ -126,3 +129,4 @@ description: Model interface and providers.
 
 ### modelapi
 ### ModelAPI
+### record_response_headers

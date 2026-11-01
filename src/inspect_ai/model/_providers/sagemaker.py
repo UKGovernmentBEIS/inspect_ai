@@ -47,6 +47,7 @@ from .._stream import (
     report_model_stream_start,
 )
 from .util import normalize_stream_arg
+from .util.hooks import header_recording_config
 
 logger = getLogger(__name__)
 
@@ -431,13 +432,11 @@ class SagemakerAPI(ModelAPI):
 
     def _create_client(self) -> Any:
         """Create SageMaker runtime client with proper configuration."""
-        from aiobotocore.config import AioConfig
-
         return self.session.create_client(
             service_name="sagemaker-runtime",
             region_name=str(self.model_args["region_name"]),
             endpoint_url=self.model_args.get("endpoint_url"),
-            config=AioConfig(
+            config=header_recording_config(
                 read_timeout=int(str(self.model_args["read_timeout"])),
                 connect_timeout=int(str(self.model_args["connect_timeout"])),
                 retries={"total_max_attempts": 1, "mode": "standard"},

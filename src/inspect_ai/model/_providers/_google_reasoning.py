@@ -39,13 +39,17 @@ def gemini_is_latest(family: str) -> bool:
     return "gemini" not in name
 
 
+def _model_segment(family: str) -> str:
+    return family.rsplit("/", 1)[-1]
+
+
 def gemini_version(family: str) -> tuple[int, ...] | None:
     """Numeric version parsed from a gemini-N[.N] model name (None if absent).
 
     Only the final path segment is inspected so a vertex resource path
     takes its version from the model, not the project id.
     """
-    name = family.rsplit("/", 1)[-1]
+    name = _model_segment(family)
     match = re.search(r"gemini-(\d+(?:\.\d+)*)", name)
     if match is None:
         return None
@@ -87,8 +91,15 @@ def gemini_3_plus(family: str, latest: bool) -> bool:
 
 
 def gemini_thinking_only(family: str, latest: bool) -> bool:
-    """Whether thinking cannot be disabled (Pro models)."""
-    return (is_gemini_2_5(family) or is_gemini_3(family) or latest) and "-pro" in family
+    """Whether thinking cannot be disabled (Pro models, Gemini 2.5 and later).
+
+    Pro names newer than those verified (e.g. a future gemini-4-pro) count as
+    thinking-only, so disabling thinking warns rather than risking a 400.
+    Only the final path segment is checked, so a vertex project id such as
+    my-project does not make a model thinking-only.
+    """
+    pro = "-pro" in _model_segment(family)
+    return gemini_has_thinking_config(family, latest) and pro
 
 
 def gemini_supports_minimal_thinking(family: str) -> bool:
@@ -101,7 +112,7 @@ def gemini_supports_minimal_thinking(family: str) -> bool:
     rather than risk a 400. https://ai.google.dev/gemini-api/docs/thinking
     """
     version = gemini_version(family)
-    name = family.rsplit("/", 1)[-1]
+    name = _model_segment(family)
     if version is None or "flash" not in name:
         return False
     low, high = ((3, 1), (3, 6)) if "flash-lite" in name else ((3,), (3, 7))
@@ -132,4 +143,4 @@ def gemini_thinking_budget(effort: str | None, family: str) -> int | None:
     budget = effort_to_reasoning_tokens(effort)
     if budget is None:
         return None
-    return min(budget, 32768 if "-pro" in family else 24576)
+    return min(budget, 32768 if "-pro" in _model_segment(family) else 24576)

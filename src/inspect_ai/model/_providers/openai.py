@@ -359,12 +359,8 @@ class OpenAIAPI(ModelAPI):
     @override
     async def refresh_credentials(self) -> None:
         # In-flight requests and SDK retries share this client; closing it
-        # during credential refresh would also fail other samples. Bedrock
-        # fixes its auth when the client is built, so it keeps the default
-        # rebuild. Token providers run per request and need no update.
-        if self.is_bedrock():
-            await super().refresh_credentials()
-            return
+        # during credential refresh would also fail other samples. Token
+        # providers run per request and need no update.
         super().initialize()
         if self.api_key:
             self.client.api_key = self.api_key
@@ -558,6 +554,20 @@ class OpenAIAPI(ModelAPI):
         # support image truncation.
         return True
 
+    def uses_responses_api(self, tools: list[ToolInfo], config: GenerateConfig) -> bool:
+        """Whether `generate()` sends a request with these tools to the Responses API.
+
+        Image output and native tools need the Responses API even when
+        `responses_api` is off.
+        """
+        return (
+            self.responses_api
+            or has_image_output(config.modalities)
+            or is_native_tool_configured(
+                tools, self.model_family(), config, is_latest=self.is_latest()
+            )
+        )
+
     async def generate(
         self,
         input: list[ChatMessage],
@@ -565,13 +575,7 @@ class OpenAIAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
-        use_responses = (
-            self.responses_api
-            or has_image_output(config.modalities)
-            or is_native_tool_configured(
-                tools, self.model_family(), config, is_latest=self.is_latest()
-            )
-        )
+        use_responses = self.uses_responses_api(tools, config)
         self._resolve_batcher(config, use_responses)
 
         # if reasoning summaries are unset then try to auto-detect

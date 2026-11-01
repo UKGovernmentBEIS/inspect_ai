@@ -14,8 +14,9 @@ from typing import (
     runtime_checkable,
 )
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, model_validator
 
+from inspect_ai._util.constants import DESERIALIZING
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai._util.registry import (
@@ -30,12 +31,6 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai._util.text import is_finite_number
 from inspect_ai.log._edit import ProvenanceData
-
-# isort: split
-# Backward-compatible re-exports of names that moved to inspect_ai.core.
-from inspect_ai.core._reference import Reference as Reference
-
-# End of backward-compatible re-exports.
 
 logger = getLogger(__name__)
 
@@ -113,6 +108,25 @@ class ScoreEdit(BaseModel):
 
     provenance: ProvenanceData | None = None
     """Provenance data for this edit. None indicates this is the original score."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _missing_field_is_none(cls, data: Any, info: ValidationInfo) -> Any:
+        """Read a field missing from a persisted edit as None, not UNCHANGED.
+
+        Logs are written with ``exclude_none``, which drops None fields, while
+        UNCHANGED is always written out. So when deserializing a log, a missing
+        ``answer`` or ``explanation`` can only have been None. ``reason`` is
+        left alone: edits written before it existed (#4629) have no ``reason``
+        key and mean UNCHANGED, which a dropped None can't be told apart from.
+        """
+        if (
+            isinstance(data, dict)
+            and isinstance(info.context, dict)
+            and info.context.get(DESERIALIZING, False)
+        ):
+            return {"answer": None, "explanation": None} | data
+        return data
 
 
 class Score(BaseModel):
@@ -224,6 +238,28 @@ class Score(BaseModel):
             return self.value
         else:
             raise ValueError("This score is not a scalar")
+
+
+class Reference(BaseModel):
+    """Reference from a score to content in the scored transcript.
+
+    References are stored as a list of dicts under a score's
+    `metadata["scanner_references"]` key. Inspect View identifies scanner
+    scores by the presence of that key and renders cites in the score's
+    explanation (e.g. `[M22]`) as links to the referenced content.
+    """
+
+    type: Literal["message", "event"]
+    """Reference type."""
+
+    cite: str | None = Field(default=None)
+    """Cite text used when the entity was referenced (optional).
+
+    For example, a model may have pointed to a message using something like [M22], which is the cite.
+    """
+
+    id: str
+    """Reference id (message or event id)"""
 
 
 class SampleScore(BaseModel):

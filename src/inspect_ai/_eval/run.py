@@ -1,13 +1,12 @@
 import functools
 import logging
 import os
-import sys
-from contextlib import ExitStack
+from contextlib import ExitStack, asynccontextmanager
 from copy import copy
 from dataclasses import dataclass, replace
 from typing import (
-    TYPE_CHECKING,
     Any,
+    AsyncIterator,
     Awaitable,
     Callable,
     Iterable,
@@ -16,24 +15,9 @@ from typing import (
     cast,
 )
 
-from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
-from inspect_ai._util._async import Wake
-from inspect_ai._util.environ import environ_vars
-from inspect_ai._util.file import cleanup_s3_sessions
-from inspect_ai._util.task import task_display_name
-from inspect_ai._util.trace import trace_action
-from inspect_ai.util._anyio import inner_exception
-from inspect_ai.util._checkpoint import CheckpointConfig
-
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
-
 import anyio
 from anyio.abc import TaskGroup
 from typing_extensions import Unpack
-
-if TYPE_CHECKING:
-    from inspect_sentinel._integration import Sentinels
 
 from inspect_ai._control.eval_state import (
     clear_eval_retry_pending,
@@ -59,12 +43,27 @@ from inspect_ai._display.core.active import (
     clear_task_screen,
     init_task_screen,
 )
-from inspect_ai._display.core.display import CancelType, TaskCancel, TaskSpec
+from inspect_ai._display.core.display import (
+    CancelType,
+    TaskCancel,
+    TaskScreen,
+    TaskSpec,
+)
+from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
 from inspect_ai._eval.task.scan import Scanners
-from inspect_ai._sentinel._config import resolve_sentinel_root, sentinel_config
+from inspect_ai._sentinel._config import (
+    Sentinels,
+    resolve_sentinel_root,
+    sentinel_config,
+)
+from inspect_ai._util._async import Wake, unwrap_exception_group
+from inspect_ai._util.environ import environ_vars
 from inspect_ai._util.error import PrerequisiteError, exception_message
 from inspect_ai._util.exception import TaskRetryAbandonedError
+from inspect_ai._util.file import cleanup_s3_sessions
 from inspect_ai._util.path import chdir
+from inspect_ai._util.task import task_display_name
+from inspect_ai._util.trace import trace_action
 from inspect_ai.approval._policy import ApprovalPolicy, config_from_approval_policies
 from inspect_ai.dataset._dataset import Dataset, Sample
 from inspect_ai.log import EvalConfig, EvalLog
@@ -79,6 +78,8 @@ from inspect_ai.scorer._reducer import ScoreReducer, reducer_log_names
 from inspect_ai.scorer._reducer.registry import validate_reducer
 from inspect_ai.scorer._scorer import as_scorer_spec
 from inspect_ai.solver._solver import Solver, SolverSpec
+from inspect_ai.util._anyio import inner_exception
+from inspect_ai.util._checkpoint import CheckpointConfig
 from inspect_ai.util._checkpoint._layout import (
     eval_checkpoints_dir_from_config,
 )
@@ -161,7 +162,7 @@ async def eval_run(
     epochs_reducer: list[ScoreReducer] | None = None,
     approval: list[ApprovalPolicy] | None = None,
     review: list[ReviewPolicy] | None = None,
-    sentinel: "Sentinels | None" = None,
+    sentinel: Sentinels | None = None,
     solver: Solver | SolverSpec | None = None,
     scanner: "Scanners | None" = None,
     scan_id: str | None = None,
@@ -813,7 +814,7 @@ async def run_task_retry_attempts(
             launch=parallel, in_flight=in_flight, pending=len(pending)
         )
 
-    async with display().task_screen(task_specs(tasks), parallel=True) as screen:
+    async with _run_task_screen(task_specs(tasks)) as screen:
         init_task_screen(screen)
         try:
             # registered inside the try so the removes in the finally below
@@ -821,7 +822,11 @@ async def run_task_retry_attempts(
             # leak them into the module-level registries)
             add_dispatch_waker(wake.set)
             register_task_dispatcher(dispatcher_stats)
-            async with anyio.create_task_group() as tg:
+            # exceptions can escape when debug_errors is True and that's okay
+            async with (
+                unwrap_exception_group("first" if debug_errors else None),
+                anyio.create_task_group() as tg,
+            ):
                 # Run-scoped periodic [Throughput] trace reporter (see
                 # design/model-throughput.md §4). Its own cancel scope: the
                 # dispatch loop below exits by `break` while the task group
@@ -1104,14 +1109,6 @@ async def run_task_retry_attempts(
                 # dispatch complete (only the `break` paths reach here) —
                 # stop the reporter so the task group can exit
                 reporter_scope.cancel()
-        # exceptions can escape when debug_errors is True and that's okay
-        except ExceptionGroup as ex:
-            if debug_errors:
-                raise ex.exceptions[0]
-            else:
-                raise
-        except anyio.get_cancelled_exc_class():
-            pass
         finally:
             remove_dispatch_waker(wake.set)
             remove_task_dispatcher(dispatcher_stats)
@@ -1317,6 +1314,29 @@ class SandboxManager:
                 if self._lifecycle is not None:
                     self._lifecycle.close()
                     self._lifecycle = None
+
+
+@asynccontextmanager
+async def _run_task_screen(tasks: list[TaskSpec]) -> AsyncIterator[TaskScreen]:
+    """Open the display's task screen for a run that absorbs cancellation.
+
+    A cancellation of the run body is absorbed, so the run returns the logs
+    it has. Trio raises that cancellation again at every checkpoint inside
+    the cancelled scope, so a display whose teardown awaits (the rich
+    display's update-loop task group) raises it again; that one is absorbed
+    too. A cancellation from the teardown of a body that was not cancelled,
+    or from the display's setup, propagates.
+    """
+    body_cancelled = False
+    try:
+        async with display().task_screen(tasks, parallel=True) as screen:
+            try:
+                yield screen
+            except anyio.get_cancelled_exc_class():
+                body_cancelled = True
+    except anyio.get_cancelled_exc_class():
+        if not body_cancelled:
+            raise
 
 
 def task_specs(tasks: list[TaskRunOptions]) -> list[TaskSpec]:

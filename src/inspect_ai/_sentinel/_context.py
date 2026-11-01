@@ -5,7 +5,7 @@ from typing import Any, NamedTuple
 from inspect_ai._util.logger import warn_once
 
 from ._config import SentinelRoot
-from ._scope import AgentScope, current_scope, solving
+from ._scope import current_origin, in_final_scope, is_agent_turn
 
 logger = getLogger(__name__)
 
@@ -66,6 +66,11 @@ def warn_sentinel_bridged() -> None:
 
 
 def is_agent_generate() -> bool:
-    return (
-        active_sentinel() is not None and solving() and current_scope() is AgentScope.ON
-    )
+    return active_sentinel() is not None and is_agent_turn(current_origin())
+
+
+def checks_tool_calls() -> bool:
+    # tool calls inside a final scope (a sentinel run, an approver, a reviewer,
+    # ...) are not checked, or a monitor that runs a tool would be checked by
+    # its own sentinel
+    return active_sentinel() is not None and not in_final_scope()

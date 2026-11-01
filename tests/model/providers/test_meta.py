@@ -16,6 +16,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._model_output import StopDetails
 from inspect_ai.model._providers.meta import (
+    META_CHAT_CACHE_RETENTION_WARNING,
     META_UNSUPPORTED_PARAM_WARNING,
     MetaAPI,
     _flag_refusal_stop,
@@ -412,6 +413,205 @@ async def test_meta_generate_applies_request_shaping(mock_meta_env, monkeypatch)
         await api.aclose()
 
 
+def _mock_create(api: MetaAPI, monkeypatch, responses_api: bool) -> AsyncMock:
+    """Replace the SDK create call for `api`'s protocol and return the mock."""
+    from openai.types.chat import ChatCompletion
+    from openai.types.responses import Response
+
+    if responses_api:
+        create = AsyncMock(
+            return_value=Response.model_construct(
+                id="resp_test",
+                model="muse-spark-1.3",
+                created_at=0.0,
+                object="response",
+                status="completed",
+                output=[],
+                tools=[],
+            )
+        )
+        monkeypatch.setattr(api.client.responses, "create", create)
+    else:
+        create = AsyncMock(
+            return_value=ChatCompletion(
+                id="chat_test",
+                model="muse-spark-1.3",
+                created=0,
+                object="chat.completion",
+                choices=[],
+            )
+        )
+        monkeypatch.setattr(api.client.chat.completions, "create", create)
+    return create
+
+
+async def _prompt_cache_request(
+    monkeypatch,
+    responses_api: bool,
+    sample_uuid: str | None,
+    config: GenerateConfig | None = None,
+    **model_args: Any,
+) -> dict[str, Any]:
+    """The request kwargs sent for one generate with a stubbed active sample."""
+    import inspect_ai.model._providers.meta as meta_module
+
+    monkeypatch.setattr(meta_module, "sample_cache_affinity_key", lambda: sample_uuid)
+    api = MetaAPI(
+        model_name="muse-spark-1.3",
+        responses_api=responses_api,
+        stream=False,
+        **model_args,
+    )
+    create = _mock_create(api, monkeypatch, responses_api)
+    try:
+        await api.generate(
+            input=[ChatMessageUser(content="hi")],
+            tools=[],
+            tool_choice="auto",
+            config=config or GenerateConfig(),
+        )
+    finally:
+        await api.aclose()
+    return dict(create.call_args.kwargs)
+
+
+@pytest.mark.parametrize("responses_api", [True, False], ids=["responses", "chat"])
+async def test_meta_prompt_cache_key_is_sample_uuid(
+    mock_meta_env, monkeypatch, responses_api
+):
+    request = await _prompt_cache_request(monkeypatch, responses_api, "sample-uuid-1")
+    assert request["prompt_cache_key"] == "sample-uuid-1"
+
+
+@pytest.mark.parametrize("responses_api", [True, False], ids=["responses", "chat"])
+async def test_meta_prompt_cache_key_omitted_without_active_sample(
+    mock_meta_env, monkeypatch, responses_api
+):
+    request = await _prompt_cache_request(monkeypatch, responses_api, None)
+    assert "prompt_cache_key" not in request
+
+
+@pytest.mark.parametrize("responses_api", [True, False], ids=["responses", "chat"])
+async def test_meta_prompt_cache_key_model_arg_wins(
+    mock_meta_env, monkeypatch, responses_api
+):
+    request = await _prompt_cache_request(
+        monkeypatch, responses_api, "sample-uuid-1", prompt_cache_key="my-app"
+    )
+    assert request["prompt_cache_key"] == "my-app"
+
+
+@pytest.mark.parametrize("responses_api", [True, False], ids=["responses", "chat"])
+async def test_meta_prompt_cache_extra_body_not_replaced(
+    mock_meta_env, monkeypatch, responses_api
+):
+    """A key a caller (e.g. a bridged agent) put in extra_body is sent as given."""
+    request = await _prompt_cache_request(
+        monkeypatch,
+        responses_api,
+        "sample-uuid-1",
+        config=GenerateConfig(
+            extra_body={
+                "prompt_cache_key": "client-key",
+                "prompt_cache_retention": "in_memory",
+            }
+        ),
+    )
+    sent = request if responses_api else request["extra_body"]
+    assert sent["prompt_cache_key"] == "client-key"
+    assert sent["prompt_cache_retention"] == "in_memory"
+    if not responses_api:
+        assert "prompt_cache_key" not in request
+
+
+async def test_meta_prompt_cache_retention_defaults_to_24h(mock_meta_env, monkeypatch):
+    request = await _prompt_cache_request(monkeypatch, True, "sample-uuid-1")
+    assert request["prompt_cache_retention"] == "24h"
+
+
+async def test_meta_prompt_cache_retention_model_arg(mock_meta_env, monkeypatch):
+    request = await _prompt_cache_request(
+        monkeypatch, True, "sample-uuid-1", prompt_cache_retention="in_memory"
+    )
+    assert request["prompt_cache_retention"] == "in_memory"
+
+
+def test_meta_prompt_cache_retention_invalid(mock_meta_env):
+    with pytest.raises(ValueError, match="prompt_cache_retention"):
+        MetaAPI(model_name="muse-spark-1.3", prompt_cache_retention="24hr")
+
+
+async def test_meta_prompt_cache_key_in_extra_body_keeps_default_retention(
+    mock_meta_env, monkeypatch
+):
+    request = await _prompt_cache_request(
+        monkeypatch,
+        True,
+        "sample-uuid-1",
+        config=GenerateConfig(extra_body={"prompt_cache_key": "client-key"}),
+    )
+    assert request["prompt_cache_key"] == "client-key"
+    assert request["prompt_cache_retention"] == "24h"
+
+
+async def test_meta_prompt_cache_retention_not_sent_on_chat(
+    mock_meta_env, monkeypatch, _warn_once_messages
+):
+    request = await _prompt_cache_request(monkeypatch, False, "sample-uuid-1")
+    assert "prompt_cache_retention" not in request
+    # the default is not a user choice, so dropping it is silent
+    assert META_CHAT_CACHE_RETENTION_WARNING not in _warn_once_messages
+
+
+async def test_meta_prompt_cache_retention_on_chat_warns(
+    mock_meta_env, monkeypatch, _warn_once_messages
+):
+    request = await _prompt_cache_request(
+        monkeypatch, False, "sample-uuid-1", prompt_cache_retention="24h"
+    )
+    assert "prompt_cache_retention" not in request
+    assert META_CHAT_CACHE_RETENTION_WARNING in _warn_once_messages
+
+
+async def test_openai_compatible_sends_no_prompt_cache_params(monkeypatch):
+    """Other OpenAI-compatible providers' Responses requests are unchanged."""
+    from openai.types.responses import Response
+
+    from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
+
+    api = OpenAICompatibleAPI(
+        model_name="other/some-model",
+        base_url="https://example.invalid/v1",
+        api_key="test-key",
+        responses_api=True,
+        stream=False,
+    )
+    create = AsyncMock(
+        return_value=Response.model_construct(
+            id="resp_test",
+            model="some-model",
+            created_at=0.0,
+            object="response",
+            status="completed",
+            output=[],
+            tools=[],
+        )
+    )
+    monkeypatch.setattr(api.client.responses, "create", create)
+    try:
+        await api.generate(
+            input=[ChatMessageUser(content="hi")],
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+    finally:
+        await api.aclose()
+    request = create.call_args.kwargs
+    assert "prompt_cache_key" not in request
+    assert "prompt_cache_retention" not in request
+
+
 def _output(
     text: str, stop_reason: StopReason, details: StopDetails | None
 ) -> ModelOutput:
@@ -604,3 +804,53 @@ async def test_meta_live_tool_call():
     output = await model.generate("Use the add tool to compute 2 + 3.", tools=[add()])
     assert output.message.tool_calls
     assert output.message.tool_calls[0].function == "add"
+
+
+@skip_if_no_meta
+def test_meta_live_prompt_cache_across_turns() -> None:
+    """A sample's second turn reads the prefix its first turn cached.
+
+    Each sample has a unique prefix, so a hit can only come from that sample's
+    own first turn. Also checks the API accepts 24 hour retention.
+    """
+    from inspect_ai import Task, eval
+    from inspect_ai.dataset import Sample
+    from inspect_ai.event import ModelEvent
+    from inspect_ai.solver import Generate, TaskState, generate, solver
+
+    @solver
+    def second_turn():
+        async def solve(state: TaskState, _generate: Generate) -> TaskState:
+            state.messages.append(ChatMessageUser(content="Now reply with 'bye'."))
+            return await _generate(state)
+
+        return solve
+
+    padding = "The quick brown fox jumps over the lazy dog. " * 400
+    log = eval(
+        Task(
+            dataset=[
+                Sample(input=f"[{i}] {padding}\nReply with 'hi'.") for i in range(2)
+            ],
+            solver=[generate(), second_turn()],
+        ),
+        model="meta/muse-spark-1.3",
+    )[0]
+
+    assert log.status == "success"
+    assert log.samples is not None
+
+    cache_hits = 0
+    for sample in log.samples:
+        model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
+        assert len(model_events) == 2
+        for event in model_events:
+            assert event.call is not None
+            assert event.call.request["prompt_cache_key"] == sample.uuid
+            assert event.call.request["prompt_cache_retention"] == "24h"
+        second = model_events[1].output.usage
+        assert second is not None
+        if second.input_tokens_cache_read:
+            cache_hits += 1
+
+    assert cache_hits >= 1

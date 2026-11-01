@@ -2,9 +2,10 @@ import contextlib
 import json
 import os
 import shlex
+import time
 from logging import getLogger
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, Literal, cast, overload
 
 import yaml
 from pydantic import BaseModel
@@ -14,14 +15,19 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.trace import trace_message
 from inspect_ai.util._concurrency import concurrency as concurrency_manager
 from inspect_ai.util._display import display_type, display_type_plain
+from inspect_ai.util._sandbox._privileged import pinned_command
+from inspect_ai.util._sandbox.environment import SandboxUnavailableError
+from inspect_ai.util._sandbox.limits import SandboxEnvironmentLimits
 from inspect_ai.util._subprocess import (
     ExecResult,
+    StdoutReader,
     SubprocessRun,
     run_subprocess,
     subprocess,
 )
 
 from .config import is_auto_compose_file
+from .failure import classify_exec_failure, raise_for_unsupported_user
 from .mounts import validate_compose_mounts
 from .prereqs import (
     DOCKER_COMPOSE_REQUIRED_VERSION_PULL_POLICY,
@@ -110,25 +116,101 @@ async def compose_down(project: ComposeProject, quiet: bool = True) -> None:
         )
 
 
-async def compose_cp(
-    src: str,
-    dest: str,
+_READ_FILE_TIMEOUT = 600
+
+
+async def compose_read_archive(
+    service: str,
+    file: str,
     project: ComposeProject,
-    cwd: str | Path | None = None,
-    output_limit: int | None = None,
-    timeout_retry: bool = True,
-) -> None:
-    result = await compose_command(
-        ["cp", "-L", "--", src, dest],
-        project=project,
-        timeout=600,  # 10-minute timeout for file copies
-        timeout_retry=timeout_retry,
-        cwd=cwd,
-        output_limit=output_limit,
+    read_archive: StdoutReader,
+    user: str | None = None,
+) -> bytes:
+    """Read a file archive as the requested user, without host extraction.
+
+    Tar follows symlinks under that user's permissions. It does not recurse
+    into directories; the existing archive reader rejects non-regular files.
+    GNU tar's changed-file warning permits a best-effort read; shrinking-file
+    and other errors propagate. Cancellation has the same in-container timeout
+    fallback as Docker exec.
+    """
+    command = [
+        "exec",
+        "-T",
+        "--workdir",
+        "/",
+        "--env",
+        "LC_ALL=C",
+        "--env",
+        "TAR_OPTIONS=",
+    ]
+    if user is not None:
+        command.extend(["--user", user])
+    command.extend(
+        [
+            service,
+            "/usr/bin/timeout",
+            "-k",
+            "5s",
+            f"{_READ_FILE_TIMEOUT}s",
+            *pinned_command(["tar", "-chf", "-", "--no-recursion", "--", file]),
+        ]
     )
-    if not result.success:
-        msg = f"Failed to copy file from '{src}' to '{dest}': {result.stderr}"
-        raise RuntimeError(msg)
+    start_time = time.monotonic()
+    result = await compose_command(
+        command,
+        project=project,
+        timeout=_READ_FILE_TIMEOUT + 10,
+        timeout_retry=False,
+        text=False,
+        stdout_reader=read_archive,
+        output_limit=SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE,
+    )
+    if result.returncode == 124 or (
+        result.returncode in (137, 143)
+        and time.monotonic() - start_time >= _READ_FILE_TIMEOUT
+    ):
+        raise TimeoutError(
+            f"Docker read_file timed out after {_READ_FILE_TIMEOUT} seconds"
+        )
+    if not result.success and not _tar_file_changed(result):
+        stderr = result.stderr.decode(errors="replace")
+        diagnostic = (
+            result.stderr
+            or result.stdout[: SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE]
+        ).decode(errors="replace")
+        raise_for_unsupported_user(diagnostic, user)
+        if result.returncode in (126, 127):
+            raise SandboxUnavailableError(
+                "Docker read_file could not execute its required tools "
+                f"(/usr/bin/timeout, /bin/sh and tar): {diagnostic}"
+            )
+        failure = classify_exec_failure(result, wrapper=None)
+        if failure is not None:
+            raise failure
+        raise RuntimeError(f"Failed to read file '{file}': {stderr}")
+    return result.stdout
+
+
+def _tar_file_changed(result: ExecResult[bytes]) -> bool:
+    """Recognize only GNU tar's changed-file warning with complete diagnostics."""
+    if (
+        result.returncode != 1
+        or len(result.stderr) >= SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE
+    ):
+        return False
+    changed = False
+    for line in result.stderr.decode(errors="replace").splitlines():
+        if line.startswith("tar: ") and line.endswith(": file changed as we read it"):
+            changed = True
+        elif line not in (
+            "tar: Removing leading `/' from member names",
+            "tar: Removing leading `/' from hard link targets",
+            "tar: Removing leading '/' from member names",
+            "tar: Removing leading '/' from hard link targets",
+        ):
+            return False
+    return changed
 
 
 async def compose_check_running(
@@ -342,6 +424,7 @@ async def compose_cleanup_images(
                         logger.warning(msg)
 
 
+@overload
 async def compose_command(
     command: list[str],
     *,
@@ -355,7 +438,46 @@ async def compose_command(
     capture_output: bool = True,
     output_limit: int | None = None,
     ansi: Literal["never", "always", "auto"] | None = None,
-) -> ExecResult[str]:
+    text: Literal[True] = True,
+    stdout_reader: StdoutReader | None = None,
+) -> ExecResult[str]: ...
+
+
+@overload
+async def compose_command(
+    command: list[str],
+    *,
+    project: ComposeProject,
+    timeout: int | None,
+    timeout_retry: bool = True,
+    concurrency: bool = True,
+    input: str | bytes | None = None,
+    cwd: str | Path | None = None,
+    forward_env: bool = True,
+    capture_output: bool = True,
+    output_limit: int | None = None,
+    ansi: Literal["never", "always", "auto"] | None = None,
+    text: Literal[False],
+    stdout_reader: StdoutReader | None = None,
+) -> ExecResult[bytes]: ...
+
+
+async def compose_command(
+    command: list[str],
+    *,
+    project: ComposeProject,
+    timeout: int | None,
+    timeout_retry: bool = True,
+    concurrency: bool = True,
+    input: str | bytes | None = None,
+    cwd: str | Path | None = None,
+    forward_env: bool = True,
+    capture_output: bool = True,
+    output_limit: int | None = None,
+    ansi: Literal["never", "always", "auto"] | None = None,
+    text: bool = True,
+    stdout_reader: StdoutReader | None = None,
+) -> ExecResult[str] | ExecResult[bytes]:
     # The base docker compose command
     compose_command = ["docker", "compose"]
 
@@ -392,7 +514,9 @@ async def compose_command(
     )
 
     # function to run command (wrapped in concurrency limiter)
-    async def run_command(command_timeout: int | None) -> SubprocessRun[str]:
+    async def run_command(
+        command_timeout: int | None,
+    ) -> SubprocessRun[str] | SubprocessRun[bytes]:
         concurrency_ctx = (
             concurrency_manager("docker-cli", docker_cli_concurrency, visible=False)
             if concurrency
@@ -401,6 +525,7 @@ async def compose_command(
         async with concurrency_ctx:
             return await run_subprocess(
                 compose_command,
+                text=text,
                 input=input,
                 cwd=cwd,
                 env=env,
@@ -408,6 +533,7 @@ async def compose_command(
                 capture_output=capture_output,
                 output_limit=output_limit,
                 concurrency=concurrency,
+                stdout_reader=stdout_reader,
             )
 
     # we have observed underlying unreliability in docker compose in some linux

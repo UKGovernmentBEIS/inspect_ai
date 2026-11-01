@@ -38,6 +38,7 @@ from inspect_ai._control.pause import (
 from inspect_ai._control.scoring import (
     ScorePass,
     TaskScoring,
+    _apply_scorers,
     _enumerate_targets,
     _pass_superseded,
     _sample_scoped_targets,
@@ -229,7 +230,7 @@ async def test_sample_hold_parks_generate(monkeypatch: pytest.MonkeyPatch) -> No
 
     async def attempt() -> None:
         _bind_sample(sample)
-        await wait_generate_dispatch(model, lambda t: None)
+        await wait_generate_dispatch(model)
         passed.set()
 
     async with anyio.create_task_group() as tg:
@@ -255,14 +256,14 @@ async def test_sample_hold_ignores_other_samples_and_pass_context() -> None:
     async def other_sample_attempt() -> None:
         _bind_sample(_FakeGateSample())
         with anyio.fail_after(5):
-            await wait_generate_dispatch(model, lambda t: None)
+            await wait_generate_dispatch(model)
 
     async with anyio.create_task_group() as tg:
         tg.start_soon(other_sample_attempt)
 
     # the pass's own grader calls (no active sample bound) pass too
     with anyio.fail_after(5):
-        await wait_generate_dispatch(model, lambda t: None)
+        await wait_generate_dispatch(model)
 
 
 async def test_sample_hold_escapes_on_interrupt() -> None:
@@ -276,7 +277,7 @@ async def test_sample_hold_escapes_on_interrupt() -> None:
     async def attempt() -> None:
         _bind_sample(sample)
         with anyio.fail_after(5):
-            await wait_generate_dispatch(model, lambda t: None)
+            await wait_generate_dispatch(model)
 
     async with anyio.create_task_group() as tg:
         tg.start_soon(attempt)
@@ -648,7 +649,7 @@ async def _park_solver_loop(
 
     _sample_active.set(active)
     while not stop.is_set():
-        await wait_generate_dispatch(model, lambda t: None)
+        await wait_generate_dispatch(model)
         await anyio.sleep(0.01)
 
 
@@ -1811,3 +1812,30 @@ def test_eval_interim_score_pass_e2e(
     assert len(intermediate) == 1 and len(final) == 1
     assert log.samples[0].scores is not None
     assert list(log.samples[0].scores) == [scorer_name]
+
+
+async def test_a_score_pass_s_scorer_calls_record_the_scorer_origin() -> None:
+    from inspect_ai._sentinel._scope import current_origin
+
+    origins: list[str] = []
+
+    @scorer(metrics=[accuracy()])
+    def origin_scorer():
+        async def score(state: TaskState, target: Target) -> Score:
+            origins.append(current_origin())
+            return Score(value=1.0)
+
+        return score
+
+    scores: dict[str, Any] = {}
+    errors: dict[str, str] = {}
+    await _apply_scorers(
+        _scoring_handle(scorer_obj=origin_scorer()),
+        _active_sample().live_state,
+        Target("42"),
+        should_record=lambda: False,
+        scores=scores,
+        errors=errors,
+    )
+    assert errors == {}
+    assert origins == ["scorer"]

@@ -49,7 +49,8 @@ def sandbox(name: str | None = None) -> SandboxEnvironment:
     """Get the SandboxEnvironment for the current sample.
 
     Args:
-      name (str | None): Optional sandbox environment name.
+      name (str | None): Optional sandbox environment name. None or "default"
+        selects the current default; any other name must match an environment.
 
     Return:
       SandboxEnvironment instance.
@@ -63,14 +64,14 @@ def sandbox(name: str | None = None) -> SandboxEnvironment:
     if not environments:
         raise raise_no_sandbox()
 
-    # For None, 'default', or a single environment only take the first environment
-    if name is None or name == "default" or len(environments) == 1:
+    if name is None or name == "default":
         return default_sandbox_environment(environments)
     else:
         environment = environments.get(name, None)
         if not environment:
             raise ValueError(
                 f"SandboxEnvironment '{name}' is not a recognized environment name."
+                f" Available environments: {', '.join(environments)}."
             )
         return environment
 

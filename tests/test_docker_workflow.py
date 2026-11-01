@@ -20,7 +20,7 @@ STEP_NAME = "Set build context path and image name"
 IMAGE_INPUT_EXPRESSIONS = {"${{ github.event.inputs.image }}", "${{ inputs.image }}"}
 IMAGE_CONTEXTS = {
     "inspect-computer-tool": "src/inspect_ai/tool/_tools/_computer/_resources",
-    "inspect-tool-support": "src/inspect_tool_support",
+    "inspect-tool-support": "src/inspect_ai/util/_sandbox/docker",
 }
 
 # Values the selector must reject. Those that would run a command if the
@@ -110,6 +110,7 @@ def test_selector_accepts_supported_images(
     result, github_env, canary = run_selector(image, tmp_path)
     assert result.returncode == 0, result.stderr
     assert github_env == f"BUILD_CONTEXT={context}\n"
+    assert (WORKFLOW.parents[2] / context / "Dockerfile").is_file()
     assert not canary
 
 

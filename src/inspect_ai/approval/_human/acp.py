@@ -43,7 +43,7 @@ even though the orchestration is asyncio.
 from __future__ import annotations
 
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, Callable, Protocol, cast
+from typing import TYPE_CHECKING, Any, Callable, Literal, Protocol, cast
 
 import anyio
 from acp.schema import (
@@ -51,6 +51,7 @@ from acp.schema import (
     PermissionOptionKind,
     RequestPermissionRequest,
     RequestPermissionResponse,
+    ToolCallStatus,
     ToolCallUpdate,
 )
 
@@ -267,7 +268,21 @@ def _build_request(
 ) -> RequestPermissionRequest:
     """Construct the ACP request body from Inspect's approval inputs.
 
-    The ``tool_call`` field carries the same rich-content shape we
+    The ``tool_call`` field is :func:`_tool_call_update`'s pending card.
+    """
+    return RequestPermissionRequest(
+        session_id=session_id,
+        tool_call=_tool_call_update(call, view, "pending"),
+        options=_options_from_choices(choices),
+    )
+
+
+def _tool_call_update(
+    call: ToolCall, view: ToolCallView, status: ToolCallStatus
+) -> ToolCallUpdate:
+    """The tool-call card an approval request shows, with ``status``.
+
+    The card carries the same rich-content shape we
     already send for live tools: a descriptive title (``bash ls -la``
     rather than just ``bash``), the tool's ``ToolCallView`` content
     as inline markdown, ``raw_input`` for the debug view. Reuses
@@ -357,10 +372,10 @@ def _build_request(
     if call_blocks:
         content_blocks.extend(call_blocks)
 
-    tool_call = ToolCallUpdate(
+    return ToolCallUpdate(
         tool_call_id=call.id,
         title=title,
-        status="pending",
+        status=status,
         raw_input=call.arguments,
         # ToolCallUpdate.content is typed as a union including
         # FileEditToolCallContent / TerminalToolCallContent; we
@@ -368,11 +383,6 @@ def _build_request(
         # wrapping the view's markdown). Cast widens for the schema
         # without changing runtime shape.
         content=cast(Any, content_blocks or None),
-    )
-    return RequestPermissionRequest(
-        session_id=session_id,
-        tool_call=tool_call,
-        options=_options_from_choices(choices),
     )
 
 
@@ -589,3 +599,50 @@ async def request_human_approval_via_acp(
         # which surface happens to serve it.
         return await _request_from_driver_with_fallback(session, request, choices)
     return None
+
+
+def finish_approval_card(
+    call: ToolCall, view: ToolCallView, status: Literal["completed", "failed"]
+) -> None:
+    """Finish the card an approval request opened for a call that never runs.
+
+    A permission request opens a pending tool-call card on the client,
+    which the call's own tool events later complete. An approval about
+    something other than one tool call (a sentinel asking about a whole
+    assistant turn) has no such events, so without this the card stays
+    pending: cancellable, counted as work in flight, and marked failed
+    when the session ends.
+
+    The update goes to every attached client, and only the driver saw the
+    request, so it carries the card's title and content as the request did:
+    a client that never saw the card gets a complete one, not an empty one.
+
+    Gated as :func:`request_human_approval_via_acp` is, so it publishes
+    only when that function routed the request through ACP. Best-effort
+    like the rest of this shim: a failure is logged, never raised.
+    """
+    with acp_guard("ACP approval card completion raised; the card stays pending"):
+        from acp.helpers import session_notification, update_tool_call
+
+        from inspect_ai.agent._acp.server import acp_server_accepting_clients
+        from inspect_ai.log._samples import sample_active
+
+        if not acp_server_accepting_clients():
+            return
+        sample = sample_active()
+        if sample is None or sample.acp_transport is None:
+            return
+        session = sample.acp_transport
+        card = _tool_call_update(call, view, status)
+        session.publish(
+            session_notification(
+                session.session_id,
+                update_tool_call(
+                    tool_call_id=card.tool_call_id,
+                    title=card.title,
+                    status=card.status,
+                    raw_input=card.raw_input,
+                    content=card.content,
+                ),
+            )
+        )
