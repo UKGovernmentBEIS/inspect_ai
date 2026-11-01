@@ -41,6 +41,7 @@ from inspect_ai._eval.run import (
 from inspect_ai._eval.task.enqueue import (
     ConfiguredTask,
     RunQueue,
+    TaskOutcome,
     TaskRecord,
     TaskStartPolicy,
 )
@@ -456,10 +457,11 @@ def test_record_drops_its_task_when_it_ends() -> None:
     harness = Harness([get_model("mockllm/m1")])
     [record] = harness.queue.put([_task("a")])
     task = weakref.ref(cast(ConfiguredTask, record.configured).resolved.task)
-    record.end()
-    harness.queue.take("after_batch")
+    harness.queue.remove(record)
+    harness.queue.end(record, None)
     gc.collect()
     assert record.configured is None
+    assert record.outcome == TaskOutcome(None)
     assert task() is None
 
 

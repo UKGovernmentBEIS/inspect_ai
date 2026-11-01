@@ -9904,3 +9904,42 @@ def test_explicit_log_dir_works_through_the_entry_point(tmp_path: Path) -> None:
     )
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["incomplete"] is False
+
+
+@pytest.mark.parametrize("verb", ["cancel", "drain"])
+def test_task_cancel_and_drain_reach_a_task_that_has_not_started(
+    monkeypatch: pytest.MonkeyPatch, verb: str
+) -> None:
+    """A task waiting to start is not in `GET /tasks`; its full id reaches it.
+
+    Each process is asked in turn: one that does not know the id answers 404.
+    """
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "running_task")],
+        servers=[_DiscServer(7), _DiscServer(8)],
+    )
+    calls: list[tuple[str, str]] = []
+
+    def request(socket_path: str, path: str, **kwargs: Any) -> dict[str, Any]:
+        calls.append((socket_path, path))
+        if socket_path == "/tmp/7.sock":
+            raise _CtlFailure("not_found", "", status=404)
+        return {
+            "ok": True,
+            "task_id": "qqq222",
+            "task": "queued_task",
+            "eval_id": "",
+            "changed": True,
+            "not_started": True,
+            "in_flight": 0,
+        }
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", request)
+    result = cli_runner().invoke(ctl_command, ["task", verb, "qqq222"])
+    assert result.exit_code == 0, result.output
+    assert calls == [
+        ("/tmp/7.sock", f"/tasks/qqq222/{verb}"),
+        ("/tmp/8.sock", f"/tasks/qqq222/{verb}"),
+    ]
+    assert "Task 'queued_task' (qqq222) had not started" in result.output

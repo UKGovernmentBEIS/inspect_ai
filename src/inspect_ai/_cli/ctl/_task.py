@@ -10,6 +10,7 @@ from typing import Any, Literal, cast
 import click
 
 from inspect_ai._control.cancel import TaskCancelAction
+from inspect_ai._control.discovery import DiscoveredControlServer
 
 # Patch seam: tests monkeypatch functions on their defining module
 # (e.g. `inspect_ai._cli.ctl._http._request_json`), so cross-module
@@ -17,7 +18,7 @@ from inspect_ai._control.cancel import TaskCancelAction
 # "simplify" to `from ._http import _request_json` (see
 # design/ctl/cli-refactor.md).
 from . import _fetch, _http, _log_dir
-from ._failure import _envelope_failures
+from ._failure import _CtlFailure, _envelope_failures
 from ._group import (
     _MUTATION_ENVELOPE_HELP,
     _echo_no_running_evals,
@@ -163,9 +164,10 @@ def task_cancel_command(
     cancel or drain can still be resolved or torn down). A task between
     attempts (last attempt errored, retry queued but not started) has its
     pending retry abandoned by a plain cancel — the task ends with its
-    last attempt's error log — while score/error are rejected there. To
-    cancel a single sample, use `inspect ctl sample cancel`. TASK (a
-    task-id prefix or name) is always required; pass `--model` to
+    last attempt's error log — while score/error are rejected there. A
+    task that has not started (given its full task id) ends without
+    running. To cancel a single sample, use `inspect ctl sample cancel`.
+    TASK (a task-id prefix or name) is always required; pass `--model` to
     disambiguate when one task runs against several models.
     """
     _run_task_cancel(
@@ -288,8 +290,9 @@ def task_drain_command(
     samples a drain never touches), and a plain `task cancel` tears the task
     down. A task between attempts (last attempt errored, retry queued but
     not started) has its pending retry abandoned — the task ends with its
-    last attempt's error log. Idempotent — draining a finished, draining, or
-    already-cancelling task is a clean no-op. TASK (a task-id prefix or
+    last attempt's error log. A task that has not started (given its full
+    task id) ends without running. Idempotent — draining a finished,
+    draining, or already-cancelling task is a clean no-op. TASK (a task-id prefix or
     name) is always required; pass `--model` to disambiguate when one task
     runs against several models.
     """
@@ -492,6 +495,12 @@ def _run_task_stop_directive(
     """
     servers = _http.list_discovered_servers()
     summaries = _fetch._fetch_summaries(servers).summaries
+    if not any(
+        str(s["task_id"]).startswith(task) or s["task"] == task for s in summaries
+    ) and _stop_not_started_task(
+        servers, task, verb, params, dry_run=dry_run, as_json=as_json
+    ):
+        return
     scope = _resolve_scope(
         servers, summaries, task, per_task_option=f"task {verb}", model=model
     )
@@ -543,6 +552,60 @@ def _run_task_stop_directive(
             _echo(_terse_line(verb, target_label, f"no-op — {reason}"))
         else:
             _echo(f"Nothing to do: {reason}.")
+
+
+def _stop_not_started_task(
+    servers: list[DiscoveredControlServer],
+    task_id: str,
+    verb: _TaskStopVerb,
+    params: dict[str, Any],
+    *,
+    dry_run: bool,
+    as_json: bool,
+) -> bool:
+    """Cancel or drain a task that has not started, by its full id; whether one did.
+
+    Such a task has no attempt, so it is not in ``GET /tasks`` and the
+    selector resolution cannot find it: each process is asked in turn, and
+    one that does not know the id answers 404.
+    """
+    for server in servers:
+        try:
+            result = _http._request_json(
+                str(server.socket_path),
+                f"/tasks/{task_id}/{verb}",
+                params={**params, "dry_run": True} if dry_run else params,
+                what=f"{verb} of task {task_id}",
+                not_found="",
+                mutate="post",
+                retry_mutation=True,
+                pid=server.pid,
+                echo_failures=False,
+            )
+        except _CtlFailure as ex:
+            if ex.status == 404:
+                continue
+            _echo(ex.message, err=True)
+            raise
+        if as_json:
+            target = {"task_id": task_id, "task": result["task"]}
+            _echo_raw(
+                json_lib.dumps(
+                    _mutation_envelope(target, result, dry_run=dry_run), indent=2
+                )
+            )
+        elif result.get("changed"):
+            ends = "would end" if dry_run else "ends"
+            _echo(
+                _sanitize_line(
+                    f"Task '{result['task']}' ({task_id}) had not started: "
+                    f"it {ends} without running."
+                )
+            )
+        else:
+            _echo(_sanitize_line(f"Nothing to do: {result['reason']}."))
+        return True
+    return False
 
 
 @_envelope_failures

@@ -17,6 +17,7 @@ from typing_extensions import override
 from inspect_ai import Task, TaskSource, enqueue_task, eval_async
 from inspect_ai._control.eval_state import get_eval_states
 from inspect_ai._eval.task.constants import TASK_RUN_DIR_ATTR
+from inspect_ai._eval.task.enqueue import TaskOutcome, get_run_queue
 from inspect_ai._util.registry import _registry, registry_lookup
 from inspect_ai.dataset import Sample
 from inspect_ai.hooks import Hooks, RunEnd, TaskEnd, TaskStart, hooks
@@ -508,6 +509,120 @@ async def test_task_source_hears_a_task_whose_setup_failed() -> None:
         logs = await eval_async(Source(), model="mockllm/model")
     assert completed == [("parent", "success"), ("child", "error")]
     assert _statuses(logs) == completed
+
+
+@pytest.mark.parametrize("how", ["cancel", "drain"])
+async def test_operator_cancel_of_a_task_waiting_for_its_setup(
+    tmp_path: Path, lifecycle: _Lifecycle, how: str
+) -> None:
+    # a task cancelled or drained by id while its setup runs ends without
+    # starting: no log, no hooks, no retry. A repeat is a no-op, a resolution
+    # is rejected, and the setup runs on and is cleaned up at the end of the
+    # run
+    from inspect_ai._control.cancel import cancel_task, drain_task
+
+    in_setup = anyio.Event()
+    release = anyio.Event()
+    outcomes: list[Any] = []
+
+    async def init() -> None:
+        in_setup.set()
+        with anyio.fail_after(10):
+            await release.wait()
+
+    @solver
+    def add_and_cancel() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            enqueue_task(_boxed("child"), start="when_free")
+            queue = get_run_queue()
+            assert queue is not None
+            [child] = queue.unstarted()
+            with anyio.fail_after(10):
+                await in_setup.wait()
+            assert cancel_task(child.task_id, action="score") == {
+                "ok": False,
+                "error": (
+                    f"task {child.task_id} has not started, so there are no "
+                    "samples for a resolution to apply to; use a plain cancel "
+                    "(or drain) to end it without running"
+                ),
+            }
+            result = (cancel_task if how == "cancel" else drain_task)(child.task_id)
+            assert result is not None and result.get("not_started")
+            with anyio.fail_after(10):
+                while child.outcome is None:
+                    await anyio.sleep(0.01)
+            outcomes.append(child.outcome)
+            again = cancel_task(child.task_id)
+            assert again is not None and again.get("changed") is False
+            assert cancel_task("no-such-task") is None
+            release.set()
+            return state
+
+        return solve
+
+    _box["task_init"] = init
+    with anyio.fail_after(30):
+        logs = await eval_async(
+            _plain("parent", add_and_cancel()),
+            model="mockllm/model",
+            max_tasks=2,
+            task_retry_attempts=2,
+        )
+    assert _statuses(logs) == [("parent", "success")]
+    assert outcomes == [TaskOutcome(None)]
+    assert await _checked_attempts(lifecycle, tmp_path / "logs") == [
+        ("parent", "success")
+    ]
+    assert _box["inits"] == ["startup"]
+    assert _box["cleanups"] == ["_AddedSetupBox"]
+
+
+async def test_operator_cancel_of_a_task_as_it_starts(
+    tmp_path: Path, lifecycle: _Lifecycle, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # a cancel by id that lands after the loop started the task's attempt but
+    # before it registered: the attempt bails, and the task ends with no log
+    from inspect_ai._control.cancel import cancel_task
+    from inspect_ai._eval import run as run_module
+
+    seen: dict[str, Any] = {}
+    open_log = run_module.open_log
+
+    async def open_log_then_cancel(logger: Any, *, retry: bool) -> None:
+        await open_log(logger, retry=retry)
+        if logger.eval.task == "child":
+            seen["result"] = cancel_task(logger.eval.task_id)
+
+    monkeypatch.setattr(run_module, "open_log", open_log_then_cancel)
+
+    @solver
+    def add_and_wait_for_child() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            enqueue_task(_plain("child"), start="when_free")
+            queue = get_run_queue()
+            assert queue is not None
+            [child] = queue.unstarted()
+            with anyio.fail_after(10):
+                while child.outcome is None:
+                    await anyio.sleep(0.01)
+            seen["outcome"] = child.outcome
+            return state
+
+        return solve
+
+    with anyio.fail_after(30):
+        logs = await eval_async(
+            _plain("parent", add_and_wait_for_child()),
+            model="mockllm/model",
+            max_tasks=2,
+        )
+    assert seen["result"].get("not_started")
+    assert _statuses(logs) == [("parent", "success")]
+    assert seen["outcome"] == TaskOutcome(None)
+    assert await _checked_attempts(lifecycle, tmp_path / "logs") == [
+        ("parent", "success")
+    ]
 
 
 async def test_run_cancel_during_setup_beside_a_running_task(

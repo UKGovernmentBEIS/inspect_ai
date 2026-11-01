@@ -861,10 +861,7 @@ class TaskDispatcher:
                     remove_task_dispatcher(self.stats)
                     clear_task_screen()
         finally:
-            # a cancelled or failed run: release the loggers of records that
-            # never started
-            for record in self.queue.close():
-                await _release_queued(record)
+            await self.end_unfinished()
         return self.queue.results()
 
     async def loop(self, tg: TaskGroup) -> None:
@@ -873,7 +870,7 @@ class TaskDispatcher:
             if self.setups.fatal is not None:
                 raise self.setups.fatal
             self.take(self.queue.take("when_free"))
-            await self.drop_abandoned_retries()
+            await self.end_abandoned()
             while (record := self.pick()) is not None:
                 self.start_attempt(tg, record)
             if self.stopped:
@@ -1071,7 +1068,7 @@ class TaskDispatcher:
                 f"— {record.retries_remaining} retries remaining"
             )
         else:
-            record.end()
+            self.queue.end(record, record.log)
         self.queue.wake.set()
 
     def stats(self) -> TaskDispatcherStats:
@@ -1086,15 +1083,35 @@ class TaskDispatcher:
             pending=len(self.queue.unstarted()),
         )
 
-    async def drop_abandoned_retries(self) -> None:
-        """End the queued records whose retry a ctl drain/cancel abandoned.
+    async def end_abandoned(self) -> None:
+        """End the records waiting to start whose next attempt was abandoned.
 
-        They do not run again and keep their failed attempt's log.
+        A ctl cancel or drain abandons a task's next attempt (main's
+        process-wide set, :func:`abandon_task_retry`): a queued retry, which
+        keeps its failed attempt's log, or a first attempt, which ends with
+        none. An attempt the loop has already started bails in ``task_run``
+        before it registers.
         """
-        for record in [r for r in self.queue.queued if task_retry_abandoned(r.task_id)]:
-            self.queue.queued.remove(record)
+        abandoned = [
+            r for r in self.queue.unstarted() if task_retry_abandoned(r.task_id)
+        ]
+        for record in abandoned:
+            self.queue.remove(record)
             await _release_queued(record)
-            record.end()
+            self.queue.end(record, record.log)
+
+    async def end_unfinished(self) -> None:
+        """End the records a cancelled or failed run leaves unfinished.
+
+        Those waiting to start release the loggers they hold; those whose
+        attempt the run's failure interrupted released theirs in
+        :meth:`run_one`. Each keeps its latest attempt's log, if any.
+        """
+        for record in self.queue.close():
+            await _release_queued(record)
+            self.queue.end(record, record.log)
+        for record in self.running:
+            self.queue.end(record, record.log)
 
 
 async def open_log(logger: TaskLogger, *, retry: bool) -> None:

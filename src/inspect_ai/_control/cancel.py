@@ -90,6 +90,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from typing_extensions import NotRequired, TypedDict
 
 if TYPE_CHECKING:
+    from inspect_ai._eval.task.enqueue import TaskRecord
     from inspect_ai.event._tool import ToolEvent
     from inspect_ai.log._samples import ActiveSample, SampleCancelAction
 
@@ -175,8 +176,22 @@ class CancelTaskRetryAbandoned(_CancelTaskResult):
     retry_abandoned: Literal[True]
 
 
+class CancelTaskNotStarted(_CancelTaskResult):
+    """A task of the live run that had not started: it ends without running.
+
+    ``eval_id`` is empty: the task has no attempt.
+    """
+
+    changed: Literal[True]
+    not_started: Literal[True]
+
+
 CancelTaskResult = (
-    CancelTaskRejected | CancelTaskNoop | CancelTaskChanged | CancelTaskRetryAbandoned
+    CancelTaskRejected
+    | CancelTaskNoop
+    | CancelTaskChanged
+    | CancelTaskRetryAbandoned
+    | CancelTaskNotStarted
 )
 
 
@@ -196,7 +211,9 @@ def cancel_task(
     keeps its outcome), abandon queued samples, and let the task complete
     naturally (see the module docstring).
 
-    Returns ``None`` when the task isn't in this process; a ``changed: False``
+    Returns ``None`` when the task isn't in this process. A task of the live
+    run that has not started yet ends without running (``changed: True``
+    with ``not_started`` set; no log, no retry). A ``changed: False``
     no-op when it has already finished or an equal-or-stronger cancel is
     already in flight (the reason names the pending cancel's type; a strictly
     weaker pending resolution — per the escalation ladder ``drain <
@@ -244,6 +261,49 @@ def drain_task(task_id: str, *, dry_run: bool = False) -> CancelTaskResult | Non
     return _task_cancel_directive(task_id, stamp="drain", action=None, dry_run=dry_run)
 
 
+def _cancel_not_started(
+    record: "TaskRecord", *, stamp: "CancelStamp", dry_run: bool
+) -> CancelTaskResult:
+    """Cancel or drain a task of the live run whose first attempt has not started.
+
+    It ends without running and is not retried. The cancel abandons the
+    task's next attempt (:func:`abandon_task_retry`): the run's scheduling
+    loop ends the task if it is waiting to start, and an attempt it has
+    already started bails before it registers. A score/error resolution is
+    rejected (the task has no samples to resolve).
+    """
+    from inspect_ai._control.eval_state import abandon_task_retry, task_retry_abandoned
+
+    if stamp in ("score", "error"):
+        return {
+            "ok": False,
+            "error": (
+                f"task {record.task_id} has not started, so there are no samples "
+                "for a resolution to apply to; use a plain cancel (or drain) to "
+                "end it without running"
+            ),
+        }
+    result: _CancelTaskResult = {
+        "ok": True,
+        "task_id": record.task_id,
+        "task": record.task,
+        "eval_id": "",
+        "dry_run": dry_run,
+        "in_flight": 0,
+    }
+    if stamp == "drain":
+        result["queued"] = 0
+    else:
+        result["action"] = "cancel"
+    if record.outcome is not None:
+        return {**result, "changed": False, "reason": "task ended before it started"}
+    if task_retry_abandoned(record.task_id):
+        return {**result, "changed": False, "reason": "cancel already requested"}
+    if not dry_run:
+        abandon_task_retry(record.task_id)
+    return {**result, "changed": True, "not_started": True}
+
+
 # what a task directive stamps on the handle: the internal CancelType
 # vocabulary minus "retry" (requested only by the task itself) — note the
 # wire vocabulary (TaskCancelAction) deliberately does not grow "drain",
@@ -270,8 +330,19 @@ def _task_cancel_directive(
         mark_task_gracefully_resolved,
         task_retry_abandoned,
     )
+    from inspect_ai._eval.task.enqueue import find_active_task
 
     state = latest_eval_for_task(task_id)
+    found = find_active_task(task_id)
+    # a first attempt that has not registered (queued, or picked and still
+    # starting), or that is waiting to start while an EvalState from an
+    # earlier eval() of the same eval set exists
+    if (
+        found is not None
+        and found.record.attempt == 1
+        and (state is None or found.record in found.queue.unstarted())
+    ):
+        return _cancel_not_started(found.record, stamp=stamp, dry_run=dry_run)
     if state is None:
         return None
 

@@ -323,8 +323,11 @@ makes it the active one for `enqueue_task`, starts up the seed and runs the
   added it. At `parallel == 1` the tasks of one addition are sorted
   sequence-major, so with the dispatcher's queue-order tie-break all of task
   N's model fan-outs run before task N+1's, as when the tasks are passed to
-  `eval()` directly. A record that has not started when the run ends ends
-  without a log.
+  `eval()` directly. Every way a record ends goes through `RunQueue.end`,
+  which stores its outcome (its final log, if any): after its last attempt,
+  when an operator cancels it before it starts, and when the run ends before
+  it starts (it then ends without a log). `RunQueue.find` looks a record up
+  by task id.
 - **Preparing.** A queued record is prepared (one record at a time, in queue
   order): its sandbox configs are resolved and their setups requested from
   the run's `SetupCache`
@@ -363,6 +366,12 @@ while a queued added task is still being prepared or set up, or while the dispat
 out of `eval_async`, so `eval()` raises `KeyboardInterrupt` and the CLI exits
 1: those tasks have no log yet, so a run that returned normally would look
 complete. Running tasks are cancelled and write `cancelled` logs.
+
+`inspect ctl task cancel` or `drain` of a task whose first attempt has not
+started (given its full task id) ends it without running: the directive
+abandons the task's next attempt (the process-wide set a cancel between
+attempts uses), the loop's `end_abandoned` ends it if it is waiting to start,
+and an attempt already started bails in `task_run` before it registers.
 
 Sandbox setup does not change the process's working directory or environment
 variables (every running task shares them): providers read the task directory

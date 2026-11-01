@@ -901,7 +901,9 @@ def abandon_task_retry(task_id: str) -> None:
     dispatcher, which drops a queued retry at its next pick, skips
     constructing one at its retry decision, and bails a retry attempt that
     was dequeued but has not yet registered its :class:`EvalState` (see
-    ``_eval/run.py``). Synchronously clears :attr:`EvalState.retry_pending`
+    ``_eval/run.py``). A cancel of a task whose first attempt has not
+    registered (still queued, or starting) abandons that attempt the same
+    way. Synchronously clears :attr:`EvalState.retry_pending`
     on the task's attempts (so the task reads terminal on the read surface
     the moment the directive returns, and a repeat request takes the
     idempotent no-op) and :attr:`EvalState.will_retry` (no re-run is coming,

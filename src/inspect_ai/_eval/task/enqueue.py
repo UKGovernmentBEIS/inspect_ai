@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from contextvars import ContextVar, Token
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Literal, get_args
+from typing import TYPE_CHECKING, Any, Callable, Literal, NamedTuple, get_args
 
 from inspect_ai._util._async import Wake
 
@@ -53,6 +53,14 @@ ConfigureFn = Callable[["list[ResolvedTask]"], "list[ConfiguredTask]"]
 """Configures tasks for the run, in the order given; raises on invalid ones."""
 
 
+class TaskOutcome(NamedTuple):
+    """How a task ended."""
+
+    log: EvalLog | None
+    """Its final log: its last attempt's, or ``None`` if no attempt started (it
+    was cancelled while queued, or the run ended first)."""
+
+
 @dataclass(eq=False)
 class TaskRecord:
     """A task of the run, from the moment it is added until it ends.
@@ -83,6 +91,9 @@ class TaskRecord:
     """Where a retry attempt reads the completed samples of the failed one
     (``None``: the task's own sample source)."""
     log: EvalLog | None = None
+    """The log of its latest attempt."""
+    outcome: TaskOutcome | None = None
+    """How it ended (``None`` until it ends; set only by :meth:`RunQueue.end`)."""
 
     @property
     def prepared(self) -> bool:
@@ -103,14 +114,6 @@ class TaskRecord:
             self.setups is not None and all(j.succeeded for j in self.setups)
         )
 
-    def end(self) -> None:
-        """Drop what only its attempts need: its task, logger and setups."""
-        self.configured = None
-        self.logger = None
-        self.retry_source = None
-        self.setups = None
-        self.setup_failure = None
-
 
 class RunQueue:
     """The records of every task of one eval run.
@@ -119,7 +122,8 @@ class RunQueue:
     scheduling loop picks from it and puts retries back at its end. Added
     records wait by start policy until the loop takes them: ``when_free``
     ones on each of its cycles, ``after_batch`` ones once nothing is queued
-    or running. No method awaits, so the queue needs no lock.
+    or running. Every way a record ends goes through :meth:`end`. No method
+    awaits, so the queue needs no lock.
     """
 
     def __init__(
@@ -158,6 +162,7 @@ class RunQueue:
         """Set whenever the scheduling loop should look at the queue again."""
         self.records: list[TaskRecord] = []
         """Every record the loop has taken, in the order it took them."""
+        self._by_id: dict[str, TaskRecord] = {}
         self._added: dict[TaskStartPolicy, list[TaskRecord]] = {
             "when_free": [],
             "after_batch": [],
@@ -172,7 +177,7 @@ class RunQueue:
         """
         if self._sequence_order:
             resolved = sorted(resolved, key=lambda t: t.sequence)
-        return [
+        records = [
             TaskRecord(
                 task_id=configured.resolved.id,
                 task=configured.resolved.task.name,
@@ -182,6 +187,12 @@ class RunQueue:
             )
             for configured in self._configure(resolved)
         ]
+        self._by_id.update((record.task_id, record) for record in records)
+        return records
+
+    def find(self, task_id: str) -> TaskRecord | None:
+        """The record of the run's task with this id, if there is one."""
+        return self._by_id.get(task_id)
 
     def put(
         self, tasks: Tasks, *, start: TaskStartPolicy | None = None
@@ -217,6 +228,28 @@ class RunQueue:
         """Every record waiting to start: queued, then added and not yet taken."""
         return [*self.queued, *self._added["when_free"], *self._added["after_batch"]]
 
+    def remove(self, record: TaskRecord) -> None:
+        """Take a record that is waiting to start out of the queue or the intake."""
+        for waiting in (self.queued, *self._added.values()):
+            if record in waiting:
+                waiting.remove(record)
+                return
+        raise ValueError(f"Task '{record.task}' is not waiting to start.")
+
+    def end(self, record: TaskRecord, log: EvalLog | None) -> None:
+        """End a record with its final log; it drops what only its attempts need.
+
+        The one place a record ends: after its last attempt, when it is
+        cancelled while waiting to start, and when the run ends before it
+        does.
+        """
+        record.outcome = TaskOutcome(log)
+        record.configured = None
+        record.logger = None
+        record.retry_source = None
+        record.setups = None
+        record.setup_failure = None
+
     def close_if_idle(self, running: int) -> bool:
         """Refuse further additions if nothing is left to start; whether it closed.
 
@@ -240,8 +273,12 @@ class RunQueue:
         return unstarted
 
     def results(self) -> list[EvalLog]:
-        """The final log of each task that wrote one, in the order the loop took them."""
-        return [record.log for record in self.records if record.log is not None]
+        """The final log of each task that has one, in the order the loop took them."""
+        return [
+            record.outcome.log
+            for record in self.records
+            if record.outcome is not None and record.outcome.log is not None
+        ]
 
 
 # The run queue for the current eval run. A ContextVar (not a module global) so
@@ -249,9 +286,14 @@ class RunQueue:
 # inherit it.
 _run_queue: ContextVar[RunQueue | None] = ContextVar("run_queue", default=None)
 
+# Every run queue active in this process, for `inspect ctl`: its handlers run on
+# the eval's event loop but not in the run's context.
+_active_queues: list[RunQueue] = []
+
 
 def register_run_queue(queue: RunQueue) -> Token[RunQueue | None]:
     """Make ``queue`` the active run queue; returns a token to restore the previous."""
+    _active_queues.append(queue)
     return _run_queue.set(queue)
 
 
@@ -262,7 +304,26 @@ def get_run_queue() -> RunQueue | None:
 
 def clear_run_queue(token: Token[RunQueue | None]) -> None:
     """Restore the run queue in scope before the matching ``register`` call."""
+    queue = _run_queue.get()
+    assert queue is not None
+    _active_queues.remove(queue)
     _run_queue.reset(token)
+
+
+class ActiveTask(NamedTuple):
+    """A task of a run in progress in this process."""
+
+    queue: RunQueue
+    record: TaskRecord
+
+
+def find_active_task(task_id: str) -> ActiveTask | None:
+    """The task with this id in a run in progress in this process, if any."""
+    for queue in _active_queues:
+        record = queue.find(task_id)
+        if record is not None:
+            return ActiveTask(queue, record)
+    return None
 
 
 def enqueue_task(
