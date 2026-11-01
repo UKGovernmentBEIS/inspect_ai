@@ -7,7 +7,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from logging import getLogger
 from pathlib import PurePath
-from types import TracebackType
 from typing import Any, Awaitable, Callable, Literal, NamedTuple, Protocol, TypeAlias
 
 import anyio
@@ -234,6 +233,7 @@ from .scheduler import (
     SampleScheduler,
     _SampleRun,
 )
+from .setup_cache import SetupFailure
 from .store import DiskSampleStore, maybe_page_to_disk
 from .task_source import TaskSource
 from .util import (
@@ -662,13 +662,12 @@ class TaskRunOptions:
         default=None
     )
     """Run-level incremental sandbox startup for samples a SampleSource adds."""
-    start_error: Exception | None = field(default=None)
-    """Why the task's sandboxes could not be set up: the attempt ends with it
-    once it has started (so it has a log and hooks like any failed task)."""
-    start_error_traceback: TracebackType | None = field(default=None)
-    """The traceback ``start_error`` had when it was first raised."""
-    added_sample_state: Callable[[], None] | None = field(default=None)
-    """Sets the run's sandbox provider state in the task of a sample a
+    setup_failure: SetupFailure | None = field(default=None)
+    """Why the task's sandboxes could not be prepared or set up: the attempt
+    ends with it once it has started (so it has a log and hooks like any
+    failed task)."""
+    apply_provider_state: Callable[[], None] | None = field(default=None)
+    """Sets the run's sandbox provider state, in the task of each sample a
     ``SampleSource`` adds (its config may have been set up after the task
     started)."""
     abandoned: Callable[[], bool] = field(default=lambda: False)
@@ -1248,8 +1247,8 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # after the task has started (control channel, hook, scoring
             # handle), so a failed sandbox setup ends it as any other error
             # does
-            if options.start_error is not None:
-                raise options.start_error.with_traceback(options.start_error_traceback)
+            if options.setup_failure is not None:
+                options.setup_failure.raise_again()
 
             # call early stopping if we have it
             stopping_manager: str = ""
@@ -1354,9 +1353,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     requeue_prior = entry.prior
                     if (
                         sample_index >= store_len
-                        and options.added_sample_state is not None
+                        and options.apply_provider_state is not None
                     ):
-                        options.added_sample_state()
+                        options.apply_provider_state()
 
                     # the run's terminal bookkeeping, shared by the reuse
                     # short-circuit below and every terminal path inside

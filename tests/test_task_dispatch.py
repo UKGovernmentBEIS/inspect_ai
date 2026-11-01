@@ -44,9 +44,9 @@ from inspect_ai._eval.task.enqueue import (
     ConfiguredTask,
     RunQueue,
     TaskRecord,
+    TaskRecordState,
     TaskStartPolicy,
 )
-from inspect_ai._eval.task.enqueue import TaskState as RecordState
 from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.run import TaskRunOptions
@@ -110,7 +110,7 @@ class FakeLogger:
         self.finished = False
         self.discarded = 0
         self.destination_written = False
-        self.location = f"{label}.eval"
+        self.location = ""
         self.recorder = SimpleNamespace(close_seed_source=self._close_seed_source)
 
     async def _close_seed_source(self, eval: EvalSpec) -> None:
@@ -118,6 +118,7 @@ class FakeLogger:
 
     async def init(self) -> None:
         self.initialised = True
+        self.location = f"{self.label}.eval"
 
     async def reinit(self) -> None:
         self.attempt += 1
@@ -207,12 +208,10 @@ class Harness:
             ]
 
         self.queue = RunQueue("run", resolve, default_start)
-        self.queue.open(self.configure, retries)
+        self.queue.open(self.configure, retries=retries, sequence_order=parallel == 1)
         self.startup = FakeStartup(self)
 
     def configure(self, group: list[ResolvedTask]) -> list[ConfiguredTask]:
-        if self.parallel == 1:
-            group = sorted(group, key=lambda t: t.sequence)
         for task in group:
             if task.task.name.startswith("invalid"):
                 raise PrerequisiteError(f"invalid task {task.task.name}")
@@ -260,7 +259,7 @@ class Harness:
     ) -> TaskRunResult:
         logger = cast(FakeLogger, options.logger)
         label = logger.label
-        if options.start_error is not None:
+        if options.setup_failure is not None:
             self.events.append(f"failed {label}")
             logger.finished = True
             return TaskRunResult(
@@ -268,7 +267,7 @@ class Harness:
                     eval=logger.eval,
                     status="error",
                     error=EvalError(
-                        message=str(options.start_error),
+                        message=str(options.setup_failure.error),
                         traceback="",
                         traceback_ansi="",
                     ),
@@ -301,7 +300,9 @@ class Harness:
         self.queue.enqueue(seed)
         for record in seed:
             record.setup_keys = frozenset()
-            record.logger = self.new_logger(_labels([record])[0])
+            logger = cast(FakeLogger, self.new_logger(_labels([record])[0]))
+            logger.location = f"{logger.label}.eval"
+            record.logger = cast(TaskLogger, logger)
         return seed
 
     async def run(
@@ -340,7 +341,7 @@ def _install(monkeypatch: pytest.MonkeyPatch, harness: Harness) -> None:
     monkeypatch.setattr("inspect_ai._eval.run._run_task", harness.run_task)
 
 
-async def _wait_until(predicate: Any) -> None:
+async def _wait_until(predicate: Callable[[], bool]) -> None:
     with anyio.fail_after(10):
         while not predicate():
             await anyio.sleep(0)
@@ -412,13 +413,13 @@ def test_run_queue_default_start_in_task_source_run_is_when_free() -> None:
 def test_run_queue_put_creates_records_and_raises_on_invalid_tasks() -> None:
     harness = Harness([get_model("mockllm/m1")])
     [record] = harness.queue.put([_task("a")], start="when_free")
-    assert record.state is RecordState.QUEUED and record.idx is None
+    assert record.state is TaskRecordState.QUEUED and record.idx is None
     assert record.configured is not None
     # configured at put, so an invalid task raises to whoever added it, and
     # no record is created for any task of that call
     with pytest.raises(PrerequisiteError, match="invalid task invalid_b"):
         harness.queue.put([_task("c"), _task("invalid_b")], start="when_free")
-    assert _labels(harness.queue.added()) == ["a@m1"]
+    assert _labels(harness.queue.unstarted()) == ["a@m1"]
 
 
 def test_run_queue_close_refuses_put_and_returns_unstarted() -> None:
@@ -431,7 +432,7 @@ def test_run_queue_close_refuses_put_and_returns_unstarted() -> None:
         return _resolve(["x"], [m1])
 
     queue = RunQueue("run", resolve, "when_free")
-    queue.open(harness.configure, 0)
+    queue.open(harness.configure, retries=0, sequence_order=False)
     [added] = queue.put([_task("w")])
     [queued] = queue.add(_resolve(["ready"], [m1]))
     queue.enqueue([queued])
@@ -459,7 +460,7 @@ def test_record_drops_its_task_when_it_ends() -> None:
     record.end(None)
     harness.queue.take("after_batch")
     gc.collect()
-    assert record.configured is None and record.state is RecordState.ENDED
+    assert record.configured is None and record.state is TaskRecordState.ENDED
     assert task() is None
 
 
@@ -1036,7 +1037,7 @@ async def test_look_ahead_sets_up_at_most_max_tasks_queued_tasks(
         harness.finish_setup("t1")
         await harness.setup_began_event("t2").wait()
         harness.finish_setup("t2")
-        await _wait_until(lambda: _waiting(records[2].task_id) == "look-ahead")
+        await _wait_until(lambda: _waiting(records[2].task_id) == "setup turn")
         # t1 and t2 are set up and wait for a slot; t3 and t4 are beyond the
         # look-ahead, so their setups have not been requested
         assert "setup t3" not in harness.events
@@ -1077,7 +1078,7 @@ async def test_cancelling_a_queued_task_ends_it_without_running(
         drained = drain_task(c.task_id)
         assert drained is not None and drained.get("not_started")
         ended.append(await b.wait())
-        assert b.state is RecordState.ENDED and c.state is RecordState.ENDED
+        assert b.state is TaskRecordState.ENDED and c.state is TaskRecordState.ENDED
         # a repeat finds nothing to cancel
         assert cancel_task(b.task_id) is None
         harness.finish["a@m1"].set()
@@ -1136,7 +1137,9 @@ async def test_finished_added_task_is_released_while_the_run_continues(
         del b
         await _wait_started(harness, "b@m1")
         harness.finish["b@m1"].set()
-        await _wait_until(lambda: harness.queue.records[1].state is RecordState.ENDED)
+        await _wait_until(
+            lambda: harness.queue.records[1].state is TaskRecordState.ENDED
+        )
         gc.collect()
         assert refs[0]() is None
         harness.finish["a@m1"].set()

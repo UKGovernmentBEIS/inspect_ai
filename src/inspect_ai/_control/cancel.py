@@ -90,6 +90,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from typing_extensions import NotRequired, TypedDict
 
 if TYPE_CHECKING:
+    from inspect_ai._control.max_tasks import DispatcherHandle, QueuedTask
     from inspect_ai.event._tool import ToolEvent
     from inspect_ai.log._samples import ActiveSample, SampleCancelAction
 
@@ -261,62 +262,45 @@ def drain_task(task_id: str, *, dry_run: bool = False) -> CancelTaskResult | Non
 
 
 def _cancel_queued_task(
-    task_id: str,
+    dispatcher: "DispatcherHandle",
+    queued: "QueuedTask",
     *,
     stamp: "CancelStamp",
     action: TaskCancelAction | None,
     dry_run: bool,
-) -> CancelTaskResult | None:
-    """Cancel or drain a task of the live run waiting for its first attempt.
+) -> CancelTaskResult:
+    """Cancel or drain a task of the live run that is waiting to start.
 
-    It ends without running: no log, and no retry. A score/error resolution is
-    rejected (the task has no samples to resolve). ``None`` when no such task
-    is waiting in this process (a queued retry is abandoned through the
-    between-attempts path instead).
+    It ends without running and is not retried: a first attempt leaves no
+    log, a queued retry keeps its failed attempt's log. A score/error
+    resolution is rejected (the task has no samples to resolve).
     """
-    from inspect_ai._control.max_tasks import task_dispatcher
-
-    dispatcher = task_dispatcher()
-    queued = (
-        next(
-            (
-                t
-                for t in dispatcher.queued_tasks()
-                if t.task_id == task_id and t.attempt == 1
-            ),
-            None,
-        )
-        if dispatcher is not None
-        else None
-    )
-    if dispatcher is None or queued is None:
-        return None
     if stamp in ("score", "error"):
         return {
             "ok": False,
             "error": (
-                f"task {task_id} has not started, so there are no samples for "
-                "a resolution to apply to; use a plain cancel (or drain) to "
+                f"task {queued.task_id} has not started, so there are no samples "
+                "for a resolution to apply to; use a plain cancel (or drain) to "
                 "end it without running"
             ),
         }
-    result: CancelTaskNotStarted = {
+    result: _CancelTaskResult = {
         "ok": True,
-        "task_id": task_id,
+        "task_id": queued.task_id,
         "task": queued.task,
         "eval_id": "",
         "dry_run": dry_run,
         "in_flight": 0,
-        "changed": True,
-        "not_started": True,
     }
     if action is not None:
         result["action"] = action
     else:
         result["queued"] = 0
     if not dry_run:
-        dispatcher.cancel_queued(task_id)
-    return result
+        dispatcher.cancel_queued(queued.task_id)
+    if queued.attempt == 1:
+        return {**result, "changed": True, "not_started": True}
+    return {**result, "changed": True, "retry_abandoned": True}
 
 
 # what a task directive stamps on the handle: the internal CancelType
@@ -345,13 +329,19 @@ def _task_cancel_directive(
         mark_task_gracefully_resolved,
         task_retry_abandoned,
     )
+    from inspect_ai._control.max_tasks import task_dispatcher
 
-    # a task waiting for its first attempt in the live run (it may have an
-    # EvalState from an earlier eval() of the same eval set, which finished)
-    queued = _cancel_queued_task(task_id, stamp=stamp, action=action, dry_run=dry_run)
-    if queued is not None:
-        return queued
+    dispatcher = task_dispatcher()
+    queued = dispatcher.queued_task(task_id) if dispatcher is not None else None
     state = latest_eval_for_task(task_id)
+    # waiting to start in the live run: its first attempt (it may have an
+    # EvalState from an earlier eval() of the same eval set, which finished),
+    # or a retry whose failed attempt never registered one
+    if dispatcher is not None and queued is not None:
+        if queued.attempt == 1 or state is None:
+            return _cancel_queued_task(
+                dispatcher, queued, stamp=stamp, action=action, dry_run=dry_run
+            )
     if state is None:
         return None
 

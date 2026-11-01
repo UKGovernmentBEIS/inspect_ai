@@ -30,7 +30,7 @@ and each accessor is a single atomic operation.
 
 from __future__ import annotations
 
-from typing import NamedTuple, Protocol
+from typing import Literal, NamedTuple, Protocol
 
 
 class TaskDispatcherStats(NamedTuple):
@@ -43,23 +43,46 @@ class TaskDispatcherStats(NamedTuple):
     """Tasks currently running (may exceed the limit after a lowering)."""
 
     pending: int
-    """Tasks waiting to start: queued (including retry attempts), being
-    started up, or added and waiting to be taken."""
+    """Tasks waiting to start: queued (including retry attempts), or added
+    and not yet taken by the scheduling loop."""
+
+
+WaitingFor = Literal[
+    "added",
+    "after_batch",
+    "next_tasks",
+    "paused",
+    "sandbox resolution",
+    "setup turn",
+    "sandbox setup",
+    "failed setup",
+    "slot",
+]
+"""Why a task has not started.
+
+- ``added``: added, and the scheduling loop has not taken it yet.
+- ``after_batch``: added with ``start="after_batch"``; taken once no task runs.
+- ``next_tasks``: added while ``TaskSource.next_tasks()`` runs; taken after it.
+- ``paused``: held by a pause.
+- ``sandbox resolution``: its sandbox configs are being resolved.
+- ``setup turn``: its sandbox setup has not been requested yet (only the next
+  ``max_tasks`` queued tasks set up ahead).
+- ``sandbox setup``: its sandbox setup is running or waiting for another.
+- ``failed setup``: its setup failed; it is about to start and end with that
+  error.
+- ``slot``: ready, waiting for a free task slot.
+"""
 
 
 class QueuedTask(NamedTuple):
-    """A task of the run that has not started (or is between attempts)."""
+    """A task of the run waiting to start (its first attempt, or a retry)."""
 
     task_id: str
     task: str
     model: str
     attempt: int
     """The attempt it waits to start (1 for a task that has never run)."""
-    waiting_for: str
-    """Why it has not started: ``queue``, ``after_batch``, ``next_tasks``,
-    ``paused``, ``sandbox resolution``, ``look-ahead`` (its sandbox setup has
-    not been requested yet), ``sandbox setup``, ``slot``, or ``start`` (it is
-    about to start)."""
+    waiting_for: WaitingFor
 
 
 class DispatcherHandle(Protocol):
@@ -73,8 +96,12 @@ class DispatcherHandle(Protocol):
         """The tasks waiting to start, in start order."""
         ...
 
-    def cancel_queued(self, task_id: str) -> bool:
-        """End a task that has never started; whether there was one."""
+    def queued_task(self, task_id: str) -> QueuedTask | None:
+        """The task ``task_id``, if it is waiting to start."""
+        ...
+
+    def cancel_queued(self, task_id: str) -> None:
+        """End a task waiting to start, without running it (and without a retry)."""
         ...
 
     def abandon_retry(self, task_id: str) -> None:

@@ -18,7 +18,7 @@ from inspect_ai._control.discovery import DiscoveredControlServer
 # "simplify" to `from ._http import _request_json` (see
 # design/ctl/cli-refactor.md).
 from . import _fetch, _http, _log_dir
-from ._failure import _CtlFailure, _envelope_failures
+from ._failure import _envelope_failures
 from ._group import (
     _MUTATION_ENVELOPE_HELP,
     _echo_no_running_evals,
@@ -119,20 +119,11 @@ def task_queued_command(as_json: bool) -> None:
     Example: inspect ctl task queued --json
     """
     as_of = time.time()
-    rows: list[dict[str, Any]] = []
-    for server in _http.list_discovered_servers():
-        result = _http._request_json(
-            str(server.socket_path),
-            "/tasks/queued",
-            what=f"queued tasks of pid {server.pid}",
-            not_found="No queued-task listing on this process.",
-            not_found_missing_route=(
-                f"pid {server.pid} runs an inspect version without the "
-                "queued-task listing."
-            ),
-            pid=server.pid,
-        )
-        rows.extend({**row, "pid": server.pid} for row in result["tasks"])
+    rows = [
+        {**row, "pid": server.pid}
+        for server in _http.list_discovered_servers()
+        for row in _fetch_queued(server)
+    ]
     if as_json:
         _echo_raw(json_lib.dumps({"as_of": as_of, "tasks": rows}, indent=2))
         return
@@ -516,11 +507,25 @@ _TaskStopVerb = Literal["cancel", "drain"]
 """The task-stop directives sharing the cancel-stamp route family."""
 
 
-def _matches(summary: dict[str, Any], task: str) -> bool:
-    """Whether a running task's row could be what ``task`` selects (id prefix or name)."""
-    return (
-        str(summary.get("task_id", "")).startswith(task) or summary.get("task") == task
+def _fetch_queued(server: DiscoveredControlServer) -> list[dict[str, Any]]:
+    """The rows of a server's ``GET /tasks/queued``."""
+    result = _http._request_json(
+        str(server.socket_path),
+        "/tasks/queued",
+        what=f"queued tasks of pid {server.pid}",
+        not_found="No queued-task listing on this process.",
+        not_found_missing_route=(
+            f"pid {server.pid} runs an inspect version without the queued-task listing."
+        ),
+        pid=server.pid,
     )
+    rows: list[dict[str, Any]] = result["tasks"]
+    return rows
+
+
+def _matches(summary: dict[str, Any], task: str) -> bool:
+    """Whether a running task's row matches ``task`` (an id prefix or a name)."""
+    return str(summary["task_id"]).startswith(task) or summary["task"] == task
 
 
 class _QueuedTask(NamedTuple):
@@ -532,26 +537,14 @@ class _QueuedTask(NamedTuple):
 def _queued_task(
     servers: list[DiscoveredControlServer], task_id: str
 ) -> _QueuedTask | None:
-    """The task waiting for its first attempt whose full id is ``task_id``, if any.
+    """The task waiting to start whose full id is ``task_id``, if any.
 
     Queued tasks have no log and are not in ``GET /tasks``, so the selector
-    resolution there cannot find them; only an exact task id is matched. A
-    server without the queued-task listing is skipped.
+    resolution there cannot find them; only an exact task id is matched.
     """
     for server in servers:
-        try:
-            result = _http._request_json(
-                str(server.socket_path),
-                "/tasks/queued",
-                what=f"queued tasks of pid {server.pid}",
-                not_found="No queued-task listing on this process.",
-                pid=server.pid,
-                echo_failures=False,
-            )
-        except _CtlFailure:
-            continue
-        for row in result["tasks"]:
-            if row["task_id"] == task_id and row["attempt"] == 1:
+        for row in _fetch_queued(server):
+            if row["task_id"] == task_id:
                 return _QueuedTask(str(server.socket_path), server.pid, row)
     return None
 
@@ -580,10 +573,11 @@ def _stop_queued_task(
         )
         return
     outcome = "would end" if dry_run else "ends"
+    what = "had not started" if queued.row["attempt"] == 1 else "was waiting to retry"
     _echo(
         _sanitize_line(
-            f"Task '{queued.row['task']}' ({task_id}) had not started: it "
-            f"{outcome} without running."
+            f"Task '{queued.row['task']}' ({task_id}) {what}: it {outcome} "
+            "without running."
         )
     )
 

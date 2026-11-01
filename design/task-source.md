@@ -349,10 +349,11 @@ starts up the seed and runs the `TaskDispatcher`:
 - **Attempts** run in their slots (`run_one`: an added task's logger is
   created here, then the shared `_run_task` helper, a per-task cancel scope
   around `task_run`). The dispatcher also owns per-task retries
-  (`task_retry_attempts`): the record goes back to the end of the queue and
-  its next attempt gets a fresh logger, keeping its task's position in the
-  results. Initial tasks keep their input order in the results and added tasks
-  follow in the order the loop took them.
+  (`task_retry_attempts`): the record goes back to the end of the queue, and
+  its next attempt reinitialises the failed attempt's logger for a fresh log
+  entry, keeping its task's position in the results. Initial tasks keep their
+  input order in the results and added tasks follow in the order the loop took
+  them.
 
 A cancellation (Ctrl-C, or a cancelled scope around `eval_async`) that lands
 while the dispatcher waits for running tasks is absorbed (`_run_task_screen`):

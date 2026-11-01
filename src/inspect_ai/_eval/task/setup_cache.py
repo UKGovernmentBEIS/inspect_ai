@@ -10,7 +10,7 @@ run once. :class:`SetupCache` keeps one job per key ("single flight"):
 - When a permit frees, a waiting job that is needed now (:meth:`ensure`, or
   :meth:`need`) goes before one that was only prefetched. A running job is
   never pre-empted.
-- A failure is given to the job's current waiters, then forgotten: the job is
+- A failure is forgotten and given to the job's current waiters: the job is
   removed, so the next request for the key starts a fresh one.
 - Nothing a waiter does cancels a job: a waiter that is cancelled just stops
   waiting. When the cache is left normally, jobs still waiting for a permit
@@ -25,26 +25,57 @@ not await, so it needs no lock.
 
 A ``KeyboardInterrupt`` or ``SystemExit`` raised by a setup is not a failure
 of it: it is re-raised in the job's waiters (so it reaches the run where they
-wait), and when the cache is left unless it is already what the run raises. The run's cancellation is
-not given to waiters. A ``CancelledError`` raised by a setup while the run is
-not cancelled is a failure (a ``RuntimeError``).
+wait), and again when the cache is left, unless the run is already raising
+it. The run's cancellation is not given to waiters. A ``CancelledError``
+raised by a setup while the run is not cancelled is a failure (a
+``RuntimeError``).
 """
 
-import math
 from contextlib import AsyncExitStack, nullcontext
 from contextvars import copy_context
 from types import TracebackType
-from typing import Any, Awaitable, Callable, Generic, Hashable, Iterable, TypeVar
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    Generic,
+    Hashable,
+    Iterable,
+    NamedTuple,
+    NoReturn,
+    TypeVar,
+)
 
 import anyio
 from anyio.abc import TaskGroup
 
-from inspect_ai._util._async import unwrap_exception_group
+from inspect_ai._util._async import run_cancelled, unwrap_exception_group
 
 K = TypeVar("K", bound=Hashable)
 
-SetupDone = Callable[[BaseException | None], None]
-"""Told when a prefetched job ends: ``None`` if it succeeded, else what it raised."""
+
+class SetupFailure(NamedTuple):
+    """What a failed setup raised, with the traceback it was raised with."""
+
+    error: BaseException
+    traceback: TracebackType | None
+
+    @staticmethod
+    def of(error: BaseException) -> "SetupFailure":
+        return SetupFailure(error, error.__traceback__)
+
+    def raise_again(self) -> NoReturn:
+        """Raise the error from its own traceback.
+
+        One failure can reach several waiters, each raising the same
+        exception object; starting from the setup's traceback keeps one
+        waiter's frames out of another's report.
+        """
+        raise self.error.with_traceback(self.traceback)
+
+
+SetupDone = Callable[[SetupFailure | None], None]
+"""Told when a prefetched job ends: ``None`` if it succeeded."""
 
 
 class _Job(Generic[K]):
@@ -53,10 +84,7 @@ class _Job(Generic[K]):
         self.needed = needed
         self.done = anyio.Event()
         self.succeeded = False
-        self.error: BaseException | None = None
-        self.traceback: TracebackType | None = None
-        """``error``'s traceback when the setup raised it (each waiter raises
-        it again, from there)."""
+        self.failure: SetupFailure | None = None
         self.on_done: list[SetupDone] = []
         self.granted = anyio.Event()
         self.scope = anyio.CancelScope()
@@ -198,16 +226,16 @@ class SetupCache(Generic[K]):
         jobs = [self._join(key, needed=True) for key in keys]
         for job in jobs:
             await job.done.wait()
-            if job.error is not None:
-                raise job.error.with_traceback(job.traceback)
+            if job.failure is not None:
+                job.failure.raise_again()
             if not job.succeeded:
-                raise RuntimeError("The sandbox setup was cancelled.")
+                raise RuntimeError(f"The setup of {job.key!r} was cancelled.")
 
     def _join(self, key: K, needed: bool) -> _Job[K]:
         job = self._jobs.get(key)
         if job is None:
             if self._tg is None:
-                raise RuntimeError("The run's sandbox setups have ended.")
+                raise RuntimeError("The setup cache has been left.")
             job = self._jobs[key] = _Job(key, needed)
             self._permits.request(job)
             self._context.copy().run(self._tg.start_soon, self._run, job)
@@ -235,10 +263,9 @@ class SetupCache(Generic[K]):
                 for on_done in job.on_done:
                     on_done(None)
         except anyio.get_cancelled_exc_class() as ex:
-            if anyio.current_effective_deadline() == -math.inf:
+            if run_cancelled():
                 raise
-            # raised by the setup itself (asyncio), not a cancellation of the run
-            self._fail(job, RuntimeError(f"The sandbox setup raised {ex!r}."))
+            self._fail(job, RuntimeError(f"The setup of {job.key!r} raised {ex!r}."))
         except Exception as ex:
             self._fail(job, ex)
         except BaseException as ex:
@@ -253,21 +280,19 @@ class SetupCache(Generic[K]):
 
     def _forget(self, job: _Job[K]) -> None:
         """End a job's bookkeeping; a job that did not succeed is forgotten."""
-        if not job.succeeded:
-            self._forget_key(job)
+        if not job.succeeded and self._jobs.get(job.key) is job:
+            del self._jobs[job.key]
         job.on_done = []
         job.done.set()
 
     def _fail(self, job: _Job[K], error: BaseException) -> None:
-        job.error = error
-        job.traceback = error.__traceback__
-        self._forget_key(job)
-        for on_done in job.on_done:
-            on_done(error)
-
-    def _forget_key(self, job: _Job[K]) -> None:
+        # forgotten before the waiters hear, so one that asks again starts a
+        # fresh job
+        job.failure = SetupFailure.of(error)
         if self._jobs.get(job.key) is job:
             del self._jobs[job.key]
+        for on_done in job.on_done:
+            on_done(job.failure)
 
 
 def _contains(exc: BaseException | None, target: BaseException) -> bool:

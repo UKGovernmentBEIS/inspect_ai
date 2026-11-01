@@ -829,8 +829,11 @@ class _FakeDispatcher:
     def queued_tasks(self) -> list["QueuedTask"]:
         return []
 
-    def cancel_queued(self, task_id: str) -> bool:
-        return False
+    def queued_task(self, task_id: str) -> "QueuedTask | None":
+        return None
+
+    def cancel_queued(self, task_id: str) -> None:
+        pass
 
     def abandon_retry(self, task_id: str) -> None:
         pass

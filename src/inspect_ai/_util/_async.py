@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import inspect
+import math
 import os
 import signal
 import threading
@@ -140,6 +141,16 @@ class unwrap_exception_group:
 
 async def _completed() -> None:
     return None
+
+
+def run_cancelled() -> bool:
+    """Whether an enclosing cancel scope has been cancelled.
+
+    Tells a cancellation of the caller's own scope apart from a
+    ``CancelledError`` raised by the code it awaited (on asyncio, code can
+    raise one itself, for example by awaiting a future someone cancelled).
+    """
+    return anyio.current_effective_deadline() == -math.inf
 
 
 class Wake:

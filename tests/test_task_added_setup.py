@@ -36,14 +36,14 @@ from inspect_ai.util._display import init_display_type
 _box: dict[str, Any] = {}
 
 
-@sandboxenv(name="slot_box")
-class _SlotBox(SandboxEnvironment):
+@sandboxenv(name="added_setup_box")
+class _AddedSetupBox(SandboxEnvironment):
     @override
     @classmethod
     async def task_init_environment(
         cls, config: SandboxEnvironmentConfigType | None, metadata: dict[str, str]
     ) -> dict[str, str]:
-        return {"SLOT_BOX_VAR": "set-for-setup"}
+        return {"ADDED_SETUP_BOX_VAR": "set-for-setup"}
 
     @override
     @classmethod
@@ -75,7 +75,7 @@ class _SlotBox(SandboxEnvironment):
         config: SandboxEnvironmentConfigType | None,
         metadata: dict[str, str],
     ) -> dict[str, SandboxEnvironment]:
-        return {"default": _SlotBox()}
+        return {"default": _AddedSetupBox()}
 
     @override
     @classmethod
@@ -136,7 +136,7 @@ def noop() -> Solver:
 
 def _boxed(name: str, task_dir: Path | None = None) -> Task:
     task = Task(
-        name=name, dataset=[Sample(input="x")], solver=noop(), sandbox="slot_box"
+        name=name, dataset=[Sample(input="x")], solver=noop(), sandbox="added_setup_box"
     )
     if task_dir is not None:
         setattr(task, TASK_RUN_DIR_ATTR, str(task_dir))
@@ -184,7 +184,7 @@ async def test_setup_overlaps_running_sample_without_changing_its_process(
         init_running.set()
         with anyio.fail_after(10):
             await observed.wait()
-        child = await subprocess(["sh", "-c", "pwd; echo $SLOT_BOX_VAR"])
+        child = await subprocess(["sh", "-c", "pwd; echo $ADDED_SETUP_BOX_VAR"])
         seen["child"] = child.stdout.split()
 
     @solver
@@ -194,7 +194,7 @@ async def test_setup_overlaps_running_sample_without_changing_its_process(
             with anyio.fail_after(10):
                 await init_running.wait()
             seen["cwd"] = os.getcwd()
-            seen["var"] = os.environ.get("SLOT_BOX_VAR")
+            seen["var"] = os.environ.get("ADDED_SETUP_BOX_VAR")
             observed.set()
             await handle.wait()
             return state
@@ -551,7 +551,7 @@ async def test_operator_cancel_of_a_task_waiting_for_its_setup(
     ]
     # the setup ran on, and was cleaned up at the end of the run
     assert _box["inits"] == ["startup"]
-    assert _box["cleanups"] == ["_SlotBox"]
+    assert _box["cleanups"] == ["_AddedSetupBox"]
 
 
 async def test_run_cancel_during_setup_beside_a_running_task(
@@ -597,8 +597,8 @@ async def test_run_cancel_during_setup_beside_a_running_task(
     ]
 
 
-@sandboxenv(name="slot_box_2")
-class _SlotBox2(_SlotBox):
+@sandboxenv(name="added_setup_box_2")
+class _AddedSetupBox2(_AddedSetupBox):
     """A second sandbox type, whose setup fails while ``_box["fail_2"]`` is set."""
 
     @override
@@ -616,8 +616,8 @@ def _two_box_task(name: str) -> Task:
     return Task(
         name=name,
         dataset=[
-            Sample(input="x", id=1, sandbox="slot_box"),
-            Sample(input="x", id=2, sandbox="slot_box_2"),
+            Sample(input="x", id=1, sandbox="added_setup_box"),
+            Sample(input="x", id=2, sandbox="added_setup_box_2"),
         ],
         solver=noop(),
     )
@@ -642,7 +642,7 @@ async def test_partly_failed_setup_keeps_the_config_that_succeeded() -> None:
         ("u", "success"),
     ]
     assert sorted(_box["inits"]) == ["box2", "box2", "startup"]
-    assert sorted(_box["cleanups"]) == ["_SlotBox", "_SlotBox2"]
+    assert sorted(_box["cleanups"]) == ["_AddedSetupBox", "_AddedSetupBox2"]
 
 
 @pytest.mark.parametrize("added", [False, True])
@@ -661,7 +661,7 @@ async def test_task_init_that_finishes_during_a_run_cancel_is_cleaned_up(
         _box["init_done"] = True
 
     @solver
-    def add_and_wait() -> Solver:
+    def add_and_block() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             enqueue_task(_boxed("child"), start="when_free")
             await anyio.sleep_forever()
@@ -680,12 +680,12 @@ async def test_task_init_that_finishes_during_a_run_cancel_is_cleaned_up(
 
                 tg.start_soon(cancel_when_entered)
                 await eval_async(
-                    _plain("parent", add_and_wait()) if added else _boxed("a"),
+                    _plain("parent", add_and_block()) if added else _boxed("a"),
                     model="mockllm/model",
                     max_tasks=2,
                 )
     assert _box.get("init_done") is True
-    assert _box["cleanups"] == ["_SlotBox"]
+    assert _box["cleanups"] == ["_AddedSetupBox"]
 
 
 @pytest.mark.parametrize("retries", [0, 1])

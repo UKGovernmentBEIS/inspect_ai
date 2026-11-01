@@ -511,7 +511,7 @@ async def test_task_source_batch(provider: str, max_tasks: int, via: str) -> Non
 async def test_sample_source_late_task_init(provider: str) -> None:
     # A task whose seed dataset is empty gets its first sample from a
     # SampleSource; its config's task_init then runs late, while the task
-    # runs (SandboxManager.start_for_samples). The sample it added starts with
+    # runs (SandboxManager.setup_for_samples). The sample it added starts with
     # the run's provider state, which now includes that task_init's.
 
     class _Src(SampleSource):

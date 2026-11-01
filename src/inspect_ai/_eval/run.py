@@ -10,7 +10,6 @@ bookkeeping) changes it as one step.
 
 import functools
 import logging
-import math
 import os
 import weakref
 from collections import Counter, deque
@@ -36,7 +35,7 @@ from anyio.abc import TaskGroup
 from typing_extensions import Unpack
 
 from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
-from inspect_ai._util._async import Wake, unwrap_exception_group
+from inspect_ai._util._async import Wake, run_cancelled, unwrap_exception_group
 from inspect_ai._util.file import cleanup_s3_sessions
 from inspect_ai._util.task import task_display_name
 from inspect_ai._util.trace import trace_action
@@ -53,6 +52,7 @@ from inspect_ai._control.eval_state import (
 from inspect_ai._control.max_tasks import (
     QueuedTask,
     TaskDispatcherStats,
+    WaitingFor,
     effective_max_tasks,
     register_task_dispatcher,
     remove_task_dispatcher,
@@ -114,7 +114,7 @@ from .loader import (
     as_solver_spec,
     solver_from_spec,
 )
-from .task.enqueue import ConfiguredTask, RunQueue, TaskRecord, TaskState
+from .task.enqueue import ConfiguredTask, RunQueue, TaskRecord, TaskRecordState
 from .task.log import TaskLogger
 from .task.resolved import ResolvedTask, resolved_task_names
 from .task.run import (
@@ -132,7 +132,7 @@ from .task.sandbox import (
     resolve_sandbox,
     resolve_sandbox_for_task_and_sample,
 )
-from .task.setup_cache import SetupCache
+from .task.setup_cache import SetupCache, SetupFailure
 from .task.task import Task
 from .task.task_source import TaskSource
 from .task.util import resolve_task_sample_ids, slice_dataset, task_run_dir
@@ -209,12 +209,13 @@ async def eval_run(
             eval_config, cleanup=eval_config.sandbox_cleanup is not False
         ) as sandboxes:
             startup = TaskStartup(
-                settings,
-                sandboxes,
-                parallel=parallel,
-                task_names=list(eval_set_tasks or []),
+                settings, sandboxes, task_names=list(eval_set_tasks or [])
             )
-            queue.open(startup.configure, retries=task_retry_attempts or 0)
+            queue.open(
+                startup.configure,
+                retries=task_retry_attempts or 0,
+                sequence_order=parallel == 1,
+            )
             seed = queue.add(tasks)
             queue.enqueue(seed)
             await startup.start_seed(seed)
@@ -282,8 +283,8 @@ class TaskSettings:
         self,
         resolved_task: ResolvedTask,
         task_names: list[str],
-        startup_sandboxes: "SampleSandboxStartup | None",
-        added_sample_state: Callable[[], None] | None,
+        startup_sandboxes: "SampleSandboxSetup | None",
+        apply_provider_state: Callable[[], None] | None,
     ) -> ConfiguredTask:
         """Configure one task of the run: validate it and resolve its settings.
 
@@ -301,7 +302,7 @@ class TaskSettings:
                 selectors).
             startup_sandboxes: Starts the sandboxes of samples a
                 ``SampleSource`` adds while the task runs.
-            added_sample_state: Sets the run's provider state in such a
+            apply_provider_state: Sets the run's provider state in such a
                 sample's task.
 
         Raises:
@@ -394,7 +395,7 @@ class TaskSettings:
                 initial_role_usage=resolved_task.initial_role_usage,
                 task_source=self.task_source,
                 startup_sandboxes=startup_sandboxes,
-                added_sample_state=added_sample_state,
+                apply_provider_state=apply_provider_state,
                 input_media_policy=resolved_task.input_media_policy,
             )
 
@@ -477,8 +478,8 @@ def _check_sample_source_options(task: Task, config: EvalConfig) -> None:
         )
 
 
-SampleSandboxStartup = Callable[[Iterable[Sample]], Awaitable[None]]
-"""Starts the sandboxes some of a task's samples need, from inside the task."""
+SampleSandboxSetup = Callable[[Iterable[Sample]], Awaitable[None]]
+"""Sets up the sandboxes some of a task's samples need, from inside the task."""
 
 
 @dataclass
@@ -493,7 +494,6 @@ class TaskStartup:
 
     settings: TaskSettings
     sandboxes: "SandboxManager"
-    parallel: int
     task_names: list[str]
     """Every task name known to the run, for ``task:id`` sample selectors: the
     enclosing eval set's (a retry runs only some of them), then each task's
@@ -504,18 +504,12 @@ class TaskStartup:
         return self.sandboxes.setups
 
     def configure(self, group: list[ResolvedTask]) -> list[ConfiguredTask]:
-        """Configure tasks added together, in the order they start.
-
-        At a launch limit of 1 the group is ordered by sequence: the scheduling
-        loop breaks ties in queue order, so all of a task's model fan-outs run
-        before the next task's.
+        """Configure tasks added together.
 
         Raises:
             PrerequisiteError: If a task can't run with the run's settings
                 (duplicate sample ids, unsupported options).
         """
-        if self.parallel == 1:
-            group = sorted(group, key=lambda t: t.sequence)
         names = [
             name for name in resolved_task_names(group) if name not in self.task_names
         ]
@@ -523,12 +517,7 @@ class TaskStartup:
             ensure_sample_ids(resolved_task.task.dataset)
         configured = [
             self.settings.configure(
-                t,
-                [*self.task_names, *names],
-                self._startup_sandboxes(t),
-                self.sandboxes.apply_provider_state
-                if self.settings.run_samples and t.task.sample_source is not None
-                else None,
+                t, [*self.task_names, *names], *self._added_samples(t)
             )
             for t in group
         ]
@@ -574,7 +563,7 @@ class TaskStartup:
             assert record.configured is not None
             record.setup_keys = await self.prepare(record.configured.resolved)
             keys |= record.setup_keys
-        await self.sandboxes.start(keys)
+        await self.sandboxes.setup_seed(keys)
         try:
             for record in seed:
                 assert record.configured is not None
@@ -588,12 +577,16 @@ class TaskStartup:
                         record.logger = None
             raise
 
-    def _startup_sandboxes(
+    def _added_samples(
         self, resolved_task: ResolvedTask
-    ) -> SampleSandboxStartup | None:
+    ) -> tuple[SampleSandboxSetup | None, Callable[[], None] | None]:
+        """What samples a task's ``SampleSource`` adds need: setup, provider state."""
         if not self.settings.run_samples or resolved_task.task.sample_source is None:
-            return None
-        return functools.partial(self.sandboxes.start_for_samples, resolved_task)
+            return None, None
+        return (
+            functools.partial(self.sandboxes.setup_for_samples, resolved_task),
+            self.sandboxes.apply_provider_state,
+        )
 
 
 def ensure_sample_ids(dataset: Dataset) -> None:
@@ -613,15 +606,8 @@ class TaskRunResult(NamedTuple):
     """How the task was cancelled (``None`` if it ran to completion)."""
 
     abandoned: bool = False
-    """The attempt was abandoned at start: a task drain/cancel stamped the
-    retry-abandoned registry after the dispatcher dequeued this retry but
-    before the attempt registered its ``EvalState``. A dedicated field
-    (not an overload of ``log`` or ``cancel_type``) because every natural
-    return shape misfires in ``run_one``: a ``None``/cancelled-status log
-    reads as an external cancellation and ends the whole dispatch loop,
-    and an unstamped error log would queue another retry. ``run_one``
-    checks it before the external-cancellation branch and maps it to a
-    side-effect-free finalize."""
+    """An operator abandoned the attempt before it registered with the control
+    channel (``TaskRunOptions.abandoned``): it wrote no log of its own."""
 
 
 async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRunResult:
@@ -730,16 +716,11 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                         try:
                             result = await task_run(options, task_cancel=task_cancel)
                         except TaskRetryAbandonedError:
-                            # abandoned at attempt start (a drain/cancel
-                            # stamped the retry-abandoned registry between
-                            # the dispatcher's pick and the attempt
-                            # registering). Caught here, inside the trace
-                            # action, so an operator-requested outcome is not
-                            # traced as a task error with a stacktrace; the
-                            # sentinel is returned below. Writing an errored
-                            # EvalLog would supersede the errored prior
-                            # attempt's log, which must remain the task's
-                            # final state.
+                            # an operator-requested outcome, not a task error:
+                            # caught inside the trace action so it is not
+                            # traced with a stacktrace. No errored log is
+                            # written: the task's previous attempt's log must
+                            # stay its final state.
                             abandoned = True
                         except Exception as ex:
                             # errors generally don't escape from task_run --
@@ -810,7 +791,7 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
 
 
 class Startup(Protocol):
-    """What the scheduling loop needs to ready tasks (:class:`TaskStartup`; tests pass a fake)."""
+    """What the scheduling loop needs to prepare tasks (:class:`TaskStartup`)."""
 
     @property
     def setups(self) -> "SetupCache[Any]": ...
@@ -824,13 +805,14 @@ class TaskDispatcher:
     """The scheduling loop of one eval run.
 
     Starts the queue's records with bounded, model-balanced concurrency as
-    they become ready, and when nothing is queued or running adds more
+    they can start, and when nothing is queued or running adds more
     (``after_batch`` tasks, then the ``TaskSource``'s ``next_tasks()``) until
-    there is nothing left. A record is ready once the sandbox configs its
-    samples use are resolved and set up (by the run's :class:`SetupCache`):
-    a record whose setup is still running keeps its place but does not hold
-    back a later one that is ready. When every setup is done (the seed, tasks
-    without sandboxes, configs set up earlier), records start in queue order.
+    there is nothing left. A record can start once it is prepared (the
+    sandbox configs its samples use are resolved) and those configs are set
+    up by the run's :class:`SetupCache`: a record whose setup is still running
+    keeps its place but does not hold back a later one that can start. When
+    every setup is done (the seed, tasks without sandboxes, configs set up
+    earlier), records start in queue order.
 
     A task whose log comes back with an error, or which requests a retry
     through its ``TaskCancel``, is retried (reusing its completed samples)
@@ -838,10 +820,10 @@ class TaskDispatcher:
     An abort is never retried and resolves to an errored log; a cancellation
     of the run is never retried and ends dispatch.
 
-    A record whose sandboxes could not be set up starts at once, beside the
-    task slots: its attempt ends with that error right after it starts, so it
-    has a log, hooks and a ``TaskSource`` notification like any failed task,
-    and its retry sets up again.
+    A record whose sandboxes could not be prepared or set up starts at once,
+    beside the task slots: its attempt ends with that error right after it
+    starts, so it has a log, hooks and a ``TaskSource`` notification like any
+    failed task, and its retry sets up again.
     """
 
     def __init__(
@@ -873,12 +855,15 @@ class TaskDispatcher:
         self.stopped = False
         """An attempt ended cancelled (the run was cancelled): start no more."""
         self.source_done = False
+        """The ``TaskSource``'s ``next_tasks()`` returned nothing."""
         self.awaiting_source = False
         """The loop is awaiting ``next_tasks()`` (see :meth:`absorbs_cancel`)."""
-        self.unresolved: deque[TaskRecord] = deque()
-        """Queued records whose sandbox configs are not resolved yet, in order."""
-        self.unresolved_wake = Wake()
-        self.requested: set[TaskRecord] = set()
+        self.cancel_absorbed = False
+        """The task screen absorbed a cancellation of the run."""
+        self.unprepared: deque[TaskRecord] = deque()
+        """Queued records not prepared yet, in queue order."""
+        self.unprepared_wake = Wake()
+        self.prefetched: set[TaskRecord] = set()
         """Queued records whose setups have been requested for this attempt."""
         self.fatal: BaseException | None = None
         """A ``KeyboardInterrupt`` or ``SystemExit`` raised by a setup."""
@@ -891,16 +876,9 @@ class TaskDispatcher:
         Returns the logs in queue order: the seed, then added tasks in the
         order the loop took them (a retry keeps its task's position).
         """
-        absorbed = False
-
-        def absorb_cancel() -> bool:
-            nonlocal absorbed
-            absorbed = self.absorbs_cancel()
-            return absorbed
-
         try:
             async with _run_task_screen(
-                task_specs(seed), absorb_cancel=absorb_cancel
+                task_specs(seed), absorb_cancel=self.absorbs_cancel
             ) as screen:
                 init_task_screen(screen)
                 try:
@@ -912,11 +890,11 @@ class TaskDispatcher:
                         anyio.create_task_group() as tg,
                     ):
                         self.tg = tg
-                        background = anyio.CancelScope()
-                        tg.start_soon(self.resolve_records, background)
+                        preparer = anyio.CancelScope()
+                        tg.start_soon(self.prepare_records, preparer)
                         reporter = _start_throughput_reporter(tg)
                         await self.loop(tg)
-                        background.cancel()
+                        preparer.cancel()
                         reporter.cancel()
                 finally:
                     self.tg = None
@@ -924,27 +902,33 @@ class TaskDispatcher:
                     remove_task_dispatcher(self)
                     clear_task_screen()
         finally:
-            if absorbed:
-                # the run was cancelled: setups still running are cut short
-                self.setups.cancel_running()
-            # records that never started (a cancelled or failed run)
-            for record in self.queue.close():
-                if record.logger is not None:
-                    await _release_queued(record.logger, record.attempt)
-                record.end(None)
-            # and those whose attempt a failed run interrupted
-            for record in self.queue.records:
-                if record.state is not TaskState.ENDED:
-                    record.end(None)
+            await self.end_unfinished()
         return self.queue.results()
 
+    async def end_unfinished(self) -> None:
+        """End the records left when dispatch stops (a cancelled or failed run).
+
+        Records that never started release the loggers they held; those whose
+        attempt a failed run interrupted keep the log they have. After a
+        cancellation the screen absorbed, setups still running are cut short.
+        """
+        if self.cancel_absorbed:
+            self.setups.cancel_running()
+        for record in self.queue.close():
+            if record.logger is not None:
+                await _release_queued(record.logger, record.attempt)
+            record.end(None)
+        for record in self.queue.records:
+            if record.state is not TaskRecordState.ENDED:
+                record.end(None)
+
     async def loop(self, tg: TaskGroup) -> None:
-        """Start ready records while there is capacity; when idle, add more or finish."""
+        """Start records while there is capacity; when idle, add more or finish."""
         while not self.stopped:
             if self.fatal is not None:
                 raise self.fatal
             self.take(self.queue.take("when_free"))
-            self.start_ready(tg)
+            self.fill_slots(tg)
             if self.stopped:
                 break
             if self.queue.queued or self.running:
@@ -956,20 +940,21 @@ class TaskDispatcher:
         """Whether a cancellation of the run returns the logs so far (Ctrl-C).
 
         It does unless the loop is awaiting ``next_tasks()`` or a queued
-        record is being readied (its sandbox configs are being resolved, or
-        their setup was requested and is not done): that work is interrupted
-        and those tasks have no log yet, so a run that returned normally would
-        look complete. Records waiting for a slot, a pause or their turn for
-        setup end without a log, as unstarted tasks always have.
+        record is being prepared or set up (setup requested and not done):
+        that work is interrupted and those tasks have no log yet, so a run
+        that returned normally would look complete. Records waiting for a
+        slot, a pause or their turn for setup end without a log, as unstarted
+        tasks always have.
         """
-        return not self.awaiting_source and not any(
-            self.readying(record) for record in self.queue.queued
+        self.cancel_absorbed = not self.awaiting_source and not any(
+            self.being_prepared(record) for record in self.queue.queued
         )
+        return self.cancel_absorbed
 
-    def readying(self, record: TaskRecord) -> bool:
-        """Whether a queued record's sandbox configs are being resolved or set up."""
-        return not self.ready(record) and (
-            record.setup_keys is None or record in self.requested
+    def being_prepared(self, record: TaskRecord) -> bool:
+        """Whether a queued record is being prepared, or its setup is running."""
+        return not self.can_start(record) and (
+            record.setup_keys is None or record in self.prefetched
         )
 
     async def add_when_idle(self) -> bool:
@@ -1002,128 +987,125 @@ class TaskDispatcher:
         if not records:
             return
         self.queue.enqueue(records)
-        self.unresolved.extend(records)
-        self.unresolved_wake.set()
+        self.unprepared.extend(records)
+        self.unprepared_wake.set()
         # lets the model pause directives validate against tasks that have not
         # started (which have no EvalState to check)
         note_dispatch_models([dispatch_model_name(r.model) for r in records])
         display().update_task_count(len(records))
 
-    async def resolve_records(self, scope: anyio.CancelScope) -> None:
-        """Resolve the sandbox configs of queued records, one at a time, in queue order.
-
-        A record that fails to resolve gets that error as its ``start_error``.
-        Runs until ``scope`` is cancelled.
-        """
+    async def prepare_records(self, scope: anyio.CancelScope) -> None:
+        """Prepare queued records one at a time, in queue order, until ``scope`` ends."""
         with scope:
             while True:
-                while not self.unresolved:
-                    await self.unresolved_wake.wait()
-                record = self.unresolved.popleft()
-                if record.state is not TaskState.QUEUED or record.configured is None:
-                    continue
-                try:
-                    keys = await self.startup.prepare(record.configured.resolved)
-                except Exception as ex:
-                    if self.debug_errors:
-                        raise
-                    error: Exception | None = ex
-                except anyio.get_cancelled_exc_class() as ex:
-                    if anyio.current_effective_deadline() == -math.inf:
-                        raise
-                    # raised by provider code (asyncio), not a cancellation
-                    error = RuntimeError(f"Sandbox resolution raised {ex!r}.")
-                else:
-                    record.setup_keys = keys
-                    error = None
-                if error is not None and record.state is TaskState.QUEUED:
-                    record.fail_start(error)
-                self.queue.wake.set()
+                while not self.unprepared:
+                    await self.unprepared_wake.wait()
+                record = self.unprepared.popleft()
+                if record.state is TaskRecordState.QUEUED:
+                    await self.prepare(record)
+                    self.queue.wake.set()
 
-    def ready(self, record: TaskRecord) -> bool:
+    async def prepare(self, record: TaskRecord) -> None:
+        """Resolve a record's sandbox configs; a failure ends its next attempt."""
+        assert record.configured is not None
+        try:
+            keys = await self.startup.prepare(record.configured.resolved)
+        except Exception as ex:
+            if self.debug_errors:
+                raise
+            failure = SetupFailure.of(ex)
+        except anyio.get_cancelled_exc_class() as ex:
+            if run_cancelled():
+                raise
+            failure = SetupFailure.of(
+                RuntimeError(f"Sandbox resolution raised {ex!r}.")
+            )
+        else:
+            record.setup_keys = keys
+            return
+        if record.state is TaskRecordState.QUEUED:
+            record.setup_failure = failure
+
+    def can_start(self, record: TaskRecord) -> bool:
         """Whether a queued record can start: its sandboxes are set up, or failed."""
-        return record.start_error is not None or (
+        return record.setup_failure is not None or (
             record.setup_keys is not None and self.setups.done(record.setup_keys)
         )
 
-    def start_ready(self, tg: TaskGroup) -> None:
-        """Start ready records into free slots, then request look-ahead setups.
-
-        Paused records are passed over (a resume fires the dispatch waker); a
-        record whose setup failed needs no slot. Then the first ``max_tasks``
-        queued records (read live) have their setups requested, the oldest
-        one's as needed now.
-        """
+    def fill_slots(self, tg: TaskGroup) -> None:
+        """Start records into free slots (:meth:`pick`), then request setups ahead."""
         while (record := self.pick()) is not None:
-            self.start(tg, record)
-        self.request_setups()
+            self.start_attempt(tg, record)
+        self.prefetch_setups()
 
-    def request_setups(self) -> None:
+    def prefetch_setups(self) -> None:
         """Request the setups of the next ``max_tasks`` queued records that can start.
 
-        Paused records and records whose setup failed are passed over. The
-        oldest record that is not ready has its setups marked as needed now.
+        ``max_tasks`` is read live. Paused records and records whose setup
+        failed are passed over. The oldest record that cannot start yet has
+        its setups marked as needed now.
         """
         window = [
             r
             for r in self.queue.queued
-            if r.start_error is None and not _dispatch_paused(r)
+            if r.setup_failure is None and not _dispatch_paused(r)
         ][: effective_max_tasks(self.parallel)]
         for record in window:
-            if record.setup_keys is not None and record not in self.requested:
-                self.requested.add(record)
+            if record.setup_keys is not None and record not in self.prefetched:
+                self.prefetched.add(record)
                 self.setups.prefetch(
                     record.setup_keys, functools.partial(self.setup_done, record)
                 )
-        head = next((r for r in window if not self.ready(r)), None)
+        head = next((r for r in window if not self.can_start(r)), None)
         if head is not None and head.setup_keys is not None:
             self.setups.need(head.setup_keys)
 
-    def setup_done(self, record: TaskRecord, error: BaseException | None) -> None:
-        """A setup a queued record waits for ended: it may be ready, or must fail.
+    def setup_done(self, record: TaskRecord, failure: SetupFailure | None) -> None:
+        """A setup a queued record waits for ended: it may start, or must fail.
 
         A ``KeyboardInterrupt`` or ``SystemExit`` the setup raised is not a
         failure of the record: the loop raises it.
         """
-        if error is not None and not isinstance(error, Exception):
-            self.fatal = error
+        if failure is not None and not isinstance(failure.error, Exception):
+            self.fatal = failure.error
         elif (
-            error is not None
-            and record.state is TaskState.QUEUED
-            and record.start_error is None
+            failure is not None
+            and record.state is TaskRecordState.QUEUED
+            and record.setup_failure is None
         ):
-            record.fail_start(error)
+            record.setup_failure = failure
         self.queue.wake.set()
 
     def pick(self) -> TaskRecord | None:
-        """The next record to start: see :meth:`start_ready` and :func:`pick_balanced`.
+        """The next record to start (see :func:`pick_balanced`).
 
-        Candidates are the ready records ahead of the first one whose sandbox
-        configs are not resolved yet: resolution is quick and runs in queue
-        order, so waiting for it keeps the start order deterministic when
-        every setup is done. A record whose setup is running is passed over.
+        Candidates are the unpaused records that can start, ahead of the first
+        one not prepared yet: preparing is quick and runs in queue order, so
+        waiting for it keeps the start order deterministic when every setup is
+        done. A record whose setup is running is passed over, and one whose
+        setup failed needs no slot.
         """
-        ready: list[TaskRecord] = []
+        candidates: list[TaskRecord] = []
         for record in self.queue.queued:
             if _dispatch_paused(record):
                 continue
-            if record.setup_keys is None and record.start_error is None:
+            if record.setup_keys is None and record.setup_failure is None:
                 break
-            if self.ready(record):
-                ready.append(record)
-        failed = next((r for r in ready if r.start_error is not None), None)
+            if self.can_start(record):
+                candidates.append(record)
+        failed = next((r for r in candidates if r.setup_failure is not None), None)
         if failed is not None:
             return failed
         if self.in_slots >= effective_max_tasks(self.parallel):
             return None
-        return pick_balanced(ready, self.model_counts)
+        return pick_balanced(candidates, self.model_counts)
 
-    def start(self, tg: TaskGroup, record: TaskRecord) -> None:
+    def start_attempt(self, tg: TaskGroup, record: TaskRecord) -> None:
         """Start a record's attempt, with the run's provider state."""
         self.queue.queued.remove(record)
-        self.requested.discard(record)
-        record.state = TaskState.RUNNING
-        in_slot = record.start_error is None
+        self.prefetched.discard(record)
+        record.state = TaskRecordState.RUNNING
+        in_slot = record.setup_failure is None
         if in_slot:
             self.in_slots += 1
             self.model_counts[record.model] += 1
@@ -1133,9 +1115,17 @@ class TaskDispatcher:
         tg.start_soon(self.run_one, record, in_slot)
 
     async def run_one(self, record: TaskRecord, in_slot: bool) -> None:
-        """Run one attempt of a record, in its slot, then settle it."""
-        logger = await self.attempt_logger(record, in_slot)
+        """Run one attempt of a record, then settle it."""
+        logger, record.logger = record.logger, None
         if logger is None:
+            assert record.configured is not None
+            logger = record.configured.new_logger()
+        try:
+            await open_log(logger, retry=record.attempt > 1)
+        except Exception as ex:
+            if self.debug_errors:
+                raise
+            self.fail_attempt(record, in_slot, logger, ex)
             return
         options = self.attempt_options(record, logger)
         retry = False
@@ -1159,12 +1149,7 @@ class TaskDispatcher:
             assert run.log is not None
             # reinitialised for a fresh log entry when the retry starts
             record.logger = logger
-            self.settle(
-                record,
-                in_slot,
-                run.log,
-                retry=Retry(self.retry_source(options, run.log)),
-            )
+            self.settle(record, in_slot, run.log, Retry(begin_retry(options, run.log)))
         else:
             if run.log is not None:
                 # unwind the task runner's retry-pending mark (a no-op if a
@@ -1173,56 +1158,29 @@ class TaskDispatcher:
             await _release_unfinished(logger)
             self.settle(record, in_slot, run.log)
 
-    async def attempt_logger(
-        self, record: TaskRecord, in_slot: bool
-    ) -> TaskLogger | None:
-        """The logger of a record's attempt, with its log entry created.
+    def fail_attempt(
+        self, record: TaskRecord, in_slot: bool, logger: TaskLogger, error: Exception
+    ) -> None:
+        """End an attempt whose log entry could not be created, as a failed write does.
 
-        A seed's first attempt has one from start-up, another first attempt
-        creates one, and a retry reinitialises the failed attempt's logger for
-        a fresh entry (``TaskLogger.reinit``). If that fails, the attempt ends
-        with an errored header log, as a failed log write does (retries apply),
-        and this returns ``None``.
+        It gets an errored header log (with no location: nothing was written)
+        and its retries apply.
         """
-        assert record.configured is not None
-        logger, record.logger = record.logger, None
-        try:
-            if logger is None:
-                logger = record.configured.new_logger()
-                await logger.init()
-            elif record.attempt > 1:
-                await logger.reinit()
-            return logger
-        except BaseException as ex:
-            if logger is None or not isinstance(ex, Exception) or self.debug_errors:
-                if logger is not None:
-                    await _release_unfinished(logger)
-                raise
-            log.error(
-                f"Task '{record.task}' could not create its log: "
-                f"{exception_message(ex)}"
-            )
-            # the new entry was never written; a retry's previous log stays
-            with anyio.CancelScope(shield=True):
-                await logger.discard(keep_destination=True)
-            retry = record.retries_remaining > 0 and not record.abandoned
-            if not retry and record.log is not None:
-                clear_eval_retry_pending(record.log.eval.eval_id)
-            self.settle(
-                record,
-                in_slot,
-                logger.header_log(_eval_error(ex)),
-                retry=Retry(None) if retry else None,
-            )
-            return None
+        log.error(
+            f"Task '{record.task}' could not create its log: {exception_message(error)}"
+        )
+        retry = record.retries_remaining > 0
+        if not retry and record.log is not None:
+            clear_eval_retry_pending(record.log.eval.eval_id)
+        header = logger.header_log(_eval_error(error))
+        self.settle(record, in_slot, header, Retry(None) if retry else None)
 
     def attempt_options(self, record: TaskRecord, logger: TaskLogger) -> TaskRunOptions:
         """The run options of a record's next attempt."""
         assert record.configured is not None
         options = replace(
             record.configured.options(logger),
-            start_error=record.start_error,
-            start_error_traceback=record.start_error_traceback,
+            setup_failure=record.setup_failure,
             abandoned=lambda: record.abandoned,
         )
         if record.retry_source is not None:
@@ -1235,17 +1193,6 @@ class TaskDispatcher:
             display_name=f"{record.task} (retry {record.attempt - 1} of {retries})",
         )
 
-    def retry_source(
-        self, options: TaskRunOptions, failed: EvalLog
-    ) -> EvalSampleSource | None:
-        """Where the retry of a failed attempt reads its completed samples from."""
-        # until the retry registers its own EvalState, the failed attempt is the
-        # task's latest: the flag stops task-keyed directives reading its
-        # completed_at as "task finished" (the task runner set it ahead of its
-        # log write; this confirms it)
-        mark_eval_retry_pending(failed.eval.eval_id)
-        return retry_sample_source(options, failed)
-
     def settle(
         self,
         record: TaskRecord,
@@ -1255,8 +1202,10 @@ class TaskDispatcher:
     ) -> None:
         """Free an attempt's slot and record its log; queue its retry or end the record.
 
-        A retry goes to the back of the queue, behind tasks added with
-        ``when_free`` that the loop has not taken yet.
+        ``retry`` is ``None`` when the attempt is not retried. A retry goes to
+        the back of the queue, behind tasks added with ``when_free`` that the
+        loop has not taken yet, so also behind follow-ups the attempt's own
+        callbacks returned.
         """
         self.running -= 1
         if in_slot:
@@ -1267,18 +1216,16 @@ class TaskDispatcher:
         if retry is None or record.abandoned:
             record.end(None)
         else:
-            record.state = TaskState.QUEUED
+            record.state = TaskRecordState.QUEUED
             if retry.sample_source is not None:
                 record.retry_source = retry.sample_source
             record.attempt += 1
             record.retries_remaining -= 1
-            # a setup or resolution failure is reported now; the retry tries again
-            record.fail_start(None)
+            # a setup failure is reported now; the retry sets up again
+            record.setup_failure = None
             if record.setup_keys is None:
-                self.unresolved.append(record)
-                self.unresolved_wake.set()
-            # behind every task already added, including follow-ups the
-            # attempt's own callbacks returned
+                self.unprepared.append(record)
+                self.unprepared_wake.set()
             self.take(self.queue.take("when_free"))
             self.queue.queued.append(record)
             log.info(
@@ -1299,51 +1246,29 @@ class TaskDispatcher:
         return TaskDispatcherStats(
             launch=self.parallel,
             in_flight=self.running,
-            pending=len(self.queue.queued) + len(self.queue.added()),
+            pending=len(self.queue.unstarted()),
         )
 
     def queued_tasks(self) -> list[QueuedTask]:
         """The records waiting to start, for ``inspect ctl task queued``."""
-        return [
-            QueuedTask(
-                task_id=record.task_id,
-                task=record.task,
-                model=dispatch_model_name(record.model),
-                attempt=record.attempt,
-                waiting_for=self.waiting_for(record),
-            )
-            for record in [*self.queue.queued, *self.queue.added()]
-        ]
+        return [self._queued_task(record) for record in self.queue.unstarted()]
 
-    def waiting_for(self, record: TaskRecord) -> str:
-        """Why a record has not started."""
-        if record in self.queue.added("after_batch"):
-            return "after_batch"
-        if record.idx is None:
-            return "next_tasks" if self.awaiting_source else "queue"
-        if _dispatch_paused(record):
-            return "paused"
-        if record.start_error is not None:
-            return "start"
-        if record.setup_keys is None:
-            return "sandbox resolution"
-        if not self.setups.done(record.setup_keys):
-            return "sandbox setup" if record in self.requested else "look-ahead"
-        return "slot"
+    def queued_task(self, task_id: str) -> QueuedTask | None:
+        """The record of ``task_id`` if it is waiting to start."""
+        record = self._find_queued(task_id)
+        return self._queued_task(record) if record is not None else None
 
-    def cancel_queued(self, task_id: str) -> bool:
-        """End a record that is waiting to start; whether there was one.
+    def cancel_queued(self, task_id: str) -> None:
+        """End the record of ``task_id``, waiting to start, without running it.
 
-        It ends without running and is not retried: a first attempt leaves no
-        log, a retry keeps the failed attempt's log. Its sandbox setup, if
-        one is running, runs on (and is cleaned up at the end of the run).
+        It is not retried: a first attempt leaves no log, a retry keeps the
+        failed attempt's log. Its sandbox setup, if one is running, runs on
+        (and is cleaned up at the end of the run).
         """
         record = self._find_queued(task_id)
-        if record is None:
-            return False
-        record.abandoned = True
-        self._remove_queued(record)
-        return True
+        if record is not None:
+            record.abandoned = True
+            self._remove_queued(record)
 
     def abandon_retry(self, task_id: str) -> None:
         """Stop a task from being retried (a ctl drain/cancel between attempts).
@@ -1355,26 +1280,43 @@ class TaskDispatcher:
         record = self._find_queued(task_id) or next(
             (r for r in self.queue.records if r.task_id == task_id), None
         )
-        if record is None or record.state is TaskState.ENDED:
+        if record is None or record.state is TaskRecordState.ENDED:
             return
         record.abandoned = True
-        if record.state is TaskState.QUEUED:
+        if record.state is TaskRecordState.QUEUED:
             self._remove_queued(record)
 
-    def _find_queued(self, task_id: str) -> TaskRecord | None:
-        return next(
-            (
-                r
-                for r in [*self.queue.queued, *self.queue.added()]
-                if r.task_id == task_id
-            ),
-            None,
+    def _queued_task(self, record: TaskRecord) -> QueuedTask:
+        return QueuedTask(
+            task_id=record.task_id,
+            task=record.task,
+            model=dispatch_model_name(record.model),
+            attempt=record.attempt,
+            waiting_for=self._waiting_for(record),
         )
 
+    def _waiting_for(self, record: TaskRecord) -> WaitingFor:
+        if record.idx is None:
+            if record.start_policy == "after_batch":
+                return "after_batch"
+            return "next_tasks" if self.awaiting_source else "added"
+        if _dispatch_paused(record):
+            return "paused"
+        if record.setup_failure is not None:
+            return "failed setup"
+        if record.setup_keys is None:
+            return "sandbox resolution"
+        if not self.setups.done(record.setup_keys):
+            return "sandbox setup" if record in self.prefetched else "setup turn"
+        return "slot"
+
+    def _find_queued(self, task_id: str) -> TaskRecord | None:
+        return next((r for r in self.queue.unstarted() if r.task_id == task_id), None)
+
     def _remove_queued(self, record: TaskRecord) -> None:
-        """End a record that will not start, releasing its seed logger."""
+        """End a record that will not start, releasing the logger it held."""
         self.queue.remove(record)
-        self.requested.discard(record)
+        self.prefetched.discard(record)
         if record.logger is not None:
             assert self.tg is not None
             self.tg.start_soon(_release_queued, record.logger, record.attempt)
@@ -1383,6 +1325,45 @@ class TaskDispatcher:
             display().update_task_count(-1)
         record.end(None)
         self.queue.wake.set()
+
+
+class Retry(NamedTuple):
+    """The retry of a failed attempt (see :meth:`TaskDispatcher.settle`)."""
+
+    sample_source: EvalSampleSource | None
+    """Where it reads the completed samples of the failed attempt (``None``:
+    where the failed attempt read them)."""
+
+
+async def open_log(logger: TaskLogger, *, retry: bool) -> None:
+    """Create the log entry of an attempt's logger, if it has none yet.
+
+    A new logger is initialised and a retry's (the failed attempt's) is
+    reinitialised for a fresh entry; a seed's first logger already has one.
+    If that fails, the logger is released (a retry's previous log stays) and
+    the error raised.
+    """
+    try:
+        if logger.location == "":
+            await logger.init()
+        elif retry:
+            await logger.reinit()
+    except BaseException:
+        with anyio.CancelScope(shield=True):
+            await logger.discard(keep_destination=True)
+        raise
+
+
+def begin_retry(options: TaskRunOptions, failed: EvalLog) -> EvalSampleSource | None:
+    """Mark a failed attempt's retry as pending; where the retry reads its samples.
+
+    Until the retry registers its own EvalState, the failed attempt is the
+    task's latest: the mark stops task-keyed directives reading its
+    ``completed_at`` as "task finished" (the task runner set it ahead of its
+    log write; this confirms it).
+    """
+    mark_eval_retry_pending(failed.eval.eval_id)
+    return retry_sample_source(options, failed)
 
 
 async def _release_queued(logger: TaskLogger, attempt: int) -> None:
@@ -1396,14 +1377,6 @@ async def _release_queued(logger: TaskLogger, attempt: int) -> None:
             await logger.discard()
     else:
         await _release_unfinished(logger)
-
-
-class Retry(NamedTuple):
-    """The retry of a failed attempt."""
-
-    sample_source: EvalSampleSource | None
-    """Where it reads the completed samples of the failed attempt (``None``:
-    where the failed attempt read them)."""
 
 
 def _eval_error(ex: BaseException) -> EvalError:
@@ -1669,10 +1642,10 @@ class SandboxManager:
                     )
 
     def apply_provider_state(self) -> None:
-        """Set the run's provider state in the current context, for the tasks it starts."""
+        """Set the run's provider state in the current context (for tasks it starts)."""
         _set_provider_state(self._state)
 
-    async def start(self, sandboxenvs: Iterable[TaskSandboxEnvironment]) -> None:
+    async def setup_seed(self, sandboxenvs: Iterable[TaskSandboxEnvironment]) -> None:
         """Set up sandbox configs now (the seed's, before the task display opens).
 
         Their output goes to the terminal; the first failure raises.
@@ -1688,17 +1661,17 @@ class SandboxManager:
         if display_type() != "none":
             print("")
 
-    async def start_for_samples(
+    async def setup_for_samples(
         self, task: ResolvedTask, samples: Iterable[Sample]
     ) -> None:
-        """Set up the sandbox configs of samples a `SampleSource` adds to a running task.
+        """Set up the sandbox configs of samples a `SampleSource` adds to a task.
 
         A config first seen in an added sample (including the task-level config
         when the seed dataset was empty) gets the same `task_init` setup as
         seed configs (up-front image build/pull, fail-fast validation, a
         registered `task_cleanup`) before the sample runs; configs already set
         up are a no-op. Each added sample starts with the run's provider state
-        as it is then (see ``TaskRunOptions.added_sample_state``).
+        as it is then (see ``TaskRunOptions.apply_provider_state``).
         """
         await self.setups.ensure(await self.resolve(task, samples))
 
@@ -1720,7 +1693,7 @@ class SandboxManager:
     async def resolve(
         self, task: ResolvedTask, samples: Iterable[Sample]
     ) -> frozenset[TaskSandboxEnvironment]:
-        """The sandbox configs ``samples`` of ``task`` use; registers their ``ctl`` limiters.
+        """The sandbox configs ``samples`` of ``task`` use; registers their limiters.
 
         Each sample's config is deduped and sandbox-less samples are skipped.
         The limiter of each sandbox type is registered here, before any setup,

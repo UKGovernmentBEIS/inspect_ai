@@ -18,8 +18,7 @@ from __future__ import annotations
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from enum import StrEnum
-from types import TracebackType
-from typing import TYPE_CHECKING, Any, Callable, Literal, cast, get_args
+from typing import TYPE_CHECKING, Any, Callable, Literal, get_args
 
 import anyio
 
@@ -29,14 +28,14 @@ if TYPE_CHECKING:
     from inspect_ai._eval.task.log import TaskLogger
     from inspect_ai._eval.task.resolved import ResolvedTask
     from inspect_ai._eval.task.run import EvalSampleSource, TaskRunOptions
+    from inspect_ai._eval.task.setup_cache import SetupFailure
     from inspect_ai._eval.task.tasks import Tasks
     from inspect_ai.log import EvalLog
     from inspect_ai.model import Model
 
-# Resolve submitted tasks to concrete ``ResolvedTask``s against the run's
-# models / config / sandbox. Built by the eval runner (which owns that state) and
-# handed to the run's queue. Raises on tasks it can't resolve.
 ResolveTasksFn = Callable[["Tasks"], "list[ResolvedTask]"]
+"""Resolves submitted tasks against the run's models, config and sandbox (built
+by the eval runner, which owns that state); raises on tasks it can't resolve."""
 
 TaskStartPolicy = Literal["when_free", "after_batch"]
 """When an enqueued task starts (see :func:`enqueue_task`)."""
@@ -54,15 +53,15 @@ class ConfiguredTask:
 
 
 ConfigureFn = Callable[["list[ResolvedTask]"], "list[ConfiguredTask]"]
-"""Configures tasks for the run, in the order they start; raises on invalid ones."""
+"""Configures tasks for the run, in the order given; raises on invalid ones."""
 
 
-class TaskState(StrEnum):
+class TaskRecordState(StrEnum):
     QUEUED = "queued"
     """Waiting to start: for its start policy, its sandbox setups, a slot, or
     a pause to lift."""
     RUNNING = "running"
-    """An attempt holds a task slot."""
+    """An attempt is running."""
     ENDED = "ended"
     """Its outcome is final."""
 
@@ -83,10 +82,10 @@ class TaskRecord:
     configured: ConfiguredTask | None
     retries_remaining: int
     """Retry attempts left after the current one."""
-    start: TaskStartPolicy | None = None
+    start_policy: TaskStartPolicy | None = None
     """How an added task starts (``None`` for the seed and ``next_tasks()``
     batches)."""
-    state: TaskState = TaskState.QUEUED
+    state: TaskRecordState = TaskRecordState.QUEUED
     idx: int | None = None
     """Position of the task's log in the logs the run returns (assigned when
     the scheduling loop takes the record)."""
@@ -96,11 +95,9 @@ class TaskRecord:
     reinitialises. Other first attempts create theirs when they start."""
     setup_keys: frozenset[Any] | None = None
     """The sandbox configs its selected samples use (``None`` until resolved)."""
-    start_error: Exception | None = None
-    """Why its sandboxes could not be made ready; its next attempt ends with it."""
-    start_error_traceback: TracebackType | None = None
-    """``start_error``'s traceback when it was raised (several records can
-    share one error object, and each attempt raises it again)."""
+    setup_failure: SetupFailure | None = None
+    """Why its sandboxes could not be prepared or set up; its next attempt ends
+    with it."""
     attempt: int = 1
     retry_source: EvalSampleSource | None = None
     """Where a retry attempt reads the completed samples of the failed one
@@ -110,31 +107,26 @@ class TaskRecord:
     log: EvalLog | None = None
     _ended: anyio.Event | None = field(default=None, repr=False)
 
-    def fail_start(self, error: Exception | None) -> None:
-        """Set (or clear) why the record's next attempt cannot start."""
-        self.start_error = error
-        self.start_error_traceback = error.__traceback__ if error else None
-
     def end(self, log: EvalLog | None) -> None:
         """End the record with its final log (``None`` if it never wrote one)."""
-        self.state = TaskState.ENDED
+        self.state = TaskRecordState.ENDED
         if log is not None:
             self.log = log
         self.configured = None
         self.logger = None
         self.retry_source = None
-        self.fail_start(None)
+        self.setup_failure = None
         if self._ended is not None:
             self._ended.set()
 
     async def wait(self) -> EvalLog | None:
-        if self.start == "after_batch" and self.idx is None:
+        if self.start_policy == "after_batch" and self.idx is None:
             raise RuntimeError(
                 f"Task '{self.task}' starts only once no task is running "
                 "(start='after_batch'), so a running task waiting for it would "
                 "never finish. Add it with start='when_free' to wait for it."
             )
-        if self.state is not TaskState.ENDED:
+        if self.state is not TaskRecordState.ENDED:
             if self._ended is None:
                 self._ended = anyio.Event()
             await self._ended.wait()
@@ -153,7 +145,7 @@ class TaskHandle:
         return self._record.task_id
 
     @property
-    def state(self) -> TaskState:
+    def state(self) -> TaskRecordState:
         """Whether the task is waiting to start, running, or has ended."""
         return self._record.state
 
@@ -208,21 +200,36 @@ class RunQueue:
         }
         self._configure: ConfigureFn | None = None
         self._retries = 0
+        self._sequence_order = False
         self._closed = False
 
-    def open(self, configure: ConfigureFn, retries: int) -> None:
-        """Start accepting tasks: configured with ``configure``, retried ``retries`` times."""
+    def open(
+        self, configure: ConfigureFn, *, retries: int, sequence_order: bool
+    ) -> None:
+        """Start accepting tasks.
+
+        Args:
+            configure: Configures tasks for the run.
+            retries: How many times a task that fails is retried.
+            sequence_order: Order the tasks of each addition by sequence (at a
+                launch limit of 1: the scheduling loop breaks ties in queue
+                order, so all of a task's model fan-outs then run before the
+                next task's).
+        """
         self._configure = configure
         self._retries = retries
+        self._sequence_order = sequence_order
 
     def add(self, resolved: list[ResolvedTask]) -> list[TaskRecord]:
-        """Configure resolved tasks and create their records (not yet filed).
+        """Configure resolved tasks; their records, in start order (not yet filed).
 
         Raises:
             RuntimeError: If the run is not accepting tasks (yet, or any more).
             PrerequisiteError: If a task can't run with the run's settings.
         """
         configure = self._accepting()
+        if self._sequence_order:
+            resolved = sorted(resolved, key=lambda t: t.sequence)
         return [
             TaskRecord(
                 task_id=configured.resolved.id,
@@ -252,22 +259,17 @@ class RunQueue:
         """Resolve and configure tasks added to the run, and file them by start policy.
 
         Resolution and configuration errors surface to the caller; no record
-        is created for any of the tasks then.
+        is created for any of the tasks then. Returns the records in start
+        order.
         """
         self._accepting()
-        resolved = self.resolve(tasks)
-        records = self.add(resolved)
+        records = self.add(self.resolve(tasks))
         policy = start or self.default_start
         for record in records:
-            record.start = policy
+            record.start_policy = policy
         self._added[policy].extend(records)
         self.wake.set()
-        # in the order the tasks were given (they start in sequence order)
-        position = {id(task): i for i, task in enumerate(resolved)}
-        return sorted(
-            records,
-            key=lambda r: position[id(cast(ConfiguredTask, r.configured).resolved)],
-        )
+        return records
 
     def take(self, start: TaskStartPolicy) -> list[TaskRecord]:
         """Remove and return the added records waiting with this start policy."""
@@ -281,11 +283,9 @@ class RunQueue:
             self.records.append(record)
         self.queued.extend(records)
 
-    def added(self, start: TaskStartPolicy | None = None) -> list[TaskRecord]:
-        """The added records the loop has not taken yet (of one start policy, or all)."""
-        if start is not None:
-            return list(self._added[start])
-        return [*self._added["when_free"], *self._added["after_batch"]]
+    def unstarted(self) -> list[TaskRecord]:
+        """Every record waiting to start: queued, then added and not yet taken."""
+        return [*self.queued, *self._added["when_free"], *self._added["after_batch"]]
 
     def remove(self, record: TaskRecord) -> None:
         """Remove a record that has not started from the queue (it will not start)."""
@@ -301,7 +301,7 @@ class RunQueue:
         ``running`` is the number of records running. A single call, so nothing
         can be added between the check and the close.
         """
-        if running or self.queued or self.added():
+        if running or self.unstarted():
             return False
         self._closed = True
         return True
@@ -313,7 +313,7 @@ class RunQueue:
         their loggers and ends them.
         """
         self._closed = True
-        unstarted = [*self.queued, *self.added()]
+        unstarted = self.unstarted()
         self.queued = []
         self._added = {"when_free": [], "after_batch": []}
         return unstarted
@@ -392,7 +392,7 @@ def enqueue_task(
             :class:`~inspect_ai.TaskSource`, ``"after_batch"`` otherwise.
 
     Returns:
-        A handle for each added task (one per task and model).
+        A handle for each added task and model, in the order they start.
 
     Raises:
         ValueError: If ``start`` is not one of the values above, or the tasks

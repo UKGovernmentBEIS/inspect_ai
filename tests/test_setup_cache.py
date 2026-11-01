@@ -10,7 +10,7 @@ import anyio
 import pytest
 from test_helpers.utils import skip_if_trio
 
-from inspect_ai._eval.task.setup_cache import SetupCache
+from inspect_ai._eval.task.setup_cache import SetupCache, SetupFailure
 
 
 class Script:
@@ -164,7 +164,7 @@ async def test_failure_goes_to_current_waiters_then_is_forgotten() -> None:
             errors.append(ex)
 
     async with SetupCache(script) as cache:
-        cache.prefetch(["a"], lambda ex: told.append(ex) if ex else None)
+        cache.prefetch(["a"], lambda f: told.append(f.error) if f else None)
         async with anyio.create_task_group() as tg:
             tg.start_soon(wait)
             tg.start_soon(wait)
@@ -235,7 +235,7 @@ async def test_leaving_the_cache_lets_jobs_in_progress_finish_and_drops_the_rest
         script.finish("a")
     assert left.is_set()
     assert script.started == ["a"]
-    with pytest.raises(RuntimeError, match="ended"):
+    with pytest.raises(RuntimeError, match="has been left"):
         SetupCache(script).prefetch(["c"], lambda ex: None)
 
 
@@ -284,7 +284,7 @@ async def test_base_exceptions_reach_waiters_and_the_run() -> None:
     async def setup(key: str) -> None:
         raise _Fatal
 
-    told: list[BaseException | None] = []
+    told: list[SetupFailure | None] = []
     # also raised when the cache is left (the run ends with it), as the run
     # here went on
     with pytest.raises(_Fatal):
@@ -293,7 +293,8 @@ async def test_base_exceptions_reach_waiters_and_the_run() -> None:
                 await cache.ensure(["a"])
             cache.prefetch(["b"], told.append)
             await _settle()
-            assert len(told) == 1 and isinstance(told[0], _Fatal)
+            assert len(told) == 1 and told[0] is not None
+            assert isinstance(told[0].error, _Fatal)
             # not remembered: the next request runs the setup again
             with pytest.raises(_Fatal):
                 await cache.ensure(["a"])
@@ -316,7 +317,7 @@ async def test_base_exception_with_no_waiter_is_raised_on_exit() -> None:
 
 
 async def test_run_cancellation_is_not_a_failure() -> None:
-    told: list[BaseException | None] = []
+    told: list[SetupFailure | None] = []
 
     async def setup(key: str) -> None:
         await anyio.sleep_forever()
