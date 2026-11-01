@@ -712,6 +712,43 @@ async def test_loop_retry_goes_to_the_back_with_a_fresh_logger(
     ]
 
 
+async def test_retry_follows_tasks_its_failed_attempt_added(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # a failing attempt adds a follow-up as it ends (as TaskSource.task_complete
+    # does): the follow-up was added first, so it starts before the retry,
+    # however the loop and the attempt's teardown interleave
+    m1 = get_model("mockllm/m1")
+    harness = Harness([m1], parallel=1, retries=1)
+    _install(monkeypatch, harness)
+    harness.fail_next.add("a@m1")
+    run_task = harness.run_task
+
+    async def adding_run_task(
+        options: TaskRunOptions, can_retry: bool = False
+    ) -> TaskRunResult:
+        result = await run_task(options, can_retry)
+        if result.log is not None and result.log.status == "error":
+            harness.queue.put([_task("f")], start="when_free")
+        return result
+
+    monkeypatch.setattr("inspect_ai._eval.run._run_task", adding_run_task)
+
+    async def drive() -> None:
+        await _wait_started(harness, "a@m1")
+        harness.finish["a@m1"].set()
+        await _wait_started(harness, "f@m1")
+        harness.started["a@m1"] = anyio.Event()
+        harness.finish["f@m1"].set()
+        await _wait_started(harness, "a@m1")
+        harness.finish["a@m1"].set()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(drive)
+        await harness.run(_resolve(["a"], [m1]))
+    assert _starts(harness) == ["a@m1", "f@m1", "a@m1"]
+
+
 async def test_loop_after_batch_waits_for_later_when_free(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -834,10 +834,10 @@ class TaskDispatcher:
     they become ready, and when nothing is queued or running adds more
     (``after_batch`` tasks, then the ``TaskSource``'s ``next_tasks()``) until
     there is nothing left. A record is ready once the sandbox configs its
-    samples use are set up (by the run's :class:`SetupCache`): a record whose
-    setup is still running keeps its place but does not hold back a later
-    one that is ready. When every setup is done (the seed, tasks without
-    sandboxes, configs set up earlier), records start in queue order.
+    samples use are resolved and set up (by the run's :class:`SetupCache`):
+    a record whose setup is still running keeps its place but does not hold
+    back a later one that is ready. When every setup is done (the seed, tasks
+    without sandboxes, configs set up earlier), records start in queue order.
 
     A task whose log comes back with an error, or which requests a retry
     through its ``TaskCancel``, is retried (reusing its completed samples)
@@ -1095,10 +1095,21 @@ class TaskDispatcher:
         self.queue.wake.set()
 
     def pick(self) -> TaskRecord | None:
-        """The next record to start: see :meth:`start_ready` and :func:`pick_balanced`."""
-        ready = [
-            r for r in self.queue.queued if self.ready(r) and not _dispatch_paused(r)
-        ]
+        """The next record to start: see :meth:`start_ready` and :func:`pick_balanced`.
+
+        Candidates are the ready records ahead of the first one whose sandbox
+        configs are not resolved yet: resolution is quick and runs in queue
+        order, so waiting for it keeps the start order deterministic when
+        every setup is done. A record whose setup is running is passed over.
+        """
+        ready: list[TaskRecord] = []
+        for record in self.queue.queued:
+            if _dispatch_paused(record):
+                continue
+            if record.setup_keys is None and record.start_error is None:
+                break
+            if self.ready(record):
+                ready.append(record)
         failed = next((r for r in ready if r.start_error is not None), None)
         if failed is not None:
             return failed
@@ -1216,7 +1227,11 @@ class TaskDispatcher:
         task_log: EvalLog | None,
         retry: "Retry | None" = None,
     ) -> None:
-        """Free an attempt's slot and record its log; queue its retry or end the record."""
+        """Free an attempt's slot and record its log; queue its retry or end the record.
+
+        A retry goes to the back of the queue, behind tasks added with
+        ``when_free`` that the loop has not taken yet.
+        """
         self.running -= 1
         if in_slot:
             self.in_slots -= 1
@@ -1235,6 +1250,9 @@ class TaskDispatcher:
             if record.setup_keys is None:
                 self.unresolved.append(record)
                 self.unresolved_wake.set()
+            # behind every task already added, including follow-ups the
+            # attempt's own callbacks returned
+            self.take(self.queue.take("when_free"))
             self.queue.queued.append(record)
             log.info(
                 f"Retrying task '{record.task}' ({record.model}) "
