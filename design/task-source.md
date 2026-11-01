@@ -328,8 +328,12 @@ makes it the active one for `enqueue_task`, starts up the seed and runs the
   it starts (it then ends without a log). `RunQueue.find` looks a record up
   by task id.
 - **Preparing.** A queued record is prepared (one record at a time, in queue
-  order): its sandbox configs are resolved and their setups requested from
-  the run's `SetupCache`
+  order): its sandbox configs are resolved. The loop then requests the
+  setups of the records in the look-ahead window (`request_setups`: the first
+  `max_tasks` unpaused queued records, read live, so a queued task's
+  sandboxes are not created long before a slot can be free for it; a record
+  behind the window whose configs all have a job already holds them at once)
+  from the run's `SetupCache`
   ([setup_cache.py](../src/inspect_ai/_eval/task/setup_cache.py)), which keeps
   one shared job per config and runs the jobs one at a time, in the order
   they were requested. A record whose setup fails starts and ends with an
@@ -403,7 +407,8 @@ live dispatcher (with its real `pending` count) for the whole run.
 - **`RunQueue.wake`** ([enqueue.py](../src/inspect_ai/_eval/task/enqueue.py))
   — set by `put()`, by each attempt's completion, by each setup a queued
   record waits for, after each record is prepared, and (as a dispatch waker)
-  by control changes; the loop waits on it.
+  by control changes, including a `max_tasks` change, which resizes the
+  look-ahead window; the loop waits on it.
 
 ### Tests
 

@@ -81,9 +81,11 @@ class TaskRecord:
     """The logger the record's next attempt uses: a seed task's first one
     (created when the seed starts up), or a failed attempt's, which its retry
     reinitialises. Other first attempts create theirs when they start."""
+    setup_keys: frozenset[Any] | None = None
+    """The sandbox configs its selected samples use (``None`` until the record
+    is prepared)."""
     setups: list[SetupJob[Any]] | None = None
-    """The setup jobs of the sandbox configs its selected samples use (``None``
-    until the record is prepared)."""
+    """The setup jobs of ``setup_keys`` (``None`` until they are requested)."""
     setup_failure: SetupFailure | None = None
     """Why its sandbox configs could not be resolved (when preparing it)."""
     attempt: int = 1
@@ -98,7 +100,7 @@ class TaskRecord:
     @property
     def prepared(self) -> bool:
         """Whether its sandbox configs have been resolved (or failed to)."""
-        return self.setups is not None or self.setup_failure is not None
+        return self.setup_keys is not None or self.setup_failure is not None
 
     @property
     def failure(self) -> SetupFailure | None:

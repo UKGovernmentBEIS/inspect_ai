@@ -14,6 +14,7 @@ import gc
 import os
 import weakref
 from collections import Counter
+from operator import contains
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Callable, Literal, cast, overload
@@ -311,7 +312,7 @@ class Harness:
         seed = self.queue.add(tasks)
         self.queue.enqueue(seed)
         for record in seed:
-            record.setups = []
+            record.setup_keys = frozenset()
             logger = cast(FakeLogger, self.new_logger(_labels([record])[0]))
             logger.location = f"{logger.label}.eval"
             record.logger = cast(TaskLogger, logger)
@@ -1049,42 +1050,96 @@ async def test_failed_resolution_ends_only_that_task(
     assert logs[1].error is not None and "bad compose file" in logs[1].error.message
 
 
-async def test_queued_tasks_set_up_one_at_a_time_in_queue_order(
+async def test_only_the_look_ahead_window_is_set_up(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # the window is the first max_tasks queued tasks: with a and b in the two
+    # slots, t1 and t2 set up (one at a time, in queue order) and t3 waits
+    # until t1 starts; raising max_tasks widens the window at once
     m1 = get_model("mockllm/m1")
     harness = Harness([m1], parallel=2)
     _install(monkeypatch, harness)
-    names = ["t1", "t2", "t3"]
+    names = ["t1", "t2", "t3", "t4"]
     for name in names:
         harness.keys[f"{name}@m1"] = [name]
+
+    def requested() -> list[str]:
+        return sorted(cast(dict[str, Any], harness.startup.setups._jobs))
 
     async def drive() -> None:
         await _wait_started(harness, "a@m1", "b@m1")
         harness.queue.put([_task(n) for n in names], start="when_free")
-        # every queued task sets up while a and b hold the slots
-        for name in names:
+        for name in ["t1", "t2"]:
             await harness.setup_began_event(name).wait()
             harness.finish_setup(name)
-        await _wait_until(lambda: _done(harness.startup.setups, names))
-        for done, next in [("a", "t1"), ("b", "t2"), ("t1", "t3")]:
-            harness.finish[f"{done}@m1"].set()
-            await _wait_started(harness, f"{next}@m1")
-        harness.finish["t2@m1"].set()
-        harness.finish["t3@m1"].set()
+        await _wait_until(lambda: _done(harness.startup.setups, ["t1", "t2"]))
+        assert requested() == ["t1", "t2"]
+        harness.finish["a@m1"].set()
+        await _wait_started(harness, "t1@m1")
+        await harness.setup_began_event("t3").wait()
+        assert requested() == ["t1", "t2", "t3"]
+        set_max_tasks_override(3)
+        await _wait_until(lambda: requested() == names)
+        reset_max_tasks_override()
+        harness.finish_setup("t3")
+        await harness.setup_began_event("t4").wait()
+        harness.finish_setup("t4")
+        # one at a time, so each start has a cycle of its own
+        for label in ("b@m1", "t1@m1", "t2@m1", "t3@m1", "t4@m1"):
+            await _wait_started(harness, label)
+            harness.finish[label].set()
+            await _wait_until(
+                functools.partial(contains, harness.events, f"end {label} success")
+            )
 
     async with anyio.create_task_group() as tg:
         tg.start_soon(drive)
         await harness.run(_resolve(["a", "b"], [m1]))
     assert [
         e for e in harness.events if e.startswith("setup") and e.endswith("done")
-    ] == [
-        "setup t1 done",
-        "setup t2 done",
-        "setup t3 done",
-    ]
+    ] == [f"setup {name} done" for name in names]
     # (a and b start in the same cycle, in either order)
-    assert _starts(harness)[2:] == ["t1@m1", "t2@m1", "t3@m1"]
+    assert _starts(harness)[2:] == ["t1@m1", "t2@m1", "t3@m1", "t4@m1"]
+
+
+async def test_task_behind_the_window_joins_setups_already_requested(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # at max_tasks 1, `shared` is behind the window (`first` fills it) but
+    # its config's job exists, so it holds it, and `plain` (no sandbox)
+    # starts in the free slot while `first`'s setup runs
+    m1 = get_model("mockllm/m1")
+    harness = Harness([m1], parallel=1)
+    _install(monkeypatch, harness)
+    harness.keys["first@m1"] = ["image"]
+    harness.keys["shared@m1"] = ["image"]
+    harness.keys["other@m1"] = ["other"]
+
+    async def drive() -> None:
+        await _wait_started(harness, "a@m1")
+        harness.queue.put(
+            [_task("first"), _task("other"), _task("shared"), _task("plain")],
+            start="when_free",
+        )
+        await harness.setup_began_event("image").wait()
+        harness.finish["a@m1"].set()
+        await _wait_started(harness, "plain@m1")
+        jobs = cast(dict[str, Any], harness.startup.setups._jobs)
+        assert sorted(jobs) == ["image"]
+        harness.finish_setup("image")
+        harness.finish["plain@m1"].set()
+        for label in ("first@m1", "shared@m1"):
+            await _wait_started(harness, label)
+            harness.finish[label].set()
+        await harness.setup_began_event("other").wait()
+        harness.finish_setup("other")
+        await _wait_started(harness, "other@m1")
+        harness.finish["other@m1"].set()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(drive)
+        await harness.run(_resolve(["a"], [m1]))
+    assert _starts(harness) == ["a@m1", "plain@m1", "first@m1", "shared@m1", "other@m1"]
 
 
 async def test_abandoning_a_queued_retry_keeps_the_failed_attempts_log(

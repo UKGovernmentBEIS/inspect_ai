@@ -126,6 +126,10 @@ class SetupCache(Generic[K]):
                 job.on_done.append(on_done)
         return jobs
 
+    def has_jobs(self, keys: Iterable[K]) -> bool:
+        """Whether every key has a job (waiting, running or succeeded), so requesting them adds none."""
+        return all(key in self._jobs for key in keys)
+
     async def ensure(self, keys: Iterable[K]) -> None:
         """Set up ``keys`` and wait until they are.
 
