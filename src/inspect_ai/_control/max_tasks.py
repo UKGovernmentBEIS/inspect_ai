@@ -3,12 +3,11 @@
 The ``inspect ctl config --max-tasks`` retune surface (see
 ``design/ctl/max-tasks-retune.md``). ``max_tasks`` resolves to a plain int
 (``parallel``) before a run starts and the dispatcher
-(``TaskDispatcher`` in ``inspect_ai._eval.run``) is a select loop,
-not a semaphore acquire — and dispatchers can be recreated within a run (an
-eval-set in legacy ``retry_immediate=False`` mode re-invokes ``eval()`` per
-retry pass). So rather than a resizable limiter owned by one dispatcher, this
-is a **process-global override read at the point of use**, modeled on the
-retry-knob layer in
+(``TaskDispatcher`` in ``inspect_ai._eval.run``) is a select loop, not a
+semaphore acquire — and dispatchers can be recreated within a process
+(legacy eval-set retry passes). So rather than a resizable limiter owned by
+one dispatcher, this is a **process-global override read at the point of
+use**, modeled on the retry-knob layer in
 :mod:`inspect_ai.model._generate_overrides`: every dispatcher's admission
 check reads :func:`effective_max_tasks` each iteration, so a retune survives
 dispatcher boundaries, and setting the override fires the dispatch wakers so
@@ -18,10 +17,10 @@ completion and new ones just don't start until ``in_flight`` drains below
 the limit. Reset at the outermost run boundary via
 ``reset_run_registries()``, like the retry overrides.
 
-The module also keeps a live-dispatcher registry: each running dispatcher
-registers itself alongside its dispatch waker, so the config view can report
-where dispatch actually stands, and the control channel can list, cancel and
-stop retrying the tasks that have not started.
+The module also keeps a live-dispatcher handle registry: each running
+dispatcher registers a stats callback (its launch ``parallel``, current
+in-flight count, and pending-queue length) alongside its dispatch waker, so
+the config view can report where dispatch actually stands.
 
 No lock: single-threaded by construction — the writer (the control-server
 handler) runs as a task on the same event loop as the reading dispatchers,
@@ -30,7 +29,7 @@ and each accessor is a single atomic operation.
 
 from __future__ import annotations
 
-from typing import Literal, NamedTuple, Protocol
+from typing import Callable, NamedTuple
 
 
 class TaskDispatcherStats(NamedTuple):
@@ -43,79 +42,16 @@ class TaskDispatcherStats(NamedTuple):
     """Tasks currently running (may exceed the limit after a lowering)."""
 
     pending: int
-    """Tasks waiting to start: queued (including retry attempts), or added
-    and not yet taken by the scheduling loop."""
-
-
-WaitingFor = Literal[
-    "added",
-    "after_batch",
-    "next_tasks",
-    "paused",
-    "sandbox resolution",
-    "setup turn",
-    "sandbox setup",
-    "failed setup",
-    "slot",
-]
-"""Why a task has not started.
-
-- ``added``: added, and the scheduling loop has not taken it yet.
-- ``after_batch``: added with ``start="after_batch"``; taken once no task runs.
-- ``next_tasks``: added while ``TaskSource.next_tasks()`` runs; taken after it.
-- ``paused``: held by a pause.
-- ``sandbox resolution``: its sandbox configs are being resolved.
-- ``setup turn``: its sandbox setup has not been requested yet (only the next
-  ``max_tasks`` queued tasks set up ahead).
-- ``sandbox setup``: its sandbox setup is running or waiting for another.
-- ``failed setup``: its setup failed; it is about to start and end with that
-  error.
-- ``slot``: ready, waiting for a free task slot.
-"""
-
-
-class QueuedTask(NamedTuple):
-    """A task of the run waiting to start (its first attempt, or a retry)."""
-
-    task_id: str
-    task: str
-    model: str
-    attempt: int
-    """The attempt it waits to start (1 for a task that has never run)."""
-    waiting_for: WaitingFor
-
-
-class DispatcherHandle(Protocol):
-    """A live run's scheduling loop, as the control channel sees it."""
-
-    def stats(self) -> TaskDispatcherStats:
-        """Its launch limit and queue counters."""
-        ...
-
-    def queued_tasks(self) -> list[QueuedTask]:
-        """The tasks waiting to start, in start order."""
-        ...
-
-    def queued_task(self, task_id: str) -> QueuedTask | None:
-        """The task ``task_id``, if it is waiting to start."""
-        ...
-
-    def cancel_queued(self, task_id: str) -> None:
-        """End a task waiting to start, without running it (and without a retry)."""
-        ...
-
-    def abandon_retry(self, task_id: str) -> None:
-        """Stop a task from being retried (its pending retry, or the next one)."""
-        ...
+    """Tasks queued and not yet started (including queued retry attempts)."""
 
 
 _override: int | None = None
 
-# The live task dispatchers, registered/removed by TaskDispatcher alongside
-# its dispatch waker (so lifetime management is shared). At most one
-# dispatcher runs at a time in practice; readers use the most recently
-# registered.
-_dispatchers: list[DispatcherHandle] = []
+# Stats callbacks of the live task dispatchers, registered/removed by
+# TaskDispatcher alongside its dispatch waker (so lifetime
+# management is shared). At most one dispatcher runs at a time in practice;
+# the view reads the most recently registered.
+_dispatchers: list[Callable[[], TaskDispatcherStats]] = []
 
 
 def set_max_tasks_override(value: int | None) -> None:
@@ -161,22 +97,17 @@ def effective_max_tasks(launch: int) -> int:
     return _override if _override is not None else launch
 
 
-def register_task_dispatcher(dispatcher: DispatcherHandle) -> None:
-    """Register a live dispatcher (the config and queued views' source)."""
-    _dispatchers.append(dispatcher)
+def register_task_dispatcher(stats: Callable[[], TaskDispatcherStats]) -> None:
+    """Register a live dispatcher's stats callback (the config view's source)."""
+    _dispatchers.append(stats)
 
 
-def remove_task_dispatcher(dispatcher: DispatcherHandle) -> None:
-    """Unregister a dispatcher registered with :func:`register_task_dispatcher`."""
+def remove_task_dispatcher(stats: Callable[[], TaskDispatcherStats]) -> None:
+    """Unregister a callback registered with :func:`register_task_dispatcher`."""
     try:
-        _dispatchers.remove(dispatcher)
+        _dispatchers.remove(stats)
     except ValueError:
         pass
-
-
-def task_dispatcher() -> DispatcherHandle | None:
-    """The live dispatcher, or ``None`` when no dispatcher is live."""
-    return _dispatchers[-1] if _dispatchers else None
 
 
 def task_dispatcher_stats() -> TaskDispatcherStats | None:
@@ -187,7 +118,7 @@ def task_dispatcher_stats() -> TaskDispatcherStats | None:
     before its dispatcher registers — which is why the knob stays adjustable
     without a handle.
     """
-    return _dispatchers[-1].stats() if _dispatchers else None
+    return _dispatchers[-1]() if _dispatchers else None
 
 
 def reset_max_tasks_override() -> None:

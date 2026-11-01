@@ -23,12 +23,10 @@ import pytest
 from typing_extensions import override
 
 from inspect_ai import Epochs, Task, TaskSource, enqueue_task, eval, eval_async
-from inspect_ai._control.cancel import cancel_task, drain_task
-from inspect_ai._control.eval_state import abandon_task_retry
+from inspect_ai._control.eval_state import abandon_task_retry, reset_retry_abandoned
 from inspect_ai._control.max_tasks import (
     reset_max_tasks_override,
     set_max_tasks_override,
-    task_dispatcher,
     task_dispatcher_stats,
 )
 from inspect_ai._display.core.display import CancelType
@@ -369,14 +367,6 @@ def _starts(harness: Harness) -> list[str]:
     return [e.split()[1] for e in harness.events if e.startswith("start")]
 
 
-def _waiting(task_id: str) -> str:
-    dispatcher = task_dispatcher()
-    assert dispatcher is not None
-    return next(
-        t.waiting_for for t in dispatcher.queued_tasks() if t.task_id == task_id
-    )
-
-
 # ------------------------------------------------------------- settings
 
 
@@ -508,9 +498,12 @@ def test_wants_retry(
 def test_wants_retry_not_after_operator_abandoned_it() -> None:
     [record] = _records([("a", get_model("mockllm/m1"))])
     record.retries_remaining = 1
-    record.abandoned = True
-    task_log = EvalLog(eval=FakeLogger("a", 1).eval, status="error")
-    assert not wants_retry(None, task_log, record)
+    abandon_task_retry(record.task_id)
+    try:
+        task_log = EvalLog(eval=FakeLogger("a", 1).eval, status="error")
+        assert not wants_retry(None, task_log, record)
+    finally:
+        reset_retry_abandoned()
 
 
 # ------------------------------------------------------------- the idle rule
@@ -772,12 +765,11 @@ async def test_loop_after_batch_waits_for_later_when_free(
 
     async def drive() -> None:
         await _wait_started(harness, "a@m1", "b@m1")
-        [held] = harness.queue.put([_task("held")], start="after_batch")
+        harness.queue.put([_task("held")], start="after_batch")
         harness.queue.put([_task("free")], start="when_free")
         await _wait_started(harness, "free@m1")
         # the held task counts as pending
         await _wait_stats(in_flight=3, pending=1)
-        assert _waiting(held.task_id) == "after_batch"
         harness.finish["a@m1"].set()
         harness.finish["b@m1"].set()
         await _wait_stats(in_flight=1, pending=1)
@@ -894,11 +886,10 @@ async def test_ready_task_starts_while_an_older_tasks_setup_runs(
 
     async def drive() -> None:
         await _wait_started(harness, "a@m1")
-        [boxed] = harness.queue.put([_task("boxed")], start="when_free")
+        harness.queue.put([_task("boxed")], start="when_free")
         harness.queue.put([_task("plain")], start="when_free")
         await harness.setup_began_event("image").wait()
         await _wait_started(harness, "plain@m1")
-        assert _waiting(boxed.task_id) == "sandbox setup"
         harness.finish_setup("image")
         harness.finish["plain@m1"].set()
         await _wait_started(harness, "boxed@m1")
@@ -1032,16 +1023,15 @@ async def test_look_ahead_sets_up_at_most_max_tasks_queued_tasks(
 
     async def drive() -> None:
         await _wait_started(harness, "a@m1", "b@m1")
-        records = harness.queue.put([_task(n) for n in names], start="when_free")
+        harness.queue.put([_task(n) for n in names], start="when_free")
         await harness.setup_began_event("t1").wait()
         harness.finish_setup("t1")
         await harness.setup_began_event("t2").wait()
         harness.finish_setup("t2")
-        await _wait_until(lambda: _waiting(records[2].task_id) == "setup turn")
+        await _wait_until(lambda: harness.startup.setups.done(["t2"]))
         # t1 and t2 are set up and wait for a slot; t3 and t4 are beyond the
         # look-ahead, so their setups have not been requested
         assert "setup t3" not in harness.events
-        assert _waiting(records[0].task_id) == "slot"
         harness.finish["a@m1"].set()
         await harness.setup_began_event("t3").wait()
         harness.finish_setup("t3")
@@ -1057,41 +1047,6 @@ async def test_look_ahead_sets_up_at_most_max_tasks_queued_tasks(
         await harness.run(_resolve(["a", "b"], [m1]))
     # (a and b start in the same cycle, in either order)
     assert _starts(harness)[2:] == ["t1@m1", "t2@m1", "t3@m1", "t4@m1"]
-
-
-async def test_cancelling_a_queued_task_ends_it_without_running(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    m1 = get_model("mockllm/m1")
-    harness = Harness([m1], parallel=1)
-    _install(monkeypatch, harness)
-    harness.keys["b@m1"] = ["image"]
-    ended: list[EvalLog | None] = []
-
-    async def drive() -> None:
-        await _wait_started(harness, "a@m1")
-        [b] = harness.queue.put([_task("b")], start="when_free")
-        [c] = harness.queue.put([_task("c")], start="when_free")
-        await harness.setup_began_event("image").wait()
-        result = cancel_task(b.task_id)
-        assert result is not None and result["ok"] and result.get("not_started")
-        drained = drain_task(c.task_id)
-        assert drained is not None and drained.get("not_started")
-        ended.append(await b.wait())
-        assert b.state is TaskRecordState.ENDED and c.state is TaskRecordState.ENDED
-        # a repeat finds nothing to cancel
-        assert cancel_task(b.task_id) is None
-        harness.finish["a@m1"].set()
-        # the setup b asked for runs on (to be cleaned up at the end)
-        harness.finish_setup("image")
-
-    async with anyio.create_task_group() as tg:
-        tg.start_soon(drive)
-        logs = await harness.run(_resolve(["a"], [m1]))
-    assert ended == [None]
-    assert [log.eval.task for log in logs] == ["a@m1"]
-    # the setup a cancelled task asked for was not cancelled with it
-    assert "setup image done" in harness.events and _starts(harness) == ["a@m1"]
 
 
 async def test_abandoning_a_queued_retry_keeps_the_failed_attempts_log(
@@ -1147,58 +1102,6 @@ async def test_finished_added_task_is_released_while_the_run_continues(
     async with anyio.create_task_group() as tg:
         tg.start_soon(drive)
         await harness.run(_resolve(["a"], [m1]))
-
-
-async def test_control_server_lists_and_cancels_queued_tasks(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    # `GET /tasks/queued` lists records waiting to start (they are not in
-    # `GET /tasks`, whose rows are running tasks with logs), and the task
-    # cancel route ends one without running it
-    import httpx
-
-    from inspect_ai._control import server as server_mod
-
-    m1 = get_model("mockllm/m1")
-    harness = Harness([m1], parallel=1)
-    _install(monkeypatch, harness)
-    harness.keys["b@m1"] = ["image"]
-
-    async def drive() -> None:
-        await _wait_started(harness, "a@m1")
-        [b] = harness.queue.put([_task("b")], start="when_free")
-        [c] = harness.queue.put([_task("c")], start="after_batch")
-        await harness.setup_began_event("image").wait()
-        app = server_mod.ControlServer(run_id="test")._build_app()
-        transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(
-            transport=transport, base_url="http://localhost"
-        ) as client:
-            queued = (await client.get("/tasks/queued")).json()["tasks"]
-            assert [(t["task_id"], t["waiting_for"]) for t in queued] == [
-                (b.task_id, "sandbox setup"),
-                (c.task_id, "after_batch"),
-            ]
-            assert queued[0]["task"] == "b" and queued[0]["attempt"] == 1
-            running = (await client.get("/tasks")).json()
-            assert b.task_id not in {row.get("task_id") for row in running}
-            result = (await client.post(f"/tasks/{b.task_id}/cancel")).json()
-            assert result["not_started"] is True and result["eval_id"] == ""
-            score = await client.post(
-                f"/tasks/{c.task_id}/cancel", params={"action": "score"}
-            )
-            assert score.status_code == 409
-            queued = (await client.get("/tasks/queued")).json()["tasks"]
-            assert [t["task_id"] for t in queued] == [c.task_id]
-        harness.finish_setup("image")
-        harness.finish["a@m1"].set()
-        await _wait_started(harness, "c@m1")
-        harness.finish["c@m1"].set()
-
-    async with anyio.create_task_group() as tg:
-        tg.start_soon(drive)
-        logs = await harness.run(_resolve(["a"], [m1]))
-    assert [log.eval.task for log in logs] == ["a@m1", "c@m1"]
 
 
 # ------------------------------------------------------------- cancellation
@@ -1273,10 +1176,10 @@ async def test_loop_cancel_while_tasks_run_or_wait_for_a_slot_is_absorbed(
                     await _wait_started(harness, "a@m1")
                     # an added task set up and waiting for a slot does not
                     # stop the run from returning
-                    [c] = harness.queue.put([_task("c")], start="when_free")
+                    harness.queue.put([_task("c")], start="when_free")
                     await harness.setup_began_event("image").wait()
                     harness.finish_setup("image")
-                    await _wait_until(lambda: _waiting(c.task_id) == "slot")
+                    await _wait_until(lambda: harness.startup.setups.done(["image"]))
                     scope.cancel()
 
                 tg.start_soon(cancel_when_running)

@@ -18,7 +18,6 @@ from inspect_ai._control.eval_state import (
     register_eval,
 )
 from inspect_ai._control.limits import task_limits
-from inspect_ai._control.max_tasks import QueuedTask, TaskDispatcherStats
 from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai.model._generate_overrides import (
     MAX_GENERATE_CONFIG_OVERRIDE,
@@ -817,28 +816,6 @@ async def test_max_tasks_via_task_limits() -> None:
     assert max_tasks_override() == 7
 
 
-class _FakeDispatcher:
-    """A live dispatcher as the control channel sees it, with fixed counters."""
-
-    def __init__(self, counters: "TaskDispatcherStats") -> None:
-        self.counters = counters
-
-    def stats(self) -> "TaskDispatcherStats":
-        return self.counters
-
-    def queued_tasks(self) -> list["QueuedTask"]:
-        return []
-
-    def queued_task(self, task_id: str) -> "QueuedTask | None":
-        return None
-
-    def cancel_queued(self, task_id: str) -> None:
-        pass
-
-    def abandon_retry(self, task_id: str) -> None:
-        pass
-
-
 async def test_max_tasks_view_and_record_with_live_dispatcher() -> None:
     """The view reads the live dispatcher's counters.
 
@@ -853,7 +830,9 @@ async def test_max_tasks_view_and_record_with_live_dispatcher() -> None:
         remove_task_dispatcher,
     )
 
-    stats = _FakeDispatcher(TaskDispatcherStats(launch=10, in_flight=4, pending=6))
+    def stats() -> TaskDispatcherStats:
+        return TaskDispatcherStats(launch=10, in_flight=4, pending=6)
+
     register_task_dispatcher(stats)
     try:
         result = await process_limits()
@@ -918,7 +897,9 @@ async def test_max_tasks_noop_resend_records_nothing() -> None:
     # the override still lands (pinning the value) but no record is written
     await process_limits(max_tasks="clear")
 
-    stats = _FakeDispatcher(TaskDispatcherStats(launch=8, in_flight=0, pending=0))
+    def stats() -> TaskDispatcherStats:
+        return TaskDispatcherStats(launch=8, in_flight=0, pending=0)
+
     register_task_dispatcher(stats)
     try:
         count = process_config_update_count()

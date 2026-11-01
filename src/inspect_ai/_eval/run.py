@@ -48,11 +48,10 @@ if TYPE_CHECKING:
 from inspect_ai._control.eval_state import (
     clear_eval_retry_pending,
     mark_eval_retry_pending,
+    task_retry_abandoned,
 )
 from inspect_ai._control.max_tasks import (
-    QueuedTask,
     TaskDispatcherStats,
-    WaitingFor,
     effective_max_tasks,
     register_task_dispatcher,
     remove_task_dispatcher,
@@ -883,7 +882,7 @@ class TaskDispatcher:
                 init_task_screen(screen)
                 try:
                     add_dispatch_waker(self.queue.wake.set)
-                    register_task_dispatcher(self)
+                    register_task_dispatcher(self.stats)
                     # exceptions can escape when debug_errors is True
                     async with (
                         unwrap_exception_group("first" if self.debug_errors else None),
@@ -899,7 +898,7 @@ class TaskDispatcher:
                 finally:
                     self.tg = None
                     remove_dispatch_waker(self.queue.wake.set)
-                    remove_task_dispatcher(self)
+                    remove_task_dispatcher(self.stats)
                     clear_task_screen()
         finally:
             await self.end_unfinished()
@@ -928,6 +927,7 @@ class TaskDispatcher:
             if self.fatal is not None:
                 raise self.fatal
             self.take(self.queue.take("when_free"))
+            await self.drop_abandoned_retries()
             self.fill_slots(tg)
             if self.stopped:
                 break
@@ -1179,9 +1179,7 @@ class TaskDispatcher:
         """The run options of a record's next attempt."""
         assert record.configured is not None
         options = replace(
-            record.configured.options(logger),
-            setup_failure=record.setup_failure,
-            abandoned=lambda: record.abandoned,
+            record.configured.options(logger), setup_failure=record.setup_failure
         )
         if record.retry_source is not None:
             options = replace(options, sample_source=record.retry_source)
@@ -1213,7 +1211,7 @@ class TaskDispatcher:
             self.model_counts[record.model] -= 1
         if task_log is not None:
             record.log = task_log
-        if retry is None or record.abandoned:
+        if retry is None:
             record.end(None)
         else:
             record.state = TaskRecordState.QUEUED
@@ -1249,82 +1247,17 @@ class TaskDispatcher:
             pending=len(self.queue.unstarted()),
         )
 
-    def queued_tasks(self) -> list[QueuedTask]:
-        """The records waiting to start, for ``inspect ctl task queued``."""
-        return [self._queued_task(record) for record in self.queue.unstarted()]
+    async def drop_abandoned_retries(self) -> None:
+        """End the queued records whose retry a ctl drain/cancel abandoned.
 
-    def queued_task(self, task_id: str) -> QueuedTask | None:
-        """The record of ``task_id`` if it is waiting to start."""
-        record = self._find_queued(task_id)
-        return self._queued_task(record) if record is not None else None
-
-    def cancel_queued(self, task_id: str) -> None:
-        """End the record of ``task_id``, waiting to start, without running it.
-
-        It is not retried: a first attempt leaves no log, a retry keeps the
-        failed attempt's log. Its sandbox setup, if one is running, runs on
-        (and is cleaned up at the end of the run).
+        They do not run again and keep their failed attempt's log.
         """
-        record = self._find_queued(task_id)
-        if record is not None:
-            record.abandoned = True
-            self._remove_queued(record)
-
-    def abandon_retry(self, task_id: str) -> None:
-        """Stop a task from being retried (a ctl drain/cancel between attempts).
-
-        A queued retry ends at once, keeping the failed attempt's log; a
-        running attempt is not retried, and one that has not yet registered
-        with the control channel ends before it does.
-        """
-        record = self._find_queued(task_id) or next(
-            (r for r in self.queue.records if r.task_id == task_id), None
-        )
-        if record is None or record.state is TaskRecordState.ENDED:
-            return
-        record.abandoned = True
-        if record.state is TaskRecordState.QUEUED:
-            self._remove_queued(record)
-
-    def _queued_task(self, record: TaskRecord) -> QueuedTask:
-        return QueuedTask(
-            task_id=record.task_id,
-            task=record.task,
-            model=dispatch_model_name(record.model),
-            attempt=record.attempt,
-            waiting_for=self._waiting_for(record),
-        )
-
-    def _waiting_for(self, record: TaskRecord) -> WaitingFor:
-        if record.idx is None:
-            if record.start_policy == "after_batch":
-                return "after_batch"
-            return "next_tasks" if self.awaiting_source else "added"
-        if _dispatch_paused(record):
-            return "paused"
-        if record.setup_failure is not None:
-            return "failed setup"
-        if record.setup_keys is None:
-            return "sandbox resolution"
-        if not self.setups.done(record.setup_keys):
-            return "sandbox setup" if record in self.prefetched else "setup turn"
-        return "slot"
-
-    def _find_queued(self, task_id: str) -> TaskRecord | None:
-        return next((r for r in self.queue.unstarted() if r.task_id == task_id), None)
-
-    def _remove_queued(self, record: TaskRecord) -> None:
-        """End a record that will not start, releasing the logger it held."""
-        self.queue.remove(record)
-        self.prefetched.discard(record)
-        if record.logger is not None:
-            assert self.tg is not None
-            self.tg.start_soon(_release_queued, record.logger, record.attempt)
-        if record.idx is not None and record.attempt == 1:
-            # counted in the task display's total, but will never run
-            display().update_task_count(-1)
-        record.end(None)
-        self.queue.wake.set()
+        for record in [r for r in self.queue.queued if task_retry_abandoned(r.task_id)]:
+            self.queue.remove(record)
+            self.prefetched.discard(record)
+            if record.logger is not None:
+                await _release_queued(record.logger, record.attempt)
+            record.end(None)
 
 
 class Retry(NamedTuple):
@@ -1453,7 +1386,7 @@ def wants_retry(cancel_type: CancelType, task_log: EvalLog, record: TaskRecord) 
             retry = False
     if not retry or record.retries_remaining == 0:
         return False
-    if record.abandoned:
+    if task_retry_abandoned(record.task_id):
         log.info(
             f"Task '{name}' retry abandoned by operator — task ends with this "
             "attempt's error log"

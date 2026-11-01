@@ -5,12 +5,11 @@ from __future__ import annotations
 import json as json_lib
 import time
 from collections.abc import Callable
-from typing import Any, Literal, NamedTuple, cast
+from typing import Any, Literal, cast
 
 import click
 
 from inspect_ai._control.cancel import TaskCancelAction
-from inspect_ai._control.discovery import DiscoveredControlServer
 
 # Patch seam: tests monkeypatch functions on their defining module
 # (e.g. `inspect_ai._cli.ctl._http._request_json`), so cross-module
@@ -101,43 +100,6 @@ def task_list_command(as_json: bool, shards: bool) -> None:
 
 
 _mirror_list_options(task_group, task_list_command)
-
-
-@task_group.command("queued")
-@_json_option("an `{as_of, tasks}` envelope")
-def task_queued_command(as_json: bool) -> None:
-    """List tasks that have not started yet, across all live Inspect processes.
-
-    Each row is a task added to a run that is waiting to start (or a retry
-    waiting for its next attempt), with why it is waiting: `queue`,
-    `after_batch`, `next_tasks`, `paused`, `sandbox resolution`, `look-ahead`
-    (its sandbox setup is not requested yet), `sandbox setup`, `slot` or
-    `start`. These tasks have no log yet, so `inspect ctl task list` does not
-    show them. `inspect ctl task cancel <task-id>` and `drain` (given the
-    full task id) end such a task without running it.
-
-    Example: inspect ctl task queued --json
-    """
-    as_of = time.time()
-    rows = [
-        {**row, "pid": server.pid}
-        for server in _http.list_discovered_servers()
-        for row in _fetch_queued(server)
-    ]
-    if as_json:
-        _echo_raw(json_lib.dumps({"as_of": as_of, "tasks": rows}, indent=2))
-        return
-    if not rows:
-        _echo("No queued tasks.")
-        return
-    for row in rows:
-        _echo(
-            _sanitize_line(
-                f"{row['task_id']}  {row['task']}  {row['model']}  "
-                f"attempt {row['attempt']}  waiting for: {row['waiting_for']}  "
-                f"(pid {row['pid']})"
-            )
-        )
 
 
 @task_group.command("log-flush")
@@ -507,81 +469,6 @@ _TaskStopVerb = Literal["cancel", "drain"]
 """The task-stop directives sharing the cancel-stamp route family."""
 
 
-def _fetch_queued(server: DiscoveredControlServer) -> list[dict[str, Any]]:
-    """The rows of a server's ``GET /tasks/queued``."""
-    result = _http._request_json(
-        str(server.socket_path),
-        "/tasks/queued",
-        what=f"queued tasks of pid {server.pid}",
-        not_found="No queued-task listing on this process.",
-        not_found_missing_route=(
-            f"pid {server.pid} runs an inspect version without the queued-task listing."
-        ),
-        pid=server.pid,
-    )
-    rows: list[dict[str, Any]] = result["tasks"]
-    return rows
-
-
-def _matches(summary: dict[str, Any], task: str) -> bool:
-    """Whether a running task's row matches ``task`` (an id prefix or a name)."""
-    return str(summary["task_id"]).startswith(task) or summary["task"] == task
-
-
-class _QueuedTask(NamedTuple):
-    socket_path: str
-    pid: int
-    row: dict[str, Any]
-
-
-def _queued_task(
-    servers: list[DiscoveredControlServer], task_id: str
-) -> _QueuedTask | None:
-    """The task waiting to start whose full id is ``task_id``, if any.
-
-    Queued tasks have no log and are not in ``GET /tasks``, so the selector
-    resolution there cannot find them; only an exact task id is matched.
-    """
-    for server in servers:
-        for row in _fetch_queued(server):
-            if row["task_id"] == task_id:
-                return _QueuedTask(str(server.socket_path), server.pid, row)
-    return None
-
-
-def _stop_queued_task(
-    queued: _QueuedTask, verb: _TaskStopVerb, *, dry_run: bool, as_json: bool
-) -> None:
-    """Cancel or drain a task that has not started: it ends without running."""
-    task_id = queued.row["task_id"]
-    result = _http._request_json(
-        queued.socket_path,
-        f"/tasks/{task_id}/{verb}",
-        params={"dry_run": True} if dry_run else None,
-        what=f"{verb} of task {task_id}",
-        not_found=f"Task '{task_id}' is no longer waiting to start.",
-        mutate="post",
-        retry_mutation=True,
-        pid=queued.pid,
-    )
-    if as_json:
-        target = {"task_id": task_id, "task": queued.row["task"]}
-        _echo_raw(
-            json_lib.dumps(
-                _mutation_envelope(target, result, dry_run=dry_run), indent=2
-            )
-        )
-        return
-    outcome = "would end" if dry_run else "ends"
-    what = "had not started" if queued.row["attempt"] == 1 else "was waiting to retry"
-    _echo(
-        _sanitize_line(
-            f"Task '{queued.row['task']}' ({task_id}) {what}: it {outcome} "
-            "without running."
-        )
-    )
-
-
 def _run_task_stop_directive(
     task: str,
     *,
@@ -605,11 +492,6 @@ def _run_task_stop_directive(
     """
     servers = _http.list_discovered_servers()
     summaries = _fetch._fetch_summaries(servers).summaries
-    if not any(_matches(summary, task) for summary in summaries):
-        queued = _queued_task(servers, task)
-        if queued is not None:
-            _stop_queued_task(queued, verb, dry_run=dry_run, as_json=as_json)
-            return
     scope = _resolve_scope(
         servers, summaries, task, per_task_option=f"task {verb}", model=model
     )

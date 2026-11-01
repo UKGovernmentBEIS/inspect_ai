@@ -504,56 +504,6 @@ async def test_task_source_hears_a_task_whose_setup_failed() -> None:
     assert _statuses(logs) == completed
 
 
-@pytest.mark.parametrize("how", ["cancel", "drain"])
-async def test_operator_cancel_of_a_task_waiting_for_its_setup(
-    tmp_path: Path, lifecycle: _Lifecycle, how: str
-) -> None:
-    # a task cancelled or drained while its setup runs ends without starting:
-    # no log, no hooks, no retry. Its setup runs on, and is cleaned up at the
-    # end of the run
-    from inspect_ai._control.cancel import cancel_task, drain_task
-
-    in_setup = anyio.Event()
-    release = anyio.Event()
-    ended: list[Any] = []
-
-    async def init() -> None:
-        in_setup.set()
-        with anyio.fail_after(10):
-            await release.wait()
-
-    @solver
-    def add_and_cancel() -> Solver:
-        async def solve(state: TaskState, generate: Generate) -> TaskState:
-            [child] = enqueue_task(_boxed("child"), start="when_free")
-            with anyio.fail_after(10):
-                await in_setup.wait()
-            result = (cancel_task if how == "cancel" else drain_task)(child.task_id)
-            assert result is not None and result.get("not_started")
-            ended.append(await child.wait())
-            release.set()
-            return state
-
-        return solve
-
-    _box["task_init"] = init
-    with anyio.fail_after(30):
-        logs = await eval_async(
-            _plain("parent", add_and_cancel()),
-            model="mockllm/model",
-            max_tasks=2,
-            task_retry_attempts=2,
-        )
-    assert _statuses(logs) == [("parent", "success")]
-    assert ended == [None]
-    assert await _checked_attempts(lifecycle, tmp_path / "logs") == [
-        ("parent", "success")
-    ]
-    # the setup ran on, and was cleaned up at the end of the run
-    assert _box["inits"] == ["startup"]
-    assert _box["cleanups"] == ["_AddedSetupBox"]
-
-
 async def test_run_cancel_during_setup_beside_a_running_task(
     tmp_path: Path, lifecycle: _Lifecycle
 ) -> None:

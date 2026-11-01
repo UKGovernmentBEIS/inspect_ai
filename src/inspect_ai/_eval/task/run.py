@@ -25,6 +25,7 @@ from inspect_ai._control.eval_state import (
     set_sample_requeue,
     set_task_scoring,
     stable_task_id_for_eval,
+    task_retry_abandoned,
 )
 from inspect_ai._control.pause import PauseGatedSemaphore, dispatch_model_name
 from inspect_ai._display import (
@@ -670,9 +671,6 @@ class TaskRunOptions:
     """Sets the run's sandbox provider state, in the task of each sample a
     ``SampleSource`` adds (its config may have been set up after the task
     started)."""
-    abandoned: Callable[[], bool] = field(default=lambda: False)
-    """Whether an operator abandoned this attempt (a ctl drain/cancel of a
-    task between attempts) before it registered with the control channel."""
     input_media_policy: InputMediaPolicy = field(default="inline_only")
     """Authority granted to media references in the sliced seed dataset."""
 
@@ -924,7 +922,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             and task_cancel is not None
             and task_cancel.can_retry
             and task_cancel.cancel_type in (None, "retry")
-            and not options.abandoned()
+            and not task_retry_abandoned(logger.eval.task_id)
         ):
             mark_eval_retry_pending(logger.eval.eval_id)
         return await _finish_task_log(
@@ -957,6 +955,21 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         defer_fractional=sample_feed is not None,
     )
 
+    # a task drain/cancel abandoned this queued retry before it started: bail
+    # before anything that needs unwinding is set up — the paged-to-disk
+    # sample store below (its temp file is only unlinked by the close in the
+    # finally, which an abandoned attempt never reaches), the log_start
+    # destination header (a stray `started` log the retry-cleanup sweep would
+    # prefer over the errored attempt's log), and the display task row (an
+    # abandoned row with no result would become the last row for this task id
+    # and read as incomplete in the rich header for the rest of the run).
+    # Best-effort — awaits separate this from register_eval, so the
+    # pre-register check below remains the race-free backstop (and the
+    # dispatcher's discard removes any header a stamp landing in between
+    # still flushed).
+    if task_retry_abandoned(logger.eval.task_id):
+        raise TaskRetryAbandonedError()
+
     # seed a retry attempt's log from the prior attempt before anything that
     # needs unwinding is set up (a seed failure fails the attempt without a
     # log, and this precedes the paged sample store and the display row).
@@ -981,6 +994,14 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 for epoch in range(1, epochs + 1)
             },
         )
+        # the seed can run for minutes (a large prior copied from remote
+        # storage), so an abandon landing during it is re-checked here: the
+        # pre-register backstop below would still catch it, but only after
+        # the checkpoint copy and the log_start flush had uploaded the whole
+        # seeded log for the dispatcher's discard to remove. The seeded temp
+        # file itself is closed by that discard on either path.
+        if task_retry_abandoned(logger.eval.task_id):
+            raise TaskRetryAbandonedError()
 
     # this attempt's own eval checkpoints dir (None when checkpointing is
     # off or vetoed): the startup copy's destination, and where a retried
@@ -1169,19 +1190,20 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # between its up-front logger init and starting here
             await logger.record_inherited_config_updates()
 
-            # A task drain/cancel abandoned this retry while the attempt was
-            # starting (after the dispatcher started it, before this
+            # A task drain/cancel abandoned this queued retry while the
+            # attempt was starting (after the dispatcher's pick, before this
             # registration): bail before registering so the retry never runs
             # after the operator was told it was abandoned. Synchronous with
             # register_eval below (no awaits between), so on the eval's
-            # single loop an abandon lands either before this check (caught
+            # single loop a stamp lands either before this check (caught
             # here) or after registration (the ordinary running-task path).
             # Nothing with an end-side pairing has fired yet (the task-start
             # hook comes after register_eval); the display row opened above
-            # is left result-less, which is cosmetic. The finally below still
-            # runs, so the paged sample store's temp file is unlinked, and the
-            # dispatcher discards the log entry (and any header it flushed).
-            if options.abandoned():
+            # is left result-less, which is cosmetic and confined to this
+            # window by the earlier check above the disk paging. The finally
+            # below still runs, so the paged sample store's temp file is
+            # unlinked.
+            if task_retry_abandoned(logger.eval.task_id):
                 raise TaskRetryAbandonedError()
 
             # Register this eval with the process-level state aggregate

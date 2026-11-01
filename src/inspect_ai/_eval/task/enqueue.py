@@ -102,8 +102,6 @@ class TaskRecord:
     retry_source: EvalSampleSource | None = None
     """Where a retry attempt reads the completed samples of the failed one
     (``None``: the task's own sample source)."""
-    abandoned: bool = False
-    """An operator cancelled it before it started, or abandoned its retry."""
     log: EvalLog | None = None
     _ended: anyio.Event | None = field(default=None, repr=False)
 
