@@ -14,6 +14,7 @@ not await, so it needs no lock.
 """
 
 from collections import deque
+from contextvars import Context, copy_context
 from types import TracebackType
 from typing import (
     Awaitable,
@@ -80,6 +81,9 @@ class SetupCache(Generic[K]):
         self._waiting: deque[SetupJob[K]] = deque()
         self._working = False
         self._tg: TaskGroup | None = None
+        self._context: Context
+        """The context the worker starts from (taken on entry), not that of
+        whichever task first requested a job."""
         self.fatal: BaseException | None = None
         """A ``KeyboardInterrupt`` or ``SystemExit`` a setup raised. The worker
         does not raise it (asyncio would stop its event loop): the run's
@@ -88,6 +92,7 @@ class SetupCache(Generic[K]):
     async def __aenter__(self) -> "SetupCache[K]":
         self._tg = anyio.create_task_group()
         await self._tg.__aenter__()
+        self._context = copy_context()
         return self
 
     async def __aexit__(
@@ -133,7 +138,7 @@ class SetupCache(Generic[K]):
             self._waiting.append(job)
             if not self._working:
                 self._working = True
-                self._tg.start_soon(self._work)
+                self._context.copy().run(self._tg.start_soon, self._work)
         return job
 
     async def _work(self) -> None:
