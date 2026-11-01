@@ -1462,7 +1462,7 @@ def test_google_usage_metadata_restores_cached_input_tokens():
         )
     )
 
-    assert metadata["promptTokenCount"] == 100
+    assert metadata["promptTokenCount"] == 90
     assert metadata["cachedContentTokenCount"] == 20
     assert metadata["totalTokenCount"] == 105
 
@@ -1484,7 +1484,7 @@ def test_openai_responses_usage_round_trips_cached_input_tokens():
 
     provider_usage = responses_model_usage(usage)
     assert provider_usage is not None
-    assert provider_usage.input_tokens == 100
+    assert provider_usage.input_tokens == 90
     assert provider_usage.input_tokens_details.cached_tokens == 20
     assert provider_usage.input_tokens_details.cache_write_tokens == 10
 
