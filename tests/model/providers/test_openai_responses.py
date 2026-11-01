@@ -377,6 +377,43 @@ async def test_responses_api_null_model_falls_back_to_requested_model():
     assert output.model == "gpt-4o"
 
 
+async def test_responses_api_incomplete_content_filter_with_tool_calls():
+    """An incomplete response with content_filter preserves stop_reason and stop_details with tool calls."""
+    from openai.types.responses import Response, ResponseFunctionToolCall
+    from openai.types.responses.response import IncompleteDetails
+
+    tool_call = ResponseFunctionToolCall(
+        id="call_1",
+        call_id="call_1",
+        type="function_call",
+        name="test_tool",
+        arguments='{"arg": "value"}',
+    )
+    mock_response = Response.model_construct(
+        id="resp_content_filter_tool_calls",
+        created_at=0.0,
+        model="gpt-4o",
+        object="response",
+        output=[tool_call],
+        tools=[],
+        status="incomplete",
+        incomplete_details=IncompleteDetails(reason="content_filter"),
+    )
+
+    output, _ = await _generate_responses_with_mock(mock_response)
+    assert isinstance(output, ModelOutput)
+    assert output.stop_reason == "content_filter"
+    assert output.choices[0].stop_reason == "content_filter"
+    assert output.choices[0].stop_details is not None
+    assert output.choices[0].stop_details.type == "content_filter"
+    assert (
+        output.choices[0].stop_details.explanation
+        == "Response incomplete: content_filter"
+    )
+    assert output.message.tool_calls is not None
+    assert len(output.message.tool_calls) == 1
+
+
 async def _generate_responses_with_mock(
     mock_response,
     config: GenerateConfig = GenerateConfig(),
