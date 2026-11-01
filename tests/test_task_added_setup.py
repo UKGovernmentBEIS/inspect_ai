@@ -644,36 +644,23 @@ async def test_task_init_that_finishes_during_a_run_cancel_is_cleaned_up(
     assert _box["cleanups"] == ["_AddedSetupBox"]
 
 
-@pytest.mark.parametrize("retries", [0, 1])
-async def test_added_task_whose_log_cannot_be_created_ends_only_that_task(
-    monkeypatch: pytest.MonkeyPatch, retries: int
+async def test_added_task_whose_log_cannot_be_created_fails_the_run(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # an added task's logger is created when it starts; if that fails, the
-    # attempt ends with an errored log (as a failed log write does), its
-    # retries apply, and the run goes on
+    # an added task's logger is created when it starts; as for a log that
+    # cannot be created at the start of the run, that fails the run
     from inspect_ai._eval.task.log import TaskLogger
 
     init = TaskLogger.init
-    failed: list[str] = []
 
     async def failing_init(logger: TaskLogger) -> None:
-        if logger.eval.task == "child" and not failed:
-            failed.append(logger.eval.eval_id)
+        if logger.eval.task == "child":
             raise OSError("log directory unreachable")
         await init(logger)
 
     monkeypatch.setattr(TaskLogger, "init", failing_init)
-    with anyio.fail_after(30):
-        logs = await eval_async(
-            _parent(_plain("child")),
-            model="mockllm/model",
-            max_tasks=2,
-            task_retry_attempts=retries,
-        )
-    assert _statuses(logs) == [
-        ("parent", "success"),
-        ("child", "error" if retries == 0 else "success"),
-    ]
-    if retries == 0:
-        error = logs[1].error
-        assert error is not None and "log directory unreachable" in error.message
+    with (
+        anyio.fail_after(30),
+        pytest.raises(OSError, match="log directory unreachable"),
+    ):
+        await eval_async(_parent(_plain("child")), model="mockllm/model", max_tasks=2)

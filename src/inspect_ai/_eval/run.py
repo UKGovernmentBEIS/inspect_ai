@@ -82,7 +82,7 @@ from inspect_ai._util.exception import TaskRetryAbandonedError, TerminateTaskErr
 from inspect_ai._util.path import chdir
 from inspect_ai.approval._policy import ApprovalPolicy, config_from_approval_policies
 from inspect_ai.dataset._dataset import Dataset, Sample
-from inspect_ai.log import EvalConfig, EvalError, EvalLog
+from inspect_ai.log import EvalConfig, EvalLog
 from inspect_ai.log._file import EvalLogInfo
 from inspect_ai.log._log import eval_error
 from inspect_ai.log._recorders import Recorder
@@ -113,7 +113,7 @@ from .loader import (
     as_solver_spec,
     solver_from_spec,
 )
-from .task.enqueue import ConfiguredTask, RunQueue, TaskRecord, TaskRecordState
+from .task.enqueue import ConfiguredTask, RunQueue, TaskRecord
 from .task.log import TaskLogger
 from .task.resolved import ResolvedTask, resolved_task_names
 from .task.run import (
@@ -807,23 +807,19 @@ class TaskDispatcher:
     Starts the queue's records with bounded, model-balanced concurrency as
     they can start, and when nothing is queued or running adds more
     (``after_batch`` tasks, then the ``TaskSource``'s ``next_tasks()``) until
-    there is nothing left. A record can start once it is prepared (the
-    sandbox configs its samples use are resolved) and those configs are set
-    up by the run's :class:`SetupCache`: a record whose setup is still running
-    keeps its place but does not hold back a later one that can start. When
-    every setup is done (the seed, tasks without sandboxes, configs set up
-    earlier), records start in queue order.
+    there is nothing left. A record can start once it is prepared (its
+    sandbox configs resolved and their setups requested) and those setups
+    are done, or failed: a record whose setup is still running keeps its
+    place but does not hold back a later one. A record whose setup failed
+    starts like any other and its attempt ends with that error, so it has a
+    log, hooks and a ``TaskSource`` notification.
 
     A task whose log comes back with an error, or which requests a retry
     through its ``TaskCancel``, is retried (reusing its completed samples)
-    until its retries are exhausted; the retry goes to the back of the queue.
-    An abort is never retried and resolves to an errored log; a cancellation
-    of the run is never retried and ends dispatch.
-
-    A record whose sandboxes could not be prepared or set up starts at once,
-    beside the task slots: its attempt ends with that error right after it
-    starts, so it has a log, hooks and a ``TaskSource`` notification like any
-    failed task, and its retry sets up again.
+    until its retries are exhausted; the retry goes to the back of the queue
+    and is prepared again. An abort is never retried and resolves to an
+    errored log; a cancellation of the run is never retried and ends
+    dispatch.
     """
 
     def __init__(
@@ -842,16 +838,8 @@ class TaskDispatcher:
         """The launch ``max_tasks`` (``ctl config --max-tasks`` overrides it live)."""
         self.source = source
         self.debug_errors = debug_errors
-        self.running = 0
+        self.running: set[TaskRecord] = set()
         """Records with an attempt running."""
-        self.in_slots = 0
-        """Attempts running in task slots (counted against ``max_tasks``)."""
-        self.model_counts: Counter[Model] = Counter()
-        """Attempts running in task slots, per model. Keyed by the ``Model``
-        object, not its name: a provider may rewrite its model name mid-run
-        (e.g. vLLM resolving a LoRA spec on the first generate), and the
-        connection pool that balancing spreads load across belongs to the
-        instance."""
         self.stopped = False
         """An attempt ended cancelled (the run was cancelled): start no more."""
         self.source_done = False
@@ -861,14 +849,12 @@ class TaskDispatcher:
         self.unprepared: deque[TaskRecord] = deque()
         """Queued records not prepared yet, in queue order."""
         self.unprepared_wake = Wake()
-        self.tg: TaskGroup | None = None
-        """The task group attempts run in, while the run is in progress."""
 
     async def run(self, seed: list[TaskRecord]) -> list[EvalLog]:
         """Run the seed and every task added while the run is in progress.
 
-        Returns the logs in queue order: the seed, then added tasks in the
-        order the loop took them (a retry keeps its task's position).
+        Returns the logs in the order the loop took the tasks (a retry keeps
+        its task's position).
         """
         try:
             async with _run_task_screen(
@@ -883,7 +869,6 @@ class TaskDispatcher:
                         unwrap_exception_group("first" if self.debug_errors else None),
                         anyio.create_task_group() as tg,
                     ):
-                        self.tg = tg
                         preparer = anyio.CancelScope()
                         tg.start_soon(self.prepare_records, preparer)
                         reporter = _start_throughput_reporter(tg)
@@ -891,27 +876,15 @@ class TaskDispatcher:
                         preparer.cancel()
                         reporter.cancel()
                 finally:
-                    self.tg = None
                     remove_dispatch_waker(self.queue.wake.set)
                     remove_task_dispatcher(self.stats)
                     clear_task_screen()
         finally:
-            await self.end_unfinished()
+            # a cancelled or failed run: release the loggers of records that
+            # never started
+            for record in self.queue.close():
+                await _release_queued(record)
         return self.queue.results()
-
-    async def end_unfinished(self) -> None:
-        """End the records left when dispatch stops (a cancelled or failed run).
-
-        Records that never started release the loggers they held; those whose
-        attempt a failed run interrupted keep the log they have.
-        """
-        for record in self.queue.close():
-            if record.logger is not None:
-                await _release_queued(record.logger, record.attempt)
-            record.end(None)
-        for record in self.queue.records:
-            if record.state is not TaskRecordState.ENDED:
-                record.end(None)
 
     async def loop(self, tg: TaskGroup) -> None:
         """Start records while there is capacity; when idle, add more or finish."""
@@ -920,7 +893,8 @@ class TaskDispatcher:
                 raise self.setups.fatal
             self.take(self.queue.take("when_free"))
             await self.drop_abandoned_retries()
-            self.fill_slots(tg)
+            while (record := self.pick()) is not None:
+                self.start_attempt(tg, record)
             if self.stopped:
                 break
             if self.queue.queued or self.running:
@@ -943,9 +917,7 @@ class TaskDispatcher:
         In order: tasks added with ``when_free`` since this cycle took them (so
         nothing overtakes them), then ``after_batch`` tasks, then the
         ``TaskSource``'s next batch, asked until it first returns nothing.
-        Tasks added while ``next_tasks()`` runs follow its batch. A cancellation
-        of the run landing in ``next_tasks()`` leaves ``awaiting_source`` set,
-        so it propagates (see :meth:`absorbs_cancel`).
+        Tasks added while ``next_tasks()`` runs follow its batch.
         """
         records = self.queue.take("when_free") or self.queue.take("after_batch")
         if records:
@@ -959,7 +931,7 @@ class TaskDispatcher:
             else:
                 self.source_done = True
         else:
-            return not self.queue.close_if_idle(self.running)
+            return not self.queue.close_if_idle(len(self.running))
         return True
 
     def take(self, records: list[TaskRecord]) -> None:
@@ -1006,20 +978,16 @@ class TaskDispatcher:
         else:
             record.setups = self.setups.request(keys, self.queue.wake.set)
 
-    def fill_slots(self, tg: TaskGroup) -> None:
-        """Start records into free slots (:meth:`pick`)."""
-        while (record := self.pick()) is not None:
-            self.start_attempt(tg, record)
-
     def pick(self) -> TaskRecord | None:
-        """The next record to start (see :func:`pick_balanced`).
+        """The next record to start, if a task slot is free (see :func:`pick_balanced`).
 
         Candidates are the unpaused records that can start, ahead of the first
         one not prepared yet: preparing is quick and runs in queue order, so
         waiting for it keeps the start order deterministic when every setup is
-        done. A record whose setup is running is passed over, and one whose
-        setup failed needs no slot.
+        done.
         """
+        if len(self.running) >= effective_max_tasks(self.parallel):
+            return None
         candidates: list[TaskRecord] = []
         for record in self.queue.queued:
             if _dispatch_paused(record):
@@ -1028,86 +996,54 @@ class TaskDispatcher:
                 break
             if record.can_start:
                 candidates.append(record)
-        failed = next((r for r in candidates if r.failure is not None), None)
-        if failed is not None:
-            return failed
-        if self.in_slots >= effective_max_tasks(self.parallel):
-            return None
-        return pick_balanced(candidates, self.model_counts)
+        return pick_balanced(candidates, Counter(r.model for r in self.running))
 
     def start_attempt(self, tg: TaskGroup, record: TaskRecord) -> None:
         """Start a record's attempt, with the run's provider state."""
         self.queue.queued.remove(record)
-        record.state = TaskRecordState.RUNNING
-        in_slot = record.failure is None
-        if in_slot:
-            self.in_slots += 1
-            self.model_counts[record.model] += 1
-        self.running += 1
+        self.running.add(record)
         # tasks inherit the loop's context: the latest provider state
         self.startup.apply_provider_state()
-        tg.start_soon(self.run_one, record, in_slot)
+        tg.start_soon(self.run_one, record)
 
-    async def run_one(self, record: TaskRecord, in_slot: bool) -> None:
+    async def run_one(self, record: TaskRecord) -> None:
         """Run one attempt of a record, then settle it."""
+        assert record.configured is not None
         logger, record.logger = record.logger, None
         if logger is None:
-            assert record.configured is not None
             logger = record.configured.new_logger()
-        try:
-            await open_log(logger, retry=record.attempt > 1)
-        except Exception as ex:
-            if self.debug_errors:
-                raise
-            self.fail_attempt(record, in_slot, logger, ex)
-            return
+        await open_log(logger, retry=record.attempt > 1)
         options = self.attempt_options(record, logger)
-        retry = False
         try:
             run = await _run_task(options, can_retry=record.retries_remaining > 0)
-            if run.abandoned:
-                # its never-started log entry goes; the task keeps its previous
-                # attempt's errored log
-                await logger.discard()
-                self.settle(record, in_slot, None)
-                return
-            if run.log is None or run.log.status == "cancelled":
-                self.stopped = True
-            else:
-                retry = wants_retry(run.cancel_type, run.log, record)
         except BaseException:
             # the run failed or was cancelled while the attempt ran
             await _release_unfinished(logger)
             raise
+        retry = False
+        if run.abandoned:
+            # its never-started log entry goes; the task keeps its previous
+            # attempt's errored log
+            await logger.discard()
+        elif run.log is None or run.log.status == "cancelled":
+            self.stopped = True
+        else:
+            retry = wants_retry(run.cancel_type, run.log, record)
         if retry:
             assert run.log is not None
+            # until the retry registers, this attempt is the task's latest: the
+            # mark stops task-keyed directives reading it as finished
+            mark_eval_retry_pending(run.log.eval.eval_id)
+            record.retry_source = retry_sample_source(options, run.log)
             # reinitialised for a fresh log entry when the retry starts
             record.logger = logger
-            self.settle(record, in_slot, run.log, Retry(begin_retry(options, run.log)))
         else:
             if run.log is not None:
                 # unwind the task runner's retry-pending mark (a no-op if a
                 # cancel stamp during the log write already cleared it)
                 clear_eval_retry_pending(run.log.eval.eval_id)
             await _release_unfinished(logger)
-            self.settle(record, in_slot, run.log)
-
-    def fail_attempt(
-        self, record: TaskRecord, in_slot: bool, logger: TaskLogger, error: Exception
-    ) -> None:
-        """End an attempt whose log entry could not be created, as a failed write does.
-
-        It gets an errored header log (with no location: nothing was written)
-        and its retries apply.
-        """
-        log.error(
-            f"Task '{record.task}' could not create its log: {exception_message(error)}"
-        )
-        retry = record.retries_remaining > 0
-        if not retry and record.log is not None:
-            clear_eval_retry_pending(record.log.eval.eval_id)
-        header = logger.header_log(_eval_error(error))
-        self.settle(record, in_slot, header, Retry(None) if retry else None)
+        self.settle(record, run.log, retry)
 
     def attempt_options(self, record: TaskRecord, logger: TaskLogger) -> TaskRunOptions:
         """The run options of a record's next attempt."""
@@ -1125,63 +1061,41 @@ class TaskDispatcher:
             display_name=f"{record.task} (retry {record.attempt - 1} of {retries})",
         )
 
-    def settle(
-        self,
-        record: TaskRecord,
-        in_slot: bool,
-        task_log: EvalLog | None,
-        retry: "Retry | None" = None,
-    ) -> None:
+    def settle(self, record: TaskRecord, task_log: EvalLog | None, retry: bool) -> None:
         """Free an attempt's slot and record its log; queue its retry or end the record.
 
-        ``retry`` is ``None`` when the attempt is not retried. A retry goes to
-        the back of the queue, behind tasks added with ``when_free`` that the
-        loop has not taken yet, so also behind follow-ups the attempt's own
-        callbacks returned.
+        A retry goes to the back of the queue, behind tasks added with
+        ``when_free`` that the loop has not taken yet, so also behind
+        follow-ups the attempt's own callbacks returned.
         """
-        self.running -= 1
-        if in_slot:
-            self.in_slots -= 1
-            self.model_counts[record.model] -= 1
+        self.running.remove(record)
         if task_log is not None:
             record.log = task_log
-        if retry is None:
-            record.end(None)
-        else:
-            record.state = TaskRecordState.QUEUED
-            if retry.sample_source is not None:
-                record.retry_source = retry.sample_source
+        if retry:
             record.attempt += 1
             record.retries_remaining -= 1
-            # a setup failure is reported now; the retry sets up again
-            record.setup_failure = None
-            if record.setups is None:
-                self.unprepared.append(record)
-                self.unprepared_wake.set()
-            else:
-                record.setups = self.setups.request(
-                    [job.key for job in record.setups], self.queue.wake.set
-                )
+            record.setups = record.setup_failure = None
             self.take(self.queue.take("when_free"))
             self.queue.queued.append(record)
+            self.unprepared.append(record)
+            self.unprepared_wake.set()
             log.info(
                 f"Retrying task '{record.task}' ({record.model}) "
                 f"— {record.retries_remaining} retries remaining"
             )
+        else:
+            record.end()
         self.queue.wake.set()
 
     def stats(self) -> TaskDispatcherStats:
         """The view ``inspect ctl config`` shows of this dispatcher.
 
-        In flight counts the records running (a record whose setup failed runs
-        beside the slots, so this can briefly exceed ``max_tasks``). Pending
-        counts every record waiting to start, including added ones the loop
-        has not taken yet (``after_batch`` ones waiting for the run to be
-        idle).
+        Pending counts every record waiting to start, including added ones
+        the loop has not taken yet.
         """
         return TaskDispatcherStats(
             launch=self.parallel,
-            in_flight=self.running,
+            in_flight=len(self.running),
             pending=len(self.queue.unstarted()),
         )
 
@@ -1192,17 +1106,8 @@ class TaskDispatcher:
         """
         for record in [r for r in self.queue.queued if task_retry_abandoned(r.task_id)]:
             self.queue.remove(record)
-            if record.logger is not None:
-                await _release_queued(record.logger, record.attempt)
-            record.end(None)
-
-
-class Retry(NamedTuple):
-    """The retry of a failed attempt (see :meth:`TaskDispatcher.settle`)."""
-
-    sample_source: EvalSampleSource | None
-    """Where it reads the completed samples of the failed attempt (``None``:
-    where the failed attempt read them)."""
+            await _release_queued(record)
+            record.end()
 
 
 async def open_log(logger: TaskLogger, *, retry: bool) -> None:
@@ -1224,33 +1129,19 @@ async def open_log(logger: TaskLogger, *, retry: bool) -> None:
         raise
 
 
-def begin_retry(options: TaskRunOptions, failed: EvalLog) -> EvalSampleSource | None:
-    """Mark a failed attempt's retry as pending; where the retry reads its samples.
-
-    Until the retry registers its own EvalState, the failed attempt is the
-    task's latest: the mark stops task-keyed directives reading its
-    ``completed_at`` as "task finished" (the task runner set it ahead of its
-    log write; this confirms it).
-    """
-    mark_eval_retry_pending(failed.eval.eval_id)
-    return retry_sample_source(options, failed)
-
-
-async def _release_queued(logger: TaskLogger, attempt: int) -> None:
+async def _release_queued(record: TaskRecord) -> None:
     """Release the logger a record held for an attempt that will not start.
 
     A seed's first logger has written nothing and is discarded; a retry's is
     the failed attempt's, whose log stays.
     """
-    if attempt == 1:
+    if record.logger is None:
+        return
+    if record.attempt == 1:
         with anyio.CancelScope(shield=True):
-            await logger.discard()
+            await record.logger.discard()
     else:
-        await _release_unfinished(logger)
-
-
-def _eval_error(ex: BaseException) -> EvalError:
-    return eval_error(ex, type(ex), ex, ex.__traceback__)
+        await _release_unfinished(record.logger)
 
 
 async def _release_unfinished(logger: TaskLogger) -> None:

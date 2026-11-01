@@ -42,7 +42,6 @@ from inspect_ai._eval.task.enqueue import (
     ConfiguredTask,
     RunQueue,
     TaskRecord,
-    TaskRecordState,
     TaskStartPolicy,
 )
 from inspect_ai._eval.task.log import TaskLogger
@@ -403,7 +402,6 @@ def test_run_queue_default_start_in_task_source_run_is_when_free() -> None:
 def test_run_queue_put_creates_records_and_raises_on_invalid_tasks() -> None:
     harness = Harness([get_model("mockllm/m1")])
     [record] = harness.queue.put([_task("a")], start="when_free")
-    assert record.state is TaskRecordState.QUEUED and record.idx is None
     assert record.configured is not None
     # configured at put, so an invalid task raises to whoever added it, and
     # no record is created for any task of that call
@@ -438,10 +436,10 @@ def test_record_drops_its_task_when_it_ends() -> None:
     harness = Harness([get_model("mockllm/m1")])
     [record] = harness.queue.put([_task("a")])
     task = weakref.ref(cast(ConfiguredTask, record.configured).resolved.task)
-    record.end(None)
+    record.end()
     harness.queue.take("after_batch")
     gc.collect()
-    assert record.configured is None and record.state is TaskRecordState.ENDED
+    assert record.configured is None
     assert task() is None
 
 
@@ -1082,9 +1080,7 @@ async def test_finished_added_task_is_released_while_the_run_continues(
         del b
         await _wait_started(harness, "b@m1")
         harness.finish["b@m1"].set()
-        await _wait_until(
-            lambda: harness.queue.records[1].state is TaskRecordState.ENDED
-        )
+        await _wait_until(lambda: harness.queue.records[1].configured is None)
         gc.collect()
         assert refs[0]() is None
         harness.finish["a@m1"].set()

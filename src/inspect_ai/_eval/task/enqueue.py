@@ -17,7 +17,6 @@ from __future__ import annotations
 
 from contextvars import ContextVar, Token
 from dataclasses import dataclass
-from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Callable, Literal, get_args
 
 from inspect_ai._util._async import Wake
@@ -54,16 +53,6 @@ ConfigureFn = Callable[["list[ResolvedTask]"], "list[ConfiguredTask]"]
 """Configures tasks for the run, in the order given; raises on invalid ones."""
 
 
-class TaskRecordState(StrEnum):
-    QUEUED = "queued"
-    """Waiting to start: for its start policy, its sandbox setups, a slot, or
-    a pause to lift."""
-    RUNNING = "running"
-    """An attempt is running."""
-    ENDED = "ended"
-    """Its outcome is final."""
-
-
 @dataclass(eq=False)
 class TaskRecord:
     """A task of the run, from the moment it is added until it ends.
@@ -80,10 +69,6 @@ class TaskRecord:
     configured: ConfiguredTask | None
     retries_remaining: int
     """Retry attempts left after the current one."""
-    state: TaskRecordState = TaskRecordState.QUEUED
-    idx: int | None = None
-    """Position of the task's log in the logs the run returns (assigned when
-    the scheduling loop takes the record)."""
     logger: TaskLogger | None = None
     """The logger the record's next attempt uses: a seed task's first one
     (created when the seed starts up), or a failed attempt's, which its retry
@@ -92,7 +77,7 @@ class TaskRecord:
     """The setup jobs of the sandbox configs its selected samples use (``None``
     until the record is prepared)."""
     setup_failure: SetupFailure | None = None
-    """Why its sandbox configs could not be resolved."""
+    """Why its sandbox configs could not be resolved (when preparing it)."""
     attempt: int = 1
     retry_source: EvalSampleSource | None = None
     """Where a retry attempt reads the completed samples of the failed one
@@ -113,14 +98,12 @@ class TaskRecord:
             self.setups is not None and all(j.succeeded for j in self.setups)
         )
 
-    def end(self, log: EvalLog | None) -> None:
-        """End the record with its final log (``None`` if it never wrote one)."""
-        self.state = TaskRecordState.ENDED
-        if log is not None:
-            self.log = log
+    def end(self) -> None:
+        """Drop what only its attempts need: its task, logger and setups."""
         self.configured = None
         self.logger = None
         self.retry_source = None
+        self.setups = None
         self.setup_failure = None
 
 
@@ -157,7 +140,7 @@ class RunQueue:
         self.wake = Wake()
         """Set whenever the scheduling loop should look at the queue again."""
         self.records: list[TaskRecord] = []
-        """Every record the loop has taken, in ``idx`` order."""
+        """Every record the loop has taken, in the order it took them."""
         self._added: dict[TaskStartPolicy, list[TaskRecord]] = {
             "when_free": [],
             "after_batch": [],
@@ -240,9 +223,7 @@ class RunQueue:
 
     def enqueue(self, records: list[TaskRecord]) -> None:
         """Make records eligible to start, after those already queued."""
-        for record in records:
-            record.idx = len(self.records)
-            self.records.append(record)
+        self.records.extend(records)
         self.queued.extend(records)
 
     def unstarted(self) -> list[TaskRecord]:
@@ -281,7 +262,7 @@ class RunQueue:
         return unstarted
 
     def results(self) -> list[EvalLog]:
-        """The final log of each task that wrote one, in ``idx`` order."""
+        """The final log of each task that wrote one, in the order the loop took them."""
         return [record.log for record in self.records if record.log is not None]
 
 
