@@ -799,8 +799,8 @@ class TaskDispatcher:
     A task whose log comes back with an error, or which requests a retry
     through its ``TaskCancel``, is retried (reusing its completed samples)
     until its retries are exhausted; the retry goes to the back of the queue
-    and sets up again whatever failed. An abort is never retried and resolves to an
-    errored log; a cancellation of the run is never retried and ends
+    and sets up again whatever failed. An abort is never retried and resolves
+    to an errored log; a cancellation of the run is never retried and ends
     dispatch.
     """
 
@@ -1001,17 +1001,19 @@ class TaskDispatcher:
             # the run failed or was cancelled while the attempt ran
             await _release_unfinished(logger)
             raise
-        retry = False
         if run.abandoned:
             # its never-started log entry goes; the task keeps its previous
             # attempt's errored log
             await logger.discard()
-        elif run.log is None or run.log.status == "cancelled":
+            self.settle(record, None, retry=False)
+            return
+        assert run.log is not None
+        retry = False
+        if run.log.status == "cancelled":
             self.stopped = True
         else:
             retry = wants_retry(run.cancel_type, run.log, record)
         if retry:
-            assert run.log is not None
             # until the retry registers, this attempt is the task's latest: the
             # mark stops task-keyed directives reading it as finished
             mark_eval_retry_pending(run.log.eval.eval_id)
@@ -1019,10 +1021,9 @@ class TaskDispatcher:
             # reinitialised for a fresh log entry when the retry starts
             record.logger = logger
         else:
-            if run.log is not None:
-                # unwind the task runner's retry-pending mark (a no-op if a
-                # cancel stamp during the log write already cleared it)
-                clear_eval_retry_pending(run.log.eval.eval_id)
+            # unwind the task runner's retry-pending mark (a no-op if a cancel
+            # stamp during the log write already cleared it)
+            clear_eval_retry_pending(run.log.eval.eval_id)
             await _release_unfinished(logger)
         self.settle(record, run.log, retry)
 
