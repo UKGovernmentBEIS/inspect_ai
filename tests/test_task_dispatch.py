@@ -204,8 +204,14 @@ class Harness:
                 for resolved in resolve_tasks(tasks, {}, model, None, None, None)
             ]
 
-        self.queue = RunQueue("run", resolve, default_start)
-        self.queue.open(self.configure, retries=retries, sequence_order=parallel == 1)
+        self.queue = RunQueue(
+            "run",
+            resolve,
+            self.configure,
+            retries=retries,
+            sequence_order=parallel == 1,
+            default_start=default_start,
+        )
         self.startup = FakeStartup(self)
 
     def configure(self, group: list[ResolvedTask]) -> list[ConfiguredTask]:
@@ -419,8 +425,14 @@ def test_run_queue_close_refuses_put_and_returns_unstarted() -> None:
         resolved.append(tasks)
         return _resolve(["x"], [m1])
 
-    queue = RunQueue("run", resolve, "when_free")
-    queue.open(harness.configure, retries=0, sequence_order=False)
+    queue = RunQueue(
+        "run",
+        resolve,
+        harness.configure,
+        retries=0,
+        sequence_order=False,
+        default_start="when_free",
+    )
     [added] = queue.put([_task("w")])
     [queued] = queue.add(_resolve(["ready"], [m1]))
     queue.enqueue([queued])

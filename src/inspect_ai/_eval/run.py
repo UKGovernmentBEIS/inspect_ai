@@ -113,7 +113,14 @@ from .loader import (
     as_solver_spec,
     solver_from_spec,
 )
-from .task.enqueue import ConfiguredTask, RunQueue, TaskRecord
+from .task.enqueue import (
+    ConfiguredTask,
+    ResolveTasksFn,
+    RunQueue,
+    TaskRecord,
+    clear_run_queue,
+    register_run_queue,
+)
 from .task.log import TaskLogger
 from .task.resolved import ResolvedTask, resolved_task_names
 from .task.run import (
@@ -148,7 +155,7 @@ async def eval_run(
     eval_checkpoint: CheckpointConfig | None,
     recorder: Recorder,
     header_only: bool,
-    queue: RunQueue,
+    resolve_added_tasks: ResolveTasksFn,
     epochs_reducer: list[ScoreReducer] | None = None,
     approval: list[ApprovalPolicy] | None = None,
     review: list[ReviewPolicy] | None = None,
@@ -166,11 +173,14 @@ async def eval_run(
     eval_set_tasks: list[str] | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
-    """Run the tasks of one eval run, including the tasks added to ``queue``.
+    """Run the tasks of one eval run, including the tasks added while it runs.
 
-    Starts up the seed tasks, runs the scheduling loop (:class:`TaskDispatcher`)
-    until no task is left, then shuts the run's sandbox environments down once.
-    ``parallel`` is the launch limit on concurrent (task × model) units.
+    Makes the run's :class:`RunQueue` the active one (so ``enqueue_task``
+    reaches it), starts up the seed tasks, runs the scheduling loop
+    (:class:`TaskDispatcher`) until no task is left, then shuts the run's
+    sandbox environments down once. ``parallel`` is the launch limit on
+    concurrent (task × model) units; ``resolve_added_tasks`` resolves added
+    tasks against the run's models and config.
     """
     if isinstance(solver, Solver):
         eval_solver, eval_solver_spec = solver, as_solver_spec(solver)
@@ -203,18 +213,22 @@ async def eval_run(
         task_source=task_source,
         generate_config=kwargs,
     )
+    sandboxes = SandboxManager(
+        eval_config, cleanup=eval_config.sandbox_cleanup is not False
+    )
+    startup = TaskStartup(settings, sandboxes, task_names=list(eval_set_tasks or []))
+    queue = RunQueue(
+        run_id,
+        resolve_added_tasks,
+        startup.configure,
+        retries=task_retry_attempts or 0,
+        sequence_order=parallel == 1,
+        default_start="when_free" if task_source else "after_batch",
+    )
+    token = register_run_queue(queue)
     try:
-        async with SandboxManager(
-            eval_config, cleanup=eval_config.sandbox_cleanup is not False
-        ) as sandboxes:
-            startup = TaskStartup(
-                settings, sandboxes, task_names=list(eval_set_tasks or [])
-            )
-            queue.open(
-                startup.configure,
-                retries=task_retry_attempts or 0,
-                sequence_order=parallel == 1,
-            )
+        # entered with the queue active, so code a setup runs can add tasks
+        async with sandboxes:
             seed = queue.add(tasks)
             queue.enqueue(seed)
             await startup.start_seed(seed)
@@ -229,6 +243,9 @@ async def eval_run(
             )
             return await dispatcher.run(seed)
     finally:
+        # a task that outlives the run keeps the queue in its context
+        queue.close()
+        clear_run_queue(token)
         # clean up cached S3 sessions to prevent "Unclosed connector" warnings
         try:
             await cleanup_s3_sessions()

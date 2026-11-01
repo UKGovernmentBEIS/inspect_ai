@@ -282,7 +282,7 @@ def test_enqueue_task_outside_run_raises() -> None:
 def test_enqueue_task_from_hooks(tmp_path: Path) -> None:
     # hooks Inspect calls during a task can add tasks. Run-level hooks cannot:
     # on_run_start runs before the run accepts additions and on_run_end after
-    # it has finished dispatching, so enqueue_task raises there
+    # it has ended, so enqueue_task raises there
     errors: dict[str, str] = {}
 
     def try_enqueue(hook: str, name: str) -> None:
@@ -323,8 +323,8 @@ def test_enqueue_task_from_hooks(tmp_path: Path) -> None:
         "parent",
     ]
     assert sorted(errors) == ["on_run_end", "on_run_start"]
-    assert "can only be called while an eval is running" in errors["on_run_start"]
-    assert "finished dispatching" in errors["on_run_end"]
+    for hook in ("on_run_start", "on_run_end"):
+        assert "can only be called while an eval is running" in errors[hook]
 
 
 @pytest.mark.parametrize("ending", ["cancelled", "failed_before_dispatch"])
@@ -332,9 +332,8 @@ async def test_enqueue_task_from_run_end_hook_of_ended_run_raises(
     monkeypatch: pytest.MonkeyPatch, ending: str
 ) -> None:
     # a run cancelled while a task runs (the cancellation is absorbed, so the
-    # run returns its logs), or one that fails after registering its queue
-    # but before dispatching, has stopped starting tasks: on_run_end cannot
-    # add one
+    # run returns its logs), or one that fails before dispatching, has ended:
+    # on_run_end cannot add a task
     errors: list[str] = []
 
     @hooks(name="enqueue_from_run_end", description="Adds a task at run end.")
@@ -375,7 +374,7 @@ async def test_enqueue_task_from_run_end_hook_of_ended_run_raises(
         del _registry["hooks:enqueue_from_run_end"]
 
     assert len(errors) == 1
-    assert "finished dispatching" in errors[0]
+    assert "can only be called while an eval is running" in errors[0]
 
 
 def test_enqueue_task_invalid_start_raises_before_resolving() -> None:
@@ -385,7 +384,14 @@ def test_enqueue_task_invalid_start_raises_before_resolving() -> None:
         resolved.append(tasks)
         return []
 
-    queue = RunQueue("run", resolve, "after_batch")
+    queue = RunQueue(
+        "run",
+        resolve,
+        lambda group: [],
+        retries=0,
+        sequence_order=False,
+        default_start="after_batch",
+    )
     token = register_run_queue(queue)
     try:
         with pytest.raises(ValueError, match="start must be .* not 'now'"):
@@ -809,8 +815,8 @@ async def test_enqueue_task_from_late_throttle_trailing_call_keeps_eval_result(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     # A throttle trailing call that adds a task fires in run-level background
-    # work after the run has finished dispatching (here, scheduled from
-    # on_run_end, which runs after that), so enqueue_task raises there. The
+    # work after the run has ended (here, scheduled from on_run_end, which
+    # runs after that), so enqueue_task raises there. The
     # throttle logs that error: the eval still returns its logs and on_run_end
     # runs once.
     fired = anyio.Event()
@@ -840,7 +846,7 @@ async def test_enqueue_task_from_late_throttle_trailing_call_keeps_eval_result(
 
     assert [(log.eval.task, log.status) for log in logs] == [("parent", "success")]
     assert run_end_calls == 1
-    assert "finished dispatching" in caplog.text
+    assert "can only be called while an eval is running" in caplog.text
 
 
 @pytest.mark.parametrize("sandbox", [None, "local"])

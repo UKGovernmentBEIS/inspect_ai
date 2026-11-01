@@ -122,7 +122,14 @@ class RunQueue:
     """
 
     def __init__(
-        self, run_id: str, resolve: ResolveTasksFn, default_start: TaskStartPolicy
+        self,
+        run_id: str,
+        resolve: ResolveTasksFn,
+        configure: ConfigureFn,
+        *,
+        retries: int,
+        sequence_order: bool,
+        default_start: TaskStartPolicy,
     ) -> None:
         """Create the queue of one run.
 
@@ -130,12 +137,21 @@ class RunQueue:
             run_id: The run's id (``enqueue_task`` checks callers against it).
             resolve: Resolves tasks against the run's models and config (also
                 used by the loop for a ``TaskSource``'s ``next_tasks()``).
+            configure: Configures tasks for the run.
+            retries: How many times a task that fails is retried.
+            sequence_order: Order the tasks of each addition by sequence (at a
+                launch limit of 1: the scheduling loop breaks ties in queue
+                order, so all of a task's model fan-outs then run before the
+                next task's).
             default_start: The policy of ``put(start=None)``: ``when_free`` in a
                 ``TaskSource`` run, ``after_batch`` otherwise.
         """
         self.run_id = run_id
         self.resolve = resolve
         self.default_start = default_start
+        self._configure = configure
+        self._retries = retries
+        self._sequence_order = sequence_order
         self.queued: list[TaskRecord] = []
         self.wake = Wake()
         """Set whenever the scheduling loop should look at the queue again."""
@@ -145,36 +161,16 @@ class RunQueue:
             "when_free": [],
             "after_batch": [],
         }
-        self._configure: ConfigureFn | None = None
-        self._retries = 0
-        self._sequence_order = False
         self._closed = False
-
-    def open(
-        self, configure: ConfigureFn, *, retries: int, sequence_order: bool
-    ) -> None:
-        """Start accepting tasks.
-
-        Args:
-            configure: Configures tasks for the run.
-            retries: How many times a task that fails is retried.
-            sequence_order: Order the tasks of each addition by sequence (at a
-                launch limit of 1: the scheduling loop breaks ties in queue
-                order, so all of a task's model fan-outs then run before the
-                next task's).
-        """
-        self._configure = configure
-        self._retries = retries
-        self._sequence_order = sequence_order
 
     def add(self, resolved: list[ResolvedTask]) -> list[TaskRecord]:
         """Configure resolved tasks; their records, in start order (not yet filed).
 
         Raises:
-            RuntimeError: If the run is not accepting tasks (yet, or any more).
+            RuntimeError: If the run has finished dispatching tasks.
             PrerequisiteError: If a task can't run with the run's settings.
         """
-        configure = self._accepting()
+        self._check_open()
         if self._sequence_order:
             resolved = sorted(resolved, key=lambda t: t.sequence)
         return [
@@ -185,20 +181,15 @@ class RunQueue:
                 configured=configured,
                 retries_remaining=self._retries,
             )
-            for configured in configure(resolved)
+            for configured in self._configure(resolved)
         ]
 
-    def _accepting(self) -> ConfigureFn:
+    def _check_open(self) -> None:
         if self._closed:
             raise RuntimeError(
                 f"enqueue_task(): run '{self.run_id}' has finished dispatching "
                 "tasks, so an added task would never run."
             )
-        if self._configure is None:
-            raise RuntimeError(
-                f"enqueue_task(): run '{self.run_id}' has not started accepting tasks."
-            )
-        return self._configure
 
     def put(
         self, tasks: Tasks, *, start: TaskStartPolicy | None = None
@@ -209,7 +200,7 @@ class RunQueue:
         is created for any of the tasks then. Returns the records in start
         order.
         """
-        self._accepting()
+        self._check_open()
         records = self.add(self.resolve(tasks))
         policy = start or self.default_start
         self._added[policy].extend(records)

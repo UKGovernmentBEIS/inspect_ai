@@ -4,7 +4,7 @@ import logging
 import math
 import os
 from contextlib import nullcontext
-from contextvars import Token, copy_context
+from contextvars import copy_context
 from dataclasses import replace
 from pathlib import Path
 from typing import Any, Literal, Sequence, cast
@@ -114,7 +114,6 @@ from .context import init_eval_context
 from .loader import resolve_task_file_sandbox, resolve_task_source, resolve_tasks
 from .run import eval_run
 from .task import Epochs, PreviousTask, Task, TaskSource
-from .task.enqueue import RunQueue, clear_run_queue, register_run_queue
 from .task.images import InputMediaPolicy
 from .task.resolved import ResolvedTask, resolved_model_names
 from .task.tasks import Tasks
@@ -808,8 +807,6 @@ async def _eval_async_inner(
 
     run_id = uuid()
 
-    queue: RunQueue | None = None
-    queue_token: Token[RunQueue | None] | None = None
     trio_cancelled = False
     try:
         # intialise eval
@@ -1044,10 +1041,9 @@ async def _eval_async_inner(
         if ctl.keep_alive:
             request_keep_alive()
 
-        # Register the run's queue so tasks can be added to this run while it's
-        # in progress — imperatively via `enqueue_task`, or declaratively via a
-        # `TaskSource`'s `next_tasks()`. Both resolve against the run's models /
-        # config; the run's dispatcher below runs them under this run_id.
+        # Tasks added while the run is in progress — imperatively via
+        # `enqueue_task`, or declaratively via a `TaskSource`'s `next_tasks()` —
+        # resolve against the run's models / config and run under this run_id.
         resolve_added_tasks = functools.partial(
             _resolve_enqueued_tasks,
             models=model,
@@ -1058,12 +1054,6 @@ async def _eval_async_inner(
             checkpoint=checkpoint,
             cost_limit=cost_limit,
         )
-        queue = RunQueue(
-            run_id,
-            resolve_added_tasks,
-            default_start="when_free" if task_source is not None else "after_batch",
-        )
-        queue_token = register_run_queue(queue)
 
         # Imported here rather than at module level: the ACP server pulls in
         # `acp.schema`, whose pydantic models are the single largest cost of
@@ -1104,7 +1094,7 @@ async def _eval_async_inner(
                         eval_checkpoint=checkpoint,
                         recorder=recorder,
                         header_only=log_header_only,
-                        queue=queue,
+                        resolve_added_tasks=resolve_added_tasks,
                         epochs_reducer=epochs_reducer,
                         approval=approval,
                         review=review,
@@ -1162,10 +1152,6 @@ async def _eval_async_inner(
                 await emit_run_end(eval_set_id, run_id, EvalLogs([]))
 
     except BaseException as e:
-        # a run that fails before its dispatcher starts (which closes the
-        # queue itself) also stops accepting additions before on_run_end
-        if queue is not None:
-            queue.close()
         # a second Ctrl-C while finishing a cancelled trio run does not start
         # the hooks again
         if not trio_cancelled:
@@ -1175,8 +1161,6 @@ async def _eval_async_inner(
 
     finally:
         _eval_async_running = False
-        if queue_token is not None:
-            clear_run_queue(queue_token)
         # Clear the process-level EvalState registry and the retry-loop
         # config overrides at the run boundary (after any keep-alive park) —
         # but only for a standalone eval. When nested in an eval-set
