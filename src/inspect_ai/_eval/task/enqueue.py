@@ -18,7 +18,8 @@ from __future__ import annotations
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any, Callable, Literal, get_args
+from types import TracebackType
+from typing import TYPE_CHECKING, Any, Callable, Literal, cast, get_args
 
 import anyio
 
@@ -93,6 +94,9 @@ class TaskRecord:
     """The sandbox configs its selected samples use (``None`` until resolved)."""
     start_error: Exception | None = None
     """Why its sandboxes could not be made ready; its next attempt ends with it."""
+    start_error_traceback: TracebackType | None = None
+    """``start_error``'s traceback when it was raised (several records can
+    share one error object, and each attempt raises it again)."""
     attempt: int = 1
     retry_source: EvalSampleSource | None = None
     """Where a retry attempt reads the completed samples of the failed one."""
@@ -103,6 +107,11 @@ class TaskRecord:
     log: EvalLog | None = None
     _ended: anyio.Event | None = field(default=None, repr=False)
 
+    def fail_start(self, error: Exception | None) -> None:
+        """Set (or clear) why the record's next attempt cannot start."""
+        self.start_error = error
+        self.start_error_traceback = error.__traceback__ if error else None
+
     def end(self, log: EvalLog | None) -> None:
         """End the record with its final log (``None`` if it never wrote one)."""
         self.state = TaskState.ENDED
@@ -112,7 +121,7 @@ class TaskRecord:
         self.logger = None
         self.retry_source = None
         self.plan = None
-        self.start_error = None
+        self.fail_start(None)
         if self._ended is not None:
             self._ended.set()
 
@@ -243,10 +252,16 @@ class RunQueue:
         """
         self.loop_thread.check("enqueue_task()")
         self._accepting()
-        records = self.add(self.resolve(tasks))
+        resolved = self.resolve(tasks)
+        records = self.add(resolved)
         self._added[start or self.default_start].extend(records)
         self.wake.set()
-        return records
+        # in the order the tasks were given (they start in sequence order)
+        position = {id(task): i for i, task in enumerate(resolved)}
+        return sorted(
+            records,
+            key=lambda r: position[id(cast(ConfiguredTask, r.configured).resolved)],
+        )
 
     def take(self, start: TaskStartPolicy) -> list[TaskRecord]:
         """Remove and return the added records waiting with this start policy."""
@@ -285,16 +300,20 @@ class RunQueue:
         self._closed = True
         return True
 
-    def close(self) -> list[TaskRecord]:
+    def close(self) -> list[TaskLogger]:
         """Refuse further additions and end every record that has not started.
 
-        Returns the ended records, so the caller can discard their loggers.
+        Returns the loggers those records held (a seed task's first logger),
+        which the caller discards.
         """
         self._closed = True
         unstarted = [*self.queued, *self.added()]
         self.queued = []
         self._added = {"when_free": [], "after_batch": []}
-        return unstarted
+        loggers = [r.logger for r in unstarted if r.logger is not None]
+        for record in unstarted:
+            record.end(None)
+        return loggers
 
     def results(self) -> list[EvalLog]:
         """The final log of each task that wrote one, in ``idx`` order."""

@@ -13,7 +13,11 @@ run once. :class:`SetupCache` keeps one job per key ("single flight"):
 - A failure is given to the job's current waiters, then forgotten: the job is
   removed, so the next request for the key starts a fresh one.
 - Nothing a waiter does cancels a job: a waiter that is cancelled just stops
-  waiting. Leaving the cache cancels the jobs still in progress.
+  waiting. When the cache is left normally, jobs still waiting for a permit
+  are dropped and jobs in progress run to the end (cutting a setup short can
+  leave what it made behind, with no cleanup). Only the run's cancellation
+  (:meth:`cancel_running`, or leaving the cache with an error) cuts a setup
+  short.
 - An optional timeout turns a hung setup into an ordinary failure.
 
 The cache is loop-confined, like the rest of the scheduler (see
@@ -22,7 +26,7 @@ and its bookkeeping does not await.
 
 A ``KeyboardInterrupt`` or ``SystemExit`` raised by a setup is not a failure
 of it: it is re-raised in the job's waiters (so it reaches the run where they
-wait), or, if it had none, when the cache is left. The run's cancellation is
+wait), and when the cache is left unless it is already what the run raises. The run's cancellation is
 not given to waiters. A ``CancelledError`` raised by a setup while the run is
 not cancelled is a failure (a ``RuntimeError``).
 """
@@ -52,9 +56,8 @@ class _Job(Generic[K]):
         self.succeeded = False
         self.error: BaseException | None = None
         self.on_done: list[SetupDone] = []
-        self.waiters = 0
-        """Coroutines waiting in :meth:`SetupCache.ensure`."""
         self.granted = anyio.Event()
+        self.scope = anyio.CancelScope()
 
 
 class _Permits:
@@ -75,6 +78,12 @@ class _Permits:
             job.granted.set()
         else:
             self._waiting.append(job)
+
+    def drop_waiting(self) -> None:
+        """Let the jobs waiting for a permit go without one (see ``closed``)."""
+        waiting, self._waiting = self._waiting, []
+        for job in waiting:
+            job.granted.set()
 
     def done(self, job: _Job[Any]) -> None:
         """Give back the job's permit, or its place in the queue for one."""
@@ -117,6 +126,7 @@ class SetupCache(Generic[K]):
         self._exit_stack = AsyncExitStack()
         self._tg: TaskGroup | None = None
         self._fatal: BaseException | None = None
+        self._closed = False
         self._context = copy_context()
 
     async def __aenter__(self) -> "SetupCache[K]":
@@ -132,17 +142,19 @@ class SetupCache(Generic[K]):
         tb: TracebackType | None,
     ) -> bool | None:
         assert self._tg is not None
-        # the run is closing: setups still in progress are no longer wanted
-        # (when it is failing, the task group cancels them itself)
-        if exc_type is None:
-            self._tg.cancel_scope.cancel()
+        # jobs not yet started are no longer wanted; on a normal exit those in
+        # progress run to the end (when the run is failing, the task group
+        # cancels them)
+        self._closed = True
+        self._permits.drop_waiting()
         self._tg = None
         # jobs raise no Exception, so a group holds only the host's own error:
         # raise it as it was raised
         with unwrap_exception_group("single"):
             suppress = await self._exit_stack.__aexit__(exc_type, exc, tb)
-        if self._fatal is not None:
-            raise self._fatal
+        fatal = self._fatal
+        if fatal is not None and not _contains(exc, fatal):
+            raise fatal
         return suppress
 
     def done(self, keys: Iterable[K]) -> bool:
@@ -163,6 +175,11 @@ class SetupCache(Generic[K]):
             if not job.succeeded:
                 job.on_done.append(on_done)
 
+    def cancel_running(self) -> None:
+        """Cancel the setups in progress (the run was cancelled)."""
+        for job in self._jobs.values():
+            job.scope.cancel()
+
     def need(self, keys: Iterable[K]) -> None:
         """Mark the jobs of keys as needed now (see the module docstring)."""
         for key in keys:
@@ -178,17 +195,11 @@ class SetupCache(Generic[K]):
         """
         jobs = [self._join(key, needed=True) for key in keys]
         for job in jobs:
-            job.waiters += 1
-        try:
-            for job in jobs:
-                await job.done.wait()
-                if job.error is not None:
-                    raise job.error
-                if not job.succeeded:
-                    raise RuntimeError("The sandbox setup was cancelled.")
-        finally:
-            for job in jobs:
-                job.waiters -= 1
+            await job.done.wait()
+            if job.error is not None:
+                raise job.error
+            if not job.succeeded:
+                raise RuntimeError("The sandbox setup was cancelled.")
 
     def _join(self, key: K, needed: bool) -> _Job[K]:
         job = self._jobs.get(key)
@@ -204,19 +215,23 @@ class SetupCache(Generic[K]):
 
     async def _run(self, job: _Job[K]) -> None:
         try:
-            try:
-                await job.granted.wait()
-                with (
-                    anyio.fail_after(self._timeout)
-                    if self._timeout is not None
-                    else nullcontext()
-                ):
-                    await self._setup(job.key)
-            finally:
-                self._permits.done(job)
-            job.succeeded = True
-            for on_done in job.on_done:
-                on_done(None)
+            await job.granted.wait()
+            if self._closed:
+                # dropped before it started (holds no permit)
+                return
+            with job.scope:
+                try:
+                    with (
+                        anyio.fail_after(self._timeout)
+                        if self._timeout is not None
+                        else nullcontext()
+                    ):
+                        await self._setup(job.key)
+                finally:
+                    self._permits.done(job)
+                job.succeeded = True
+                for on_done in job.on_done:
+                    on_done(None)
         except anyio.get_cancelled_exc_class() as ex:
             if anyio.current_effective_deadline() == -math.inf:
                 raise
@@ -225,21 +240,37 @@ class SetupCache(Generic[K]):
         except Exception as ex:
             self._fail(job, ex)
         except BaseException as ex:
-            # KeyboardInterrupt, SystemExit: given to the waiters rather than
-            # raised in this task (asyncio stops its event loop on these when
-            # a task raises them)
-            if not job.on_done and job.waiters == 0:
+            # KeyboardInterrupt, SystemExit: given to the waiters, and raised
+            # when the cache is left, rather than raised in this task (asyncio
+            # stops its event loop on these when a task raises them)
+            if self._fatal is None:
                 self._fatal = ex
             self._fail(job, ex)
         finally:
-            if not job.succeeded and self._jobs.get(job.key) is job:
-                del self._jobs[job.key]
-            job.on_done = []
-            job.done.set()
+            self._forget(job)
+
+    def _forget(self, job: _Job[K]) -> None:
+        """End a job's bookkeeping; a job that did not succeed is forgotten."""
+        if not job.succeeded:
+            self._forget_key(job)
+        job.on_done = []
+        job.done.set()
 
     def _fail(self, job: _Job[K], error: BaseException) -> None:
         job.error = error
-        if self._jobs.get(job.key) is job:
-            del self._jobs[job.key]
+        self._forget_key(job)
         for on_done in job.on_done:
             on_done(error)
+
+    def _forget_key(self, job: _Job[K]) -> None:
+        if self._jobs.get(job.key) is job:
+            del self._jobs[job.key]
+
+
+def _contains(exc: BaseException | None, target: BaseException) -> bool:
+    """Whether ``exc`` is ``target`` or an exception group holding it."""
+    if exc is target:
+        return True
+    if isinstance(exc, BaseExceptionGroup):
+        return exc.subgroup(lambda e: e is target) is not None
+    return False

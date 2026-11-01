@@ -433,7 +433,8 @@ def test_run_queue_close_refuses_put_and_returns_unstarted() -> None:
     [added] = queue.put([_task("w")])
     [queued] = queue.add(_resolve(["ready"], [m1]))
     queue.enqueue([queued])
-    assert queue.close() == [queued, added]
+    assert queue.close() == []
+    assert queued.state is added.state is RecordState.ENDED
     assert queue.queued == [] and queue.take("when_free") == []
     with pytest.raises(RuntimeError, match="run 'run' has finished dispatching"):
         queue.put([_task("late")])
@@ -1032,6 +1033,8 @@ async def test_cancelling_a_queued_task_ends_it_without_running(
         # a repeat finds nothing to cancel
         assert cancel_task(b.task_id) is None
         harness.finish["a@m1"].set()
+        # the setup b asked for runs on (to be cleaned up at the end)
+        harness.finish_setup("image")
 
     async with anyio.create_task_group() as tg:
         tg.start_soon(drive)
@@ -1039,7 +1042,7 @@ async def test_cancelling_a_queued_task_ends_it_without_running(
     assert ended == [None]
     assert [log.eval.task for log in logs] == ["a@m1"]
     # the setup a cancelled task asked for was not cancelled with it
-    assert "setup image" in harness.events and _starts(harness) == ["a@m1"]
+    assert "setup image done" in harness.events and _starts(harness) == ["a@m1"]
 
 
 async def test_abandoning_a_queued_retry_keeps_the_failed_attempts_log(
@@ -1093,6 +1096,58 @@ async def test_finished_added_task_is_released_while_the_run_continues(
     async with anyio.create_task_group() as tg:
         tg.start_soon(drive)
         await harness.run(_resolve(["a"], [m1]))
+
+
+async def test_control_server_lists_and_cancels_queued_tasks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # `GET /tasks/queued` lists records waiting to start (they are not in
+    # `GET /tasks`, whose rows are running tasks with logs), and the task
+    # cancel route ends one without running it
+    import httpx
+
+    from inspect_ai._control import server as server_mod
+
+    m1 = get_model("mockllm/m1")
+    harness = Harness([m1], parallel=1)
+    _install(monkeypatch, harness)
+    harness.keys["b@m1"] = ["image"]
+
+    async def drive() -> None:
+        await _wait_started(harness, "a@m1")
+        [b] = harness.queue.put([_task("b")], start="when_free")
+        [c] = harness.queue.put([_task("c")], start="after_batch")
+        await harness.setup_began_event("image").wait()
+        app = server_mod.ControlServer(run_id="test")._build_app()
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://localhost"
+        ) as client:
+            queued = (await client.get("/tasks/queued")).json()["tasks"]
+            assert [(t["task_id"], t["waiting_for"]) for t in queued] == [
+                (b.task_id, "sandbox setup"),
+                (c.task_id, "after_batch"),
+            ]
+            assert queued[0]["task"] == "b" and queued[0]["attempt"] == 1
+            running = (await client.get("/tasks")).json()
+            assert b.task_id not in {row.get("task_id") for row in running}
+            result = (await client.post(f"/tasks/{b.task_id}/cancel")).json()
+            assert result["not_started"] is True and result["eval_id"] == ""
+            score = await client.post(
+                f"/tasks/{c.task_id}/cancel", params={"action": "score"}
+            )
+            assert score.status_code == 409
+            queued = (await client.get("/tasks/queued")).json()["tasks"]
+            assert [t["task_id"] for t in queued] == [c.task_id]
+        harness.finish_setup("image")
+        harness.finish["a@m1"].set()
+        await _wait_started(harness, "c@m1")
+        harness.finish["c@m1"].set()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(drive)
+        logs = await harness.run(_resolve(["a"], [m1]))
+    assert [log.eval.task for log in logs] == ["a@m1", "c@m1"]
 
 
 # ------------------------------------------------------------- cancellation

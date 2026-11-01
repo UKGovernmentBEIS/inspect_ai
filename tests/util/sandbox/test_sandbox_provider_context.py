@@ -510,8 +510,9 @@ async def test_task_source_batch(provider: str, max_tasks: int, via: str) -> Non
 @pytest.mark.parametrize("provider", PROVIDERS)
 async def test_sample_source_late_task_init(provider: str) -> None:
     # A task whose seed dataset is empty gets its first sample from a
-    # SampleSource; its config's task_init then runs late, inside the running
-    # task (SandboxManager.start_for_samples), not in the run's context.
+    # SampleSource; its config's task_init then runs late, while the task
+    # runs (SandboxManager.start_for_samples). The sample it added starts with
+    # the run's provider state, which now includes that task_init's.
 
     class _Src(SampleSource):
         def __init__(self) -> None:
@@ -533,14 +534,11 @@ async def test_sample_source_late_task_init(provider: str) -> None:
         model="mockllm/model",
     )
     _ok(logs)
-    if provider == "lifecycle_fake":
-        assert "MISSING" not in [e.state for e in EVENTS]
-    else:
-        # the state set by the late task_init does not reach the sample (it
-        # runs in a sibling task), but the cleanup sees it
-        assert sample_state(provider, "sourced/1") == "MISSING"
+    assert "MISSING" not in [e.state for e in EVENTS]
+    assert cleanup_covers(provider) == all_samples(provider)
+    if provider != "lifecycle_fake":
+        assert sample_state(provider, "sourced/1") == init_of(provider, "S")
         assert seen(provider, "task_cleanup") == seen(provider, "task_init")
-        assert cleanup_covers(provider) == set()
 
 
 # --- what task_cleanup sees besides provider state -----------------------------

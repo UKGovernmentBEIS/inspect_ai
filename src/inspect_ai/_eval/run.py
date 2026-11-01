@@ -290,6 +290,7 @@ class TaskSettings:
         resolved_task: ResolvedTask,
         task_names: list[str],
         startup_sandboxes: "SampleSandboxStartup | None",
+        added_sample_state: Callable[[], None] | None,
     ) -> ConfiguredTask:
         """Configure one task of the run: validate it and resolve its settings.
 
@@ -307,6 +308,8 @@ class TaskSettings:
                 selectors).
             startup_sandboxes: Starts the sandboxes of samples a
                 ``SampleSource`` adds while the task runs.
+            added_sample_state: Sets the run's provider state in such a
+                sample's task.
 
         Raises:
             PrerequisiteError: If the task can't run with these settings.
@@ -398,6 +401,7 @@ class TaskSettings:
                 initial_role_usage=resolved_task.initial_role_usage,
                 task_source=self.task_source,
                 startup_sandboxes=startup_sandboxes,
+                added_sample_state=added_sample_state,
                 input_media_policy=resolved_task.input_media_policy,
             )
 
@@ -526,7 +530,12 @@ class TaskStartup:
             ensure_sample_ids(resolved_task.task.dataset)
         configured = [
             self.settings.configure(
-                t, [*self.task_names, *names], self._startup_sandboxes(t)
+                t,
+                [*self.task_names, *names],
+                self._startup_sandboxes(t),
+                self.sandboxes.apply_provider_state
+                if self.settings.run_samples and t.task.sample_source is not None
+                else None,
             )
             for t in group
         ]
@@ -880,6 +889,8 @@ class TaskDispatcher:
         """Queued records whose setups have been requested for this attempt."""
         self.fatal: BaseException | None = None
         """A ``KeyboardInterrupt`` or ``SystemExit`` raised by a setup."""
+        self.tg: TaskGroup | None = None
+        """The task group attempts run in, while the run is in progress."""
 
     async def run(self, seed: list[TaskRecord]) -> list[EvalLog]:
         """Run the seed and every task added while the run is in progress.
@@ -887,9 +898,16 @@ class TaskDispatcher:
         Returns the logs in queue order: the seed, then added tasks in the
         order the loop took them (a retry keeps its task's position).
         """
+        absorbed = False
+
+        def absorb_cancel() -> bool:
+            nonlocal absorbed
+            absorbed = self.absorbs_cancel()
+            return absorbed
+
         try:
             async with _run_task_screen(
-                task_specs(seed), absorb_cancel=self.absorbs_cancel
+                task_specs(seed), absorb_cancel=absorb_cancel
             ) as screen:
                 init_task_screen(screen)
                 try:
@@ -900,6 +918,7 @@ class TaskDispatcher:
                         unwrap_exception_group("first" if self.debug_errors else None),
                         anyio.create_task_group() as tg,
                     ):
+                        self.tg = tg
                         background = anyio.CancelScope()
                         tg.start_soon(self.resolve_records, background)
                         reporter = _start_throughput_reporter(tg)
@@ -907,16 +926,18 @@ class TaskDispatcher:
                         background.cancel()
                         reporter.cancel()
                 finally:
+                    self.tg = None
                     remove_dispatch_waker(self.queue.wake.set)
                     remove_task_dispatcher(self)
                     clear_task_screen()
         finally:
+            if absorbed:
+                # the run was cancelled: setups still running are cut short
+                self.setups.cancel_running()
             # records that never started (a cancelled or failed run)
             with anyio.CancelScope(shield=True):
-                for record in self.queue.close():
-                    if record.logger is not None:
-                        await record.logger.discard()
-                    record.end(None)
+                for logger in self.queue.close():
+                    await logger.discard()
             # and those whose attempt a failed run interrupted
             for record in self.queue.records:
                 if record.state is not TaskState.ENDED:
@@ -941,13 +962,20 @@ class TaskDispatcher:
         """Whether a cancellation of the run returns the logs so far (Ctrl-C).
 
         It does unless the loop is awaiting ``next_tasks()`` or a queued
-        record is still being readied (its sandbox configs resolved and set
-        up): those tasks have no log yet, so a run that returned normally
-        would look complete. Records waiting only for a slot (or a pause)
-        end without a log, as unstarted tasks always have.
+        record is being readied (its sandbox configs are being resolved, or
+        their setup was requested and is not done): that work is interrupted
+        and those tasks have no log yet, so a run that returned normally would
+        look complete. Records waiting for a slot, a pause or their turn for
+        setup end without a log, as unstarted tasks always have.
         """
-        return not self.awaiting_source and all(
-            self.ready(record) for record in self.queue.queued
+        return not self.awaiting_source and not any(
+            self.readying(record) for record in self.queue.queued
+        )
+
+    def readying(self, record: TaskRecord) -> bool:
+        """Whether a queued record's sandbox configs are being resolved or set up."""
+        return not self.ready(record) and (
+            record.setup_keys is None or record in self.requested
         )
 
     async def add_when_idle(self) -> bool:
@@ -1005,7 +1033,8 @@ class TaskDispatcher:
                 except Exception as ex:
                     if self.debug_errors:
                         raise
-                    record.start_error = ex
+                    if record.state is TaskState.QUEUED:
+                        record.fail_start(ex)
                 else:
                     record.setup_keys = keys
                 self.queue.wake.set()
@@ -1029,13 +1058,18 @@ class TaskDispatcher:
         self.request_setups()
 
     def request_setups(self) -> None:
-        window = self.queue.queued[: effective_max_tasks(self.parallel)]
+        """Request the setups of the next ``max_tasks`` queued records that can start.
+
+        Paused records and records whose setup failed are passed over. The
+        oldest record that is not ready has its setups marked as needed now.
+        """
+        window = [
+            r
+            for r in self.queue.queued
+            if r.start_error is None and not _dispatch_paused(r)
+        ][: effective_max_tasks(self.parallel)]
         for record in window:
-            if (
-                record.setup_keys is not None
-                and record.start_error is None
-                and record not in self.requested
-            ):
+            if record.setup_keys is not None and record not in self.requested:
                 self.requested.add(record)
                 self.setups.prefetch(
                     record.setup_keys, functools.partial(self.setup_done, record)
@@ -1052,8 +1086,12 @@ class TaskDispatcher:
         """
         if error is not None and not isinstance(error, Exception):
             self.fatal = error
-        elif record.state is TaskState.QUEUED and record.start_error is None:
-            record.start_error = error
+        elif (
+            error is not None
+            and record.state is TaskState.QUEUED
+            and record.start_error is None
+        ):
+            record.fail_start(error)
         self.queue.wake.set()
 
     def pick(self) -> TaskRecord | None:
@@ -1148,6 +1186,7 @@ class TaskDispatcher:
         options = replace(
             record.configured.options(logger),
             start_error=record.start_error,
+            start_error_traceback=record.start_error_traceback,
             abandoned=lambda: record.abandoned,
         )
         if record.attempt == 1:
@@ -1192,7 +1231,7 @@ class TaskDispatcher:
             record.attempt += 1
             record.retries_remaining -= 1
             # a setup or resolution failure is reported now; the retry tries again
-            record.start_error = None
+            record.fail_start(None)
             if record.setup_keys is None:
                 self.unresolved.append(record)
                 self.unresolved_wake.set()
@@ -1249,15 +1288,17 @@ class TaskDispatcher:
         return "slot"
 
     def cancel_queued(self, task_id: str) -> bool:
-        """End a record that has not started its first attempt; whether there was one.
+        """End a record that is waiting to start; whether there was one.
 
-        It ends without a log and is not retried. Its sandbox setup, if one is
-        running, runs on (its cleanup runs at the end of the run).
+        It ends without running and is not retried: a first attempt leaves no
+        log, a retry keeps the failed attempt's log. Its sandbox setup, if
+        one is running, runs on (and is cleaned up at the end of the run).
         """
         self.queue.loop_thread.check("Cancelling a queued task")
         record = self._find_queued(task_id)
-        if record is None or record.attempt > 1:
+        if record is None:
             return False
+        record.abandoned = True
         self._remove_queued(record)
         return True
 
@@ -1289,10 +1330,23 @@ class TaskDispatcher:
         )
 
     def _remove_queued(self, record: TaskRecord) -> None:
+        """End a record that will not start, releasing its seed logger."""
         self.queue.remove(record)
         self.requested.discard(record)
+        if record.logger is not None:
+            assert self.tg is not None
+            self.tg.start_soon(_discard, record.logger)
+        if record.idx is not None:
+            # it was counted in the task display's total
+            display().update_task_count(-1)
         record.end(None)
         self.queue.wake.set()
+
+
+async def _discard(logger: TaskLogger) -> None:
+    """Discard a logger whose attempt never started."""
+    with anyio.CancelScope(shield=True):
+        await logger.discard()
 
 
 class Retry(NamedTuple):
@@ -1591,7 +1645,9 @@ class SandboxManager:
         sandboxenvs = list(sandboxenvs)
         if self.setups.done(sandboxenvs):
             return
-        await self.setups.ensure(sandboxenvs)
+        # one at a time, so none starts after a failure
+        for sandboxenv in sandboxenvs:
+            await self.setups.ensure([sandboxenv])
         # space above the task display ("none" has none and must keep stdout
         # machine-readable, e.g. --json)
         if display_type() != "none":
@@ -1606,11 +1662,10 @@ class SandboxManager:
         when the seed dataset was empty) gets the same `task_init` setup as
         seed configs (up-front image build/pull, fail-fast validation, a
         registered `task_cleanup`) before the sample runs; configs already set
-        up are a no-op. Then the run's provider state is set in the calling
-        task, so the samples it adds see it.
+        up are a no-op. Each added sample starts with the run's provider state
+        as it is then (see ``TaskRunOptions.added_sample_state``).
         """
         await self.setups.ensure(await self.resolve(task, samples))
-        self.apply_provider_state()
 
     def selected_samples(
         self, task: ResolvedTask, task_names: list[str]

@@ -194,9 +194,11 @@ async def test_ensure_raises_the_first_failure() -> None:
             tg.start_soon(finish)
             with pytest.raises(RuntimeError, match="no docker"):
                 await cache.ensure(["a", "b"])
-    # 'b' started once 'a' freed the permit; leaving the cache cancelled it
+        # 'b' started once 'a' freed the permit, and runs to the end
+        await script.began_event("b").wait()
+        script.finish("b")
     assert script.started == ["a", "b"]
-    assert script.running == set()
+    assert cache.done(["b"])
 
 
 async def test_a_cancelled_waiter_does_not_cancel_the_job() -> None:
@@ -212,23 +214,53 @@ async def test_a_cancelled_waiter_does_not_cancel_the_job() -> None:
     assert script.started == ["a"]
 
 
-async def test_leaving_the_cache_cancels_jobs_in_progress() -> None:
+async def test_leaving_the_cache_lets_jobs_in_progress_finish_and_drops_the_rest() -> (
+    None
+):
+    # a setup cut short could leave what it made behind with no cleanup, so a
+    # normal exit waits for it; a job not yet started is dropped
     script = Script()
-    cancelled = anyio.Event()
+    left = anyio.Event()
+
+    async def leave() -> None:
+        async with SetupCache(script) as cache:
+            cache.prefetch(["a", "b"], lambda ex: None)
+            await script.began_event("a").wait()
+        left.set()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(leave)
+        await _settle()
+        assert not left.is_set()
+        script.finish("a")
+    assert left.is_set()
+    assert script.started == ["a"]
+    with pytest.raises(RuntimeError, match="ended"):
+        SetupCache(script).prefetch(["c"], lambda ex: None)
+
+
+async def test_cancel_running_and_leaving_with_an_error_cut_setups_short() -> None:
+    cancelled: list[str] = []
 
     async def setup(key: str) -> None:
         try:
             await anyio.sleep_forever()
         finally:
-            cancelled.set()
+            cancelled.append(key)
 
     async with SetupCache(setup) as cache:
         cache.prefetch(["a"], lambda ex: None)
         await _settle()
-    assert cancelled.is_set()
-    with pytest.raises(RuntimeError, match="ended"):
-        cache.prefetch(["b"], lambda ex: None)
-    del script
+        # the run was cancelled
+        cache.cancel_running()
+    assert cancelled == ["a"]
+
+    with pytest.raises(ValueError, match="run failed"):
+        async with SetupCache(setup) as cache:
+            cache.prefetch(["b"], lambda ex: None)
+            await _settle()
+            raise ValueError("run failed")
+    assert cancelled == ["a", "b"]
 
 
 async def test_timeout_is_an_ordinary_failure() -> None:
@@ -248,20 +280,23 @@ class _Fatal(BaseException):
     """
 
 
-async def test_base_exceptions_reach_waiters_unchanged() -> None:
+async def test_base_exceptions_reach_waiters_and_the_run() -> None:
     async def setup(key: str) -> None:
         raise _Fatal
 
     told: list[BaseException | None] = []
-    async with SetupCache(setup) as cache:
-        with pytest.raises(_Fatal):
-            await cache.ensure(["a"])
-        cache.prefetch(["b"], told.append)
-        await _settle()
-        assert len(told) == 1 and isinstance(told[0], _Fatal)
-        # not remembered: the next request runs the setup again
-        with pytest.raises(_Fatal):
-            await cache.ensure(["a"])
+    # also raised when the cache is left (the run ends with it), as the run
+    # here went on
+    with pytest.raises(_Fatal):
+        async with SetupCache(setup) as cache:
+            with pytest.raises(_Fatal):
+                await cache.ensure(["a"])
+            cache.prefetch(["b"], told.append)
+            await _settle()
+            assert len(told) == 1 and isinstance(told[0], _Fatal)
+            # not remembered: the next request runs the setup again
+            with pytest.raises(_Fatal):
+                await cache.ensure(["a"])
 
 
 async def test_base_exception_with_no_waiter_is_raised_on_exit() -> None:
