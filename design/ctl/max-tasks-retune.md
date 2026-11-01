@@ -43,7 +43,7 @@ an immutable local the whole way down:
    `None`; conversation display forces 1. `eval_set` defaults it to
    `max(len(models), 10)` before calling `eval()`. Finally
    `parallel = max_tasks if max_tasks is not None else 1`.
-2. **Queue shape** (`GroupStartup` in `_eval/run.py`): every run has one
+2. **Queue shape** (`RunQueue` in `_eval/task/enqueue.py`): every run has one
    `eval_run` and one dispatcher, which takes the seed and every group of
    tasks added during the run. With `parallel == 1` each group is ordered
    sequence-major (all of task N's model fan-outs before task N+1), which —
@@ -54,7 +54,7 @@ an immutable local the whole way down:
    see "The `parallel == 1` batch shape" under edge cases.)
 3. **Dispatch** (`TaskDispatcher` in `_eval/run.py`): the
    dispatcher admits work with `while not cancelled and in_flight <
-   effective_max_tasks(parallel) and ready:`, where `parallel` is the
+   effective_max_tasks(parallel)`, where `parallel` is the
    launch limit — no semaphore, so the override below is read at the point
    of use.
 
@@ -120,7 +120,7 @@ from):
   `fire_dispatch_wakers()`.
 - A **live-dispatcher handle registry**: `TaskDispatcher`
   registers a handle at start (and removes it in its `finally`) exposing
-  its launch `parallel`, current `in_flight`, and `len(queue.ready)` — the
+  its launch `parallel`, current `in_flight`, and pending count — the
   view's data source. Registered/removed alongside the existing
   `add_dispatch_waker(wake.set)` call, so lifetime management is already
   correct there.

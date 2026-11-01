@@ -184,10 +184,9 @@ class SandboxEnvironment(abc.ABC):
     How Inspect calls a provider's task-level methods:
 
     - ``task_init`` runs once per sandbox configuration per run (again only
-      if it failed), when a task that uses the configuration is about to
-      start: for the initial tasks, before any task starts; for a task added
-      while the run is in progress, while other tasks run. Calls for different
-      configurations run one at a time.
+      if it failed): for the initial tasks, before any task starts; for a
+      task added while the run is in progress, once it is queued, while other
+      tasks run. Calls for different configurations run one at a time.
     - ``task_init`` runs in a task of its own. The ``ContextVar`` values it
       sets are recorded: every task Inspect starts afterwards sees them (the
       latest value of each, whichever configuration set it), and the

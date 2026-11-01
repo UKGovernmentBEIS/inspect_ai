@@ -2,15 +2,12 @@
 
 A run can have tasks added to it while it is in progress, under the same
 ``run_id``. Each run has one :class:`RunQueue`, which holds a
-:class:`TaskRecord` for every task from the moment it is added until it ends:
-the seed tasks, tasks added with :func:`enqueue_task` or returned by a
-:class:`~inspect_ai.TaskSource` callback, and each ``next_tasks()`` batch. The
-run's scheduling loop (``TaskDispatcher`` in ``inspect_ai._eval.run``) starts
-them. The active queue lives in a ``ContextVar``, so it is scoped to the run's
-async context (and propagates to its child tasks); :func:`enqueue_task`
-validates an optional ``run_id`` against it so a stray or late caller can't add
-to the wrong run, and the queue refuses additions once the run has finished
-starting tasks.
+:class:`TaskRecord` for every task: the seed, tasks added with
+:func:`enqueue_task` or returned by a :class:`~inspect_ai.TaskSource`
+callback, and each ``next_tasks()`` batch. The run's scheduling loop
+(``TaskDispatcher`` in ``inspect_ai._eval.run``) starts them. The active queue
+lives in a ``ContextVar``, so it is scoped to the run's async context; the
+queue refuses additions once the run has finished starting tasks.
 """
 
 from __future__ import annotations
@@ -111,14 +108,10 @@ class RunQueue:
     """The records of every task of one eval run.
 
     ``queued`` holds the records that may start, in start order; the
-    scheduling loop owns it (it picks records and puts retries back at the
-    end), and the queue holds it so that :meth:`close` can end the records
-    that will never start. Added records wait by start policy until the loop
-    takes them: ``when_free`` ones on each of its cycles, ``after_batch`` ones
-    once nothing is queued or running.
-
-    Used only from the eval's event loop, and no method awaits, so no method
-    interleaves with another and the queue needs no lock.
+    scheduling loop picks from it and puts retries back at its end. Added
+    records wait by start policy until the loop takes them: ``when_free``
+    ones on each of its cycles, ``after_batch`` ones once nothing is queued
+    or running. No method awaits, so the queue needs no lock.
     """
 
     def __init__(
@@ -221,14 +214,6 @@ class RunQueue:
         """Every record waiting to start: queued, then added and not yet taken."""
         return [*self.queued, *self._added["when_free"], *self._added["after_batch"]]
 
-    def remove(self, record: TaskRecord) -> None:
-        """Remove a record that has not started from the queue (it will not start)."""
-        if record in self.queued:
-            self.queued.remove(record)
-        for added in self._added.values():
-            if record in added:
-                added.remove(record)
-
     def close_if_idle(self, running: int) -> bool:
         """Refuse further additions if nothing is left to start; whether it closed.
 
@@ -243,8 +228,7 @@ class RunQueue:
     def close(self) -> list[TaskRecord]:
         """Refuse further additions and empty the queue.
 
-        Returns the records that will now never start; the caller releases
-        their loggers and ends them.
+        Returns the records that will now never start.
         """
         self._closed = True
         unstarted = self.unstarted()
@@ -288,32 +272,23 @@ def enqueue_task(
 
     The tasks run in this process under the current run's ``run_id`` (a fresh
     ``eval_id``/``task_id`` each, their own log files), resolved against the
-    run's models and config. They start under the run's ``max_tasks`` limit,
-    which is re-read live, so raising it with ``inspect ctl config --max-tasks``
-    lets a waiting task start. A task whose sandboxes are still being set up
-    does not hold back a later task that is ready to start.
+    run's models and config, under the run's ``max_tasks`` limit (which
+    ``inspect ctl config --max-tasks`` changes live). A task whose sandboxes
+    are still being set up does not hold back a later task that is ready. If
+    an added task's sandbox setup fails, that task ends with an error log
+    (its retries apply) and the run continues.
 
-    A task that waits for a ``"when_free"`` task it added needs a free slot for
-    it: ``eval()`` defaults ``max_tasks`` to the number of models (1 for a
-    single model), so without a higher ``max_tasks`` the added task never
-    starts and the run hangs. The same applies to ``eval_set()`` in selection
-    mode (an external runner running the tasks it selected): ``eval_set()``'s
-    own default (at least 10) is not applied there, so ``eval()``'s default
-    is used unless the selection or the ``eval_set()`` call sets ``max_tasks``.
-
-    In a :class:`~inspect_ai.TaskSource` run, tasks added while
-    ``next_tasks()`` runs start only after it returns, so ``next_tasks()``
-    must not wait for them.
+    A task that waits for a ``"when_free"`` task it added needs a free slot
+    for it: ``eval()`` defaults ``max_tasks`` to the number of models, so
+    without a higher ``max_tasks`` the run hangs. In a
+    :class:`~inspect_ai.TaskSource` run, tasks added while ``next_tasks()``
+    runs start only after it returns, so ``next_tasks()`` must not wait for
+    them.
 
     Call from the eval's event loop, not from another thread: from a solver,
-    scorer or tool, a ``TaskSource``'s ``next_tasks()`` or completion
-    callbacks, or a hook Inspect calls during a task (such as
-    ``on_task_start`` or ``on_sample_end``). It raises in ``on_run_start``,
-    which runs before the run accepts added tasks, and in ``on_run_end``,
-    which runs after the run has finished starting tasks.
-
-    If an added task's sandbox setup fails, the task ends with an error log
-    (its retries apply), and the run continues.
+    scorer or tool, a ``TaskSource`` callback, or a hook Inspect calls during
+    a task (such as ``on_task_start`` or ``on_sample_end``). It raises in
+    ``on_run_start`` and ``on_run_end``, which run outside the run.
 
     Args:
         tasks: A ``Task`` (or list of tasks) to add to the running eval.

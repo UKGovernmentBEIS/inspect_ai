@@ -1,11 +1,11 @@
 """One eval run: configuring its tasks, sandbox setup, and the scheduling loop.
 
 The scheduler's state (the run's task records and queue, its
-:class:`SetupCache`, the dispatcher's slot and model counts) is used only from
-the run's event loop and changed without locks: code on one event loop does
-not interleave between ``await`` points, so a method that does not await
-(``RunQueue.put``, ``TaskDispatcher.start`` and ``settle``, the setup cache's
-bookkeeping) changes it as one step.
+:class:`SetupCache`, the dispatcher's running set) is used only from the run's
+event loop and changed without locks: code on one event loop does not
+interleave between ``await`` points, so a method that does not await
+(``RunQueue.put``, ``TaskDispatcher.start_attempt`` and ``settle``, the setup
+cache's bookkeeping) changes it as one step.
 """
 
 import functools
@@ -306,11 +306,10 @@ class TaskSettings:
 
         Eval-level settings are resolved against a shallow copy of the task, so
         repeated ``eval()`` calls on the same ``Task`` do not keep them (nested
-        state such as the dataset, config and reducer list is still shared, so
-        it must not be changed in place). Runs in the task's run directory, as
-        does creating each attempt's logger (which records the git revision
-        and paths relative to it); ``chdir`` is process-wide, so nothing here
-        may await.
+        state such as the dataset is still shared). Runs in the task's run
+        directory, as does creating each attempt's logger (which records the
+        git revision and paths relative to it); ``chdir`` is process-wide, so
+        nothing here may await.
 
         Args:
             resolved_task: The task as resolved against the run's models.
@@ -500,12 +499,12 @@ SampleSandboxSetup = Callable[[Iterable[Sample]], Awaitable[None]]
 
 @dataclass
 class TaskStartup:
-    """Configures the tasks of one run and readies them to start.
+    """Configures the tasks of one run and prepares them to start.
 
-    Configuration is synchronous, so a task is configured when its record is
-    created (an invalid task raises to whoever added it). Readying a task is
+    Configuring is synchronous, so a task is configured when its record is
+    created (an invalid task raises to whoever added it). Preparing is
     asynchronous: its model's controller, and the sandbox configs its
-    selected samples use, which the run's :class:`SetupCache` then sets up.
+    selected samples use.
     """
 
     settings: TaskSettings
@@ -543,11 +542,10 @@ class TaskStartup:
     async def prepare(
         self, resolved_task: ResolvedTask
     ) -> frozenset[TaskSandboxEnvironment]:
-        """Ready a task to start; the sandbox configs its selected samples use.
+        """Prepare a task to start; the sandbox configs its selected samples use.
 
         Creates the model's controller eagerly, so ``ctl config`` can retune
-        ``max_connections`` during a long sandbox setup, and registers the
-        ``ctl`` limiter of each sandbox type the task uses.
+        ``max_connections`` during a long sandbox setup.
         """
         await ensure_model_controller(
             resolved_task.model,
@@ -566,13 +564,12 @@ class TaskStartup:
         self.sandboxes.apply_provider_state()
 
     async def start_seed(self, seed: list[TaskRecord]) -> None:
-        """Ready the seed before the task display opens, failing fast.
+        """Set up the seed's sandboxes and create its loggers, before the task display opens.
 
-        Every seed's sandboxes are set up first, one at a time with their
-        output streamed to the terminal, and any failure raises before a log
-        exists. Then each seed's first logger is created and initialised (so
-        a log's ``created`` time, which names its file, follows the setups);
-        if that fails or is cancelled, the loggers are discarded.
+        Setups run one at a time with their output streamed to the terminal,
+        and any failure raises before a log exists. Then each seed's first
+        logger is created (so a log's ``created`` time, which names its file,
+        follows the setups); if that fails, the loggers are discarded.
         """
         keys: set[TaskSandboxEnvironment] = set()
         for record in seed:
@@ -630,45 +627,23 @@ class TaskRunResult(NamedTuple):
 async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRunResult:
     """Run one task in its own cancel scope so cancelling it can't affect siblings.
 
-    Returns the task's :class:`EvalLog` (``None`` if a run-level cancellation
-    ended it before it produced one) together with the ``CancelType`` it was
-    cancelled with, so a caller managing retries can distinguish a
+    Returns the task's log (``None`` if a run-level cancellation ended it first)
+    and the ``CancelType`` it was cancelled with, so the dispatcher can tell a
     retry/abort request from an ordinary error. ``can_retry`` is surfaced to
-    the task (via ``TaskCancel``) so it knows whether requesting a retry will
-    be honoured. The rare error that escapes ``task_run`` — a failure to
-    write the log itself (e.g. the ``log_start()`` header flush) — is
-    converted into an errored :class:`EvalLog` so the dispatcher can retry
-    the task rather than tearing down the run; it is re-raised only when
-    ``debug_errors`` is set.
+    the task through ``TaskCancel``.
 
-    A task's own abort or retry request cancels its scope, which can also
-    interrupt the task's error-log write (it is not shielded, so an abort
-    can end a stuck error-log write) or the awaits after its final log
-    write, and leave no log. That attempt is reported with an errored
-    :class:`EvalLog` naming the cancel, so the dispatcher ends (or retries)
-    only this task instead of reading a missing log as a run-level
-    cancellation. Like the log of a failed write, it holds the attempt's
-    header, plan and stats but no results or samples (see
-    ``TaskLogger.header_log``). Its file keeps what the task wrote:
-    normally the ``started`` header of the interrupted write, or the final
-    log when the cancel landed after the write. (An abort that interrupts a
-    success-log write instead goes through the task's cancellation handler,
-    which writes the abort's error log under a shield, so a hung
-    success-log write is not ended by it.)
+    An attempt left without a log by an error escaping ``task_run`` (a
+    failure to write the log itself) or by its own abort or retry request
+    (which cancels its scope, possibly mid-write) gets an errored header log
+    (``TaskLogger.header_log``), so the dispatcher ends or retries only this
+    task. The failed write is re-raised when ``debug_errors`` is set.
 
-    Once the task's scope has exited, the attempt's outcome is decided: a
-    later retry request (e.g. a cancel dialog answered while
-    ``task_complete`` runs) is ignored, so it cannot re-run a finished
-    task. Only an abort of an attempt that ended in error is still
-    recorded, so it stops the dispatcher from retrying that attempt.
-
-    The run's ``TaskSource`` (if any) gets ``task_complete`` with the log of
-    each attempt that ``task_run`` finished or that the task's abort or
-    retry request interrupted (the errored log above), but not the log of
-    a failed write. It is called after the task's cancel scope has exited,
-    in the task's context, so it runs to completion whether or not the task
-    was cancelled. An exception it raises is not a task error: it ends the
-    run, as an exception from ``next_tasks()`` does.
+    Once the scope has exited the outcome is decided: a later retry request
+    is ignored, and only an abort of an errored attempt still applies (it
+    stops the retry). The run's ``TaskSource`` gets ``task_complete`` after
+    the scope has exited (for every attempt except a failed write), so it
+    runs whether or not the task was cancelled; an exception it raises ends
+    the run.
     """
     result: EvalLog | None = None
     cancel_type: CancelType = None
@@ -679,9 +654,8 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
             log, "Run Task", f"task: {options.task.name} ({options.model})"
         ):
             # a per-task group so a task cancelling itself doesn't cancel
-            # siblings. A task's abort/retry request cancels task_scope, which
-            # encloses only task_run, so the TaskSource is notified after it
-            # (see run below) in the task's context but outside the cancel.
+            # siblings; abort/retry cancel task_scope, which encloses only
+            # task_run
             async with anyio.create_task_group() as task_tg:
                 task_scope = anyio.CancelScope()
                 task_cancel = TaskCancel(
@@ -698,11 +672,8 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                     # it must not clear one already made
                     if type is None:
                         return
-                    # after task_run the attempt's outcome is decided: only an
-                    # abort of an attempt that ended in error still applies
-                    # (it stops the dispatcher's retry). A retry would re-run
-                    # the finished task, and any other request would
-                    # misreport how it ended
+                    # after task_run the outcome is decided: only an abort of
+                    # an errored attempt still applies (it stops the retry)
                     if scope_exited and not (
                         type == "abort"
                         and result is not None
@@ -733,25 +704,17 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                         try:
                             result = await task_run(options, task_cancel=task_cancel)
                         except TaskRetryAbandonedError:
-                            # an operator-requested outcome, not a task error:
-                            # caught inside the trace action so it is not
-                            # traced with a stacktrace. No errored log is
-                            # written: the task's previous attempt's log must
-                            # stay its final state.
+                            # an operator-requested outcome, not a task error
+                            # (caught inside the trace action so it is not
+                            # traced as one); the previous attempt's log stays
+                            # the task's final state
                             abandoned = True
                         except Exception as ex:
-                            # errors generally don't escape from task_run --
-                            # the exception is a failure to write the log
-                            # itself (e.g. the log_start() header flush, or
-                            # the log_finish() of an already-errored task,
-                            # when log storage is unreachable) or of a
-                            # retry's checkpoint startup copy, which runs
-                            # before the log's first write. propagating
-                            # would tear down the entire run (and all
-                            # sibling tasks) for one task's failed write, so
-                            # record an errored EvalLog instead: the
-                            # dispatcher re-queues errored tasks and
-                            # eval_set() retries them once storage recovers.
+                            # errors generally don't escape from task_run: this
+                            # is a failure to write the log itself (or a
+                            # retry's checkpoint copy). Rather than tear down
+                            # the run, record an errored log, which the
+                            # dispatcher and eval_set() retry.
                             if options.debug_errors:
                                 raise
                             inner = inner_exception(ex)
@@ -759,11 +722,8 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                                 f"Task '{options.task.name}' encountered an error "
                                 f"while starting or writing its log: {inner}"
                             )
-                            # location points at the log file the write was
-                            # destined for — it may not exist (a failed
-                            # log_start() header flush, or a retry's failed
-                            # checkpoint startup copy) or may hold a partial
-                            # log (a failed error-status log_finish())
+                            # its location is where the write was going: the
+                            # file may be missing or partial
                             result = options.logger.header_log(
                                 eval_error(
                                     inner, type(inner), inner, inner.__traceback__
@@ -773,9 +733,8 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                     scope_exited = True
                     if abandoned or write_failed:
                         return
-                    # task_scope swallows only its own cancellation (a
-                    # run-level one propagates), so no log here means the
-                    # task's abort/retry request interrupted it
+                    # task_scope swallows only its own cancellation, so no
+                    # log here means the task's abort/retry interrupted it
                     if result is None:
                         assert cancel_type in ("abort", "retry")
                         cancel_ex = TerminateTaskError(
@@ -1122,7 +1081,7 @@ class TaskDispatcher:
         They do not run again and keep their failed attempt's log.
         """
         for record in [r for r in self.queue.queued if task_retry_abandoned(r.task_id)]:
-            self.queue.remove(record)
+            self.queue.queued.remove(record)
             await _release_queued(record)
             record.end()
 
@@ -1324,28 +1283,21 @@ class SandboxManager:
 
     Use as an async context manager around the run. Each sandbox config is set
     up once (its provider's ``task_init``) by the run's :class:`SetupCache`,
-    whoever needs it: the seed before the run starts, a queued task ahead of
-    its turn, a `SampleSource` adding samples to a running task. Each config's
+    whoever needs it: the seed before the run starts, a queued task, a
+    `SampleSource` adding samples to a running task. Each config's
     ``task_cleanup`` runs once, when the run ends.
 
     Providers may keep state in ContextVars that ``task_init`` sets and
     ``sample_init`` / ``task_cleanup`` read (Modal, E2B, Daytona, k8s). Each
-    ``task_init`` runs in a child task started from the context taken when
-    the manager was entered, with the run's provider state so far set (so a
-    provider's get-or-create finds it). The ContextVars it sets are recorded:
-    they are added to the run's provider state, which the scheduling loop
-    sets in its own context before it starts each task (the latest value of
-    each winning, as when every ``task_init`` ran in that context), and its
-    config's ``task_cleanup`` runs with the state as it was right after it.
-    So a cleanup sees its own state even after a later ``task_init`` of the
-    same provider set the ContextVar again, and nothing of the task that
-    asked for the setup.
+    ``task_init`` runs in a child task started from the context taken on
+    entry, with the run's provider state so far set. The ContextVars it sets
+    are added to the run's provider state, which each task starts with (the
+    latest value of each wins), and its config's ``task_cleanup`` runs with
+    the state as it was right after it.
 
-    The manager also owns the run's sandbox lifecycle state (the registries
-    a provider's `task_cleanup` reads: running containers, generated config
-    files), bound in the calling context on entry, before any task of the run
-    is spawned, so every setup and every task registers on the same object.
-    It is released on exit, so a later run in the same process starts clean.
+    The manager also binds the run's sandbox lifecycle state (the registries
+    a provider's ``task_cleanup`` reads) on entry, before any task of the run
+    is spawned, and releases it on exit.
     """
 
     def __init__(self, config: EvalConfig, *, cleanup: bool) -> None:
@@ -1381,7 +1333,7 @@ class SandboxManager:
         # the task that asked for them nor (cleanups) what later setups set
         self._context = copy_context()
         self._exit_stack.push_async_callback(self._cleanup_all)
-        # exits first: setups still in progress when the run ends are cancelled
+        # exits first, cancelling a setup still in progress
         await self._exit_stack.enter_async_context(self.setups)
         return self
 
@@ -1410,9 +1362,7 @@ class SandboxManager:
             for job in self._cleanups:
                 try:
                     await _in_child_task(
-                        functools.partial(cleanup, job),
-                        job.state,
-                        context=self._context,
+                        functools.partial(cleanup, job), job.state, self._context
                     )
                 except BaseException as ex:
                     log.warning(
@@ -1444,12 +1394,8 @@ class SandboxManager:
     ) -> None:
         """Set up the sandbox configs of samples a `SampleSource` adds to a task.
 
-        A config first seen in an added sample (including the task-level config
-        when the seed dataset was empty) gets the same `task_init` setup as
-        seed configs (up-front image build/pull, fail-fast validation, a
-        registered `task_cleanup`) before the sample runs; configs already set
-        up are a no-op. Each added sample starts with the run's provider state
-        as it is then (see ``TaskRunOptions.apply_provider_state``).
+        A config first seen in an added sample gets the same ``task_init`` as
+        the seed's before the sample runs; configs already set up are a no-op.
         """
         await self.setups.ensure(await self.resolve(task, samples))
 
@@ -1549,7 +1495,7 @@ class SandboxManager:
             self._state = self._state | changes
 
         try:
-            await _in_child_task(init, state, done=started, context=self._context)
+            await _in_child_task(init, state, self._context, done=started)
         except Exception as ex:
             if setup.output:
                 ex.add_note(
@@ -1562,26 +1508,17 @@ class SandboxManager:
 async def _in_child_task(
     fn: Callable[[], Awaitable[None]],
     state: ProviderState,
+    context: Context,
     done: Callable[[ProviderState], None] = lambda changes: None,
-    context: Context | None = None,
-) -> ProviderState:
-    """Run ``fn`` in a child task with ``state`` set; return the ContextVars it set.
+) -> None:
+    """Run ``fn`` in a child task started from ``context`` with ``state`` set.
 
-    The child starts from a copy of ``context`` (default: the caller's).
-
-    The child's ContextVar writes stay out of the caller's context, so only
-    what ``fn`` itself sets is kept, rather than a copy of the caller's whole
-    context, which would keep the caller's state (its task display, a running
-    task's settings) alive and visible to a later ``task_cleanup``. ``done``
-    gets them in the child, as soon as ``fn`` returns: a cancellation can
-    still be raised in the caller after that (asyncio raises one that arrived
-    while ``fn`` shielded its work), and what ``fn`` did must not be lost.
-
-    An exception from ``fn`` is re-raised in the caller as it is: a task group
-    would wrap it in a group, and would drop a ``CancelledError`` that is not
-    the group's own.
+    The child's ContextVar writes stay out of the caller's context; ``done``
+    gets the ones ``fn`` made, in the child, as soon as ``fn`` returns (a
+    cancellation can still reach the caller after that, and what ``fn`` did
+    must not be lost). An exception from ``fn`` is re-raised as it is, not
+    wrapped in a group.
     """
-    changes: ProviderState = {}
     error: BaseException | None = None
 
     async def run() -> None:
@@ -1593,18 +1530,18 @@ async def _in_child_task(
         except BaseException as ex:
             error = ex
             return
-        changes.update(
-            (var, value)
-            for var, value in copy_context().items()
-            if base.get(var, _UNSET) is not value
+        done(
+            {
+                var: value
+                for var, value in copy_context().items()
+                if base.get(var, _UNSET) is not value
+            }
         )
-        done(changes)
 
     async with anyio.create_task_group() as tg:
-        (context or copy_context()).copy().run(tg.start_soon, run)
+        context.copy().run(tg.start_soon, run)
     if error is not None:
         raise error
-    return changes
 
 
 def _set_provider_state(state: ProviderState) -> None:
