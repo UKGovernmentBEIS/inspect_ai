@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from inspect_ai._eval.task.run import EvalSampleSource, TaskRunOptions
     from inspect_ai._eval.task.setup_cache import SetupFailure, SetupJob
     from inspect_ai._eval.task.tasks import Tasks
+    from inspect_ai.dataset import Dataset
     from inspect_ai.log import EvalLog
     from inspect_ai.model import Model
 
@@ -44,6 +45,8 @@ class ConfiguredTask:
     """The run options of an attempt that logs to the given logger."""
     new_logger: Callable[[], TaskLogger]
     """A logger for a new attempt (not yet initialised)."""
+    selected_samples: Callable[[], Dataset]
+    """The samples the run's sample selection runs, as the task resolves it."""
 
 
 ConfigureFn = Callable[["list[ResolvedTask]"], "list[ConfiguredTask]"]
@@ -80,6 +83,11 @@ class TaskRecord:
     """Where a retry attempt reads the completed samples of the failed one
     (``None``: the task's own sample source)."""
     log: EvalLog | None = None
+
+    @property
+    def prepared(self) -> bool:
+        """Whether its sandbox configs have been resolved (or failed to)."""
+        return self.setups is not None or self.setup_failure is not None
 
     @property
     def failure(self) -> SetupFailure | None:
@@ -160,10 +168,8 @@ class RunQueue:
         """Configure resolved tasks; their records, in start order (not yet filed).
 
         Raises:
-            RuntimeError: If the run has finished dispatching tasks.
             PrerequisiteError: If a task can't run with the run's settings.
         """
-        self._check_open()
         if self._sequence_order:
             resolved = sorted(resolved, key=lambda t: t.sequence)
         return [
@@ -177,13 +183,6 @@ class RunQueue:
             for configured in self._configure(resolved)
         ]
 
-    def _check_open(self) -> None:
-        if self._closed:
-            raise RuntimeError(
-                f"enqueue_task(): run '{self.run_id}' has finished dispatching "
-                "tasks, so an added task would never run."
-            )
-
     def put(
         self, tasks: Tasks, *, start: TaskStartPolicy | None = None
     ) -> list[TaskRecord]:
@@ -193,7 +192,11 @@ class RunQueue:
         is created for any of the tasks then. Returns the records in start
         order.
         """
-        self._check_open()
+        if self._closed:
+            raise RuntimeError(
+                f"enqueue_task(): run '{self.run_id}' has finished dispatching "
+                "tasks, so an added task would never run."
+            )
         records = self.add(self.resolve(tasks))
         policy = start or self.default_start
         self._added[policy].extend(records)

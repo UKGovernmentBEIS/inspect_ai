@@ -124,12 +124,6 @@ class SetupCache(Generic[K]):
             if job.failure is not None:
                 job.failure.raise_again()
 
-    def done(self, keys: Iterable[K]) -> bool:
-        """Whether every key has been set up."""
-        return all(
-            (job := self._jobs.get(key)) is not None and job.succeeded for key in keys
-        )
-
     def _job(self, key: K) -> SetupJob[K]:
         job = self._jobs.get(key)
         if job is None:

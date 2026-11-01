@@ -12,7 +12,7 @@ import functools
 import logging
 import os
 import weakref
-from collections import Counter, deque
+from collections import Counter
 from contextlib import AsyncExitStack, asynccontextmanager
 from contextvars import Context, ContextVar, copy_context
 from copy import copy
@@ -300,7 +300,7 @@ class TaskSettings:
         resolved_task: ResolvedTask,
         task_names: list[str],
         startup_sandboxes: "SampleSandboxSetup | None",
-        apply_provider_state: Callable[[], None] | None,
+        apply_provider_state: Callable[[], None],
     ) -> ConfiguredTask:
         """Configure one task of the run: validate it and resolve its settings.
 
@@ -316,7 +316,8 @@ class TaskSettings:
             task_names: Every task name known to the run (``task:id`` sample
                 selectors).
             startup_sandboxes: Starts the sandboxes of samples a
-                ``SampleSource`` adds while the task runs.
+                ``SampleSource`` adds while the task runs (``None`` if it adds
+                none).
             apply_provider_state: Sets the run's provider state in such a
                 sample's task.
 
@@ -414,7 +415,15 @@ class TaskSettings:
                 input_media_policy=resolved_task.input_media_policy,
             )
 
-        return ConfiguredTask(resolved_task, options, new_logger)
+        def selected_samples() -> Dataset:
+            return slice_dataset(
+                task.dataset,
+                config.limit,
+                config.sample_id,
+                dynamic=task.sample_source is not None,
+            )
+
+        return ConfiguredTask(resolved_task, options, new_logger, selected_samples)
 
     def _apply_eval_settings(self, task: Task, config: EvalConfig) -> None:
         """Resolve eval-level settings against the task's own, in place.
@@ -532,7 +541,10 @@ class TaskStartup:
             ensure_sample_ids(resolved_task.task.dataset)
         configured = [
             self.settings.configure(
-                t, [*self.task_names, *names], *self._added_samples(t)
+                t,
+                [*self.task_names, *names],
+                self._sample_setup(t),
+                self.sandboxes.apply_provider_state,
             )
             for t in group
         ]
@@ -540,24 +552,24 @@ class TaskStartup:
         return configured
 
     async def prepare(
-        self, resolved_task: ResolvedTask
+        self, configured: ConfiguredTask
     ) -> frozenset[TaskSandboxEnvironment]:
         """Prepare a task to start; the sandbox configs its selected samples use.
 
         Creates the model's controller eagerly, so ``ctl config`` can retune
         ``max_connections`` during a long sandbox setup.
         """
+        if not self.settings.run_samples:
+            return frozenset()
+        resolved_task = configured.resolved
         await ensure_model_controller(
             resolved_task.model,
             resolved_task.task.config.merge(
                 GenerateConfigArgs(**self.settings.generate_config)
             ),
         )
-        if not self.settings.run_samples:
-            return frozenset()
         return await self.sandboxes.resolve(
-            resolved_task,
-            self.sandboxes.selected_samples(resolved_task, self.task_names),
+            resolved_task, configured.selected_samples()
         )
 
     def apply_provider_state(self) -> None:
@@ -574,7 +586,7 @@ class TaskStartup:
         keys: set[TaskSandboxEnvironment] = set()
         for record in seed:
             assert record.configured is not None
-            keys |= await self.prepare(record.configured.resolved)
+            keys |= await self.prepare(record.configured)
         await self.sandboxes.setup_seed(keys)
         for record in seed:
             record.setups = []
@@ -591,16 +603,11 @@ class TaskStartup:
                         record.logger = None
             raise
 
-    def _added_samples(
-        self, resolved_task: ResolvedTask
-    ) -> tuple[SampleSandboxSetup | None, Callable[[], None] | None]:
-        """What samples a task's ``SampleSource`` adds need: setup, provider state."""
+    def _sample_setup(self, resolved_task: ResolvedTask) -> SampleSandboxSetup | None:
+        """Sets up the sandboxes of samples the task's ``SampleSource`` adds."""
         if not self.settings.run_samples or resolved_task.task.sample_source is None:
-            return None, None
-        return (
-            functools.partial(self.sandboxes.setup_for_samples, resolved_task),
-            self.sandboxes.apply_provider_state,
-        )
+            return None
+        return functools.partial(self.sandboxes.setup_for_samples, resolved_task)
 
 
 def ensure_sample_ids(dataset: Dataset) -> None:
@@ -613,8 +620,7 @@ def ensure_sample_ids(dataset: Dataset) -> None:
 
 class TaskRunResult(NamedTuple):
     log: EvalLog | None
-    """The task's log, or ``None`` if a run-level cancellation (e.g. ctrl+c)
-    ended it before it produced one."""
+    """The task's log (``None`` only for an abandoned attempt)."""
 
     cancel_type: CancelType
     """How the task was cancelled (``None`` if it ran to completion)."""
@@ -772,7 +778,7 @@ class Startup(Protocol):
     @property
     def setups(self) -> "SetupCache[Any]": ...
 
-    async def prepare(self, resolved_task: ResolvedTask) -> frozenset[Any]: ...
+    async def prepare(self, configured: ConfiguredTask) -> frozenset[Any]: ...
 
     def apply_provider_state(self) -> None: ...
 
@@ -793,7 +799,7 @@ class TaskDispatcher:
     A task whose log comes back with an error, or which requests a retry
     through its ``TaskCancel``, is retried (reusing its completed samples)
     until its retries are exhausted; the retry goes to the back of the queue
-    and is prepared again. An abort is never retried and resolves to an
+    and sets up again whatever failed. An abort is never retried and resolves to an
     errored log; a cancellation of the run is never retried and ends
     dispatch.
     """
@@ -822,9 +828,8 @@ class TaskDispatcher:
         """The ``TaskSource``'s ``next_tasks()`` returned nothing."""
         self.awaiting_source = False
         """The loop is awaiting ``next_tasks()`` (see :meth:`absorbs_cancel`)."""
-        self.unprepared: deque[TaskRecord] = deque()
-        """Queued records not prepared yet, in queue order."""
-        self.unprepared_wake = Wake()
+        self.prepare_wake = Wake()
+        """Set when a record that needs preparing is queued."""
 
     async def run(self, seed: list[TaskRecord]) -> list[EvalLog]:
         """Run the seed and every task added while the run is in progress.
@@ -915,8 +920,7 @@ class TaskDispatcher:
         if not records:
             return
         self.queue.enqueue(records)
-        self.unprepared.extend(records)
-        self.unprepared_wake.set()
+        self.prepare_wake.set()
         # lets the model pause directives validate against tasks that have not
         # started (which have no EvalState to check)
         note_dispatch_models([dispatch_model_name(r.model) for r in records])
@@ -926,10 +930,10 @@ class TaskDispatcher:
         """Prepare queued records one at a time, in queue order, until ``scope`` ends."""
         with scope:
             while True:
-                while not self.unprepared:
-                    await self.unprepared_wake.wait()
-                record = self.unprepared.popleft()
-                if record in self.queue.queued:
+                record = next((r for r in self.queue.queued if not r.prepared), None)
+                if record is None:
+                    await self.prepare_wake.wait()
+                else:
                     await self.prepare(record)
                     self.queue.wake.set()
 
@@ -940,7 +944,7 @@ class TaskDispatcher:
         """
         assert record.configured is not None
         try:
-            keys = await self.startup.prepare(record.configured.resolved)
+            keys = await self.startup.prepare(record.configured)
         except Exception as ex:
             if self.debug_errors:
                 raise
@@ -958,9 +962,10 @@ class TaskDispatcher:
         """The next record to start, if a task slot is free (see :func:`pick_balanced`).
 
         Candidates are the unpaused records that can start, ahead of the first
-        one not prepared yet: preparing is quick and runs in queue order, so
-        waiting for it keeps the start order deterministic when every setup is
-        done.
+        one not prepared yet: preparing runs in queue order, so waiting for it
+        keeps the start order deterministic when every setup is done (a retry
+        keeps its setups and would otherwise overtake records added before
+        it).
         """
         if len(self.running) >= effective_max_tasks(self.parallel):
             return None
@@ -968,7 +973,7 @@ class TaskDispatcher:
         for record in self.queue.queued:
             if _dispatch_paused(record):
                 continue
-            if record.setups is None and record.setup_failure is None:
+            if not record.prepared:
                 break
             if record.can_start:
                 candidates.append(record)
@@ -1050,11 +1055,16 @@ class TaskDispatcher:
         if retry:
             record.attempt += 1
             record.retries_remaining -= 1
-            record.setups = record.setup_failure = None
             self.take(self.queue.take("when_free"))
             self.queue.queued.append(record)
-            self.unprepared.append(record)
-            self.unprepared_wake.set()
+            if record.setups is None:
+                record.setup_failure = None
+                self.prepare_wake.set()
+            else:
+                # failed jobs were forgotten, so this sets them up again
+                record.setups = self.setups.request(
+                    [job.key for job in record.setups], self.queue.wake.set
+                )
             log.info(
                 f"Retrying task '{record.task}' ({record.model}) "
                 f"— {record.retries_remaining} retries remaining"
@@ -1317,7 +1327,8 @@ class SandboxManager:
         self._cleanups: list[_TaskCleanup] = []
         self._state: ProviderState = {}
         self._exit_stack = AsyncExitStack()
-        self._context = copy_context()
+        self._context: Context
+        """The context setups and cleanups start from (taken on entry)."""
         # keyed by task, then spec: resolution folds in per-task state
         # (run_dir), so a spec-only key would leak one task's resolution to
         # another. Weak on the task, so a finished task's Task and dataset are
@@ -1379,7 +1390,7 @@ class SandboxManager:
         Their output goes to the terminal; the first failure raises.
         """
         sandboxenvs = list(sandboxenvs)
-        if self.setups.done(sandboxenvs):
+        if not sandboxenvs:
             return
         # one at a time, so none starts after a failure
         for sandboxenv in sandboxenvs:
@@ -1398,21 +1409,6 @@ class SandboxManager:
         the seed's before the sample runs; configs already set up are a no-op.
         """
         await self.setups.ensure(await self.resolve(task, samples))
-
-    def selected_samples(
-        self, task: ResolvedTask, task_names: list[str]
-    ) -> Iterable[Sample]:
-        """The samples of `task` that the eval's sample selection runs.
-
-        `task_names` is every task name known to the run so far, so `task:id`
-        sample selectors resolve here exactly as they do when the task runs.
-        """
-        return slice_dataset(
-            task.task.dataset,
-            self._config.limit,
-            resolve_task_sample_ids(task.task.name, self._config.sample_id, task_names),
-            dynamic=task.task.sample_source is not None,
-        )
 
     async def resolve(
         self, task: ResolvedTask, samples: Iterable[Sample]

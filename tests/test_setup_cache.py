@@ -5,12 +5,18 @@ starts, finishes or fails.
 """
 
 import asyncio
+from typing import Any
 
 import anyio
 import pytest
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai._eval.task.setup_cache import SetupCache, SetupFailure
+
+
+def _done(cache: SetupCache[Any], keys: list[str]) -> bool:
+    """Whether every key has been set up."""
+    return all(key in cache._jobs and cache._jobs[key].succeeded for key in keys)
 
 
 class Script:
@@ -60,9 +66,9 @@ async def test_waiters_join_one_job_per_key() -> None:
             for _ in range(3):
                 tg.start_soon(cache.ensure, ["a"])
             await script.began_event("a").wait()
-            assert not cache.done(["a"])
+            assert not _done(cache, ["a"])
             script.finish("a")
-        assert cache.done(["a"])
+        assert _done(cache, ["a"])
         # a later request for a key that succeeded does not run it again
         await cache.ensure(["a"])
     assert script.started == ["a"]
@@ -102,13 +108,13 @@ async def test_failure_goes_to_current_waiters_then_is_forgotten() -> None:
             script.finish("a", ValueError("pull failed"))
         assert [str(ex) for ex in errors] == ["pull failed", "pull failed"]
         assert [str(f.error) for f in told if f] == ["pull failed"]
-        assert not cache.done(["a"])
+        assert not _done(cache, ["a"])
         # the next request starts a fresh job, which can succeed
         async with anyio.create_task_group() as tg:
             tg.start_soon(cache.ensure, ["a"])
             await script.began_event("a").wait()
             script.finish("a")
-        assert cache.done(["a"])
+        assert _done(cache, ["a"])
     assert script.started == ["a", "a"]
 
 
@@ -128,7 +134,7 @@ async def test_ensure_raises_the_first_failure() -> None:
         await script.began_event("b").wait()
         script.finish("b")
     assert script.started == ["a", "b"]
-    assert cache.done(["b"])
+    assert _done(cache, ["b"])
 
 
 async def test_a_cancelled_waiter_does_not_cancel_the_job() -> None:
@@ -140,7 +146,7 @@ async def test_a_cancelled_waiter_does_not_cancel_the_job() -> None:
         assert script.running == {"a"}
         script.finish("a")
         await cache.ensure(["a"])
-        assert cache.done(["a"])
+        assert _done(cache, ["a"])
     assert script.started == ["a"]
 
 
@@ -177,7 +183,7 @@ async def test_cancelled_error_raised_by_the_setup_is_a_failure() -> None:
     async with SetupCache(setup) as cache:
         with pytest.raises(RuntimeError, match="CancelledError"):
             await cache.ensure(["a"])
-        assert not cache.done(["a"])
+        assert not _done(cache, ["a"])
 
 
 async def test_leaving_the_cache_cancels_the_running_job_and_drops_the_rest() -> None:

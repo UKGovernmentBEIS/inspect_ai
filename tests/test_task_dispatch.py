@@ -71,6 +71,11 @@ from inspect_ai.util import (
 from inspect_ai.util._display import init_display_type
 
 
+def _done(cache: SetupCache[Any], keys: list[str]) -> bool:
+    """Whether every key has been set up."""
+    return all(key in cache._jobs and cache._jobs[key].succeeded for key in keys)
+
+
 def _task(name: str) -> Task:
     return Task(name=name, dataset=[Sample(input="x", target="y")])
 
@@ -155,8 +160,8 @@ class FakeStartup:
         self.harness = harness
         self.setups: SetupCache[str] = SetupCache(harness.setup)
 
-    async def prepare(self, resolved_task: ResolvedTask) -> frozenset[str]:
-        label = _label(resolved_task)
+    async def prepare(self, configured: ConfiguredTask) -> frozenset[str]:
+        label = _label(configured.resolved)
         self.harness.events.append(f"resolve {label}")
         gate = self.harness.resolving.get(label)
         if gate is not None:
@@ -227,7 +232,10 @@ class Harness:
             self.started[label] = anyio.Event()
             configured.append(
                 ConfiguredTask(
-                    task, _options_for(task), functools.partial(self.new_logger, label)
+                    task,
+                    _options_for(task),
+                    functools.partial(self.new_logger, label),
+                    functools.partial(lambda t: t.task.dataset, task),
                 )
             )
         return configured
@@ -718,6 +726,35 @@ async def test_loop_retry_goes_to_the_back_and_reinitialises_its_logger(
     ]
 
 
+async def test_retry_is_balanced_against_queued_tasks_at_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # a retry keeps its (done) setups, so it competes for the freed slot in
+    # the same cycle: m2 has nothing running, so a@m2's retry starts before
+    # the older y@m1
+    m1, m2 = get_model("mockllm/m1"), get_model("mockllm/m2")
+    harness = Harness([m1, m2], parallel=2, retries=1)
+    _install(monkeypatch, harness)
+    harness.fail_next.add("a@m2")
+
+    async def drive() -> None:
+        await _wait_started(harness, "a@m2", "x@m1")
+        harness.started["a@m2"] = anyio.Event()
+        harness.finish["a@m2"].set()
+        await _wait_started(harness, "a@m2")
+        for label in ("a@m2", "x@m1"):
+            harness.finish[label].set()
+        await _wait_started(harness, "y@m1")
+        harness.finish["y@m1"].set()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(drive)
+        await harness.run(
+            [*_resolve(["a"], [m2]), *_resolve(["x"], [m1]), *_resolve(["y"], [m1])]
+        )
+    assert _starts(harness)[2:] == ["a@m2", "y@m1"]
+
+
 async def test_retry_follows_tasks_its_failed_attempt_added(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1028,7 +1065,7 @@ async def test_queued_tasks_set_up_one_at_a_time_in_queue_order(
         for name in names:
             await harness.setup_began_event(name).wait()
             harness.finish_setup(name)
-        await _wait_until(lambda: harness.startup.setups.done(names))
+        await _wait_until(lambda: _done(harness.startup.setups, names))
         for done, next in [("a", "t1"), ("b", "t2"), ("t1", "t3")]:
             harness.finish[f"{done}@m1"].set()
             await _wait_started(harness, f"{next}@m1")
@@ -1177,7 +1214,7 @@ async def test_loop_cancel_while_tasks_run_or_wait_for_a_slot_is_absorbed(
                     harness.queue.put([_task("c")], start="when_free")
                     await harness.setup_began_event("image").wait()
                     harness.finish_setup("image")
-                    await _wait_until(lambda: harness.startup.setups.done(["image"]))
+                    await _wait_until(lambda: _done(harness.startup.setups, ["image"]))
                     scope.cancel()
 
                 tg.start_soon(cancel_when_running)
