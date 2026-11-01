@@ -1166,6 +1166,9 @@ def test_chat_messages_from_compact_response_user_media() -> None:
             ResponseOutputText.model_construct(
                 type="input_file", file_data=file_data, filename="r.pdf", detail="auto"
             ),
+            # optional fields absent
+            ResponseOutputText.model_construct(type="input_image", image_url=image_url),
+            ResponseOutputText.model_construct(type="input_file", file_data=file_data),
             ResponseOutputText(type="output_text", text="reply", annotations=[]),
             ResponseOutputRefusal(type="refusal", refusal="no"),
         ]
@@ -1179,22 +1182,47 @@ def test_chat_messages_from_compact_response_user_media() -> None:
         ContentText(text="look"),
         ContentImage(image=image_url, detail="high"),
         ContentDocument(document=file_data, filename="r.pdf"),
+        ContentImage(image=image_url),
+        ContentDocument(document=file_data),
         ContentText(text="reply"),
         ContentText(text="no", refusal=True),
     ]
 
 
-def test_chat_messages_from_compact_response_user_unsupported_content() -> None:
-    """An echoed user content type Inspect cannot represent raises a clear error."""
+@pytest.mark.parametrize(
+    ("fields", "message"),
+    [
+        pytest.param(
+            {"type": "input_audio", "data": "AAAA"}, "input_audio", id="audio"
+        ),
+        pytest.param(
+            {"type": "input_image", "file_id": "file-1"},
+            "image_url",
+            id="image-file-id",
+        ),
+        pytest.param(
+            {"type": "input_file", "file_id": "file-1"}, "file_data", id="file-id"
+        ),
+        pytest.param(
+            {"type": "input_file", "file_url": "https://x/y.pdf"},
+            "file_data",
+            id="file-url",
+        ),
+    ],
+)
+def test_chat_messages_from_compact_response_user_unsupported_content(
+    fields: dict[str, Any], message: str
+) -> None:
+    """Echoed user content Inspect cannot represent raises a clear error."""
     from openai.types.responses import ResponseOutputText
 
     from inspect_ai.model._openai_responses import chat_messages_from_compact_response
 
     response = _compact_response_with_user_items(
-        [ResponseOutputText.model_construct(type="input_audio", data="AAAA")]
+        [ResponseOutputText.model_construct(**fields)]
     )
 
-    with pytest.raises(ValueError, match="input_audio"):
+    with pytest.raises(ValueError, match=message):
         chat_messages_from_compact_response(response)
 
 

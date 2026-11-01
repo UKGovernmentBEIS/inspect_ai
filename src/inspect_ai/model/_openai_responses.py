@@ -2457,19 +2457,31 @@ def _content_from_compact_user_item(
     The endpoint returns user messages with their original `input_*` items, but
     the SDK types them as output text or refusal: it parses an `input_image` or
     `input_file` as a `ResponseOutputText` with that `type` and the remaining
-    fields in `model_extra`, so branch on `type` rather than the class.
+    fields as extra attributes, so branch on `type` rather than the class.
+    Media must be inline (the form Inspect sends); file references are rejected.
     """
     item_type = getattr(item, "type", None)
     if item_type in ("output_text", "input_text"):
         return ContentText(text=cast(ResponseOutputText, item).text)
     elif item_type == "refusal":
         return ContentText(text=cast(ResponseOutputRefusal, item).refusal, refusal=True)
-    elif item_type in ("input_image", "input_file"):
-        return content_from_response_input_content_param(
-            cast(
-                ResponseInputContentParam,
-                {"type": item_type, **(item.model_extra or {})},
+    elif item_type == "input_image":
+        image_url = getattr(item, "image_url", None)
+        if not image_url:
+            raise ValueError(
+                "Compacted user message has an input_image without image_url"
             )
+        return ContentImage(
+            image=image_url, detail=getattr(item, "detail", None) or "auto"
+        )
+    elif item_type == "input_file":
+        file_data = getattr(item, "file_data", None)
+        if not file_data:
+            raise ValueError(
+                "Compacted user message has an input_file without file_data"
+            )
+        return ContentDocument(
+            document=file_data, filename=getattr(item, "filename", None) or ""
         )
     else:
         raise ValueError(
