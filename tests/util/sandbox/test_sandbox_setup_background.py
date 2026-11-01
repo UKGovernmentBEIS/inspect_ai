@@ -132,7 +132,6 @@ def _reset(monkeypatch: pytest.MonkeyPatch) -> None:
     RECORDS.clear()
     _go = anyio.Event()
     _done = anyio.Event()
-    monkeypatch.delenv("INSPECT_TASK_SETUP_IN_SLOT", raising=False)
     monkeypatch.delenv("BG_SETUP_VAR", raising=False)
 
 

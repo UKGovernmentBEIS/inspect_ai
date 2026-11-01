@@ -391,7 +391,7 @@ class TaskLogger:
         self._discarded = False
 
     async def init(self) -> None:
-        self._bump_created_past_existing_logs()
+        await self._bump_created_past_existing_logs()
         self._location = await self.recorder.log_init(self.eval)
 
         # process-scoped ctl retunes applied earlier in this run (before a
@@ -449,29 +449,31 @@ class TaskLogger:
         await self._release_buffer_db(keep=False)
         await self.init()
 
-    def _bump_created_past_existing_logs(self) -> None:
+    async def _bump_created_past_existing_logs(self) -> None:
         """Bump `eval.created` past any existing log at the would-be path.
 
         File recorders compute the log filename from `eval.created` (down
         to a second), `task`, `task_id`, and `model`. Two logs that share
         all of those collide on the filesystem; we walk `created` forward
-        until the computed path doesn't already exist.
+        until the computed path doesn't already exist. The check is async,
+        so a remote log directory does not block the event loop.
         """
         log_file_path = getattr(self.recorder, "_log_file_path", None)
         if log_file_path is None:
             return
         from datetime import datetime, timedelta, timezone
 
-        from inspect_ai._util.file import filesystem
+        from inspect_ai._util.asyncfiles import AsyncFilesystem
 
         max_attempts = 60
-        for _ in range(max_attempts):
-            path = log_file_path(self.eval)
-            if not filesystem(path).exists(path):
-                return
-            dt = datetime.fromisoformat(self.eval.created) + timedelta(seconds=1)
-            bumped = dt.astimezone(timezone.utc).isoformat(timespec="seconds")
-            self.eval = self.eval.model_copy(update=dict(created=bumped))
+        async with AsyncFilesystem() as fs:
+            for _ in range(max_attempts):
+                path = log_file_path(self.eval)
+                if not await fs.exists(path):
+                    return
+                dt = datetime.fromisoformat(self.eval.created) + timedelta(seconds=1)
+                bumped = dt.astimezone(timezone.utc).isoformat(timespec="seconds")
+                self.eval = self.eval.model_copy(update=dict(created=bumped))
         raise RuntimeError(
             f"Could not find a unique log filename for task {self.eval.task!r} "
             f"(task_id={self.eval.task_id}) after {max_attempts} attempts; "
@@ -534,6 +536,19 @@ class TaskLogger:
     def finished(self) -> bool:
         """Whether :meth:`log_finish` completed for this attempt (its log is written)."""
         return self._finished
+
+    @property
+    def plan(self) -> EvalPlan | None:
+        """The plan given to :meth:`log_start` (or carried from an earlier attempt)."""
+        return self._plan
+
+    def carry_plan(self, plan: EvalPlan | None) -> None:
+        """Report the plan of the task's earlier attempt until :meth:`log_start`.
+
+        Every attempt of a task logs the same plan, so a retry attempt that
+        fails before its ``log_start`` still reports it (see :meth:`header_log`).
+        """
+        self._plan = plan
 
     def header_log(self, error: EvalError) -> EvalLog:
         """An errored log of this attempt's header, for an attempt left without a log.

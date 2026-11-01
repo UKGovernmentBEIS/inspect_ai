@@ -180,6 +180,36 @@ class SandboxEnvironment(abc.ABC):
 
     Sandbox environments provide both an execution environment as well as a per-sample
     filesystem context to copy samples files into and resolve relative paths to.
+
+    How Inspect calls a provider's task-level methods:
+
+    - ``task_init`` runs once per sandbox configuration per run (again only
+      if it failed), when a task that uses the configuration is about to
+      start: for the initial tasks, before any task starts; for a task added
+      while the run is in progress, while other tasks run. Calls for different
+      configurations run one at a time.
+    - ``task_init`` runs in a task of its own. The ``ContextVar`` values it
+      sets are recorded: every task Inspect starts afterwards sees them (the
+      latest value of each, whichever configuration set it), and the
+      configuration's ``task_cleanup`` runs with the values as ``task_init``
+      left them. A token from ``ContextVar.set()`` in ``task_init`` cannot be
+      reset in ``task_cleanup``, which runs in another task.
+    - ``task_init_environment``, ``task_init`` and ``task_cleanup`` run in
+      the process's working directory and environment, which every running
+      task shares (Inspect does not change them). ``sandbox_setup()`` gives
+      the task's directory and the environment variables
+      ``task_init_environment`` returned, and
+      :func:`~inspect_ai.util.subprocess` applies them to the child processes
+      it starts (as their default working directory and extra environment
+      variables). Resolve relative paths against
+      ``sandbox_setup().task_dir``, not ``Path.cwd()``, and start child
+      processes with :func:`~inspect_ai.util.subprocess`, or pass ``cwd`` and
+      ``env`` yourself to other ways of starting them (such as
+      ``asyncio.create_subprocess_exec``).
+    - Output of child processes that would go to the terminal is collected
+      for a setup that runs while tasks run (and shown if the setup fails);
+      output a provider prints from Python goes to the terminal.
+    - ``task_cleanup`` runs once per configuration when the run ends.
     """
 
     # Whether the injected sandbox tools may run as root here; recorded once at
@@ -484,6 +514,10 @@ class SandboxEnvironment(abc.ABC):
     ) -> None:
         """Called at task startup initialize resources.
 
+        Runs in a task of its own, possibly while other tasks run (see the
+        class docstring for its working directory, environment and
+        ``ContextVar`` state).
+
         Args:
           task_name: Name of task using the sandbox environment.
           config: Implementation defined configuration (optional).
@@ -559,6 +593,9 @@ class SandboxEnvironment(abc.ABC):
         cls, task_name: str, config: SandboxEnvironmentConfigType | None, cleanup: bool
     ) -> None:
         """Called at task exit as a last chance to cleanup resources.
+
+        Runs once per configuration when the run ends, with the ``ContextVar``
+        values its ``task_init`` left (see the class docstring).
 
         Args:
           task_name: Name of task using the sandbox environment.

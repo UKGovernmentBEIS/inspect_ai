@@ -73,6 +73,7 @@ from inspect_ai._control.limits import (
     process_limits,
     task_limits,
 )
+from inspect_ai._control.max_tasks import task_dispatcher
 from inspect_ai._control.messages import sample_messages
 from inspect_ai._control.pause import (
     pause_model,
@@ -794,6 +795,15 @@ class ControlServer:
                 # window when this listing is still empty).
                 summary["api_version"] = CONTROL_API_VERSION
             return summaries
+
+        # The run's tasks that have not started (a separate listing: `/tasks`
+        # rows are running tasks with a log, which consumers rely on). The
+        # wire behind `inspect ctl task queued`.
+        @app.get("/tasks/queued", dependencies=skip_disconnected)
+        async def list_queued_tasks() -> dict[str, Any]:
+            dispatcher = task_dispatcher()
+            tasks = dispatcher.queued_tasks() if dispatcher is not None else []
+            return {"tasks": [task._asdict() for task in tasks]}
 
         @app.get("/evals/{eval_id}/samples", dependencies=skip_disconnected)
         async def list_eval_samples(

@@ -886,14 +886,13 @@ async def test_enqueue_task_finished_added_task_is_released_before_run_ends(
 
 
 @pytest.mark.parametrize("start", ["after_batch", "when_free"])
-async def test_enqueue_task_cancel_while_preparing_added_group(
+async def test_enqueue_task_cancel_while_added_tasks_create_their_logs(
     monkeypatch: pytest.MonkeyPatch, start: TaskStartPolicy
 ) -> None:
-    # the run is cancelled (as by Ctrl-C) while the dispatcher prepares an
-    # added group of two tasks, right after the second one's log init: the
-    # cancellation propagates out of eval_async (the added tasks have no log,
-    # so returning normally would report a complete run), and the loggers of
-    # both are discarded, releasing their realtime buffers
+    # the run is cancelled (as by Ctrl-C) while two added tasks with nothing
+    # to set up have started, right after the second one's log init: as for
+    # any cancellation while tasks run, the run returns; the interrupted
+    # attempt's logger is discarded, releasing its realtime buffer
     loggers: dict[str, TaskLogger] = {}
     discarded: list[str] = []
     init = TaskLogger.init
@@ -934,13 +933,13 @@ async def test_enqueue_task_cancel_while_preparing_added_group(
     init_display_type("none")
     with anyio.fail_after(60):
         with anyio.CancelScope() as scope:
-            await eval_async(_parent(enqueue_group()), model="mockllm/model")
-            pytest.fail("eval_async returned from a cancelled run")
+            await eval_async(
+                _parent(enqueue_group()), model="mockllm/model", max_tasks=3
+            )
 
-    assert scope.cancelled_caught
-    assert loggers["c"].buffer_db is None
+    assert not scope.cancelled_caught
     assert loggers["d"].buffer_db is None
-    assert sorted(name for name in discarded if name in ("c", "d")) == ["c", "d"]
+    assert "d" in discarded
 
 
 async def test_enqueue_task_cancel_while_when_free_child_queued(
@@ -948,15 +947,15 @@ async def test_enqueue_task_cancel_while_when_free_child_queued(
 ) -> None:
     # the run is cancelled (as by Ctrl-C) while a when_free child is queued
     # behind the parent at max_tasks=1: the run ends without starting the
-    # child, the child's logger is cleaned up, and the queue is closed
-    cleaned: list[str] = []
-    cleanup = TaskLogger.cleanup
+    # child, which never created a logger, and the queue is closed
+    created: list[str] = []
+    init = TaskLogger.init
 
-    async def track_cleanup(logger: TaskLogger, *, keep_buffer: bool = False) -> None:
-        cleaned.append(logger.eval.task)
-        await cleanup(logger, keep_buffer=keep_buffer)
+    async def track_init(logger: TaskLogger) -> None:
+        created.append(logger.eval.task)
+        await init(logger)
 
-    monkeypatch.setattr(TaskLogger, "cleanup", track_cleanup)
+    monkeypatch.setattr(TaskLogger, "init", track_init)
     child_started = anyio.Event()
     contexts: list[Context] = []
 
@@ -983,7 +982,7 @@ async def test_enqueue_task_cancel_while_when_free_child_queued(
 
     assert scope.cancel_called
     assert not child_started.is_set()
-    assert "child" in cleaned
+    assert "child" not in created
     assert task_dispatcher_stats() is None
     with pytest.raises(RuntimeError, match="finished dispatching"):
         contexts[0].run(enqueue_task, child())
@@ -1051,24 +1050,21 @@ import tempfile
 import anyio
 
 import inspect_ai._display.core.active as active_display
-import inspect_ai._eval.run as eval_run_module
 import inspect_ai.util._display as display_state
 from inspect_ai import Task, TaskSource, enqueue_task, eval
 from inspect_ai.dataset import Sample
 from inspect_ai.log import list_eval_logs, read_eval_log
 from inspect_ai.solver import solver
-
-start_sandboxes = eval_run_module.SandboxManager.start
-
-
-async def interrupted_start(self, tasks, task_names):
-    if any(t.task.name == "added" for t in tasks):
-        signal.raise_signal(signal.SIGINT)
-        await anyio.sleep(60)
-    await start_sandboxes(self, tasks, task_names)
+from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
 
 
-eval_run_module.SandboxManager.start = interrupted_start
+# only the added task uses a sandbox
+async def interrupted_init(cls, task_name, config):
+    signal.raise_signal(signal.SIGINT)
+    await anyio.sleep(60)
+
+
+LocalSandboxEnvironment.task_init = classmethod(interrupted_init)
 
 
 @solver
@@ -1116,8 +1112,8 @@ def run(case, display, log_dir):
     )
 
 
-# the Ctrl-C lands while the dispatcher prepares the added task (its sandbox
-# startup) or while next_tasks() waits; the interrupted task has no log
+# the Ctrl-C lands while the added task's sandbox is set up or while
+# next_tasks() waits; the interrupted task has no log
 expected = {
     "default": [("parent", "success")],
     "after_batch": [("parent", "success")],
@@ -1171,3 +1167,39 @@ def test_ctrl_c_while_adding_tasks_raises_keyboard_interrupt(backend: str) -> No
         timeout=300,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_enqueue_task_and_enqueue_sample_from_another_thread_raise(
+    tmp_path: Path,
+) -> None:
+    # the run's records and a task's sample buffer belong to the event loop:
+    # adding to them from a worker thread (a synchronous tool run in a
+    # thread) would race with it, so it raises
+    from inspect_ai import SampleSource, enqueue_sample
+
+    errors: list[str] = []
+
+    class Source(SampleSource):
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(input="x")]
+
+    @solver
+    def add_from_thread() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            for add in (
+                lambda: enqueue_task(Task(dataset=[Sample(input="x")], name="t")),
+                lambda: enqueue_sample(Sample(input="y")),
+            ):
+                try:
+                    await anyio.to_thread.run_sync(add)
+                except RuntimeError as ex:
+                    errors.append(str(ex))
+            return state
+
+        return solve
+
+    task = Task(dataset=Source(), solver=add_from_thread(), name="p")
+    logs = eval(task, model="mockllm/model", display="none", log_dir=str(tmp_path))
+    assert [log.status for log in logs] == ["success"]
+    assert len(errors) == 2
+    assert all("must be called from the eval's event loop" in e for e in errors)

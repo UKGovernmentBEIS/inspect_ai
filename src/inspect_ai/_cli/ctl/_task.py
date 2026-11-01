@@ -102,6 +102,52 @@ def task_list_command(as_json: bool, shards: bool) -> None:
 _mirror_list_options(task_group, task_list_command)
 
 
+@task_group.command("queued")
+@_json_option("an `{as_of, tasks}` envelope")
+def task_queued_command(as_json: bool) -> None:
+    """List tasks that have not started yet, across all live Inspect processes.
+
+    Each row is a task added to a run that is waiting to start (or a retry
+    waiting for its next attempt), with why it is waiting: `queue`,
+    `after_batch`, `next_tasks`, `paused`, `sandbox resolution`, `look-ahead`
+    (its sandbox setup is not requested yet), `sandbox setup`, `slot` or
+    `start`. These tasks have no log yet, so `inspect ctl task list` does not
+    show them. The control endpoints `POST /tasks/<task-id>/cancel` and
+    `/drain` end such a task without running it.
+
+    Example: inspect ctl task queued --json
+    """
+    as_of = time.time()
+    rows: list[dict[str, Any]] = []
+    for server in _http.list_discovered_servers():
+        result = _http._request_json(
+            str(server.socket_path),
+            "/tasks/queued",
+            what=f"queued tasks of pid {server.pid}",
+            not_found="No queued-task listing on this process.",
+            not_found_missing_route=(
+                f"pid {server.pid} runs an inspect version without the "
+                "queued-task listing."
+            ),
+            pid=server.pid,
+        )
+        rows.extend({**row, "pid": server.pid} for row in result["tasks"])
+    if as_json:
+        _echo_raw(json_lib.dumps({"as_of": as_of, "tasks": rows}, indent=2))
+        return
+    if not rows:
+        _echo("No queued tasks.")
+        return
+    for row in rows:
+        _echo(
+            _sanitize_line(
+                f"{row['task_id']}  {row['task']}  {row['model']}  "
+                f"attempt {row['attempt']}  waiting for: {row['waiting_for']}  "
+                f"(pid {row['pid']})"
+            )
+        )
+
+
 @task_group.command("log-flush")
 @click.argument("task", required=False)
 @_model_option()

@@ -87,7 +87,7 @@ A `SampleSource` is passed as the **`dataset` argument to `Task`** (just as a
   NamedTuple: `task.dataset` is a `MemoryDataset` of the seed (empty allowed —
   the plain-dataset empty check is bypassed) and `task.sample_source` carries
   the source. Everything downstream that reads `task.dataset` (log spec,
-  sandbox startup, auto-id assignment in `GroupStartup`) is
+  sandbox startup, auto-id assignment in `TaskStartup.configure`) is
   unchanged.
 - **No eval-level changes** — the source travels on the `Task` itself; `eval()`
   / `eval_run` / `TaskRunOptions` needed no new parameter. (`TaskRunOptions`

@@ -2,7 +2,6 @@
 
 Each ``task_init`` and ``task_cleanup`` runs in a child task, and only the
 ContextVars a ``task_init`` sets are recorded for its config. A fake provider
-records what each hook sees. All tests run with INSPECT_TASK_SETUP_IN_SLOT
 unset.
 """
 
@@ -156,7 +155,6 @@ def _reset(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     RECORDS.clear()
     _swallow_started = anyio.Event()
     monkeypatch.setenv("INSPECT_LOG_DIR", str(tmp_path / "logs"))
-    monkeypatch.delenv("INSPECT_TASK_SETUP_IN_SLOT", raising=False)
 
 
 def _describe(ex: BaseException) -> str:
@@ -203,7 +201,8 @@ async def test_task_init_base_exception(tmp_path: Path, mode: str, where: str) -
         ("sysexit", "seed"): {"group[SystemExit(3)]"},
         ("sysexit", "added"): {"group[SystemExit(3)]"},
         ("group", "seed"): {"ValueError('x')", "KeyError('y')"},
-        ("group", "added"): {"ValueError('x')", "KeyError('y')"},
+        # an added task's failed setup ends only that task
+        ("group", "added"): {"nothing"},
     }[(mode, where)]
     assert raised in expected_raised
     assert cleanups == (["A"] if where == "added" else [])
@@ -229,8 +228,11 @@ async def test_added_task_init_swallowing_run_cancel(tmp_path: Path) -> None:
     """The run is cancelled while an added task's task_init runs; it swallows it.
 
     tA (config A) adds tS (config S) when_free; tS's task_init catches the
-    cancellation and returns. The run's cancellation propagates, both
-    cleanups run and only tA's cancelled log is on disk.
+    cancellation and returns. Both cleanups run and only tA's cancelled log is
+    on disk. Whether the run's cancellation propagates depends on whether tS's
+    setup (which ran to the end) had finished when the cancellation reached
+    the scheduling loop: a cancellation propagates only while an added task
+    is still being set up.
     """
     from inspect_ai.log import read_eval_log_async
 
@@ -260,9 +262,9 @@ async def test_added_task_init_swallowing_run_cancel(tmp_path: Path) -> None:
             for path in (tmp_path / "logs").glob("*.eval")
         ]
     )
-    result = (outcome, sorted(r[:2] for r in RECORDS if r[0] != "sample_init"), disk)
+    assert outcome in ("cancelled", "returned cancelled")
+    result = (sorted(r[:2] for r in RECORDS if r[0] != "sample_init"), disk)
     assert result == (
-        "cancelled",
         [
             ("swallowed", "S"),
             ("task_cleanup", "A"),

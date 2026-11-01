@@ -86,15 +86,15 @@ eval() / eval_async()              tasks=<TaskSource>
   └─ eval_run(seed, queue)        # once per run, one run_id,
         │                           # one control/ACP server scope
         └─ TaskDispatcher (the run's one scheduling loop), each cycle:
-              start_up(queue.take("when_free"))   # when_free additions
-              dispatch up to max_tasks ─► task_run / task_run_sample
+              take(queue.take("when_free"))       # when_free additions
+              start ready records up to max_tasks ─► task_run / task_run_sample
                                               │            │
                                               │            └─ sample_complete(sample, task) ─┐ (per sample)
                                               └─ task_complete(log) ──────────────────┤ (per task)
                                                        returned tasks ─► queue.put ◄───┘
               if cancelled: break
-              if nothing ready or running (add_when_idle):
-                  start up when_free additions, else after_batch additions,
+              if nothing queued or running (add_when_idle):
+                  take when_free additions, else after_batch additions,
                   else resolve(await task_source.next_tasks());
                   nothing left: close the queue and end the run
 ```
@@ -291,10 +291,11 @@ task-not-found (not specially handled).
   `when_free` ones enqueued with it) and a cancellation while `next_tasks()`
   blocks propagating, and
   `tests/util/sandbox/test_docker_cleanup.py` an added task sharing the run's
-  sandbox scope. `tests/test_task_dispatch.py` covers the queue, the idle rule
-  (`when_free` additions first, then `after_batch`, then `next_tasks()`), the
-  scheduling loop with scripted tasks, and group start-up (a group starts up
-  whole before any of it runs), and
+  sandbox scope. `tests/test_task_dispatch.py` covers the records and queue,
+  the idle rule (`when_free` additions first, then `after_batch`, then
+  `next_tasks()`), the scheduling loop with scripted tasks and setups, and
+  readying tasks (sandbox setups, failures, look-ahead), and
+  `tests/test_setup_cache.py` the shared setup jobs, and
   `tests/util/sandbox/test_sandbox_provider_context.py` where a sandbox
   provider's `task_init` ContextVar state is visible.
 
@@ -314,46 +315,58 @@ moment the dispatcher becomes idle, so no separate batch loop is needed.
 the seed and the queue. `eval_run` ([run.py](../src/inspect_ai/_eval/run.py))
 starts up the seed and runs the `TaskDispatcher`:
 
-- **Group start-up** (`GroupStartup`): the seed, the `when_free` additions taken
-  in one cycle, the `after_batch` additions taken at an idle point, and a
-  `next_tasks()` batch each start up as a group, whole, before any of it is
-  dispatched: sample ids, model controllers, sandbox start-up (configs not
-  already started, via `SandboxManager`), configuration of every task
-  (`TaskSettings.task_options`), then logger init. A sandbox's `task_init`
-  changes the process's working directory and environment while it runs, and
-  a failing start-up must fail the run before any of its group runs. The
-  start-up owns the group's loggers until it returns: if it fails or is
-  cancelled, it discards them. At `parallel == 1` the group is sorted
+- **Records.** Every task has a `TaskRecord` from the moment it is added until
+  it ends: created (and the task configured, by `TaskStartup.configure`) by
+  `RunQueue.put` inside `enqueue_task` or a `TaskSource` callback, for each
+  `next_tasks()` batch, and for the seed. An invalid task raises to whoever
+  added it. At `parallel == 1` the tasks of one addition are sorted
   sequence-major, so with the dispatcher's queue-order tie-break all of task
   N's model fan-outs run before task N+1's, as when the tasks are passed to
-  `eval()` directly.
-- **The loop** (`TaskDispatcher.loop`), per cycle: start up the `when_free`
-  additions (growing the display via `update_task_count`), drop retries a ctl
-  drain/cancel abandoned, start ready attempts up to the live `max_tasks` limit
-  (model-balanced, `pick_balanced`), then wait for a completion, an addition or
-  a control change while anything is ready or running. Once nothing is,
-  `add_when_idle()` takes `when_free` additions that arrived since (so nothing
-  overtakes them), else the `after_batch` additions, else asks
-  `next_tasks()` (until it first returns nothing; tasks added while it runs
-  follow its batch, and start only after it returns, so `next_tasks()` must
-  not wait for them). With nothing left, the loop closes the queue and ends.
-- **Attempts** run in their slots (`run_one`: the shared `_run_task` helper, a
-  per-task cancel scope around `task_run`). The dispatcher also owns per-task
-  retries (`task_retry_attempts`): a retry is built in its slot and appended to
-  the ready attempts, keeping its task's position in the results. Initial tasks
-  keep their input order in the results and added tasks follow in the order
-  they became ready. When dispatch stops on a cancelled run, attempts still
-  ready never start, and their log entries are discarded as for an abandoned
-  retry.
+  `eval()` directly. A record ends `not started`, without a log, if an
+  operator cancels it (`POST /tasks/<id>/cancel` or `/drain`) or the run
+  ends first; `inspect ctl task queued` lists the records waiting to start.
+- **Readying.** A queued record's sandbox configs are resolved (one record at a
+  time, in queue order) and set up by the run's `SetupCache`
+  ([setup_cache.py](../src/inspect_ai/_eval/task/setup_cache.py)): one shared
+  job per config, one setup at a time by default, needed setups before
+  look-ahead ones. Setups are requested for the first `max_tasks` queued
+  records. A record whose setup fails ends with an error log (its retries
+  apply), and the failure is forgotten, so the retry sets up again.
+- **The seed** is readied before the task display opens: every seed setup runs
+  (output streamed, the first failure raises before any log exists), then
+  each seed logger is created and initialised.
+- **The loop** (`TaskDispatcher.loop`), per cycle: take the `when_free`
+  additions (growing the display via `update_task_count`), start ready records
+  up to the live `max_tasks` limit (model-balanced, `pick_balanced`; a record
+  whose setup is still running does not hold back a later ready one), then
+  wait for a completion, an addition, a setup or a control change while
+  anything is queued or running. Once nothing is, `add_when_idle()` takes
+  `when_free` additions that arrived since (so nothing overtakes them), else
+  the `after_batch` additions, else asks `next_tasks()` (until it first
+  returns nothing; tasks added while it runs follow its batch, and start only
+  after it returns, so `next_tasks()` must not wait for them). With nothing
+  left, the loop closes the queue and ends.
+- **Attempts** run in their slots (`run_one`: an added task's logger is
+  created here, then the shared `_run_task` helper, a per-task cancel scope
+  around `task_run`). The dispatcher also owns per-task retries
+  (`task_retry_attempts`): the record goes back to the end of the queue and
+  its next attempt gets a fresh logger, keeping its task's position in the
+  results. Initial tasks keep their input order in the results and added tasks
+  follow in the order the loop took them.
 
 A cancellation (Ctrl-C, or a cancelled scope around `eval_async`) that lands
 while the dispatcher waits for running tasks is absorbed (`_run_task_screen`):
 those tasks end with `cancelled` logs and the run returns them. One that lands
-while the dispatcher starts up an added group or awaits `next_tasks()`
-propagates out of `eval_async`, so `eval()` raises
-`KeyboardInterrupt` and the CLI exits 1: the tasks it interrupts have no log
-yet, so a run that returned normally would look complete. Tasks running beside
-the interrupted preparation are cancelled and write `cancelled` logs.
+while a queued added task is still being readied (its sandbox configs
+resolved or set up) or while the dispatcher awaits `next_tasks()` propagates
+out of `eval_async`, so `eval()` raises `KeyboardInterrupt` and the CLI exits
+1: those tasks have no log yet, so a run that returned normally would look
+complete. Running tasks are cancelled and write `cancelled` logs.
+
+Sandbox setup does not change the process's working directory or environment
+variables (every running task shares them): providers read the task directory
+from `sandbox_setup()`, and `inspect_ai.util.subprocess()` applies it and the
+setup's environment variables to the child processes it starts.
 
 Consequences of one dispatcher per run: task-level sandbox environments
 (`task_init`) started for any generation are cleaned up once, at the end of the
@@ -362,13 +375,15 @@ live dispatcher (with its real `pending` count) for the whole run.
 
 ### Components
 
-- **`SandboxManager`** ([run.py](../src/inspect_ai/_eval/run.py)) — starts
-  sandboxenvs incrementally (only ones not already started, one `task_init` at
-  a time) and accumulates cleanups, so injected tasks get sandboxes and
-  everything tears down once at the end. Each `task_cleanup` runs in a copy of
-  the context its `task_init` left, so a provider that keeps state in a
-  ContextVar set by `task_init` sees that state in its cleanup even after a
-  later `task_init` of the same provider set it again.
+- **`SandboxManager`** ([run.py](../src/inspect_ai/_eval/run.py)) — sets up
+  sandbox configs through the run's `SetupCache` (each once, whoever needs it)
+  and accumulates cleanups, so injected tasks get sandboxes and everything
+  tears down once at the end. The ContextVars each `task_init` sets are added
+  to the run's provider state, which the loop sets in its own context before
+  it starts each task, and each `task_cleanup` runs with the state its own
+  `task_init` left, so a provider that keeps state in a ContextVar sees that
+  state in its cleanup even after a later `task_init` of the same provider set
+  it again.
 - **`Display.update_task_count(n)`** ([display.py](../src/inspect_ai/_display/core/display.py))
   — bumps the "completed / total" denominator as tasks are injected (per-task
   progress views already grow on demand, the same path retries use). Implemented
@@ -376,8 +391,9 @@ live dispatcher (with its real `pending` count) for the whole run.
   display. (Retries must *not* call this — they reuse a `task_id` and are deduped
   in the title; an injected task is a new `task_id`, so it does.)
 - **`RunQueue.wake`** ([enqueue.py](../src/inspect_ai/_eval/task/enqueue.py))
-  — set by `put()`, by each attempt's completion and (as a dispatch waker) by
-  control changes; the loop waits on it.
+  — set by `put()`, by each attempt's completion, by each setup a queued
+  record waits for and (as a dispatch waker) by control changes; the loop
+  waits on it.
 
 ### Tests
 
