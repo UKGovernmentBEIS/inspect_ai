@@ -229,10 +229,7 @@ async def test_added_task_init_swallowing_run_cancel(tmp_path: Path) -> None:
 
     tA (config A) adds tS (config S) when_free; tS's task_init catches the
     cancellation and returns. Both cleanups run and only tA's cancelled log is
-    on disk. Whether the run's cancellation propagates depends on whether tS's
-    setup (which ran to the end) had finished when the cancellation reached
-    the scheduling loop: a cancellation propagates only while an added task
-    is still being set up.
+    on disk. The run returns (asyncio does not return the cancelled log).
     """
     from inspect_ai.log import read_eval_log_async
 
@@ -262,7 +259,7 @@ async def test_added_task_init_swallowing_run_cancel(tmp_path: Path) -> None:
             for path in (tmp_path / "logs").glob("*.eval")
         ]
     )
-    assert outcome in ("cancelled", "returned cancelled")
+    assert outcome in ("returned ", "returned cancelled")
     result = (sorted(r[:2] for r in RECORDS if r[0] != "sample_init"), disk)
     assert result == (
         [

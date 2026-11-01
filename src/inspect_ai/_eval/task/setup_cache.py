@@ -106,7 +106,15 @@ class SetupCache(Generic[K]):
         tg.cancel_scope.cancel()
         # the worker raises nothing, so a group holds only the host's error
         with unwrap_exception_group("single"):
-            return await tg.__aexit__(exc_type, exc, tb)
+            try:
+                return await tg.__aexit__(exc_type, exc, tb)
+            except anyio.get_cancelled_exc_class():
+                # a cancellation of the run that cancelled the worker: the
+                # host left the cache normally (it absorbed the cancellation,
+                # Ctrl-C), so leaving does not raise it again
+                if exc_type is not None:
+                    raise
+                return None
 
     def request(
         self, keys: Iterable[K], on_done: Callable[[], None]

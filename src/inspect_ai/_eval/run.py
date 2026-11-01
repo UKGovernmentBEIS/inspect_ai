@@ -826,8 +826,6 @@ class TaskDispatcher:
         """An attempt ended cancelled (the run was cancelled): start no more."""
         self.source_done = False
         """The ``TaskSource``'s ``next_tasks()`` returned nothing."""
-        self.awaiting_source = False
-        """The loop is awaiting ``next_tasks()`` (see :meth:`absorbs_cancel`)."""
         self.prepare_wake = Wake()
         """Set when a record that needs preparing is queued."""
 
@@ -835,12 +833,11 @@ class TaskDispatcher:
         """Run the seed and every task added while the run is in progress.
 
         Returns the logs in the order the loop took the tasks (a retry keeps
-        its task's position).
+        its task's position). A cancellation of the run (Ctrl-C) wherever the
+        loop is returns the logs written so far.
         """
         try:
-            async with _run_task_screen(
-                task_specs(seed), absorb_cancel=self.absorbs_cancel
-            ) as screen:
+            async with _run_task_screen(task_specs(seed)) as screen:
                 init_task_screen(screen)
                 try:
                     add_dispatch_waker(self.queue.wake.set)
@@ -880,15 +877,6 @@ class TaskDispatcher:
             elif not await self.add_when_idle():
                 break
 
-    def absorbs_cancel(self) -> bool:
-        """Whether a cancellation of the run returns the logs so far (Ctrl-C).
-
-        Not while the loop awaits ``next_tasks()`` or a queued record is
-        being prepared or set up: those tasks have no log yet, so a run that
-        returned normally would look complete.
-        """
-        return not self.awaiting_source and all(r.can_start for r in self.queue.queued)
-
     async def add_when_idle(self) -> bool:
         """Add more work once nothing is queued or running; ``False`` if there is none.
 
@@ -901,9 +889,7 @@ class TaskDispatcher:
         if records:
             self.take(records)
         elif self.source is not None and not self.source_done:
-            self.awaiting_source = True
             more = await self.source.next_tasks()
-            self.awaiting_source = False
             if more:
                 self.take(self.queue.add(self.queue.resolve(more)))
             else:
@@ -1565,17 +1551,14 @@ def _set_provider_state(state: ProviderState) -> None:
 
 
 @asynccontextmanager
-async def _run_task_screen(
-    tasks: list[TaskSpec], absorb_cancel: Callable[[], bool]
-) -> AsyncIterator[TaskScreen]:
+async def _run_task_screen(tasks: list[TaskSpec]) -> AsyncIterator[TaskScreen]:
     """Open the display's task screen for a run that absorbs cancellation.
 
-    A cancellation of the run body is absorbed when ``absorb_cancel()`` says
-    so at that point, and the run returns the logs it has. Trio raises that
-    cancellation again at every checkpoint inside the cancelled scope, so a
-    display whose teardown awaits (the rich display's update-loop task group)
-    raises it again; that one is absorbed too. A cancellation of the body
-    that is not absorbed, from the teardown of a body that was not cancelled,
+    A cancellation of the run body is absorbed, and the run returns the logs
+    it has. Trio raises that cancellation again at every checkpoint inside
+    the cancelled scope, so a display whose teardown awaits (the rich
+    display's update-loop task group) raises it again; that one is absorbed
+    too. A cancellation from the teardown of a body that was not cancelled,
     or from the display's setup, propagates.
     """
     body_cancelled = False
@@ -1584,8 +1567,6 @@ async def _run_task_screen(
             try:
                 yield screen
             except anyio.get_cancelled_exc_class():
-                if not absorb_cancel():
-                    raise
                 body_cancelled = True
     except anyio.get_cancelled_exc_class():
         if not body_cancelled:

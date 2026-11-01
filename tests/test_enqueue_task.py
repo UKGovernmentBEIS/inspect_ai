@@ -1050,6 +1050,7 @@ async def test_enqueue_task_when_free_file_task_log_init_keeps_running_cwd(
 
 # Run in a subprocess so the SIGINT cannot reach the test process.
 _CTRL_C_WHILE_ADDING_SCRIPT = """
+import os
 import signal
 import tempfile
 
@@ -1108,7 +1109,7 @@ def run(case, display, log_dir):
             solver=add_task(None if case == "default" else case, case == "when_free"),
             name="parent",
         )
-    eval(
+    return eval(
         tasks,
         model="mockllm/model",
         max_tasks=1,
@@ -1119,7 +1120,10 @@ def run(case, display, log_dir):
 
 
 # the Ctrl-C lands while the added task's sandbox is set up or while
-# next_tasks() waits; the interrupted task has no log
+# next_tasks() waits; the interrupted task has no log. On trio, eval() raises
+# KeyboardInterrupt after every Ctrl-C (run_main); on asyncio it returns the
+# logs written so far
+trio = os.environ["INSPECT_ASYNC_BACKEND"] == "trio"
 expected = {
     "default": [("parent", "success")],
     "after_batch": [("parent", "success")],
@@ -1130,11 +1134,16 @@ for case, logs in expected.items():
     for display in ["rich", "plain", "log"]:
         log_dir = tempfile.mkdtemp()
         try:
-            run(case, display, log_dir)
+            returned = run(case, display, log_dir)
         except KeyboardInterrupt as ex:
             assert type(ex) is KeyboardInterrupt, repr(ex)
+            assert trio, (case, display)
         else:
-            raise AssertionError(f"{case}, {display}: no KeyboardInterrupt")
+            assert not trio, (case, display)
+            # (asyncio returns no log for a task the cancellation interrupted)
+            assert [(log.eval.task, log.status) for log in returned] == [
+                log for log in logs if log[1] != "cancelled"
+            ], (case, display)
         assert signal.getsignal(signal.SIGINT) is signal.default_int_handler
         on_disk = [
             (log.eval.task, log.status)
@@ -1156,11 +1165,12 @@ assert log.status == "success", log.status
 
 
 @pytest.mark.parametrize("backend", ["asyncio", "trio"], ids=["on_asyncio", "on_trio"])
-def test_ctrl_c_while_adding_tasks_raises_keyboard_interrupt(backend: str) -> None:
+def test_ctrl_c_while_adding_tasks_ends_the_run(backend: str) -> None:
     """A Ctrl-C while added tasks are prepared or next_tasks() waits ends eval().
 
-    eval() raises KeyboardInterrupt (the CLI exits 1), with the rich, plain
-    and log displays, for an added task under each start policy and for a
+    As for a Ctrl-C anywhere else, eval() returns the logs written so far on
+    asyncio and raises KeyboardInterrupt on trio, with the rich, plain and
+    log displays, for an added task under each start policy and for a
     TaskSource's next_tasks(). Tasks that already finished keep their logs, a
     task running beside the interrupted preparation is cancelled, and a later
     eval() still runs.

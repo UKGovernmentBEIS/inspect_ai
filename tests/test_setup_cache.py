@@ -172,6 +172,27 @@ async def test_run_cancellation_is_not_a_failure() -> None:
     assert told == []
 
 
+async def test_leaving_after_the_host_absorbed_a_run_cancellation() -> None:
+    # the run's cancellation also cancelled the running setup; the host
+    # absorbed it (as the run does for Ctrl-C), so leaving the cache does not
+    # raise it again
+    async def setup(key: str) -> None:
+        await anyio.sleep_forever()
+
+    left = False
+    with anyio.CancelScope() as scope:
+        async with SetupCache(setup) as cache:
+            cache.request(["a"], lambda: None)
+            await _settle()
+            scope.cancel()
+            try:
+                await anyio.sleep_forever()
+            except anyio.get_cancelled_exc_class():
+                pass
+        left = True
+    assert left
+
+
 @skip_if_trio
 async def test_cancelled_error_raised_by_the_setup_is_a_failure() -> None:
     # e.g. a provider awaiting a shared background task someone else cancelled

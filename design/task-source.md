@@ -279,17 +279,16 @@ task-not-found (not specially handled).
   raised; the default `after_batch` waits for every seed task; sequence grouping
   of a multi-model `when_free` group; retries; a late enqueue raising; an
   invalid `start` raising before resolution; cancellation while a `when_free` child is
-  queued; cancellation while an added group is being prepared (both
-  loggers discarded, the cancellation propagating); a real Ctrl-C while an
-  added task is prepared or `next_tasks()` waits (in a subprocess, under both
-  backends) raising `KeyboardInterrupt`; and which hooks can call
+  queued; a real Ctrl-C while an added task is prepared or `next_tasks()`
+  waits (in a subprocess, under both backends: asyncio returns the logs so
+  far, trio raises `KeyboardInterrupt`); and which hooks can call
   `enqueue_task`. It also covers a throttled trailing call that enqueues after the run
   has finished dispatching (logged; the eval keeps its result) and a finished
   added task's dataset being freed before the run ends.
   `tests/test_task_source.py` also covers tasks enqueued by
   the final `next_tasks()` call (an `after_batch` one starting after the
   `when_free` ones enqueued with it) and a cancellation while `next_tasks()`
-  blocks propagating, and
+  blocks returning the logs so far, and
   `tests/util/sandbox/test_docker_cleanup.py` an added task sharing the run's
   sandbox scope. `tests/test_task_dispatch.py` covers the records and queue,
   the idle rule (`when_free` additions first, then `after_batch`, then
@@ -360,12 +359,13 @@ makes it the active one for `enqueue_task`, starts up the seed and runs the
   in the order the loop took them.
 
 A cancellation (Ctrl-C, or a cancelled scope around `eval_async`) that lands
-while the dispatcher waits for running tasks is absorbed (`_run_task_screen`):
-those tasks end with `cancelled` logs and the run returns them. One that lands
-while a queued added task is still being prepared or set up, or while the dispatcher awaits `next_tasks()` propagates
-out of `eval_async`, so `eval()` raises `KeyboardInterrupt` and the CLI exits
-1: those tasks have no log yet, so a run that returned normally would look
-complete. Running tasks are cancelled and write `cancelled` logs.
+once the task display is open is absorbed (`_run_task_screen`) wherever the
+dispatcher is: running tasks are cancelled and write `cancelled` logs, tasks
+that have not started end without a log, and the run returns the logs written
+so far (on asyncio the logs of the tasks the cancellation interrupted are not
+returned; they are on disk). On trio, `eval()` then raises
+`KeyboardInterrupt`, as after every Ctrl-C (`run_main`). A cancellation while
+the seed is set up, before the display opens, propagates.
 
 `inspect ctl task cancel` or `drain` of a task whose first attempt has not
 started (given its full task id) ends it without running: the directive

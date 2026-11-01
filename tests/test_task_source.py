@@ -649,11 +649,11 @@ def test_task_enqueued_by_final_next_tasks_runs(
 
 
 @pytest.mark.parametrize("max_tasks", [1, 2])
-async def test_cancel_while_next_tasks_blocks_propagates(max_tasks: int) -> None:
-    # the run is cancelled (as by Ctrl-C) while next_tasks() blocks: the
-    # cancellation propagates out of eval_async, since the tasks next_tasks()
-    # would have returned never ran and returning normally would report a
-    # complete run
+async def test_cancel_while_next_tasks_blocks_returns_the_logs_so_far(
+    max_tasks: int,
+) -> None:
+    # the run is cancelled (as by Ctrl-C) while next_tasks() blocks: as for a
+    # cancellation anywhere else, eval_async returns the logs written so far
     class _Src(TaskSource):
         def initial_tasks(self) -> list[Task]:
             return [_task("seed")]
@@ -666,10 +666,11 @@ async def test_cancel_while_next_tasks_blocks_propagates(max_tasks: int) -> None
     init_display_type("none")
     with anyio.fail_after(60):
         with anyio.CancelScope() as scope:
-            await eval_async(tasks=_Src(), model="mockllm/model", max_tasks=max_tasks)
-            pytest.fail("eval_async returned from a cancelled run")
+            logs = await eval_async(
+                tasks=_Src(), model="mockllm/model", max_tasks=max_tasks
+            )
 
-    assert scope.cancelled_caught
+    assert [(log.eval.task, log.status) for log in logs] == [("seed", "success")]
 
 
 def test_after_batch_enqueued_by_final_next_tasks_runs_after_when_free() -> None:

@@ -629,8 +629,8 @@ async def test_run_cancel_during_setup_beside_a_running_task(
     tmp_path: Path, lifecycle: _Lifecycle
 ) -> None:
     # the run is cancelled while the child sets up and the parent runs: the
-    # cancellation propagates (the child has no log), and the parent ends
-    # cancelled
+    # run returns (the child never started, so it has no log), and the parent
+    # ends cancelled
     entered = anyio.Event()
 
     async def block() -> None:
@@ -656,13 +656,16 @@ async def test_run_cancel_during_setup_beside_a_running_task(
                     scope.cancel()
 
                 tg.start_soon(cancel_when_entered)
-                await eval_async(
+                logs = await eval_async(
                     _plain("parent", add_child_and_wait()),
                     model="mockllm/model",
                     max_tasks=2,
                 )
-                pytest.fail("eval_async returned from a cancelled run")
-    assert scope.cancelled_caught
+    # asyncio does not return the cancelled parent's log (it is on disk)
+    assert [(log.eval.task, log.status) for log in logs] in (
+        [],
+        [("parent", "cancelled")],
+    )
     assert await _checked_attempts(lifecycle, tmp_path / "logs") == [
         ("parent", "cancelled")
     ]

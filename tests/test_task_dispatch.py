@@ -605,7 +605,6 @@ async def test_dispatcher_runs_tasks_added_during_final_next_tasks() -> None:
     async with anyio.create_task_group() as tg:
         tg.start_soon(idle)
         await entered.wait()
-        assert not dispatcher.absorbs_cancel()
         harness.queue.put([_task("w")], start="when_free")
         harness.queue.put([_task("a")], start="after_batch")
         release.set()
@@ -1145,12 +1144,13 @@ async def test_finished_added_task_is_released_while_the_run_continues(
 
 
 @pytest.mark.parametrize("during", ["setup", "resolution", "next_tasks"])
-async def test_loop_cancel_while_readying_added_tasks_propagates(
+async def test_loop_cancel_while_readying_added_tasks_is_absorbed(
     monkeypatch: pytest.MonkeyPatch, during: str
 ) -> None:
     # a cancellation of the run while an added task is still being readied,
-    # or while the loop awaits next_tasks(), propagates (those tasks have no
-    # log yet); the running task's logger is released
+    # or while the loop awaits next_tasks(), returns the logs written so far,
+    # as a cancellation anywhere else does; the running task's logger is
+    # released and the unstarted task ends without a log
     m1 = get_model("mockllm/m1")
     harness = Harness([m1], parallel=1, default_start="when_free")
     _install(monkeypatch, harness)
@@ -1189,8 +1189,11 @@ async def test_loop_cancel_while_readying_added_tasks_propagates(
                     await dispatcher.run(harness.seed(_resolve(["a"], [m1])))
                 )
 
-    assert returned == []
-    assert scope.cancelled_caught
+    # a finished before next_tasks() was asked; otherwise it was running
+    assert [log.eval.task for log in returned[0]] == (
+        ["a@m1"] if during == "next_tasks" else []
+    )
+    assert all(record.outcome is not None for record in harness.queue.records)
     assert _starts(harness) == ["a@m1"]
     assert harness.loggers["a@m1"][0].discarded == (0 if during == "next_tasks" else 1)
     assert task_dispatcher_stats() is None
