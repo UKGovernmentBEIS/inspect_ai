@@ -3,8 +3,7 @@
 An added task's sandboxes are set up while other tasks run: the setup must not
 be visible to them, a failed setup ends only that task (with an error log,
 hooks, a ``TaskSource`` notification and its retries), setup output is
-collected (and shown if the setup fails), and a task cancelled while it waits
-for its setup ends without running.
+collected (and shown if the setup fails).
 """
 
 import os
@@ -151,13 +150,25 @@ def _statuses(logs: list[EvalLog]) -> list[tuple[str, str]]:
     return [(log.eval.task, log.status) for log in logs]
 
 
+async def _wait_ended(*names: str) -> None:
+    """Wait until an attempt of each named task has finished (its eval state)."""
+    with anyio.fail_after(10):
+        while not all(
+            any(
+                s.task == name and s.completed_at is not None for s in get_eval_states()
+            )
+            for name in names
+        ):
+            await anyio.sleep(0.01)
+
+
 @solver
 def add_and_wait(*tasks: Task) -> Solver:
     """Add tasks to the run and wait for them to end."""
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        for handle in enqueue_task(list(tasks), start="when_free"):
-            await handle.wait()
+        enqueue_task(list(tasks), start="when_free")
+        await _wait_ended(*(task.name for task in tasks))
         return state
 
     return solve
@@ -190,13 +201,13 @@ async def test_setup_overlaps_running_sample_without_changing_its_process(
     @solver
     def add_and_observe() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            [handle] = enqueue_task(_boxed("b", task_dir), start="when_free")
+            enqueue_task(_boxed("b", task_dir), start="when_free")
             with anyio.fail_after(10):
                 await init_running.wait()
             seen["cwd"] = os.getcwd()
             seen["var"] = os.environ.get("ADDED_SETUP_BOX_VAR")
             observed.set()
-            await handle.wait()
+            await _wait_ended("b")
             return state
 
         return solve
@@ -407,12 +418,7 @@ def add_child_and_watch(child: Task, seen: dict[str, Any]) -> Solver:
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         enqueue_task(child, start="when_free")
-        with anyio.fail_after(10):
-            while not any(
-                s.task == "child" and s.completed_at is not None
-                for s in get_eval_states()
-            ):
-                await anyio.sleep(0.01)
+        await _wait_ended("child")
         seen["child_ended_while_parent_ran"] = True
         return state
 

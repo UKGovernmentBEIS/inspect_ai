@@ -16,11 +16,9 @@ starting tasks.
 from __future__ import annotations
 
 from contextvars import ContextVar, Token
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Callable, Literal, get_args
-
-import anyio
 
 from inspect_ai._util._async import Wake
 
@@ -82,9 +80,6 @@ class TaskRecord:
     configured: ConfiguredTask | None
     retries_remaining: int
     """Retry attempts left after the current one."""
-    start_policy: TaskStartPolicy | None = None
-    """How an added task starts (``None`` for the seed and ``next_tasks()``
-    batches)."""
     state: TaskRecordState = TaskRecordState.QUEUED
     idx: int | None = None
     """Position of the task's log in the logs the run returns (assigned when
@@ -103,7 +98,6 @@ class TaskRecord:
     """Where a retry attempt reads the completed samples of the failed one
     (``None``: the task's own sample source)."""
     log: EvalLog | None = None
-    _ended: anyio.Event | None = field(default=None, repr=False)
 
     def end(self, log: EvalLog | None) -> None:
         """End the record with its final log (``None`` if it never wrote one)."""
@@ -114,48 +108,6 @@ class TaskRecord:
         self.logger = None
         self.retry_source = None
         self.setup_failure = None
-        if self._ended is not None:
-            self._ended.set()
-
-    async def wait(self) -> EvalLog | None:
-        if self.start_policy == "after_batch" and self.idx is None:
-            raise RuntimeError(
-                f"Task '{self.task}' starts only once no task is running "
-                "(start='after_batch'), so a running task waiting for it would "
-                "never finish. Add it with start='when_free' to wait for it."
-            )
-        if self.state is not TaskRecordState.ENDED:
-            if self._ended is None:
-                self._ended = anyio.Event()
-            await self._ended.wait()
-        return self.log
-
-
-class TaskHandle:
-    """A task added to the running eval (returned by :func:`enqueue_task`)."""
-
-    def __init__(self, record: TaskRecord) -> None:
-        self._record = record
-
-    @property
-    def task_id(self) -> str:
-        """The task's id (the same for all its attempts)."""
-        return self._record.task_id
-
-    @property
-    def state(self) -> TaskRecordState:
-        """Whether the task is waiting to start, running, or has ended."""
-        return self._record.state
-
-    async def wait(self) -> "EvalLog | None":
-        """Wait for the task to end; its final log, or ``None`` if it never started.
-
-        Raises:
-            RuntimeError: If the task was added with ``start="after_batch"``
-                and has not been taken yet: it starts only once no task is
-                running, so a running task waiting for it would never finish.
-        """
-        return await self._record.wait()
 
 
 class RunQueue:
@@ -263,8 +215,6 @@ class RunQueue:
         self._accepting()
         records = self.add(self.resolve(tasks))
         policy = start or self.default_start
-        for record in records:
-            record.start_policy = policy
         self._added[policy].extend(records)
         self.wake.set()
         return records
@@ -347,7 +297,7 @@ def enqueue_task(
     *,
     run_id: str | None = None,
     start: TaskStartPolicy | None = None,
-) -> list[TaskHandle]:
+) -> None:
     """Add one or more tasks to the running eval.
 
     The tasks run in this process under the current run's ``run_id`` (a fresh
@@ -389,9 +339,6 @@ def enqueue_task(
             (the default): ``"when_free"`` in a run driven by a
             :class:`~inspect_ai.TaskSource`, ``"after_batch"`` otherwise.
 
-    Returns:
-        A handle for each added task and model, in the order they start.
-
     Raises:
         ValueError: If ``start`` is not one of the values above, or the tasks
             can't be resolved (propagated from resolution).
@@ -417,4 +364,4 @@ def enqueue_task(
             f"enqueue_task() run_id '{run_id}' does not match the running eval "
             f"'{queue.run_id}'."
         )
-    return [TaskHandle(record) for record in queue.put(tasks, start=start)]
+    queue.put(tasks, start=start)

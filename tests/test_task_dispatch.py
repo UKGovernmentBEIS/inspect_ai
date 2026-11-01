@@ -434,15 +434,6 @@ def test_run_queue_close_refuses_put_and_returns_unstarted() -> None:
     assert len(resolved) == 1
 
 
-async def test_waiting_for_an_after_batch_task_raises_until_it_is_taken() -> None:
-    # it starts only once nothing runs, so a running task waiting for it would
-    # never finish
-    harness = Harness([get_model("mockllm/m1")])
-    [record] = harness.queue.put([_task("a")], start="after_batch")
-    with pytest.raises(RuntimeError, match="start='when_free'"):
-        await record.wait()
-
-
 def test_record_drops_its_task_when_it_ends() -> None:
     harness = Harness([get_model("mockllm/m1")])
     [record] = harness.queue.put([_task("a")])
