@@ -1354,8 +1354,8 @@ class TaskDispatcher:
         if record.logger is not None:
             assert self.tg is not None
             self.tg.start_soon(_discard, record.logger)
-        if record.idx is not None:
-            # it was counted in the task display's total
+        if record.idx is not None and record.attempt == 1:
+            # counted in the task display's total, but will never run
             display().update_task_count(-1)
         record.end(None)
         self.queue.wake.set()
