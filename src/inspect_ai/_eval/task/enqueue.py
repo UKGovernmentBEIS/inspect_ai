@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from inspect_ai._eval.task.log import TaskLogger
     from inspect_ai._eval.task.resolved import ResolvedTask
     from inspect_ai._eval.task.run import EvalSampleSource, TaskRunOptions
-    from inspect_ai._eval.task.setup_cache import SetupFailure
+    from inspect_ai._eval.task.setup_cache import SetupFailure, SetupJob
     from inspect_ai._eval.task.tasks import Tasks
     from inspect_ai.log import EvalLog
     from inspect_ai.model import Model
@@ -88,16 +88,30 @@ class TaskRecord:
     """The logger the record's next attempt uses: a seed task's first one
     (created when the seed starts up), or a failed attempt's, which its retry
     reinitialises. Other first attempts create theirs when they start."""
-    setup_keys: frozenset[Any] | None = None
-    """The sandbox configs its selected samples use (``None`` until resolved)."""
+    setups: list[SetupJob[Any]] | None = None
+    """The setup jobs of the sandbox configs its selected samples use (``None``
+    until the record is prepared)."""
     setup_failure: SetupFailure | None = None
-    """Why its sandboxes could not be prepared or set up; its next attempt ends
-    with it."""
+    """Why its sandbox configs could not be resolved."""
     attempt: int = 1
     retry_source: EvalSampleSource | None = None
     """Where a retry attempt reads the completed samples of the failed one
     (``None``: the task's own sample source)."""
     log: EvalLog | None = None
+
+    @property
+    def failure(self) -> SetupFailure | None:
+        """Why its sandboxes could not be prepared or set up; its next attempt ends with it."""
+        if self.setup_failure is not None:
+            return self.setup_failure
+        return next((j.failure for j in self.setups or [] if j.failure), None)
+
+    @property
+    def can_start(self) -> bool:
+        """Whether its sandboxes are set up, or have failed."""
+        return self.failure is not None or (
+            self.setups is not None and all(j.succeeded for j in self.setups)
+        )
 
     def end(self, log: EvalLog | None) -> None:
         """End the record with its final log (``None`` if it never wrote one)."""

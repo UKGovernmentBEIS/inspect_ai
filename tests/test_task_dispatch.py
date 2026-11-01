@@ -297,7 +297,7 @@ class Harness:
         seed = self.queue.add(tasks)
         self.queue.enqueue(seed)
         for record in seed:
-            record.setup_keys = frozenset()
+            record.setups = []
             logger = cast(FakeLogger, self.new_logger(_labels([record])[0]))
             logger.location = f"{logger.label}.eval"
             record.logger = cast(TaskLogger, logger)
@@ -935,8 +935,7 @@ async def test_tasks_on_a_config_set_up_earlier_start_without_waiting(
 async def test_failed_setup_ends_its_waiters_then_their_retry_sets_up_again(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # two slots, so both b and c are within the look-ahead and wait for the
-    # same setup
+    # b and c wait for the same setup
     m1 = get_model("mockllm/m1")
     harness = Harness([m1], parallel=2, retries=1)
     _install(monkeypatch, harness)
@@ -1002,42 +1001,42 @@ async def test_failed_resolution_ends_only_that_task(
     assert logs[1].error is not None and "bad compose file" in logs[1].error.message
 
 
-async def test_look_ahead_sets_up_at_most_max_tasks_queued_tasks(
+async def test_queued_tasks_set_up_one_at_a_time_in_queue_order(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     m1 = get_model("mockllm/m1")
     harness = Harness([m1], parallel=2)
     _install(monkeypatch, harness)
-    names = ["t1", "t2", "t3", "t4"]
+    names = ["t1", "t2", "t3"]
     for name in names:
         harness.keys[f"{name}@m1"] = [name]
 
     async def drive() -> None:
         await _wait_started(harness, "a@m1", "b@m1")
         harness.queue.put([_task(n) for n in names], start="when_free")
-        await harness.setup_began_event("t1").wait()
-        harness.finish_setup("t1")
-        await harness.setup_began_event("t2").wait()
-        harness.finish_setup("t2")
-        await _wait_until(lambda: harness.startup.setups.done(["t2"]))
-        # t1 and t2 are set up and wait for a slot; t3 and t4 are beyond the
-        # look-ahead, so their setups have not been requested
-        assert "setup t3" not in harness.events
-        harness.finish["a@m1"].set()
-        await harness.setup_began_event("t3").wait()
-        harness.finish_setup("t3")
-        harness.finish["b@m1"].set()
-        await harness.setup_began_event("t4").wait()
-        harness.finish_setup("t4")
+        # every queued task sets up while a and b hold the slots
         for name in names:
-            await _wait_started(harness, f"{name}@m1")
-            harness.finish[f"{name}@m1"].set()
+            await harness.setup_began_event(name).wait()
+            harness.finish_setup(name)
+        await _wait_until(lambda: harness.startup.setups.done(names))
+        for done, next in [("a", "t1"), ("b", "t2"), ("t1", "t3")]:
+            harness.finish[f"{done}@m1"].set()
+            await _wait_started(harness, f"{next}@m1")
+        harness.finish["t2@m1"].set()
+        harness.finish["t3@m1"].set()
 
     async with anyio.create_task_group() as tg:
         tg.start_soon(drive)
         await harness.run(_resolve(["a", "b"], [m1]))
+    assert [
+        e for e in harness.events if e.startswith("setup") and e.endswith("done")
+    ] == [
+        "setup t1 done",
+        "setup t2 done",
+        "setup t3 done",
+    ]
     # (a and b start in the same cycle, in either order)
-    assert _starts(harness)[2:] == ["t1@m1", "t2@m1", "t3@m1", "t4@m1"]
+    assert _starts(harness)[2:] == ["t1@m1", "t2@m1", "t3@m1"]
 
 
 async def test_abandoning_a_queued_retry_keeps_the_failed_attempts_log(

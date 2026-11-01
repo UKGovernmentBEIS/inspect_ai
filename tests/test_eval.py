@@ -1133,17 +1133,10 @@ def test_abandoned_attempt_not_traced_as_task_error(
     must record a clean exit rather than an ``error`` event with a
     stacktrace (which would show up in ``inspect trace dump`` as a failure).
     """
-    from dataclasses import replace
-
-    from inspect_ai._eval.run import TaskDispatcher
+    import inspect_ai._eval.task.run as task_run_module
     from inspect_ai._util.constants import TRACE
 
-    attempt_options = TaskDispatcher.attempt_options
-
-    def abandoned_options(self: Any, record: Any, logger: Any) -> Any:
-        return replace(attempt_options(self, record, logger), abandoned=lambda: True)
-
-    monkeypatch.setattr(TaskDispatcher, "attempt_options", abandoned_options)
+    monkeypatch.setattr(task_run_module, "task_retry_abandoned", lambda _: True)
     caplog.set_level(TRACE, logger="inspect_ai._eval.run")
 
     logs = eval(

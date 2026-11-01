@@ -560,9 +560,10 @@ class TaskStartup:
         keys: set[TaskSandboxEnvironment] = set()
         for record in seed:
             assert record.configured is not None
-            record.setup_keys = await self.prepare(record.configured.resolved)
-            keys |= record.setup_keys
+            keys |= await self.prepare(record.configured.resolved)
         await self.sandboxes.setup_seed(keys)
+        for record in seed:
+            record.setups = []
         try:
             for record in seed:
                 assert record.configured is not None
@@ -857,15 +858,9 @@ class TaskDispatcher:
         """The ``TaskSource``'s ``next_tasks()`` returned nothing."""
         self.awaiting_source = False
         """The loop is awaiting ``next_tasks()`` (see :meth:`absorbs_cancel`)."""
-        self.cancel_absorbed = False
-        """The task screen absorbed a cancellation of the run."""
         self.unprepared: deque[TaskRecord] = deque()
         """Queued records not prepared yet, in queue order."""
         self.unprepared_wake = Wake()
-        self.prefetched: set[TaskRecord] = set()
-        """Queued records whose setups have been requested for this attempt."""
-        self.fatal: BaseException | None = None
-        """A ``KeyboardInterrupt`` or ``SystemExit`` raised by a setup."""
         self.tg: TaskGroup | None = None
         """The task group attempts run in, while the run is in progress."""
 
@@ -908,11 +903,8 @@ class TaskDispatcher:
         """End the records left when dispatch stops (a cancelled or failed run).
 
         Records that never started release the loggers they held; those whose
-        attempt a failed run interrupted keep the log they have. After a
-        cancellation the screen absorbed, setups still running are cut short.
+        attempt a failed run interrupted keep the log they have.
         """
-        if self.cancel_absorbed:
-            self.setups.cancel_running()
         for record in self.queue.close():
             if record.logger is not None:
                 await _release_queued(record.logger, record.attempt)
@@ -924,8 +916,8 @@ class TaskDispatcher:
     async def loop(self, tg: TaskGroup) -> None:
         """Start records while there is capacity; when idle, add more or finish."""
         while not self.stopped:
-            if self.fatal is not None:
-                raise self.fatal
+            if self.setups.fatal is not None:
+                raise self.setups.fatal
             self.take(self.queue.take("when_free"))
             await self.drop_abandoned_retries()
             self.fill_slots(tg)
@@ -939,23 +931,11 @@ class TaskDispatcher:
     def absorbs_cancel(self) -> bool:
         """Whether a cancellation of the run returns the logs so far (Ctrl-C).
 
-        It does unless the loop is awaiting ``next_tasks()`` or a queued
-        record is being prepared or set up (setup requested and not done):
-        that work is interrupted and those tasks have no log yet, so a run
-        that returned normally would look complete. Records waiting for a
-        slot, a pause or their turn for setup end without a log, as unstarted
-        tasks always have.
+        Not while the loop awaits ``next_tasks()`` or a queued record is
+        being prepared or set up: those tasks have no log yet, so a run that
+        returned normally would look complete.
         """
-        self.cancel_absorbed = not self.awaiting_source and not any(
-            self.being_prepared(record) for record in self.queue.queued
-        )
-        return self.cancel_absorbed
-
-    def being_prepared(self, record: TaskRecord) -> bool:
-        """Whether a queued record is being prepared, or its setup is running."""
-        return not self.can_start(record) and (
-            record.setup_keys is None or record in self.prefetched
-        )
+        return not self.awaiting_source and all(r.can_start for r in self.queue.queued)
 
     async def add_when_idle(self) -> bool:
         """Add more work once nothing is queued or running; ``False`` if there is none.
@@ -1001,80 +981,35 @@ class TaskDispatcher:
                 while not self.unprepared:
                     await self.unprepared_wake.wait()
                 record = self.unprepared.popleft()
-                if record.state is TaskRecordState.QUEUED:
+                if record in self.queue.queued:
                     await self.prepare(record)
                     self.queue.wake.set()
 
     async def prepare(self, record: TaskRecord) -> None:
-        """Resolve a record's sandbox configs; a failure ends its next attempt."""
+        """Resolve a record's sandbox configs and request their setups.
+
+        A failure to resolve them ends the record's next attempt.
+        """
         assert record.configured is not None
         try:
             keys = await self.startup.prepare(record.configured.resolved)
         except Exception as ex:
             if self.debug_errors:
                 raise
-            failure = SetupFailure.of(ex)
+            record.setup_failure = SetupFailure.of(ex)
         except anyio.get_cancelled_exc_class() as ex:
             if run_cancelled():
                 raise
-            failure = SetupFailure.of(
+            record.setup_failure = SetupFailure.of(
                 RuntimeError(f"Sandbox resolution raised {ex!r}.")
             )
         else:
-            record.setup_keys = keys
-            return
-        if record.state is TaskRecordState.QUEUED:
-            record.setup_failure = failure
-
-    def can_start(self, record: TaskRecord) -> bool:
-        """Whether a queued record can start: its sandboxes are set up, or failed."""
-        return record.setup_failure is not None or (
-            record.setup_keys is not None and self.setups.done(record.setup_keys)
-        )
+            record.setups = self.setups.request(keys, self.queue.wake.set)
 
     def fill_slots(self, tg: TaskGroup) -> None:
-        """Start records into free slots (:meth:`pick`), then request setups ahead."""
+        """Start records into free slots (:meth:`pick`)."""
         while (record := self.pick()) is not None:
             self.start_attempt(tg, record)
-        self.prefetch_setups()
-
-    def prefetch_setups(self) -> None:
-        """Request the setups of the next ``max_tasks`` queued records that can start.
-
-        ``max_tasks`` is read live. Paused records and records whose setup
-        failed are passed over. The oldest record that cannot start yet has
-        its setups marked as needed now.
-        """
-        window = [
-            r
-            for r in self.queue.queued
-            if r.setup_failure is None and not _dispatch_paused(r)
-        ][: effective_max_tasks(self.parallel)]
-        for record in window:
-            if record.setup_keys is not None and record not in self.prefetched:
-                self.prefetched.add(record)
-                self.setups.prefetch(
-                    record.setup_keys, functools.partial(self.setup_done, record)
-                )
-        head = next((r for r in window if not self.can_start(r)), None)
-        if head is not None and head.setup_keys is not None:
-            self.setups.need(head.setup_keys)
-
-    def setup_done(self, record: TaskRecord, failure: SetupFailure | None) -> None:
-        """A setup a queued record waits for ended: it may start, or must fail.
-
-        A ``KeyboardInterrupt`` or ``SystemExit`` the setup raised is not a
-        failure of the record: the loop raises it.
-        """
-        if failure is not None and not isinstance(failure.error, Exception):
-            self.fatal = failure.error
-        elif (
-            failure is not None
-            and record.state is TaskRecordState.QUEUED
-            and record.setup_failure is None
-        ):
-            record.setup_failure = failure
-        self.queue.wake.set()
 
     def pick(self) -> TaskRecord | None:
         """The next record to start (see :func:`pick_balanced`).
@@ -1089,11 +1024,11 @@ class TaskDispatcher:
         for record in self.queue.queued:
             if _dispatch_paused(record):
                 continue
-            if record.setup_keys is None and record.setup_failure is None:
+            if record.setups is None and record.setup_failure is None:
                 break
-            if self.can_start(record):
+            if record.can_start:
                 candidates.append(record)
-        failed = next((r for r in candidates if r.setup_failure is not None), None)
+        failed = next((r for r in candidates if r.failure is not None), None)
         if failed is not None:
             return failed
         if self.in_slots >= effective_max_tasks(self.parallel):
@@ -1103,9 +1038,8 @@ class TaskDispatcher:
     def start_attempt(self, tg: TaskGroup, record: TaskRecord) -> None:
         """Start a record's attempt, with the run's provider state."""
         self.queue.queued.remove(record)
-        self.prefetched.discard(record)
         record.state = TaskRecordState.RUNNING
-        in_slot = record.setup_failure is None
+        in_slot = record.failure is None
         if in_slot:
             self.in_slots += 1
             self.model_counts[record.model] += 1
@@ -1179,7 +1113,7 @@ class TaskDispatcher:
         """The run options of a record's next attempt."""
         assert record.configured is not None
         options = replace(
-            record.configured.options(logger), setup_failure=record.setup_failure
+            record.configured.options(logger), setup_failure=record.failure
         )
         if record.retry_source is not None:
             options = replace(options, sample_source=record.retry_source)
@@ -1221,9 +1155,13 @@ class TaskDispatcher:
             record.retries_remaining -= 1
             # a setup failure is reported now; the retry sets up again
             record.setup_failure = None
-            if record.setup_keys is None:
+            if record.setups is None:
                 self.unprepared.append(record)
                 self.unprepared_wake.set()
+            else:
+                record.setups = self.setups.request(
+                    [job.key for job in record.setups], self.queue.wake.set
+                )
             self.take(self.queue.take("when_free"))
             self.queue.queued.append(record)
             log.info(
@@ -1254,7 +1192,6 @@ class TaskDispatcher:
         """
         for record in [r for r in self.queue.queued if task_retry_abandoned(r.task_id)]:
             self.queue.remove(record)
-            self.prefetched.discard(record)
             if record.logger is not None:
                 await _release_queued(record.logger, record.attempt)
             record.end(None)
