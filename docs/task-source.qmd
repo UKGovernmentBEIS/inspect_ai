@@ -174,7 +174,7 @@ A task that waits for a `"when_free"` task it added needs a free slot for it. `e
 
 All tasks of a run, including added ones, share one task display and one set of task-level sandbox environments, which are cleaned up when the run ends.
 
-While an added task's task-level sandbox environment starts (its provider's `task_init`, for example a Docker image build), the tasks already running keep running, but the task display is suspended, no other task starts, and the process-wide working directory and the environment variables the provider sets for startup are changed. Subprocesses that running tasks start in that time inherit them. If a running task whose `SampleSource` adds samples resolves or starts its own sandbox environments at the same time, the working directory can stay changed after both have finished: the process can be left in one of the two tasks' directories for the rest of the run.
+While an added task's task-level sandbox environment starts (its provider's `task_init`, for example a Docker image build), the tasks already running keep running and other tasks that are ready can start; setups run one at a time and do not change the process's working directory or environment variables. If the setup fails, only that task ends, with an error log (its retries apply), and the run continues.
 
 ## Concurrency
 
