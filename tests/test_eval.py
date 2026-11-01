@@ -452,8 +452,11 @@ def test_eval_sandbox_init_when_first_task_has_no_sandbox():
     from inspect_ai._eval.run import SandboxManager
 
     with mock.patch.object(
-        SandboxManager, "start", autospec=True, side_effect=SandboxManager.start
-    ) as start_spy:
+        SandboxManager,
+        "_init_one",
+        autospec=True,
+        side_effect=SandboxManager._init_one,
+    ) as init_spy:
         results = eval(
             tasks=[
                 Task(dataset=[Sample(input="x")], name="no_sandbox"),
@@ -467,7 +470,7 @@ def test_eval_sandbox_init_when_first_task_has_no_sandbox():
     assert len(results) == 2
     for r in results:
         assert r.status == "success", f"{r.eval.task}: {r.error}"
-    start_spy.assert_called_once()
+    init_spy.assert_called_once()
 
 
 # -- unconsumed task_args warning (#4194) ------------------------------------
