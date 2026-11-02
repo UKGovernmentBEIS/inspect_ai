@@ -138,16 +138,48 @@ def test_cache_model_args_key_rejects_cycles() -> None:
     assert cache_model_args_key(args, instance_key="instance") is not None
 
 
-def test_cache_model_args_instance_key() -> None:
-    args = {"client": object(), "extra_body": {"system": "3"}}
+def test_cache_model_args_instance_key_preserves_json_arguments() -> None:
+    client = object()
+    args = {"client": client, "extra_body": {"system": "3", "options": [True]}}
+    reordered = {
+        "extra_body": {"options": [True], "system": "3"},
+        "client": client,
+    }
     key = cache_model_args_key(args, instance_key="first")
-    assert key and len(key) == 64
-    assert key == cache_model_args_key(args, instance_key="first")
+    assert key == cache_model_args_key(reordered, instance_key="first")
     assert key != cache_model_args_key(args, instance_key="second")
-    # JSON args are keyed by value, independent of the instance key.
+    args["extra_body"] = {"system": "4", "options": [True]}
+    assert key != cache_model_args_key(args, instance_key="first")
+
+    # An opaque node and a user's JSON value resembling its encoding differ.
     assert cache_model_args_key(
-        {"system": "3"}, instance_key="first"
-    ) == cache_model_args_key({"system": "3"})
+        {"client": client, "option": object()}, instance_key="first"
+    ) != cache_model_args_key(
+        {"client": client, "option": ["opaque"]}, instance_key="first"
+    )
+
+
+async def test_cache_opaque_model_args_track_mutated_request_defaults(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Providers read nested args per request, so a mutation must miss the cache."""
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+    extra_body = {"system": "3"}
+    model = get_model("mockllm/model", client=object(), extra_body=extra_body)
+    calls = 0
+
+    async def generate_output(*args: Any, **kwargs: Any) -> ModelOutput:
+        nonlocal calls
+        calls += 1
+        return ModelOutput.from_content(model="mockllm", content=extra_body["system"])
+
+    monkeypatch.setattr(model.api, "generate", generate_output)
+    first = await model.generate("Hello", cache=True)
+    extra_body["system"] = "4"
+    second = await model.generate("Hello", cache=True)
+    third = await model.generate("Hello", cache=True)
+    assert [first.completion, second.completion, third.completion] == ["3", "4", "4"]
+    assert calls == 2
 
 
 async def test_cache_scopes_opaque_model_args_to_instance(
