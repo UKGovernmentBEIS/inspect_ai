@@ -61,6 +61,7 @@ from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import ToolInfo
 
+from ..event._communication import CommunicationEvent
 from ..event._event import (
     Event,
 )
@@ -70,6 +71,7 @@ from ..event._sample_init import SampleInitEvent
 from ..event._state import StateEvent
 from ..event._store import StoreEvent
 from ..event._subtask import SubtaskEvent
+from ..event._swarm import SwarmEvent
 from ..event._tool import ToolEvent
 from ._log import EvalSample, EventsData
 
@@ -1005,6 +1007,10 @@ def walk_event(
         return walk_tool_event(event, content_fn, context)
     elif isinstance(event, InfoEvent):
         return walk_info_event(event, content_fn, context)
+    elif isinstance(event, CommunicationEvent):
+        return walk_communication_event(event, content_fn, context)
+    elif isinstance(event, SwarmEvent):
+        return walk_swarm_event(event, content_fn, context)
     else:
         return event
 
@@ -1101,6 +1107,36 @@ def walk_info_event(
 ) -> InfoEvent:
     return event.model_copy(
         update=dict(data=walk_json_value(event.data, content_fn, context))
+    )
+
+
+def walk_communication_event(
+    event: CommunicationEvent, content_fn: Callable[[str], str], context: WalkContext
+) -> CommunicationEvent:
+    send = event.send
+    if send is not None:
+        record = send.record
+        if record.content is not None:
+            record = record.model_copy(update=dict(content=content_fn(record.content)))
+        rejected = send.rejected
+        if rejected is not None:
+            rejected = rejected.model_copy(
+                update=dict(reason=content_fn(rejected.reason))
+            )
+        send = send.model_copy(update=dict(record=record, rejected=rejected))
+    return event.model_copy(
+        update=dict(
+            send=send,
+            data=walk_json_dict(event.data, content_fn, context),
+        )
+    )
+
+
+def walk_swarm_event(
+    event: SwarmEvent, content_fn: Callable[[str], str], context: WalkContext
+) -> SwarmEvent:
+    return event.model_copy(
+        update=dict(data=walk_json_dict(event.data, content_fn, context))
     )
 
 
