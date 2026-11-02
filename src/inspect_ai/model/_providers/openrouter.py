@@ -84,10 +84,10 @@ class OpenRouterAPI(OpenAICompatibleAPI):
     For `openrouter/anthropic/*` models, Anthropic prompt caching is enabled
     by default: this provider inserts per-block `cache_control: {"type":
     "ephemeral"}` markers on the last system block, the last tool definition,
-    and a rolling pair of message-level breakpoints (mirroring the placement
-    used by the direct Anthropic provider). The markers are accepted by
-    OpenRouter across Anthropic-direct, Bedrock, and Vertex routing. Set
-    `cache_prompt=False` in `GenerateConfig` to disable. Cache writes returned
+    and the last two non-blank text blocks of the conversation (matching the
+    caching behavior of the direct Anthropic provider). The markers are
+    accepted by OpenRouter across Anthropic-direct, Bedrock, and Vertex
+    routing. Set `cache_prompt=False` in `GenerateConfig` to disable. Cache writes returned
     by the upstream provider are surfaced as `ModelUsage.input_tokens_cache_write`.
     """
 
@@ -434,12 +434,12 @@ def _ephemeral() -> dict[str, str]:
 def _add_anthropic_cache_markers(request: dict[str, Any]) -> None:
     """Insert Anthropic per-block cache_control markers in an OpenAI-format request.
 
-    Mirrors the breakpoint placement used by inspect_ai's direct anthropic
-    provider: last system block, last tool definition, and the penultimate
-    content block of the last message (with fallback to the last block of the
-    previous message when the last message has fewer than 2 blocks). Anthropic
-    enforces a maximum of 4 cache_control breakpoints per request; this scheme
-    uses at most 3.
+    Marks the last system block, the last tool definition, and the last two
+    non-blank text blocks of the conversation. The direct anthropic provider
+    covers the last block with request-level automatic caching and marks the
+    second-to-last explicitly; OpenRouter does not forward request-level
+    `cache_control`, so both are marked here. Anthropic enforces a maximum of
+    4 cache_control breakpoints per request; this scheme uses at most 4.
 
     Note: the OpenAI-compatible base snapshots the ModelCall request before
     _generate_completion runs, so cache_control markers will NOT appear in the
@@ -456,25 +456,7 @@ def _add_anthropic_cache_markers(request: dict[str, Any]) -> None:
                 _mark_last_content_block(msg)
                 break
 
-        # mark a rolling pair of message-level breakpoints. auto-cache marks the
-        # last block; this gives lookback a fallback when the final block changes.
-        # In the fallback branch we deliberately do NOT convert string-content
-        # to list form (mirroring anthropic.py:1208-1211): the previous message
-        # may be a role:"tool" message whose string content must stay a string
-        # for upstream tool_result translation.
-        last = messages[-1]
-        if isinstance(last, dict):
-            last_content = last.get("content")
-            if isinstance(last_content, list) and len(last_content) >= 2:
-                last_content[-2]["cache_control"] = _ephemeral()
-            elif len(messages) >= 2:
-                prev = messages[-2]
-                if isinstance(prev, dict):
-                    prev_content = prev.get("content")
-                    if isinstance(prev_content, list) and prev_content:
-                        last_block = prev_content[-1]
-                        if isinstance(last_block, dict):
-                            last_block["cache_control"] = _ephemeral()
+        _mark_last_text_blocks(messages, count=2)
 
     # mark the last tool definition (cache_control at the top of the tool dict,
     # alongside "type": "function" — empirically verified against OpenRouter;
@@ -490,7 +472,7 @@ def _mark_last_content_block(msg: dict[str, Any]) -> None:
     """Mark the last content block of a message with cache_control.
 
     If content is a plain string, convert to a single-block list so we can
-    attach the marker. Only safe for system messages — see caller.
+    attach the marker.
     """
     content = msg.get("content")
     if isinstance(content, list) and content:
@@ -501,6 +483,42 @@ def _mark_last_content_block(msg: dict[str, Any]) -> None:
         msg["content"] = [
             {"type": "text", "text": content, "cache_control": _ephemeral()}
         ]
+
+
+def _mark_last_text_blocks(messages: list[Any], count: int) -> None:
+    """Mark the last `count` non-blank text blocks of the non-system messages.
+
+    Walks blocks in reverse (last message first). Text-only user, assistant,
+    and tool messages arrive as plain strings, so string content is converted
+    to a single text part to carry the marker; OpenRouter accepts list content
+    on all three roles. Non-text parts (images, audio, files) and blank text
+    are skipped: a tool-call turn whose reasoning is replayed through
+    `reasoning_details` has whitespace-only content.
+    """
+    remaining = count
+    for msg in reversed(messages):
+        if remaining == 0:
+            return
+        if not isinstance(msg, dict) or msg.get("role") == "system":
+            continue
+        content = msg.get("content")
+        if isinstance(content, str):
+            if content.strip():
+                msg["content"] = [
+                    {"type": "text", "text": content, "cache_control": _ephemeral()}
+                ]
+                remaining -= 1
+        elif isinstance(content, list):
+            for block in reversed(content):
+                if remaining == 0:
+                    return
+                if (
+                    isinstance(block, dict)
+                    and block.get("type") == "text"
+                    and str(block.get("text", "")).strip()
+                ):
+                    block["cache_control"] = _ephemeral()
+                    remaining -= 1
 
 
 def _apply_cache_creation_usage(output: ModelOutput, call: ModelCall | None) -> None:

@@ -43,8 +43,17 @@ def _make_output(
     )
 
 
-def test_add_cache_markers_system_tool_and_penultimate_block() -> None:
-    """System + tools + multi-block last user message: 3 markers placed."""
+def _count_cache_markers(request: dict[str, Any]) -> int:
+    count = sum(1 for tool in request.get("tools", []) if "cache_control" in tool)
+    for message in request.get("messages", []):
+        content = message.get("content")
+        if isinstance(content, list):
+            count += sum(1 for block in content if "cache_control" in block)
+    return count
+
+
+def test_add_cache_markers_system_tool_and_last_two_blocks() -> None:
+    """System + tools + multi-block last user message: 4 markers placed."""
     request: dict[str, Any] = {
         "messages": [
             {
@@ -74,38 +83,156 @@ def test_add_cache_markers_system_tool_and_penultimate_block() -> None:
     # last system block marked
     assert _has_cache_control(request["messages"][0]["content"][-1])
     assert "cache_control" not in request["messages"][0]["content"][0]
-    # penultimate block of last (user) message marked
+    # last two blocks of the last (user) message marked
     user_blocks = request["messages"][1]["content"]
-    assert _has_cache_control(user_blocks[-2])  # block 1 (penultimate)
-    assert "cache_control" not in user_blocks[-1]  # auto-cache covers the last
+    assert _has_cache_control(user_blocks[-1])
+    assert _has_cache_control(user_blocks[-2])
     assert "cache_control" not in user_blocks[0]
     # last tool marked at top level (alongside "type": "function")
     assert request["tools"][1]["cache_control"] == EPHEMERAL
     assert "cache_control" not in request["tools"][0]
 
 
-def test_add_cache_markers_fallback_to_previous_message() -> None:
-    """Single-block last message → mark the last block of the previous message."""
+def test_add_cache_markers_text_only_agent_loop() -> None:
+    """String-content history (the usual agent loop) gets history breakpoints.
+
+    Text-only user, assistant, and tool messages arrive as bare strings, and a
+    tool-call turn with reasoning replays its content as whitespace. The last
+    two non-blank messages are converted to a single text part and marked.
+    """
     request: dict[str, Any] = {
         "messages": [
-            {"role": "user", "content": "earlier context"},
-            {
-                "role": "assistant",
-                "content": [
-                    {"type": "text", "text": "reply part 1"},
-                    {"type": "text", "text": "reply part 2"},
-                ],
-            },
-            {"role": "user", "content": "follow-up"},
+            {"role": "system", "content": "you are helpful"},
+            {"role": "user", "content": "do the thing"},
+            {"role": "assistant", "content": "\n", "tool_calls": [{"id": "call_1"}]},
+            {"role": "tool", "tool_call_id": "call_1", "content": "result 1"},
+            {"role": "assistant", "content": "\n", "tool_calls": [{"id": "call_2"}]},
+            {"role": "tool", "tool_call_id": "call_2", "content": "result 2"},
+        ],
+        "tools": [{"type": "function", "function": {"name": "a"}}],
+    }
+
+    _add_anthropic_cache_markers(request)
+
+    messages = request["messages"]
+    for index, text in [(5, "result 2"), (3, "result 1")]:
+        assert messages[index]["content"] == [
+            {"type": "text", "text": text, "cache_control": EPHEMERAL}
+        ]
+    # blank assistant turns and older messages are left as they were
+    assert messages[4]["content"] == "\n"
+    assert messages[2]["content"] == "\n"
+    assert messages[1]["content"] == "do the thing"
+    assert _count_cache_markers(request) == 4
+
+
+def test_add_cache_markers_skips_blank_and_non_text_content() -> None:
+    """Images, empty content, and missing content never carry a marker."""
+    image_part = {"type": "image_url", "image_url": {"url": "data:image/png;base64,"}}
+    request: dict[str, Any] = {
+        "messages": [
+            {"role": "user", "content": "describe the image"},
+            {"role": "assistant", "content": None, "tool_calls": [{"id": "call_1"}]},
+            {"role": "tool", "tool_call_id": "call_1", "content": ""},
+            {"role": "user", "content": [image_part]},
         ]
     }
 
     _add_anthropic_cache_markers(request)
 
-    # last block of the previous (assistant) message marked
-    assistant_blocks = request["messages"][1]["content"]
-    assert _has_cache_control(assistant_blocks[-1])
-    assert "cache_control" not in assistant_blocks[0]
+    messages = request["messages"]
+    assert messages[3]["content"] == [image_part]
+    assert "cache_control" not in image_part
+    assert messages[2]["content"] == ""
+    assert messages[1]["content"] is None
+    assert messages[0]["content"] == [
+        {"type": "text", "text": "describe the image", "cache_control": EPHEMERAL}
+    ]
+    assert _count_cache_markers(request) == 1
+
+
+def test_add_cache_markers_skips_images_between_text_blocks() -> None:
+    """An image between text blocks is skipped; the text on either side is marked."""
+    request: dict[str, Any] = {
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "before"},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": "data:image/png;base64,"},
+                    },
+                    {"type": "text", "text": "after"},
+                ],
+            }
+        ]
+    }
+
+    _add_anthropic_cache_markers(request)
+
+    blocks = request["messages"][0]["content"]
+    assert _has_cache_control(blocks[0])
+    assert "cache_control" not in blocks[1]
+    assert _has_cache_control(blocks[2])
+
+
+def test_add_cache_markers_repeat_call_does_not_add_markers() -> None:
+    """Marking an already-marked request leaves the same 4 markers."""
+    request: dict[str, Any] = {
+        "messages": [
+            {"role": "system", "content": "system"},
+            {"role": "user", "content": "question"},
+            {"role": "assistant", "content": "answer"},
+            {"role": "user", "content": "follow-up"},
+        ],
+        "tools": [{"type": "function", "function": {"name": "a"}}],
+    }
+
+    _add_anthropic_cache_markers(request)
+    _add_anthropic_cache_markers(request)
+
+    assert _count_cache_markers(request) == 4
+    assert request["messages"][1]["content"] == "question"
+
+
+def test_add_cache_markers_single_message() -> None:
+    """A lone string message is marked so its prefix is written to the cache."""
+    request: dict[str, Any] = {
+        "messages": [{"role": "user", "content": "lone message"}]
+    }
+
+    _add_anthropic_cache_markers(request)
+
+    assert request["messages"][0]["content"] == [
+        {"type": "text", "text": "lone message", "cache_control": EPHEMERAL}
+    ]
+
+
+def test_add_cache_markers_stay_within_anthropic_limit() -> None:
+    """Long multi-block conversations never exceed Anthropic's 4 breakpoints."""
+    request: dict[str, Any] = {
+        "messages": [{"role": "system", "content": "system"}]
+        + [
+            {
+                "role": role,
+                "content": [
+                    {"type": "text", "text": f"{role} {i} part 0"},
+                    {"type": "text", "text": f"{role} {i} part 1"},
+                ],
+            }
+            for i in range(5)
+            for role in ("user", "assistant")
+        ],
+        "tools": [{"type": "function", "function": {"name": "a"}}],
+    }
+
+    _add_anthropic_cache_markers(request)
+
+    assert _count_cache_markers(request) == 4
+    last_blocks = request["messages"][-1]["content"]
+    assert _has_cache_control(last_blocks[0])
+    assert _has_cache_control(last_blocks[1])
 
 
 def test_add_cache_markers_string_content_converted_to_list() -> None:
@@ -130,47 +257,6 @@ def test_add_cache_markers_string_content_converted_to_list() -> None:
     assert len(sys_content) == 1
     assert sys_content[0]["text"] == "you are helpful"
     assert sys_content[0]["cache_control"] == EPHEMERAL
-
-
-def test_add_cache_markers_fallback_does_not_convert_string_content() -> None:
-    """Fallback branch must NOT convert string content on the previous message.
-
-    Mirrors `anthropic.py:1208-1211`: when the last message has fewer than 2
-    blocks and we fall back to marking the previous message, the previous
-    message's string content must stay a string (it may be a `role:"tool"`
-    message whose content shape matters for upstream tool_result translation).
-    """
-    request: dict[str, Any] = {
-        "messages": [
-            {"role": "user", "content": "do the thing"},
-            {
-                "role": "assistant",
-                "content": [{"type": "text", "text": "calling tool"}],
-                "tool_calls": [{"id": "call_1"}],
-            },
-            {"role": "tool", "tool_call_id": "call_1", "content": "tool result"},
-            {"role": "user", "content": "thanks"},
-        ]
-    }
-
-    _add_anthropic_cache_markers(request)
-
-    # the previous (tool) message's string content must remain a string
-    assert request["messages"][2]["content"] == "tool result"
-    # and no marker is placed on it (fallback only marks list content)
-    assert "cache_control" not in request["messages"][2]
-
-
-def test_add_cache_markers_single_message_no_marker() -> None:
-    """Single message with single block (no previous message) → no marker placed."""
-    request: dict[str, Any] = {
-        "messages": [{"role": "user", "content": "lone message"}]
-    }
-
-    _add_anthropic_cache_markers(request)
-
-    # content stays as a string (no list conversion since nothing to mark)
-    assert request["messages"][0]["content"] == "lone message"
 
 
 def test_add_cache_markers_no_tools_no_messages() -> None:
