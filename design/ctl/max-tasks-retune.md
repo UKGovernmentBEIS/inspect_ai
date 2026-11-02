@@ -43,8 +43,9 @@ an immutable local the whole way down:
    `None`; conversation display forces 1. `eval_set` defaults it to
    `max(len(models), 10)` before calling `eval()`. Finally
    `parallel = max_tasks if max_tasks is not None else 1`.
-2. **Batch shape** (`run_batches` in `_eval/eval.py`): all pending tasks go
-   to one `eval_run` batch. With `parallel == 1` the batch is ordered
+2. **Queue shape** (`_dispatch_order` in `_eval/run.py`): every run has one
+   `eval_run` and one dispatcher, which takes the seed and every group of
+   tasks added during the run. With `parallel == 1` each group is ordered
    sequence-major (all of task N's model fan-outs before task N+1), which —
    combined with the dispatcher's queue-order tie-break — preserves
    sequence grouping at the launch limit while keeping the whole queue
@@ -100,14 +101,12 @@ The natural-looking implementation — swap the `parallel` int for a
   deciding whether to start anything. A semaphore acquire has nowhere to
   sit without restructuring the loop.
 - A limiter would be owned by one `run_task_retry_attempts` invocation, but
-  dispatchers can be recreated within a run: tasks added via `enqueue_task`
-  drive successive `run_batches` iterations (each a fresh `eval_run`), the
-  `parallel == 1` path runs a fresh `eval_run` per `TaskSource` batch, and
-  an eval-set in legacy `retry_immediate=False` mode re-invokes `eval()`
-  per retry pass. (With `parallel > 1` a `TaskSource` feeds a single
-  long-lived dispatcher via `TaskInjection`, but the other paths are
-  real.) A per-dispatcher limiter silently reverts the operator's retune
-  at the next dispatcher boundary.
+  dispatchers can be recreated within a run: an eval-set in legacy
+  `retry_immediate=False` mode re-invokes `eval()` per retry pass, each with
+  its own dispatcher. (Within one `eval()`, tasks added via `enqueue_task` or
+  a `TaskSource` feed the run's single dispatcher via its `TaskEnqueuer`.) A
+  per-dispatcher limiter silently reverts the operator's retune at the next
+  dispatcher boundary.
 
 Instead, model it on the retry knobs (`timeout` / `attempt_timeout` /
 `max_retries` in `model/_generate_overrides.py`): a **process-global
@@ -190,9 +189,9 @@ inspect ctl config --max-tasks clear
   ("the store always exists"): a set lands in the override layer
   unconditionally and governs every future dispatch decision in the run —
   which is exactly right for the windows where no dispatcher is live (a
-  batch still in startup — sandbox image pulls can run for minutes before
-  `run_task_retry_attempts` registers its handle — or a `parallel == 1`
-  run blocked in `TaskSource.next_tasks()` between batches). The legacy
+  run still in startup — sandbox image pulls can run for minutes before
+  `run_task_retry_attempts` registers its handle). A run blocked in
+  `TaskSource.next_tasks()` keeps its dispatcher live. The legacy
   `retry_wait` sleep between batch-mode passes is *not* such a window: the
   control server binds per-`eval()` pass (and `--ctl-server=keep` is
   rejected with `retry_immediate=False`), so no set can land during it —
@@ -243,8 +242,9 @@ implementation should prefer the handle's value when available.
   the theory that eval-set (default `max_tasks` 10) is where the knob
   matters; in practice, launching an eval-set with an explicit
   `max_tasks=1` and raising it mid-run is exactly the motivating scenario,
-  and it was dead on arrival. `run_batches` now hands the dispatcher one
-  sequence-major batch: at the launch limit the dispatcher's queue-order
+  and it was dead on arrival. The dispatcher now gets one sequence-major
+  queue (and, since every run has one dispatcher, so do tasks added during
+  the run): at the launch limit the dispatcher's queue-order
   tie-break preserves sequence grouping (all of task N's model fan-outs
   before task N+1 — pinned by
   `test_initial_tasks_parallel1_preserves_sequence_grouping`), and a raise

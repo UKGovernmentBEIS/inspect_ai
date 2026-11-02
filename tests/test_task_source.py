@@ -1,8 +1,9 @@
-"""Tests for driving a running eval from a `TaskSource` (batch-at-a-time).
+"""Tests for driving a running eval from a `TaskSource`.
 
-The source seeds the run with `initial_tasks()`, observes each batch's results
-via `sample_complete` / `task_complete`, and produces the next batch from
-`next_tasks()` until it returns `None` — all under one run_id.
+The source seeds the run with `initial_tasks()`, observes results via
+`sample_complete` / `task_complete` (whose returned tasks start when there is
+free capacity), and produces the next batch from `next_tasks()` whenever no
+task is queued or running, until it returns `None` — all under one run_id.
 """
 
 from pathlib import Path
@@ -12,7 +13,7 @@ import pytest
 
 from inspect_ai import Task, TaskSource, eval, eval_async, task_source
 from inspect_ai._eval.loader import resolve_tasks
-from inspect_ai._eval.task.enqueue import enqueue_task
+from inspect_ai._eval.task.enqueue import TaskStartPolicy, enqueue_task
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog, EvalSample
 from inspect_ai.model import get_model
@@ -548,9 +549,8 @@ def test_initial_tasks_runs_in_active_model_context() -> None:
 def test_initial_tasks_parallel1_preserves_sequence_grouping() -> None:
     # With parallel == 1 (max_tasks=1) and multiple models, a TaskSource seed of
     # [a, b] must behave like passing [a, b] to eval(): every fan-out of `a`
-    # runs before any fan-out of `b` (sequence grouping). The live injection path
-    # would instead interleave them (a/m1, b/m1, a/m2, b/m2), so parallel==1
-    # falls through to the batch path.
+    # runs before any fan-out of `b` (sequence grouping), rather than in
+    # resolution order (a/m1, b/m1, a/m2, b/m2).
     starts: list[str] = []
 
     @solver
@@ -582,6 +582,130 @@ def test_initial_tasks_parallel1_preserves_sequence_grouping() -> None:
     # all `a` executions precede all `b` executions (no interleaving)
     assert starts == ["a", "a", "b", "b"], starts
     assert len({log.eval.run_id for log in logs}) == 1
+
+
+def test_returned_tasks_parallel1_preserve_sequence_grouping() -> None:
+    # Tasks a callback returns join the running queue; at parallel == 1 they
+    # keep sequence grouping too: [c, d] returned on the first completion runs
+    # after the seed as c/m1, c/m2, d/m1, d/m2.
+    starts: list[str] = []
+    returned: list[bool] = []
+
+    @solver
+    def record(label: str) -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            starts.append(label)
+            return state
+
+        return solve
+
+    def labelled(label: str) -> Task:
+        return Task(dataset=[Sample(input="x")], solver=[record(label)], name=label)
+
+    class _Src(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            return [labelled("a"), labelled("b")]
+
+        async def task_complete(self, log: EvalLog) -> list[Task] | None:
+            if returned:
+                return None
+            returned.append(True)
+            return [labelled("c"), labelled("d")]
+
+    logs = eval(
+        tasks=_Src(),
+        model=["mockllm/model", "mockllm/model2"],
+        max_tasks=1,
+        display="none",
+    )
+    assert len(logs) == 8
+    assert all(log.status == "success" for log in logs)
+    assert starts == ["a", "a", "b", "b", "c", "c", "d", "d"], starts
+
+
+@pytest.mark.parametrize("start", [None, "after_batch"])
+def test_task_enqueued_by_final_next_tasks_runs(
+    start: TaskStartPolicy | None,
+) -> None:
+    # next_tasks() may enqueue and then end the run: the dispatcher checks for
+    # tasks added while next_tasks() ran before finishing, so the task runs,
+    # and next_tasks() is not consulted again after returning None
+    calls: list[str] = []
+
+    class _Src(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            return [_task("seed")]
+
+        async def next_tasks(self) -> list[Task] | None:
+            calls.append("next_tasks")
+            if len(calls) == 1:
+                enqueue_task(_task("enqueued"), start=start)
+            return None
+
+    logs = eval(tasks=_Src(), model="mockllm/model", display="none")
+    assert sorted(log.eval.task for log in logs) == ["enqueued", "seed"]
+    assert all(log.status == "success" for log in logs)
+    assert calls == ["next_tasks"]
+
+
+@pytest.mark.parametrize("max_tasks", [1, 2])
+async def test_cancel_while_next_tasks_blocks_propagates(max_tasks: int) -> None:
+    # the run is cancelled (as by Ctrl-C) while next_tasks() blocks: the
+    # cancellation propagates out of eval_async, since the tasks next_tasks()
+    # would have returned never ran and returning normally would report a
+    # complete run
+    class _Src(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            return [_task("seed")]
+
+        async def next_tasks(self) -> list[Task] | None:
+            scope.cancel()
+            await anyio.sleep_forever()
+            return None
+
+    init_display_type("none")
+    with anyio.fail_after(60):
+        with anyio.CancelScope() as scope:
+            await eval_async(tasks=_Src(), model="mockllm/model", max_tasks=max_tasks)
+            pytest.fail("eval_async returned from a cancelled run")
+
+    assert scope.cancelled_caught
+
+
+def test_after_batch_enqueued_by_final_next_tasks_runs_after_when_free() -> None:
+    # tasks added during the next_tasks() call that ends the source keep their
+    # start policies: at max_tasks=1 the after_batch task starts only once the
+    # when_free tasks enqueued with it have finished
+    starts: list[str] = []
+
+    @solver
+    def record(label: str) -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            starts.append(label)
+            return state
+
+        return solve
+
+    def labelled(label: str) -> Task:
+        return Task(dataset=[Sample(input="x")], solver=[record(label)], name=label)
+
+    class _Src(TaskSource):
+        calls = 0
+
+        def initial_tasks(self) -> list[Task]:
+            return [labelled("seed")]
+
+        async def next_tasks(self) -> list[Task] | None:
+            self.calls += 1
+            if self.calls == 1:
+                enqueue_task([labelled("w1"), labelled("w2")], start="when_free")
+                enqueue_task(labelled("b"), start="after_batch")
+            return None
+
+    logs = eval(tasks=_Src(), model="mockllm/model", max_tasks=1, display="none")
+    assert all(log.status == "success" for log in logs)
+    assert starts == ["seed", "w1", "w2", "b"]
+    assert [log.eval.task for log in logs] == ["seed", "w1", "w2", "b"]
 
 
 def test_task_source_decorator_instance() -> None:

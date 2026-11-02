@@ -27,6 +27,7 @@ from inspect_ai import (
     Task,
     TaskSource,
     enqueue_sample,
+    enqueue_task,
     eval,
     eval_async,
 )
@@ -830,16 +831,17 @@ async def test_failed_late_config_leaves_live_sample_running(
     assert fake_docker.generated_files() == []
 
 
-async def test_sequential_batches_have_independent_cleanup_state(
+async def test_task_source_generations_share_one_cleanup_scope(
     fake_docker: FakeDocker,
 ) -> None:
-    """Two TaskSource batches in one run each clean their own Docker resources.
+    """Two TaskSource generations in one run are cleaned up by one scope.
 
-    With one model, batches run as sequential `eval_run` calls in the same
-    task, so the second must not inherit the first's registry or its
-    "already cleaned" status. The second batch's sample is cancelled
-    mid-run (an operator task cancel), so its cleanup is the deferred kind
-    that only the batch's final `task_cleanup` performs.
+    Every task of a run, including the second generation `next_tasks()`
+    returns, runs under the run's single `eval_run`, so both register in one
+    lifecycle state. The first generation's completed cleanup must not mark
+    that state as "already cleaned": the second generation's sample is
+    cancelled mid-run (an operator task cancel), so its cleanup is the
+    deferred kind that only the run's final `task_cleanup` performs.
     """
     from inspect_ai._control.cancel import cancel_task as ctl_cancel_task
     from inspect_ai._control.eval_state import get_eval_states
@@ -885,6 +887,67 @@ async def test_sequential_batches_have_independent_cleanup_state(
         "down:first",
         "up:second",
         "down:second",
+    ]
+    assert fake_docker.generated_files() == []
+    assert sandbox_lifecycle_state() is None
+
+
+async def test_added_task_keeps_earlier_startup_resources_until_run_end(
+    fake_docker: FakeDocker, tmp_path: Path
+) -> None:
+    """A task added with `enqueue_task` shares the run's sandbox scope.
+
+    In a plain evaluation the parent enqueues a follow-up task (the default,
+    which starts once the parent has finished) with another Docker config.
+    The parent's startup compose file is still present while the follow-up
+    runs, since task-level cleanup runs once, at the end of the run, and
+    then everything is cleaned up.
+    """
+    dockerfile = write_dockerfile(tmp_path / "image")
+    files_while_parent_ran: list[str] = []
+    files_while_child_ran: list[str] = []
+
+    @solver
+    def record_files(files: list[str]) -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            files.extend(fake_docker.generated_files())
+            return state
+
+        return solve
+
+    @solver
+    def enqueue_follow_up() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            enqueue_task(
+                Task(
+                    dataset=[Sample(id="child", input="child")],
+                    solver=record_files(files_while_child_ran),
+                    sandbox=SandboxEnvironmentSpec("docker", dockerfile),
+                    name="child",
+                )
+            )
+            return state
+
+        return solve
+
+    logs = await eval_async(
+        Task(
+            dataset=[Sample(id="parent", input="parent")],
+            solver=[record_files(files_while_parent_ran), enqueue_follow_up()],
+            sandbox="docker",
+            name="parent",
+        ),
+        model="mockllm/model",
+    )
+
+    assert [log.status for log in logs] == ["success", "success"]
+    assert files_while_parent_ran
+    assert set(files_while_parent_ran) < set(files_while_child_ran)
+    assert fake_docker.events == [
+        "up:parent",
+        "down:parent",
+        "up:child",
+        "down:child",
     ]
     assert fake_docker.generated_files() == []
     assert sandbox_lifecycle_state() is None

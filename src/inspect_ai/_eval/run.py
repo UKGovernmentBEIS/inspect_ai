@@ -1,6 +1,7 @@
 import functools
 import logging
 import os
+import weakref
 from contextlib import ExitStack, asynccontextmanager
 from copy import copy
 from dataclasses import dataclass, replace
@@ -11,6 +12,7 @@ from typing import (
     Callable,
     Iterable,
     NamedTuple,
+    Protocol,
     Set,
     cast,
 )
@@ -121,32 +123,40 @@ from .task.util import resolve_task_sample_ids, slice_dataset, task_run_dir
 log = logging.getLogger(__name__)
 
 
-@dataclass
-class TaskInjection:
-    """Source of additional tasks for a live (TaskSource-driven) eval run.
+class AddedTasks(Protocol):
+    """Tasks added to an eval run while it is in progress.
 
-    Built by ``eval_async`` from the run's enqueuer + ``TaskSource``; consumed by
-    :func:`eval_run`, which wraps it with task preparation (``TaskRunOptions`` +
-    incremental sandbox startup) before handing a prepared feed to
-    :func:`run_task_retry_attempts`.
+    Implemented by the run's ``TaskEnqueuer``; consumed by :func:`eval_run`,
+    which prepares each group of tasks (``TaskRunOptions`` + incremental
+    sandbox startup) before handing them to :func:`run_task_retry_attempts`.
     """
 
-    drain: Callable[[], list["ResolvedTask"]]
-    """Non-blocking: resolved tasks buffered (enqueued) since the last call."""
+    def ready(self) -> list[ResolvedTask]:
+        """Tasks that may start now (empty if none).
 
-    next: Callable[[], Awaitable[list["ResolvedTask"] | None]]
-    """Blocking: the next batch of resolved tasks, or ``None`` when complete."""
+        Non-blocking; called on every dispatch cycle.
+        """
+        ...
 
-    set_wake: Callable[[Callable[[], None]], None]
-    """Register a callback fired when new tasks are enqueued (wakes dispatch)."""
+    async def when_idle(self) -> list[ResolvedTask] | None:
+        """More tasks to run, or ``None`` when the run is complete.
+
+        Called only when no task is queued or running; may block. After it
+        returns ``None`` it is not called again and the run ends.
+        """
+        ...
+
+    def set_wake(self, wake: Callable[[], None]) -> None:
+        """Register a callback to fire when tasks become ready (wakes dispatch)."""
+        ...
 
 
 @dataclass
 class PreparedFeed:
-    """A live feed of prepared ``TaskRunOptions`` consumed by :func:`run_task_retry_attempts`."""
+    """:class:`AddedTasks` with each group prepared, for :func:`run_task_retry_attempts`."""
 
-    drain: Callable[[], Awaitable[list[TaskRunOptions]]]
-    next: Callable[[], Awaitable[list[TaskRunOptions] | None]]
+    ready: Callable[[], Awaitable[list[TaskRunOptions]]]
+    when_idle: Callable[[], Awaitable[list[TaskRunOptions] | None]]
     set_wake: Callable[[Callable[[], None]], None]
 
 
@@ -159,6 +169,7 @@ async def eval_run(
     eval_checkpoint: CheckpointConfig | None,
     recorder: Recorder,
     header_only: bool,
+    added_tasks: AddedTasks,
     epochs_reducer: list[ScoreReducer] | None = None,
     approval: list[ApprovalPolicy] | None = None,
     review: list[ReviewPolicy] | None = None,
@@ -173,7 +184,6 @@ async def eval_run(
     score: bool = True,
     task_retry_attempts: int | None = 0,
     task_source: "TaskSource | None" = None,
-    inject: TaskInjection | None = None,
     eval_set_tasks: list[str] | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
@@ -181,9 +191,9 @@ async def eval_run(
     eval_wd = os.getcwd()
 
     # names of every task in the run, for resolving `task:id` sample selectors
-    # the same way in every batch: seeded from the enclosing eval set (a retry
-    # runs only a subset of its tasks) and extended as batches are prepared, so
-    # injected tasks see the ones before them
+    # the same way for every task: seeded from the enclosing eval set (a retry
+    # runs only a subset of its tasks) and extended as each group of tasks is
+    # prepared, so added tasks see the ones before them
     task_names: list[str] = list(eval_set_tasks or [])
 
     # resolve solver and solver spec
@@ -204,13 +214,38 @@ async def eval_run(
         eval_config.sandbox_cleanup is not False,
     )
 
-    # track every logger we initialize (seed + injected) so that, if the run
-    # fails before those tasks complete normally, we can tear down their
-    # resources (stale-flush timers, buffer dbs) instead of leaking them
-    prepared_options: list[TaskRunOptions] = []
+    # the logger of every prepared task (seed + added groups), so that if an
+    # error escapes the run before the dispatcher has discarded or finished
+    # them (for example the task display fails to start), their resources
+    # (stale-flush timers, buffer dbs) are torn down instead of leaked. Only
+    # the loggers: holding the whole options would keep every added task's
+    # Task and dataset alive until the run ends
+    prepared_loggers: list[TaskLogger] = []
 
     async def prepare_options(
         resolved_tasks: list[ResolvedTask],
+    ) -> list[TaskRunOptions]:
+        """Prepare a group of tasks for the dispatcher.
+
+        The group's loggers belong to this call until it returns them: if
+        preparing a task fails or is cancelled, the loggers already created
+        (open buffer dbs, recorder entries) are discarded. They are not yet
+        in ``prepared_loggers``, so ``eval_run``'s error handler would not
+        reach them.
+        """
+        loggers: list[TaskLogger] = []
+        try:
+            options = await prepare_group(resolved_tasks, loggers)
+        except BaseException:
+            with anyio.CancelScope(shield=True):
+                for logger in loggers:
+                    await logger.discard()
+            raise
+        prepared_loggers.extend(loggers)
+        return options
+
+    async def prepare_group(
+        resolved_tasks: list[ResolvedTask], loggers: list[TaskLogger]
     ) -> list[TaskRunOptions]:
         task_names.extend(
             name
@@ -247,6 +282,10 @@ async def eval_run(
         # create run tasks
         task_run_options: list[TaskRunOptions] = []
         for resolved_task in resolved_tasks:
+            # configure the task in its run directory (the logger records the
+            # git revision and paths relative to it). chdir is process-wide,
+            # so nothing under it may await: samples of tasks already running
+            # would see this task's directory as their working directory
             with chdir(task_run_dir(resolved_task.task)):
                 # tasks can provide their epochs, message_limit,
                 # token_limit, time_limit, and fail_on_error so broadcast these
@@ -447,78 +486,73 @@ async def eval_run(
                     header_only=header_only,
                     dynamic_dataset=task.sample_source is not None,
                 )
-                await logger.init()
+                loggers.append(logger)
 
-                # samples a SampleSource adds mid-run go through the same
-                # incremental sandbox startup pass as the seed dataset above
-                startup_sandboxes: Callable[[list[Sample]], Awaitable[None]] | None = (
-                    None
-                )
-                if run_samples and task.sample_source is not None:
-                    startup_sandboxes = functools.partial(
-                        sandbox_manager.start_for_samples, resolved_task
-                    )
+            await logger.init()
 
-                # append task
-                task_run_options.append(
-                    TaskRunOptions(
-                        task=task,
-                        model=resolved_task.model,
-                        model_roles=resolved_task.model_roles,
-                        sandbox=resolved_task.sandbox,
-                        checkpoint=resolved_task.checkpoint,
-                        eval_checkpoint=eval_checkpoint,
-                        logger=logger,
-                        eval_wd=eval_wd,
-                        config=task_eval_config,
-                        sentinel=sentinel_root,
-                        solver=eval_solver,
-                        scanner=scanner,
-                        scan_id=scan_id,
-                        tags=merged_tags,
-                        run_samples=run_samples,
-                        score=score,
-                        debug_errors=debug_errors,
-                        sample_source=resolved_task.sample_source,
-                        kwargs=kwargs,
-                        initial_model_usage=resolved_task.initial_model_usage,
-                        initial_role_usage=resolved_task.initial_role_usage,
-                        task_source=task_source,
-                        startup_sandboxes=startup_sandboxes,
-                        input_media_policy=resolved_task.input_media_policy,
-                    )
+            # samples a SampleSource adds mid-run go through the same
+            # incremental sandbox startup pass as the seed dataset above
+            startup_sandboxes: Callable[[list[Sample]], Awaitable[None]] | None = None
+            if run_samples and task.sample_source is not None:
+                startup_sandboxes = functools.partial(
+                    sandbox_manager.start_for_samples, resolved_task
                 )
-                # register the prepared task so a failed run can clean it up
-                prepared_options.append(task_run_options[-1])
+
+            # append task
+            task_run_options.append(
+                TaskRunOptions(
+                    task=task,
+                    model=resolved_task.model,
+                    model_roles=resolved_task.model_roles,
+                    sandbox=resolved_task.sandbox,
+                    checkpoint=resolved_task.checkpoint,
+                    eval_checkpoint=eval_checkpoint,
+                    logger=logger,
+                    eval_wd=eval_wd,
+                    config=task_eval_config,
+                    sentinel=sentinel_root,
+                    solver=eval_solver,
+                    scanner=scanner,
+                    scan_id=scan_id,
+                    tags=merged_tags,
+                    run_samples=run_samples,
+                    score=score,
+                    debug_errors=debug_errors,
+                    sample_source=resolved_task.sample_source,
+                    kwargs=kwargs,
+                    initial_model_usage=resolved_task.initial_model_usage,
+                    initial_role_usage=resolved_task.initial_role_usage,
+                    task_source=task_source,
+                    startup_sandboxes=startup_sandboxes,
+                    input_media_policy=resolved_task.input_media_policy,
+                )
+            )
         return task_run_options
 
     try:
-        # own the batch's sandbox lifecycle state before any task starts
+        # own the run's sandbox lifecycle state before any task starts
         sandbox_manager.open()
 
         # prepare the initial (seed) tasks
-        initial_options = await prepare_options(tasks)
-        assert initial_options or inject is not None, "Must encounter a task"
+        initial_options = await prepare_options(_dispatch_order(tasks, parallel))
 
         # running multiple task definitions requires some smart
         # scheduling to ensure that we spread work among models
 
-        # a live (TaskSource-driven) run feeds additional tasks while it is in
-        # progress; prepare each injected batch on the fly. The dispatcher
-        # accepts this feed, so a TaskSource works with or without retries.
-        feed: PreparedFeed | None = None
-        if inject is not None:
+        # tasks added while the run is in progress are prepared on the fly as
+        # the dispatcher takes them, so they work with or without retries
+        async def feed_ready() -> list[TaskRunOptions]:
+            return await prepare_options(_dispatch_order(added_tasks.ready(), parallel))
 
-            async def feed_drain() -> list[TaskRunOptions]:
-                return await prepare_options(inject.drain())
-
-            async def feed_next() -> list[TaskRunOptions] | None:
-                more = await inject.next()
-                return await prepare_options(more) if more else None
-
-            feed = PreparedFeed(
-                drain=feed_drain, next=feed_next, set_wake=inject.set_wake
+        async def feed_when_idle() -> list[TaskRunOptions] | None:
+            more = await added_tasks.when_idle()
+            return (
+                await prepare_options(_dispatch_order(more, parallel)) if more else None
             )
+
+        feed = PreparedFeed(
+            ready=feed_ready, when_idle=feed_when_idle, set_wake=added_tasks.set_wake
+        )
 
         # `parallel` is the max concurrent (task × model) units; the
         # scheduler spreads work across models and caps concurrency there,
@@ -537,8 +571,8 @@ async def eval_run(
         # cancellation triggering this handler doesn't interrupt that wait and
         # leave realtime flush timers running against torn-down logging state.
         with anyio.CancelScope(shield=True):
-            for task_options in prepared_options:
-                await task_options.logger.cleanup()
+            for logger in prepared_loggers:
+                await logger.cleanup()
         raise
 
     finally:
@@ -557,19 +591,14 @@ async def eval_run(
             log.warning(f"Error cleaning up S3 sessions: {exception_message(ex)}")
 
 
-def _empty_feed() -> PreparedFeed:
-    """A feed that supplies nothing — turns the dispatcher into a fixed-set run."""
+def _dispatch_order(tasks: list[ResolvedTask], parallel: int) -> list[ResolvedTask]:
+    """Order a group of tasks for the dispatcher's queue.
 
-    async def drain() -> list[TaskRunOptions]:
-        return []
-
-    async def next() -> list[TaskRunOptions] | None:
-        return None
-
-    def set_wake(_: Callable[[], None]) -> None:
-        pass
-
-    return PreparedFeed(drain=drain, next=next, set_wake=set_wake)
+    At a launch limit of 1, sequence-major: the dispatcher breaks ties by queue
+    order, so all of a task's model fan-outs run before the next task's (the
+    order passing the tasks to ``eval()`` gives). Otherwise resolution order.
+    """
+    return sorted(tasks, key=lambda t: t.sequence) if parallel == 1 else tasks
 
 
 class TaskRunResult(NamedTuple):
@@ -703,33 +732,32 @@ class PendingTask(NamedTuple):
 
 
 # run multiple logical tasks with bounded, model-balanced concurrency and
-# per-task retries, optionally fed additional tasks while in progress (a live
-# TaskSource-driven run). A central dispatcher re-queues a task that errors (or
-# requests a retry) under its original index — a fresh log entry, completed
-# samples reused — until its retries are exhausted; task_retry_attempts==0 is
-# a plain multi-task run with no retries.
+# per-task retries, optionally fed additional tasks while in progress (tasks
+# added with enqueue_task or by a TaskSource). A central dispatcher re-queues a
+# task that errors (or requests a retry) under its original index — a fresh log
+# entry, completed samples reused — until its retries are exhausted;
+# task_retry_attempts==0 is a plain multi-task run with no retries.
 async def run_task_retry_attempts(
     tasks: list[TaskRunOptions],
     parallel: int,
     task_retry_attempts: int,
+    feed: PreparedFeed,
     debug_errors: bool = False,
-    feed: PreparedFeed | None = None,
 ) -> list[EvalLog]:
     """Run tasks with bounded, model-balanced concurrency and per-task retries.
 
-    The set may be fixed (``feed is None``) or open: ``feed.drain()``
-    (non-blocking) yields tasks enqueued since the last cycle and ``feed.next()``
-    (blocking) yields the next batch, returning ``None`` when the source is
-    exhausted. The run completes when nothing is pending, nothing is in flight,
-    and the feed is exhausted (immediately so for a fixed set). A task whose log
+    ``tasks`` is the initial set; ``feed`` adds to it: ``feed.ready()``
+    (called every cycle) yields tasks that may start now and
+    ``feed.when_idle()`` (called only when nothing is queued or running, may
+    block) yields more, returning ``None`` when the run is complete. The run
+    completes when nothing is pending, nothing is in flight, and the feed is
+    exhausted (at once if it supplies nothing). A task whose log
     comes back with an error — or which requests a retry via its ``TaskCancel``
     — is re-queued (reusing completed samples) until ``task_retry_attempts`` is
     exhausted; an abort or external cancellation is never retried, and an
     external cancellation ends the run (an abort resolves to an errored log
     and the run continues).
     """
-    feed = feed or _empty_feed()
-
     # model-balancing state (grows as tasks are injected). Keyed by the Model
     # object (identity), not str(model): a provider may rewrite its model name
     # mid-run (e.g. vLLM resolving a "base:adapter" LoRA spec to "base" on the
@@ -763,6 +791,12 @@ async def run_task_retry_attempts(
     in_flight = 0
     cancelled = False
     source_done = False
+
+    # set while the dispatcher takes tasks from the feed (preparing added
+    # tasks, or awaiting a TaskSource's next_tasks()). A cancellation landing
+    # there propagates rather than being absorbed: the tasks it interrupts
+    # have no log yet, so a run that returned normally would look complete
+    taking_from_feed = False
 
     # woken on each task completion, on each injection (enqueue), and on any
     # pause-state change (a resume must re-evaluate dispatch)
@@ -814,7 +848,9 @@ async def run_task_retry_attempts(
             launch=parallel, in_flight=in_flight, pending=len(pending)
         )
 
-    async with _run_task_screen(task_specs(tasks)) as screen:
+    async with _run_task_screen(
+        task_specs(tasks), absorb_cancel=lambda: not taking_from_feed
+    ) as screen:
         init_task_screen(screen)
         try:
             # registered inside the try so the removes in the finally below
@@ -1043,9 +1079,39 @@ async def run_task_retry_attempts(
                         )
                     wake.set()
 
+                def start_pending() -> None:
+                    """Start pending tasks up to the concurrency cap (model-balanced).
+
+                    Re-reads the live ``ctl config --max-tasks`` override each
+                    iteration (a set fires the dispatch wakers, so a raise
+                    reaches a waiting dispatcher immediately). A function of
+                    its own so the dispatch loop holds no reference to the
+                    last started task, which would keep its ``Task`` and
+                    dataset alive after it finishes.
+                    """
+                    nonlocal in_flight
+                    while (
+                        not cancelled
+                        and in_flight < effective_max_tasks(parallel)
+                        and pending
+                    ):
+                        item = pick_balanced()
+                        if item is None:
+                            # everything pending is held by a pause latch —
+                            # a resume fires the dispatch waker (wake.set)
+                            break
+                        model_counts[item.options.model] += 1
+                        in_flight += 1
+                        tg.start_soon(run_one, item)
+
                 while True:
-                    # pick up tasks buffered since the last cycle (non-blocking)
-                    injected = await feed.drain()
+                    if cancelled:
+                        break
+
+                    # pick up tasks buffered since the last cycle
+                    taking_from_feed = True
+                    injected = await feed.ready()
+                    taking_from_feed = False
                     if injected:
                         add(injected)
 
@@ -1069,23 +1135,7 @@ async def run_task_retry_attempts(
                         pending.remove(abandoned)
                         await abandoned.options.logger.discard()
 
-                    # dispatch up to the concurrency cap (model-balanced),
-                    # re-reading the live `ctl config --max-tasks` override
-                    # each iteration (a set fires the dispatch wakers, so a
-                    # raise reaches a waiting dispatcher immediately)
-                    while (
-                        not cancelled
-                        and in_flight < effective_max_tasks(parallel)
-                        and pending
-                    ):
-                        item = pick_balanced()
-                        if item is None:
-                            # everything pending is held by a pause latch —
-                            # a resume fires the dispatch waker (wake.set)
-                            break
-                        model_counts[item.options.model] += 1
-                        in_flight += 1
-                        tg.start_soon(run_one, item)
+                    start_pending()
 
                     if cancelled:
                         break
@@ -1100,7 +1150,9 @@ async def run_task_retry_attempts(
                     # when it is exhausted
                     if source_done:
                         break
-                    more = await feed.next()
+                    taking_from_feed = True
+                    more = await feed.when_idle()
+                    taking_from_feed = False
                     if more is None:
                         source_done = True
                     else:
@@ -1113,6 +1165,12 @@ async def run_task_retry_attempts(
             remove_dispatch_waker(wake.set)
             remove_task_dispatcher(dispatcher_stats)
             clear_task_screen()
+            # tasks still queued when dispatch stops (a cancelled run; a
+            # normal exit leaves none) never start: discard their
+            # never-started log entries, as for an abandoned retry
+            with anyio.CancelScope(shield=True):
+                for item in pending:
+                    await item.options.logger.discard()
 
     # sort results by index and return just the values
     return [v for _, v in sorted(results.items())]
@@ -1121,19 +1179,20 @@ async def run_task_retry_attempts(
 class SandboxManager:
     """Starts sandbox environments incrementally and tears them all down.
 
-    Tasks injected into a live run — and samples a `SampleSource` adds to a
-    live task — arrive in batches, so startup must be callable repeatedly:
+    Tasks added to a running eval — and samples a `SampleSource` adds to a
+    live task — arrive in groups, so startup must be callable repeatedly:
     :meth:`start` / :meth:`start_for_samples` initialize only sandboxenvs not
     already started and accumulate their cleanups; :meth:`shutdown` runs every
     accumulated cleanup once, at the end of the run.
 
-    The manager also owns the batch's sandbox lifecycle state (the registries
+    The manager also owns the run's sandbox lifecycle state (the registries
     a provider's `task_cleanup` reads: running containers, generated config
     files). :meth:`open` binds a fresh scope in the calling context before any
-    task of the batch is spawned, so a `task_init` that runs late — in a
-    `SampleSource` feeder task, a sibling of the samples — registers on the
-    object every task inherited rather than in its own context; :meth:`shutdown`
-    releases the scope, so a sequential batch after this one starts clean.
+    task of the run is spawned, so a `task_init` that runs late — for an added
+    task, or in a `SampleSource` feeder task, a sibling of the samples —
+    registers on the object every task inherited rather than in its own
+    context; :meth:`shutdown` releases the scope, so a later run in the same
+    process starts clean.
     """
 
     def __init__(
@@ -1149,18 +1208,20 @@ class SandboxManager:
         ] = []
         self._init_lock = anyio.Lock()
         self._lifecycle: ExitStack | None = None
-        # keyed by (task, spec): resolution folds in per-task state (run_dir),
-        # so a spec-only key would leak one task's resolution to another
-        self._resolved_no_metadata: dict[
-            tuple[Task, SandboxEnvironmentSpec], TaskSandboxEnvironment
-        ] = {}
+        # keyed by task, then spec: resolution folds in per-task state
+        # (run_dir), so a spec-only key would leak one task's resolution to
+        # another. Weak on the task, so a finished task's Task and dataset are
+        # not kept alive until the run ends
+        self._resolved_no_metadata: weakref.WeakKeyDictionary[
+            Task, dict[SandboxEnvironmentSpec, TaskSandboxEnvironment]
+        ] = weakref.WeakKeyDictionary()
 
     def open(self) -> None:
-        """Own the batch's sandbox lifecycle state from the calling context.
+        """Own the run's sandbox lifecycle state from the calling context.
 
-        Call before any task or sample of the batch is spawned (and whether or
+        Call before any task or sample of the run is spawned (and whether or
         not any initial sample has a sandbox — the first sandbox may arrive
-        with an added sample). :meth:`shutdown` releases it.
+        with an added task or sample). :meth:`shutdown` releases it.
         """
         if self._lifecycle is None:
             self._lifecycle = ExitStack()
@@ -1169,8 +1230,8 @@ class SandboxManager:
     async def start(self, tasks: list[ResolvedTask], task_names: list[str]) -> None:
         """Start the sandboxenvs of `tasks`' selected samples.
 
-        `task_names` is every task name known to the run so far (not just this
-        batch), so `task:id` sample selectors resolve here exactly as they do
+        `task_names` is every task name known to the run so far (not just
+        `tasks`), so `task:id` sample selectors resolve here exactly as they do
         when the tasks run.
         """
         # find unique sandboxenvs to start
@@ -1216,21 +1277,22 @@ class SandboxManager:
         interpolate it into a per-sample init environment).
         """
         sandboxenvs: Set[TaskSandboxEnvironment] = set()
+        resolved = self._resolved_no_metadata.setdefault(task.task, {})
         for sample in samples:
             sandboxenv: TaskSandboxEnvironment | None = None
-            cache_key: tuple[Task, SandboxEnvironmentSpec] | None = None
+            cache_key: SandboxEnvironmentSpec | None = None
             if not sample.metadata:
                 spec = await resolve_sandbox(task.sandbox, sample, task.task.name)
                 if spec is None:
                     continue
-                cache_key = (task.task, spec)
-                sandboxenv = self._resolved_no_metadata.get(cache_key)
+                cache_key = spec
+                sandboxenv = resolved.get(cache_key)
             if sandboxenv is None:
                 sandboxenv = await resolve_sandbox_for_task_and_sample(
                     task.sandbox, task.task, sample
                 )
                 if sandboxenv is not None and cache_key is not None:
-                    self._resolved_no_metadata[cache_key] = sandboxenv
+                    resolved[cache_key] = sandboxenv
             if sandboxenv is not None:
                 sandboxenvs.add(sandboxenv)
         return sandboxenvs
@@ -1295,7 +1357,7 @@ class SandboxManager:
     async def shutdown(self) -> None:
         """Run every accumulated `task_cleanup`, then release the lifecycle state.
 
-        The final cleanup of the batch: it also covers samples whose own
+        The final cleanup of the run: it also covers samples whose own
         cleanup was deferred by an interruption, since their provider state is
         on the scope this manager owns.
         """
@@ -1317,14 +1379,17 @@ class SandboxManager:
 
 
 @asynccontextmanager
-async def _run_task_screen(tasks: list[TaskSpec]) -> AsyncIterator[TaskScreen]:
+async def _run_task_screen(
+    tasks: list[TaskSpec], absorb_cancel: Callable[[], bool]
+) -> AsyncIterator[TaskScreen]:
     """Open the display's task screen for a run that absorbs cancellation.
 
-    A cancellation of the run body is absorbed, so the run returns the logs
-    it has. Trio raises that cancellation again at every checkpoint inside
-    the cancelled scope, so a display whose teardown awaits (the rich
-    display's update-loop task group) raises it again; that one is absorbed
-    too. A cancellation from the teardown of a body that was not cancelled,
+    A cancellation of the run body is absorbed when ``absorb_cancel()`` says
+    so at that point, and the run returns the logs it has. Trio raises that
+    cancellation again at every checkpoint inside the cancelled scope, so a
+    display whose teardown awaits (the rich display's update-loop task group)
+    raises it again; that one is absorbed too. A cancellation of the body
+    that is not absorbed, from the teardown of a body that was not cancelled,
     or from the display's setup, propagates.
     """
     body_cancelled = False
@@ -1333,6 +1398,8 @@ async def _run_task_screen(tasks: list[TaskSpec]) -> AsyncIterator[TaskScreen]:
             try:
                 yield screen
             except anyio.get_cancelled_exc_class():
+                if not absorb_cancel():
+                    raise
                 body_cancelled = True
     except anyio.get_cancelled_exc_class():
         if not body_cancelled:

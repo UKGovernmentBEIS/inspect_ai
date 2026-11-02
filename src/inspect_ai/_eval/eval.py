@@ -116,7 +116,7 @@ from inspect_ai.util._notify import build_apprise, init_apprise
 
 from .context import init_eval_context
 from .loader import resolve_task_file_sandbox, resolve_task_source, resolve_tasks
-from .run import TaskInjection, eval_run
+from .run import eval_run
 from .task import Epochs, PreviousTask, Task, TaskSource
 from .task.enqueue import (
     TaskEnqueuer,
@@ -125,7 +125,7 @@ from .task.enqueue import (
     register_task_enqueuer,
 )
 from .task.images import InputMediaPolicy
-from .task.resolved import ResolvedTask, resolved_model_names, resolved_task_names
+from .task.resolved import ResolvedTask, resolved_model_names
 from .task.tasks import Tasks
 
 log = logging.getLogger(__name__)
@@ -817,6 +817,7 @@ async def _eval_async_inner(
 
     run_id = uuid()
 
+    enqueuer: TaskEnqueuer | None = None
     enqueuer_token: Token[TaskEnqueuer | None] | None = None
     trio_cancelled = False
     try:
@@ -834,11 +835,11 @@ async def _eval_async_inner(
         )
 
         # A TaskSource drives the run dynamically: its initial_tasks() seed the
-        # run (resolved + validated up front like any task list) and become the
-        # first batch; next_tasks() then feeds subsequent batches (see the eval
-        # loop below). `tasks` may be a TaskSource instance or refer to one (a
-        # @task_source function, a registered name, or a file.py@name spec); any
-        # other task form resolves directly.
+        # run (resolved + validated up front like any task list); next_tasks()
+        # then adds more whenever no task is queued or running (see
+        # TaskEnqueuer.when_idle). `tasks` may be a TaskSource instance or
+        # refer to one (a @task_source function, a registered name, or a
+        # file.py@name spec); any other task form resolves directly.
         task_source = resolve_task_source(tasks, task_args)
 
         # resolve tasks (a TaskSource seeds the run from initial_tasks(),
@@ -872,10 +873,9 @@ async def _eval_async_inner(
 
         # make every resolved task's model addressable by the model pause
         # directives up-front, ahead of the dispatcher's own registration
-        # (which happens as each batch is prepared, so it lags for tasks fed
-        # to later batches). This is also the first dispatch_model_name call,
-        # so the latch's name snapshots are taken here — before any generate
-        # can rewrite a provider's model name
+        # (which happens as each group of tasks is prepared). This is also the
+        # first dispatch_model_name call, so the latch's name snapshots are
+        # taken here — before any generate can rewrite a provider's model name
         note_dispatch_models([dispatch_model_name(t.model) for t in resolved_tasks])
 
         # if there is no max tasks then base it on unique model names
@@ -1056,8 +1056,8 @@ async def _eval_async_inner(
         # Register a task enqueuer so additional tasks can be added to this run
         # while it's in progress — imperatively via `enqueue_task`, or
         # declaratively via a `TaskSource`'s `next_tasks()`. Both resolve against
-        # the run's models / config; the eval loop below runs them under this
-        # run_id after each batch.
+        # the run's models / config; the run's dispatcher below runs them under
+        # this run_id.
         resolve_added_tasks = functools.partial(
             _resolve_enqueued_tasks,
             models=model,
@@ -1068,7 +1068,7 @@ async def _eval_async_inner(
             checkpoint=checkpoint,
             cost_limit=cost_limit,
         )
-        enqueuer: TaskEnqueuer = create_task_enqueuer(run_id, resolve_added_tasks)
+        enqueuer = create_task_enqueuer(run_id, resolve_added_tasks, task_source)
         enqueuer_token = register_task_enqueuer(enqueuer)
 
         # Imported here rather than at module level: the ACP server pulls in
@@ -1099,38 +1099,18 @@ async def _eval_async_inner(
             )
             print_ctl_pointer(control_socket)
             with scan_cm:
-                # The one place eval_run is invoked for a batch of tasks. The
-                # initial tasks run as the first loop iteration below; tasks
-                # added during the run (via `enqueue_task` or a `TaskSource`)
-                # feed later iterations, all under this run_id. `debug_errors`
-                # is passed only on the parallel==1 path (the multi-task path
-                # never set it — preserved asymmetry).
-                # every task name the run has seen, so `task:id` sample
-                # selectors resolve the same way in every batch: the enclosing
-                # eval set's tasks (a retry runs a subset), then each batch as
-                # it is prepared (an enqueued task sees the ones before it)
-                task_names = list(eval_set_tasks or [])
-
-                async def run_batch(
-                    tasks: list[ResolvedTask],
-                    debug: bool,
-                    inject: TaskInjection | None = None,
-                ) -> list[EvalLog]:
-                    task_names.extend(
-                        name
-                        for name in resolved_task_names(tasks)
-                        if name not in task_names
-                    )
-                    return await eval_run(
+                logs = EvalLogs(
+                    await eval_run(
                         eval_set_id=eval_set_id,
-                        eval_set_tasks=task_names,
+                        eval_set_tasks=list(eval_set_tasks or []),
                         run_id=run_id,
-                        tasks=tasks,
+                        tasks=resolved_tasks,
                         parallel=parallel,
                         eval_config=eval_config,
                         eval_checkpoint=checkpoint,
                         recorder=recorder,
                         header_only=log_header_only,
+                        added_tasks=enqueuer,
                         epochs_reducer=epochs_reducer,
                         approval=approval,
                         review=review,
@@ -1142,91 +1122,20 @@ async def _eval_async_inner(
                         metadata=metadata,
                         run_samples=run_samples,
                         score=score,
-                        debug_errors=debug,
+                        # passed only at parallel == 1 or for a TaskSource run
+                        # (a multi-task run never set it — preserved asymmetry)
+                        debug_errors=debug_errors is True
+                        and (parallel == 1 or task_source is not None),
                         task_retry_attempts=task_retry_attempts,
                         task_source=task_source,
-                        inject=inject,
                         **kwargs,
                     )
-
-                # Run successive batches under this run_id until the run is
-                # exhausted: the seed first, then tasks added imperatively
-                # (enqueue_task) or declaratively (a TaskSource's next_tasks())
-                # feed later iterations, repeating until none remain. A
-                # cancelled batch ends the run. Returns the combined logs.
-                async def run_batches(initial: list[ResolvedTask]) -> EvalLogs:
-                    results: list[EvalLog] = []
-                    pending: list[ResolvedTask] | None = initial
-                    while pending is not None:
-                        batch_logs: list[EvalLog] = []
-                        if parallel == 1:
-                            # one batch in sequence-major order: the dispatcher
-                            # dispatches in queue order (preserving sequence
-                            # grouping at a limit of 1) and, unlike per-group
-                            # sub-batches, sees the whole queue — so a live
-                            # `ctl config --max-tasks` raise starts queued
-                            # tasks immediately
-                            ordered = [
-                                t
-                                for sequence in sorted({t.sequence for t in pending})
-                                for t in pending
-                                if t.sequence == sequence
-                            ]
-                            batch_logs.extend(
-                                await run_batch(ordered, debug_errors is True)
-                            )
-                        else:
-                            # multiple task definitions, run together
-                            batch_logs.extend(await run_batch(pending, False))
-                        results.extend(batch_logs)
-
-                        # a cancelled batch ends the run
-                        if any(r.status == "cancelled" for r in batch_logs):
-                            break
-
-                        # (a TaskSource observes results via sample_complete /
-                        # task_complete, fired from task_run as each sample/task
-                        # finishes — so its next_tasks() decision can use them)
-
-                        # next batch under this run_id: imperative additions
-                        # (enqueue_task) first, else the TaskSource's next_tasks()
-                        # (which may block, and ends the run by returning None).
-                        pending = enqueuer.drain() or None
-                        if pending is None and task_source is not None:
-                            next_tasks = await task_source.next_tasks()
-                            pending = (
-                                resolve_added_tasks(next_tasks) if next_tasks else None
-                            )
-                    return EvalLogs(results)
-
-                if task_source is not None and parallel > 1:
-                    # live (TaskSource-driven) run: one eval_run fed additional
-                    # tasks while in progress. Injected tasks — from the source's
-                    # next_tasks(), its sample/task_complete return values, or
-                    # enqueue_task — start on free capacity rather than waiting
-                    # for a batch boundary. This only helps when there is spare
-                    # capacity to fill (parallel > 1); with parallel == 1 we fall
-                    # through to run_batches, whose sequence-major batch order
-                    # preserves sequence grouping at the launch limit (injection
-                    # feeds tasks in resolved, model-major order, which would
-                    # interleave task fan-outs) — and still drives the source
-                    # via enqueuer.drain() / next_tasks().
-                    async def inject_next() -> list[ResolvedTask] | None:
-                        more = await task_source.next_tasks()
-                        return resolve_added_tasks(more) if more else None
-
-                    injection = TaskInjection(
-                        drain=enqueuer.drain,
-                        next=inject_next,
-                        set_wake=lambda fn: setattr(enqueuer, "on_enqueue", fn),
-                    )
-                    logs = EvalLogs(
-                        await run_batch(
-                            resolved_tasks, debug_errors is True, inject=injection
-                        )
-                    )
-                else:
-                    logs = await run_batches(resolved_tasks)
+                )
+            # the run has stopped starting tasks: refuse further additions
+            # (from on_run_end, or from child contexts that copied the
+            # enqueuer) rather than drop them. A cancelled run returns without
+            # the dispatcher closing it.
+            enqueuer.close()
 
             # keep-alive: after the body, park while the control / ACP
             # servers are still up so `inspect ctl` can read state and
@@ -1264,6 +1173,9 @@ async def _eval_async_inner(
                 await emit_run_end(eval_set_id, run_id, EvalLogs([]))
 
     except BaseException as e:
+        # a failed run also stops accepting additions before on_run_end
+        if enqueuer is not None:
+            enqueuer.close()
         # a second Ctrl-C while finishing a cancelled trio run does not start
         # the hooks again
         if not trio_cancelled:
@@ -1273,7 +1185,6 @@ async def _eval_async_inner(
 
     finally:
         _eval_async_running = False
-        # Stop accepting task additions for this run.
         if enqueuer_token is not None:
             clear_task_enqueuer(enqueuer_token)
         # Clear the process-level EvalState registry and the retry-loop

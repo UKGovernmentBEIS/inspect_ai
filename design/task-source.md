@@ -53,9 +53,10 @@ The two halves of the *production* contract are deliberately asymmetric:
   seed the run sets up and starts from. The run resolves and validates it
   up front (concurrency, sample-id assignment, sandbox startup) exactly like
   any other task list — so it cannot block / await.
-- **`next_tasks()` is async and may block indefinitely.** It is called *after*
-  each batch finishes (and after that batch's completion notifications), can
-  `await` external input or more results, and returns `None` to end the run.
+- **`next_tasks()` is async and may block indefinitely.** It is called only
+  when no task is queued or running (so after the completion notifications of
+  every task so far), can `await` external input or more results, and returns
+  `None` to end the run.
   This is the blocking / explicit-pull path for an open-ended "keep producing
   until told to stop" loop.
 
@@ -64,7 +65,7 @@ double duty: they observe results *and* may **return follow-up tasks**. A
 returned list is added to the run exactly as `enqueue_task` would (it is routed
 through the same run enqueuer — see below), so the *simplest* sources never
 implement `next_tasks()` at all: they just react to each result and return the
-next tasks. The run then ends naturally when a batch's callbacks return nothing
+next tasks. The run then ends naturally when the callbacks return nothing
 and `next_tasks()` (default `None`) yields no more. `next_tasks()` is reserved
 for the blocking case (wait for external input) that a per-result callback can't
 express.
@@ -80,19 +81,22 @@ eval() / eval_async()              tasks=<TaskSource>
   │
   ├─ task_source = tasks if isinstance(tasks, TaskSource) else None   # eval.py
   │
-  ├─ eval_resolve_tasks(task_source.initial_tasks() ...)   # seed = first batch
+  ├─ eval_resolve_tasks(task_source.initial_tasks() ...)   # seed
   │
-  └─ batch loop (under one run_id, one control/ACP server scope):
-        while pending is not None:
-            run_batch(pending)            ─► eval_run ─► task_run / task_run_sample
-                                                 │            │
-                                                 │            └─ sample_complete(sample, task) ─┐ (per sample)
-                                                 └─ task_complete(log) ──────────────────┤ (per task)
-                                                          returned tasks ─► enqueuer ◄────┘
-            if cancelled: break
-            pending = enqueuer.drain() or None         # enqueue_task + returned tasks first
-            if pending is None and task_source is not None:
-                pending = resolve(await task_source.next_tasks())   # else blocking pull
+  └─ eval_run(seed, added_tasks=enqueuer)   # once per run, one run_id,
+        │                                     # one control/ACP server scope
+        └─ run_task_retry_attempts (the run's one dispatcher), each cycle:
+              add(ready())          # enqueuer.ready(): when_free additions
+              dispatch up to max_tasks ─► task_run / task_run_sample
+                                              │            │
+                                              │            └─ sample_complete(sample, task) ─┐ (per sample)
+                                              └─ task_complete(log) ──────────────────┤ (per task)
+                                                       returned tasks ─► enqueuer ◄────┘
+              if cancelled: break
+              if nothing queued or running:
+                  add(await when_idle())  # enqueuer.when_idle(): buffered additions
+                                     # first, else resolve(await task_source.next_tasks());
+                                     # None (closes the enqueuer) ends the run
 ```
 
 Key locations:
@@ -122,13 +126,16 @@ Key locations:
   while a callback is suspended; and `task_run` calls
   `task_source.task_complete(eval_log)` just before returning the log. Whatever
   a callback **returns** is passed to `_enqueue_source_tasks`, which pushes it
-  onto the run enqueuer (`get_task_enqueuer().enqueue(...)`) — so returned tasks
-  and `enqueue_task` additions share one buffer and the loop drains both.
-- **The batch loop** — [eval.py](../src/inspect_ai/_eval/eval.py) (~line 999):
-  drains imperatively-enqueued tasks first (`enqueuer.drain()`), and only if
-  none calls `await task_source.next_tasks()`, resolving the result through the
-  same `resolve_added_tasks` closure used by `enqueue_task`. A cancelled batch
-  ends the run.
+  onto the run enqueuer (`get_task_enqueuer().enqueue(...)`) with the run's
+  default start policy — so returned tasks and default `enqueue_task` additions
+  are handled the same way.
+- **The batch boundary** — `TaskEnqueuer.when_idle()` in
+  [task/enqueue.py](../src/inspect_ai/_eval/task/enqueue.py), behind the feed's
+  `when_idle()`: the dispatcher calls it only when nothing is queued or running.
+  It returns buffered additions first (`when_free` ones enqueued after the
+  dispatcher's last `ready()`, then `after_batch` ones), and only if there are
+  none calls `await task_source.next_tasks()`, resolving the result through the same
+  resolve closure used by `enqueue_task`. A cancelled task ends the run.
 
 ### Rejected elsewhere
 
@@ -143,16 +150,16 @@ if isinstance(tasks, TaskSource):
     )
 ```
 
-so any path that resolves tasks without the batch loop fails loudly rather than
-silently running only the seed.
+so any path that resolves tasks without the run's dispatcher feed fails loudly
+rather than silently running only the seed.
 
 ## Relationship to `enqueue_task`
 
 There are three ways to add tasks to a run, in increasing directness, and they
-all feed one buffer:
+all feed the run's one dispatcher:
 
-- **`next_tasks()`** — the blocking / explicit-pull path: the loop *pulls* the
-  next batch from the source between batches.
+- **`next_tasks()`** — the blocking / explicit-pull path: the dispatcher *pulls*
+  the next batch from the source when nothing is queued or running.
 - **Returning tasks from `sample_complete` / `task_complete`** — the *push from
   a result* path: the simplest sources react to each completion and return the
   follow-ups. The firing site routes the return value onto the run enqueuer, so
@@ -163,18 +170,41 @@ all feed one buffer:
   `TaskSource`, to push tasks into the current run:
 
   ```python
-  def enqueue_task(tasks: Tasks, *, run_id: str | None = None) -> None: ...
+  def enqueue_task(
+      tasks: Tasks,
+      *,
+      run_id: str | None = None,
+      start: Literal["when_free", "after_batch"] | None = None,
+  ) -> None: ...
   ```
+
+  `start="when_free"` starts the tasks as soon as there is free task capacity;
+  `start="after_batch"` once no task is queued or running, including
+  `when_free` tasks added later. `None` (the default) is the run's default:
+  `when_free` in a `TaskSource` run, `after_batch` otherwise. An invalid
+  `start` raises `ValueError` before the tasks are resolved. `enqueue_task`
+  must be called from the eval's event loop: the dispatcher's wake callback is
+  not thread-safe. The run's enqueuer is registered after `emit_run_start` and
+  closed before `emit_run_end`, so a call from `on_run_start` or `on_run_end`
+  raises; hooks called during a task can add tasks.
 
 The last two share the same downstream machinery:
 
 - A `TaskEnqueuer` holds the run's *resolve* closure (`_resolve_enqueued_tasks`,
   bound via `functools.partial` to the run's models / roles / config / sandbox /
-  cost limit) plus a buffer. `enqueue()` resolves immediately (so a bad task
-  surfaces at the call site) and buffers; `drain()` is the non-blocking pull the
-  loop does after each batch.
-- The batch loop drains the enqueuer *before* consulting `next_tasks()`, so
-  imperative additions and declarative generation compose in one loop.
+  cost limit), the run's `TaskSource` (if any, which also sets the default start
+  policy), and one buffer per start policy. `enqueue()` resolves immediately (so
+  a bad task surfaces at the call site), buffers by start policy, and fires the
+  wake callback the dispatcher registered with `set_wake()`. The dispatcher
+  takes `ready()` (the `when_free` buffer) on every cycle and calls
+  `when_idle()` only when idle.
+- The batch boundary takes `after_batch` additions *before* consulting
+  `next_tasks()`, so imperative additions and declarative generation compose in
+  one loop.
+- When `when_idle()` finds nothing more to run, it calls `close()` before
+  returning `None` (and `eval_async` closes it once `eval_run` returns, for a
+  cancelled run, or when the run fails). A later `enqueue()` raises `RuntimeError` instead of buffering a task
+  that would never run.
 
 Because `enqueue_task` is called from *arbitrary* code, it needs an ambient
 handle to the active run — but a process global is too broad. It uses a
@@ -182,7 +212,9 @@ handle to the active run — but a process global is too broad. It uses a
 token in the `finally`. The ContextVar is scoped to the run's async context and
 propagates to child tasks created after it's set, so samples/tools/scorers see
 it; `enqueue_task` validates the optional `run_id` against the active enqueuer's
-to reject a stray/late caller targeting a torn-down or different run.
+to reject a stray caller targeting a different run. A child context that copied
+the ContextVar keeps a reference to the enqueuer after the run, which is why the
+enqueuer itself refuses additions once closed.
 
 (`TaskSource` itself does *not* need the ContextVar — it is threaded explicitly
 via `TaskRunOptions`. Only `enqueue_task`, called from unknown call sites, needs
@@ -218,8 +250,8 @@ the ambient lookup.)
   during directory enumeration, removing the task/source asymmetry. The CLI
   passes specs as a one-element list, which it unwraps. Returns `None` for
   anything else, so normal task resolution proceeds. So `inspect eval
-  rl.py@my_source -T lr=0.1` and `eval("rl.py@my_source")` both drive the live
-  path.
+  rl.py@my_source -T lr=0.1` and `eval("rl.py@my_source")` both drive the
+  source.
 - The `Tasks` type alias ([task/tasks.py](../src/inspect_ai/_eval/task/tasks.py))
   includes `| TaskSource | Callable[..., TaskSource]`, so both a source and a
   `@task_source` function type-check as `tasks`.
@@ -231,60 +263,113 @@ task-not-found (not specially handled).
 
 ## Tests
 
-- `tests/test_task_source.py` — batch-at-a-time over multiple generations under
+- `tests/test_task_source.py` — multiple generations from `next_tasks()` under
   one `run_id`; single-batch when `next_tasks()` returns `None` immediately;
   `sample_complete` fires per sample *before* the task's `task_complete`;
   `task_complete` **returning** follow-up tasks chains generations (subclass and
   `from_tasks`); `TaskSource.from_tasks` seed + callbacks; `@task_source`
   decorator (instance, passed-as-function, load-by-registered-name, with task
-  args, and `file.py@name`); live injection (below); rejection outside `eval()`.
+  args, and `file.py@name`); live injection (below); sequence grouping at
+  `max_tasks=1` for the seed and for callback-returned tasks; an explicit
+  `after_batch` addition waiting for idle; rejection outside `eval()`.
 - `tests/test_enqueue_task.py` — added task runs in the same run; additions
-  chain across batches; calling outside a run raises.
+  chain across batches; calling outside a run raises; `when_free` starts during
+  the batch under `eval()`, `eval_set()` (including selection mode) and a
+  `TaskSource` run; a `when_free` child held at `max_tasks=1` until the limit is
+  raised; the default `after_batch` waits for every seed task; sequence grouping
+  of a multi-model `when_free` group; retries; a late enqueue raising; an
+  invalid `start` raising before resolution; `when_idle()` returning buffered
+  `when_free` additions first; cancellation while a `when_free` child is
+  queued; cancellation while an added group is being prepared (both
+  loggers discarded, the cancellation propagating); a real Ctrl-C while an
+  added task is prepared or `next_tasks()` waits (in a subprocess, under both
+  backends) raising `KeyboardInterrupt`; and which hooks can call
+  `enqueue_task`. It also covers a throttled trailing call that enqueues after the run
+  has finished dispatching (logged; the eval keeps its result) and a finished
+  added task's dataset being freed before the run ends.
+  `tests/test_task_source.py` also covers tasks enqueued by
+  the final `next_tasks()` call (an `after_batch` one starting after the
+  `when_free` ones enqueued with it) and a cancellation while `next_tasks()`
+  blocks propagating, and
+  `tests/util/sandbox/test_docker_cleanup.py` an added task sharing the run's
+  sandbox scope.
 
-## Live injection
+## One dispatcher per run
 
-A `TaskSource`-driven run is **live**: a task added while the run is in progress
-starts on free capacity immediately, rather than waiting for a batch boundary.
-This is the default (and only) behavior for `TaskSource` runs — there is no flag
-and no change to the user-facing API. Plain evals (no `TaskSource`) are
-unchanged: they take the batch-at-a-time path, where `enqueue_task` additions
-run as a follow-up batch.
+Every run — `eval()`, `eval_set()`, or a `TaskSource` — has a single dispatcher
+for its whole lifetime, and tasks added while it is in progress join that
+dispatcher's queue. In a `TaskSource` run they start on free capacity by
+default; elsewhere they start once the dispatcher is idle unless added with
+`start="when_free"`. The batch boundary (no task queued or running) is the
+moment the dispatcher becomes idle, so no separate batch loop is needed.
 
 ### How it works
 
-When `task_source is not None`, `eval_async`
-([eval.py](../src/inspect_ai/_eval/eval.py)) takes a live path instead of the
-`run_batches` loop: it calls `eval_run` **once** with the seed and a
-`TaskInjection` ([run.py](../src/inspect_ai/_eval/run.py)) built from the run's
-enqueuer + source:
+`eval_async` ([eval.py](../src/inspect_ai/_eval/eval.py)) creates the run's
+`TaskEnqueuer` with the run's `TaskSource` (if any) and calls `eval_run`
+**once** with the seed and the enqueuer as `added_tasks`. `eval_run` takes it
+through the `AddedTasks` protocol ([run.py](../src/inspect_ai/_eval/run.py)):
 
-- `drain` — `enqueuer.drain()` (non-blocking): tasks enqueued since last call
-  (from `enqueue_task` or callbacks returning tasks).
-- `next` — `await task_source.next_tasks()` resolved to `ResolvedTask`s, or
-  `None` when the source is done (blocking).
-- `set_wake` — registers a callback on the enqueuer (`on_enqueue`) so a mid-run
-  enqueue wakes the dispatcher.
+- `ready()` (non-blocking, every dispatch cycle): `when_free` additions, to
+  start when free.
+- `when_idle()` (called only when idle, may block): buffered `when_free`
+  additions (enqueued during an await after the cycle's `ready()`), else
+  `after_batch` additions, else `await task_source.next_tasks()` resolved to
+  `ResolvedTask`s, else `None` (closing the enqueuer) to end the run. Since
+  `next_tasks()` may block and enqueue meanwhile, the buffers are checked again
+  before closing, `when_free` first (`after_batch` additions then wait for the
+  next idle point); once `next_tasks()` has returned nothing it is not called
+  again. Tasks enqueued while `next_tasks()` blocks start only after it
+  returns, so `next_tasks()` must not wait for them; the dispatcher does not
+  take `ready()` while it waits on `when_idle()`.
+- `set_wake()`, so an enqueue wakes the dispatcher. An `after_batch` enqueue
+  then costs one dispatch cycle in which `ready()` returns nothing.
 
 `eval_run` wraps that with its own task preparation (`prepare_options`:
 `ResolvedTask` → `TaskRunOptions`, with incremental sandbox startup via
-`SandboxManager`) into a `PreparedFeed`, and hands it to
-`run_task_retry_attempts(..., feed=...)`.
+`SandboxManager`) into a `PreparedFeed` with the same three operations, and
+hands it to `run_task_retry_attempts(..., feed=...)`. `prepare_options` owns a
+group's loggers until it returns them: if preparing a task fails or is
+cancelled, it discards the loggers it already created (they are not yet in
+`prepared_loggers`, so `eval_run`'s error handler would not reach them).
+`prepared_loggers` keeps only the loggers, not the `TaskRunOptions`, so a
+finished added task's `Task` and dataset are freed before the run ends. At
+`parallel == 1` it puts the seed
+and every added group in sequence-major order (`_dispatch_order`), so with the
+dispatcher's queue-order tie-break all of task N's model fan-outs run before
+task N+1's, as when the tasks are passed to `eval()` directly.
 
-`run_task_retry_attempts` ([run.py](../src/inspect_ai/_eval/run.py)) is a single
-dispatcher that serves both fixed and live runs — a fixed set (`feed is None`)
-is just a run whose feed is immediately exhausted (`_empty_feed`), so there is
-no separate "dynamic" function. It also owns per-task retries
-(`task_retry_attempts`); a run without retries is simply
-`task_retry_attempts==0`. Its dispatcher loop, per cycle: drains buffered injections
-(growing the display via `update_task_count`), dispatches up to `parallel`
-(model-balanced), and — when nothing is pending, nothing is in flight, and
-nothing was buffered — calls the (blocking) `feed.next()`. It completes when the
-feed is exhausted *and* the queue has drained. A re-armable `_Wake` (set on each
-task completion and each enqueue) drives the loop; `feed.next()` is only awaited
-when fully idle, so no task can enqueue while it blocks (no lost-wakeup race).
-Each task runs via the shared `_run_task` helper (a per-task cancel scope around
-`task_run`); initial tasks keep their input order in the results and injected
-tasks are appended in arrival order.
+`run_task_retry_attempts` ([run.py](../src/inspect_ai/_eval/run.py)) serves both
+fixed and open runs — a fixed set is just a run whose feed supplies nothing
+(`when_idle()` returns `None` at the first idle point), so there is no separate
+"dynamic" function. It also owns per-task retries (`task_retry_attempts`); a run without
+retries is simply `task_retry_attempts==0`. Its dispatcher loop, per cycle:
+drains buffered injections (growing the display via `update_task_count`),
+dispatches up to the live `max_tasks` limit (model-balanced), and — when nothing
+is pending, nothing is in flight, and nothing was buffered — calls the (blocking)
+`feed.when_idle()`. It completes when the feed is exhausted *and* the queue has
+drained. A re-armable `_Wake` (set on each task completion and each enqueue)
+drives the loop; `feed.when_idle()` is only awaited when fully idle, so no
+running task can enqueue while it blocks. A cancelled run stops before taking
+further additions. Each task runs via the shared `_run_task`
+helper (a per-task cancel scope around `task_run`); initial tasks keep their
+input order in the results and injected tasks are appended in arrival order.
+When dispatch stops on a cancelled run, tasks still queued never start, and
+their log entries are discarded as for an abandoned retry.
+
+A cancellation (Ctrl-C, or a cancelled scope around `eval_async`) that lands
+while the dispatcher waits for running tasks is absorbed (`_run_task_screen`):
+those tasks end with `cancelled` logs and the run returns them. One that lands
+while the dispatcher takes tasks from the feed (preparing an added group, or
+awaiting `next_tasks()`) propagates out of `eval_async`, so `eval()` raises
+`KeyboardInterrupt` and the CLI exits 1: the tasks it interrupts have no log
+yet, so a run that returned normally would look complete. Tasks running beside
+the interrupted preparation are cancelled and write `cancelled` logs.
+
+Consequences of one dispatcher per run: task-level sandbox environments
+(`task_init`) started for any generation are cleaned up once, at the end of the
+run; one task display grows as tasks are added; and `inspect ctl config` sees a
+live dispatcher (with its real `pending` count) for the whole run.
 
 ### Components
 
@@ -298,8 +383,8 @@ tasks are appended in arrival order.
   for the rich, plain, and textual displays; a no-op default for the log
   display. (Retries must *not* call this — they reuse a `task_id` and are deduped
   in the title; an injected task is a new `task_id`, so it does.)
-- **`TaskEnqueuer.on_enqueue`** ([enqueue.py](../src/inspect_ai/_eval/task/enqueue.py))
-  — optional callback fired after buffering, used to wake the live dispatcher.
+- **`TaskEnqueuer.set_wake`** ([enqueue.py](../src/inspect_ai/_eval/task/enqueue.py))
+  — registers the callback fired after buffering, used to wake the dispatcher.
 
 ### Tests
 
@@ -326,17 +411,16 @@ Implemented and tested in `eval()` / `eval_async()`:
       parameterization (`resolve_task_source`).
 - [x] Threaded via `TaskRunOptions` (no global), per-sample and per-task firing.
 - [x] `enqueue_task` imperative primitive backed by a `ContextVar`.
-- [x] **Live injection** for `TaskSource` runs: single live `eval_run`, one
-      `run_task_retry_attempts` dispatcher (fixed = empty-feed; no separate
-      dynamic path), incremental `SandboxManager`, growing display (rich /
-      plain / textual).
-- [x] **Live injection is `TaskSource`-only.** A run is live iff it was given a
-      `TaskSource`. Plain evals take the unchanged batch-at-a-time `run_batches`
-      path, where `enqueue_task` additions run as a *follow-up batch* after the
-      current one (not live). Inside a `TaskSource` run, `enqueue_task` and
-      callback-returned tasks *are* live. Enabling live injection without a
-      `TaskSource` would require routing every eval through the dynamic
-      dispatcher (changing the default `parallel==1` sequence-group path).
+- [x] **One dispatcher per run**: a single `eval_run` and one
+      `run_task_retry_attempts` dispatcher for every run (fixed = empty-feed;
+      no separate dynamic path), incremental `SandboxManager`, growing display
+      (rich / plain / textual), sequence-major order at `parallel == 1`.
+- [x] **Start policy per addition.** `enqueue_task(start=...)`: `when_free`
+      joins the running queue, `after_batch` waits for the dispatcher to be
+      idle. The default is `when_free` in a `TaskSource` run (so
+      callback-returned tasks start on free capacity at any `max_tasks`) and
+      `after_batch` otherwise.
+- [x] A late `enqueue_task()` (after the run has finished dispatching) raises.
 - [x] Rejected (with a clear error) on non-`eval()` paths.
 
 ## Next steps / future work
@@ -378,7 +462,8 @@ The real work, in order:
    `try_eval()` resolves a fixed list once. For a source it must instead drive
    `initial_tasks()` → run → `next_tasks()` → run, diffing *each generation's*
    batch against the logs before running it. This is essentially lifting
-   eval_async's `run_batches` loop up into eval_set. Real work, no new concepts.
+   the enqueuer's `when_idle()` batch boundary up into eval_set. Real work, no
+   new concepts.
 
 2. **Resume requires replaying results into the source (new machinery + a
    determinism contract).** This is the crux, and it is narrower than it first
@@ -415,7 +500,7 @@ deterministic/replayable sources. Options, in increasing cost / value:
   for deterministic sources.
 - **B. Cheap pass-through (~hours).** Special-case `isinstance(tasks,
   TaskSource)` in eval_set to skip resolution / diff and forward the source to
-  the inner `eval()`, whose batch loop drives `next_tasks()`. The generated
+  the inner `eval()`, whose dispatcher drives `next_tasks()`. The generated
   tasks run and land in `log_dir`, but eval_set's retry-to-completion and
   crash-resume guarantees do not cover them (only the seed is visible to that
   machinery). Adds little over calling `eval()` directly — not recommended.
