@@ -23,6 +23,7 @@ from tenacity import (
 )
 
 from inspect_ai._util._json_rpc import GenericJSONRPCErrorMapper, exec_model_request
+from inspect_ai._util.retry import backoff_multiplier
 
 from ._cli import SANDBOX_CLI, tools_user_param
 from ._json_rpc_transport import SandboxJSONRPCTransport
@@ -351,8 +352,10 @@ class ExecRemoteProcess:
             params["stdin_open"] = True
         if self._options.env:
             params["env"] = self._options.env
-        if self._options.cwd:
-            params["cwd"] = self._options.cwd
+        from .identity import sandbox_identity_cwd
+
+        if cwd := sandbox_identity_cwd(self._sandbox, self._options.cwd):
+            params["cwd"] = cwd
         if (user := tools_user_param(self._sandbox, self._options.user)) is not None:
             params["user"] = user
 
@@ -459,7 +462,7 @@ class ExecRemoteProcess:
             return True
 
         @retry(
-            wait=wait_exponential_jitter(initial=2),
+            wait=wait_exponential_jitter(**backoff_multiplier(2)),
             stop=(stop_after_attempt(5) | stop_after_delay(30)),
             retry=retry_if_exception(retryable),
             # reraise the underlying RuntimeError on exhaustion so callers and
