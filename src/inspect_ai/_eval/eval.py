@@ -1187,7 +1187,7 @@ def _resolve_enqueued_tasks(
     """Resolve tasks added to a running eval (via ``enqueue_task``).
 
     Bound (via ``functools.partial``) to the run's models / config / roles /
-    sandbox, then handed to the run's :class:`RunQueue` so additions resolve
+    sandbox, then handed to the run's :class:`RunTasks` so additions resolve
     consistently with the run. Raises ``ValueError`` if the tasks can't be
     resolved.
     """

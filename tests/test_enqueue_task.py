@@ -33,11 +33,11 @@ from inspect_ai._eval.eval_set_selection import (
 from inspect_ai._eval.loader import resolve_tasks
 from inspect_ai._eval.task.enqueue import (
     ConfiguredTask,
-    RunQueue,
+    RunTasks,
     TaskStartPolicy,
-    clear_run_queue,
+    clear_run_tasks,
     enqueue_task,
-    register_run_queue,
+    register_run_tasks,
 )
 from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._eval.task.resolved import ResolvedTask
@@ -404,24 +404,24 @@ async def test_enqueue_task_invalid_start_raises_before_resolving() -> None:
         resolved.append(tasks)
         return []
 
-    queue = RunQueue(
+    run_tasks = RunTasks(
         "run",
         resolve,
         lambda group: [],
         _no_sandboxes,
-        wake=Wake(),
+        changed=Wake(),
         retries=0,
         sequence_order=False,
         default_start="after_batch",
     )
-    token = register_run_queue(queue)
+    token = register_run_tasks(run_tasks)
     try:
         with pytest.raises(ValueError, match="start must be .* not 'now'"):
             await enqueue_task(child(), start=cast(TaskStartPolicy, "now"))
     finally:
-        clear_run_queue(token)
+        clear_run_tasks(token)
     assert resolved == []
-    assert queue.take("when_free") == queue.take("after_batch") == []
+    assert run_tasks.take("when_free") == run_tasks.take("after_batch") == []
 
 
 def _child_signalling(started: anyio.Event) -> Task:
@@ -814,7 +814,7 @@ def test_enqueue_task_when_free_child_is_retried() -> None:
 
 
 def test_enqueue_task_after_run_finished_dispatching_raises() -> None:
-    # a context copied during the run keeps the run's queue; once the run
+    # a context copied during the run keeps the run's tasks; once the run
     # has finished dispatching, enqueuing through it raises instead of
     # buffering a task that would never run
     contexts: list[Context] = []
@@ -936,7 +936,7 @@ async def test_enqueue_task_cancel_while_when_free_child_queued(
 ) -> None:
     # the run is cancelled (as by Ctrl-C) while a when_free child is queued
     # behind the parent at max_tasks=1: the run ends without starting the
-    # child, which never created a logger, and the queue is closed
+    # child, which never created a logger, and the run takes no more tasks
     created: list[str] = []
     init = TaskLogger.init
 

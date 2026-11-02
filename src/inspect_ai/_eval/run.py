@@ -3,7 +3,7 @@
 The scheduler's state (the run's task records and queue, its
 :class:`SetupCache`) is used only from the run's event loop and changed
 without locks: code on one event loop does not interleave between ``await``
-points, so a method that does not await (``RunQueue.put``,
+points, so a method that does not await (``RunTasks.put``,
 ``TaskDispatcher.start_attempt`` and ``settle``, the setup cache's
 bookkeeping) changes it as one step.
 """
@@ -116,10 +116,10 @@ from .loader import (
 from .task.enqueue import (
     ConfiguredTask,
     ResolveTasksFn,
-    RunQueue,
+    RunTasks,
     TaskRecord,
-    clear_run_queue,
-    register_run_queue,
+    clear_run_tasks,
+    register_run_tasks,
 )
 from .task.log import TaskLogger
 from .task.resolved import ResolvedTask, resolved_task_names
@@ -175,7 +175,7 @@ async def eval_run(
 ) -> list[EvalLog]:
     """Run the tasks of one eval run, including the tasks added while it runs.
 
-    Makes the run's :class:`RunQueue` the active one (so ``enqueue_task``
+    Makes the run's :class:`RunTasks` the active one (so ``enqueue_task``
     reaches it), starts up the seed tasks, runs the scheduling loop
     (:class:`TaskDispatcher`) until no task is left, then shuts the run's
     sandbox environments down once. ``parallel`` is the launch limit on
@@ -213,34 +213,34 @@ async def eval_run(
         task_source=task_source,
         generate_config=kwargs,
     )
-    wake = Wake()
+    changed = Wake()
     sandboxes = SandboxManager(
         eval_config,
         cleanup=eval_config.sandbox_cleanup is not False,
-        on_setup_done=wake.set,
+        on_setup_done=changed.set,
     )
     startup = TaskStartup(settings, sandboxes, task_names=list(eval_set_tasks or []))
-    queue = RunQueue(
+    run_tasks = RunTasks(
         run_id,
         resolve_added_tasks,
         startup.configure,
         startup.prepare,
-        wake=wake,
+        changed=changed,
         retries=task_retry_attempts or 0,
         sequence_order=parallel == 1,
         default_start="when_free" if task_source else "after_batch",
     )
-    token = register_run_queue(queue)
+    token = register_run_tasks(run_tasks)
     try:
-        # entered with the queue active, so code a setup runs can add tasks
+        # entered with the run's tasks active, so code a setup runs can add tasks
         async with sandboxes:
-            seed = await queue.create(tasks)
-            queue.enqueue(seed)
+            seed = await run_tasks.create(tasks)
+            run_tasks.enqueue(seed)
             await startup.start_seed(seed)
             # setups from here on run beside the task display
             sandboxes.collect_output = True
             dispatcher = TaskDispatcher(
-                queue,
+                run_tasks,
                 startup,
                 parallel=parallel,
                 source=task_source,
@@ -248,9 +248,9 @@ async def eval_run(
             )
             return await dispatcher.run(seed)
     finally:
-        # a task that outlives the run keeps the queue in its context
-        queue.close()
-        clear_run_queue(token)
+        # a task that outlives the run keeps its RunTasks in its context
+        run_tasks.close()
+        clear_run_tasks(token)
         # clean up cached S3 sessions to prevent "Unclosed connector" warnings
         try:
             await cleanup_s3_sessions()
@@ -807,14 +807,14 @@ class TaskDispatcher:
 
     def __init__(
         self,
-        queue: RunQueue,
+        tasks: RunTasks,
         startup: Startup,
         *,
         parallel: int,
         source: TaskSource | None,
         debug_errors: bool,
     ) -> None:
-        self.queue = queue
+        self.tasks = tasks
         self.startup = startup
         self.setups = startup.setups
         self.parallel = parallel
@@ -823,7 +823,7 @@ class TaskDispatcher:
         """The ``TaskSource`` asked for more tasks when idle (``None`` once its
         ``next_tasks()`` returns nothing)."""
         self.debug_errors = debug_errors
-        self.stopped = False
+        self.run_cancelled = False
         """An attempt ended cancelled (the run was cancelled): start no more."""
 
     async def run(self, seed: list[TaskRecord]) -> list[EvalLog]:
@@ -837,7 +837,7 @@ class TaskDispatcher:
             async with _run_task_screen(task_specs(seed)) as screen:
                 init_task_screen(screen)
                 try:
-                    add_dispatch_waker(self.queue.wake.set)
+                    add_dispatch_waker(self.tasks.changed.set)
                     register_task_dispatcher(self.stats)
                     # exceptions can escape when debug_errors is True
                     async with (
@@ -848,19 +848,19 @@ class TaskDispatcher:
                         await self.loop(tg)
                         reporter.cancel()
                 finally:
-                    remove_dispatch_waker(self.queue.wake.set)
+                    remove_dispatch_waker(self.tasks.changed.set)
                     remove_task_dispatcher(self.stats)
                     clear_task_screen()
         finally:
             await self.end_unfinished()
-        return self.queue.results()
+        return self.tasks.results()
 
     async def loop(self, tg: TaskGroup) -> None:
         """Start records while there is capacity; when idle, add more or finish."""
-        while not self.stopped:
+        while not self.run_cancelled:
             if self.setups.fatal is not None:
                 raise self.setups.fatal
-            self.take(self.queue.take("when_free"))
+            self.take(self.tasks.take("when_free"))
             await self.end_abandoned()
             while True:
                 self.queue_upcoming_setups()
@@ -868,10 +868,10 @@ class TaskDispatcher:
                 if record is None:
                     break
                 self.start_attempt(tg, record)
-            if self.stopped:
+            if self.run_cancelled:
                 break
-            if self.queue.queued or self.queue.running:
-                await self.queue.wake.wait()
+            if self.tasks.queued or self.tasks.running:
+                await self.tasks.changed.wait()
             elif not await self.add_when_idle():
                 break
 
@@ -883,24 +883,24 @@ class TaskDispatcher:
         ``TaskSource``'s next batch, asked until it first returns nothing.
         Tasks added while ``next_tasks()`` runs follow its batch.
         """
-        records = self.queue.take("when_free") or self.queue.take("after_batch")
+        records = self.tasks.take("when_free") or self.tasks.take("after_batch")
         if records:
             self.take(records)
         elif self.source is not None:
             more = await self.source.next_tasks()
             if more:
-                self.take(await self.queue.create(self.queue.resolve(more)))
+                self.take(await self.tasks.create(self.tasks.resolve(more)))
             else:
                 self.source = None
         else:
-            return not self.queue.close_if_idle()
+            return not self.tasks.close_if_idle()
         return True
 
     def take(self, records: list[TaskRecord]) -> None:
         """Queue added records to start, and grow the task display's count."""
         if not records:
             return
-        self.queue.enqueue(records)
+        self.tasks.enqueue(records)
         # lets the model pause directives validate against tasks that have not
         # started (which have no EvalState to check)
         note_dispatch_models([dispatch_model_name(r.model) for r in records])
@@ -918,7 +918,7 @@ class TaskDispatcher:
         it can start as soon as they are done.
         """
         window = effective_max_tasks(self.parallel)
-        for record in self.queue.queued:
+        for record in self.tasks.queued:
             if _dispatch_paused(record):
                 continue
             window -= 1
@@ -933,16 +933,16 @@ class TaskDispatcher:
         Chosen by :func:`pick_balanced` from the unpaused queued records whose
         setups are done or failed.
         """
-        if len(self.queue.running) >= effective_max_tasks(self.parallel):
+        if len(self.tasks.running) >= effective_max_tasks(self.parallel):
             return None
         ready = [
-            r for r in self.queue.queued if not _dispatch_paused(r) and r.can_start
+            r for r in self.tasks.queued if not _dispatch_paused(r) and r.can_start
         ]
-        return pick_balanced(ready, Counter(r.model for r in self.queue.running))
+        return pick_balanced(ready, Counter(r.model for r in self.tasks.running))
 
     def start_attempt(self, tg: TaskGroup, record: TaskRecord) -> None:
         """Start a record's attempt, with the run's provider state."""
-        self.queue.start(record)
+        self.tasks.start(record)
         # tasks inherit the loop's context: the latest provider state
         self.startup.apply_provider_state()
         tg.start_soon(self.run_one, record)
@@ -973,7 +973,7 @@ class TaskDispatcher:
             return
         retry = False
         if run.log.status == "cancelled":
-            self.stopped = True
+            self.run_cancelled = True
         else:
             retry = wants_retry(run.cancel_type, run.log, record)
         if retry:
@@ -1021,16 +1021,16 @@ class TaskDispatcher:
         if task_log is not None:
             record.log = task_log
         if retry:
-            self.take(self.queue.take("when_free"))
-            self.queue.retry(record)
+            self.take(self.tasks.take("when_free"))
+            self.tasks.retry(record)
             record.setups = None
             log.info(
                 f"Retrying task '{record.task}' ({record.model}) "
                 f"— {record.retries_remaining} retries remaining"
             )
         else:
-            self.queue.end(record)
-        self.queue.wake.set()
+            self.tasks.end(record)
+        self.tasks.changed.set()
 
     def stats(self) -> TaskDispatcherStats:
         """The view ``inspect ctl config`` shows of this dispatcher.
@@ -1040,8 +1040,8 @@ class TaskDispatcher:
         """
         return TaskDispatcherStats(
             launch=self.parallel,
-            in_flight=len(self.queue.running),
-            pending=len(self.queue.unstarted()),
+            in_flight=len(self.tasks.running),
+            pending=len(self.tasks.unstarted()),
         )
 
     async def end_abandoned(self) -> None:
@@ -1055,12 +1055,12 @@ class TaskDispatcher:
         display's count, as it will have no row there.
         """
         abandoned = [
-            r for r in self.queue.unstarted() if task_retry_abandoned(r.task_id)
+            r for r in self.tasks.unstarted() if task_retry_abandoned(r.task_id)
         ]
         for record in abandoned:
-            if record.attempt == 1 and record in self.queue.queued:
+            if record.attempt == 1 and record in self.tasks.queued:
                 display().update_task_count(-1)
-            self.queue.remove(record)
+            self.tasks.remove(record)
             await self._end_unstarted(record)
 
     async def end_unfinished(self) -> None:
@@ -1070,15 +1070,15 @@ class TaskDispatcher:
         attempt the run's failure interrupted released theirs in
         :meth:`run_one`. Each keeps its latest attempt's log, if any.
         """
-        for record in self.queue.close():
+        for record in self.tasks.close():
             await self._end_unstarted(record)
-        for record in list(self.queue.running):
-            self.queue.end(record)
+        for record in list(self.tasks.running):
+            self.tasks.end(record)
 
     async def _end_unstarted(self, record: TaskRecord) -> None:
         """End a record that will not start again, releasing the logger it holds."""
         await _release_queued(record)
-        self.queue.end(record)
+        self.tasks.end(record)
 
 
 async def open_log(logger: TaskLogger, *, retry: bool) -> None:

@@ -1,13 +1,13 @@
 """Add tasks to a running eval, and the records of a run's tasks.
 
 A run can have tasks added to it while it is in progress, under the same
-``run_id``. Each run has one :class:`RunQueue`, which holds a
+``run_id``. Each run has one :class:`RunTasks`, which holds a
 :class:`TaskRecord` for every task: the seed, tasks added with
 :func:`enqueue_task` or returned by a :class:`~inspect_ai.TaskSource`
 callback, and each ``next_tasks()`` batch. The run's scheduling loop
-(``TaskDispatcher`` in ``inspect_ai._eval.run``) starts them. The active queue
-lives in a ``ContextVar``, so it is scoped to the run's async context; the
-queue refuses additions once the run has finished starting tasks.
+(``TaskDispatcher`` in ``inspect_ai._eval.run``) starts them. The active
+``RunTasks`` lives in a ``ContextVar``, so it is scoped to the run's async
+context; it refuses additions once the run has finished starting tasks.
 """
 
 from __future__ import annotations
@@ -98,7 +98,7 @@ class TaskRecord:
     (``None`` if no attempt started: it was cancelled while queued, or the
     run ended first)."""
     ended: bool = False
-    """Whether it has ended (set only by :meth:`RunQueue.end`)."""
+    """Whether it has ended (set only by :meth:`RunTasks.end`)."""
 
     @property
     def retries_remaining(self) -> int:
@@ -118,7 +118,7 @@ class TaskRecord:
         )
 
 
-class RunQueue:
+class RunTasks:
     """The records of every task of one eval run.
 
     ``queued`` holds the records that may start, in start order, and
@@ -127,8 +127,9 @@ class RunQueue:
     ``queued`` with :meth:`retry`. Added records wait by start policy until
     the loop takes them: ``when_free`` ones on each of its cycles,
     ``after_batch`` ones once nothing is queued or running. Every way a
-    record ends goes through :meth:`end`. No method awaits, so the queue
-    needs no lock.
+    record ends goes through :meth:`end`. Only adding tasks awaits (to
+    resolve them), and the lists change only after it has, so they need no
+    lock.
     """
 
     def __init__(
@@ -138,12 +139,12 @@ class RunQueue:
         configure: ConfigureFn,
         prepare: PrepareFn,
         *,
-        wake: Wake,
+        changed: Wake,
         retries: int,
         sequence_order: bool,
         default_start: TaskStartPolicy,
     ) -> None:
-        """Create the queue of one run.
+        """Create the tasks of one run.
 
         Args:
             run_id: The run's id (``enqueue_task`` checks callers against it).
@@ -151,8 +152,8 @@ class RunQueue:
                 used by the loop for a ``TaskSource``'s ``next_tasks()``).
             configure: Configures tasks for the run.
             prepare: Resolves a configured task's sandbox configs.
-            wake: Set whenever the scheduling loop should look at the queue
-                again: by the queue as tasks are added, and by the run's
+            changed: Set whenever the scheduling loop should look at the tasks
+                again: as tasks are added, and by the run's
                 ``SetupCache`` as each setup ends.
             retries: How many times a task that fails is retried.
             sequence_order: Order the tasks of each addition by sequence (at a
@@ -171,7 +172,7 @@ class RunQueue:
         self._sequence_order = sequence_order
         self.queued: list[TaskRecord] = []
         self.running: set[TaskRecord] = set()
-        self.wake = wake
+        self.changed = changed
         self.records: list[TaskRecord] = []
         """Every record the loop has taken, in the order it took them."""
         self._by_id: dict[str, TaskRecord] = {}
@@ -229,7 +230,7 @@ class RunQueue:
             )
         policy = start or self.default_start
         self._added[policy].extend(records)
-        self.wake.set()
+        self.changed.set()
         return records
 
     def take(self, start: TaskStartPolicy) -> list[TaskRecord]:
@@ -309,48 +310,48 @@ class RunQueue:
         ]
 
 
-# The run queue for the current eval run. A ContextVar (not a module global) so
+# The tasks of the current eval run. A ContextVar (not a module global) so
 # concurrent or nested runs in one process each see their own, and child tasks
 # inherit it.
-_run_queue: ContextVar[RunQueue | None] = ContextVar("run_queue", default=None)
+_run_tasks: ContextVar[RunTasks | None] = ContextVar("run_tasks", default=None)
 
-# Every run queue active in this process, for `inspect ctl`: its handlers run on
+# The tasks of every run active in this process, for `inspect ctl`: its handlers run on
 # the eval's event loop but not in the run's context.
-_active_queues: list[RunQueue] = []
+_active_runs: list[RunTasks] = []
 
 
-def register_run_queue(queue: RunQueue) -> Token[RunQueue | None]:
-    """Make ``queue`` the active run queue; returns a token to restore the previous."""
-    _active_queues.append(queue)
-    return _run_queue.set(queue)
+def register_run_tasks(tasks: RunTasks) -> Token[RunTasks | None]:
+    """Make ``tasks`` the active run's; returns a token to restore the previous."""
+    _active_runs.append(tasks)
+    return _run_tasks.set(tasks)
 
 
-def get_run_queue() -> RunQueue | None:
-    """The active run queue, or ``None`` if no eval is running here."""
-    return _run_queue.get()
+def get_run_tasks() -> RunTasks | None:
+    """The active run's tasks, or ``None`` if no eval is running here."""
+    return _run_tasks.get()
 
 
-def clear_run_queue(token: Token[RunQueue | None]) -> None:
-    """Restore the run queue in scope before the matching ``register`` call."""
-    queue = _run_queue.get()
-    assert queue is not None
-    _active_queues.remove(queue)
-    _run_queue.reset(token)
+def clear_run_tasks(token: Token[RunTasks | None]) -> None:
+    """Restore the run's tasks in scope before the matching ``register`` call."""
+    tasks = _run_tasks.get()
+    assert tasks is not None
+    _active_runs.remove(tasks)
+    _run_tasks.reset(token)
 
 
 class ActiveTask(NamedTuple):
     """A task of a run in progress in this process."""
 
-    queue: RunQueue
+    tasks: RunTasks
     record: TaskRecord
 
 
 def find_active_task(task_id: str) -> ActiveTask | None:
     """The task with this id in a run in progress in this process, if any."""
-    for queue in _active_queues:
-        record = queue.find(task_id)
+    for tasks in _active_runs:
+        record = tasks.find(task_id)
         if record is not None:
-            return ActiveTask(queue, record)
+            return ActiveTask(tasks, record)
     return None
 
 
@@ -410,15 +411,15 @@ async def enqueue_task(
             "enqueue_task(): start must be 'when_free', 'after_batch' or None, "
             f"not {start!r}."
         )
-    queue = get_run_queue()
-    if queue is None:
+    run_tasks = get_run_tasks()
+    if run_tasks is None:
         raise RuntimeError(
             "enqueue_task() can only be called while an eval is running in this "
             "process."
         )
-    if run_id is not None and run_id != queue.run_id:
+    if run_id is not None and run_id != run_tasks.run_id:
         raise RuntimeError(
             f"enqueue_task() run_id '{run_id}' does not match the running eval "
-            f"'{queue.run_id}'."
+            f"'{run_tasks.run_id}'."
         )
-    await queue.put(tasks, start=start)
+    await run_tasks.put(tasks, start=start)

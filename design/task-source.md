@@ -126,7 +126,7 @@ Key locations:
   while a callback is suspended; and `task_run` calls
   `task_source.task_complete(eval_log)` just before returning the log. Whatever
   a callback **returns** is passed to `_enqueue_source_tasks`, which pushes it
-  onto the run queue (`get_run_queue().put(...)`) with the run's
+  onto the run queue (`get_run_tasks().put(...)`) with the run's
   default start policy — so returned tasks and default `enqueue_task` additions
   are handled the same way.
 - **The batch boundary** — `TaskDispatcher.add_when_idle()` in
@@ -190,7 +190,7 @@ all feed the run's one dispatcher:
 
 The last two share the same downstream machinery:
 
-- The run's `RunQueue` ([task/enqueue.py](../src/inspect_ai/_eval/task/enqueue.py))
+- The run's `RunTasks` ([task/enqueue.py](../src/inspect_ai/_eval/task/enqueue.py))
   holds the run's *resolve* function (`_resolve_enqueued_tasks`, bound via
   `functools.partial` to the run's models / roles / config / sandbox / cost
   limit), the default start policy (`when_free` in a `TaskSource` run), the
@@ -311,21 +311,21 @@ moment the dispatcher becomes idle, so no separate batch loop is needed.
 
 `eval_async` ([eval.py](../src/inspect_ai/_eval/eval.py)) calls `eval_run`
 **once** with the seed and the function that resolves added tasks. `eval_run`
-([run.py](../src/inspect_ai/_eval/run.py)) creates the run's `RunQueue`,
+([run.py](../src/inspect_ai/_eval/run.py)) creates the run's `RunTasks`,
 makes it the active one for `enqueue_task`, starts up the seed and runs the
 `TaskDispatcher`:
 
 - **Records.** Every task has a `TaskRecord` from the moment it is added until
   it ends: created (and the task configured, by `TaskStartup.configure`) by
-  `RunQueue.put` inside `enqueue_task` or a `TaskSource` callback, for each
+  `RunTasks.put` inside `enqueue_task` or a `TaskSource` callback, for each
   `next_tasks()` batch, and for the seed. An invalid task raises to whoever
   added it. At `parallel == 1` the tasks of one addition are sorted
   sequence-major, so with the dispatcher's queue-order tie-break all of task
   N's model fan-outs run before task N+1's, as when the tasks are passed to
-  `eval()` directly. Every way a record ends goes through `RunQueue.end`,
+  `eval()` directly. Every way a record ends goes through `RunTasks.end`,
   which marks it ended (it keeps its final log, if any): after its last attempt,
   when an operator cancels it before it starts, and when the run ends before
-  it starts (it then ends without a log). `RunQueue.find` looks a record up
+  it starts (it then ends without a log). `RunTasks.find` looks a record up
   by task id.
 - **Preparing.** A queued record is prepared (one record at a time, in queue
   order): its sandbox configs are resolved. The loop then requests the
@@ -406,7 +406,7 @@ live dispatcher (with its real `pending` count) for the whole run.
   for the rich, plain, and textual displays; a no-op default for the log
   display. (Retries must *not* call this — they reuse a `task_id` and are deduped
   in the title; an injected task is a new `task_id`, so it does.)
-- **`RunQueue.wake`** ([enqueue.py](../src/inspect_ai/_eval/task/enqueue.py))
+- **`RunTasks.wake`** ([enqueue.py](../src/inspect_ai/_eval/task/enqueue.py))
   — set by `put()`, by each attempt's completion, by each setup a queued
   record waits for, after each record is prepared, and (as a dispatch waker)
   by control changes, including a `max_tasks` change, which resizes the

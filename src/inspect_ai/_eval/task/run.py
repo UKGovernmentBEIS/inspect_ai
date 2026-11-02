@@ -198,7 +198,7 @@ from inspect_ai.util._store import init_subtask_store
 
 from ..context import init_task_context
 from ..task import Task
-from .enqueue import get_run_queue
+from .enqueue import get_run_tasks
 from .error import SampleErrorHandler, _should_eval_fail
 from .generate import task_generate
 from .images import (
@@ -726,9 +726,9 @@ async def _enqueue_source_tasks(tasks: list[Task] | None) -> None:
     no-op if the callback returned nothing or there is no active run queue.
     """
     if tasks:
-        queue = get_run_queue()
-        if queue is not None:
-            await queue.put(tasks)
+        run_tasks = get_run_tasks()
+        if run_tasks is not None:
+            await run_tasks.put(tasks)
 
 
 async def notify_task_source(options: TaskRunOptions, eval_log: EvalLog) -> None:

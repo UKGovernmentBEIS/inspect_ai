@@ -17,7 +17,7 @@ from typing_extensions import override
 from inspect_ai import Task, TaskSource, enqueue_task, eval_async
 from inspect_ai._control.eval_state import get_eval_states, register_completed_eval
 from inspect_ai._eval.task.constants import TASK_RUN_DIR_ATTR
-from inspect_ai._eval.task.enqueue import get_run_queue
+from inspect_ai._eval.task.enqueue import get_run_tasks
 from inspect_ai._util.registry import _registry, registry_lookup
 from inspect_ai.dataset import Sample
 from inspect_ai.hooks import Hooks, RunEnd, TaskEnd, TaskStart, hooks
@@ -534,9 +534,9 @@ async def test_operator_cancel_of_a_task_waiting_for_its_setup(
     def add_and_cancel() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             await enqueue_task(_boxed("child"), start="when_free")
-            queue = get_run_queue()
-            assert queue is not None
-            [child] = queue.unstarted()
+            run_tasks = get_run_tasks()
+            assert run_tasks is not None
+            [child] = run_tasks.unstarted()
             with anyio.fail_after(10):
                 await in_setup.wait()
             assert cancel_task(child.task_id, action="score") == {
@@ -616,9 +616,9 @@ async def test_operator_cancel_of_a_task_as_it_starts(
     def add_and_wait_for_child() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             await enqueue_task(_plain("child"), start="when_free")
-            queue = get_run_queue()
-            assert queue is not None
-            [child] = queue.unstarted()
+            run_tasks = get_run_tasks()
+            assert run_tasks is not None
+            [child] = run_tasks.unstarted()
             with anyio.fail_after(10):
                 while not child.ended:
                     await anyio.sleep(0.01)

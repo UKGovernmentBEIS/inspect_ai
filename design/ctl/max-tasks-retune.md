@@ -43,7 +43,7 @@ an immutable local the whole way down:
    `None`; conversation display forces 1. `eval_set` defaults it to
    `max(len(models), 10)` before calling `eval()`. Finally
    `parallel = max_tasks if max_tasks is not None else 1`.
-2. **Queue shape** (`RunQueue` in `_eval/task/enqueue.py`): every run has one
+2. **Queue shape** (`RunTasks` in `_eval/task/enqueue.py`): every run has one
    `eval_run` and one dispatcher, which takes the seed and every group of
    tasks added during the run. With `parallel == 1` each group is ordered
    sequence-major (all of task N's model fan-outs before task N+1), which —
@@ -105,7 +105,7 @@ The natural-looking implementation — swap the `parallel` int for a
   dispatchers can be recreated within a run: an eval-set in legacy
   `retry_immediate=False` mode re-invokes `eval()` per retry pass, each with
   its own dispatcher. (Within one `eval()`, tasks added via `enqueue_task` or
-  a `TaskSource` reach the run's single dispatcher through its `RunQueue`.) A
+  a `TaskSource` reach the run's single dispatcher through its `RunTasks`.) A
   per-dispatcher limiter silently reverts the operator's retune at the next
   dispatcher boundary.
 

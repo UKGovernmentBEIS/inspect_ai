@@ -376,7 +376,7 @@ def _task_cancel_directive(
     # no attempt of this task has registered in this run (it is waiting,
     # starting or ended); the task's latest EvalState, if any, is then from an
     # earlier eval() of the same eval set
-    if found is not None and (state is None or state.run_id != found.queue.run_id):
+    if found is not None and (state is None or state.run_id != found.tasks.run_id):
         return _cancel_unregistered(
             found.record, stamp=stamp, action=action, dry_run=dry_run
         )
