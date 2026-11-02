@@ -462,6 +462,18 @@ async def test_run_tasks_close_refuses_add_and_ends_unstarted() -> None:
         await run_tasks.add([_task("late")])
 
 
+async def test_record_state_follows_the_record() -> None:
+    m1 = get_model("mockllm/m1")
+    run_tasks = Harness([m1]).tasks
+    [queued] = await run_tasks.add([_task("q")])
+    [started] = await run_tasks.add([_task("s")])
+    run_tasks.start(started)
+    records = [queued, started]
+    assert [run_tasks.state(r) for r in records] == ["queued", "running"]
+    run_tasks.close()
+    assert [run_tasks.state(r) for r in records] == ["ended", "ended"]
+
+
 async def test_record_drops_its_task_when_it_ends() -> None:
     harness = Harness([get_model("mockllm/m1")])
     [record] = await harness.tasks.add([_task("a")])

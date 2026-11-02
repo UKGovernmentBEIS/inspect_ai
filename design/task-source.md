@@ -308,7 +308,13 @@ makes it the active one for `enqueue_task`, starts up the seed and runs the
   directly. A record is queued, then running (from its first attempt's start
   through its last attempt, retries included), then ended; every way it ends
   goes through `RunTasks.end`, which keeps its final log, if any. `RunTasks.find`
-  looks a record up by task id.
+  looks a record up by task id. `enqueue_task` returns an `EnqueuedTasks`
+  (like aiohttp's `session.get()`): awaiting it adds the tasks and gives a
+  `TaskHandle` per record; `async with` adds one task, gives its handle and
+  cancels it on exit. A handle's `state` is read from where the record is,
+  `cancel()` calls the ctl's `cancel_task` with the record's id (so the handle
+  and `inspect ctl` act on the same record), and `wait()` waits for the
+  record's end event and returns its final log.
 - **Setups.** As tasks start, the loop requests the setups of the records in
   the look-ahead window (`queue_upcoming_setups`: the first `max_tasks`
   unpaused queued records, read live, so a queued task's sandboxes are not

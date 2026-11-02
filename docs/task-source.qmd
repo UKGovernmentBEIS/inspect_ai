@@ -152,7 +152,7 @@ def spawn_followup():
     return solve
 ```
 
-`enqueue_task()` is a coroutine: await it. It returns once the tasks are queued, after resolving them against the run's models and config and working out the sandbox configurations their samples use, so an invalid task or sandbox configuration raises to the caller and adds none of the tasks. Enqueued tasks run under the current run id, and are handled like tasks returned from `sample_complete` / `task_complete`. `enqueue_task()` raises if no eval is running, and also if the run has already finished starting tasks (for example, when called from a background task that outlives the run), since the added task would never run. Call it from the eval's event loop, not from another thread: from a solver, scorer or tool, a `TaskSource`'s `next_tasks()` or completion callbacks (`sample_complete`, `task_complete`), or a hook Inspect calls during a task (such as `on_task_start` or `on_sample_end`). It raises in `on_run_start`, which runs before the run accepts added tasks, and in `on_run_end`, which runs after the run has finished starting tasks.
+Await `enqueue_task()` (or enter it with `async with`, see [Task handles](#task-handles)): a call that is neither adds nothing. Awaiting returns once the tasks are queued, after resolving them against the run's models and config and working out the sandbox configurations their samples use, so an invalid task or sandbox configuration raises to the caller and adds none of the tasks. Enqueued tasks run under the current run id, and are handled like tasks returned from `sample_complete` / `task_complete`. `enqueue_task()` raises if no eval is running, and also if the run has already finished starting tasks (for example, when called from a background task that outlives the run), since the added task would never run. Call it from the eval's event loop, not from another thread: from a solver, scorer or tool, a `TaskSource`'s `next_tasks()` or completion callbacks (`sample_complete`, `task_complete`), or a hook Inspect calls during a task (such as `on_task_start` or `on_sample_end`). It raises in `on_run_start`, which runs before the run accepts added tasks, and in `on_run_end`, which runs after the run has finished starting tasks.
 
 ### When an added task starts
 
@@ -165,6 +165,24 @@ A task that waits for a task it added needs a free slot for it. `eval()` default
 All tasks of a run, including added ones, share one task display and one set of task-level sandbox environments, which are cleaned up when the run ends.
 
 While an added task's task-level sandbox environment starts (its provider's `task_init`, for example a Docker image build), the tasks already running keep running and other tasks that are ready can start; setups run one at a time and do not change the process's working directory or environment variables. Only the next `max_tasks` waiting tasks have their sandboxes set up, so a task far back in the queue does not create sandbox resources long before it can start. If the setup fails, only that task ends, with an error log (its retries apply), and the run continues.
+
+### Task handles
+
+`await enqueue_task(...)` returns a handle for each task it added (one per task and model). A handle has the task's `task_id`, its `state` (`"queued"`, `"running"` or `"ended"`; a task between attempts is running), `cancel()`, which works in any state, and `await wait()`, which returns the task's final log:
+
+```python
+[followup] = await enqueue_task(followup_task())
+log = await followup.wait()
+```
+
+For a call that adds one task, `async with enqueue_task(...)` adds it, gives its handle, and cancels the task when the block exits, so a task can run a companion only for as long as it needs it:
+
+```python
+async with enqueue_task(worker_task()) as worker:
+    ...  # feed the worker, read its results
+```
+
+A cancel through a handle is the same as `inspect ctl task cancel` with the handle's `task_id`, which other processes use: a task that has not started ends without running (and without a log), and a running task is aborted and not retried. `wait()` raises for a task that ended without a log.
 
 ## Concurrency
 

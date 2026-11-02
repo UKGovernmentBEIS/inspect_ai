@@ -17,8 +17,17 @@ from pathlib import Path
 
 import anyio
 import pytest
+from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
-from inspect_ai import Task, TaskSource, eval, eval_async, eval_set, task
+from inspect_ai import (
+    SampleSource,
+    Task,
+    TaskSource,
+    eval,
+    eval_async,
+    eval_set,
+    task,
+)
 from inspect_ai._control.max_tasks import set_max_tasks_override, task_dispatcher_stats
 from inspect_ai._eval.eval_set_manifest import INSPECT_EVAL_SET_CAPTURE, EvalSetCapture
 from inspect_ai._eval.eval_set_selection import (
@@ -28,9 +37,7 @@ from inspect_ai._eval.eval_set_selection import (
     EvalSetSelectionTask,
 )
 from inspect_ai._eval.loader import resolve_tasks
-from inspect_ai._eval.task.enqueue import (
-    enqueue_task,
-)
+from inspect_ai._eval.task.enqueue import TaskHandle, enqueue_task
 from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._util.content import ContentImage
 from inspect_ai._util.registry import _registry
@@ -1096,3 +1103,268 @@ def test_ctrl_c_while_adding_tasks_ends_the_run(backend: str) -> None:
         timeout=300,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+# ------------------------------------------------------------- task handles
+
+
+def _held_task(
+    name: str, release: anyio.Event, started: anyio.Event | None = None
+) -> Task:
+    """A task whose one sample runs until ``release`` is set (``started`` once it runs)."""
+
+    @solver
+    def hold() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if started is not None:
+                started.set()
+            with anyio.fail_after(10):
+                await release.wait()
+            return state
+
+        return solve
+
+    return Task(dataset=[Sample(input="x")], solver=hold(), name=name)
+
+
+async def _wait_for_state(handle: TaskHandle, state: str) -> None:
+    with anyio.fail_after(10):
+        while handle.state != state:
+            await anyio.sleep(0.01)
+
+
+async def test_task_handle_follows_the_task_and_returns_its_log() -> None:
+    seen: dict[str, object] = {}
+
+    @solver
+    def add_and_follow() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            release = anyio.Event()
+            [handle] = await enqueue_task(_held_task("child", release))
+            seen["first"] = handle.state
+            await _wait_for_state(handle, "running")
+            release.set()
+            log = await handle.wait()
+            seen["log"] = (log.eval.task, log.eval.task_id, log.status)
+            seen["ended"] = handle.state
+            seen["task_id"] = handle.task_id
+            # an ended task: cancel does nothing, wait returns the same log
+            handle.cancel()
+            assert (await handle.wait()) is log
+            return state
+
+        return solve
+
+    init_display_type("none")
+    logs = await eval_async(
+        _parent(add_and_follow()), model="mockllm/model", max_tasks=2
+    )
+    assert [log.status for log in logs] == ["success", "success"]
+    assert seen["first"] == "queued"
+    assert seen["log"] == ("child", seen["task_id"], "success")
+    assert seen["ended"] == "ended"
+
+
+async def test_task_handle_cancels_a_queued_or_running_task() -> None:
+    errors: dict[str, str] = {}
+    logs_seen: dict[str, EvalLog] = {}
+
+    @solver
+    def add_and_cancel() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            release, started = anyio.Event(), anyio.Event()
+            [running] = await enqueue_task(_held_task("running", release, started))
+            with anyio.fail_after(10):
+                await started.wait()
+            assert running.state == "running"
+            # max_tasks=2: the parent and `running` hold the slots
+            [queued] = await enqueue_task(_held_task("queued", release))
+            assert queued.state == "queued"
+            queued.cancel()
+            with pytest.raises(RuntimeError, match="ended without a log") as ex:
+                await queued.wait()
+            errors["queued"] = str(ex.value)
+            running.cancel()
+            logs_seen["running"] = await running.wait()
+            return state
+
+        return solve
+
+    init_display_type("none")
+    logs = await eval_async(
+        _parent(add_and_cancel()),
+        model="mockllm/model",
+        max_tasks=2,
+        task_retry_attempts=2,
+    )
+    # the aborted task is not retried; the queued one never ran
+    assert [(log.eval.task, log.status) for log in logs] == [
+        ("parent", "success"),
+        ("running", "error"),
+    ]
+    assert logs_seen["running"].status == "error"
+    assert "queued" in errors
+
+
+async def test_task_handle_context_cancels_the_task_on_exit() -> None:
+    states: list[str] = []
+
+    @solver
+    def add_in_context() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            release, started = anyio.Event(), anyio.Event()
+            async with enqueue_task(_held_task("child", release, started)) as child:
+                with anyio.fail_after(10):
+                    await started.wait()
+                states.append(child.state)
+            await _wait_for_state(child, "ended")
+            states.append(child.state)
+            return state
+
+        return solve
+
+    init_display_type("none")
+    logs = await eval_async(
+        _parent(add_in_context()), model="mockllm/model", max_tasks=4
+    )
+    assert states == ["running", "ended"]
+    assert sorted((log.eval.task, log.status) for log in logs) == [
+        ("child", "error"),
+        ("parent", "success"),
+    ]
+
+
+async def test_task_handle_sees_a_cancel_from_inspect_ctl() -> None:
+    from inspect_ai._control.cancel import cancel_task
+
+    seen: list[str] = []
+
+    @solver
+    def add_and_cancel_by_id() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            release = anyio.Event()
+            [child] = await enqueue_task(_held_task("child", release))
+            result = cancel_task(child.task_id)
+            assert result is not None and result.get("not_started")
+            await _wait_for_state(child, "ended")
+            seen.append(child.state)
+            return state
+
+        return solve
+
+    init_display_type("none")
+    logs = await eval_async(
+        _parent(add_and_cancel_by_id()), model="mockllm/model", max_tasks=1
+    )
+    assert [log.eval.task for log in logs] == ["parent"]
+    assert seen == ["ended"]
+
+
+def _task_named(name: str) -> Task:
+    return Task(dataset=[Sample(input="x")], name=name)
+
+
+# A generator task adds a worker task, feeds it samples through a
+# SampleSource and stops it when it is done: once with a task handle, once
+# with the hooks and ctl functions that exist without handles.
+
+
+def _worker(inbox: MemoryObjectReceiveStream[Sample], done: list[str]) -> Task:
+    """A task that runs the samples it receives until it is stopped."""
+
+    class Inbox(SampleSource):
+        async def next_samples(self) -> list[Sample] | None:
+            return [await inbox.receive()]
+
+    @solver
+    def work() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            done.append(str(state.sample_id))
+            return state
+
+        return solve
+
+    return Task(dataset=Inbox(), solver=work(), name="worker")
+
+
+async def _feed(outbox: MemoryObjectSendStream[Sample], done: list[str]) -> None:
+    for i in range(3):
+        await outbox.send(Sample(id=f"s{i}", input="x"))
+    with anyio.fail_after(10):
+        while len(done) < 3:
+            await anyio.sleep(0.01)
+
+
+async def test_generator_stops_its_worker_with_a_task_handle() -> None:
+    done: list[str] = []
+
+    @solver
+    def generator() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            outbox, inbox = anyio.create_memory_object_stream[Sample](10)
+            async with enqueue_task(_worker(inbox, done)):
+                await _feed(outbox, done)
+            return state
+
+        return solve
+
+    init_display_type("none")
+    logs = await eval_async(
+        Task(dataset=[Sample(input="x")], solver=generator(), name="generator"),
+        model="mockllm/model",
+        max_tasks=2,
+    )
+    assert [(log.eval.task, log.status) for log in logs] == [
+        ("generator", "success"),
+        ("worker", "error"),
+    ]
+    assert done == ["s0", "s1", "s2"]
+
+
+_worker_ids: list[str] = []
+
+
+class _WorkerStarts(Hooks):
+    async def on_task_start(self, data: TaskStart) -> None:
+        if data.spec.task == "worker":
+            _worker_ids.append(data.spec.task_id)
+
+
+async def test_generator_stops_its_worker_with_hooks_and_ctl() -> None:
+    from inspect_ai._control.cancel import cancel_task
+
+    hooks("worker_starts", description="Records worker task ids")(lambda: _WorkerStarts)
+    done: list[str] = []
+    _worker_ids.clear()
+
+    @solver
+    def generator() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            outbox, inbox = anyio.create_memory_object_stream[Sample](10)
+            await enqueue_task(_worker(inbox, done))
+            try:
+                await _feed(outbox, done)
+            finally:
+                # the worker's id is known once it has started
+                with anyio.fail_after(10):
+                    while not _worker_ids:
+                        await anyio.sleep(0.01)
+                cancel_task(_worker_ids[0])
+            return state
+
+        return solve
+
+    init_display_type("none")
+    try:
+        logs = await eval_async(
+            Task(dataset=[Sample(input="x")], solver=generator(), name="generator"),
+            model="mockllm/model",
+            max_tasks=2,
+        )
+    finally:
+        del _registry["hooks:worker_starts"]
+    assert [(log.eval.task, log.status) for log in logs] == [
+        ("generator", "success"),
+        ("worker", "error"),
+    ]
+    assert done == ["s0", "s1", "s2"]
