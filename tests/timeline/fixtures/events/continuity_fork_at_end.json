@@ -1,5 +1,5 @@
 {
-  "description": "A fork at the end of a span, with nothing after it: no later call carries either on, and the timeline has no final messages to match, so continuity gives neither an answer and the existing rules keep both as turns.",
+  "description": "A fork at the end of a span, with nothing after it: no later call carries either on, so continuity gives neither an answer and the existing rules keep both as turns.",
   "events": [
     {
       "event": "span_begin",

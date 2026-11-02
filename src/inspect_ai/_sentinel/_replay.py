@@ -843,7 +843,6 @@ class _Driver:
         timeline = _timeline_build(
             top,
             message_pool=self.pool,
-            final_messages=self.messages,
             continuity=True,
             outside=outside,
         )

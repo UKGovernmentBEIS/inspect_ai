@@ -476,119 +476,6 @@ def test_a_reused_bridge_call_id_keeps_each_task_s_result(pooled: bool) -> None:
     assert results == ["earlier result", "new result"]
 
 
-@pytest.mark.parametrize("phases", [True, False])
-def test_a_fork_at_the_end_goes_to_the_call_in_the_final_messages(
-    phases: bool,
-) -> None:
-    # without phase spans (Ransom's fifth review B5), the timeline's root is a
-    # synthetic span around the agent's, which the final messages still reach
-    import json
-    from pathlib import Path
-
-    from pydantic import TypeAdapter
-
-    from inspect_ai.event import Event, ModelEvent, SpanBeginEvent, SpanEndEvent
-    from inspect_ai.event._timeline import _timeline_build
-
-    fixture = Path(__file__).parent / "fixtures/events/continuity_fork_at_end.json"
-    events = TypeAdapter(list[Event]).validate_python(
-        json.loads(fixture.read_text())["events"]
-    )
-    if not phases:
-        events = [
-            e.model_copy(update={"parent_id": None})
-            if isinstance(e, SpanBeginEvent) and e.parent_id == "solvers"
-            else e
-            for e in events
-            if not (isinstance(e, SpanBeginEvent | SpanEndEvent) and e.id == "solvers")
-        ]
-    m2 = next(e for e in events if isinstance(e, ModelEvent) and e.uuid == "m2")
-    # the main agent's final messages carry on the earlier call of the fork
-    final = [*m2.input, m2.output.message]
-    root = _timeline_build(events, final_messages=final, continuity=True).root
-    utility: list[str | None] = []
-
-    def walk(span: TimelineSpan) -> None:
-        for item in span.content:
-            if isinstance(item, TimelineSpan):
-                if item.utility:
-                    utility.extend(event.uuid for event in _model_events(item))
-                else:
-                    walk(item)
-
-    walk(root)
-    assert utility == ["m3"]
-
-
-def _fork_and_equal_sub_agent_answer(
-    phases: bool, case: str = "distinct_id"
-) -> tuple[list[Any], list[Any]]:
-    """A main call, a fork of two calls answering "finished" and "discarded", then a sub-agent; the final messages carry on "finished".
-
-    The sub-agent's answer: `distinct_id`, also "finished", in another message, so another id; `edited`, the same, and the final messages hold "finished" edited under its id; `reused_id`, "different" under the id of "finished".
-    """
-    from inspect_ai.event import SpanBeginEvent, SpanEndEvent
-    from inspect_ai.model import ChatMessageUser
-
-    task = ChatMessageUser(content="Solve it.")
-    m1 = _model("m1", "main", [task], _assistant("Working."))
-    asked = [task, m1.output.message, ChatMessageUser(content="Finish.")]
-    m2 = _model("m2", "main", asked, _assistant("finished"))
-    answer = _assistant("different" if case == "reused_id" else "finished")
-    if case == "reused_id":
-        answer.id = m2.output.message.id
-    final = m2.output.message
-    if case == "edited":
-        final = final.model_copy(update={"content": "edited finished"})
-    events: list[Any] = [
-        SpanBeginEvent(id="main", name="main", type="agent"),
-        m1,
-        m2,
-        _model("m3", "main", asked, _assistant("discarded")),
-        SpanBeginEvent(id="sub", name="sub", type="agent", parent_id="main"),
-        _model("s1", "sub", [ChatMessageUser(content="Check it.")], answer),
-        SpanEndEvent(id="sub"),
-        SpanEndEvent(id="main"),
-    ]
-    if phases:
-        events[0] = events[0].model_copy(update={"parent_id": "solvers"})
-        events = [
-            SpanBeginEvent(id="solvers", name="solvers", type="solvers"),
-            *events,
-            SpanEndEvent(id="solvers"),
-        ]
-    return events, [*asked, final]
-
-
-@pytest.mark.parametrize("case", ["distinct_id", "edited", "reused_id"])
-@pytest.mark.parametrize("pooled", [False, True])
-@pytest.mark.parametrize("phases", [True, False])
-def test_the_final_messages_go_to_the_call_whose_output_they_hold(
-    phases: bool, pooled: bool, case: str
-) -> None:
-    # Ransom's sixth review B2: a later sub-agent's answer equal in content to
-    # the one the final messages hold does not take them; the call whose
-    # output message (by id) they hold does, and settles its fork. The delta
-    # review: so does a final message edited under that id, and a reused id
-    # with other content does not take them
-    from inspect_ai.event._timeline import _timeline_build
-    from inspect_ai.log import condense_events
-
-    events, final = _fork_and_equal_sub_agent_answer(phases, case)
-    if pooled:
-        condensed, data = condense_events(events)
-        root = _timeline_build(
-            condensed,
-            message_pool=data["messages"],
-            final_messages=final,
-            continuity=True,
-        ).root
-    else:
-        root = _timeline_build(events, final_messages=final, continuity=True).root
-
-    assert _utility(root) == ["m3"]
-
-
 def _wide_fork(forks: int) -> list[Any]:
     """A turn, `forks` calls that all continue it with outputs of their own, then a call that carries on the first of them, with no origins."""
     from inspect_ai.event import ModelEvent, SpanBeginEvent, SpanEndEvent
@@ -1465,7 +1352,6 @@ def test_an_adversarial_log_s_timeline_is_built_in_linear_work(build: str) -> No
                 _timeline_build,
                 events,
                 message_pool=pool or None,
-                final_messages=log.messages,
                 continuity=build.startswith("continuity"),
             )
         per_unit.append(lines / stored)
@@ -1713,7 +1599,7 @@ def test_a_bridge_task_s_result_is_the_last_in_the_input(
     assert results == ["B"]
 
 
-def _tool_span_sub_agent(fork: bool) -> tuple[list[Any], list[Any]]:
+def _tool_span_sub_agent(fork: bool) -> list[Any]:
     """A main agent whose call's tool runs a two-call loop of its own in a tool span, then carries on (with `fork`, after a fork of two calls)."""
     from inspect_ai.event import SpanBeginEvent, SpanEndEvent
     from inspect_ai.model import ChatMessageSystem, ChatMessageTool, ChatMessageUser
@@ -1744,7 +1630,7 @@ def _tool_span_sub_agent(fork: bool) -> tuple[list[Any], list[Any]]:
     ]
     final = [*input, asked, ChatMessageTool(content="answer", tool_call_id="c1")]
     events += [_model("t3", "main", final, _assistant("done")), SpanEndEvent(id="main")]
-    return events, [*final, _assistant("done")]
+    return events
 
 
 @pytest.mark.parametrize("fork", [False, True])
@@ -1752,15 +1638,14 @@ def test_a_tool_s_own_calls_do_not_move_the_agent_s_thread(fork: bool) -> None:
     # fc19f0412 grouped a tool's own model calls with the agent's (its
     # conversation by agent span), so their chain made the agent's first turn
     # utility, or kept an unused alternative; the tool's span is its own
-    events, final = _tool_span_sub_agent(fork)
-    root = _timeline_build(events, final_messages=final, continuity=True).root
+    events = _tool_span_sub_agent(fork)
+    root = _timeline_build(events, continuity=True).root
     assert _utility(root) == (["h2"] if fork else [])
 
 
 def test_an_older_log_s_nested_calls_do_not_end_the_agent_s_thread() -> None:
     # a log from before spans nests a handoff's calls in its ToolEvent; they
-    # are a sub-agent's, and the fork at the end the final messages settle is
-    # the main agent's
+    # are a sub-agent's and do not settle the main agent's ending fork
     from inspect_ai.event import ToolEvent
     from inspect_ai.model import ChatMessageSystem, ChatMessageTool, ChatMessageUser
 
@@ -1795,14 +1680,13 @@ def test_an_older_log_s_nested_calls_do_not_end_the_agent_s_thread() -> None:
         _model("h1", None, last, kept),
         _model("h2", None, last, dropped),
     ]
-    root = _timeline_build(events, final_messages=[*last, kept], continuity=True).root
-    assert _utility(root) == ["h2"]
+    root = _timeline_build(events, continuity=True).root
+    assert _utility(root) == []
 
 
 def test_a_rollback_branch_does_not_join_the_trunk_s_thread() -> None:
     # without a stored timeline, a timeline_branch span is a conversation of
-    # its own: its calls do not settle the trunk's fork against the turn the
-    # final messages carry on
+    # its own: its calls do not move the trunk's thread
     from inspect_ai.event import (
         AnchorEvent,
         BranchEvent,
@@ -1835,7 +1719,7 @@ def test_a_rollback_branch_does_not_join_the_trunk_s_thread() -> None:
         SpanEndEvent(id="branch"),
         SpanEndEvent(id="main"),
     ]
-    root = _timeline_build(events, final_messages=[*i3, o3], continuity=True).root
+    root = _timeline_build(events, continuity=True).root
     assert _utility(root) == []
 
 

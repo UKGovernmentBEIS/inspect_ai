@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import contextlib
 from bisect import bisect_left
-from collections import Counter
 from collections.abc import Iterable, Iterator
 from datetime import datetime, timezone
 from typing import (
@@ -448,13 +447,12 @@ def _timeline_build(
     name: str | None = None,
     description: str | None = None,
     message_pool: Sequence[ChatMessage] | None = None,
-    final_messages: Sequence[ChatMessage] | None = None,
     continuity: bool = False,
     outside: AbstractSet[int] = frozenset(),
 ) -> Timeline:
     """`timeline_build`, also over model inputs stored as ranges of a message pool (`input_refs`), as a log stores them.
 
-    With `continuity` (replay's log driver, inferring the turns of a log that does not record ``origin``), the continuity rule decides which calls without an origin are turns (``_Continuity``); the public `timeline_build`, which the viewer and Scout use, keeps the prompt rules (decided by Charles 2026-10-26). `final_messages` are the main agent's final messages (`EvalSample.messages`), which settle a fork at the end of the main span. `outside` names, by `id()`, the events already known not to be the agent's turns (a scorer's, a tool's, setup's or a sentinel's model calls, and compactions there), which are utility, as a call recording such an origin is: continuity leaves them out so they cannot move the agent's thread, and none sets the prompt the other calls are classified by; they stay in the timeline.
+    With `continuity` (replay's log driver, inferring the turns of a log that does not record ``origin``), the continuity rule decides which calls without an origin are turns (``_Continuity``); the public `timeline_build`, which the viewer and Scout use, keeps the prompt rules (decided by Charles 2026-10-26). A fork that no later call resolves gets no answer, and the existing prompt rules decide its calls. `outside` names, by `id()`, the events already known not to be the agent's turns (a scorer's, a tool's, setup's or a sentinel's model calls, and compactions there), which are utility, as a call recording such an origin is: continuity leaves them out so they cannot move the agent's thread, and none sets the prompt the other calls are classified by; they stay in the timeline.
     """
     # provide defaults
     name = name or "Default"
@@ -531,7 +529,7 @@ def _timeline_build(
         if agent_node is not None:
             agent_node.name = "main"
 
-            _classify_spans(agent_node, inputs, final_messages, continuity)
+            _classify_spans(agent_node, inputs, continuity)
 
             # Prepend init span to agent content
             if init_span_obj:
@@ -559,7 +557,7 @@ def _timeline_build(
     else:
         # No phase spans - treat entire tree as agent
         root = _build_agent_from_tree(tree)
-        _classify_spans(root, inputs, final_messages, continuity)
+        _classify_spans(root, inputs, continuity)
 
     return Timeline(name=name, description=description, root=root)
 
@@ -589,7 +587,6 @@ async def timeline_branch(
 def _classify_spans(
     root: TimelineSpan,
     inputs: _Inputs,
-    final_messages: Sequence[ChatMessage] | None = None,
     continuity: bool = False,
 ) -> None:
     """Run all span classification passes on a root span.
@@ -598,7 +595,7 @@ def _classify_spans(
     """
     if continuity:
         _extract_agent_results(root, inputs)
-    turns = _continuity(root, inputs, final_messages) if continuity else None
+    turns = _continuity(root, inputs) if continuity else None
     _wrap_utility_events(root, inputs, turns)
     _classify_utility_agents(root, inputs)
     if not continuity:
@@ -1446,18 +1443,15 @@ class _Continuity:
     - A call that continues nothing is a *candidate*; if a later call continues it, the thread moves to it (a compaction the log does not show). The candidates a thread goes on without, by advancing or moving to another, are utility; those still open where the thread ends (a scaffold that keeps a window of fixed length, so no later call continues anything) get no answer, and the existing rules decide them.
     - A summary ``CompactionEvent`` resets the tip, and the call just before it is the summarizer, utility, if its output appears in the next call's input (decided by Charles 2026-10-26): Inspect's summary call continues the tip, and the next turn's input holds its summary. The calls still open end the thread as the end of the span does, so a log that records no summary call keeps its last turn. Only the last call is looked for, so each compaction reads the next input once; a summary call followed by another call before the compaction stays a turn. The output appears where a message of that input contains its text, or its text from its last ``<summary>`` tag (Inspect drops the ``<analysis>`` before it); a summary reworded on the way in is not recognized, and its call stays a turn. An edit or trim ends the thread as the end of the span does.
     - A failed call is a turn or utility as its retry, the next call in its conversation with the same input (the same messages by fingerprint, wherever the pool stores them), is; one not retried is a turn.
-    - Where the thread ends (the end of the span, an edit or trim, or a move to a candidate), a lone head is its last turn, and a fork goes to the head whose output is in the span's final messages; a fork no later call or final message resolves gets no answer, and the existing rules decide its calls (a scaffold that sends one input again and again would otherwise lose all but its last call).
+    - Where the thread ends (the end of the span, an edit or trim, or a move to a candidate), a lone head is its last turn. A fork no later call resolves gets no answer, and the existing rules decide its calls (a scaffold that sends one input again and again would otherwise lose all but its last call).
 
     So a call is utility only where the conversation went on without it, or where its output is the summary a compaction put in its place.
 
     A span in which no call continues another has no answer (``linked`` is False), so the existing rules decide, apart from its summarizers: the next input holding a call's output is evidence enough. Each call is looked up at the input lengths of the calls still open (``_OpenCalls``), which the thread settles whenever it advances.
     """
 
-    def __init__(
-        self, inputs: _Inputs, final_messages: Sequence[ChatMessage] | None
-    ) -> None:
+    def __init__(self, inputs: _Inputs) -> None:
         self._inputs = inputs
-        self._final = final_messages
         self.turns: dict[int, bool] = {}
         self.linked = False
         self._tip: _Call | None = None
@@ -1496,7 +1490,7 @@ class _Continuity:
             return
         candidate = self._candidates.continued_by(call)
         if candidate is not None:
-            self._end(final=False)
+            self._end()
             self._settle(candidate, self._candidates.calls)
             self._advance(candidate, call)
             return
@@ -1506,7 +1500,7 @@ class _Continuity:
         if event.type == "summary":
             self._summarized.append((self._heads.calls, self._last))
         else:
-            self._end(final=False)
+            self._end()
         self._last = None
         self._tip = None
         self._heads.clear()
@@ -1515,7 +1509,7 @@ class _Continuity:
     def finish(self) -> dict[int, bool]:
         if self._summarized:
             self._summarizers(None)
-        self._end(final=True)
+        self._end()
         for failed, retry in self._retried:
             if id(retry.event) in self.turns:
                 self.turns[id(failed.event)] = self.turns[id(retry.event)]
@@ -1534,13 +1528,10 @@ class _Continuity:
         )
         return {event: turn for event, turn in self.turns.items() if event in answered}
 
-    def _end(self, final: bool) -> None:
-        """End the thread: a lone head is its last turn, and a fork goes to the head in the final messages (with `final`). An unresolved fork, and candidates still open, get no answer: nothing showed the thread going on without them."""
+    def _end(self) -> None:
+        """End the thread: a lone head is its last turn. An unresolved fork and open candidates get no answer."""
         heads = self._heads.calls
-        found = self._in_final(heads) if final else None
-        if found is not None:
-            self._settle(found, heads)
-        elif len(heads) == 1:
+        if len(heads) == 1:
             self._settle(heads[0], heads)
 
     def _summarizers(self, input: Sequence[ChatMessage] | None) -> None:
@@ -1599,62 +1590,6 @@ class _Continuity:
             == self._inputs.fingerprint(earlier.output)
         )
 
-    def _in_final(self, heads: list[_Call]) -> _Call | None:
-        """The head the final messages carry on (`_held`), each compared with the final message where its output would be."""
-        matches: list[_Match] = []
-        for index, head in enumerate(heads):
-            at = len(head.input)
-            if self._final is None or head.output is None or at >= len(self._final):
-                continue
-            message = self._final[at]
-            by_id = head.output.id is not None and head.output.id == message.id
-            by_content = self._inputs.fingerprint(message) == self._inputs.fingerprint(
-                head.output
-            )
-            matches.append(
-                _Match(
-                    call=index,
-                    output_id=head.output.id,
-                    by_id=by_id,
-                    exact=by_id and by_content,
-                    by_content=by_content,
-                )
-            )
-        found = _held(matches)
-        return heads[found] if found is not None else None
-
-
-class _Match(NamedTuple):
-    """A call's output as the final messages hold it."""
-
-    call: int
-    """The call's position among those compared."""
-    output_id: str | None
-    """The output message's id."""
-    by_id: bool
-    """A final message has the output's id."""
-    exact: bool
-    """That message also has the output's content."""
-    by_content: bool
-    """A final message has the output's content."""
-
-
-def _held(matches: Sequence[_Match]) -> int | None:
-    """Of calls in log order, the latest whose output a final message holds by id and content; else the latest held by an id no other of the calls' outputs has; else the latest held by content."""
-    exact = [m.call for m in matches if m.exact]
-    if exact:
-        return exact[-1]
-    ids = Counter(m.output_id for m in matches if m.output_id is not None)
-    unique = [
-        m.call
-        for m in matches
-        if m.by_id and m.output_id is not None and ids[m.output_id] == 1
-    ]
-    if unique:
-        return unique[-1]
-    content = [m.call for m in matches if m.by_content]
-    return content[-1] if content else None
-
 
 def _answer(event: ModelEvent) -> ChatMessage | None:
     if event.error is not None or event.pending or not event.output.choices:
@@ -1665,11 +1600,10 @@ def _answer(event: ModelEvent) -> ChatMessage | None:
 def _continuity(
     root: TimelineSpan,
     inputs: _Inputs,
-    final_messages: Sequence[ChatMessage] | None,
 ) -> dict[int, bool]:
     """Whether each call with no recorded origin under `root` is a turn by continuity, by `id()` of its event.
 
-    The rule runs over each conversation's calls in log order within each span of the tree. A span can hold more than one conversation where the timeline unrolls a solver beside an agent; a tool's sub-agent and a branch are spans of their own. A conversation in which no call continues another has no answers but its summarizers', so the existing rules decide its other calls. The final messages settle a fork at the end of the conversation they are from: that of the latest call whose output is one of them by both id and content; else of the latest whose output has the id of one of them, where no other call's output has that id (an edited message keeps its id; a reused id decides nothing); else of the latest whose output matches one by content. Within that conversation, the same rule picks the head of a fork the final messages carry on, each head compared with the final message where its output would be. Calls in `inputs.outside` are left out.
+    The rule runs over each conversation's calls in log order within each span of the tree. A span can hold more than one conversation where the timeline unrolls a solver beside an agent; a tool's sub-agent and a branch are spans of their own. A conversation in which no call continues another has no answers but its summarizers', so the existing rules decide its other calls. A fork that no later call resolves gets no answer, and the existing prompt rules decide its calls. Calls in `inputs.outside` are left out.
     """
     order = {id(event): index for index, event in enumerate(inputs.events)}
     # (position in the log, position in the tree, conversation, event): a call
@@ -1700,43 +1634,11 @@ def _continuity(
     walk(root)
     found.sort(key=lambda entry: entry[:2])
 
-    owner: object = None
-    if final_messages:
-        by_id = {
-            message.id: inputs.fingerprint(message)
-            for message in final_messages
-            if message.id is not None
-        }
-        final = {inputs.fingerprint(message) for message in final_messages}
-        conversations: list[object] = []
-        matches: list[_Match] = []
-        for _, _, conversation, event in found:
-            answer = _answer(event) if isinstance(event, ModelEvent) else None
-            if answer is None:
-                continue
-            fingerprint = inputs.fingerprint(answer)
-            held = by_id.get(answer.id) if answer.id is not None else None
-            matches.append(
-                _Match(
-                    call=len(conversations),
-                    output_id=answer.id,
-                    by_id=held is not None,
-                    exact=held == fingerprint,
-                    by_content=fingerprint in final,
-                )
-            )
-            conversations.append(conversation)
-        found_at = _held(matches)
-        if found_at is not None:
-            owner = conversations[found_at]
-
     threads: dict[object, _Continuity] = {}
     for _, _, conversation, event in found:
         thread = threads.get(conversation)
         if thread is None:
-            thread = threads[conversation] = _Continuity(
-                inputs, final_messages if conversation == owner else None
-            )
+            thread = threads[conversation] = _Continuity(inputs)
         if isinstance(event, ModelEvent):
             thread.call(event)
         else:

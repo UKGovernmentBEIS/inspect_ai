@@ -1672,22 +1672,13 @@ def test_a_checked_call_recorded_as_a_turn_keeps_its_check(
     ]
 
 
-def test_a_fork_at_the_end_without_phase_spans_keeps_the_final_messages_call() -> None:
-    # Ransom's fifth review B5: in a log without phase spans the timeline's
-    # root is a synthetic span around the agent's; the final messages, which
-    # carry on the earlier call of the fork, reach it
+def test_a_main_conversation_ending_in_a_fork_replays_both_heads() -> None:
     import json
 
     from pydantic import TypeAdapter
 
     data = json.loads((CONTINUITY_FIXTURES / "continuity_fork_at_end.json").read_text())
-    events = [
-        e.model_copy(update={"parent_id": None})
-        if isinstance(e, SpanBeginEvent) and e.parent_id == "solvers"
-        else e
-        for e in TypeAdapter(list[Event]).validate_python(data["events"])
-        if not (isinstance(e, SpanBeginEvent | SpanEndEvent) and e.id == "solvers")
-    ]
+    events = TypeAdapter(list[Event]).validate_python(data["events"])
     m2 = next(e for e in events if isinstance(e, ModelEvent) and e.uuid == "m2")
     replay = steps_from_events(
         [*m2.input, m2.output.message],
@@ -1697,69 +1688,11 @@ def test_a_fork_at_the_end_without_phase_spans_keeps_the_final_messages_call() -
         eval_info=EvalInfo(inspect_ai_version=None, sentinel=False),
     )
 
-    assert [s.id for s in replay if s.stage == "model_input"] == ["m1", "m2"]
-
-
-@pytest.mark.parametrize("case", ["distinct_id", "edited", "reused_id"])
-@pytest.mark.parametrize("phases", [True, False])
-def test_a_sub_agent_s_equal_answer_does_not_take_the_final_messages(
-    phases: bool, case: str
-) -> None:
-    # Ransom's sixth review B2: the final messages hold the output of m2, one
-    # of a fork; a later sub-agent answers with equal text in another message.
-    # The delta review: the final messages hold m2's output edited under its
-    # id, or the sub-agent answers other text under m2's id
-    user = ChatMessageUser(content="Solve it.")
-    m1 = linked_call("m1", "main", [user], "Working.", None)
-    asked: list[ChatMessage] = [
-        user,
-        m1.output.message,
-        ChatMessageUser(content="Finish."),
+    assert [s.id for s in replay if s.stage == "model_input"] == [
+        "m1",
+        "m2",
+        "m3",
     ]
-    m2 = linked_call("m2", "main", asked, "finished", None)
-    m3 = linked_call("m3", "main", asked, "discarded", None)
-    s1 = linked_call(
-        "s1",
-        "sub",
-        [ChatMessageUser(content="Check.")],
-        "different" if case == "reused_id" else "finished",
-        None,
-    )
-    if case == "reused_id":
-        s1.output.message.id = m2.output.message.id
-    final = m2.output.message
-    if case == "edited":
-        final = final.model_copy(update={"content": "edited finished"})
-    events: list[Event] = [
-        SpanBeginEvent(
-            id="main",
-            name="main",
-            type="agent",
-            parent_id="solvers" if phases else None,
-        ),
-        m1,
-        m2,
-        m3,
-        SpanBeginEvent(id="sub", name="sub", type="agent", parent_id="main"),
-        s1,
-        SpanEndEvent(id="sub"),
-        SpanEndEvent(id="main"),
-    ]
-    if phases:
-        events = [
-            SpanBeginEvent(id="solvers", name="solvers", type="solvers"),
-            *events,
-            SpanEndEvent(id="solvers"),
-        ]
-    replay = steps_from_events(
-        [*asked, final],
-        events,
-        [],
-        sample_uuid="sample",
-        eval_info=EvalInfo(inspect_ai_version=None, sentinel=False),
-    )
-
-    assert [s.id for s in replay if s.stage == "model_input"] == ["m1", "m2", "s1"]
 
 
 def test_a_person_s_approval_is_a_human_decision_without_a_sentinel(
