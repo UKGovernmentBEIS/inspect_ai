@@ -216,7 +216,7 @@ async def test_poll_during_kill_of_exited_job_reports_its_exit_code() -> None:
     controller = Controller()
     # The background child holds the pipes open, so kill() and poll() both
     # wait for the readers and the poll reads the job's state during the kill.
-    pid = await controller.submit("(sleep 0.5) & exit 3")
+    pid = await controller.submit("(sleep 30) & exit 3")
     job = controller._jobs[pid]
     await _wait_for_exit(job)
 
@@ -225,6 +225,10 @@ async def test_poll_during_kill_of_exited_job_reports_its_exit_code() -> None:
             controller.kill(pid, ack_seq=0), controller.poll(pid, ack_seq=0)
         )
     finally:
+        try:
+            os.killpg(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
         await _stop_job(job)
 
     assert (result.state, result.exit_code) == ("completed", 3)
