@@ -2,7 +2,7 @@
 
 import json
 import re
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager, nullcontext
 from pathlib import Path
 from typing import Any
@@ -290,6 +290,9 @@ class _DelayedKillSandbox(_BridgeSandbox):
     def __init__(self) -> None:
         super().__init__(publish_after=None)
         self.events: list[str] = []
+        self.on_submitted: Callable[[], None] = lambda: None
+        self.start_delay = 0.0
+        """Seconds the proxy's start reply (its pid) takes after submission."""
 
     async def exec(
         self,
@@ -304,6 +307,9 @@ class _DelayedKillSandbox(_BridgeSandbox):
     ) -> ExecResult[str]:
         method = json.loads(input)["method"] if isinstance(input, str) else None
         if method == "exec_remote_start":
+            self.events.append("submitted")
+            self.on_submitted()
+            await anyio.sleep(self.start_delay)
             return _rpc_result({"pid": 42})
         if method == "exec_remote_poll":
             await anyio.sleep_forever()
@@ -352,7 +358,48 @@ async def test_token_removal_waits_for_the_monitors_kill_of_the_proxy(
                     raise AssertionError("bridge yielded")
 
     assert scope.cancelled_caught
-    assert sandbox.events == ["kill_started", "kill_finished", "remove"]
+    assert sandbox.events == ["submitted", "kill_started", "kill_finished", "remove"]
+
+
+async def test_cancellation_while_the_proxy_starts_still_kills_it_before_removal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A proxy started but not yet acquired must not outlive the token removal."""
+    sandbox = _DelayedKillSandbox()
+    sandbox.start_delay = 0.3
+    with _sandbox(monkeypatch, sandbox), sandbox_identity("w-1"):
+        with anyio.fail_after(10):
+            with anyio.CancelScope() as scope:
+                sandbox.on_submitted = scope.cancel
+                async with sandbox_agent_bridge():
+                    raise AssertionError("bridge yielded")
+
+    assert scope.cancelled_caught
+    assert sandbox.events == ["submitted", "kill_started", "kill_finished", "remove"]
+
+
+async def test_a_proxy_start_that_never_answers_ends_the_bridge_within_the_bound(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The shielded launch does not hold a cancellation past its bound."""
+    monkeypatch.setattr(bridge_module, "BRIDGE_TOKEN_TIMEOUT", 0.5)
+    sandbox = _DelayedKillSandbox()
+    sandbox.start_delay = 60
+    with _sandbox(monkeypatch, sandbox), sandbox_identity("w-1"):
+        with anyio.fail_after(10):
+            with pytest.raises((TimeoutError, ExceptionGroup)) as excinfo:
+                with anyio.CancelScope() as scope:
+                    sandbox.on_submitted = scope.cancel
+                    async with sandbox_agent_bridge():
+                        raise AssertionError("bridge yielded")
+
+    # under trio the cancelled scope strips its own cancellation from the
+    # bridge's task group, leaving the timeout in a group
+    error = excinfo.value
+    if isinstance(error, ExceptionGroup):
+        [error] = error.exceptions
+    assert isinstance(error, TimeoutError)
+    assert sandbox.events == ["submitted", "remove"]
 
 
 async def test_bridge_in_a_scope_refuses_tools_that_cannot_mint_tokens(

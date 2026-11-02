@@ -70,7 +70,7 @@ BRIDGE_TOKEN_LENGTH = 64
 """Characters in a bridge token (256 random bits, hex-encoded)."""
 
 BRIDGE_TOKEN_TIMEOUT = 60
-"""Seconds to wait for the model proxy to publish its token."""
+"""Seconds to wait for a token-minting model proxy to start, and then to publish its token."""
 
 BRIDGE_TOKEN_TOOLS_VERSION = semver.Version(1, 4, 0)
 """First inspect-sandbox-tools version whose model proxy mints a bridge token."""
@@ -336,17 +336,24 @@ async def sandbox_agent_bridge(
             # wait for model service to start
             await started.wait()
 
-            # proxy server that runs in container and forwards to sandbox service
-            proxy = await sandbox_env.exec_remote(
-                cmd=[SANDBOX_CLI, "model_proxy"],
-                options=ExecRemoteStreamingOptions(
-                    concurrency=False,
-                    user=sandbox_env._tools_user,
-                    env=proxy_env,
-                    poll_timeout=600,
-                    poll_timeout_recovery=poll_timeout_recovery,
-                ),
-            )
+            # proxy server that runs in container and forwards to sandbox service.
+            # A proxy minting a token must be owned (killed below) before a
+            # cancellation ends the bridge, or it could publish after the token
+            # is removed, so its launch is shielded, for a bounded time.
+            with anyio.fail_after(
+                BRIDGE_TOKEN_TIMEOUT if token_file is not None else None,
+                shield=token_file is not None,
+            ):
+                proxy = await sandbox_env.exec_remote(
+                    cmd=[SANDBOX_CLI, "model_proxy"],
+                    options=ExecRemoteStreamingOptions(
+                        concurrency=False,
+                        user=sandbox_env._tools_user,
+                        env=proxy_env,
+                        poll_timeout=600,
+                        poll_timeout_recovery=poll_timeout_recovery,
+                    ),
+                )
 
             # monitor proxy for unexpected death
             proxy_stderr: list[str] = []
