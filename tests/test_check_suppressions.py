@@ -255,6 +255,25 @@ def test_ruff_bracket_codes_keep_only_uppercase_codes() -> None:
         assert scan(text) == [], text
 
 
+def test_ruff_bracket_list_embedding_hash_does_not_swallow_later_directive() -> None:
+    # The ruff bracket list stops at `#`, so a list that embeds a later
+    # comment segment is not matched as a ruff directive (the list never
+    # closes). Scanning resumes and the embedded pyright directive is
+    # recorded — otherwise this is a way around the gate.
+    assert scan(
+        'x: int = "bad"  # ruff: ignore[ # pyright: ignore[reportAssignmentType]]\n'
+    ) == [("pyright: ignore[reportAssignmentType]", True)]
+    assert scan(
+        '# ruff: disable[ # pyright: ignore[reportAssignmentType]]\nx: int = "bad"\n'
+    ) == [("pyright: ignore[reportAssignmentType]", True)]
+
+
+def test_ruff_bracket_list_with_embedded_hash_records_nothing() -> None:
+    # ruff drops a bracket list that contains a hash, so `# ruff: ignore[F401,
+    # # x]` suppresses nothing (verified) and records no ruff rule.
+    assert scan("import os  # ruff: ignore[F401, # x]\n") == []
+
+
 # --- scanner: mypy ---
 
 

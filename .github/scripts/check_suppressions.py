@@ -72,11 +72,15 @@ _BRACKET = r"\[\s*(?P<{name}>[\w-]+(?:\s*,\s*[\w-]+)*)\s*\]"
 #
 # ruff: disable[...] and ruff: ignore[...] take a closed bracket list, parsed
 # by _ruff_bracket_rules. The prefix and verb are lowercase only (verified).
+# ruff_codes stops at a `#`, so a bracket list that embeds a later comment
+# segment never closes and is not matched as a directive here — scanning
+# resumes at that segment. This mirrors ruff, which also drops a bracket list
+# containing a hash.
 DIRECTIVE_RE = re.compile(
     r"""\#+\s*(?:
         (?:ruff|flake8)\s*:\s*(?P<file_noqa>(?i:noqa))(?:\s*(?P<file_noqa_colon>:)\s*(?P<file_noqa_codes>{noqa_codes})?)?
       | (?P<noqa>(?i:noqa))(?![\w])(?:\s*(?P<noqa_colon>:)\s*(?P<noqa_codes>{noqa_codes})?)?
-      | ruff\s*:\s*(?P<ruff_verb>disable|ignore)\s*\[(?P<ruff_codes>[^\]]*)\]
+      | ruff\s*:\s*(?P<ruff_verb>disable|ignore)\s*\[(?P<ruff_codes>[^\]#]*)\]
       | type:\s*(?P<type_ignore>ignore)(?![\w])(?:\s*{type_codes})?
       | pyright:\s*(?P<pyright>ignore)(?![\w])(?:\s*{pyright_codes})?
       | mypy:\s*(?:
@@ -129,13 +133,15 @@ def _ruff_bracket_rules(verb: str, codes: str) -> list[str]:
 
     ruff splits the list on commas and applies each uppercase code, skipping
     other entries ("[e501, F401]" suppresses F401, "[F401 E401]" nothing). One
-    trailing comma is allowed; any other empty entry, or a hash in the list,
-    drops the whole list (all verified).
+    trailing comma is allowed; any other empty entry drops the whole list (all
+    verified). A list containing a hash never reaches here — DIRECTIVE_RE's
+    ruff_codes stops at `#`, so such a list fails to match as a directive (ruff
+    likewise drops a bracket list that contains a hash).
     """
     entries = [c.strip() for c in codes.split(",")]
     if entries[-1] == "":
         entries.pop()
-    if any(not c or "#" in c for c in entries):
+    if any(not c for c in entries):
         return []
     return [f"ruff: {verb}[{c}]" for c in entries if _RUFF_CODE_RE.fullmatch(c)]
 
