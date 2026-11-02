@@ -254,6 +254,22 @@ def test_sandbox_tools_unit_installs_from_its_hashed_lock() -> None:
     ]
 
 
+def test_ruff_action_pins_ruff_by_version_file() -> None:
+    # astral-sh/ruff-action falls back to installing the latest ruff when its
+    # version-file is missing or has no ruff pin, and a `version` input overrides
+    # the file, so both steps must set version-file and neither may set version.
+    steps = [
+        step
+        for step in build_job("ruff")["steps"]
+        if step.get("uses", "").startswith("astral-sh/ruff-action@")
+    ]
+    assert len(steps) == 2, "expected the lint and format ruff-action steps"
+    for step in steps:
+        with_ = step.get("with", {})
+        assert with_.get("version-file") == "pyproject.toml", step.get("name")
+        assert "version" not in with_, step.get("name")
+
+
 def workflow_run_lines() -> list[tuple[str, str]]:
     lines = [
         (f"{path.name}:{name}", line)
