@@ -169,6 +169,7 @@ class _ResultChecks:
 
     def __init__(self) -> None:
         self.identities: dict[str, _Identity] = {}
+        self.prefixed_tokens: set[str] = set()
         self.proposals: OrderedDict[str, SentinelCheck] = OrderedDict()
         self.checked: set[str] = set()
         self.running: dict[str, anyio.Event] = {}
@@ -178,10 +179,13 @@ class _ResultChecks:
         issued: list[SentinelCheck] = []
         for check in checks:
             token = check.handed.id
-            while not token or token in self.identities:
+            while not token or self._ambiguous_token(token, check.handed.function):
                 token = f"call_{uuid()}"
             self.identities[token] = _Identity(
                 check.call.id, check.handed.function, _call_key(check.handed)
+            )
+            self.prefixed_tokens.add(
+                f"{check.handed.function.strip() or 'generic_tool'}__{token}"
             )
             issued.append(check._replace(token=token))
             self.proposals[token] = issued[-1]
@@ -196,6 +200,20 @@ class _ResultChecks:
                     "that carries its result, and no model input.",
                 )
         return issued
+
+    def _ambiguous_token(self, token: str, function: str) -> bool:
+        """Whether this token could be a CLI-prefixed echo of another issued token.
+
+        The Google bridge receives both unchanged and function-prefixed echoes.
+        Issuing either side of a prefix pair would make one wire id denote two
+        calls, so mint a fresh token instead.
+        """
+        prefix = f"{function.strip() or 'generic_tool'}__"
+        return (
+            token in self.identities
+            or token in self.prefixed_tokens
+            or prefix + token in self.identities
+        )
 
     def claim(self, input: list[ChatMessage]) -> _Claimed:
         claimed = _Claimed([], [])

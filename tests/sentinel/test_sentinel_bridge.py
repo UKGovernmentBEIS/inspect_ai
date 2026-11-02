@@ -1703,16 +1703,18 @@ async def test_google_identical_results_of_repeated_calls_are_each_checked() -> 
     assert [s.input for s in afters] == model.inputs[:3]
 
 
-@pytest.mark.parametrize("cli_prefix", [False, True])
+@pytest.mark.parametrize("ids", [("123", "read_file__123"), ("read_file__123", "123")])
+@pytest.mark.parametrize("echo", ["unchanged", "prefix_first", "prefix_second"])
 async def test_google_echoes_preserve_distinct_issued_call_ids(
-    cli_prefix: bool,
+    ids: tuple[str, str],
+    echo: str,
 ) -> None:
     from inspect_ai.agent._bridge.google_api import inspect_google_api_request
 
     seen: Steps = []
     calls = [
-        replace(READ, id="123", arguments={"path": "one"}),
-        replace(READ, id="read_file__123", arguments={"path": "two"}),
+        replace(READ, id=ids[0], arguments={"path": "one"}),
+        replace(READ, id=ids[1], arguments={"path": "two"}),
     ]
     model = Scripted(calls_output(*calls), calls_output())
     bridge = AgentBridge(
@@ -1729,11 +1731,19 @@ async def test_google_echoes_preserve_distinct_issued_call_ids(
             bridge,
         )
         parts = first["candidates"][0]["content"]["parts"]
-        if cli_prefix:
-            # The CLI-prefixed form of the second id has no exact collision.
-            for part in parts:
-                if part.get("functionCall", {}).get("id") == "read_file__123":
-                    part["functionCall"]["id"] = "read_file__read_file__123"
+        issued = [
+            part["functionCall"]["id"] for part in parts if "functionCall" in part
+        ]
+        assert len(issued) == 2
+        assert issued[0] != "read_file__" + issued[1]
+        assert issued[1] != "read_file__" + issued[0]
+        if echo != "unchanged":
+            target = 0 if echo == "prefix_first" else 1
+            for index, part in enumerate(
+                part for part in parts if "functionCall" in part
+            ):
+                if index == target:
+                    part["functionCall"]["id"] = "read_file__" + issued[index]
         response_parts = [
             {
                 "functionResponse": {
@@ -1774,18 +1784,12 @@ async def test_google_echoes_preserve_distinct_issued_call_ids(
         for message in parsed
         if isinstance(message, ChatMessageAssistant)
         for call in message.tool_calls or []
-    ] == [
-        "123",
-        "read_file__123",
-    ]
+    ] == issued
     assert [
         message.tool_call_id
         for message in parsed
         if isinstance(message, ChatMessageTool)
-    ] == [
-        "123",
-        "read_file__123",
-    ]
+    ] == issued
 
 
 OLD_REQUEST = "Old request: confidential context"
