@@ -21,15 +21,27 @@ import yaml
 REPO = pathlib.Path(__file__).parents[1]
 WORKFLOWS = REPO / ".github" / "workflows"
 BUILD = WORKFLOWS / "build.yml"
-LOCKED_JOBS = {
-    "mypy": "uv sync --locked",
-    "pre-commit": "uv sync --locked",
-    "test": "uv sync --locked",
-    "slow-tests": "uv sync --locked",
-    "slow-tool-tests-dev": "uv sync --locked",
-    "slow-tool-tests-release": "uv sync --locked",
-    "docs": "uv sync --locked --extra doc --no-default-groups",
-    "package": "uv sync --locked --no-default-groups --extra dist --no-install-project",
+# The shared install actions, pinned by SHA at each call site. The install
+# commands themselves live in the actions repo, so these tests read the call
+# inputs (versions, requirements-file) rather than the old `uv sync` run lines.
+ACTIONS = "meridianlabs-ai/actions/"
+INSTALL_ACTION = ACTIONS + "install-python-dependencies"
+SETUP_UV_ACTION = ACTIONS + "setup-uv"
+# Each install-python-dependencies call of a build.yml job, as
+# (versions, requirements-file). The package job installs twice: the hashed
+# build toolchain, then the locked dist extra for the check tools.
+INSTALL_CALLS = {
+    "mypy": [("locked", None)],
+    "pre-commit": [("locked", None)],
+    "test": [("locked", None)],
+    "slow-tests": [("locked", None)],
+    "slow-tool-tests-dev": [("locked", None)],
+    "slow-tool-tests-release": [("locked", None)],
+    "docs": [("locked", None)],
+    "package": [
+        ("hashed-requirements", "scripts/build-dist/requirements.txt"),
+        ("locked", None),
+    ],
 }
 SANDBOX_TOOLS_TEST_LOCK = "src/inspect_sandbox_tools/tests/requirements.txt"
 PROVIDERS = REPO / "src" / "inspect_ai" / "model" / "_providers"
@@ -62,6 +74,26 @@ def dependabot_uv() -> dict[str, Any]:
 def build_job(name: str) -> dict[str, Any]:
     job: dict[str, Any] = yaml.safe_load(BUILD.read_text())["jobs"][name]
     return job
+
+
+def install_calls(job: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        step.get("with") or {}
+        for step in job.get("steps", [])
+        if step.get("uses", "").split("@")[0] == INSTALL_ACTION
+    ]
+
+
+def shared_action_steps() -> list[tuple[str, str, dict[str, Any]]]:
+    """Every step that calls a shared action: (workflow, uses ref, with)."""
+    steps: list[tuple[str, str, dict[str, Any]]] = []
+    for path in sorted(WORKFLOWS.glob("*.yml")):
+        for job in yaml.safe_load(path.read_text())["jobs"].values():
+            for step in job.get("steps", []):
+                uses = step.get("uses", "")
+                if uses.split("@")[0].startswith(ACTIONS):
+                    steps.append((path.name, uses, step.get("with") or {}))
+    return steps
 
 
 def run_lines(job: dict[str, Any]) -> list[str]:
@@ -188,21 +220,21 @@ def version(text: str) -> tuple[int, ...]:
 def test_pinned_uv_versions_meet_required_version() -> None:
     required = re.fullmatch(r">=(\d+\.\d+\.\d+)", uv_config()["required-version"])
     assert required, uv_config()["required-version"]
-    pinned = {
-        workflow: yaml.safe_load(
-            (REPO / ".github" / "workflows" / workflow).read_text()
-        )["env"]["UV_VERSION"]
-        for workflow in [
-            "build.yml",
-            "log_viewer.yml",
-            "sandbox-tools-build.yml",
-            "suppressions.yml",
-            "suppressions-comment.yml",
-            "sync_model_data.yml",
-        ]
-    }
-    for where, pin in pinned.items():
-        assert version(pin) >= version(required[1]), f"{where}: uv {pin}"
+    # Only build.yml still pins uv directly (sandbox-tools-unit installs uv
+    # outside the shared action); every other install gets uv from the shared
+    # setup-uv action, whose pin a test in the actions repo checks. Removing the
+    # local pins keeps one source of truth for the uv version per install path.
+    pin = yaml.safe_load((WORKFLOWS / "build.yml").read_text())["env"]["UV_VERSION"]
+    assert version(pin) >= version(required[1]), f"build.yml: uv {pin}"
+    for workflow in [
+        "log_viewer.yml",
+        "sandbox-tools-build.yml",
+        "suppressions.yml",
+        "suppressions-comment.yml",
+        "sync_model_data.yml",
+    ]:
+        env = yaml.safe_load((WORKFLOWS / workflow).read_text()).get("env") or {}
+        assert "UV_VERSION" not in env, workflow
 
 
 def test_no_workflow_uses_the_build_and_inspect_action() -> None:
@@ -236,10 +268,46 @@ def test_no_workflow_uses_the_pre_commit_action() -> None:
         assert "pre-commit/action" not in workflow.read_text(), workflow.name
 
 
-@pytest.mark.parametrize("name,sync", LOCKED_JOBS.items())
-def test_locked_jobs_install_from_the_lockfile(name: str, sync: str) -> None:
-    syncs = [line for line in run_lines(build_job(name)) if line.startswith("uv sync")]
-    assert syncs == [sync]
+@pytest.mark.parametrize("name,expected", INSTALL_CALLS.items())
+def test_install_jobs_declare_their_versions(
+    name: str, expected: list[tuple[str, str | None]]
+) -> None:
+    calls = install_calls(build_job(name))
+    got = [(call.get("versions"), call.get("requirements-file")) for call in calls]
+    assert got == expected
+
+
+def test_shared_action_calls_pin_one_sha() -> None:
+    # Step e re-pins every call to the release tag's SHA at once; a call left on
+    # a different ref (or an unpinned tag) would ship unreviewed action code.
+    refs = set()
+    for where, uses, _ in shared_action_steps():
+        ref = uses.split("@", 1)[1] if "@" in uses else ""
+        assert re.fullmatch(r"[0-9a-f]{40}", ref), f"{where}: {uses} is not SHA-pinned"
+        refs.add(ref)
+    assert refs, "no shared-action calls found"
+    assert len(refs) == 1, f"shared actions pinned to several SHAs: {sorted(refs)}"
+
+
+def test_read_write_jobs_prune_the_uv_cache() -> None:
+    # setup-uv makes an Action save with actions-cache: read-write (the
+    # default); without a prune the saved uv cache grows unbounded.
+    for path in sorted(WORKFLOWS.glob("*.yml")):
+        for name, job in yaml.safe_load(path.read_text())["jobs"].items():
+            calls = [
+                step.get("with") or {}
+                for step in job.get("steps", [])
+                if step.get("uses", "").split("@")[0]
+                in (INSTALL_ACTION, SETUP_UV_ACTION)
+            ]
+            if not any(
+                c.get("actions-cache", "read-write") == "read-write" for c in calls
+            ):
+                continue
+            runs = [step.get("run", "") for step in job["steps"]]
+            assert any("uv cache prune --ci" in run for run in runs), (
+                f"{path.name}:{name}"
+            )
 
 
 def test_sandbox_tools_unit_installs_from_its_hashed_lock() -> None:
@@ -305,3 +373,12 @@ def test_no_workflow_opts_out_of_the_cooldown() -> None:
         if re.search(r"--exclude-newer(=|\s+)false", line)
     ]
     assert floating == []
+    # An unlocked install (versions: unlocked) resolves at run time with no
+    # cooldown. It belongs only in the canary (meridianlabs-ai/canaries), never
+    # in this repository's CI.
+    unlocked = [
+        (where, uses)
+        for where, uses, params in shared_action_steps()
+        if params.get("versions") == "unlocked"
+    ]
+    assert unlocked == []
