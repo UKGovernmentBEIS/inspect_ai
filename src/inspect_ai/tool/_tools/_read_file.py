@@ -61,7 +61,7 @@ def read_file(
             cwd=sandbox_identity_cwd(sbox, None),
             timeout=timeout,
             user=sandbox_identity_user(sbox, user, strict=True),
-            env=await sandbox_identity_vars(sbox),
+            env=await sandbox_identity_vars(sbox, timeout),
         )
 
         if not result.success:

@@ -179,6 +179,17 @@ async def test_exec_tools_run_as_the_scope_user(
 
 
 @pytest.mark.parametrize("factory, args", _EXEC_TOOLS)
+async def test_exec_tools_bound_the_home_lookup_by_their_timeout(
+    factory: Callable[..., Tool], args: dict[str, Any]
+) -> None:
+    default = _RecordingSandbox()
+    with _environments(default=default), sandbox_identity("w-1"):
+        await factory(timeout=5)(**args)
+    lookup_timeout, _run_timeout = default.timeouts
+    assert lookup_timeout == (5, False)
+
+
+@pytest.mark.parametrize("factory, args", _EXEC_TOOLS)
 async def test_exec_tools_set_no_env_outside_a_scope(
     factory: Callable[..., Tool], args: dict[str, Any]
 ) -> None:

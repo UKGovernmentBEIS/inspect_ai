@@ -158,38 +158,62 @@ def sandbox_identity_cwd(env: SandboxEnvironment, cwd: str | None) -> str | None
     return identity.cwd if identity is not None else None
 
 
-async def sandbox_identity_vars(env: SandboxEnvironment) -> dict[str, str] | None:
+async def sandbox_identity_vars(
+    env: SandboxEnvironment, timeout: int | None
+) -> dict[str, str] | None:
     """Environment variables for a command the scope's user runs in `env`.
 
     None outside a `sandbox_identity()` scope for `env`. Inside one, `HOME` set
     to the user's home directory from the sandbox's passwd database, or None if
     it has no entry for the user. The lookup runs once per scope and is cached;
-    concurrent first calls may each run it, which is harmless.
+    concurrent first calls may each run it, which is harmless. A lookup that
+    fails, times out or is cancelled is not cached.
 
     Args:
        env: Sandbox environment the command runs in.
+       timeout: Timeout (in seconds) of the caller's command, if any. The lookup
+          times out after this or `PASSWD_LOOKUP_TIMEOUT`, whichever is shorter.
 
     Raises:
        RuntimeError: If the lookup command fails.
+       TimeoutError: If the lookup times out.
     """
     identity = sandbox_identity_scope(env)
     if identity is None:
         return None
     if not identity.home.resolved:
-        identity.home.value = await _passwd_home(env, identity.user)
+        lookup_timeout = min(timeout or PASSWD_LOOKUP_TIMEOUT, PASSWD_LOOKUP_TIMEOUT)
+        identity.home.value = await _passwd_home(env, identity.user, lookup_timeout)
         identity.home.resolved = True
     return {"HOME": identity.home.value} if identity.home.value else None
 
 
+PASSWD_LOOKUP_TIMEOUT = 30
+"""Longest time (in seconds) the home directory lookup may take."""
+
 # Prints the home directory of the user named (or numbered) $1, or nothing when
-# the passwd database has no entry for it. Uses getent so NSS sources count, and
-# reads /etc/passwd on images without getent.
+# the passwd database has no entry for it; any other failure exits non-zero.
+# Uses getent so NSS sources count (exit status 2 means no entry), and reads
+# /etc/passwd on images without getent.
 _PASSWD_HOME_SCRIPT = """
 if command -v getent >/dev/null 2>&1; then
-    getent passwd "$1" | cut -d: -f6
+    entry=$(getent passwd "$1")
+    status=$?
+    [ "$status" -eq 2 ] && exit 0
+    if [ "$status" -ne 0 ]; then
+        echo "getent passwd exited with status $status" >&2
+        exit 1
+    fi
+    IFS=: read -r _ _ _ _ _ home _ <<ENTRY
+$entry
+ENTRY
+    printf '%s\\n' "$home"
     exit 0
 fi
-[ -r /etc/passwd ] || exit 0
+if [ ! -r /etc/passwd ]; then
+    echo "no getent and no readable /etc/passwd" >&2
+    exit 1
+fi
 while IFS=: read -r name _ uid _ _ home _; do
     if [ "$name" = "$1" ] || [ "$uid" = "$1" ]; then
         printf '%s\\n' "$home"
@@ -199,9 +223,11 @@ done < /etc/passwd
 """
 
 
-async def _passwd_home(env: SandboxEnvironment, user: str) -> str | None:
+async def _passwd_home(env: SandboxEnvironment, user: str, timeout: int) -> str | None:
     """The home directory of `user` in the passwd database of `env`, if any."""
-    result = await privileged_shell(env, _PASSWD_HOME_SCRIPT, user, user=None)
+    result = await privileged_shell(
+        env, _PASSWD_HOME_SCRIPT, user, user=None, timeout=timeout, timeout_retry=False
+    )
     if not result.success:
         raise RuntimeError(
             f"Could not look up the home directory of sandbox user '{user}': "
