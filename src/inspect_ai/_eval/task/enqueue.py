@@ -20,8 +20,6 @@ from typing import (
     Any,
     Awaitable,
     Callable,
-    Coroutine,
-    Generator,
     Literal,
     NamedTuple,
 )
@@ -334,7 +332,8 @@ class TaskHandle:
 
     The handle and ``inspect ctl`` act on the same task: a cancel from either
     is seen by both, and ``inspect ctl`` reaches the task from other
-    processes by :attr:`task_id`.
+    processes by :attr:`task_id`. Entering the handle with ``async with``
+    cancels the task when the block exits.
     """
 
     def __init__(self, tasks: RunTasks, record: TaskRecord) -> None:
@@ -389,37 +388,8 @@ class TaskHandle:
             )
         return record.log
 
-
-class EnqueuedTasks:
-    """What :func:`enqueue_task` returns: await it, or enter it with ``async with``.
-
-    ``await enqueue_task(tasks)`` adds the tasks and gives a
-    :class:`TaskHandle` per task added (one per task and model), in start
-    order. ``async with enqueue_task(task) as handle:`` adds one task, gives
-    its handle, and cancels the task when the block exits; if the call added
-    several (one per model), it cancels them all and raises.
-    """
-
-    def __init__(self, add: Coroutine[Any, Any, list[TaskHandle]]) -> None:
-        self._add = add
-        self._handle: TaskHandle | None = None
-
-    def __await__(self) -> Generator[Any, None, list[TaskHandle]]:
-        return self._add.__await__()
-
-    async def __aenter__(self) -> TaskHandle:
-        handles = await self._add
-        if len(handles) != 1:
-            # no handle reaches the caller, and __aexit__ is not called
-            for handle in handles:
-                handle.cancel()
-            raise ValueError(
-                f"enqueue_task() added {len(handles)} tasks (one per task and "
-                "model), so there is no single task to enter; await it and use "
-                "each handle instead."
-            )
-        self._handle = handles[0]
-        return self._handle
+    async def __aenter__(self) -> "TaskHandle":
+        return self
 
     async def __aexit__(
         self,
@@ -428,8 +398,7 @@ class EnqueuedTasks:
         tb: TracebackType | None,
     ) -> None:
         """Cancel the task (if it has not ended)."""
-        assert self._handle is not None
-        self._handle.cancel()
+        self.cancel()
 
 
 # The tasks of the current eval run. A ContextVar (not a module global) so
@@ -477,21 +446,26 @@ def find_active_task(task_id: str) -> ActiveTask | None:
     return None
 
 
-def enqueue_task(tasks: "Tasks", *, run_id: str | None = None) -> EnqueuedTasks:
+async def enqueue_task(
+    tasks: "Tasks", *, run_id: str | None = None
+) -> list[TaskHandle]:
     """Add one or more tasks to the running eval.
 
-    Await the result for a :class:`TaskHandle` per task added (one per task
-    and model), in start order: its ``task_id``, its ``state``, ``cancel()``
-    and ``await wait()`` for its final log. For a call that adds one task,
-    ``async with enqueue_task(task) as worker:`` gives its handle and cancels
-    the task when the block exits.
+    Returns a :class:`TaskHandle` per task added (one per task and model),
+    in start order: its ``task_id``, its ``state``, ``cancel()`` and
+    ``await wait()`` for its final log. Entering a handle with ``async with``
+    cancels its task when the block exits::
+
+        [worker] = await enqueue_task(worker_task())
+        async with worker:
+            ...
 
     The tasks run in this process under the current run's ``run_id`` (a fresh
     ``eval_id``/``task_id`` each, their own log files), resolved against the
     run's models and config. Each starts when a task slot is free, under the
     run's ``max_tasks`` limit (which ``inspect ctl config --max-tasks``
-    changes live), after the tasks queued before it. Awaiting returns once
-    the tasks are queued: it resolves each task's sandbox configs first, so
+    changes live), after the tasks queued before it. It returns once the
+    tasks are queued: it resolves each task's sandbox configs first, so
     an invalid config raises there and adds none of the tasks. A task whose
     sandboxes are still being set up does not hold back a later task that is
     ready. If an added task's sandbox setup fails, that task ends with an
@@ -514,12 +488,11 @@ def enqueue_task(tasks: "Tasks", *, run_id: str | None = None) -> EnqueuedTasks:
             given it must match the active run, else the call is rejected.
 
     Returns:
-        An object to await for the handles of the added tasks, or to enter
-        with ``async with`` for the handle of the one task added.
+        A handle per task added (one per task and model), in start order.
 
     Raises:
         ValueError: If the tasks can't be resolved (propagated from
-            resolution), or ``async with`` added more than one task.
+            resolution).
         PrerequisiteError: If a task can't run with the run's settings (for
             example duplicate sample ids).
         Exception: What resolving a task's sandbox configs raised (for
@@ -528,11 +501,6 @@ def enqueue_task(tasks: "Tasks", *, run_id: str | None = None) -> EnqueuedTasks:
             ``run_id`` doesn't match the active run, or the run has finished
             starting tasks.
     """
-    return EnqueuedTasks(_enqueue(tasks, run_id))
-
-
-async def _enqueue(tasks: "Tasks", run_id: str | None) -> list[TaskHandle]:
-    """Add tasks to the active run (see :func:`enqueue_task`); their handles."""
     run_tasks = get_run_tasks()
     if run_tasks is None:
         raise RuntimeError(

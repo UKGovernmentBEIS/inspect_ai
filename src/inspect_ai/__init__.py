@@ -15,7 +15,7 @@ from inspect_ai._eval.task import (
     TaskSource,
     task_with,
 )
-from inspect_ai._eval.task.enqueue import EnqueuedTasks, TaskHandle, enqueue_task
+from inspect_ai._eval.task.enqueue import TaskHandle, enqueue_task
 from inspect_ai._eval.task.sample_source import enqueue_sample
 from inspect_ai._eval.task.scan import ScannerConfig, Scanners
 from inspect_ai._eval.task.tasks import Tasks
@@ -42,7 +42,6 @@ __all__ = [
     "score_async",
     "edit_score",
     "recompute_metrics",
-    "EnqueuedTasks",
     "Epochs",
     "Scanners",
     "ScannerConfig",

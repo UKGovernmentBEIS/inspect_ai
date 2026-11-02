@@ -152,7 +152,7 @@ def spawn_followup():
     return solve
 ```
 
-Await `enqueue_task()` (or enter it with `async with`, see [Task handles](#task-handles)): a call that is neither adds nothing. Awaiting returns once the tasks are queued, after resolving them against the run's models and config and working out the sandbox configurations their samples use, so an invalid task or sandbox configuration raises to the caller and adds none of the tasks. Enqueued tasks run under the current run id, and are handled like tasks returned from `sample_complete` / `task_complete`. `enqueue_task()` raises if no eval is running, and also if the run has already finished starting tasks (for example, when called from a background task that outlives the run), since the added task would never run. Call it from the eval's event loop, not from another thread: from a solver, scorer or tool, a `TaskSource`'s `next_tasks()` or completion callbacks (`sample_complete`, `task_complete`), or a hook Inspect calls during a task (such as `on_task_start` or `on_sample_end`). It raises in `on_run_start`, which runs before the run accepts added tasks, and in `on_run_end`, which runs after the run has finished starting tasks.
+`enqueue_task()` is a coroutine, so a call that is not awaited adds nothing (type checkers flag it). It returns once the tasks are queued, after resolving them against the run's models and config and working out the sandbox configurations their samples use, so an invalid task or sandbox configuration raises to the caller and adds none of the tasks. Enqueued tasks run under the current run id, and are handled like tasks returned from `sample_complete` / `task_complete`. `enqueue_task()` raises if no eval is running, and also if the run has already finished starting tasks (for example, when called from a background task that outlives the run), since the added task would never run. Call it from the eval's event loop, not from another thread: from a solver, scorer or tool, a `TaskSource`'s `next_tasks()` or completion callbacks (`sample_complete`, `task_complete`), or a hook Inspect calls during a task (such as `on_task_start` or `on_sample_end`). It raises in `on_run_start`, which runs before the run accepts added tasks, and in `on_run_end`, which runs after the run has finished starting tasks.
 
 ### When an added task starts
 
@@ -175,10 +175,11 @@ While an added task's task-level sandbox environment starts (its provider's `tas
 log = await followup.wait()
 ```
 
-For a call that adds one task, `async with enqueue_task(...)` adds it, gives its handle, and cancels the task when the block exits, so a task can run a companion only for as long as it needs it:
+A handle can be entered with `async with`, which cancels its task when the block exits, so a task can run a companion only for as long as it needs it:
 
 ```python
-async with enqueue_task(worker_task()) as worker:
+[worker] = await enqueue_task(worker_task())
+async with worker:
     ...  # feed the worker, read its results
 ```
 

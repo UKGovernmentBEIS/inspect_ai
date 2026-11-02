@@ -21,7 +21,6 @@ description: Tasks, evaluation, and scoring.
 ### TaskSource
 ### SampleSource
 ### enqueue_task
-### EnqueuedTasks
 ### TaskHandle
 ### enqueue_sample
 

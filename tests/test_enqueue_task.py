@@ -12,6 +12,7 @@ import os
 import subprocess
 import sys
 import weakref
+from contextlib import AsyncExitStack
 from contextvars import Context, copy_context
 from pathlib import Path
 
@@ -1213,7 +1214,8 @@ async def test_task_handle_context_cancels_the_task_on_exit() -> None:
     def add_in_context() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             release, started = anyio.Event(), anyio.Event()
-            async with enqueue_task(_held_task("child", release, started)) as child:
+            [child] = await enqueue_task(_held_task("child", release, started))
+            async with child:
                 with anyio.fail_after(10):
                     await started.wait()
                 states.append(child.state)
@@ -1302,7 +1304,8 @@ async def test_generator_stops_its_worker_with_a_task_handle() -> None:
     def generator() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             outbox, inbox = anyio.create_memory_object_stream[Sample](10)
-            async with enqueue_task(_worker(inbox, done)):
+            [worker] = await enqueue_task(_worker(inbox, done))
+            async with worker:
                 await _feed(outbox, done)
             return state
 
@@ -1371,9 +1374,8 @@ async def test_generator_stops_its_worker_with_hooks_and_ctl() -> None:
 
 
 async def test_task_handles_of_a_multi_model_call() -> None:
-    # one call adds a task per model: awaiting gives each handle, and
-    # `async with`, which needs a single task, cancels the tasks it added
-    # before it raises
+    # one call adds a task per model and gives a handle for each; entering
+    # each handle cancels its task when the block exits
     seen: dict[str, object] = {}
 
     @solver
@@ -1386,9 +1388,9 @@ async def test_task_handles_of_a_multi_model_call() -> None:
             for handle in handles:
                 await handle.wait()
             release = anyio.Event()
-            with pytest.raises(ValueError, match="added 2 tasks"):
-                async with enqueue_task(_held_task("entered", release)):
-                    pass
+            async with AsyncExitStack() as stack:
+                for handle in await enqueue_task(_held_task("entered", release)):
+                    await stack.enter_async_context(handle)
             return state
 
         return solve

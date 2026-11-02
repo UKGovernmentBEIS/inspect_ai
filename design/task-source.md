@@ -169,7 +169,9 @@ all feed the run's one dispatcher:
   `TaskSource`, to push tasks into the current run:
 
   ```python
-  async def enqueue_task(tasks: Tasks, *, run_id: str | None = None) -> None: ...
+  async def enqueue_task(
+      tasks: Tasks, *, run_id: str | None = None
+  ) -> list[TaskHandle]: ...
   ```
 
   It is a coroutine: it resolves the tasks against the run's models and
@@ -313,10 +315,9 @@ makes it the active one for `enqueue_task`, starts up the seed and runs the
   directly. A record is queued, then running (from its first attempt's start
   through its last attempt, retries included), then ended; every way it ends
   goes through `RunTasks.end`, which keeps its final log, if any. `RunTasks.find`
-  looks a record up by task id. `enqueue_task` returns an `EnqueuedTasks`
-  (like aiohttp's `session.get()`): awaiting it adds the tasks and gives a
-  `TaskHandle` per record; `async with` adds one task, gives its handle and
-  cancels it on exit. A handle's `state` is read from where the record is,
+  looks a record up by task id. `enqueue_task` is a plain coroutine that
+  returns a `TaskHandle` per record, in start order; entering a handle with
+  `async with` cancels its task on exit. A handle's `state` is read from where the record is,
   `cancel()` calls the ctl's `cancel_task` with the record's id (so the handle
   and `inspect ctl` act on the same record), and `wait()` waits for the
   record's end event and returns its final log.
