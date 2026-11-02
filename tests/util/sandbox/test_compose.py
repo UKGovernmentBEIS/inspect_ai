@@ -437,3 +437,4 @@ unknown_field: value
 def test_is_compose_yaml_pattern(filename: str, expected: bool) -> None:
     """Test is_compose_yaml correctly identifies compose files by filename pattern."""
     assert is_compose_yaml(filename) == expected
+# Temporary CI probe. The next commit removes it.
