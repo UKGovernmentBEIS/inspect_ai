@@ -3,6 +3,7 @@ from __future__ import annotations
 import functools
 import json
 import time
+from typing import NamedTuple
 
 import anyio
 import pytest
@@ -1478,9 +1479,16 @@ async def test_openai_file_batcher_sends_each_header_set_separately() -> None:
     assert sorted(create_headers, key=str) == [{"x-org": "a"}, {"x-org": "b"}]
 
 
+class _OpenAIBatchRun(NamedTuple):
+    results: dict[str, object]
+    """Each request's result, by custom id."""
+    polls: int
+    """How many times the batch was polled."""
+
+
 async def _run_openai_batch(
     polls: list[tuple[str, str | None]],
-) -> tuple[dict[str, object], int]:
+) -> _OpenAIBatchRun:
     """Run an `OpenAIBatcher` worker over one batch of two requests.
 
     Each poll of the batch returns the next (status, output_file_id) in `polls`.
@@ -1553,7 +1561,7 @@ async def _run_openai_batch(
         custom_id: receiver.receive_nowait()
         for custom_id, receiver in receivers.items()
     }
-    return results, client.batches.retrieve.await_count
+    return _OpenAIBatchRun(results, client.batches.retrieve.await_count)
 
 
 @pytest.mark.parametrize("status", ["cancelled", "expired"])
@@ -1567,11 +1575,11 @@ async def test_openai_batcher_fails_requests_missing_from_ended_batch(
     """
     from openai.types.chat import ChatCompletion
 
-    no_files, _ = await _run_openai_batch([(status, None)])
+    no_files = (await _run_openai_batch([(status, None)])).results
     assert all(isinstance(result, RuntimeError) for result in no_files.values())
     assert status in str(no_files["unanswered"])
 
-    partial, _ = await _run_openai_batch([(status, "file-out")])
+    partial = (await _run_openai_batch([(status, "file-out")])).results
     assert isinstance(partial["answered"], ChatCompletion)
     assert isinstance(partial["unanswered"], RuntimeError)
 
@@ -1583,10 +1591,10 @@ async def test_openai_batcher_polls_completed_batch_until_it_has_files() -> None
     """
     from openai.types.chat import ChatCompletion
 
-    results, polls = await _run_openai_batch(
+    run = await _run_openai_batch(
         [("completed", None), ("completed", None), ("completed", "file-out")]
     )
-    assert polls == 3
-    assert isinstance(results["answered"], ChatCompletion)
-    assert isinstance(results["unanswered"], RuntimeError)
-    assert "completed" in str(results["unanswered"])
+    assert run.polls == 3
+    assert isinstance(run.results["answered"], ChatCompletion)
+    assert isinstance(run.results["unanswered"], RuntimeError)
+    assert "completed" in str(run.results["unanswered"])
