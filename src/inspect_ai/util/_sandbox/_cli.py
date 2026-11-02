@@ -38,10 +38,14 @@ def tools_user_param(
 ) -> str | dict[str, object] | None:
     """Value of a sandbox tool request's ``user`` param.
 
-    An explicit ``user`` wins; otherwise the sandbox's default exec identity, which
-    the tools switch to (a no-op when they already run as it). None when neither is
-    known, so the tools keep their own identity.
+    An explicit ``user`` wins; then the user of a ``sandbox_identity()`` scope for
+    the sandbox; otherwise the sandbox's default exec identity, which the tools
+    switch to (a no-op when they already run as it). None when none is known, so
+    the tools keep their own identity.
     """
+    from .identity import sandbox_identity_user
+
+    user = sandbox_identity_user(sandbox, user, strict=False)
     if user:
         return user
     if sandbox._tools_default_user:

@@ -57,6 +57,9 @@ from .exceptions import AgentInterrupted
 from .items import Cancel, CancelReason, ChannelItem, UserMessage, coalesce
 
 if TYPE_CHECKING:
+    from inspect_ai.agent._agent import AgentState
+
+    from .gate import TurnGate
     from .ref import AgentRef
 
 
@@ -147,6 +150,11 @@ class AgentChannel:
         # "an externally-reachable producer attached" — only the
         # latter motivates a consumer to enable interactive plumbing.
         self._live_count: int = 0
+        # Turn gate kept from the block that opened this channel (see
+        # ``gate.py``), and whether it rewrote the conversation at the last
+        # boundary (read and cleared by ``_take_rewritten``).
+        self._gate: TurnGate | None = None
+        self._rewritten: bool = False
 
     # ------------------------------------------------------------------
     # Producer-facing API (also exposed via AgentRef)
@@ -430,7 +438,9 @@ class AgentChannel:
     # ------------------------------------------------------------------
 
     async def before_turn(
-        self, messages: Sequence[ChatMessage]
+        self,
+        messages: Sequence[ChatMessage],
+        state: AgentState | None = None,
     ) -> list[ChatMessageUser]:
         """Pending operator-supplied user messages for the start of a turn.
 
@@ -444,13 +454,33 @@ class AgentChannel:
         initial user message" gate — on every subsequent turn
         ``messages`` already has the prior user input so the call
         returns immediately.
+
+        Args:
+            messages: The loop's conversation.
+            state: The loop's own state, whose messages are ``messages``.
+                Optional; a runtime that runs the agent may read it at
+                the boundary.
         """
+        if self._gate is not None and await self._gate.before_turn(
+            self, messages, state
+        ):
+            self._rewritten = True
         items = self._drain()
         if not any(isinstance(it, UserMessage) for it in items) and not any(
             isinstance(m, ChatMessageUser) for m in messages
         ):
             items += await self._recv()
         return coalesce(items)
+
+    def _take_rewritten(self) -> bool:
+        """Whether the gate rewrote the conversation since the last call.
+
+        Clears the mark. A loop that keeps its own view of the conversation
+        (such as a compaction handler) rebuilds it when this is ``True``.
+        """
+        rewritten = self._rewritten
+        self._rewritten = False
+        return rewritten
 
     async def after_cancel(self, messages: Sequence[ChatMessage]) -> list[ChatMessage]:
         """Recovery messages after :exc:`AgentInterrupted` was caught.

@@ -14,23 +14,28 @@ proposes something else, while the scaffold sees one ordinary response and its o
 conversation never contains the rejected call. This mirrors the native path
 (reject -> tool message -> next generate), relocated from `react()` into the bridge.
 
-A call made through a scaffold's dispatcher function (`AgentBridge.dispatched_call`)
-is reviewed as the bridged tool call it stands for, so policies match the tool's own
-name and approvers see its own arguments; the decision is mapped back onto the
-dispatcher call the scaffold receives.
+Each call is reviewed as the tool it will run (`AgentBridge.reviewed_calls`), so
+policies match that tool's own name and approvers see its own arguments. For a sandbox
+bridge that is the bridged tool the call's execution grant will bind, whatever name
+the scaffold declared it under, and for a call made through a scaffold's dispatcher
+function it is the bridged tool the dispatcher names; a `modify` decision is mapped
+back onto the call the scaffold receives.
 """
 
 import sys
 from contextlib import AbstractContextManager, nullcontext
+from copy import deepcopy
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn
+from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn, Sequence
 
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.tool._tool import Tool
 from inspect_ai.tool._tool_call import ToolCall, ToolCallError
+from inspect_ai.tool._tool_info import ToolInfo
 
 if TYPE_CHECKING:
     from inspect_ai.approval._policy import ApprovalPolicy
@@ -88,13 +93,24 @@ async def apply_bridge_tool_approval(
     bridge: AgentBridge,
     output: ModelOutput,
     history: list[ChatMessage],
+    tools: Sequence[ToolInfo | Tool],
 ) -> BridgeApproval:
     """Approve the tool calls in a bridged model response.
 
     Calls are approved in order and evaluation stops at the first non-approval, so a
     human isn't asked to decide on calls that are about to be discarded anyway.
     `terminate` doesn't return, and neither does a `modify` decision that changes the
-    function called: that is an error in the approver, and fails the sample.
+    function called or the call's id: that is an error in the approver, and fails
+    the sample. An `approve` from an approver that changed the call it was shown in
+    place is a rejection. Both are judged against a snapshot of the call taken
+    before review, by the rules native execution uses (`approver_result_error`).
+
+    Each call is reviewed as each tool it would run (`AgentBridge.reviewed_calls`),
+    and is approved only if every one of those reviews approves it. A `modify`
+    decision for a call that would run several bridged tools (they share a served
+    description) also fails the sample: the tools' other reviews approved the
+    unmodified arguments, and the grants for all of them would bind the modified
+    ones.
 
     A multi-choice response whose alternate choices carry tool calls is reduced to
     the primary choice (with a warning) when approval is active, since only the
@@ -108,16 +124,16 @@ async def apply_bridge_tool_approval(
         bridge: Bridge whose `approval` policies (if any) apply for this call.
         output: Model output about to be handed to the scaffold.
         history: Conversation that produced `output`.
+        tools: Declarations the scaffold made to the model in the request that
+            produced `output`, which resolve what each call would run.
 
     Returns:
         The response for the scaffold, plus the messages to replay to the model when
         the response was rejected.
     """
-    from inspect_ai.approval._apply import (
-        apply_tool_approval,
-        have_tool_approval,
-        modified_function_error,
-    )
+    from inspect_ai.approval._apply import apply_tool_approval, have_tool_approval
+    from inspect_ai.approval._approval import Approval
+    from inspect_ai.model._call_tools import approver_result_error
 
     with bridge_approval_scope(bridge.approval):
         approval_active = have_tool_approval()
@@ -147,37 +163,66 @@ async def apply_bridge_tool_approval(
         message = output.message.text
         modified: dict[str, dict[str, Any]] = {}
         for call in tool_calls:
-            dispatched = bridge.dispatched_call(call)
-            reviewed = dispatched.target if dispatched else call
-            # no viewer: bridged tools reach us as ToolInfo from the scaffold's
-            # request, not as ToolDef, so there is no registered viewer to resolve.
-            # apply_tool_approval falls back to its default rendering.
-            approved, approval = await apply_tool_approval(
-                message, reviewed, None, approval_history
-            )
-            if not approved:
-                explanation = (approval.explanation if approval else None) or (
-                    f"Tool call '{reviewed.function}' was rejected by the approval "
-                    "policy."
+            reviewed_calls = bridge.reviewed_calls(call, tools)
+            for target in reviewed_calls.calls:
+                # each review gets its own copy, sharing nothing with the proposal
+                # or another review; its decision is judged against `shown`
+                reviewed = deepcopy(target)
+                shown = deepcopy(target)
+                # no viewer: bridged tools reach us as ToolInfo from the scaffold's
+                # request, not as ToolDef, so there is no registered viewer to
+                # resolve. apply_tool_approval falls back to its default rendering.
+                approved, approval = await apply_tool_approval(
+                    message, reviewed, None, approval_history
                 )
-                if approval is not None and approval.decision == "terminate":
-                    bridge.request_terminate(
-                        f"Tool call approver requested termination: {explanation}"
+                error = (
+                    approver_result_error(shown, reviewed, approval)
+                    if approved
+                    else None
+                )
+                if error is not None and approval is not None:
+                    if approval.decision == "modify":
+                        failure = RuntimeError(error)
+                        bridge.request_fail(failure)
+                        raise failure
+                    # an approve of a call changed in place is a rejection
+                    approved, approval = (
+                        False,
+                        Approval(decision="reject", explanation=error),
                     )
-                return BridgeApproval(
-                    output, rejection_messages(output, call, explanation)
-                )
+                if not approved:
+                    explanation = (approval.explanation if approval else None) or (
+                        f"Tool call '{shown.function}' was rejected by the "
+                        "approval policy."
+                    )
+                    if approval is not None and approval.decision == "terminate":
+                        bridge.request_terminate(
+                            f"Tool call approver requested termination: {explanation}"
+                        )
+                    return BridgeApproval(
+                        output, rejection_messages(output, call, explanation)
+                    )
 
-            if approval is not None and approval.modified is not None:
-                error = modified_function_error(reviewed, approval.modified)
-                if error is not None:
-                    failure = RuntimeError(error)
-                    bridge.request_fail(failure)
-                    raise failure
-                arguments = approval.modified.arguments
-                modified[call.id] = (
-                    dispatched.dispatch(arguments) if dispatched else arguments
-                )
+                # as on the native path, only a `modify` decision rewrites the
+                # call; a `modified` call attached to an `approve` is ignored
+                if (
+                    approval is not None
+                    and approval.decision == "modify"
+                    and approval.modified is not None
+                ):
+                    if len(reviewed_calls.calls) > 1:
+                        failure = RuntimeError(
+                            f"An approver modified a call to '{shown.function}' "
+                            "that would run several bridged tools sharing a "
+                            "description. A modified call can't be approved for "
+                            "all of them; give the bridged tools distinct "
+                            "descriptions."
+                        )
+                        bridge.request_fail(failure)
+                        raise failure
+                    modified[call.id] = reviewed_calls.dispatch(
+                        approval.modified.arguments
+                    )
 
     # modifications are adopted only now that the whole response is approved: a later
     # rejection discards every call, and rewriting an earlier one as we went would
