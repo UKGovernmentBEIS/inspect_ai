@@ -1238,7 +1238,7 @@ scorer, the dataset metadata its `SampleInitEvent` records, whether
 `error` is set, which scores carry an edit history and whether the
 sample has an `invalidation`; everything else in the sample is discarded
 before the next. The metric inputs are those of a fresh run (decision:
-Ransom, 2026-10-27). A declared scorer's scores get the sample's dataset
+Ransom, 2026-10-27), as the log stores them (see "Stored form" below). A declared scorer's scores get the sample's dataset
 metadata, before any solver changed it, as `run.py` passes
 `sample.metadata`, and `SampleScore.scorer` set to the scorer's name from
 the header (its unqualified registry name, as the task runner records
@@ -1249,13 +1249,7 @@ score and no `SampleInitEvent` (a sample whose record could not be
 serialized is logged without its events) is refused with
 `ShardSetError` before publishing or deleting. Reduced views take the
 metadata of the sample's first score, so grouped and clustered metrics see
-the same groups reduced or not. The metadata is the value as stored in the
-log, as JSON (decision: Ransom, 2026-10-29): a tuple becomes a list and a
-datetime or enum a string, so samples whose dataset metadata differed only
-in such types can share a group in the merge where a native run kept them
-apart (a tuple and a list group value merge into one group). The merge
-cannot detect this from the log; eval authors use JSON values in metadata
-that metrics read, and shards already run with other types are re-run. A task that declares one scorer twice
+the same groups reduced or not. A task that declares one scorer twice
 (score keys `name`, `name1`) is refused in `recreate_scorers`,
 before any sample is read: a fresh run names the suffixed scores' scorer
 `name`, a retry names it `name1`. After the last sample it calls
@@ -1386,6 +1380,20 @@ inspect_scout and the examples, none has an unannotated parameter, and
 their string options are annotated `str`, `Literal`, `str` enums or lists
 and dictionaries of `str`; the built-in metrics' only refused parameters
 are their converters.
+
+Stored form (decisions: Ransom, 2026-10-29, extended 2026-11-02).
+Merged metrics see samples, scores and metadata exactly as the log stores
+them, as JSON: sample metadata, `Score.value`, `Score.answer`,
+`Score.explanation`, `Score.metadata` and every other recorded field. A
+Python type the log does not keep (a tuple, a datetime, an enum, a set,
+...) is seen in its stored form, so a merge can differ from a live run
+whose metrics depend on those types: a tuple and a list group value fall
+into one group, and a metric that tests for a tuple score value or
+metadata entry finds a list. Eval authors return values that keep their
+meaning in the log (lists for sequence scores) and normalize metadata;
+shards already run with other types are re-run. The unscored NaN
+sentinel behaves as before. The merge does no detection or type recovery,
+and the producer, serializer and log format are unchanged.
 
 Solver-set scores (decision: Ransom, 2026-10-28). A score whose key
 matches no declared scorer (a solver set it in `state.scores`) is refused
@@ -2317,12 +2325,13 @@ today.
   `@metric` wrapper now sets
   `__wrapped__`, so `inspect.signature()` of a metric factory reports the
   factory's parameters instead of `(*args, **kwargs)`.
-- **Sample metadata** reaches merged metrics as stored in the log, as
-  JSON (decision: Ransom, 2026-10-29): a tuple and a list, or a datetime
-  or enum and its string, are the same to the merge, so groups and custom
-  metrics can differ from the native run when dataset metadata used such
-  types. Authors use JSON values in metadata metrics read; affected shards
-  are re-run. No producer or log-format change, and no detection.
+- **Stored form.** Merged metrics see samples, scores and metadata as the
+  log stores them, as JSON (decisions: Ransom, 2026-10-29 and
+  2026-11-02); types the log does not keep (tuples, datetimes, enums,
+  sets) are seen in stored form, so metrics that depend on them can
+  differ from a live run. Authors return log-preserving values and re-run
+  affected shards. No producer, serializer or log-format change, and no
+  detection.
 - **`eval_retry` of a merged log** is refused unless it was merged with
   no selection (`"none"`), which excludes every merged log `eval_set()`
   writes; `eval_set()` over the directory finishes those. An older Inspect
@@ -2804,10 +2813,13 @@ Per PR (numbers from "Implementation plan"):
      `Sequence[list[Metric]]` given `[[]]` and `[[], [metric]]`, and
      `grouped()` around an empty list) and a numeric `Literal[1, 2]`
      merge to the native values;
-   - metadata as stored: two samples whose group metadata is the tuple
+   - stored form: two samples whose group metadata is the tuple
      `("a", "b")` and the list `["a", "b"]` form two groups in a native
-     run and one group (0.5) in the merge, as documented, while string
-     group metadata merges to the native groups;
+     run and one group (0.5) in the merge, while string group metadata
+     merges to the native groups; a tuple `Score.value` (read by an
+     unreduced metric) and a tuple in `Score.metadata` are tuples to
+     native metrics and lists to merged ones, while list controls match
+     the native run;
    - delete-only S3 identity: `remove_shards_dir` refuses a merged log
      with `#`, a tab, CR, LF or a leading key slash, with and without
      `include_log`, on asyncio and Trio, deleting nothing (including the

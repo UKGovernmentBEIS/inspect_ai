@@ -2045,6 +2045,81 @@ def test_merged_metrics_see_metadata_as_stored_in_the_log(
         }
 
 
+@metric(name="shard_tuple_values", scores="unreduced")
+def shard_tuple_values() -> Metric:
+    """How many scores hold a tuple value (unreduced: reduction makes a list)."""
+
+    def compute(scores: list[SampleScore]) -> Value:
+        return float(sum(isinstance(s.score.value, tuple) for s in scores))
+
+    return compute
+
+
+@metric(name="shard_tuple_metadata")
+def shard_tuple_metadata() -> Metric:
+    """How many scores hold a tuple in their metadata."""
+
+    def compute(scores: list[SampleScore]) -> Value:
+        return float(
+            sum(isinstance((s.score.metadata or {}).get("pair"), tuple) for s in scores)
+        )
+
+    return compute
+
+
+async def _pair_score(state: TaskState, target: Target) -> Score:
+    pair = tuple if state.metadata["kind"] == "tuple" else list
+    return Score(value=pair([1, 2]), metadata={"pair": pair(["a", "b"])})
+
+
+@scorer(metrics=[shard_tuple_values(), shard_tuple_metadata()])
+def paired() -> Scorer:
+    return _pair_score
+
+
+def _paired_task(kind: str) -> Task:
+    return Task(
+        dataset=[
+            Sample(id=id, input=f"question {id}", metadata={"kind": kind})
+            for id in (1, 2)
+        ],
+        solver=generate(),
+        scorer=paired(),
+        name=TASK,
+    )
+
+
+@pytest.mark.parametrize("kind", ["tuple", "list"])
+def test_merged_metrics_see_scores_as_stored_in_the_log(
+    tmp_path: Path, kind: str
+) -> None:
+    # decision: Ransom, 2026-10-29, extended 2026-11-02: merged metrics see
+    # Score.value and Score.metadata as the log stores them, where a tuple
+    # is a list
+    native = eval(
+        _paired_task(kind),
+        model="mockllm/model",
+        log_dir=str(tmp_path / "unsharded"),
+        display="none",
+    )[0]
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", _paired_task(kind), sample_id=[1])
+    _run(shards, "1", _paired_task(kind), sample_id=[2])
+    log = merge_eval_log_shards(merged, delete_shards=True).log
+    stored = {
+        ("paired", "shard_tuple_values"): 0.0,
+        ("paired", "shard_tuple_metadata"): 0.0,
+    }
+    assert _metric_values(log) == stored
+    if kind == "tuple":
+        assert _metric_values(native) == {
+            ("paired", "shard_tuple_values"): 2.0,
+            ("paired", "shard_tuple_metadata"): 2.0,
+        }
+    else:
+        assert _metric_values(native) == stored
+
+
 def _check_invalidated(merged: str, expected: bool) -> None:
     from inspect_ai._eval.evalset import all_evals_succeeded
 
