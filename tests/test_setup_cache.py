@@ -61,7 +61,7 @@ async def _settle() -> None:
 
 async def test_waiters_join_one_job_per_key() -> None:
     script = Script()
-    async with SetupCache(script) as cache:
+    async with SetupCache(script, on_done=lambda: None) as cache:
         async with anyio.create_task_group() as tg:
             for _ in range(3):
                 tg.start_soon(cache.ensure, ["a"])
@@ -76,7 +76,7 @@ async def test_waiters_join_one_job_per_key() -> None:
 
 async def test_setups_run_one_at_a_time_in_request_order() -> None:
     script = Script()
-    async with SetupCache(script) as cache:
+    async with SetupCache(script, on_done=lambda: None) as cache:
         async with anyio.create_task_group() as tg:
             tg.start_soon(cache.ensure, ["a", "b", "c"])
             for key in ["a", "b", "c"]:
@@ -90,8 +90,8 @@ async def test_setups_run_one_at_a_time_in_request_order() -> None:
 
 async def test_a_job_waited_for_now_goes_ahead_of_requested_ones() -> None:
     script = Script()
-    async with SetupCache(script) as cache:
-        cache.request(["a", "b", "c"], lambda: None)
+    async with SetupCache(script, on_done=lambda: None) as cache:
+        cache.request(["a", "b", "c"])
         await _settle()
         assert script.started == ["a"]
         async with anyio.create_task_group() as tg:
@@ -115,8 +115,9 @@ async def test_failure_goes_to_current_waiters_then_is_forgotten() -> None:
         except Exception as ex:
             errors.append(ex)
 
-    async with SetupCache(script) as cache:
-        [job] = cache.request(["a"], lambda: told.append(job.failure))
+    # the listener is told as each job ends
+    async with SetupCache(script, on_done=lambda: told.append(job.failure)) as cache:
+        [job] = cache.request(["a"])
         async with anyio.create_task_group() as tg:
             tg.start_soon(wait)
             tg.start_soon(wait)
@@ -126,17 +127,19 @@ async def test_failure_goes_to_current_waiters_then_is_forgotten() -> None:
         assert [str(f.error) for f in told if f] == ["pull failed"]
         assert not _done(cache, ["a"])
         # the next request starts a fresh job, which can succeed
+        [job] = cache.request(["a"])
         async with anyio.create_task_group() as tg:
             tg.start_soon(cache.ensure, ["a"])
             await script.began_event("a").wait()
             script.finish("a")
         assert _done(cache, ["a"])
     assert script.started == ["a", "a"]
+    assert len(told) == 2 and told[1] is None
 
 
 async def test_ensure_raises_the_first_failure() -> None:
     script = Script()
-    async with SetupCache(script) as cache:
+    async with SetupCache(script, on_done=lambda: None) as cache:
         async with anyio.create_task_group() as tg:
 
             async def finish() -> None:
@@ -155,7 +158,7 @@ async def test_ensure_raises_the_first_failure() -> None:
 
 async def test_a_cancelled_waiter_does_not_cancel_the_job() -> None:
     script = Script()
-    async with SetupCache(script) as cache:
+    async with SetupCache(script, on_done=lambda: None) as cache:
         with anyio.move_on_after(0.05):
             await cache.ensure(["a"])
         assert script.started == ["a"]
@@ -180,8 +183,8 @@ async def test_run_cancellation_is_not_a_failure() -> None:
         await anyio.sleep_forever()
 
     with anyio.CancelScope() as scope:
-        async with SetupCache(setup) as cache:
-            cache.request(["a"], lambda: told.append(None))
+        async with SetupCache(setup, on_done=lambda: told.append(None)) as cache:
+            cache.request(["a"])
             await _settle()
             scope.cancel()
             await anyio.sleep_forever()
@@ -197,8 +200,8 @@ async def test_leaving_after_the_host_absorbed_a_run_cancellation() -> None:
 
     left = False
     with anyio.CancelScope() as scope:
-        async with SetupCache(setup) as cache:
-            cache.request(["a"], lambda: None)
+        async with SetupCache(setup, on_done=lambda: None) as cache:
+            cache.request(["a"])
             await _settle()
             scope.cancel()
             try:
@@ -217,7 +220,7 @@ async def test_cancelled_error_raised_by_the_setup_is_a_failure() -> None:
         pull.cancel()
         await pull
 
-    async with SetupCache(setup) as cache:
+    async with SetupCache(setup, on_done=lambda: None) as cache:
         with pytest.raises(RuntimeError, match="CancelledError"):
             await cache.ensure(["a"])
         assert not _done(cache, ["a"])
@@ -232,26 +235,26 @@ async def test_leaving_the_cache_cancels_the_running_job_and_drops_the_rest() ->
         finally:
             cancelled.append(key)
 
-    async with SetupCache(setup) as cache:
-        cache.request(["a", "b"], lambda: None)
+    async with SetupCache(setup, on_done=lambda: None) as cache:
+        cache.request(["a", "b"])
         await _settle()
     assert cancelled == ["a"]
 
     with pytest.raises(ValueError, match="run failed"):
-        async with SetupCache(setup) as cache:
-            cache.request(["c"], lambda: None)
+        async with SetupCache(setup, on_done=lambda: None) as cache:
+            cache.request(["c"])
             await _settle()
             raise ValueError("run failed")
     assert cancelled == ["a", "c"]
     with pytest.raises(RuntimeError, match="has been left"):
-        cache.request(["d"], lambda: None)
+        cache.request(["d"])
 
 
 async def test_base_exceptions_reach_waiters_and_are_kept_for_the_run() -> None:
     async def setup(key: str) -> None:
         raise _Fatal
 
-    async with SetupCache(setup) as cache:
+    async with SetupCache(setup, on_done=lambda: None) as cache:
         with pytest.raises(_Fatal):
             await cache.ensure(["a"])
         assert isinstance(cache.fatal, _Fatal)

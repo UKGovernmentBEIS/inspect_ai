@@ -41,6 +41,7 @@ from inspect_ai._eval.task.enqueue import (
 from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.tasks import Tasks
+from inspect_ai._util._async import Wake
 from inspect_ai._util.content import ContentImage
 from inspect_ai._util.registry import _registry
 from inspect_ai.dataset import MemoryDataset, Sample
@@ -388,6 +389,7 @@ def test_enqueue_task_invalid_start_raises_before_resolving() -> None:
         "run",
         resolve,
         lambda group: [],
+        wake=Wake(),
         retries=0,
         sequence_order=False,
         default_start="after_batch",

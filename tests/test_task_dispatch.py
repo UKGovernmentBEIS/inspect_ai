@@ -50,6 +50,7 @@ from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.run import TaskRunOptions
 from inspect_ai._eval.task.setup_cache import SetupCache
 from inspect_ai._eval.task.tasks import Tasks
+from inspect_ai._util._async import Wake
 from inspect_ai._util.error import EvalError, PrerequisiteError
 from inspect_ai.dataset import Sample
 from inspect_ai.log import (
@@ -159,7 +160,9 @@ class FakeStartup:
 
     def __init__(self, harness: "Harness") -> None:
         self.harness = harness
-        self.setups: SetupCache[str] = SetupCache(harness.setup)
+        self.setups: SetupCache[str] = SetupCache(
+            harness.setup, on_done=harness.queue.wake.set
+        )
 
     async def prepare(self, configured: ConfiguredTask) -> frozenset[str]:
         label = _label(configured.resolved)
@@ -214,6 +217,7 @@ class Harness:
             "run",
             resolve,
             self.configure,
+            wake=Wake(),
             retries=retries,
             sequence_order=parallel == 1,
             default_start=default_start,
@@ -438,6 +442,7 @@ def test_run_queue_close_refuses_put_and_returns_unstarted() -> None:
         "run",
         resolve,
         harness.configure,
+        wake=Wake(),
         retries=0,
         sequence_order=False,
         default_start="when_free",

@@ -133,6 +133,7 @@ class RunQueue:
         resolve: ResolveTasksFn,
         configure: ConfigureFn,
         *,
+        wake: Wake,
         retries: int,
         sequence_order: bool,
         default_start: TaskStartPolicy,
@@ -144,6 +145,9 @@ class RunQueue:
             resolve: Resolves tasks against the run's models and config (also
                 used by the loop for a ``TaskSource``'s ``next_tasks()``).
             configure: Configures tasks for the run.
+            wake: Set whenever the scheduling loop should look at the queue
+                again: by the queue as tasks are added, and by the run's
+                ``SetupCache`` as each setup ends.
             retries: How many times a task that fails is retried.
             sequence_order: Order the tasks of each addition by sequence (at a
                 launch limit of 1: the scheduling loop breaks ties in queue
@@ -159,8 +163,7 @@ class RunQueue:
         self._retries = retries
         self._sequence_order = sequence_order
         self.queued: list[TaskRecord] = []
-        self.wake = Wake()
-        """Set whenever the scheduling loop should look at the queue again."""
+        self.wake = wake
         self.records: list[TaskRecord] = []
         """Every record the loop has taken, in the order it took them."""
         self._by_id: dict[str, TaskRecord] = {}

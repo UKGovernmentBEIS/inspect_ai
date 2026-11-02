@@ -213,14 +213,18 @@ async def eval_run(
         task_source=task_source,
         generate_config=kwargs,
     )
+    wake = Wake()
     sandboxes = SandboxManager(
-        eval_config, cleanup=eval_config.sandbox_cleanup is not False
+        eval_config,
+        cleanup=eval_config.sandbox_cleanup is not False,
+        on_setup_done=wake.set,
     )
     startup = TaskStartup(settings, sandboxes, task_names=list(eval_set_tasks or []))
     queue = RunQueue(
         run_id,
         resolve_added_tasks,
         startup.configure,
+        wake=wake,
         retries=task_retry_attempts or 0,
         sequence_order=parallel == 1,
         default_start="when_free" if task_source else "after_batch",
@@ -970,9 +974,7 @@ class TaskDispatcher:
                 and record.setup_keys is not None
                 and (window >= 0 or self.setups.has_jobs(record.setup_keys))
             ):
-                record.setups = self.setups.request(
-                    record.setup_keys, self.queue.wake.set
-                )
+                record.setups = self.setups.request(record.setup_keys)
             blocked = blocked or not record.prepared
             if free and not blocked and record.can_start:
                 candidates.append(record)
@@ -1326,17 +1328,22 @@ class SandboxManager:
     is spawned, and releases it on exit.
     """
 
-    def __init__(self, config: EvalConfig, *, cleanup: bool) -> None:
+    def __init__(
+        self, config: EvalConfig, *, cleanup: bool, on_setup_done: Callable[[], None]
+    ) -> None:
         """Create the run's sandbox manager.
 
         Args:
             config: The eval config (sample selection, ``max_sandboxes``,
                 ``sandbox_prebuilt``).
             cleanup: Whether ``task_cleanup`` removes what setup created.
+            on_setup_done: Called as each config's setup ends.
         """
         self._config = config
         self._cleanup = cleanup
-        self.setups: SetupCache[TaskSandboxEnvironment] = SetupCache(self._init_one)
+        self.setups: SetupCache[TaskSandboxEnvironment] = SetupCache(
+            self._init_one, on_done=on_setup_done
+        )
         self.collect_output = False
         """Collect setup output (shown if the setup fails) instead of letting it
         through to the terminal: set once the task display is open."""

@@ -63,7 +63,6 @@ class SetupJob(Generic[K]):
         self.key = key
         self.done = anyio.Event()
         self.failure: SetupFailure | None = None
-        self.on_done: list[Callable[[], None]] = []
 
     @property
     def succeeded(self) -> bool:
@@ -76,8 +75,17 @@ class SetupCache(Generic[K]):
     Use as an async context manager around everything that requests setups.
     """
 
-    def __init__(self, setup: Callable[[K], Awaitable[None]]) -> None:
+    def __init__(
+        self, setup: Callable[[K], Awaitable[None]], *, on_done: Callable[[], None]
+    ) -> None:
+        """Create the cache.
+
+        Args:
+            setup: Sets up one key.
+            on_done: Called as each job ends (succeeded or failed).
+        """
         self._setup = setup
+        self._on_done = on_done
         self._jobs: dict[K, SetupJob[K]] = {}
         self._waiting: deque[SetupJob[K]] = deque()
         self._working = False
@@ -117,15 +125,9 @@ class SetupCache(Generic[K]):
                     raise
                 return None
 
-    def request(
-        self, keys: Iterable[K], on_done: Callable[[], None]
-    ) -> list[SetupJob[K]]:
-        """The jobs of ``keys``, adding those it lacks; ``on_done`` is called as each unfinished one ends."""
-        jobs = [self._job(key) for key in keys]
-        for job in jobs:
-            if not job.done.is_set():
-                job.on_done.append(on_done)
-        return jobs
+    def request(self, keys: Iterable[K]) -> list[SetupJob[K]]:
+        """The jobs of ``keys``, adding those it lacks."""
+        return [self._job(key) for key in keys]
 
     def has_jobs(self, keys: Iterable[K]) -> bool:
         """Whether every key has a job (waiting, running or succeeded), so requesting them adds none."""
@@ -182,9 +184,7 @@ class SetupCache(Generic[K]):
                 self.fatal = ex
                 self._fail(job, ex)
             job.done.set()
-            for on_done in job.on_done:
-                on_done()
-            job.on_done = []
+            self._on_done()
         self._working = False
 
     def _fail(self, job: SetupJob[K], error: BaseException) -> None:
