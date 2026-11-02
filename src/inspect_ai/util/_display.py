@@ -48,8 +48,12 @@ def init_display_type(display: str | None = None) -> DisplayType:
         from inspect_ai._eval import eval as eval_module
 
         if eval_module._eval_async_running:
-            # a running eval owns the display (e.g. score() called from a
-            # solver), so keep the type it is rendering with
+            # a running eval owns the display (e.g. eval() called from another
+            # thread), so keep the type it is rendering with
+            logger.warning(
+                f"Ignoring display type '{_display_type}' while an eval is "
+                f"running with display type '{previous_display_type}'."
+            )
             _display_type = previous_display_type
         else:
             # the active display was built for the previous type (e.g. by an

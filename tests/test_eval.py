@@ -352,7 +352,10 @@ def test_eval_display_none_then_log_shows_log_output(
 
 
 def test_display_type_change_during_eval_keeps_running_display(
-    fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     import inspect_ai._display.core.rich as display_rich
     from inspect_ai.util._display import display_type, init_display_type
@@ -364,7 +367,7 @@ def test_display_type_change_during_eval_keeps_running_display(
     @solver
     def change_display() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            # as score(display="log") does when called from a solver or hook
+            # as eval(display="log") does when called from another thread
             init_display_type("log")
             return state
 
@@ -374,6 +377,7 @@ def test_display_type_change_during_eval_keeps_running_display(
     log = eval(task, model="mockllm/model", display="rich", log_dir=str(tmp_path))[0]
     assert log.status == "success"
     assert display_type() == "rich"
+    assert "Ignoring display type 'log'" in caplog.text
 
 
 def test_max_tasks_bounds_concurrent_models_single_task():
