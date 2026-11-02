@@ -2022,6 +2022,28 @@ async def test_continuation_replays_signatures_in_place(
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize(
+    "before", [_thought("thinking"), Part(text="here:")], ids=["thinking", "text"]
+)
+async def test_streamed_signed_image_is_kept(before: Part) -> None:
+    """A streamed signed image keeps its content and signature, as unstreamed."""
+    image = Part(
+        inline_data=Blob(mime_type="image/png", data=b"PNG"), thought_signature=b"S"
+    )
+    streamed, _, _ = await _generate_streamed(
+        [[_chunk([before]), _chunk([image], FinishReason.STOP)]]
+    )
+    plain, _, _ = await _generate_with_legs([_leg([before, image], FinishReason.STOP)])
+
+    message = streamed.choices[0].message
+    assert isinstance(message.content, list)
+    assert any(isinstance(c, ContentImage) for c in message.content)
+    replayed = await content(MagicMock(), message)
+    assert image in (replayed.parts or [])
+    assert replayed.parts == (await content(MagicMock(), plain.message)).parts
+
+
+@pytest.mark.anyio
 @pytest.mark.parametrize("streaming", [False, True], ids=["plain", "streamed"])
 @pytest.mark.parametrize(
     "text", [None, "", "hel"], ids=["signature-only", "signed-empty", "signed-text"]

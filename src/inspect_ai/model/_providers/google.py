@@ -440,8 +440,10 @@ def _merge_streamed_parts(
 ) -> list[Part]:
     """Join a streamed candidate's text and thought fragments into whole parts.
 
-    A thought signature with no output text before it to go on is dropped,
-    unless `keep_unattached_signatures`, which keeps its part as it came.
+    A signed part with content other than text (an image, for example) is
+    kept as it came. A thought signature with no content of its own goes on
+    the output text before it; with no such text it is dropped, unless
+    `keep_unattached_signatures`, which keeps its part as it came.
     """
     merged_parts: list[Part] = []
     thinking_texts: list[str] = []
@@ -481,6 +483,11 @@ def _merge_streamed_parts(
                             executable_code=part.executable_code,
                         )
                     )
+            elif _part_fields(part) - {"text", "thought", "thought_signature"}:
+                if output_texts:
+                    merged_parts.append(Part(text="".join(output_texts)))
+                    output_texts = []
+                merged_parts.append(part)
             else:
                 if output_texts:
                     merged_parts.append(
