@@ -22,8 +22,8 @@ REPO = pathlib.Path(__file__).parents[1]
 WORKFLOWS = REPO / ".github" / "workflows"
 BUILD = WORKFLOWS / "build.yml"
 # The shared install actions, pinned by SHA at each call site. The install
-# commands themselves live in the actions repo, so these tests read the call
-# inputs (versions, requirements-file) rather than the old `uv sync` run lines.
+# commands themselves live in the actions repo, so these tests read the
+# install-shape inputs of each call rather than the old `uv sync` run lines.
 ACTIONS = "meridianlabs-ai/actions/"
 INSTALL_ACTION = ACTIONS + "install-python-dependencies"
 SETUP_UV_ACTION = ACTIONS + "setup-uv"
