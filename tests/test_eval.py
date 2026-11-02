@@ -597,7 +597,7 @@ def test_eval_task_function_not_replaced_by_later_same_name_task() -> None:
     assert log.eval.task_args["prefix"] == "custom"
 
 
-def test_eval_list_with_task_function_then_task_instance() -> None:
+def test_eval_list_with_task_function_then_task_instance(caplog) -> None:
     # `Tasks` has no mixed-list member, but eval() has always run this list
     logs = eval(
         cast(
@@ -612,6 +612,33 @@ def test_eval_list_with_task_function_then_task_instance() -> None:
         "function",
         "instance",
     ]
+    records = _task_args_warnings(caplog)
+    assert len(records) == 1, "expected exactly one unconsumed task_args warning"
+    assert "task_arg" in records[0].message
+
+
+def test_eval_list_with_task_function_then_task_instance_no_args_no_warning(
+    caplog,
+) -> None:
+    logs = eval(
+        cast(Any, [task_args_warning_check, task_args_warning_check()]),
+        model="mockllm/model",
+    )
+    assert [log.status for log in logs] == ["success", "success"]
+    assert not _task_args_warnings(caplog)
+
+
+def test_eval_task_function_list_with_task_args_no_warning(caplog) -> None:
+    logs = eval(
+        [task_args_warning_check, task_args_warning_check],
+        task_args={"task_arg": "function"},
+        model="mockllm/model",
+    )
+    assert [log.eval.task_args["task_arg"] for log in logs] == [
+        "function",
+        "function",
+    ]
+    assert not _task_args_warnings(caplog)
 
 
 def test_eval_registered_non_task_function_raises() -> None:

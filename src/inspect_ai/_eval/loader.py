@@ -175,6 +175,16 @@ def resolve_tasks(
     # handle functions that return tasks (Task instances after them in the
     # list are used as is)
     if isinstance(tasks, list) and callable(tasks[0]):
+        if (
+            warn_unconsumed_task_args
+            and task_args
+            and any(isinstance(task, Task) for task in tasks)
+        ):
+            logger.warning(
+                f"task_args {sorted(task_args.keys())} will not be applied "
+                "to the Task instances in the list: they apply only to the "
+                "@task functions."
+            )
         return as_resolved_tasks(
             [
                 task
