@@ -5,7 +5,7 @@
 # pre-commit would install on its own. `uv run --frozen` syncs the
 # environment to uv.lock first, so a fresh worktree works, without checking
 # the lock is current; the uv-lock hook does that. Each definition mirrors
-# the upstream hook at the version pinned in requirements-dev.txt.
+# the upstream hook at the version pinned in pyproject.toml's dev extra.
 minimum_pre_commit_version: "4.4.0"
 repos:
   - repo: local

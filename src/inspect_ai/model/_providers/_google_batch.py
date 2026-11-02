@@ -44,6 +44,7 @@ _SDK_ONLY_FIELDS = {
     "automatic_function_calling",
     "should_return_http_response",
     "labels",
+    "automatic_continuation",
 }
 
 
