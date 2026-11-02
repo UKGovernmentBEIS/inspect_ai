@@ -2,6 +2,7 @@ import json
 import pickle
 import sys
 from datetime import datetime, timezone
+from enum import IntEnum, StrEnum
 from pathlib import Path
 from typing import Any, Iterator, Literal
 
@@ -157,6 +158,41 @@ def test_cache_model_args_instance_key_preserves_json_arguments() -> None:
     ) != cache_model_args_key(
         {"client": client, "option": ["opaque"]}, instance_key="first"
     )
+
+
+class _System(StrEnum):
+    THREE = "3"
+
+
+class _MaxTokens(IntEnum):
+    THREE = 3
+
+
+class _Options(list[Any]):
+    pass
+
+
+@pytest.mark.parametrize(
+    "extra_body",
+    [
+        {"system": _System.THREE},
+        {"max_tokens": _MaxTokens.THREE},
+        {_System.THREE: "3"},
+        {"options": _Options([True])},
+    ],
+)
+@pytest.mark.parametrize("instance_key", [None, "instance"])
+def test_cache_model_args_key_refuses_json_subclasses(
+    extra_body: dict[Any, Any], instance_key: str | None
+) -> None:
+    """Providers send these as JSON, but the fingerprint would see them as opaque."""
+    with pytest.raises(TypeError, match="does not support the model argument"):
+        cache_model_args_key(
+            {"client": object(), "extra_body": extra_body}
+            if instance_key
+            else {"extra_body": extra_body},
+            instance_key=instance_key,
+        )
 
 
 async def test_cache_opaque_model_args_track_mutated_request_defaults(

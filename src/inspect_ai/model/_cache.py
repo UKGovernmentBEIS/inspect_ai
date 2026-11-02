@@ -226,12 +226,16 @@ def cache_model_args_key(
 
 def _model_args_tree(value: Any, ancestors: set[int]) -> Any:
     """Tag each node so an opaque placeholder cannot collide with user JSON."""
+    _reject_json_subclass(value)
     if type(value) in (str, int, bool, type(None)) or (
         type(value) is float and math.isfinite(value)
     ):
         return ["value", value]
     if id(value) in ancestors:
         return ["opaque"]
+    if type(value) is dict:
+        for key in value:
+            _reject_json_subclass(key)
     if type(value) is list or (
         type(value) is dict and all(type(key) is str for key in value)
     ):
@@ -249,15 +253,35 @@ def _model_args_tree(value: Any, ancestors: set[int]) -> Any:
 
 
 def _is_json_value(value: Any) -> bool:
+    _reject_json_subclass(value)
     if type(value) in (str, int, float, bool, type(None)):
         return True
     if type(value) is list:
         return all(_is_json_value(item) for item in value)
     if type(value) is dict:
+        for key in value:
+            _reject_json_subclass(key)
         return all(
             type(key) is str and _is_json_value(item) for key, item in value.items()
         )
     return False
+
+
+_JSON_TYPES = (str, int, float, bool, list, dict)
+
+
+def _reject_json_subclass(value: Any) -> None:
+    """Refuse subclasses of JSON types, such as enums, in cached model args.
+
+    A provider sends them as JSON, but the fingerprint treats them as opaque,
+    so two different values would share cached output.
+    """
+    if isinstance(value, _JSON_TYPES) and type(value) not in _JSON_TYPES:
+        raise TypeError(
+            f"Model output caching does not support the model argument value "
+            f"{value!r} of type {type(value).__name__}. Pass a plain str, int, "
+            f"float, bool, list or dict instead (for an enum, use its .value)."
+        )
 
 
 # Runtime/transport GenerateConfig knobs that cannot change what the provider
