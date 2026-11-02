@@ -176,7 +176,7 @@ def test_gemini_replay_accepts_snake_case_function_calls() -> None:
             id="placeholder",
         ),
         pytest.param(
-            lambda p: (p[1].update(thoughtSignature=p[0].pop("thoughtSignature"))),
+            lambda p: p[1].update(thoughtSignature=p[0].pop("thoughtSignature")),
             id="moved-to-other-call",
         ),
     ],

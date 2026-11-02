@@ -1487,6 +1487,16 @@ def capture_module_warnings(
         module_logger.removeHandler(caplog.handler)
 
 
+def module_warnings(caplog: pytest.LogCaptureFixture, module: str) -> list[str]:
+    """Messages logged by `module`.
+
+    pytest also attaches `caplog.handler` to the root logger, so `caplog.records`
+    can hold unrelated records, such as asyncio's "Unclosed client session"
+    errors when the GC finalizes a session an earlier test leaked.
+    """
+    return [r.getMessage() for r in caplog.records if r.name == module]
+
+
 @pytest.fixture
 def capture_bridge_warnings(caplog: pytest.LogCaptureFixture) -> Iterator[None]:
     """Route the sandbox bridge module's warnings to caplog."""
@@ -1514,7 +1524,7 @@ def test_setup_warns_once_naming_every_tool_sharing_a_description(
 
     bridge.warn_indistinct_tools()
 
-    warnings = [r.getMessage() for r in caplog.records]
+    warnings = module_warnings(caplog, SandboxAgentBridge.__module__)
     assert len(warnings) == 1
     assert "sharing a description" in warnings[0]
     assert "a/read_file" in warnings[0] and "b/read_file" in warnings[0]
@@ -1534,7 +1544,7 @@ def test_setup_warns_about_tools_sharing_an_empty_description(
 
     bridge.warn_indistinct_tools()
 
-    warnings = [r.getMessage() for r in caplog.records]
+    warnings = module_warnings(caplog, SandboxAgentBridge.__module__)
     assert len(warnings) == 1
     assert "a/read_file" in warnings[0] and "b/read_file" in warnings[0]
 
@@ -1552,7 +1562,7 @@ def test_setup_is_silent_for_distinct_descriptions(
 
     bridge.warn_indistinct_tools()
 
-    assert caplog.records == []
+    assert module_warnings(caplog, SandboxAgentBridge.__module__) == []
 
 
 async def test_description_selects_the_server_whatever_the_name() -> None:
@@ -2536,7 +2546,7 @@ async def test_denial_warning_names_the_opt_out(
         "Host tool call 'host/read_file' was not proposed by the model in a "
         "bridged generation (a bridged host tool runs once per proposed call)"
     )
-    warnings = [r.getMessage() for r in caplog.records]
+    warnings = module_warnings(caplog, execute_host_tool.__module__)
     assert len(warnings) == 1
     assert warnings[0].startswith("Denied host tool call 'host/read_file'")
     assert (
@@ -2666,7 +2676,7 @@ def test_eviction_warning_says_what_the_evicted_grant_loses(
         declare("read_file"),
     )
 
-    [warning] = [r.getMessage() for r in caplog.records]
+    [warning] = module_warnings(caplog, SandboxAgentBridge.__module__)
     assert "require_proposal=False servers count too" in warning
     if exempt:
         assert "that call still executes" in warning
