@@ -545,12 +545,15 @@ def test_rerun_after_failure_before_dispatching_dispatches_all() -> None:
 
 def test_rerun_after_only_the_first_dispatches_succeeded_dispatches_the_last() -> None:
     gh = FakeGitHub()
-    gh.fail = lambda args: args[:4] == [
-        "gh",
-        "workflow",
-        "run",
-        "release-pr-checks.yml",
-    ]
+    gh.fail = lambda args: (
+        args[:4]
+        == [
+            "gh",
+            "workflow",
+            "run",
+            "release-pr-checks.yml",
+        ]
+    )
     with pytest.raises(ReleaseError, match="release-pr-checks.yml"):
         _dispatch(gh)
     assert gh.dispatches() == ["build.yml", "changelog-lint.yml"]
