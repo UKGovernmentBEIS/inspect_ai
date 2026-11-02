@@ -228,12 +228,21 @@ def test_ruff_disable_and_own_line_ignore_must_open_the_comment() -> None:
 
 def test_ruff_bracket_codes_keep_only_uppercase_codes() -> None:
     # ruff applies each valid code and skips other entries (verified:
-    # "[e501, F401]" suppresses F401); an entry that isn't a code, an
+    # "[e501, F401]" suppresses F401, as does "[F401, ]"). A list with no
+    # valid code, an empty entry before the last, a hash in the list, an
     # unclosed list, or an uppercase prefix or verb suppresses nothing.
     assert scan("import os  # ruff: ignore[e501, F401]\n") == [
         ("ruff: ignore[F401]", False)
     ]
+    assert scan("import os  # ruff: ignore[F401, ]\n") == [
+        ("ruff: ignore[F401]", False)
+    ]
     for text in (
+        "import os  # ruff: ignore[,F401]\n",
+        "import os, sys  # ruff: ignore[F401,,E401]\n",
+        "import os  # ruff: ignore[F401,,]\n",
+        "import os  # ruff: ignore[F401, # x]\n",
+        "# ruff: disable[,F401]\nimport os\n",
         "import os, sys  # ruff: ignore[F401 E401]\n",
         "import os  # ruff: ignore[unused-import]\n",
         "import os  # ruff: ignore[ALL]\n",

@@ -51,6 +51,7 @@ UPDATE_HINT = "run `make suppressions-update`"
 FILE_WIDE = " (file-wide)"
 
 _NOQA_CODES = r"[A-Z]+[0-9]+(?:[,\s]+[A-Z]+[0-9]+)*"
+_RUFF_CODE_RE = re.compile(r"[A-Z]+[0-9]+")
 _BRACKET = r"\[\s*(?P<{name}>[\w-]+(?:\s*,\s*[\w-]+)*)\s*\]"
 
 # A directive counts only when it opens a comment segment (anchored at `#`),
@@ -69,10 +70,8 @@ _BRACKET = r"\[\s*(?P<{name}>[\w-]+(?:\s*,\s*[\w-]+)*)\s*\]"
 # and suppresses nothing); _rules maps that to no records. Whitespace is
 # tolerated before either colon ("noqa : F401" is coded).
 #
-# ruff: disable[...] and ruff: ignore[...] take a closed bracket list split
-# on commas; ruff applies each uppercase code in it and skips the other
-# entries (verified: "[e501, F401]" suppresses F401, "[F401 E401]" and
-# "[unused-import]" suppress nothing). The prefix and verb are lowercase only.
+# ruff: disable[...] and ruff: ignore[...] take a closed bracket list, parsed
+# by _ruff_bracket_rules. The prefix and verb are lowercase only (verified).
 DIRECTIVE_RE = re.compile(
     r"""\#+\s*(?:
         (?:ruff|flake8)\s*:\s*(?P<file_noqa>(?i:noqa))(?:\s*(?P<file_noqa_colon>:)\s*(?P<file_noqa_codes>{noqa_codes})?)?
@@ -105,9 +104,6 @@ _SEPARATORS_RE = re.compile(r"[#\s—–-]+")
 _LEGACY_TYPE_COMMENT_RE = re.compile(r"#\s*type:(?!\s*ignore\b)[^#]*")
 
 
-_RUFF_CODE_RE = re.compile(r"[A-Z]+[0-9]+")
-
-
 class Suppression(NamedTuple):
     rule: str
     described: bool
@@ -128,6 +124,22 @@ def _noqa_rules(colon: str | None, codes: str | None) -> list[str]:
     return [f"noqa:{c}" for c in _split_codes(codes)] if codes else ["noqa"]
 
 
+def _ruff_bracket_rules(verb: str, codes: str) -> list[str]:
+    """Rule keys for one ruff: disable[...] / ruff: ignore[...] directive.
+
+    ruff splits the list on commas and applies each uppercase code, skipping
+    other entries ("[e501, F401]" suppresses F401, "[F401 E401]" nothing). One
+    trailing comma is allowed; any other empty entry, or a hash in the list,
+    drops the whole list (all verified).
+    """
+    entries = [c.strip() for c in codes.split(",")]
+    if entries[-1] == "":
+        entries.pop()
+    if any(not c or "#" in c for c in entries):
+        return []
+    return [f"ruff: {verb}[{c}]" for c in entries if _RUFF_CODE_RE.fullmatch(c)]
+
+
 def _rules(m: re.Match[str]) -> list[str]:
     """Ledger rule keys for one directive match (one per code)."""
     if m.group("file_noqa"):
@@ -136,8 +148,7 @@ def _rules(m: re.Match[str]) -> list[str]:
     if m.group("noqa"):
         return _noqa_rules(m.group("noqa_colon"), m.group("noqa_codes"))
     if verb := m.group("ruff_verb"):
-        codes = [c.strip() for c in m.group("ruff_codes").split(",")]
-        return [f"ruff: {verb}[{c}]" for c in codes if _RUFF_CODE_RE.fullmatch(c)]
+        return _ruff_bracket_rules(verb, m.group("ruff_codes"))
     if m.group("type_ignore"):
         codes = m.group("type_codes")
         if codes:
