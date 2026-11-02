@@ -110,6 +110,7 @@ from ._agent_message import validate_agent_message
 from ._cache import (
     CacheEntry,
     CachePolicy,
+    UnsupportedModelArgError,
     cache_fetch,
     cache_model_args_key,
     cache_store,
@@ -890,6 +891,9 @@ class Model:
         self.config = config
         self.model_args = model_args if model_args is not None else {}
         self._cache_instance_key = uuid()
+        self._cache_init_args_key = _init_model_args_key(
+            self.model_args, self._cache_instance_key
+        )
         self._role: str | None = None
         self._explicit_base_url: str | None = None
 
@@ -1556,16 +1560,14 @@ class Model:
 
                 # per attempt and after the hooks, since either can change
                 # nested constructor args that the provider reads per request
-                model_args_key = cache_model_args_key(self.model_args)
-                if model_args_key is None:
-                    warn_once(
-                        logger,
-                        "Model output caching is scoped to this model instance: "
-                        "constructor arguments contain values without a reliable "
-                        "persistent identity.",
-                    )
+                model_args_key = _model_args_key(
+                    self.model_args, self._cache_instance_key, warn=True
+                )
+                # some providers copy their configuration at construction, so
+                # args changed since then must also carry the original ones
+                if model_args_key != self._cache_init_args_key:
                     model_args_key = cache_model_args_key(
-                        self.model_args, instance_key=self._cache_instance_key
+                        {"init": self._cache_init_args_key, "now": model_args_key}
                     )
 
                 cache_entry = CacheEntry(
@@ -2397,6 +2399,37 @@ class ModelName:
             return (parts[0], "/".join(parts[1:]))
         else:
             return (None, model)
+
+
+def _model_args_key(
+    model_args: dict[str, Any], instance_key: str, *, warn: bool
+) -> str | None:
+    """Fingerprint model args, scoped to the instance when they are opaque."""
+    key = cache_model_args_key(model_args)
+    if key is None:
+        if warn:
+            warn_once(
+                logger,
+                "Model output caching is scoped to this model instance: "
+                "constructor arguments contain values without a reliable "
+                "persistent identity.",
+            )
+        key = cache_model_args_key(model_args, instance_key=instance_key)
+    return key
+
+
+def _init_model_args_key(model_args: dict[str, Any], instance_key: str) -> str | None:
+    """Fingerprint the model args as a provider saw them at construction.
+
+    Some providers parse their configuration at construction (Google
+    `safety_settings`), so a later change to the args does not reach the
+    request. Args that caching refuses raise only when caching is used, so
+    here they scope the fingerprint to the instance instead.
+    """
+    try:
+        return _model_args_key(model_args, instance_key, warn=False)
+    except (UnsupportedModelArgError, RecursionError):
+        return instance_key
 
 
 def get_model(

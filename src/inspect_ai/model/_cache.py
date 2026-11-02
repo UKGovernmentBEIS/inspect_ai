@@ -270,6 +270,10 @@ def _is_json_value(value: Any) -> bool:
 _JSON_TYPES = (str, int, float, bool, list, dict)
 
 
+class UnsupportedModelArgError(TypeError):
+    """A model arg value that output caching cannot fingerprint."""
+
+
 def _reject_json_subclass(value: Any) -> None:
     """Refuse subclasses of JSON types, such as enums, in cached model args.
 
@@ -277,7 +281,7 @@ def _reject_json_subclass(value: Any) -> None:
     so two different values would share cached output.
     """
     if isinstance(value, _JSON_TYPES) and type(value) not in _JSON_TYPES:
-        raise TypeError(
+        raise UnsupportedModelArgError(
             f"Model output caching does not support the model argument value "
             f"{value!r} of type {type(value).__name__}. Pass a plain str, int, "
             f"float, bool, list or dict instead (for an enum, use its .value)."

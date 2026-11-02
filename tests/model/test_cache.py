@@ -1,10 +1,11 @@
 import json
 import pickle
 import sys
+from copy import deepcopy
 from datetime import datetime, timezone
 from enum import IntEnum, StrEnum
 from pathlib import Path
-from typing import Any, Iterator, Literal
+from typing import Any, Iterator, Literal, cast
 
 import httpx2
 import pytest
@@ -24,6 +25,7 @@ from inspect_ai.model import (
     CachePolicy,
     ChatMessageUser,
     GenerateConfig,
+    Model,
     ModelOutput,
     get_model,
 )
@@ -215,6 +217,60 @@ async def test_cache_opaque_model_args_track_mutated_request_defaults(
     second = await model.generate("Hello", cache=True)
     third = await model.generate("Hello", cache=True)
     assert [first.completion, second.completion, third.completion] == ["3", "4", "4"]
+    assert calls == 2
+
+
+async def test_cache_keeps_model_args_parsed_at_construction(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Google copies safety settings at construction, so a later edit is not sent."""
+    from inspect_ai.model._providers import google as google_provider
+
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+    # the provider mutates these shared defaults when it applies user settings
+    monkeypatch.setattr(
+        google_provider,
+        "DEFAULT_SAFETY_SETTINGS",
+        deepcopy(google_provider.DEFAULT_SAFETY_SETTINGS),
+    )
+    calls = 0
+
+    def with_threshold_completion(model: Model) -> None:
+        async def generate_output(*args: Any, **kwargs: Any) -> ModelOutput:
+            nonlocal calls
+            calls += 1
+            api = cast(google_provider.GoogleGenAIAPI, model.api)
+            threshold = next(
+                str(setting["threshold"])
+                for setting in api.safety_settings
+                if "HARASSMENT" in str(setting["category"])
+            )
+            return ModelOutput.from_content(model="google", content=threshold)
+
+        monkeypatch.setattr(model.api, "generate", generate_output)
+
+    safety_settings = {"harassment": "low"}
+    low = get_model(
+        "google/gemini-2.5-flash",
+        api_key="test",
+        safety_settings=safety_settings,
+        memoize=False,
+    )
+    with_threshold_completion(low)
+    safety_settings["harassment"] = "high"
+    low_output = await low.generate("Hello", cache=True)
+
+    high = get_model(
+        "google/gemini-2.5-flash",
+        api_key="test",
+        safety_settings={"harassment": "high"},
+        memoize=False,
+    )
+    with_threshold_completion(high)
+    high_output = await high.generate("Hello", cache=True)
+
+    assert "LOW" in low_output.completion
+    assert "HIGH" in high_output.completion
     assert calls == 2
 
 
