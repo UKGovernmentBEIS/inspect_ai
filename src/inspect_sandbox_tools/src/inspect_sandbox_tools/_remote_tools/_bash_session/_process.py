@@ -5,6 +5,7 @@ from asyncio.subprocess import Process as AsyncIOProcess
 
 import psutil
 
+from ..._util.common_types import ToolException
 from ..._util.process_tree import process_group_members, terminate_process_tree
 from ..._util.pseudo_terminal import PseudoTerminal, PseudoTerminalIO
 from ..._util.timeout_event import TimeoutEvent
@@ -17,7 +18,11 @@ _DEFAULT_MAX_BASH_SESSION_RESPONSE_BYTES = 10 * 1024**2
 
 class Process:
     @classmethod
-    async def create(cls, user: str | RunAs | None = None) -> "Process":
+    async def create(
+        cls, user: str | RunAs | None = None, cwd: str | None = None
+    ) -> "Process":
+        if cwd is not None:
+            await _check_working_directory(user, cwd)
         pty = await PseudoTerminal.create()
 
         env = {**os.environ, "TERM": "dumb"}
@@ -33,6 +38,7 @@ class Process:
                 stderr=pty.subprocess_fd,
                 env=env,
                 start_new_session=True,
+                cwd=cwd,
                 preexec_fn=make_preexec(user),
             ),
             pty,
@@ -241,6 +247,29 @@ ansi_escape_pattern = re.compile(
 """,
     re.VERBOSE,
 )
+
+
+async def _check_working_directory(user: str | RunAs | None, cwd: str) -> None:
+    """Refuse a working directory the shell's user cannot enter.
+
+    The shell's working directory is set before it switches user, so check it
+    as that user first.
+    """
+    probe = await asyncio.create_subprocess_exec(
+        "/bin/sh",
+        "-c",
+        'cd -- "$1"',
+        "sh",
+        cwd,
+        stdin=asyncio.subprocess.DEVNULL,
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.PIPE,
+        preexec_fn=make_preexec(user),
+    )
+    _, stderr = await probe.communicate()
+    if probe.returncode != 0:
+        reason = stderr.decode(errors="replace").strip()
+        raise ToolException(f"The shell cannot start in {cwd!r}: {reason}")
 
 
 def strip_control_characters(text: str) -> str:

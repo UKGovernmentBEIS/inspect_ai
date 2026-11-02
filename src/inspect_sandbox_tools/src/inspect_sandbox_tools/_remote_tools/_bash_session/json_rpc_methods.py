@@ -20,7 +20,10 @@ _can_switch_user = os.getuid() == 0
 async def bash_session_new_session(params: NewSessionParams) -> NewSessionResult:
     return NewSessionResult(
         session_name=await controller.new_session(
-            user=params.user, can_switch_user=_can_switch_user, bind=params.bind
+            user=params.user,
+            can_switch_user=_can_switch_user,
+            bind=params.bind,
+            cwd=params.cwd,
         )
     )
 

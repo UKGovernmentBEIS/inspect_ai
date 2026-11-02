@@ -1,4 +1,5 @@
 import asyncio
+import os
 import pwd
 
 from ..._util.common_types import ServerErrorCode, ToolException
@@ -30,15 +31,20 @@ class Controller(SessionController[Session]):
         user: str | RunAs | None = None,
         can_switch_user: bool = False,
         bind: bool = False,
+        cwd: str | None = None,
     ) -> str:
         """Create a shell running as `user`, and return its name.
 
         A bound shell (`bind`) records `user` as its owner and gets a name that no
         other server issues, so a request for it never reaches another shell after
-        the server is replaced.
+        the server is replaced. The shell starts in `cwd`, if given.
         """
         if bind and not isinstance(user, str):
             raise ToolException("A bound shell needs a username as its user")
+        if cwd is not None and not os.path.isabs(cwd):
+            raise ToolException(
+                f"A shell's working directory must be an absolute path, not {cwd!r}"
+            )
         owner = user if bind else None
         user = switch_target(user, can_switch_user)
         if isinstance(user, str):
@@ -48,7 +54,7 @@ class Controller(SessionController[Session]):
                 raise RuntimeError(f"User {user!r} not found in /etc/passwd") from None
         return await self.create_new_session(
             DEFAULT_SESSION_NAME,
-            lambda: Session.create(user=user, owner=owner),
+            lambda: Session.create(user=user, owner=owner, cwd=cwd),
             unique=bind,
         )
 
@@ -91,7 +97,7 @@ class Controller(SessionController[Session]):
 
     async def shutdown(self) -> None:
         """Terminate every bash session owned by this server."""
-        with self._lock:
+        async with self._lock:
             sessions = list(self._sessions.values())
             self._sessions.clear()
 

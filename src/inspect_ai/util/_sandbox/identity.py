@@ -1,3 +1,4 @@
+import posixpath
 from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Iterator, NamedTuple
@@ -30,9 +31,9 @@ def sandbox_identity(
     Inside the block, built-in tools that run commands in `sandbox` run them
     as `user`: `bash()`, `python()`, `grep()`, `list_files()`, `read_file()`,
     `bash_session()` and `text_editor()`. `bash()`, `python()`, `grep()`,
-    `list_files()` and `read_file()` also start in `cwd`. `cwd` does not
-    change where a `bash_session()` shell starts or what `text_editor()`
-    resolves relative paths against. A `bash_session()` shell created in the
+    `list_files()` and `read_file()` also start in `cwd`, a `bash_session()`
+    shell created in the block starts (and restarts) there, and `text_editor()`
+    resolves relative paths against it. A `bash_session()` shell created in the
     block works only with the sandbox tools server that created it, and needs
     inspect-sandbox-tools 1.3.0 or later. A tool configured with a different
     `user` raises `SandboxIdentityError`, and so do `computer()` and
@@ -55,18 +56,20 @@ def sandbox_identity(
 
     Args:
        user: User to run as.
-       cwd: Working directory for the tools above and for `exec_remote()`
-          commands that do not set one.
+       cwd: Absolute working directory for the tools above and for
+          `exec_remote()` commands that do not set one.
        sandbox: Name of the sandbox environment the identity applies to.
 
     Raises:
        SandboxIdentityError: If a scope is already active.
-       ValueError: If `user` is empty or `sandbox` is not one of the sample's
-          environments.
+       ValueError: If `user` is empty, `cwd` is not absolute, or `sandbox` is
+          not one of the sample's environments.
        ProcessLookupError: If there are no sandboxes available.
     """
     if not user:
         raise ValueError("sandbox_identity() requires a user.")
+    if cwd is not None and not posixpath.isabs(cwd):
+        raise ValueError(f"sandbox_identity() requires an absolute cwd, not '{cwd}'.")
     if (outer := _sandbox_identity.get()) is not None:
         raise SandboxIdentityError(
             f"A sandbox identity scope for user '{outer.user}' is already active; "

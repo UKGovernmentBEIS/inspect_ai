@@ -279,6 +279,8 @@ def bash_session(
                 params["user"] = run_as
             if scope is not None:
                 params["bind"] = True
+                if scope.cwd is not None:
+                    params["cwd"] = scope.cwd
             try:
                 name = (
                     await exec_model_request(
@@ -431,7 +433,13 @@ def _check_shared_session(
     store: BashSessionStore,
     scope: SandboxIdentityScope | None,
 ) -> None:
-    """Refuse a saved shell created under another sandbox identity."""
+    """Refuse a saved shell created under another sandbox identity.
+
+    The rule is one way. Inside an identity scope, a saved shell can be reused
+    only if its stored user and sandbox match the scope's. Outside a scope, a
+    saved shell can still be used, and it keeps running as the user it was
+    created as.
+    """
     owner = _created_as(store)
     if scope is not None:
         if (store.identity, store.identity_sandbox) != (scope.user, scope.sandbox):

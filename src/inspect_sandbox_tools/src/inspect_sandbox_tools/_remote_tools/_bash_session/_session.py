@@ -8,18 +8,25 @@ from .tool_types import BashRestartResult, InteractResult
 class Session:
     @classmethod
     async def create(
-        cls, user: str | RunAs | None = None, owner: str | None = None
+        cls,
+        user: str | RunAs | None = None,
+        owner: str | None = None,
+        cwd: str | None = None,
     ) -> "Session":
-        return cls(await Process.create(user=user), user=user, owner=owner)
+        return cls(
+            await Process.create(user=user, cwd=cwd), user=user, owner=owner, cwd=cwd
+        )
 
     def __init__(
         self,
         process: Process,
         user: str | RunAs | None = None,
         owner: str | None = None,
+        cwd: str | None = None,
     ) -> None:
         self._process = process
         self._user = user
+        self._cwd = cwd
         self.owner = owner
         """The user a bound shell was created as; None for an unbound shell."""
         self._retired_processes: list[Process] = []
@@ -39,7 +46,7 @@ class Session:
         old_process = self._process
         _, new_process = await asyncio.gather(
             old_process.terminate(timeout=timeout),
-            Process.create(user=self._user),
+            Process.create(user=self._user, cwd=self._cwd),
         )
         self._retired_processes.append(old_process)
         self._process = new_process

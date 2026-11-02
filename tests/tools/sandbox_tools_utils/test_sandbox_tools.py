@@ -786,14 +786,17 @@ def _two_scoped_users_share_one_bash_session() -> Solver:
 
         async def worker(user: str, other: str) -> None:
             # $M keeps the echoed input from matching the output
-            with tool_state_scope(user), sandbox_identity(user):
+            home = f"/home/{user}"
+            with tool_state_scope(user), sandbox_identity(user, cwd=home):
                 out = str(
                     await shared(
                         action="type_submit",
-                        input=f'M=ok MARK={user}-shell; echo "user-$M=$(id -un)"',
+                        input=f'M=ok MARK={user}-shell; echo "user-$M=$(id -un) '
+                        'cwd-$M=$(pwd)"',
                     )
                 )
-                assert f"user-ok={user}" in out, out
+                assert f"user-ok={user} cwd-ok={home}" in out, out
+                await text_editor()(command="create", path="notes", file_text=user)
                 opened[user].set()
                 await opened[other].wait()
                 out = str(
@@ -816,10 +819,15 @@ def _two_scoped_users_share_one_bash_session() -> Solver:
             tg.start_soon(worker, "w1", "w2")
             tg.start_soon(worker, "w2", "w1")
         for user in ("w1", "w2"):
-            owner = await sb.exec(
-                ["stat", "-c", "%U", f"/home/{user}/mine"], user="root"
-            )
-            assert owner.stdout.strip() == user, owner
+            for name in ("mine", "notes"):
+                owner = await sb.exec(
+                    ["stat", "-c", "%U", f"/home/{user}/{name}"], user="root"
+                )
+                assert owner.stdout.strip() == user, owner
+        # a shell cannot start in a directory its user cannot enter
+        with sandbox_identity("w1", cwd="/home/w2"):
+            with pytest.raises(ToolError, match="cannot start in '/home/w2'"):
+                await bash_session(instance="w1-in-w2")(action="read")
         return state
 
     return solve
@@ -827,7 +835,8 @@ def _two_scoped_users_share_one_bash_session() -> Solver:
 
 # The swarm shape: two users in one sample, each in its own tool state scope and
 # sandbox identity, share one bash_session() at the default instance and each
-# gets its own shell.
+# gets its own shell, starting in its home; text_editor() resolves a relative
+# path against the home.
 @pytest.mark.slow
 def test_two_scoped_users_share_one_bash_session() -> None:
     task = Task(

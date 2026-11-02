@@ -216,6 +216,29 @@ async def test_text_editor_runs_as_the_scope_user(
     assert call["user"] == "root"
 
 
+@pytest.mark.parametrize(
+    "path, sent",
+    [
+        ("notes.txt", "/home/w-1/notes.txt"),
+        ("../w-2/x", "/home/w-1/../w-2/x"),
+        ("/x", "/x"),
+    ],
+)
+async def test_text_editor_resolves_relative_paths_against_the_scope_cwd(
+    monkeypatch: pytest.MonkeyPatch, path: str, sent: str
+) -> None:
+    calls = _patch_module(monkeypatch, text_editor_module)
+    sandbox = FakeSandbox()
+    monkeypatch.setattr(
+        text_editor_module, "sandbox_with_injected_tools", _returning(sandbox)
+    )
+    with _environments(default=cast(SandboxEnvironment, sandbox)):
+        with sandbox_identity("w-1", cwd="/home/w-1"):
+            await text_editor_module.text_editor()(command="view", path=path)
+        await text_editor_module.text_editor()(command="view", path=path)
+    assert [call["params"]["path"] for call in calls] == [sent, path]
+
+
 def _returning(sandbox: Any) -> Callable[..., Any]:
     async def sandbox_with_injected_tools(**_kwargs: Any) -> Any:
         return sandbox
@@ -252,6 +275,20 @@ async def test_bash_session_runs_as_the_scope_user(
     new_session, interact = calls
     assert new_session["params"] == {"user": "w-1", "bind": True}
     assert interact["params"]["owner"] == "w-1"
+
+
+async def test_bash_session_starts_in_the_scope_cwd(
+    bash_session_sandbox: tuple[FakeSandbox, list[dict[str, Any]]],
+) -> None:
+    _sandbox, calls = bash_session_sandbox
+    with sandbox_identity("w-1", cwd="/home/w-1"):
+        await bash_session_module.bash_session()(action="read")
+    await bash_session_module.bash_session(instance="unscoped")(action="read")
+    new_sessions = [c for c in calls if c["method"] == "bash_session_new_session"]
+    assert [call["params"] for call in new_sessions] == [
+        {"user": "w-1", "bind": True, "cwd": "/home/w-1"},
+        {"user": DEFAULT_USER._asdict()},
+    ]
 
 
 async def test_bash_session_cannot_be_shared_between_scopes(
@@ -461,6 +498,8 @@ class _ToolsServer(CannedSandbox):
         self.received: list[tuple[str, dict[str, Any]]] = []
         """Each request a shell acted on: its name and the request's params."""
         self.methods: list[str] = []
+        self.new_sessions: list[dict[str, Any]] = []
+        """The params of each shell-creation request."""
         self.requested: dict[str, anyio.Event] = {}
         self.lose_next_shell = False
         self._holds: dict[str, anyio.Event] = {}
@@ -498,6 +537,7 @@ class _ToolsServer(CannedSandbox):
         if method == "version":
             return {"result": self.version}
         if method == "bash_session_new_session":
+            self.new_sessions.append(params)
             if params.get("bind"):
                 name = f"BashSession_{uuid4().hex}"
             else:
@@ -663,6 +703,26 @@ async def test_bash_session_recovers_a_lost_shell_once_per_restart(
         assert (await _call_tool(team, action="restart")).error is None
         assert server.received[-1][0] == _session_name("team")
         assert server.shells[_session_name("team")] == "w-1"
+
+
+async def test_bash_session_recovered_shell_starts_in_the_scope_cwd(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai.util._store import Store, init_subtask_store
+
+    init_subtask_store(Store())
+    _select_by_injection(monkeypatch)
+    server = _ToolsServer()
+    team = bash_session_module.bash_session(instance="team")
+    with _environments(b=server):
+        with sandbox_identity("w-1", cwd="/home/w-1", sandbox="b"):
+            await team(action="read")
+            server.replace_server()
+            assert (await _call_tool(team, action="restart")).error is None
+    assert [params.get("cwd") for params in server.new_sessions] == [
+        "/home/w-1",
+        "/home/w-1",
+    ]
 
 
 @pytest.mark.parametrize("version", ["1.2.1", "1.3.0"])

@@ -51,6 +51,9 @@ class NewSessionParams(BaseModel):
     """Bind the shell to `user`, which must be a username: the shell gets a name
     that no other server issues, and serves only requests whose `owner` is that
     user."""
+    cwd: str | None = None
+    """Absolute directory the shell starts in, and starts in again on restart.
+    The user must be able to enter it."""
     model_config = {"extra": "forbid"}
 
 

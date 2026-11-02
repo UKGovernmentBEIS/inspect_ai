@@ -138,6 +138,14 @@ def test_empty_user_raises(default: CannedSandbox) -> None:
                 pass
 
 
+def test_relative_cwd_raises(default: CannedSandbox) -> None:
+    with _environments(default=default):
+        with pytest.raises(ValueError, match="requires an absolute cwd"):
+            with sandbox_identity("w-1", cwd="work"):
+                pass
+        assert not sandbox_identity_active()
+
+
 def test_no_sandbox_raises() -> None:
     with pytest.raises(ProcessLookupError):
         with sandbox_identity("w-1"):

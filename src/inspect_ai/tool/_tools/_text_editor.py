@@ -1,4 +1,5 @@
 import inspect
+import posixpath
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Discriminator, RootModel
@@ -11,7 +12,10 @@ from inspect_ai.tool._sandbox_tools_utils._error_mapper import (
 from inspect_ai.tool._sandbox_tools_utils.sandbox import sandbox_with_injected_tools
 from inspect_ai.util._sandbox._cli import SANDBOX_CLI, tools_user_param
 from inspect_ai.util._sandbox._json_rpc_transport import SandboxJSONRPCTransport
-from inspect_ai.util._sandbox.identity import sandbox_identity_user
+from inspect_ai.util._sandbox.identity import (
+    sandbox_identity_cwd,
+    sandbox_identity_user,
+)
 
 from .._tool import Tool, tool
 
@@ -111,6 +115,8 @@ def text_editor(timeout: int | None = None, user: str | None = None) -> Tool:
           The output of the command.
         """
         sandbox = await sandbox_with_injected_tools()
+        if (cwd := sandbox_identity_cwd(sandbox, None)) is not None:
+            path = posixpath.join(cwd, path)
 
         # re-wire insert_text => new_str
         if command == "insert" and new_str is None and insert_text is not None:
