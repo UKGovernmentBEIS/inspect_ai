@@ -126,9 +126,6 @@ def task_create_from_factory(factory: object, /, **kwargs: Any) -> Task:
         else:
             logger.warning(f"param '{param}' not used by task '{name}'")
 
-    # instantiate_registry_object takes creation args as a dict, so a task arg
-    # named `name`/`type` cannot collide with registry_create's own
-    # leading parameters on replay.
     return cast(
         Task,
         instantiate_registry_object(cast(Callable[..., Task], factory), task_args),

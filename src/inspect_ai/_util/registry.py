@@ -570,6 +570,10 @@ def instantiate_registry_object(
     *,
     allowed_types: frozenset[RegistryType] | None = None,
 ) -> object:
+    """Call a registered class or factory and tag the result with its registry info.
+
+    `create_registry_object()` documents `args` and `allowed_types`.
+    """
     instance = obj(**_resolve_registry_args(args, allowed_types=allowed_types))
     info = registry_info(obj)
     # Objects created by self-tagging factories (e.g. @agent / @solver) already

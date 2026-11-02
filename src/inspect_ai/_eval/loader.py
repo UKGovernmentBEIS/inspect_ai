@@ -172,10 +172,16 @@ def resolve_tasks(
             f"{task.file}@{task.name}" for task in tasks if isinstance(task, TaskInfo)
         ]
 
-    # handle functions that return tasks
+    # handle functions that return tasks (Task instances after them in the
+    # list are used as is)
     if isinstance(tasks, list) and callable(tasks[0]):
         return as_resolved_tasks(
-            [task_create_from_factory(task, **task_args) for task in tasks]
+            [
+                task
+                if isinstance(task, Task)
+                else task_create_from_factory(task, **task_args)
+                for task in tasks
+            ]
         )
     elif callable(tasks):
         return as_resolved_tasks([task_create_from_factory(tasks, **task_args)])

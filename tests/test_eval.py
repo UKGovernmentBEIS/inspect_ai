@@ -597,6 +597,23 @@ def test_eval_task_function_not_replaced_by_later_same_name_task() -> None:
     assert log.eval.task_args["prefix"] == "custom"
 
 
+def test_eval_list_with_task_function_then_task_instance() -> None:
+    # `Tasks` has no mixed-list member, but eval() has always run this list
+    logs = eval(
+        cast(
+            Any,
+            [task_args_warning_check, task_args_warning_check(task_arg="instance")],
+        ),
+        task_args={"task_arg": "function"},
+        model="mockllm/model",
+    )
+    assert [log.status for log in logs] == ["success", "success"]
+    assert [log.eval.task_args["task_arg"] for log in logs] == [
+        "function",
+        "instance",
+    ]
+
+
 def test_eval_registered_non_task_function_raises() -> None:
     @solver(name="eval_non_task_function")
     def not_a_task() -> Solver:
