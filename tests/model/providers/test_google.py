@@ -17,7 +17,9 @@ from google.genai.types import (
     Blob,
     BlockedReason,
     Candidate,
+    CodeExecutionResult,
     Content,
+    ExecutableCode,
     File,
     FileState,
     FinishReason,
@@ -34,6 +36,8 @@ from google.genai.types import (
     GroundingSupport,
     HttpOptions,
     JobState,
+    Language,
+    Outcome,
     Part,
     Segment,
     ToolResponse,
@@ -2019,6 +2023,91 @@ async def test_continuation_replays_signatures_in_place(
     assert replayed.parts == ((streaming and streamed_replay) or replay)
     signatures = sum(part.thought_signature is not None for part in first + last)
     assert json.dumps(model_call.response).count("thoughtSignature") == signatures
+
+
+_SIGNED_IMAGE = Part(
+    inline_data=Blob(mime_type="image/png", data=b"PNG"), thought_signature=b"S"
+)
+
+# signed non-text parts as a stream delivers them, each after other output
+_SIGNED_NON_TEXT_PARTS = {
+    "image-after-thinking": [_thought("thinking"), _SIGNED_IMAGE],
+    "image-after-text": [Part(text="here:"), _SIGNED_IMAGE],
+    "code-execution": [
+        Part(text="here:"),
+        Part(
+            executable_code=ExecutableCode(code="print(1)", language=Language.PYTHON),
+            thought_signature=b"S",
+        ),
+        Part(
+            code_execution_result=CodeExecutionResult(
+                outcome=Outcome.OUTCOME_OK, output="1"
+            ),
+            thought_signature=b"R",
+        ),
+    ],
+    "server-tool": [
+        Part(text="here:"),
+        Part(
+            tool_call=GeminiToolCall(
+                id="search-1",
+                tool_type=ToolType.GOOGLE_SEARCH_WEB,
+                args={"queries": ["q"]},
+            ),
+            thought_signature=b"S",
+        ),
+        Part(
+            tool_response=ToolResponse(
+                id="search-1",
+                tool_type=ToolType.GOOGLE_SEARCH_WEB,
+                response={"results": ["r"]},
+            ),
+            thought_signature=b"R",
+        ),
+    ],
+}
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("case", list(_SIGNED_NON_TEXT_PARTS))
+async def test_streamed_signed_non_text_parts_are_kept(case: str) -> None:
+    """Streamed signed non-text parts keep their content and signatures, as unstreamed.
+
+    Checked after the output goes through its JSON form, as a log stores it.
+    """
+    parts = _SIGNED_NON_TEXT_PARTS[case]
+    streamed, _, _ = await _generate_streamed(
+        [
+            [
+                *(_chunk([part]) for part in parts[:-1]),
+                _chunk([parts[-1]], FinishReason.STOP),
+            ]
+        ]
+    )
+    plain, _, _ = await _generate_with_legs([_leg(parts, FinishReason.STOP)])
+
+    async def replayed(output: ModelOutput) -> list[Part]:
+        stored = ModelOutput.model_validate_json(output.model_dump_json())
+        return (await content(MagicMock(), stored.message)).parts or []
+
+    streamed_parts = await replayed(streamed)
+    assert [p for p in parts if p.thought_signature] == [
+        p for p in streamed_parts if p.thought_signature
+    ]
+    assert streamed_parts == await replayed(plain)
+
+
+@pytest.mark.anyio
+async def test_streamed_signature_with_metadata_goes_on_text() -> None:
+    """A streamed signature with only metadata is a bare signature for the text before it."""
+    signature = Part(thought_signature=b"S", part_metadata={"source": "x"})
+    output, _, _ = await _generate_streamed(
+        [[_chunk([Part(text="answer")]), _chunk([signature], FinishReason.STOP)]]
+    )
+
+    stored = ModelOutput.model_validate_json(output.model_dump_json())
+    replayed = await content(MagicMock(), stored.message)
+    assert replayed.parts == [_signed("answer", b"S")]
 
 
 @pytest.mark.anyio
