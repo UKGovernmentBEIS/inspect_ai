@@ -933,13 +933,25 @@ the merged header, the unchanged ones:
   counted as merged coverage, it would complete the set and let its shards
   be deleted. Refusing keeps native drain, retry and the log format as
   they are; the message names the attempt and says to run the shard again.
-  An attempt with no recorded count (ordinary, running and older logs)
-  resolved every record it holds, as eval-set's check treats it. A pass
-  that deletes shards without reading their attempts (unchanged, or the
+  An attempt with no results records no count even after a drain (a
+  drain as its only sample starts leaves no scored sample); there a held
+  sample whose error is a cancellation (`is_cancellation_message`) is
+  unresolved, and the attempt is refused the same way. Otherwise an
+  attempt with results but no recorded count (ordinary, running and older
+  logs) resolved every record it holds. (Eval-set's check, unlike the
+  merge, treats any attempt with no results as incomplete.) A pass that
+  deletes shards without reading their attempts (unchanged, or the
   interrupted-deletion exception below) reads the headers of the recorded
-  attempts still present and applies the same check against their ledger
-  `samples` first. A drain that abandoned queued samples holds fewer
+  attempts still present, and their sample summaries when a header has no
+  results, and applies the same check against their ledger `samples`
+  first. A drain that abandoned queued samples holds fewer
   records and is not refused: it leaves the set `started` ("Status").
+- **One current attempt.** When two distinct attempts of a shard share
+  the latest `attempt_sort_key` (the same name timestamp and mtime, as S3
+  LastModified values can tie), the listing order would pick the current
+  one, so the merge refuses (`check_current_unambiguous`), naming the tied
+  files, before choosing current or using the ledger. ctl's read-only
+  ordering is unchanged.
 - **No attempt regression.** A shard's current attempt must not sort
   before the attempt its ledger entry records (`attempt_sort_key`); that
   happens only when the recorded attempt was deleted from `<k>/` while an
@@ -1295,7 +1307,10 @@ is unwrapped). It refuses with `ShardSetError` a parameter annotated with
 any other type (`ValueToFloat`, `Callable[...]`, `Any`, `object`,
 `Hashable`, a list, ...), one with no annotation, one whose annotation
 does not resolve, and an option that matches no named parameter (the
-producer records `**kwargs` options under their own names). Each
+producer records `**kwargs` options under their own names). A string or
+number given for a parameter annotated with a `str`, `int` or `float`
+subclass whose instances are callable is refused too: the log records
+the plain value, not the callable object. Each
 annotation is resolved on its own with `typing.get_type_hints` over a
 stand-in holding only that parameter, so quoted and nested forward
 references resolve, in the factory's module (for a class, the module and
@@ -1707,7 +1722,14 @@ there again.
 - Cancellation before publication leaves the merged log and shards
   untouched; temp files are closed in `finally`, and the local lock is
   removed in `finally`. Cancellation during publication is covered under
-  "Overlap guards".
+  "Overlap guards". A local publication runs its atomic replace in a
+  worker thread that the merge outlives: a directly cancelled asyncio
+  task (`Task.cancel()`, a timeout) could otherwise leave the
+  `to_thread` await while the worker still writes, close the source and
+  release the lock, and let the worker overwrite a later merge's log.
+  On cancellation the merge waits, shielded, for a started worker to
+  finish, then re-raises. S3 publication is a conditional upload, which
+  a later merge's write makes fail rather than overwrite.
 - Shard listing (`<k>/` listings) is bounded at 32 concurrent, shard reads
   at 16, all within the pass's one `AsyncFilesystem` scope, through
   `tg_collect`. Blocking zip work (compressing, `zipfile` writes) runs in

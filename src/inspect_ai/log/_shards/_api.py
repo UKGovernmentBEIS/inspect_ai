@@ -49,6 +49,7 @@ from ._plan import (
     build_header,
     check_attempt_names,
     check_attempt_order,
+    check_current_unambiguous,
     check_headers,
     check_ledger_count,
     check_reads,
@@ -403,6 +404,7 @@ async def _merge_pass(
 ) -> _Pass:
     listing = await list_shard_set(fs, shards_dir, numeric_shards=True)
     check_attempt_names(listing.shards)
+    check_current_unambiguous(listing.shards)
     if listing.stray:
         raise ShardSetError(
             f"{shards_dir} holds log files that are not shard attempts: "
@@ -691,7 +693,9 @@ async def _read_attempt(
             assert entry is not None
             held[key] = summary
             members[key] = entry
-    check_resolved(info.name, shard.name, header, len(held))
+    check_resolved(
+        info.name, shard.name, header, len(held), (s.error for s in held.values())
+    )
     reductions = None
     if (
         header.eval.config.epochs_reducer
@@ -724,10 +728,19 @@ async def _check_merged_resolved(
     limiter = anyio.CapacityLimiter(_MAX_CONCURRENT_READS)
 
     async def check(shard: ShardDir) -> None:
+        info = _current(shard)
         async with limiter:
-            header = await _read_attempt_header(fs, shard)
+            reader = AsyncZipReader(fs, info.name, verify_crc=True)
+            cd = await reader.entries()
+            names = {e.filename for e in cd.entries}
+            header = await _read_header_async(reader, names, info.name)
+            errors: list[str | None] = []
+            if header.results is None:
+                # no results, so no count: the sample errors show cancellations
+                summaries, _ = await _read_all_summaries_async(reader)
+                errors = [s.error for s in summaries]
         check_resolved(
-            _current(shard).name, shard.name, header, ledger[shard.name].samples
+            info.name, shard.name, header, ledger[shard.name].samples, errors
         )
 
     await tg_collect([functools.partial(check, s) for s in shards])

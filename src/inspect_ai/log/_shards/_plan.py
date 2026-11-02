@@ -15,7 +15,7 @@ from shortuuid import uuid
 from inspect_ai._util.async_zip import CentralDirectory
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai._util.dateutil import iso_now
-from inspect_ai._util.error import EvalError
+from inspect_ai._util.error import EvalError, is_cancellation_message
 from inspect_ai._util.file import FileInfo
 from inspect_ai._util.log_layout import merged_log_task_id
 from inspect_ai._util.zip_common import ZipEntry
@@ -195,6 +195,29 @@ def check_attempt_names(shards: Iterable[ShardDir]) -> None:
                 )
 
 
+def check_current_unambiguous(shards: Iterable[ShardDir]) -> None:
+    """Refuse a shard whose latest attempts tie in attempt order.
+
+    Attempts are ordered by the timestamp in their names, then a recovered
+    copy after its source, then mtime (see `attempt_sort_key`). When two
+    distinct attempts share the latest key (equal names' timestamps and
+    mtimes, as S3 LastModified values can be), the listing order would pick
+    the current attempt, so the merge refuses rather than guess.
+    """
+    for shard in shards:
+        if len(shard.attempts) < 2:
+            continue
+        latest = attempt_sort_key(shard.attempts[-1])
+        tied = [a for a in shard.attempts if attempt_sort_key(a) == latest]
+        if len(tied) > 1:
+            names = ", ".join(_name(a.name) for a in tied)
+            raise ShardSetError(
+                f"Shard {shard.dir} has attempts that sort as equally recent "
+                f"({names}), so the merge cannot tell which is current. Move or "
+                "delete the attempts that are not current, then merge again."
+            )
+
+
 def is_unchanged(entry: EvalShardEntry | None, current: FileInfo) -> bool:
     """Whether a shard's current attempt is the one its ledger entry recorded."""
     if entry is None or entry.log != _name(current.name):
@@ -227,23 +250,38 @@ def ledger_entry(read: AttemptRead) -> EvalShardEntry:
     )
 
 
-def check_resolved(attempt: str, shard: str, header: EvalLog, held: int) -> None:
+def check_resolved(
+    attempt: str,
+    shard: str,
+    header: EvalLog,
+    held: int,
+    errors: Iterable[str | None],
+) -> None:
     """Refuse an attempt that holds samples it did not resolve.
 
     A drain landing while a sample starts, or a sample cancel during a task
     drain or cancel, keeps the cancelled sample's transcript in the log but
     leaves it out of `results.logged_samples`, so a later run picks it up
     again. Counting the record as merged coverage would complete the set and
-    let its shards be deleted. Without a recorded count (ordinary, running
-    and older attempts) every held sample counts, as in eval-set's check.
+    let its shards be deleted. An attempt with no results (no sample was
+    scored) records no count, so there a held sample whose error is a
+    cancellation is unresolved. Otherwise, without a recorded count
+    (ordinary, running and older attempts) every held sample counts, as in
+    eval-set's check.
 
     Args:
         attempt: The attempt's location.
         shard: Its shard directory name.
         header: The attempt's header.
         held: The sample records it holds.
+        errors: The held samples' errors (read only when `header` has no
+            results).
     """
     logged = header.results.logged_samples if header.results is not None else None
+    if header.results is None:
+        cancelled = sum(1 for error in errors if is_cancellation_message(error))
+        if cancelled:
+            logged = held - cancelled
     if logged is not None and logged < held:
         raise ShardSetError(
             f"{attempt} holds {held} samples but resolved only {logged}: the "

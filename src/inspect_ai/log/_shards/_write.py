@@ -317,6 +317,18 @@ def _check_function_options(
                     name, argument, resolved.annotation, value
                 )
             continue
+        if (
+            isinstance(value, (str, int, float))
+            and resolved.reason is None
+            and _callable_class(resolved.annotation)
+        ):
+            raise ShardSetError(
+                f"The metric '{name}' was given a callable object for "
+                f"'{argument}'. A log records it as a plain value, not the "
+                "object, so the merge cannot recreate the metric and does not "
+                "merge such shards. Use a registered metric that creates the "
+                "object inside its factory."
+            )
         if not isinstance(value, str):
             continue
         if resolved.reason is None and _is_function_type(resolved.annotation):
@@ -469,6 +481,21 @@ def _metric_container(annotation: object) -> bool:
         ):
             return False
     return True
+
+
+def _callable_class(annotation: object) -> bool:
+    """Whether the type includes a callable `str`, `int` or `float` subclass.
+
+    A `str`, `int` or `float` subclass with `__call__` is recorded as the
+    plain value, so its instances do not survive the log.
+    """
+    return any(
+        isinstance(member, type)
+        and issubclass(member, (str, int, float))
+        and member not in _PLAIN
+        and any("__call__" in vars(base) for base in member.__mro__)
+        for member in _members(_unannotated(annotation))
+    )
 
 
 def _enum_literal(annotation: object) -> bool:

@@ -1602,6 +1602,33 @@ def shard_nested_sum(groups: Sequence[list[Metric]]) -> Metric:
     return compute
 
 
+class CallableLabel(str):
+    """A string whose instances are callable."""
+
+    def __call__(self, value: Value) -> float:
+        return 7.0
+
+
+class CallableScale(int):
+    """An integer whose instances are callable."""
+
+    def __call__(self, value: Value) -> float:
+        return 7.0
+
+
+@metric(name="shard_callable_scalars")
+def shard_callable_scalars(
+    label: CallableLabel | None = None, scale: CallableScale | None = None
+) -> Metric:
+    """A metric given callable `str` and `int` subclass instances."""
+
+    def compute(scores: list[SampleScore]) -> Value:
+        convert = label if label is not None else scale
+        return {"converted": convert(CORRECT)} if convert is not None else 0.0
+
+    return compute
+
+
 @metric(name="shard_key_sum")
 class ShardKeySum(MetricDeprecated):
     """A class metric with a string option (class metrics get `Score`s)."""
@@ -1814,6 +1841,21 @@ _FUNCTION_OPTIONS: dict[str, tuple[Callable[[], list[Any]], str, bool]] = {
     "untyped": (
         lambda: [shard_untyped(to_float=value_to_float(correct=2))],
         "'shard_untyped' was given a string for 'to_float', which has no annotation",
+        False,
+    ),
+    "callable-str": (
+        lambda: [shard_callable_scalars(label=CallableLabel("x"))],
+        "'shard_callable_scalars' was given a callable object for 'label'",
+        False,
+    ),
+    "callable-int": (
+        lambda: [shard_callable_scalars(scale=CallableScale(3))],
+        "'shard_callable_scalars' was given a callable object for 'scale'",
+        False,
+    ),
+    "callable-str-grouped": (
+        lambda: [grouped(shard_callable_scalars(label=CallableLabel("x")), "group")],
+        "'shard_callable_scalars' was given a callable object for 'label'",
         False,
     ),
     "hidden-return": (
@@ -2339,6 +2381,39 @@ def _merge_on(
         )
 
 
+@pytest.mark.parametrize("state", ["fresh", "unchanged", "interrupted"])
+def test_a_shard_whose_only_sample_a_drain_cancelled_is_refused(
+    tmp_path: Path, drains: None, monkeypatch: pytest.MonkeyPatch, state: str
+) -> None:
+    import shutil
+
+    from inspect_ai.log._shards import _api
+
+    merged, shards = _paths(tmp_path)
+    # a drain as the only sample starts: no sample scored, so no results and
+    # no count, but the sample's error shows the cancellation
+    _MATERIALIZING.add(1)
+    cancelled = _run_drained(shards, "0", [1])
+    _MATERIALIZING.clear()
+    assert cancelled.status == "success" and cancelled.results is None
+    _run_drained(shards, "1", [2, 3, 4])
+    if state != "fresh":
+        # a merged log written by a merge without the check
+        with monkeypatch.context() as patched:
+            patched.setattr(_api, "check_resolved", lambda *args: None)
+            assert merge_eval_log_shards(merged).written
+    if state == "interrupted":
+        shutil.rmtree(f"{shards}/1")
+    before = _files(str(tmp_path))
+    unresolved = "holds 1 samples but resolved only 0"
+    for delete in (False, True) if state == "fresh" else (True,):
+        with pytest.raises(ShardSetError, match=unresolved):
+            merge_eval_log_shards(merged, delete_shards=delete)
+        with pytest.raises(ShardSetError, match=unresolved):
+            _merge_on("trio", monkeypatch, merged, delete_shards=delete)
+    assert _files(str(tmp_path)) == before
+
+
 @pytest.mark.parametrize("merge", ["fresh", "incremental"])
 def test_a_shard_holding_a_sample_cancelled_by_a_drain_is_refused(
     tmp_path: Path, drains: None, monkeypatch: pytest.MonkeyPatch, merge: str
@@ -2538,11 +2613,18 @@ def _backslash_attempts(
 
 
 def _merge_unchecked(monkeypatch: pytest.MonkeyPatch, merged: str) -> None:
-    """Merge as a merge without the attempt-name check would."""
+    """Merge as a merge without the attempt-name check would.
+
+    Backslashed names all read as `worker.eval`, with no timestamp, so their
+    attempts also tie in attempt order; that check is skipped too.
+    """
     from inspect_ai.log._shards import _api
 
     with monkeypatch.context() as patched:
         patched.setattr(_api, "check_attempt_names", lambda shards: None, raising=False)
+        patched.setattr(
+            _api, "check_current_unambiguous", lambda shards: None, raising=False
+        )
         assert merge_eval_log_shards(merged).log.status == "success"
 
 
@@ -3348,6 +3430,65 @@ async def test_a_cancelled_merge_leaves_no_lock_or_temp_files(
             await reached.wait()
         tg.cancel_scope.cancel()
     assert _files(str(tmp_path)) == before
+
+
+def test_a_cancelled_publish_finishes_before_a_later_merge(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import asyncio
+    import shutil
+    import threading
+
+    from inspect_ai.log import merge_eval_log_shards_async
+    from inspect_ai.log._shards import _publish
+
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", sample_id=[1, 2, 3])
+    _run(shards, "1", sample_id=[4, 5, 6])
+    # a newer attempt of shard 1, held back until the first merge is cancelled
+    newer = local_path(_run(shards, "1", sample_id=[4, 5, 6]).location)
+    staged = tmp_path / "staged.eval"
+    shutil.move(newer, staged)
+
+    copying, release, written = threading.Event(), threading.Event(), []
+    replace = _publish._replace_local
+
+    def paused(path: str, source: Any) -> None:
+        first = not copying.is_set()
+        if first:
+            copying.set()
+            assert release.wait(30)
+        try:
+            replace(path, source)
+        finally:
+            written.append(first)
+
+    monkeypatch.setattr(_publish, "_replace_local", paused)
+
+    async def scenario() -> tuple[bool, bytes]:
+        merge = asyncio.ensure_future(merge_eval_log_shards_async(merged))
+        assert await asyncio.to_thread(copying.wait, 30)
+        merge.cancel()
+        # the cancelled merge must hold its lock until its worker has written
+        done, _ = await asyncio.wait({merge}, timeout=0.5)
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await merge
+        while not written:
+            await asyncio.sleep(0.01)
+        if done:
+            # it returned while its worker wrote: a later merge could be
+            # overwritten by the worker
+            return True, b""
+        shutil.move(staged, newer)
+        assert (await merge_eval_log_shards_async(merged)).written
+        return False, Path(merged).read_bytes()
+
+    returned_early, retried = asyncio.run(scenario())
+    assert not returned_early, "the cancelled merge returned before its worker"
+    # no worker of the cancelled merge is left to overwrite the later merge
+    assert written == [True, False]
+    assert Path(merged).read_bytes() == retried
 
 
 def _crc_failures(
@@ -4887,6 +5028,33 @@ async def test_an_s3_worker_the_listing_would_hide_is_refused(
                 merged, sample_ids=[1, 2, 3], delete_shards=delete
             )
     assert _s3_objects(f"{s3_root}/") == before
+
+
+@pytest.mark.parametrize("state", ["fresh", "existing"])
+def test_attempts_that_tie_as_latest_are_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, state: str
+) -> None:
+    merged, shards = _paths(tmp_path)
+    first = _run(shards, "0", sample_id=[1, 2, 3])
+    _run(shards, "1", sample_id=[4, 5, 6])
+    directory = Path(local_path(first.location)).parent
+    older = directory / f"{T1}_{TASK}_a.eval"
+    os.rename(local_path(first.location), older)
+    if state == "existing":
+        assert merge_eval_log_shards(merged).written
+    second = _run(shards, "0", sample_id=[1, 2, 3])
+    newer = directory / f"{T1}_{TASK}_z.eval"
+    os.rename(local_path(second.location), newer)
+    # one name timestamp and one mtime, as S3 LastModified values can tie
+    for path in (older, newer):
+        os.utime(path, (1_700_000_000, 1_700_000_000))
+    before = _files(str(tmp_path))
+    for delete in (False, True):
+        with pytest.raises(ShardSetError, match="sort as equally recent"):
+            merge_eval_log_shards(merged, delete_shards=delete)
+        with pytest.raises(ShardSetError, match="sort as equally recent"):
+            _merge_on("trio", monkeypatch, merged, delete_shards=delete)
+    assert _files(str(tmp_path)) == before
 
 
 @pytest.mark.parametrize("state", ["fresh", "unchanged", "removed"])
