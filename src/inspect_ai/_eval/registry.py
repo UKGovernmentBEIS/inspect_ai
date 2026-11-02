@@ -10,6 +10,7 @@ from inspect_ai._util.registry import (
     RegistryInfo,
     create_registry_object,
     extract_named_params,
+    instantiate_registry_object,
     registry_add,
     registry_info,
     registry_lookup,
@@ -89,15 +90,35 @@ def task_create(name: str, /, **kwargs: Any) -> Task:
     Returns:
         Task with registry info attribute
     """
-    # match kwargs params to signature (warn if param not found)
-    # (note that we always pass the 'model' param but tasks aren't
-    # required to consume it, so we don't warn for 'model')
     task = registry_lookup("task", name)
     if not task:
         raise PrerequisiteError(f"Task named '{name}' not found.")
-    task_info = registry_info(task)
+    return task_create_from_factory(task, **kwargs)
+
+
+def task_create_from_factory(factory: object, /, **kwargs: Any) -> Task:
+    """Create a Task from a registered task function or class.
+
+    Unlike `task_create()`, this does not look the task up by name, so a task
+    registered later under the same name cannot replace `factory`.
+
+    Args:
+        factory: Registered task function or class.
+        **kwargs: Optional creation arguments for the task.
+
+    Returns:
+        Task with registry info attribute
+    """
+    task_info = registry_info(factory)
+    name = task_info.name
+    if task_info.type != "task":
+        raise PrerequisiteError(f"'{name}' is a {task_info.type}, not a task.")
+
+    # match kwargs params to signature (warn if param not found)
+    # (note that we always pass the 'model' param but tasks aren't
+    # required to consume it, so we don't warn for 'model')
     task_params: list[str] = task_info.metadata["params"]
-    has_var_keyword = _has_var_keyword(task)
+    has_var_keyword = _has_var_keyword(factory)
     task_args: dict[str, Any] = {}
     for param in kwargs.keys():
         if param in task_params or has_var_keyword:
@@ -105,10 +126,13 @@ def task_create(name: str, /, **kwargs: Any) -> Task:
         else:
             logger.warning(f"param '{param}' not used by task '{name}'")
 
-    # create_registry_object takes creation args as a dict, so a task arg
+    # instantiate_registry_object takes creation args as a dict, so a task arg
     # named `name`/`type` cannot collide with registry_create's own
     # leading parameters on replay.
-    return cast(Task, create_registry_object("task", name, task_args))
+    return cast(
+        Task,
+        instantiate_registry_object(cast(Callable[..., Task], factory), task_args),
+    )
 
 
 @overload

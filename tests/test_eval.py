@@ -24,6 +24,7 @@ from inspect_ai import (
 from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.dateutil import datetime_from_iso_format_safe, datetime_now_utc
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.approval._policy import ApprovalPolicyConfig, ApproverPolicyConfig
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import match
@@ -578,6 +579,34 @@ def test_eval_set_task_instance_warns_once(caplog) -> None:
     assert len(records) == 1, (
         f"expected exactly one unconsumed task_args warning, got {len(records)}"
     )
+
+
+def test_eval_task_function_not_replaced_by_later_same_name_task() -> None:
+    @task(name="eval_task_function_same_name")
+    def first(prefix: str = "default") -> Task:
+        return Task(dataset=[Sample(input=f"{prefix}: first")])
+
+    @task(name="eval_task_function_same_name")
+    def second(prefix: str = "default") -> Task:
+        return Task(dataset=[Sample(input=f"{prefix}: second")])
+
+    log = eval(first, task_args={"prefix": "custom"}, model="mockllm/model")[0]
+    assert log.status == "success"
+    assert log.samples and log.samples[0].input == "custom: first"
+    assert log.eval.task == "eval_task_function_same_name"
+    assert log.eval.task_args["prefix"] == "custom"
+
+
+def test_eval_registered_non_task_function_raises() -> None:
+    @solver(name="eval_non_task_function")
+    def not_a_task() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            return state
+
+        return solve
+
+    with pytest.raises(PrerequisiteError, match="is a solver, not a task"):
+        eval(cast(Any, not_a_task), model="mockllm/model")
 
 
 class _SeedTasks(TaskSource):

@@ -52,7 +52,7 @@ from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 from inspect_ai.viewer import ViewerConfig
 
 from .list import task_files
-from .registry import task_create, task_source_create
+from .registry import task_create, task_create_from_factory, task_source_create
 from .task import PreviousTask, Task, TaskInfo
 from .task.constants import TASK_FILE_ATTR, TASK_RUN_DIR_ATTR
 from .task.hf import task_create_from_hf
@@ -172,11 +172,13 @@ def resolve_tasks(
             f"{task.file}@{task.name}" for task in tasks if isinstance(task, TaskInfo)
         ]
 
-    # handle functions that return tasks (we get their registry name)
+    # handle functions that return tasks
     if isinstance(tasks, list) and callable(tasks[0]):
-        tasks = [registry_info(task).name for task in tasks]
+        return as_resolved_tasks(
+            [task_create_from_factory(task, **task_args) for task in tasks]
+        )
     elif callable(tasks):
-        tasks = [registry_info(tasks).name]
+        return as_resolved_tasks([task_create_from_factory(tasks, **task_args)])
 
     # str to list[str]
     if isinstance(tasks, str):

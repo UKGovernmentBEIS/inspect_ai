@@ -478,7 +478,7 @@ def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:  # 
     obj = registry_lookup(type, name)
 
     if isclass(obj):
-        return _instantiate_registry_object(obj, kwargs)
+        return instantiate_registry_object(obj, kwargs)
     elif callable(obj):
         return_type = get_annotations(obj, eval_str=True).get("return")
         # Until we remove the MetricDeprecated symbol we need this extra
@@ -488,7 +488,7 @@ def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:  # 
         else:
             return_type = getattr(return_type, "__name__", None)
         if return_type and return_type.lower() == type:
-            return _instantiate_registry_object(obj, kwargs)
+            return instantiate_registry_object(obj, kwargs)
         else:
             return obj
     else:
@@ -553,7 +553,7 @@ def create_registry_object(
 
     if isclass(obj) or callable(obj):
         try:
-            return _instantiate_registry_object(obj, args, allowed_types=allowed_types)
+            return instantiate_registry_object(obj, args, allowed_types=allowed_types)
         except DisallowedRegistryArg as ex:
             # the outermost object names the error
             ex.owner = (type, name)
@@ -564,7 +564,7 @@ def create_registry_object(
         )
 
 
-def _instantiate_registry_object(
+def instantiate_registry_object(
     obj: Callable[..., object],
     args: dict[str, Any],
     *,
