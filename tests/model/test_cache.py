@@ -182,6 +182,31 @@ async def test_cache_opaque_model_args_track_mutated_request_defaults(
     assert calls == 2
 
 
+async def test_cache_key_uses_model_args_of_the_retried_attempt(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+    extra_body = {"system": "3"}
+    model = get_model("mockllm/model", extra_body=extra_body)
+    calls = 0
+
+    async def generate_output(*args: Any, **kwargs: Any) -> ModelOutput:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            extra_body["system"] = "4"
+            raise RuntimeError("transient")
+        return ModelOutput.from_content(model="mockllm", content=extra_body["system"])
+
+    monkeypatch.setattr(model.api, "generate", generate_output)
+    monkeypatch.setattr(model.api, "should_retry", lambda ex: True)
+    first = await model.generate("Hello", cache=True)
+    extra_body["system"] = "3"
+    second = await model.generate("Hello", cache=True)
+    assert [first.completion, second.completion] == ["4", "3"]
+    assert calls == 3
+
+
 async def test_cache_scopes_opaque_model_args_to_instance(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:

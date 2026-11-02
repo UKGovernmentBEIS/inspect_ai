@@ -1476,16 +1476,6 @@ class Model:
             cache_policy: bool | CachePolicy | None = config.cache
         else:
             cache_policy = cache
-        model_args_key = cache_model_args_key(self.model_args) if cache_policy else None
-        if cache_policy and model_args_key is None:
-            warn_once(
-                logger,
-                "Model output caching is scoped to this model instance: constructor "
-                "arguments contain values without a reliable persistent identity.",
-            )
-            model_args_key = cache_model_args_key(
-                self.model_args, instance_key=self._cache_instance_key
-            )
         hooks_enabled = any(hook.enabled() for hook in get_all_hooks())
         cache_mode: Literal["write"] | None = "write" if cache_policy else None
 
@@ -1563,6 +1553,20 @@ class Model:
                     policy = cache_policy
                 else:
                     policy = CachePolicy()
+
+                # per attempt and after the hooks, since either can change
+                # nested constructor args that the provider reads per request
+                model_args_key = cache_model_args_key(self.model_args)
+                if model_args_key is None:
+                    warn_once(
+                        logger,
+                        "Model output caching is scoped to this model instance: "
+                        "constructor arguments contain values without a reliable "
+                        "persistent identity.",
+                    )
+                    model_args_key = cache_model_args_key(
+                        self.model_args, instance_key=self._cache_instance_key
+                    )
 
                 cache_entry = CacheEntry(
                     base_url=self.api.base_url,
