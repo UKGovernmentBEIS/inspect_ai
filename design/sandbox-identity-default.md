@@ -548,12 +548,21 @@ Inside a scope:
     `_mini_swe_agent/setup.py:54`. The artifact stays owned by the default
     user, as today. Without the marker, the first member would own a file
     that every later member executes or loads (see [Security](#security)).
-    The `chmod` after the uv write (`agentwheel.py:298`) passes the agent's
-    user today. It changes to `user="root"`, like the `chmod` after every
-    other shared write, because a member cannot `chmod` a root-owned file.
-    The marker, not an explicit `user="root"` on the write, keeps the
-    default-user meaning of `None` on every provider: an explicit user raises
-    on providers without file users.
+    The uv write is different from the others. Its `chmod`
+    (`agentwheel.py:298`) passes the agent's `user`, usually `None`, so today
+    the write and the `chmod` both run as the default user. The binary, node,
+    npm and ripgrep paths instead `chmod` and extract with an explicit
+    `user="root"`, and those calls stay as they are. Inside a scope, a
+    member could not `chmod` the default user's `/var/tmp/.uv`, so the uv
+    write and its `chmod` are wrapped together in one marked block, and the
+    `chmod` passes `user=None`. Both then keep the default user's authority,
+    inside a scope or outside one. An unconditional `user="root"` would break
+    a cold install outside any scope on a provider that cannot run as root,
+    such as `local`, which accepts only the current user
+    (`inspect_ai: util/_sandbox/local.py:85`). The marker, not an explicit
+    `user="root"` on a write, keeps the default-user meaning of `None` on
+    every provider: an explicit user raises on providers without file
+    users.
   - *Per-user staging moves to a private directory.*
     `ensure_agent_wheel_installed()` stages its wheels at fixed names in
     world-writable `/var/tmp` (`/var/tmp/.<package>-<version>.tar.gz` and
@@ -683,7 +692,12 @@ inspect_swe (companion change):
   with `user=None`. The discovery, `uv tool install` and verification calls
   reach it with `"w-1"`. The wheel installer returns `w-1`'s
   `$HOME/.local/bin/<binary>` and stages under a `mktemp -d` path, not a fixed
-  `/var/tmp` name.
+  `/var/tmp` name. The uv write and its `chmod` both reach the provider with
+  `user=None`.
+- In `tests/test_ensure_wheels_install.py`, a cold uv install outside any
+  scope, on a recording provider that accepts the default user and refuses
+  `user="root"` with `SandboxUserUnsupportedError` (as `local` does). The
+  install succeeds, and no call names root.
 - A Docker test (`skip_if_no_docker`, `slow`) with two users whose homes are
   0700. Inside each user's scope, it calls `ensure_agent_wheel_installed()`
   for mini-swe-agent, `ensure_agent_binary_installed()` for one binary agent,
@@ -717,7 +731,8 @@ inspect_swe (companion change):
    two commits.
 3. **inspect_swe companion.** Wrap each shared artifact `write_file()` listed
    under [Compatibility](#compatibility-and-migration) in
-   `framework_sandbox_operation()`. Change the uv `chmod` to `user="root"`.
+   `framework_sandbox_operation()`. Put the uv write and its `chmod` in one
+   marked block, with the `chmod` passing `user=None`.
    Move the wheel installer's staging into a `mktemp -d` directory. Leave
    discovery, per-user installation and configuration unmarked. Add the
    inspect_swe tests under [Testing](#testing), including the two-user Docker
