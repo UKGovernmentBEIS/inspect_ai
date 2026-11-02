@@ -86,6 +86,7 @@ from inspect_ai.util import (
     time_limit,
     token_limit,
     turn_limit,
+    working_limit,
 )
 from inspect_ai.util._limit import Limit, LimitExceededError
 from inspect_ai.util._sandbox.service import SandboxService, find_control_flow
@@ -840,6 +841,46 @@ async def test_forward_provider_errors_keeps_only_the_first_limit() -> None:
     gc.collect()
     assert bridge.generation_limit is first
     assert later() is None
+
+
+@pytest.mark.parametrize("fresh", ["kept", "later"])
+@pytest.mark.parametrize(
+    "make_fresh",
+    [
+        pytest.param(lambda: token_limit(1), id="token"),
+        pytest.param(lambda: working_limit(1), id="working"),
+    ],
+)
+async def test_forward_provider_errors_keeps_the_first_beside_an_unentered_limit(
+    fresh: str, make_fresh: Callable[[], Limit]
+) -> None:
+    """A limit error whose source never entered a limit tree neither encloses nor is enclosed.
+
+    The first limit is kept, as for any limits that cannot be compared, and
+    the request still gets its error reply.
+    """
+    unentered = LimitExceededError("token", value=2, limit=1, source=make_fresh())
+    with token_limit(10) as root, token_limit(5) as inner:
+        if fresh == "kept":
+            # a sample-root limit, which would replace any entered inner limit
+            later = LimitExceededError("token", value=11, limit=10, source=root)
+            errors = [unentered, later]
+        else:
+            # an inner limit, which a root limit would replace
+            kept = LimitExceededError("token", value=6, limit=5, source=inner)
+            errors = [kept, unentered]
+        first = errors[0]
+
+        async def over_limit(
+            json_data: dict[str, Any], headers: dict[str, str] | None = None
+        ) -> dict[str, Any]:
+            raise errors.pop(0)
+
+        bridge = _bridge()
+        forward = _forward_provider_errors(over_limit, bridge)
+        for _ in range(2):
+            assert PROVIDER_ERROR_KEY in await forward({})
+        assert bridge.generation_limit is first
 
 
 @pytest.mark.parametrize("wrapper", ["bare", "grouped", "limit"])

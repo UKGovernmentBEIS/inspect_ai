@@ -1,5 +1,5 @@
 from logging import getLogger  # noqa: E402
-from typing import Awaitable, Callable, Protocol, cast
+from typing import Awaitable, Callable, Protocol, TypeGuard, cast
 
 import anyio
 from pydantic import JsonValue
@@ -8,7 +8,12 @@ from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._model import ModelRefusalError
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
-from inspect_ai.util._limit import LimitExceededError, _Node, check_turn_limit
+from inspect_ai.util._limit import (
+    Limit,
+    LimitExceededError,
+    _Node,
+    check_turn_limit,
+)
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
 from inspect_ai.util._sandbox.service import find_control_flow
 
@@ -132,18 +137,23 @@ def _encloses(outer: LimitExceededError, inner: LimitExceededError) -> bool:
     enclosed by nothing.
     """
     outer_node, inner_node = outer.source, inner.source
-    if not isinstance(outer_node, _Node) or not isinstance(inner_node, _Node):
+    if not _in_tree(outer_node) or not _in_tree(inner_node):
         return False
     if inner_node.parent is None:
         return False
     if outer_node.parent is None:
         return True
-    node = inner_node.parent
+    node: _Node | None = inner_node.parent
     while node is not None:
         if node is outer_node:
             return True
         node = node.parent
     return False
+
+
+def _in_tree(source: Limit | None) -> TypeGuard[_Node]:
+    """Whether `source` is a limit tree node that has been entered (so has a parent)."""
+    return isinstance(source, _Node) and source._entered
 
 
 def _first_control(ex: Exception) -> LimitExceededError | ModelRefusalError | None:
