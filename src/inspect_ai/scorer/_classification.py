@@ -1,6 +1,7 @@
 import re
 import string
 from collections import Counter
+from decimal import Decimal, InvalidOperation, localcontext
 from typing import Callable, List
 
 from inspect_ai._util.text import is_finite_number, strip_punctuation
@@ -154,7 +155,20 @@ def _normalize_whitespace(text: str) -> str:
 
 def _normalize_number(text: str) -> str:
     if is_finite_number(text):
-        return str(float(text))
+        # Parsing is exact, but invalid exponents must not affect the caller's
+        # decimal traps or flags. Do not normalize() under a finite precision.
+        with localcontext() as context:
+            context.traps[InvalidOperation] = False
+            number = Decimal(text)
+        if not number.is_finite():
+            return text
+
+        sign = "-" if number.is_signed() else ""
+        if number.is_zero():
+            return f"{sign}0"
+        digits = "".join(str(digit) for digit in number.as_tuple().digits).rstrip("0")
+        exponent = number.adjusted() - len(digits) + 1
+        return f"{sign}{digits}e{exponent}"
     else:
         return text
 
