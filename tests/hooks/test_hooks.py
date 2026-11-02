@@ -44,7 +44,7 @@ from inspect_ai.log._file import read_eval_log
 from inspect_ai.log._log import EvalSample
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model import ModelOutput, get_model
-from inspect_ai.scorer import match
+from inspect_ai.scorer import Metric, SampleScore, match, metric
 from inspect_ai.solver._solver import Generate, Solver, generate, solver
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util import LimitExceededError
@@ -771,45 +771,141 @@ def test_task_end_hook_runs_when_log_write_fails(mock_hooks: MockHooks) -> None:
     assert task_end.log.error.message == log.error.message
 
 
-class LimitRaisingTaskEndHooks(Hooks):
+class TaskPairHooks(Hooks):
+    """Records task starts and ends, and can raise a limit or block in them."""
+
     def __init__(self) -> None:
+        self.task_start_events: list[TaskStart] = []
         self.task_end_events: list[TaskEnd] = []
+        self.start_limit = False
+        self.end_limit = False
+        self.start_blocked: anyio.Event | None = None
+
+    async def on_task_start(self, data: TaskStart) -> None:
+        self.task_start_events.append(data)
+        if self.start_limit:
+            raise LimitExceededError("custom", value=1, limit=0)
+        if self.start_blocked is not None:
+            self.start_blocked.set()
+            await anyio.sleep_forever()
 
     async def on_task_end(self, data: TaskEnd) -> None:
         self.task_end_events.append(data)
-        raise LimitExceededError("custom", value=1, limit=0)
+        if self.end_limit:
+            raise LimitExceededError("custom", value=1, limit=0)
+
+
+@pytest.fixture
+def first_hooks() -> Generator[TaskPairHooks, None, None]:
+    # request before mock_hooks so these hooks are called first
+    yield from _create_mock_hooks("test_first_hooks", TaskPairHooks)
+
+
+@solver
+def _abort_task_solver(hooks: MockHooks, skip_first: bool = False) -> Solver:
+    """Aborts its own task; with `skip_first`, the first sample completes."""
+    runs = 0
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        nonlocal runs
+        runs += 1
+        if skip_first and runs == 1:
+            return state
+        (start,) = hooks.task_start_events
+        cancel_task(start.spec.task_id)
+        await anyio.sleep_forever()
+        return state
+
+    return solve
 
 
 async def test_task_end_hook_error_does_not_replace_aborted_task_log(
-    mock_hooks: MockHooks,
+    first_hooks: TaskPairHooks, mock_hooks: MockHooks
 ) -> None:
     # a hook that raises in the shielded cancel path must not stop the aborted
-    # task's log from being returned
-    @solver
-    def abort_self_solver() -> Solver:
-        async def solve(state: TaskState, generate: Generate) -> TaskState:
-            (start,) = mock_hooks.task_start_events
-            cancel_task(start.spec.task_id)
-            await anyio.sleep_forever()
-            return state
-
-        return solve
-
-    with _hook_context(
-        "test_limit_raising_task_end_hooks", LimitRaisingTaskEndHooks
-    ) as raising_hooks:
-        with anyio.fail_after(60):
-            (log,) = await eval_async(
-                Task(dataset=[Sample("sample_1")], solver=abort_self_solver()),
-                model="mockllm/model",
-                ctl_server=False,
-            )
+    # task's log from being returned, or later hooks from getting their end
+    first_hooks.end_limit = True
+    with anyio.fail_after(60):
+        (log,) = await eval_async(
+            Task(dataset=[Sample("sample_1")], solver=_abort_task_solver(mock_hooks)),
+            model="mockllm/model",
+            ctl_server=False,
+        )
 
     assert log.status == "error"
     assert log.error is not None
     assert "Task cancelled by user" in log.error.message
-    (task_end,) = raising_hooks.task_end_events
+    for hooks_ in (first_hooks, mock_hooks):
+        (task_end,) = hooks_.task_end_events
+        assert task_end.log.status == "error"
+
+
+async def test_task_end_hook_runs_when_cancel_results_fail(
+    mock_hooks: MockHooks,
+) -> None:
+    # a metric that fails on the partial scores of an aborted task makes the
+    # cancel handler raise before its log is written; the hook still gets the
+    # errored log eval returns
+    @metric
+    def failing_metric() -> Metric:
+        def compute(scores: list[SampleScore]) -> float:
+            raise RuntimeError("metric failed")
+
+        return compute
+
+    with anyio.fail_after(60):
+        (log,) = await eval_async(
+            Task(
+                dataset=[Sample("a"), Sample("b")],
+                # max_samples=1: the second sample (which aborts) starts only
+                # after the first has been scored
+                solver=_abort_task_solver(mock_hooks, skip_first=True),
+                scorer=match(),
+                metrics=[failing_metric()],
+            ),
+            model="mockllm/model",
+            max_samples=1,
+            score_display=False,
+            ctl_server=False,
+        )
+
+    assert log.status == "error"
+    assert log.error is not None
+    assert "metric failed" in log.error.message
+    (task_end,) = mock_hooks.task_end_events
     assert task_end.log.status == "error"
+    assert task_end.log.error is not None
+    assert task_end.log.error.message == log.error.message
+
+
+def test_task_end_hook_only_for_entered_start_hooks(
+    first_hooks: TaskPairHooks, mock_hooks: MockHooks
+) -> None:
+    # a limit raised by the first start hook skips the later start hooks, so
+    # only the first gets an end
+    first_hooks.start_limit = True
+    (log,) = eval(Task(dataset=[Sample("sample_1")]), model="mockllm/model")
+
+    assert log.status == "error"
+    (task_end,) = first_hooks.task_end_events
+    assert task_end.log.status == "error"
+    assert mock_hooks.task_start_events == []
+    assert mock_hooks.task_end_events == []
+
+
+async def test_task_end_hook_when_cancelled_during_start_hook(
+    first_hooks: TaskPairHooks, mock_hooks: MockHooks, tmp_path: Path
+) -> None:
+    first_hooks.start_blocked = anyio.Event()
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(_eval_async_one_sample, generate(), str(tmp_path))
+        await first_hooks.start_blocked.wait()
+        tg.cancel_scope.cancel()
+
+    (task_end,) = first_hooks.task_end_events
+    assert task_end.log.status == "cancelled"
+    assert mock_hooks.task_start_events == []
+    assert mock_hooks.task_end_events == []
 
 
 def test_hooks_do_not_need_to_subscribe_to_all_events(

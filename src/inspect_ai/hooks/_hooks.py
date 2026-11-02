@@ -708,7 +708,15 @@ async def emit_run_end(
     await _emit_to_all(lambda hook: hook.on_run_end(data))
 
 
-async def emit_task_start(logger: TaskLogger, plan: EvalPlan) -> None:
+async def emit_task_start(
+    logger: TaskLogger, plan: EvalPlan, started: list[Hooks]
+) -> None:
+    """Call `on_task_start` on every enabled hook.
+
+    Each hook is appended to `started` before its `on_task_start` is called,
+    so the hooks that were entered are known even when a hook raises or the
+    call is cancelled. Pass the same list to `emit_task_end`.
+    """
     data = TaskStart(
         eval_set_id=logger.eval.eval_set_id,
         run_id=logger.eval.run_id,
@@ -716,17 +724,34 @@ async def emit_task_start(logger: TaskLogger, plan: EvalPlan) -> None:
         spec=logger.eval,
         plan=plan,
     )
-    await _emit_to_all(lambda hook: hook.on_task_start(data))
+
+    async def start(hook: Hooks) -> None:
+        started.append(hook)
+        await hook.on_task_start(data)
+
+    await _emit_to_all(start)
 
 
-async def emit_task_end(logger: TaskLogger, log: EvalLog) -> None:
+async def emit_task_end(
+    logger: TaskLogger, log: EvalLog, pending: list[Hooks], *, raise_limits: bool
+) -> None:
+    """Call `on_task_end` on each hook in `pending`, removing it first.
+
+    `pending` holds the hooks `emit_task_start` entered, so each gets exactly
+    one end, even when this is called again after an interrupted call. With
+    `raise_limits=False`, a `LimitExceededError` from one hook is logged and
+    the remaining hooks are still called.
+    """
     data = TaskEnd(
         eval_set_id=logger.eval.eval_set_id,
         run_id=logger.eval.run_id,
         eval_id=logger.eval.eval_id,
         log=log,
     )
-    await _emit_to_all(lambda hook: hook.on_task_end(data))
+    while pending:
+        await _call_hook_safely(
+            pending.pop(0), lambda hook: hook.on_task_end(data), raise_limits
+        )
 
 
 async def emit_sample_init(
@@ -1175,10 +1200,20 @@ async def _emit_to_all(callable: Callable[[Hooks], Awaitable[None]]) -> None:
     for hook in get_all_hooks():
         if not hook.enabled():
             continue
-        try:
-            await callable(hook)
+        await _call_hook_safely(hook, callable)
+
+
+async def _call_hook_safely(
+    hook: Hooks,
+    callable: Callable[[Hooks], Awaitable[None]],
+    raise_limits: bool = True,
+) -> None:
+    try:
+        await callable(hook)
+    except LimitExceededError as ex:
         # We propagate LimitExceededError so that limits can be enforced via hooks.
-        except LimitExceededError:
+        if raise_limits:
             raise
-        except Exception as ex:
-            logger.warning(f"Exception calling hook '{hook.__class__.__name__}': {ex}")
+        logger.warning(f"Limit exceeded in hook '{hook.__class__.__name__}': {ex}")
+    except Exception as ex:
+        logger.warning(f"Exception calling hook '{hook.__class__.__name__}': {ex}")
