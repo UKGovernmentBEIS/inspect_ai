@@ -6,6 +6,7 @@ from unittest.mock import patch
 import anyio
 import anyio.lowlevel
 import pytest
+from pydantic import JsonValue
 
 import inspect_ai.hooks._startup as hooks_startup_module
 from inspect_ai import eval, eval_async
@@ -41,13 +42,13 @@ from inspect_ai.hooks._hooks import (
 from inspect_ai.hooks._startup import _load_registry_hooks, init_hooks
 from inspect_ai.log import EvalLog, list_eval_logs_async, read_eval_log_async
 from inspect_ai.log._file import read_eval_log
-from inspect_ai.log._log import EvalSample
+from inspect_ai.log._log import EvalSample, EvalSpec
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.scorer import Metric, SampleScore, match, metric
 from inspect_ai.solver._solver import Generate, Solver, generate, solver
 from inspect_ai.solver._task_state import TaskState
-from inspect_ai.util import LimitExceededError
+from inspect_ai.util import EarlyStop, LimitExceededError
 
 
 class MockHooks(Hooks):
@@ -780,6 +781,8 @@ class TaskPairHooks(Hooks):
         self.start_limit = False
         self.end_limit = False
         self.start_blocked: anyio.Event | None = None
+        self.end_entered: anyio.Event | None = None
+        self.end_release: anyio.Event | None = None
 
     async def on_task_start(self, data: TaskStart) -> None:
         self.task_start_events.append(data)
@@ -793,6 +796,9 @@ class TaskPairHooks(Hooks):
         self.task_end_events.append(data)
         if self.end_limit:
             raise LimitExceededError("custom", value=1, limit=0)
+        if self.end_entered is not None and self.end_release is not None:
+            self.end_entered.set()
+            await self.end_release.wait()
 
 
 @pytest.fixture
@@ -876,6 +882,90 @@ async def test_task_end_hook_runs_when_cancel_results_fail(
     assert task_end.log.status == "error"
     assert task_end.log.error is not None
     assert task_end.log.error.message == log.error.message
+
+
+async def test_task_end_hook_abort_during_error_end_keeps_log(
+    first_hooks: TaskPairHooks, mock_hooks: MockHooks, tmp_path: Path
+) -> None:
+    # an abort landing while an errored task's end hook runs must not discard
+    # its written log, change the log later hooks get, or stop queued tasks
+    first_hooks.end_entered = anyio.Event()
+    first_hooks.end_release = anyio.Event()
+
+    class FailingEarlyStopping:
+        # fails the task at startup, before any sample runs, so it can still
+        # be aborted while its end hook runs
+        async def start_task(
+            self, task: EvalSpec, samples: list[Sample], epochs: int
+        ) -> str:
+            raise RuntimeError("early stopping failed")
+
+        async def schedule_sample(self, id: str | int, epoch: int) -> EarlyStop | None:
+            return None
+
+        async def complete_sample(
+            self, id: str | int, epoch: int, scores: dict[str, SampleScore]
+        ) -> None:
+            pass
+
+        async def complete_task(self) -> dict[str, JsonValue]:
+            return {}
+
+    async def abort_during_end_hook() -> None:
+        assert first_hooks.end_entered is not None
+        assert first_hooks.end_release is not None
+        await first_hooks.end_entered.wait()
+        (start,) = mock_hooks.task_start_events
+        assert start.spec.task == "victim"
+        result = cancel_task(start.spec.task_id)
+        assert result is not None and result.get("changed") is True
+        first_hooks.end_release.set()
+
+    logs: list[EvalLog] = []
+
+    async def run_eval() -> None:
+        logs.extend(
+            await eval_async(
+                [
+                    Task(
+                        dataset=[Sample("a")],
+                        early_stopping=FailingEarlyStopping(),
+                        name="victim",
+                    ),
+                    Task(dataset=[Sample("b")], name="queued"),
+                ],
+                model="mockllm/model",
+                max_tasks=1,
+                log_dir=str(tmp_path),
+                ctl_server=False,
+            )
+        )
+
+    with anyio.fail_after(60):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(abort_during_end_hook)
+            tg.start_soon(run_eval)
+
+    assert {log.eval.task: log.status for log in logs} == {
+        "victim": "error",
+        "queued": "success",
+    }
+    (victim,) = [log for log in logs if log.eval.task == "victim"]
+    assert victim.error is not None
+    assert "early stopping failed" in victim.error.message
+    written = await read_eval_log_async(victim.location, header_only=True)
+    assert written.status == "error"
+    assert written.error is not None
+    assert written.error.message == victim.error.message
+    for hooks_ in (first_hooks, mock_hooks):
+        assert sorted(
+            (
+                event.log.eval.task,
+                event.log.status,
+                event.log.error.message if event.log.error else None,
+            )
+            for event in hooks_.task_end_events
+        ) == [("queued", "success", None), ("victim", "error", victim.error.message)]
 
 
 def test_task_end_hook_only_for_entered_start_hooks(

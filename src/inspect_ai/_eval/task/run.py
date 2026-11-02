@@ -2103,9 +2103,12 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     reductions=reductions,
                     error=error,
                 )
-                await emit_task_end(
-                    logger, eval_log, task_end_pending, raise_limits=False
-                )
+                # shielded, so an abort landing while a hook runs cannot
+                # discard the log just written
+                with anyio.CancelScope(shield=True):
+                    await emit_task_end(
+                        logger, eval_log, task_end_pending, raise_limits=False
+                    )
 
                 # display it
                 td.complete(TaskError(logger.samples_completed, type, value, traceback))
