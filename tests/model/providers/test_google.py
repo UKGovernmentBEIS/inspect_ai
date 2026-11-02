@@ -2044,6 +2044,19 @@ async def test_streamed_signed_image_is_kept(before: Part) -> None:
 
 
 @pytest.mark.anyio
+async def test_streamed_signature_with_metadata_goes_on_text() -> None:
+    """A streamed signature with only metadata is a bare signature for the text before it."""
+    signature = Part(thought_signature=b"S", part_metadata={"source": "x"})
+    output, _, _ = await _generate_streamed(
+        [[_chunk([Part(text="answer")]), _chunk([signature], FinishReason.STOP)]]
+    )
+
+    stored = ModelOutput.model_validate_json(output.model_dump_json())
+    replayed = await content(MagicMock(), stored.message)
+    assert replayed.parts == [_signed("answer", b"S")]
+
+
+@pytest.mark.anyio
 @pytest.mark.parametrize("streaming", [False, True], ids=["plain", "streamed"])
 @pytest.mark.parametrize(
     "text", [None, "", "hel"], ids=["signature-only", "signed-empty", "signed-text"]
