@@ -261,16 +261,18 @@ def drain_task(task_id: str, *, dry_run: bool = False) -> CancelTaskResult | Non
     return _task_cancel_directive(task_id, stamp="drain", action=None, dry_run=dry_run)
 
 
-def _cancel_not_started(
+def _cancel_unregistered(
     record: "TaskRecord", *, stamp: "CancelStamp", dry_run: bool
 ) -> CancelTaskResult:
-    """Cancel or drain a task of the live run whose first attempt has not started.
+    """Cancel or drain a task of the live run none of whose attempts has registered.
 
-    It ends without running and is not retried. The cancel abandons the
-    task's next attempt (:func:`abandon_task_retry`): the run's scheduling
-    loop ends the task if it is waiting to start, and an attempt it has
+    It is waiting to start (a first attempt, or a retry of an attempt that
+    ended before it registered), still starting, or ended. It ends without
+    running again: the cancel abandons the task's next attempt
+    (:func:`abandon_task_retry`), so the run's scheduling loop ends the task
+    if it is waiting, keeping its last attempt's log, and an attempt it has
     already started bails before it registers. A score/error resolution is
-    rejected (the task has no samples to resolve).
+    rejected (no attempt has samples to resolve).
     """
     from inspect_ai._control.eval_state import abandon_task_retry, task_retry_abandoned
 
@@ -278,9 +280,9 @@ def _cancel_not_started(
         return {
             "ok": False,
             "error": (
-                f"task {record.task_id} has not started, so there are no samples "
-                "for a resolution to apply to; use a plain cancel (or drain) to "
-                "end it without running"
+                f"task {record.task_id} is waiting to start, so there are no "
+                "samples for a resolution to apply to; use a plain cancel (or "
+                "drain) to end it without running"
             ),
         }
     result: _CancelTaskResult = {
@@ -296,12 +298,22 @@ def _cancel_not_started(
     else:
         result["action"] = "cancel"
     if record.ended:
-        return {**result, "changed": False, "reason": "task ended before it started"}
+        reason = (
+            "task already finished" if record.log else "task ended before it started"
+        )
+        return {**result, "changed": False, "reason": reason}
     if task_retry_abandoned(record.task_id):
         return {**result, "changed": False, "reason": "cancel already requested"}
     if not dry_run:
         abandon_task_retry(record.task_id)
-    return {**result, "changed": True, "not_started": True}
+    if record.log is None:
+        return {**result, "changed": True, "not_started": True}
+    return {
+        **result,
+        "eval_id": record.log.eval.eval_id,
+        "changed": True,
+        "retry_abandoned": True,
+    }
 
 
 # what a task directive stamps on the handle: the internal CancelType
@@ -334,15 +346,11 @@ def _task_cancel_directive(
 
     state = latest_eval_for_task(task_id)
     found = find_active_task(task_id)
-    # a first attempt that has not registered in this run (queued, or picked
-    # and still starting); the task's latest EvalState, if any, is then from
-    # an earlier eval() of the same eval set
-    if (
-        found is not None
-        and found.record.attempt == 1
-        and (state is None or state.run_id != found.queue.run_id)
-    ):
-        return _cancel_not_started(found.record, stamp=stamp, dry_run=dry_run)
+    # no attempt of this task has registered in this run (it is waiting,
+    # starting or ended); the task's latest EvalState, if any, is then from an
+    # earlier eval() of the same eval set
+    if found is not None and (state is None or state.run_id != found.queue.run_id):
+        return _cancel_unregistered(found.record, stamp=stamp, dry_run=dry_run)
     if state is None:
         return None
 

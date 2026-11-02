@@ -542,7 +542,7 @@ async def test_operator_cancel_of_a_task_waiting_for_its_setup(
             assert cancel_task(child.task_id, action="score") == {
                 "ok": False,
                 "error": (
-                    f"task {child.task_id} has not started, so there are no "
+                    f"task {child.task_id} is waiting to start, so there are no "
                     "samples for a resolution to apply to; use a plain cancel "
                     "(or drain) to end it without running"
                 ),

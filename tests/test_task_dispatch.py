@@ -24,6 +24,7 @@ import pytest
 from typing_extensions import override
 
 from inspect_ai import Epochs, Task, TaskSource, enqueue_task, eval, eval_async
+from inspect_ai._control.cancel import cancel_task, drain_task
 from inspect_ai._control.eval_state import abandon_task_retry, reset_retry_abandoned
 from inspect_ai._control.max_tasks import (
     reset_max_tasks_override,
@@ -44,6 +45,8 @@ from inspect_ai._eval.task.enqueue import (
     RunQueue,
     TaskRecord,
     TaskStartPolicy,
+    clear_run_queue,
+    register_run_queue,
 )
 from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._eval.task.resolved import ResolvedTask
@@ -1170,6 +1173,45 @@ async def test_abandoning_a_queued_retry_keeps_the_failed_attempts_log(
     async with anyio.create_task_group() as tg:
         tg.start_soon(drive)
         logs = await harness.run(_resolve(["a", "b"], [m1]))
+    assert _starts(harness) == ["a@m1", "b@m1"]
+    assert [(log.eval.task, log.status) for log in logs] == [
+        ("a@m1", "error"),
+        ("b@m1", "success"),
+    ]
+
+
+@pytest.mark.parametrize("directive", [cancel_task, drain_task])
+async def test_cancel_abandons_a_queued_retry_whose_attempt_never_registered(
+    monkeypatch: pytest.MonkeyPatch, directive: Callable[[str], Any]
+) -> None:
+    # an attempt can end before it registers its EvalState (its log_start
+    # write failed); the harness's attempts never register, so a's retry is
+    # such a task
+    m1 = get_model("mockllm/m1")
+    harness = Harness([m1], parallel=1, retries=2)
+    _install(monkeypatch, harness)
+    harness.fail_next.add("a@m1")
+    results: list[Any] = []
+
+    async def drive() -> None:
+        await _wait_started(harness, "a@m1")
+        harness.finish["a@m1"].set()
+        await _wait_started(harness, "b@m1")
+        await _wait_until(lambda: len(harness.queue.queued) == 1)
+        results.append(directive(harness.queue.records[0].task_id))
+        await _wait_until(lambda: harness.queue.queued == [])
+        harness.finish["b@m1"].set()
+
+    token = register_run_queue(harness.queue)
+    try:
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(drive)
+            logs = await harness.run(_resolve(["a", "b"], [m1]))
+    finally:
+        clear_run_queue(token)
+        reset_retry_abandoned()
+    assert results[0] is not None and results[0]["changed"]
+    assert results[0].get("retry_abandoned")
     assert _starts(harness) == ["a@m1", "b@m1"]
     assert [(log.eval.task, log.status) for log in logs] == [
         ("a@m1", "error"),
