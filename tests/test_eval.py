@@ -296,6 +296,59 @@ def test_eval_display_follows_display_arg_across_evals(
     assert "Log:" in capsys.readouterr().out
 
 
+def test_eval_display_plain_then_rich_shows_live_progress(
+    fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import rich
+
+    import inspect_ai._display.core.rich as display_rich
+
+    # a VS Code terminal, where rich_initialise leaves the console's colors
+    # and terminal detection alone
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: True)
+    monkeypatch.setenv("TTY_COMPATIBLE", "1")
+    rich.reconfigure()
+    task = Task(dataset=[Sample(input="hi", target="hi")], scorer=match())
+
+    eval(task, model="mockllm/model", display="plain", log_dir=str(tmp_path))
+    eval(task, model="mockllm/model", display="rich", log_dir=str(tmp_path))
+
+    # rich.live draws progress only on a terminal, and in place only when
+    # interactive (plain turns both off)
+    console = rich.get_console()
+    assert console.is_terminal and console.is_interactive
+
+
+@pytest.mark.parametrize("vscode", [False, True])
+def test_eval_display_none_then_log_shows_log_output(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
+    vscode: bool,
+) -> None:
+    import inspect_ai._display.core.rich as display_rich
+    from inspect_ai._util.logger import _logHandler
+
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: vscode)
+    task = Task(dataset=[Sample(input="hi", target="hi")], scorer=match())
+
+    eval(task, model="mockllm/model", display="none", log_dir=str(tmp_path))
+    capsys.readouterr()
+
+    # logging is configured once per process, so set it up as an INFO first
+    # eval with the default rich format would have
+    handler = _logHandler["handler"]
+    assert handler is not None
+    monkeypatch.setattr(handler, "display_level", logging.INFO)
+    monkeypatch.setattr(handler, "logger_format", "rich")
+    caplog.set_level(logging.INFO)
+
+    eval(task, model="mockllm/model", display="log", log_dir=str(tmp_path))
+    assert "Running 1 tasks" in capsys.readouterr().out
+
+
 def test_max_tasks_bounds_concurrent_models_single_task():
     # Regression for #4195: a single task definition fanned across models must
     # honor max_tasks. max_tasks=1 runs model-by-model; unset runs them all.

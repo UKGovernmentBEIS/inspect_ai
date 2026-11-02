@@ -10,6 +10,7 @@ from ..plain.display import PlainDisplay
 from ..rich.display import RichDisplay
 from ..textual.display import TextualDisplay
 from .display import Display, TaskScreen
+from .rich import rich_restore_defaults
 
 _active_display: Display | None = None
 
@@ -20,8 +21,10 @@ def active_display() -> Display | None:
 
 
 def clear_active_display() -> None:
+    """Drop the active display and the console settings it applied."""
     global _active_display
     _active_display = None
+    rich_restore_defaults()
 
 
 def display() -> Display:
