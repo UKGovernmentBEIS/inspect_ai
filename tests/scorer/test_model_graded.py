@@ -2,6 +2,7 @@ import asyncio
 import math
 import os
 import re
+import time
 from typing import Any, Callable
 
 import pytest
@@ -33,6 +34,7 @@ from inspect_ai.scorer import (
     model_graded_qa,
 )
 from inspect_ai.scorer._model import (
+    _PERMISSIVE_GRADE_PATTERN,
     DEFAULT_GRADE_PATTERN,
     neutralize_structural_delimiters,
 )
@@ -947,6 +949,9 @@ def test_final_grade_still_wins_over_earlier_off_menu_mention() -> None:
         pytest.param("GRADE: (I)", id="parenthesized_letter"),
         pytest.param("GRADE = I", id="equals_separator"),
         pytest.param("## GRADE\nI", id="markdown_heading"),
+        pytest.param("## GRADE\nI         \n", id="markdown_heading_trailing_spaces"),
+        pytest.param("````GRADE````: I", id="long_code_marks"),
+        pytest.param("x**GRADE**: I", id="emphasis_after_word"),
     ],
 )
 def test_markdown_or_fullwidth_final_verdict_wins_over_quoted_grade(
@@ -978,6 +983,9 @@ def test_markdown_or_fullwidth_final_verdict_wins_over_quoted_grade(
         pytest.param("GRADE - Z", id="off_menu_grade"),
         pytest.param("GRADE - P", id="partial_not_offered"),
         pytest.param("Grade - I\nFor comparison, grade - C", id="later_prose_mention"),
+        pytest.param("Grade - I\nGrade - done", id="closing_remark_after_verdict"),
+        pytest.param("Grade - I\r\n", id="crlf"),
+        pytest.param("Grade - I\r\nGrade - done\r\n", id="crlf_closing_remark"),
     ],
 )
 def test_unread_final_verdict_does_not_fall_back_to_earlier_grade(
@@ -1026,6 +1034,23 @@ def test_trailing_mention_that_agrees_or_is_prose_keeps_grade(
     grader_output: str,
 ) -> None:
     assert _graded_value(grader_output).value == CORRECT
+
+
+@pytest.mark.parametrize(
+    "pattern",
+    [DEFAULT_GRADE_PATTERN, _PERMISSIVE_GRADE_PATTERN],
+    ids=["default", "permissive"],
+)
+@pytest.mark.parametrize("mark", ["*", "_", "`"])
+def test_grade_pattern_is_linear_on_long_emphasis_run(pattern: str, mark: str) -> None:
+    # A long run of emphasis marks with no verdict must not make the search
+    # slow: emphasis that could start inside the run took ~8 s for 2,000
+    # marks. With the start anchor and emphasis read only from the start of a
+    # run, 20,000 marks take about a millisecond.
+    text = "Reasoning.\n" + mark * 20_000 + "\nno verdict here"
+    started = time.perf_counter()
+    assert re.search(pattern, text) is None
+    assert time.perf_counter() - started < 2.0
 
 
 def test_trailing_verdict_guard_skips_custom_grade_pattern() -> None:

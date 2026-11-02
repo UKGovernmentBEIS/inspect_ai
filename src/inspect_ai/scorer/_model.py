@@ -448,7 +448,11 @@ _GRADE_SEPARATOR = r"[:=\uff1a]"
 
 # The ``GRADE`` token with optional emphasis, bounded so that prose such as
 # ``downgrade:`` or an identifier such as ``snake_GRADE`` is not a label.
-_GRADE_LABEL = rf"(?<!\w){_GRADE_EMPHASIS}GRADE{_GRADE_EMPHASIS}(?!\w)"
+# Leading emphasis is read only from the start of a run of marks: the patterns
+# begin with a greedy ``.*``, so letting it start inside a run would rescan the
+# rest of a long run of ``*`` or ``_`` from every position and take quadratic
+# time on a reply with such a run and no verdict.
+_GRADE_LABEL = rf"(?<!\w)(?:(?<![*_`])[*_`]+)?GRADE{_GRADE_EMPHASIS}(?!\w)"
 
 # ``GRADE`` plus a separator, or a markdown heading that is just ``GRADE`` with
 # the verdict alone on the next line. The lookahead keeps a heading followed by
@@ -471,14 +475,17 @@ _GRADE_WORD_VALUES = {
 }
 
 DEFAULT_GRADE_PATTERN = (
-    rf"(?is).*{_GRADE_LEAD_IN}{_GRADE_SPACING}{_GRADE_VERDICT_OPEN}([CPI])"
+    rf"(?is)\A.*{_GRADE_LEAD_IN}{_GRADE_SPACING}{_GRADE_VERDICT_OPEN}([CPI])"
 )
 """Regex to extract the grade from the COT above.
 
 The leading greedy ``.*`` (with DOTALL) ensures ``re.search`` binds to the
 *last* ``GRADE: X`` in the grader output — the instructions tell the grader
 to end with the grade, so earlier mentions (e.g. echoed in chain-of-thought
-or injected via the submission) must not win. The ``GRADE`` token is bounded so
+or injected via the submission) must not win. The start-of-string anchor changes no
+result (with DOTALL a match always starts at the beginning) but stops
+``re.search`` from retrying the ``.*`` at every later start position, which made
+a reply without a verdict take quadratic time. The ``GRADE`` token is bounded so
 ordinary prose like ``downgrade:`` cannot be mistaken for a verdict. No
 end-of-string anchor is used so that trailing text after the grade line does
 not suppress the match. Markdown emphasis or inline code around the label or
@@ -502,7 +509,7 @@ actually offered (see ``model_graded_qa``).
 # verdict decides the score, and an unusable one is a parse failure rather than
 # a licence to score some mention from the chain of thought.
 _PERMISSIVE_GRADE_PATTERN = (
-    rf"(?is).*{_GRADE_LEAD_IN}{_GRADE_SPACING}{_GRADE_VERDICT_OPEN}(\w*)"
+    rf"(?is)\A.*{_GRADE_LEAD_IN}{_GRADE_SPACING}{_GRADE_VERDICT_OPEN}(\w*)"
 )
 
 
@@ -519,7 +526,7 @@ _TRAILING_VERDICT_RE = re.compile(
     r"(?P<sep>(?:[ \t]*(?:</?[a-z]{1,6}>|\([^()\n]{0,20}\))){0,3}"
     r"[ \t]*[^\w\s<(]{0,4}[ \t]*)"
     r"(?P<grade>[a-z]{1,12})"
-    r"(?:[ \t*_`)\].!]|</[a-z]{1,6}>){0,8}$",
+    r"(?:[ \t*_`)\].!]|</[a-z]{1,6}>){0,8}\r?$",
     re.IGNORECASE | re.MULTILINE,
 )
 
@@ -531,20 +538,21 @@ def _trailing_verdict_disagrees(completion: str, start: int, value: str) -> bool
     ("Grade - I" then "Grade - C") keeps the corrected grade. A single letter
     that is not a grade ("GRADE - Z") disagrees, as it does in the matched
     verdict; a longer word that is not a grade ("Grade - done") is a closing
-    remark, not a verdict. A separator made only of whitespace is ordinary
-    prose, not a verdict.
+    remark, not a verdict, and is skipped before the last verdict line is
+    chosen, so a remark cannot hide an earlier line that disagrees. A
+    separator made only of whitespace is ordinary prose, not a verdict.
     """
     last = None
     for found in _TRAILING_VERDICT_RE.finditer(completion, start):
-        if found.group("sep").strip():
-            last = found
-    if last is None:
-        return False
-    word = last.group("grade")
-    grade = _GRADE_WORD_VALUES.get(
-        word.lower(), word.upper() if len(word) == 1 else None
-    )
-    return grade is not None and grade != value
+        if not found.group("sep").strip():
+            continue
+        word = found.group("grade")
+        grade = _GRADE_WORD_VALUES.get(
+            word.lower(), word.upper() if len(word) == 1 else None
+        )
+        if grade is not None:
+            last = grade
+    return last is not None and last != value
 
 
 def chat_history(state: TaskState) -> str:
