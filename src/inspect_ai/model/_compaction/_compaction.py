@@ -100,7 +100,8 @@ def compaction(
             than re-deriving from scratch. Defaults to a no-op session.
 
     Returns:
-        `Compact` handler with `compact_input()` and `record_output()` methods.
+        `Compact` handler with `compact_input()`, `record_output()` and
+        `reset()` methods.
     """
     from inspect_ai.log._transcript import transcript
 
@@ -350,6 +351,19 @@ def compaction(
                 # return
                 return list(state.compacted_input), None
 
+    async def reset_fn(new_prefix: list[ChatMessage]) -> None:
+        nonlocal prefix_tokens
+
+        async with _lock:
+            # in place, so a checkpointer tracking `state` keeps tracking it
+            state.compacted_input.clear()
+            state.processed_message_ids.clear()
+            state.baseline_tokens = None
+            state.baseline_message_ids.clear()
+            state.memory_warning_issued = False
+            prefix[:] = new_prefix
+            prefix_tokens = None
+
     class _CompactHandler:
         async def compact_input(
             self,
@@ -362,6 +376,9 @@ def compaction(
             self, input: list[ChatMessage], output: ModelOutput
         ) -> None:
             await record_output_fn(input, output)
+
+        async def reset(self, prefix: list[ChatMessage]) -> None:
+            await reset_fn(prefix)
 
     return _CompactHandler()
 
