@@ -824,10 +824,21 @@ def _two_scoped_users_share_one_bash_session() -> Solver:
                     ["stat", "-c", "%U", f"/home/{user}/{name}"], user="root"
                 )
                 assert owner.stdout.strip() == user, owner
-        # a shell cannot start in a directory its user cannot enter
-        with sandbox_identity("w1", cwd="/home/w2"):
-            with pytest.raises(ToolError, match="cannot start in '/home/w2'"):
-                await bash_session(instance="w1-in-w2")(action="read")
+        # a shell cannot start in a directory its user cannot enter, including
+        # one reached through a symlink into another user's private home
+        linked = await sb.exec(
+            [
+                "sh",
+                "-c",
+                "mkdir -m 755 /home/w2/pub && ln -s /home/w2/pub /home/w1/link",
+            ],
+            user="root",
+        )
+        assert linked.success, linked.stderr
+        for cwd in ("/home/w2", "/home/w1/link"):
+            with sandbox_identity("w1", cwd=cwd):
+                with pytest.raises(ToolError, match=f"cannot start in '{cwd}'"):
+                    await bash_session(instance=f"w1-in-{cwd}")(action="read")
         return state
 
     return solve

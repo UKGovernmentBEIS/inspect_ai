@@ -43,13 +43,16 @@ class Session:
         )
 
     async def restart(self, timeout: int = 30) -> BashRestartResult:
+        """Replace the shell with a new one.
+
+        The new shell starts first: if it cannot (its directory is gone, say),
+        the old shell keeps running and stays this session's shell.
+        """
+        new_process = await Process.create(user=self._user, cwd=self._cwd)
         old_process = self._process
-        _, new_process = await asyncio.gather(
-            old_process.terminate(timeout=timeout),
-            Process.create(user=self._user, cwd=self._cwd),
-        )
-        self._retired_processes.append(old_process)
         self._process = new_process
+        self._retired_processes.append(old_process)
+        await old_process.terminate(timeout=timeout)
         return "shell restarted successfully"
 
     async def terminate(self, timeout: int = 30) -> None:

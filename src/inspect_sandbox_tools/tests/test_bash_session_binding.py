@@ -13,10 +13,13 @@ from typing import Any
 import pytest
 from inspect_sandbox_tools._remote_tools._bash_session import (
     _controller,
+    _process,
+    _session,
     json_rpc_methods,
 )
 from inspect_sandbox_tools._remote_tools._bash_session._session import Session
-from inspect_sandbox_tools._util.common_types import ServerErrorCode
+from inspect_sandbox_tools._util.common_types import ServerErrorCode, ToolException
+from inspect_sandbox_tools._util.user_switch import RunAs
 from jsonrpcserver import async_dispatch
 
 # Binding a shell to the current user needs no user switch, so no root.
@@ -177,6 +180,89 @@ async def test_a_real_shell_starts_and_restarts_in_its_directory(
         await session.terminate(timeout=10)
 
 
+async def test_a_shell_enters_its_directory_only_after_switching_user(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The directory must be resolved with the shell user's permissions, so the
+    # shell may not already be in it when the user switch runs.
+    seen = tmp_path / "seen"
+    work = tmp_path / "work"
+    work.mkdir()
+    make_preexec = _process.make_preexec
+
+    def recording_preexec(user: str | RunAs | None) -> Callable[[], None]:
+        switch = make_preexec(user)
+
+        def preexec() -> None:
+            with open(seen, "a") as f:
+                f.write(os.getcwd() + "\n")
+            switch()
+
+        return preexec
+
+    monkeypatch.setattr(_process, "make_preexec", recording_preexec)
+    session = await Session.create(cwd=str(work))
+    try:
+        assert seen.read_text().splitlines()[-1] != str(work.resolve())
+        assert str(work.resolve()) in await shell_output(session, "pwd -P")
+    finally:
+        await session.terminate(timeout=10)
+
+
+async def test_a_failed_restart_keeps_the_running_shell(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    work = tmp_path / "work"
+    work.mkdir()
+    ptys: list[Any] = []
+    create_pty = _process.PseudoTerminal.create
+
+    async def recording_pty() -> Any:
+        ptys.append(await create_pty())
+        return ptys[-1]
+
+    monkeypatch.setattr(_process.PseudoTerminal, "create", recording_pty)
+    session = await Session.create(cwd=str(work))
+    try:
+        work.rename(tmp_path / "moved")
+        with pytest.raises(ToolException, match="cannot start in"):
+            await session.restart(timeout=10)
+        assert ptys[-1]._cleaned
+        assert session._retired_processes == []
+        assert "alive" in await shell_output(session, "echo ali''ve")
+
+        (tmp_path / "moved").rename(work)
+        await session.restart(timeout=10)
+        assert str(work.resolve()) in await shell_output(session, "pwd -P")
+    finally:
+        await session.terminate(timeout=10)
+
+
+async def test_a_cancelled_restart_keeps_the_running_shell(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    session = await Session.create(cwd=str(tmp_path))
+    started, release = asyncio.Event(), asyncio.Event()
+    create = _session.Process.create
+
+    async def held_create(*args: Any, **kwargs: Any) -> Any:
+        started.set()
+        await release.wait()
+        return await create(*args, **kwargs)
+
+    monkeypatch.setattr(_session.Process, "create", held_create)
+    try:
+        restart = asyncio.create_task(session.restart(timeout=10))
+        await started.wait()
+        restart.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await restart
+        assert session._retired_processes == []
+        assert "alive" in await shell_output(session, "echo ali''ve")
+    finally:
+        await session.terminate(timeout=10)
+
+
 async def test_a_directory_the_user_cannot_enter_fails_creation(
     server: _controller.Controller, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -185,10 +271,14 @@ async def test_a_directory_the_user_cannot_enter_fails_creation(
     if os.getuid() != 0:  # root enters any directory
         unusable.append(tmp_path / "closed")
         unusable[-1].mkdir(mode=0)
-    for cwd in unusable:
-        response = await call("bash_session_new_session", cwd=str(cwd))
-        assert error_code(response) == ServerErrorCode.TOOL_ERROR
-        assert f"cannot start in {str(cwd)!r}" in response["error"]["message"]
+    try:
+        for cwd in unusable:
+            response = await call("bash_session_new_session", cwd=str(cwd))
+            assert error_code(response) == ServerErrorCode.TOOL_ERROR
+            assert f"cannot start in {str(cwd)!r}" in response["error"]["message"]
+    finally:
+        for path in unusable[1:]:
+            path.chmod(0o700)  # let pytest remove it
     assert server._sessions == {}
 
 
