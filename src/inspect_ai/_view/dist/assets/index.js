@@ -1,9 +1,10 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./AnsiDisplayRich.js","./rolldown-runtime.js","./compiler-runtime.js","./ToolButton.js","./ToolButton.css","./AnsiDisplayRich.css","./AsciinemaPlayerImpl.js","./AsciinemaPlayerImpl.css","./prismHighlighter.js","./type.js","./markdownPipeline.js","./markdownText.js","./preload-helper.js","./markdownPipeline.css"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./AnsiDisplayRich.js","./rolldown-runtime.js","./compiler-runtime.js","./ToolButton.js","./ToolButton.css","./AnsiDisplayRich.css","./AsciinemaPlayerImpl.js","./useLatestRef.js","./AsciinemaPlayerImpl.css","./prismHighlighter.js","./type.js","./markdownPipeline.js","./markdownText.js","./preload-helper.js","./markdownPipeline.css"])))=>i.map(i=>d[i]);
 import { i as __toESM, t as __commonJSMin } from "./rolldown-runtime.js";
 import { n as require_react, r as require_jsx_runtime, t as require_compiler_runtime } from "./compiler-runtime.js";
 import { i as toArray, n as isReadonlyArray, r as isRecord, t as isNumeric } from "./type.js";
 import { a as base64DataUriMimeType, c as isRenderableImageSource, d as parseDataUri, i as truncationWindow, l as normalizedImageMimeType, n as escapeHtmlCharacters, r as simpleMarkdownTruncate, s as isRasterImageMimeType, u as parseAbsoluteHttpUrl } from "./markdownText.js";
 import { a as logLevelIcon, c as nullProtoRecord, i as iconForMimeType, l as printObject, n as AnsiDisplay_module_default, o as clsx, r as Icon, s as getOwn, t as ToolButton } from "./ToolButton.js";
+import { t as useLatestRef } from "./useLatestRef.js";
 import { t as __vitePreload } from "./preload-helper.js";
 //#region \0vite/modulepreload-polyfill.js
 (function polyfill() {
@@ -11274,11 +11275,7 @@ var base64Pattern = /^(?:[A-Za-z0-9+/]{4})*?(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{
 /**
 * Clears the current text selection in the document.
 */ var clearDocumentSelection = () => {
-	const sel = window.getSelection();
-	if (sel) {
-		if (sel.removeAllRanges) sel.removeAllRanges();
-		else if (sel.empty) sel.empty();
-	}
+	window.getSelection()?.removeAllRanges();
 };
 /**
 * The focused element, pierced through shadow roots. document.activeElement
@@ -11307,6 +11304,10 @@ var base64Pattern = /^(?:[A-Za-z0-9+/]{4})*?(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{
 	if (active instanceof HTMLElement && active.isContentEditable) return true;
 	return false;
 }
+/**
+* Whether an element is attached and rendered. Where `checkVisibility` is
+* unavailable (jsdom, Safari before 17.4) an attached element counts as shown.
+*/ var isElementShown = (el) => el.isConnected && el.checkVisibility?.() !== false;
 //#endregion
 //#region ../../packages/util/src/date.ts
 /**
@@ -13256,13 +13257,13 @@ function toHttpMethod(method) {
 	if (upper === "GET" || upper === "POST" || upper === "PUT" || upper === "DELETE") return upper;
 	throw new Error(`Unsupported HTTP method: ${method}`);
 }
+/** The URL a `fetch` input refers to. */ var requestUrl = (input) => typeof input === "string" ? input : input instanceof Request ? input.url : input.toString();
 /**
 * Creates a fetch function that proxies requests through JSON-RPC.
 * Used in VS Code webview to route HTTP requests through the extension host.
 */ function createJsonRpcFetch(rpcClient) {
 	return async (input, init) => {
-		const url = typeof input === "string" ? input : input instanceof Request ? input.url : input.toString();
-		const urlObj = new URL(url, window.location.origin);
+		const urlObj = new URL(requestUrl(input), window.location.origin);
 		const path = urlObj.pathname + urlObj.search;
 		const method = toHttpMethod(init?.method ?? "GET");
 		const headers = {};
@@ -13435,8 +13436,9 @@ var isRetryableHttpStatus = (status) => status === 408 || status === 429 || stat
 	const later = () => {
 		previous = options.leading === false ? 0 : Date.now();
 		timeout = null;
-		if (args !== null) result = func(...args);
-		if (!timeout) args = null;
+		const pending = args;
+		args = null;
+		if (pending !== null) result = func(...pending);
 	};
 	const throttled = (...callArgs) => {
 		const now = Date.now();
@@ -13467,7 +13469,7 @@ var isRetryableHttpStatus = (status) => status === 408 || status === 429 || stat
 * until after `wait` milliseconds have passed since the last time it was invoked.
 */ function debounce$3(func, wait, options = {}) {
 	let timeout = null;
-	let args;
+	let args = null;
 	let result;
 	let lastCallTime = null;
 	const later = () => {
@@ -13476,8 +13478,9 @@ var isRetryableHttpStatus = (status) => status === 408 || status === 429 || stat
 		else {
 			timeout = null;
 			if (!options.leading) {
-				result = func(...args);
-				if (!timeout) args = null;
+				const pending = args;
+				args = null;
+				if (pending !== null) result = func(...pending);
 			}
 		}
 	};
@@ -13487,7 +13490,7 @@ var isRetryableHttpStatus = (status) => status === 408 || status === 429 || stat
 		const callNow = options.leading && !timeout;
 		if (!timeout) timeout = setTimeout(later, wait);
 		if (callNow) {
-			result = func(...args);
+			result = func(...callArgs);
 			args = null;
 		}
 		return result;
@@ -18326,30 +18329,8 @@ var PulsingDots = (t0) => {
 	return t1;
 };
 //#endregion
-//#region ../../packages/react/src/hooks/useLatestRef.ts
-var import_react_dom = /* @__PURE__ */ __toESM(require_react_dom(), 1);
-/**
-* Returns a ref that always holds the latest `value`.
-*
-* The named replacement for the hand-rolled "mirror a value into a ref"
-* effect: lets stable callbacks (subscriptions, timers, imperative handles)
-* read current state/props without listing them as dependencies.
-*/ function useLatestRef(value) {
-	const $ = (0, import_compiler_runtime.c)(2);
-	const ref = (0, import_react.useRef)(value);
-	let t0;
-	if ($[0] !== value) {
-		t0 = () => {
-			ref.current = value;
-		};
-		$[0] = value;
-		$[1] = t0;
-	} else t0 = $[1];
-	(0, import_react.useLayoutEffect)(t0);
-	return ref;
-}
-//#endregion
 //#region ../../packages/react/src/hooks/useEventListener.ts
+var import_react_dom = /* @__PURE__ */ __toESM(require_react_dom(), 1);
 function useEventListener(target, type, listener, options) {
 	const $ = (0, import_compiler_runtime.c)(10);
 	const listenerRef = useLatestRef(listener);
@@ -18429,7 +18410,7 @@ var AutocompleteInput = (t0) => {
 		if (isBrowseMode) {
 			let t8;
 			if ($[0] !== suggestions) {
-				t8 = suggestions.filter(_temp$110);
+				t8 = suggestions.filter(_temp$113);
 				$[0] = suggestions;
 				$[1] = t8;
 			} else t8 = $[1];
@@ -18580,7 +18561,7 @@ var AutocompleteInput = (t0) => {
 					e_1.stopPropagation();
 					onCommit?.();
 				} else if (e_1.key === "ArrowDown" || e_1.key === "ArrowUp") {
-					const hasOptions = suggestions.some(_temp2$62);
+					const hasOptions = suggestions.some(_temp2$63);
 					if (filteredSuggestions.length > 0 || hasOptions) {
 						e_1.preventDefault();
 						e_1.stopPropagation();
@@ -18773,10 +18754,10 @@ var AutocompleteInput = (t0) => {
 	} else t27 = $[73];
 	return t27;
 };
-function _temp$110(s) {
+function _temp$113(s) {
 	return s !== null;
 }
-function _temp2$62(s_1) {
+function _temp2$63(s_1) {
 	return s_1 !== null;
 }
 function _temp3$43(prev) {
@@ -18825,7 +18806,7 @@ var onDemandModule = (importer) => {
 			let cancelled = false;
 			module.load().then((loaded) => {
 				if (!cancelled) setValue(() => loaded);
-			}).catch(_temp$109);
+			}).catch(_temp$112);
 			return () => {
 				cancelled = true;
 			};
@@ -18847,7 +18828,7 @@ var onDemandModule = (importer) => {
 	(0, import_react.useEffect)(t2, t3);
 	return value;
 };
-function _temp$109(error) {
+function _temp$112(error) {
 	console.error("Unable to load module", error);
 }
 var ContentTrust_module_default = {
@@ -19000,7 +18981,7 @@ var ContentTrustProvider = (t0) => {
 */ var usePlainText = () => {
 	return useHasAllContentPermissions() ? {
 		trusted: true,
-		present: _temp$108,
+		present: _temp$111,
 		className: void 0
 	} : {
 		trusted: false,
@@ -19095,7 +19076,7 @@ var UntrustedText = (t0) => {
 	} else t2 = $[4];
 	return t2;
 };
-function _temp$108(text) {
+function _temp$111(text) {
 	return text;
 }
 //#endregion
@@ -19412,87 +19393,132 @@ var Card$1 = (t0) => {
 	} else t2 = $[5];
 	return t2;
 };
+//#endregion
+//#region ../../packages/react/src/hooks/useUnmount.ts
+/**
+* Runs `fn` once when the component unmounts. Always calls the latest `fn`,
+* so it can close over current state/props without dependency plumbing.
+*/ function useUnmount(fn) {
+	const $ = (0, import_compiler_runtime.c)(3);
+	const fnRef = useLatestRef(fn);
+	let t0;
+	let t1;
+	if ($[0] !== fnRef) {
+		t0 = () => () => fnRef.current();
+		t1 = [fnRef];
+		$[0] = fnRef;
+		$[1] = t0;
+		$[2] = t1;
+	} else {
+		t0 = $[1];
+		t1 = $[2];
+	}
+	(0, import_react.useEffect)(t0, t1);
+}
+//#endregion
+//#region ../../packages/react/src/hooks/useCopyToClipboard.ts
+/**
+* Clipboard write with a transient "copied" flag for confirm-icon feedback.
+* The flag flips only after the write resolves (it can reject in an unfocused
+* document, and flipping early reads as a false success) and clears
+* `confirmMs` after the latest successful copy.
+*/ function useCopyToClipboard(t0) {
+	const $ = (0, import_compiler_runtime.c)(6);
+	const confirmMs = t0 === void 0 ? 1250 : t0;
+	const [copied, setCopied] = (0, import_react.useState)(false);
+	const timer = (0, import_react.useRef)(void 0);
+	let t1;
+	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
+		t1 = () => window.clearTimeout(timer.current);
+		$[0] = t1;
+	} else t1 = $[0];
+	useUnmount(t1);
+	let t2;
+	if ($[1] !== confirmMs) {
+		t2 = (text) => {
+			Promise.resolve().then(() => navigator.clipboard.writeText(text)).then(() => {
+				setCopied(true);
+				window.clearTimeout(timer.current);
+				timer.current = window.setTimeout(() => setCopied(false), confirmMs);
+			}).catch(_temp$110);
+		};
+		$[1] = confirmMs;
+		$[2] = t2;
+	} else t2 = $[2];
+	const copy = t2;
+	let t3;
+	if ($[3] !== copied || $[4] !== copy) {
+		t3 = {
+			copied,
+			copy
+		};
+		$[3] = copied;
+		$[4] = copy;
+		$[5] = t3;
+	} else t3 = $[5];
+	return t3;
+}
+function _temp$110(error) {
+	console.error("Failed to copy:", error);
+}
 var CopyButton_module_default = { copyButton: "_copyButton_1goi8_1" };
 //#endregion
 //#region ../../packages/react/src/components/CopyButton.tsx
-var toCopyError = (error) => error instanceof Error ? error : /* @__PURE__ */ new Error("Failed to copy");
 var CopyButton = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(18);
-	const { icon, title, value, onCopySuccess, onCopyError, className: t1, ariaLabel: t2 } = t0;
+	const $ = (0, import_compiler_runtime.c)(15);
+	const { icon, title, value, className: t1, ariaLabel: t2 } = t0;
 	const className = t1 === void 0 ? "" : t1;
 	const ariaLabel = t2 === void 0 ? "Copy to clipboard" : t2;
-	const [isCopied, setIsCopied] = (0, import_react.useState)(false);
+	const { copied, copy } = useCopyToClipboard();
 	let t3;
-	if ($[0] !== onCopyError || $[1] !== onCopySuccess || $[2] !== value) {
-		t3 = async () => {
-			try {
-				await navigator.clipboard.writeText(value);
-				setIsCopied(true);
-				if (onCopySuccess) onCopySuccess();
-				setTimeout(() => {
-					setIsCopied(false);
-				}, 1250);
-			} catch (t4) {
-				const error = t4;
-				if (onCopyError) onCopyError(toCopyError(error));
-			}
-		};
-		$[0] = onCopyError;
-		$[1] = onCopySuccess;
-		$[2] = value;
-		$[3] = t3;
-	} else t3 = $[3];
-	const handleClick = t3;
+	if ($[0] !== className) {
+		t3 = clsx("copy-button", CopyButton_module_default.copyButton, className);
+		$[0] = className;
+		$[1] = t3;
+	} else t3 = $[1];
 	let t4;
-	if ($[4] !== className) {
-		t4 = clsx("copy-button", CopyButton_module_default.copyButton, className);
-		$[4] = className;
-		$[5] = t4;
-	} else t4 = $[5];
-	let t5;
-	if ($[6] !== handleClick) {
-		t5 = () => {
-			handleClick();
-		};
-		$[6] = handleClick;
-		$[7] = t5;
-	} else t5 = $[7];
-	const t6 = isCopied ? "confirm" : icon ?? "copy";
-	const t7 = isCopied ? "primary" : void 0;
+	if ($[2] !== copy || $[3] !== value) {
+		t4 = () => copy(value);
+		$[2] = copy;
+		$[3] = value;
+		$[4] = t4;
+	} else t4 = $[4];
+	const t5 = copied ? "confirm" : icon ?? "copy";
+	const t6 = copied ? "primary" : void 0;
+	let t7;
+	if ($[5] !== t5 || $[6] !== t6) {
+		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
+			name: t5,
+			className: t6
+		});
+		$[5] = t5;
+		$[6] = t6;
+		$[7] = t7;
+	} else t7 = $[7];
 	let t8;
-	if ($[8] !== t6 || $[9] !== t7) {
-		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
-			name: t6,
-			className: t7
-		});
-		$[8] = t6;
-		$[9] = t7;
-		$[10] = t8;
-	} else t8 = $[10];
-	let t9;
-	if ($[11] !== ariaLabel || $[12] !== isCopied || $[13] !== t4 || $[14] !== t5 || $[15] !== t8 || $[16] !== title) {
-		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+	if ($[8] !== ariaLabel || $[9] !== copied || $[10] !== t3 || $[11] !== t4 || $[12] !== t7 || $[13] !== title) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 			type: "button",
-			className: t4,
-			onClick: t5,
+			className: t3,
+			onClick: t4,
 			"aria-label": ariaLabel,
-			disabled: isCopied,
+			disabled: copied,
 			title,
-			children: t8
+			children: t7
 		});
-		$[11] = ariaLabel;
-		$[12] = isCopied;
-		$[13] = t4;
-		$[14] = t5;
-		$[15] = t8;
-		$[16] = title;
-		$[17] = t9;
-	} else t9 = $[17];
-	return t9;
+		$[8] = ariaLabel;
+		$[9] = copied;
+		$[10] = t3;
+		$[11] = t4;
+		$[12] = t7;
+		$[13] = title;
+		$[14] = t8;
+	} else t8 = $[14];
+	return t8;
 };
 //#endregion
 //#region ../../packages/react/src/components/AsciinemaPlayer.tsx
-var player = onDemandModule(() => __vitePreload(() => import("./AsciinemaPlayerImpl.js"), __vite__mapDeps([6,1,2,7]), import.meta.url));
+var player = onDemandModule(() => __vitePreload(() => import("./AsciinemaPlayerImpl.js"), __vite__mapDeps([6,1,2,7,8]), import.meta.url));
 var AsciinemaPlayer = (props) => {
 	const $ = (0, import_compiler_runtime.c)(4);
 	const policy = useContentPolicy();
@@ -27047,8 +27073,8 @@ o$7({
 //#endregion
 //#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/sizes.js
 var px = (value) => value;
-var percent = (value) => value;
-var toPercent = (px, container) => percent(px / container * 100);
+var percent$1 = (value) => value;
+var toPercent = (px, container) => percent$1(px / container * 100);
 var toPx = (p, container) => px(p / 100 * container);
 var parsers = [
 	{
@@ -27066,10 +27092,10 @@ var parsers = [
 ];
 var parseSizeAttributeToPercent = (raw, base) => {
 	if (!Number.isFinite(base) || base === 0) return null;
-	if (typeof raw === "number") return Number.isFinite(raw) ? percent(raw / base * 100) : null;
+	if (typeof raw === "number") return Number.isFinite(raw) ? percent$1(raw / base * 100) : null;
 	const value = raw.trim();
 	const parser = parsers.find((p) => p.test(value));
-	return parser ? percent(parser.parse(value, base)) : null;
+	return parser ? percent$1(parser.parse(value, base)) : null;
 };
 var styles$14 = [default_styles_default, i$8`
     :host {
@@ -27212,31 +27238,31 @@ function calculateColumnWidths(widths, splitterIndex, delta, minWidths) {
 	const result = [...widths];
 	if (delta === 0 || splitterIndex < 0 || splitterIndex >= widths.length - 1) return result;
 	const absDelta = Math.abs(delta);
-	let remaining = percent(absDelta);
+	let remaining = percent$1(absDelta);
 	const leftIndices = [];
 	const rightIndices = [];
 	for (let i = splitterIndex; i >= 0; i--) leftIndices.push(i);
 	for (let i = splitterIndex + 1; i < widths.length; i++) rightIndices.push(i);
 	const shrinkingSide = delta > 0 ? rightIndices : leftIndices;
 	const growingSide = delta > 0 ? leftIndices : rightIndices;
-	let totalAvailable = percent(0);
+	let totalAvailable = percent$1(0);
 	for (const i of shrinkingSide) {
 		const available = Math.max(0, result[i] - (minWidths.get(i) ?? 0));
-		totalAvailable = percent(totalAvailable + available);
+		totalAvailable = percent$1(totalAvailable + available);
 	}
 	if (totalAvailable < remaining) return result;
 	for (const i of shrinkingSide) {
 		if (remaining === 0) break;
 		const available = Math.max(0, result[i] - (minWidths.get(i) ?? 0));
 		const take = Math.min(available, remaining);
-		result[i] = percent(result[i] - take);
-		remaining = percent(remaining - take);
+		result[i] = percent$1(result[i] - take);
+		remaining = percent$1(remaining - take);
 	}
-	let toAdd = percent(absDelta);
+	let toAdd = percent$1(absDelta);
 	for (const i of growingSide) {
 		if (toAdd === 0) break;
-		result[i] = percent(result[i] + toAdd);
-		toAdd = percent(0);
+		result[i] = percent$1(result[i] + toAdd);
+		toAdd = percent$1(0);
 	}
 	return result;
 }
@@ -27262,9 +27288,9 @@ var ColumnResizeController = class {
 	get splitterPositions() {
 		if (this._cachedSplitterPositions) return this._cachedSplitterPositions;
 		const result = [];
-		let acc = percent(0);
+		let acc = percent$1(0);
 		for (let i = 0; i < this._columnWidths.length - 1; i++) {
-			acc = percent(acc + this._columnWidths[i]);
+			acc = percent$1(acc + this._columnWidths[i]);
 			result.push(acc);
 		}
 		this._cachedSplitterPositions = result;
@@ -27510,7 +27536,7 @@ var VscodeTable$1 = class VscodeTable extends VscElement {
 	}
 	willUpdate(changedProperties) {
 		if (changedProperties.has("minColumnWidth")) {
-			const value = percent(parseSizeAttributeToPercent(this.minColumnWidth, this._componentW) ?? 0);
+			const value = percent$1(parseSizeAttributeToPercent(this.minColumnWidth, this._componentW) ?? 0);
 			const prevMap = this._columnResizeController.columnMinWidths;
 			const widths = this._columnResizeController.columnWidths;
 			for (let i = 0; i < widths.length; i++) if (!prevMap.has(i)) this._columnResizeController.setColumnMinWidthAt(i, value);
@@ -27602,7 +27628,7 @@ var VscodeTable$1 = class VscodeTable extends VscElement {
 	}
 	_initDefaultColumnSizes() {
 		const colWidths = this._calculateInitialColumnWidths();
-		this._columnResizeController.setColumWidths(colWidths.map((c) => percent(c)));
+		this._columnResizeController.setColumWidths(colWidths.map((c) => percent$1(c)));
 		this._initHeaderCellSizes(colWidths);
 		this._initBodyColumnSizes(colWidths);
 		this._initSashes(colWidths);
@@ -27668,11 +27694,11 @@ var VscodeTable$1 = class VscodeTable extends VscElement {
 	}
 	_onHeaderSlotChange() {
 		this._headerCells = this._queryHeaderCells();
-		[].fill(percent(0), 0, this._headerCells.length - 1);
+		[].fill(percent$1(0), 0, this._headerCells.length - 1);
 		this._headerCells.forEach((c, i) => {
 			c.index = i;
 			if (c.minWidth) {
-				const minWidth = parseSizeAttributeToPercent(c.minWidth, this._componentW) ?? percent(0);
+				const minWidth = parseSizeAttributeToPercent(c.minWidth, this._componentW) ?? percent$1(0);
 				this._columnResizeController.setColumnMinWidthAt(i, minWidth);
 			}
 		});
@@ -31060,7 +31086,7 @@ var Modal = (t0) => {
 			}, 0);
 			return () => {
 				window.clearTimeout(timer);
-				previouslyFocused?.focus?.();
+				previouslyFocused?.focus();
 			};
 		};
 		t5 = [show];
@@ -31342,7 +31368,7 @@ var useExtendedFind = () => {
 //#endregion
 //#region ../../packages/react/src/hooks/usePrismHighlight.ts
 var kPrismRenderMaxSize = 25e4;
-var prism = onDemandModule(() => __vitePreload(() => import("./prismHighlighter.js"), __vite__mapDeps([8,1,9]), import.meta.url));
+var prism = onDemandModule(() => __vitePreload(() => import("./prismHighlighter.js"), __vite__mapDeps([9,1,10]), import.meta.url));
 var highlightCodeBlocks = (container, highlightElement) => {
 	container.querySelectorAll("pre code").forEach((block) => {
 		if (block.hasAttribute("data-highlighted")) return;
@@ -31371,7 +31397,7 @@ var usePrismHighlight = (containerRef, contentLength) => {
 					if (!cancelled) highlightCodeBlocks(container, highlightElement);
 				});
 				observer = new MutationObserver((mutations) => {
-					if (mutations.some(_temp2$61)) highlightCodeBlocks(container, highlightElement);
+					if (mutations.some(_temp2$62)) highlightCodeBlocks(container, highlightElement);
 				});
 				observer.observe(container, {
 					childList: true,
@@ -31399,12 +31425,12 @@ var usePrismHighlight = (containerRef, contentLength) => {
 	}
 	(0, import_react.useLayoutEffect)(t0, t1);
 };
-function _temp$107(node) {
+function _temp$109(node) {
 	if (node instanceof Element) return node.querySelector("pre code") || node.matches("pre code");
 	return false;
 }
-function _temp2$61(mutation) {
-	if (mutation.type === "childList") return Array.from(mutation.addedNodes).some(_temp$107);
+function _temp2$62(mutation) {
+	if (mutation.type === "childList") return Array.from(mutation.addedNodes).some(_temp$109);
 	return false;
 }
 function _temp3$42(error) {
@@ -31621,7 +31647,7 @@ var LoadingBar = (t0) => {
 };
 //#endregion
 //#region ../../packages/react/src/components/MarkdownDiv.tsx
-var markdownPipeline = onDemandModule(() => __vitePreload(() => import("./markdownPipeline.js"), __vite__mapDeps([10,1,11,12,13]), import.meta.url));
+var markdownPipeline = onDemandModule(() => __vitePreload(() => import("./markdownPipeline.js"), __vite__mapDeps([11,1,12,13,14]), import.meta.url));
 var sanitizeMarkdown = (md) => {
 	return escapeHtmlCharacters(md).replace(/\n/g, "<br/>");
 };
@@ -31777,7 +31803,7 @@ var RichMarkdownDiv = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
 				(0, import_react.startTransition)(() => {
 					setRenderedHtml(applyPostProcess(sanitizedResult));
 				});
-			}).catch(_temp$106);
+			}).catch(_temp$108);
 			return () => {
 				cancel();
 			};
@@ -31847,27 +31873,24 @@ var MarkdownRenderQueue = class {
 		this.maxConcurrent = maxConcurrent;
 	}
 	enqueue(task) {
-		let cancelled = false;
 		let queueTask;
 		const promise = new Promise((resolve, reject) => {
-			const wrappedTask = async () => {
-				if (cancelled) return;
-				try {
-					const result = await task();
-					if (!cancelled) resolve(result);
-				} catch (error) {
-					if (!cancelled) reject(error instanceof Error ? error : new Error(String(error)));
+			const entry = {
+				cancelled: false,
+				task: async () => {
+					try {
+						const result = await task();
+						if (!entry.cancelled) resolve(result);
+					} catch (error) {
+						if (!entry.cancelled) reject(error instanceof Error ? error : new Error(String(error)));
+					}
 				}
 			};
-			queueTask = {
-				task: wrappedTask,
-				cancelled: false
-			};
-			this.queue.push(queueTask);
+			queueTask = entry;
+			this.queue.push(entry);
 			this.processQueue();
 		});
 		const cancel = () => {
-			cancelled = true;
 			if (queueTask) queueTask.cancelled = true;
 		};
 		return {
@@ -31896,7 +31919,7 @@ var MarkdownRenderQueue = class {
 	}
 };
 var renderQueue = new MarkdownRenderQueue(10);
-function _temp$106(error) {
+function _temp$108(error) {
 	console.error("Markdown rendering error:", error);
 }
 var NoContentsPanel_module_default = {
@@ -33492,7 +33515,7 @@ var usePopper = function usePopper(referenceElement, popperElement, options) {
 				document.removeEventListener("mousedown", bubbleListener);
 			};
 		}
-		if (positionEl && isOpen) {
+		if (positionEl) {
 			positionEl.addEventListener("mousemove", handleMouseMove);
 			positionEl.addEventListener("mouseleave", handleMouseLeave);
 			document.addEventListener("mousedown", handleMouseDown);
@@ -33689,10 +33712,6 @@ var usePopper = function usePopper(referenceElement, popperElement, options) {
 		state?.placement,
 		closeOnMouseLeave
 	]);
-	const getArrowDataPlacement = () => {
-		if (!state || !state.placement) return placement;
-		return state.placement;
-	};
 	const actualPlacement = state?.placement || placement;
 	const defaultPopperStyles = {
 		backgroundColor: "var(--bs-body-bg)",
@@ -33739,7 +33758,7 @@ var usePopper = function usePopper(referenceElement, popperElement, options) {
 				position: "absolute",
 				visibility: "hidden"
 			},
-			"data-placement": getArrowDataPlacement()
+			"data-placement": actualPlacement
 		}), /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: clsx("popper-arrow-container", arrowClassName),
 			style: {
@@ -34400,7 +34419,7 @@ var SegmentedControl_module_default = {
 //#region ../../packages/react/src/components/SegmentedControl.tsx
 var SegmentedControl = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(15);
-	const { id, segments, onSegmentChange, selectedId: selectedIdProp, compact: t1 } = t0;
+	const { id, segments, onSegmentChange, selectedId, compact: t1 } = t0;
 	const compact = t1 === void 0 ? false : t1;
 	let t2;
 	if ($[0] !== onSegmentChange) {
@@ -34411,7 +34430,6 @@ var SegmentedControl = (t0) => {
 		$[1] = t2;
 	} else t2 = $[1];
 	const handleSegmentClick = t2;
-	const selectedId = selectedIdProp ?? segments[0]?.id ?? "";
 	let t3;
 	if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
 		t3 = clsx(SegmentedControl_module_default.rootControl);
@@ -35080,6 +35098,26 @@ function debounce$1(func, wait, options) {
 		t0 = t1;
 	}
 	return t0;
+}
+//#endregion
+//#region ../../packages/react/src/hooks/useDocumentTitle.ts
+/** Sets the document title to `title` verbatim, for apps that build their own. */ function useDocumentTitleText(title) {
+	const $ = (0, import_compiler_runtime.c)(3);
+	let t0;
+	let t1;
+	if ($[0] !== title) {
+		t0 = () => {
+			document.title = title;
+		};
+		t1 = [title];
+		$[0] = title;
+		$[1] = t0;
+		$[2] = t1;
+	} else {
+		t0 = $[1];
+		t1 = $[2];
+	}
+	(0, import_react.useEffect)(t0, t1);
 }
 //#endregion
 //#region ../../packages/react/src/hooks/useScrollDirection.ts
@@ -42400,7 +42438,7 @@ function selectTrackedElement(rects, elementIds, viewportTop, viewportBottom, de
 			const handleKeyDown = (event) => {
 				if (disabled) return;
 				const container = scrollRef?.current;
-				if (container && (!container.isConnected || container.checkVisibility?.() === false)) return;
+				if (container && !isElementShown(container)) return;
 				const hasModifier = event.metaKey || event.ctrlKey;
 				const isUp = event.key === "ArrowUp" && hasModifier || event.key === "Home" && hasModifier;
 				const isDown = event.key === "ArrowDown" && hasModifier || event.key === "End" && hasModifier;
@@ -42491,7 +42529,7 @@ var useBreadcrumbTruncation = (segments, containerRef) => {
 				testElement.style.margin = "0";
 				testElement.style.padding = "0";
 				container.appendChild(testElement);
-				replaceMeasurementItems(testElement, segments.map(_temp$105));
+				replaceMeasurementItems(testElement, segments.map(_temp$107));
 				if (testElement.scrollWidth <= containerWidth) {
 					container.removeChild(testElement);
 					setTruncatedData({
@@ -42517,7 +42555,7 @@ var useBreadcrumbTruncation = (segments, containerRef) => {
 					replaceMeasurementItems(testElement, [
 						firstSegment.text,
 						"...",
-						...segments.slice(segments.length - 1 - endCount, -1).map(_temp2$60),
+						...segments.slice(segments.length - 1 - endCount, -1).map(_temp2$61),
 						lastSegment.text
 					]);
 					if (testElement.scrollWidth <= containerWidth) {
@@ -42555,10 +42593,10 @@ var useBreadcrumbTruncation = (segments, containerRef) => {
 	(0, import_react.useEffect)(t1, t2);
 	return truncatedData;
 };
-function _temp$105(segment) {
+function _temp$107(segment) {
 	return segment.text;
 }
-function _temp2$60(segment_0) {
+function _temp2$61(segment_0) {
 	return segment_0.text;
 }
 //#endregion
@@ -42745,18 +42783,6 @@ var SCROLL_RELEASE_KEYS = /* @__PURE__ */ new Set([
 	(0, import_react.useEffect)(t1, t2);
 }
 //#endregion
-//#region ../../packages/react/src/hooks/navigateAndForget.ts
-/**
-* Fire a react-router navigation and ignore its result. Data routers return
-* a promise whose rejection (e.g. an aborted transition) would otherwise
-* surface as an unhandled rejection; hash-router navigate returns void. One
-* shared convention instead of per-site `instanceof Promise` checks and
-* no-floating-promises suppressions.
-*/ function navigateAndForget(navigate, to, options) {
-	const result = navigate(to, options);
-	if (result instanceof Promise) result.catch(() => void 0);
-}
-//#endregion
 //#region ../../packages/react/src/hooks/useEventUrlSync.ts
 /**
 * Reflect an explicit turn navigation (j/k, header chevrons, go-to-turn bar)
@@ -42796,7 +42822,7 @@ var SCROLL_RELEASE_KEYS = /* @__PURE__ */ new Set([
 		t0 = (focusRoute) => {
 			const route = focusRoute.startsWith("#") ? focusRoute.slice(1) : focusRoute;
 			if (route === `${location.pathname}${location.search}`) return;
-			navigateAndForget(navigate, route);
+			navigate(route);
 		};
 		$[0] = location.pathname;
 		$[1] = location.search;
@@ -42910,73 +42936,75 @@ var SCROLL_RELEASE_KEYS = /* @__PURE__ */ new Set([
 	(0, import_react.useEffect)(t0, t1);
 }
 //#endregion
-//#region ../../packages/react/src/hooks/useUnmount.ts
+//#region ../../packages/react/src/hooks/useAnimationFrameLoop.ts
 /**
-* Runs `fn` once when the component unmounts. Always calls the latest `fn`,
-* so it can close over current state/props without dependency plumbing.
-*/ function useUnmount(fn) {
-	const $ = (0, import_compiler_runtime.c)(3);
-	const fnRef = useLatestRef(fn);
-	let t0;
-	let t1;
-	if ($[0] !== fnRef) {
-		t0 = () => () => fnRef.current();
-		t1 = [fnRef];
-		$[0] = fnRef;
-		$[1] = t0;
-		$[2] = t1;
-	} else {
-		t0 = $[1];
-		t1 = $[2];
-	}
-	(0, import_react.useEffect)(t0, t1);
+* Calls the latest `callback` once per animation frame while `active`, with
+* the seconds elapsed since the previous frame (0 on the first frame after
+* starting, so time spent inactive is never counted).
+*/ function useAnimationFrameLoop(callback, active) {
+	const callbackRef = useLatestRef(callback);
+	(0, import_react.useEffect)(() => {
+		if (!active) return;
+		let previous;
+		let id = requestAnimationFrame(function frame(now) {
+			const elapsed = previous === void 0 ? 0 : (now - previous) / 1e3;
+			previous = now;
+			callbackRef.current(elapsed, now);
+			id = requestAnimationFrame(frame);
+		});
+		return () => cancelAnimationFrame(id);
+	}, [active, callbackRef]);
 }
 //#endregion
-//#region ../../packages/react/src/hooks/useCopyToClipboard.ts
+//#region ../../packages/react/src/hooks/useSpaceBelow.ts
 /**
-* Clipboard write with a transient "copied" flag for confirm-icon feedback.
-* The flag flips only after the write resolves (it can reject in an unfocused
-* document, and flipping early reads as a false success) and clears
-* `confirmMs` after the latest successful copy.
-*/ function useCopyToClipboard(t0) {
-	const $ = (0, import_compiler_runtime.c)(6);
-	const confirmMs = t0 === void 0 ? 1250 : t0;
-	const [copied, setCopied] = (0, import_react.useState)(false);
-	const timer = (0, import_react.useRef)(void 0);
+* The height from an element's top to the bottom of its scroll container's
+* visible area, so the element can fill what's left on screen. Tracks
+* resizes of either element and of the container's direct children (a header
+* above the element collapsing moves it), window resizes, and container
+* scrolls (a sticky header may change size as the container scrolls).
+* Both refs must be attached when the effect first runs (they're read once
+* per ref identity, not polled); until then it returns 0.
+*/ var useSpaceBelow = (ref, containerRef) => {
+	const $ = (0, import_compiler_runtime.c)(4);
+	const [space, setSpace] = (0, import_react.useState)(0);
+	let t0;
 	let t1;
-	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
-		t1 = () => window.clearTimeout(timer.current);
-		$[0] = t1;
-	} else t1 = $[0];
-	useUnmount(t1);
-	let t2;
-	if ($[1] !== confirmMs) {
-		t2 = (text) => {
-			Promise.resolve().then(() => navigator.clipboard.writeText(text)).then(() => {
-				setCopied(true);
-				window.clearTimeout(timer.current);
-				timer.current = window.setTimeout(() => setCopied(false), confirmMs);
-			}).catch(_temp$104);
+	if ($[0] !== containerRef || $[1] !== ref) {
+		t0 = () => {
+			const element = ref.current;
+			const container = containerRef.current;
+			if (!element || !container) return;
+			const update = () => {
+				const bottom = container.getBoundingClientRect().bottom;
+				const top = element.getBoundingClientRect().top;
+				setSpace(Math.max(0, Math.floor(bottom - top)));
+			};
+			update();
+			const observer = new ResizeObserver(update);
+			observer.observe(element);
+			observer.observe(container);
+			for (const child of container.children) observer.observe(child);
+			window.addEventListener("resize", update);
+			container.addEventListener("scroll", update, { passive: true });
+			return () => {
+				observer.disconnect();
+				window.removeEventListener("resize", update);
+				container.removeEventListener("scroll", update);
+			};
 		};
-		$[1] = confirmMs;
-		$[2] = t2;
-	} else t2 = $[2];
-	const copy = t2;
-	let t3;
-	if ($[3] !== copied || $[4] !== copy) {
-		t3 = {
-			copied,
-			copy
-		};
-		$[3] = copied;
-		$[4] = copy;
-		$[5] = t3;
-	} else t3 = $[5];
-	return t3;
-}
-function _temp$104(error) {
-	console.error("Failed to copy:", error);
-}
+		t1 = [ref, containerRef];
+		$[0] = containerRef;
+		$[1] = ref;
+		$[2] = t0;
+		$[3] = t1;
+	} else {
+		t0 = $[2];
+		t1 = $[3];
+	}
+	(0, import_react.useEffect)(t0, t1);
+	return space;
+};
 var SourceCodePanel_module_default = {
 	sourcePanel: "_sourcePanel_bat6y_1",
 	simple: "_simple_bat6y_6",
@@ -43293,17 +43321,18 @@ var TextInput = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
 });
 TextInput.displayName = "TextInput";
 var ToolDropdownButton_module_default = {
-	toolButton: "_toolButton_xg5wq_1",
-	bodyColor: "_bodyColor_xg5wq_5",
-	chevron: "_chevron_xg5wq_17",
-	backdrop: "_backdrop_xg5wq_31",
-	dropdownMenu: "_dropdownMenu_xg5wq_41",
-	dropdownItem: "_dropdownItem_xg5wq_52",
-	dropdownHeading: "_dropdownHeading_xg5wq_73",
-	dropdownDivider: "_dropdownDivider_xg5wq_82",
-	dropdownFooter: "_dropdownFooter_xg5wq_87",
-	noMargin: "_noMargin_xg5wq_98",
-	collapsibleLabel: "_collapsibleLabel_xg5wq_102"
+	toolButton: "_toolButton_1nbeo_1",
+	bodyColor: "_bodyColor_1nbeo_5",
+	chevron: "_chevron_1nbeo_17",
+	backdrop: "_backdrop_1nbeo_31",
+	dropdownMenu: "_dropdownMenu_1nbeo_41",
+	dropdownItem: "_dropdownItem_1nbeo_52",
+	dropdownItemSelected: "_dropdownItemSelected_1nbeo_73",
+	dropdownHeading: "_dropdownHeading_1nbeo_78",
+	dropdownDivider: "_dropdownDivider_1nbeo_87",
+	dropdownFooter: "_dropdownFooter_1nbeo_92",
+	noMargin: "_noMargin_1nbeo_103",
+	collapsibleLabel: "_collapsibleLabel_1nbeo_107"
 };
 //#endregion
 //#region ../../packages/react/src/components/ToolDropdownButton.tsx
@@ -43543,15 +43572,13 @@ var ToolDropdownButton = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) =>
 					className: ToolDropdownButton_module_default.dropdownHeading,
 					children: heading
 				}) : null,
-				Object.entries(items).map((t21) => {
-					const [itemLabel, fn_0] = t21;
-					return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
-						type: "button",
-						className: ToolDropdownButton_module_default.dropdownItem,
-						onClick: () => handleItemClick(fn_0),
-						children: itemLabel
-					}, itemLabel);
-				}),
+				menuItems(items).map((item) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+					type: "button",
+					className: clsx(ToolDropdownButton_module_default.dropdownItem, item.selected && ToolDropdownButton_module_default.dropdownItemSelected),
+					"aria-current": item.selected ? "true" : void 0,
+					onClick: () => handleItemClick(item.onClick),
+					children: item.label
+				}, item.key)),
 				footer ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 					className: ToolDropdownButton_module_default.dropdownDivider,
 					role: "separator"
@@ -43581,6 +43608,11 @@ var ToolDropdownButton = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) =>
 	return t21;
 });
 ToolDropdownButton.displayName = "ToolDropdownButton";
+var menuItems = (items) => Array.isArray(items) ? items : Object.entries(items).map(([label, onClick]) => ({
+	key: label,
+	label,
+	onClick
+}));
 var NavPills_module_default = {
 	visible: "_visible_tm52u_1",
 	hidden: "_hidden_tm52u_5",
@@ -43606,7 +43638,7 @@ var NavPills = (t0) => {
 		let t3;
 		if ($[6] !== activeItem || $[7] !== setActiveItem) {
 			t3 = (nav, idx) => {
-				const title = typeof nav === "object" ? nav.props?.title || `Tab ${idx}` : `Tab ${idx}`;
+				const title = nav.props.title || `Tab ${idx}`;
 				return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(NavPill, {
 					title,
 					activeItem,
@@ -43629,7 +43661,7 @@ var NavPills = (t0) => {
 		let t4;
 		if ($[12] !== activeItem) {
 			t4 = (child, idx_0) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-				className: child.props?.title === activeItem ? NavPills_module_default.visible : NavPills_module_default.hidden,
+				className: child.props.title === activeItem ? NavPills_module_default.visible : NavPills_module_default.hidden,
 				children: child
 			}, `nav-pill-container-${idx_0}`);
 			$[12] = activeItem;
@@ -43923,7 +43955,7 @@ var Tab = (t0) => {
 				"aria-controls": tabContentsId,
 				"aria-selected": isActive,
 				onClick: inAppLinkClick(tab.props.onSelected),
-				onKeyDown: _temp$103,
+				onKeyDown: _temp$106,
 				children: content
 			}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 				id: tabId,
@@ -43961,7 +43993,7 @@ var TabPanels = (t0) => {
 	const t2 = `${id}-content`;
 	let t3;
 	if ($[2] !== tabs) {
-		t3 = tabs.map(_temp2$59);
+		t3 = tabs.map(_temp2$60);
 		$[2] = tabs;
 		$[3] = t3;
 	} else t3 = $[3];
@@ -44053,13 +44085,13 @@ var flattenChildren$1 = (children) => {
 		return [];
 	});
 };
-function _temp$103(e) {
+function _temp$106(e) {
 	if (e.key === " ") {
 		e.preventDefault();
 		e.currentTarget.click();
 	}
 }
-function _temp2$59(tab, index) {
+function _temp2$60(tab, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TabPanel, {
 		...tab.props,
 		index
@@ -44091,7 +44123,7 @@ var FindTargetContext = /*#__PURE__*/ (0, import_react.createContext)(null);
 	const ctx = (0, import_react.useContext)(FindTargetContext);
 	let t0;
 	if ($[0] !== ctx?.setTarget) {
-		t0 = ctx?.setTarget ?? _temp$102;
+		t0 = ctx?.setTarget ?? _temp$105;
 		$[0] = ctx?.setTarget;
 		$[1] = t0;
 	} else t0 = $[1];
@@ -44124,7 +44156,7 @@ var FindTargetProvider = (t0) => {
 	} else t2 = $[4];
 	return t2;
 };
-function _temp$102() {}
+function _temp$105() {}
 //#endregion
 //#region ../../packages/react/src/components/ExpandablePanel.tsx
 var kNestedToggleStep = 24;
@@ -44133,8 +44165,49 @@ var PanelNestingContext = /*#__PURE__*/ (0, import_react.createContext)({
 	leftToggles: 0,
 	registerNestedToggle: null
 });
+/**
+* Whether the active find term, in any of the variants the search counter
+* matches, is in the element's text: a panel uses it to show content it
+* otherwise hides. The element's text may be hidden but must be mounted.
+*/ var useContainsFindTarget = (contentRef) => {
+	const $ = (0, import_compiler_runtime.c)(5);
+	const findTarget = useFindTarget();
+	let t0;
+	if ($[0] !== findTarget) {
+		t0 = () => findTarget !== null;
+		$[0] = findTarget;
+		$[1] = t0;
+	} else t0 = $[1];
+	const [containsFindTarget, setContainsFindTarget] = (0, import_react.useState)(t0);
+	let t1;
+	if ($[2] !== contentRef || $[3] !== findTarget) {
+		t1 = () => {
+			if (!findTarget) {
+				setContainsFindTarget(false);
+				return;
+			}
+			const root = contentRef.current;
+			if (!root) {
+				setContainsFindTarget(false);
+				return;
+			}
+			const text = root.textContent.toLowerCase();
+			const { simple, unquoted, jsonEscaped } = prepareSearchTerm(findTarget.term);
+			setContainsFindTarget([
+				simple,
+				unquoted,
+				jsonEscaped
+			].some((variant) => !!variant && text.includes(variant)));
+		};
+		$[2] = contentRef;
+		$[3] = findTarget;
+		$[4] = t1;
+	} else t1 = $[4];
+	(0, import_react.useEffect)(t1);
+	return containsFindTarget;
+};
 var ExpandablePanel = /*#__PURE__*/ (0, import_react.memo)((t0) => {
-	const $ = (0, import_compiler_runtime.c)(67);
+	const $ = (0, import_compiler_runtime.c)(62);
 	const { id, collapse, border, lines: t1, children, className, togglePosition: t2 } = t0;
 	const lines = t1 === void 0 ? 15 : t1;
 	const layout = t2 === void 0 ? "inline-right" : t2;
@@ -44183,40 +44256,12 @@ var ExpandablePanel = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 		$[3] = t5;
 	} else t5 = $[3];
 	const contentRef = useResizeObserver(t5);
-	const findTarget = useFindTarget();
-	let t6;
-	if ($[4] !== findTarget) {
-		t6 = () => findTarget !== null;
-		$[4] = findTarget;
-		$[5] = t6;
-	} else t6 = $[5];
-	const [containsFindTarget, setContainsFindTarget] = (0, import_react.useState)(t6);
-	let t7;
-	if ($[6] !== contentRef || $[7] !== findTarget) {
-		t7 = () => {
-			if (!findTarget) {
-				setContainsFindTarget(false);
-				return;
-			}
-			const root = contentRef.current;
-			if (!root) {
-				setContainsFindTarget(false);
-				return;
-			}
-			const text = (root.textContent ?? "").toLowerCase();
-			setContainsFindTarget(text.includes(findTarget.term.toLowerCase()));
-		};
-		$[6] = contentRef;
-		$[7] = findTarget;
-		$[8] = t7;
-	} else t7 = $[8];
-	(0, import_react.useEffect)(t7);
-	const effectiveCollapsed = containsFindTarget ? false : collapsed;
+	const effectiveCollapsed = useContainsFindTarget(contentRef) ? false : collapsed;
 	const nesting = (0, import_react.useContext)(PanelNestingContext);
 	const parentRegister = nesting.registerNestedToggle;
-	let t8;
-	if ($[9] !== contentRef || $[10] !== parentRegister) {
-		t8 = (holder_0) => {
+	let t6;
+	if ($[4] !== contentRef || $[5] !== parentRegister) {
+		t6 = (holder_0) => {
 			if (!holder_0) return;
 			const remeasure = () => {
 				if (contentRef.current) measureNestedToggles(contentRef.current);
@@ -44230,50 +44275,50 @@ var ExpandablePanel = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 				unregisterParent?.();
 			};
 		};
-		$[9] = contentRef;
-		$[10] = parentRegister;
-		$[11] = t8;
-	} else t8 = $[11];
-	const registerNestedToggle = t8;
-	const t9 = nesting.rightToggles + (showToggle && layout === "inline-right" ? 1 : 0);
-	const t10 = nesting.leftToggles + (showToggle && layout === "block-left" ? 1 : 0);
-	let t11;
-	if ($[12] !== registerNestedToggle || $[13] !== t10 || $[14] !== t9) {
-		t11 = {
-			rightToggles: t9,
-			leftToggles: t10,
+		$[4] = contentRef;
+		$[5] = parentRegister;
+		$[6] = t6;
+	} else t6 = $[6];
+	const registerNestedToggle = t6;
+	const t7 = nesting.rightToggles + (showToggle && layout === "inline-right" ? 1 : 0);
+	const t8 = nesting.leftToggles + (showToggle && layout === "block-left" ? 1 : 0);
+	let t9;
+	if ($[7] !== registerNestedToggle || $[8] !== t7 || $[9] !== t8) {
+		t9 = {
+			rightToggles: t7,
+			leftToggles: t8,
 			registerNestedToggle
 		};
-		$[12] = registerNestedToggle;
-		$[13] = t10;
-		$[14] = t9;
-		$[15] = t11;
-	} else t11 = $[15];
-	const childNesting = t11;
+		$[7] = registerNestedToggle;
+		$[8] = t7;
+		$[9] = t8;
+		$[10] = t9;
+	} else t9 = $[10];
+	const childNesting = t9;
 	const togglesBelow = layout === "inline-right" ? nesting.rightToggles : nesting.leftToggles;
-	let t12;
-	if ($[16] !== togglesBelow) {
-		t12 = togglesBelow > 0 ? { bottom: `calc(0.25em + ${togglesBelow * kNestedToggleStep}px)` } : void 0;
-		$[16] = togglesBelow;
-		$[17] = t12;
-	} else t12 = $[17];
-	const stickyStyle = t12;
+	let t10;
+	if ($[11] !== togglesBelow) {
+		t10 = togglesBelow > 0 ? { bottom: `calc(0.25em + ${togglesBelow * kNestedToggleStep}px)` } : void 0;
+		$[11] = togglesBelow;
+		$[12] = t10;
+	} else t10 = $[12];
+	const stickyStyle = t10;
 	const reserveNestedToggleStrip = showToggle && layout === "inline-right" && !effectiveCollapsed && nestedToggleAtCorner;
-	let t13;
-	if ($[18] !== effectiveCollapsed || $[19] !== lines) {
-		t13 = effectiveCollapsed ? {
+	let t11;
+	if ($[13] !== effectiveCollapsed || $[14] !== lines) {
+		t11 = effectiveCollapsed ? {
 			overflow: "hidden",
 			maxHeight: `${lines}rem`,
 			contain: "layout paint"
 		} : {};
-		$[18] = effectiveCollapsed;
-		$[19] = lines;
-		$[20] = t13;
-	} else t13 = $[20];
-	const contentStyles = t13;
-	let t14;
-	if ($[21] !== collapsed || $[22] !== contentRef || $[23] !== setCollapsed) {
-		t14 = () => {
+		$[13] = effectiveCollapsed;
+		$[14] = lines;
+		$[15] = t11;
+	} else t11 = $[15];
+	const contentStyles = t11;
+	let t12;
+	if ($[16] !== collapsed || $[17] !== contentRef || $[18] !== setCollapsed) {
+		t12 = () => {
 			const tallerThanViewport = !collapsed && !!contentRef.current && contentRef.current.getBoundingClientRect().height > window.innerHeight;
 			setCollapsed(!collapsed);
 			if (tallerThanViewport) requestAnimationFrame(() => {
@@ -44283,71 +44328,71 @@ var ExpandablePanel = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 				});
 			});
 		};
-		$[21] = collapsed;
-		$[22] = contentRef;
-		$[23] = setCollapsed;
-		$[24] = t14;
-	} else t14 = $[24];
-	const handleToggle = t14;
+		$[16] = collapsed;
+		$[17] = contentRef;
+		$[18] = setCollapsed;
+		$[19] = t12;
+	} else t12 = $[19];
+	const handleToggle = t12;
+	let t13;
+	if ($[20] !== className) {
+		t13 = clsx(ExpandablePanel_module_default.outer, className);
+		$[20] = className;
+		$[21] = t13;
+	} else t13 = $[21];
+	const t14 = border ? ExpandablePanel_module_default.expandableBordered : void 0;
 	let t15;
-	if ($[25] !== className) {
-		t15 = clsx(ExpandablePanel_module_default.outer, className);
-		$[25] = className;
-		$[26] = t15;
-	} else t15 = $[26];
-	const t16 = border ? ExpandablePanel_module_default.expandableBordered : void 0;
-	let t17;
-	if ($[27] !== className || $[28] !== t16) {
-		t17 = clsx(ExpandablePanel_module_default.expandablePanel, t16, className);
-		$[27] = className;
-		$[28] = t16;
-		$[29] = t17;
-	} else t17 = $[29];
-	const t18 = effectiveCollapsed ? ExpandablePanel_module_default.collapsedContent : void 0;
-	const t19 = effectiveCollapsed && showToggle ? ExpandablePanel_module_default.expandableTruncated : void 0;
-	let t20;
-	if ($[30] !== t18 || $[31] !== t19) {
-		t20 = clsx(t18, t19);
-		$[30] = t18;
-		$[31] = t19;
-		$[32] = t20;
-	} else t20 = $[32];
-	let t21;
-	if ($[33] !== childNesting || $[34] !== children) {
-		t21 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(PanelNestingContext.Provider, {
+	if ($[22] !== className || $[23] !== t14) {
+		t15 = clsx(ExpandablePanel_module_default.expandablePanel, t14, className);
+		$[22] = className;
+		$[23] = t14;
+		$[24] = t15;
+	} else t15 = $[24];
+	const t16 = effectiveCollapsed ? ExpandablePanel_module_default.collapsedContent : void 0;
+	const t17 = effectiveCollapsed && showToggle ? ExpandablePanel_module_default.expandableTruncated : void 0;
+	let t18;
+	if ($[25] !== t16 || $[26] !== t17) {
+		t18 = clsx(t16, t17);
+		$[25] = t16;
+		$[26] = t17;
+		$[27] = t18;
+	} else t18 = $[27];
+	let t19;
+	if ($[28] !== childNesting || $[29] !== children) {
+		t19 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(PanelNestingContext.Provider, {
 			value: childNesting,
 			children
 		});
-		$[33] = childNesting;
-		$[34] = children;
-		$[35] = t21;
-	} else t21 = $[35];
-	let t22;
-	if ($[36] !== contentRef || $[37] !== contentStyles || $[38] !== t20 || $[39] !== t21) {
-		t22 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		$[28] = childNesting;
+		$[29] = children;
+		$[30] = t19;
+	} else t19 = $[30];
+	let t20;
+	if ($[31] !== contentRef || $[32] !== contentStyles || $[33] !== t18 || $[34] !== t19) {
+		t20 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			ref: contentRef,
 			style: contentStyles,
-			className: t20,
-			children: t21
+			className: t18,
+			children: t19
 		});
-		$[36] = contentRef;
-		$[37] = contentStyles;
-		$[38] = t20;
-		$[39] = t21;
-		$[40] = t22;
-	} else t22 = $[40];
-	let t23;
-	if ($[41] !== reserveNestedToggleStrip) {
-		t23 = reserveNestedToggleStrip && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		$[31] = contentRef;
+		$[32] = contentStyles;
+		$[33] = t18;
+		$[34] = t19;
+		$[35] = t20;
+	} else t20 = $[35];
+	let t21;
+	if ($[36] !== reserveNestedToggleStrip) {
+		t21 = reserveNestedToggleStrip && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			"data-nested-toggle-strip": "true",
 			style: { height: kNestedToggleStep }
 		});
-		$[41] = reserveNestedToggleStrip;
-		$[42] = t23;
-	} else t23 = $[42];
-	let t24;
-	if ($[43] !== border || $[44] !== collapsed || $[45] !== handleToggle || $[46] !== layout || $[47] !== parentRegister || $[48] !== showToggle || $[49] !== stickyStyle) {
-		t24 = showToggle && layout === "inline-right" && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		$[36] = reserveNestedToggleStrip;
+		$[37] = t21;
+	} else t21 = $[37];
+	let t22;
+	if ($[38] !== border || $[39] !== collapsed || $[40] !== handleToggle || $[41] !== layout || $[42] !== parentRegister || $[43] !== showToggle || $[44] !== stickyStyle) {
+		t22 = showToggle && layout === "inline-right" && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			ref: parentRegister ?? void 0,
 			className: ExpandablePanel_module_default.inlineToggleHolder,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
@@ -44361,61 +44406,61 @@ var ExpandablePanel = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 				})
 			})
 		});
-		$[43] = border;
-		$[44] = collapsed;
-		$[45] = handleToggle;
-		$[46] = layout;
-		$[47] = parentRegister;
-		$[48] = showToggle;
-		$[49] = stickyStyle;
-		$[50] = t24;
-	} else t24 = $[50];
-	let t25;
-	if ($[51] !== t17 || $[52] !== t22 || $[53] !== t23 || $[54] !== t24) {
-		t25 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		$[38] = border;
+		$[39] = collapsed;
+		$[40] = handleToggle;
+		$[41] = layout;
+		$[42] = parentRegister;
+		$[43] = showToggle;
+		$[44] = stickyStyle;
+		$[45] = t22;
+	} else t22 = $[45];
+	let t23;
+	if ($[46] !== t15 || $[47] !== t20 || $[48] !== t21 || $[49] !== t22) {
+		t23 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			"data-expandable-panel": "true",
-			className: t17,
+			className: t15,
 			children: [
-				t22,
-				t23,
-				t24
+				t20,
+				t21,
+				t22
 			]
 		});
-		$[51] = t17;
-		$[52] = t22;
-		$[53] = t23;
-		$[54] = t24;
-		$[55] = t25;
-	} else t25 = $[55];
-	let t26;
-	if ($[56] !== border || $[57] !== collapsed || $[58] !== handleToggle || $[59] !== layout || $[60] !== showToggle || $[61] !== stickyStyle) {
-		t26 = showToggle && layout === "block-left" && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MoreToggle, {
+		$[46] = t15;
+		$[47] = t20;
+		$[48] = t21;
+		$[49] = t22;
+		$[50] = t23;
+	} else t23 = $[50];
+	let t24;
+	if ($[51] !== border || $[52] !== collapsed || $[53] !== handleToggle || $[54] !== layout || $[55] !== showToggle || $[56] !== stickyStyle) {
+		t24 = showToggle && layout === "block-left" && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MoreToggle, {
 			collapsed,
 			onToggle: handleToggle,
 			border: !border,
 			position: "block-left",
 			style: stickyStyle
 		});
-		$[56] = border;
-		$[57] = collapsed;
-		$[58] = handleToggle;
-		$[59] = layout;
-		$[60] = showToggle;
-		$[61] = stickyStyle;
-		$[62] = t26;
-	} else t26 = $[62];
-	let t27;
-	if ($[63] !== t15 || $[64] !== t25 || $[65] !== t26) {
-		t27 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: t15,
-			children: [t25, t26]
+		$[51] = border;
+		$[52] = collapsed;
+		$[53] = handleToggle;
+		$[54] = layout;
+		$[55] = showToggle;
+		$[56] = stickyStyle;
+		$[57] = t24;
+	} else t24 = $[57];
+	let t25;
+	if ($[58] !== t13 || $[59] !== t23 || $[60] !== t24) {
+		t25 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t13,
+			children: [t23, t24]
 		});
-		$[63] = t15;
-		$[64] = t25;
-		$[65] = t26;
-		$[66] = t27;
-	} else t27 = $[66];
-	return t27;
+		$[58] = t13;
+		$[59] = t23;
+		$[60] = t24;
+		$[61] = t25;
+	} else t25 = $[61];
+	return t25;
 });
 var MoreToggle = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(11);
@@ -45110,7 +45155,6 @@ var FindBand = ({ onClose, debounceMs = 100 }) => {
 	const currentSearchTerm = (0, import_react.useRef)("");
 	const needsCursorRestoreRef = (0, import_react.useRef)(false);
 	const scrollTimeoutRef = (0, import_react.useRef)(null);
-	const focusTimeoutRef = (0, import_react.useRef)(null);
 	const searchIdRef = (0, import_react.useRef)(0);
 	const cachedCount = (0, import_react.useRef)({
 		term: "",
@@ -45121,7 +45165,7 @@ var FindBand = ({ onClose, debounceMs = 100 }) => {
 	const [matchCount, setMatchCount] = (0, import_react.useState)(null);
 	const [currentMatchIndex, setCurrentMatchIndex] = (0, import_react.useState)(0);
 	const [noResults, setNoResults] = (0, import_react.useState)(false);
-	const handleSearch = (0, import_react.useCallback)(async (back = false, skipKnownMiss = false) => {
+	const search = (0, import_react.useCallback)(async (back = false, skipKnownMiss = false) => {
 		const thisSearchId = ++searchIdRef.current;
 		const searchTerm = searchBoxRef.current?.value ?? "";
 		if (!searchTerm) {
@@ -45207,18 +45251,22 @@ var FindBand = ({ onClose, debounceMs = 100 }) => {
 		countAllMatches,
 		getMatchCountersVersion
 	]);
-	(0, import_react.useEffect)(() => {
-		focusTimeoutRef.current = window.setTimeout(() => {
+	const handleSearch = (0, import_react.useCallback)((back) => {
+		search(back).catch((error) => {
+			console.error("Find failed:", error);
+		});
+	}, [search]);
+	useMountEffect(() => {
+		const focusTimeout = window.setTimeout(() => {
 			searchBoxRef.current?.focus();
 			searchBoxRef.current?.select();
 		}, 10);
-		const focusTimeout = focusTimeoutRef.current;
 		return () => {
 			if (scrollTimeoutRef.current !== null) window.clearTimeout(scrollTimeoutRef.current);
-			if (focusTimeout !== null) window.clearTimeout(focusTimeout);
+			window.clearTimeout(focusTimeout);
 			setFindTarget(null);
 		};
-	}, [setFindTarget]);
+	});
 	const handleKeyDown = (0, import_react.useCallback)((e) => {
 		if (e.key === "Escape") onClose();
 		else if (e.key === "Enter") handleSearch(e.shiftKey);
@@ -45247,9 +45295,9 @@ var FindBand = ({ onClose, debounceMs = 100 }) => {
 	}, []);
 	const handleInputChange = useDebouncedCallback((0, import_react.useCallback)(async () => {
 		if (!searchBoxRef.current) return;
-		await handleSearch(false, true);
+		await search(false, true);
 		needsCursorRestoreRef.current = true;
-	}, [handleSearch]), debounceMs);
+	}, [search]), debounceMs);
 	const restoreCursorIfNeeded = (0, import_react.useCallback)(() => {
 		const input = searchBoxRef.current;
 		if (!input) return;
@@ -45506,7 +45554,7 @@ var MarkdownDivWithReferences = /*#__PURE__*/ (0, import_react.forwardRef)((prop
 	const [visibleKey, setVisibleKey, clearVisibleKey] = useProperty("popover", "visibleKey");
 	let t0;
 	if ($[0] !== references) {
-		t0 = new Map(references?.map(_temp$101));
+		t0 = new Map(references?.map(_temp$104));
 		$[0] = references;
 		$[1] = t0;
 	} else t0 = $[1];
@@ -45708,7 +45756,7 @@ var findCiteLink = (target) => {
 	}
 	return emitted === 0 ? html : out + html.slice(emitted);
 }
-function _temp$101(r) {
+function _temp$104(r) {
 	return [r.id, r];
 }
 var NextPreviousNav_module_default = {
@@ -46194,6 +46242,18 @@ var normalizeScore = (raw) => {
 	return changed ? changes : raw;
 };
 /**
+* Fill the given list fields (`default_factory=list` upstream) on a raw
+* record. Non-records pass through; identity-preserving when complete.
+*/ var fillLists = (raw, fields) => {
+	if (!isRecord(raw)) return raw;
+	const missing = fields.filter((field) => !Array.isArray(raw[field]));
+	if (missing.length === 0) return raw;
+	return {
+		...raw,
+		...Object.fromEntries(missing.map((field) => [field, []]))
+	};
+};
+/**
 * Per-event-type defaults for required fields pydantic defaults at read
 * time. Returns undefined when nothing needs filling (the hot path for
 * current-format logs — no allocation).
@@ -46295,6 +46355,25 @@ var normalizeScore = (raw) => {
 			break;
 		case "span_end":
 			if (typeof raw["id"] !== "string") fix("id", "");
+			break;
+		case "communication":
+			if (typeof raw["nested"] !== "boolean") fix("nested", false);
+			if (!Array.isArray(raw["record_ids"])) fix("record_ids", []);
+			if (!isRecord(raw["data"])) fix("data", {});
+			{
+				const send = raw["send"];
+				if (isRecord(send)) {
+					const record = fillLists(send["record"], ["to", "recipients"]);
+					if (record !== send["record"]) fix("send", {
+						...send,
+						record
+					});
+				}
+				const delivery = fillLists(raw["delivery"], ["recipients"]);
+				if (delivery !== raw["delivery"]) fix("delivery", delivery);
+				const wait = fillLists(raw["wait"], ["channels"]);
+				if (wait !== raw["wait"]) fix("wait", wait);
+			}
 			break;
 		case "sentinel":
 			if (raw["action"] === "continue") fix("action", "proceed");
@@ -47199,10 +47278,10 @@ function isModelEvent(event) {
 //#region ../../packages/inspect-common/src/utils/modelFallbacks.ts
 /**
 * Total requests served via fallback across a sample's rollup.
-*/ var totalModelFallbacks = (fallbacks) => (fallbacks ?? []).reduce((sum, f) => sum + (f.count ?? 1), 0);
+*/ var totalModelFallbacks = (fallbacks) => (fallbacks ?? []).reduce((sum, f) => sum + f.count, 0);
 /**
 * One "requested → served (×N)" line per fallback rollup entry.
-*/ var modelFallbackLines = (fallbacks) => (fallbacks ?? []).map((f) => `${f.model} → ${f.fallback_model}${(f.count ?? 1) > 1 ? ` (×${f.count})` : ""}`);
+*/ var modelFallbackLines = (fallbacks) => (fallbacks ?? []).map((f) => `${f.model} → ${f.fallback_model}${f.count > 1 ? ` (×${f.count})` : ""}`);
 //#endregion
 //#region ../../packages/inspect-common/src/utils/modelRoles.ts
 var kModelNameSeparator = ", ";
@@ -49046,10 +49125,11 @@ var journalFileIndex = (filename) => parseInt(filename.slice(19), 10);
 	* Lists all samples in the zip file.
 	*/ const listSamples = () => {
 		return Promise.resolve(Array.from(remoteZipFile.centralDirectory.keys()).filter((filename) => filename.startsWith("samples/") && filename.endsWith(".json")).map((filename) => {
-			const [sampleId, epochStr] = filename.split("/")[1].split("_epoch_");
+			const [sampleId, epochStr] = filename.slice(8).split("_epoch_");
+			if (sampleId === void 0 || epochStr === void 0) throw new Error(`Unexpected sample file name: ${filename}`);
 			return {
 				sampleId,
-				epoch: parseInt(epochStr.split(".")[0], 10)
+				epoch: parseInt(epochStr, 10)
 			};
 		}));
 	};
@@ -50305,18 +50385,15 @@ var staticBackend = (log_dir, abs_log_dir, app_config) => ({
 	}
 	const scriptEl = document.getElementById("log_dir_context");
 	if (scriptEl) {
-		const context = scriptEl.textContent;
-		if (context !== null) {
-			const data = import_dist.default.parse(context);
-			if (data.log_dir || data.log_file) {
-				const log_dir = data.log_dir || dirname(data.log_file ?? "");
-				const app_config = data.inspect_version !== void 0 || data.trust_content !== void 0 ? {
-					inspect_version: data.inspect_version ?? "unknown",
-					scout_version: null,
-					trust_content: data.trust_content
-				} : void 0;
-				return staticBackend(log_dir, data.abs_log_dir, app_config);
-			}
+		const data = import_dist.default.parse(scriptEl.textContent);
+		if (data.log_dir || data.log_file) {
+			const log_dir = data.log_dir || dirname(data.log_file ?? "");
+			const app_config = data.inspect_version !== void 0 || data.trust_content !== void 0 ? {
+				inspect_version: data.inspect_version ?? "unknown",
+				scout_version: null,
+				trust_content: data.trust_content
+			} : void 0;
+			return staticBackend(log_dir, data.abs_log_dir, app_config);
 		}
 	}
 	const forceViewServerApi = new URLSearchParams(window.location.search).get("inspect_server") === "true";
@@ -50767,7 +50844,8 @@ var toClipboardJson = (value) => {
 		return v;
 	};
 	try {
-		return JSON.stringify(value, (_key, v) => replace(v), 2) ?? "undefined";
+		const json = JSON.stringify(value, (_key, v) => replace(v), 2);
+		return typeof json === "string" ? json : "undefined";
 	} catch (error) {
 		return `<unserializable: ${error instanceof Error ? error.message : String(error)}>`;
 	}
@@ -50837,7 +50915,7 @@ var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 	let t4;
 	if ($[4] !== expandable) {
 		t4 = () => {
-			if (expandable) setExpanded(_temp$100);
+			if (expandable) setExpanded(_temp$103);
 		};
 		$[4] = expandable;
 		$[5] = t4;
@@ -50846,10 +50924,10 @@ var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 	let t5;
 	if ($[6] !== value) {
 		t5 = () => {
-			navigator.clipboard.writeText(toClipboardJson(value)).then(() => {
+			Promise.resolve().then(() => navigator.clipboard.writeText(toClipboardJson(value))).then(() => {
 				setCopied(true);
 				setTimeout(() => setCopied(false), COPIED_FEEDBACK_MS);
-			});
+			}).catch(_temp2$59);
 		};
 		$[6] = value;
 		$[7] = t5;
@@ -50947,11 +51025,11 @@ var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 					className: TreeNode_module_default.empty,
 					children: "empty"
 				}),
-				entries.slice(0, limit).map(_temp2$58),
+				entries.slice(0, limit).map(_temp3$41),
 				entries.length > limit && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
 					type: "button",
 					className: TreeNode_module_default.showMore,
-					onClick: () => setLimit(_temp3$41),
+					onClick: () => setLimit(_temp4$30),
 					children: [
 						"Show",
 						" ",
@@ -50978,16 +51056,19 @@ var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 	return t6;
 });
 TreeNode$1.displayName = "TreeNode";
-function _temp$100(e) {
+function _temp$103(e) {
 	return !e;
 }
-function _temp2$58(entry) {
+function _temp2$59(error) {
+	console.error("Failed to copy:", error);
+}
+function _temp3$41(entry) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TreeNode$1, {
 		name: entry.key,
 		value: entry.value
 	}, entry.id);
 }
-function _temp3$41(l) {
+function _temp4$30(l) {
 	return l + CHUNK_SIZE;
 }
 //#endregion
@@ -57494,11 +57575,8 @@ var AppDatabase = class extends Dexie {
 * Delete pre-unification per-dir databases (`InspectAI_<sanitized dir>`).
 * Best-effort: `indexedDB.databases()` is not universally available and a
 * database held open by another (older) tab may survive until it closes.
-*/ var deleteLegacyDatabases = async () => {
-	try {
-		const databases = await indexedDB.databases();
-		await Promise.all(databases.map((info) => info.name).filter((name) => !!name?.startsWith(`${DB_NAME}_`)).map((name) => Dexie.delete(name).catch(() => {})));
-	} catch {}
+*/ var deleteLegacyDatabases = () => {
+	Promise.resolve().then(() => indexedDB.databases()).then((databases) => Promise.all(databases.map((info) => info.name).filter((name) => !!name?.startsWith(`${DB_NAME}_`)).map((name) => Dexie.delete(name).catch(() => {})))).catch(() => {});
 };
 //#endregion
 //#region src/client/database/service.ts
@@ -58914,7 +58992,7 @@ var readLogsListing = async (logDir, prefix, toRow, plan) => {
 	let t2;
 	if ($[3] !== demand || $[4] !== logDir || $[5] !== logFile) {
 		t1 = () => {
-			if (logFile !== void 0) fetchLog(logDir, logFile, { passive: demand !== "active" }).catch(_temp$99);
+			if (logFile !== void 0) fetchLog(logDir, logFile, { passive: demand !== "active" }).catch(_temp$102);
 		};
 		t2 = [
 			logDir,
@@ -59003,7 +59081,7 @@ var readLogsListing = async (logDir, prefix, toRow, plan) => {
 	} else t0 = $[1];
 	return t0;
 };
-function _temp$99() {}
+function _temp$102() {}
 //#endregion
 //#region src/log_data/pendingSamples.ts
 var kDefaultRefreshSeconds = 2;
@@ -59108,7 +59186,7 @@ var logInfoSignature = (info) => `${info.size}:${info.etag ?? ""}`;
 		t4 = {
 			queryKey: t2,
 			queryFn: t3,
-			refetchInterval: _temp$98,
+			refetchInterval: _temp$101,
 			refetchIntervalInBackground: true,
 			staleTime: 0,
 			refetchOnWindowFocus: false,
@@ -59121,7 +59199,7 @@ var logInfoSignature = (info) => `${info.size}:${info.etag ?? ""}`;
 	const result = useAsyncDataFromQuery(t4);
 	let t5;
 	if ($[14] !== enabled || $[15] !== result) {
-		t5 = enabled ? map(result, _temp2$57) : data(void 0);
+		t5 = enabled ? map(result, _temp2$58) : data(void 0);
 		$[14] = enabled;
 		$[15] = result;
 		$[16] = t5;
@@ -59148,10 +59226,10 @@ var logInfoSignature = (info) => `${info.size}:${info.etag ?? ""}`;
 * finalize decision). Returns
 * `undefined` when there's no resolved dir.
 */ var getPendingSamples = (logDir, logFile) => logDir === void 0 ? void 0 : queryClient.getQueryData(pendingSamplesKey(logDir, logFile)) ?? void 0;
-function _temp$98(query) {
+function _temp$101(query) {
 	return query.state.status === "error" ? false : pendingSamplesIntervalMs(query.state.data);
 }
-function _temp2$57(data) {
+function _temp2$58(data) {
 	return data ?? void 0;
 }
 function _temp3$40(data) {
@@ -60806,7 +60884,7 @@ var mergeSampleSummaries = (logSamples, pendingSamples) => {
 		t3 = rows.data?.some((row_0) => row_0.logFile !== logKey) ? loading$2 : map(compose({
 			rows,
 			pending
-		}), _temp2$56);
+		}), _temp2$57);
 		$[8] = logKey;
 		$[9] = pending;
 		$[10] = rows;
@@ -60818,11 +60896,11 @@ var mergeSampleSummaries = (logSamples, pendingSamples) => {
 * Non-React snapshot of {@link useSampleSummaries} (for the running-sample
 * query's tick decisions). Empty when there's no resolved dir.
 */ var getSampleSummaries = async (logDir, logFile) => logDir === void 0 ? [] : mergeSampleSummaries(await readSettledSummaries(logDir, resolveLogKey(logDir, logFile)), getPendingSamples(logDir, logFile)?.samples ?? []);
-function _temp$97(row) {
+function _temp$100(row) {
 	return row.summary;
 }
-function _temp2$56(settled) {
-	return mergeSampleSummaries(settled.rows.map(_temp$97), settled.pending?.samples ?? []);
+function _temp2$57(settled) {
+	return mergeSampleSummaries(settled.rows.map(_temp$100), settled.pending?.samples ?? []);
 }
 //#endregion
 //#region src/log_data/runningSampleQuery.ts
@@ -60961,7 +61039,7 @@ var findLiveSummary = async (logDir, handle) => (await getSampleSummaries(logDir
 			queryKey: t2,
 			queryFn: t3,
 			structuralSharing: false,
-			refetchInterval: _temp$96,
+			refetchInterval: _temp$99,
 			refetchIntervalInBackground: true,
 			gcTime: kSampleGcTimeMs,
 			refetchOnWindowFocus: false,
@@ -60973,7 +61051,7 @@ var findLiveSummary = async (logDir, handle) => (await getSampleSummaries(logDir
 	} else t4 = $[13];
 	return useAsyncDataFromQuery(t4);
 };
-function _temp$96(query) {
+function _temp$99(query) {
 	return query.state.status === "error" || query.state.data?.finalized === true ? false : query.state.data?.catchup === true ? kCatchupIntervalMs : kRunningSampleIntervalMs;
 }
 //#endregion
@@ -61060,7 +61138,7 @@ var settledSampleData = (sample) => ({
 	const loading = chunked.loading || query.loading;
 	return {
 		sample: void 0,
-		status: loading ? "loading" : query.error ? "error" : "ok",
+		status: loading ? "loading" : "error",
 		error: loading ? void 0 : query.error,
 		running: kNoRunningEvents,
 		eventsCleared: false,
@@ -63937,6 +64015,7 @@ function useScaledVirtualizer(opts) {
 //#endregion
 //#region ../../packages/react/src/virtual/use-virtual-list-state.ts
 var CURRENT_VERSION = 1;
+var isCurrentSnapshot = (value) => isRecord(value) && value["version"] === CURRENT_VERSION && typeof value["scrollOffset"] === "number" && typeof value["totalCount"] === "number";
 function useVirtualListState(persistenceKey, t0) {
 	const $ = (0, import_compiler_runtime.c)(10);
 	const enabled = t0 === void 0 ? true : t0;
@@ -63949,8 +64028,7 @@ function useVirtualListState(persistenceKey, t0) {
 	let t2;
 	if ($[1] !== enabled || $[2] !== stored) {
 		t2 = () => {
-			if (!enabled || !stored) return;
-			if (stored.version !== CURRENT_VERSION) return;
+			if (!enabled || !isCurrentSnapshot(stored)) return;
 			return stored;
 		};
 		$[1] = enabled;
@@ -64062,6 +64140,7 @@ function VirtualList({ persistenceKey, persistScroll = true, ref, id, className,
 		});
 		return () => observer.disconnect();
 	}, [externalScrollRef, measureScrollMargin]);
+	const scrollTarget = externalScrollEl ?? scrollParent ?? internalScrollRef;
 	const getScrollElement = (0, import_react.useCallback)(() => externalScrollEl ?? scrollParent ?? internalScrollRef.current, [externalScrollEl, scrollParent]);
 	const { virtualizer, scale, toContentScroll, toSpacerScroll } = useScaledVirtualizer({
 		count: data.length,
@@ -64136,10 +64215,7 @@ function VirtualList({ persistenceKey, persistScroll = true, ref, id, className,
 		setFollowOutput
 	]);
 	const finishScrollTimerRef = (0, import_react.useRef)(null);
-	const followOutputRef = (0, import_react.useRef)(followOutput);
-	(0, import_react.useEffect)(() => {
-		followOutputRef.current = followOutput;
-	}, [followOutput]);
+	const followOutputRef = useLatestRef(followOutput);
 	(0, import_react.useEffect)(() => {
 		if (scrollToTopOnFinish && !live && prevLive && followOutputRef.current) {
 			const el = getScrollElement();
@@ -64165,9 +64241,10 @@ function VirtualList({ persistenceKey, persistScroll = true, ref, id, className,
 		prevLive,
 		scrollToTopOnFinish,
 		getScrollElement,
-		setFollowOutput
+		setFollowOutput,
+		followOutputRef
 	]);
-	const handleScroll = useRafThrottle(() => {
+	useEventListener(scrollTarget, "scroll", useRafThrottle(() => {
 		if (!live) return;
 		const el_0 = getScrollElement();
 		if (!el_0) return;
@@ -64180,53 +64257,31 @@ function VirtualList({ persistenceKey, persistScroll = true, ref, id, className,
 			followUserActedRef.current = true;
 			setFollowOutput(false);
 		}
+	}));
+	useEventListener(scrollTarget, "wheel", noteUserInteraction, { passive: true });
+	useEventListener(scrollTarget, "touchmove", noteUserInteraction, { passive: true });
+	useEventListener(scrollTarget, "keydown", (e) => {
+		if (SCROLL_RELEASE_KEYS.has(e.key)) noteUserInteraction();
 	});
-	(0, import_react.useEffect)(() => {
-		const el_1 = getScrollElement();
-		if (!el_1) return;
-		el_1.addEventListener("scroll", handleScroll);
-		return () => el_1.removeEventListener("scroll", handleScroll);
-	}, [getScrollElement, handleScroll]);
-	(0, import_react.useEffect)(() => {
-		const el_2 = getScrollElement();
-		if (!el_2) return;
-		const onWheel = () => noteUserInteraction();
-		const onTouchMove = () => noteUserInteraction();
-		const onKeyDown = (e) => {
-			if (SCROLL_RELEASE_KEYS.has(e.key)) noteUserInteraction();
-		};
-		const onPointerDown = () => {
-			pointerDownRef.current = true;
-			noteUserInteraction();
-		};
-		const onPointerUp = () => {
-			pointerDownRef.current = false;
-		};
-		el_2.addEventListener("wheel", onWheel, { passive: true });
-		el_2.addEventListener("touchmove", onTouchMove, { passive: true });
-		el_2.addEventListener("keydown", onKeyDown);
-		el_2.addEventListener("pointerdown", onPointerDown, { passive: true });
-		window.addEventListener("pointerup", onPointerUp, { passive: true });
-		window.addEventListener("pointercancel", onPointerUp, { passive: true });
-		return () => {
-			el_2.removeEventListener("wheel", onWheel);
-			el_2.removeEventListener("touchmove", onTouchMove);
-			el_2.removeEventListener("keydown", onKeyDown);
-			el_2.removeEventListener("pointerdown", onPointerDown);
-			window.removeEventListener("pointerup", onPointerUp);
-			window.removeEventListener("pointercancel", onPointerUp);
-		};
-	}, [getScrollElement, noteUserInteraction]);
+	useEventListener(scrollTarget, "pointerdown", () => {
+		pointerDownRef.current = true;
+		noteUserInteraction();
+	}, { passive: true });
+	const onPointerUp = () => {
+		pointerDownRef.current = false;
+	};
+	useEventListener(window, "pointerup", onPointerUp, { passive: true });
+	useEventListener(window, "pointercancel", onPointerUp, { passive: true });
 	const contentTotal = virtualizer.getTotalSize();
 	(0, import_react.useEffect)(() => {
 		if (!followOutput || !live) return;
-		const el_3 = getScrollElement();
-		if (!el_3) return;
+		const el_1 = getScrollElement();
+		if (!el_1) return;
 		let releaseFrame = 0;
 		const frame = requestAnimationFrame(() => {
 			isAutoScrollingRef.current = true;
-			el_3.scrollTo({ top: el_3.scrollHeight });
-			lastAutoScrollTopRef.current = el_3.scrollTop;
+			el_1.scrollTo({ top: el_1.scrollHeight });
+			lastAutoScrollTopRef.current = el_1.scrollTop;
 			releaseFrame = requestAnimationFrame(() => {
 				isAutoScrollingRef.current = false;
 			});
@@ -64262,15 +64317,15 @@ function VirtualList({ persistenceKey, persistScroll = true, ref, id, className,
 			onDone?.();
 		};
 		jump();
-		const el_4 = getScrollElement();
-		if (!el_4) {
+		const el_2 = getScrollElement();
+		if (!el_2) {
 			finish();
 			return;
 		}
 		cancelAnimationFrame(settleFrameRef.current);
 		let frames = 0;
 		let stable = 0;
-		let lastTop = el_4.scrollTop;
+		let lastTop = el_2.scrollTop;
 		const interactionAtStart = interactionSequenceRef.current;
 		const settle = () => {
 			if (interactionSequenceRef.current !== interactionAtStart) {
@@ -64278,8 +64333,8 @@ function VirtualList({ persistenceKey, persistScroll = true, ref, id, className,
 				return;
 			}
 			jump();
-			stable = Math.abs(el_4.scrollTop - lastTop) <= 1 ? stable + 1 : 0;
-			lastTop = el_4.scrollTop;
+			stable = Math.abs(el_2.scrollTop - lastTop) <= 1 ? stable + 1 : 0;
+			lastTop = el_2.scrollTop;
 			if (stable < 3 && (frames += 1) < 30) settleFrameRef.current = requestAnimationFrame(settle);
 			else finish();
 		};
@@ -64294,30 +64349,30 @@ function VirtualList({ persistenceKey, persistScroll = true, ref, id, className,
 		isAutoScrollingRef.current = true;
 		cancelAnimationFrame(releaseFrameRef.current);
 		cancelAnimationFrame(settleFrameRef.current);
-		const el_5 = getScrollElement();
+		const el_3 = getScrollElement();
 		const keyAtStart = lastInitialKeyRef.current;
 		const finish_0 = () => {
-			if (el_5) lastAutoScrollTopRef.current = el_5.scrollTop;
+			if (el_3) lastAutoScrollTopRef.current = el_3.scrollTop;
 			releaseFrameRef.current = requestAnimationFrame(() => {
 				isAutoScrollingRef.current = false;
 			});
 		};
-		if (!el_5) {
+		if (!el_3) {
 			finish_0();
 			return;
 		}
-		el_5.scrollTop = getTargetSpacerTop();
+		el_3.scrollTop = getTargetSpacerTop();
 		let frames_0 = 0;
 		let stable_0 = 0;
-		let lastTop_0 = el_5.scrollTop;
+		let lastTop_0 = el_3.scrollTop;
 		const settle_0 = () => {
 			if (userInteractingRef.current || lastInitialKeyRef.current !== keyAtStart) {
 				finish_0();
 				return;
 			}
-			const preTop = el_5.scrollTop;
-			el_5.scrollTop = getTargetSpacerTop();
-			const postTop = el_5.scrollTop;
+			const preTop = el_3.scrollTop;
+			el_3.scrollTop = getTargetSpacerTop();
+			const postTop = el_3.scrollTop;
 			stable_0 = Math.abs(preTop - lastTop_0) > 1 || Math.abs(postTop - lastTop_0) > 1 ? 0 : stable_0 + 1;
 			lastTop_0 = postTop;
 			if (stable_0 < 3 && (frames_0 += 1) < 30) settleFrameRef.current = requestAnimationFrame(settle_0);
@@ -64336,8 +64391,8 @@ function VirtualList({ persistenceKey, persistScroll = true, ref, id, className,
 			lastInitialIndexRef.current = initialIndex ?? void 0;
 		}
 		if (hasInitialScrolledRef.current) return;
-		const el_6 = getScrollElement();
-		if (!el_6) return;
+		const el_4 = getScrollElement();
+		if (!el_4) return;
 		const snapshot = initialScrollOffset === void 0 ? getRestoreSnapshot() : {
 			scrollOffset: initialScrollOffset,
 			totalCount: data.length
@@ -64346,7 +64401,7 @@ function VirtualList({ persistenceKey, persistScroll = true, ref, id, className,
 		const frame_0 = requestAnimationFrame(() => {
 			isAutoScrollingRef.current = true;
 			const release = () => {
-				lastAutoScrollTopRef.current = el_6.scrollTop;
+				lastAutoScrollTopRef.current = el_4.scrollTop;
 				releaseFrame_0 = requestAnimationFrame(() => {
 					isAutoScrollingRef.current = false;
 				});
@@ -64364,12 +64419,12 @@ function VirtualList({ persistenceKey, persistScroll = true, ref, id, className,
 					settleRestoreScroll(() => {
 						const target = toSpacerScroll(snapshot.scrollOffset);
 						if (!clampToMax) return target;
-						const maxSpacerTop = Math.max(0, toSpacerScroll(virtualizer.getTotalSize()) + scrollMargin - el_6.clientHeight);
+						const maxSpacerTop = Math.max(0, toSpacerScroll(virtualizer.getTotalSize()) + scrollMargin - el_4.clientHeight);
 						return Math.min(target, maxSpacerTop);
 					});
 				} else release();
 			} else if (!userScrolledRef.current && !hasResetTopRef.current && resetScrollOnMount) {
-				el_6.scrollTop = 0;
+				el_4.scrollTop = 0;
 				hasResetTopRef.current = true;
 				release();
 			} else release();
@@ -64398,14 +64453,14 @@ function VirtualList({ persistenceKey, persistScroll = true, ref, id, className,
 		scrollMargin,
 		resetScrollOnMount
 	]);
-	const buildSnapshot = (0, import_react.useCallback)((el_7) => ({
+	const buildSnapshot = (0, import_react.useCallback)((el_5) => ({
 		version: 1,
-		scrollOffset: toContentScroll(el_7.scrollTop),
+		scrollOffset: toContentScroll(el_5.scrollTop),
 		totalCount: data.length
 	}), [toContentScroll, data.length]);
 	const persistTimerRef = (0, import_react.useRef)(null);
 	const pendingSnapshotRef = (0, import_react.useRef)(null);
-	const persistOnScroll = useRafThrottle(() => {
+	useEventListener(scrollTarget, "scroll", useRafThrottle(() => {
 		if (isAutoScrollingRef.current) return;
 		const elNow_0 = getScrollElement();
 		if (elNow_0 && lastAutoScrollTopRef.current !== null && Math.abs(elNow_0.scrollTop - lastAutoScrollTopRef.current) <= 2) return;
@@ -64415,17 +64470,11 @@ function VirtualList({ persistenceKey, persistScroll = true, ref, id, className,
 		persistTimerRef.current = setTimeout(() => {
 			persistTimerRef.current = null;
 			pendingSnapshotRef.current = null;
-			const el_8 = getScrollElement();
-			if (!el_8) return;
-			recordSnapshot(buildSnapshot(el_8));
+			const el_6 = getScrollElement();
+			if (!el_6) return;
+			recordSnapshot(buildSnapshot(el_6));
 		}, PERSIST_DEBOUNCE_MS);
-	});
-	(0, import_react.useEffect)(() => {
-		const el_9 = getScrollElement();
-		if (!el_9) return;
-		el_9.addEventListener("scroll", persistOnScroll);
-		return () => el_9.removeEventListener("scroll", persistOnScroll);
-	}, [getScrollElement, persistOnScroll]);
+	}));
 	(0, import_react.useEffect)(() => () => {
 		if (persistTimerRef.current) {
 			clearTimeout(persistTimerRef.current);
@@ -64473,29 +64522,29 @@ function VirtualList({ persistenceKey, persistScroll = true, ref, id, className,
 			opts.onDone?.();
 		},
 		scrollTo(opts_0) {
-			const el_10 = getScrollElement();
-			if (!el_10) return;
+			const el_7 = getScrollElement();
+			if (!el_7) return;
 			const behavior_0 = scale > SMOOTH_SCROLL_MAX_S ? "auto" : opts_0.behavior ?? (smoothScroll ? "smooth" : "auto");
-			el_10.scrollTo({
+			el_7.scrollTo({
 				top: opts_0.top,
 				behavior: behavior_0
 			});
 		},
 		getState(callback) {
-			const el_11 = getScrollElement();
+			const el_8 = getScrollElement();
 			callback({
 				version: 1,
-				scrollOffset: el_11 ? toContentScroll(el_11.scrollTop) : 0,
+				scrollOffset: el_8 ? toContentScroll(el_8.scrollTop) : 0,
 				totalCount: data.length
 			});
 		},
 		jumpToStart() {
-			const el_12 = getScrollElement();
-			if (el_12) el_12.scrollTop = 0;
+			const el_9 = getScrollElement();
+			if (el_9) el_9.scrollTop = 0;
 		},
 		jumpToEnd() {
-			const el_13 = getScrollElement();
-			if (el_13) el_13.scrollTop = el_13.scrollHeight;
+			const el_10 = getScrollElement();
+			if (el_10) el_10.scrollTop = el_10.scrollHeight;
 		}
 	}), [
 		virtualizer,
@@ -64580,11 +64629,11 @@ function VirtualList({ persistenceKey, persistScroll = true, ref, id, className,
 	const bottomPaddingSpacer = (lastItem ? Math.max(0, virtualizer.getTotalSize() + scrollMargin - (lastItem.start + lastItem.size)) : virtualizer.getTotalSize()) / scale;
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 		id,
-		ref: (el_14) => {
-			wrapperRef.current = el_14;
+		ref: (el_11) => {
+			wrapperRef.current = el_11;
 			if (!ownsScroll) return;
-			internalScrollRef.current = el_14;
-			setScrollParent((prev_1) => prev_1 === el_14 ? prev_1 : el_14);
+			internalScrollRef.current = el_11;
+			setScrollParent((prev_1) => prev_1 === el_11 ? prev_1 : el_11);
 		},
 		className: clsx(VirtualList_module_default.scroller, className),
 		style: ownsScroll ? {
@@ -64670,7 +64719,8 @@ function VirtualList({ persistenceKey, persistScroll = true, ref, id, className,
 	if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint" || typeof value === "function") return value.toString();
 	if (typeof value === "symbol") return value.toString();
 	try {
-		return JSON.stringify(value, null, 2) ?? "";
+		const json = JSON.stringify(value, null, 2);
+		return typeof json === "string" ? json : "";
 	} catch {
 		return "";
 	}
@@ -64879,8 +64929,8 @@ var isNonEmptyObject = (v) => isRecord(v) && Object.keys(v).length > 0;
 	const depth = t1 === void 0 ? 0 : t1;
 	const baseId = id ?? "metadata-grid";
 	const allEntries = entryRecords(entries);
-	const scalars = allEntries.filter(_temp$95);
-	const groups = allEntries.filter(_temp2$55);
+	const scalars = allEntries.filter(_temp$98);
+	const groups = allEntries.filter(_temp2$56);
 	const [expanded, setExpanded] = (0, import_react.useState)(false);
 	const isCollapsible = maxRows != null && scalars.length > maxRows;
 	const visibleScalars = isCollapsible && !expanded ? scalars.slice(0, maxRows) : scalars;
@@ -64998,8 +65048,7 @@ var isNonEmptyObject = (v) => isRecord(v) && Object.keys(v).length > 0;
 	return t11;
 };
 var entryRecords = (entries) => {
-	if (!entries) return [];
-	if (!Array.isArray(entries)) return Object.entries(entries || {}).map(([key, value]) => {
+	if (!Array.isArray(entries)) return Object.entries(entries).map(([key, value]) => {
 		return {
 			name: key,
 			value
@@ -65007,10 +65056,10 @@ var entryRecords = (entries) => {
 	});
 	else return entries;
 };
-function _temp$95(e) {
+function _temp$98(e) {
 	return !isNonEmptyObject(e.value) || isHtmlEscape(e.value);
 }
-function _temp2$55(e_0) {
+function _temp2$56(e_0) {
 	return isNonEmptyObject(e_0.value) && !isHtmlEscape(e_0.value);
 }
 function _temp3$39(prev) {
@@ -65061,7 +65110,7 @@ var isWebSearchValue = (v) => isRecord(v) && isOptionalString(v.query) && Array.
 				$[7] = entry;
 				$[8] = t3;
 			} else t3 = $[8];
-			const renderer_0 = Object.keys(renderers).map((key) => renderers[key]).sort(_temp$94).find(t3);
+			const renderer_0 = Object.keys(renderers).map((key) => renderers[key]).sort(_temp$97).find(t3);
 			if (renderer_0) {
 				const { rendered } = renderer_0.render(id, entry, renderOptions, references);
 				if (rendered !== void 0 && /*#__PURE__*/ (0, import_react.isValidElement)(rendered)) {
@@ -65289,7 +65338,7 @@ var isWebSearchValue = (v) => isRecord(v) && isOptionalString(v.query) && Array.
 	};
 	return contentRenderers;
 };
-function _temp$94(a, b) {
+function _temp$97(a, b) {
 	if (!a || !b) return 0;
 	return a.bucket - b.bucket;
 }
@@ -65523,7 +65572,6 @@ var kRecordTreeKey = "record-tree-key";
 	return t13;
 };
 var toTreeItems = (record, isCollapsed, recordProcessors = [], currentDepth = 0, currentPath = []) => {
-	if (!record) return [];
 	if (recordProcessors.length > 0) for (const processor of recordProcessors) record = processor(record);
 	const result = [];
 	Object.entries(record).forEach(([key, value], index) => {
@@ -65555,7 +65603,7 @@ var processNodeRecursive = (key, value, depth, parentPath, thisPath, isCollapsed
 		processChildren = true;
 		childCount = value.length;
 		displayValue = `Array(${value.length})`;
-	} else if (typeof value === "object" && value !== null) {
+	} else if (typeof value === "object") {
 		processChildren = true;
 		childCount = Object.keys(value).length;
 		displayValue = `Object(${Object.keys(value).length})`;
@@ -65778,7 +65826,7 @@ var WebSearchResults$1 = (t0) => {
 	}
 	let t3;
 	if ($[2] !== results) {
-		t3 = results.map(_temp$93);
+		t3 = results.map(_temp$96);
 		$[2] = results;
 		$[3] = t3;
 	} else t3 = $[3];
@@ -65793,7 +65841,7 @@ var WebSearchResults$1 = (t0) => {
 	} else t4 = $[5];
 	return t4;
 };
-function _temp$93(result, index) {
+function _temp$96(result, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("li", {
 		className: clsx(WebSearchResults_module_default.result, "text-style-secondary"),
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExternalLink, {
@@ -66110,7 +66158,7 @@ var MessageCitations = (t0) => {
 	} else t1 = $[0];
 	let t2;
 	if ($[1] !== citations) {
-		t2 = citations.map(_temp$92);
+		t2 = citations.map(_temp$95);
 		$[1] = citations;
 		$[2] = t2;
 	} else t2 = $[2];
@@ -66184,7 +66232,7 @@ var OtherCitation = (t0) => {
 	} else t1 = $[1];
 	return t1;
 };
-function _temp$92(citation, index) {
+function _temp$95(citation, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: index + 1 }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageCitation, { citation })] }, index);
 }
 var MessageContent_module_default = {
@@ -66425,7 +66473,7 @@ var TodoWriteInput = (t0) => {
 			t2 = clsx(TodoWriteInput_module_default.todoList);
 			$[5] = t2;
 		} else t2 = $[5];
-		t3 = todoItems.map(_temp$91);
+		t3 = todoItems.map(_temp$94);
 		$[0] = contents;
 		$[1] = parentRef;
 		$[2] = t1;
@@ -66450,7 +66498,7 @@ var TodoWriteInput = (t0) => {
 	} else t4 = $[9];
 	return t4;
 };
-function _temp$91(todo) {
+function _temp$94(todo) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
 		name: todo.status === "completed" ? "checkboxChecked" : "checkboxUnchecked",
 		className: "text-size-smallest"
@@ -66792,7 +66840,7 @@ var WebSearchResults = (t0) => {
 	const t1 = `${id}-output`;
 	let t2;
 	if ($[0] !== results) {
-		t2 = results.map(_temp$90);
+		t2 = results.map(_temp$93);
 		$[0] = results;
 		$[1] = t2;
 	} else t2 = $[1];
@@ -66973,7 +67021,7 @@ var maybeListTools = (content) => {
 };
 /** Shallow: the list below renders title and url, and skips entries lacking them. */ var isWebResult = (value) => isRecord(value) && typeof value["title"] === "string" && typeof value["url"] === "string";
 /** Shallow: the list below keys on name and renders description. */ var isToolInfo = (value) => isRecord(value) && typeof value["name"] === "string";
-function _temp$90(result, index) {
+function _temp$93(result, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExternalLink, {
 		href: result.url,
 		title: result.url,
@@ -67497,7 +67545,7 @@ function asCoordinate(value) {
 	const { contents, annotation } = t0;
 	let t1;
 	if ($[0] !== contents) {
-		t1 = contents.findLastIndex(_temp$89);
+		t1 = contents.findLastIndex(_temp$92);
 		$[0] = contents;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -67671,7 +67719,7 @@ function renderHtmlAnnotation(annotation) {
 	}
 	return null;
 }
-function _temp$89(c) {
+function _temp$92(c) {
 	return c.type === "image" && isRenderableImageSource(c.image);
 }
 var customToolRendering_module_default = { submitView: "_submitView_1ru17_1" };
@@ -67696,7 +67744,7 @@ var ToolSearchView_module_default = {
 	const { namespaces } = t0;
 	let t1;
 	if ($[0] !== namespaces) {
-		t1 = namespaces.map(_temp2$54);
+		t1 = namespaces.map(_temp2$55);
 		$[0] = namespaces;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -67711,7 +67759,7 @@ var ToolSearchView_module_default = {
 	} else t2 = $[3];
 	return t2;
 };
-function _temp$88(tool, toolIdx) {
+function _temp$91(tool, toolIdx) {
 	return tool.description ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("details", {
 		className: ToolSearchView_module_default.tool,
 		children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("summary", {
@@ -67726,7 +67774,7 @@ function _temp$88(tool, toolIdx) {
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("code", { children: tool.signature })
 	}, `tool-${toolIdx}`);
 }
-function _temp2$54(namespace, nsIdx) {
+function _temp2$55(namespace, nsIdx) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 		className: ToolSearchView_module_default.namespace,
 		children: [namespace.name ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
@@ -67735,7 +67783,7 @@ function _temp2$54(namespace, nsIdx) {
 		}), namespace.description ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
 			className: ToolSearchView_module_default.namespaceDescription,
 			children: [" — ", namespace.description]
-		}) : null] }) : null, namespace.tools.map(_temp$88)]
+		}) : null] }) : null, namespace.tools.map(_temp$91)]
 	}, `ns-${nsIdx}`);
 }
 var ToolTitle_module_default = {
@@ -67919,7 +67967,7 @@ var ToolCallView_module_default = { toolCallView: "_toolCallView_x6cus_1" };
 	const normalizedContent = t6;
 	let t7;
 	if ($[8] !== normalizedContent) {
-		t7 = normalizedContent.find(_temp$87);
+		t7 = normalizedContent.find(_temp$90);
 		$[8] = normalizedContent;
 		$[9] = t7;
 	} else t7 = $[9];
@@ -68095,7 +68143,7 @@ var ToolCallView_module_default = { toolCallView: "_toolCallView_x6cus_1" };
 	const { contents } = t0;
 	let t1;
 	if ($[0] !== contents) {
-		t1 = contents.flatMap(_temp2$53).map(_temp3$38);
+		t1 = contents.flatMap(_temp2$54).map(_temp3$38);
 		$[0] = contents;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -68120,7 +68168,7 @@ var normalizeContent = (output) => {
 		}]
 	}];
 };
-function _temp$87(c) {
+function _temp$90(c) {
 	if (c.type === "tool") {
 		for (const t of c.content) if (t.type === "text") {
 			if (t.text) return true;
@@ -68128,7 +68176,7 @@ function _temp$87(c) {
 		return false;
 	} else return true;
 }
-function _temp2$53(c) {
+function _temp2$54(c) {
 	return c.type === "tool" ? c.content : [c];
 }
 function _temp3$38(item, i) {
@@ -68614,7 +68662,7 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 	const t16 = message.role === "tool" ? 30 : message.role === "assistant" ? 25 : 15;
 	let t17;
 	if ($[58] !== id || $[59] !== isNonSubagentTool || $[60] !== message || $[61] !== references || $[62] !== subagentNotifications || $[63] !== toolMarkdown || $[64] !== toolSearchNamespaces) {
-		t17 = isNonSubagentTool ? toolSearchNamespaces ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolSearchView, { namespaces: toolSearchNamespaces }) : toolMarkdown !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: toolMarkdown }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolOutput, { output: typeof message.content === "string" ? message.content : message.content.filter(_temp$86) }) : subagentNotifications !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: subagentNotifications }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContents, {
+		t17 = isNonSubagentTool ? toolSearchNamespaces ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolSearchView, { namespaces: toolSearchNamespaces }) : toolMarkdown !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: toolMarkdown }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolOutput, { output: typeof message.content === "string" ? message.content : message.content.filter(_temp$89) }) : subagentNotifications !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: subagentNotifications }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContents, {
 			message,
 			references
 		}, `${id}-contents`);
@@ -68690,7 +68738,7 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 	}
 	return segments;
 };
-function _temp$86(c) {
+function _temp$89(c) {
 	return c.type === "text" || c.type === "image";
 }
 var RowSelectCheckbox_module_default = {
@@ -68795,7 +68843,7 @@ var RowSelectCheckbox_module_default = {
 			"aria-label": label,
 			title: label,
 			className: t2,
-			onMouseDown: _temp$85,
+			onMouseDown: _temp$88,
 			onClick: t3,
 			children: t4
 		});
@@ -68808,7 +68856,7 @@ var RowSelectCheckbox_module_default = {
 	} else t5 = $[12];
 	return t5;
 };
-function _temp$85(e) {
+function _temp$88(e) {
 	if (e.shiftKey) e.preventDefault();
 }
 var ChatMessageRow_module_default = {
@@ -69061,7 +69109,7 @@ var MessageLabel_module_default = {
 		viewKinds = $[18];
 		views = $[19];
 	}
-	const hasTools = viewKinds.some(_temp$84);
+	const hasTools = viewKinds.some(_temp$87);
 	if (useLabels || hasTools) {
 		let t2;
 		if ($[42] !== hasTools || $[43] !== highlightLabeled || $[44] !== highlightUserMessage || $[45] !== index || $[46] !== messageChip || $[47] !== resolvedMessage || $[48] !== viewChips || $[49] !== viewKinds || $[50] !== views) {
@@ -69224,7 +69272,7 @@ var ToolCallViewCompact = (t0) => {
 	} else t4 = $[5];
 	return t4;
 };
-function _temp$84(k) {
+function _temp$87(k) {
 	return k !== "message";
 }
 //#endregion
@@ -69670,7 +69718,7 @@ var kLoadMoreMarginRows = 20;
 	useListKeyboardNavigation(t5);
 	let t6;
 	if ($[8] !== rows) {
-		t6 = () => rows.map(_temp$83).filter(_temp2$52);
+		t6 = () => rows.map(_temp$86).filter(_temp2$53);
 		$[8] = rows;
 		$[9] = t6;
 	} else t6 = $[9];
@@ -69843,10 +69891,10 @@ var kLoadMoreMarginRows = 20;
 	} else t16 = $[54];
 	return t16;
 });
-function _temp$83(row) {
+function _temp$86(row) {
 	return row.resolved.message.id;
 }
-function _temp2$52(rowId) {
+function _temp2$53(rowId) {
 	return typeof rowId === "string";
 }
 function _temp3$37(item_0) {
@@ -70283,7 +70331,7 @@ var kLoadingFeed = unpagedFeed(loading$2);
 			queryKey: t4,
 			queryFn: t5,
 			initialPageParam: 0,
-			getNextPageParam: _temp$82,
+			getNextPageParam: _temp$85,
 			gcTime: kSampleGcTimeMs,
 			staleTime: Infinity,
 			retry: false,
@@ -70299,7 +70347,7 @@ var kLoadingFeed = unpagedFeed(loading$2);
 	const pages = data?.pages;
 	let t7;
 	if ($[14] !== pages) {
-		t7 = pages?.flatMap(_temp2$51);
+		t7 = pages?.flatMap(_temp2$52);
 		$[14] = pages;
 		$[15] = t7;
 	} else t7 = $[15];
@@ -70407,10 +70455,10 @@ var kLoadingFeed = unpagedFeed(loading$2);
 	}
 	return t12;
 };
-function _temp$82(last) {
+function _temp$85(last) {
 	return last.nextCursor?.offset;
 }
-function _temp2$51(page) {
+function _temp2$52(page) {
 	return page.rows;
 }
 function _temp3$36() {}
@@ -70578,15 +70626,13 @@ var kNoRows$1 = [];
 	const prefix = scopeDir ? scopePrefix(scopeDir) : void 0;
 	for (const log of logs) {
 		if (prefix && !log.name.startsWith(prefix)) continue;
-		if (log.header?.results?.scores) {
-			for (const evalScore of log.header.results.scores) if (evalScore.metrics) for (const [metricName, metric] of Object.entries(evalScore.metrics)) {
-				const key = scorerMetricKey(evalScore.name, metricName);
-				info[key] = {
-					scorerName: evalScore.name,
-					metricName,
-					valueType: typeof metric.value
-				};
-			}
+		if (log.header?.results?.scores) for (const evalScore of log.header.results.scores) for (const [metricName, metric] of Object.entries(evalScore.metrics)) {
+			const key = scorerMetricKey(evalScore.name, metricName);
+			info[key] = {
+				scorerName: evalScore.name,
+				metricName,
+				valueType: typeof metric.value
+			};
 		}
 	}
 	return info;
@@ -70638,7 +70684,7 @@ var useScoreSchema = (logDir, scopeDir) => {
 	if ($[0] !== config) {
 		t0 = () => {
 			activateFetchEngine(config);
-			return _temp$81;
+			return _temp$84;
 		};
 		t1 = [config];
 		$[0] = config;
@@ -70651,7 +70697,7 @@ var useScoreSchema = (logDir, scopeDir) => {
 	(0, import_react.useEffect)(t0, t1);
 	return null;
 };
-function _temp$81() {
+function _temp$84() {
 	return deactivateFetchEngine();
 }
 //#endregion
@@ -70726,7 +70772,7 @@ var getProxyDraft = (value) => {
 	if (!isObjectish(value)) return null;
 	return value?.[DRAFT_STATE];
 };
-var latest = (state) => state.copy_ || state.base_;
+var latest$1 = (state) => state.copy_ || state.base_;
 var getValue = (value) => {
 	const proxyDraft = getProxyDraft(value);
 	return proxyDraft ? getFinalValue(proxyDraft) : value;
@@ -70873,7 +70919,7 @@ function markStateFinalized(state) {
 var isSameScope = (state, rootScope) => state.scope_ === rootScope;
 var EMPTY_LOCATIONS_RESULT = [];
 function updateDraftInParent(parent, draftValue, finalizedValue, originalKey) {
-	const parentCopy = latest(parent);
+	const parentCopy = latest$1(parent);
 	const parentType = parent.type_;
 	if (originalKey !== void 0) {
 		if (get(parentCopy, originalKey, parentType) === draftValue) {
@@ -70923,7 +70969,7 @@ function handleCrossReference(target, key, value) {
 			updateDraftInParent(target, value, getFinalValue(state), key);
 		});
 	} else if (isDraftable(value)) target.callbacks_.push(function nestedDraftCleanup() {
-		const targetCopy = latest(target);
+		const targetCopy = latest$1(target);
 		if (target.type_ === 3) {
 			if (targetCopy.has(value)) handleValue(value, scope_.handledSet_, scope_);
 		} else if (get(targetCopy, key, target.type_) === value) {
@@ -70981,12 +71027,12 @@ var objectTraps = {
 		if (isArrayWithStringProp) {
 			if (arrayPlugin?.isArrayOperationMethod(prop)) return arrayPlugin.createMethodInterceptor(state, prop);
 		}
-		const source = latest(state);
+		const source = latest$1(state);
 		if (!has(source, prop, state.type_)) return readPropFromProto(state, source, prop);
 		const value = source[prop];
 		if (state.finalized_ || !isDraftable(value)) return value;
 		if (isArrayWithStringProp && state.operationMethod && arrayPlugin?.isMutatingArrayMethod(state.operationMethod) && isArrayIndex$1(prop)) return value;
-		if (value === peek(state.base_, prop) || isRelocatedBaseRef(state, prop, value)) {
+		if (value === peek$1(state.base_, prop) || isRelocatedBaseRef(state, prop, value)) {
 			prepareCopy(state);
 			const childKey = state.type_ === 1 ? +prop : prop;
 			const childDraft = createProxy(state.scope_, value, state, childKey);
@@ -70995,19 +71041,19 @@ var objectTraps = {
 		return value;
 	},
 	has(state, prop) {
-		return prop in latest(state);
+		return prop in latest$1(state);
 	},
 	ownKeys(state) {
-		return Reflect.ownKeys(latest(state));
+		return Reflect.ownKeys(latest$1(state));
 	},
 	set(state, prop, value) {
-		const desc = getDescriptorFromProto(latest(state), prop);
+		const desc = getDescriptorFromProto(latest$1(state), prop);
 		if (desc?.set) {
 			desc.set.call(state.draft_, value);
 			return true;
 		}
 		if (!state.modified_) {
-			const current2 = peek(latest(state), prop);
+			const current2 = peek$1(latest$1(state), prop);
 			const currentState = current2?.[DRAFT_STATE];
 			if (currentState && currentState.base_ === value) {
 				state.copy_[prop] = value;
@@ -71026,7 +71072,7 @@ var objectTraps = {
 	},
 	deleteProperty(state, prop) {
 		prepareCopy(state);
-		if (peek(state.base_, prop) !== void 0 || prop in state.base_) {
+		if (peek$1(state.base_, prop) !== void 0 || prop in state.base_) {
 			state.assigned_.set(prop, false);
 			markChanged(state);
 		} else state.assigned_.delete(prop);
@@ -71034,7 +71080,7 @@ var objectTraps = {
 		return true;
 	},
 	getOwnPropertyDescriptor(state, prop) {
-		const owner = latest(state);
+		const owner = latest$1(state);
 		const desc = Reflect.getOwnPropertyDescriptor(owner, prop);
 		if (!desc) return desc;
 		return {
@@ -71069,9 +71115,9 @@ arrayTraps.deleteProperty = function(state, prop) {
 arrayTraps.set = function(state, prop, value) {
 	return objectTraps.set.call(this, state[0], prop, value, state[0]);
 };
-function peek(draft, prop) {
+function peek$1(draft, prop) {
 	const state = draft[DRAFT_STATE];
-	return (state ? latest(state) : draft)[prop];
+	return (state ? latest$1(state) : draft)[prop];
 }
 function isRelocatedBaseRef(state, prop, value) {
 	if (state.type_ !== 1 || !state.allIndicesReassigned_ || state.assigned_?.get(prop) || !isDraftable(value) || value[DRAFT_STATE]) return false;
@@ -71301,17 +71347,17 @@ function enableMapSet() {
 		get size() {
 			const state = this[DRAFT_STATE];
 			assertUnrevoked(state);
-			return latest(state).size;
+			return latest$1(state).size;
 		}
 		has(key) {
 			const state = this[DRAFT_STATE];
 			assertUnrevoked(state);
-			return latest(state).has(key);
+			return latest$1(state).has(key);
 		}
 		set(key, value) {
 			const state = this[DRAFT_STATE];
 			assertUnrevoked(state);
-			if (!latest(state).has(key) || latest(state).get(key) !== value) {
+			if (!latest$1(state).has(key) || latest$1(state).get(key) !== value) {
 				prepareMapCopy(state);
 				markChanged(state);
 				state.assigned_.set(key, true);
@@ -71335,7 +71381,7 @@ function enableMapSet() {
 		clear() {
 			const state = this[DRAFT_STATE];
 			assertUnrevoked(state);
-			if (latest(state).size) {
+			if (latest$1(state).size) {
 				prepareMapCopy(state);
 				markChanged(state);
 				state.assigned_ = /* @__PURE__ */ new Map();
@@ -71348,14 +71394,14 @@ function enableMapSet() {
 		forEach(cb, thisArg) {
 			const state = this[DRAFT_STATE];
 			assertUnrevoked(state);
-			latest(state).forEach((_value, key, _map) => {
+			latest$1(state).forEach((_value, key, _map) => {
 				cb.call(thisArg, this.get(key), key, this);
 			});
 		}
 		get(key) {
 			const state = this[DRAFT_STATE];
 			assertUnrevoked(state);
-			const value = latest(state).get(key);
+			const value = latest$1(state).get(key);
 			if (state.finalized_ || !isDraftable(value)) return value;
 			if (value !== state.base_.get(key)) return value;
 			const draft = createProxy(state.scope_, value, state, key);
@@ -71366,7 +71412,7 @@ function enableMapSet() {
 		keys() {
 			const state = this[DRAFT_STATE];
 			assertUnrevoked(state);
-			return latest(state).keys();
+			return latest$1(state).keys();
 		}
 		values() {
 			const iterator = this.keys();
@@ -71435,7 +71481,7 @@ function enableMapSet() {
 		get size() {
 			const state = this[DRAFT_STATE];
 			assertUnrevoked(state);
-			return latest(state).size;
+			return latest$1(state).size;
 		}
 		has(value) {
 			const state = this[DRAFT_STATE];
@@ -71469,7 +71515,7 @@ function enableMapSet() {
 		clear() {
 			const state = this[DRAFT_STATE];
 			assertUnrevoked(state);
-			if (latest(state).size) {
+			if (latest$1(state).size) {
 				prepareSetCopy(state);
 				markChanged(state);
 				state.copy_.clear();
@@ -71519,7 +71565,7 @@ function enableMapSet() {
 		}
 	}
 	function assertUnrevoked(state) {
-		if (state.revoked_) die(3, JSON.stringify(latest(state)));
+		if (state.revoked_) die(3, JSON.stringify(latest$1(state)));
 	}
 	function fixSetContents(target) {
 		if (target.type_ === 3 && target.copy_) {
@@ -72394,6 +72440,7 @@ var kNoEvidenceSelection = {
 /** Key of the evidence selection for a sample tab. */ var evidenceSelectionKey = (handle, tabId) => `${handle?.logFile ?? ""}:${handle?.id ?? ""}:${handle?.epoch ?? ""}:${tabId}`;
 var initialState = {
 	visiblePopover: void 0,
+	terminalsViewOpen: false,
 	collapsedEvents: null,
 	collapsedMode: null,
 	eventFilter: { filteredTypes: null },
@@ -72464,6 +72511,11 @@ var createSampleSlice = (set, _get, _store) => {
 					state.sample.visiblePopover = void 0;
 				});
 			},
+			setTerminalsViewOpen: (open) => {
+				set((state) => {
+					state.sample.terminalsViewOpen = open;
+				});
+			},
 			setSelectedOutlineId: (id) => {
 				set((state) => {
 					state.sample.selectedOutlineId = id;
@@ -72516,11 +72568,6 @@ var createSampleSlice = (set, _get, _store) => {
 			}
 		}
 	};
-};
-var initializeSampleSlice = (set) => {
-	set((state) => {
-		if (!state.sample) state.sample = initialState;
-	});
 };
 var SearchPanel_module_default = {
 	container: "_container_1sdtt_1",
@@ -73487,7 +73534,7 @@ var SearchResult = (t0) => {
 		} else t1 = $[7];
 		for (const ref of t1) if (ref.cite && !seen.has(ref.cite)) {
 			seen.add(ref.cite);
-			const route = ref.type === "message" ? scope === "events" ? getEventMessageUrl(ref.id) : getMessageUrl(ref.id) : ref.type === "event" ? getEventUrl(ref.id) : void 0;
+			const route = ref.type === "message" ? scope === "events" ? getEventMessageUrl(ref.id) : getMessageUrl(ref.id) : getEventUrl(ref.id);
 			refs.push({
 				id: ref.id,
 				cite: ref.cite,
@@ -73578,7 +73625,7 @@ function _temp5$16() {
 	for (const ref of result?.references ?? []) {
 		if (!ref.cite) continue;
 		if (ref.type === "message") messageLabels[ref.id] = ref.cite;
-		else if (ref.type === "event") eventLabels[ref.id] = ref.cite;
+		else eventLabels[ref.id] = ref.cite;
 	}
 	const hasMessageLabels = Object.keys(messageLabels).length > 0;
 	const hasEventLabels = Object.keys(eventLabels).length > 0;
@@ -73670,7 +73717,6 @@ var initializeStore = (capabilities, storage) => {
 			initializeAppSlice(set, capabilities);
 			initializeLogsSlice(set);
 			initalializeLogSlice(set);
-			initializeSampleSlice(set);
 		},
 		...createAppSlice(set, get, store),
 		...createLogsSlice(set, get, store),
@@ -73846,13 +73892,13 @@ var state = () => {
 	imperativeLogData.invalidateLogDetail(getAppConfig().logDir, logFile);
 	state().logActions.resetFiltering();
 };
-/** Set the document title from a log/sample context. */ var setDocumentTitle = (context) => {
+/** The document title for a log/sample context. */ var documentTitle = (context) => {
 	const title = [];
 	if (context.sample) title.push(`${context.sample.id}_${context.sample.epoch}`);
 	if (context.evalSpec) title.push(`${context.evalSpec.model} - ${context.evalSpec.task}`);
 	if (context.logDir) title.push(prettyDirUri(context.logDir));
 	if (title.length === 0) title.push("Inspect View");
-	document.title = title.join(" - ");
+	return title.join(" - ");
 };
 //#endregion
 //#region src/app/routing/routeParams.ts
@@ -74113,7 +74159,7 @@ function useRouteSelection(pathname) {
 	const { children } = t0;
 	const { pathname } = useLocation();
 	const { logFile, sample } = useRouteSelection(pathname);
-	useMirrorToStore(sample, _temp$80);
+	useMirrorToStore(sample, _temp$83);
 	let t1;
 	if ($[0] !== logFile || $[1] !== sample) {
 		t1 = {
@@ -74136,7 +74182,7 @@ function useRouteSelection(pathname) {
 	} else t2 = $[5];
 	return t2;
 }
-function _temp$80(handle) {
+function _temp$83(handle) {
 	return highlightSample(handle.id, handle.epoch, handle.logFile);
 }
 function useCurrentSelection() {
@@ -74212,7 +74258,6 @@ var listScoreDescriptor = (_values) => {
 			return listLength(a.value) - listLength(b.value);
 		},
 		render: (score) => {
-			if (score === null || score === void 0) return "[null]";
 			if (!Array.isArray(score)) throw new Error("Unexpected use of list score descriptor for non-list object");
 			const formattedScores = [];
 			score.forEach((value) => {
@@ -74274,7 +74319,6 @@ var objectScoreDescriptor = (values) => {
 			return 0;
 		},
 		render: (score) => {
-			if (score === null || score === void 0) return "[null]";
 			const scores = [];
 			Object.keys(score).forEach((key) => {
 				if (typeof score !== "object" || Array.isArray(score)) throw new Error("Unexpected use of object score descriptor for non-score object");
@@ -74544,7 +74588,8 @@ var createSamplesDescriptor = (samples, evalDescriptor, selectedScores) => {
 	const messageShape = samples.reduce((shape, sample) => {
 		shape.inputSize = Math.min(Math.max(shape.inputSize, inputString(sample.input).join(" ").length), 300);
 		shape.targetSize = Math.min(Math.max(shape.targetSize, arrayToString(sample.target).length), 300);
-		if (selectedScores.length > 0) shape.answerSize = Math.min(Math.max(shape.answerSize, evalDescriptor.scoreAnswer(sample, selectedScores[0])?.length ?? 0), 300);
+		const [firstScore] = selectedScores;
+		if (firstScore !== void 0) shape.answerSize = Math.min(Math.max(shape.answerSize, evalDescriptor.scoreAnswer(sample, firstScore)?.length ?? 0), 300);
 		shape.idSize = Math.min(10, Math.max(shape.idSize, String(sample.id).length));
 		shape.limitSize = Math.min(10, Math.max(shape.limitSize, sample.limit ? sample.limit.length : 0));
 		shape.retriesSize = Math.min(10, Math.max(shape.retriesSize, sample.retries ? String(sample.retries).length + 2 : 0));
@@ -75574,8 +75619,8 @@ var kDefaultScorePanelSort = {
 * own default (typically `chips` for ≤ 6 scores, `grid` for 7+).
 */ var useScorePanelView = () => {
 	const $ = (0, import_compiler_runtime.c)(5);
-	const stored = useStore(_temp$79);
-	const setPropertyValue = useStore(_temp2$50);
+	const stored = useStore(_temp$82);
+	const setPropertyValue = useStore(_temp2$51);
 	let t0;
 	if ($[0] !== setPropertyValue) {
 		t0 = (view) => {
@@ -75847,7 +75892,7 @@ var useEvalDescriptor = () => {
 	const sampleSummaries = useSelectedSampleSummariesData();
 	let t0;
 	if ($[0] !== sampleSummaries || $[1] !== scores) {
-		t0 = scores ? createEvalDescriptor(scores, sampleSummaries) : null;
+		t0 = createEvalDescriptor(scores, sampleSummaries);
 		$[0] = sampleSummaries;
 		$[1] = scores;
 		$[2] = t0;
@@ -76096,11 +76141,11 @@ var useLogsListing = () => {
 	} else t0 = $[3];
 	return t0;
 };
-function _temp$79(state) {
+function _temp$82(state) {
 	const value = state.app.propertyBags[kScorePanelViewBag]?.[kScorePanelViewKey];
 	return isScoreView(value) ? value : void 0;
 }
-function _temp2$50(state_0) {
+function _temp2$51(state_0) {
 	return state_0.appActions.setPropertyValue;
 }
 function _temp3$35(state) {
@@ -76351,7 +76396,9 @@ var FlowButton = () => {
 	} else t0 = $[1];
 	let t1;
 	if ($[2] !== flowPath || $[3] !== navigateRouter) {
-		t1 = () => navigateAndForget(navigateRouter, flowPath);
+		t1 = () => {
+			navigateRouter(flowPath);
+		};
 		$[2] = flowPath;
 		$[3] = navigateRouter;
 		$[4] = t1;
@@ -76419,7 +76466,7 @@ var FlowButton = () => {
 		t2 = {
 			queryKey: t0,
 			queryFn: t1,
-			select: _temp$78,
+			select: _temp$81,
 			staleTime: Infinity
 		};
 		$[6] = t0;
@@ -76428,7 +76475,7 @@ var FlowButton = () => {
 	} else t2 = $[8];
 	return useAsyncDataFromQuery(t2);
 };
-function _temp$78(flow) {
+function _temp$81(flow) {
 	return flow ?? void 0;
 }
 var ThemeToggle_module_default = {
@@ -76686,9 +76733,11 @@ var ThemeToggle_module_default = {
 	if (hostIsDark !== null) return hostIsDark;
 	return typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
 };
+var documentBody = () => typeof document === "undefined" ? null : document.body;
 var hostIsDarkFromBody = () => {
-	if (typeof document === "undefined" || !document.body) return null;
-	const cls = document.body.classList;
+	const body = documentBody();
+	if (!body) return null;
+	const cls = body.classList;
 	if (cls.contains("vscode-high-contrast-light")) return false;
 	if (cls.contains("vscode-high-contrast")) return true;
 	if (cls.contains("vscode-dark")) return true;
@@ -76718,9 +76767,9 @@ var subscribe = (onChange) => {
 		$[0] = preference;
 		$[1] = t0;
 	} else t0 = $[1];
-	return (0, import_react.useSyncExternalStore)(subscribe, t0, _temp$77);
+	return (0, import_react.useSyncExternalStore)(subscribe, t0, _temp$80);
 };
-function _temp$77() {
+function _temp$80() {
 	return false;
 }
 //#endregion
@@ -77408,8 +77457,8 @@ var ApplicationNavbar = (t0) => {
 	const { currentPath, fnNavigationUrl, backUrl, homeUrl, bordered, children, breadcrumbsEnabled, loading: t1, viewerOptionsError } = t0;
 	const loadingProp = t1 === void 0 ? false : t1;
 	const [optionsEl, setOptionsEl] = (0, import_react.useState)(null);
-	const themePreference = useUserSettings(_temp$76);
-	const setThemePreference = useUserSettings(_temp2$49);
+	const themePreference = useUserSettings(_temp$79);
+	const setThemePreference = useUserSettings(_temp2$50);
 	const isDark = useResolvedIsDark(themePreference);
 	const loading = useSelectedLogLoading() || loadingProp;
 	const isShowing = useStore(_temp3$34);
@@ -77502,10 +77551,10 @@ var ApplicationNavbar = (t0) => {
 	} else t8 = $[29];
 	return t8;
 };
-function _temp$76(s) {
+function _temp$79(s) {
 	return s.themePreference;
 }
-function _temp2$49(s_0) {
+function _temp2$50(s_0) {
 	return s_0.setThemePreference;
 }
 function _temp3$34(state) {
@@ -77642,7 +77691,7 @@ var ViewSegmentedControl = (t0) => {
 	if ($[4] !== navigate || $[5] !== routes) {
 		t2 = (segment_0) => {
 			const route = routes[segment_0];
-			if (route) navigateAndForget(navigate, route);
+			if (route) navigate(route);
 		};
 		$[4] = navigate;
 		$[5] = routes;
@@ -77700,7 +77749,7 @@ var ViewSegmentedControl = (t0) => {
 		t2 = {
 			queryKey: t0,
 			queryFn: t1,
-			select: _temp$75,
+			select: _temp$78,
 			staleTime: Infinity
 		};
 		$[6] = t0;
@@ -77709,7 +77758,7 @@ var ViewSegmentedControl = (t0) => {
 	} else t2 = $[8];
 	return useAsyncDataFromQuery(t2);
 };
-function _temp$75(evalSet) {
+function _temp$78(evalSet) {
 	return evalSet ?? void 0;
 }
 //#endregion
@@ -77818,13 +77867,13 @@ var ColumnSelectorPopover = (t0) => {
 		}
 		let t10;
 		if ($[13] !== columns) {
-			t10 = columns.filter(_temp$74);
+			t10 = columns.filter(_temp$77);
 			$[13] = columns;
 			$[14] = t10;
 		} else t10 = $[14];
 		let t11;
 		if ($[15] !== columns) {
-			t11 = columns.filter(_temp2$48);
+			t11 = columns.filter(_temp2$49);
 			$[15] = columns;
 			$[16] = t11;
 		} else t11 = $[16];
@@ -78142,10 +78191,10 @@ var ColumnSelectorPopover = (t0) => {
 	} else t32 = $[88];
 	return t32;
 };
-function _temp$74(col_0) {
+function _temp$77(col_0) {
 	return !isScoreField(getFieldKey(col_0));
 }
-function _temp2$48(col_1) {
+function _temp2$49(col_1) {
 	return isScoreField(getFieldKey(col_1));
 }
 function _temp3$33(col_2) {
@@ -78218,18 +78267,18 @@ var kLogFilePattern = /^(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}[-+]\d{2}-\d{2})_(.+
 	return Number.isNaN(date.getTime()) ? void 0 : date;
 };
 var parseLogFileName = (logFileName) => {
-	const match = logFileName.match(kLogFilePattern);
-	if (!match) return {
+	const [, timestamp, name, taskId, extension] = logFileName.match(kLogFilePattern) ?? [];
+	if (timestamp === void 0 || name === void 0) return {
 		timestamp: void 0,
 		name: filename(logFileName),
 		taskId: void 0,
 		extension: logFileName.endsWith(".eval") ? "eval" : "json"
 	};
 	return {
-		timestamp: parseFileNameTimestamp(match[1]),
-		name: match[2],
-		taskId: match[3],
-		extension: match[4] === "json" ? "json" : "eval"
+		timestamp: parseFileNameTimestamp(timestamp),
+		name,
+		taskId,
+		extension: extension === "json" ? "json" : "eval"
 	};
 };
 //#endregion
@@ -78578,7 +78627,7 @@ var useLogListColumns = (mode = "logs", scopeDir, viewMode = "by-metric") => {
 				accessorFn: (row_21) => row_21.totalSamples,
 				cell: ({ getValue }) => {
 					const value_0 = getValue();
-					if (value_0 === void 0 || value_0 === null) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EmptyCell$1, {});
+					if (value_0 === void 0) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EmptyCell$1, {});
 					return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: formatNumber(value_0) });
 				}
 			},
@@ -78592,7 +78641,7 @@ var useLogListColumns = (mode = "logs", scopeDir, viewMode = "by-metric") => {
 				accessorFn: (row_22) => row_22.completedSamples,
 				cell: ({ getValue: getValue_0 }) => {
 					const value_1 = getValue_0();
-					if (value_1 === void 0 || value_1 === null) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EmptyCell$1, {});
+					if (value_1 === void 0) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EmptyCell$1, {});
 					return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: formatNumber(value_1) });
 				}
 			},
@@ -78619,7 +78668,7 @@ var useLogListColumns = (mode = "logs", scopeDir, viewMode = "by-metric") => {
 				accessorFn: (row_24) => row_24.totalTokens,
 				cell: ({ getValue: getValue_2 }) => {
 					const value_3 = getValue_2();
-					if (value_3 === void 0 || value_3 === null) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EmptyCell$1, {});
+					if (value_3 === void 0) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EmptyCell$1, {});
 					return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: formatNumber(value_3) });
 				}
 			},
@@ -78635,7 +78684,7 @@ var useLogListColumns = (mode = "logs", scopeDir, viewMode = "by-metric") => {
 				textValue: (row_27) => row_27.duration === void 0 ? null : formatTime(row_27.duration),
 				cell: ({ getValue: getValue_3 }) => {
 					const value_4 = getValue_3();
-					if (value_4 === void 0 || value_4 === null) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EmptyCell$1, {});
+					if (value_4 === void 0) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EmptyCell$1, {});
 					return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: formatTime(value_4) });
 				}
 			},
@@ -78698,7 +78747,7 @@ var useLogListColumns = (mode = "logs", scopeDir, viewMode = "by-metric") => {
 				textValue: (row_35) => row_35.percentCompleted === void 0 ? null : `${formatPrettyDecimal(row_35.percentCompleted)}%`,
 				cell: ({ getValue: getValue_7 }) => {
 					const value_8 = getValue_7();
-					if (value_8 === void 0 || value_8 === null) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EmptyCell$1, {});
+					if (value_8 === void 0) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EmptyCell$1, {});
 					return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [formatPrettyDecimal(value_8), "%"] });
 				}
 			},
@@ -78712,7 +78761,7 @@ var useLogListColumns = (mode = "logs", scopeDir, viewMode = "by-metric") => {
 				accessorFn: (row_36) => row_36.sampleErrors,
 				cell: ({ getValue: getValue_8 }) => {
 					const value_9 = getValue_8();
-					if (value_9 === void 0 || value_9 === null) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EmptyCell$1, {});
+					if (value_9 === void 0) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EmptyCell$1, {});
 					return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: formatNumber(value_9) });
 				}
 			},
@@ -84845,7 +84894,7 @@ var isConditionShaped = (value) => {
 	const t3 = `${columnId}-op${idSuffix}`;
 	let t4;
 	if ($[2] !== operatorOptions) {
-		t4 = operatorOptions.map(_temp$73);
+		t4 = operatorOptions.map(_temp$76);
 		$[2] = operatorOptions;
 		$[3] = t4;
 	} else t4 = $[3];
@@ -85103,7 +85152,7 @@ var ColumnFilterEditor = (t0) => {
 	} else t10 = $[32];
 	return t10;
 };
-function _temp$73(option) {
+function _temp$76(option) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("option", {
 		value: option,
 		children: OPERATOR_LABELS[option]
@@ -86710,7 +86759,7 @@ function GridRowInner(t0) {
 		t18 = columnDef.meta?.filterable && filterType && !hideColumnFilters && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: DataGrid_module_default.rotatedFilter,
 			role: "presentation",
-			onClick: _temp$72,
+			onClick: _temp$75,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ColumnFilterControl, {
 				columnId: header.column.id,
 				filterType,
@@ -86811,7 +86860,7 @@ function GridRowInner(t0) {
 	} else t22 = $[62];
 	return t22;
 }
-function _temp$72(e_2) {
+function _temp$75(e_2) {
 	return e_2.stopPropagation();
 }
 //#endregion
@@ -86834,7 +86883,7 @@ function _temp$72(e_2) {
 	for (const column of columns) {
 		let text = null;
 		if (column.textValue) text = column.textValue(row);
-		else if ("accessorFn" in column && column.accessorFn) text = primitiveText(column.accessorFn(row, 0));
+		else if ("accessorFn" in column) text = primitiveText(column.accessorFn(row, 0));
 		if (text) parts.push(text);
 	}
 	return parts.join("\n").toLowerCase();
@@ -87394,7 +87443,7 @@ var LogListGrid = (t0) => {
 	const searchColumns = t10;
 	let t11;
 	if ($[26] !== searchColumns) {
-		t11 = searchColumns.map(_temp$71);
+		t11 = searchColumns.map(_temp$74);
 		$[26] = searchColumns;
 		$[27] = t11;
 	} else t11 = $[27];
@@ -87406,7 +87455,7 @@ var LogListGrid = (t0) => {
 		$[29] = t12;
 	} else t12 = $[29];
 	const rowText = t12;
-	const getRowId = _temp2$47;
+	const getRowId = _temp2$48;
 	let t13;
 	if ($[30] !== accessorsKey || $[31] !== filter || $[32] !== findTerm || $[33] !== getComparator || $[34] !== getFilterType || $[35] !== getValue || $[36] !== listing || $[37] !== orderBy || $[38] !== rowText || $[39] !== searchKey || $[40] !== showFind) {
 		t13 = {
@@ -87685,10 +87734,10 @@ var LogListGrid = (t0) => {
 	} else t32 = $[108];
 	return t32;
 };
-function _temp$71(col_0) {
+function _temp$74(col_0) {
 	return col_0.id ?? "";
 }
-function _temp2$47(row_2) {
+function _temp2$48(row_2) {
 	return row_2.id;
 }
 function _temp3$32(row_3) {
@@ -87814,7 +87863,7 @@ var kNoRows = [];
 	const $ = (0, import_compiler_runtime.c)(45);
 	const { overlayItems, scopeKey, getValue, getComparator, getFilterType, accessorsKey, listing } = t0;
 	const { gridStateByScope } = useLogsListing();
-	const overlayData = useKeyedMemo(overlayItems, _temp$70, _temp2$46, _temp3$31);
+	const overlayData = useKeyedMemo(overlayItems, _temp$73, _temp2$47, _temp3$31);
 	let t1;
 	if ($[0] !== overlayData) {
 		const folders = [];
@@ -87953,10 +88002,10 @@ var kNoRows = [];
 	} else t12 = $[44];
 	return t12;
 };
-function _temp$70(item) {
+function _temp$73(item) {
 	return item.id;
 }
-function _temp2$46(item_0) {
+function _temp2$47(item_0) {
 	return [
 		item_0.id,
 		item_0.type,
@@ -88125,13 +88174,13 @@ var LogsPanel_module_default = {
 //#endregion
 //#region src/app/log-list/LogsPanel.tsx
 var LogsPanel = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(124);
+	const $ = (0, import_compiler_runtime.c)(123);
 	const { maybeShowSingleLog, mode: t1 } = t0;
 	const mode = t1 === void 0 ? "logs" : t1;
 	const [showColumnSelector, setShowColumnSelector] = (0, import_react.useState)(false);
 	const [columnButtonEl, setColumnButtonEl] = (0, import_react.useState)(null);
-	const showRetriedLogs = useUserSettings(_temp$69);
-	const setShowRetriedLogs = useUserSettings(_temp2$45);
+	const showRetriedLogs = useUserSettings(_temp$72);
+	const setShowRetriedLogs = useUserSettings(_temp2$46);
 	const logDir = useLogDir();
 	const { gridStateByScope, patchGridState } = useLogsListing();
 	const { logPath } = useLogRouteParams();
@@ -88146,152 +88195,144 @@ var LogsPanel = (t0) => {
 		$[2] = t3;
 	} else t3 = $[2];
 	const currentDir = t3;
-	const scopeKey = logDir === void 0 ? void 0 : `${mode}::${currentDir}`;
-	const universe = scopeKey === void 0 ? void 0 : `${scopeKey}::retried=${showRetriedLogs}`;
+	const scopeKey = `${mode}::${currentDir}`;
+	const universe = `${scopeKey}::retried=${showRetriedLogs}`;
 	const flowData = useFlowQuery(logPath || "").data;
 	let t4;
-	let t5;
 	if ($[3] !== logDir) {
-		t4 = () => {
-			setDocumentTitle({ logDir });
-		};
-		t5 = [logDir];
+		t4 = documentTitle({ logDir });
 		$[3] = logDir;
 		$[4] = t4;
-		$[5] = t5;
-	} else {
-		t4 = $[4];
-		t5 = $[5];
-	}
-	(0, import_react.useEffect)(t4, t5);
-	let t6;
-	if ($[6] !== currentDir || $[7] !== logDir || $[8] !== mode || $[9] !== showRetriedLogs) {
-		t6 = {
+	} else t4 = $[4];
+	useDocumentTitleText(t4);
+	let t5;
+	if ($[5] !== currentDir || $[6] !== logDir || $[7] !== mode || $[8] !== showRetriedLogs) {
+		t5 = {
 			mode,
 			logDir,
 			currentDir,
 			showRetriedLogs
 		};
-		$[6] = currentDir;
-		$[7] = logDir;
-		$[8] = mode;
-		$[9] = showRetriedLogs;
-		$[10] = t6;
-	} else t6 = $[10];
-	const itemView = t6;
-	let t7;
-	if ($[11] !== itemView) {
-		t7 = (log) => fileLogIdentity(log.name, itemView) !== void 0;
-		$[11] = itemView;
-		$[12] = t7;
-	} else t7 = $[12];
-	const isCandidate = t7;
-	const t8 = mode === "logs" ? currentDir : void 0;
-	let t9;
-	if ($[13] !== isCandidate || $[14] !== showRetriedLogs || $[15] !== t8) {
-		t9 = {
-			folderDir: t8,
+		$[5] = currentDir;
+		$[6] = logDir;
+		$[7] = mode;
+		$[8] = showRetriedLogs;
+		$[9] = t5;
+	} else t5 = $[9];
+	const itemView = t5;
+	let t6;
+	if ($[10] !== itemView) {
+		t6 = (log) => fileLogIdentity(log.name, itemView) !== void 0;
+		$[10] = itemView;
+		$[11] = t6;
+	} else t6 = $[11];
+	const isCandidate = t6;
+	const t7 = mode === "logs" ? currentDir : void 0;
+	let t8;
+	if ($[12] !== isCandidate || $[13] !== showRetriedLogs || $[14] !== t7) {
+		t8 = {
+			folderDir: t7,
 			showRetriedLogs,
 			isCandidate
 		};
-		$[13] = isCandidate;
-		$[14] = showRetriedLogs;
+		$[12] = isCandidate;
+		$[13] = showRetriedLogs;
+		$[14] = t7;
 		$[15] = t8;
-		$[16] = t9;
-	} else t9 = $[16];
-	let t10;
-	if ($[17] !== logDir || $[18] !== t9 || $[19] !== universe) {
-		t10 = {
+	} else t8 = $[15];
+	let t9;
+	if ($[16] !== logDir || $[17] !== t8 || $[18] !== universe) {
+		t9 = {
 			logDir,
 			universe,
-			view: t9
+			view: t8
 		};
-		$[17] = logDir;
-		$[18] = t9;
-		$[19] = universe;
-		$[20] = t10;
-	} else t10 = $[20];
-	const overviewQuery = useLogsOverview(t10);
+		$[16] = logDir;
+		$[17] = t8;
+		$[18] = universe;
+		$[19] = t9;
+	} else t9 = $[19];
+	const overviewQuery = useLogsOverview(t9);
 	const overview = overviewQuery.data;
 	const busy = sync.busy;
 	const navbarLoading = sync.loading || overviewQuery.loading;
+	let t10;
+	if ($[20] !== currentDir || $[21] !== logDir) {
+		t10 = directoryRelativeUrl(currentDir, logDir);
+		$[20] = currentDir;
+		$[21] = logDir;
+		$[22] = t10;
+	} else t10 = $[22];
+	const currentDirRelative = t10;
 	let t11;
-	if ($[21] !== currentDir || $[22] !== logDir) {
-		t11 = directoryRelativeUrl(currentDir, logDir);
-		$[21] = currentDir;
-		$[22] = logDir;
-		$[23] = t11;
-	} else t11 = $[23];
-	const currentDirRelative = t11;
+	if ($[23] !== overview?.folders) {
+		t11 = overview?.folders ?? [];
+		$[23] = overview?.folders;
+		$[24] = t11;
+	} else t11 = $[24];
 	let t12;
-	if ($[24] !== overview?.folders) {
-		t12 = overview?.folders ?? [];
-		$[24] = overview?.folders;
-		$[25] = t12;
-	} else t12 = $[25];
-	let t13;
-	if ($[26] !== currentDirRelative || $[27] !== evalSet || $[28] !== logDir || $[29] !== overview?.taskIds || $[30] !== t12) {
-		let t14;
-		if ($[32] !== currentDirRelative || $[33] !== logDir) {
-			t14 = (folder) => ({
+	if ($[25] !== currentDirRelative || $[26] !== evalSet || $[27] !== logDir || $[28] !== overview?.taskIds || $[29] !== t11) {
+		let t13;
+		if ($[31] !== currentDirRelative || $[32] !== logDir) {
+			t13 = (folder) => ({
 				id: folder.name,
 				name: folder.name,
 				type: "folder",
 				url: logsUrl(join(folder.name, decodeURIComponent(currentDirRelative)), logDir),
 				itemCount: folder.itemCount
 			});
-			$[32] = currentDirRelative;
-			$[33] = logDir;
-			$[34] = t14;
-		} else t14 = $[34];
-		const folderItems = t12.map(t14);
-		t13 = appendPendingItems(evalSet, new Set(overview?.taskIds), folderItems);
-		$[26] = currentDirRelative;
-		$[27] = evalSet;
-		$[28] = logDir;
-		$[29] = overview?.taskIds;
+			$[31] = currentDirRelative;
+			$[32] = logDir;
+			$[33] = t13;
+		} else t13 = $[33];
+		const folderItems = t11.map(t13);
+		t12 = appendPendingItems(evalSet, new Set(overview?.taskIds), folderItems);
+		$[25] = currentDirRelative;
+		$[26] = evalSet;
+		$[27] = logDir;
+		$[28] = overview?.taskIds;
+		$[29] = t11;
 		$[30] = t12;
-		$[31] = t13;
-	} else t13 = $[31];
-	const logItems = t13;
+	} else t12 = $[30];
+	const logItems = t12;
 	const hasRetriedLogs = (overview?.retriedCount ?? 0) > 0;
 	const scopeDir = mode === "logs" ? currentDir : void 0;
-	let t14;
-	if ($[35] === Symbol.for("react.memo_cache_sentinel")) {
-		t14 = { defaultValue: "by-metric" };
-		$[35] = t14;
-	} else t14 = $[35];
-	const [scoresViewMode, setScoresViewMode] = useProperty("log-list-scores-view", "mode", t14);
+	let t13;
+	if ($[34] === Symbol.for("react.memo_cache_sentinel")) {
+		t13 = { defaultValue: "by-metric" };
+		$[34] = t13;
+	} else t13 = $[34];
+	const [scoresViewMode, setScoresViewMode] = useProperty("log-list-scores-view", "mode", t13);
 	const { pickerColumns, visibility, setColumnVisibility, getValue, getComparator, getFilterType, accessorsKey } = useLogListColumns(mode, scopeDir, scoresViewMode);
-	let t15;
-	if ($[36] !== itemView) {
-		t15 = (log_0) => {
+	let t14;
+	if ($[35] !== itemView) {
+		t14 = (log_0) => {
 			const item = fileLogItem(log_0, itemView);
 			return item === void 0 ? void 0 : buildLogListRow(item);
 		};
-		$[36] = itemView;
-		$[37] = t15;
-	} else t15 = $[37];
-	const toRow = t15;
-	const t16 = mode === "logs" ? currentDir : logDir;
-	let t17;
-	if ($[38] !== logDir || $[39] !== t16 || $[40] !== toRow || $[41] !== universe) {
-		t17 = {
+		$[35] = itemView;
+		$[36] = t14;
+	} else t14 = $[36];
+	const toRow = t14;
+	const t15 = mode === "logs" ? currentDir : logDir;
+	let t16;
+	if ($[37] !== logDir || $[38] !== t15 || $[39] !== toRow || $[40] !== universe) {
+		t16 = {
 			logDir,
-			prefix: t16,
+			prefix: t15,
 			universe,
 			toRow
 		};
-		$[38] = logDir;
-		$[39] = t16;
-		$[40] = toRow;
-		$[41] = universe;
-		$[42] = t17;
-	} else t17 = $[42];
-	const listing = t17;
-	let t18;
-	if ($[43] !== accessorsKey || $[44] !== getComparator || $[45] !== getFilterType || $[46] !== getValue || $[47] !== listing || $[48] !== logItems || $[49] !== scopeKey) {
-		t18 = {
+		$[37] = logDir;
+		$[38] = t15;
+		$[39] = toRow;
+		$[40] = universe;
+		$[41] = t16;
+	} else t16 = $[41];
+	const listing = t16;
+	let t17;
+	if ($[42] !== accessorsKey || $[43] !== getComparator || $[44] !== getFilterType || $[45] !== getValue || $[46] !== listing || $[47] !== logItems || $[48] !== scopeKey) {
+		t17 = {
 			overlayItems: logItems,
 			scopeKey,
 			getValue,
@@ -88300,146 +88341,144 @@ var LogsPanel = (t0) => {
 			accessorsKey,
 			listing
 		};
-		$[43] = accessorsKey;
-		$[44] = getComparator;
-		$[45] = getFilterType;
-		$[46] = getValue;
-		$[47] = listing;
-		$[48] = logItems;
-		$[49] = scopeKey;
-		$[50] = t18;
-	} else t18 = $[50];
-	const listData = useLogListData(t18);
+		$[42] = accessorsKey;
+		$[43] = getComparator;
+		$[44] = getFilterType;
+		$[45] = getValue;
+		$[46] = listing;
+		$[47] = logItems;
+		$[48] = scopeKey;
+		$[49] = t17;
+	} else t17 = $[49];
+	const listData = useLogListData(t17);
 	const totalRowCount = (overview?.fileCount ?? 0) + logItems.length;
 	const listBusy = busy || listData.pending || overviewQuery.loading;
 	const error = sync.error ?? overviewQuery.error ?? listData.error;
 	const currentColumnVisibility = useStore(_temp3$30);
-	let t19;
-	if ($[51] !== listData.columnFilters) {
-		t19 = Object.keys(listData.columnFilters ?? {});
-		$[51] = listData.columnFilters;
-		$[52] = t19;
-	} else t19 = $[52];
-	const filteredFields = t19;
+	let t18;
+	if ($[50] !== listData.columnFilters) {
+		t18 = Object.keys(listData.columnFilters ?? {});
+		$[50] = listData.columnFilters;
+		$[51] = t18;
+	} else t18 = $[51];
+	const filteredFields = t18;
 	const hasFilter = filteredFields.length > 0;
-	let t20;
-	if ($[53] !== patchGridState || $[54] !== scopeKey) {
-		t20 = () => {
-			if (scopeKey) patchGridState(scopeKey, { columnFilters: {} });
+	let t19;
+	if ($[52] !== patchGridState || $[53] !== scopeKey) {
+		t19 = () => {
+			patchGridState(scopeKey, { columnFilters: {} });
 		};
-		$[53] = patchGridState;
-		$[54] = scopeKey;
-		$[55] = t20;
-	} else t20 = $[55];
-	const handleResetFilters = t20;
-	let t21;
-	if ($[56] !== currentColumnVisibility || $[57] !== gridStateByScope || $[58] !== patchGridState || $[59] !== scopeKey || $[60] !== setColumnVisibility || $[61] !== visibility) {
-		t21 = (newVisibility) => {
-			const changed = Object.fromEntries(Object.entries(newVisibility).filter((t22) => {
-				const [field, visible] = t22;
+		$[52] = patchGridState;
+		$[53] = scopeKey;
+		$[54] = t19;
+	} else t19 = $[54];
+	const handleResetFilters = t19;
+	let t20;
+	if ($[55] !== currentColumnVisibility || $[56] !== gridStateByScope || $[57] !== patchGridState || $[58] !== scopeKey || $[59] !== setColumnVisibility || $[60] !== visibility) {
+		t20 = (newVisibility) => {
+			const changed = Object.fromEntries(Object.entries(newVisibility).filter((t21) => {
+				const [field, visible] = t21;
 				return visibility[field] !== visible;
 			}));
 			if (Object.keys(changed).length === 0) return;
-			if (scopeKey) {
-				const cf = gridStateByScope[scopeKey]?.columnFilters;
-				if (cf) {
-					const next = Object.fromEntries(Object.entries(cf).filter((t23) => {
-						const [id] = t23;
-						return changed[id] !== false;
-					}));
-					if (Object.keys(next).length !== Object.keys(cf).length) patchGridState(scopeKey, { columnFilters: next });
-				}
+			const cf = gridStateByScope[scopeKey]?.columnFilters;
+			if (cf) {
+				const next = Object.fromEntries(Object.entries(cf).filter((t22) => {
+					const [id] = t22;
+					return changed[id] !== false;
+				}));
+				if (Object.keys(next).length !== Object.keys(cf).length) patchGridState(scopeKey, { columnFilters: next });
 			}
 			setColumnVisibility({
 				...currentColumnVisibility,
 				...changed
 			});
 		};
-		$[56] = currentColumnVisibility;
-		$[57] = gridStateByScope;
-		$[58] = patchGridState;
-		$[59] = scopeKey;
-		$[60] = setColumnVisibility;
-		$[61] = visibility;
-		$[62] = t21;
-	} else t21 = $[62];
-	const handleColumnVisibilityChange = t21;
-	let t22;
-	if ($[63] !== logItems) {
-		t22 = logItems.filter(_temp4$25);
-		$[63] = logItems;
-		$[64] = t22;
-	} else t22 = $[64];
-	const pendingTasks = t22.length;
+		$[55] = currentColumnVisibility;
+		$[56] = gridStateByScope;
+		$[57] = patchGridState;
+		$[58] = scopeKey;
+		$[59] = setColumnVisibility;
+		$[60] = visibility;
+		$[61] = t20;
+	} else t20 = $[61];
+	const handleColumnVisibilityChange = t20;
+	let t21;
+	if ($[62] !== logItems) {
+		t21 = logItems.filter(_temp4$25);
+		$[62] = logItems;
+		$[63] = t21;
+	} else t21 = $[63];
+	const pendingTasks = t21.length;
 	const total = (overview?.fileCount ?? 0) + pendingTasks;
-	const t23 = total - ((overview?.startedCount ?? 0) + pendingTasks);
-	let t24;
-	if ($[65] !== t23 || $[66] !== total) {
-		t24 = {
-			complete: t23,
+	const t22 = total - ((overview?.startedCount ?? 0) + pendingTasks);
+	let t23;
+	if ($[64] !== t22 || $[65] !== total) {
+		t23 = {
+			complete: t22,
 			total
 		};
-		$[65] = t23;
-		$[66] = total;
-		$[67] = t24;
-	} else t24 = $[67];
-	const progress = t24;
-	let t25;
-	if ($[68] !== itemView || $[69] !== logItems || $[70] !== overview) {
-		t25 = soleItemRedirectUrl(overview, logItems, itemView);
-		$[68] = itemView;
-		$[69] = logItems;
-		$[70] = overview;
-		$[71] = t25;
-	} else t25 = $[71];
-	const soleItemUrl = t25;
+		$[64] = t22;
+		$[65] = total;
+		$[66] = t23;
+	} else t23 = $[66];
+	const progress = t23;
+	let t24;
+	if ($[67] !== itemView || $[68] !== logItems || $[69] !== overview) {
+		t24 = soleItemRedirectUrl(overview, logItems, itemView);
+		$[67] = itemView;
+		$[68] = logItems;
+		$[69] = overview;
+		$[70] = t24;
+	} else t24 = $[70];
+	const soleItemUrl = t24;
 	if (maybeShowSingleLog && soleItemUrl) {
-		let t26;
-		if ($[72] !== soleItemUrl) {
-			t26 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Navigate, {
+		let t25;
+		if ($[71] !== soleItemUrl) {
+			t25 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Navigate, {
 				to: soleItemUrl,
 				replace: true
 			});
-			$[72] = soleItemUrl;
-			$[73] = t26;
-		} else t26 = $[73];
-		return t26;
+			$[71] = soleItemUrl;
+			$[72] = t25;
+		} else t25 = $[72];
+		return t25;
 	}
-	let t26;
-	if ($[74] === Symbol.for("react.memo_cache_sentinel")) {
-		t26 = clsx(LogsPanel_module_default.panel);
-		$[74] = t26;
-	} else t26 = $[74];
-	const t27 = mode === "tasks" ? tasksUrl : logsUrl;
-	const t28 = mode === "tasks" ? void 0 : logPath;
-	let t29;
-	if ($[75] !== handleResetFilters || $[76] !== hasFilter) {
-		t29 = hasFilter && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(NavbarButton, {
+	let t25;
+	if ($[73] === Symbol.for("react.memo_cache_sentinel")) {
+		t25 = clsx(LogsPanel_module_default.panel);
+		$[73] = t25;
+	} else t25 = $[73];
+	const t26 = mode === "tasks" ? tasksUrl : logsUrl;
+	const t27 = mode === "tasks" ? void 0 : logPath;
+	let t28;
+	if ($[74] !== handleResetFilters || $[75] !== hasFilter) {
+		t28 = hasFilter && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(NavbarButton, {
 			label: "Reset Filters",
 			icon: "filter",
 			onClick: handleResetFilters
 		}, "reset-filters");
-		$[75] = handleResetFilters;
-		$[76] = hasFilter;
-		$[77] = t29;
-	} else t29 = $[77];
-	let t30;
-	if ($[78] !== hasRetriedLogs || $[79] !== setShowRetriedLogs || $[80] !== showRetriedLogs) {
-		t30 = hasRetriedLogs && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(NavbarButton, {
+		$[74] = handleResetFilters;
+		$[75] = hasFilter;
+		$[76] = t28;
+	} else t28 = $[76];
+	let t29;
+	if ($[77] !== hasRetriedLogs || $[78] !== setShowRetriedLogs || $[79] !== showRetriedLogs) {
+		t29 = hasRetriedLogs && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(NavbarButton, {
 			label: "Show Retried Logs",
 			icon: showRetriedLogs ? "toggleOn" : "toggleOff",
 			latched: showRetriedLogs,
 			subtle: true,
 			onClick: () => setShowRetriedLogs(!showRetriedLogs)
 		}, "show-retried");
-		$[78] = hasRetriedLogs;
-		$[79] = setShowRetriedLogs;
-		$[80] = showRetriedLogs;
-		$[81] = t30;
-	} else t30 = $[81];
-	let t31;
-	if ($[82] === Symbol.for("react.memo_cache_sentinel")) {
-		t31 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(NavbarButton, {
+		$[77] = hasRetriedLogs;
+		$[78] = setShowRetriedLogs;
+		$[79] = showRetriedLogs;
+		$[80] = t29;
+	} else t29 = $[80];
+	let t30;
+	if ($[81] === Symbol.for("react.memo_cache_sentinel")) {
+		t30 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(NavbarButton, {
 			ref: setColumnButtonEl,
 			label: "Columns",
 			icon: "columns",
@@ -88450,49 +88489,49 @@ var LogsPanel = (t0) => {
 				setShowColumnSelector(_temp5$12);
 			}
 		}, "choose-columns");
+		$[81] = t30;
+	} else t30 = $[81];
+	const t31 = mode === "tasks" ? "tasks" : "logs";
+	let t32;
+	if ($[82] !== t31) {
+		t32 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ViewSegmentedControl, { selectedSegment: t31 });
 		$[82] = t31;
-	} else t31 = $[82];
-	const t32 = mode === "tasks" ? "tasks" : "logs";
-	let t33;
-	if ($[83] !== t32) {
-		t33 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ViewSegmentedControl, { selectedSegment: t32 });
 		$[83] = t32;
-		$[84] = t33;
-	} else t33 = $[84];
+	} else t32 = $[83];
+	let t33;
+	if ($[84] !== flowData) {
+		t33 = flowData && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FlowButton, {});
+		$[84] = flowData;
+		$[85] = t33;
+	} else t33 = $[85];
 	let t34;
-	if ($[85] !== flowData) {
-		t34 = flowData && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FlowButton, {});
-		$[85] = flowData;
-		$[86] = t34;
-	} else t34 = $[86];
-	let t35;
-	if ($[87] !== navbarLoading || $[88] !== sync.refreshError || $[89] !== t27 || $[90] !== t28 || $[91] !== t29 || $[92] !== t30 || $[93] !== t33 || $[94] !== t34) {
-		t35 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(ApplicationNavbar, {
-			fnNavigationUrl: t27,
-			currentPath: t28,
+	if ($[86] !== navbarLoading || $[87] !== sync.refreshError || $[88] !== t26 || $[89] !== t27 || $[90] !== t28 || $[91] !== t29 || $[92] !== t32 || $[93] !== t33) {
+		t34 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(ApplicationNavbar, {
+			fnNavigationUrl: t26,
+			currentPath: t27,
 			loading: navbarLoading,
 			viewerOptionsError: sync.refreshError,
 			children: [
+				t28,
 				t29,
 				t30,
-				t31,
-				t33,
-				t34
+				t32,
+				t33
 			]
 		});
-		$[87] = navbarLoading;
-		$[88] = sync.refreshError;
+		$[86] = navbarLoading;
+		$[87] = sync.refreshError;
+		$[88] = t26;
 		$[89] = t27;
 		$[90] = t28;
 		$[91] = t29;
-		$[92] = t30;
+		$[92] = t32;
 		$[93] = t33;
 		$[94] = t34;
-		$[95] = t35;
-	} else t35 = $[95];
-	let t36;
-	if ($[96] !== columnButtonEl || $[97] !== filteredFields || $[98] !== handleColumnVisibilityChange || $[99] !== pickerColumns || $[100] !== scoresViewMode || $[101] !== setScoresViewMode || $[102] !== showColumnSelector || $[103] !== visibility) {
-		t36 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ColumnSelectorPopover, {
+	} else t34 = $[94];
+	let t35;
+	if ($[95] !== columnButtonEl || $[96] !== filteredFields || $[97] !== handleColumnVisibilityChange || $[98] !== pickerColumns || $[99] !== scoresViewMode || $[100] !== setScoresViewMode || $[101] !== showColumnSelector || $[102] !== visibility) {
+		t35 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ColumnSelectorPopover, {
 			showing: showColumnSelector,
 			setShowing: setShowColumnSelector,
 			columns: pickerColumns,
@@ -88505,19 +88544,19 @@ var LogsPanel = (t0) => {
 			scoresViewMode,
 			onScoresViewModeChange: setScoresViewMode
 		});
-		$[96] = columnButtonEl;
-		$[97] = filteredFields;
-		$[98] = handleColumnVisibilityChange;
-		$[99] = pickerColumns;
-		$[100] = scoresViewMode;
-		$[101] = setScoresViewMode;
-		$[102] = showColumnSelector;
-		$[103] = visibility;
-		$[104] = t36;
-	} else t36 = $[104];
-	let t37;
-	if ($[105] !== currentDir || $[106] !== error || $[107] !== listBusy || $[108] !== listData.columnFilters || $[109] !== listData.filter || $[110] !== listData.filteredCount || $[111] !== listData.orderBy || $[112] !== listData.rows || $[113] !== listData.sorting || $[114] !== listing || $[115] !== mode || $[116] !== progress || $[117] !== scopeKey || $[118] !== totalRowCount) {
-		t37 = error ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ErrorPanel, {
+		$[95] = columnButtonEl;
+		$[96] = filteredFields;
+		$[97] = handleColumnVisibilityChange;
+		$[98] = pickerColumns;
+		$[99] = scoresViewMode;
+		$[100] = setScoresViewMode;
+		$[101] = showColumnSelector;
+		$[102] = visibility;
+		$[103] = t35;
+	} else t35 = $[103];
+	let t36;
+	if ($[104] !== currentDir || $[105] !== error || $[106] !== listBusy || $[107] !== listData.columnFilters || $[108] !== listData.filter || $[109] !== listData.filteredCount || $[110] !== listData.orderBy || $[111] !== listData.rows || $[112] !== listData.sorting || $[113] !== listing || $[114] !== mode || $[115] !== progress || $[116] !== scopeKey || $[117] !== totalRowCount) {
+		t36 = error ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ErrorPanel, {
 			title: "Error",
 			error: {
 				message: error.message,
@@ -88537,7 +88576,7 @@ var LogsPanel = (t0) => {
 				mode,
 				busy: listBusy,
 				listing
-			}, scopeKey ?? "pending")
+			}, scopeKey)
 		}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LogListFooter, {
 			itemCount: totalRowCount,
 			filteredCount: listData.filteredCount,
@@ -88549,38 +88588,38 @@ var LogsPanel = (t0) => {
 				width: "100px"
 			}) : void 0
 		})] });
-		$[105] = currentDir;
-		$[106] = error;
-		$[107] = listBusy;
-		$[108] = listData.columnFilters;
-		$[109] = listData.filter;
-		$[110] = listData.filteredCount;
-		$[111] = listData.orderBy;
-		$[112] = listData.rows;
-		$[113] = listData.sorting;
-		$[114] = listing;
-		$[115] = mode;
-		$[116] = progress;
-		$[117] = scopeKey;
-		$[118] = totalRowCount;
-		$[119] = t37;
-	} else t37 = $[119];
-	let t38;
-	if ($[120] !== t35 || $[121] !== t36 || $[122] !== t37) {
-		t38 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: t26,
+		$[104] = currentDir;
+		$[105] = error;
+		$[106] = listBusy;
+		$[107] = listData.columnFilters;
+		$[108] = listData.filter;
+		$[109] = listData.filteredCount;
+		$[110] = listData.orderBy;
+		$[111] = listData.rows;
+		$[112] = listData.sorting;
+		$[113] = listing;
+		$[114] = mode;
+		$[115] = progress;
+		$[116] = scopeKey;
+		$[117] = totalRowCount;
+		$[118] = t36;
+	} else t36 = $[118];
+	let t37;
+	if ($[119] !== t34 || $[120] !== t35 || $[121] !== t36) {
+		t37 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t25,
 			children: [
+				t34,
 				t35,
-				t36,
-				t37
+				t36
 			]
 		});
+		$[119] = t34;
 		$[120] = t35;
 		$[121] = t36;
 		$[122] = t37;
-		$[123] = t38;
-	} else t38 = $[123];
-	return t38;
+	} else t37 = $[122];
+	return t37;
 };
 /** The redirect target when the view holds exactly one item (folder, file,
 *  or pending task — the latter has no url, so no redirect). */ var soleItemRedirectUrl = (overview, logItems, itemView) => {
@@ -88600,10 +88639,10 @@ var appendPendingItems = (evalSet, tasksWithLogFiles, items) => {
 	items.push(...pendingTasks);
 	return items;
 };
-function _temp$69(state) {
+function _temp$72(state) {
 	return state.showRetriedLogs;
 }
-function _temp2$45(state_0) {
+function _temp2$46(state_0) {
 	return state_0.setShowRetriedLogs;
 }
 function _temp3$30(state_1) {
@@ -88657,7 +88696,7 @@ function _temp5$12(prev) {
 			const resolvedPath = logPath;
 			if (resolvedPath) {
 				const url = logSamplesUrl(resolvedPath, id, epoch, specifiedSampleTabId || sampleTabId, prefix);
-				navigateAndForget(navigate, url);
+				navigate(url);
 			}
 		};
 		$[0] = logPath;
@@ -88750,7 +88789,7 @@ var useSampleDetailNavigation = () => {
 	let t1;
 	if ($[2] !== getSampleDetailUrl || $[3] !== navigate) {
 		t1 = (logFile_0, sampleId_0, epoch_0) => {
-			navigateAndForget(navigate, getSampleDetailUrl(logFile_0, sampleId_0, epoch_0));
+			navigate(getSampleDetailUrl(logFile_0, sampleId_0, epoch_0));
 		};
 		$[2] = getSampleDetailUrl;
 		$[3] = navigate;
@@ -88848,7 +88887,7 @@ var useSampleDetailNavigation = () => {
 	let t5;
 	if ($[18] !== navigate || $[19] !== previousRoute) {
 		t5 = () => {
-			if (previousRoute) navigateAndForget(navigate, previousRoute);
+			if (previousRoute) navigate(previousRoute);
 		};
 		$[18] = navigate;
 		$[19] = previousRoute;
@@ -88858,7 +88897,7 @@ var useSampleDetailNavigation = () => {
 	let t6;
 	if ($[21] !== navigate || $[22] !== nextRoute) {
 		t6 = () => {
-			if (nextRoute) navigateAndForget(navigate, nextRoute);
+			if (nextRoute) navigate(nextRoute);
 		};
 		$[21] = navigate;
 		$[22] = nextRoute;
@@ -88949,6 +88988,8 @@ var eventTypeValues = [
 	"approval",
 	"review",
 	"sentinel",
+	"communication",
+	"swarm",
 	"branch",
 	"checkpoint",
 	"compaction",
@@ -90712,7 +90753,7 @@ var Grid = (t0) => {
 	const { rows } = t0;
 	let t1;
 	if ($[0] !== rows) {
-		t1 = rows.slice(0, 4).map(_temp$68);
+		t1 = rows.slice(0, 4).map(_temp$71);
 		$[0] = rows;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -91107,7 +91148,7 @@ var BurstBody = (t0) => {
 			$[20] = t10;
 		} else t10 = $[20];
 		members = row.spans.filter(t10);
-		const firstUuid = members.find(_temp2$44)?.uuid;
+		const firstUuid = members.find(_temp2$45)?.uuid;
 		T0 = Card;
 		let t11;
 		if ($[21] !== burst.label) {
@@ -91993,7 +92034,7 @@ var CurveBody = (t0) => {
 	} else t3 = $[43];
 	return t3;
 };
-function _temp$68(row) {
+function _temp$71(row) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: ActivityTooltip_module_default.key,
 		children: row.key
@@ -92002,7 +92043,7 @@ function _temp$68(row) {
 		children: row.value
 	})] }, row.key);
 }
-function _temp2$44(m) {
+function _temp2$45(m) {
 	return m.uuid !== void 0;
 }
 function _temp3$29(p) {
@@ -93862,8 +93903,8 @@ var ModelTokenTable = (t0) => {
 								(() => {
 									const cfg = model_configs?.[modelId];
 									const args = model_args?.[modelId];
-									const cfgEntries = cfg ? Object.entries(cfg).filter(_temp$67) : [];
-									const argEntries = args ? Object.entries(args).filter(_temp2$43) : [];
+									const cfgEntries = cfg ? Object.entries(cfg).filter(_temp$70) : [];
+									const argEntries = args ? Object.entries(args).filter(_temp2$44) : [];
 									if (cfgEntries.length === 0 && argEntries.length === 0) return null;
 									const renderSection = _temp4$23;
 									return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
@@ -93977,11 +94018,11 @@ var ModelTokenTable = (t0) => {
 	} else t11 = $[37];
 	return t11;
 };
-function _temp$67(t0) {
+function _temp$70(t0) {
 	const [, v] = t0;
 	return v != null;
 }
-function _temp2$43(t0) {
+function _temp2$44(t0) {
 	const [, v_0] = t0;
 	return v_0 != null;
 }
@@ -94143,7 +94184,6 @@ var IconTimer = () => {
 var ModelUsagePanel = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(41);
 	const { usage, timing, className } = t0;
-	if (!usage) return null;
 	let duration;
 	let hasTiming;
 	let t1;
@@ -94155,7 +94195,7 @@ var ModelUsagePanel = (t0) => {
 	let t7;
 	if ($[0] !== className || $[1] !== timing || $[2] !== usage) {
 		const categories = buildCategories(usage);
-		const composeTotal = categories.reduce(_temp$66, 0);
+		const composeTotal = categories.reduce(_temp$69, 0);
 		const total = usage.total_tokens || composeTotal;
 		const inputAll = (usage.input_tokens ?? 0) + (usage.input_tokens_cache_read ?? 0) + (usage.input_tokens_cache_write ?? 0);
 		const denom = inputAll + ((usage.output_tokens ?? 0) + (usage.reasoning_tokens ?? 0)) || total || 1;
@@ -94232,7 +94272,7 @@ var ModelUsagePanel = (t0) => {
 			}, c_0.key))
 		});
 		t1 = ModelUsagePanel_module_default.breakdown;
-		t2 = categories.map(_temp2$42);
+		t2 = categories.map(_temp2$43);
 		$[0] = className;
 		$[1] = timing;
 		$[2] = usage;
@@ -94343,10 +94383,10 @@ var ModelUsagePanel = (t0) => {
 	} else t11 = $[40];
 	return t11;
 };
-function _temp$66(a, c) {
+function _temp$69(a, c) {
 	return a + c.value;
 }
-function _temp2$42(c_1) {
+function _temp2$43(c_1) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", { children: [
 		/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { className: clsx(ModelUsagePanel_module_default.swatch, c_1.swatchClass) }),
 		/*#__PURE__*/ (0, import_jsx_runtime.jsx)("b", { children: formatNumber(c_1.value) }),
@@ -94904,7 +94944,7 @@ var ProvenanceGrid = (t0) => {
 */ var ConfigValueCell = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(20);
 	const { value, change, onViewTimeline, timelineHref } = t0;
-	const showPrior = !change.cleared && change.previous !== void 0 && change.previous !== change.value;
+	const showPrior = !change.cleared && change.previous !== change.value;
 	const t1 = change.cleared ? ConfigChangedChip_module_default.clearedValue : ConfigChangedChip_module_default.effectiveValue;
 	const t2 = value === null || value === void 0 ? ConfigChangedChip_module_default.noneValue : void 0;
 	let t3;
@@ -95006,7 +95046,7 @@ var ProvenanceGrid = (t0) => {
 	} else t4 = $[3];
 	let t5;
 	if ($[4] !== changes) {
-		t5 = changes.map(_temp$65);
+		t5 = changes.map(_temp$68);
 		$[4] = changes;
 		$[5] = t5;
 	} else t5 = $[5];
@@ -95053,7 +95093,7 @@ var ProvenanceGrid = (t0) => {
 	} else t9 = $[17];
 	return t9;
 };
-function _temp$65(change) {
+function _temp$68(change) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [
 		change.name,
 		" ",
@@ -95216,7 +95256,7 @@ var ConnectionLogModal = (t0) => {
 			$[3] = retunes;
 			$[4] = t2;
 		} else t2 = $[4];
-		t1 = [...events.map(_temp$64), ...t2.map(_temp2$41)].sort(_temp3$27);
+		t1 = [...events.map(_temp$67), ...t2.map(_temp2$42)].sort(_temp3$27);
 		$[0] = events;
 		$[1] = retunes;
 		$[2] = t1;
@@ -95355,14 +95395,14 @@ var ConnectionLogModal = (t0) => {
 	} else t12 = $[35];
 	return t12;
 };
-function _temp$64(event) {
+function _temp$67(event) {
 	return {
 		kind: "controller",
 		time: event.timestamp,
 		event
 	};
 }
-function _temp2$41(retune) {
+function _temp2$42(retune) {
 	return {
 		kind: "config",
 		time: retune.timestamp,
@@ -95570,7 +95610,7 @@ var ConnectionsView_module_default = {
 									children: model_0
 								}), roles.length > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
 									className: ConnectionsView_module_default.roles,
-									children: [roles.length > 1 ? "shared by" : "used by", roles.map(_temp$63)]
+									children: [roles.length > 1 ? "shared by" : "used by", roles.map(_temp$66)]
 								})]
 							}),
 							/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
@@ -95727,7 +95767,7 @@ var kBaselineY = 60;
 					y1: y(seg.value),
 					y2: y(seg.value)
 				}, `cap-${i}`)),
-				data.events.filter(_temp2$40).map((e_1, i_0) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("line", {
+				data.events.filter(_temp2$41).map((e_1, i_0) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("line", {
 					className: ConnectionsView_module_default.rateLimitLine,
 					x1: x(e_1.timestamp),
 					x2: x(e_1.timestamp),
@@ -95848,13 +95888,13 @@ var kBaselineY = 60;
 	} else t2 = $[3];
 	return t2;
 };
-function _temp$63(role) {
+function _temp$66(role) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: ConnectionsView_module_default.roleChip,
 		children: role
 	}, role);
 }
-function _temp2$40(e_0) {
+function _temp2$41(e_0) {
 	return e_0.reason === "rate_limit";
 }
 var UsagePanel_module_default = {
@@ -97310,7 +97350,7 @@ var StoreSpecificRenderableTypes = [human_baseline_session];
 	const { toolDefinitions } = t0;
 	let t1;
 	if ($[0] !== toolDefinitions) {
-		t1 = toolDefinitions.map(_temp$62);
+		t1 = toolDefinitions.map(_temp$65);
 		$[0] = toolDefinitions;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -97354,7 +97394,7 @@ var StoreSpecificRenderableTypes = [human_baseline_session];
 	} else t3 = $[5];
 	return t3;
 };
-function _temp$62(toolDefinition, idx) {
+function _temp$65(toolDefinition, idx) {
 	const name = toolDefinition.name;
 	const toolArgs = toolDefinition.parameters?.properties ? Object.keys(toolDefinition.parameters.properties) : [];
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Tool, {
@@ -97639,7 +97679,7 @@ var GoToTurnBar_module_default = {
 			} else if (prefillTurn !== void 0) setValue(String(prefillTurn));
 			openRef.current = true;
 			setOpen(true);
-			setFocusEpoch(_temp$61);
+			setFocusEpoch(_temp$64);
 		};
 		$[0] = t2;
 	} else t2 = $[0];
@@ -97690,7 +97730,7 @@ var GoToTurnBar_module_default = {
 		t8 = (e) => {
 			if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "g") return;
 			const dock = dockRef.current;
-			if (!dock?.isConnected || dock.checkVisibility?.() === false) return;
+			if (!dock || !isElementShown(dock)) return;
 			if (document.activeElement !== inputRef.current && isEditableTarget(document.activeElement)) return;
 			e.preventDefault();
 			e.stopImmediatePropagation();
@@ -97825,7 +97865,7 @@ var GoToTurnBar_module_default = {
 	} else t14 = $[29];
 	return t14;
 });
-function _temp$61(epoch) {
+function _temp$64(epoch) {
 	return epoch + 1;
 }
 var TimelineSelector_module_default = {
@@ -98088,7 +98128,7 @@ var ToolCheckInset_module_default = {
 	} else t6 = $[14];
 	let t7;
 	if ($[15] !== scores) {
-		t7 = scores?.map(_temp$60);
+		t7 = scores?.map(_temp$63);
 		$[15] = scores;
 		$[16] = t7;
 	} else t7 = $[16];
@@ -98287,7 +98327,7 @@ var ToolCheckInset_module_default = {
 	label: ToolCheckInset_module_default.label,
 	mono: ToolCheckInset_module_default.mono
 };
-function _temp$60(score, i) {
+function _temp$63(score, i) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: ToolCheckInset_module_default.scores,
 		children: score
@@ -98441,7 +98481,7 @@ var decisionIcon$1 = (decision) => {
 	const [collapsed, setCollapsed] = useCollapsedState(`${chain[0].id}-approval-chain`, true);
 	const event = final.event;
 	const look = decisionLook(event.decision);
-	const escalated = chain.slice(0, -1).some(_temp$59);
+	const escalated = chain.slice(0, -1).some(_temp$62);
 	let t1;
 	if ($[0] !== chain.length || $[1] !== collapsed || $[2] !== setCollapsed) {
 		t1 = chain.length > 1 ? {
@@ -98458,7 +98498,7 @@ var decisionIcon$1 = (decision) => {
 	if ($[4] !== chain || $[5] !== collapsed) {
 		t2 = chain.length > 1 && !collapsed ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: ApprovalEventView_module_default.chain,
-			children: chain.map(_temp2$39)
+			children: chain.map(_temp2$40)
 		}) : null;
 		$[4] = chain;
 		$[5] = collapsed;
@@ -98507,10 +98547,10 @@ var decisionLook = (decision) => {
 		};
 	}
 };
-function _temp$59(n) {
+function _temp$62(n) {
 	return n.event.decision === "escalate";
 }
-function _temp2$39(node, index) {
+function _temp2$40(node, index) {
 	const step = decisionLook(node.event.decision);
 	const explanation = node.event.explanation?.trim();
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [
@@ -98753,7 +98793,7 @@ var EventNavsPicker_module_default = {
 	let t8;
 	if ($[9] === Symbol.for("react.memo_cache_sentinel")) {
 		t7 = clsx("nav-link", "active", "text-style-label", "text-size-small", EventNavsPicker_module_default.trigger);
-		t8 = () => setOpen(_temp$58);
+		t8 = () => setOpen(_temp$61);
 		$[9] = t7;
 		$[10] = t8;
 	} else {
@@ -98849,7 +98889,7 @@ var EventNavsPicker_module_default = {
 	} else t15 = $[28];
 	return t15;
 };
-function _temp$58(v) {
+function _temp$61(v) {
 	return !v;
 }
 //#endregion
@@ -98943,7 +98983,7 @@ var SWITCH_TOLERANCE = 4;
 	} else t5 = $[10];
 	let t6;
 	if ($[11] !== navs) {
-		t6 = navs.map(_temp$57);
+		t6 = navs.map(_temp$60);
 		$[11] = navs;
 		$[12] = t6;
 	} else t6 = $[12];
@@ -98972,7 +99012,7 @@ var SWITCH_TOLERANCE = 4;
 	} else t8 = $[18];
 	return t8;
 };
-function _temp$57(nav_1) {
+function _temp$60(nav_1) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("li", {
 		className: "nav-item",
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
@@ -99316,6 +99356,8 @@ var reviewDecisionLabels = {
 		case "review": return reviewDecisionLabels[event.decision] ?? event.decision;
 		case "sentinel": return event.status === "reported" ? `Sentinel ${toTitleCase(event.kind)}: ${instanceLabel(event)}` : `Sentinel ${toTitleCase(event.kind)} (${event.status}): ${instanceLabel(event)}`;
 		case "sandbox": return `Sandbox: ${event.action}`;
+		case "communication": return `Communication: ${event.kind}`;
+		case "swarm": return `Swarm: ${event.kind}`;
 		default: return "";
 	}
 };
@@ -99646,7 +99688,7 @@ var Snapshot = (t0) => {
 	if ($[7] !== details.additional_files || $[8] !== details.files) {
 		t4 = details.files && details.files.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: CheckpointEventView_module_default.files,
-			children: [details.files.map(_temp$56), details.additional_files ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			children: [details.files.map(_temp$59), details.additional_files ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 				className: CheckpointEventView_module_default.fileOverflow,
 				children: [
 					"+",
@@ -99801,11 +99843,551 @@ var CheckpointEventView = (t0) => {
 	} else t19 = $[32];
 	return t19;
 };
-function _temp$56(file) {
+function _temp$59(file) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 		className: CheckpointEventView_module_default.file,
 		children: file
 	}, file);
+}
+var CommunicationEventView_module_default = {
+	agent: "_agent_nut6q_2",
+	line: "_line_nut6q_7",
+	refused: "_refused_nut6q_21"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/eventText.ts
+var SANITIZED_CONTENT_KEYS = {
+	image: "image",
+	audio: "audio",
+	video: "video",
+	data: "data",
+	document: "document"
+};
+var readOptionalBoolean = (value, key) => {
+	if (!isRecord(value)) return false;
+	return value[key] === true;
+};
+var readOptionalString = (value, key) => {
+	if (!isRecord(value)) return void 0;
+	const raw = value[key];
+	return typeof raw === "string" ? raw : void 0;
+};
+var sanitizeContent = (val) => {
+	if (val === null || typeof val !== "object" || !("type" in val)) return;
+	if (val.type === "reasoning" && "reasoning" in val) {
+		const reasoning = readOptionalString(val, "reasoning");
+		const summary = readOptionalString(val, "summary");
+		return readOptionalBoolean(val, "redacted") ? summary ?? "" : reasoning || summary || "";
+	}
+	if (typeof val.type === "string") {
+		const payloadKey = SANITIZED_CONTENT_KEYS[val.type];
+		if (payloadKey && payloadKey in val) return `<${val.type} />`;
+	}
+};
+var sanitizeStringify = (v) => {
+	const rootSanitized = sanitizeContent(v);
+	if (rootSanitized !== void 0) return rootSanitized;
+	return JSON.stringify(v, (_key, val) => {
+		const replacement = sanitizeContent(val);
+		return replacement !== void 0 ? replacement : val;
+	});
+};
+/**
+* Extracts labeled fields from an event for search and text serialization.
+*/ var extractEventFields = (event) => {
+	const fields = [];
+	switch (event.event) {
+		case "model": {
+			const modelEvent = event;
+			if (modelEvent.model) fields.push(["model", modelEvent.model]);
+			for (const choice of modelEvent.output.choices) for (const text of extractContentText(choice.message.content)) fields.push(["output", text]);
+			for (const msg of modelEvent.input) if (msg.role === "user" || msg.role === "system") for (const text of extractContentText(msg.content)) fields.push([msg.role, text]);
+			if (modelEvent.error) fields.push(["error", modelEvent.error]);
+			if (modelEvent.traceback) fields.push(["traceback", modelEvent.traceback]);
+			break;
+		}
+		case "tool": {
+			const toolEvent = event;
+			if (toolEvent.view?.title) {
+				const resolvedTitle = toolEvent.view.title.replace(/\{\{(\w+)\}\}/g, (match, key) => {
+					if (!Object.hasOwn(toolEvent.arguments, key)) return match;
+					const val = toolEvent.arguments[key];
+					return typeof val === "string" ? val : JSON.stringify(val);
+				});
+				fields.push(["title", resolvedTitle]);
+			}
+			if (toolEvent.function) fields.push(["function", toolEvent.function]);
+			fields.push(["arguments", JSON.stringify(toolEvent.arguments)]);
+			if (toolEvent.result) {
+				if (typeof toolEvent.result === "string") fields.push(["result", toolEvent.result]);
+				else for (const text of extractToolResultText(toolEvent.result)) fields.push(["result", text]);
+			}
+			if (toolEvent.error?.message) fields.push(["error", toolEvent.error.message]);
+			break;
+		}
+		case "error": {
+			const errorEvent = event;
+			if (errorEvent.error.message) fields.push(["message", errorEvent.error.message]);
+			if (errorEvent.error.traceback) fields.push(["traceback", errorEvent.error.traceback]);
+			break;
+		}
+		case "logger": {
+			const loggerEvent = event;
+			if (loggerEvent.message.message) fields.push(["message", loggerEvent.message.message]);
+			if (loggerEvent.message.filename) fields.push(["filename", loggerEvent.message.filename]);
+			break;
+		}
+		case "info": {
+			const infoEvent = event;
+			if (infoEvent.source) fields.push(["source", infoEvent.source]);
+			if (infoEvent.data) {
+				if (typeof infoEvent.data === "string") fields.push(["data", infoEvent.data]);
+				else fields.push(["data", sanitizeStringify(infoEvent.data)]);
+			}
+			break;
+		}
+		case "branch":
+			if (event.from_anchor) fields.push(["from_anchor", event.from_anchor]);
+			break;
+		case "anchor":
+			fields.push(["anchor_id", event.anchor_id]);
+			if (event.source) fields.push(["source", event.source]);
+			break;
+		case "compaction": {
+			const compactionEvent = event;
+			if (compactionEvent.source && compactionEvent.source !== "inspect") fields.push(["source", compactionEvent.source]);
+			if (compactionEvent.tokens_before != null) fields.push(["tokens_before", String(compactionEvent.tokens_before)]);
+			if (compactionEvent.tokens_after != null) fields.push(["tokens_after", String(compactionEvent.tokens_after)]);
+			if (compactionEvent.metadata) for (const [k, v] of Object.entries(compactionEvent.metadata)) fields.push([k, typeof v === "string" ? v : sanitizeStringify(v)]);
+			break;
+		}
+		case "step": {
+			const stepEvent = event;
+			if (stepEvent.name) fields.push(["name", stepEvent.name]);
+			if (stepEvent.type) fields.push(["type", stepEvent.type]);
+			break;
+		}
+		case "subtask": {
+			const subtaskEvent = event;
+			if (subtaskEvent.name) fields.push(["name", subtaskEvent.name]);
+			if (subtaskEvent.type) fields.push(["type", subtaskEvent.type]);
+			fields.push(["input", sanitizeStringify(subtaskEvent.input)]);
+			if (subtaskEvent.result) fields.push(["result", sanitizeStringify(subtaskEvent.result)]);
+			break;
+		}
+		case "span_begin": {
+			const spanEvent = event;
+			if (spanEvent.name) fields.push(["name", spanEvent.name]);
+			if (spanEvent.type) fields.push(["type", spanEvent.type]);
+			break;
+		}
+		case "score": {
+			const scoreEvent = event;
+			if (scoreEvent.score.answer) fields.push(["answer", scoreEvent.score.answer]);
+			if (scoreEvent.score.explanation) fields.push(["explanation", scoreEvent.score.explanation]);
+			const scoreValue = scoreEvent.score.value;
+			fields.push(["value", typeof scoreValue === "string" ? scoreValue : JSON.stringify(scoreValue)]);
+			if (scoreEvent.target) {
+				if (typeof scoreEvent.target === "string") fields.push(["target", scoreEvent.target]);
+				else if (Array.isArray(scoreEvent.target)) for (const t of scoreEvent.target) fields.push(["target", t]);
+			}
+			break;
+		}
+		case "score_edit": {
+			const scoreEditEvent = event;
+			if (scoreEditEvent.score_name) fields.push(["score_name", scoreEditEvent.score_name]);
+			if (scoreEditEvent.edit.answer && scoreEditEvent.edit.answer !== "UNCHANGED") fields.push(["answer", scoreEditEvent.edit.answer]);
+			if (scoreEditEvent.edit.explanation && scoreEditEvent.edit.explanation !== "UNCHANGED") fields.push(["explanation", scoreEditEvent.edit.explanation]);
+			break;
+		}
+		case "sample_init": {
+			const sample = event.sample;
+			if (sample.target) {
+				if (typeof sample.target === "string") fields.push(["target", sample.target]);
+				else fields.push(["target", JSON.stringify(sample.target)]);
+			}
+			if (sample.metadata && Object.keys(sample.metadata).length > 0) fields.push(["metadata", sanitizeStringify(sample.metadata)]);
+			break;
+		}
+		case "sample_limit": {
+			const sampleLimitEvent = event;
+			if (sampleLimitEvent.message) fields.push(["message", sampleLimitEvent.message]);
+			fields.push(["type", sampleLimitEvent.type]);
+			break;
+		}
+		case "input": {
+			const inputEvent = event;
+			if (inputEvent.input) fields.push(["input", inputEvent.input]);
+			break;
+		}
+		case "interrupt": {
+			const interruptEvent = event;
+			fields.push(["source", interruptEvent.source]);
+			fields.push(["interrupted", interruptEvent.interrupted]);
+			if (interruptEvent.interrupted_tool_call_id) fields.push(["interrupted_tool_call_id", interruptEvent.interrupted_tool_call_id]);
+			if (interruptEvent.interrupted_model_event_id) fields.push(["interrupted_model_event_id", interruptEvent.interrupted_model_event_id]);
+			break;
+		}
+		case "approval": {
+			const approvalEvent = event;
+			fields.push(["decision", approvalEvent.decision]);
+			if (approvalEvent.explanation) fields.push(["explanation", approvalEvent.explanation]);
+			if (approvalEvent.approver) fields.push(["approver", approvalEvent.approver]);
+			break;
+		}
+		case "review": {
+			const reviewEvent = event;
+			fields.push(["decision", reviewEvent.decision]);
+			if (reviewEvent.explanation) fields.push(["explanation", reviewEvent.explanation]);
+			fields.push(["reviewer", reviewEvent.reviewer]);
+			break;
+		}
+		case "communication":
+		case "swarm":
+			fields.push(["payload", JSON.stringify(eventPayload(event), null, 2)]);
+			break;
+		case "sentinel": {
+			const sentinelEvent = event;
+			fields.push(["kind", sentinelEvent.kind]);
+			fields.push(["status", sentinelEvent.status]);
+			if (sentinelEvent.path) fields.push(["path", sentinelEvent.path]);
+			fields.push(["factory", sentinelEvent.factory]);
+			if (sentinelEvent.function) fields.push(["function", sentinelEvent.function]);
+			fields.push(["stage", sentinelEvent.stage]);
+			if (sentinelEvent.suspicion !== void 0 && sentinelEvent.suspicion !== null) fields.push(["suspicion", formatSuspicion(sentinelEvent.suspicion)]);
+			if (sentinelEvent.action) fields.push(["action", sentinelEvent.action]);
+			if (sentinelEvent.modified) fields.push(["modified", formatModifiedCall(sentinelEvent.modified)]);
+			if (sentinelEvent.audit) fields.push(["audit", "true"]);
+			if (sentinelEvent.message) fields.push(["message", sentinelEvent.message]);
+			if (sentinelEvent.explanation) fields.push(["explanation", sentinelEvent.explanation]);
+			if (sentinelEvent.error) fields.push(["error", sentinelEvent.error]);
+			break;
+		}
+		case "sandbox": {
+			const sandboxEvent = event;
+			fields.push(["action", sandboxEvent.action]);
+			if (sandboxEvent.cmd) fields.push(["cmd", sandboxEvent.cmd]);
+			if (sandboxEvent.output) fields.push(["output", sandboxEvent.output]);
+			if (sandboxEvent.file) fields.push(["file", sandboxEvent.file]);
+			break;
+		}
+		case "state":
+		case "store": {
+			const stateEvent = event;
+			for (const change of stateEvent.changes) {
+				fields.push(["path", change.path]);
+				fields.push(["value", typeof change.value === "string" ? change.value : sanitizeStringify(change.value)]);
+			}
+			break;
+		}
+	}
+	return fields;
+};
+/**
+* Extracts searchable text from an EventNode for find-in-page functionality.
+*/ var eventSearchText = (node) => {
+	return extractEventFields(node.event).map(([, v]) => v);
+};
+/**
+* Converts an array of events to a human-readable text transcript.
+*/ var eventsToStr = (events) => {
+	return events.map((event) => {
+		const fields = extractEventFields(event);
+		if (fields.length === 0) return null;
+		const body = fields.map(([k, v]) => v.includes("\n") ? `${k}:\n${v}` : `${k}: ${v}`).join("\n");
+		return `[${event.event}]\n${body}`;
+	}).filter((s) => s !== null).join("\n\n");
+};
+/**
+* Converts an array of events to a Markdown transcript suitable for reports
+* and other review artifacts. Sections use the viewer's event titles. Prose
+* fields (model output, messages, explanations) keep their Markdown, quoted
+* when multi-line; everything else — tool arguments and results, tracebacks,
+* JSON — is fenced or put in inline code so it renders verbatim.
+*/ var eventsToMarkdown = (events) => {
+	return events.map((event) => {
+		const fields = extractEventFields(event);
+		const title = (eventTitle(event) || titleCase(event.event)).replace(/\s+/g, " ");
+		if (fields.length === 0) return `## ${title}`;
+		return `## ${title}\n\n${fields.map(([key, value]) => {
+			const label = titleCase(key);
+			const prose = kProseFields.has(key);
+			if (value.includes("\n")) return `**${label}**\n\n${prose ? quoted(value) : fenced(value)}`;
+			if (!prose && looksLikeJson(value)) return `**${label}**\n\n${fenced(value)}`;
+			return `**${label}:** ${kCodeLikeFields.has(key) ? inlineCode(value) : value}`;
+		}).join("\n\n")}`;
+	}).join("\n\n---\n\n");
+};
+var titleCase = (value) => toTitleCase(value.replace(/_/g, " "));
+var kBaseEventFields = /* @__PURE__ */ new Set([
+	"event",
+	"uuid",
+	"span_id",
+	"timestamp",
+	"working_start",
+	"metadata",
+	"pending"
+]);
+/** An event's own fields, without those every event carries. */ var eventPayload = (event) => Object.fromEntries(Object.entries(event).filter(([key]) => !kBaseEventFields.has(key)));
+var kProseFields = /* @__PURE__ */ new Set([
+	"answer",
+	"explanation",
+	"message",
+	"output",
+	"title"
+]);
+var kCodeLikeFields = /* @__PURE__ */ new Set([
+	"arguments",
+	"cmd",
+	"file",
+	"filename",
+	"function",
+	"path"
+]);
+var looksLikeJson = (value) => /^\s*[[{]/.test(value) && /[\]}]\s*$/.test(value);
+/**
+* Extracts text strings from message content.
+*/ var extractContentText = (content) => {
+	if (typeof content === "string") return [content];
+	const texts = [];
+	for (const item of content) switch (item.type) {
+		case "text":
+			texts.push(item.text);
+			break;
+		case "reasoning": {
+			const text = item.redacted ? item.summary : item.reasoning || item.summary;
+			if (text) texts.push(text);
+			break;
+		}
+		case "tool_use": {
+			const toolUse = item;
+			if (toolUse.name) texts.push(toolUse.name);
+			if (toolUse.arguments) texts.push(sanitizeStringify(toolUse.arguments));
+			if (toolUse.result) texts.push(typeof toolUse.result === "string" ? toolUse.result : sanitizeStringify(toolUse.result));
+			if (toolUse.error) texts.push(toolUse.error);
+			break;
+		}
+		case "image":
+		case "audio":
+		case "video":
+		case "data":
+		case "document": texts.push(`<${item.type} />`);
+	}
+	return texts;
+};
+var extractToolResultText = (value) => {
+	if (Array.isArray(value)) return value.flatMap((item) => extractToolResultItemText(item));
+	return [sanitizeStringify(value)];
+};
+var extractToolResultItemText = (item) => {
+	if (typeof item === "string") return [item];
+	if (item == null) return [];
+	if (typeof item === "number" || typeof item === "boolean" || typeof item === "bigint") return [item.toString()];
+	if (typeof item === "symbol") return [String(item)];
+	if (typeof item !== "object") return [];
+	if (!("type" in item)) return [sanitizeStringify(item)];
+	switch (item.type) {
+		case "text": return "text" in item && typeof item.text === "string" ? [item.text] : [];
+		case "image": return "image" in item && typeof item.image === "string" && !item.image.startsWith("data:") ? [item.image] : [];
+		case "document": return "filename" in item && typeof item.filename === "string" ? [item.filename] : [];
+		case "audio":
+		case "video": return [];
+		case "tool": return "content" in item && Array.isArray(item.content) ? item.content.flatMap((inner) => extractToolResultItemText(inner)) : [sanitizeStringify(item)];
+		default: return [sanitizeStringify(item)];
+	}
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/CommunicationEventView.tsx
+var kMaxPreviewLength = 200;
+/**
+* Renders a CommunicationEvent as one line (who, which channel, what);
+* clicking the line shows its fields as JSON, the text search indexes. Event strings are model or
+* producer text, so they render through the content trust policy as plain
+* text, never Markdown.
+*/ var CommunicationEventView = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(30);
+	const { eventNode, className } = t0;
+	const event = eventNode.event;
+	const [collapsed, setCollapsed] = useCollapsedState(`${eventNode.id}-communication`, true);
+	let t1;
+	if ($[0] !== collapsed || $[1] !== setCollapsed) {
+		t1 = () => setCollapsed(!collapsed);
+		$[0] = collapsed;
+		$[1] = setCollapsed;
+		$[2] = t1;
+	} else t1 = $[2];
+	const toggle = t1;
+	const refused = !!event.send?.rejected;
+	const agent = `${event.agent}${event.nested ? " (subagent)" : ""}`;
+	const parts = communicationLine(event);
+	const detailsRef = (0, import_react.useRef)(null);
+	const findOpen = useContainsFindTarget(detailsRef);
+	const expanded = !collapsed || findOpen;
+	const t2 = !expanded;
+	let t3;
+	if ($[3] !== event) {
+		t3 = eventPayload(event);
+		$[3] = event;
+		$[4] = t3;
+	} else t3 = $[4];
+	let t4;
+	if ($[5] !== t3) {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(JSONPanel, { data: t3 });
+		$[5] = t3;
+		$[6] = t4;
+	} else t4 = $[6];
+	let t5;
+	if ($[7] !== t2 || $[8] !== t4) {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			ref: detailsRef,
+			hidden: t2,
+			children: t4
+		});
+		$[7] = t2;
+		$[8] = t4;
+		$[9] = t5;
+	} else t5 = $[9];
+	const details = t5;
+	const T0 = EventRow;
+	const t6 = eventNode.id;
+	let t7;
+	if ($[10] !== agent) {
+		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ContentText, { text: agent });
+		$[10] = agent;
+		$[11] = t7;
+	} else t7 = $[11];
+	let t8;
+	if ($[12] !== t7 || $[13] !== toggle) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: CommunicationEventView_module_default.agent,
+			role: "presentation",
+			onClick: toggle,
+			children: t7
+		});
+		$[12] = t7;
+		$[13] = toggle;
+		$[14] = t8;
+	} else t8 = $[14];
+	const t9 = refused ? "approvalReject" : "info";
+	const t10 = refused ? CommunicationEventView_module_default.refused : void 0;
+	const t11 = expanded ? details : void 0;
+	const t12 = "button";
+	const t13 = CommunicationEventView_module_default;
+	const t14 = parts.map(_temp$58);
+	let t15;
+	if ($[15] !== expanded || $[16] !== t13.line || $[17] !== t14 || $[18] !== toggle) {
+		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+			type: t12,
+			className: t13.line,
+			"aria-expanded": expanded,
+			onClick: toggle,
+			children: t14
+		});
+		$[15] = expanded;
+		$[16] = t13.line;
+		$[17] = t14;
+		$[18] = toggle;
+		$[19] = t15;
+	} else t15 = $[19];
+	const t16 = expanded ? null : details;
+	let t17;
+	if ($[20] !== T0 || $[21] !== className || $[22] !== eventNode.id || $[23] !== t10 || $[24] !== t11 || $[25] !== t15 || $[26] !== t16 || $[27] !== t8 || $[28] !== t9) {
+		t17 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(T0, {
+			eventNodeId: t6,
+			title: t8,
+			icon: t9,
+			iconClassName: t10,
+			className,
+			below: t11,
+			children: [t15, t16]
+		});
+		$[20] = T0;
+		$[21] = className;
+		$[22] = eventNode.id;
+		$[23] = t10;
+		$[24] = t11;
+		$[25] = t15;
+		$[26] = t16;
+		$[27] = t8;
+		$[28] = t9;
+		$[29] = t17;
+	} else t17 = $[29];
+	return t17;
+};
+var communicationLine = (event) => {
+	const channel = event.channel ?? "";
+	switch (event.kind) {
+		case "sent": return sentLine(event, channel);
+		case "delivered": {
+			const seq = event.delivery?.seq;
+			const order = seq !== null && seq !== void 0 ? ` (#${seq})` : "";
+			return [{ text: `→ ${channel}: delivered ${event.record_ids.join(", ")}${order}${addressed(event.delivery?.recipients ?? [])}` }];
+		}
+		case "read": return [{ text: `← ${channel}: ${readSummary(event)}` }];
+		case "waited": {
+			const wait = event.wait;
+			if (!wait) return [{ text: "waited" }];
+			const on = wait.channels.length > 0 ? ` on ${wait.channels.join(", ")}` : "";
+			return [{ text: `waited ${wait.duration.toFixed(1)}s${on}: ${wait.outcome}` }];
+		}
+	}
+};
+var sentLine = (event, channel) => {
+	const record = event.send?.record;
+	if (!record) return [{ text: `→ ${channel}: sent` }];
+	const head = { text: `→ ${channel}: ${record.kind}${record.id ? ` (${record.id})` : ""}${addressed(record.to)}` };
+	const rejected = event.send?.rejected;
+	if (rejected) return [
+		head,
+		{
+			text: ` refused (${rejected.control})`,
+			tone: "refused"
+		},
+		{
+			text: ` ${firstLine(rejected.reason)}`,
+			tone: "secondary"
+		}
+	];
+	const preview = record.content ? firstLine(record.content) : "";
+	return preview ? [head, {
+		text: ` ${preview}`,
+		tone: "secondary"
+	}] : [head];
+};
+var addressed = (names) => names.length > 0 ? ` to ${names.join(", ")}` : "";
+var readSummary = (event) => {
+	const files = jsonArray(event.data["files"]);
+	if (event.data["listing"] === true) {
+		const count = files?.length ?? event.record_ids.length;
+		return `listed ${count} ${count === 1 ? "file" : "files"}`;
+	}
+	if (event.record_ids.length === 0) return "read (nothing)";
+	const read = `read ${event.record_ids.join(", ")}`;
+	const file = files?.length === 1 ? files[0] : void 0;
+	if (!isRecord(file)) return read;
+	if (file["deleted"] === true) return `${read} (deleted)`;
+	const lines = file["lines"];
+	return typeof lines === "string" ? `${read} (lines ${lines})` : read;
+};
+var jsonArray = (value) => Array.isArray(value) ? value : void 0;
+var skipBlankPrefix = (text) => {
+	let start = 0;
+	for (;;) {
+		const char = text[start];
+		if (char === " " || char === "	" || char === "\n") start += 1;
+		else if (char === "\r" && text[start + 1] === "\n") start += 2;
+		else return start;
+	}
+};
+var firstLine = (text) => {
+	const line = text.slice(skipBlankPrefix(text)).split(/\r?\n/, 1)[0] ?? "";
+	return line.length > kMaxPreviewLength ? `${line.slice(0, kMaxPreviewLength)}…` : line;
+};
+function _temp$58(part, index) {
+	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+		className: part.tone === "refused" ? CommunicationEventView_module_default.refused : part.tone === "secondary" ? "text-style-secondary" : void 0,
+		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ContentText, { text: part.text })
+	}, index);
 }
 var CompactionEventView_module_default = { panel: "_panel_8zdtn_1" };
 //#endregion
@@ -100429,7 +101011,7 @@ var RetryChip = (t0) => {
 	let t8;
 	let t9;
 	if ($[13] === Symbol.for("react.memo_cache_sentinel")) {
-		t8 = () => setOpen(_temp$55);
+		t8 = () => setOpen(_temp$57);
 		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
 			name: "retry",
 			className: RetryChip_module_default.chipIcon
@@ -100533,7 +101115,7 @@ function formatAttemptDuration(event) {
 	const sec = attemptDurationSec(event);
 	return sec != null ? formatTime$1(sec) : null;
 }
-function _temp$55(v) {
+function _temp$57(v) {
 	return !v;
 }
 var StopReasonBadge_module_default = {
@@ -100819,7 +101401,7 @@ var ModelEventView = (t0) => {
 	const callTime = event.output.time;
 	let t4;
 	if ($[6] !== event.output.choices) {
-		t4 = event.output.choices.map(_temp$54);
+		t4 = event.output.choices.map(_temp$56);
 		$[6] = event.output.choices;
 		$[7] = t4;
 	} else t4 = $[7];
@@ -100859,7 +101441,7 @@ var ModelEventView = (t0) => {
 	let t8;
 	if ($[15] !== context?.toolEventIds || $[16] !== event.input || $[17] !== event.pending || $[18] !== isCancelled || $[19] !== outputMessages || $[20] !== showAllMessages || $[21] !== userMessages) {
 		t8 = () => {
-			const outputs = event.pending || isCancelled ? outputMessages.filter(_temp2$38) : outputMessages;
+			const outputs = event.pending || isCancelled ? outputMessages.filter(_temp2$39) : outputMessages;
 			const messages = showAllMessages ? [...event.input, ...outputs] : [...userMessages, ...outputs];
 			const toolEventIds = context?.toolEventIds;
 			return toolEventIds ? messages.map((m_0) => withoutToolCallsIn(m_0, toolEventIds)) : messages;
@@ -101545,10 +102127,10 @@ var withoutToolCallsIn = (message, toolEventIds) => {
 		tool_calls: toolCalls
 	};
 };
-function _temp$54(choice) {
+function _temp$56(choice) {
 	return choice.message;
 }
-function _temp2$38(m) {
+function _temp2$39(m) {
 	return !isLivePlaceholderMessage(m);
 }
 function _temp3$26(m_1) {
@@ -101728,7 +102310,7 @@ var SampleInitEventView = (t0) => {
 			const t3 = `event-${eventNode.id}`;
 			let t4;
 			if ($[8] !== event.sample.files) {
-				t4 = Object.keys(event.sample.files).map(_temp$53);
+				t4 = Object.keys(event.sample.files).map(_temp$55);
 				$[8] = event.sample.files;
 				$[9] = t4;
 			} else t4 = $[9];
@@ -101792,7 +102374,7 @@ var SampleInitEventView = (t0) => {
 	} else t4 = $[21];
 	let t5;
 	if ($[22] !== event.sample.choices) {
-		t5 = event.sample.choices ? event.sample.choices.map(_temp2$37) : "";
+		t5 = event.sample.choices ? event.sample.choices.map(_temp2$38) : "";
 		$[22] = event.sample.choices;
 		$[23] = t5;
 	} else t5 = $[23];
@@ -101867,13 +102449,13 @@ var SampleInitEventView = (t0) => {
 	} else t11 = $[42];
 	return t11;
 };
-function _temp$53(file) {
+function _temp$55(file) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("pre", {
 		className: SampleInitEventView_module_default.noMargin,
 		children: file
 	}, `sample-init-file-${file}`);
 }
-function _temp2$37(choice, index) {
+function _temp2$38(choice, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [
 		String.fromCharCode(65 + index),
 		") ",
@@ -101891,8 +102473,8 @@ function _temp3$25(target) {
 var SampleLimitEventView = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(12);
 	const { eventNode, className } = t0;
-	const resolve_title = _temp$52;
-	const resolve_icon = _temp2$36;
+	const resolve_title = _temp$54;
+	const resolve_icon = _temp2$37;
 	const baseTitle = resolve_title(eventNode.event.type);
 	let t1;
 	if ($[0] !== baseTitle || $[1] !== eventNode.event.timestamp) {
@@ -101936,7 +102518,7 @@ var SampleLimitEventView = (t0) => {
 	} else t5 = $[11];
 	return t5;
 };
-function _temp$52(type) {
+function _temp$54(type) {
 	switch (type) {
 		case "custom": return "Custom Limit Exceeded";
 		case "time": return "Time Limit Exceeded";
@@ -101948,7 +102530,7 @@ function _temp$52(type) {
 		case "cost": return "Cost Limit Exceeded";
 	}
 }
-function _temp2$36(type_0) {
+function _temp2$37(type_0) {
 	switch (type_0) {
 		case "custom": return "limitCustom";
 		case "time": return "limitTime";
@@ -103265,7 +103847,7 @@ var CheckDetail = (t0) => {
 		} else t7 = $[29];
 		t8 = scores ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: SentinelEventView_module_default.scoreGrid,
-			children: scores.map(_temp$51)
+			children: scores.map(_temp$53)
 		}) : null;
 		$[8] = effectTone;
 		$[9] = event.stage;
@@ -103617,7 +104199,7 @@ var decisionClass = (decision) => {
 		case "proceed": return SentinelEventView_module_default.proceed;
 	}
 };
-function _temp$51(t0) {
+function _temp$53(t0) {
 	const [dimension, value] = t0;
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: SentinelEventView_module_default.scoreName,
@@ -103649,7 +104231,7 @@ function _temp$51(t0) {
 	const text = t2;
 	let t3;
 	if ($[4] !== childNodes) {
-		t3 = childNodes.map(_temp$50);
+		t3 = childNodes.map(_temp$52);
 		$[4] = childNodes;
 		$[5] = t3;
 	} else t3 = $[5];
@@ -103715,7 +104297,7 @@ var summarize = (children) => {
 	if (children.length === 1) return "1 event";
 	else return `${children.length} events`;
 };
-function _temp$50(child) {
+function _temp$52(child) {
 	return child.id;
 }
 //#endregion
@@ -103772,7 +104354,7 @@ var DiffChildren = (t0) => {
 	} else t2 = $[1];
 	let t3;
 	if ($[2] !== entry.children) {
-		t3 = entry.children.map(_temp$49);
+		t3 = entry.children.map(_temp$51);
 		$[2] = entry.children;
 		$[3] = t3;
 	} else t3 = $[3];
@@ -103916,7 +104498,7 @@ var DiffValue = (t0) => {
 	} else t2 = $[3];
 	return t2;
 };
-function _temp$49(child) {
+function _temp$51(child) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(DiffRow, { child }, child.id);
 }
 var StateEventView_module_default = {
@@ -104171,7 +104753,7 @@ var SubtaskEventView = (t0) => {
 	} else t4 = $[17];
 	let t5;
 	if ($[18] !== childNodes) {
-		t5 = childNodes.map(_temp$48);
+		t5 = childNodes.map(_temp$50);
 		$[18] = childNodes;
 		$[19] = t5;
 	} else t5 = $[19];
@@ -104284,7 +104866,7 @@ var Rendered = (t0) => {
 	if (Array.isArray(values)) {
 		let t1;
 		if ($[0] !== values) {
-			t1 = values.map(_temp2$35);
+			t1 = values.map(_temp2$36);
 			$[0] = values;
 			$[1] = t1;
 		} else t1 = $[1];
@@ -104320,12 +104902,102 @@ var None = () => {
 	} else t0 = $[0];
 	return t0;
 };
-function _temp$48(child) {
+function _temp$50(child) {
 	return child.id;
 }
-function _temp2$35(val, index) {
+function _temp2$36(val, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Rendered, { values: val }, index);
 }
+var SwarmEventView_module_default = {
+	member: "_member_1tvjx_1",
+	panel: "_panel_1tvjx_6"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/SwarmEventView.tsx
+/**
+* Renders a SwarmEvent: its kind and member over its fields as JSON, the text
+* search indexes. The swarm owns the kinds and the format of `data`, so no
+* kind is interpreted here.
+*/ var SwarmEventView = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(22);
+	const { eventNode, className } = t0;
+	const event = eventNode.event;
+	const t1 = eventNode.id;
+	let t2;
+	if ($[0] !== event.kind) {
+		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ContentText, { text: event.kind });
+		$[0] = event.kind;
+		$[1] = t2;
+	} else t2 = $[1];
+	let t3;
+	if ($[2] !== event.member) {
+		t3 = event.member ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: SwarmEventView_module_default.member,
+			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ContentText, { text: event.member })
+		}) : null;
+		$[2] = event.member;
+		$[3] = t3;
+	} else t3 = $[3];
+	let t4;
+	if ($[4] !== t2 || $[5] !== t3) {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [t2, t3] });
+		$[4] = t2;
+		$[5] = t3;
+		$[6] = t4;
+	} else t4 = $[6];
+	let t5;
+	if ($[7] !== event.timestamp) {
+		t5 = event.timestamp ? formatDateTime$1(new Date(event.timestamp)) : void 0;
+		$[7] = event.timestamp;
+		$[8] = t5;
+	} else t5 = $[8];
+	const t6 = `${eventNode.id}-swarm`;
+	let t7;
+	if ($[9] !== event) {
+		t7 = eventPayload(event);
+		$[9] = event;
+		$[10] = t7;
+	} else t7 = $[10];
+	let t8;
+	if ($[11] !== t7) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(JSONPanel, {
+			data: t7,
+			className: SwarmEventView_module_default.panel
+		});
+		$[11] = t7;
+		$[12] = t8;
+	} else t8 = $[12];
+	let t9;
+	if ($[13] !== t6 || $[14] !== t8) {
+		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExpandablePanel, {
+			id: t6,
+			collapse: true,
+			children: t8
+		});
+		$[13] = t6;
+		$[14] = t8;
+		$[15] = t9;
+	} else t9 = $[15];
+	let t10;
+	if ($[16] !== className || $[17] !== eventNode.id || $[18] !== t4 || $[19] !== t5 || $[20] !== t9) {
+		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventPanel, {
+			eventNodeId: t1,
+			title: "Swarm:",
+			headerExtra: t4,
+			className,
+			subTitle: t5,
+			icon: "info",
+			children: t9
+		});
+		$[16] = className;
+		$[17] = eventNode.id;
+		$[18] = t4;
+		$[19] = t5;
+		$[20] = t9;
+		$[21] = t10;
+	} else t10 = $[21];
+	return t10;
+};
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/timeline/core.ts
 /**
@@ -106299,334 +106971,6 @@ var ToolEventView = ({ eventNode, childNodes, className, context, eventCallbacks
 	});
 };
 //#endregion
-//#region ../../packages/inspect-components/src/transcript/eventText.ts
-var SANITIZED_CONTENT_KEYS = {
-	image: "image",
-	audio: "audio",
-	video: "video",
-	data: "data",
-	document: "document"
-};
-var readOptionalBoolean = (value, key) => {
-	if (!isRecord(value)) return false;
-	return value[key] === true;
-};
-var readOptionalString = (value, key) => {
-	if (!isRecord(value)) return void 0;
-	const raw = value[key];
-	return typeof raw === "string" ? raw : void 0;
-};
-var sanitizeContent = (val) => {
-	if (val === null || typeof val !== "object" || !("type" in val)) return;
-	if (val.type === "reasoning" && "reasoning" in val) {
-		const reasoning = readOptionalString(val, "reasoning");
-		const summary = readOptionalString(val, "summary");
-		return readOptionalBoolean(val, "redacted") ? summary ?? "" : reasoning || summary || "";
-	}
-	if (typeof val.type === "string") {
-		const payloadKey = SANITIZED_CONTENT_KEYS[val.type];
-		if (payloadKey && payloadKey in val) return `<${val.type} />`;
-	}
-};
-var sanitizeStringify = (v) => {
-	const rootSanitized = sanitizeContent(v);
-	if (rootSanitized !== void 0) return rootSanitized;
-	return JSON.stringify(v, (_key, val) => {
-		const replacement = sanitizeContent(val);
-		return replacement !== void 0 ? replacement : val;
-	});
-};
-/**
-* Extracts labeled fields from an event for search and text serialization.
-*/ var extractEventFields = (event) => {
-	const fields = [];
-	switch (event.event) {
-		case "model": {
-			const modelEvent = event;
-			if (modelEvent.model) fields.push(["model", modelEvent.model]);
-			for (const choice of modelEvent.output.choices) for (const text of extractContentText(choice.message.content)) fields.push(["output", text]);
-			for (const msg of modelEvent.input) if (msg.role === "user" || msg.role === "system") for (const text of extractContentText(msg.content)) fields.push([msg.role, text]);
-			if (modelEvent.error) fields.push(["error", modelEvent.error]);
-			if (modelEvent.traceback) fields.push(["traceback", modelEvent.traceback]);
-			break;
-		}
-		case "tool": {
-			const toolEvent = event;
-			if (toolEvent.view?.title) {
-				const resolvedTitle = toolEvent.view.title.replace(/\{\{(\w+)\}\}/g, (match, key) => {
-					if (!Object.hasOwn(toolEvent.arguments, key)) return match;
-					const val = toolEvent.arguments[key];
-					return typeof val === "string" ? val : JSON.stringify(val);
-				});
-				fields.push(["title", resolvedTitle]);
-			}
-			if (toolEvent.function) fields.push(["function", toolEvent.function]);
-			fields.push(["arguments", JSON.stringify(toolEvent.arguments)]);
-			if (toolEvent.result) {
-				if (typeof toolEvent.result === "string") fields.push(["result", toolEvent.result]);
-				else for (const text of extractToolResultText(toolEvent.result)) fields.push(["result", text]);
-			}
-			if (toolEvent.error?.message) fields.push(["error", toolEvent.error.message]);
-			break;
-		}
-		case "error": {
-			const errorEvent = event;
-			if (errorEvent.error.message) fields.push(["message", errorEvent.error.message]);
-			if (errorEvent.error.traceback) fields.push(["traceback", errorEvent.error.traceback]);
-			break;
-		}
-		case "logger": {
-			const loggerEvent = event;
-			if (loggerEvent.message.message) fields.push(["message", loggerEvent.message.message]);
-			if (loggerEvent.message.filename) fields.push(["filename", loggerEvent.message.filename]);
-			break;
-		}
-		case "info": {
-			const infoEvent = event;
-			if (infoEvent.source) fields.push(["source", infoEvent.source]);
-			if (infoEvent.data) {
-				if (typeof infoEvent.data === "string") fields.push(["data", infoEvent.data]);
-				else fields.push(["data", sanitizeStringify(infoEvent.data)]);
-			}
-			break;
-		}
-		case "branch":
-			if (event.from_anchor) fields.push(["from_anchor", event.from_anchor]);
-			break;
-		case "anchor":
-			fields.push(["anchor_id", event.anchor_id]);
-			if (event.source) fields.push(["source", event.source]);
-			break;
-		case "compaction": {
-			const compactionEvent = event;
-			if (compactionEvent.source && compactionEvent.source !== "inspect") fields.push(["source", compactionEvent.source]);
-			if (compactionEvent.tokens_before != null) fields.push(["tokens_before", String(compactionEvent.tokens_before)]);
-			if (compactionEvent.tokens_after != null) fields.push(["tokens_after", String(compactionEvent.tokens_after)]);
-			if (compactionEvent.metadata) for (const [k, v] of Object.entries(compactionEvent.metadata)) fields.push([k, typeof v === "string" ? v : sanitizeStringify(v)]);
-			break;
-		}
-		case "step": {
-			const stepEvent = event;
-			if (stepEvent.name) fields.push(["name", stepEvent.name]);
-			if (stepEvent.type) fields.push(["type", stepEvent.type]);
-			break;
-		}
-		case "subtask": {
-			const subtaskEvent = event;
-			if (subtaskEvent.name) fields.push(["name", subtaskEvent.name]);
-			if (subtaskEvent.type) fields.push(["type", subtaskEvent.type]);
-			fields.push(["input", sanitizeStringify(subtaskEvent.input)]);
-			if (subtaskEvent.result) fields.push(["result", sanitizeStringify(subtaskEvent.result)]);
-			break;
-		}
-		case "span_begin": {
-			const spanEvent = event;
-			if (spanEvent.name) fields.push(["name", spanEvent.name]);
-			if (spanEvent.type) fields.push(["type", spanEvent.type]);
-			break;
-		}
-		case "score": {
-			const scoreEvent = event;
-			if (scoreEvent.score.answer) fields.push(["answer", scoreEvent.score.answer]);
-			if (scoreEvent.score.explanation) fields.push(["explanation", scoreEvent.score.explanation]);
-			const scoreValue = scoreEvent.score.value;
-			fields.push(["value", typeof scoreValue === "string" ? scoreValue : JSON.stringify(scoreValue)]);
-			if (scoreEvent.target) {
-				if (typeof scoreEvent.target === "string") fields.push(["target", scoreEvent.target]);
-				else if (Array.isArray(scoreEvent.target)) for (const t of scoreEvent.target) fields.push(["target", t]);
-			}
-			break;
-		}
-		case "score_edit": {
-			const scoreEditEvent = event;
-			if (scoreEditEvent.score_name) fields.push(["score_name", scoreEditEvent.score_name]);
-			if (scoreEditEvent.edit.answer && scoreEditEvent.edit.answer !== "UNCHANGED") fields.push(["answer", scoreEditEvent.edit.answer]);
-			if (scoreEditEvent.edit.explanation && scoreEditEvent.edit.explanation !== "UNCHANGED") fields.push(["explanation", scoreEditEvent.edit.explanation]);
-			break;
-		}
-		case "sample_init": {
-			const sample = event.sample;
-			if (sample.target) {
-				if (typeof sample.target === "string") fields.push(["target", sample.target]);
-				else fields.push(["target", JSON.stringify(sample.target)]);
-			}
-			if (sample.metadata && Object.keys(sample.metadata).length > 0) fields.push(["metadata", sanitizeStringify(sample.metadata)]);
-			break;
-		}
-		case "sample_limit": {
-			const sampleLimitEvent = event;
-			if (sampleLimitEvent.message) fields.push(["message", sampleLimitEvent.message]);
-			fields.push(["type", sampleLimitEvent.type]);
-			break;
-		}
-		case "input": {
-			const inputEvent = event;
-			if (inputEvent.input) fields.push(["input", inputEvent.input]);
-			break;
-		}
-		case "interrupt": {
-			const interruptEvent = event;
-			fields.push(["source", interruptEvent.source]);
-			fields.push(["interrupted", interruptEvent.interrupted]);
-			if (interruptEvent.interrupted_tool_call_id) fields.push(["interrupted_tool_call_id", interruptEvent.interrupted_tool_call_id]);
-			if (interruptEvent.interrupted_model_event_id) fields.push(["interrupted_model_event_id", interruptEvent.interrupted_model_event_id]);
-			break;
-		}
-		case "approval": {
-			const approvalEvent = event;
-			fields.push(["decision", approvalEvent.decision]);
-			if (approvalEvent.explanation) fields.push(["explanation", approvalEvent.explanation]);
-			if (approvalEvent.approver) fields.push(["approver", approvalEvent.approver]);
-			break;
-		}
-		case "review": {
-			const reviewEvent = event;
-			fields.push(["decision", reviewEvent.decision]);
-			if (reviewEvent.explanation) fields.push(["explanation", reviewEvent.explanation]);
-			fields.push(["reviewer", reviewEvent.reviewer]);
-			break;
-		}
-		case "sentinel": {
-			const sentinelEvent = event;
-			fields.push(["kind", sentinelEvent.kind]);
-			fields.push(["status", sentinelEvent.status]);
-			if (sentinelEvent.path) fields.push(["path", sentinelEvent.path]);
-			fields.push(["factory", sentinelEvent.factory]);
-			if (sentinelEvent.function) fields.push(["function", sentinelEvent.function]);
-			fields.push(["stage", sentinelEvent.stage]);
-			if (sentinelEvent.suspicion !== void 0 && sentinelEvent.suspicion !== null) fields.push(["suspicion", formatSuspicion(sentinelEvent.suspicion)]);
-			if (sentinelEvent.action) fields.push(["action", sentinelEvent.action]);
-			if (sentinelEvent.modified) fields.push(["modified", formatModifiedCall(sentinelEvent.modified)]);
-			if (sentinelEvent.audit) fields.push(["audit", "true"]);
-			if (sentinelEvent.message) fields.push(["message", sentinelEvent.message]);
-			if (sentinelEvent.explanation) fields.push(["explanation", sentinelEvent.explanation]);
-			if (sentinelEvent.error) fields.push(["error", sentinelEvent.error]);
-			break;
-		}
-		case "sandbox": {
-			const sandboxEvent = event;
-			fields.push(["action", sandboxEvent.action]);
-			if (sandboxEvent.cmd) fields.push(["cmd", sandboxEvent.cmd]);
-			if (sandboxEvent.output) fields.push(["output", sandboxEvent.output]);
-			if (sandboxEvent.file) fields.push(["file", sandboxEvent.file]);
-			break;
-		}
-		case "state":
-		case "store": {
-			const stateEvent = event;
-			for (const change of stateEvent.changes) {
-				fields.push(["path", change.path]);
-				fields.push(["value", typeof change.value === "string" ? change.value : sanitizeStringify(change.value)]);
-			}
-			break;
-		}
-	}
-	return fields;
-};
-/**
-* Extracts searchable text from an EventNode for find-in-page functionality.
-*/ var eventSearchText = (node) => {
-	return extractEventFields(node.event).map(([, v]) => v);
-};
-/**
-* Converts an array of events to a human-readable text transcript.
-*/ var eventsToStr = (events) => {
-	return events.map((event) => {
-		const fields = extractEventFields(event);
-		if (fields.length === 0) return null;
-		const body = fields.map(([k, v]) => v.includes("\n") ? `${k}:\n${v}` : `${k}: ${v}`).join("\n");
-		return `[${event.event}]\n${body}`;
-	}).filter((s) => s !== null).join("\n\n");
-};
-/**
-* Converts an array of events to a Markdown transcript suitable for reports
-* and other review artifacts. Sections use the viewer's event titles. Prose
-* fields (model output, messages, explanations) keep their Markdown, quoted
-* when multi-line; everything else — tool arguments and results, tracebacks,
-* JSON — is fenced or put in inline code so it renders verbatim.
-*/ var eventsToMarkdown = (events) => {
-	return events.map((event) => {
-		const fields = extractEventFields(event);
-		const title = (eventTitle(event) || titleCase(event.event)).replace(/\s+/g, " ");
-		if (fields.length === 0) return `## ${title}`;
-		return `## ${title}\n\n${fields.map(([key, value]) => {
-			const label = titleCase(key);
-			const prose = kProseFields.has(key);
-			if (value.includes("\n")) return `**${label}**\n\n${prose ? quoted(value) : fenced(value)}`;
-			if (!prose && looksLikeJson(value)) return `**${label}**\n\n${fenced(value)}`;
-			return `**${label}:** ${kCodeLikeFields.has(key) ? inlineCode(value) : value}`;
-		}).join("\n\n")}`;
-	}).join("\n\n---\n\n");
-};
-var titleCase = (value) => toTitleCase(value.replace(/_/g, " "));
-var kProseFields = /* @__PURE__ */ new Set([
-	"answer",
-	"explanation",
-	"message",
-	"output",
-	"title"
-]);
-var kCodeLikeFields = /* @__PURE__ */ new Set([
-	"arguments",
-	"cmd",
-	"file",
-	"filename",
-	"function",
-	"path"
-]);
-var looksLikeJson = (value) => /^\s*[[{]/.test(value) && /[\]}]\s*$/.test(value);
-/**
-* Extracts text strings from message content.
-*/ var extractContentText = (content) => {
-	if (typeof content === "string") return [content];
-	const texts = [];
-	for (const item of content) switch (item.type) {
-		case "text":
-			texts.push(item.text);
-			break;
-		case "reasoning": {
-			const text = item.redacted ? item.summary : item.reasoning || item.summary;
-			if (text) texts.push(text);
-			break;
-		}
-		case "tool_use": {
-			const toolUse = item;
-			if (toolUse.name) texts.push(toolUse.name);
-			if (toolUse.arguments) texts.push(sanitizeStringify(toolUse.arguments));
-			if (toolUse.result) texts.push(typeof toolUse.result === "string" ? toolUse.result : sanitizeStringify(toolUse.result));
-			if (toolUse.error) texts.push(toolUse.error);
-			break;
-		}
-		case "image":
-		case "audio":
-		case "video":
-		case "data":
-		case "document": texts.push(`<${item.type} />`);
-	}
-	return texts;
-};
-var extractToolResultText = (value) => {
-	if (Array.isArray(value)) return value.flatMap((item) => extractToolResultItemText(item));
-	return [sanitizeStringify(value)];
-};
-var extractToolResultItemText = (item) => {
-	if (typeof item === "string") return [item];
-	if (item == null) return [];
-	if (typeof item === "number" || typeof item === "boolean" || typeof item === "bigint") return [item.toString()];
-	if (typeof item === "symbol") return [String(item)];
-	if (typeof item !== "object") return [];
-	if (!("type" in item)) return [sanitizeStringify(item)];
-	switch (item.type) {
-		case "text": return "text" in item && typeof item.text === "string" ? [item.text] : [];
-		case "image": return "image" in item && typeof item.image === "string" && !item.image.startsWith("data:") ? [item.image] : [];
-		case "document": return "filename" in item && typeof item.filename === "string" ? [item.filename] : [];
-		case "audio":
-		case "video": return [];
-		case "tool": return "content" in item && Array.isArray(item.content) ? item.content.flatMap((inner) => extractToolResultItemText(inner)) : [sanitizeStringify(item)];
-		default: return [sanitizeStringify(item)];
-	}
-};
-//#endregion
 //#region ../../packages/inspect-components/src/transcript/hasToolEventsAtDepth.ts
 /**
 * For each event node, compute whether a backward scan from that node reaches a
@@ -107274,6 +107618,8 @@ var removeStepSpanNameVisitor = (name) => {
 */ var outlineFilterVisitors = () => [
 	removeNodeVisitor("logger"),
 	removeNodeVisitor("info"),
+	removeNodeVisitor("communication"),
+	removeNodeVisitor("swarm"),
 	removeNodeVisitor("state"),
 	removeNodeVisitor("store"),
 	removeNodeVisitor("approval"),
@@ -107328,7 +107674,12 @@ var makeTurns = (eventNodes) => {
 		modelNode = null;
 		toolNodes.length = 0;
 	};
-	const kTurnPassthroughEvents = /* @__PURE__ */ new Set(["logger", "info"]);
+	const kTurnPassthroughEvents = /* @__PURE__ */ new Set([
+		"logger",
+		"info",
+		"communication",
+		"swarm"
+	]);
 	for (const node of eventNodes) if (node.event.event === "model") {
 		makeTurn(true);
 		modelNode = node;
@@ -107851,7 +108202,7 @@ function transcriptToolsRunning(eventNodes) {
 /**
 * Renders the event based on its type.
 */ var RenderedEventNodeInner = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(170);
+	const $ = (0, import_compiler_runtime.c)(180);
 	const { node, next, className, context, onAutoCollapse, renderAgentCard, eventCallbacks } = t0;
 	const selectRow = useTimelineRowSelect();
 	switch (node.event.event) {
@@ -108417,16 +108768,16 @@ function transcriptToolsRunning(eventNodes) {
 			} else t3 = $[158];
 			return t3;
 		}
-		case "sandbox": {
+		case "communication": {
 			let t1;
 			if ($[159] !== node) {
-				t1 = eventNodeOf(node, "sandbox");
+				t1 = eventNodeOf(node, "communication");
 				$[159] = node;
 				$[160] = t1;
 			} else t1 = $[160];
 			let t2;
 			if ($[161] !== className || $[162] !== t1) {
-				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SandboxEventView, {
+				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CommunicationEventView, {
 					eventNode: t1,
 					className
 				});
@@ -108436,25 +108787,63 @@ function transcriptToolsRunning(eventNodes) {
 			} else t2 = $[163];
 			return t2;
 		}
-		case "checkpoint": {
+		case "swarm": {
 			let t1;
 			if ($[164] !== node) {
-				t1 = eventNodeOf(node, "checkpoint");
+				t1 = eventNodeOf(node, "swarm");
 				$[164] = node;
 				$[165] = t1;
 			} else t1 = $[165];
 			let t2;
-			if ($[166] !== className || $[167] !== eventCallbacks || $[168] !== t1) {
+			if ($[166] !== className || $[167] !== t1) {
+				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SwarmEventView, {
+					eventNode: t1,
+					className
+				});
+				$[166] = className;
+				$[167] = t1;
+				$[168] = t2;
+			} else t2 = $[168];
+			return t2;
+		}
+		case "sandbox": {
+			let t1;
+			if ($[169] !== node) {
+				t1 = eventNodeOf(node, "sandbox");
+				$[169] = node;
+				$[170] = t1;
+			} else t1 = $[170];
+			let t2;
+			if ($[171] !== className || $[172] !== t1) {
+				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SandboxEventView, {
+					eventNode: t1,
+					className
+				});
+				$[171] = className;
+				$[172] = t1;
+				$[173] = t2;
+			} else t2 = $[173];
+			return t2;
+		}
+		case "checkpoint": {
+			let t1;
+			if ($[174] !== node) {
+				t1 = eventNodeOf(node, "checkpoint");
+				$[174] = node;
+				$[175] = t1;
+			} else t1 = $[175];
+			let t2;
+			if ($[176] !== className || $[177] !== eventCallbacks || $[178] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckpointEventView, {
 					eventNode: t1,
 					className,
 					eventCallbacks
 				});
-				$[166] = className;
-				$[167] = eventCallbacks;
-				$[168] = t1;
-				$[169] = t2;
-			} else t2 = $[169];
+				$[176] = className;
+				$[177] = eventCallbacks;
+				$[178] = t1;
+				$[179] = t2;
+			} else t2 = $[179];
 			return t2;
 		}
 		default: return null;
@@ -109036,7 +109425,7 @@ var isAutoApprove = (node) => node.event.approver === "auto" && node.event.decis
 		t2 = (event) => {
 			if (disabled) return;
 			const container = scrollRef?.current;
-			if (container && (!container.isConnected || container.checkVisibility?.() === false)) return;
+			if (container && !isElementShown(container)) return;
 			const hasModifier = event.metaKey || event.ctrlKey || event.altKey;
 			if (event.key !== "g") lastGTimeRef.current = 0;
 			if (event.repeat && (event.key === "g" || event.key === "G")) return;
@@ -109446,7 +109835,7 @@ var isAutoApprove = (node) => node.event.approver === "auto" && node.event.decis
 			$[88] = goToLane;
 			$[89] = t26;
 		} else t26 = $[89];
-		t25 = lanes.filter(_temp$47).map(t26);
+		t25 = lanes.filter(_temp$49).map(t26);
 		$[85] = goToLane;
 		$[86] = lanes;
 		$[87] = t25;
@@ -109578,7 +109967,7 @@ var isAutoApprove = (node) => node.event.approver === "auto" && node.event.decis
 	} else t37 = $[130];
 	return t37;
 }
-function _temp$47(lane_1) {
+function _temp$49(lane_1) {
 	return lane_1.firstAnchorId;
 }
 //#endregion
@@ -110709,7 +111098,7 @@ function useTranscriptTimeline(options) {
 		t7 = () => {
 			const top = viewStack.at(-1);
 			if (!top) return;
-			setViewStack(_temp$46);
+			setViewStack(_temp$48);
 			timelineProps?.onSelect(top.priorSelected);
 		};
 		$[16] = timelineProps;
@@ -110720,7 +111109,7 @@ function useTranscriptTimeline(options) {
 	const state = useTimeline(timeline, timelineOptions, timelineProps);
 	let t8;
 	if ($[19] !== state.rows) {
-		t8 = state.rows.filter(_temp2$34);
+		t8 = state.rows.filter(_temp2$35);
 		$[19] = state.rows;
 		$[20] = t8;
 	} else t8 = $[20];
@@ -111041,10 +111430,10 @@ function _temp4$20(row_3) {
 function _temp3$24(item_0) {
 	return item_0.type === "span" || item_0.event.event === "span_begin";
 }
-function _temp2$34(row) {
+function _temp2$35(row) {
 	return row.depth === 0 || rowHasEvents(row);
 }
-function _temp$46(s_0) {
+function _temp$48(s_0) {
 	return s_0.slice(0, -1);
 }
 var kBranchKeyPattern$1 = /\/branch-([^/]*)-(\d+)$/;
@@ -111142,7 +111531,7 @@ var AgentCardView = (t0) => {
 		$[2] = t1;
 	} else t1 = $[2];
 	const handleClick = t1;
-	const stopPropagation = _temp$45;
+	const stopPropagation = _temp$47;
 	let t2;
 	if ($[3] !== span) {
 		t2 = getSpanToolResult(span);
@@ -111360,7 +111749,7 @@ var AgentCardView = (t0) => {
 	} else t23 = $[55];
 	return t23;
 };
-function _temp$45(e) {
+function _temp$47(e) {
 	e.stopPropagation();
 }
 var TimelineMinimap_module_default = {
@@ -111873,7 +112262,7 @@ var TimelineSelector = (t0) => {
 	if (!active) return null;
 	let t4;
 	if ($[4] === Symbol.for("react.memo_cache_sentinel")) {
-		t4 = () => setIsOpen(_temp$44);
+		t4 = () => setIsOpen(_temp$46);
 		$[4] = t4;
 	} else t4 = $[4];
 	let t5;
@@ -111938,7 +112327,7 @@ var TimelineSelector = (t0) => {
 	} else t8 = $[17];
 	return t8;
 };
-function _temp$44(prev) {
+function _temp$46(prev) {
 	return !prev;
 }
 var TimelineSwimLanes_module_default = {
@@ -112064,7 +112453,7 @@ var TimelineSwimLanes = (t0) => {
 	let keys_0;
 	if ($[6] !== layouts || $[7] !== parentKeys) {
 		keys_0 = new Set(parentKeys);
-		for (const layout_0 of layouts) if (layout_0.markers.some(_temp$43)) keys_0.add(layout_0.key);
+		for (const layout_0 of layouts) if (layout_0.markers.some(_temp$45)) keys_0.add(layout_0.key);
 		$[6] = layouts;
 		$[7] = parentKeys;
 		$[8] = keys_0;
@@ -112114,7 +112503,7 @@ var TimelineSwimLanes = (t0) => {
 		t5 = (rowKey_0) => {
 			const current = isRowCollapsed(rowKey_0);
 			if (current && !header?.timelineConfig?.showBranches) {
-				if (layouts.find((l_0) => l_0.key === rowKey_0)?.markers.some(_temp2$33)) header?.timelineConfig?.setShowBranches(true);
+				if (layouts.find((l_0) => l_0.key === rowKey_0)?.markers.some(_temp2$34)) header?.timelineConfig?.setShowBranches(true);
 			}
 			setRowCollapsedById(rowKey_0, !current);
 		};
@@ -113245,10 +113634,10 @@ var MarkerGlyph = (t0) => {
 	} else t6 = $[24];
 	return t6;
 };
-function _temp$43(m) {
+function _temp$45(m) {
 	return m.kind === "branch";
 }
-function _temp2$33(m_0) {
+function _temp2$34(m_0) {
 	return m_0.kind === "branch";
 }
 function _temp3$23(l_1) {
@@ -113445,7 +113834,7 @@ function _temp3$23(l_1) {
 	if ($[18] !== selected) {
 		t8 = {
 			selected,
-			onSelect: _temp$42
+			onSelect: _temp$44
 		};
 		$[18] = selected;
 		$[19] = t8;
@@ -113454,7 +113843,7 @@ function _temp3$23(l_1) {
 	if ($[20] !== activeIndex) {
 		t9 = {
 			activeIndex,
-			onActiveChange: _temp2$32
+			onActiveChange: _temp2$33
 		};
 		$[20] = activeIndex;
 		$[21] = t9;
@@ -113512,8 +113901,8 @@ function _temp3$23(l_1) {
 	} else t14 = $[41];
 	return t14;
 }
-function _temp2$32() {}
-function _temp$42() {}
+function _temp2$33() {}
+function _temp$44() {}
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/hooks/useListPositionManager.ts
 /** Strip `/branch-…` segments so all selections within a branch tree share
@@ -114085,7 +114474,7 @@ function _temp$42() {}
 	const sidebarsRef = useLatestRef(sidebars);
 	let t0;
 	if ($[0] !== sidebars) {
-		t0 = sidebars.map(_temp$41).join("|");
+		t0 = sidebars.map(_temp$43).join("|");
 		$[0] = sidebars;
 		$[1] = t0;
 	} else t0 = $[1];
@@ -114167,7 +114556,7 @@ function _temp$42() {}
 	} else t4 = $[13];
 	(0, import_react.useEffect)(t3, t4);
 }
-function _temp$41(s) {
+function _temp$43(s) {
 	return String(s.remountKey);
 }
 //#endregion
@@ -114253,7 +114642,7 @@ function _temp$41(s) {
 	const timelinesForBranchDetection = useTimelinesArray(eventsForTimeline, serverTimelines);
 	let t2;
 	if ($[5] !== timelinesForBranchDetection) {
-		t2 = timelinesForBranchDetection.some(_temp$40);
+		t2 = timelinesForBranchDetection.some(_temp$42);
 		$[5] = timelinesForBranchDetection;
 		$[6] = t2;
 	} else t2 = $[6];
@@ -114382,7 +114771,7 @@ function _temp$41(s) {
 	} else t11 = $[35];
 	return t11;
 }
-function _temp$40(tl) {
+function _temp$42(tl) {
 	return spanHasBranches(tl.root);
 }
 //#endregion
@@ -116469,7 +116858,7 @@ var TranscriptLayout = (t0) => {
 	const t14 = timelineSelection?.selected ?? null;
 	let t15;
 	if ($[17] !== timelineSelection?.onSelect) {
-		t15 = timelineSelection?.onSelect ?? _temp$39;
+		t15 = timelineSelection?.onSelect ?? _temp$41;
 		$[17] = timelineSelection?.onSelect;
 		$[18] = t15;
 	} else t15 = $[18];
@@ -117092,12 +117481,12 @@ var TranscriptLayout = (t0) => {
 	} else t63 = $[234];
 	return t63;
 };
-function _temp$39() {}
-function _temp2$31(a) {
+function _temp$41() {}
+function _temp2$32(a) {
 	return a.spanType === "agent";
 }
 function _temp3$22(s) {
-	return getAgents(s).some(_temp2$31);
+	return getAgents(s).some(_temp2$32);
 }
 function _temp4$19(l_0) {
 	return l_0.key;
@@ -117110,19 +117499,20 @@ function _temp4$19(l_0) {
 * React passes these straight through to the DOM.
 */ var cssVars = (vars) => vars;
 var SampleDisplay_module_default = {
-	tabControls: "_tabControls_fvnsu_1",
-	fullWidth: "_fullWidth_fvnsu_10",
-	metadataPanel: "_metadataPanel_fvnsu_14",
-	padded: "_padded_fvnsu_20",
-	error: "_error_fvnsu_25",
-	ansi: "_ansi_fvnsu_29",
-	noTop: "_noTop_fvnsu_33",
-	chat: "_chat_fvnsu_37",
-	railHost: "_railHost_fvnsu_41",
-	tabContent: "_tabContent_fvnsu_49",
-	overflowVisible: "_overflowVisible_fvnsu_60",
-	toolSeparator: "_toolSeparator_fvnsu_68",
-	retriedErrors: "_retriedErrors_fvnsu_77"
+	tabControls: "_tabControls_6sqvk_1",
+	fullWidth: "_fullWidth_6sqvk_10",
+	metadataPanel: "_metadataPanel_6sqvk_14",
+	padded: "_padded_6sqvk_20",
+	error: "_error_6sqvk_25",
+	ansi: "_ansi_6sqvk_29",
+	noTop: "_noTop_6sqvk_33",
+	chat: "_chat_6sqvk_37",
+	railHost: "_railHost_6sqvk_41",
+	tabContent: "_tabContent_6sqvk_49",
+	overflowVisible: "_overflowVisible_6sqvk_60",
+	toolSeparator: "_toolSeparator_6sqvk_68",
+	retriedErrors: "_retriedErrors_6sqvk_77",
+	fullscreenTool: "_fullscreenTool_6sqvk_88"
 };
 //#endregion
 //#region src/app/samples/SampleJSONView.tsx
@@ -117975,7 +118365,7 @@ var PALETTE_STOPS = {
 	}
 };
 var isPaletteName = (s) => s === "good-high" || s === "good-low" || s === "neutral" || s === "diverging";
-var isScaleObject = (s) => typeof s === "object" && s !== null && "palette" in s;
+var isScaleObject = (s) => typeof s === "object" && "palette" in s;
 /**
 * Lift a wire-shape scale into the internal `ResolvedScale` form.
 *
@@ -118833,7 +119223,7 @@ var kNoScoreColorScales$1 = Object.freeze({});
 	const evalDefault = useEvalDefaultSamplesView();
 	const view = useResolvedSamplesView();
 	const logFile = useCurrentLogFile();
-	const setSampleListViewAction = useStore(_temp$38);
+	const setSampleListViewAction = useStore(_temp$40);
 	let t1;
 	if ($[2] !== logFile || $[3] !== setSampleListViewAction) {
 		t1 = (next) => {
@@ -118858,7 +119248,7 @@ var kNoScoreColorScales$1 = Object.freeze({});
 	if ($[7] !== allColumns || $[8] !== seedDefaultVisibility || $[9] !== setSampleListView || $[10] !== view) {
 		t2 = () => {
 			if (!allColumns || !seedDefaultVisibility) return;
-			const known = new Set(view.columns.map(_temp2$30));
+			const known = new Set(view.columns.map(_temp2$31));
 			const additions = [];
 			for (const col_0 of allColumns) {
 				const id = getFieldKey(col_0);
@@ -119037,10 +119427,10 @@ function _temp3$21(t0) {
 	const [id_1] = t0;
 	return !id_1.startsWith(SCORE_FIELD_RAW_PREFIX);
 }
-function _temp2$30(c) {
+function _temp2$31(c) {
 	return c.id;
 }
-function _temp$38(state) {
+function _temp$40(state) {
 	return state.logsActions.setSampleListView;
 }
 var ScorePanel_module_default = {
@@ -119424,7 +119814,7 @@ function formatPlainValue(v) {
 			$[10] = t2;
 		} else t2 = $[10];
 		const initial = scores.map(t2);
-		const numbers = initial.map(_temp$37).filter(_temp2$29);
+		const numbers = initial.map(_temp$39).filter(_temp2$30);
 		const min = numbers.length ? Math.min(...numbers) : 0;
 		const range = (numbers.length ? Math.max(...numbers) : 0) - min;
 		t1 = initial.map((s_0) => {
@@ -119775,10 +120165,10 @@ function makeCompare(column) {
 		return as.localeCompare(bs, void 0, { numeric: true });
 	};
 }
-function _temp$37(s) {
+function _temp$39(s) {
 	return typeof s.value === "number" ? s.value : null;
 }
-function _temp2$29(v) {
+function _temp2$30(v) {
 	return v !== null;
 }
 function _temp3$20(s_2) {
@@ -119827,7 +120217,7 @@ var resolveSample = (sample, sampleDescriptor) => {
 		}));
 	}
 	const target = sample.target;
-	const answer = sample && sampleDescriptor ? sampleDescriptor.selectedScorerDescriptor(sample)?.answer() : void 0;
+	const answer = sampleDescriptor.selectedScorerDescriptor(sample)?.answer();
 	const limit = isEvalSample(sample) ? sample.limit?.type : sample.limit ?? void 0;
 	const limit_reason = isEvalSample(sample) ? sample.limit?.reason ?? void 0 : sample.limit_reason ?? void 0;
 	const working_time = isEvalSample(sample) ? sample.working_time : void 0;
@@ -119861,7 +120251,7 @@ var MetaLine = (t0) => {
 	} else t1 = $[0];
 	let t2;
 	if ($[1] !== items) {
-		t2 = items.map(_temp$36);
+		t2 = items.map(_temp$38);
 		$[1] = items;
 		$[2] = t2;
 	} else t2 = $[2];
@@ -119979,7 +120369,7 @@ var FieldLabel = (t0) => {
 				key: "task",
 				content: taskName
 			});
-			const fallbackModels = [...new Set((fields.model_fallbacks ?? []).map(_temp2$28))];
+			const fallbackModels = [...new Set((fields.model_fallbacks ?? []).map(_temp2$29))];
 			if (modelText || fallbackModels.length > 0) {
 				const t21 = fallbackModels.length > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("em", { children: ` (fallback → ${fallbackModels.join(", ")})` });
 				let t22;
@@ -120353,7 +120743,7 @@ var FieldLabel = (t0) => {
 	} else t6 = $[11];
 	return t6;
 };
-function _temp$36(item, idx) {
+function _temp$38(item, idx) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [idx > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: SampleSummaryView_module_default.metaSep,
 		children: "·"
@@ -120362,7 +120752,7 @@ function _temp$36(item, idx) {
 		children: item.content
 	})] }, item.key);
 }
-function _temp2$28(f) {
+function _temp2$29(f) {
 	return f.fallback_model;
 }
 function _temp3$19(acc, s) {
@@ -120841,7 +121231,7 @@ var ValidationResult = (t0) => {
 			$[5] = t2;
 		} else t2 = $[5];
 		return t2;
-	} else if (result !== null && typeof result === "object") {
+	} else {
 		let t1;
 		if ($[6] !== result || $[7] !== target) {
 			const entries = Object.entries(result);
@@ -120938,7 +121328,7 @@ function isStringValue(r) {
 	return r.valueType === "string";
 }
 function isNumberValue(r) {
-	return r.valueType === "number";
+	return r.valueType === "number" && typeof r.value === "number";
 }
 function isBooleanValue(r) {
 	return r.valueType === "boolean";
@@ -120994,7 +121384,7 @@ var Value = (t0) => {
 					options
 				});
 				break bb0;
-			} else if (isNumberValue(input) && input.value !== null) {
+			} else if (isNumberValue(input)) {
 				t4 = formatPrettyDecimal(input.value);
 				break bb0;
 			} else if (isBooleanValue(input)) {
@@ -121404,7 +121794,7 @@ function renderField(field, data, references, options, interactive, config, coll
 			})
 		});
 		case "validation":
-			if (data.validationResult === void 0 || data.validationResult === null) return null;
+			if (data.validationResult === void 0) return null;
 			return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Section, {
 				id,
 				heading: field.label ?? "Validation",
@@ -121508,7 +121898,7 @@ var SampleScannerPicker = (t0) => {
 	const handleChange = t1;
 	let t2;
 	if ($[2] !== scanners) {
-		t2 = scanners.map(_temp$35);
+		t2 = scanners.map(_temp$37);
 		$[2] = scanners;
 		$[3] = t2;
 	} else t2 = $[3];
@@ -121532,7 +121922,7 @@ var SampleScannerPicker = (t0) => {
 	} else t3 = $[7];
 	return t3;
 };
-function _temp$35(scanner) {
+function _temp$37(scanner) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(VscodeOption, {
 		value: scanner,
 		children: scanner
@@ -122117,7 +122507,7 @@ var SampleScoresView = (t0) => {
 		const scoreInput = inputString(sample.input);
 		if (sample.choices && sample.choices.length > 0) {
 			scoreInput.push("");
-			scoreInput.push(...sample.choices.map(_temp$34));
+			scoreInput.push(...sample.choices.map(_temp$36));
 		}
 		if ($[17] !== className) {
 			t7 = clsx("container-fluid", className, "font-size-base");
@@ -122254,579 +122644,219 @@ var SampleScoresView = (t0) => {
 	} else t15 = $[46];
 	return t15;
 };
-function _temp$34(choice, index) {
+function _temp$36(choice, index) {
 	return `${String.fromCharCode(65 + index)}) ${choice}`;
 }
-var StoreTerminalSessions_module_default = {
-	tiles: "_tiles_gwli1_1",
-	tile: "_tile_gwli1_1",
-	tileHeader: "_tileHeader_gwli1_22",
-	tileName: "_tileName_gwli1_31",
-	tilePreview: "_tilePreview_gwli1_38",
-	tilePlay: "_tilePlay_gwli1_45",
-	tileButton: "_tileButton_gwli1_62",
-	overlay: "_overlay_gwli1_75",
-	overlayHeader: "_overlayHeader_gwli1_84",
-	overlayTitleGroup: "_overlayTitleGroup_gwli1_93",
-	overlayTitle: "_overlayTitle_gwli1_93",
-	overlayNote: "_overlayNote_gwli1_105",
-	overlayNoteDetail: "_overlayNoteDetail_gwli1_109",
-	overlayControls: "_overlayControls_gwli1_113",
-	speedGroup: "_speedGroup_gwli1_120",
-	headerButton: "_headerButton_gwli1_124",
-	headerButtonActive: "_headerButtonActive_gwli1_158",
-	closeButton: "_closeButton_gwli1_163",
-	overlayBody: "_overlayBody_gwli1_182"
+var Terminals_module_default = {
+	view: "_view_1mnpl_1",
+	viewFill: "_viewFill_1mnpl_14",
+	stage: "_stage_1mnpl_24",
+	stageScrolls: "_stageScrolls_1mnpl_34",
+	row: "_row_1mnpl_40",
+	rowFocused: "_rowFocused_1mnpl_51",
+	bar: "_bar_1mnpl_57",
+	barFlash: "_barFlash_1mnpl_73",
+	newCommand: "_newCommand_1mnpl_94",
+	rowFolded: "_rowFolded_1mnpl_115",
+	rowClosed: "_rowClosed_1mnpl_119",
+	barButton: "_barButton_1mnpl_123",
+	barMain: "_barMain_1mnpl_136",
+	chevron: "_chevron_1mnpl_148",
+	sessionName: "_sessionName_1mnpl_158",
+	lastCommand: "_lastCommand_1mnpl_181",
+	snippet: "_snippet_1mnpl_191",
+	barMeta: "_barMeta_1mnpl_200",
+	fullscreenButton: "_fullscreenButton_1mnpl_210",
+	bodyFrame: "_bodyFrame_1mnpl_229",
+	body: "_body_1mnpl_229",
+	rowOpen: "_rowOpen_1mnpl_253",
+	playerCap: "_playerCap_1mnpl_264",
+	latest: "_latest_1mnpl_289",
+	controls: "_controls_1mnpl_309",
+	controlRow: "_controlRow_1mnpl_320",
+	controlTools: "_controlTools_1mnpl_327",
+	playButton: "_playButton_1mnpl_334",
+	readout: "_readout_1mnpl_354",
+	readoutElapsed: "_readoutElapsed_1mnpl_363",
+	readoutTotal: "_readoutTotal_1mnpl_368",
+	readoutNote: "_readoutNote_1mnpl_373",
+	chip: "_chip_1mnpl_383",
+	controlSpacer: "_controlSpacer_1mnpl_404",
+	speedGroup: "_speedGroup_1mnpl_409",
+	speedButton: "_speedButton_1mnpl_417",
+	speedButtonActive: "_speedButtonActive_1mnpl_431",
+	timelineToggle: "_timelineToggle_1mnpl_441",
+	timelineChevron: "_timelineChevron_1mnpl_460",
+	timelineChevronFolded: "_timelineChevronFolded_1mnpl_466",
+	timeline: "_timeline_1mnpl_441",
+	laneLabels: "_laneLabels_1mnpl_476",
+	laneLabel: "_laneLabel_1mnpl_476",
+	laneLabelFocused: "_laneLabelFocused_1mnpl_497",
+	track: "_track_1mnpl_502",
+	ruler: "_ruler_1mnpl_508",
+	rulerLabel: "_rulerLabel_1mnpl_517",
+	rulerLabelEnd: "_rulerLabelEnd_1mnpl_528",
+	lane: "_lane_1mnpl_476",
+	lifetime: "_lifetime_1mnpl_539",
+	focusSegment: "_focusSegment_1mnpl_547",
+	tick: "_tick_1mnpl_557",
+	tickChip: "_tickChip_1mnpl_582",
+	tickChipLeft: "_tickChipLeft_1mnpl_597",
+	playhead: "_playhead_1mnpl_601",
+	foldedTrack: "_foldedTrack_1mnpl_611",
+	foldedFocus: "_foldedFocus_1mnpl_628",
+	holdChip: "_holdChip_1mnpl_636",
+	scrubChip: "_scrubChip_1mnpl_640",
+	foldedTimeline: "_foldedTimeline_1mnpl_659",
+	peek: "_peek_1mnpl_668",
+	peekIn: "_peekIn_1mnpl_1",
+	barFlashSteady: "_barFlashSteady_1mnpl_1",
+	agentPickerLabel: "_agentPickerLabel_1mnpl_719",
+	agentItem: "_agentItem_1mnpl_724",
+	agentSpawn: "_agentSpawn_1mnpl_731",
+	agentName: "_agentName_1mnpl_735",
+	agentCount: "_agentCount_1mnpl_739",
+	chipIn: "_chipIn_1mnpl_1"
 };
 //#endregion
-//#region src/app/samples/StoreTerminalSessions.tsx
+//#region src/app/samples/terminals/AgentPicker.tsx
+/** The Terminals tab's agent menu (brief §9): the sample's agents indented by
+*  spawn depth, each with its terminal count. Render it only when there is
+*  more than one agent. */ var AgentPicker = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(17);
+	const { agents, selected, onSelect } = t0;
+	const t1 = selected.name;
+	let t2;
+	if ($[0] !== selected) {
+		t2 = terminalCount(selected);
+		$[0] = selected;
+		$[1] = t2;
+	} else t2 = $[1];
+	let t3;
+	if ($[2] !== t2) {
+		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: Terminals_module_default.agentCount,
+			children: ["· ", t2]
+		});
+		$[2] = t2;
+		$[3] = t3;
+	} else t3 = $[3];
+	let t4;
+	if ($[4] !== selected.name || $[5] !== t3) {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: Terminals_module_default.agentPickerLabel,
+			children: [t1, t3]
+		});
+		$[4] = selected.name;
+		$[5] = t3;
+		$[6] = t4;
+	} else t4 = $[6];
+	let t5;
+	if ($[7] !== agents || $[8] !== onSelect || $[9] !== selected.id) {
+		let t6;
+		if ($[11] !== onSelect || $[12] !== selected.id) {
+			t6 = (agent) => ({
+				key: agent.id,
+				selected: agent.id === selected.id,
+				onClick: () => onSelect(agent.id),
+				label: /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+					className: Terminals_module_default.agentItem,
+					style: { paddingLeft: `${agent.depth * 1.25}em` },
+					children: [
+						agent.depth > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+							className: Terminals_module_default.agentSpawn,
+							"aria-hidden": "true",
+							children: "↳"
+						}) : null,
+						/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+							className: Terminals_module_default.agentName,
+							children: agent.name
+						}),
+						/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+							className: Terminals_module_default.agentCount,
+							children: agent.sessions.length
+						})
+					]
+				})
+			});
+			$[11] = onSelect;
+			$[12] = selected.id;
+			$[13] = t6;
+		} else t6 = $[13];
+		t5 = agents.map(t6);
+		$[7] = agents;
+		$[8] = onSelect;
+		$[9] = selected.id;
+		$[10] = t5;
+	} else t5 = $[10];
+	let t6;
+	if ($[14] !== t4 || $[15] !== t5) {
+		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolDropdownButton, {
+			label: t4,
+			title: "Show another agent's terminals",
+			subtle: true,
+			dropdownAlign: "right",
+			dropdownClassName: "text-size-smallest",
+			heading: "Agents in this sample",
+			items: t5
+		});
+		$[14] = t4;
+		$[15] = t5;
+		$[16] = t6;
+	} else t6 = $[16];
+	return t6;
+};
+var terminalCount = (agent) => `${agent.sessions.length} ${agent.sessions.length === 1 ? "term" : "terms"}`;
+//#endregion
+//#region src/app/samples/terminals/asciicast.ts
 var kAsciicastStorePrefix = "asciinema:";
-var kIdleTimeLimit = 2;
-var kIdleNoteMinGap = 30;
-var kPlaybackSpeeds = [
-	1,
-	2,
-	4
-];
 /** Collect the playable asciicast entries from a sample's store. */ var storeCasts = (store) => Object.entries(store).flatMap(([key, value]) => key.startsWith(kAsciicastStorePrefix) && typeof value === "string" ? [{
 	key,
 	name: key.slice(10),
 	cast: value
 }] : []);
 /**
-* Shows each store asciicast as a paused preview tile; clicking a tile opens
-* it full-viewport, scaled to show the whole terminal, and plays it.
-*/ var StoreTerminalSessions = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(20);
-	const { id, casts } = t0;
-	const [expandedKey, setExpandedKey] = (0, import_react.useState)(null);
-	const [speed, setSpeed] = (0, import_react.useState)(1);
-	let expanded;
-	let t1;
-	let t2;
-	if ($[0] !== casts || $[1] !== expandedKey || $[2] !== id) {
-		const displayCasts = casts.map(_temp$33);
-		let t3;
-		if ($[6] !== expandedKey) {
-			t3 = (storeCast_0) => storeCast_0.key === expandedKey;
-			$[6] = expandedKey;
-			$[7] = t3;
-		} else t3 = $[7];
-		expanded = displayCasts.find(t3);
-		t1 = StoreTerminalSessions_module_default.tiles;
-		let t4;
-		if ($[8] !== id) {
-			t4 = (storeCast_1) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TerminalTile, {
-				id: `${id}-${storeCast_1.name}`,
-				buttonId: tilePlayButtonId(storeCast_1.key),
-				storeCast: storeCast_1,
-				onOpen: () => setExpandedKey(storeCast_1.key)
-			}, storeCast_1.key);
-			$[8] = id;
-			$[9] = t4;
-		} else t4 = $[9];
-		t2 = displayCasts.map(t4);
-		$[0] = casts;
-		$[1] = expandedKey;
-		$[2] = id;
-		$[3] = expanded;
-		$[4] = t1;
-		$[5] = t2;
-	} else {
-		expanded = $[3];
-		t1 = $[4];
-		t2 = $[5];
-	}
-	let t3;
-	if ($[10] !== t1 || $[11] !== t2) {
-		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: t1,
-			children: t2
-		});
-		$[10] = t1;
-		$[11] = t2;
-		$[12] = t3;
-	} else t3 = $[12];
-	let t4;
-	if ($[13] !== expanded || $[14] !== id || $[15] !== speed) {
-		t4 = expanded ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExpandedTerminal, {
-			id: `${id}-${expanded.name}-expanded`,
-			storeCast: expanded,
-			speed,
-			onSpeedChange: setSpeed,
-			onClose: () => {
-				setExpandedKey(null);
-				document.getElementById(tilePlayButtonId(expanded.key))?.focus();
-			}
-		}) : null;
-		$[13] = expanded;
-		$[14] = id;
-		$[15] = speed;
-		$[16] = t4;
-	} else t4 = $[16];
-	let t5;
-	if ($[17] !== t3 || $[18] !== t4) {
-		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [t3, t4] });
-		$[17] = t3;
-		$[18] = t4;
-		$[19] = t5;
-	} else t5 = $[19];
-	return t5;
-};
-var tilePlayButtonId = (key) => `terminal-tile-play-${key}`;
-var TerminalTile = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(42);
-	const { id, buttonId, storeCast, onOpen } = t0;
-	let t1;
-	if ($[0] !== storeCast.cast) {
-		t1 = castGeometry(storeCast.cast);
-		$[0] = storeCast.cast;
-		$[1] = t1;
-	} else t1 = $[1];
-	const { rows, cols } = t1;
-	let duration;
-	let t2;
-	let t3;
-	let t4;
-	let t5;
-	let t6;
-	let t7;
-	if ($[2] !== storeCast.cast || $[3] !== storeCast.name) {
-		duration = castDuration(storeCast.cast, kIdleTimeLimit);
-		const recorded = castDuration(storeCast.cast);
-		t7 = StoreTerminalSessions_module_default.tile;
-		t5 = StoreTerminalSessions_module_default.tileHeader;
-		let t8;
-		if ($[11] === Symbol.for("react.memo_cache_sentinel")) {
-			t8 = clsx(StoreTerminalSessions_module_default.tileName, "text-size-small");
-			$[11] = t8;
-		} else t8 = $[11];
-		if ($[12] !== storeCast.name) {
-			t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
-				className: t8,
-				children: storeCast.name
-			});
-			$[12] = storeCast.name;
-			$[13] = t6;
-		} else t6 = $[13];
-		t2 = "text-size-smallest text-style-secondary";
-		t3 = recorded > duration ? `Plays in ${formatTime$1(duration)} (pauses over ${kIdleTimeLimit}s shortened); recorded over ${formatTime$1(recorded)}` : void 0;
-		t4 = duration > 0 ? formatTime$1(duration) : "";
-		$[2] = storeCast.cast;
-		$[3] = storeCast.name;
-		$[4] = duration;
-		$[5] = t2;
-		$[6] = t3;
-		$[7] = t4;
-		$[8] = t5;
-		$[9] = t6;
-		$[10] = t7;
-	} else {
-		duration = $[4];
-		t2 = $[5];
-		t3 = $[6];
-		t4 = $[7];
-		t5 = $[8];
-		t6 = $[9];
-		t7 = $[10];
-	}
-	let t8;
-	if ($[14] !== t2 || $[15] !== t3 || $[16] !== t4) {
-		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
-			className: t2,
-			title: t3,
-			children: t4
-		});
-		$[14] = t2;
-		$[15] = t3;
-		$[16] = t4;
-		$[17] = t8;
-	} else t8 = $[17];
-	let t9;
-	if ($[18] !== t5 || $[19] !== t6 || $[20] !== t8) {
-		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: t5,
-			children: [t6, t8]
-		});
-		$[18] = t5;
-		$[19] = t6;
-		$[20] = t8;
-		$[21] = t9;
-	} else t9 = $[21];
-	const t10 = `npt:${duration}`;
-	let t11;
-	if ($[22] === Symbol.for("react.memo_cache_sentinel")) {
-		t11 = {
-			width: "100%",
-			height: "100%"
-		};
-		$[22] = t11;
-	} else t11 = $[22];
-	let t12;
-	if ($[23] !== cols || $[24] !== id || $[25] !== rows || $[26] !== storeCast.cast || $[27] !== t10) {
-		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(AsciinemaPlayer, {
-			id,
-			cast: storeCast.cast,
-			rows,
-			cols,
-			fit: "both",
-			autoPlay: false,
-			controls: false,
-			idleTimeLimit: kIdleTimeLimit,
-			poster: t10,
-			style: t11
-		});
-		$[23] = cols;
-		$[24] = id;
-		$[25] = rows;
-		$[26] = storeCast.cast;
-		$[27] = t10;
-		$[28] = t12;
-	} else t12 = $[28];
-	let t13;
-	if ($[29] === Symbol.for("react.memo_cache_sentinel")) {
-		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
-			className: StoreTerminalSessions_module_default.tilePlay,
-			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "play" })
-		});
-		$[29] = t13;
-	} else t13 = $[29];
-	let t14;
-	if ($[30] !== t12) {
-		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: StoreTerminalSessions_module_default.tilePreview,
-			inert: true,
-			children: [t12, t13]
-		});
-		$[30] = t12;
-		$[31] = t14;
-	} else t14 = $[31];
-	const t15 = `Play terminal ${storeCast.name}`;
-	const t16 = `Play ${storeCast.name}`;
-	let t17;
-	if ($[32] !== buttonId || $[33] !== onOpen || $[34] !== t15 || $[35] !== t16) {
-		t17 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
-			id: buttonId,
-			type: "button",
-			className: StoreTerminalSessions_module_default.tileButton,
-			onClick: onOpen,
-			"aria-label": t15,
-			title: t16
-		});
-		$[32] = buttonId;
-		$[33] = onOpen;
-		$[34] = t15;
-		$[35] = t16;
-		$[36] = t17;
-	} else t17 = $[36];
-	let t18;
-	if ($[37] !== t14 || $[38] !== t17 || $[39] !== t7 || $[40] !== t9) {
-		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: t7,
-			children: [
-				t9,
-				t14,
-				t17
-			]
-		});
-		$[37] = t14;
-		$[38] = t17;
-		$[39] = t7;
-		$[40] = t9;
-		$[41] = t18;
-	} else t18 = $[41];
-	return t18;
-};
-var ExpandedTerminal = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(42);
-	const { id, storeCast, speed, onSpeedChange, onClose } = t0;
-	let t1;
-	if ($[0] !== storeCast.cast) {
-		t1 = castGeometry(storeCast.cast);
-		$[0] = storeCast.cast;
-		$[1] = t1;
-	} else t1 = $[1];
-	const { rows, cols } = t1;
-	const duration = castDuration(storeCast.cast, kIdleTimeLimit);
-	const recorded = castDuration(storeCast.cast);
-	let t2;
-	if ($[2] !== storeCast.cast) {
-		t2 = castMarkers(storeCast.cast, kIdleTimeLimit, kIdleNoteMinGap);
-		$[2] = storeCast.cast;
-		$[3] = t2;
-	} else t2 = $[3];
-	const markers = t2;
-	const overlayRef = (0, import_react.useRef)(null);
-	let t3;
-	if ($[4] !== onClose) {
-		t3 = (e) => {
-			if (e.key === "Escape") {
-				e.stopPropagation();
-				onClose();
-			} else if (e.key === "Tab" && overlayRef.current) trapFocus(e, overlayRef.current);
-		};
-		$[4] = onClose;
-		$[5] = t3;
-	} else t3 = $[5];
-	let t4;
-	if ($[6] === Symbol.for("react.memo_cache_sentinel")) {
-		t4 = { capture: true };
-		$[6] = t4;
-	} else t4 = $[6];
-	useEventListener(window, "keydown", t3, t4);
-	const t5 = import_react_dom.createPortal;
-	const t6 = StoreTerminalSessions_module_default;
-	const t7 = "dialog";
-	const t8 = "true";
-	const t9 = `Terminal ${storeCast.name}`;
-	const t10 = StoreTerminalSessions_module_default;
-	const t11 = StoreTerminalSessions_module_default;
-	let t12;
-	if ($[7] !== storeCast.name) {
-		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
-			className: StoreTerminalSessions_module_default.overlayTitle,
-			children: storeCast.name
-		});
-		$[7] = storeCast.name;
-		$[8] = t12;
-	} else t12 = $[8];
-	const t13 = recorded - duration >= 1 ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
-		className: clsx(StoreTerminalSessions_module_default.overlayNote, "text-size-small"),
-		children: [
-			"Recorded over ",
-			formatTime$1(recorded),
-			" ·",
-			" ",
-			/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
-				className: StoreTerminalSessions_module_default.overlayNoteDetail,
-				children: [
-					"pauses longer than ",
-					kIdleTimeLimit,
-					"s shortened"
-				]
-			})
-		]
-	}) : null;
-	let t14;
-	if ($[9] !== t11.overlayTitleGroup || $[10] !== t12 || $[11] !== t13) {
-		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
-			className: t11.overlayTitleGroup,
-			children: [t12, t13]
-		});
-		$[9] = t11.overlayTitleGroup;
-		$[10] = t12;
-		$[11] = t13;
-		$[12] = t14;
-	} else t14 = $[12];
-	let t15;
-	if ($[13] !== onSpeedChange || $[14] !== speed) {
-		t15 = kPlaybackSpeeds.map((option) => /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
-			type: "button",
-			className: clsx(StoreTerminalSessions_module_default.headerButton, speed === option && StoreTerminalSessions_module_default.headerButtonActive),
-			"aria-pressed": speed === option,
-			onClick: () => onSpeedChange(option),
-			children: [option, "×"]
-		}, option));
-		$[13] = onSpeedChange;
-		$[14] = speed;
-		$[15] = t15;
-	} else t15 = $[15];
-	let t16;
-	if ($[16] !== t15) {
-		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
-			className: StoreTerminalSessions_module_default.overlayControls,
-			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
-				className: StoreTerminalSessions_module_default.speedGroup,
-				role: "group",
-				"aria-label": "Playback speed",
-				children: t15
-			})
-		});
-		$[16] = t15;
-		$[17] = t16;
-	} else t16 = $[17];
-	let t17;
-	if ($[18] === Symbol.for("react.memo_cache_sentinel")) {
-		t17 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "close" });
-		$[18] = t17;
-	} else t17 = $[18];
-	let t18;
-	if ($[19] !== onClose) {
-		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
-			type: "button",
-			className: StoreTerminalSessions_module_default.closeButton,
-			onClick: onClose,
-			title: "Close (Esc)",
-			"aria-label": "Close",
-			children: t17
-		});
-		$[19] = onClose;
-		$[20] = t18;
-	} else t18 = $[20];
-	let t19;
-	if ($[21] !== t10.overlayHeader || $[22] !== t14 || $[23] !== t16 || $[24] !== t18) {
-		t19 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: t10.overlayHeader,
-			children: [
-				t14,
-				t16,
-				t18
-			]
-		});
-		$[21] = t10.overlayHeader;
-		$[22] = t14;
-		$[23] = t16;
-		$[24] = t18;
-		$[25] = t19;
-	} else t19 = $[25];
-	let t20;
-	if ($[26] === Symbol.for("react.memo_cache_sentinel")) {
-		t20 = {
-			width: "100%",
-			height: "100%"
-		};
-		$[26] = t20;
-	} else t20 = $[26];
-	let t21;
-	if ($[27] !== cols || $[28] !== id || $[29] !== markers || $[30] !== rows || $[31] !== speed || $[32] !== storeCast.cast) {
-		t21 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: StoreTerminalSessions_module_default.overlayBody,
-			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(AsciinemaPlayer, {
-				id,
-				cast: storeCast.cast,
-				rows,
-				cols,
-				fit: "both",
-				autoPlay: true,
-				autoFocus: true,
-				clickToToggle: true,
-				controls: true,
-				idleTimeLimit: kIdleTimeLimit,
-				markers,
-				speed,
-				style: t20
-			})
-		});
-		$[27] = cols;
-		$[28] = id;
-		$[29] = markers;
-		$[30] = rows;
-		$[31] = speed;
-		$[32] = storeCast.cast;
-		$[33] = t21;
-	} else t21 = $[33];
-	let t22;
-	if ($[34] !== t19 || $[35] !== t21 || $[36] !== t6.overlay || $[37] !== t9) {
-		t22 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			ref: overlayRef,
-			className: t6.overlay,
-			role: t7,
-			"aria-modal": t8,
-			"aria-label": t9,
-			children: [t19, t21]
-		});
-		$[34] = t19;
-		$[35] = t21;
-		$[36] = t6.overlay;
-		$[37] = t9;
-		$[38] = t22;
-	} else t22 = $[38];
-	let t23;
-	if ($[39] !== t22 || $[40] !== t5) {
-		t23 = t5(t22, document.body);
-		$[39] = t22;
-		$[40] = t5;
-		$[41] = t23;
-	} else t23 = $[41];
-	return t23;
-};
-var kTabbableSelector = "a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex=\"-1\"])";
-var trapFocus = (e, container) => {
-	const tabbables = Array.from(container.querySelectorAll(kTabbableSelector));
-	const first = tabbables[0];
-	const last = tabbables.at(-1);
-	if (!first || !last) return;
-	const active = document.activeElement;
-	const inside = active instanceof Node && container.contains(active);
-	if (e.shiftKey && (!inside || active === first)) {
-		e.preventDefault();
-		last.focus();
-	} else if (!e.shiftKey && (!inside || active === last)) {
-		e.preventDefault();
-		first.focus();
-	}
-};
-var castGeometry = (cast) => {
-	let rows = 24;
-	let cols = 80;
+* The asciicast header (the cast's first line). Geometry falls back to 80x24
+* when the header doesn't parse or doesn't carry it; other fields are left
+* out when absent or mistyped.
+*/ var castHeader = (cast) => {
+	const result = {
+		rows: 24,
+		cols: 80
+	};
 	const newline = cast.indexOf("\n");
 	const headerLine = newline === -1 ? cast : cast.slice(0, newline);
+	let header;
 	try {
-		const header = JSON.parse(headerLine);
-		if (typeof header === "object" && header !== null) {
-			if ("height" in header && typeof header.height === "number") rows = header.height;
-			if ("width" in header && typeof header.width === "number") cols = header.width;
-		}
-	} catch {}
-	return {
-		rows,
-		cols
-	};
-};
-var castDuration = (cast, idleTimeLimit) => {
-	let duration = 0;
-	let previous = 0;
-	for (const line of cast.split("\n").slice(1)) {
-		const time = eventTime(line);
-		if (time === void 0) continue;
-		const gap = Math.max(0, time - previous);
-		duration += idleTimeLimit === void 0 ? gap : Math.min(gap, idleTimeLimit);
-		previous = time;
+		header = JSON.parse(headerLine);
+	} catch {
+		return result;
 	}
-	return duration;
+	if (typeof header !== "object" || header === null) return result;
+	const fields = new Map(Object.entries(header));
+	const number = (name) => {
+		const value = fields.get(name);
+		return typeof value === "number" ? value : void 0;
+	};
+	const text = (name) => {
+		const value = fields.get(name);
+		return typeof value === "string" && value ? value : void 0;
+	};
+	result.rows = number("height") ?? result.rows;
+	result.cols = number("width") ?? result.cols;
+	const timestamp = number("timestamp");
+	const session = text("ir_session");
+	const agentSpanId = text("ir_agent_span_id");
+	const agentName = text("ir_agent");
+	if (timestamp !== void 0) result.timestamp = timestamp;
+	if (session !== void 0) result.session = session;
+	if (agentSpanId !== void 0) result.agentSpanId = agentSpanId;
+	if (agentName !== void 0) result.agentName = agentName;
+	return result;
 };
+/** The cast's events (lines after the header); lines that aren't events are
+*  skipped. */ var castEvents = (cast) => cast.split("\n").slice(1).flatMap((line) => parseEvent(line) ?? []);
 var kCommandMarkerOffset = .01;
-/**
-* The cast's own markers, placed on the playback timeline (every gap capped
-* at `idleTimeLimit`) for the player's `markers` option. When the cast has
-* command ("send …") markers, only those are kept, labeled by the command, so
-* the scrubber (and [ / ] jumps) step through commands, not screen reads. Each
-* sits just after the first output that follows it: the recorded marker is
-* stamped when the command is sent, before the terminal echoes it, so seeking
-* there would hide the command. Think time of at least `minGap` seconds before
-* a marker is noted on its label.
-*/ var castMarkers = (cast, idleTimeLimit, minGap) => {
-	const markers = [];
-	let pending;
-	const flushPending = (time) => {
-		if (pending) {
-			markers.push([time, pending.label]);
-			pending = void 0;
-		}
-	};
-	const events = cast.split("\n").slice(1).flatMap((line) => parseEvent(line) ?? []);
-	const commandsOnly = events.some((event) => event.type === "m" && sentCommand(event.data) !== void 0);
-	let playback = 0;
-	let previous = 0;
-	for (const event of events) {
-		const gap = Math.max(0, event.time - previous);
-		const idle = gap >= minGap ? `${formatTime$1(gap)} idle` : void 0;
-		playback += Math.min(gap, idleTimeLimit);
-		previous = event.time;
-		if (event.type === "m") {
-			const command = sentCommand(event.data);
-			if (commandsOnly && command === void 0) continue;
-			const label = command !== void 0 ? commandLabel(command) : event.data;
-			flushPending(pending?.time ?? playback);
-			pending = {
-				time: playback,
-				label: idle ? `${label} (after ${idle})` : label
-			};
-		} else if (event.type === "o") flushPending(playback + kCommandMarkerOffset);
-	}
-	flushPending(pending?.time ?? playback);
-	return markers;
-};
 var kInputStyleStart = "\x1B[1;38;2;130;170;255m";
 var kInputStyleEnd = "\x1B[22;39m";
 /**
@@ -122878,18 +122908,35 @@ var lineEnd = (text, from) => {
 	const end = text.indexOf("\r\n", from);
 	return end === -1 ? text.length : end;
 };
+/**
+* The terminal tool call a marker label records: `open <session>`,
+* `read <session>`, or `send <session>: '<command>'`; undefined for other
+* labels.
+*/ var terminalMarker = (label) => {
+	const command = sentCommand(label);
+	const send = /^send ([^:]+): /.exec(label);
+	if (command !== void 0 && send?.[1]) return {
+		action: "send",
+		session: send[1],
+		command
+	};
+	const other = /^(open|read) (\S+)$/.exec(label);
+	if (other?.[2] && (other[1] === "open" || other[1] === "read")) return {
+		action: other[1],
+		session: other[2]
+	};
+};
 var sentCommand = (label) => {
 	const match = /^send [^:]+: (['"])([\s\S]*)$/.exec(label);
 	if (!match) return void 0;
 	const [, quote = "", body = ""] = match;
 	return (body.endsWith(quote) ? body.slice(0, -quote.length) : body).replace(/\\(.)/g, (_, c) => c === "n" ? "\n" : c === "t" ? "	" : c);
 };
-var commandLabel = (command) => {
+/** A command's first line, with an ellipsis when more lines follow. */ var commandLabel = (command) => {
 	const lines = command.trimEnd().split("\n");
 	const first = (lines[0] ?? "").trim();
 	return lines.length > 1 ? `${first} …` : first;
 };
-var eventTime = (line) => parseEvent(line)?.time;
 var parseEvent = (line) => {
 	if (!line.trim()) return void 0;
 	try {
@@ -122901,11 +122948,2321 @@ var parseEvent = (line) => {
 		};
 	} catch {}
 };
-function _temp$33(storeCast) {
+var kPulseSeconds = .6;
+var kPlaybackSpeeds = [
+	1,
+	2,
+	4
+];
+var kMaxScreenRows = 1e3;
+/**
+* Places the store casts on one real-time axis. Sessions are grouped into
+* agents by their `ir_agent_span_id` header field; casts without it form one
+* group.
+*/ var buildTerminalSample = (casts, events = []) => {
+	const parsed = Array.isArray(casts) ? parseTerminalCasts(casts).casts : casts.casts;
+	const timestamps = parsed.flatMap(({ header }) => header.timestamp !== void 0 ? [header.timestamp] : []);
+	const origin = timestamps.length > 0 ? Math.min(...timestamps) : 0;
+	const sessions = parsed.map(({ storeCast, header, highlighted, events: castEventList, markers }) => {
+		const start = header.timestamp !== void 0 ? header.timestamp - origin : 0;
+		const length = castEventList.at(-1)?.time ?? 0;
+		const outputLines = castEventList.reduce((count, event) => event.type === "o" ? count + countNewlines(event.data) : count, 0);
+		return {
+			session: {
+				key: storeCast.key,
+				name: header.session ?? markers[0]?.marker.session ?? storeCast.name,
+				cast: highlighted,
+				rows: header.rows,
+				cols: header.cols,
+				screenRows: Math.min(kMaxScreenRows, header.rows + outputLines),
+				start,
+				end: start + length,
+				shownFrom: start,
+				agentId: header.agentSpanId ?? "",
+				output: castEventList.filter((event) => event.type === "o").map(({ time, data }) => ({
+					time,
+					data
+				})).sort((a, b) => a.time - b.time)
+			},
+			header,
+			events: castEventList,
+			markers
+		};
+	}).sort((a, b) => a.session.start - b.session.start || a.session.key.localeCompare(b.session.key));
+	const commands = [];
+	for (const { session, events: castEventList, markers } of sessions) for (const { event, marker } of markers) {
+		const sentAt = session.start + event.time;
+		if (marker.action === "send") {
+			const echo = castEventList.find((candidate) => candidate.type === "o" && candidate.time >= event.time);
+			const nextMarker = castEventList.find((candidate) => candidate.type === "m" && candidate.time > event.time);
+			const echoed = echo && (!nextMarker || echo.time <= nextMarker.time) ? echo.time + kCommandMarkerOffset : event.time;
+			commands.push({
+				sessionKey: session.key,
+				command: marker.command ?? "",
+				sentAt,
+				at: session.start + echoed
+			});
+		}
+	}
+	commands.sort((a, b) => a.at - b.at);
+	const sessionList = shownFrom(sessions.map(({ session }) => session), commands);
+	const duration = Math.max(0, ...sessionList.map((session) => session.end));
+	const knots = buildKnots(sessionList, commands, duration);
+	const agentHeaders = /* @__PURE__ */ new Map();
+	for (const { session, header } of sessions) if (!agentHeaders.has(session.agentId) || header.agentName) agentHeaders.set(session.agentId, header.agentName ?? agentHeaders.get(session.agentId) ?? "agent");
+	const agents = agentTree([...agentHeaders.keys()], events).map(({ id, depth }) => {
+		const agentSessions = sessionList.filter((session) => session.agentId === id);
+		const keys = new Set(agentSessions.map((session) => session.key));
+		const agentCommands = commands.filter((command) => keys.has(command.sessionKey));
+		return {
+			id,
+			name: agentHeaders.get(id) ?? "agent",
+			depth,
+			sessions: agentSessions,
+			commands: agentCommands,
+			focusSegments: focusSegments(agentSessions, agentCommands)
+		};
+	});
 	return {
-		...storeCast,
-		cast: highlightCommandEchoes(storeCast.cast)
+		origin,
+		duration,
+		knots,
+		playbackDuration: knots.at(-1)?.[1] ?? 0,
+		sessions: sessionList,
+		commands,
+		agents
 	};
+};
+var parseTerminalCasts = (casts) => ({ casts: casts.map((storeCast) => {
+	const header = castHeader(storeCast.cast);
+	const castEventList = castEvents(storeCast.cast);
+	const markers = castEventList.flatMap((event) => {
+		const marker = event.type === "m" ? terminalMarker(event.data) : void 0;
+		return marker ? [{
+			event,
+			marker
+		}] : [];
+	});
+	return {
+		storeCast,
+		header,
+		highlighted: highlightCommandEchoes(storeCast.cast),
+		events: castEventList,
+		markers
+	};
+}) });
+var countNewlines = (data) => {
+	let count = 0;
+	for (let i = data.indexOf("\n"); i !== -1; i = data.indexOf("\n", i + 1)) count++;
+	return count;
+};
+var shownFrom = (sessions, commands) => {
+	const shown = [];
+	for (const session of sessions) {
+		const besideVisible = shown.some((other) => other.shownFrom <= session.start && other.end >= session.start && other.agentId === session.agentId);
+		const firstCommand = commands.find((command) => command.sessionKey === session.key);
+		shown.push({
+			...session,
+			shownFrom: besideVisible && firstCommand ? Math.min(firstCommand.at, session.end) : session.start
+		});
+	}
+	return shown;
+};
+var buildKnots = (sessions, commands, duration) => {
+	const times = /* @__PURE__ */ new Set([0, duration]);
+	for (const session of sessions) {
+		times.add(session.start);
+		times.add(session.end);
+		for (const { time } of session.output) times.add(session.start + time);
+	}
+	for (const command of commands) {
+		times.add(command.sentAt);
+		times.add(command.at);
+	}
+	const sorted = [...times].sort((a, b) => a - b);
+	const knots = [];
+	let playback = 0;
+	let previous;
+	for (const time of sorted) {
+		if (previous !== void 0) playback += Math.min(time - previous, 2);
+		knots.push([time, playback]);
+		previous = time;
+	}
+	return knots;
+};
+/** Playback seconds on the shared clock for a real time. */ var realToPlayback = (sample, real) => interpolate(sample.knots, real, 0, 1);
+/** Real seconds for a playback time on the shared clock. */ var playbackToReal = (sample, playback) => interpolate(sample.knots, playback, 1, 0);
+/**
+* The playback times at which something the view derives from the clock
+* changes: each command (and the end of its pulse), each session's start,
+* first showing and end, and the ends of playback. Sorted, without
+* duplicates. Between two adjacent boundaries the view renders the same
+* thing, apart from the readout, playhead and folded snippets, which follow
+* the clock themselves.
+*/ var publishBoundaries = (sample, agent, speed) => {
+	const times = /* @__PURE__ */ new Set([0, sample.playbackDuration]);
+	for (const command of agent.commands) {
+		const at = realToPlayback(sample, command.at);
+		times.add(at);
+		times.add(at + kPulseSeconds * speed);
+	}
+	for (const session of agent.sessions) for (const real of [
+		session.start,
+		session.shownFrom,
+		session.end
+	]) times.add(realToPlayback(sample, real));
+	return [...times].sort((a, b) => a - b);
+};
+/** The interval `from <= playback < to` between adjacent boundaries; past
+*  the last one, `to` is Infinity. */ var publishWindow = (boundaries, playback) => {
+	let from = 0;
+	for (const boundary of boundaries) {
+		if (boundary > playback) return {
+			from,
+			to: boundary
+		};
+		from = boundary;
+	}
+	return {
+		from,
+		to: Infinity
+	};
+};
+var interpolate = (knots, x, from, to) => {
+	const first = knots[0];
+	const last = knots.at(-1);
+	if (!first || !last) return 0;
+	if (x <= first[from]) return first[to];
+	if (x >= last[from]) return last[to];
+	let lo = 0;
+	let hi = knots.length - 1;
+	while (lo < hi - 1) {
+		const mid = lo + hi >> 1;
+		if ((knots[mid]?.[from] ?? 0) <= x) lo = mid;
+		else hi = mid;
+	}
+	const [a, b] = [knots[lo], knots[hi]];
+	if (!a || !b || b[from] === a[from]) return a?.[to] ?? 0;
+	return a[to] + (x - a[from]) / (b[from] - a[from]) * (b[to] - a[to]);
+};
+var sessionPhase = (session, real) => real < session.shownFrom ? "pending" : real > session.end ? "closed" : "open";
+/** The player position for a real time: seconds into the session's own
+*  recording (the players don't shorten idle time). */ var localTime = (session, real) => Math.min(Math.max(real - session.start, 0), session.end - session.start);
+/**
+* The session the agent is working in at a real time: that of its most recent
+* command whose session is still open (commands move focus once their echo
+* has drawn), else its earliest open session; undefined when none is open.
+*/ var focusAt = (agent, real) => {
+	const open = new Set(agent.sessions.filter((session) => sessionPhase(session, real) === "open").map((session) => session.key));
+	for (let i = agent.commands.length - 1; i >= 0; i--) {
+		const command = agent.commands[i];
+		if (command && command.at <= real && open.has(command.sessionKey)) return command.sessionKey;
+	}
+	return agent.sessions.find((session) => open.has(session.key))?.key;
+};
+var focusSegments = (sessions, commands) => {
+	const boundaries = [.../* @__PURE__ */ new Set([...commands.map((command) => command.at), ...sessions.flatMap((session) => [session.shownFrom, session.end])])].sort((a, b) => a - b);
+	const segments = [];
+	for (let i = 0; i < boundaries.length - 1; i++) {
+		const start = boundaries[i] ?? 0;
+		const end = boundaries[i + 1] ?? start;
+		if (end <= start) continue;
+		const sessionKey = focusAt({
+			sessions,
+			commands
+		}, (start + end) / 2);
+		const previous = segments.at(-1);
+		if (sessionKey === void 0) continue;
+		if (previous?.sessionKey === sessionKey && previous.end === start) previous.end = end;
+		else segments.push({
+			sessionKey,
+			start,
+			end
+		});
+	}
+	return segments;
+};
+/** The most recent command sent to a session at or before a real time. */ var lastCommandAt = (commands, sessionKey, real) => {
+	let last;
+	for (const command of commands) {
+		if (command.at > real) break;
+		if (command.sessionKey === sessionKey) last = command;
+	}
+	return last;
+};
+/** The command before or after a real time, across every given session. */ var adjacentCommand = (commands, real, step) => {
+	const epsilon = .05;
+	if (step === 1) return commands.find((command) => command.at > real + epsilon);
+	return commands.findLast((command) => command.at < real - epsilon);
+};
+var kPromptOnly = /^[$#>%]\s*$/;
+var kEchoLine = /^\$ /;
+/** Index of the session's last output chunk at or before a real time (-1
+*  before any). Bisects: a folded row's snippet asks every frame. */ var outputIndexAt = (session, real) => {
+	const local = real - session.start;
+	const { output } = session;
+	let lo = 0;
+	let hi = output.length;
+	while (lo < hi) {
+		const mid = lo + hi >> 1;
+		if ((output[mid]?.time ?? Infinity) <= local) lo = mid + 1;
+		else hi = mid;
+	}
+	return lo - 1;
+};
+/**
+* The last non-empty output line a session had shown by a real time, ANSI
+* stripped, skipping bare prompts and command echoes: what a folded or closed
+* bar shows as its result.
+*/ var resultSnippet = (session, real) => resultSnippetAt(session, outputIndexAt(session, real));
+/** resultSnippet from an output index (outputIndexAt), so a subscriber that
+*  selects the index rescans only when it changes. */ var resultSnippetAt = (session, index) => {
+	for (let i = index; i >= 0; i--) {
+		const chunk = session.output[i];
+		if (!chunk) continue;
+		const lines = stripAnsi(chunk.data).split(/\r?\n|\r/);
+		for (let j = lines.length - 1; j >= 0; j--) {
+			const line = (lines[j] ?? "").trim();
+			if (line && !kPromptOnly.test(line) && !kEchoLine.test(line)) return line;
+		}
+	}
+};
+/**
+* Orders the terminal agents (by their agent span ids) as a spawn tree:
+* depth-first in span start order, each with its depth among these agents
+* (an intermediate agent without terminals doesn't count). Agents whose span
+* isn't in the events keep their order, as roots.
+*/ var agentTree = (agentIds, events) => {
+	const spanParent = /* @__PURE__ */ new Map();
+	const spanOrder = /* @__PURE__ */ new Map();
+	for (const event of events) if (event.event === "span_begin") {
+		spanParent.set(event.id, event.parent_id ?? void 0);
+		spanOrder.set(event.id, spanOrder.size);
+	}
+	const ids = new Set(agentIds);
+	const parentAgent = (id) => {
+		const seen = /* @__PURE__ */ new Set([id]);
+		let parent = spanParent.get(id);
+		while (parent !== void 0 && !ids.has(parent) && !seen.has(parent)) {
+			seen.add(parent);
+			parent = spanParent.get(parent);
+		}
+		return parent !== void 0 && ids.has(parent) ? parent : void 0;
+	};
+	const order = (id) => spanOrder.get(id) ?? spanOrder.size + agentIds.indexOf(id);
+	const children = /* @__PURE__ */ new Map();
+	for (const id of [...agentIds].sort((a, b) => order(a) - order(b))) {
+		const parent = parentAgent(id);
+		children.set(parent, [...children.get(parent) ?? [], id]);
+	}
+	const result = [];
+	const visit = (parent, depth) => {
+		for (const id of children.get(parent) ?? []) {
+			result.push({
+				id,
+				depth
+			});
+			visit(id, depth + 1);
+		}
+	};
+	visit(void 0, 0);
+	const placed = new Set(result.map(({ id }) => id));
+	for (const id of agentIds) if (!placed.has(id)) result.push({
+		id,
+		depth: 0
+	});
+	return result;
+};
+/** Each session's row state at a real time (brief §4.3). A held or focused
+*  session counts as focused even when the user folded it. */ var rowStates = (sessions, real, focusKey, folded) => new Map(sessions.map((session) => {
+	const phase = sessionPhase(session, real);
+	const state = phase !== "open" ? phase : session.key === focusKey ? "focused" : folded.has(session.key) ? "folded" : "open";
+	return [session.key, state];
+}));
+var kFocusFoldThreshold = 16;
+var kFocusFloor = 8;
+/**
+* Brief §4.4: closed rows get a bar, open tails 3 rows, the focused row the
+* rest up to 40; a focus under 16 rows folds the timeline (unless the user
+* pinned it open), and one under 8 holds at 8 and lets the stage scroll;
+* rows past the focus's 40 go to the tails, most recently commanded first.
+*/ var allocateRows = (input) => {
+	const shown = input.rows.filter((row) => row.state !== "pending");
+	const focused = shown.find((row) => row.state === "focused");
+	const tails = shown.filter((row) => row.state === "open");
+	const bodies = (focused ? 1 : 0) + tails.length;
+	const fixed = shown.length * 26 + Math.max(0, shown.length - 1) * 10 + bodies * 14;
+	const freeRows = (folded) => Math.floor((input.stageHeight + (folded ? input.foldGain : 0) - fixed) / input.lineHeight);
+	let timelineFolded = input.timeline === "folded";
+	let available = freeRows(timelineFolded);
+	if (focused && input.timeline === "auto" && available - tails.length * 3 < kFocusFoldThreshold) {
+		timelineFolded = true;
+		available = freeRows(true);
+	}
+	const bodyRows = new Map(input.rows.map((row) => [row.key, 0]));
+	for (const tail of tails) bodyRows.set(tail.key, 3);
+	let scrolls = false;
+	if (focused) {
+		let rows = available - tails.length * 3;
+		if (rows < kFocusFloor) {
+			scrolls = true;
+			rows = kFocusFloor;
+		}
+		const focusRows = Math.min(rows, 40);
+		bodyRows.set(focused.key, focusRows);
+		let extra = rows - focusRows;
+		const byRecency = [...tails].sort((a, b) => (b.lastCommandAt ?? -1) - (a.lastCommandAt ?? -1));
+		for (const tail of byRecency) {
+			if (extra <= 0) break;
+			const grant = Math.min(extra, 37);
+			bodyRows.set(tail.key, 3 + grant);
+			extra -= grant;
+		}
+	} else if (available < tails.length * 3) scrolls = tails.length > 0;
+	return {
+		bodyRows,
+		timelineFolded,
+		scrolls
+	};
+};
+//#endregion
+//#region src/app/samples/terminals/playerSync.ts
+var kSeekIntervalMs = 70;
+var kSeekTolerance = .05;
+var kPinLines = 2;
+var kGestureIdleMs = 150;
+var kGestureEvents = [
+	"wheel",
+	"touchmove",
+	"pointerdown"
+];
+/**
+* Keeps the shared view's players at the master clock's time. The players
+* never play on their own: each is seeked (throttled) to its session's local
+* time. Each row body is a scroll container that follows the newest output
+* until the user scrolls up past a couple of lines, which pins it until they
+* return to the bottom.
+*
+* A player's screen is taller than its output (see screenRows), so the body's
+* clip element (`[data-terminal-clip]`) is cut just below the last non-empty
+* line: the scroll range ends at the output. The clip and the follow are
+* updated from a mutation observer on the player's lines, which runs after
+* the player redraws and before the browser paints, so new output and the
+* scroll position land in the same frame.
+*/ var PlayerSync = class {
+	onLineHeight;
+	onPinned;
+	players = /* @__PURE__ */ new Map();
+	scrollers = /* @__PURE__ */ new Map();
+	seekedTo = /* @__PURE__ */ new Map();
+	lastSync = 0;
+	trailing;
+	lineHeight;
+	constructor(lineHeight, onLineHeight, onPinned) {
+		this.onLineHeight = onLineHeight;
+		this.onPinned = onPinned;
+		this.lineHeight = lineHeight;
+	}
+	/** Registers (or, with null, forgets) a session's player and seeks it. */ setPlayer(key, player, locate) {
+		this.seekedTo.delete(key);
+		if (player) {
+			this.players.set(key, player);
+			this.sync(locate);
+		} else this.players.delete(key);
+	}
+	/** Registers (or forgets) the scroll container holding a session's
+	*  player. A ref callback that changes identity detaches and reattaches
+	*  the same element within one commit, so detaching waits a microtask and
+	*  a reattach keeps the scroller's state (e.g. pinned). */ setScroller(key, element) {
+		const previous = this.scrollers.get(key);
+		if (!element) {
+			if (!previous) return;
+			previous.detaching = true;
+			queueMicrotask(() => {
+				if (this.scrollers.get(key) === previous && previous.detaching) this.removeScroller(key, previous);
+			});
+			return;
+		}
+		if (previous) {
+			if (previous.element === element) {
+				previous.detaching = false;
+				return;
+			}
+			this.removeScroller(key, previous);
+		}
+		const onScroll = () => this.onUserScroll(key);
+		const onGesture = () => this.extendGesture(key);
+		const layout = () => this.layout(key);
+		const resizes = new ResizeObserver(layout);
+		const mutations = new MutationObserver(layout);
+		element.addEventListener("scroll", onScroll, { passive: true });
+		for (const type of kGestureEvents) element.addEventListener(type, onGesture, { passive: true });
+		resizes.observe(element);
+		mutations.observe(element, {
+			childList: true,
+			subtree: true,
+			characterData: true
+		});
+		this.scrollers.set(key, {
+			element,
+			pinned: false,
+			detaching: false,
+			setTop: element.scrollTop,
+			gesture: void 0,
+			dispose: () => {
+				window.clearTimeout(this.scrollers.get(key)?.gesture);
+				element.removeEventListener("scroll", onScroll);
+				for (const type of kGestureEvents) element.removeEventListener(type, onGesture);
+				resizes.disconnect();
+				mutations.disconnect();
+			}
+		});
+	}
+	removeScroller(key, scroller) {
+		scroller.dispose();
+		this.scrollers.delete(key);
+		if (scroller.pinned) this.onPinned(key, false);
+	}
+	/** Unpins a session's body and returns it to the newest output. */ jumpToLatest(key) {
+		const scroller = this.scrollers.get(key);
+		if (!scroller) return;
+		window.clearTimeout(scroller.gesture);
+		scroller.gesture = void 0;
+		this.setPinned(key, scroller, false);
+		this.follow(key);
+	}
+	/** Seeks every player to the clock, at most once per seek interval, with a
+	*  trailing seek so the last position of a drag always lands. */ request(locate) {
+		window.clearTimeout(this.trailing);
+		const wait = kSeekIntervalMs - (performance.now() - this.lastSync);
+		if (wait <= 0) this.sync(locate);
+		else this.trailing = window.setTimeout(() => this.sync(locate), wait);
+	}
+	dispose() {
+		window.clearTimeout(this.trailing);
+		for (const scroller of this.scrollers.values()) scroller.dispose();
+		this.scrollers.clear();
+	}
+	sync(locate) {
+		this.lastSync = performance.now();
+		for (const [key, player] of this.players) {
+			const local = locate(key);
+			if (local === void 0) continue;
+			const previous = this.seekedTo.get(key);
+			if (previous !== void 0 && Math.abs(previous - local) < kSeekTolerance) continue;
+			this.seekedTo.set(key, local);
+			player.seek(local).catch(() => void 0);
+		}
+	}
+	layout(key) {
+		const scroller = this.scrollers.get(key);
+		if (!scroller) return;
+		this.clip(scroller.element);
+		this.follow(key);
+	}
+	follow(key) {
+		const scroller = this.scrollers.get(key);
+		if (!scroller || scroller.pinned || scroller.gesture !== void 0) return;
+		const { element } = scroller;
+		element.scrollTop = element.scrollHeight - element.clientHeight;
+		scroller.setTop = element.scrollTop;
+	}
+	onUserScroll(key) {
+		const scroller = this.scrollers.get(key);
+		if (!scroller) return;
+		const { element } = scroller;
+		const top = element.scrollTop;
+		if (Math.abs(top - scroller.setTop) < 1) return;
+		if (scroller.gesture !== void 0) this.extendGesture(key);
+		const below = element.scrollHeight - element.clientHeight - top;
+		this.setPinned(key, scroller, below > kPinLines * this.lineHeight);
+	}
+	extendGesture(key) {
+		const scroller = this.scrollers.get(key);
+		if (!scroller) return;
+		window.clearTimeout(scroller.gesture);
+		scroller.gesture = window.setTimeout(() => {
+			scroller.gesture = void 0;
+			this.layout(key);
+		}, kGestureIdleMs);
+	}
+	setPinned(key, scroller, pinned) {
+		if (scroller.pinned === pinned) return;
+		scroller.pinned = pinned;
+		this.onPinned(key, pinned);
+	}
+	clip(element) {
+		const clip = element.querySelector("[data-terminal-clip]");
+		const lines = element.querySelectorAll(".ap-line");
+		const first = lines[0];
+		if (!clip || !first) return;
+		const firstTop = first.getBoundingClientRect().top;
+		const lastLine = lines[lines.length - 1];
+		if (lastLine && lines.length > 1) {
+			const pitch = (lastLine.getBoundingClientRect().top - firstTop) / (lines.length - 1);
+			if (pitch > 0 && Math.abs(pitch - this.lineHeight) > .25) {
+				this.lineHeight = pitch;
+				this.onLineHeight(pitch);
+			}
+		}
+		let last = lines.length - 1;
+		while (last > 0 && !lines[last]?.textContent.trim()) last--;
+		const top = firstTop - clip.getBoundingClientRect().top;
+		clip.style.height = `${Math.ceil(top + (last + 1) * this.lineHeight)}px`;
+	}
+};
+//#endregion
+//#region src/app/samples/terminals/terminalClock.ts
+var createTerminalClock = (initial) => createStore(() => ({ playback: initial }));
+/**
+* What `select` derives from the clock, re-rendering the caller only when
+* that changes (compared with Object.is, so `select` returns a primitive).
+*/ var useTerminalClock = (clock, select) => {
+	const $ = (0, import_compiler_runtime.c)(2);
+	let t0;
+	if ($[0] !== select) {
+		t0 = (state) => select(state.playback);
+		$[0] = select;
+		$[1] = t0;
+	} else t0 = $[1];
+	return useStore$1(clock, t0);
+};
+//#endregion
+//#region src/app/samples/terminals/format.ts
+/** A clock readout of seconds: `m:ss`, or `h:mm:ss` from an hour. */ var formatClock = (seconds) => {
+	const total = Math.max(0, Math.round(seconds));
+	const hours = Math.floor(total / 3600);
+	const minutes = Math.floor(total % 3600 / 60);
+	const secs = String(total % 60).padStart(2, "0");
+	return hours > 0 ? `${hours}:${String(minutes).padStart(2, "0")}:${secs}` : `${minutes}:${secs}`;
+};
+//#endregion
+//#region src/app/samples/terminals/TerminalControls.tsx
+var kPeekDelayMs = 150;
+/** The shared view's play button, readout, chips, speed and timeline (brief
+*  §6), in one strip under the stage. */ var TerminalControls = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(57);
+	const { playing, ended, onTogglePlay, clock, sample, speed, onSpeedChange, hold, onFollow, scrubPreview, tools, timelineFolded, onToggleTimeline, foldedTimeline, timeline } = t0;
+	const [peek, setPeek] = (0, import_react.useState)(false);
+	const peekTimer = (0, import_react.useRef)(void 0);
+	let t1;
+	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
+		t1 = () => {
+			window.clearTimeout(peekTimer.current);
+			setPeek(false);
+		};
+		$[0] = t1;
+	} else t1 = $[0];
+	const endPeek = t1;
+	let t2;
+	if ($[1] === Symbol.for("react.memo_cache_sentinel")) {
+		t2 = () => window.clearTimeout(peekTimer.current);
+		$[1] = t2;
+	} else t2 = $[1];
+	useUnmount(t2);
+	let t3;
+	if ($[2] !== peek || $[3] !== timeline || $[4] !== timelineFolded) {
+		t3 = timelineFolded && peek ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: Terminals_module_default.peek,
+			children: timeline
+		}) : null;
+		$[2] = peek;
+		$[3] = timeline;
+		$[4] = timelineFolded;
+		$[5] = t3;
+	} else t3 = $[5];
+	const t4 = playing ? "Pause" : ended ? "Replay" : "Play";
+	const t5 = playing ? "Pause (Space)" : ended ? "Replay" : "Play (Space)";
+	const t6 = playing ? "pause" : ended ? "retry" : "play";
+	let t7;
+	if ($[6] !== t6) {
+		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: t6 });
+		$[6] = t6;
+		$[7] = t7;
+	} else t7 = $[7];
+	let t8;
+	if ($[8] !== onTogglePlay || $[9] !== t4 || $[10] !== t5 || $[11] !== t7) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+			type: "button",
+			className: Terminals_module_default.playButton,
+			onClick: onTogglePlay,
+			"aria-label": t4,
+			title: t5,
+			children: t7
+		});
+		$[8] = onTogglePlay;
+		$[9] = t4;
+		$[10] = t5;
+		$[11] = t7;
+		$[12] = t8;
+	} else t8 = $[12];
+	let t9;
+	if ($[13] !== clock || $[14] !== sample) {
+		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ClockReadout, {
+			clock,
+			sample
+		});
+		$[13] = clock;
+		$[14] = sample;
+		$[15] = t9;
+	} else t9 = $[15];
+	let t10;
+	if ($[16] !== sample || $[17] !== timelineFolded) {
+		t10 = timelineFolded ? null : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: Terminals_module_default.readoutNote,
+			title: `Replays in ${formatClock(sample.playbackDuration)}: stretches where every terminal is idle are shortened to 2 s.`,
+			children: "idle time skipped"
+		});
+		$[16] = sample;
+		$[17] = timelineFolded;
+		$[18] = t10;
+	} else t10 = $[18];
+	let t11;
+	if ($[19] !== hold || $[20] !== onFollow || $[21] !== scrubPreview) {
+		t11 = scrubPreview ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: clsx(Terminals_module_default.chip, Terminals_module_default.scrubChip),
+			children: scrubPreview
+		}) : hold ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+			type: "button",
+			className: clsx(Terminals_module_default.chip, Terminals_module_default.holdChip),
+			onClick: onFollow,
+			title: "Follow the agent again (F)",
+			children: [
+				"holding ",
+				hold.session,
+				hold.agentSession ? ` · agent is in ${hold.agentSession}` : "",
+				" — follow again"
+			]
+		}) : null;
+		$[19] = hold;
+		$[20] = onFollow;
+		$[21] = scrubPreview;
+		$[22] = t11;
+	} else t11 = $[22];
+	let t12;
+	if ($[23] !== foldedTimeline || $[24] !== timelineFolded) {
+		t12 = timelineFolded ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: Terminals_module_default.foldedTimeline,
+			onPointerEnter: () => {
+				window.clearTimeout(peekTimer.current);
+				peekTimer.current = window.setTimeout(() => setPeek(true), kPeekDelayMs);
+			},
+			onPointerLeave: () => window.clearTimeout(peekTimer.current),
+			children: foldedTimeline
+		}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { className: Terminals_module_default.controlSpacer });
+		$[23] = foldedTimeline;
+		$[24] = timelineFolded;
+		$[25] = t12;
+	} else t12 = $[25];
+	let t13;
+	if ($[26] !== onSpeedChange || $[27] !== speed) {
+		t13 = kPlaybackSpeeds.map((option) => /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+			type: "button",
+			className: clsx(Terminals_module_default.speedButton, speed === option && Terminals_module_default.speedButtonActive),
+			"aria-pressed": speed === option,
+			onClick: () => onSpeedChange(option),
+			children: [option, "×"]
+		}, option));
+		$[26] = onSpeedChange;
+		$[27] = speed;
+		$[28] = t13;
+	} else t13 = $[28];
+	let t14;
+	if ($[29] !== t13) {
+		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: Terminals_module_default.speedGroup,
+			role: "group",
+			"aria-label": "Playback speed",
+			children: t13
+		});
+		$[29] = t13;
+		$[30] = t14;
+	} else t14 = $[30];
+	let t15;
+	if ($[31] !== tools) {
+		t15 = tools ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: Terminals_module_default.controlTools,
+			children: tools
+		}) : null;
+		$[31] = tools;
+		$[32] = t15;
+	} else t15 = $[32];
+	let t16;
+	if ($[33] !== onToggleTimeline) {
+		t16 = () => {
+			endPeek();
+			onToggleTimeline();
+		};
+		$[33] = onToggleTimeline;
+		$[34] = t16;
+	} else t16 = $[34];
+	const t17 = timelineFolded ? "Show timeline" : "Fold timeline";
+	const t18 = timelineFolded ? "Show timeline" : "Fold timeline";
+	const t19 = timelineFolded && Terminals_module_default.timelineChevronFolded;
+	let t20;
+	if ($[35] !== t19) {
+		t20 = clsx(Terminals_module_default.timelineChevron, t19);
+		$[35] = t19;
+		$[36] = t20;
+	} else t20 = $[36];
+	let t21;
+	if ($[37] !== t20) {
+		t21 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
+			name: "chevronDown",
+			className: t20
+		});
+		$[37] = t20;
+		$[38] = t21;
+	} else t21 = $[38];
+	let t22;
+	if ($[39] !== t16 || $[40] !== t17 || $[41] !== t18 || $[42] !== t21) {
+		t22 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+			type: "button",
+			className: Terminals_module_default.timelineToggle,
+			onClick: t16,
+			"aria-label": t17,
+			title: t18,
+			children: t21
+		});
+		$[39] = t16;
+		$[40] = t17;
+		$[41] = t18;
+		$[42] = t21;
+		$[43] = t22;
+	} else t22 = $[43];
+	let t23;
+	if ($[44] !== t10 || $[45] !== t11 || $[46] !== t12 || $[47] !== t14 || $[48] !== t15 || $[49] !== t22 || $[50] !== t8 || $[51] !== t9) {
+		t23 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: Terminals_module_default.controlRow,
+			children: [
+				t8,
+				t9,
+				t10,
+				t11,
+				t12,
+				t14,
+				t15,
+				t22
+			]
+		});
+		$[44] = t10;
+		$[45] = t11;
+		$[46] = t12;
+		$[47] = t14;
+		$[48] = t15;
+		$[49] = t22;
+		$[50] = t8;
+		$[51] = t9;
+		$[52] = t23;
+	} else t23 = $[52];
+	const t24 = timelineFolded ? null : timeline;
+	let t25;
+	if ($[53] !== t23 || $[54] !== t24 || $[55] !== t3) {
+		t25 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: Terminals_module_default.controls,
+			onPointerLeave: endPeek,
+			children: [
+				t3,
+				t23,
+				t24
+			]
+		});
+		$[53] = t23;
+		$[54] = t24;
+		$[55] = t3;
+		$[56] = t25;
+	} else t25 = $[56];
+	return t25;
+};
+var ClockReadout = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(13);
+	const { clock, sample } = t0;
+	let t1;
+	if ($[0] !== sample) {
+		t1 = (playback) => Math.round(playbackToReal(sample, playback));
+		$[0] = sample;
+		$[1] = t1;
+	} else t1 = $[1];
+	const seconds = useTerminalClock(clock, t1);
+	let t2;
+	if ($[2] !== seconds) {
+		t2 = formatClock(seconds);
+		$[2] = seconds;
+		$[3] = t2;
+	} else t2 = $[3];
+	let t3;
+	if ($[4] !== t2) {
+		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: Terminals_module_default.readoutElapsed,
+			children: t2
+		});
+		$[4] = t2;
+		$[5] = t3;
+	} else t3 = $[5];
+	let t4;
+	if ($[6] !== sample.duration) {
+		t4 = formatClock(sample.duration);
+		$[6] = sample.duration;
+		$[7] = t4;
+	} else t4 = $[7];
+	let t5;
+	if ($[8] !== t4) {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: Terminals_module_default.readoutTotal,
+			children: ["/ ", t4]
+		});
+		$[8] = t4;
+		$[9] = t5;
+	} else t5 = $[9];
+	let t6;
+	if ($[10] !== t3 || $[11] !== t5) {
+		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: Terminals_module_default.readout,
+			"aria-label": "Elapsed in the run",
+			children: [t3, t5]
+		});
+		$[10] = t3;
+		$[11] = t5;
+		$[12] = t6;
+	} else t6 = $[12];
+	return t6;
+};
+//#endregion
+//#region src/app/samples/terminals/TerminalRow.tsx
+/**
+* One terminal session in the shared view: a bar that names it and its last
+* command, and (when the allocation gives it rows) a bottom-anchored body the
+* shared clock drives.
+*/ var TerminalRow = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(64);
+	const { id, sample, session, clock, state, bodyRows, lineHeight, lastCommand, animate, pulse, onHold, onToggleFold, onFoldHeld, onTogglePlay, onKey, onPlayer, scrollerRef, pinned, onJumpToLatest } = t0;
+	const hasBody = bodyRows > 0;
+	const [flashOnOpen] = (0, import_react.useState)(animate);
+	const showPulse = pulse && state !== "focused" && lastCommand !== void 0;
+	const mainTitle = state === "focused" || state === "closed" ? void 0 : `Focus ${session.name}`;
+	const t1 = state === "focused" && Terminals_module_default.rowFocused;
+	const t2 = state === "open" && Terminals_module_default.rowOpen;
+	const t3 = state === "folded" && Terminals_module_default.rowFolded;
+	const t4 = state === "closed" && Terminals_module_default.rowClosed;
+	let t5;
+	if ($[0] !== t1 || $[1] !== t2 || $[2] !== t3 || $[3] !== t4) {
+		t5 = clsx(Terminals_module_default.row, t1, t2, t3, t4);
+		$[0] = t1;
+		$[1] = t2;
+		$[2] = t3;
+		$[3] = t4;
+		$[4] = t5;
+	} else t5 = $[4];
+	const t6 = session.name;
+	let t7;
+	if ($[5] !== flashOnOpen) {
+		t7 = flashOnOpen ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: Terminals_module_default.barFlash,
+			"aria-hidden": "true"
+		}) : null;
+		$[5] = flashOnOpen;
+		$[6] = t7;
+	} else t7 = $[6];
+	let t8;
+	if ($[7] !== lastCommand || $[8] !== showPulse) {
+		t8 = showPulse ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: Terminals_module_default.barFlash,
+			"aria-hidden": "true"
+		}, lastCommand.at) : null;
+		$[7] = lastCommand;
+		$[8] = showPulse;
+		$[9] = t8;
+	} else t8 = $[9];
+	let t9;
+	if ($[10] !== hasBody || $[11] !== onFoldHeld || $[12] !== onToggleFold || $[13] !== session.name || $[14] !== state) {
+		t9 = state === "focused" && !onFoldHeld ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: Terminals_module_default.chevron,
+			"aria-hidden": "true",
+			children: "▾"
+		}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+			type: "button",
+			className: clsx(Terminals_module_default.barButton, Terminals_module_default.chevron),
+			onClick: onFoldHeld ?? onToggleFold,
+			"aria-expanded": hasBody,
+			"aria-label": `${hasBody ? "Fold" : "Unfold"} ${session.name}`,
+			disabled: state === "closed",
+			children: hasBody ? "▾" : "▸"
+		});
+		$[10] = hasBody;
+		$[11] = onFoldHeld;
+		$[12] = onToggleFold;
+		$[13] = session.name;
+		$[14] = state;
+		$[15] = t9;
+	} else t9 = $[15];
+	let t10;
+	if ($[16] === Symbol.for("react.memo_cache_sentinel")) {
+		t10 = clsx(Terminals_module_default.barButton, Terminals_module_default.barMain);
+		$[16] = t10;
+	} else t10 = $[16];
+	const t11 = state === "closed";
+	let t12;
+	if ($[17] !== session.name) {
+		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: Terminals_module_default.sessionName,
+			children: session.name
+		});
+		$[17] = session.name;
+		$[18] = t12;
+	} else t12 = $[18];
+	let t13;
+	if ($[19] !== session.end || $[20] !== state) {
+		t13 = state === "closed" ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", { children: ["ended ", formatClock(session.end)] }) : null;
+		$[19] = session.end;
+		$[20] = state;
+		$[21] = t13;
+	} else t13 = $[21];
+	let t14;
+	if ($[22] !== lastCommand) {
+		t14 = lastCommand ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: Terminals_module_default.lastCommand,
+			children: ["$ ", commandLabel(lastCommand.command)]
+		}) : null;
+		$[22] = lastCommand;
+		$[23] = t14;
+	} else t14 = $[23];
+	let t15;
+	if ($[24] !== clock || $[25] !== sample || $[26] !== session || $[27] !== state) {
+		t15 = state === "folded" ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LiveSnippet, {
+			clock,
+			sample,
+			session
+		}) : state === "closed" ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Snippet, { text: resultSnippet(session, session.end) }) : null;
+		$[24] = clock;
+		$[25] = sample;
+		$[26] = session;
+		$[27] = state;
+		$[28] = t15;
+	} else t15 = $[28];
+	let t16;
+	if ($[29] !== lastCommand || $[30] !== showPulse) {
+		t16 = showPulse ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: Terminals_module_default.barMeta,
+			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+				className: Terminals_module_default.newCommand,
+				children: "new command"
+			}, lastCommand.at)
+		}) : null;
+		$[29] = lastCommand;
+		$[30] = showPulse;
+		$[31] = t16;
+	} else t16 = $[31];
+	let t17;
+	if ($[32] !== mainTitle || $[33] !== onHold || $[34] !== t11 || $[35] !== t12 || $[36] !== t13 || $[37] !== t14 || $[38] !== t15 || $[39] !== t16) {
+		t17 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+			type: "button",
+			className: t10,
+			onClick: onHold,
+			title: mainTitle,
+			disabled: t11,
+			children: [
+				t12,
+				t13,
+				t14,
+				t15,
+				t16
+			]
+		});
+		$[32] = mainTitle;
+		$[33] = onHold;
+		$[34] = t11;
+		$[35] = t12;
+		$[36] = t13;
+		$[37] = t14;
+		$[38] = t15;
+		$[39] = t16;
+		$[40] = t17;
+	} else t17 = $[40];
+	let t18;
+	if ($[41] !== t17 || $[42] !== t7 || $[43] !== t8 || $[44] !== t9) {
+		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: Terminals_module_default.bar,
+			children: [
+				t7,
+				t8,
+				t9,
+				t17
+			]
+		});
+		$[41] = t17;
+		$[42] = t7;
+		$[43] = t8;
+		$[44] = t9;
+		$[45] = t18;
+	} else t18 = $[45];
+	let t19;
+	if ($[46] !== bodyRows || $[47] !== hasBody || $[48] !== id || $[49] !== lineHeight || $[50] !== onJumpToLatest || $[51] !== onKey || $[52] !== onPlayer || $[53] !== onTogglePlay || $[54] !== pinned || $[55] !== scrollerRef || $[56] !== session) {
+		t19 = hasBody ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TerminalBody, {
+			id,
+			session,
+			height: bodyRows * lineHeight + 14,
+			onTogglePlay,
+			onKey,
+			onPlayer,
+			scrollerRef,
+			pinned,
+			onJumpToLatest
+		}) : null;
+		$[46] = bodyRows;
+		$[47] = hasBody;
+		$[48] = id;
+		$[49] = lineHeight;
+		$[50] = onJumpToLatest;
+		$[51] = onKey;
+		$[52] = onPlayer;
+		$[53] = onTogglePlay;
+		$[54] = pinned;
+		$[55] = scrollerRef;
+		$[56] = session;
+		$[57] = t19;
+	} else t19 = $[57];
+	let t20;
+	if ($[58] !== session.name || $[59] !== state || $[60] !== t18 || $[61] !== t19 || $[62] !== t5) {
+		t20 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t5,
+			"data-session": t6,
+			"data-state": state,
+			children: [t18, t19]
+		});
+		$[58] = session.name;
+		$[59] = state;
+		$[60] = t18;
+		$[61] = t19;
+		$[62] = t5;
+		$[63] = t20;
+	} else t20 = $[63];
+	return t20;
+};
+var Snippet = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(2);
+	const { text } = t0;
+	let t1;
+	if ($[0] !== text) {
+		t1 = text ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: Terminals_module_default.snippet,
+			children: ["· ", text]
+		}) : null;
+		$[0] = text;
+		$[1] = t1;
+	} else t1 = $[1];
+	return t1;
+};
+var LiveSnippet = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(8);
+	const { clock, sample, session } = t0;
+	let t1;
+	if ($[0] !== sample || $[1] !== session) {
+		t1 = (playback) => outputIndexAt(session, playbackToReal(sample, playback));
+		$[0] = sample;
+		$[1] = session;
+		$[2] = t1;
+	} else t1 = $[2];
+	const index = useTerminalClock(clock, t1);
+	let t2;
+	if ($[3] !== index || $[4] !== session) {
+		t2 = resultSnippetAt(session, index);
+		$[3] = index;
+		$[4] = session;
+		$[5] = t2;
+	} else t2 = $[5];
+	let t3;
+	if ($[6] !== t2) {
+		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Snippet, { text: t2 });
+		$[6] = t2;
+		$[7] = t3;
+	} else t3 = $[7];
+	return t3;
+};
+var TerminalBody = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(31);
+	const { id, session, height, onTogglePlay, onKey, onPlayer, scrollerRef, pinned, onJumpToLatest } = t0;
+	const bodyRef = (0, import_react.useRef)(null);
+	let t1;
+	if ($[0] !== onTogglePlay) {
+		t1 = () => {
+			if (window.getSelection()?.toString()) return;
+			onTogglePlay();
+		};
+		$[0] = onTogglePlay;
+		$[1] = t1;
+	} else t1 = $[1];
+	useEventListener(bodyRef, "click", t1);
+	let t2;
+	if ($[2] !== onKey) {
+		t2 = (e) => {
+			e.stopPropagation();
+			onKey(e);
+		};
+		$[2] = onKey;
+		$[3] = t2;
+	} else t2 = $[3];
+	let t3;
+	if ($[4] === Symbol.for("react.memo_cache_sentinel")) {
+		t3 = { capture: true };
+		$[4] = t3;
+	} else t3 = $[4];
+	useEventListener(bodyRef, "keydown", t2, t3);
+	let t4;
+	if ($[5] !== height) {
+		t4 = { height };
+		$[5] = height;
+		$[6] = t4;
+	} else t4 = $[6];
+	let t5;
+	if ($[7] !== scrollerRef) {
+		t5 = (element) => {
+			bodyRef.current = element;
+			scrollerRef(element);
+		};
+		$[7] = scrollerRef;
+		$[8] = t5;
+	} else t5 = $[8];
+	let t6;
+	if ($[9] === Symbol.for("react.memo_cache_sentinel")) {
+		t6 = clsx("ap-default-term-ff", Terminals_module_default.playerCap);
+		$[9] = t6;
+	} else t6 = $[9];
+	const t7 = String(session.cols);
+	let t8;
+	if ($[10] !== t7) {
+		t8 = cssVars({ "--terminal-cols": t7 });
+		$[10] = t7;
+		$[11] = t8;
+	} else t8 = $[11];
+	let t9;
+	if ($[12] !== id || $[13] !== onPlayer || $[14] !== session.cast || $[15] !== session.cols || $[16] !== session.screenRows) {
+		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(AsciinemaPlayer, {
+			id,
+			cast: session.cast,
+			rows: session.screenRows,
+			cols: session.cols,
+			fit: "width",
+			autoPlay: false,
+			controls: false,
+			idleTimeLimit: null,
+			poster: "npt:0",
+			onPlayer
+		});
+		$[12] = id;
+		$[13] = onPlayer;
+		$[14] = session.cast;
+		$[15] = session.cols;
+		$[16] = session.screenRows;
+		$[17] = t9;
+	} else t9 = $[17];
+	let t10;
+	if ($[18] !== t8 || $[19] !== t9) {
+		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t6,
+			"data-terminal-clip": true,
+			style: t8,
+			children: t9
+		});
+		$[18] = t8;
+		$[19] = t9;
+		$[20] = t10;
+	} else t10 = $[20];
+	let t11;
+	if ($[21] !== t10 || $[22] !== t5) {
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			ref: t5,
+			className: Terminals_module_default.body,
+			children: t10
+		});
+		$[21] = t10;
+		$[22] = t5;
+		$[23] = t11;
+	} else t11 = $[23];
+	let t12;
+	if ($[24] !== onJumpToLatest || $[25] !== pinned) {
+		t12 = pinned ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+			type: "button",
+			className: Terminals_module_default.latest,
+			onClick: onJumpToLatest,
+			title: "Follow the newest output again",
+			children: "↓ Latest"
+		}) : null;
+		$[24] = onJumpToLatest;
+		$[25] = pinned;
+		$[26] = t12;
+	} else t12 = $[26];
+	let t13;
+	if ($[27] !== t11 || $[28] !== t12 || $[29] !== t4) {
+		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: Terminals_module_default.bodyFrame,
+			style: t4,
+			children: [t11, t12]
+		});
+		$[27] = t11;
+		$[28] = t12;
+		$[29] = t4;
+		$[30] = t13;
+	} else t13 = $[30];
+	return t13;
+};
+//#endregion
+//#region src/app/samples/terminals/TerminalTimeline.tsx
+var kRulerStep = 300;
+var kRulerMinGap = .05;
+/**
+* One lane per session over the shared clock (brief §6.2): lifetime track,
+* focus segments, a tick per command, and a draggable playhead. The x axis is
+* playback time, so busy stretches get the room.
+*/ var TerminalTimeline = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(41);
+	const { sample, agent, clock, real, focusKey, agentFocusKey, onScrub, onScrubStart, onHold, onSeekCommand } = t0;
+	let t1;
+	if ($[0] !== sample) {
+		t1 = (time) => fraction(sample, time);
+		$[0] = sample;
+		$[1] = t1;
+	} else t1 = $[1];
+	const x = t1;
+	const scrub = useScrub(sample.playbackDuration, onScrub, onScrubStart);
+	const [hovered, setHovered] = (0, import_react.useState)();
+	let t2;
+	if ($[2] !== agent.sessions || $[3] !== agentFocusKey || $[4] !== focusKey || $[5] !== onHold || $[6] !== real) {
+		let t3;
+		if ($[8] !== agentFocusKey || $[9] !== focusKey || $[10] !== onHold || $[11] !== real) {
+			t3 = (session) => {
+				const phase = sessionPhase(session, real);
+				const glyph = session.key === agentFocusKey ? "●" : phase === "open" ? "○" : "·";
+				return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+					type: "button",
+					className: clsx(Terminals_module_default.laneLabel, session.key === focusKey && Terminals_module_default.laneLabelFocused),
+					onClick: () => onHold(session.key),
+					disabled: phase !== "open",
+					title: `Focus ${session.name}`,
+					children: [
+						glyph,
+						" ",
+						session.name
+					]
+				}, session.key);
+			};
+			$[8] = agentFocusKey;
+			$[9] = focusKey;
+			$[10] = onHold;
+			$[11] = real;
+			$[12] = t3;
+		} else t3 = $[12];
+		t2 = agent.sessions.map(t3);
+		$[2] = agent.sessions;
+		$[3] = agentFocusKey;
+		$[4] = focusKey;
+		$[5] = onHold;
+		$[6] = real;
+		$[7] = t2;
+	} else t2 = $[7];
+	let t3;
+	if ($[13] !== t2) {
+		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: Terminals_module_default.laneLabels,
+			children: t2
+		});
+		$[13] = t2;
+		$[14] = t3;
+	} else t3 = $[14];
+	const t4 = 22 + agent.sessions.length * 18;
+	let t5;
+	if ($[15] !== t4) {
+		t5 = { height: t4 };
+		$[15] = t4;
+		$[16] = t5;
+	} else t5 = $[16];
+	let t6;
+	if ($[17] !== sample) {
+		t6 = rulerMarks(sample).map(_temp$35);
+		$[17] = sample;
+		$[18] = t6;
+	} else t6 = $[18];
+	let t7;
+	if ($[19] !== t6) {
+		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: Terminals_module_default.ruler,
+			children: t6
+		});
+		$[19] = t6;
+		$[20] = t7;
+	} else t7 = $[20];
+	let t8;
+	if ($[21] !== agent || $[22] !== onSeekCommand || $[23] !== x) {
+		t8 = agent.sessions.map((session_0, i) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: Terminals_module_default.lane,
+			style: { top: 22 + i * 18 },
+			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SessionLane, {
+				agent,
+				sessionKey: session_0.key,
+				start: x(session_0.start),
+				end: x(session_0.end),
+				x,
+				onSeekCommand,
+				onHover: (command) => setHovered(command ? {
+					command,
+					session: session_0.name,
+					top: 22 + i * 18
+				} : void 0)
+			})
+		}, session_0.key));
+		$[21] = agent;
+		$[22] = onSeekCommand;
+		$[23] = x;
+		$[24] = t8;
+	} else t8 = $[24];
+	let t9;
+	if ($[25] !== clock || $[26] !== sample) {
+		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Playhead, {
+			clock,
+			sample
+		});
+		$[25] = clock;
+		$[26] = sample;
+		$[27] = t9;
+	} else t9 = $[27];
+	let t10;
+	if ($[28] !== hovered || $[29] !== x) {
+		t10 = hovered ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TickChip, {
+			hover: hovered,
+			x
+		}) : null;
+		$[28] = hovered;
+		$[29] = x;
+		$[30] = t10;
+	} else t10 = $[30];
+	let t11;
+	if ($[31] !== scrub || $[32] !== t10 || $[33] !== t5 || $[34] !== t7 || $[35] !== t8 || $[36] !== t9) {
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: Terminals_module_default.track,
+			style: t5,
+			...scrub,
+			children: [
+				t7,
+				t8,
+				t9,
+				t10
+			]
+		});
+		$[31] = scrub;
+		$[32] = t10;
+		$[33] = t5;
+		$[34] = t7;
+		$[35] = t8;
+		$[36] = t9;
+		$[37] = t11;
+	} else t11 = $[37];
+	let t12;
+	if ($[38] !== t11 || $[39] !== t3) {
+		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: Terminals_module_default.timeline,
+			children: [t3, t11]
+		});
+		$[38] = t11;
+		$[39] = t3;
+		$[40] = t12;
+	} else t12 = $[40];
+	return t12;
+};
+var TickChip = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(19);
+	const { hover, x } = t0;
+	let t1;
+	let t2;
+	if ($[0] !== hover.command.at || $[1] !== x) {
+		const at = x(hover.command.at);
+		const t3 = at > .6 && Terminals_module_default.tickChipLeft;
+		if ($[4] !== t3) {
+			t2 = clsx(Terminals_module_default.tickChip, t3);
+			$[4] = t3;
+			$[5] = t2;
+		} else t2 = $[5];
+		t1 = percent(at);
+		$[0] = hover.command.at;
+		$[1] = x;
+		$[2] = t1;
+		$[3] = t2;
+	} else {
+		t1 = $[2];
+		t2 = $[3];
+	}
+	let t3;
+	if ($[6] !== hover.top || $[7] !== t1) {
+		t3 = {
+			left: t1,
+			top: hover.top
+		};
+		$[6] = hover.top;
+		$[7] = t1;
+		$[8] = t3;
+	} else t3 = $[8];
+	const t4 = hover.session;
+	let t5;
+	if ($[9] !== hover.command.at) {
+		t5 = formatClock(hover.command.at);
+		$[9] = hover.command.at;
+		$[10] = t5;
+	} else t5 = $[10];
+	let t6;
+	if ($[11] !== hover.command.command) {
+		t6 = commandLabel(hover.command.command);
+		$[11] = hover.command.command;
+		$[12] = t6;
+	} else t6 = $[12];
+	let t7;
+	if ($[13] !== hover.session || $[14] !== t2 || $[15] !== t3 || $[16] !== t5 || $[17] !== t6) {
+		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: t2,
+			style: t3,
+			children: [
+				t4,
+				" · ",
+				t5,
+				" · $",
+				" ",
+				t6
+			]
+		});
+		$[13] = hover.session;
+		$[14] = t2;
+		$[15] = t3;
+		$[16] = t5;
+		$[17] = t6;
+		$[18] = t7;
+	} else t7 = $[18];
+	return t7;
+};
+/** The folded timeline (brief §6.3): the focused session's lane alone, inline
+*  in the control row. */ var FoldedTimeline = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(24);
+	const { sample, agent, clock, focusKey, onScrub, onScrubStart, onSeekCommand } = t0;
+	let t1;
+	if ($[0] !== sample) {
+		t1 = (time) => fraction(sample, time);
+		$[0] = sample;
+		$[1] = t1;
+	} else t1 = $[1];
+	const x = t1;
+	const scrub = useScrub(sample.playbackDuration, onScrub, onScrubStart);
+	let t2;
+	let t3;
+	let t4;
+	let t5;
+	if ($[2] !== agent || $[3] !== focusKey || $[4] !== onSeekCommand || $[5] !== scrub || $[6] !== x) {
+		let t6;
+		if ($[11] !== focusKey) {
+			t6 = (session) => session.key === focusKey;
+			$[11] = focusKey;
+			$[12] = t6;
+		} else t6 = $[12];
+		const focused = agent.sessions.find(t6);
+		t5 = focused ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: Terminals_module_default.foldedFocus,
+			children: ["● ", focused.name]
+		}) : null;
+		t2 = Terminals_module_default.foldedTrack;
+		t3 = scrub;
+		t4 = focused ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: Terminals_module_default.lane,
+			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SessionLane, {
+				agent,
+				sessionKey: focused.key,
+				start: x(focused.start),
+				end: x(focused.end),
+				x,
+				onSeekCommand
+			})
+		}) : null;
+		$[2] = agent;
+		$[3] = focusKey;
+		$[4] = onSeekCommand;
+		$[5] = scrub;
+		$[6] = x;
+		$[7] = t2;
+		$[8] = t3;
+		$[9] = t4;
+		$[10] = t5;
+	} else {
+		t2 = $[7];
+		t3 = $[8];
+		t4 = $[9];
+		t5 = $[10];
+	}
+	let t6;
+	if ($[13] !== clock || $[14] !== sample) {
+		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Playhead, {
+			clock,
+			sample
+		});
+		$[13] = clock;
+		$[14] = sample;
+		$[15] = t6;
+	} else t6 = $[15];
+	let t7;
+	if ($[16] !== t2 || $[17] !== t3 || $[18] !== t4 || $[19] !== t6) {
+		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t2,
+			...t3,
+			children: [t4, t6]
+		});
+		$[16] = t2;
+		$[17] = t3;
+		$[18] = t4;
+		$[19] = t6;
+		$[20] = t7;
+	} else t7 = $[20];
+	let t8;
+	if ($[21] !== t5 || $[22] !== t7) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [t5, t7] });
+		$[21] = t5;
+		$[22] = t7;
+		$[23] = t8;
+	} else t8 = $[23];
+	return t8;
+};
+var SessionLane = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(31);
+	const { agent, sessionKey, start, end, x, onSeekCommand, onHover } = t0;
+	let t1;
+	if ($[0] !== start) {
+		t1 = percent(start);
+		$[0] = start;
+		$[1] = t1;
+	} else t1 = $[1];
+	const t2 = end - start;
+	let t3;
+	if ($[2] !== t2) {
+		t3 = percent(t2);
+		$[2] = t2;
+		$[3] = t3;
+	} else t3 = $[3];
+	let t4;
+	if ($[4] !== t1 || $[5] !== t3) {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: Terminals_module_default.lifetime,
+			style: {
+				left: t1,
+				width: t3
+			}
+		});
+		$[4] = t1;
+		$[5] = t3;
+		$[6] = t4;
+	} else t4 = $[6];
+	let t5;
+	if ($[7] !== agent.focusSegments || $[8] !== sessionKey || $[9] !== x) {
+		let t6;
+		if ($[11] !== sessionKey) {
+			t6 = (segment) => segment.sessionKey === sessionKey;
+			$[11] = sessionKey;
+			$[12] = t6;
+		} else t6 = $[12];
+		let t7;
+		if ($[13] !== x) {
+			t7 = (segment_0) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+				className: Terminals_module_default.focusSegment,
+				style: {
+					left: percent(x(segment_0.start)),
+					width: percent(x(segment_0.end) - x(segment_0.start))
+				}
+			}, segment_0.start);
+			$[13] = x;
+			$[14] = t7;
+		} else t7 = $[14];
+		t5 = agent.focusSegments.filter(t6).map(t7);
+		$[7] = agent.focusSegments;
+		$[8] = sessionKey;
+		$[9] = x;
+		$[10] = t5;
+	} else t5 = $[10];
+	let t6;
+	if ($[15] !== agent.commands || $[16] !== onHover || $[17] !== onSeekCommand || $[18] !== sessionKey || $[19] !== x) {
+		let t7;
+		if ($[21] !== sessionKey) {
+			t7 = (command) => command.sessionKey === sessionKey;
+			$[21] = sessionKey;
+			$[22] = t7;
+		} else t7 = $[22];
+		let t8;
+		if ($[23] !== onHover || $[24] !== onSeekCommand || $[25] !== x) {
+			t8 = (command_0) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+				className: Terminals_module_default.tick,
+				style: { left: percent(x(command_0.at)) },
+				title: onHover ? void 0 : `${formatClock(command_0.at)} · $ ${commandLabel(command_0.command)}`,
+				onPointerEnter: () => onHover?.(command_0),
+				onPointerLeave: () => onHover?.(void 0),
+				onPointerDown: (e) => {
+					e.stopPropagation();
+					onSeekCommand(command_0);
+				}
+			}, command_0.at);
+			$[23] = onHover;
+			$[24] = onSeekCommand;
+			$[25] = x;
+			$[26] = t8;
+		} else t8 = $[26];
+		t6 = agent.commands.filter(t7).map(t8);
+		$[15] = agent.commands;
+		$[16] = onHover;
+		$[17] = onSeekCommand;
+		$[18] = sessionKey;
+		$[19] = x;
+		$[20] = t6;
+	} else t6 = $[20];
+	let t7;
+	if ($[27] !== t4 || $[28] !== t5 || $[29] !== t6) {
+		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+			t4,
+			t5,
+			t6
+		] });
+		$[27] = t4;
+		$[28] = t5;
+		$[29] = t6;
+		$[30] = t7;
+	} else t7 = $[30];
+	return t7;
+};
+var Playhead = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(6);
+	const { clock, sample } = t0;
+	let t1;
+	if ($[0] !== sample.playbackDuration) {
+		t1 = (playback) => sample.playbackDuration > 0 ? Math.round(playback / sample.playbackDuration * 1e4) / 1e4 : 0;
+		$[0] = sample.playbackDuration;
+		$[1] = t1;
+	} else t1 = $[1];
+	const at = useTerminalClock(clock, t1);
+	let t2;
+	if ($[2] !== at) {
+		t2 = percent(at);
+		$[2] = at;
+		$[3] = t2;
+	} else t2 = $[3];
+	let t3;
+	if ($[4] !== t2) {
+		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: Terminals_module_default.playhead,
+			style: { left: t2 }
+		});
+		$[4] = t2;
+		$[5] = t3;
+	} else t3 = $[5];
+	return t3;
+};
+var fraction = (sample, real) => sample.playbackDuration > 0 ? realToPlayback(sample, real) / sample.playbackDuration : 0;
+var percent = (value) => `${value * 100}%`;
+var rulerMarks = (sample) => {
+	const end = {
+		time: sample.duration,
+		at: 1,
+		end: true
+	};
+	const marks = [];
+	for (let time = 0; time < sample.duration; time += kRulerStep) {
+		const at = fraction(sample, time);
+		const previous = marks.at(-1);
+		if (previous && at - previous.at < kRulerMinGap) continue;
+		if (end.at - at < kRulerMinGap) break;
+		marks.push({
+			time,
+			at
+		});
+	}
+	return [...marks, end];
+};
+var useScrub = (playbackDuration, onScrub, onScrubStart) => {
+	const $ = (0, import_compiler_runtime.c)(13);
+	const dragging = (0, import_react.useRef)(false);
+	let t0;
+	if ($[0] !== onScrub || $[1] !== playbackDuration) {
+		t0 = (e) => {
+			const rect = e.currentTarget.getBoundingClientRect();
+			onScrub(Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1) * playbackDuration);
+		};
+		$[0] = onScrub;
+		$[1] = playbackDuration;
+		$[2] = t0;
+	} else t0 = $[2];
+	const scrubTo = t0;
+	let t1;
+	if ($[3] !== onScrubStart || $[4] !== scrubTo) {
+		t1 = (e_0) => {
+			dragging.current = true;
+			e_0.currentTarget.setPointerCapture(e_0.pointerId);
+			onScrubStart();
+			scrubTo(e_0);
+		};
+		$[3] = onScrubStart;
+		$[4] = scrubTo;
+		$[5] = t1;
+	} else t1 = $[5];
+	let t2;
+	if ($[6] !== scrubTo) {
+		t2 = (e_1) => {
+			if (dragging.current) scrubTo(e_1);
+		};
+		$[6] = scrubTo;
+		$[7] = t2;
+	} else t2 = $[7];
+	let t3;
+	let t4;
+	if ($[8] === Symbol.for("react.memo_cache_sentinel")) {
+		t3 = () => {
+			dragging.current = false;
+		};
+		t4 = () => {
+			dragging.current = false;
+		};
+		$[8] = t3;
+		$[9] = t4;
+	} else {
+		t3 = $[8];
+		t4 = $[9];
+	}
+	let t5;
+	if ($[10] !== t1 || $[11] !== t2) {
+		t5 = {
+			onPointerDown: t1,
+			onPointerMove: t2,
+			onPointerUp: t3,
+			onPointerCancel: t4
+		};
+		$[10] = t1;
+		$[11] = t2;
+		$[12] = t5;
+	} else t5 = $[12];
+	return t5;
+};
+function _temp$35(t0) {
+	const { time: time_0, at, end } = t0;
+	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+		className: clsx(Terminals_module_default.rulerLabel, end && Terminals_module_default.rulerLabelEnd),
+		style: { left: percent(at) },
+		children: formatClock(time_0)
+	}, time_0);
+}
+//#endregion
+//#region src/app/samples/terminals/TerminalsView.tsx
+var kFocusSwitchMs = 400;
+var kDefaultLineHeight = 19.5;
+var kMinViewHeight = 420;
+var kStagePadding = 16;
+var kFoldedControlsHeight = 37;
+var kTimelineBaseHeight = 22;
+var kTimelineLaneHeight = 18;
+/**
+* Every terminal session of a sample, stacked full width and driven by one
+* master clock: idle time is shortened only while every terminal is idle, the
+* agent's active session gets the rows, and a timeline below shows each
+* session's lifetime, focus and commands. (Design brief:
+* design/inspect-multiterminal-design-brief in inspect_ai.)
+*/ var TerminalsView = (props) => {
+	const $ = (0, import_compiler_runtime.c)(6);
+	let t0;
+	if ($[0] !== props.agentId || $[1] !== props.sample.agents) {
+		t0 = props.sample.agents.find((candidate) => candidate.id === props.agentId) ?? props.sample.agents[0];
+		$[0] = props.agentId;
+		$[1] = props.sample.agents;
+		$[2] = t0;
+	} else t0 = $[2];
+	const agent = t0;
+	let t1;
+	if ($[3] !== agent || $[4] !== props) {
+		t1 = agent ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SharedTerminals, {
+			...props,
+			agent
+		}) : null;
+		$[3] = agent;
+		$[4] = props;
+		$[5] = t1;
+	} else t1 = $[5];
+	return t1;
+};
+var SharedTerminals = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(92);
+	const { id, sample, agent, scrollRef, fill, onFullscreen, resume, onSuspend } = t0;
+	const rootRef = (0, import_react.useRef)(null);
+	const setTerminalsViewOpen = useStore(_temp$34);
+	let t1;
+	if ($[0] !== setTerminalsViewOpen) {
+		t1 = () => {
+			setTerminalsViewOpen(true);
+			return () => setTerminalsViewOpen(false);
+		};
+		$[0] = setTerminalsViewOpen;
+		$[1] = t1;
+	} else t1 = $[1];
+	useMountEffect(t1);
+	const space = useSpaceBelow(rootRef, scrollRef);
+	const rootHeight = useElementHeight(rootRef, fill !== void 0);
+	const [playback, setPlaybackState] = (0, import_react.useState)(resume?.playback ?? 0);
+	const [playing, setPlaying] = (0, import_react.useState)(resume?.playing ?? true);
+	const [speed, setSpeed] = (0, import_react.useState)(1);
+	const [held, setHeld] = (0, import_react.useState)();
+	let t2;
+	if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
+		t2 = /* @__PURE__ */ new Set();
+		$[2] = t2;
+	} else t2 = $[2];
+	const [folded, setFolded] = (0, import_react.useState)(t2);
+	const [timelineOverride, setTimelineOverride] = (0, import_react.useState)();
+	const [scrubLayout, setScrubLayout] = (0, import_react.useState)();
+	const scrubbing = scrubLayout !== void 0;
+	const [playingFocus, setPlayingFocus] = (0, import_react.useState)();
+	const [lineHeight, setLineHeight] = (0, import_react.useState)(kDefaultLineHeight);
+	let t3;
+	if ($[3] === Symbol.for("react.memo_cache_sentinel")) {
+		t3 = /* @__PURE__ */ new Set();
+		$[3] = t3;
+	} else t3 = $[3];
+	const [pinned, setPinned] = (0, import_react.useState)(t3);
+	let t4;
+	if ($[4] !== playback) {
+		t4 = () => createTerminalClock(playback);
+		$[4] = playback;
+		$[5] = t4;
+	} else t4 = $[5];
+	const [clock] = (0, import_react.useState)(t4);
+	const lastSwitchRef = (0, import_react.useRef)(0);
+	let t5;
+	if ($[6] === Symbol.for("react.memo_cache_sentinel")) {
+		t5 = () => new PlayerSync(kDefaultLineHeight, setLineHeight, (key, isPinned) => setPinned((current) => {
+			const next = new Set(current);
+			if (isPinned) next.add(key);
+			else next.delete(key);
+			return next;
+		}));
+		$[6] = t5;
+	} else t5 = $[6];
+	const [players] = (0, import_react.useState)(t5);
+	let t6;
+	if ($[7] !== clock || $[8] !== onSuspend || $[9] !== players || $[10] !== playing) {
+		t6 = () => {
+			players.dispose();
+			onSuspend?.({
+				playback: clock.getState().playback,
+				playing
+			});
+		};
+		$[7] = clock;
+		$[8] = onSuspend;
+		$[9] = players;
+		$[10] = playing;
+		$[11] = t6;
+	} else t6 = $[11];
+	useUnmount(t6);
+	let t7;
+	if ($[12] !== clock || $[13] !== sample) {
+		t7 = (key_0) => {
+			const session = sample.sessions.find((candidate) => candidate.key === key_0);
+			return session ? localTime(session, playbackToReal(sample, clock.getState().playback)) : void 0;
+		};
+		$[12] = clock;
+		$[13] = sample;
+		$[14] = t7;
+	} else t7 = $[14];
+	const locate = t7;
+	let t8;
+	if ($[15] !== agent || $[16] !== playback || $[17] !== sample || $[18] !== speed) {
+		t8 = publishWindow(publishBoundaries(sample, agent, speed), playback);
+		$[15] = agent;
+		$[16] = playback;
+		$[17] = sample;
+		$[18] = speed;
+		$[19] = t8;
+	} else t8 = $[19];
+	const published = t8;
+	let t9;
+	if ($[20] !== clock) {
+		t9 = () => setPlaybackState(clock.getState().playback);
+		$[20] = clock;
+		$[21] = t9;
+	} else t9 = $[21];
+	const publish = t9;
+	const seek = (next_0) => {
+		setClock(next_0);
+		publish();
+	};
+	const setClock = (next_1) => {
+		clock.setState({ playback: Math.min(Math.max(next_1, 0), sample.playbackDuration) });
+		const now = clock.getState().playback;
+		if (now < published.from || now >= published.to) publish();
+		players.request(locate);
+		if (held !== void 0 && focusAt(agent, playbackToReal(sample, now)) === held) setHeld(void 0);
+	};
+	useAnimationFrameLoop((elapsed, now_0) => {
+		setClock(clock.getState().playback + elapsed * speed);
+		if (clock.getState().playback >= sample.playbackDuration) setPlaying(false);
+		const clockReal = playbackToReal(sample, clock.getState().playback);
+		const target = focusAt(agent, clockReal);
+		if (target !== playingFocus && now_0 - lastSwitchRef.current >= kFocusSwitchMs) {
+			lastSwitchRef.current = now_0;
+			setPlayingFocus(target);
+		}
+	}, playing);
+	const real = playbackToReal(sample, playback);
+	const ended = playback >= sample.playbackDuration;
+	const settledFocus = agent.sessions.find((session_0) => session_0.key === playingFocus && sessionPhase(session_0, real) === "open");
+	const agentFocus = playing && settledFocus ? settledFocus.key : focusAt(agent, real);
+	const heldSession = agent.sessions.find((session_1) => session_1.key === held && sessionPhase(session_1, real) === "open");
+	const focusKey = heldSession?.key ?? agentFocus;
+	const liveStates = rowStates(agent.sessions, real, focusKey, folded);
+	const lastCommands = new Map(agent.sessions.map((session_2) => [session_2.key, lastCommandAt(agent.commands, session_2.key, real)]));
+	const viewHeight = Math.max(fill ? rootHeight : space, kMinViewHeight);
+	const timelineHeight = kTimelineBaseHeight + agent.sessions.length * kTimelineLaneHeight;
+	const allocate = (timeline) => allocateRows({
+		rows: agent.sessions.map((session_3) => ({
+			key: session_3.key,
+			state: liveStates.get(session_3.key) ?? "pending",
+			lastCommandAt: lastCommands.get(session_3.key)?.at
+		})),
+		stageHeight: viewHeight - kFoldedControlsHeight - timelineHeight - kStagePadding,
+		foldGain: timelineHeight,
+		lineHeight,
+		timeline
+	});
+	const autoAllocation = allocate("auto");
+	const liveAllocation = timelineOverride?.auto === autoAllocation.timelineFolded ? allocate(timelineOverride.folded ? "folded" : "unfolded") : autoAllocation;
+	const { states, allocation } = scrubLayout ?? {
+		states: liveStates,
+		allocation: liveAllocation
+	};
+	const togglePlay = () => {
+		if (playing) {
+			setPlaying(false);
+			publish();
+		} else {
+			if (ended) seek(0);
+			setPlayingFocus(ended ? void 0 : agentFocus);
+			setPlaying(true);
+		}
+	};
+	const endScrub = () => {
+		if (!scrubbing) return;
+		setScrubLayout(void 0);
+		publish();
+		if (ended) return;
+		setPlayingFocus(agentFocus);
+		setPlaying(true);
+	};
+	const hold = (key_1) => {
+		setHeld(key_1 === focusAt(agent, real) ? void 0 : key_1);
+	};
+	let t10;
+	if ($[22] === Symbol.for("react.memo_cache_sentinel")) {
+		t10 = () => setHeld(void 0);
+		$[22] = t10;
+	} else t10 = $[22];
+	const follow = t10;
+	const seekToCommand = (command) => {
+		setHeld(void 0);
+		seek(realToPlayback(sample, command.at));
+	};
+	let t11;
+	if ($[23] !== fill || $[24] !== onFullscreen) {
+		t11 = fill ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [fill.tools, /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+			type: "button",
+			className: Terminals_module_default.fullscreenButton,
+			onClick: fill.onExit,
+			"aria-label": "Exit fullscreen",
+			title: "Exit fullscreen (Esc)",
+			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "fullscreenExit" })
+		})] }) : onFullscreen ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+			type: "button",
+			className: Terminals_module_default.fullscreenButton,
+			onClick: onFullscreen,
+			"aria-label": "Show terminals fullscreen",
+			title: "Fullscreen",
+			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "fullscreen" })
+		}) : void 0;
+		$[23] = fill;
+		$[24] = onFullscreen;
+		$[25] = t11;
+	} else t11 = $[25];
+	const viewTools = t11;
+	let t12;
+	if ($[26] !== folded) {
+		t12 = (key_2) => {
+			const next_2 = new Set(folded);
+			if (!next_2.delete(key_2)) next_2.add(key_2);
+			setFolded(next_2);
+		};
+		$[26] = folded;
+		$[27] = t12;
+	} else t12 = $[27];
+	const toggleFold = t12;
+	let t13;
+	if ($[28] !== folded) {
+		t13 = (key_3) => {
+			setFolded(new Set(folded).add(key_3));
+			setHeld(void 0);
+		};
+		$[28] = folded;
+		$[29] = t13;
+	} else t13 = $[29];
+	const foldHeld = t13;
+	const stepCommand = (step) => {
+		const clockReal_0 = playbackToReal(sample, clock.getState().playback);
+		const command_0 = adjacentCommand(agent.commands, clockReal_0, step);
+		if (command_0) seek(realToPlayback(sample, command_0.at));
+	};
+	const holdAdjacent = (step_0) => {
+		const open = agent.sessions.filter((session_4) => sessionPhase(session_4, real) === "open");
+		const next_3 = open[open.findIndex((session_5) => session_5.key === focusKey) + step_0];
+		if (next_3) hold(next_3.key);
+	};
+	const ownsKeys = (target_0) => target_0 === document.body || target_0 === scrollRef.current || target_0 instanceof Node && (rootRef.current?.contains(target_0) ?? false);
+	const onKey = (e) => {
+		if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
+		if (e.key === "Escape") {
+			if (fill && !isEditable(e.target)) {
+				e.preventDefault();
+				fill.onExit();
+			}
+			return;
+		}
+		if (isEditable(e.target) || !ownsKeys(e.target)) return;
+		const onButton = e.target instanceof HTMLButtonElement;
+		if (e.key === " ") {
+			e.preventDefault();
+			togglePlay();
+		} else if (e.key === "f" || e.key === "F") follow();
+		else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+			e.preventDefault();
+			holdAdjacent(e.key === "ArrowUp" ? -1 : 1);
+		} else if (e.key === "[" || e.key === "]") stepCommand(e.key === "[" ? -1 : 1);
+		else if (e.key === "Enter" && !onButton && heldSession) {
+			e.preventDefault();
+			foldHeld(heldSession.key);
+		}
+	};
+	useEventListener(document, "pointerup", endScrub);
+	useEventListener(document, "pointercancel", endScrub);
+	useEventListener(document, "keydown", onKey);
+	const pulseSince = playbackToReal(sample, playback - kPulseSeconds * speed);
+	const heldName = heldSession?.name;
+	const focusSession = agent.sessions.find((session_6) => session_6.key === focusKey);
+	const focusCommand = focusKey ? lastCommands.get(focusKey) : void 0;
+	const scrubPreview = scrubbing ? [
+		focusSession ? `${focusSession.name} focused` : void 0,
+		focusCommand ? `$ ${commandLabel(focusCommand.command)}` : void 0,
+		`${agent.sessions.filter((session_7) => sessionPhase(session_7, real) === "open").length} open`
+	].filter(_temp2$28).join(" · ") : void 0;
+	let t14;
+	if ($[30] !== allocation || $[31] !== states) {
+		t14 = () => {
+			setPlaying(false);
+			setScrubLayout({
+				states,
+				allocation
+			});
+		};
+		$[30] = allocation;
+		$[31] = states;
+		$[32] = t14;
+	} else t14 = $[32];
+	let t15;
+	if ($[33] !== agent || $[34] !== agentFocus || $[35] !== clock || $[36] !== focusKey || $[37] !== hold || $[38] !== real || $[39] !== sample || $[40] !== seekToCommand || $[41] !== setClock || $[42] !== t14) {
+		t15 = {
+			sample,
+			agent,
+			clock,
+			real,
+			focusKey,
+			agentFocusKey: agentFocus,
+			onScrub: setClock,
+			onScrubStart: t14,
+			onHold: hold,
+			onSeekCommand: seekToCommand
+		};
+		$[33] = agent;
+		$[34] = agentFocus;
+		$[35] = clock;
+		$[36] = focusKey;
+		$[37] = hold;
+		$[38] = real;
+		$[39] = sample;
+		$[40] = seekToCommand;
+		$[41] = setClock;
+		$[42] = t14;
+		$[43] = t15;
+	} else t15 = $[43];
+	const timelineProps = t15;
+	let t16;
+	if ($[44] !== agent.sessions || $[45] !== agentFocus) {
+		t16 = agent.sessions.find((session_8) => session_8.key === agentFocus)?.name;
+		$[44] = agent.sessions;
+		$[45] = agentFocus;
+		$[46] = t16;
+	} else t16 = $[46];
+	const agentName = t16;
+	const t17 = fill && Terminals_module_default.viewFill;
+	let t18;
+	if ($[47] !== t17) {
+		t18 = clsx(Terminals_module_default.view, t17);
+		$[47] = t17;
+		$[48] = t18;
+	} else t18 = $[48];
+	let t19;
+	if ($[49] !== fill || $[50] !== viewHeight) {
+		t19 = fill ? void 0 : { maxHeight: viewHeight };
+		$[49] = fill;
+		$[50] = viewHeight;
+		$[51] = t19;
+	} else t19 = $[51];
+	const t20 = fill ? "region" : void 0;
+	const t21 = fill ? "Terminals fullscreen" : void 0;
+	const t22 = allocation.scrolls && Terminals_module_default.stageScrolls;
+	let t23;
+	if ($[52] !== t22) {
+		t23 = clsx(Terminals_module_default.stage, t22);
+		$[52] = t22;
+		$[53] = t23;
+	} else t23 = $[53];
+	const t24 = agent.sessions.map((session_9) => {
+		const state_0 = states.get(session_9.key);
+		if (!state_0 || state_0 === "pending") return null;
+		const key_4 = session_9.key;
+		return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TerminalRow, {
+			id: `${id}-${session_9.name}`,
+			sample,
+			session: session_9,
+			clock,
+			state: state_0,
+			bodyRows: allocation.bodyRows.get(key_4) ?? 0,
+			lineHeight,
+			lastCommand: lastCommands.get(key_4),
+			animate: playing,
+			pulse: playing && heldSession !== void 0 && (lastCommands.get(key_4)?.at ?? -1) >= pulseSince,
+			onHold: () => hold(key_4),
+			onToggleFold: () => toggleFold(key_4),
+			onFoldHeld: heldSession?.key === key_4 ? () => foldHeld(key_4) : void 0,
+			onTogglePlay: togglePlay,
+			onKey,
+			onPlayer: (player) => players.setPlayer(key_4, player, locate),
+			scrollerRef: (scroller) => players.setScroller(key_4, scroller),
+			pinned: pinned.has(key_4),
+			onJumpToLatest: () => players.jumpToLatest(key_4)
+		}, key_4);
+	});
+	let t25;
+	if ($[54] !== t23 || $[55] !== t24) {
+		t25 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t23,
+			children: t24
+		});
+		$[54] = t23;
+		$[55] = t24;
+		$[56] = t25;
+	} else t25 = $[56];
+	let t26;
+	if ($[57] !== publish) {
+		t26 = (next_4) => {
+			setSpeed(next_4);
+			publish();
+		};
+		$[57] = publish;
+		$[58] = t26;
+	} else t26 = $[58];
+	let t27;
+	if ($[59] !== agentName || $[60] !== heldName) {
+		t27 = heldName ? {
+			session: heldName,
+			agentSession: agentName
+		} : void 0;
+		$[59] = agentName;
+		$[60] = heldName;
+		$[61] = t27;
+	} else t27 = $[61];
+	let t28;
+	if ($[62] !== allocation.timelineFolded || $[63] !== autoAllocation.timelineFolded) {
+		t28 = () => setTimelineOverride({
+			folded: !allocation.timelineFolded,
+			auto: autoAllocation.timelineFolded
+		});
+		$[62] = allocation.timelineFolded;
+		$[63] = autoAllocation.timelineFolded;
+		$[64] = t28;
+	} else t28 = $[64];
+	let t29;
+	let t30;
+	if ($[65] !== agent.id || $[66] !== timelineProps) {
+		t29 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FoldedTimeline, { ...timelineProps }, agent.id);
+		t30 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TerminalTimeline, { ...timelineProps }, agent.id);
+		$[65] = agent.id;
+		$[66] = timelineProps;
+		$[67] = t29;
+		$[68] = t30;
+	} else {
+		t29 = $[67];
+		t30 = $[68];
+	}
+	let t31;
+	if ($[69] !== allocation.timelineFolded || $[70] !== clock || $[71] !== ended || $[72] !== follow || $[73] !== playing || $[74] !== sample || $[75] !== scrubPreview || $[76] !== speed || $[77] !== t26 || $[78] !== t27 || $[79] !== t28 || $[80] !== t29 || $[81] !== t30 || $[82] !== togglePlay || $[83] !== viewTools) {
+		t31 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TerminalControls, {
+			playing,
+			ended,
+			onTogglePlay: togglePlay,
+			clock,
+			sample,
+			speed,
+			onSpeedChange: t26,
+			hold: t27,
+			onFollow: follow,
+			scrubPreview,
+			tools: viewTools,
+			timelineFolded: allocation.timelineFolded,
+			onToggleTimeline: t28,
+			foldedTimeline: t29,
+			timeline: t30
+		});
+		$[69] = allocation.timelineFolded;
+		$[70] = clock;
+		$[71] = ended;
+		$[72] = follow;
+		$[73] = playing;
+		$[74] = sample;
+		$[75] = scrubPreview;
+		$[76] = speed;
+		$[77] = t26;
+		$[78] = t27;
+		$[79] = t28;
+		$[80] = t29;
+		$[81] = t30;
+		$[82] = togglePlay;
+		$[83] = viewTools;
+		$[84] = t31;
+	} else t31 = $[84];
+	let t32;
+	if ($[85] !== t18 || $[86] !== t19 || $[87] !== t20 || $[88] !== t21 || $[89] !== t25 || $[90] !== t31) {
+		t32 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			ref: rootRef,
+			className: t18,
+			style: t19,
+			role: t20,
+			"aria-label": t21,
+			children: [t25, t31]
+		});
+		$[85] = t18;
+		$[86] = t19;
+		$[87] = t20;
+		$[88] = t21;
+		$[89] = t25;
+		$[90] = t31;
+		$[91] = t32;
+	} else t32 = $[91];
+	return t32;
+};
+var isEditable = (target) => target instanceof HTMLElement && (target.isContentEditable || target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement);
+function _temp$34(state) {
+	return state.sampleActions.setTerminalsViewOpen;
+}
+function _temp2$28(part) {
+	return part !== void 0;
 }
 //#endregion
 //#region src/app/samples/transcript/chunked/ChunkedRowView.tsx
@@ -123408,6 +125765,8 @@ var eventTypes = {
 	approval: "Approval",
 	review: "Review",
 	sentinel: "Sentinel",
+	communication: "Communication",
+	swarm: "Swarm",
 	input: "Input",
 	interrupt: "Interrupt",
 	score: "Score",
@@ -123425,7 +125784,7 @@ var eventTypes = {
 var useTranscriptFilter = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(26);
 	const defaultExcludeEvents = t0 === void 0 ? kDefaultExcludeEvents : t0;
-	const stored = useStore(_temp$32);
+	const stored = useStore(_temp$33);
 	let t1;
 	if ($[0] !== defaultExcludeEvents || $[1] !== stored) {
 		t1 = stored ?? [...defaultExcludeEvents];
@@ -123543,7 +125902,7 @@ var useTranscriptFilter = (t0) => {
 	} else t8 = $[25];
 	return t8;
 };
-function _temp$32(state) {
+function _temp$33(state) {
 	return state.sample.eventFilter.filteredTypes;
 }
 function _temp2$27(state_0) {
@@ -123711,7 +126070,7 @@ var useInspectSearchPanelState = (t0) => {
 		$[5] = t2;
 	} else t2 = $[5];
 	const stored = useStore(t2);
-	const setSearchPanelState = useStore(_temp$31);
+	const setSearchPanelState = useStore(_temp$32);
 	let t3;
 	if ($[6] !== stored) {
 		t3 = normalizeSearchPanelState(stored);
@@ -123774,7 +126133,7 @@ var useInspectSearchNavigation = (t0) => {
 	} else t1 = $[4];
 	return t1;
 };
-function _temp$31(s_0) {
+function _temp$32(s_0) {
 	return s_0.searchActions.setSearchPanelState;
 }
 function _temp2$26(s) {
@@ -124294,7 +126653,7 @@ var TranscriptFilterPopover = (t0) => {
 		const url = getEventUrl(eventId);
 		if (!url) return;
 		if (selectedKey) setTimelineSelected(selectedKey);
-		navigateAndForget(navigate, url, { replace: true });
+		navigate(url, { replace: true });
 	}, [
 		getEventUrl,
 		navigate,
@@ -124379,7 +126738,7 @@ TranscriptPanel.displayName = "TranscriptPanel";
 		$[2] = t2;
 	} else t2 = $[2];
 	const key = useVisitId(t2);
-	const stored = useStore(_temp$30);
+	const stored = useStore(_temp$31);
 	const setActive = useStore(_temp2$25);
 	const setSelection = useStore(_temp3$16);
 	const clear = useStore(_temp4$16);
@@ -124482,7 +126841,7 @@ TranscriptPanel.displayName = "TranscriptPanel";
 	} else t6 = $[26];
 	return t6;
 };
-function _temp$30(state) {
+function _temp$31(state) {
 	return state.sample.evidenceSelection;
 }
 function _temp2$25(state_0) {
@@ -124512,12 +126871,10 @@ var kNoMessageRows = [];
 	const backfilling = sampleData.backfilling;
 	const logDetails = useSelectedLogDetails();
 	const evalSpec = logDetails?.eval;
-	(0, import_react.useEffect)(() => {
-		setDocumentTitle({
-			evalSpec,
-			sample
-		});
-	}, [sample, evalSpec]);
+	useDocumentTitleText(documentTitle({
+		evalSpec,
+		sample
+	}));
 	const selectedTab = useStore((state) => state.app.tabs.sample);
 	const setSelectedTab = useStore((state_0) => state_0.appActions.setSampleTab);
 	const isChunked = sampleData.chunked !== void 0;
@@ -124602,7 +126959,17 @@ var kNoMessageRows = [];
 		getMessageUrl
 	}), [getMessageUrl]);
 	const chatTools = (0, import_react.useMemo)(() => ({ callStyle: kDefaultMessageRowOptions.toolCallStyle }), []);
-	const terminalSessions = sample ? storeCasts(sample.store) : [];
+	const sampleStore = sample?.store;
+	const terminalCasts = (0, import_react.useMemo)(() => {
+		const casts = sampleStore ? storeCasts(sampleStore) : [];
+		return casts.length > 0 ? parseTerminalCasts(casts) : void 0;
+	}, [sampleStore]);
+	const terminalSample = (0, import_react.useMemo)(() => terminalCasts ? buildTerminalSample(terminalCasts, sampleEvents) : void 0, [terminalCasts, sampleEvents]);
+	const [pickedTerminalAgent, setPickedTerminalAgent] = (0, import_react.useState)();
+	const [terminalsFill, setTerminalsFill] = (0, import_react.useState)(false);
+	const terminalsKey = sample ? sample.uuid || `${sample.id}:${sample.epoch}` : void 0;
+	const [terminalsResume, setTerminalsResume] = (0, import_react.useState)();
+	const terminalAgent = terminalSample ? terminalSample.agents.find((agent) => agent.id === pickedTerminalAgent) ?? terminalSample.agents[0] : void 0;
 	const sampleUsages = usageViewsForSample(`${baseId}-${id}`, sample, evalSpec);
 	const sampleMetadatas = metadataViewsForSample(`${baseId}-${id}`, scrollRef, sample);
 	const tabsetId = `task-sample-details-tab-${id}`;
@@ -124664,7 +127031,7 @@ var kNoMessageRows = [];
 			return;
 		}
 		setSelectedTab(kSampleTranscriptTabId);
-		navigateAndForget(navigate, url_0);
+		navigate(url_0);
 	};
 	const api = getApi();
 	const downloadFiles = useStore((state_10) => state_10.capabilities.downloadFiles);
@@ -124725,6 +127092,22 @@ var kNoMessageRows = [];
 		scans.makeCiteUrl
 	]);
 	const tools = [];
+	const terminalAgentPicker = terminalSample && terminalAgent && terminalSample.agents.length > 1 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(AgentPicker, {
+		agents: terminalSample.agents,
+		selected: terminalAgent,
+		onSelect: setPickedTerminalAgent
+	}, "sample-terminals-agent") : null;
+	if (effectiveSelectedTab === kSampleTerminalsTabId && terminalSample) {
+		if (terminalAgentPicker) tools.push(terminalAgentPicker);
+		tools.push(/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolButton, {
+			className: SampleDisplay_module_default.fullscreenTool,
+			label: "Fullscreen",
+			icon: "fullscreen",
+			onClick: () => setTerminalsFill(true),
+			subtle: true,
+			collapseLabel: true
+		}, "sample-terminals-fill"));
+	}
 	if (effectiveSelectedTab === kSampleTranscriptTabId) {
 		const label = isNoneFilter ? "None" : isDebugFilter ? "Debug" : isDefaultFilter ? "Default" : "Custom";
 		tools.push(/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolButton, {
@@ -124823,6 +127206,7 @@ var kNoMessageRows = [];
 	const scrollToTopOnFinish = !sample?.error && !selectedSampleSummary?.error && logDetails?.status !== "error" && logDetails?.status !== "cancelled";
 	const displayModeContext = (0, import_react.useMemo)(() => ({ displayMode: displayMode ?? "rendered" }), [displayMode]);
 	const mountsAtDeepLink = !!(sampleDetailNavigation.event || sampleDetailNavigation.message);
+	const onTerminalsTab = effectiveSelectedTab === kSampleTerminalsTabId && !!terminalSample;
 	const { hidden: headerCollapsed, resetAnchor: headerResetAnchor, setHidden: headerSetHidden, navOwnsRef: chromeNavOwnsRef } = useChromeNavOwnership(scrollRef, {
 		ownedForKey: () => mountsAtDeepLink,
 		resetKey: visitId,
@@ -124831,6 +127215,8 @@ var kNoMessageRows = [];
 			stayHiddenOnUpScroll: true
 		}
 	});
+	const sampleHeaderCollapsed = headerCollapsed || onTerminalsTab;
+	if (!onTerminalsTab && terminalsFill) setTerminalsFill(false);
 	const headerWrapperRef = (0, import_react.useRef)(null);
 	const headerHeight = useElementHeight(headerWrapperRef, !!selectedSampleSummary);
 	const effectiveHeaderHeight = selectedSampleSummary ? headerHeight : 0;
@@ -124909,7 +127295,7 @@ var kNoMessageRows = [];
 					children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SampleSummaryView, {
 						parent_id: id,
 						sample: selectedSampleSummary,
-						collapsed: headerCollapsed
+						collapsed: sampleHeaderCollapsed
 					})
 				})
 			}) : void 0,
@@ -125010,20 +127396,29 @@ var kNoMessageRows = [];
 								}, chatListId)
 							})
 						}, kSampleMessagesTabId),
-						terminalSessions.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TabPanel, {
+						terminalSample ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TabPanel, {
 							id: kSampleTerminalsTabId,
 							className: "sample-tab",
 							title: "Terminals",
 							onSelected: onSelectedTab,
 							href: sampleTabHref(kSampleTerminalsTabId),
 							selected: effectiveSelectedTab === kSampleTerminalsTabId,
-							children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-								className: clsx(SampleDisplay_module_default.padded, SampleDisplay_module_default.fullWidth),
-								children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(StoreTerminalSessions, {
-									id: `${baseId}-${id}-terminal-sessions`,
-									casts: terminalSessions
+							children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TerminalsView, {
+								id: `${baseId}-${id}-terminal-sessions`,
+								sample: terminalSample,
+								scrollRef,
+								agentId: terminalAgent?.id,
+								fill: terminalsFill ? {
+									tools: terminalAgentPicker,
+									onExit: () => setTerminalsFill(false)
+								} : void 0,
+								onFullscreen: () => setTerminalsFill(true),
+								resume: terminalsResume?.key === terminalsKey ? terminalsResume?.resume : void 0,
+								onSuspend: (resume) => terminalsKey && setTerminalsResume({
+									key: terminalsKey,
+									resume
 								})
-							})
+							}, terminalsKey)
 						}, kSampleTerminalsTabId) : null,
 						/*#__PURE__*/ (0, import_jsx_runtime.jsx)(TabPanel, {
 							id: kSampleScoringTabId,
@@ -125411,14 +127806,15 @@ var isRunning = (sampleSummary, runningSampleData, status) => {
 	const showActivity = sampleData.status === "loading" || sampleData.status === "streaming";
 	const localScrollRef = (0, import_react.useRef)(null);
 	const scrollRef = externalScrollRef ?? localScrollRef;
-	const sampleTab = useStore(_temp$29);
+	const sampleTab = useStore(_temp$30);
 	const sampleDetailNavigation = useSampleDetailNavigation();
 	const isVirtualizedTab = sampleTab === kSampleTranscriptTabId || sampleTab === kSampleMessagesTabId;
 	const logFile = useCurrentLogFile();
 	const sampleHandle = useCurrentSampleHandle();
 	const visitId = useVisitId(`${logFile}-${sampleHandle?.id}-${sampleHandle?.epoch}`);
 	useStatefulScrollPosition(scrollRef, `inline-sample-scroller-${visitId}-${sampleTab}`, 1e3, !isVirtualizedTab);
-	const deepLinkRef = useLatestRef(!!(sampleDetailNavigation.event || sampleDetailNavigation.message));
+	const mountsAtDeepLink = !!(sampleDetailNavigation.event || sampleDetailNavigation.message);
+	const deepLinkRef = useLatestRef(mountsAtDeepLink);
 	let t1;
 	if ($[0] !== deepLinkRef || $[1] !== isVirtualizedTab || $[2] !== scrollRef) {
 		t1 = () => {
@@ -125493,7 +127889,7 @@ var isRunning = (sampleSummary, runningSampleData, status) => {
 	} else t7 = $[21];
 	return t7;
 };
-function _temp$29(state) {
+function _temp$30(state) {
 	return state.app.tabs.sample;
 }
 var SampleDetailComponent_module_default = {
@@ -125615,7 +128011,7 @@ var SampleNavbar_module_default = { sampleInfo: "_sampleInfo_a1yqs_1" };
 		t1 = String(sample.id) === sampleId && sample.epoch === parseInt(epoch, 10);
 	}
 	const sampleMatchesRequest = t1;
-	const showFind = useStore(_temp$28);
+	const showFind = useStore(_temp$29);
 	const setShowFind = useStore(_temp2$24);
 	const hideFind = useStore(_temp3$15);
 	const nativeFind = useStore(_temp4$15);
@@ -125703,7 +128099,7 @@ var SampleNavbar_module_default = { sampleInfo: "_sampleInfo_a1yqs_1" };
 	} else t11 = $[25];
 	return t11;
 };
-function _temp$28(state) {
+function _temp$29(state) {
 	return state.app.showFind;
 }
 function _temp2$24(state_0) {
@@ -125823,7 +128219,7 @@ var useLogNavigationAction = () => {
 	if ($[4] !== getTabUrl || $[5] !== navigate) {
 		t1 = (tabId_0) => {
 			const url = getTabUrl(tabId_0);
-			if (url) navigateAndForget(navigate, url);
+			if (url) navigate(url);
 		};
 		$[4] = getTabUrl;
 		$[5] = navigate;
@@ -126796,7 +129192,7 @@ var EditMetadataDialog = (t0) => {
 	const { showing, setShowing, currentMetadata, logFile, onSaved } = t0;
 	let t1;
 	if ($[0] !== currentMetadata) {
-		t1 = Object.entries(currentMetadata).map(_temp$27);
+		t1 = Object.entries(currentMetadata).map(_temp$28);
 		$[0] = currentMetadata;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -127176,7 +129572,7 @@ var MetaRow = (t0) => {
 	} else t12 = $[21];
 	return t12;
 };
-function _temp$27(t0) {
+function _temp$28(t0) {
 	const [key, value] = t0;
 	return {
 		key,
@@ -127214,12 +129610,12 @@ var DatasetDetailView = (t0) => {
 	const { dataset, style } = t0;
 	let t1;
 	if ($[0] !== dataset) {
-		t1 = Object.fromEntries(Object.entries(dataset).filter(_temp$26));
+		t1 = Object.fromEntries(Object.entries(dataset).filter(_temp$27));
 		$[0] = dataset;
 		$[1] = t1;
 	} else t1 = $[1];
 	const filtered = t1;
-	if (!dataset || Object.keys(filtered).length === 0) {
+	if (Object.keys(filtered).length === 0) {
 		let t2;
 		if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
 			t2 = clsx("text-size-base", DatasetDetailView_module_default.item);
@@ -127261,7 +129657,7 @@ var DatasetDetailView = (t0) => {
 	} else t4 = $[9];
 	return t4;
 };
-function _temp$26(t0) {
+function _temp$27(t0) {
 	const [key] = t0;
 	return key !== "sample_ids";
 }
@@ -127468,7 +129864,7 @@ var PlanDetailView = (t0) => {
 				const label = scorers.size === 1 ? "Scorer" : "Scorers";
 				let t2;
 				if ($[10] !== scorers) {
-					t2 = [...scorers].map(_temp$25);
+					t2 = [...scorers].map(_temp$26);
 					$[10] = scorers;
 					$[11] = t2;
 				} else t2 = $[11];
@@ -127557,7 +129953,7 @@ var PlanColumn = (t0) => {
 	} else t4 = $[8];
 	return t4;
 };
-function _temp$25(t0) {
+function _temp$26(t0) {
 	const [key, scorer] = t0;
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ScorerDetailView, {
 		name: key,
@@ -127790,7 +130186,7 @@ var DownloadButton = (t0) => {
 	let t3;
 	if ($[2] !== fileContents || $[3] !== fileName) {
 		t3 = () => {
-			api.download_file(fileName, fileContents);
+			api.download_file(fileName, fileContents).catch(_temp$25);
 		};
 		$[2] = fileContents;
 		$[3] = fileName;
@@ -127810,6 +130206,9 @@ var DownloadButton = (t0) => {
 	} else t4 = $[7];
 	return t4;
 };
+function _temp$25(error) {
+	console.error("Failed to download:", error);
+}
 var DownloadPanel_module_default = {
 	downloadPanel: "_downloadPanel_1ggsq_1",
 	downloadPanelMessage: "_downloadPanelMessage_1ggsq_8"
@@ -128549,153 +130948,145 @@ var SampleList_module_default = { mainLayout: "_mainLayout_xvd5i_1" };
 //#region src/app/samples/list/SampleList.tsx
 var makeSampleRowId = (id, epoch) => `${id}-${epoch}`.replace(/\s+/g, "_");
 var SampleList = /*#__PURE__*/ (0, import_react.memo)((props) => {
-	const $ = (0, import_compiler_runtime.c)(60);
+	const $ = (0, import_compiler_runtime.c)(59);
 	const { items, columns, columnVisibility, sorting, onSortingChange, columnSizing, onColumnSizingChange, earlyStopping, totalItemCount, running, multiline, scrollRef, columnFilters, onColumnFilterChange, hideColumnFilters } = props;
 	const sampleNavigation = useSampleNavigationActions();
 	const { sampleId: routeSampleId, epoch: routeEpoch } = useLogRouteParams();
 	const highlightedSample = useStore(_temp$22);
 	const evalSpec = useSelectedLogDetails()?.eval;
 	let t0;
-	let t1;
 	if ($[0] !== evalSpec) {
-		t0 = () => {
-			setDocumentTitle({ evalSpec });
-		};
-		t1 = [evalSpec];
+		t0 = documentTitle({ evalSpec });
 		$[0] = evalSpec;
 		$[1] = t0;
-		$[2] = t1;
-	} else {
-		t0 = $[1];
-		t1 = $[2];
-	}
-	(0, import_react.useEffect)(t0, t1);
-	let t2;
-	if ($[3] !== routeEpoch || $[4] !== routeSampleId || $[5] !== sampleNavigation) {
-		t2 = (row) => {
+	} else t0 = $[1];
+	useDocumentTitleText(t0);
+	let t1;
+	if ($[2] !== routeEpoch || $[3] !== routeSampleId || $[4] !== sampleNavigation) {
+		t1 = (row) => {
 			if (isSampleOpenInRoute(routeSampleId, routeEpoch, row.sampleId, row.epoch)) return;
 			sampleNavigation.showSample(row.sampleId, row.epoch);
 		};
-		$[3] = routeEpoch;
-		$[4] = routeSampleId;
-		$[5] = sampleNavigation;
-		$[6] = t2;
-	} else t2 = $[6];
-	const handleRowOpen = t2;
-	let t3;
-	if ($[7] !== sampleNavigation) {
-		t3 = (row_0) => {
+		$[2] = routeEpoch;
+		$[3] = routeSampleId;
+		$[4] = sampleNavigation;
+		$[5] = t1;
+	} else t1 = $[5];
+	const handleRowOpen = t1;
+	let t2;
+	if ($[6] !== sampleNavigation) {
+		t2 = (row_0) => {
 			const url = sampleNavigation.getSampleUrl(row_0.sampleId, row_0.epoch);
 			return url ? toFullUrl(routeFromFullUrl(url)) : void 0;
 		};
-		$[7] = sampleNavigation;
-		$[8] = t3;
-	} else t3 = $[8];
-	const getRowHref = t3;
+		$[6] = sampleNavigation;
+		$[7] = t2;
+	} else t2 = $[7];
+	const getRowHref = t2;
 	const getRowId = _temp2$19;
 	const handleRowSelect = _temp3$13;
 	const logFile = useCurrentLogFile();
-	let t4;
-	if ($[9] !== highlightedSample || $[10] !== logFile) {
-		t4 = highlightedSample?.logFile === logFile && highlightedSample ? makeSampleRowId(highlightedSample.id, highlightedSample.epoch) : void 0;
-		$[9] = highlightedSample;
-		$[10] = logFile;
-		$[11] = t4;
-	} else t4 = $[11];
-	const selectedRowId = t4;
+	let t3;
+	if ($[8] !== highlightedSample || $[9] !== logFile) {
+		t3 = highlightedSample?.logFile === logFile && highlightedSample ? makeSampleRowId(highlightedSample.id, highlightedSample.epoch) : void 0;
+		$[8] = highlightedSample;
+		$[9] = logFile;
+		$[10] = t3;
+	} else t3 = $[10];
+	const selectedRowId = t3;
 	const sampleCount = items.length;
 	let errorCount = 0;
 	let limitCount = 0;
-	if ($[12] !== errorCount || $[13] !== items || $[14] !== limitCount) {
+	if ($[11] !== errorCount || $[12] !== items || $[13] !== limitCount) {
 		for (const item of items) {
 			if (item.error || item.data?.error) errorCount = errorCount + 1;
 			if (item.limit || item.data?.limit) limitCount = limitCount + 1;
 		}
-		$[12] = errorCount;
-		$[13] = items;
-		$[14] = limitCount;
-		$[15] = errorCount;
-		$[16] = limitCount;
+		$[11] = errorCount;
+		$[12] = items;
+		$[13] = limitCount;
+		$[14] = errorCount;
+		$[15] = limitCount;
 	} else {
-		errorCount = $[15];
-		limitCount = $[16];
+		errorCount = $[14];
+		limitCount = $[15];
 	}
 	const percentError = sampleCount > 0 ? errorCount / sampleCount * 100 : 0;
 	const percentLimit = sampleCount > 0 ? limitCount / sampleCount * 100 : 0;
 	let result;
-	if ($[17] !== earlyStopping || $[18] !== errorCount || $[19] !== limitCount || $[20] !== percentError || $[21] !== percentLimit || $[22] !== sampleCount) {
+	if ($[16] !== earlyStopping || $[17] !== errorCount || $[18] !== limitCount || $[19] !== percentError || $[20] !== percentLimit || $[21] !== sampleCount) {
 		result = [];
 		if (errorCount > 0) {
-			const t5 = errorCount;
-			let t6;
-			if ($[24] !== percentError) {
-				t6 = formatNoDecimal(percentError);
-				$[24] = percentError;
-				$[25] = t6;
-			} else t6 = $[25];
-			const t7 = `INFO: ${t5} of ${sampleCount} samples (${t6}%) had errors and were not scored.`;
-			let t8;
-			if ($[26] !== t7) {
-				t8 = {
+			const t4 = errorCount;
+			let t5;
+			if ($[23] !== percentError) {
+				t5 = formatNoDecimal(percentError);
+				$[23] = percentError;
+				$[24] = t5;
+			} else t5 = $[24];
+			const t6 = `INFO: ${t4} of ${sampleCount} samples (${t5}%) had errors and were not scored.`;
+			let t7;
+			if ($[25] !== t6) {
+				t7 = {
 					type: "info",
-					msg: t7
+					msg: t6
 				};
+				$[25] = t6;
 				$[26] = t7;
-				$[27] = t8;
-			} else t8 = $[27];
-			result.push(t8);
+			} else t7 = $[26];
+			result.push(t7);
 		}
 		if (limitCount > 0) {
-			const t5 = limitCount;
-			let t6;
-			if ($[28] !== percentLimit) {
-				t6 = formatNoDecimal(percentLimit);
-				$[28] = percentLimit;
-				$[29] = t6;
-			} else t6 = $[29];
-			const t7 = `INFO: ${t5} of ${sampleCount} samples (${t6}%) completed due to exceeding a limit.`;
-			let t8;
-			if ($[30] !== t7) {
-				t8 = {
+			const t4 = limitCount;
+			let t5;
+			if ($[27] !== percentLimit) {
+				t5 = formatNoDecimal(percentLimit);
+				$[27] = percentLimit;
+				$[28] = t5;
+			} else t5 = $[28];
+			const t6 = `INFO: ${t4} of ${sampleCount} samples (${t5}%) completed due to exceeding a limit.`;
+			let t7;
+			if ($[29] !== t6) {
+				t7 = {
 					type: "info",
-					msg: t7
+					msg: t6
 				};
+				$[29] = t6;
 				$[30] = t7;
-				$[31] = t8;
-			} else t8 = $[31];
-			result.push(t8);
+			} else t7 = $[30];
+			result.push(t7);
 		}
 		if (earlyStopping?.early_stops && earlyStopping.early_stops.length > 0) {
-			const t5 = `Skipped ${earlyStopping.early_stops.length} samples due to early stopping (${earlyStopping.manager}). `;
-			let t6;
-			if ($[32] !== t5) {
-				t6 = {
+			const t4 = `Skipped ${earlyStopping.early_stops.length} samples due to early stopping (${earlyStopping.manager}). `;
+			let t5;
+			if ($[31] !== t4) {
+				t5 = {
 					type: "info",
-					msg: t5
+					msg: t4
 				};
+				$[31] = t4;
 				$[32] = t5;
-				$[33] = t6;
-			} else t6 = $[33];
-			result.push(t6);
+			} else t5 = $[32];
+			result.push(t5);
 		}
-		$[17] = earlyStopping;
-		$[18] = errorCount;
-		$[19] = limitCount;
-		$[20] = percentError;
-		$[21] = percentLimit;
-		$[22] = sampleCount;
-		$[23] = result;
-	} else result = $[23];
+		$[16] = earlyStopping;
+		$[17] = errorCount;
+		$[18] = limitCount;
+		$[19] = percentError;
+		$[20] = percentLimit;
+		$[21] = sampleCount;
+		$[22] = result;
+	} else result = $[22];
 	const warnings = result;
+	let t4;
+	if ($[33] !== warnings) {
+		t4 = warnings.map(_temp4$13);
+		$[33] = warnings;
+		$[34] = t4;
+	} else t4 = $[34];
 	let t5;
-	if ($[34] !== warnings) {
-		t5 = warnings.map(_temp4$13);
-		$[34] = warnings;
-		$[35] = t5;
-	} else t5 = $[35];
-	let t6;
-	if ($[36] !== columnFilters || $[37] !== columnSizing || $[38] !== columnVisibility || $[39] !== columns || $[40] !== getRowHref || $[41] !== handleRowOpen || $[42] !== hideColumnFilters || $[43] !== items || $[44] !== multiline || $[45] !== onColumnFilterChange || $[46] !== onColumnSizingChange || $[47] !== onSortingChange || $[48] !== scrollRef || $[49] !== selectedRowId || $[50] !== sorting) {
-		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SamplesGrid, {
+	if ($[35] !== columnFilters || $[36] !== columnSizing || $[37] !== columnVisibility || $[38] !== columns || $[39] !== getRowHref || $[40] !== handleRowOpen || $[41] !== hideColumnFilters || $[42] !== items || $[43] !== multiline || $[44] !== onColumnFilterChange || $[45] !== onColumnSizingChange || $[46] !== onSortingChange || $[47] !== scrollRef || $[48] !== selectedRowId || $[49] !== sorting) {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SamplesGrid, {
 			rowData: items,
 			columnDefs: columns,
 			columnVisibility,
@@ -128714,51 +131105,51 @@ var SampleList = /*#__PURE__*/ (0, import_react.memo)((props) => {
 			onColumnFilterChange,
 			hideColumnFilters
 		});
-		$[36] = columnFilters;
-		$[37] = columnSizing;
-		$[38] = columnVisibility;
-		$[39] = columns;
-		$[40] = getRowHref;
-		$[41] = handleRowOpen;
-		$[42] = hideColumnFilters;
-		$[43] = items;
-		$[44] = multiline;
-		$[45] = onColumnFilterChange;
-		$[46] = onColumnSizingChange;
-		$[47] = onSortingChange;
-		$[48] = scrollRef;
-		$[49] = selectedRowId;
-		$[50] = sorting;
-		$[51] = t6;
-	} else t6 = $[51];
-	let t7;
-	if ($[52] !== running || $[53] !== sampleCount || $[54] !== totalItemCount) {
-		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SampleFooter, {
+		$[35] = columnFilters;
+		$[36] = columnSizing;
+		$[37] = columnVisibility;
+		$[38] = columns;
+		$[39] = getRowHref;
+		$[40] = handleRowOpen;
+		$[41] = hideColumnFilters;
+		$[42] = items;
+		$[43] = multiline;
+		$[44] = onColumnFilterChange;
+		$[45] = onColumnSizingChange;
+		$[46] = onSortingChange;
+		$[47] = scrollRef;
+		$[48] = selectedRowId;
+		$[49] = sorting;
+		$[50] = t5;
+	} else t5 = $[50];
+	let t6;
+	if ($[51] !== running || $[52] !== sampleCount || $[53] !== totalItemCount) {
+		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SampleFooter, {
 			sampleCount,
 			totalSampleCount: totalItemCount,
 			running
 		});
-		$[52] = running;
-		$[53] = sampleCount;
-		$[54] = totalItemCount;
-		$[55] = t7;
-	} else t7 = $[55];
-	let t8;
-	if ($[56] !== t5 || $[57] !== t6 || $[58] !== t7) {
-		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		$[51] = running;
+		$[52] = sampleCount;
+		$[53] = totalItemCount;
+		$[54] = t6;
+	} else t6 = $[54];
+	let t7;
+	if ($[55] !== t4 || $[56] !== t5 || $[57] !== t6) {
+		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: SampleList_module_default.mainLayout,
 			children: [
+				t4,
 				t5,
-				t6,
-				t7
+				t6
 			]
 		});
+		$[55] = t4;
 		$[56] = t5;
 		$[57] = t6;
 		$[58] = t7;
-		$[59] = t8;
-	} else t8 = $[59];
-	return t8;
+	} else t7 = $[58];
+	return t7;
 });
 SampleList.displayName = "SampleList";
 function _temp$22(state) {
@@ -150493,7 +152884,7 @@ var makeMetadataValueCompletion = (value) => {
 			return makeCompletions((currentQuery ? sampleUuids.filter((uuid) => `"${uuid}"`.toLowerCase().startsWith(currentQuery.toLowerCase())) : sampleUuids).map(makeSampleUuidCompletion), { includeDefault: false });
 		}
 		if (varName === "epoch" && samples) {
-			const epochCompletions = Array.from(new Set(samples.map((s) => s.epoch).filter((e) => e !== void 0))).sort((a, b) => a - b).map((e) => makeLiteralCompletion(String(e)));
+			const epochCompletions = Array.from(new Set(samples.map((s) => s.epoch))).sort((a, b) => a - b).map((e) => makeLiteralCompletion(String(e)));
 			return makeCompletions(epochCompletions, { includeDefault: epochCompletions.length === 0 });
 		}
 		const item = findFilterItem(2);
@@ -152526,7 +154917,7 @@ var TaskTab = (t0) => {
 			"Run ID": t4
 		};
 		if (revision) {
-			const revisionKey = `${revision.type ? `${toTitleCase(revision.type)} ` : ""}Revision`;
+			const revisionKey = `${toTitleCase(revision.type)} Revision`;
 			let t5;
 			if ($[10] !== revision.commit || $[11] !== revision.origin) {
 				t5 = ghCommitUrl(revision.origin, revision.commit);
@@ -153376,7 +155767,7 @@ var HistoryList = ({ rows, ordinals, scrollRef, selectedCategories, onToggleCate
 								className: HistoryList_module_default.mono,
 								children: formatShort(change.value)
 							}),
-							change.value === null && change.previous !== null && change.previous !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+							change.value === null && change.previous !== null ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 								className: HistoryList_module_default.muted,
 								children: " (limit lifted)"
 							}) : null
@@ -156945,7 +159336,7 @@ var ScoringDetail = (t0) => {
 	} else t8 = $[14];
 	let t9;
 	if ($[15] !== metric.value) {
-		t9 = metric.value !== void 0 && metric.value !== null ? formatPrettyDecimal(metric.value) : "n/a";
+		t9 = formatPrettyDecimal(metric.value);
 		$[15] = metric.value;
 		$[16] = t9;
 	} else t9 = $[16];
@@ -157129,7 +159520,7 @@ var InlineMetrics = (t0) => {
 				items.push({
 					key: `${scorerIdx}-${metricIdx}`,
 					label: metricDisplayName(metric),
-					value: metric.value !== void 0 && metric.value !== null ? formatPrettyDecimal(metric.value) : "n/a",
+					value: formatPrettyDecimal(metric.value),
 					headline: metric.headline === true
 				});
 			});
@@ -158492,7 +160883,7 @@ var LogView = () => {
 	const timelineTabConfig = useTimelineTab(evalSpec, selectedLogDetails?.stats, selectedLogDetails?.status, selectedLogDetails?.config_updates, selectedLogDetails?.log_updates, selectedLogDetails?.results?.early_stopping);
 	const jsonTabConfig = useJsonTabConfig(selectedLogDetails);
 	const tabs = {
-		...samplesTabConfig ? { samples: samplesTabConfig } : {},
+		samples: samplesTabConfig,
 		task: taskTabConfig,
 		model: modelsTabConfig,
 		timeline: timelineTabConfig,
@@ -158508,7 +160899,8 @@ var LogView = () => {
 	} else t1 = $[2];
 	const { hidden: titleCollapsed } = useScrollDirection(scrollRefs, t1);
 	const selectedTab = useStore(_temp2$7);
-	const setSelectedTab = useStore(_temp3$4);
+	const onSampleTerminals = useStore(_temp3$4);
+	const setSelectedTab = useStore(_temp4$4);
 	const onSelected = (e) => {
 		const id = e.currentTarget.id;
 		if (id) {
@@ -158534,15 +160926,16 @@ var LogView = () => {
 		} else t3 = $[6];
 		return t3;
 	} else {
-		const tabTools = Object.values(tabs).filter(_temp4$4).filter((tab_1) => tab_1.id === selectedTab).map(_temp5$2);
+		const tabTools = Object.values(tabs).filter((tab_0) => tab_0.id === selectedTab).map(_temp5$2);
 		const t2 = selectedLogDetails?.plan;
 		const t3 = selectedLogDetails?.results;
 		const t4 = selectedLogDetails?.stats;
 		const t5 = selectedLogDetails?.status;
 		const t6 = selectedLogDetails?.tags;
-		let t7;
-		if ($[7] !== evalSpec || $[8] !== runningMetrics || $[9] !== t2 || $[10] !== t3 || $[11] !== t4 || $[12] !== t5 || $[13] !== t6 || $[14] !== titleCollapsed) {
-			t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TitleView, {
+		const t7 = titleCollapsed || onSampleTerminals;
+		let t8;
+		if ($[7] !== evalSpec || $[8] !== runningMetrics || $[9] !== t2 || $[10] !== t3 || $[11] !== t4 || $[12] !== t5 || $[13] !== t6 || $[14] !== t7) {
+			t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TitleView, {
 				evalSpec,
 				evalPlan: t2,
 				evalResults: t3,
@@ -158550,7 +160943,7 @@ var LogView = () => {
 				evalStats: t4,
 				status: t5,
 				tags: t6,
-				collapsed: titleCollapsed
+				collapsed: t7
 			});
 			$[7] = evalSpec;
 			$[8] = runningMetrics;
@@ -158559,62 +160952,62 @@ var LogView = () => {
 			$[11] = t4;
 			$[12] = t5;
 			$[13] = t6;
-			$[14] = titleCollapsed;
-			$[15] = t7;
-		} else t7 = $[15];
-		let t8;
+			$[14] = t7;
+			$[15] = t8;
+		} else t8 = $[15];
+		let t10;
 		let t9;
 		if ($[16] === Symbol.for("react.memo_cache_sentinel")) {
-			t8 = clsx("workspace", LogView_module_default.workspace);
-			t9 = clsx("log-detail", LogView_module_default.tabContainer);
-			$[16] = t8;
+			t9 = clsx("workspace", LogView_module_default.workspace);
+			t10 = clsx("log-detail", LogView_module_default.tabContainer);
+			$[16] = t10;
 			$[17] = t9;
 		} else {
-			t8 = $[16];
+			t10 = $[16];
 			t9 = $[17];
 		}
-		let t10;
 		let t11;
 		let t12;
+		let t13;
 		if ($[18] === Symbol.for("react.memo_cache_sentinel")) {
-			t10 = clsx(LogView_module_default.tabSet, "text-size-smaller");
-			t11 = clsx(LogView_module_default.tabs, "text-size-smaller");
-			t12 = clsx(LogView_module_default.tabPanels);
-			$[18] = t10;
-			$[19] = t11;
-			$[20] = t12;
+			t11 = clsx(LogView_module_default.tabSet, "text-size-smaller");
+			t12 = clsx(LogView_module_default.tabs, "text-size-smaller");
+			t13 = clsx(LogView_module_default.tabPanels);
+			$[18] = t11;
+			$[19] = t12;
+			$[20] = t13;
 		} else {
-			t10 = $[18];
-			t11 = $[19];
-			t12 = $[20];
+			t11 = $[18];
+			t12 = $[19];
+			t13 = $[20];
 		}
-		return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [t7, /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [t8, /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			ref: divRef,
-			className: t8,
+			className: t9,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-				className: t9,
+				className: t10,
 				children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TabSet, {
 					id: "log-details",
 					tools: tabTools,
 					type: "pills",
-					className: t10,
-					tabControlsClassName: t11,
-					tabPanelsClassName: t12,
+					className: t11,
+					tabControlsClassName: t12,
+					tabPanelsClassName: t13,
 					children: Object.keys(tabs).map((key) => {
-						const tab_3 = tabs[key];
-						if (tab_3 === void 0) return null;
+						const tab_2 = tabs[key];
+						if (tab_2 === void 0) return null;
 						return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TabPanel, {
-							id: tab_3.id,
-							title: tab_3.label,
+							id: tab_2.id,
+							title: tab_2.label,
 							onSelected,
-							href: toFullUrlMaybe(navigation.getTabUrl(tab_3.id)),
-							selected: selectedTab === tab_3.id,
-							scrollable: !!tab_3.scrollable,
-							scrollRef: tab_3.scrollable ? tab_3.scrollRef : void 0,
-							className: clsx(tab_3.className),
-							style: { height: tab_3.scrollable ? "100%" : void 0 },
-							children: /*#__PURE__*/ (0, import_react.createElement)(tab_3.component, tab_3.componentProps)
-						}, tab_3.id);
+							href: toFullUrlMaybe(navigation.getTabUrl(tab_2.id)),
+							selected: selectedTab === tab_2.id,
+							scrollable: !!tab_2.scrollable,
+							scrollRef: tab_2.scrollable ? tab_2.scrollRef : void 0,
+							className: clsx(tab_2.className),
+							style: { height: tab_2.scrollable ? "100%" : void 0 },
+							children: /*#__PURE__*/ (0, import_react.createElement)(tab_2.component, tab_2.componentProps)
+						}, tab_2.id);
 					})
 				})
 			})
@@ -158628,13 +161021,13 @@ function _temp2$7(state) {
 	return state.app.tabs.workspace;
 }
 function _temp3$4(state_0) {
-	return state_0.appActions.setWorkspaceTab;
+	return state_0.sample.terminalsViewOpen;
 }
-function _temp4$4(tab_0) {
-	return tab_0 !== void 0;
+function _temp4$4(state_1) {
+	return state_1.appActions.setWorkspaceTab;
 }
-function _temp5$2(tab_2) {
-	if (tab_2.tools) return tab_2.tools();
+function _temp5$2(tab_1) {
+	if (tab_1.tools) return tab_1.tools();
 	else return null;
 }
 //#endregion
@@ -158841,7 +161234,7 @@ var SampleEventView_module_default = {
 * (also mounted under /tasks and /samples so back/home return to the surface
 * the sample was opened from).
 */ var SampleEventView = () => {
-	const $ = (0, import_compiler_runtime.c)(64);
+	const $ = (0, import_compiler_runtime.c)(63);
 	const { logPath, id: sampleId, epoch } = useLogOrSampleRouteParams();
 	const [searchParams, setSearchParams] = useSearchParams();
 	let t0;
@@ -158865,110 +161258,102 @@ var SampleEventView_module_default = {
 	const sampleLoading = sampleData.status === "loading" || sampleData.status === "streaming";
 	const evalSpec = useSelectedLogDetails()?.eval;
 	let t2;
-	let t3;
 	if ($[4] !== evalSpec || $[5] !== sample) {
-		t2 = () => {
-			setDocumentTitle({
-				evalSpec,
-				sample
-			});
-		};
-		t3 = [evalSpec, sample];
+		t2 = documentTitle({
+			evalSpec,
+			sample
+		});
 		$[4] = evalSpec;
 		$[5] = sample;
 		$[6] = t2;
-		$[7] = t3;
-	} else {
-		t2 = $[6];
-		t3 = $[7];
-	}
-	(0, import_react.useEffect)(t2, t3);
+	} else t2 = $[6];
+	useDocumentTitleText(t2);
 	const runningEvents = sampleData.running;
 	const isRunning = !sample && runningEvents.length > 0;
 	const scope = useFocusLaneScope(sample?.events ?? runningEvents, eventId, sample?.timelines ?? void 0);
 	const { eventNodes, defaultCollapsedIds } = useEventNodes(scope.laneEvents, isRunning, void 0, sample?.events ?? runningEvents);
 	const sampleNavigation = useLogSampleNavigationActions();
 	const setParams = useFocusSetParams(setSearchParams);
+	let t3;
+	if ($[7] !== searchParams) {
+		t3 = searchParams.get("follow");
+		$[7] = searchParams;
+		$[8] = t3;
+	} else t3 = $[8];
+	const following = t3 === "1";
 	let t4;
-	if ($[8] !== searchParams) {
-		t4 = searchParams.get("follow");
-		$[8] = searchParams;
-		$[9] = t4;
-	} else t4 = $[9];
-	const following = t4 === "1";
+	if ($[9] !== searchParams) {
+		t4 = searchParams.get("tab") ?? "Summary";
+		$[9] = searchParams;
+		$[10] = t4;
+	} else t4 = $[10];
 	let t5;
-	if ($[10] !== searchParams) {
-		t5 = searchParams.get("tab") ?? "Summary";
-		$[10] = searchParams;
-		$[11] = t5;
-	} else t5 = $[11];
-	let t6;
-	if ($[12] !== following || $[13] !== isRunning) {
-		t6 = {
+	if ($[11] !== following || $[12] !== isRunning) {
+		t5 = {
 			running: isRunning,
 			following
 		};
-		$[12] = following;
-		$[13] = isRunning;
-		$[14] = t6;
-	} else t6 = $[14];
-	const nav = useFocusTurnNavigation(eventNodes, eventId, t5, setParams, defaultCollapsedIds, scope, t6);
+		$[11] = following;
+		$[12] = isRunning;
+		$[13] = t5;
+	} else t5 = $[13];
+	const nav = useFocusTurnNavigation(eventNodes, eventId, t4, setParams, defaultCollapsedIds, scope, t5);
 	const { singleFileMode } = useAppConfig();
 	const navigate = useNavigate();
 	const builder = useSampleUrlBuilder();
 	const { resolvedEventId } = nav;
-	let t7;
+	let t6;
 	bb0: {
 		if (!logPath) {
-			t7 = void 0;
+			t6 = void 0;
 			break bb0;
 		}
-		let t8;
-		if ($[15] !== builder || $[16] !== epoch || $[17] !== following || $[18] !== logPath || $[19] !== resolvedEventId || $[20] !== sampleId) {
+		let t7;
+		if ($[14] !== builder || $[15] !== epoch || $[16] !== following || $[17] !== logPath || $[18] !== resolvedEventId || $[19] !== sampleId) {
 			const base = resolvedEventId ? sampleEventUrl(builder, resolvedEventId, logPath, sampleId, epoch) : builder(logPath, sampleId, epoch, kSampleTranscriptTabId);
-			t8 = following ? `${base}${base.includes("?") ? "&" : "?"}follow=1` : base;
-			$[15] = builder;
-			$[16] = epoch;
-			$[17] = following;
-			$[18] = logPath;
-			$[19] = resolvedEventId;
-			$[20] = sampleId;
-			$[21] = t8;
-		} else t8 = $[21];
-		t7 = t8;
+			t7 = following ? `${base}${base.includes("?") ? "&" : "?"}follow=1` : base;
+			$[14] = builder;
+			$[15] = epoch;
+			$[16] = following;
+			$[17] = logPath;
+			$[18] = resolvedEventId;
+			$[19] = sampleId;
+			$[20] = t7;
+		} else t7 = $[20];
+		t6 = t7;
 	}
-	const exitUrl = t7;
-	let t8;
-	if ($[22] !== exitUrl || $[23] !== navigate) {
-		t8 = () => {
+	const exitUrl = t6;
+	let t7;
+	if ($[21] !== exitUrl || $[22] !== navigate) {
+		t7 = () => {
 			if (!exitUrl) return;
-			navigateAndForget(navigate, exitUrl);
+			navigate(exitUrl);
 		};
-		$[22] = exitUrl;
-		$[23] = navigate;
-		$[24] = t8;
-	} else t8 = $[24];
-	const onExit = t8;
-	let t9;
+		$[21] = exitUrl;
+		$[22] = navigate;
+		$[23] = t7;
+	} else t7 = $[23];
+	const onExit = t7;
+	let t8;
 	bb1: {
 		if (!logPath) {
-			t9 = void 0;
+			t8 = void 0;
 			break bb1;
 		}
-		let t10;
-		if ($[25] !== isSamplesSurface || $[26] !== logPath || $[27] !== prefix) {
-			t10 = isSamplesSurface ? samplesUrl(logPath) : logsUrl(logPath, void 0, kLogViewSamplesTabId, prefix);
-			$[25] = isSamplesSurface;
-			$[26] = logPath;
-			$[27] = prefix;
-			$[28] = t10;
-		} else t10 = $[28];
-		t9 = t10;
+		let t9;
+		if ($[24] !== isSamplesSurface || $[25] !== logPath || $[26] !== prefix) {
+			t9 = isSamplesSurface ? samplesUrl(logPath) : logsUrl(logPath, void 0, kLogViewSamplesTabId, prefix);
+			$[24] = isSamplesSurface;
+			$[25] = logPath;
+			$[26] = prefix;
+			$[27] = t9;
+		} else t9 = $[27];
+		t8 = t9;
 	}
-	const homeUrl = t9;
-	let t10;
-	if ($[29] !== isSamplesSurface || $[30] !== logPath || $[31] !== prefix) {
-		t10 = (file, log_dir) => {
+	const homeUrl = t8;
+	let t9;
+	if ($[28] !== isSamplesSurface || $[29] !== logPath || $[30] !== prefix) {
+		t9 = (file, log_dir) => {
 			if (isSamplesSurface) {
 				const normalizedFile = file.endsWith("/") ? file.slice(0, -1) : file;
 				return samplesUrl(logPath && (normalizedFile === logPath || normalizedFile === `${logPath}/sample`) ? logPath : file, log_dir);
@@ -158978,125 +161363,125 @@ var SampleEventView_module_default = {
 			if (normalizedFile_0 === logPath || normalizedFile_0 === `${logPath}/sample`) return logsUrl(logPath, log_dir, kLogViewSamplesTabId, prefix);
 			return logsUrl(file, log_dir, void 0, prefix);
 		};
-		$[29] = isSamplesSurface;
-		$[30] = logPath;
-		$[31] = prefix;
-		$[32] = t10;
-	} else t10 = $[32];
-	const fnNavigationUrl = t10;
+		$[28] = isSamplesSurface;
+		$[29] = logPath;
+		$[30] = prefix;
+		$[31] = t9;
+	} else t9 = $[31];
+	const fnNavigationUrl = t9;
 	const sampleError = sample?.error;
-	const t11 = logPath ? `${logPath}/sample` : void 0;
-	const t12 = !singleFileMode;
-	let t13;
-	if ($[33] !== exitUrl || $[34] !== fnNavigationUrl || $[35] !== homeUrl || $[36] !== t11 || $[37] !== t12) {
-		t13 = {
-			currentPath: t11,
+	const t10 = logPath ? `${logPath}/sample` : void 0;
+	const t11 = !singleFileMode;
+	let t12;
+	if ($[32] !== exitUrl || $[33] !== fnNavigationUrl || $[34] !== homeUrl || $[35] !== t10 || $[36] !== t11) {
+		t12 = {
+			currentPath: t10,
 			fnNavigationUrl,
 			backUrl: exitUrl,
 			homeUrl,
 			bordered: true,
-			breadcrumbsEnabled: t12
+			breadcrumbsEnabled: t11
 		};
-		$[33] = exitUrl;
-		$[34] = fnNavigationUrl;
-		$[35] = homeUrl;
+		$[32] = exitUrl;
+		$[33] = fnNavigationUrl;
+		$[34] = homeUrl;
+		$[35] = t10;
 		$[36] = t11;
 		$[37] = t12;
-		$[38] = t13;
-	} else t13 = $[38];
-	let t14;
-	if ($[39] !== epoch || $[40] !== sampleId || $[41] !== sampleLoading || $[42] !== sampleNavigation || $[43] !== t13) {
-		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SampleNavbar, {
+	} else t12 = $[37];
+	let t13;
+	if ($[38] !== epoch || $[39] !== sampleId || $[40] !== sampleLoading || $[41] !== sampleNavigation || $[42] !== t12) {
+		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SampleNavbar, {
 			sampleId,
 			epoch,
 			navigation: sampleNavigation,
-			navbarConfig: t13,
+			navbarConfig: t12,
 			loading: sampleLoading
 		});
-		$[39] = epoch;
-		$[40] = sampleId;
-		$[41] = sampleLoading;
-		$[42] = sampleNavigation;
+		$[38] = epoch;
+		$[39] = sampleId;
+		$[40] = sampleLoading;
+		$[41] = sampleNavigation;
+		$[42] = t12;
 		$[43] = t13;
-		$[44] = t14;
-	} else t14 = $[44];
-	const header = t14;
+	} else t13 = $[43];
+	const header = t13;
 	if (!sample && runningEvents.length === 0) {
-		let t15;
-		if ($[45] === Symbol.for("react.memo_cache_sentinel")) {
-			t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		let t14;
+		if ($[44] === Symbol.for("react.memo_cache_sentinel")) {
+			t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 				className: SampleEventView_module_default.loading,
 				children: ["loading sample data", /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { className: SampleEventView_module_default.ellipsis })]
 			});
-			$[45] = t15;
-		} else t15 = $[45];
-		let t16;
-		if ($[46] !== header) {
-			t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			$[44] = t14;
+		} else t14 = $[44];
+		let t15;
+		if ($[45] !== header) {
+			t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 				className: SampleEventView_module_default.root,
-				children: [header, t15]
+				children: [header, t14]
 			});
-			$[46] = header;
-			$[47] = t16;
-		} else t16 = $[47];
-		return t16;
+			$[45] = header;
+			$[46] = t15;
+		} else t15 = $[46];
+		return t15;
 	}
 	if (nav.slice.length === 0) {
-		let t15;
-		if ($[48] !== isRunning) {
-			t15 = isRunning ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		let t14;
+		if ($[47] !== isRunning) {
+			t14 = isRunning ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 				className: SampleEventView_module_default.loading,
 				children: ["loading sample data", /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { className: SampleEventView_module_default.ellipsis })]
 			}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(NoContentsPanel, { text: "Event not found in this sample." });
-			$[48] = isRunning;
-			$[49] = t15;
-		} else t15 = $[49];
-		let t16;
-		if ($[50] !== header || $[51] !== t15) {
-			t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			$[47] = isRunning;
+			$[48] = t14;
+		} else t14 = $[48];
+		let t15;
+		if ($[49] !== header || $[50] !== t14) {
+			t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 				className: SampleEventView_module_default.root,
-				children: [header, t15]
+				children: [header, t14]
 			});
-			$[50] = header;
+			$[49] = header;
+			$[50] = t14;
 			$[51] = t15;
-			$[52] = t16;
-		} else t16 = $[52];
-		return t16;
+		} else t15 = $[51];
+		return t15;
 	}
-	let t15;
-	if ($[53] !== sampleError) {
-		t15 = sampleError ? {
+	let t14;
+	if ($[52] !== sampleError) {
+		t14 = sampleError ? {
 			label: "Sample error",
 			message: sampleError.message
 		} : void 0;
-		$[53] = sampleError;
-		$[54] = t15;
-	} else t15 = $[54];
+		$[52] = sampleError;
+		$[53] = t14;
+	} else t14 = $[53];
+	let t15;
+	if ($[54] !== exitUrl) {
+		t15 = toFullUrlMaybe(exitUrl);
+		$[54] = exitUrl;
+		$[55] = t15;
+	} else t15 = $[55];
 	let t16;
-	if ($[55] !== exitUrl) {
-		t16 = toFullUrlMaybe(exitUrl);
-		$[55] = exitUrl;
-		$[56] = t16;
-	} else t16 = $[56];
-	let t17;
-	if ($[57] !== eventId || $[58] !== header || $[59] !== nav || $[60] !== onExit || $[61] !== t15 || $[62] !== t16) {
-		t17 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FocusTurnView, {
+	if ($[56] !== eventId || $[57] !== header || $[58] !== nav || $[59] !== onExit || $[60] !== t14 || $[61] !== t15) {
+		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FocusTurnView, {
 			nav,
 			eventId,
 			header,
-			error: t15,
+			error: t14,
 			onExit,
-			exitHref: t16
+			exitHref: t15
 		});
-		$[57] = eventId;
-		$[58] = header;
-		$[59] = nav;
-		$[60] = onExit;
+		$[56] = eventId;
+		$[57] = header;
+		$[58] = nav;
+		$[59] = onExit;
+		$[60] = t14;
 		$[61] = t15;
 		$[62] = t16;
-		$[63] = t17;
-	} else t17 = $[63];
-	return t17;
+	} else t16 = $[62];
+	return t16;
 };
 //#endregion
 //#region src/app/shared/contentTrust.tsx
@@ -159827,7 +162212,7 @@ var SamplePrintView_module_default = {
 			} else t2 = $[16];
 			sampleMetadatas.push(t2);
 		}
-		if (sample.model_usage && Object.keys(sample.model_usage).length > 0) {
+		if (Object.keys(sample.model_usage).length > 0) {
 			let t1;
 			if ($[17] === Symbol.for("react.memo_cache_sentinel")) {
 				t1 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardHeader, { label: "Usage" });
@@ -160077,10 +162462,10 @@ function _temp$4(timestamp) {
 	const previousRoute = siblingRoute(-1);
 	const nextRoute = siblingRoute(1);
 	const handlePrevious = () => {
-		if (previousRoute) navigateAndForget(navigate, previousRoute);
+		if (previousRoute) navigate(previousRoute);
 	};
 	const handleNext = () => {
-		if (nextRoute) navigateAndForget(navigate, nextRoute);
+		if (nextRoute) navigate(nextRoute);
 	};
 	useUnmount(clearSampleTab);
 	const T0 = SampleDetailComponent;
@@ -161102,7 +163487,7 @@ var getAppRouter = () => appRouter ??= createAppRouter();
 				case "updateState":
 					if (e.data.url && isNewHostCommand(e.data)) {
 						setLogRoot(resolveEmbeddedLogDir(decodeURIComponent(e.data.url)));
-						navigateAndForget(router.navigate.bind(router), hostDestinationRoute(e.data), { replace: true });
+						router.navigate(hostDestinationRoute(e.data), { replace: true });
 					}
 					break bb4;
 				case "backgroundUpdate": imperativeLogData.invalidateLogListing();

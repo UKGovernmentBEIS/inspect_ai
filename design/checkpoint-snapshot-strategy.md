@@ -713,8 +713,8 @@ builds the shared primitive both need:
   file via per-exec root `sh` stdin. `exec`'s fully materialized
   `input` otherwise forces the whole payload into host RAM — the same
   problem in reverse. First consumer: the archive strategy's `restore`
-  (§7.2); `ingress_sandbox` (which today streams the entire repo tar
-  through one exec) migrates onto it too.
+  (§7.2); `ingress_sandbox` uses it too, so restic resume, like archive
+  restore, briefly needs twice the staged data's size in sandbox disk.
 - Destination side: object stores have no append, so "streaming to
   the destination" means one long-lived streaming write (a single S3
   multipart upload) fed chunk-by-chunk.

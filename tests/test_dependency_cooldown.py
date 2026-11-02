@@ -1,9 +1,9 @@
 """Tests for the dependency cooldown in pyproject.toml and the CI jobs around it.
 
-pyproject.toml holds back releases younger than seven days except for an
-exempt list of packages that must include every model provider's own package,
-Dependabot applies the same cooldown and exemptions to its uv.lock bumps, and
-every CI job installs from a lockfile. The model-data sync script runs without
+pyproject.toml holds back releases younger than seven days, or six hours for a
+list of packages that must include every model provider's own package,
+Dependabot applies the seven days to its uv.lock bumps and leaves that list to uv,
+and every CI job installs from a lockfile. The model-data sync script runs without
 pyproject.toml, so its own metadata repeats the policy. Testing against the
 newest releases happens in meridianlabs-ai/canaries, outside this repository.
 """
@@ -23,19 +23,24 @@ WORKFLOWS = REPO / ".github" / "workflows"
 BUILD = WORKFLOWS / "build.yml"
 LOCKED_JOBS = {
     "mypy": "uv sync --locked",
+    "pre-commit": "uv sync --locked",
     "test": "uv sync --locked",
     "slow-tests": "uv sync --locked",
     "slow-tool-tests-dev": "uv sync --locked",
     "slow-tool-tests-release": "uv sync --locked",
     "docs": "uv sync --locked --extra doc --no-default-groups",
+    "package": "uv sync --locked --no-default-groups --extra dist --no-install-project",
 }
 SANDBOX_TOOLS_TEST_LOCK = "src/inspect_sandbox_tools/tests/requirements.txt"
 PROVIDERS = REPO / "src" / "inspect_ai" / "model" / "_providers"
 SYNC_MODELS = REPO / "src" / "inspect_ai" / "model" / "_model_data" / "sync_models.py"
 DEPENDENCY_CHECKS = {"pip_dependency_error", "verify_required_version"}
 # Packages providers need that aren't the provider's own SDK or integration
-# package. These stay under the cooldown.
+# package. These stay under the seven-day cooldown.
 PROVIDER_INFRASTRUCTURE = {"accelerate", "torch"}
+# The cooldown for packages in exclude-newer-package, and how uv.lock records it.
+EXEMPT_COOLDOWN = "6 hours"
+EXEMPT_COOLDOWN_SPAN = "PT6H"
 
 
 def uv_config() -> dict[str, Any]:
@@ -121,7 +126,8 @@ def test_dependabot_cooldown_matches_pyproject() -> None:
     cooldown = dependabot["cooldown"]
     assert cooldown["default-days"] == int(days.group(1))
     exempt = config["exclude-newer-package"]
-    assert all(value is False for value in exempt.values())
+    assert set(exempt.values()) == {EXEMPT_COOLDOWN}
+    # Dependabot's cooldown counts whole days, so it leaves these to uv.
     assert sorted(cooldown["exclude"]) == sorted(exempt)
     # The exempt packages have their own group, listed before the catch-all.
     groups = dependabot["groups"]
@@ -147,6 +153,14 @@ def test_setuptools_scm_fallback_version_is_the_released_version() -> None:
     assert pyproject["tool"]["setuptools_scm"]["fallback_version"] == manifest["."]
 
 
+def test_dependencies_are_declared_in_pyproject() -> None:
+    # Dependabot's uv updater only updates uv.lock for dependencies declared in
+    # pyproject.toml, not ones setuptools reads from requirements files.
+    pyproject = tomllib.loads((REPO / "pyproject.toml").read_text())
+    assert pyproject["project"]["dynamic"] == ["version"]
+    assert "dynamic" not in pyproject["tool"]["setuptools"]
+
+
 def test_sync_models_script_follows_the_cooldown() -> None:
     config = uv_config()
     script = script_uv_config()
@@ -156,12 +170,15 @@ def test_sync_models_script_follows_the_cooldown() -> None:
     locked = {package["name"] for package in lock["package"]}
     exempt = locked & set(config["exclude-newer-package"])
     assert "certifi" in exempt
-    assert script["exclude-newer-package"] == dict.fromkeys(exempt, False)
+    assert script["exclude-newer-package"] == dict.fromkeys(exempt, EXEMPT_COOLDOWN)
     # The lock was written with these settings.
     days = re.fullmatch(r"(\d+) days", script["exclude-newer"])
     assert days
     assert lock["options"]["exclude-newer-span"] == f"P{days[1]}D"
-    assert lock["options"]["exclude-newer-package"] == script["exclude-newer-package"]
+    assert lock["options"]["exclude-newer-package"] == {
+        package: {"timestamp": "0001-01-01T00:00:00Z", "span": EXEMPT_COOLDOWN_SPAN}
+        for package in exempt
+    }
 
 
 def version(text: str) -> tuple[int, ...]:
@@ -184,16 +201,39 @@ def test_pinned_uv_versions_meet_required_version() -> None:
             "sync_model_data.yml",
         ]
     }
-    pre_commit = yaml.safe_load((REPO / ".pre-commit-config.yaml").read_text())
-    (pinned["pre-commit"],) = [
-        repo["rev"] for repo in pre_commit["repos"] if "uv-pre-commit" in repo["repo"]
-    ]
-    devcontainer = (REPO / ".devcontainer" / "Dockerfile").read_text()
-    devcontainer_uv = re.search(r"^ARG UV_VERSION=(\S+)$", devcontainer, re.M)
-    assert devcontainer_uv
-    pinned["devcontainer"] = devcontainer_uv[1]
     for where, pin in pinned.items():
         assert version(pin) >= version(required[1]), f"{where}: uv {pin}"
+
+
+def test_no_workflow_uses_the_build_and_inspect_action() -> None:
+    # hynek/build-and-inspect-python-package installs the newest uv with
+    # curl | bash and apt-installs tree.
+    for path in (REPO / ".github").rglob("*.y*ml"):
+        assert "build-and-inspect-python-package" not in path.read_text(), path
+
+
+def test_pre_commit_hooks_run_locked_tools() -> None:
+    # A hook repo would make pre-commit install the hook's tool and its
+    # dependencies itself, outside uv.lock and the cooldown.
+    config = yaml.safe_load((REPO / ".pre-commit-config.yaml").read_text())
+    for repo in config["repos"]:
+        assert repo["repo"] == "local", repo["repo"]
+        for hook in repo["hooks"]:
+            assert hook["language"] == "unsupported", hook["id"]
+            if hook["id"] == "uv-lock":
+                assert hook["entry"] == "uv lock"
+            else:
+                assert hook["entry"].startswith("uv run --frozen "), hook["id"]
+    pyproject = tomllib.loads((REPO / "pyproject.toml").read_text())
+    requirements = pyproject["project"]["optional-dependencies"]["dev"]
+    for tool in ["pre-commit-hooks", "ruff", "typos"]:
+        assert any(re.fullmatch(rf"{tool}==[\d.]+", line) for line in requirements)
+
+
+def test_no_workflow_uses_the_pre_commit_action() -> None:
+    # pre-commit/action pip-installs the newest pre-commit, outside uv.lock.
+    for workflow in WORKFLOWS.glob("*.yml"):
+        assert "pre-commit/action" not in workflow.read_text(), workflow.name
 
 
 @pytest.mark.parametrize("name,sync", LOCKED_JOBS.items())

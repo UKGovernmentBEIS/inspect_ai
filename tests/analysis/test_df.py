@@ -656,8 +656,13 @@ def test_dataframe_functions_empty_list(
         model="mockllm/model",
         log_dir=log_dir,
     )
-    monkeypatch.setenv("INSPECT_LOG_DIR", log_dir)
-    assert len(list_eval_logs()) > 0
+    # list_eval_logs() reads INSPECT_LOG_DIR at import, so setting the env var
+    # here has no effect; point the default listing at log_dir directly
+    monkeypatch.setattr(
+        "inspect_ai.analysis._dataframe.util.list_eval_logs",
+        lambda: list_eval_logs(log_dir),
+    )
+    assert len(resolve_logs(None)) > 0
 
     assert resolve_logs([]) == []
     assert resolve_logs(()) == []

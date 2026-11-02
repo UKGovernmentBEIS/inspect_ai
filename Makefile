@@ -1,6 +1,6 @@
 .PHONY: hooks
 hooks:
-	pre-commit install
+	uv run --frozen pre-commit install
 
 .PHONY: ruff
 ruff:
