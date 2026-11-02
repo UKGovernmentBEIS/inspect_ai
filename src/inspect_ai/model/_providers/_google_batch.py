@@ -244,6 +244,15 @@ class GoogleBatcher(FileBatcher[GenerateContentResponse, CompletedBatchInfo]):
             JobState.JOB_STATE_CANCELLED,
             JobState.JOB_STATE_EXPIRED,
         ):
+            # the job has no results to fetch, so the batcher would keep polling
+            # it unless its requests are resolved here
+            message = f"Batch job {batch.id} ended in state {batch_job.state.name}"
+            if batch_job.error:
+                message = f"{message}: {batch_job.error.message} (code: {batch_job.error.code})"
+            error = RuntimeError(message)
+            await self._resolve_inflight_batch(
+                batch, {request_id: error for request_id in batch.requests}
+            )
             return BatchCheckResult(
                 completed_count=0,
                 failed_count=len(batch.requests),
