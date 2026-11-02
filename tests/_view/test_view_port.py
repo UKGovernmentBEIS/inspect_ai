@@ -31,24 +31,23 @@ def other_process() -> Iterator[subprocess.Popen[bytes]]:
 
 @pytest.fixture
 def view_server(tmp_path: Path) -> Iterator[subprocess.Popen[str]]:
-    proc = subprocess.Popen(
+    with subprocess.Popen(
         [sys.executable, "-c", VIEW_SERVER, str(tmp_path), str(PORT)],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         text=True,
-    )
-    assert proc.stdout is not None
-    assert proc.stdout.readline().strip() == "ready"
-    yield proc
-    proc.kill()
-    proc.wait()
+    ) as proc:
+        assert proc.stdout is not None
+        assert proc.stdout.readline().strip() == "ready"
+        yield proc
+        proc.kill()
 
 
 def test_stale_pid_file_does_not_terminate_unrelated_process(
     tmp_path: Path, other_process: subprocess.Popen[bytes]
 ) -> None:
-    # a pid-only file (as older versions wrote) left behind by a server that
-    # was killed, whose pid the OS has since given to an unrelated process
+    # a pid file left behind by a server that was killed, whose pid the OS
+    # has since given to an unrelated process
     view_port_pid_file(tmp_path, PORT).write_text(str(other_process.pid))
 
     view_acquire_port(tmp_path, PORT)
@@ -78,6 +77,28 @@ def test_running_view_server_is_terminated(
     assert view_port_pid_file(tmp_path, PORT).read_text().split()[0] == str(
         psutil.Process().pid
     )
+
+
+def test_view_server_is_terminated_despite_small_clock_step(
+    tmp_path: Path, view_server: subprocess.Popen[str]
+) -> None:
+    pid_file = view_port_pid_file(tmp_path, PORT)
+    pid, create_time = pid_file.read_text().split()
+    pid_file.write_text(f"{pid} {float(create_time) + 1}")
+
+    view_acquire_port(tmp_path, PORT)
+
+    assert view_server.wait(5) is not None
+
+
+def test_legacy_pid_file_is_left_for_older_versions(tmp_path: Path) -> None:
+    # older versions parse `ports/<port>` as a bare pid outside any error
+    # handling, so writing our pid and start time there would crash them
+    legacy_pid_file = tmp_path / "ports" / str(PORT)
+
+    view_acquire_port(tmp_path, PORT)
+
+    assert not legacy_pid_file.exists()
 
 
 def test_own_pid_file_is_not_terminated(

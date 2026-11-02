@@ -96,7 +96,9 @@ def view(
 def view_port_pid_file(app_dir: Path, port: int) -> Path:
     ports_dir = app_dir / "ports"
     ports_dir.mkdir(parents=True, exist_ok=True)
-    return ports_dir / str(port)
+    # not `ports/<port>`: older versions read that as a bare pid and fail on
+    # anything else
+    return ports_dir / f"{port}.pid"
 
 
 def view_acquire_port(app_dir: Path, port: int) -> None:
@@ -150,15 +152,19 @@ def view_port_owner(pid_file: Path) -> psutil.Process | None:
 
     The pid file outlives a server that crashes or is killed, and the OS may
     since have given its pid to an unrelated process, so the recorded start
-    time must match as well. A missing, unreadable or malformed file (including
-    the pid-only files written by older versions) has no owner.
+    time must match as well. On Linux the start time psutil reports moves when
+    the system clock is stepped, so it is compared with a small tolerance. A
+    missing, unreadable or malformed file has no owner.
     """
     try:
-        ident = pid_file.read_text(encoding="utf-8")
-        process = psutil.Process(int(ident.split()[0]))
-        if process.pid != os.getpid() and process_ident(process) == ident:
+        pid, create_time = pid_file.read_text(encoding="utf-8").split()
+        process = psutil.Process(int(pid))
+        if (
+            process.pid != os.getpid()
+            and abs(process.create_time() - float(create_time)) < 2
+        ):
             return process
-    except (OSError, ValueError, IndexError, psutil.Error):
+    except (OSError, ValueError, psutil.Error):
         pass
     return None
 
