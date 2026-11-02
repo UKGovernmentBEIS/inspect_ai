@@ -36,6 +36,7 @@ from inspect_ai.scorer import (
 from inspect_ai.scorer._model import (
     _PERMISSIVE_GRADE_PATTERN,
     DEFAULT_GRADE_PATTERN,
+    _trailing_verdict_disagrees,
     neutralize_structural_delimiters,
 )
 from inspect_ai.solver._task_state import TaskState
@@ -986,6 +987,8 @@ def test_markdown_or_fullwidth_final_verdict_wins_over_quoted_grade(
         pytest.param("Grade - I\nGrade - done", id="closing_remark_after_verdict"),
         pytest.param("Grade - I\r\n", id="crlf"),
         pytest.param("Grade - I\r\nGrade - done\r\n", id="crlf_closing_remark"),
+        pytest.param("Grade - I" + " " * 9, id="many_trailing_spaces"),
+        pytest.param("Grade - I **" + "\t" * 12, id="trailing_tabs_after_marks"),
     ],
 )
 def test_unread_final_verdict_does_not_fall_back_to_earlier_grade(
@@ -1028,6 +1031,10 @@ def test_unread_final_verdict_does_not_fall_back_to_earlier_grade(
         ),
         pytest.param("GRADE: C\nGrade - done", id="closing_remark_word"),
         pytest.param("GRADE: C\nGrade -> final", id="closing_remark_arrow"),
+        pytest.param(
+            "GRADE: C\nGrade - I\nGrade - C" + " " * 9,
+            id="correction_with_many_trailing_spaces",
+        ),
     ],
 )
 def test_trailing_mention_that_agrees_or_is_prose_keeps_grade(
@@ -1050,6 +1057,49 @@ def test_grade_pattern_is_linear_on_long_emphasis_run(pattern: str, mark: str) -
     text = "Reasoning.\n" + mark * 20_000 + "\nno verdict here"
     started = time.perf_counter()
     assert re.search(pattern, text) is None
+    assert time.perf_counter() - started < 2.0
+
+
+@pytest.mark.parametrize(
+    "pattern",
+    [DEFAULT_GRADE_PATTERN, _PERMISSIVE_GRADE_PATTERN],
+    ids=["default", "permissive"],
+)
+@pytest.mark.parametrize(
+    "text",
+    [
+        pytest.param("GRADE: C\n## GRADE\n" + "_" * 20_000 + "!", id="heading_marks"),
+        pytest.param(
+            "GRADE: C\n## GRADE\nI" + "_" * 20_000 + "!", id="heading_word_marks"
+        ),
+        pytest.param("GRADE: C\nGRADE:" + "*" * 20_000 + "!", id="separator_marks"),
+        pytest.param("GRADE: C\nGRADE:" + "_" * 20_000 + "!", id="separator_under"),
+    ],
+)
+def test_grade_pattern_is_linear_on_marks_after_label(pattern: str, text: str) -> None:
+    # Opening marks, the verdict word and closing marks (heading) or separator
+    # emphasis and verdict marks (after the separator) must not share a run:
+    # when they could, 800 marks took ~2.5 s and time grew with the cube of
+    # the run length.
+    started = time.perf_counter()
+    re.search(pattern, text)
+    assert time.perf_counter() - started < 2.0
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        pytest.param("GRADE: C\nGRADE" + " " * 20_000 + "!", id="spaces_after_label"),
+        pytest.param("GRADE: C\nGRADE -" + " " * 20_000 + "!", id="spaces_after_sep"),
+        pytest.param("GRADE: C\nGrade - I" + " " * 20_000 + "!", id="spaces_at_end"),
+        pytest.param("GRADE: C\nGrade - I" + "* " * 10_000 + "!", id="marks_at_end"),
+    ],
+)
+def test_trailing_verdict_guard_is_linear_on_long_space_run(text: str) -> None:
+    # The spaces around an empty separator could be divided in many ways,
+    # which took ~0.6 s for 8,000 spaces.
+    started = time.perf_counter()
+    _trailing_verdict_disagrees(text, 0, "C")
     assert time.perf_counter() - started < 2.0
 
 

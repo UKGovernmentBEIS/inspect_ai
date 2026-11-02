@@ -430,7 +430,8 @@ First, write out in a step by step manner your reasoning about the criterion to 
 
 # Whitespace plus zero-width / formatting marks that can appear around a
 # verdict separator in model output or pasted text.
-_GRADE_SPACING = r"[\s\u200b\u200c\u200d\u200e\u200f\u2060\u2063\ufeff]*"
+_GRADE_SPACE_CHAR = r"[\s\u200b\u200c\u200d\u200e\u200f\u2060\u2063\ufeff]"
+_GRADE_SPACING = rf"{_GRADE_SPACE_CHAR}*"
 
 # Markdown emphasis or inline-code marks around the label or separator
 # (``**GRADE**: I``, ``__GRADE__: I``, ``**GRADE:** I``). They are accepted only
@@ -441,6 +442,20 @@ _GRADE_EMPHASIS = r"[*_`]*"
 # Marks that may open a wrapped verdict (``**I**``, ``__I__``, ```I```, ``[I]``,
 # ``(I)``), directly against the verdict.
 _GRADE_VERDICT_OPEN = r"[*_`\[(]*"
+
+# Emphasis that closes a label after its separator (``**GRADE:** I``). It is
+# taken only as a whole run followed by spacing, so it never competes with
+# ``_GRADE_VERDICT_OPEN`` for the same marks (``GRADE:**I**``): each run of
+# marks matches in one way only and a long run with no verdict stays linear.
+_GRADE_SEPARATOR_EMPHASIS = rf"(?:[*_`]+(?={_GRADE_SPACE_CHAR}))?"
+
+# A lone verdict word on the line after a ``## GRADE`` heading, with optional
+# wrapping marks. The word is letters and digits, with ``_`` only between them,
+# so the opening marks, the word and the closing marks never share a run of
+# ``_`` and a long run with no verdict stays linear.
+_GRADE_HEADING_VERDICT = (
+    rf"{_GRADE_VERDICT_OPEN}[^\W_]+(?:_+[^\W_]+)*[*_`\])]*[ \t.]*(?:\r?\n|$)"
+)
 
 # ASCII colon, the fullwidth colon (U+FF1A) that CJK-locale graders write, or an
 # equals sign.
@@ -458,9 +473,9 @@ _GRADE_LABEL = rf"(?<!\w)(?:(?<![*_`])[*_`]+)?GRADE{_GRADE_EMPHASIS}(?!\w)"
 # the verdict alone on the next line. The lookahead keeps a heading followed by
 # ordinary prose from being read as a verdict.
 _GRADE_LEAD_IN = (
-    rf"(?:{_GRADE_LABEL}{_GRADE_SPACING}{_GRADE_SEPARATOR}{_GRADE_EMPHASIS}"
+    rf"(?:{_GRADE_LABEL}{_GRADE_SPACING}{_GRADE_SEPARATOR}{_GRADE_SEPARATOR_EMPHASIS}"
     rf"|(?<![^\n])\#{{1,6}}[ \t]+{_GRADE_LABEL}[ \t]*"
-    rf"(?=\r?\n{_GRADE_SPACING}{_GRADE_VERDICT_OPEN}\w+[*_`\])]*[ \t.]*(?:\r?\n|$)))"
+    rf"(?=\r?\n{_GRADE_SPACING}{_GRADE_HEADING_VERDICT}))"
 )
 
 # Spelled-out verdicts the default instructions may elicit, mapped to their
@@ -518,15 +533,17 @@ _PERMISSIVE_GRADE_PATTERN = (
 # separator such as "-", "->", an em dash, a short parenthetical or a closing
 # tag, then a single word that ends the line ("Grade - I", "GRADE (final): I",
 # "<b>GRADE</b>: I"). Mentions inside a sentence are prose and never match.
-# Every part is bounded and adjacent parts start with different characters, so
-# matching stays linear in the reply length.
+# Every part is bounded or uses characters its neighbours do not, so each run
+# of spaces matches in one way only and matching stays linear in the reply
+# length. Trailing spaces and tabs are accepted in any number and do not count
+# toward the limit of 8 closing marks.
 _TRAILING_VERDICT_RE = re.compile(
     r"^[ \t]*(?:(?:[*_#>`]{1,6}|<[a-z]{1,6}>)[ \t]*){0,3}"
     r"GRADE(?!\w)"
     r"(?P<sep>(?:[ \t]*(?:</?[a-z]{1,6}>|\([^()\n]{0,20}\))){0,3}"
-    r"[ \t]*[^\w\s<(]{0,4}[ \t]*)"
+    r"[ \t]*(?:[^\w\s<(]{1,4}[ \t]*)?)"
     r"(?P<grade>[a-z]{1,12})"
-    r"(?:[ \t*_`)\].!]|</[a-z]{1,6}>){0,8}\r?$",
+    r"[ \t]*(?:(?:[*_`)\].!]|</[a-z]{1,6}>)[ \t]*){0,8}\r?$",
     re.IGNORECASE | re.MULTILINE,
 )
 
