@@ -32,6 +32,7 @@ from inspect_ai._eval.eval_set_selection import (
 )
 from inspect_ai._eval.loader import resolve_tasks
 from inspect_ai._eval.task.enqueue import (
+    ConfiguredTask,
     RunQueue,
     TaskStartPolicy,
     clear_run_queue,
@@ -49,7 +50,6 @@ from inspect_ai.hooks import Hooks, RunEnd, RunStart, SampleEnd, TaskStart, hook
 from inspect_ai.log import EvalLog, read_eval_log
 from inspect_ai.model import ChatMessageUser, get_model
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
-from inspect_ai.util import throttle
 from inspect_ai.util._display import init_display_type
 
 
@@ -67,7 +67,7 @@ def enqueue_child():
     """A solver that adds a `child` task to the running eval, once."""
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        enqueue_task(child())
+        await enqueue_task(child())
         return state
 
     return solve
@@ -98,7 +98,7 @@ def test_enqueue_task_chains_across_batches() -> None:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             seen.append(state.metadata.get("name", "?"))
             if depth > 0:
-                enqueue_task(
+                await enqueue_task(
                     Task(
                         dataset=[Sample(input="hi", target="ok")],
                         solver=[spawn_next(depth - 1)],
@@ -143,7 +143,7 @@ def test_enqueued_task_media_is_inline_only(tmp_path) -> None:
     @solver
     def enqueue_child() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            enqueue_task(
+            await enqueue_task(
                 Task(
                     dataset=[
                         Sample(
@@ -225,7 +225,7 @@ def test_enqueued_resolved_task_media_is_inline_only(tmp_path) -> None:
     @solver
     def enqueue_resolved_child() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            enqueue_task(resolved_child)
+            await enqueue_task(resolved_child)
             return state
 
         return solve
@@ -256,7 +256,7 @@ def test_enqueue_task_does_not_leak_active_model() -> None:
     def enqueue_and_check():
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             before = str(get_model())
-            enqueue_task(child())
+            await enqueue_task(child())
             after = str(get_model())
             if before != after:
                 mismatches.append((before, after))
@@ -275,9 +275,9 @@ def test_enqueue_task_does_not_leak_active_model() -> None:
     assert all(log.status == "success" for log in logs)
 
 
-def test_enqueue_task_outside_run_raises() -> None:
+async def test_enqueue_task_outside_run_raises() -> None:
     with pytest.raises(RuntimeError, match="while an eval is running"):
-        enqueue_task(child())
+        await enqueue_task(child())
 
 
 def test_enqueue_task_from_hooks(tmp_path: Path) -> None:
@@ -286,27 +286,27 @@ def test_enqueue_task_from_hooks(tmp_path: Path) -> None:
     # it has ended, so enqueue_task raises there
     errors: dict[str, str] = {}
 
-    def try_enqueue(hook: str, name: str) -> None:
+    async def try_enqueue(hook: str, name: str) -> None:
         try:
-            enqueue_task(Task(dataset=[Sample(input="x")], name=name))
+            await enqueue_task(Task(dataset=[Sample(input="x")], name=name))
         except RuntimeError as ex:
             errors[hook] = str(ex)
 
     @hooks(name="enqueue_from_hooks", description="Adds tasks from hooks.")
     class EnqueueFromHooks(Hooks):
         async def on_run_start(self, data: RunStart) -> None:
-            try_enqueue("on_run_start", "from_run_start")
+            await try_enqueue("on_run_start", "from_run_start")
 
         async def on_task_start(self, data: TaskStart) -> None:
             if data.spec.task == "parent":
-                try_enqueue("on_task_start", "from_task_start")
+                await try_enqueue("on_task_start", "from_task_start")
 
         async def on_sample_end(self, data: SampleEnd) -> None:
             if data.sample.metadata.get("parent"):
-                try_enqueue("on_sample_end", "from_sample_end")
+                await try_enqueue("on_sample_end", "from_sample_end")
 
         async def on_run_end(self, data: RunEnd) -> None:
-            try_enqueue("on_run_end", "from_run_end")
+            await try_enqueue("on_run_end", "from_run_end")
 
     try:
         logs = eval(
@@ -341,7 +341,7 @@ async def test_enqueue_task_from_run_end_hook_of_ended_run_raises(
     class EnqueueFromRunEnd(Hooks):
         async def on_run_end(self, data: RunEnd) -> None:
             try:
-                enqueue_task(Task(dataset=[Sample(input="x")], name="late"))
+                await enqueue_task(Task(dataset=[Sample(input="x")], name="late"))
             except RuntimeError as ex:
                 errors.append(str(ex))
 
@@ -378,7 +378,26 @@ async def test_enqueue_task_from_run_end_hook_of_ended_run_raises(
     assert "can only be called while an eval is running" in errors[0]
 
 
-def test_enqueue_task_invalid_start_raises_before_resolving() -> None:
+async def _no_sandboxes(configured: ConfiguredTask) -> tuple[()]:
+    return ()
+
+
+async def _enqueue_in(context: Context) -> RuntimeError | None:
+    """What enqueue_task() raises when called from a task started in ``context``."""
+    raised: list[RuntimeError] = []
+
+    async def add() -> None:
+        try:
+            await enqueue_task(child())
+        except RuntimeError as ex:
+            raised.append(ex)
+
+    async with anyio.create_task_group() as tg:
+        context.run(tg.start_soon, add)
+    return raised[0] if raised else None
+
+
+async def test_enqueue_task_invalid_start_raises_before_resolving() -> None:
     resolved: list[Tasks] = []
 
     def resolve(tasks: Tasks) -> list[ResolvedTask]:
@@ -389,6 +408,7 @@ def test_enqueue_task_invalid_start_raises_before_resolving() -> None:
         "run",
         resolve,
         lambda group: [],
+        _no_sandboxes,
         wake=Wake(),
         retries=0,
         sequence_order=False,
@@ -397,7 +417,7 @@ def test_enqueue_task_invalid_start_raises_before_resolving() -> None:
     token = register_run_queue(queue)
     try:
         with pytest.raises(ValueError, match="start must be .* not 'now'"):
-            enqueue_task(child(), start=cast(TaskStartPolicy, "now"))
+            await enqueue_task(child(), start=cast(TaskStartPolicy, "now"))
     finally:
         clear_run_queue(token)
     assert resolved == []
@@ -446,7 +466,7 @@ def enqueue_child_and_wait(
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         started = anyio.Event()
-        enqueue_task(_child_signalling(started), start=start)
+        await enqueue_task(_child_signalling(started), start=start)
         if raise_max_tasks is not None:
             await _wait_until_child_held()
             state.metadata["held_at_launch_limit"] = not started.is_set()
@@ -621,7 +641,7 @@ def test_enqueue_task_after_batch_waits_for_every_running_task(
     @solver
     def enqueue_child_then_finish() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            enqueue_task(
+            await enqueue_task(
                 Task(
                     dataset=[Sample(input="hi")],
                     solver=record("child-start"),
@@ -697,7 +717,7 @@ def test_enqueue_task_when_free_group_keeps_sequence_grouping_at_max_tasks_one()
             starts.append("p")
             if not enqueued:
                 enqueued.append(True)
-                enqueue_task(
+                await enqueue_task(
                     [
                         Task(dataset=[Sample(input="x")], solver=record("c"), name="c"),
                         Task(dataset=[Sample(input="x")], solver=record("d"), name="d"),
@@ -736,7 +756,7 @@ def test_enqueue_task_when_free_child_runs_when_parent_fails() -> None:
     @solver
     def enqueue_then_fail() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            enqueue_task(
+            await enqueue_task(
                 Task(dataset=[Sample(input="hi")], solver=record_child(), name="child"),
                 start="when_free",
             )
@@ -769,7 +789,7 @@ def test_enqueue_task_when_free_child_is_retried() -> None:
     @solver
     def enqueue_flaky_child() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            enqueue_task(
+            await enqueue_task(
                 Task(
                     dataset=[Sample(input="hi")],
                     solver=fail_first_attempt(),
@@ -809,46 +829,7 @@ def test_enqueue_task_after_run_finished_dispatching_raises() -> None:
 
     logs = eval(_parent(keep_context()), model="mockllm/model", display="none")
     assert [log.status for log in logs] == ["success"]
-    with pytest.raises(RuntimeError, match="finished dispatching"):
-        contexts[0].run(enqueue_task, child())
-
-
-async def test_enqueue_task_from_late_throttle_trailing_call_keeps_eval_result(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    # A throttle trailing call that adds a task fires in run-level background
-    # work after the run has ended (here, scheduled from on_run_end, which
-    # runs after that), so enqueue_task raises there. The
-    # throttle logs that error: the eval still returns its logs and on_run_end
-    # runs once.
-    fired = anyio.Event()
-    run_end_calls = 0
-
-    @throttle(0.3)
-    def add_follow_up(name: str) -> None:
-        if name == "late":
-            fired.set()
-            enqueue_task(Task(dataset=[Sample(input="x")], name="late"))
-
-    @hooks(name="throttled_run_end", description="Schedules a trailing call.")
-    class ThrottledRunEnd(Hooks):
-        async def on_run_end(self, data: RunEnd) -> None:
-            nonlocal run_end_calls
-            run_end_calls += 1
-            add_follow_up("leading")
-            add_follow_up("late")
-            with anyio.fail_after(10):
-                await fired.wait()
-
-    init_display_type("none")
-    try:
-        logs = await eval_async(_parent(generate()), model="mockllm/model")
-    finally:
-        del _registry["hooks:throttled_run_end"]
-
-    assert [(log.eval.task, log.status) for log in logs] == [("parent", "success")]
-    assert run_end_calls == 1
-    assert "can only be called while an eval is running" in caplog.text
+    assert "finished dispatching" in str(anyio.run(_enqueue_in, contexts[0]))
 
 
 @pytest.mark.parametrize("sandbox", [None, "local"])
@@ -869,7 +850,7 @@ async def test_enqueue_task_finished_added_task_is_released_before_run_ends(
                 sandbox=sandbox,
             )
             dataset = weakref.ref(added.dataset)
-            enqueue_task(added, start="when_free")
+            await enqueue_task(added, start="when_free")
             del added
             with anyio.move_on_after(10):
                 while dataset() is not None:
@@ -927,7 +908,7 @@ async def test_enqueue_task_cancel_while_added_tasks_create_their_logs(
     @solver
     def enqueue_group() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            enqueue_task(
+            await enqueue_task(
                 [
                     Task(dataset=[Sample(input="x")], name="c"),
                     Task(dataset=[Sample(input="x")], name="d"),
@@ -970,7 +951,7 @@ async def test_enqueue_task_cancel_while_when_free_child_queued(
     @solver
     def enqueue_then_cancel_run() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            enqueue_task(_child_signalling(child_started), start="when_free")
+            await enqueue_task(_child_signalling(child_started), start="when_free")
             await _wait_until_child_held()
             contexts.append(copy_context())
             scope.cancel()
@@ -992,8 +973,7 @@ async def test_enqueue_task_cancel_while_when_free_child_queued(
     assert not child_started.is_set()
     assert "child" not in created
     assert task_dispatcher_stats() is None
-    with pytest.raises(RuntimeError, match="finished dispatching"):
-        contexts[0].run(enqueue_task, child())
+    assert "finished dispatching" in str(await _enqueue_in(contexts[0]))
 
 
 async def test_enqueue_task_when_free_file_task_log_init_keeps_running_cwd(
@@ -1028,7 +1008,9 @@ async def test_enqueue_task_when_free_file_task_log_init_keeps_running_cwd(
     def enqueue_file_task_and_watch_cwd() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             cwds.append(os.getcwd())
-            enqueue_task(f"{task_dir / 'filetask.py'}@filetask", start="when_free")
+            await enqueue_task(
+                f"{task_dir / 'filetask.py'}@filetask", start="when_free"
+            )
             await init_started.wait()
             cwds.append(os.getcwd())
             init_release.set()
@@ -1079,7 +1061,7 @@ LocalSandboxEnvironment.task_init = classmethod(interrupted_init)
 @solver
 def add_task(start, hold):
     async def solve(state, generate):
-        enqueue_task(
+        await enqueue_task(
             Task(dataset=[Sample(input="x")], name="added", sandbox="local"),
             start=start,
         )

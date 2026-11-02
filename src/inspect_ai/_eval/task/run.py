@@ -718,7 +718,7 @@ def eval_plan_agent_name(plan: EvalPlan) -> str | None:
     return registry_unqualified_name(steps[-1].solver) if steps else None
 
 
-def _enqueue_source_tasks(tasks: list[Task] | None) -> None:
+async def _enqueue_source_tasks(tasks: list[Task] | None) -> None:
     """Add tasks a TaskSource callback returned to the running eval's queue.
 
     Routes through the run's queue like a default ``enqueue_task`` call, so in
@@ -728,7 +728,7 @@ def _enqueue_source_tasks(tasks: list[Task] | None) -> None:
     if tasks:
         queue = get_run_queue()
         if queue is not None:
-            queue.put(tasks)
+            await queue.put(tasks)
 
 
 async def notify_task_source(options: TaskRunOptions, eval_log: EvalLog) -> None:
@@ -741,7 +741,7 @@ async def notify_task_source(options: TaskRunOptions, eval_log: EvalLog) -> None
     runs (and can await) whether or not the task was cancelled.
     """
     if options.task_source is not None:
-        _enqueue_source_tasks(await options.task_source.task_complete(eval_log))
+        await _enqueue_source_tasks(await options.task_source.task_complete(eval_log))
 
 
 def _enqueue_source_samples(samples: list[Sample] | None) -> None:
@@ -1660,7 +1660,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                 await sample_feed.sample_abandoned(abandoned, epoch)
                             )
                         if options.task_source is not None:
-                            _enqueue_source_tasks(
+                            await _enqueue_source_tasks(
                                 await options.task_source.sample_abandoned(
                                     abandoned, epoch, task
                                 )
@@ -3385,7 +3385,7 @@ async def _task_run_sample_attempt(
                         await sample_feed.sample_complete(source_sample)
                     )
                 if task_source is not None:
-                    _enqueue_source_tasks(
+                    await _enqueue_source_tasks(
                         await task_source.sample_complete(source_sample, task)
                     )
 

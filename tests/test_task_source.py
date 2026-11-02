@@ -483,7 +483,7 @@ async def _run_live_injection(
     @solver
     def injector() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            enqueue_task(
+            await enqueue_task(
                 Task(dataset=[Sample(input="x")], solver=[releaser()], name="injected")
             )
             return state
@@ -639,7 +639,7 @@ def test_task_enqueued_by_final_next_tasks_runs(
         async def next_tasks(self) -> list[Task] | None:
             calls.append("next_tasks")
             if len(calls) == 1:
-                enqueue_task(_task("enqueued"), start=start)
+                await enqueue_task(_task("enqueued"), start=start)
             return None
 
     logs = eval(tasks=_Src(), model="mockllm/model", display="none")
@@ -699,8 +699,8 @@ def test_after_batch_enqueued_by_final_next_tasks_runs_after_when_free() -> None
         async def next_tasks(self) -> list[Task] | None:
             self.calls += 1
             if self.calls == 1:
-                enqueue_task([labelled("w1"), labelled("w2")], start="when_free")
-                enqueue_task(labelled("b"), start="after_batch")
+                await enqueue_task([labelled("w1"), labelled("w2")], start="when_free")
+                await enqueue_task(labelled("b"), start="after_batch")
             return None
 
     logs = eval(tasks=_Src(), model="mockllm/model", max_tasks=1, display="none")

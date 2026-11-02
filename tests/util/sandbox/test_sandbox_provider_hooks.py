@@ -134,7 +134,7 @@ class HooksFake(SandboxEnvironment):
 def adds(added: list[Task]) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         if added:
-            enqueue_task(added.pop(), start="when_free")
+            await enqueue_task(added.pop(), start="when_free")
         return state
 
     return solve

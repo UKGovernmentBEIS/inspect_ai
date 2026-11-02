@@ -31,8 +31,8 @@ from inspect_ai._control.max_tasks import (
     set_max_tasks_override,
     task_dispatcher_stats,
 )
+from inspect_ai._display import display
 from inspect_ai._display.core.display import CancelType
-from inspect_ai._eval import run as run_module
 from inspect_ai._eval.loader import resolve_tasks
 from inspect_ai._eval.run import (
     _TASK_OVERRIDABLE,
@@ -160,24 +160,12 @@ def _options(task: ResolvedTask, logger: FakeLogger) -> TaskRunOptions:
 
 
 class FakeStartup:
-    """Prepares tasks by script: their sandbox configs, and when they are known."""
+    """Sets up sandbox configs (here plain strings) by script."""
 
     def __init__(self, harness: "Harness") -> None:
-        self.harness = harness
         self.setups: SetupCache[str] = SetupCache(
             harness.setup, on_done=harness.queue.wake.set
         )
-
-    async def prepare(self, configured: ConfiguredTask) -> tuple[str, ...]:
-        label = _label(configured.resolved)
-        self.harness.events.append(f"resolve {label}")
-        gate = self.harness.resolving.get(label)
-        if gate is not None:
-            await gate.wait()
-        error = self.harness.resolve_errors.pop(label, None)
-        if error is not None:
-            raise error
-        return tuple(self.harness.keys.get(label, []))
 
     def apply_provider_state(self) -> None:
         pass
@@ -221,6 +209,7 @@ class Harness:
             "run",
             resolve,
             self.configure,
+            self.prepare,
             wake=Wake(),
             retries=retries,
             sequence_order=parallel == 1,
@@ -248,6 +237,18 @@ class Harness:
                 )
             )
         return configured
+
+    async def prepare(self, configured: ConfiguredTask) -> tuple[str, ...]:
+        """A task's sandbox configs, once ``resolving`` lets them be known."""
+        label = _label(configured.resolved)
+        self.events.append(f"resolve {label}")
+        gate = self.resolving.get(label)
+        if gate is not None:
+            await gate.wait()
+        error = self.resolve_errors.pop(label, None)
+        if error is not None:
+            raise error
+        return tuple(self.keys.get(label, []))
 
     def new_logger(self, label: str) -> TaskLogger:
         logger = FakeLogger(label, len(self.loggers[label]) + 1)
@@ -317,9 +318,9 @@ class Harness:
             debug_errors=False,
         )
 
-    def seed(self, tasks: list[ResolvedTask]) -> list[TaskRecord]:
-        """Seed records, ready as after the seed start-up (setups done, loggers made)."""
-        seed = self.queue.add(tasks)
+    async def seed(self, tasks: list[ResolvedTask]) -> list[TaskRecord]:
+        """Seed records, ready as after the seed start-up (no setups, loggers made)."""
+        seed = await self.queue.create(tasks)
         self.queue.enqueue(seed)
         for record in seed:
             record.setup_keys = ()
@@ -332,7 +333,7 @@ class Harness:
         self, seed: list[ResolvedTask], source: TaskSource | None = None
     ) -> list[EvalLog]:
         async with self.startup.setups:
-            return await self.dispatcher(source).run(self.seed(seed))
+            return await self.dispatcher(source).run(await self.seed(seed))
 
 
 class _RecordingDispatcher(TaskDispatcher):
@@ -406,37 +407,37 @@ def test_task_overridable_settings_exist_on_task_and_eval_config() -> None:
 # ------------------------------------------------------------- RunQueue
 
 
-def test_run_queue_files_added_tasks_by_start_policy() -> None:
+async def test_run_queue_files_added_tasks_by_start_policy() -> None:
     m1 = get_model("mockllm/m1")
     harness = Harness([m1], default_start="after_batch")
     queue = harness.queue
-    queue.put([_task("a")])
-    queue.put([_task("w1"), _task("w2")], start="when_free")
-    queue.put([_task("b")], start="after_batch")
+    await queue.put([_task("a")])
+    await queue.put([_task("w1"), _task("w2")], start="when_free")
+    await queue.put([_task("b")], start="after_batch")
     assert queue.wake._event.is_set()
     assert _labels(queue.take("when_free")) == ["w1@m1", "w2@m1"]
     assert queue.take("when_free") == []
     assert _labels(queue.take("after_batch")) == ["a@m1", "b@m1"]
 
 
-def test_run_queue_default_start_in_task_source_run_is_when_free() -> None:
+async def test_run_queue_default_start_in_task_source_run_is_when_free() -> None:
     queue = Harness([get_model("mockllm/m1")], default_start="when_free").queue
-    queue.put([_task("a")])
+    await queue.put([_task("a")])
     assert [r.task for r in queue.take("when_free")] == ["a"]
 
 
-def test_run_queue_put_creates_records_and_raises_on_invalid_tasks() -> None:
+async def test_run_queue_put_creates_records_and_raises_on_invalid_tasks() -> None:
     harness = Harness([get_model("mockllm/m1")])
-    [record] = harness.queue.put([_task("a")], start="when_free")
+    [record] = await harness.queue.put([_task("a")], start="when_free")
     assert record.configured is not None
     # configured at put, so an invalid task raises to whoever added it, and
     # no record is created for any task of that call
     with pytest.raises(PrerequisiteError, match="invalid task invalid_b"):
-        harness.queue.put([_task("c"), _task("invalid_b")], start="when_free")
+        await harness.queue.put([_task("c"), _task("invalid_b")], start="when_free")
     assert _labels(harness.queue.unstarted()) == ["a@m1"]
 
 
-def test_run_queue_close_refuses_put_and_returns_unstarted() -> None:
+async def test_run_queue_close_refuses_put_and_returns_unstarted() -> None:
     m1 = get_model("mockllm/m1")
     resolved: list[Tasks] = []
     harness = Harness([m1])
@@ -449,25 +450,24 @@ def test_run_queue_close_refuses_put_and_returns_unstarted() -> None:
         "run",
         resolve,
         harness.configure,
+        harness.prepare,
         wake=Wake(),
         retries=0,
         sequence_order=False,
         default_start="when_free",
     )
-    [added] = queue.put([_task("w")])
-    [queued] = queue.add(_resolve(["ready"], [m1]))
+    [added] = await queue.put([_task("w")])
+    [queued] = await queue.create(_resolve(["ready"], [m1]))
     queue.enqueue([queued])
     assert queue.close() == [queued, added]
     assert queue.queued == [] and queue.take("when_free") == []
     with pytest.raises(RuntimeError, match="run 'run' has finished dispatching"):
-        queue.put([_task("late")])
-    # refused before resolution
-    assert len(resolved) == 1
+        await queue.put([_task("late")])
 
 
-def test_record_drops_its_task_when_it_ends() -> None:
+async def test_record_drops_its_task_when_it_ends() -> None:
     harness = Harness([get_model("mockllm/m1")])
-    [record] = harness.queue.put([_task("a")])
+    [record] = await harness.queue.put([_task("a")])
     task = weakref.ref(cast(ConfiguredTask, record.configured).resolved.task)
     harness.queue.remove(record)
     harness.queue.end(record)
@@ -480,14 +480,17 @@ def test_record_drops_its_task_when_it_ends() -> None:
 # ------------------------------------------------------------- pick and retry
 
 
-def _records(labels: list[tuple[str, Model]]) -> list[TaskRecord]:
+async def _records(labels: list[tuple[str, Model]]) -> list[TaskRecord]:
     harness = Harness([])
-    return [harness.queue.add(_resolve([name], [model]))[0] for name, model in labels]
+    return [
+        (await harness.queue.create(_resolve([name], [model])))[0]
+        for name, model in labels
+    ]
 
 
-def test_pick_balanced_prefers_least_used_model_then_queue_order() -> None:
+async def test_pick_balanced_prefers_least_used_model_then_queue_order() -> None:
     m1, m2 = get_model("mockllm/m1"), get_model("mockllm/m2")
-    ready = _records([("a", m1), ("b", m1), ("c", m2), ("d", m2)])
+    ready = await _records([("a", m1), ("b", m1), ("c", m2), ("d", m2)])
     assert pick_balanced(ready, Counter()) is ready[0]
     assert pick_balanced(ready, Counter({m1: 1})) is ready[2]
     assert pick_balanced(ready, Counter({m1: 1, m2: 1})) is ready[0]
@@ -509,17 +512,17 @@ def test_pick_balanced_prefers_least_used_model_then_queue_order() -> None:
         ("error", "error", 1, False),
     ],
 )
-def test_wants_retry(
+async def test_wants_retry(
     cancel_type: CancelType, status: EvalStatus, retries: int, expected: bool
 ) -> None:
-    [record] = _records([("a", get_model("mockllm/m1"))])
+    [record] = await _records([("a", get_model("mockllm/m1"))])
     record.retries = retries
     task_log = EvalLog(eval=FakeLogger("a", 1).eval, status=status)
     assert wants_retry(cancel_type, task_log, record) is expected
 
 
-def test_wants_retry_not_after_operator_abandoned_it() -> None:
-    [record] = _records([("a", get_model("mockllm/m1"))])
+async def test_wants_retry_not_after_operator_abandoned_it() -> None:
+    [record] = await _records([("a", get_model("mockllm/m1"))])
     record.retries = 1
     abandon_task_retry(record.task_id)
     try:
@@ -574,7 +577,7 @@ async def test_dispatcher_idle_rule(
     harness = Harness([get_model("mockllm/m1")], parallel=2)
     dispatcher = harness.dispatcher(scripted)
     for name, start in added:
-        harness.queue.put([_task(name)], start=start)
+        await harness.queue.put([_task(name)], start=start)
 
     dispatcher.take(harness.queue.take("when_free"))
     # nothing runs here, so empty the queue between idle steps
@@ -617,8 +620,8 @@ async def test_dispatcher_runs_tasks_added_during_final_next_tasks() -> None:
     async with anyio.create_task_group() as tg:
         tg.start_soon(idle)
         await entered.wait()
-        harness.queue.put([_task("w")], start="when_free")
-        harness.queue.put([_task("a")], start="after_batch")
+        await harness.queue.put([_task("w")], start="when_free")
+        await harness.queue.put([_task("a")], start="after_batch")
         release.set()
 
     assert first == [True] and harness.taken == []
@@ -651,7 +654,7 @@ async def test_loop_balances_models(monkeypatch: pytest.MonkeyPatch) -> None:
         tg.start_soon(drive)
         logs = await harness.run(_resolve(["a", "b"], [m1]) + _resolve(["c"], [m2]))
 
-    assert set(harness.events[:2]) == {"start a@m1", "start c@m2"}
+    assert set(_starts(harness)[:2]) == {"a@m1", "c@m2"}
     assert [log.eval.task for log in logs] == ["a@m1", "b@m1", "c@m2"]
 
 
@@ -665,7 +668,7 @@ async def test_loop_sequence_order_at_launch_limit_one(
 
     async def drive() -> None:
         await _wait_started(harness, "a@m1")
-        harness.queue.put([_task("c"), _task("d")], start="when_free")
+        await harness.queue.put([_task("c"), _task("d")], start="when_free")
         for label in order:
             await _wait_started(harness, label)
             harness.finish[label].set()
@@ -711,7 +714,7 @@ async def test_loop_retry_goes_to_the_back_and_reinitialises_its_logger(
 
     async def drive() -> None:
         await _wait_started(harness, "a@m1")
-        harness.queue.put([_task("c")], start="when_free")
+        await harness.queue.put([_task("c")], start="when_free")
         await _wait_until(lambda: len(harness.queue.queued) == 2)
         harness.finish["a@m1"].set()
         await _wait_started(harness, "b@m1")
@@ -785,7 +788,7 @@ async def test_retry_follows_tasks_its_failed_attempt_added(
     ) -> TaskRunResult:
         result = await run_task(options, can_retry)
         if result.log is not None and result.log.status == "error":
-            harness.queue.put([_task("f")], start="when_free")
+            await harness.queue.put([_task("f")], start="when_free")
         return result
 
     monkeypatch.setattr("inspect_ai._eval.run._run_task", adding_run_task)
@@ -816,15 +819,15 @@ async def test_loop_after_batch_waits_for_later_when_free(
 
     async def drive() -> None:
         await _wait_started(harness, "a@m1", "b@m1")
-        harness.queue.put([_task("held")], start="after_batch")
-        harness.queue.put([_task("free")], start="when_free")
+        await harness.queue.put([_task("held")], start="after_batch")
+        await harness.queue.put([_task("free")], start="when_free")
         await _wait_started(harness, "free@m1")
         # the held task counts as pending
         await _wait_stats(in_flight=3, pending=1)
         harness.finish["a@m1"].set()
         harness.finish["b@m1"].set()
         await _wait_stats(in_flight=1, pending=1)
-        harness.queue.put([_task("later")], start="when_free")
+        await harness.queue.put([_task("later")], start="when_free")
         await _wait_started(harness, "later@m1")
         harness.finish["free@m1"].set()
         await _wait_stats(in_flight=1, pending=1)
@@ -849,7 +852,7 @@ async def test_loop_after_batch_waits_for_later_when_free(
     ]
     # the run closed its queue
     with pytest.raises(RuntimeError, match="finished dispatching"):
-        harness.queue.put([_task("late")], start="when_free")
+        await harness.queue.put([_task("late")], start="when_free")
 
 
 async def test_loop_asks_source_only_when_idle_until_exhausted(
@@ -865,7 +868,7 @@ async def test_loop_asks_source_only_when_idle_until_exhausted(
             calls.append([e for e in harness.events if not e.startswith("resolve")])
             if len(calls) == 1:
                 # added while next_tasks() runs: follows its batch
-                harness.queue.put([_task("late_free")], start="when_free")
+                await harness.queue.put([_task("late_free")], start="when_free")
                 return [_task("n1"), _task("n2")]
             return None
 
@@ -894,24 +897,22 @@ async def test_loop_asks_source_only_when_idle_until_exhausted(
         "late_free@m1",
     ]
     with pytest.raises(RuntimeError, match="finished dispatching"):
-        harness.queue.put([_task("after_end")])
+        await harness.queue.put([_task("after_end")])
 
 
-async def test_stats_count_tasks_not_taken_and_not_ready_as_pending(
+async def test_stats_count_tasks_not_taken_as_pending(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     m1 = get_model("mockllm/m1")
     harness = Harness([m1], parallel=1)
     _install(monkeypatch, harness)
-    harness.resolving["b@m1"] = anyio.Event()
 
     async def drive() -> None:
         await _wait_started(harness, "a@m1")
-        harness.queue.put([_task("held")], start="after_batch")
+        await harness.queue.put([_task("held")], start="after_batch")
         await _wait_stats(in_flight=1, pending=1)
-        harness.queue.put([_task("b"), _task("c")], start="when_free")
+        await harness.queue.put([_task("b"), _task("c")], start="when_free")
         await _wait_stats(in_flight=1, pending=3)
-        harness.resolving["b@m1"].set()
         for label in ("a@m1", "b@m1", "c@m1", "held@m1"):
             await _wait_started(harness, label)
             harness.finish[label].set()
@@ -937,8 +938,8 @@ async def test_ready_task_starts_while_an_older_tasks_setup_runs(
 
     async def drive() -> None:
         await _wait_started(harness, "a@m1")
-        harness.queue.put([_task("boxed")], start="when_free")
-        harness.queue.put([_task("plain")], start="when_free")
+        await harness.queue.put([_task("boxed")], start="when_free")
+        await harness.queue.put([_task("plain")], start="when_free")
         await harness.setup_began_event("image").wait()
         await _wait_started(harness, "plain@m1")
         harness.finish_setup("image")
@@ -971,11 +972,11 @@ async def test_tasks_on_a_config_set_up_earlier_start_without_waiting(
 
     async def drive() -> None:
         await _wait_started(harness, "a@m1")
-        harness.queue.put([_task("b")], start="when_free")
+        await harness.queue.put([_task("b")], start="when_free")
         await harness.setup_began_event("image").wait()
         harness.finish_setup("image")
         await _wait_started(harness, "b@m1")
-        harness.queue.put([_task("d"), _task("c")], start="when_free")
+        await harness.queue.put([_task("d"), _task("c")], start="when_free")
         # c reuses b's setup; d waits for its own
         await _wait_started(harness, "c@m1")
         await harness.setup_began_event("other").wait()
@@ -1004,7 +1005,7 @@ async def test_failed_setup_ends_its_waiters_then_their_retry_sets_up_again(
 
     async def drive() -> None:
         await _wait_started(harness, "a@m1")
-        harness.queue.put([_task("b"), _task("c")], start="when_free")
+        await harness.queue.put([_task("b"), _task("c")], start="when_free")
         await harness.setup_began_event("image").wait()
         harness.finish_setup("image", RuntimeError("pull failed"))
         # both waiters fail at once
@@ -1039,14 +1040,12 @@ async def test_retry_sets_up_after_the_task_added_ahead_of_it(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # a's setup fails and, as it ends, a adds n, so a's retry is queued behind
-    # n; n's configs are still being resolved, and its setup still runs before
-    # the retry sets up again
+    # n; n's setup runs before the retry sets up again
     m1 = get_model("mockllm/m1")
     harness = Harness([m1], parallel=2, retries=1)
     _install(monkeypatch, harness)
     harness.keys["a@m1"] = ["X"]
     harness.keys["n@m1"] = ["Y"]
-    harness.resolving["n@m1"] = anyio.Event()
     run_task = harness.run_task
 
     async def adding_run_task(
@@ -1054,14 +1053,14 @@ async def test_retry_sets_up_after_the_task_added_ahead_of_it(
     ) -> TaskRunResult:
         result = await run_task(options, can_retry)
         if result.log is not None and result.log.status == "error":
-            harness.queue.put([_task("n")], start="when_free")
+            await harness.queue.put([_task("n")], start="when_free")
         return result
 
     monkeypatch.setattr("inspect_ai._eval.run._run_task", adding_run_task)
 
     async def drive() -> None:
         await _wait_started(harness, "s@m1")
-        harness.queue.put([_task("a")], start="when_free")
+        await harness.queue.put([_task("a")], start="when_free")
         await harness.setup_began_event("X").wait()
         harness.finish_setup("X", RuntimeError("pull failed"))
         await _wait_until(lambda: len(harness.queue.queued) == 2)
@@ -1069,9 +1068,6 @@ async def test_retry_sets_up_after_the_task_added_ahead_of_it(
             harness.finish_setup(key)
         for label in ("n@m1", "a@m1"):
             harness.finish[label].set()
-        for _ in range(10):
-            await anyio.sleep(0)
-        harness.resolving["n@m1"].set()
         await _wait_until(
             lambda: {"end n@m1 success", "end a@m1 success"} <= set(harness.events)
         )
@@ -1087,9 +1083,11 @@ async def test_retry_sets_up_after_the_task_added_ahead_of_it(
     ]
 
 
-async def test_failed_resolution_ends_only_that_task(
+async def test_failed_resolution_raises_to_whoever_adds_the_tasks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # b's sandbox configs can't be resolved: neither b nor c, added with it,
+    # is queued, and the run goes on
     m1 = get_model("mockllm/m1")
     harness = Harness([m1], parallel=2)
     _install(monkeypatch, harness)
@@ -1097,20 +1095,15 @@ async def test_failed_resolution_ends_only_that_task(
 
     async def drive() -> None:
         await _wait_started(harness, "a@m1")
-        harness.queue.put([_task("b"), _task("c")], start="when_free")
-        await _wait_started(harness, "c@m1")
-        harness.finish["c@m1"].set()
+        with pytest.raises(ValueError, match="bad compose file"):
+            await harness.queue.put([_task("b"), _task("c")], start="when_free")
         harness.finish["a@m1"].set()
 
     async with anyio.create_task_group() as tg:
         tg.start_soon(drive)
         logs = await harness.run(_resolve(["a"], [m1]))
-    assert [(log.eval.task, log.status) for log in logs] == [
-        ("a@m1", "success"),
-        ("b@m1", "error"),
-        ("c@m1", "success"),
-    ]
-    assert logs[1].error is not None and "bad compose file" in logs[1].error.message
+    assert [(log.eval.task, log.status) for log in logs] == [("a@m1", "success")]
+    assert _starts(harness) == ["a@m1"]
 
 
 async def test_only_the_look_ahead_window_is_set_up(
@@ -1131,7 +1124,7 @@ async def test_only_the_look_ahead_window_is_set_up(
 
     async def drive() -> None:
         await _wait_started(harness, "a@m1", "b@m1")
-        harness.queue.put([_task(n) for n in names], start="when_free")
+        await harness.queue.put([_task(n) for n in names], start="when_free")
         for name in ["t1", "t2"]:
             await harness.setup_began_event(name).wait()
             harness.finish_setup(name)
@@ -1180,7 +1173,7 @@ async def test_task_behind_the_window_joins_setups_already_requested(
 
     async def drive() -> None:
         await _wait_started(harness, "a@m1")
-        harness.queue.put(
+        await harness.queue.put(
             [_task("first"), _task("other"), _task("shared"), _task("plain")],
             start="when_free",
         )
@@ -1283,7 +1276,7 @@ async def test_tasks_cancelled_before_they_start_leave_the_display_count(
     _install(monkeypatch, harness)
     harness.fail_next.add("a@m1")
     counts: list[int] = []
-    shown = run_module.display
+    shown = display
 
     class Display:
         def __getattr__(self, name: str) -> Any:
@@ -1292,11 +1285,11 @@ async def test_tasks_cancelled_before_they_start_leave_the_display_count(
         def update_task_count(self, n: int) -> None:
             counts.append(n)
 
-    monkeypatch.setattr(run_module, "display", Display)
+    monkeypatch.setattr("inspect_ai._eval.run.display", Display)
 
     async def drive() -> None:
         await _wait_started(harness, "a@m1")
-        [c] = harness.queue.put([_task("c")], start="when_free")
+        [c] = await harness.queue.put([_task("c")], start="when_free")
         await _wait_until(lambda: c in harness.queue.queued)
         for record in harness.queue.queued:
             abandon_task_retry(record.task_id)
@@ -1327,7 +1320,7 @@ async def test_finished_added_task_is_released_while_the_run_continues(
 
     async def drive() -> None:
         await _wait_started(harness, "a@m1")
-        [b] = harness.queue.put([_task("b")], start="when_free")
+        [b] = await harness.queue.put([_task("b")], start="when_free")
         refs.append(weakref.ref(cast(ConfiguredTask, b.configured).resolved.task))
         del b
         await _wait_started(harness, "b@m1")
@@ -1340,41 +1333,6 @@ async def test_finished_added_task_is_released_while_the_run_continues(
     async with anyio.create_task_group() as tg:
         tg.start_soon(drive)
         await harness.run(_resolve(["a"], [m1]))
-
-
-async def test_task_cancelled_while_its_configs_resolve_is_released(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    # the resolution fails after the record ended: its failure, whose
-    # traceback holds the task, is not stored on the record
-    m1 = get_model("mockllm/m1")
-    harness = Harness([m1], parallel=2)
-    _install(monkeypatch, harness)
-    harness.resolving["b@m1"] = anyio.Event()
-    harness.resolve_errors["b@m1"] = ValueError("bad compose file")
-    refs: list[weakref.ref[Task]] = []
-    records: list[TaskRecord] = []
-
-    async def drive() -> None:
-        await _wait_started(harness, "a@m1")
-        [b] = harness.queue.put([_task("b")], start="when_free")
-        refs.append(weakref.ref(cast(ConfiguredTask, b.configured).resolved.task))
-        records.append(b)
-        del b
-        await _wait_until(lambda: "resolve b@m1" in harness.events)
-        abandon_task_retry(records[0].task_id)
-        await _wait_until(lambda: records[0].ended)
-        harness.resolving["b@m1"].set()
-        await _wait_until(lambda: "b@m1" not in harness.resolve_errors)
-        gc.collect()
-        assert refs[0]() is None
-        harness.finish["a@m1"].set()
-
-    async with anyio.create_task_group() as tg:
-        tg.start_soon(drive)
-        logs = await harness.run(_resolve(["a"], [m1]))
-    assert [(log.eval.task, log.status) for log in logs] == [("a@m1", "success")]
-    assert not records[0].prepared
 
 
 # ------------------------------------------------------------- cancellation
@@ -1413,17 +1371,17 @@ async def test_loop_cancel_while_readying_added_tasks_is_absorbed(
                     if during == "next_tasks":
                         harness.finish["a@m1"].set()
                         await blocked.wait()
+                    elif during == "setup":
+                        await harness.queue.put([_task("c")])
+                        await harness.setup_began_event("image").wait()
                     else:
-                        harness.queue.put([_task("c")])
-                        if during == "setup":
-                            await harness.setup_began_event("image").wait()
-                        else:
-                            await _wait_until(lambda: "resolve c@m1" in harness.events)
+                        tg.start_soon(harness.queue.put, [_task("c")])
+                        await _wait_until(lambda: "resolve c@m1" in harness.events)
                     scope.cancel()
 
                 tg.start_soon(cancel_when_blocked)
                 returned.append(
-                    await dispatcher.run(harness.seed(_resolve(["a"], [m1])))
+                    await dispatcher.run(await harness.seed(_resolve(["a"], [m1])))
                 )
 
     # a finished before next_tasks() was asked; otherwise it was running
@@ -1435,7 +1393,7 @@ async def test_loop_cancel_while_readying_added_tasks_is_absorbed(
     assert harness.loggers["a@m1"][0].discarded == (0 if during == "next_tasks" else 1)
     assert task_dispatcher_stats() is None
     with pytest.raises(RuntimeError, match="finished dispatching"):
-        harness.queue.put([_task("late")])
+        await harness.queue.put([_task("late")])
 
 
 async def test_loop_cancel_while_tasks_run_or_wait_for_a_slot_is_absorbed(
@@ -1453,7 +1411,7 @@ async def test_loop_cancel_while_tasks_run_or_wait_for_a_slot_is_absorbed(
                     await _wait_started(harness, "a@m1")
                     # an added task set up and waiting for a slot does not
                     # stop the run from returning
-                    harness.queue.put([_task("c")], start="when_free")
+                    await harness.queue.put([_task("c")], start="when_free")
                     await harness.setup_began_event("image").wait()
                     harness.finish_setup("image")
                     await _wait_until(lambda: _done(harness.startup.setups, ["image"]))
@@ -1461,7 +1419,7 @@ async def test_loop_cancel_while_tasks_run_or_wait_for_a_slot_is_absorbed(
 
                 tg.start_soon(cancel_when_running)
                 logs = await harness.dispatcher().run(
-                    harness.seed(_resolve(["a"], [m1]))
+                    await harness.seed(_resolve(["a"], [m1]))
                 )
                 # the task screen absorbs it: the run returns what it has
                 assert logs == []
@@ -1499,7 +1457,9 @@ async def test_cancel_during_task_complete_keeps_the_written_log(
 
                 tg.start_soon(cancel_when_notified)
                 returned.append(
-                    await harness.dispatcher().run(harness.seed(_resolve(["a"], [m1])))
+                    await harness.dispatcher().run(
+                        await harness.seed(_resolve(["a"], [m1]))
+                    )
                 )
     assert [(log.eval.task, log.status) for log in returned[0]] == [("a@m1", "success")]
 
@@ -1519,7 +1479,9 @@ async def test_queued_seed_task_logger_is_discarded_when_the_run_is_cancelled(
                     scope.cancel()
 
                 tg.start_soon(cancel_when_running)
-                await harness.dispatcher().run(harness.seed(_resolve(["a", "b"], [m1])))
+                await harness.dispatcher().run(
+                    await harness.seed(_resolve(["a", "b"], [m1]))
+                )
     assert [lg.discarded for lg in harness.loggers["b@m1"]] == [1]
 
 
@@ -1677,7 +1639,7 @@ def _group_run(how: str, group: list[Task]) -> Any:
                     return None
                 if how == "next_tasks":
                     return group
-                enqueue_task(group, start="when_free")
+                await enqueue_task(group, start="when_free")
                 return None
 
         return Source()
@@ -1687,7 +1649,7 @@ def _group_run(how: str, group: list[Task]) -> Any:
     @solver
     def add_group() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            enqueue_task(group, start=start)
+            await enqueue_task(group, start=start)
             return state
 
         return solve
@@ -1922,7 +1884,7 @@ def test_enqueue_task_during_seed_sandbox_startup(tmp_path: Path) -> None:
     # the run's queue is registered before the seed starts up, so a task
     # added from a sandbox's task_init joins the run
     async def add_task() -> None:
-        enqueue_task(Task(name="added", dataset=[Sample(input="x")]))
+        await enqueue_task(Task(name="added", dataset=[Sample(input="x")]))
 
     _box_init["task_init"] = add_task
     logs = eval(
@@ -2009,7 +1971,7 @@ def test_max_sandboxes_retune_reaches_queued_added_task_sandbox(
     @solver
     def add_and_retune() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            enqueue_task(
+            await enqueue_task(
                 Task(
                     name="b",
                     dataset=[Sample(input="x")],
@@ -2049,7 +2011,7 @@ def test_enqueued_task_with_invalid_config_raises_to_the_caller(
     def add_invalid() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             try:
-                enqueue_task(
+                await enqueue_task(
                     Task(
                         name="invalid",
                         dataset=[Sample(input="x")],
@@ -2095,7 +2057,7 @@ def test_invalid_task_in_group_initialises_no_logger(
     def add_group() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             try:
-                enqueue_task(group, start="when_free")
+                await enqueue_task(group, start="when_free")
             except PrerequisiteError as ex:
                 caller_errors.append(str(ex))
             return state
@@ -2194,7 +2156,7 @@ def test_tasks_enqueued_during_next_tasks_follow_its_batch(tmp_path: Path) -> No
         async def next_tasks(self) -> list[Task] | None:
             self.calls += 1
             if self.calls == 1:
-                enqueue_task(_plain("late", started), start="when_free")
+                await enqueue_task(_plain("late", started), start="when_free")
                 return [_plain("batch", started)]
             return None
 

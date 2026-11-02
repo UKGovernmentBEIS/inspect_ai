@@ -35,7 +35,7 @@ from anyio.abc import TaskGroup
 from typing_extensions import Unpack
 
 from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
-from inspect_ai._util._async import Wake, run_cancelled, unwrap_exception_group
+from inspect_ai._util._async import Wake, unwrap_exception_group
 from inspect_ai._util.file import cleanup_s3_sessions
 from inspect_ai._util.task import task_display_name
 from inspect_ai._util.trace import trace_action
@@ -138,7 +138,7 @@ from .task.sandbox import (
     resolve_sandbox,
     resolve_sandbox_for_task_and_sample,
 )
-from .task.setup_cache import SetupCache, SetupFailure
+from .task.setup_cache import SetupCache
 from .task.task import Task
 from .task.task_source import TaskSource
 from .task.util import resolve_task_sample_ids, slice_dataset, task_run_dir
@@ -224,6 +224,7 @@ async def eval_run(
         run_id,
         resolve_added_tasks,
         startup.configure,
+        startup.prepare,
         wake=wake,
         retries=task_retry_attempts or 0,
         sequence_order=parallel == 1,
@@ -233,7 +234,7 @@ async def eval_run(
     try:
         # entered with the queue active, so code a setup runs can add tasks
         async with sandboxes:
-            seed = queue.add(tasks)
+            seed = await queue.create(tasks)
             queue.enqueue(seed)
             await startup.start_seed(seed)
             # setups from here on run beside the task display
@@ -514,10 +515,10 @@ SampleSandboxSetup = Callable[[Iterable[Sample]], Awaitable[None]]
 class TaskStartup:
     """Configures the tasks of one run and prepares them to start.
 
-    Configuring is synchronous, so a task is configured when its record is
-    created (an invalid task raises to whoever added it). Preparing is
-    asynchronous: its model's controller, and the sandbox configs its
-    selected samples use.
+    Both happen as a task is added, before its record is queued, so an
+    invalid task raises to whoever added it. Configuring is synchronous;
+    preparing is asynchronous: its model's controller, and the sandbox configs
+    its selected samples use.
     """
 
     settings: TaskSettings
@@ -560,8 +561,8 @@ class TaskStartup:
     ) -> tuple[TaskSandboxEnvironment, ...]:
         """Prepare a task to start; the sandbox configs its selected samples use.
 
-        Creates the model's controller eagerly, so ``ctl config`` can retune
-        ``max_connections`` during a long sandbox setup.
+        Creates the model's controller as the task is added, so ``ctl
+        config`` can retune ``max_connections`` during a long sandbox setup.
         """
         if not self.settings.run_samples:
             return ()
@@ -587,11 +588,8 @@ class TaskStartup:
         logger is created (so a log's ``created`` time, which names its file,
         follows the setups); if that fails, the loggers are discarded.
         """
-        for record in seed:
-            assert record.configured is not None
-            record.setup_keys = await self.prepare(record.configured)
         await self.sandboxes.setup_seed(
-            dict.fromkeys(key for record in seed for key in record.setup_keys or ())
+            dict.fromkeys(key for record in seed for key in record.setup_keys)
         )
         try:
             for record in seed:
@@ -778,12 +776,10 @@ async def _run_task(
 
 
 class Startup(Protocol):
-    """What the scheduling loop needs to prepare tasks (:class:`TaskStartup`)."""
+    """What the scheduling loop needs to start tasks (:class:`TaskStartup`)."""
 
     @property
     def setups(self) -> "SetupCache[Any]": ...
-
-    async def prepare(self, configured: ConfiguredTask) -> tuple[Any, ...]: ...
 
     def apply_provider_state(self) -> None: ...
 
@@ -794,11 +790,9 @@ class TaskDispatcher:
     Starts the queue's records with bounded, model-balanced concurrency as
     they can start, and when nothing is queued or running adds more
     (``after_batch`` tasks, then the ``TaskSource``'s ``next_tasks()``) until
-    there is nothing left. A record can start once it is prepared (its
-    sandbox configs resolved), its setups are requested (see
-    :meth:`pick`) and they are done, or failed: a record whose
-    setup is still running keeps its place but does not hold back a later
-    one. A record whose setup failed starts like any other and its attempt
+    there is nothing left. A record can start once its setups are requested
+    (see :meth:`pick`) and they are done, or failed: a record whose setup is
+    still running keeps its place but does not hold back a later one. A record whose setup failed starts like any other and its attempt
     ends with that error, so it has a log, hooks and a ``TaskSource``
     notification.
 
@@ -830,8 +824,6 @@ class TaskDispatcher:
         self.debug_errors = debug_errors
         self.stopped = False
         """An attempt ended cancelled (the run was cancelled): start no more."""
-        self.prepare_wake = Wake()
-        """Set when a record that needs preparing is queued."""
 
     async def run(self, seed: list[TaskRecord]) -> list[EvalLog]:
         """Run the seed and every task added while the run is in progress.
@@ -851,11 +843,8 @@ class TaskDispatcher:
                         unwrap_exception_group("first" if self.debug_errors else None),
                         anyio.create_task_group() as tg,
                     ):
-                        preparer = anyio.CancelScope()
-                        tg.start_soon(self.prepare_records, preparer)
                         reporter = _start_throughput_reporter(tg)
                         await self.loop(tg)
-                        preparer.cancel()
                         reporter.cancel()
                 finally:
                     remove_dispatch_waker(self.queue.wake.set)
@@ -895,7 +884,7 @@ class TaskDispatcher:
         elif self.source is not None:
             more = await self.source.next_tasks()
             if more:
-                self.take(self.queue.add(self.queue.resolve(more)))
+                self.take(await self.queue.create(self.queue.resolve(more)))
             else:
                 self.source = None
         else:
@@ -907,87 +896,39 @@ class TaskDispatcher:
         if not records:
             return
         self.queue.enqueue(records)
-        self.prepare_wake.set()
         # lets the model pause directives validate against tasks that have not
         # started (which have no EvalState to check)
         note_dispatch_models([dispatch_model_name(r.model) for r in records])
         display().update_task_count(len(records))
 
-    async def prepare_records(self, scope: anyio.CancelScope) -> None:
-        """Prepare queued records one at a time, in queue order, until ``scope`` ends."""
-        with scope:
-            while True:
-                record = next((r for r in self.queue.queued if not r.prepared), None)
-                if record is None:
-                    await self.prepare_wake.wait()
-                else:
-                    await self.prepare(record)
-                    self.queue.wake.set()
-
-    async def prepare(self, record: TaskRecord) -> None:
-        """Resolve a record's sandbox configs.
-
-        A failure to resolve them ends the record's next attempt. A record
-        that ended meanwhile (an operator cancelled it) keeps nothing: a
-        failure's traceback would keep its task alive.
-        """
-        assert record.configured is not None
-        keys: tuple[Any, ...] | None = None
-        failure: SetupFailure | None = None
-        try:
-            keys = await self.startup.prepare(record.configured)
-        except Exception as ex:
-            if self.debug_errors:
-                raise
-            failure = SetupFailure.of(ex)
-        except anyio.get_cancelled_exc_class() as ex:
-            if run_cancelled():
-                raise
-            failure = SetupFailure.of(
-                RuntimeError(f"Sandbox resolution raised {ex!r}.")
-            )
-        if not record.ended:
-            record.setup_keys, record.setup_failure = keys, failure
-
     def pick(self) -> TaskRecord | None:
         """Request the look-ahead window's setups and pick the next record to start.
 
-        Setups are requested for the prepared records in the window: the
-        first ``max_tasks`` (read live) unpaused queued records, so a queued
-        task's sandboxes (often billed cloud resources) are not created long
-        before a slot can be free for it. The window advances as records
-        start, and its size follows ``ctl config --max-tasks``. A record
-        behind the window whose configs all have a job already (none, or
-        shared with an earlier record) holds them at once: that starts
-        nothing new, and it can start as soon as they are done.
+        Setups are requested for the records in the window: the first
+        ``max_tasks`` (read live) unpaused queued records, so a queued task's
+        sandboxes (often billed cloud resources) are not created long before
+        a slot can be free for it. The window advances as records start, and
+        its size follows ``ctl config --max-tasks``. A record behind the
+        window whose configs all have a job already (none, or shared with an
+        earlier record) holds them at once: that starts nothing new, and it
+        can start as soon as they are done.
 
-        Records behind the first one not prepared yet request no new setups
-        and do not start: preparing runs in queue order, so waiting for it
-        keeps setups and starts in queue order (a retry keeps its sandbox
-        configs and would otherwise overtake records added before it). The
-        record to start is chosen by :func:`pick_balanced` from the unpaused
-        records ahead of that one that can start.
+        The record to start is chosen by :func:`pick_balanced` from the
+        unpaused records that can start.
         """
         limit = effective_max_tasks(self.parallel)
         free = len(self.queue.running) < limit
         window = limit
         candidates: list[TaskRecord] = []
-        blocked = False
         for record in self.queue.queued:
             if _dispatch_paused(record):
                 continue
             window -= 1
-            if (
-                record.setups is None
-                and record.setup_keys is not None
-                and (
-                    (window >= 0 and not blocked)
-                    or self.setups.has_jobs(record.setup_keys)
-                )
+            if record.setups is None and (
+                window >= 0 or self.setups.has_jobs(record.setup_keys)
             ):
                 record.setups = self.setups.request(record.setup_keys)
-            blocked = blocked or not record.prepared
-            if free and not blocked and record.can_start:
+            if free and record.can_start:
                 candidates.append(record)
         return pick_balanced(candidates, Counter(r.model for r in self.queue.running))
 
@@ -1067,8 +1008,7 @@ class TaskDispatcher:
         ``when_free`` that the loop has not taken yet, so also behind
         follow-ups the attempt's own callbacks returned. It keeps its sandbox
         configs and requests their setups again (failed jobs were forgotten,
-        so those are set up again); one whose configs could not be resolved is
-        prepared again.
+        so those are set up again).
         """
         if task_log is not None:
             record.log = task_log
@@ -1076,9 +1016,6 @@ class TaskDispatcher:
             self.take(self.queue.take("when_free"))
             self.queue.retry(record)
             record.setups = None
-            if record.setup_failure is not None:
-                record.setup_failure = None
-                self.prepare_wake.set()
             log.info(
                 f"Retrying task '{record.task}' ({record.model}) "
                 f"— {record.retries_remaining} retries remaining"

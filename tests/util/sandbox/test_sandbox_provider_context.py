@@ -290,8 +290,8 @@ def fake_task(
     )
 
 
-def _enqueue(tasks: list[Task], start: TaskStartPolicy | None) -> None:
-    enqueue_task(tasks, start=start)
+async def _enqueue(tasks: list[Task], start: TaskStartPolicy | None) -> None:
+    await enqueue_task(tasks, start=start)
 
 
 async def _wait_for_sample_init(task: str) -> None:
@@ -310,7 +310,7 @@ def add_children(provider: str, start: TaskStartPolicy | None, wait: bool) -> So
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         if state.sample_id == 1:
-            _enqueue(
+            await _enqueue(
                 [
                     fake_task("child_b", provider, "B"),
                     fake_task("child_a2", provider, "A"),
@@ -572,7 +572,9 @@ async def test_task_cleanup_sees_only_provider_state(how: str) -> None:
     @solver
     def add_child() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            _enqueue([child], "after_batch" if how == "after_batch" else "when_free")
+            await _enqueue(
+                [child], "after_batch" if how == "after_batch" else "when_free"
+            )
             return state
 
         return solve
@@ -706,7 +708,9 @@ def add_e2b_child() -> Solver:
     # running, so the parent's 2nd sample starts after C's task_init
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         if state.sample_id == 1:
-            enqueue_task([fake_task("child_c", "e2b_fake", "C")], start="when_free")
+            await enqueue_task(
+                [fake_task("child_c", "e2b_fake", "C")], start="when_free"
+            )
             with anyio.fail_after(30):
                 while not any(i.startswith("C-") for i in E2B_STARTED):
                     await anyio.sleep(0.01)

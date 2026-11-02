@@ -14,7 +14,15 @@ from __future__ import annotations
 
 from contextvars import ContextVar, Token
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Literal, NamedTuple, get_args
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Awaitable,
+    Callable,
+    Literal,
+    NamedTuple,
+    get_args,
+)
 
 from inspect_ai._util._async import Wake
 
@@ -52,6 +60,10 @@ class ConfiguredTask:
 ConfigureFn = Callable[["list[ResolvedTask]"], "list[ConfiguredTask]"]
 """Configures tasks for the run, in the order given; raises on invalid ones."""
 
+PrepareFn = Callable[[ConfiguredTask], Awaitable[tuple[Any, ...]]]
+"""Prepares a configured task to start: the sandbox configs its selected
+samples use, in sample order; raises on configs it can't resolve."""
+
 
 @dataclass(eq=False)
 class TaskRecord:
@@ -69,17 +81,14 @@ class TaskRecord:
     configured: ConfiguredTask | None
     retries: int
     """How many times the task is retried after an attempt that fails."""
+    setup_keys: tuple[Any, ...]
+    """The sandbox configs its selected samples use, in sample order."""
     logger: TaskLogger | None = None
     """The logger the record's next attempt uses: a seed task's first one
     (created when the seed starts up), or a failed attempt's, which its retry
     reinitialises. Other first attempts create theirs when they start."""
-    setup_keys: tuple[Any, ...] | None = None
-    """The sandbox configs its selected samples use, in sample order (``None``
-    until the record is prepared)."""
     setups: list[SetupJob[Any]] | None = None
     """The setup jobs of ``setup_keys`` (``None`` until they are requested)."""
-    setup_failure: SetupFailure | None = None
-    """Why its sandbox configs could not be resolved (when preparing it)."""
     attempt: int = 1
     retry_source: EvalSampleSource | None = None
     """Where a retry attempt reads the completed samples of the failed one
@@ -97,15 +106,8 @@ class TaskRecord:
         return self.retries - (self.attempt - 1)
 
     @property
-    def prepared(self) -> bool:
-        """Whether its sandbox configs have been resolved (or failed to)."""
-        return self.setup_keys is not None or self.setup_failure is not None
-
-    @property
     def failure(self) -> SetupFailure | None:
-        """Why its sandboxes could not be prepared or set up; its next attempt ends with it."""
-        if self.setup_failure is not None:
-            return self.setup_failure
+        """Why its sandboxes could not be set up; its next attempt ends with it."""
         return next((j.failure for j in self.setups or [] if j.failure), None)
 
     @property
@@ -134,6 +136,7 @@ class RunQueue:
         run_id: str,
         resolve: ResolveTasksFn,
         configure: ConfigureFn,
+        prepare: PrepareFn,
         *,
         wake: Wake,
         retries: int,
@@ -147,6 +150,7 @@ class RunQueue:
             resolve: Resolves tasks against the run's models and config (also
                 used by the loop for a ``TaskSource``'s ``next_tasks()``).
             configure: Configures tasks for the run.
+            prepare: Resolves a configured task's sandbox configs.
             wake: Set whenever the scheduling loop should look at the queue
                 again: by the queue as tasks are added, and by the run's
                 ``SetupCache`` as each setup ends.
@@ -162,6 +166,7 @@ class RunQueue:
         self.resolve = resolve
         self.default_start = default_start
         self._configure = configure
+        self._prepare = prepare
         self._retries = retries
         self._sequence_order = sequence_order
         self.queued: list[TaskRecord] = []
@@ -176,14 +181,19 @@ class RunQueue:
         }
         self._closed = False
 
-    def add(self, resolved: list[ResolvedTask]) -> list[TaskRecord]:
-        """Configure resolved tasks; their records, in start order (not yet filed).
+    async def create(self, resolved: list[ResolvedTask]) -> list[TaskRecord]:
+        """Records for resolved tasks, in start order (not yet filed).
+
+        Configures every task first, so an invalid one raises before any is
+        prepared; then resolves each one's sandbox configs.
 
         Raises:
             PrerequisiteError: If a task can't run with the run's settings.
+            Exception: What resolving a task's sandbox configs raised.
         """
         if self._sequence_order:
             resolved = sorted(resolved, key=lambda t: t.sequence)
+        configured_tasks = self._configure(resolved)
         records = [
             TaskRecord(
                 task_id=configured.resolved.id,
@@ -191,8 +201,9 @@ class RunQueue:
                 model=configured.resolved.model,
                 configured=configured,
                 retries=self._retries,
+                setup_keys=await self._prepare(configured),
             )
-            for configured in self._configure(resolved)
+            for configured in configured_tasks
         ]
         self._by_id.update((record.task_id, record) for record in records)
         return records
@@ -201,21 +212,21 @@ class RunQueue:
         """The record of the run's task with this id, if there is one."""
         return self._by_id.get(task_id)
 
-    def put(
+    async def put(
         self, tasks: Tasks, *, start: TaskStartPolicy | None = None
     ) -> list[TaskRecord]:
-        """Resolve and configure tasks added to the run, and file them by start policy.
+        """Create the records of tasks added to the run, and file them by start policy.
 
-        Resolution and configuration errors surface to the caller; no record
-        is created for any of the tasks then. Returns the records in start
-        order.
+        Resolution, configuration and sandbox config errors surface to the
+        caller; no record is filed for any of the tasks then. Returns the
+        records in start order.
         """
+        records = await self.create(self.resolve(tasks))
         if self._closed:
             raise RuntimeError(
                 f"enqueue_task(): run '{self.run_id}' has finished dispatching "
                 "tasks, so an added task would never run."
             )
-        records = self.add(self.resolve(tasks))
         policy = start or self.default_start
         self._added[policy].extend(records)
         self.wake.set()
@@ -267,7 +278,6 @@ class RunQueue:
         record.logger = None
         record.retry_source = None
         record.setups = None
-        record.setup_failure = None
 
     def close_if_idle(self) -> bool:
         """Refuse additions once nothing is running or left to start; whether it closed.
@@ -344,7 +354,7 @@ def find_active_task(task_id: str) -> ActiveTask | None:
     return None
 
 
-def enqueue_task(
+async def enqueue_task(
     tasks: "Tasks",
     *,
     run_id: str | None = None,
@@ -355,10 +365,12 @@ def enqueue_task(
     The tasks run in this process under the current run's ``run_id`` (a fresh
     ``eval_id``/``task_id`` each, their own log files), resolved against the
     run's models and config, under the run's ``max_tasks`` limit (which
-    ``inspect ctl config --max-tasks`` changes live). A task whose sandboxes
-    are still being set up does not hold back a later task that is ready. If
-    an added task's sandbox setup fails, that task ends with an error log
-    (its retries apply) and the run continues.
+    ``inspect ctl config --max-tasks`` changes live). The call returns once
+    the tasks are queued: it resolves each task's sandbox configs first, so
+    an invalid config raises here and adds none of the tasks. A task whose
+    sandboxes are still being set up does not hold back a later task that is
+    ready. If an added task's sandbox setup fails, that task ends with an
+    error log (its retries apply) and the run continues.
 
     A task that waits for a ``"when_free"`` task it added needs a free slot
     for it: ``eval()`` defaults ``max_tasks`` to the number of models, so
@@ -387,6 +399,8 @@ def enqueue_task(
             can't be resolved (propagated from resolution).
         PrerequisiteError: If a task can't run with the run's settings (for
             example duplicate sample ids).
+        Exception: What resolving a task's sandbox configs raised (for
+            example a missing compose file).
         RuntimeError: If no eval is currently running in this process,
             ``run_id`` doesn't match the active run, or the run has finished
             starting tasks.
@@ -407,4 +421,4 @@ def enqueue_task(
             f"enqueue_task() run_id '{run_id}' does not match the running eval "
             f"'{queue.run_id}'."
         )
-    queue.put(tasks, start=start)
+    await queue.put(tasks, start=start)

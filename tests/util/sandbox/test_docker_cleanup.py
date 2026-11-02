@@ -918,7 +918,7 @@ async def test_added_task_keeps_earlier_startup_resources_until_run_end(
     @solver
     def enqueue_follow_up() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            enqueue_task(
+            await enqueue_task(
                 Task(
                     dataset=[Sample(id="child", input="child")],
                     solver=record_files(files_while_child_ran),
