@@ -602,12 +602,6 @@
       "undescribed": 1
     }
   },
-  "src/inspect_ai/model/_call_tools.py": {
-    "type: ignore": {
-      "count": 2,
-      "undescribed": 2
-    }
-  },
   "src/inspect_ai/model/_generate_config.py": {
     "type: ignore": {
       "count": 1,
@@ -702,8 +696,8 @@
       "undescribed": 1
     },
     "type: ignore[typeddict-item]": {
-      "count": 4,
-      "undescribed": 2
+      "count": 3,
+      "undescribed": 1
     }
   },
   "src/inspect_ai/model/_providers/google.py": {
@@ -968,8 +962,8 @@
   },
   "src/inspect_ai/util/_json.py": {
     "type: ignore": {
-      "count": 2,
-      "undescribed": 2
+      "count": 1,
+      "undescribed": 1
     },
     "type: ignore[valid-type]": {
       "count": 2,
@@ -1062,22 +1056,6 @@
     "type: ignore[assignment]": {
       "count": 2,
       "undescribed": 2
-    }
-  },
-  "src/inspect_tool_support/src/inspect_tool_support/_remote_tools/_web_browser/scale_factor.py": {
-    "noqa:PLC0415": {
-      "count": 2,
-      "undescribed": 2
-    },
-    "type: ignore": {
-      "count": 1,
-      "undescribed": 1
-    }
-  },
-  "src/inspect_tool_support/src/inspect_tool_support/_remote_tools/_web_browser/test_scale_factor.py": {
-    "type: ignore[attr-defined]": {
-      "count": 1,
-      "undescribed": 1
     }
   },
   "tests/_control/conftest.py": {
@@ -1338,10 +1316,6 @@
     "type: ignore[arg-type]": {
       "count": 3,
       "undescribed": 3
-    },
-    "type: ignore[attr-defined]": {
-      "count": 2,
-      "undescribed": 2
     }
   },
   "tests/agent/test_acp/test_tui/test_plan.py": {
@@ -1355,10 +1329,6 @@
       "count": 1,
       "undescribed": 1
     },
-    "type: ignore[attr-defined]": {
-      "count": 1,
-      "undescribed": 1
-    },
     "type: ignore[method-assign]": {
       "count": 1,
       "undescribed": 1
@@ -1368,10 +1338,6 @@
     "type: ignore[arg-type]": {
       "count": 3,
       "undescribed": 3
-    },
-    "type: ignore[attr-defined]": {
-      "count": 1,
-      "undescribed": 1
     },
     "type: ignore[method-assign]": {
       "count": 5,
@@ -1385,21 +1351,11 @@
     }
   },
   "tests/agent/test_acp/test_tui/test_session_screen.py": {
-    "type: ignore[attr-defined]": {
-      "count": 36,
-      "undescribed": 36
-    },
     "type: ignore[comparison-overlap]": {
       "count": 1,
       "undescribed": 1
     },
     "type: ignore[method-assign]": {
-      "count": 1,
-      "undescribed": 1
-    }
-  },
-  "tests/agent/test_acp/test_tui/test_session_screen_phase2.py": {
-    "type: ignore[attr-defined]": {
       "count": 1,
       "undescribed": 1
     }
@@ -1688,6 +1644,11 @@
     "type: ignore[typeddict-unknown-key]": {
       "count": 2,
       "undescribed": 2
+    }
+  },
+  "tests/model/test_tool_exec_shared.py": {
+    "noqa:B904": {
+      "count": 1
     }
   },
   "tests/model/test_tool_info_lifecycle.py": {

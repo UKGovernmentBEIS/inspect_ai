@@ -876,9 +876,12 @@ def working_limit(limit: float | None) -> _WorkingLimit:
 
     Working time is the wall clock time minus any waiting time e.g. waiting before
     retrying in response to rate limits or waiting on a semaphore. The sample
-    counts as waiting while any known wait is open, so work done during a wait
-    (for example by a parallel tool call or sub-agent) is not charged and working
-    time can undercount. Set a `time_limit()` as well to bound wall clock time.
+    counts as waiting while any known wait is open and no model call, sandbox
+    command or tool call is running (not counting commands run with
+    `exec_remote()` or inside `sandbox_agent_bridge()`), so other work done
+    during a wait (for example a sub-agent's own code or a background process)
+    is not charged and working time can undercount. Set a `time_limit()` as well to bound wall
+    clock time.
 
     The timer starts when the context manager is opened and stops when it is closed.
 
@@ -896,11 +899,12 @@ def working_limit(limit: float | None) -> _WorkingLimit:
 def suspend_working_limit() -> AbstractContextManager[None]:
     """Count the time spent in a block of code as waiting time.
 
-    While this context manager is open, the whole sample counts as waiting, for
-    `working_limit()` and for the sample's logged working time. This includes
-    work done by other tasks in the sample during the block, unlike
-    `suspend_token_limit()` and `suspend_turn_limit()`, which only affect code
-    inside the block.
+    While this context manager is open, the sample counts as waiting, for
+    `working_limit()` and for the sample's logged working time, except while
+    another task in the sample runs a model call, a sandbox command or a tool
+    call (not counting commands run with `exec_remote()` or inside
+    `sandbox_agent_bridge()`). Model calls, sandbox commands and tool calls made inside the block
+    are not charged.
 
     Useful for time the agent should not be charged for, such as waiting on a
     person or running a monitor. Inspect already does this for tool approval

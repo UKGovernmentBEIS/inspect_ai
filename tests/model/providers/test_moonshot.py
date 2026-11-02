@@ -152,6 +152,35 @@ def test_moonshot_kimi_k2_6_coerces_any_tool_choice(
     assert not _warn_once_messages
 
 
+@pytest.mark.parametrize("model", ["kimi-k3.1-pro", "kimi-k3.1-pro-highspeed"])
+def test_moonshot_kimi_k3_1_pro_uses_k3_handling(
+    mock_moonshot_env, _warn_once_messages, model
+):
+    """K3.1 Pro shares K3's constraints: fixed sampling, 'required' allowed, named tool_choice not."""
+    from inspect_ai.model._providers.moonshot import MoonshotAPI
+    from inspect_ai.tool import ToolFunction
+
+    api = MoonshotAPI(model_name=model)
+    params = api.completion_params(
+        config=GenerateConfig(temperature=0.7, top_p=0.9), tools=False
+    )
+    assert "temperature" not in params
+    assert "top_p" not in params
+
+    _, tool_choice, _ = api.resolve_tools(
+        tools=[], tool_choice=ToolFunction(name="addition"), config=GenerateConfig()
+    )
+    assert tool_choice == "any"
+    assert any("addition" in m and model in m for m in _warn_once_messages), (
+        "expected a warning for coerced tool_choice"
+    )
+
+    _, tool_choice, _ = api.resolve_tools(
+        tools=[], tool_choice="any", config=GenerateConfig()
+    )
+    assert tool_choice == "any"
+
+
 def test_moonshot_thinking_disabled_preserves_forced_tool_choice(mock_moonshot_env):
     """Disabling thinking via extra_body lifts the named tool_choice restriction."""
     from inspect_ai.model._providers.moonshot import MoonshotAPI
@@ -381,3 +410,35 @@ async def test_moonshot_kimi_k3_reasoning_content() -> None:
     content = res.choices[0].message.content
     assert isinstance(content, list)
     assert any(isinstance(c, ContentReasoning) for c in content)
+
+
+@skip_if_no_moonshot
+@pytest.mark.parametrize("model", ["kimi-k3.1-pro", "kimi-k3.1-pro-highspeed"])
+async def test_moonshot_kimi_k3_1_pro_tool_loop(model: str) -> None:
+    """A forced tool call (sent as 'required') and its reasoning replay must not 400."""
+    from test_helpers.tools import addition
+
+    from inspect_ai.model import ChatMessage, execute_tools
+    from inspect_ai.tool import ToolFunction
+
+    model_api = get_model(
+        f"moonshot/{model}",
+        config=GenerateConfig(temperature=0.7, reasoning_effort="max", max_tokens=8192),
+    )
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="Use the addition tool to compute 1 + 1.")
+    ]
+    res = await model_api.generate(
+        input=messages,
+        tools=[addition()],
+        tool_choice=ToolFunction(name="addition"),
+    )
+    assert res.message.tool_calls
+    content = res.message.content
+    assert isinstance(content, list)
+    assert any(isinstance(c, ContentReasoning) for c in content)
+    messages.append(res.message)
+    result = await execute_tools(messages, [addition()])
+    messages.extend(result.messages)
+    res = await model_api.generate(input=messages, tools=[addition()])
+    assert "2" in res.completion

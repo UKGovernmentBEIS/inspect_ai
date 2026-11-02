@@ -9,4 +9,4 @@ prune src/inspect_sandbox_tools/tests
 prune docs
 prune src/inspect_ai/_view/ts-mono
 exclude uv.lock
-exclude yarn.lock
+exclude src/inspect_ai/model/_model_data/sync_models.py.lock

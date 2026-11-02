@@ -10,12 +10,14 @@ from typing import Iterator, Literal
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.dateutil import datetime_from_iso_format_safe
 from inspect_ai._util.file import dirname, filesystem
+from inspect_ai._util.registry import DisallowedRegistryArg, RegistryNameNotFound
 from inspect_ai.log._file import (
     EvalLogInfo,
     list_eval_logs_async,
     read_eval_log_async,
 )
 from inspect_ai.log._log import EvalLog, EvalSample, EvalSampleSummary
+from inspect_ai.log._metric import LogMetrics, resolve_log_metrics
 from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
 from inspect_ai.log._recorders.eval import _sample_filename
 
@@ -30,6 +32,13 @@ from ._write import (
 )
 
 logger = logging.getLogger(__name__)
+
+RECOVER_REDUCER_ADVICE = (
+    "Nothing was written; the crashed log and its buffer are unchanged. To "
+    "recover it without results instead, pass trust_log=True (inspect log "
+    "recover: --trust-log); this imports the log's task file and runs its "
+    "code, so do it only for logs you trust."
+)
 
 
 class RecoveryNotAvailable(Exception):
@@ -120,6 +129,9 @@ def recover_eval_log(
     incomplete_action: IncompleteAction = "retry",
     incomplete_max: int | float | None = None,
     _stats: RecoveryStats | None = None,
+    *,
+    trust_log: bool = False,
+    _untrusted_metrics: Literal["raise", "warn"] = "raise",
 ) -> EvalLog:
     """Recover a crashed eval log.
 
@@ -150,6 +162,12 @@ def recover_eval_log(
             `RecoveryThresholdExceeded` — before writing anything — when more
             than this many samples are in progress. `None` = no guard. Has no
             effect (a warning is logged) with `incomplete_action="retry"`.
+        trust_log: Import the log's task file for metrics that are not
+            registered, and rebuild metric options that hold models or other
+            registry objects. This runs the task file's code, so pass it only
+            for logs you trust. Metrics that still cannot be rebuilt are
+            then skipped with a warning (the log is recovered without
+            results).
 
     Returns:
         The recovered EvalLog.
@@ -159,6 +177,11 @@ def recover_eval_log(
         RecoveryThresholdExceeded: More samples were in progress than
             `incomplete_max` allows.
         ValueError: `incomplete_max` is negative.
+        LookupError: Without `trust_log`, a metric or epoch reducer is not
+            registered. Raised before anything is written.
+        DisallowedRegistryArg: Without `trust_log`, metric options name a
+            model or a non-metric registry object (a `ValueError`). Raised
+            before anything is written.
     """
     return run_coroutine(
         recover_eval_log_async(
@@ -169,7 +192,9 @@ def recover_eval_log(
             no_events=no_events,
             incomplete_action=incomplete_action,
             incomplete_max=incomplete_max,
+            trust_log=trust_log,
             _stats=_stats,
+            _untrusted_metrics=_untrusted_metrics,
         )
     )
 
@@ -184,8 +209,15 @@ async def recover_eval_log_async(
     incomplete_action: IncompleteAction = "retry",
     incomplete_max: int | float | None = None,
     _stats: RecoveryStats | None = None,
+    *,
+    trust_log: bool = False,
+    _untrusted_metrics: Literal["raise", "warn"] = "raise",
 ) -> EvalLog:
-    """Async implementation of recover_eval_log."""
+    """Async implementation of recover_eval_log.
+
+    `_untrusted_metrics="warn"` (eval-set) recovers without results, with a
+    warning, when untrusted metric resolution fails, instead of raising.
+    """
     incomplete_max = resolve_incomplete_max(incomplete_action, incomplete_max)
 
     # Step 1: Read the crashed .eval file metadata
@@ -257,6 +289,10 @@ async def recover_eval_log_async(
                 f"recover with incomplete_action='retry' or raise the threshold."
             )
 
+    # Resolve metrics before anything is written, so a failure leaves the
+    # crashed log and buffer intact for a rerun with trust_log=True
+    log_metrics = _resolve_recovery_metrics(crashed, trust_log, _untrusted_metrics)
+
     # Step 3: Determine recovery path and write
     buffer = recovery_data.buffer
     streaming_buffer: SampleBufferFilestore | None = None
@@ -311,6 +347,7 @@ async def recover_eval_log_async(
         no_events=no_events,
         incomplete_action=incomplete_action,
         stats=_stats,
+        metrics=log_metrics,
     )
 
     # For overwrite mode, move the temp file over the original and
@@ -329,6 +366,42 @@ async def recover_eval_log_async(
         recovery_data.buffer.cleanup()
 
     return recovered_log
+
+
+def _resolve_recovery_metrics(
+    crashed: CrashedEvalLog,
+    trust_log: bool,
+    untrusted_metrics: Literal["raise", "warn"],
+) -> LogMetrics | None:
+    """Rebuild the crashed log's metrics, or `None` to recover without results.
+
+    With `untrusted_metrics="warn"` a failure is only warned about and the log
+    is recovered anyway, so its message carries no advice for a manual rerun.
+    Resolution stops at the first failure: if a registered metric or reducer
+    fails to build before a missing name or a forbidden option is reached, the
+    log is recovered without results with a warning rather than refused.
+    """
+    refuse = not trust_log and untrusted_metrics == "raise"
+    header = EvalLog(
+        version=crashed.version,
+        eval=crashed.eval,
+        plan=crashed.plan,
+        status="error",
+    )
+    try:
+        return resolve_log_metrics(
+            header,
+            trust_log=trust_log,
+            reducer_advice=RECOVER_REDUCER_ADVICE if refuse else None,
+            trust_log_advice=refuse,
+        )
+    except (RegistryNameNotFound, DisallowedRegistryArg) as ex:
+        if refuse:
+            raise
+        logger.warning(f"Unable to recompute metrics for recovered log: {ex}")
+    except Exception as ex:
+        logger.warning(f"Unable to recompute metrics for recovered log: {ex}")
+    return None
 
 
 def _superseded_by_buffer(

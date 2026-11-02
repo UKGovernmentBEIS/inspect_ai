@@ -3,7 +3,7 @@ import subprocess
 import sys
 from itertools import count
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import pytest
 from test_helpers.tool_call_utils import get_tool_call, get_tool_response
@@ -11,14 +11,20 @@ from test_helpers.utils import flaky_retry, skip_if_no_docker, skip_if_no_openai
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentText
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool import web_browser
+from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice
+from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.tool._tools._web_browser import _web_browser as web_browser_module
+from inspect_ai.util import Store, tool_state_instance, tool_state_scope
+from inspect_ai.util._store import init_subtask_store
 
 
 def find_element_id(input: list[ChatMessage], pattern: str) -> int:
@@ -76,6 +82,129 @@ def test_web_browser_import_does_not_warn() -> None:
     )
     assert result.returncode == 0, result.stderr
     assert "DEPRECATED" not in result.stderr, result.stderr
+
+
+def _named_tools(tools: list[Any]) -> dict[str, ToolDef]:
+    return {ToolDef(t).name: ToolDef(t) for t in tools}
+
+
+async def test_web_browser_default_instance_is_per_tool_state_scope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    new_sessions: list[str] = []
+    used_sessions: list[tuple[str | None, object]] = []
+
+    class FakeTransport:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            pass
+
+    async def fake_legacy_tool_support_sandbox(*args: Any) -> tuple[object, None]:
+        return (object(), None)
+
+    async def fake_exec_model_request(method: str, **kwargs: Any) -> Any:
+        if method == "web_new_session":
+            new_sessions.append(f"session-{len(new_sessions) + 1}")
+            return web_browser_module.NewSessionResult(session_name=new_sessions[-1])
+        session = kwargs["params"]["session_name"]
+        used_sessions.append((tool_state_instance(None), session))
+        return web_browser_module.CrawlerResult(
+            web_url="https://example.com",
+            web_at=f"[1] RootWebArea {session}\n  [7] button {session}",
+        )
+
+    monkeypatch.setattr(
+        web_browser_module,
+        "legacy_tool_support_sandbox",
+        fake_legacy_tool_support_sandbox,
+    )
+    monkeypatch.setattr(web_browser_module, "SandboxJSONRPCTransport", FakeTransport)
+    monkeypatch.setattr(
+        web_browser_module, "exec_model_request", fake_exec_model_request
+    )
+
+    init_subtask_store(Store())
+    tools = _named_tools(web_browser())
+    go = tools["web_browser_go"].tool
+    click_viewer = tools["web_browser_click"].viewer
+    assert click_viewer is not None
+    click = ToolCall(id="1", function="web_browser_click", arguments={"element_id": 7})
+
+    for scope in ["w-1", "w-2", "w-1"]:
+        with tool_state_scope(scope):
+            await go(url="https://example.com")
+    with tool_state_scope("w-2"):
+        view = click_viewer(click)
+        assert view.context is not None and "session-2" in str(view.context.content)
+    with tool_state_scope("w-3"):
+        assert click_viewer(click).context is None
+
+    assert new_sessions == ["session-1", "session-2"]
+    assert used_sessions == [
+        ("@w-1", "session-1"),
+        ("@w-2", "session-2"),
+        ("@w-1", "session-1"),
+    ]
+
+
+async def test_web_browser_legacy_sandbox_refused_in_tool_state_scope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    legacy_calls: list[str] = []
+    legacy_sandbox_present = True
+
+    async def no_tool_support_sandbox(*args: Any) -> Any:
+        raise PrerequisiteError("no tool support sandbox")
+
+    async def fake_web_browser_sandbox() -> object:
+        if not legacy_sandbox_present:
+            raise PrerequisiteError("no legacy sandbox")
+        return object()
+
+    async def fake_old_web_browser_cmd(cmd: str, *args: str) -> str:
+        legacy_calls.append(cmd)
+        return "legacy"
+
+    monkeypatch.setattr(
+        web_browser_module, "legacy_tool_support_sandbox", no_tool_support_sandbox
+    )
+    monkeypatch.setattr(
+        web_browser_module, "_web_browser_sandbox", fake_web_browser_sandbox
+    )
+    monkeypatch.setattr(
+        web_browser_module, "old_web_browser_cmd", fake_old_web_browser_cmd
+    )
+
+    init_subtask_store(Store())
+    go = _named_tools(web_browser())["web_browser_go"].tool
+
+    # outside a scope the legacy sandbox is still used
+    assert await go(url="https://example.com") == "legacy"
+
+    # inside a scope it is refused
+    with tool_state_scope("w-1"):
+        with pytest.raises(PrerequisiteError, match="legacy web browser sandbox"):
+            await go(url="https://example.com")
+    assert legacy_calls == ["web_go"]
+
+    # an explicit shared instance is refused inside a scope too
+    shared = _named_tools(web_browser(instance="team"))["web_browser_go"].tool
+    with tool_state_scope("w-1"):
+        with pytest.raises(PrerequisiteError, match="legacy web browser sandbox"):
+            await shared(url="https://example.com")
+    assert legacy_calls == ["web_go"]
+
+    # an explicit instance reserved for scopes is refused, as with the
+    # tool-support image
+    reserved = _named_tools(web_browser(instance="@notes"))["web_browser_go"].tool
+    with pytest.raises(ValueError, match="reserved for tool state scopes"):
+        await reserved(url="https://example.com")
+    assert legacy_calls == ["web_go"]
+
+    # with no browser sandbox at all, the original error is kept
+    legacy_sandbox_present = False
+    with tool_state_scope("w-1"):
+        with pytest.raises(PrerequisiteError, match="no tool support sandbox"):
+            await go(url="https://example.com")
 
 
 @skip_if_no_docker

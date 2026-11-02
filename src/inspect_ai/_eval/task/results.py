@@ -39,7 +39,6 @@ from inspect_ai.scorer._metrics.std import stderr
 from inspect_ai.scorer._reducer import ScoreReducer, mean_score, reducer_log_name
 from inspect_ai.scorer._scorer import (
     SCORER_METRICS,
-    ScorerSpec,
     scorer_metrics,
     unique_scorer_name,
 )
@@ -69,11 +68,12 @@ class ScorerInfo:
 
     @staticmethod
     def from_name(name: str) -> "ScorerInfo":
-        from inspect_ai._eval.loader import scorer_from_spec
+        from inspect_ai._eval.loader import scorer_from_registry
 
-        # load the scorer to gather that scorer's metrics
+        # load the scorer to gather that scorer's metrics. score keys can come
+        # from a log, so they are registry names only (never file specs)
         try:
-            scorer = scorer_from_spec(ScorerSpec(scorer=name), task_path=None)
+            scorer = scorer_from_registry(name)
         except Exception:
             scorer = None
 

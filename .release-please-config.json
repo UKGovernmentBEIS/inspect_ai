@@ -8,6 +8,13 @@
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": true,
       "versioning": "always-bump-patch",
+      "extra-files": [
+        {
+          "type": "toml",
+          "path": "pyproject.toml",
+          "jsonpath": "$.tool.setuptools_scm.fallback_version"
+        }
+      ],
       "pull-request-header": "Merging this PR tags the release and starts the PyPI and npm publish jobs, each of which waits for environment approval. The notes below become this version's CHANGELOG.md section and its GitHub Release notes.",
       "changelog-sections": [
         {

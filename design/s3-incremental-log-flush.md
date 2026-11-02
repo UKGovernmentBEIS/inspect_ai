@@ -1185,6 +1185,100 @@ flush time and the rest. Expected from the issues: shape A at default
 `log_buffer` from ≈75 s to ≈25–30 s; flush time no longer scaling with log
 size.
 
+## Performance
+
+Step 4 was measured on real S3 (`s3://inspect-flow-test/perf-481/`) from
+the office link with verify mode off: retries and the flush microbenchmark
+on 2026-10-22 (≈7 MB/s each way that day), and first attempts on
+2026-10-23 (≈10 MB/s for main's whole uploads). "main" is `1031b575f9` (#479 landed: the seeded start flush
+composes, later flushes upload whole); "branch" is this change. Both ran from
+the same venv, main's `src` on `PYTHONPATH`, as in the #420 method.
+
+### First attempt (shapes A and B)
+
+The #420 workload with no failing samples: one `eval_set(retry_attempts=0)`
+in a fresh process, writing to an empty S3 log directory at the default
+`log_buffer` (10). Each mock output carries a fixed token usage, so mockllm
+does not count the tokens of the whole conversation on every turn, a
+mock-only cost that otherwise dominates the run; log contents and flush
+cadence are unchanged. The script timed the whole `eval_set` call and each
+destination write (`_write_remote`). Every run ended `success` with all
+samples present and no sample errors, left one `.eval` file, and left no
+multipart upload in progress. Two runs per build and shape, alternating
+builds.
+
+| Shape, build | wall | log writes (count, composed) | bytes uploaded |
+|---|---|---|---|
+| A, main | 323.7, 355.0 s | 192.3, 195.1 s (30, 0) | 1.84 GB |
+| A, branch | 164.1, 196.6 s | 41.2, 43.2 s (30, 28) | 0.12 GB |
+| B, main | 179.9, 196.6 s | 54.3, 55.6 s (4, 0) | 0.59 GB |
+| B, branch | 150.8, 170.1 s | 22.2, 23.1 s (4, 2) | 0.20 GB |
+
+Shape A (118 MB log) writes 30 times: the start, 28 flushes and the finish.
+On main each flush uploads the whole log, up to 11–12 s near the end; on the
+branch the first flush uploads whole (the object on S3 is the near-empty
+start write, under 8 MiB) and every later write composes in 0.7–2.3 s. Wall time falls by about 47%.
+
+Shape B (202 MB log) gains less. Its 50 samples finish close together near
+the end, so it writes only four times: the empty start, a first flush of
+181 MB, the last samples and the finish. The 181 MB flush is the log's first
+large write and uploads whole on both builds (≈18 s); the branch composes the
+last two (1–3 s instead of ≈18 s each). Wall time falls by about 15%.
+
+### Retry benchmark (shapes A and B)
+
+The #420 method (`retry-seeded-attempt-log.md`, Performance): a react agent
+on `mockllm/model` with pseudo-random prose, the last 5% of samples raising
+once; a local prime with `eval_set(retry_attempts=0, continue_on_fail=True)`,
+uploaded once to `perf-481/primed-{A,B}/`; each timed retry is a second
+`eval_set` in a fresh process on a server-side copy of that directory, at the
+default `log_buffer`. Shape A: 500 samples × 80 turns, 25 re-runs, 113 MB
+log. Shape B: 50 samples × 400 turns, 3 re-runs, 190 MB log. The script
+timed the whole `eval_set` call, the seed download (`_copy_prior_log`) and
+each destination write (`_write_remote`); "other" is the rest. Every retry
+ended `success` with all samples present and no sample errors, eval-set
+cleanup left one `.eval` file, and no multipart upload was left in progress.
+
+| Shape, build | retry wall | seed download | log writes (count) | other |
+|---|---|---|---|---|
+| A, main (3 runs) | 78.8–83.0 s | 15.4–16.4 s | 47.1–48.9 s (4) | 16.3–18.6 s |
+| A, branch (3 runs) | 35.2–37.4 s | 15.7–16.5 s | 3.3–4.1 s (4) | 16.2–17.2 s |
+| B, main (2 runs) | 65.6–66.0 s | 25.8–26.0 s | 26.1–26.7 s (2) | 12.8–14.1 s |
+| B, branch (2 runs) | 41.4–41.9 s | 26.1–27.3 s | 1.8–2.1 s (2) | 12.9–13.2 s |
+
+Each write is the `log_start` flush, the threshold flushes and the finish.
+On main the first composes from the prior log (≈1 s) and the rest upload
+the whole log (≈15.5 s for 113 MB, ≈25.5 s for 190 MB). On the branch every
+write composes in 0.6–1.2 s. Retry wall time falls by 55% on A and 37% on B;
+what remains is the seed download and the local work, which this change
+does not touch.
+
+**Seed download share (#482's measurement).** On the branch the seed
+download is 44% of retry wall time on A and 63–65% on B, from the office
+link; on main it is 19–20% and 39–40%. Both shapes are over the 20% go
+threshold (Decisions, 1). In-region numbers were not measured (no in-region
+host was available).
+
+### Flush microbenchmark
+
+An `EvalRecorder` log flushed after every 4 samples of random data (≈9.4 MB
+per batch, 10 flushes to 94 MB), once composing and once with composing
+disabled (whole uploads).
+
+| Flush | Log size | Whole upload | Compose |
+|---|---|---|---|
+| 1 | 9.4 MB | 2.5 s | 2.4 s (whole: under the minimum) |
+| 2 | 18.9 MB | 5.2 s | 2.9 s |
+| 5 | 47.2 MB | 7.8 s | 2.9 s |
+| 10 | 94.4 MB | 14.1 s | 3.0 s |
+| total | | 86.2 s | 30.3 s |
+
+Composed flushes stay at 2.7–3.8 s whatever the log size; whole uploads grow
+with it. Both objects equalled their temp files byte for byte, and neither
+left an in-progress upload. A run that replaced the object between flushes
+logged "compose source changed", uploaded that flush whole, and composed
+the next one.
+
 ## Implementation plan
 
 1. **#480 — threshold re-check.** `src/inspect_ai/_eval/task/log.py`
@@ -1225,8 +1319,10 @@ size.
    line): "perf: log flushes to S3 upload only the samples written since the
    last flush, not the whole `.eval` file". Then re-run the benchmark and add a
    Performance section to this document with the numbers.
-5. **#482 — measure, then decide.** Re-run the benchmark with the seed
-   download split out (both links). No-go: close #482 citing the numbers.
+5. **#482 — decide.** The measurement was done with step 4 (Performance:
+   the seed download is 44% of retry wall time on shape A and 63–65% on
+   shape B from the office link; in-region not measured). The go/no-go
+   decision remains. No-go: close #482 citing the numbers.
    Go: implement the #482 section as its own PR — `asyncfiles.py`
    (`if_match` on `read_file_suffix`/`read_file_bytes`/`read_file_bytes_fully`,
    `SourceChangedError`), `async_zip.py` (`AsyncZipReader(if_match=)`

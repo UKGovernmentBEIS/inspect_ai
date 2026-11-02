@@ -1,4 +1,5 @@
 import importlib
+import json
 import os
 import sys
 import weakref
@@ -13,10 +14,11 @@ import fsspec.core  # type: ignore
 import pytest
 from test_helpers.utils import skip_if_trio
 
-from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.error import PrerequisiteError, WriteConflictError
 from inspect_ai._util.file import (
     HF_FILESYSTEM_REQUIRED_VERSION,
     absolute_file_path,
+    acquire_exclusive_lock,
     basename,
     cleanup_s3_sessions,
     filesystem,
@@ -373,6 +375,100 @@ def test_local_path_windows_drive() -> None:
     assert local_path("file:///C:/logs/eval%20run.eval") == "C:\\logs\\eval run.eval"
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows drive-path form")
+def test_local_path_windows_drive_in_authority() -> None:
+    r"""`file://D:/...` is how the local filesystem names files on Windows.
+
+    urlparse puts the drive in netloc, so converting the path alone gave
+    `\logs\x.eval`, which resolves against the current drive (#5322).
+    """
+    assert local_path("file://D:/logs/eval%20run.eval") == "D:\\logs\\eval run.eval"
+
+
+def test_local_path_keeps_drive_authority(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Drive authority is passed through to url2pathname on every platform.
+
+    CI is Ubuntu-only; the Windows-form tests above are skipif(win32). The
+    branch selection itself is portable — monkeypatch url2pathname and check
+    the string handed in.
+    """
+    seen: list[str] = []
+
+    def capture(u: str) -> str:
+        seen.append(u)
+        return u
+
+    monkeypatch.setattr("inspect_ai._util.file.url2pathname", capture)
+    local_path("file://D:/logs/eval%20run.eval")
+    assert seen == ["D:/logs/eval%20run.eval"]
+
+
+def test_local_path_drive_authority_used_by_resolve_logs_style_names(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """resolve_logs / list_eval_logs emit file://C:/...; local_path must keep C:.
+
+    On 0.3.282, evals_df / samples_df fail whenever cwd is on another drive
+    because resolve_logs yields file://C:/... and local_path dropped the
+    drive (#5322).
+    """
+    seen: list[str] = []
+
+    def capture(u: str) -> str:
+        seen.append(u)
+        return u
+
+    monkeypatch.setattr("inspect_ai._util.file.url2pathname", capture)
+    # Well-formed three-slash form and the two-slash drive-authority form
+    # both appear in the wild on Windows.
+    local_path("file:///C:/path/to/logs/run.eval")
+    local_path("file://C:/path/to/logs/run.eval")
+    assert seen == [
+        "/C:/path/to/logs/run.eval",
+        "C:/path/to/logs/run.eval",
+    ]
+
+
+def test_local_path_localhost_authority() -> None:
+    assert local_path("file://localhost/tmp/x.eval") == local_path("file:///tmp/x.eval")
+
+
+def test_local_path_ip_literal_authority_stays_path_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Non-drive authorities (e.g. 127.0.0.1) keep the path-only branch.
+
+    UNC / IP authorities stay on the path-only path so POSIX behaviour for
+    those URLs is unchanged.
+    """
+    seen: list[str] = []
+
+    def capture(u: str) -> str:
+        seen.append(u)
+        return u
+
+    monkeypatch.setattr("inspect_ai._util.file.url2pathname", capture)
+    local_path("file://127.0.0.1/tmp/x.eval")
+    local_path("file://server/share/x.eval")
+    assert seen == ["/tmp/x.eval", "/share/x.eval"]
+
+
+def test_local_path_resolves_filesystem_ls_names(tmp_path: Path) -> None:
+    """A name reported by filesystem().ls() must name the file on any drive.
+
+    `read_eval_log()` feeds `list_eval_logs()` names through `local_path`;
+    a result relative to the current drive is a FileNotFoundError whenever
+    the log dir and the working directory differ (#5322).
+    """
+    target = tmp_path / "eval run.eval"
+    target.write_text("x")
+    names = [info.name for info in filesystem(str(tmp_path)).ls(str(tmp_path))]
+    assert len(names) == 1
+    resolved = Path(local_path(names[0]))
+    assert resolved.is_absolute()
+    assert resolved.resolve() == target.resolve()
+
+
 async def test_cleanup_s3_sessions_no_instances() -> None:
     """cleanup_s3_sessions is a no-op when there are no cached instances."""
     with patch("s3fs.S3FileSystem") as mock_s3fs:
@@ -547,3 +643,77 @@ async def test_cleanup_s3_sessions_no_s3creator() -> None:
         await cleanup_s3_sessions()
 
         mock_s3fs.clear_instance_cache.assert_called_once()
+
+
+def test_exclusive_lock_refuses_a_second_holder(tmp_path: Path) -> None:
+    lock = tmp_path / "log.merge.lock"
+    holder = {"pid": 123, "host": "worker-1", "started": "2026-10-08T12:00:00"}
+    with acquire_exclusive_lock(str(lock), holder):
+        assert json.loads(lock.read_text()) == holder
+        with pytest.raises(WriteConflictError) as exc_info:
+            with acquire_exclusive_lock(to_uri(str(lock)), {"pid": 456}):
+                pytest.fail("second holder entered the lock")
+        message = str(exc_info.value)
+        assert str(lock) in message
+        assert "worker-1" in message and "123" in message
+        # the refused acquire leaves the holder's lock alone
+        assert json.loads(lock.read_text()) == holder
+    assert not lock.exists()
+
+    with acquire_exclusive_lock(str(lock), {"pid": 456}):
+        assert json.loads(lock.read_text()) == {"pid": 456}
+    assert not lock.exists()
+
+
+def test_exclusive_lock_left_by_a_crash_is_reported_not_overridden(
+    tmp_path: Path,
+) -> None:
+    lock = tmp_path / "log.merge.lock"
+    lock.write_text('{"pid": 99, "host": "crashed"}')
+    with pytest.raises(WriteConflictError, match="crashed"):
+        with acquire_exclusive_lock(str(lock), {"pid": 1}):
+            pass
+    assert lock.read_text() == '{"pid": 99, "host": "crashed"}'
+
+
+def test_exclusive_lock_released_after_exception(tmp_path: Path) -> None:
+    lock = tmp_path / "log.merge.lock"
+    with pytest.raises(RuntimeError, match="boom"):
+        with acquire_exclusive_lock(str(lock), {"pid": 1}):
+            raise RuntimeError("boom")
+    assert not lock.exists()
+
+
+def test_exclusive_lock_released_when_info_is_not_serializable(
+    tmp_path: Path,
+) -> None:
+    lock = tmp_path / "log.merge.lock"
+    with pytest.raises(TypeError):
+        with acquire_exclusive_lock(str(lock), {"pid": object()}):
+            pytest.fail("entered the lock")
+    assert not lock.exists()
+
+
+async def test_exclusive_lock_released_after_cancellation(tmp_path: Path) -> None:
+    lock = tmp_path / "log.merge.lock"
+    held = anyio.Event()
+
+    async def hold() -> None:
+        with acquire_exclusive_lock(str(lock), {"pid": 1}):
+            held.set()
+            await anyio.sleep_forever()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(hold)
+        await held.wait()
+        assert lock.exists()
+        tg.cancel_scope.cancel()
+    assert not lock.exists()
+
+
+def test_exclusive_lock_does_not_remove_a_replaced_lock(tmp_path: Path) -> None:
+    lock = tmp_path / "log.merge.lock"
+    with acquire_exclusive_lock(str(lock), {"pid": 1}):
+        lock.unlink()
+        lock.write_text('{"pid": 2}')
+    assert lock.read_text() == '{"pid": 2}'

@@ -25,12 +25,14 @@ from ._failure import _CtlFailure, _exception_name, _fail
 from ._render import _echo, _format_duration, _short_id
 
 if TYPE_CHECKING:
+    from inspect_ai._control.log_dir.cache import LogDirCache
     from inspect_ai._control.log_dir.snapshot import LogDirIndex, LogicalTask
     from inspect_ai._util.asyncfiles import AsyncFilesystem
 
 _LOG_DIR_META_KEY = "inspect_ai.ctl.log_dir"
 _INDEX_META_KEY = "inspect_ai.ctl.log_dir_index"
 _BANNER_META_KEY = "inspect_ai.ctl.log_dir_banner"
+_CACHE_META_KEY = "inspect_ai.ctl.log_dir_cache"
 
 # A running task whose current log has not changed for this long is flagged
 # in the human table footer: a crashed worker leaves its log `started`, so a
@@ -96,14 +98,19 @@ def _run_reader(
 ) -> _T:
     """Run one reader coroutine on a fresh filesystem, mapping its failures.
 
-    ``walking`` marks a read that lists the root, where a missing object is
-    the directory itself rather than a log removed during the read.
+    The read uses the invocation's local cache. ``walking`` marks a read that
+    lists the root, where a missing object is the directory itself rather
+    than a log removed during the read.
     """
+    from inspect_ai._control.log_dir.cache import use_cache
     from inspect_ai._util.asyncfiles import AsyncFilesystem
+
+    cache = _cache()
 
     async def run() -> _T:
         async with AsyncFilesystem() as fs:
-            return await read(fs)
+            with use_cache(cache):
+                return await read(fs)
 
     try:
         return _http._run_async(run)
@@ -111,6 +118,24 @@ def _run_reader(
         raise
     except Exception as ex:
         _fail_from(ex, walking=walking)
+
+
+def _cache() -> LogDirCache | None:
+    """The invocation's log-dir cache, opened once and shared by its reads.
+
+    It is written when the context that opened it closes, so an entry read
+    by several of the invocation's reads is written once.
+    """
+    from inspect_ai._control.log_dir.cache import open_cache
+
+    ctx = click.get_current_context()
+    if _CACHE_META_KEY not in ctx.meta:
+        opened = open_cache()
+        ctx.meta[_CACHE_META_KEY] = opened
+        if opened is not None:
+            ctx.call_on_close(opened.close)
+    cache: LogDirCache | None = ctx.meta[_CACHE_META_KEY]
+    return cache
 
 
 def _fail_from(ex: BaseException, *, walking: bool) -> NoReturn:
@@ -124,7 +149,10 @@ def _fail_from(ex: BaseException, *, walking: bool) -> NoReturn:
         SampleNotFoundError,
         SampleUnsupportedError,
     )
-    from inspect_ai._control.log_dir.snapshot import UnsupportedLogFormatError
+    from inspect_ai._control.log_dir.snapshot import (
+        StrayLogError,
+        UnsupportedLogFormatError,
+    )
 
     root = _log_dir_root()
     kind: Literal[
@@ -137,7 +165,7 @@ def _fail_from(ex: BaseException, *, walking: bool) -> NoReturn:
         kind, message = "not_found", f"{ex} (the log changed during the read)."
     elif isinstance(ex, SampleAmbiguousError):
         kind, message = "ambiguous", str(ex)
-    elif isinstance(ex, UnsupportedLogFormatError):
+    elif isinstance(ex, (UnsupportedLogFormatError, StrayLogError)):
         kind, message = "unsupported", str(ex)
     elif isinstance(ex, SampleUnsupportedError):
         events = " ".join(
@@ -183,17 +211,24 @@ def _fail_from(ex: BaseException, *, walking: bool) -> NoReturn:
     raise _CtlFailure(kind, message, exception=exception, status=status) from ex
 
 
-def _index() -> LogDirIndex:
-    """The invocation's walk and plans, read once and shared by its later reads."""
+def _index(*, shard_sets: bool = True) -> LogDirIndex:
+    """The invocation's walk and plans, read once and shared by its later reads.
+
+    Without ``shard_sets`` (``task list --shards``), each ``<name>.shards/``
+    is walked as an ordinary directory.
+    """
     from inspect_ai._control.log_dir.snapshot import index_log_dir
 
     ctx = click.get_current_context()
-    index = ctx.meta.get(_INDEX_META_KEY)
+    meta_key = _INDEX_META_KEY if shard_sets else f"{_INDEX_META_KEY}.shards"
+    index = ctx.meta.get(meta_key)
     if index is None:
         root = _log_dir_root()
         assert root is not None
-        index = _run_reader(lambda fs: index_log_dir(fs, root), walking=True)
-        ctx.meta[_INDEX_META_KEY] = index
+        index = _run_reader(
+            lambda fs: index_log_dir(fs, root, shard_sets=shard_sets), walking=True
+        )
+        ctx.meta[meta_key] = index
         _warn_unreadable([u.as_dict() for u in index.unattributed])
     return index
 
@@ -259,11 +294,15 @@ class _TaskRows(NamedTuple):
     """Every log the rows do not cover (row-level entries included)."""
 
 
-def _task_rows() -> _TaskRows:
-    """Full task rows, one per logical task, for ``task list``."""
+def _task_rows(*, shards: bool = False) -> _TaskRows:
+    """Full task rows, one per logical task, for ``task list``.
+
+    With ``shards``, shard sets are not aggregated: each shard is a task of
+    its own (see :func:`_index`).
+    """
     from inspect_ai._control.log_dir.snapshot import read_task_views, task_row
 
-    index = _index()
+    index = _index(shard_sets=not shards)
     views = _run_reader(lambda fs: read_task_views(fs, index.tasks))
     rows = [task_row(view) for view in views]
     unreadable = _merge_unreadable(
@@ -284,6 +323,8 @@ class _SamplesRead(NamedTuple):
     counts: dict[str, int]
     truncated: bool
     conflicted: int
+    conflict_counts: dict[str, int]
+    """The status histogram of the conflict rows, which ``counts`` leaves out."""
 
 
 class _SamplesReads(NamedTuple):
@@ -331,6 +372,7 @@ def _read_samples(
                     counts=dict.fromkeys(SAMPLE_STATUSES, 0),
                     truncated=False,
                     conflicted=0,
+                    conflict_counts=dict.fromkeys(SAMPLE_STATUSES, 0),
                 )
             )
             continue
@@ -351,6 +393,7 @@ def _read_samples(
                 counts=listing.counts,
                 truncated=listing.truncated,
                 conflicted=listing.conflicted,
+                conflict_counts=listing.conflict_counts,
             )
         )
     _warn_unreadable(warn)
@@ -504,3 +547,25 @@ def _print_quiet_footer(rows: list[dict[str, Any]]) -> None:
             f"not changed for {_format_duration(idle)} — its eval process may have "
             "stopped."
         )
+
+
+def _print_sharded_totals_note(rows: list[dict[str, Any]]) -> None:
+    """Say that a sharded task's sample total covers only the shards found.
+
+    Shards that have not started are not in the directory, so the total is a
+    lower bound. Human output only: the JSON rows carry ``total_final``.
+    """
+    sharded = [
+        row
+        for row in rows
+        if row.get("current_attempt") == "shards"
+        and not (row.get("samples") or {}).get("total_final")
+    ]
+    if not sharded:
+        return
+    ids = ", ".join(_short_id(str(row.get("task_id") or "")) for row in sharded)
+    _echo()
+    _echo(
+        f"{ids}: sharded; the sample totals cover the shards found in the "
+        "directory so far."
+    )

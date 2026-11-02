@@ -48,7 +48,7 @@ To develop and run evaluations, you'll also need access to a model, which typica
 ``` bash
 pip install openai
 export OPENAI_API_KEY=your-openai-api-key
-inspect eval simpleqa.py --model openai/gpt-4o
+inspect eval simpleqa.py --model openai/gpt-6-luna
 ```
 
 #### Anthropic
@@ -133,7 +133,7 @@ def simpleqa():
 Run it from the command line with `inspect eval`, choosing a model with `--model`:
 
 ``` bash
-inspect eval simpleqa.py --model openai/gpt-5
+inspect eval simpleqa.py --model openai/gpt-6-luna
 ```
 
 Use `inspect view` to view the results:
@@ -193,7 +193,7 @@ Above we demonstrated using `inspect eval` from CLI to run evaluations—you can
 from inspect_ai import eval
 from simpleqa import simpleqa
 
-eval(simpleqa(), model="openai/gpt-5")
+eval(simpleqa(), model="openai/gpt-6-luna")
 ```
 
 ## LLM Assistance

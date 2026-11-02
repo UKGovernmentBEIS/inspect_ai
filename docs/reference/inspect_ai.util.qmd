@@ -11,6 +11,9 @@ description: Miscellaneous utility functions.
 ### StoreModel
 ### store_from_events
 ### store_from_events_as
+### tool_state_scope
+### tool_state_instance
+### private_tool_instance
 
 ## Limits
 

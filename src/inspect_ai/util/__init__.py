@@ -109,6 +109,11 @@ from ._subprocess import (
 )
 from ._subtask import Subtask, subtask
 from ._throttle import throttle
+from ._tool_state import (
+    private_tool_instance,
+    tool_state_instance,
+    tool_state_scope,
+)
 
 __all__ = [
     "media_resolver",
@@ -174,6 +179,9 @@ __all__ = [
     "store_from_events_as",
     "StoreModel",
     "store_as",
+    "tool_state_scope",
+    "tool_state_instance",
+    "private_tool_instance",
     "span",
     "current_span_id",
     "span_id_provider",

@@ -193,7 +193,8 @@ def _enumerate_directory(dir_path: Path) -> dict[str, str | bytes | Path]:
         relative = file_path.relative_to(dir_path)
         if any(part.startswith((".", "_")) for part in relative.parts):
             continue
-        result[str(relative)] = file_path.absolute()
+        # posix separators: keys are installed under a PurePosixPath in the sandbox
+        result[relative.as_posix()] = file_path.absolute()
 
     return result
 
