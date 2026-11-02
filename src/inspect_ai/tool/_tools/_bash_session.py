@@ -9,7 +9,7 @@ from inspect_ai.tool._sandbox_tools_utils._error_mapper import (
 )
 from inspect_ai.tool._sandbox_tools_utils.sandbox import sandbox_with_injected_tools
 from inspect_ai.util import StoreModel, store_as
-from inspect_ai.util._sandbox._cli import SANDBOX_CLI, tools_user_param
+from inspect_ai.util._sandbox._cli import tools_user_param
 from inspect_ai.util._sandbox._json_rpc_transport import SandboxJSONRPCTransport
 from inspect_ai.util._sandbox.limits import SandboxEnvironmentLimits
 from inspect_ai.util._tool_state import tool_state_instance
@@ -198,7 +198,7 @@ def bash_session(
         sandbox = await sandbox_with_injected_tools()
 
         # Create transport for all RPC calls
-        transport = SandboxJSONRPCTransport(sandbox, SANDBOX_CLI)
+        transport = SandboxJSONRPCTransport(sandbox)
 
         if not store.session_id:
             params: dict[str, object] = {}

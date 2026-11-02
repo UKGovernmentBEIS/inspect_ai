@@ -24,7 +24,7 @@ from tenacity import (
 
 from inspect_ai._util._json_rpc import GenericJSONRPCErrorMapper, exec_model_request
 
-from ._cli import SANDBOX_CLI, tools_user_param
+from ._cli import tools_user_param
 from ._json_rpc_transport import SandboxJSONRPCTransport
 
 if TYPE_CHECKING:
@@ -296,7 +296,7 @@ class ExecRemoteProcess:
         self._completed = False
         self._iteration_started = False
         self._pending_events: list[ExecOutput] = []
-        self._transport = SandboxJSONRPCTransport(sandbox, SANDBOX_CLI)
+        self._transport = SandboxJSONRPCTransport(sandbox)
 
     @property
     def pid(self) -> int:
