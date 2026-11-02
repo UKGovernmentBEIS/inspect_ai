@@ -3293,21 +3293,22 @@ def _make_batcher_and_batch(job_state: JobState) -> tuple:
 
     batcher = GoogleBatcher(
         client=client,
-        config=BatchConfig(),
+        config=BatchConfig(tick=0.001),
         retry_config=model_retry_config(
             "test", 3, None, lambda e: True, lambda ex: None, lambda m, s: None
         ),
         model_name="gemini-2.0-flash",
     )
 
-    send_stream = MagicMock()
+    send_stream, receive_stream = anyio.create_memory_object_stream[Any](1)
     req: BatchRequest[Any] = BatchRequest(
         request={},
         result_stream=send_stream,
         custom_id="req-1",
     )
     batch = Batch(id="batch-123", requests={"req-1": req})
-    return batcher, batch
+    batcher._inflight_batches[batch.id] = batch
+    return batcher, batch, receive_stream
 
 
 def test_google_batch_result_line_tolerates_unknown_rest_fields() -> None:
@@ -3419,7 +3420,7 @@ async def test_check_batch_terminal_states(
 ) -> None:
     """_check_batch must map all terminal JobStates so polling terminates."""
     job_state = getattr(JobState, state)
-    batcher, batch = _make_batcher_and_batch(job_state)
+    batcher, batch, _ = _make_batcher_and_batch(job_state)
     result = await batcher._check_batch(batch)
 
     if expect_completed:
@@ -3429,6 +3430,20 @@ async def test_check_batch_terminal_states(
     if not expect_completed and not expect_failed:
         assert result.completed_count == 0 and result.failed_count == 0
     assert (result.completion_info is not None) == expect_completion_info
+
+
+@pytest.mark.parametrize(
+    "state", ["JOB_STATE_FAILED", "JOB_STATE_CANCELLED", "JOB_STATE_EXPIRED"]
+)
+async def test_batch_job_without_results_fails_its_requests(state: str) -> None:
+    """A batch job that ends without results fails its requests and stops polling."""
+    batcher, _, receive_stream = _make_batcher_and_batch(getattr(JobState, state))
+
+    with anyio.fail_after(5):
+        await batcher._batch_worker()
+
+    assert batcher._inflight_batches == {}
+    assert isinstance(receive_stream.receive_nowait(), RuntimeError)
 
 
 async def test_image_generation_round_trip():
