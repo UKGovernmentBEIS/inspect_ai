@@ -43,12 +43,18 @@ def init_display_type(display: str | None = None) -> DisplayType:
             )
             _display_type = "full"
 
-    # the active display was built for the previous type (e.g. by an
-    # earlier eval() in this process), so drop it to be rebuilt on next use
     if previous_display_type is not None and _display_type != previous_display_type:
         from inspect_ai._display.core.active import clear_active_display
+        from inspect_ai._eval import eval as eval_module
 
-        clear_active_display()
+        if eval_module._eval_async_running:
+            # a running eval owns the display (e.g. score() called from a
+            # solver), so keep the type it is rendering with
+            _display_type = previous_display_type
+        else:
+            # the active display was built for the previous type (e.g. by an
+            # earlier eval() in this process), so drop it to be rebuilt
+            clear_active_display()
 
     return _display_type
 

@@ -307,6 +307,8 @@ def test_eval_display_plain_then_rich_shows_live_progress(
     # and terminal detection alone
     monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: True)
     monkeypatch.setenv("TTY_COMPATIBLE", "1")
+    monkeypatch.delenv("TERM", raising=False)
+    monkeypatch.delenv("TTY_INTERACTIVE", raising=False)
     rich.reconfigure()
     task = Task(dataset=[Sample(input="hi", target="hi")], scorer=match())
 
@@ -347,6 +349,31 @@ def test_eval_display_none_then_log_shows_log_output(
 
     eval(task, model="mockllm/model", display="log", log_dir=str(tmp_path))
     assert "Running 1 tasks" in capsys.readouterr().out
+
+
+def test_display_type_change_during_eval_keeps_running_display(
+    fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import inspect_ai._display.core.rich as display_rich
+    from inspect_ai.util._display import display_type, init_display_type
+
+    # outside VS Code, where rich_initialise gives the running display its own
+    # console state
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
+
+    @solver
+    def change_display() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            # as score(display="log") does when called from a solver or hook
+            init_display_type("log")
+            return state
+
+        return solve
+
+    task = Task(dataset=[Sample(input="hi")], solver=change_display())
+    log = eval(task, model="mockllm/model", display="rich", log_dir=str(tmp_path))[0]
+    assert log.status == "success"
+    assert display_type() == "rich"
 
 
 def test_max_tasks_bounds_concurrent_models_single_task():
