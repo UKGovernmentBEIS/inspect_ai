@@ -399,6 +399,18 @@ class GenerateConfig(BaseModel):
         return config
 
 
+def generate_config_dict(config: GenerateConfig) -> dict[str, Any]:
+    """Dump a generate config without its None fields, except a cache's expiry.
+
+    A cache policy with no ``expiry`` validates with the "1W" default, so a
+    cache that never expires keeps an explicit None.
+    """
+    config_dict = config.model_dump(exclude_none=True)
+    if isinstance(config.cache, CachePolicy) and config.cache.expiry is None:
+        config_dict["cache"]["expiry"] = None
+    return config_dict
+
+
 def active_generate_config() -> GenerateConfig:
     return active_generate_config_context_var.get()
 

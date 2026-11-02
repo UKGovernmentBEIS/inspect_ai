@@ -1,8 +1,9 @@
 import pytest
 import sniffio
+from test_helpers.utils import fail_in_a_group_with_handled_context
 
 from inspect_ai.tool._tool import ToolError
-from inspect_ai.util._anyio import _flatten_exception
+from inspect_ai.util._anyio import _flatten_exception, inner_exception
 
 
 def test_crazy_with_from():
@@ -129,6 +130,28 @@ def test_self_referencing_exception():
     assert len(flattened) == 1
     assert isinstance(flattened[0], RuntimeError)
     assert str(flattened[0]) == "self-referencing exception"
+
+
+@pytest.mark.parametrize("outer_cause", [False, True])
+async def test_inner_exception_prefers_group_members_over_context(
+    outer_cause: bool,
+) -> None:
+    """A group's first exception is its member, not the one it was handling."""
+    # members and context were ordered by a set of exceptions: try fresh ones
+    for _ in range(50):
+        with pytest.raises(ExceptionGroup) as excinfo:
+            await fail_in_a_group_with_handled_context(outer_cause)
+        group = excinfo.value
+        assert isinstance(_handled_context(group), ToolError)
+        assert inner_exception(group) is group.exceptions[0]
+
+
+def _handled_context(group: BaseException) -> BaseException | None:
+    """The handled error in the group's context, directly or in its history group."""
+    context = group.__context__
+    if isinstance(context, BaseExceptionGroup):
+        return context.exceptions[0]
+    return context
 
 
 @pytest.mark.anyio

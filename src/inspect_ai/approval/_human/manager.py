@@ -51,8 +51,9 @@ class HumanApprovalManager:
         return id
 
     def withdraw_request(self, id: str) -> None:
-        del self._approval_requests[id]
-        self._notify_change("remove")
+        if id in self._approval_requests:
+            del self._approval_requests[id]
+            self._notify_change("remove")
 
     async def wait_for_approval(self, id: str) -> Approval:
         _, future = self._approval_requests[id]

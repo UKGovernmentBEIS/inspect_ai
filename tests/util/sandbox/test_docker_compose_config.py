@@ -10,8 +10,14 @@ import pytest
 import yaml
 from test_helpers.utils import skip_if_no_docker
 
+from inspect_ai._util.appdirs import inspect_data_dir
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai.util import ComposeConfig, ComposeService, ExecResult
+from inspect_ai.util import (
+    ComposeConfig,
+    ComposeService,
+    ComposeVolumeMount,
+    ExecResult,
+)
 from inspect_ai.util._sandbox.docker import compose as compose_module
 from inspect_ai.util._sandbox.docker import docker as docker_module
 from inspect_ai.util._sandbox.docker import mounts as mounts_module
@@ -70,6 +76,124 @@ async def test_compose_project_create_with_compose_config(request) -> None:
         # Clean up the auto-generated compose file
         if project.config and os.path.exists(project.config):
             os.unlink(project.config)
+
+
+RELATIVE_MOUNTS = [
+    "./data:/data",
+    ".:/workspace",
+    "../data:/data:ro",
+    ComposeVolumeMount(type="bind", source="data", target="/data"),
+    ComposeVolumeMount(type="bind", source="./data", target="/data", read_only=True),
+]
+
+ACCEPTED_MOUNTS = [
+    "/host/data:/data:ro",
+    "~/data:/data:ro",
+    "named:/data",
+    "/data",
+    "${DATA_DIR}:/data:ro",
+    "C:${HOMEPATH}:/data:ro",
+    ComposeVolumeMount(
+        type="bind", source="/host/data", target="/data", read_only=True
+    ),
+    ComposeVolumeMount(type="bind", source="${DATA_DIR}/data", target="/data"),
+    ComposeVolumeMount(type="bind", source="C:${HOMEPATH}", target="/data"),
+    ComposeVolumeMount(type="volume", source="named", target="/data"),
+    ComposeVolumeMount(type="tmpfs", target="/scratch"),
+]
+
+
+def _compose_config(**service: Any) -> ComposeConfig:
+    return ComposeConfig(
+        services={"default": ComposeService(image="alpine", **service)}
+    )
+
+
+@pytest.mark.parametrize("mount", RELATIVE_MOUNTS, ids=repr)
+async def test_compose_config_rejects_relative_bind_sources(
+    mount: str | ComposeVolumeMount,
+) -> None:
+    name = task_project_name("test-relative-mount")
+    with pytest.raises(PrerequisiteError, match="uses a relative host path") as ex:
+        await ComposeProject.create(name=name, config=_compose_config(volumes=[mount]))
+    assert "Docker service 'default' mount" in str(ex.value)
+    assert 'Path(__file__).parent / "data"' in str(ex.value)
+    assert not (auto_compose_dir() / f"{name}.yaml").exists()
+
+
+@pytest.mark.parametrize("env_file", [".env", "task.env", ["/host/.env", "./task.env"]])
+async def test_compose_config_rejects_relative_env_files(
+    env_file: str | list[str],
+) -> None:
+    name = task_project_name("test-relative-env-file")
+    with pytest.raises(PrerequisiteError, match="env_file '.*' uses a relative host"):
+        await ComposeProject.create(
+            name=name, config=_compose_config(env_file=env_file)
+        )
+    assert not (auto_compose_dir() / f"{name}.yaml").exists()
+
+
+@pytest.mark.parametrize("mount", ACCEPTED_MOUNTS, ids=repr)
+async def test_compose_config_accepts_absolute_and_managed_mounts(
+    mount: str | ComposeVolumeMount,
+) -> None:
+    config = _compose_config(volumes=[mount], env_file="/host/.env")
+    project = await ComposeProject.create(
+        name=task_project_name("test-absolute-mount"), config=config
+    )
+    try:
+        assert project.config and os.path.exists(project.config)
+    finally:
+        if project.config:
+            os.unlink(project.config)
+
+
+async def test_mount_validation_rejects_sources_in_auto_compose_dir(
+    read_only_bind: dict[str, Any],
+) -> None:
+    source = (auto_compose_dir() / "data").as_posix()
+    read_only_bind["services"]["default"]["volumes"][0]["source"] = source
+    with pytest.raises(PrerequisiteError, match="resolves into Inspect's generated"):
+        await validate_compose_mounts(read_only_bind, "inspect-test")
+
+
+async def test_mount_validation_rejects_auto_compose_dir_despite_opt_in(
+    read_only_bind: dict[str, Any],
+) -> None:
+    read_only_bind["x-inspect_docker_sandbox"] = {
+        "unsafe_allow_writable_host_mounts": True
+    }
+    read_only_bind["services"]["default"]["volumes"][0]["source"] = (
+        auto_compose_dir().as_posix()
+    )
+    with pytest.raises(PrerequisiteError, match="resolves into Inspect's generated"):
+        await validate_compose_mounts(read_only_bind, "inspect-test")
+
+
+@skip_if_no_docker
+async def test_mount_validation_rejects_interpolated_relative_source() -> None:
+    config = _compose_config(volumes=["${DATA_DIR}:/data:ro"])
+    project = await ComposeProject.create(
+        name=task_project_name("test-interpolated-mount"),
+        config=config,
+        env={"DATA_DIR": "./data"},
+    )
+    try:
+        with pytest.raises(
+            PrerequisiteError, match="resolves into Inspect's generated"
+        ):
+            await compose_services(project)
+    finally:
+        if project.config:
+            os.unlink(project.config)
+
+
+async def test_mount_validation_allows_binds_elsewhere_in_data_dir(
+    read_only_bind: dict[str, Any], mount_daemon: dict[str, Any]
+) -> None:
+    source = (inspect_data_dir(None) / "traces").as_posix()
+    read_only_bind["services"]["default"]["volumes"][0]["source"] = source
+    await validate_compose_mounts(read_only_bind, "inspect-test")
 
 
 @pytest.fixture

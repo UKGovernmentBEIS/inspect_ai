@@ -502,6 +502,64 @@ async def test_truncated_eocd_raises(tmp_path: Path) -> None:
             await reader.entries()
 
 
+@pytest.mark.parametrize("cut", [19, 34])
+async def test_truncation_exposing_earlier_eocd_signature_raises(
+    tmp_path: Path, cut: int
+) -> None:
+    """A central directory that doesn't match the EOCD found raises.
+
+    Cutting 19 or more bytes leaves too little of the real EOCD to be found,
+    so the signature in a member name is read as the EOCD instead.
+    """
+    zip_path = tmp_path / "truncated.zip"
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr("a", b"")
+        zf.writestr("PK\x05\x06" + "A" * 30, b"")
+    zip_path.write_bytes(zip_path.read_bytes()[:-cut])
+
+    with pytest.raises(zipfile.BadZipFile):
+        zipfile.ZipFile(zip_path)
+
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(zip_path))
+        with pytest.raises(ValueError, match="central directory"):
+            await reader.entries()
+
+
+async def test_truncation_exposing_earlier_eocd_with_bad_header_raises(
+    tmp_path: Path,
+) -> None:
+    """A stray EOCD pointing at bytes that aren't central directory headers raises.
+
+    The member's extra field completes the signature in its name into an EOCD
+    describing a 46-byte central directory at offset 0, the local file header.
+    """
+    zip_path = tmp_path / "truncated.zip"
+    info = zipfile.ZipInfo("bPK\x05\x06")
+    info.extra = struct.pack("<HHHHIIH", 0x9999, 14, 1, 1, 46, 0, 0)
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr(info, b"")
+    zip_path.write_bytes(zip_path.read_bytes()[:-19])
+
+    with pytest.raises(zipfile.BadZipFile):
+        zipfile.ZipFile(zip_path)
+
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(zip_path))
+        with pytest.raises(ValueError, match="Bad signature"):
+            await reader.entries()
+
+
+async def test_read_empty_archive(tmp_path: Path) -> None:
+    zip_path = tmp_path / "empty.zip"
+    with zipfile.ZipFile(zip_path, "w"):
+        pass
+
+    async with AsyncFilesystem() as fs:
+        cd = await AsyncZipReader(fs, str(zip_path)).entries()
+        assert cd.entries == []
+
+
 async def test_65535_entries_without_zip64(tmp_path: Path) -> None:
     """A 0xFFFF entry count with no ZIP64 locator isn't sent searching for one.
 

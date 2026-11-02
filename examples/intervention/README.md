@@ -35,11 +35,12 @@ For `shell` mode, this will result in each and every bash or python call requiri
 ```{.yaml filename="approval.yaml"}
 approvers:
   - name: human
-    tools:
-      - computer(action='key'
-      - computer(action='left_click'
-      - computer(action='middle_click'
-      - computer(action='double_click'
+    tools: computer
+    arguments: {action: key}
+
+  - name: human
+    tools: computer
+    arguments: {action: "*_click"}
 
   - name: auto
     tools: "*"

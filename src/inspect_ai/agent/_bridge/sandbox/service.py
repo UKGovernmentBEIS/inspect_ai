@@ -8,7 +8,7 @@ from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._model import ModelRefusalError
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
-from inspect_ai.util._limit import LimitExceededError
+from inspect_ai.util._limit import LimitExceededError, check_turn_limit
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
 from inspect_ai.util._sandbox.service import find_control_flow
 
@@ -44,10 +44,7 @@ def _forward_provider_errors(
     channel. This lets the model proxy emit a provider-dialect error response
     and stay up, instead of the RPC `error` channel triggering a fatal exit.
 
-    `LimitExceededError` is deliberately excluded so message/token/cost limit
-    hit during generation properly end the sample.
-
-    A termination is also re-raised: a `TerminateSampleError` (from an approver's
+    A termination is re-raised: a `TerminateSampleError` (from an approver's
     `terminate` decision, too many consecutive rejections, or a request or
     response filter), bare or anywhere in the exception as `find_control_flow`
     finds it. The sandbox service dispatcher answers the RPC and propagates the
@@ -58,6 +55,23 @@ def _forward_provider_errors(
     sample, but the dispatcher would turn a re-raise into an RPC error, so they
     are signalled through `bridge.request_fail` (raised on the agent's side by
     the bridge's monitor task) while the scaffold still gets an error reply.
+
+    A `LimitExceededError` (message, token, cost or turn limit), bare or in an
+    exception group such as a filter's task group, is returned as an error
+    reply too. The first limit reached is recorded in `bridge.generation_limit`:
+    once the agent has unwound, `sandbox_agent_bridge` raises it, so the scope
+    that applied it (`run()`, or the sample) handles it, as for a native agent.
+    A limit only in an exception's cause or context is not recorded: it was
+    handled, or replaced by the error that escaped (a refusal reduced from a
+    response filter's group, a `ResponseFilterError`, a fallback's provider
+    error), which takes its own route. A group of only limits and refusals
+    that holds a limit, such as a generate filter's, counts as its first
+    member, as a response filter's group does: a refusal first fails the
+    sample, a limit first is recorded. Other errors in a group a limit was
+    selected from are logged, as for any error forwarded with no HTTP status.
+
+    A turn limit is checked after a generation, so a request that arrives
+    once one is exceeded gets its error reply without another generation.
     """
 
     async def generate_forwarding_errors(
@@ -65,18 +79,27 @@ def _forward_provider_errors(
         headers: dict[str, str] | None = None,
     ) -> dict[str, JsonValue]:
         try:
+            check_turn_limit()
             return await generate(json_data, headers)
-        except LimitExceededError:
-            raise
         except Exception as ex:
             if find_control_flow(ex) is not None:
                 # the service dispatcher ends the sample with it
                 raise
-            if isinstance(ex, (ModelRefusalError, ResponseFilterError)):
-                bridge.request_fail(ex)
+            control = _first_control(ex)
+            if isinstance(control, LimitExceededError):
+                # only the first is raised, so later ones are not kept
+                if bridge.generation_limit is None:
+                    bridge.generation_limit = control
+                _warn_other_errors(ex)
+                return {PROVIDER_ERROR_KEY: cast(JsonValue, provider_error_payload(ex))}
+            failure = control or ex
+            if isinstance(failure, (ModelRefusalError, ResponseFilterError)):
+                bridge.request_fail(failure)
                 # no non-provider-error warning: the failure is reported once,
                 # by the sample error the monitor task raises
-                return {PROVIDER_ERROR_KEY: cast(JsonValue, provider_error_payload(ex))}
+                return {
+                    PROVIDER_ERROR_KEY: cast(JsonValue, provider_error_payload(failure))
+                }
             payload = provider_error_payload(ex)
             # A payload with no recoverable HTTP status almost always means the
             # failure came from our own request translation rather than the
@@ -93,6 +116,57 @@ def _forward_provider_errors(
             return {PROVIDER_ERROR_KEY: cast(JsonValue, payload)}
 
     return generate_forwarding_errors
+
+
+def _first_control(ex: Exception) -> LimitExceededError | ModelRefusalError | None:
+    """The limit to record, or refusal to fail with, for a failed generation.
+
+    The first limit of `ex` and its group members, except that a group of only
+    limits and refusals that holds a limit counts as its first member, depth
+    first in order, as `_apply_response_filter` reduces a response filter's
+    group.
+    """
+    if isinstance(ex, ExceptionGroup):
+        control, rest = ex.split((LimitExceededError, ModelRefusalError))
+        if (
+            control is not None
+            and rest is None
+            and control.subgroup(LimitExceededError) is not None
+        ):
+            first: Exception = control
+            while isinstance(first, ExceptionGroup):
+                first = first.exceptions[0]
+            return cast(LimitExceededError | ModelRefusalError, first)
+    return _first_limit(ex)
+
+
+def _warn_other_errors(ex: Exception) -> None:
+    """Log the members of a group other than limits and refusals, with their traceback.
+
+    They are likely bugs (a filter's own), which the limit's error reply would
+    otherwise mask.
+    """
+    if isinstance(ex, ExceptionGroup):
+        _, rest = ex.split((LimitExceededError, ModelRefusalError))
+        if rest is not None:
+            logger.warning(
+                "Agent bridge model request reached a limit and failed with other "
+                "errors (forwarding the limit to the client as an error response): %s",
+                rest,
+                exc_info=rest,
+            )
+
+
+def _first_limit(ex: BaseException) -> LimitExceededError | None:
+    """The first `LimitExceededError` of `ex` and its group members, depth first in order."""
+    if isinstance(ex, LimitExceededError):
+        return ex
+    if isinstance(ex, BaseExceptionGroup):
+        for member in ex.exceptions:
+            limit = _first_limit(member)
+            if limit is not None:
+                return limit
+    return None
 
 
 async def run_model_service(

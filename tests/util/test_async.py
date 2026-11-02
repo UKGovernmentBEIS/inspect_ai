@@ -7,17 +7,28 @@ import sys
 import textwrap
 import threading
 import weakref
-from typing import Any, AsyncIterator, Awaitable, Callable, Literal
+from typing import (
+    Any,
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Coroutine,
+    Literal,
+    NoReturn,
+)
 
 import anyio.to_thread
 import pytest
 
 from inspect_ai._util._async import (
+    raise_unwrapped,
     run_coroutine,
     tg_collect,
     unwrap_exception_group,
 )
+from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.util import collect
+from inspect_ai.util._sandbox.service import find_control_flow
 
 
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
@@ -238,9 +249,161 @@ def _failing_tasks(count: int) -> list[Callable[[], Awaitable[None]]]:
 
 def _assert_cause_kept(error: BaseException) -> None:
     assert repr(error.__cause__) == "ValueError('cause')"
-    # the context is the task group's group, as with `raise ... from None`
-    assert isinstance(error.__context__, ExceptionGroup)
+    assert repr(error.__context__) == "KeyError('context')"
     assert error.__suppress_context__
+
+
+def _raise_wrapped() -> NoReturn:
+    raise RuntimeError("wrapped")
+
+
+async def _fail_implicitly() -> None:
+    try:
+        raise ValueError("context")
+    except ValueError:
+        _raise_wrapped()
+
+
+async def _fail_explicitly() -> None:
+    try:
+        raise KeyError("context")
+    except KeyError:
+        raise RuntimeError("wrapped") from ValueError("cause")
+
+
+async def _fail_from_none() -> None:
+    try:
+        raise KeyError("context")
+    except KeyError:
+        raise RuntimeError("wrapped") from None
+
+
+@pytest.mark.parametrize(
+    "fail,cause,context,suppressed",
+    [
+        (_fail_implicitly, "None", "ValueError('context')", False),
+        (_fail_explicitly, "ValueError('cause')", "KeyError('context')", True),
+        (_fail_from_none, "None", "KeyError('context')", True),
+    ],
+    ids=["implicit", "explicit", "from-none"],
+)
+@pytest.mark.parametrize("unwrap", ["single", "first"])
+async def test_unwrapped_task_error_keeps_its_chain(
+    fail: Callable[[], Coroutine[Any, Any, None]],
+    cause: str,
+    context: str,
+    suppressed: bool,
+    unwrap: Literal["single", "first"],
+) -> None:
+    with pytest.raises(RuntimeError, match="wrapped") as excinfo:
+        async with unwrap_exception_group(unwrap), anyio.create_task_group() as tg:
+            tg.start_soon(fail)
+    error = excinfo.value
+    assert repr(error.__cause__) == cause
+    assert repr(error.__context__) == context
+    assert error.__suppress_context__ is suppressed
+
+
+async def test_first_error_keeps_dropped_sibling_termination() -> None:
+    started = anyio.Event()
+    termination = TerminateSampleError("stop")
+
+    async def fail() -> None:
+        await started.wait()
+        raise RuntimeError("first")
+
+    async def terminate_when_cancelled() -> None:
+        try:
+            started.set()
+            await anyio.sleep_forever()
+        finally:
+            raise termination
+
+    with pytest.raises(RuntimeError, match="first") as excinfo:
+        await tg_collect([fail, terminate_when_cancelled])
+    # the dropped sibling stays in the error's (suppressed) history
+    assert isinstance(excinfo.value.__context__, ExceptionGroup)
+    assert excinfo.value.__suppress_context__
+    assert find_control_flow(excinfo.value) is termination
+
+
+def _raise(error: BaseException) -> NoReturn:
+    raise error
+
+
+def _group_with_context(leaf: Exception, termination: Exception) -> ExceptionGroup:
+    try:
+        try:
+            raise termination
+        except TerminateSampleError:
+            _raise(ExceptionGroup("cleanup", [leaf]))
+    except ExceptionGroup as group:
+        return group
+
+
+def _group_with_cause(leaf: Exception, termination: Exception) -> ExceptionGroup:
+    group = ExceptionGroup("cleanup", [leaf])
+    group.__cause__ = termination
+    return group
+
+
+def _nested_group_with_context(
+    leaf: Exception, termination: Exception
+) -> ExceptionGroup:
+    return ExceptionGroup("outer", [_group_with_context(leaf, termination)])
+
+
+@pytest.mark.parametrize(
+    "make_group",
+    [_group_with_context, _group_with_cause, _nested_group_with_context],
+    ids=["context", "cause", "nested"],
+)
+async def test_unwrapped_error_keeps_its_wrappers_termination(
+    make_group: Callable[[Exception, Exception], ExceptionGroup],
+) -> None:
+    leaf = RuntimeError("leaf")
+    termination = TerminateSampleError("stop now")
+    group = make_group(leaf, termination)
+
+    with pytest.raises(RuntimeError, match="leaf") as excinfo:
+        try:
+            _raise(group)
+        except ExceptionGroup as ex:
+            raise_unwrapped(ex, leaf)
+    # the group carried the termination, so it stays as suppressed context
+    assert excinfo.value.__context__ is group
+    assert excinfo.value.__suppress_context__
+    assert find_control_flow(excinfo.value) is termination
+
+
+@pytest.mark.parametrize("selected", ["error", "group"])
+@pytest.mark.parametrize("link", ["context", "cause"])
+async def test_unwrapped_error_keeps_its_own_termination(
+    selected: Literal["error", "group"], link: Literal["context", "cause"]
+) -> None:
+    termination = TerminateSampleError("stop now")
+    leaf = RuntimeError("leaf")
+    error: Exception = leaf if selected == "error" else ExceptionGroup("inner", [leaf])
+    setattr(error, f"__{link}__", termination)
+    outer = ExceptionGroup("outer", [error])
+    outer_cause = ValueError("outer cause")
+    outer.__cause__ = outer_cause
+
+    with pytest.raises(type(error)) as excinfo:
+        with unwrap_exception_group():
+            raise outer
+    assert excinfo.value is error
+    assert error.__suppress_context__
+    # the outer group carried its cause, so it stays as context, next to the
+    # error's own context
+    if link == "context":
+        assert isinstance(error.__context__, BaseExceptionGroup)
+        assert error.__context__.exceptions == (termination, outer)
+    else:
+        assert error.__cause__ is termination
+        assert error.__context__ is outer
+    assert outer.__cause__ is outer_cause
+    assert find_control_flow(error) is termination
 
 
 async def test_collect_keeps_task_error_cause() -> None:

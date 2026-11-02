@@ -526,12 +526,20 @@ class CancelLink(Link):
         if self._task_cancel is None:
             return
         if self._task_cancel.can_retry:
+            cancel_task = self._task_cancel.cancel_task
+
+            def on_dismiss(type: CancelType) -> None:
+                # closing the dialog dismisses with None, which must not
+                # clear a cancel already pending (e.g. a drain from ctl)
+                if type is not None:
+                    cancel_task(type)
+
             self.app.push_screen(
                 CancelDialog(
                     task_name=self._profile.name,
                     model_name=str(self._profile.model),
                 ),
-                callback=self._task_cancel.cancel_task,
+                callback=on_dismiss,
             )
         else:
             self._task_cancel.cancel_task("abort")

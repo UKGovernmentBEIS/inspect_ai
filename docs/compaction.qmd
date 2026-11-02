@@ -128,7 +128,7 @@ react(
     tools=[bash(), text_editor()],
     compaction=CompactionSummary(
         threshold=0.9,
-        model="openai/gpt-5-mini"
+        model="openai/gpt-6-luna"
     )
 )
 ```

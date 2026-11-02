@@ -1,5 +1,6 @@
 import json
 from typing import Any, Literal
+from urllib.parse import urlparse
 
 from inspect_ai._util.file import file
 from inspect_ai._util.registry import RegistryInfo, registry_name, registry_tag
@@ -107,8 +108,12 @@ scorer_register(
 
 
 def _read_scores_file(scores_file: str) -> dict[tuple[str, int | None], Score]:
+    parsed_file = urlparse(scores_file)
+    file_path = (
+        parsed_file.path if parsed_file.scheme in ("http", "https") else scores_file
+    )
     with file(scores_file, "r") as f:
-        if scores_file.lower().endswith(".jsonl"):
+        if file_path.lower().endswith(".jsonl"):
             records = [json.loads(line) for line in f if line.strip()]
         else:
             records = json.load(f)

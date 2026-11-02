@@ -1,17 +1,24 @@
 import inspect
 from collections import deque
+from dataclasses import replace
 from logging import getLogger
 from os.path import commonprefix
-from typing import TYPE_CHECKING, Any, Mapping, NamedTuple, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Mapping, NamedTuple, Sequence
 
 import anyio
 from pydantic_core import to_jsonable_python
 from shortuuid import uuid
 
+from inspect_ai._util.json import json_equal
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge.bridge import resolve_forward_client_headers
-from inspect_ai.agent._bridge.types import AgentBridge, DispatchedCall
+from inspect_ai.agent._bridge.types import (
+    AgentBridge,
+    DispatchedCall,
+    ReviewedCalls,
+    _unchanged,
+)
 from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._model import (
@@ -26,6 +33,7 @@ from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._checkpoint.checkpointer import Checkpointer
+from inspect_ai.util._limit import LimitExceededError
 
 if TYPE_CHECKING:
     # deferred: importing `inspect_ai.approval` at module scope here cycles
@@ -95,6 +103,8 @@ class SandboxAgentBridge(AgentBridge):
         )
         self._failure_requested = anyio.Event()
         self._failure: Exception | None = None
+        self.generation_limit: LimitExceededError | None = None
+        """The first limit reached in a bridged generation, raised by `sandbox_agent_bridge`."""
 
     port: int
     """Model proxy server port."""
@@ -170,12 +180,9 @@ class SandboxAgentBridge(AgentBridge):
         the response never reached the scaffold, but only ever authorizes the
         exact proposed action.
         """
-        declared: dict[str, list[ToolInfo]] = {}
-        for tool in tools:
-            if isinstance(tool, ToolInfo):
-                declared.setdefault(tool.name, []).append(tool)
+        declared = _declarations_by_name(tools)
         for call in calls:
-            targets, arguments = _proposed_call(
+            targets, arguments, _ = _proposed_call(
                 self.bridged_tools, self.served_tools, call, declared
             )
             if len(targets) > 1:
@@ -253,7 +260,7 @@ class SandboxAgentBridge(AgentBridge):
     ) -> "_ToolExecutionGrant | None":
         """Consume and return the oldest grant binding this exact (server, tool), if any.
 
-        Arguments match by JSON semantics (`_json_equal`): key order and
+        Arguments match by JSON semantics (`json_equal`): key order and
         int/float numeric equality (`5 == 5.0`) don't matter, so a scaffold's
         JSON round-trip cannot turn a proposed call into a denial; any other
         difference (including bool vs number) is denied -- except that, when
@@ -288,7 +295,7 @@ class SandboxAgentBridge(AgentBridge):
             if grant.server == server and grant.tool == tool
         ]
         matched = next(
-            (index for index, granted in pending if _json_equal(granted, arguments)),
+            (index for index, granted in pending if json_equal(granted, arguments)),
             None,
         )
         if matched is None and declared_properties is not None:
@@ -297,7 +304,7 @@ class SandboxAgentBridge(AgentBridge):
                     index
                     for index, granted in pending
                     if isinstance(granted, dict)
-                    and _json_equal(
+                    and json_equal(
                         {
                             key: value
                             for key, value in granted.items()
@@ -317,6 +324,35 @@ class SandboxAgentBridge(AgentBridge):
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
         """The bridged tool call `call` makes through a dispatcher (`_dispatched_call`)."""
         return _dispatched_call(self.bridged_tools, call)
+
+    def reviewed_calls(
+        self, call: ToolCall, tools: Sequence[ToolInfo | Tool]
+    ) -> ReviewedCalls:
+        """The calls approval reviews `call` as: one per bridged tool it would run.
+
+        Resolved by `_proposed_call`, as `register_tool_execution_grants`
+        resolves the grants, so approval and grants agree on what a call runs.
+        Scaffolds rename bridged tools, so a call is reviewed under the bridged
+        tool's own name whatever the scaffold declared it as; a call that
+        denotes several bridged tools (a shared description) is reviewed as
+        each of them. A call that denotes none is reviewed as `AgentBridge`
+        reviews it.
+        """
+        proposed = _proposed_call(
+            self.bridged_tools,
+            self.served_tools,
+            call,
+            _declarations_by_name(tools),
+        )
+        if not proposed.targets:
+            return super().reviewed_calls(call, tools)
+        return ReviewedCalls(
+            [
+                replace(call, function=target.tool, arguments=proposed.arguments)
+                for target in proposed.targets
+            ],
+            proposed.dispatch,
+        )
 
     def request_fail(self, error: Exception) -> None:
         """Fail the sample with `error` from a bridged generation or tool call.
@@ -384,7 +420,7 @@ class _ToolExecutionGrant(NamedTuple):
     """Tool name within the bridged server."""
 
     arguments: dict[str, Any]
-    """The arguments handed to the scaffold, JSON-normalized and matched via `_json_equal`."""
+    """The arguments handed to the scaffold, JSON-normalized and matched via `json_equal`."""
 
     proposal: _Proposal
     """The proposing call, shared with the other grants it minted."""
@@ -402,9 +438,22 @@ class _ProposedCall(NamedTuple):
 
     targets: list[_BridgedToolId]
     arguments: dict[str, Any]
+    dispatch: Callable[[dict[str, Any]], dict[str, Any]]
+    """Arguments for the proposed call that run the targets with the given ones."""
 
 
-_NO_PROPOSAL = _ProposedCall([], {})
+_NO_PROPOSAL = _ProposedCall([], {}, _unchanged)
+
+
+def _declarations_by_name(
+    tools: Sequence[ToolInfo | Tool],
+) -> dict[str, list[ToolInfo]]:
+    """The declarations the scaffold made to the model, by name."""
+    declared: dict[str, list[ToolInfo]] = {}
+    for tool in tools:
+        if isinstance(tool, ToolInfo):
+            declared.setdefault(tool.name, []).append(tool)
+    return declared
 
 
 def _proposed_call(
@@ -429,13 +478,14 @@ def _proposed_call(
         return _NO_PROPOSAL
     targets = _resolve_by_served_content(served, declarations)
     if targets:
-        return _ProposedCall(targets, dict(call.arguments))
+        return _ProposedCall(targets, dict(call.arguments), _unchanged)
     dispatched = _dispatched_call(bridged_tools, call)
     if dispatched is None:
         return _NO_PROPOSAL
     return _ProposedCall(
         [_BridgedToolId(server=dispatched.server, tool=dispatched.target.function)],
         dispatched.target.arguments,
+        dispatched.dispatch,
     )
 
 
@@ -584,7 +634,7 @@ def _dispatched_call(
     ordinary call whose own arguments happen to carry these fields (the function
     name is checked first, so no other tool's call can borrow a bridged tool's
     policy, or mint an execution grant for it, by naming it in its arguments).
-    Both approval (`SandboxAgentBridge.dispatched_call`) and grant resolution
+    Both approval (`SandboxAgentBridge.reviewed_calls`) and grant resolution
     (`_proposed_call`) recognise a dispatcher call through this one function, so
     they cannot disagree about what is one.
     """
@@ -601,20 +651,7 @@ def _dispatched_call(
     ):
         return DispatchedCall(
             server=server,
-            target=ToolCall(id=call.id, function=tool, arguments=arguments),
+            target=replace(call, function=tool, arguments=arguments),
             dispatch=lambda modified: {**call.arguments, "Arguments": modified},
         )
     return None
-
-
-def _json_equal(a: Any, b: Any) -> bool:
-    """Equality by JSON semantics: 5 == 5.0, but True != 1 (unlike Python `==`)."""
-    if isinstance(a, bool) or isinstance(b, bool):
-        return isinstance(a, bool) and isinstance(b, bool) and a == b
-    if isinstance(a, int | float) and isinstance(b, int | float):
-        return a == b
-    if isinstance(a, dict) and isinstance(b, dict):
-        return a.keys() == b.keys() and all(_json_equal(v, b[k]) for k, v in a.items())
-    if isinstance(a, list) and isinstance(b, list):
-        return len(a) == len(b) and all(_json_equal(x, y) for x, y in zip(a, b))
-    return type(a) is type(b) and bool(a == b)
