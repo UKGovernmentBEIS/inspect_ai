@@ -19,6 +19,11 @@ def active_display() -> Display | None:
     return _active_display
 
 
+def clear_active_display() -> None:
+    global _active_display
+    _active_display = None
+
+
 def display() -> Display:
     global _active_display
     if _active_display is None:

@@ -273,6 +273,23 @@ def _peak_model_concurrency(max_tasks: int | None) -> int:
     return peak
 
 
+def test_eval_display_follows_display_arg_across_evals(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import inspect_ai._display.core.active as active
+    import inspect_ai.util._display as util_display
+
+    monkeypatch.setattr(util_display, "_display_type", None)
+    monkeypatch.setattr(active, "_active_display", None)
+    task = Task(dataset=[Sample(input="hi", target="hi")], scorer=match())
+
+    eval(task, model="mockllm/model", display="plain", log_dir=str(tmp_path))
+    assert "Log:" in capsys.readouterr().out
+
+    eval(task, model="mockllm/model", display="none", log_dir=str(tmp_path))
+    assert capsys.readouterr().out == ""
+
+
 def test_max_tasks_bounds_concurrent_models_single_task():
     # Regression for #4195: a single task definition fanned across models must
     # honor max_tasks. max_tasks=1 runs model-by-model; unset runs them all.

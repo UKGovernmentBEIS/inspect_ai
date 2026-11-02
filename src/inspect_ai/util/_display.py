@@ -17,6 +17,7 @@ _display_type: DisplayType | None = None
 
 def init_display_type(display: str | None = None) -> DisplayType:
     global _display_type
+    previous_display_type = _display_type
     display = (
         display or os.environ.get("INSPECT_DISPLAY", DEFAULT_DISPLAY).lower().strip()
     )
@@ -41,6 +42,14 @@ def init_display_type(display: str | None = None) -> DisplayType:
                 f"Unknown display type '{display}' (setting display to 'full')"
             )
             _display_type = "full"
+
+    # the active display was built for the previous type (e.g. by an
+    # earlier eval() in this process), so drop it to be rebuilt on next use
+    if previous_display_type is not None and _display_type != previous_display_type:
+        from inspect_ai._display.core.active import clear_active_display
+
+        clear_active_display()
+
     return _display_type
 
 
