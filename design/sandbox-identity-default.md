@@ -21,12 +21,12 @@ of a public `install_skills()` call that names a user. A provider whose
 rather than reading or writing as the default user. The scope and the marker
 stay private to inspect_ai.
 
-Companion packages that install shared tooling into the sandbox follow one
-rule. A shared artifact at a fixed path is provisioned with the default
-user's authority inside the marker, in a location created or adopted under
-the existing verified-directory contract. Everything executed or loaded from
-it is protected from member modification, and it is verified again before any
-member executes it. Per-user discovery and installs follow the member.
+Companion packages that install tooling into the sandbox (inspect_swe) must
+follow the existing trust-model contracts before they run inside a scope.
+Shared artifacts at fixed paths are provisioned inside the marker and verified
+before a member uses them. Per-user setup runs as the member and uses that
+member's home. Applying this to each inspect_swe installer is a separate
+inspect_swe design, whose requirements this document lists.
 
 ## Why
 
@@ -49,7 +49,11 @@ user, so the file lands in root's home. The agent's CLI is then launched
 through `exec_remote()`, which does take the scope's user, so it looks in the
 member's home and does not find that configuration (`inspect_swe:
 src/inspect_swe/_codex_cli/codex_cli.py:675`,
-`_gemini_cli/gemini_cli.py:161-170`, `_opencode/opencode.py:176-209`).
+`_gemini_cli/gemini_cli.py:161-170`, `_opencode/opencode.py:176-209`). The
+boundary default makes both calls run as the member. On an image that fixes
+`HOME`, `echo $HOME` still reports that fixed home, so the scaffold must also
+resolve the member's home; that is a companion requirement under
+[Compatibility](#compatibility-and-migration).
 
 The inspect_swarm isolation design rejects applying the identity inside
 `exec()` because Inspect's own commands and scorers also pass no user, to mean
@@ -373,7 +377,10 @@ ways of calling it:
     typically its home, with no ownership change after it, and a member could
     redirect that root write through a symbolic link it plants there. On a
     provider whose `write_file()` takes no `user`, the explicit member raises
-    `SandboxUserUnsupportedError`, as any member file write does there.
+    `SandboxUserUnsupportedError`, as any member file write does there. A
+    relative `dir` still resolves against the provider's working directory,
+    not the scope's cwd, so it must be writable by the member (see
+    [Compatibility](#compatibility-and-migration)).
   - When it returns `None` (outside a scope, or inside a marked block such as
     in-loop scoring), the install takes the legacy path unchanged: a write
     with the default user's authority and no `chown`. An in-loop scorer that
@@ -515,12 +522,10 @@ follows:
   an explicit `user` keeps the default-authority write followed by `chown`,
   and an omitted `user` installs as the member, except inside a marked block,
   where it takes the legacy path.
-- **Verify before use.** A paragraph states the companion rule: a shared
-  artifact at a fixed path that agents execute is provisioned inside the
-  marker with `user=None`, in a location created or adopted under the
-  contract before provisioning and bound to it, with its executed and loaded
-  contents protected from member modification, and it is verified again
-  before a member executes it.
+- **Verify before use.** A sentence states that a shared artifact at a fixed
+  path that several members execute or load is provisioned inside the marker
+  with `user=None` and falls under this contract and the verified-directory
+  contract.
 
 The `sandbox_identity()` docstring's sentence "`SandboxEnvironment.exec()`,
 `read_file()` and `write_file()` themselves are unchanged ..." is replaced in
@@ -590,84 +595,58 @@ Inside a scope:
   changes.
 - **`install_skills()` callers** that pass a `user` see no change. Callers
   that omit it get skills owned by the member inside a scope, as described
-  under [Public `install_skills()`](#public-install_skills).
-- **Companion packages that install shared tooling** (inspect_swe) must follow
-  one rule before they run inside a scope. The identity a call needs is the
-  identity of whoever uses its result:
-  - *A shared artifact at a fixed path*, one that several agents execute or
-    load, is built and checked as follows. The contract every check below
-    uses is the trust model's
-    [verified-directory contract](sandbox-trust-model.md#host-verified-directories)
-    (`util/_sandbox/_framework_directory.py:13-39`), at three levels:
-    - the artifact, or the install directory that holds it, is owned by the
-      default user (or root), is not a symbolic link, and is not writable by
-      group or others;
-    - its immediate parent is owned by that uid or by root and is either not
-      writable by group or others or sticky. `/var/tmp` (root-owned `1777`)
-      therefore qualifies, and a non-sticky `0777` parent does not;
-    - the ancestors above that parent are the caller's choice and must be
-      root-owned and not writable by others, as `/var` and `/` are for
-      `/var/tmp/<name>`.
+  under [Public `install_skills()`](#public-install_skills). Relative skill
+  directories still resolve against the provider's working directory
+  (`_resolve_skills_dir()`, `tool/_tools/_skill/install.py:185-193`). Inside
+  an unmarked scope that location must be writable by the member; otherwise
+  pass an absolute writable directory. The scope's cwd is not applied here.
+- **Companion packages that install tooling** (inspect_swe). Shared artifacts
+  at fixed paths, ones that several members execute or load, must satisfy the
+  trust model's
+  [verified-directory](sandbox-trust-model.md#host-verified-directories) and
+  [verify-before-use](sandbox-trust-model.md#verify-before-use) contracts.
+  Inside a scope three further requirements hold:
+  - Per-user setup runs as the member and resolves that member's home, not an
+    inherited `HOME`.
+  - Each operation that relies on the marker passes `user=None`.
+  - A shared artifact is verified before a member uses it.
 
-    The rule then has four parts:
-    1. **Default-user authority.** Each operation that creates or writes the
-       artifact runs inside `framework_sandbox_operation()` and passes
-       `user=None`. The marker changes only an omitted user, so a call that
-       forwards the agent's configured `user` keeps that user and gains
-       nothing from the marker. A call that names an explicit installation
-       identity on purpose, such as `user="root"`, is an explicit grant and
-       stays as it is.
-    2. **Create or adopt before provisioning.** Before any privileged step
-       writes into the artifact's location or executes code from it, the
-       location is created or adopted under the contract
-       (`ensure_framework_directory()`), and those steps are bound to the
-       verified object under the trust model's
-       [verify-before-use](sandbox-trust-model.md#verify-before-use) rule
-       (`exec_in_framework_directory()`), not re-resolved by pathname later.
-       A location a member created first fails this check and is refused.
-       Checking only when a member later runs the artifact is too late: the
-       provisioning itself writes and executes there with the default user's
-       authority.
-    3. **Protected contents.** Every file that is executed or loaded, and every
-       directory between the install directory and those files, must be
-       protected from modification by any member. Trusted construction
-       establishes this (for example, extracting an archive with ownership
-       normalized to the installing user and group and other write bits
-       removed, so archive metadata cannot hand a file to a member's uid), or
-       a verification of the whole tree does. Protecting the outer directory
-       alone does not protect code loaded from inside it. For a standalone
-       file (a single binary, an interpreter, a source file) whose containing
-       path satisfies the contract, a direct check of that file is enough.
-    4. **Verify before member use.** Before any member executes or loads an
-       existing artifact, it is checked again under the contract and part 3.
-       An artifact that fails is refused, not reused.
-  - *Per-user discovery and installation* (`which`, `test -x`, `uv tool
-    install` into the member's home, `post_install` steps) stay unmarked and
-    follow the member. The member launches the result through `exec_remote()`,
-    so the result must be something the member can find and execute.
-  - *Per-agent configuration* stays unmarked and follows the member.
+  The boundary default supplies the member's identity, not its environment:
+  Docker's `exec()` adds `--user` and leaves the image's `HOME` in place
+  (`util/_sandbox/docker/docker.py:344-353`), whereas the sandbox-tools job
+  launcher sets `HOME` to the switched user's home unless the caller sets it
+  (`src/inspect_sandbox_tools/src/inspect_sandbox_tools/_remote_tools/_exec_remote/_job.py:94-98`).
 
-  Antigravity's SDK virtualenv shows why every part is needed.
-  `ensure_antigravity_sdk()` creates `/var/tmp/.antigravity-sdk-venv` with
-  `exec(user=user)`, runs that venv's Python to `pip install` the SDK in the
-  same shell, and reuses whatever interpreter it later finds there. Without
-  the rule, the first member to provision it would own the interpreter and
-  its SDK, and every later member would run them as itself. Under the rule,
-  the creation command passes `user=None` inside the marker (part 1), since
-  wrapping the existing `user=user` call would leave a configured user in
-  place. The venv directory is created or adopted under the contract before
-  the shell runs, and the shell runs bound to it (part 2). The interpreter,
-  the SDK's packages and the directories between them are protected from
-  member modification (part 3). Before any member runs the interpreter, the
-  venv is checked again (part 4). A per-member private venv would also
-  satisfy the rule, because it is a per-user install.
-
-  The application of this rule to each inspect_swe installer (agent binaries,
-  Node and npm bundles, ripgrep, uv and the wheel installer's staging,
-  mini-swe-agent's resumable source, Antigravity's SDK venv), with its
-  two-user Docker test, is specified in an inspect_swe design or PR of its
-  own. That work is required before inspect_swarm sets a scope around
-  inspect_swe agents.
+  Applying these to each inspect_swe installer is a separate inspect_swe
+  design or PR, required before inspect_swarm sets a scope around inspect_swe
+  agents. Its requirements are:
+  - **Installers covered:** agent binaries, Node and npm bundles, ripgrep, uv
+    and the wheel installer's staging, mini-swe-agent's resumable source, and
+    Antigravity's SDK virtualenv.
+  - **Sticky parents:** the verified-directory contract's three levels as
+    `_framework_directory.py:13-39` states them, so a location under
+    `/var/tmp` (root-owned `1777`) qualifies and one under an unsticky `0777`
+    parent does not.
+  - **Verify before provisioning, bound to the object:** the location is
+    created or adopted under the contract (`ensure_framework_directory()`)
+    before any privileged step writes or executes there, and those steps run
+    through `exec_in_framework_directory()` rather than a pathname. Antigravity
+    today creates its venv with `exec(user=user)` and runs that venv's Python
+    in the same shell.
+  - **Extracted-content ownership:** every executed or loaded file, and every
+    directory between it and the install directory, is protected from member
+    modification, by trusted construction (extraction with normalized
+    ownership and no group or other write) or by a full-tree check; a direct
+    check suffices for a standalone file.
+  - **Per-scaffold `HOME` handling:** each scaffold that probes `$HOME` or
+    forwards a detected `HOME` (Gemini, OpenCode, Kimi, Antigravity, the
+    Gemini ACP adapter, `resolve_agent_cwd()`'s tilde fallback, the wheel
+    installer) resolves the member's home instead.
+  - **Tests:** a two-user Docker test that executes each shared artifact as
+    each member, and a test on an image with a fixed `HOME` (as
+    `inspect_evals: src/inspect_evals/gdpval/Dockerfile:77` sets) that writes
+    configuration or installs a tool as the member and then launches its
+    consumer as the member.
 - **inspect_swarm's design.** Its "What it does not touch", "Custom tools",
   "In-loop scoring", "The harness reads everything" and `foreign_execs` passages
   and its third alternative describe today's boundary. They are updated in that
@@ -681,8 +660,8 @@ Inside a scope:
 scope, which is host-side configuration chosen by the framework that set it.
 The model never supplies it. The commands, paths and file contents passed to
 the three operations may be model-chosen, as they are today. The change runs
-them with less authority (the member's user instead of the default user, often
-root), never with more.
+these operations as the framework-selected scope user. In swarm user
+isolation, this is the member's user rather than the sandbox's default user.
 
 **The marker grants the default user.** A marker placed around model-chosen
 work would run that work as root. The design limits this in three ways. The
@@ -695,21 +674,12 @@ members are active, so a scorer that executes submitted code does so as the
 default user alongside them, and member user isolation does not protect peers
 from that scorer (see [Context inheritance](#context-inheritance)).
 
-**Shared artifacts (companion packages).** Without the companion rule, the
-default would let the first member own a binary, interpreter or source file
-that every later member executes or loads, and so run code as each peer. The
-rule closes this in four parts. Marked writes that pass no user keep the
-artifact owned by the default user. Creating or adopting the location under
-the verified-directory contract before provisioning, with each privileged
-step bound to the verified object, refuses a location a member planted
-first. Protecting every executed or loaded file and the directories between
-them stops a member from changing code inside a protected outer directory,
-for example through ownership carried in an archive. A check before member
-use refuses an artifact that a member created or can modify. The marker
-covers only the writes.
-Discovery and per-user installation run as the member, so a member executes
-only what it installed itself or what the check found owned by the default
-user.
+**Shared artifacts (companion packages).** Without the companion
+requirements, the default would let the first member own a binary,
+interpreter or source file that every later member executes or loads, and so
+run code as each peer. The trust model's verified-directory and
+verify-before-use contracts are the protection, applied by the inspect_swe
+follow-up listed under [Compatibility](#compatibility-and-migration).
 
 **`install_skills()`.** An explicit-user install keeps its existing
 default-authority write followed by `chown`, inside a scope as outside. Its
@@ -822,10 +792,9 @@ Other files:
 No inspect_ai test needs a model provider or network. Apart from the Docker
 test, all of them use fakes and run in the ordinary test job.
 
-The companion packages' tests, including inspect_swe's two-user Docker test
-that executes each installed artifact as each member and checks that shared
-artifacts are owned by the default user, belong to the inspect_swe design or
-PR named under [Compatibility](#compatibility-and-migration).
+The companion packages' tests (the two-user Docker test and the fixed-`HOME`
+test) belong to the inspect_swe follow-up named under
+[Compatibility](#compatibility-and-migration).
 
 ## Implementation plan
 
@@ -848,13 +817,10 @@ PR named under [Compatibility](#compatibility-and-migration).
    `test_exec_is_unchanged_inside_a_scope` and add the remaining tests,
    including the Docker test. Steps 1 and 2 may ship as one inspect_ai PR, as
    two commits.
-3. **inspect_swe companion (its own design or PR).** Apply the companion rule
-   under [Compatibility](#compatibility-and-migration) to each inspect_swe
-   installer (agent binaries, Node and npm bundles, ripgrep, uv and the wheel
-   installer's staging, mini-swe-agent's resumable source, Antigravity's SDK
-   venv), with a two-user Docker test that executes each artifact as each
-   member. It needs step 1, and it is required before inspect_swarm sets a
-   scope around inspect_swe agents.
+3. **inspect_swe companion (its own design or PR).** Meet the requirements
+   listed under [Compatibility](#compatibility-and-migration). It needs step
+   1, and it is required before inspect_swarm sets a scope around inspect_swe
+   agents.
 4. **inspect_swarm design.** Update the passages listed under
    [Compatibility](#compatibility-and-migration) in its repository.
 
