@@ -1,11 +1,11 @@
 """One eval run: configuring its tasks, sandbox setup, and the scheduling loop.
 
 The scheduler's state (the run's task records and queue, its
-:class:`SetupCache`, the dispatcher's running set) is used only from the run's
-event loop and changed without locks: code on one event loop does not
-interleave between ``await`` points, so a method that does not await
-(``RunQueue.put``, ``TaskDispatcher.start_attempt`` and ``settle``, the setup
-cache's bookkeeping) changes it as one step.
+:class:`SetupCache`) is used only from the run's event loop and changed
+without locks: code on one event loop does not interleave between ``await``
+points, so a method that does not await (``RunQueue.put``,
+``TaskDispatcher.start_attempt`` and ``settle``, the setup cache's
+bookkeeping) changes it as one step.
 """
 
 import functools
@@ -823,8 +823,6 @@ class TaskDispatcher:
         """The launch ``max_tasks`` (``ctl config --max-tasks`` overrides it live)."""
         self.source = source
         self.debug_errors = debug_errors
-        self.running: set[TaskRecord] = set()
-        """Records with an attempt running."""
         self.stopped = False
         """An attempt ended cancelled (the run was cancelled): start no more."""
         self.source_done = False
@@ -875,7 +873,7 @@ class TaskDispatcher:
                 self.start_attempt(tg, record)
             if self.stopped:
                 break
-            if self.queue.queued or self.running:
+            if self.queue.queued or self.queue.running:
                 await self.queue.wake.wait()
             elif not await self.add_when_idle():
                 break
@@ -898,7 +896,7 @@ class TaskDispatcher:
             else:
                 self.source_done = True
         else:
-            return not self.queue.close_if_idle(len(self.running))
+            return not self.queue.close_if_idle()
         return True
 
     def take(self, records: list[TaskRecord]) -> None:
@@ -967,7 +965,7 @@ class TaskDispatcher:
         setups and would otherwise overtake records added before it).
         """
         limit = effective_max_tasks(self.parallel)
-        free = len(self.running) < limit
+        free = len(self.queue.running) < limit
         window = limit
         candidates: list[TaskRecord] = []
         blocked = False
@@ -984,12 +982,11 @@ class TaskDispatcher:
             blocked = blocked or not record.prepared
             if free and not blocked and record.can_start:
                 candidates.append(record)
-        return pick_balanced(candidates, Counter(r.model for r in self.running))
+        return pick_balanced(candidates, Counter(r.model for r in self.queue.running))
 
     def start_attempt(self, tg: TaskGroup, record: TaskRecord) -> None:
         """Start a record's attempt, with the run's provider state."""
-        self.queue.queued.remove(record)
-        self.running.add(record)
+        self.queue.start(record)
         # tasks inherit the loop's context: the latest provider state
         self.startup.apply_provider_state()
         tg.start_soon(self.run_one, record)
@@ -1056,13 +1053,11 @@ class TaskDispatcher:
         so those are set up again); one whose configs could not be resolved is
         prepared again.
         """
-        self.running.remove(record)
         if task_log is not None:
             record.log = task_log
         if retry:
-            record.attempt += 1
             self.take(self.queue.take("when_free"))
-            self.queue.queued.append(record)
+            self.queue.retry(record)
             record.setups = None
             if record.setup_failure is not None:
                 record.setup_failure = None
@@ -1083,7 +1078,7 @@ class TaskDispatcher:
         """
         return TaskDispatcherStats(
             launch=self.parallel,
-            in_flight=len(self.running),
+            in_flight=len(self.queue.running),
             pending=len(self.queue.unstarted()),
         )
 
@@ -1114,7 +1109,7 @@ class TaskDispatcher:
         for record in self.queue.close():
             await _release_queued(record)
             self.queue.end(record)
-        for record in self.running:
+        for record in list(self.queue.running):
             self.queue.end(record)
 
 

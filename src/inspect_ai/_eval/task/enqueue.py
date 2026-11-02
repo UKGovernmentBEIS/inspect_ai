@@ -119,12 +119,14 @@ class TaskRecord:
 class RunQueue:
     """The records of every task of one eval run.
 
-    ``queued`` holds the records that may start, in start order; the
-    scheduling loop picks from it and puts retries back at its end. Added
-    records wait by start policy until the loop takes them: ``when_free``
-    ones on each of its cycles, ``after_batch`` ones once nothing is queued
-    or running. Every way a record ends goes through :meth:`end`. No method
-    awaits, so the queue needs no lock.
+    ``queued`` holds the records that may start, in start order, and
+    ``running`` those with an attempt running; the scheduling loop moves a
+    record from one to the other with :meth:`start` and back to the end of
+    ``queued`` with :meth:`retry`. Added records wait by start policy until
+    the loop takes them: ``when_free`` ones on each of its cycles,
+    ``after_batch`` ones once nothing is queued or running. Every way a
+    record ends goes through :meth:`end`. No method awaits, so the queue
+    needs no lock.
     """
 
     def __init__(
@@ -163,6 +165,7 @@ class RunQueue:
         self._retries = retries
         self._sequence_order = sequence_order
         self.queued: list[TaskRecord] = []
+        self.running: set[TaskRecord] = set()
         self.wake = wake
         self.records: list[TaskRecord] = []
         """Every record the loop has taken, in the order it took them."""
@@ -228,6 +231,17 @@ class RunQueue:
         self.records.extend(records)
         self.queued.extend(records)
 
+    def start(self, record: TaskRecord) -> None:
+        """Move a queued record to the running ones as its attempt starts."""
+        self.queued.remove(record)
+        self.running.add(record)
+
+    def retry(self, record: TaskRecord) -> None:
+        """Put a running record whose attempt failed back at the end of the queue."""
+        self.running.remove(record)
+        record.attempt += 1
+        self.queued.append(record)
+
     def unstarted(self) -> list[TaskRecord]:
         """Every record waiting to start: queued, then added and not yet taken."""
         return [*self.queued, *self._added["when_free"], *self._added["after_batch"]]
@@ -247,6 +261,7 @@ class RunQueue:
         cancelled while waiting to start, and when the run ends before it
         does.
         """
+        self.running.discard(record)
         record.ended = True
         record.configured = None
         record.logger = None
@@ -254,13 +269,12 @@ class RunQueue:
         record.setups = None
         record.setup_failure = None
 
-    def close_if_idle(self, running: int) -> bool:
-        """Refuse further additions if nothing is left to start; whether it closed.
+    def close_if_idle(self) -> bool:
+        """Refuse additions once nothing is running or left to start; whether it closed.
 
-        ``running`` is the number of records running. A single call, so nothing
-        can be added between the check and the close.
+        A single call, so nothing can be added between the check and the close.
         """
-        if running or self.unstarted():
+        if self.running or self.unstarted():
             return False
         self._closed = True
         return True
