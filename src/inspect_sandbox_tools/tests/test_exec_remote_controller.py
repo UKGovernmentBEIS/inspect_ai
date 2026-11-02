@@ -11,6 +11,7 @@ import signal
 import sys
 import time
 from pathlib import Path
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import anyio
@@ -406,3 +407,102 @@ def _kill_group(pid: int) -> None:
         os.killpg(pid, signal.SIGKILL)
     except ProcessLookupError:
         pass
+
+
+_JOB_KEY = "0123456789abcdef0123456789abcdef"
+
+
+def _group_alive(pid: int) -> bool:
+    try:
+        os.killpg(pid, 0)
+    except ProcessLookupError:
+        return False
+    return True
+
+
+class TestKillByJobKey:
+    """A host that never got a start's PID kills the job by its key."""
+
+    @pytest.mark.asyncio
+    async def test_kill_key_kills_a_started_job(self) -> None:
+        controller = Controller()
+        pid = await controller.submit("sleep 30", job_key=_JOB_KEY)
+        try:
+            result = await controller.kill_key(_JOB_KEY)
+
+            assert result.killed is True
+            assert not _group_alive(pid)
+            with pytest.raises(ToolException, match="No job found"):
+                await controller.poll(pid, ack_seq=0)
+        finally:
+            _kill_group(pid)
+
+    @pytest.mark.asyncio
+    async def test_kill_key_before_start_refuses_the_start(self) -> None:
+        controller = Controller()
+
+        result = await controller.kill_key(_JOB_KEY)
+        with pytest.raises(ToolException, match="killed before it started"):
+            await controller.submit("sleep 30", job_key=_JOB_KEY)
+
+        assert result.killed is False
+        assert controller._jobs == {}
+
+    @pytest.mark.asyncio
+    async def test_kill_key_during_start_kills_the_job_when_it_starts(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        creating = asyncio.Event()
+        proceed = asyncio.Event()
+        created: list[Job] = []
+        real_create = Job.create
+
+        async def slow_create(command: str, **kwargs: Any) -> Job:
+            creating.set()
+            await proceed.wait()
+            job = await real_create(command, **kwargs)
+            created.append(job)
+            return job
+
+        monkeypatch.setattr(Job, "create", slow_create)
+        controller = Controller()
+        submit = asyncio.create_task(controller.submit("sleep 30", job_key=_JOB_KEY))
+        await creating.wait()
+
+        result = await controller.kill_key(_JOB_KEY)
+        proceed.set()
+        try:
+            with pytest.raises(ToolException, match="killed while it started"):
+                await submit
+
+            assert result.killed is False
+            assert len(created) == 1
+            assert not _group_alive(created[0].pid)
+            assert controller._jobs == {}
+        finally:
+            for job in created:
+                _kill_group(job.pid)
+
+    @pytest.mark.asyncio
+    async def test_repeated_start_returns_the_running_job(self) -> None:
+        """A start the sandbox retried after a timeout must not start a second job."""
+        controller = Controller()
+        pid = await controller.submit("sleep 30", job_key=_JOB_KEY)
+        try:
+            assert await controller.submit("sleep 30", job_key=_JOB_KEY) == pid
+            assert list(controller._jobs) == [pid]
+
+            await controller.kill(pid, ack_seq=0)
+            with pytest.raises(ToolException, match="has already ended"):
+                await controller.submit("sleep 30", job_key=_JOB_KEY)
+            assert controller._jobs == {}
+        finally:
+            _kill_group(pid)
+
+    @pytest.mark.asyncio
+    async def test_kill_key_after_the_job_ended_reports_nothing_killed(self) -> None:
+        controller = Controller()
+        pid = await controller.submit("true", job_key=_JOB_KEY)
+        await controller.kill(pid, ack_seq=0)
+
+        assert (await controller.kill_key(_JOB_KEY)).killed is False

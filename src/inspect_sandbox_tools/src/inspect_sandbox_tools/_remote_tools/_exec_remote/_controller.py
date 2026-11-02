@@ -4,7 +4,13 @@ from inspect_sandbox_tools._util.common_types import ToolException
 from inspect_sandbox_tools._util.user_switch import RunAs
 
 from ._job import Job
-from .tool_types import CloseStdinResult, KillResult, PollResult, WriteStdinResult
+from .tool_types import (
+    CloseStdinResult,
+    KillKeyResult,
+    KillResult,
+    PollResult,
+    WriteStdinResult,
+)
 
 
 class Controller:
@@ -12,11 +18,20 @@ class Controller:
 
     Unlike bash_session's SessionController, exec_remote uses PIDs as natural
     unique identifiers - no session naming or multiplexing needed.
+
+    A job may also carry a host-chosen key, so the host can kill it when the
+    reply carrying its PID never arrives (see `kill_key`).
     """
 
     def __init__(self) -> None:
         self._jobs: dict[int, Job] = {}
         self._retired_jobs: list[Job] = []
+        # Jobs started with a key, None while the start is in progress. Entries
+        # outlive the job (as _retired_jobs does) so that a repeated start with
+        # the same key never starts a second job.
+        self._keyed_jobs: dict[str, Job | None] = {}
+        # Keys killed before their job started; a start with one is refused.
+        self._refused_keys: set[str] = set()
 
     async def submit(
         self,
@@ -27,8 +42,13 @@ class Controller:
         cwd: str | None = None,
         user: str | RunAs | None = None,
         can_switch_user: bool = False,
+        job_key: str | None = None,
     ) -> int:
         """Create a new job and return its PID.
+
+        A start whose key was killed first is refused. A repeated start with
+        the key of a running job (a retried request) returns that job's PID;
+        one whose job is still starting or has ended is refused.
 
         Args:
             command: The shell command to execute.
@@ -38,18 +58,66 @@ class Controller:
             cwd: Working directory for command execution.
             user: User to run the command as (requires can_switch_user=True).
             can_switch_user: Whether the server can switch users (running as root).
+            job_key: Host-chosen key that `kill_key` accepts.
+
+        Raises:
+            ToolException: If the job key was killed or has already been used.
         """
-        job = await Job.create(
-            command,
-            input=input,
-            stdin_open=stdin_open,
-            env=env,
-            cwd=cwd,
-            user=user,
-            can_switch_user=can_switch_user,
-        )
+        if job_key is not None:
+            if job_key in self._refused_keys:
+                raise ToolException(
+                    f"exec_remote job {job_key} was killed before it started"
+                )
+            if job_key in self._keyed_jobs:
+                return self._repeated_start(job_key)
+            self._keyed_jobs[job_key] = None
+        try:
+            job = await Job.create(
+                command,
+                input=input,
+                stdin_open=stdin_open,
+                env=env,
+                cwd=cwd,
+                user=user,
+                can_switch_user=can_switch_user,
+            )
+        except BaseException:
+            if job_key is not None:
+                del self._keyed_jobs[job_key]
+            raise
         self._jobs[job.pid] = job
+        if job_key is not None:
+            self._keyed_jobs[job_key] = job
+            if job_key in self._refused_keys:
+                await self.kill(job.pid, ack_seq=0)
+                raise ToolException(
+                    f"exec_remote job {job_key} was killed while it started"
+                )
         return job.pid
+
+    def _repeated_start(self, job_key: str) -> int:
+        job = self._keyed_jobs[job_key]
+        if job is None:
+            raise ToolException(f"exec_remote job {job_key} is already starting")
+        if self._jobs.get(job.pid) is not job:
+            raise ToolException(f"exec_remote job {job_key} has already ended")
+        return job.pid
+
+    async def kill_key(self, job_key: str) -> KillKeyResult:
+        """Kill the job started with `job_key`, or refuse its start if none has.
+
+        The host calls this when it submitted a start but never received the
+        PID, so the job may be running, starting, or not yet arrived. A job
+        still starting is killed as soon as it starts.
+        """
+        job = self._keyed_jobs.get(job_key)
+        if job is None:
+            self._refused_keys.add(job_key)
+            return KillKeyResult(killed=False)
+        if self._jobs.get(job.pid) is not job:
+            return KillKeyResult(killed=False)
+        await self.kill(job.pid, ack_seq=0)
+        return KillKeyResult(killed=True)
 
     async def poll(self, pid: int, ack_seq: int) -> PollResult:
         """Get job state and incremental output. Auto-cleanup on terminal state."""
