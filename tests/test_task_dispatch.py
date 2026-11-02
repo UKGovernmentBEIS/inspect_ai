@@ -42,7 +42,6 @@ from inspect_ai._eval.run import (
 from inspect_ai._eval.task.enqueue import (
     ConfiguredTask,
     RunQueue,
-    TaskOutcome,
     TaskRecord,
     TaskStartPolicy,
 )
@@ -459,10 +458,10 @@ def test_record_drops_its_task_when_it_ends() -> None:
     [record] = harness.queue.put([_task("a")])
     task = weakref.ref(cast(ConfiguredTask, record.configured).resolved.task)
     harness.queue.remove(record)
-    harness.queue.end(record, None)
+    harness.queue.end(record)
     gc.collect()
     assert record.configured is None
-    assert record.outcome == TaskOutcome(None)
+    assert record.ended and record.log is None
     assert task() is None
 
 
@@ -502,14 +501,14 @@ def test_wants_retry(
     cancel_type: CancelType, status: EvalStatus, retries: int, expected: bool
 ) -> None:
     [record] = _records([("a", get_model("mockllm/m1"))])
-    record.retries_remaining = retries
+    record.retries = retries
     task_log = EvalLog(eval=FakeLogger("a", 1).eval, status=status)
     assert wants_retry(cancel_type, task_log, record) is expected
 
 
 def test_wants_retry_not_after_operator_abandoned_it() -> None:
     [record] = _records([("a", get_model("mockllm/m1"))])
-    record.retries_remaining = 1
+    record.retries = 1
     abandon_task_retry(record.task_id)
     try:
         task_log = EvalLog(eval=FakeLogger("a", 1).eval, status="error")
@@ -1248,7 +1247,7 @@ async def test_loop_cancel_while_readying_added_tasks_is_absorbed(
     assert [log.eval.task for log in returned[0]] == (
         ["a@m1"] if during == "next_tasks" else []
     )
-    assert all(record.outcome is not None for record in harness.queue.records)
+    assert all(record.ended for record in harness.queue.records)
     assert _starts(harness) == ["a@m1"]
     assert harness.loggers["a@m1"][0].discarded == (0 if during == "next_tasks" else 1)
     assert task_dispatcher_stats() is None

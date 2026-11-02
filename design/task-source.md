@@ -323,7 +323,7 @@ makes it the active one for `enqueue_task`, starts up the seed and runs the
   sequence-major, so with the dispatcher's queue-order tie-break all of task
   N's model fan-outs run before task N+1's, as when the tasks are passed to
   `eval()` directly. Every way a record ends goes through `RunQueue.end`,
-  which stores its outcome (its final log, if any): after its last attempt,
+  which marks it ended (it keeps its final log, if any): after its last attempt,
   when an operator cancels it before it starts, and when the run ends before
   it starts (it then ends without a log). `RunQueue.find` looks a record up
   by task id.

@@ -619,23 +619,22 @@ def ensure_sample_ids(dataset: Dataset) -> None:
 
 class TaskRunResult(NamedTuple):
     log: EvalLog | None
-    """The task's log (``None`` only for an abandoned attempt)."""
+    """The task's log; ``None`` only if an operator abandoned the attempt
+    before it registered with the control channel (it wrote no log of its
+    own)."""
 
     cancel_type: CancelType
     """How the task was cancelled (``None`` if it ran to completion)."""
-
-    abandoned: bool = False
-    """An operator abandoned the attempt before it registered with the control
-    channel (``TaskRunOptions.abandoned``): it wrote no log of its own."""
 
 
 async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRunResult:
     """Run one task in its own cancel scope so cancelling it can't affect siblings.
 
-    Returns the task's log (``None`` if a run-level cancellation ended it first)
-    and the ``CancelType`` it was cancelled with, so the dispatcher can tell a
-    retry/abort request from an ordinary error. ``can_retry`` is surfaced to
-    the task through ``TaskCancel``.
+    Returns the task's log (``None`` if an operator abandoned the attempt
+    before it registered) and the ``CancelType`` it was cancelled with, so the
+    dispatcher can tell a retry/abort request from an ordinary error. A
+    run-level cancellation raises. ``can_retry`` is surfaced to the task
+    through ``TaskCancel``.
 
     An attempt left without a log by an error escaping ``task_run`` (a
     failure to write the log itself) or by its own abort or retry request
@@ -759,7 +758,7 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
 
                 task_tg.start_soon(run)
         if abandoned:
-            return TaskRunResult(None, None, abandoned=True)
+            return TaskRunResult(None, None)
     finally:
         # Startup can fail before log_finish owns teardown. Release the
         # cached prior on every exit without removing a written destination.
@@ -1010,13 +1009,12 @@ class TaskDispatcher:
             # the run failed or was cancelled while the attempt ran
             await _release_unfinished(logger)
             raise
-        if run.abandoned:
-            # its never-started log entry goes; the task keeps its previous
-            # attempt's errored log
+        if run.log is None:
+            # abandoned: its never-started log entry goes; the task keeps its
+            # previous attempt's errored log
             await logger.discard()
             self.settle(record, None, retry=False)
             return
-        assert run.log is not None
         retry = False
         if run.log.status == "cancelled":
             self.stopped = True
@@ -1046,11 +1044,8 @@ class TaskDispatcher:
             options = replace(options, sample_source=record.retry_source)
         if record.attempt == 1:
             return options
-        retries = record.attempt - 1 + record.retries_remaining
-        return replace(
-            options,
-            display_name=f"{record.task} (retry {record.attempt - 1} of {retries})",
-        )
+        retry = f"retry {record.attempt - 1} of {record.retries}"
+        return replace(options, display_name=f"{record.task} ({retry})")
 
     def settle(self, record: TaskRecord, task_log: EvalLog | None, retry: bool) -> None:
         """Free an attempt's slot and record its log; queue its retry or end the record.
@@ -1067,7 +1062,6 @@ class TaskDispatcher:
             record.log = task_log
         if retry:
             record.attempt += 1
-            record.retries_remaining -= 1
             self.take(self.queue.take("when_free"))
             self.queue.queued.append(record)
             record.setups = None
@@ -1079,7 +1073,7 @@ class TaskDispatcher:
                 f"— {record.retries_remaining} retries remaining"
             )
         else:
-            self.queue.end(record, record.log)
+            self.queue.end(record)
         self.queue.wake.set()
 
     def stats(self) -> TaskDispatcherStats:
@@ -1109,7 +1103,7 @@ class TaskDispatcher:
         for record in abandoned:
             self.queue.remove(record)
             await _release_queued(record)
-            self.queue.end(record, record.log)
+            self.queue.end(record)
 
     async def end_unfinished(self) -> None:
         """End the records a cancelled or failed run leaves unfinished.
@@ -1120,9 +1114,9 @@ class TaskDispatcher:
         """
         for record in self.queue.close():
             await _release_queued(record)
-            self.queue.end(record, record.log)
+            self.queue.end(record)
         for record in self.running:
-            self.queue.end(record, record.log)
+            self.queue.end(record)
 
 
 async def open_log(logger: TaskLogger, *, retry: bool) -> None:

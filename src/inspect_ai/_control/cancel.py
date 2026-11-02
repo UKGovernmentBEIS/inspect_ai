@@ -295,7 +295,7 @@ def _cancel_not_started(
         result["queued"] = 0
     else:
         result["action"] = "cancel"
-    if record.outcome is not None:
+    if record.ended:
         return {**result, "changed": False, "reason": "task ended before it started"}
     if task_retry_abandoned(record.task_id):
         return {**result, "changed": False, "reason": "cancel already requested"}

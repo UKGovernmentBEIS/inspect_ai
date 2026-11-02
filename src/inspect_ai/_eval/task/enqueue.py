@@ -53,14 +53,6 @@ ConfigureFn = Callable[["list[ResolvedTask]"], "list[ConfiguredTask]"]
 """Configures tasks for the run, in the order given; raises on invalid ones."""
 
 
-class TaskOutcome(NamedTuple):
-    """How a task ended."""
-
-    log: EvalLog | None
-    """Its final log: its last attempt's, or ``None`` if no attempt started (it
-    was cancelled while queued, or the run ended first)."""
-
-
 @dataclass(eq=False)
 class TaskRecord:
     """A task of the run, from the moment it is added until it ends.
@@ -75,8 +67,8 @@ class TaskRecord:
     task: str
     model: Model
     configured: ConfiguredTask | None
-    retries_remaining: int
-    """Retry attempts left after the current one."""
+    retries: int
+    """How many times the task is retried after an attempt that fails."""
     logger: TaskLogger | None = None
     """The logger the record's next attempt uses: a seed task's first one
     (created when the seed starts up), or a failed attempt's, which its retry
@@ -93,9 +85,16 @@ class TaskRecord:
     """Where a retry attempt reads the completed samples of the failed one
     (``None``: the task's own sample source)."""
     log: EvalLog | None = None
-    """The log of its latest attempt."""
-    outcome: TaskOutcome | None = None
-    """How it ended (``None`` until it ends; set only by :meth:`RunQueue.end`)."""
+    """The log of its latest attempt; once it has ended, its final log
+    (``None`` if no attempt started: it was cancelled while queued, or the
+    run ended first)."""
+    ended: bool = False
+    """Whether it has ended (set only by :meth:`RunQueue.end`)."""
+
+    @property
+    def retries_remaining(self) -> int:
+        """Retry attempts left after the current one."""
+        return self.retries - (self.attempt - 1)
 
     @property
     def prepared(self) -> bool:
@@ -185,7 +184,7 @@ class RunQueue:
                 task=configured.resolved.task.name,
                 model=configured.resolved.model,
                 configured=configured,
-                retries_remaining=self._retries,
+                retries=self._retries,
             )
             for configured in self._configure(resolved)
         ]
@@ -238,14 +237,14 @@ class RunQueue:
                 return
         raise ValueError(f"Task '{record.task}' is not waiting to start.")
 
-    def end(self, record: TaskRecord, log: EvalLog | None) -> None:
-        """End a record with its final log; it drops what only its attempts need.
+    def end(self, record: TaskRecord) -> None:
+        """End a record, keeping its latest log; it drops what only its attempts need.
 
         The one place a record ends: after its last attempt, when it is
         cancelled while waiting to start, and when the run ends before it
         does.
         """
-        record.outcome = TaskOutcome(log)
+        record.ended = True
         record.configured = None
         record.logger = None
         record.retry_source = None
@@ -277,9 +276,9 @@ class RunQueue:
     def results(self) -> list[EvalLog]:
         """The final log of each task that has one, in the order the loop took them."""
         return [
-            record.outcome.log
+            record.log
             for record in self.records
-            if record.outcome is not None and record.outcome.log is not None
+            if record.ended and record.log is not None
         ]
 
 

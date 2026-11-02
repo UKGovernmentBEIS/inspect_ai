@@ -17,8 +17,9 @@ class TaskRetryAbandonedError(RuntimeError):
     retry-abandoned registry after the dispatcher dequeued the retry but
     before the attempt registered its ``EvalState`` (see
     ``design/ctl/task-drain.md`` "Tasks between attempts"). The dispatcher
-    maps it to a side-effect-free finalize via ``TaskRunResult.abandoned``
-    — the errored prior attempt's log stands as the task's final state.
+    maps it to a side-effect-free finalize via a ``None``
+    ``TaskRunResult.log`` — the errored prior attempt's log stands as the
+    task's final state.
     """
 
     def __init__(self) -> None:

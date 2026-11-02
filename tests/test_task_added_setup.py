@@ -17,7 +17,7 @@ from typing_extensions import override
 from inspect_ai import Task, TaskSource, enqueue_task, eval_async
 from inspect_ai._control.eval_state import get_eval_states, register_completed_eval
 from inspect_ai._eval.task.constants import TASK_RUN_DIR_ATTR
-from inspect_ai._eval.task.enqueue import TaskOutcome, get_run_queue
+from inspect_ai._eval.task.enqueue import get_run_queue
 from inspect_ai._util.registry import _registry, registry_lookup
 from inspect_ai.dataset import Sample
 from inspect_ai.hooks import Hooks, RunEnd, TaskEnd, TaskStart, hooks
@@ -523,7 +523,7 @@ async def test_operator_cancel_of_a_task_waiting_for_its_setup(
 
     in_setup = anyio.Event()
     release = anyio.Event()
-    outcomes: list[Any] = []
+    child_logs: list[Any] = []
 
     async def init() -> None:
         in_setup.set()
@@ -550,9 +550,9 @@ async def test_operator_cancel_of_a_task_waiting_for_its_setup(
             result = (cancel_task if how == "cancel" else drain_task)(child.task_id)
             assert result is not None and result.get("not_started")
             with anyio.fail_after(10):
-                while child.outcome is None:
+                while not child.ended:
                     await anyio.sleep(0.01)
-            outcomes.append(child.outcome)
+            child_logs.append(child.log)
             again = cancel_task(child.task_id)
             assert again is not None and again.get("changed") is False
             assert cancel_task("no-such-task") is None
@@ -570,7 +570,7 @@ async def test_operator_cancel_of_a_task_waiting_for_its_setup(
             task_retry_attempts=2,
         )
     assert _statuses(logs) == [("parent", "success")]
-    assert outcomes == [TaskOutcome(None)]
+    assert child_logs == [None]
     assert await _checked_attempts(lifecycle, tmp_path / "logs") == [
         ("parent", "success")
     ]
@@ -620,9 +620,9 @@ async def test_operator_cancel_of_a_task_as_it_starts(
             assert queue is not None
             [child] = queue.unstarted()
             with anyio.fail_after(10):
-                while child.outcome is None:
+                while not child.ended:
                     await anyio.sleep(0.01)
-            seen["outcome"] = child.outcome
+            seen["log"] = child.log
             return state
 
         return solve
@@ -635,7 +635,7 @@ async def test_operator_cancel_of_a_task_as_it_starts(
         )
     assert seen["result"].get("not_started")
     assert _statuses(logs) == [("parent", "success")]
-    assert seen["outcome"] == TaskOutcome(None)
+    assert seen["log"] is None
     if earlier_pass:
         assert lifecycle.states is not None
         del lifecycle.states["earlier-attempt"]

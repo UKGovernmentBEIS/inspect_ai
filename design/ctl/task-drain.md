@@ -408,15 +408,15 @@ Two checks consume the registry for a queued item, sharing the discard:
    after the dispatcher has dequeued the item but before the attempt
    registers must not let the retry run after the operator was told it was
    abandoned. Unlike site 1, this abandon returns through the dispatcher's
-   `run_one`, and every natural return shape misfires there: a `None` log
-   or a cancelled-status log reads as an external (ctrl+c) cancellation and
-   ends the **whole** dispatch loop — sibling tasks and the unstarted
-   eval-set queue included — raising would tear down the dispatcher task
-   group, and an error-status log with no stamped type would queue another
-   retry. So the contract is an explicit sentinel: `TaskRunResult` gains an
-   *abandoned* marker (a dedicated field, not an overload of `log` or
-   `cancel_type`), which `run_one` checks before its external-cancellation
-   branch and maps to a side-effect-free finalize — release the in-flight
+   `run_one`, where the other return shapes misfire: a cancelled-status log
+   reads as an external (ctrl+c) cancellation and ends the **whole**
+   dispatch loop — sibling tasks and the unstarted eval-set queue included
+   — raising would tear down the dispatcher task group, and an error-status
+   log with no stamped type would queue another retry. So the abandoned
+   attempt returns a `None` log in `TaskRunResult` (every other attempt
+   returns a log, and a cancellation of the run raises), which `run_one`
+   checks before its external-cancellation branch and maps to a
+   side-effect-free finalize — release the in-flight
    slot, leave `results[item.idx]` undisturbed (it already holds the
    errored attempt's log, stored before the retry item was queued), queue
    no retry, never set the run-level `cancelled` flag.
@@ -496,8 +496,8 @@ by awaits.
   `will_retry` — amending `EvalState.retry_pending`'s "never cleared"
   docstring), the shared never-started-logger discard, and its consume
   points in `_eval/run.py`: the `pick_balanced` drop, the attempt-start
-  self-check (surfaced to `run_one` as a dedicated *abandoned* field on
-  `TaskRunResult`, checked before the external-cancellation branch), and
+  self-check (surfaced to `run_one` as a `None` log in `TaskRunResult`,
+  checked before the external-cancellation branch), and
   the `run_one` retry-decision consult that skips constructing a retry item
   for a stamped task.
 - Route (`POST /tasks/<task-id>/drain`) in `_control/server.py`; CLI verb in
@@ -624,8 +624,7 @@ changing behavior: the dispatch-pick drop runs at the top of the dispatch
 loop (immediately before `pick_balanced`, still ahead of its pause filter),
 and the attempt-start self-check raises a dedicated
 `TaskRetryAbandonedError` (from the synchronous check adjacent to
-`register_eval`) which `_run_task` maps to the `TaskRunResult.abandoned`
-sentinel.
+`register_eval`) which `_run_task` maps to a `None` `TaskRunResult.log`.
 
 Implementation review surfaced three gaps the sketch missed; all are closed:
 
