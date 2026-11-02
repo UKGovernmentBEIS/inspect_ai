@@ -1103,12 +1103,15 @@ class TaskDispatcher:
         process-wide set, :func:`abandon_task_retry`): a queued retry, which
         keeps its failed attempt's log, or a first attempt, which ends with
         none. An attempt the loop has already started bails in ``task_run``
-        before it registers.
+        before it registers. A queued first attempt also leaves the task
+        display's count, as it will have no row there.
         """
         abandoned = [
             r for r in self.queue.unstarted() if task_retry_abandoned(r.task_id)
         ]
         for record in abandoned:
+            if record.attempt == 1 and record in self.queue.queued:
+                display().update_task_count(-1)
             self.queue.remove(record)
             await _release_queued(record)
             self.queue.end(record)

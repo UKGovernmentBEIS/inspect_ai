@@ -32,6 +32,7 @@ from inspect_ai._control.max_tasks import (
     task_dispatcher_stats,
 )
 from inspect_ai._display.core.display import CancelType
+from inspect_ai._eval import run as run_module
 from inspect_ai._eval.loader import resolve_tasks
 from inspect_ai._eval.run import (
     _TASK_OVERRIDABLE,
@@ -1269,6 +1270,51 @@ async def test_cancel_abandons_a_queued_retry_whose_attempt_never_registered(
         ("a@m1", "error"),
         ("b@m1", "success"),
     ]
+
+
+async def test_tasks_cancelled_before_they_start_leave_the_display_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # the display counts every queued task; one cancelled before it starts has
+    # no row, so it leaves the count, while an abandoned retry keeps its
+    # task's finished row
+    m1 = get_model("mockllm/m1")
+    harness = Harness([m1], parallel=1, retries=1)
+    _install(monkeypatch, harness)
+    harness.fail_next.add("a@m1")
+    counts: list[int] = []
+    shown = run_module.display
+
+    class Display:
+        def __getattr__(self, name: str) -> Any:
+            return getattr(shown(), name)
+
+        def update_task_count(self, n: int) -> None:
+            counts.append(n)
+
+    monkeypatch.setattr(run_module, "display", Display)
+
+    async def drive() -> None:
+        await _wait_started(harness, "a@m1")
+        [c] = harness.queue.put([_task("c")], start="when_free")
+        await _wait_until(lambda: c in harness.queue.queued)
+        for record in harness.queue.queued:
+            abandon_task_retry(record.task_id)
+        await _wait_until(lambda: harness.queue.queued == [])
+        reset_retry_abandoned()
+        harness.finish["a@m1"].set()
+        await _wait_until(lambda: len(harness.queue.queued) == 1)
+        abandon_task_retry(harness.queue.records[0].task_id)
+
+    try:
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(drive)
+            logs = await harness.run(_resolve(["a", "b"], [m1]))
+    finally:
+        reset_retry_abandoned()
+    assert [(log.eval.task, log.status) for log in logs] == [("a@m1", "error")]
+    # the seed's two rows, then c added, then b and c cancelled
+    assert sum(counts) == -1
 
 
 async def test_finished_added_task_is_released_while_the_run_continues(
