@@ -773,7 +773,7 @@ async def test_docker_read_file_nonexecutable_execution_machinery(
         {
             "services": {
                 "default": {
-                    "image": "aisiuk/inspect-tool-support",
+                    "image": "python:3.12-bookworm",
                     "working_dir": "/tmp/removable-workdir",
                     "command": "tail -f /dev/null",
                     "init": True,
@@ -848,7 +848,7 @@ async def test_docker_file_operations_reject_unknown_users(
         {
             "services": {
                 "default": {
-                    "image": "aisiuk/inspect-tool-support",
+                    "image": "python:3.12-bookworm",
                     "command": "tail -f /dev/null",
                     "init": True,
                     "network_mode": "none",

@@ -229,7 +229,7 @@ Here is how Docker sandbox environments are created based on the presence of `Do
 
 | Config Files | Behavior |
 |---------------------------|---------------------------------------------|
-| None | Creates a sandbox environment based on the standard [inspect-tool-support](https://hub.docker.com/r/aisiuk/inspect-tool-support) image. |
+| None | Creates a sandbox environment based on the official [`python:3.12-bookworm`](https://hub.docker.com/_/python) image. |
 | `Dockerfile` | Creates a sandbox environment by building the image. |
 | `compose.yaml` | Creates sandbox environment(s) based on `compose.yaml`. |
 
