@@ -1789,7 +1789,7 @@ async def test_bridge_exit_keeps_a_termination_the_scaffold_outran(
     async def sandbox_with_injected_tools(**kwargs: object) -> Sandbox:
         return Sandbox()
 
-    async def monitor_proxy(proxy: Proxy) -> None:
+    async def monitor_proxy(proxy: Proxy, stderr: list[str] | None = None) -> None:
         await anyio.sleep_forever()
 
     async def run_model_service(

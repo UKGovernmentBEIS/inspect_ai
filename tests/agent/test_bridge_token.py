@@ -4,19 +4,26 @@ import json
 import re
 from collections.abc import AsyncIterator, Iterator
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Any
 
 import anyio
 import pytest
 from test_helpers.sandbox import CannedSandbox
+from test_helpers.utils import skip_if_no_docker
 
 import inspect_ai.agent._bridge.sandbox.bridge as bridge_module
+from inspect_ai import Task, eval
 from inspect_ai.agent._bridge.sandbox.bridge import (
     BRIDGE_TOKEN_DIR,
     sandbox_agent_bridge,
 )
+from inspect_ai.dataset import Sample
+from inspect_ai.model import get_model
+from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.tool._mcp._tools_bridge import BridgedToolsSpec
 from inspect_ai.tool._tool import Tool, tool
+from inspect_ai.util import sandbox
 from inspect_ai.util._sandbox.context import (
     sandbox_default_context_var,
     sandbox_environments_context_var,
@@ -240,3 +247,95 @@ async def test_bridge_in_a_scope_refuses_tools_that_cannot_mint_tokens(
                 raise AssertionError("bridge yielded")
 
     assert sandbox.launches == []
+
+
+# ============================================================================
+# End to end, with the injected tools in Docker
+# ============================================================================
+
+_NONROOT_COMPOSE = str(
+    Path(__file__).parent.parent / "tools" / "test_sandbox_compose.yaml"
+)
+
+_SCOPED_CLIENT = """
+import json, sys, urllib.error, urllib.request
+
+def post(path, body, headers):
+    request = urllib.request.Request(
+        "http://localhost:13131" + path,
+        data=json.dumps(body).encode(),
+        headers={"Content-Type": "application/json", **headers},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return response.status
+    except urllib.error.HTTPError as error:
+        return error.code
+
+with open(sys.argv[1]) as file:
+    token = file.read()
+chat = {"model": "inspect", "messages": [{"role": "user", "content": "hi"}]}
+mcp = {"jsonrpc": "2.0", "id": 1, "method": "initialize"}
+print(json.dumps({
+    "token_length": len(token),
+    "chat": post("/v1/chat/completions", chat, {"Authorization": "Bearer " + token}),
+    "chat_dummy": post("/v1/chat/completions", chat, {"Authorization": "Bearer sk-x"}),
+    "messages": post("/v1/messages", {**chat, "max_tokens": 5}, {"x-api-key": token}),
+    "mcp": post("/mcp/tools", mcp, {"Authorization": "Bearer " + token}),
+    "mcp_none": post("/mcp/tools", mcp, {}),
+}))
+"""
+
+
+@solver
+def _scoped_bridge_in_docker() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        sb = sandbox()
+        for user in ("w1", "w2"):
+            created = await sb.exec(["useradd", "-m", user], user="root")
+            assert created.success, created.stderr
+        with sandbox_identity("w1", cwd="/home/w1"):
+            async with sandbox_agent_bridge(
+                bridged_tools=[BridgedToolsSpec(name="tools", tools=[_echo()])]
+            ) as bridge:
+                token_file = bridge.token_file
+                assert token_file is not None
+                # the first request is served: no retry until the proxy listens
+                result = await sb.exec(
+                    ["python3", "-c", _SCOPED_CLIENT, token_file], user="w1"
+                )
+                assert result.success, result.stderr
+                assert json.loads(result.stdout) == {
+                    "token_length": 64,
+                    "chat": 200,
+                    "chat_dummy": 401,
+                    "messages": 200,
+                    "mcp": 200,
+                    "mcp_none": 401,
+                }
+                peer = await sb.exec(["cat", token_file], user="w2")
+                assert not peer.success and "Permission denied" in peer.stderr
+                listing = await sb.exec(["ls", BRIDGE_TOKEN_DIR], user="w2")
+                assert not listing.success
+                modes = await sb.exec(
+                    ["stat", "-c", "%U %a", BRIDGE_TOKEN_DIR, token_file],
+                    user="root",
+                )
+                assert modes.stdout.split("\n")[:2] == ["root 711", "w1 400"]
+        gone = await sb.exec(["test", "-e", token_file], user="root")
+        assert not gone.success
+        return state
+
+    return solve
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_scoped_bridge_in_docker_requires_its_token() -> None:
+    task = Task(
+        dataset=[Sample(input="x")],
+        solver=_scoped_bridge_in_docker(),
+        sandbox=("docker", _NONROOT_COMPOSE),
+    )
+    log = eval(task, model=get_model("mockllm/model"))[0]
+    assert log.status == "success", log.error
