@@ -138,25 +138,16 @@ def test_cache_model_args_key_rejects_cycles() -> None:
     assert cache_model_args_key(args, instance_key="instance") is not None
 
 
-def test_cache_model_args_instance_key_preserves_json_arguments() -> None:
-    client = object()
-    args = {"client": client, "extra_body": {"system": "3", "options": [True]}}
-    reordered = {
-        "extra_body": {"options": [True], "system": "3"},
-        "client": client,
-    }
+def test_cache_model_args_instance_key() -> None:
+    args = {"client": object(), "extra_body": {"system": "3"}}
     key = cache_model_args_key(args, instance_key="first")
-    assert key == cache_model_args_key(reordered, instance_key="first")
+    assert key and len(key) == 64
+    assert key == cache_model_args_key(args, instance_key="first")
     assert key != cache_model_args_key(args, instance_key="second")
-    args["extra_body"] = {"system": "4", "options": [True]}
-    assert key != cache_model_args_key(args, instance_key="first")
-
-    # An opaque node and a user's JSON value resembling its encoding differ.
+    # JSON args are keyed by value, independent of the instance key.
     assert cache_model_args_key(
-        {"client": client, "option": object()}, instance_key="first"
-    ) != cache_model_args_key(
-        {"client": client, "option": ["opaque"]}, instance_key="first"
-    )
+        {"system": "3"}, instance_key="first"
+    ) == cache_model_args_key({"system": "3"})
 
 
 async def test_cache_scopes_opaque_model_args_to_instance(

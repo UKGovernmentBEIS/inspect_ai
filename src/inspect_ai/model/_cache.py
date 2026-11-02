@@ -1,6 +1,5 @@
 import json
 import logging
-import math
 import os
 import pickle
 import re
@@ -202,12 +201,13 @@ class CacheEntry:
 def cache_model_args_key(
     model_args: dict[str, Any], *, instance_key: str | None = None
 ) -> str | None:
-    """Fingerprint model args, scoping opaque values to an optional instance key.
+    """Fingerprint model constructor args for the output cache key.
 
-    Opaque objects (including clients, callables, and redacted secrets) cannot
-    be given a reliable persistent identity. With an instance key, they can
-    still share responses within that model's lifetime, while the JSON portions
-    of the arguments continue to distinguish request defaults.
+    Returns an empty string for no args, so their keys are unchanged, and a
+    hash of the args when they are all JSON values. Other values (clients,
+    callables, secrets) have no reliable persistent identity: with an
+    `instance_key` the hash identifies that model instance instead, otherwise
+    the result is None.
     """
     if not model_args:
         return ""
@@ -218,34 +218,9 @@ def cache_model_args_key(
     except (ValueError, RecursionError):
         if instance_key is None:
             return None
-        serialized = json.dumps(
-            [instance_key, _model_args_tree(model_args, set())], sort_keys=True
-        )
+        # serialized JSON args start with "{", so this cannot collide with them
+        serialized = f"instance:{instance_key}"
     return sha256(serialized.encode("utf-8")).hexdigest()
-
-
-def _model_args_tree(value: Any, ancestors: set[int]) -> Any:
-    """Tag each node so an opaque placeholder cannot collide with user JSON."""
-    if type(value) in (str, int, bool, type(None)) or (
-        type(value) is float and math.isfinite(value)
-    ):
-        return ["value", value]
-    if id(value) in ancestors:
-        return ["opaque"]
-    if type(value) is list or (
-        type(value) is dict and all(type(key) is str for key in value)
-    ):
-        ancestors.add(id(value))
-        try:
-            if isinstance(value, list):
-                return ["list", [_model_args_tree(item, ancestors) for item in value]]
-            return [
-                "dict",
-                {key: _model_args_tree(item, ancestors) for key, item in value.items()},
-            ]
-        finally:
-            ancestors.remove(id(value))
-    return ["opaque"]
 
 
 def _is_json_value(value: Any) -> bool:
