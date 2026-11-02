@@ -157,4 +157,3 @@ def test_tool_surface_size_reduced() -> None:
         f"parameters JSON is {len(params_json)} bytes; if this regressed "
         "past 1 kB the typed-schema bloat has likely returned."
     )
-# Temporary CI probe. The next commit removes it.
