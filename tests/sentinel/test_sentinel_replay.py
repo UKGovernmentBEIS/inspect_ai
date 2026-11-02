@@ -1454,28 +1454,61 @@ def test_a_stored_timeline_gives_one_conversation_per_branch() -> None:
 
 
 def test_a_stored_timeline_does_not_change_turn_inference_without_origins() -> None:
-    log = run_logged(r7_runs_two_branches(), "mockllm/model")
-    events = without_origins(logged_sample(log).events)
-    model_events = [e for e in events if isinstance(e, ModelEvent)]
+    task = ChatMessageUser(content="Solve it.")
+    m1 = linked_call("m1", "agent", [task], "First.", None)
+    asked: list[ChatMessage] = [
+        task,
+        m1.output.message,
+        ChatMessageUser(content="Next?"),
+    ]
+    m2 = linked_call("m2", "agent", asked, "Alternative A.", None)
+    m3 = linked_call("m3", "agent", asked, "Alternative B.", None)
+    m4 = linked_call(
+        "m4",
+        "agent",
+        [*asked, m3.output.message, ChatMessageUser(content="Continue.")],
+        "Done.",
+        None,
+    )
+    events: list[Event] = [
+        SpanBeginEvent(id="agent", name="agent", type="agent"),
+        m1,
+        m2,
+        m3,
+        m4,
+        SpanEndEvent(id="agent"),
+    ]
     stored = Timeline(
         name="target",
         description="",
         root=TimelineSpan(
             id="target",
             name="target",
-            content=[TimelineEvent(event=model_events[0])],
+            content=[TimelineEvent(event=m1), TimelineEvent(event=m2)],
             branches=[
                 TimelineSpan(
                     id="rollback",
                     name="rollback",
-                    content=[TimelineEvent(event=model_events[1])],
+                    content=[TimelineEvent(event=m3), TimelineEvent(event=m4)],
                 )
             ],
         ),
     )
-    without = replay_events(log, events)
-    with_stored = replay_events(log, events, timeline=stored)
-    assert [(s.stage, s.id) for s in with_stored] == [(s.stage, s.id) for s in without]
+    replay = steps_from_events(
+        [],
+        events,
+        [],
+        sample_uuid="sample",
+        eval_info=EvalInfo(inspect_ai_version=None, sentinel=False),
+        timeline=stored,
+    )
+    turns = [step for step in replay if step.stage == "model_input"]
+    assert [step.id for step in turns] == ["m1", "m3", "m4"]
+    assert [step.step.conversation for step in turns] == [
+        "target",
+        "rollback",
+        "rollback",
+    ]
 
 
 # the shared continuity fixtures, whose "expected_continuity" (else
@@ -1633,10 +1666,8 @@ def checked_m3(later_turn: bool, recorded: bool) -> list[Event]:
 def test_a_checked_call_inferred_not_a_turn_has_no_steps(
     later_turn: bool,
 ) -> None:
-    # a log whose only checked model_input step is a call inferred as utility
-    # (where inference differs from live): the call was made, so the check is
-    # The call was made, so the conversation's next turn keeps its own id and
-    # is not handed the check.
+    # A checked call inferred as utility has no step. The next turn keeps its
+    # own id and is not handed that check.
     replay = steps_from_events(
         [],
         checked_m3(later_turn, recorded=False),
