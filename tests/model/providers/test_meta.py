@@ -111,9 +111,9 @@ def test_meta_api_key_hook_supplies_credentials(monkeypatch):
     monkeypatch.setattr("inspect_ai.hooks._hooks.has_api_key_override", lambda: True)
     monkeypatch.setattr(
         "inspect_ai.hooks._hooks.override_api_key",
-        lambda env_var_name, value: "hook-key"
-        if env_var_name == "META_API_KEY"
-        else None,
+        lambda env_var_name, value: (
+            "hook-key" if env_var_name == "META_API_KEY" else None
+        ),
     )
     api = MetaAPI(model_name="muse-spark-1.3")
     assert api.api_key == "hook-key"
