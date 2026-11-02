@@ -326,7 +326,7 @@ class Harness:
             self.startup,
             parallel=self.parallel,
             retries=self.retries,
-            source=source,
+            next_tasks=source.next_tasks if source else None,
             debug_errors=False,
         )
 
@@ -565,7 +565,7 @@ class _ScriptedSource(TaskSource):
 async def test_dispatcher_idle_rule(
     source: list[list[str] | None] | None, idle_groups: list[list[str]]
 ) -> None:
-    # the loop's side of the tasks, without running any: add_when_idle asks
+    # the loop's side of the tasks, without running any: add_more_tasks asks
     # the source for its next batch until it returns nothing, then closes
     scripted = None if source is None else _ScriptedSource(source)
     harness = Harness([get_model("mockllm/m1")], parallel=2)
@@ -573,7 +573,7 @@ async def test_dispatcher_idle_rule(
     # nothing runs here, so empty the queue between idle steps
     while True:
         harness.tasks.queued.clear()
-        if not await dispatcher.add_when_idle():
+        if not await dispatcher.add_more_tasks():
             break
 
     groups = [[label.split("@")[0] for label in g] for g in harness.queued_groups]
@@ -608,7 +608,7 @@ async def test_dispatcher_runs_tasks_added_during_final_next_tasks() -> None:
     first: list[bool] = []
 
     async def idle() -> None:
-        first.append(await dispatcher.add_when_idle())
+        first.append(await dispatcher.add_more_tasks())
 
     async with anyio.create_task_group() as tg:
         tg.start_soon(idle)
@@ -618,7 +618,7 @@ async def test_dispatcher_runs_tasks_added_during_final_next_tasks() -> None:
 
     assert first == [True] and harness.queued_groups == [["w@m1"]]
     harness.tasks.queued.clear()
-    assert not await dispatcher.add_when_idle()
+    assert not await dispatcher.add_more_tasks()
     assert source.calls == 1
 
 

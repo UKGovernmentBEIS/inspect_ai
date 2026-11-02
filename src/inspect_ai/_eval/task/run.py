@@ -198,7 +198,7 @@ from inspect_ai.util._store import init_subtask_store
 
 from ..context import init_task_context
 from ..task import Task
-from .enqueue import get_run_tasks
+from .enqueue import enqueue_task
 from .error import SampleErrorHandler, _should_eval_fail
 from .generate import task_generate
 from .images import (
@@ -719,16 +719,9 @@ def eval_plan_agent_name(plan: EvalPlan) -> str | None:
 
 
 async def _enqueue_source_tasks(tasks: list[Task] | None) -> None:
-    """Add tasks a TaskSource callback returned to the running eval's queue.
-
-    Routes through the run's queue like a default ``enqueue_task`` call, so in
-    a ``TaskSource`` run they start as soon as there is free task capacity. A
-    no-op if the callback returned nothing or there is no active run queue.
-    """
+    """Add the tasks a TaskSource callback returned, as ``enqueue_task`` does."""
     if tasks:
-        run_tasks = get_run_tasks()
-        if run_tasks is not None:
-            await run_tasks.add(tasks)
+        await enqueue_task(tasks)
 
 
 async def notify_task_source(options: TaskRunOptions, eval_log: EvalLog) -> None:

@@ -125,8 +125,7 @@ class RunTasks:
 
         Args:
             run_id: The run's id (``enqueue_task`` checks callers against it).
-            resolve: Resolves tasks against the run's models and config (also
-                used by the loop for a ``TaskSource``'s ``next_tasks()``).
+            resolve: Resolves tasks against the run's models and config.
             configure: Configures tasks for the run.
             prepare: Resolves a configured task's sandbox configs.
             changed: Set whenever the scheduling loop should look at the tasks
@@ -138,7 +137,7 @@ class RunTasks:
                 next task's).
         """
         self.run_id = run_id
-        self.resolve = resolve
+        self._resolve = resolve
         self._configure = configure
         self._prepare = prepare
         self._sequence_order = sequence_order
@@ -181,11 +180,14 @@ class RunTasks:
     async def add(self, tasks: Tasks) -> list[TaskRecord]:
         """Resolve tasks added to the run, create their records and queue them.
 
-        Resolution, configuration and sandbox config errors surface to the
-        caller; none of the tasks is queued then. Returns the records in
+        The one way tasks are added once the run has started: by
+        :func:`enqueue_task`, which tasks a ``TaskSource`` callback returns
+        go through too, and by the scheduling loop for a ``next_tasks()``
+        batch. Resolution, configuration and sandbox config errors surface to
+        the caller; none of the tasks is queued then. Returns the records in
         start order.
         """
-        records = await self.create(self.resolve(tasks))
+        records = await self.create(self._resolve(tasks))
         if self._closed:
             raise RuntimeError(
                 f"enqueue_task(): run '{self.run_id}' has finished dispatching "

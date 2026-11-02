@@ -243,7 +243,7 @@ async def eval_run(
                 startup,
                 parallel=parallel,
                 retries=task_retry_attempts or 0,
-                source=task_source,
+                next_tasks=task_source.next_tasks if task_source else None,
                 debug_errors=debug_errors,
             )
             return await dispatcher.run()
@@ -513,6 +513,9 @@ def _check_sample_source_options(task: Task, config: EvalConfig) -> None:
             "numeric --limit to cap total samples."
         )
 
+
+NextTasksFn = Callable[[], Awaitable[list[Task] | None]]
+"""Asked for more tasks when the run is idle (``TaskSource.next_tasks``)."""
 
 SampleSandboxSetup = Callable[[Iterable[Sample]], Awaitable[None]]
 """Sets up the sandboxes some of a task's samples need, from inside the task."""
@@ -817,7 +820,7 @@ class TaskDispatcher:
         *,
         parallel: int,
         retries: int,
-        source: TaskSource | None,
+        next_tasks: NextTasksFn | None,
         debug_errors: bool,
     ) -> None:
         self.tasks = tasks
@@ -827,9 +830,9 @@ class TaskDispatcher:
         """The launch ``max_tasks`` (``ctl config --max-tasks`` overrides it live)."""
         self.retries = retries
         """How many times a task is retried after an attempt that fails."""
-        self.source = source
-        """The ``TaskSource`` asked for more tasks when idle (``None`` once its
-        ``next_tasks()`` returns nothing)."""
+        self.next_tasks = next_tasks
+        """Asked for more tasks when nothing is queued or running: the
+        ``TaskSource``'s ``next_tasks()`` (``None`` once it returns nothing)."""
         self.debug_errors = debug_errors
         self.run_cancelled = False
         """An attempt ended cancelled (the run was cancelled): start no more."""
@@ -873,28 +876,28 @@ class TaskDispatcher:
                 record = self.next_task_to_start()
                 if record is None:
                     break
-                self.start_attempt(tg, record)
+                self.start_in_background(tg, record)
             if self.run_cancelled:
                 break
             if self.tasks.queued or self.tasks.running:
                 await self.tasks.changed.wait()
-            elif not await self.add_when_idle():
+            elif not await self.add_more_tasks():
                 break
 
-    async def add_when_idle(self) -> bool:
-        """Ask the ``TaskSource`` for more once nothing is queued or running.
+    async def add_more_tasks(self) -> bool:
+        """Ask for more tasks once nothing is queued or running; whether any came.
 
-        ``False`` if there is no more: the source's ``next_tasks()`` has
-        returned nothing (it is not asked again) and no task was added while
-        it ran. Its batch is queued when it returns, after any tasks added
-        while it ran.
+        ``next_tasks`` is asked until it first returns nothing; its batch is
+        added as ``enqueue_task`` adds tasks, after any added while it ran.
+        Then the run takes no more tasks, unless some were added while the
+        last call ran.
         """
-        if self.source is not None:
-            more = await self.source.next_tasks()
+        if self.next_tasks is not None:
+            more = await self.next_tasks()
             if more:
-                self.tasks.enqueue(await self.tasks.create(self.tasks.resolve(more)))
+                await self.tasks.add(more)
                 return True
-            self.source = None
+            self.next_tasks = None
         return not self.tasks.close_if_idle()
 
     def queue_upcoming_setups(self) -> None:
@@ -931,8 +934,8 @@ class TaskDispatcher:
         ]
         return pick_balanced(ready, Counter(r.model for r in self.tasks.running))
 
-    def start_attempt(self, tg: TaskGroup, record: TaskRecord) -> None:
-        """Start a record's attempt, with the run's provider state."""
+    def start_in_background(self, tg: TaskGroup, record: TaskRecord) -> None:
+        """Start running a record's attempts, with the run's provider state."""
         self.tasks.start(record)
         # tasks inherit the loop's context: the latest provider state
         self.startup.apply_provider_state()
