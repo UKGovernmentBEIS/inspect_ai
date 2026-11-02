@@ -88,6 +88,22 @@ async def test_setups_run_one_at_a_time_in_request_order() -> None:
     assert script.started == ["a", "b", "c"]
 
 
+async def test_a_job_waited_for_now_goes_ahead_of_requested_ones() -> None:
+    script = Script()
+    async with SetupCache(script) as cache:
+        cache.request(["a", "b", "c"], lambda: None)
+        await _settle()
+        assert script.started == ["a"]
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(cache.ensure, ["new", "c"])
+            await _settle()
+            for key in ["a", "new", "c", "b"]:
+                assert script.started[-1] == key
+                script.finish(key)
+                await _settle()
+    assert script.started == ["a", "new", "c", "b"]
+
+
 async def test_failure_goes_to_current_waiters_then_is_forgotten() -> None:
     script = Script()
     errors: list[BaseException] = []

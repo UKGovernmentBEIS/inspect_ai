@@ -336,7 +336,9 @@ makes it the active one for `enqueue_task`, starts up the seed and runs the
   from the run's `SetupCache`
   ([setup_cache.py](../src/inspect_ai/_eval/task/setup_cache.py)), which keeps
   one shared job per config and runs the jobs one at a time, in the order
-  they were requested. A record whose setup fails starts and ends with an
+  they were requested, except that a config a running task's `SampleSource`
+  needs now (`SetupCache.ensure`) goes ahead of queued tasks' setups. A
+  record whose setup fails starts and ends with an
   error log (its retries apply); the failure is forgotten, so the retry sets
   up again.
 - **The seed** is set up before the task display opens: every seed setup runs

@@ -4,9 +4,10 @@ Many tasks of a run can use the same sandbox config, whose setup (a provider's
 ``task_init``: an image build or pull, a cloud environment) is slow and must
 run once. :class:`SetupCache` keeps one job per key: a request joins the key's
 job if there is one (waiting, running or succeeded) and adds one otherwise. A
-worker runs the jobs one at a time, in the order they were added, while there
-are any. A
-failed job is forgotten, so the next request for its key adds a new one.
+worker runs the jobs one at a time, while there are any: in the order they
+were requested, except that a job someone waits for now (:meth:`SetupCache.ensure`)
+goes ahead of those requested ahead of need. A failed job is forgotten, so
+the next request for its key adds a new one.
 Leaving the cache cancels the job in progress and drops those still waiting.
 
 The cache is used only from the run's event loop, and its bookkeeping does
@@ -131,12 +132,22 @@ class SetupCache(Generic[K]):
         return all(key in self._jobs for key in keys)
 
     async def ensure(self, keys: Iterable[K]) -> None:
-        """Set up ``keys`` and wait until they are.
+        """Set up ``keys``, ahead of the jobs waiting, and wait until they are.
+
+        For a caller that needs them now: a running task whose
+        ``SampleSource`` adds samples with a new config, or the seed before the
+        run starts. Jobs :meth:`request` added are for queued tasks, which can
+        wait.
 
         Raises:
             BaseException: What the first failed job raised.
         """
-        for job in [self._job(key) for key in keys]:
+        jobs = [self._job(key) for key in keys]
+        waiting = [job for job in jobs if job in self._waiting]
+        for job in waiting:
+            self._waiting.remove(job)
+        self._waiting.extendleft(reversed(waiting))
+        for job in jobs:
             await job.done.wait()
             if job.failure is not None:
                 job.failure.raise_again()
