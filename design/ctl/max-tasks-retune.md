@@ -78,7 +78,7 @@ limit — no new wakeup machinery.
   latches respected — `pick_balanced`'s model-balancing and pause
   filtering apply as before) up to the new limit.
   Raising beyond `in_flight + pending` changes nothing until more tasks
-  arrive (an enqueued task, a `TaskSource` batch, a queued retry); the
+  arrive (an enqueued task, a `TaskSource` batch); the
   view reports both numbers so an operator can see that.
 - **Lowering never preempts** — the invariant every other limiter knob
   keeps. In-flight tasks run to completion; the dispatcher just doesn't
@@ -270,9 +270,8 @@ implementation should prefer the handle's value when available.
   sandbox startups. `max_sandboxes` (already retunable, process-scoped)
   remains the guard rail; the docs for `--max-tasks` should cross-reference
   it.
-- **Eval-set task retries**: queued retry attempts are pending tasks in
-  the same dispatcher, so they benefit from (and count against) the raised
-  limit like any other pending task.
+- **Task retries**: a task's retry runs in the slot of its failed
+  attempt, so it neither waits for nor frees a slot under the limit.
 - **Add-task** (`inspect ctl task add`, meridianlabs-ai/inspect_ai#222,
   planned): injected tasks enter the same dispatcher via the feed, so they
   respect (and benefit from) the live limit like any other pending task —
