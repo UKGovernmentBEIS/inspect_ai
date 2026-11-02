@@ -329,7 +329,7 @@ decisive leaf (`decisive_tool_exception()`) and classified with
   `bridge.request_fail()`. A mapped exception (a `ToolError`, a
   limit) whose cause or context holds a termination keeps its mapped event.
   Propagation is sticky unless the operator cancelled the call (whose
-  timeout takes precedence, above): whenever `find_control_flow()` finds a
+  timeout takes precedence; see Cancellation): whenever `find_control_flow()` finds a
   termination
   anywhere in the exception's history, the original exception propagates
   unchanged (a limit is not replaced by a `ToolError`), and the dispatcher
