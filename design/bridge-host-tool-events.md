@@ -347,8 +347,7 @@ Cancellation:
 - **Outer cancellation** (bridge teardown, a sample limit) that escapes the
   tool is recorded as `cancelled` ("Host tool call was cancelled before
   completing.") and propagates; the request gets no reply. A tool that
-  catches it is recorded by what it then does. Only the operator's cancel
-  overrides the tool's outcome (`_execute_granted()`).
+  catches it is recorded by what it then does (`_execute_granted()`).
 - **ACP turn cancel.** The event is registered with the execution observer
   (`track_tool_call`), so `cancel_current_turn` marks it cancelled and failed
   and names it in the `InterruptEvent`; `_set_result()` keeps that marker
@@ -362,7 +361,7 @@ between match and delete, so concurrent requests need no lock.
 
 ## Results
 
-The result is recorded as the native path records it: content
+The result is recorded as content
 (`ContentText`, `ContentImage` and the other content types, or a list of
 them) as a list; anything else as text, a `str` verbatim and other values as
 `to_json_str_safe()`. Text is truncated by `truncate_tool_output()` at the
@@ -380,9 +379,10 @@ Output truncation follows the native limit, including its 16 KiB default
 apply only explicitly configured limits.
 
 Log condensation walks a tool event's arguments (long strings become
-attachments) and the media in its result (`walk_tool_result()`), so images
-in any tool result, native or host, follow `log_images` as message images
-do. Text results stay inline: the same text is already inline in the tool
+attachments) and the media in its result (`walk_tool_result()`), so
+data-URI images in a transcript tool event's result, native or host, follow
+`log_images` as message images do; results of legacy nested events
+(`ToolEvent.events`) stay inline. Text results stay inline: the same text is already inline in the tool
 message the model sees next.
 
 `message_id` is `None`: the agent builds the `ChatMessageTool` itself and
@@ -412,8 +412,9 @@ finalised. `agent` is `None`; `agent_span_id` is the tool's, as natively.
 - **Approval.** Approval runs at proposal time in `bridge_generate()`, before
   grants are minted, and reviews each call under the bridged tool it denotes,
   whatever name the agent declared, through the same resolution the grants
-  use (`reviewed_calls()`); a call denoting several bridged tools records one
-  `ApprovalEvent` per tool under the proposing id. See
+  use (`reviewed_calls()`); a call denoting several bridged tools is approved
+  separately for each, and the resulting `ApprovalEvent`s carry the proposing
+  id. See
   [Bridged Agents](../docs/approval.qmd#bridged-agents).
 - **Sentinel.** The host executor runs no sentinel tool stage, so sentinel
   replay rebuilds none for a `ToolEvent` with `metadata["bridge"]`.
@@ -467,8 +468,8 @@ finalised. `agent` is `None`; `agent_span_id` is the tool's, as natively.
 ## Compatibility
 
 - **Logs.** No schema change. Bridged samples that call host tools have
-  `tool` events and `tool` spans. Data-URI images in any tool result are
-  stored as attachments (`log_images=True`) or removed (`log_images=False`);
+  `tool` events and `tool` spans. Data-URI images in a transcript tool
+  event's result are stored as attachments (`log_images=True`) or removed (`log_images=False`);
   URL and file-path image sources stay inline. An older Inspect reading such
   a log shows the `attachment://` reference in the result.
 - **Agent-facing behaviour.** Compared with a bridge that did not record
@@ -529,8 +530,3 @@ The untrusted input is the agent's `tools/call`: `server`, `tool` and
   proposal's span has closed is placed under the current span instead. Not
   needed for the known sinks, and both event trees nest by `span_id`.
 - **Agent-run tool calls** stay without `ToolEvent`s.
-- **Google bridge result ids.** The Google adapter does not round-trip the
-  proposing call's id: the agent's function response comes back with a
-  reconstructed id, so the later `ChatMessageTool` does not share the host
-  event's id and the viewer does not hide it as the host event's result.
-  Pairing with the proposal itself is unaffected.
