@@ -7,7 +7,16 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from logging import getLogger
 from pathlib import PurePath
-from typing import Any, Awaitable, Callable, Literal, NamedTuple, Protocol, TypeAlias
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    Iterator,
+    Literal,
+    NamedTuple,
+    Protocol,
+    TypeAlias,
+)
 
 import anyio
 from anyio.abc import TaskGroup
@@ -722,13 +731,58 @@ async def notify_task_source(options: TaskRunOptions, eval_log: EvalLog) -> None
     """Report a finished attempt's log to the run's TaskSource (if it has one).
 
     Adds the follow-up tasks ``TaskSource.task_complete`` returns to the run.
-    Called for each attempt that finishes with a log, or that its own abort
-    or retry request interrupted before it had one, after the attempt's
-    cancel scope has exited: that request cancels the scope, so the callback
-    runs (and can await) whether or not the task was cancelled.
+    Called after the attempt's cancel scope has exited: the task's abort or
+    retry request cancels that scope, so the callback runs (and can await)
+    whether or not the task was cancelled.
     """
     if options.task_source is not None:
         _enqueue_source_tasks(await options.task_source.task_complete(eval_log))
+
+
+ABORTED_LOG_WRITE_TIMEOUT = 60.0
+"""Seconds a shielded log write may run after the task's abort or retry request."""
+
+
+def bound_log_write(task_cancel: TaskCancel) -> None:
+    """Give the task's shielded log write in progress (if any) a deadline.
+
+    Called when the task's abort or retry request is made, so the write gets
+    ``ABORTED_LOG_WRITE_TIMEOUT`` more seconds (see :func:`abort_bounded_shield`).
+    """
+    scope = task_cancel.log_write_scope
+    if scope is not None:
+        scope.deadline = min(
+            scope.deadline, anyio.current_time() + ABORTED_LOG_WRITE_TIMEOUT
+        )
+
+
+@contextlib.contextmanager
+def abort_bounded_shield(task_cancel: TaskCancel | None) -> Iterator[None]:
+    """Shield a task's log write from its own abort or retry request, for a bounded time.
+
+    The write completes when the request lands before or during it, so the
+    task returns the log it wrote and the dispatcher ends (or retries) only
+    this task. Once the request is made, the write has
+    ``ABORTED_LOG_WRITE_TIMEOUT`` seconds to finish, so an abort can still
+    end a write stuck on unreachable storage: it then raises
+    ``TimeoutError``, which the dispatcher handles as a failed log write.
+    Without a request the write is not bounded.
+    """
+    with anyio.CancelScope(shield=True) as scope:
+        if task_cancel is not None:
+            task_cancel.log_write_scope = scope
+            if task_cancel.cancel_type in ("abort", "retry"):
+                bound_log_write(task_cancel)
+        try:
+            yield
+        finally:
+            if task_cancel is not None:
+                task_cancel.log_write_scope = None
+    if scope.cancelled_caught:
+        raise TimeoutError(
+            f"Log write did not finish within {ABORTED_LOG_WRITE_TIMEOUT:g} "
+            "seconds of the task's cancel request"
+        )
 
 
 def _enqueue_source_samples(samples: list[Sample] | None) -> None:
@@ -2097,18 +2151,18 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 # collect eval data
                 collect_eval_data(stats)
 
-                # display it ahead of the unshielded log write, so a task
-                # abort that interrupts the write still completes the display
-                td.complete(TaskError(logger.samples_completed, type, value, traceback))
-
                 # finish with error status
-                eval_log = await finish_task_log(
-                    status="error",
-                    stats=stats,
-                    results=results,
-                    reductions=reductions,
-                    error=error,
-                )
+                with abort_bounded_shield(task_cancel):
+                    eval_log = await finish_task_log(
+                        status="error",
+                        stats=stats,
+                        results=results,
+                        reductions=reductions,
+                        error=error,
+                    )
+
+                # display it
+                td.complete(TaskError(logger.samples_completed, type, value, traceback))
 
         finally:
             if sample_enqueuer_token is not None:

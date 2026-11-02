@@ -102,6 +102,7 @@ from .task.resolved import ResolvedTask, resolved_task_names
 from .task.run import (
     EvalSampleSource,
     TaskRunOptions,
+    bound_log_write,
     eval_log_sample_source,
     notify_task_source,
     plan_agent_name,
@@ -574,8 +575,10 @@ def _empty_feed() -> PreparedFeed:
 
 class TaskRunResult(NamedTuple):
     log: EvalLog | None
-    """The task's log, or ``None`` if a run-level cancellation (e.g. ctrl+c)
-    ended it before it produced one."""
+    """The task's log, or ``None`` if it was abandoned (see ``abandoned``).
+    A task's own abort or retry request always leaves a log (see
+    :func:`_run_task`); a run-level cancellation (e.g. ctrl+c) propagates
+    from :func:`_run_task` or leaves a ``cancelled`` log."""
 
     cancel_type: CancelType
     """How the task was cancelled (``None`` if it ran to completion)."""
@@ -592,12 +595,25 @@ class TaskRunResult(NamedTuple):
     side-effect-free finalize."""
 
 
+def _unwritten_log(options: TaskRunOptions, error: BaseException) -> EvalLog:
+    """An errored log for an attempt that has no written log.
+
+    Its ``location`` points at the log file the write was destined for,
+    which may not exist or may hold a partial log.
+    """
+    return EvalLog(
+        status="error",
+        eval=options.logger.eval,
+        error=eval_error(error, type(error), error, error.__traceback__),
+        location=options.logger.location,
+    )
+
+
 async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRunResult:
     """Run one task in its own cancel scope so cancelling it can't affect siblings.
 
-    Returns the task's :class:`EvalLog` (``None`` if a run-level cancellation
-    ended it before it produced one) together with the ``CancelType`` it was
-    cancelled with, so a caller managing retries can distinguish a
+    Returns the task's :class:`EvalLog` together with the ``CancelType`` it
+    was cancelled with, so a caller managing retries can distinguish a
     retry/abort request from an ordinary error. ``can_retry`` is surfaced to
     the task (via ``TaskCancel``) so it knows whether requesting a retry will
     be honoured. The rare error that escapes ``task_run`` — a failure to
@@ -606,34 +622,26 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
     the task rather than tearing down the run; it is re-raised only when
     ``debug_errors`` is set.
 
-    A task's own abort or retry request cancels its scope, which can also
-    interrupt the task's error-log write (it is not shielded, so an abort
-    can end a stuck error-log write) or the awaits after its final log
-    write, and leave no log. That attempt is reported with an errored
-    :class:`EvalLog` naming the cancel, so the dispatcher ends (or retries)
-    only this task instead of reading a missing log as a run-level
-    cancellation. Like the log of a failed write, it holds the attempt's
-    header, plan and stats but no results or samples (see
-    ``TaskLogger.header_log``). Its file keeps what the task wrote:
-    normally the ``started`` header of the interrupted write, or the final
-    log when the cancel landed after the write. (An abort that interrupts a
-    success-log write instead goes through the task's cancellation handler,
-    which writes the abort's error log under a shield, so a hung
-    success-log write is not ended by it.)
-
-    Once the task's scope has exited, the attempt's outcome is decided: a
-    later retry request (e.g. a cancel dialog answered while
-    ``task_complete`` runs) is ignored, so it cannot re-run a finished
-    task. Only an abort of an attempt that ended in error is still
-    recorded, so it stops the dispatcher from retrying that attempt.
+    A task's own abort or retry request always leaves a log, so the
+    dispatcher never reads it as a run-level cancellation. In ``task_run``
+    the request cannot interrupt a final log write: the error-log write is
+    shielded (see ``abort_bounded_shield``), and an interrupted success
+    write is followed by the cancel handler's shielded write of the abort's
+    error log. When the request interrupts ``task_run`` after the write, the
+    written log is returned; when it interrupts it before any final log
+    write (during ``log_start()``), the attempt is reported like a failed
+    log write.
 
     The run's ``TaskSource`` (if any) gets ``task_complete`` with the log of
-    each attempt that ``task_run`` finished or that the task's abort or
-    retry request interrupted (the errored log above), but not the log of
-    a failed write. It is called after the task's cancel scope has exited,
-    in the task's context, so it runs to completion whether or not the task
-    was cancelled. An exception it raises is not a task error: it ends the
-    run, as an exception from ``next_tasks()`` does.
+    each attempt that wrote one, but not for a failed write. It is called
+    after the task's cancel scope has exited, in the task's context, so a
+    task's abort does not interrupt it. Once that scope has exited the
+    attempt's outcome is decided: a later retry request (e.g. a cancel
+    dialog answered while ``task_complete`` runs) is ignored, so it cannot
+    re-run a finished task; only an abort of an attempt that ended in error
+    is still recorded, so it stops the dispatcher from retrying it. An
+    exception from ``task_complete`` is not a task error: it ends the run,
+    as an exception from ``next_tasks()`` does.
     """
     result: EvalLog | None = None
     cancel_type: CancelType = None
@@ -645,8 +653,7 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
         ):
             # a per-task group so a task cancelling itself doesn't cancel
             # siblings. A task's abort/retry request cancels task_scope, which
-            # encloses only task_run, so the TaskSource is notified after it
-            # (see run below) in the task's context but outside the cancel.
+            # encloses only task_run, so the TaskSource is notified outside it
             async with anyio.create_task_group() as task_tg:
                 task_scope = anyio.CancelScope()
                 task_cancel = TaskCancel(
@@ -659,15 +666,9 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                     tc: TaskCancel = task_cancel,
                 ) -> None:
                     nonlocal cancel_type
-                    # a dismissed cancel dialog passes None: no request, and
-                    # it must not clear one already made
-                    if type is None:
-                        return
                     # after task_run the attempt's outcome is decided: only an
                     # abort of an attempt that ended in error still applies
-                    # (it stops the dispatcher's retry). A retry would re-run
-                    # the finished task, and any other request would
-                    # misreport how it ended
+                    # (it stops the dispatcher's retry)
                     if scope_exited and not (
                         type == "abort"
                         and result is not None
@@ -687,6 +688,7 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                     # check the stamped cancel_type as they leave the queue),
                     # and the task runs to natural completion.
                     if type in ("abort", "retry"):
+                        bound_log_write(tc)
                         scope.cancel()
 
                 task_cancel.cancel_task = cancel_task
@@ -729,31 +731,26 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                                 f"Task '{options.task.name}' encountered an error "
                                 f"while starting or writing its log: {inner}"
                             )
-                            # location points at the log file the write was
-                            # destined for — it may not exist (a failed
-                            # log_start() header flush, or a retry's failed
-                            # checkpoint startup copy) or may hold a partial
-                            # log (a failed error-status log_finish())
-                            result = options.logger.header_log(
-                                eval_error(
-                                    inner, type(inner), inner, inner.__traceback__
-                                )
-                            )
+                            result = _unwritten_log(options, inner)
                             write_failed = True
                     scope_exited = True
+                    written_log = options.logger.pop_finished_log()
                     if abandoned or write_failed:
                         return
                     # task_scope swallows only its own cancellation (a
                     # run-level one propagates), so no log here means the
-                    # task's abort/retry request interrupted it
+                    # task's abort/retry request interrupted task_run
                     if result is None:
                         assert cancel_type in ("abort", "retry")
-                        cancel_ex = TerminateTaskError(
-                            f"Task cancelled by user ({cancel_type})"
-                        )
-                        result = options.logger.header_log(
-                            eval_error(cancel_ex, TerminateTaskError, cancel_ex, None)
-                        )
+                        result = written_log
+                        if result is None:
+                            result = _unwritten_log(
+                                options,
+                                TerminateTaskError(
+                                    f"Task cancelled by user ({cancel_type})"
+                                ),
+                            )
+                            return
                     try:
                         await notify_task_source(options, result)
                     except Exception as ex:
@@ -969,7 +966,12 @@ async def run_task_retry_attempts(
 
                     # decide whether to retry: on an error or an explicit retry
                     # request, but never on an abort or external (ctrl+c)
-                    # cancellation (which ends the whole run)
+                    # cancellation (which ends the whole run). Contract: an
+                    # attempt that ends with no log, or a `cancelled` log, was
+                    # ended by a run-level cancellation. A task's own abort or
+                    # retry request always leaves an `error` (or, landing after
+                    # a successful write, a `success`) log (see _run_task), so
+                    # it ends or retries only this task.
                     retry = False
                     if result is None or result.status == "cancelled":
                         cancelled = True
