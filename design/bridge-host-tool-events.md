@@ -183,10 +183,13 @@ The proposal is the call in the response handed to the agent, not
 necessarily one a `ModelEvent` logged. A response filter runs on a copy of
 the provider output after the `ModelEvent` is recorded, so a call id it
 changes, or a call it adds, appears on the host event and in
-`proposal_id` but not in that `ModelEvent`'s output; a request filter that
-returns a `ModelOutput` skips generation, so its calls have no `ModelEvent`
-at all. Consumers that pair by id (ACP, the viewer) then find no proposal
-for the event, which still carries the id the agent saw. Filters own that
+`proposal_id` but not in that `ModelEvent`'s output. A request filter that
+returns a `ModelOutput` skips only the bridge's default generation: an
+output the filter generated itself (`await model.generate(...)`) is logged
+as that call's `ModelEvent` and pairs by id as usual, while an output the
+filter fabricated has no `ModelEvent` at all. Where the logged output lacks
+the call, consumers that pair by id (ACP, the viewer) find no proposal for
+the event, which still carries the id the agent saw. Filters own that
 divergence; the bridge records what the agent ran.
 
 Pairing inherits the grant matching, so it is exact for every agent whose
@@ -229,9 +232,10 @@ types, so the key needs no type generation.
 A paired execution is recorded under the span its generation's `ModelEvent`
 was recorded in (when a sink placed it; see Capture), so the host `ToolEvent`
 sits at the same level as that event and as the later `ModelEvent` whose
-input carries its result. A response a request filter supplied has no
-`ModelEvent` and no captured span, so its executions follow the span current
-in the service task. The viewer's
+input carries its result. Capture wraps only the bridge's default
+generation, so a response a request filter supplied, whether generated
+inside the filter or fabricated, has no captured span, and its executions
+follow the span current in the service task. The viewer's
 per-level rules (below) and Messages-tab navigation depend on this; a host
 event one level above a sub-agent's proposal and result would pair with
 neither.
