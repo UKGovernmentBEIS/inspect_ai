@@ -28,7 +28,7 @@ The code is [`host_tool.py`](../src/inspect_ai/agent/_bridge/sandbox/host_tool.p
 [`sandbox/types.py`](../src/inspect_ai/agent/_bridge/sandbox/types.py)
 (`_Proposal`, `_ToolExecutionGrant`), and the span capture in
 `bridge_generate()` in [`util.py`](../src/inspect_ai/agent/_bridge/util.py)
-(`_SpanCapturingSink`).
+(`_SpanCapturingSink`, `_StartingSpanCapturingSink`).
 
 ## Scope
 
@@ -158,13 +158,13 @@ class _ToolExecutionGrant(NamedTuple):
 `consume_tool_execution_grant()` returns the matched grant (or `None`), and
 the event takes `proposal.take_id()`, the proposal's `call.view` and its
 model-facing function name. A call that denotes several indistinguishable
-bridged tools has a grant for each, so it can execute more than once. Only
-the first request to consume one of its grants takes the proposing id, since
+bridged tools has a grant for each, so it can run more than once; one of
+those events takes the proposing id and the rest get fresh ids, since
 `ToolEvent.id` is what ACP cards, the viewer's approval and navigation maps,
-`sample cancel-tool-call` and `InterruptEvent` key on; the id is taken before
-schema validation, so that first request may be a schema rejection, and a
-later execution then gets a fresh id. Every request that consumes a grant
-records the proposing id in `metadata.bridge.proposal_id`.
+`sample cancel-tool-call` and `InterruptEvent` key on. Every event that
+consumed a grant records the proposing id in `metadata.bridge.proposal_id`,
+which is the field to join on; which request takes the id is
+`_execute_granted()`'s order.
 
 A `_Proposal` is referenced only by its grants, so pairing state lives in the
 bounded grant store (1024 entries) and is dropped with the last of its grants,
@@ -182,18 +182,12 @@ proposal's grant and id, and the proposed call then runs with a fresh id and
 `grant: "exempt"`. Execution is unaffected; the user docs state this
 limitation (decision: Ransom, 2026-10-14).
 
-The proposal is the call in the response handed to the agent, not
-necessarily one a `ModelEvent` logged. A response filter runs on a copy of
-the provider output after the `ModelEvent` is recorded, so a call id it
-changes, or a call it adds, appears on the host event and in
-`proposal_id` but not in that `ModelEvent`'s output. A request filter that
-returns a `ModelOutput` skips only the bridge's default generation: an
-output the filter generated itself (`await model.generate(...)`) is logged
-as that call's `ModelEvent` and pairs by id as usual, while an output the
-filter fabricated has no `ModelEvent` at all. Where the logged output lacks
-the call, consumers that pair by id (ACP, the viewer) find no proposal for
-the event, which still carries the id the agent saw. Filters own that
-divergence; the bridge records what the agent ran.
+The proposal is the call in the response handed to the agent. When a
+bridge `filter` or `response_filter` edits or replaces that response, the
+logged `ModelEvent` may not hold the call, or there may be none; the host
+event still carries the id the agent saw, and consumers that pair by id find
+no proposal for it. Filters own that divergence; the bridge records what the
+agent ran. Which filter paths log a `ModelEvent` is `bridge_generate()`'s.
 
 Pairing inherits the grant matching, so it is exact for every agent whose
 proposals match at all. Two proposals in flight for the same tool with the
@@ -232,36 +226,28 @@ types, so the key needs no type generation.
 
 ## Placement
 
-A paired execution is recorded under the span captured from the bridge's
-default generation (when a sink placed its `ModelEvent`; see Capture), or
-else under the span current in the service task. In the ordinary case that
-is the span of the `ModelEvent` that proposed the call, so the host
+A paired execution is recorded under the span captured for its proposal
+(see Capture), or else under the span current in the service task. In the
+ordinary case that is the span of the `ModelEvent` that proposed the call,
+so the host
 `ToolEvent` sits at the same level as that event and as the later
 `ModelEvent` whose input carries its result. The viewer's per-level rules
 (below) and Messages-tab navigation depend on this; a host event one level
 above a sub-agent's proposal and result would pair with neither, and ACP
 filters a sub-agent's cards by the host event's span.
 
-Capture wraps only the bridge's default generation, so filters can break
-that adjacency. A response a request filter supplied, whether generated
-inside the filter or fabricated, has no captured span, and its executions
-follow the span current in the service task. A response filter runs after
-the default generation, so its output's calls keep the span captured from
-that generation, even when the filter generated replacement output whose own
-`ModelEvent` was recorded elsewhere (in the span current where the filter
-ran); the host event then sits at a different level from that replacement
-`ModelEvent`.
+Capture covers only the bridge's default generation, so when a filter
+supplies or replaces the response, the host event can sit at a different
+level from the `ModelEvent` that generated its calls (see
+`bridge_generate()`).
 
 - **Capture.** When the bridge has a `ModelEventSink`, `bridge_generate()`
-  wraps it per attempt in a private `_SpanCapturingSink` that forwards
-  `on_start` (when the sink has one), `on_pending` and `on_complete` and, after
-  `on_complete`, reads `event.span_id`. It keeps that span only when it
-  differs from the span current at `on_pending` and at `on_complete` (or is
-  the span the sink's `on_start` chose), and otherwise keeps `None`. The
-  comparison is made in the callbacks rather than at registration because a
-  checkpoint span can rotate while the calls await approval. Without a sink
-  nothing is wrapped (installing a sink disables partial-output publishing),
-  and the `ModelEvent` is in the current span.
+  wraps it around the default generation in `_SpanCapturingSink` (or
+  `_StartingSpanCapturingSink` for a sink with `on_start`), which captures
+  the span the sink recorded the `ModelEvent` in when the sink moved it to
+  another span, and `None` when it did not; the exact comparison is in those
+  classes. Without a sink nothing is wrapped (installing a sink disables
+  partial-output publishing), and the `ModelEvent` is in the current span.
 - **Apply.** `execute_host_tool()` runs the execution under
   `parent_span(proposal.span_id)` (`util/_span.py`), which sets the current
   span id for the block without emitting span events, so the event and its
@@ -291,9 +277,9 @@ ran); the host event then sits at a different level from that replacement
 | Unknown server or tool | fresh | `null` | `parsing` | the `ValueError` text |
 | Arguments over 100 levels deep | fresh | `null` | `parsing` (native depth message) | `ToolParsingError` |
 | No matching proposal, server requires one | fresh | `denied` | `permission` | `PermissionError` |
-| Proposed; arguments fail the schema | proposing (fresh when an earlier request already took a multi-target proposal's id) | `consumed` | `parsing` | `ToolParsingError` |
+| Proposed; arguments fail the schema | proposing, or fresh (see Pairing) | `consumed` | `parsing` | `ToolParsingError` |
 | Exempt, unproposed; arguments fail the schema | fresh | `exempt` | `parsing` | `ToolParsingError` |
-| Executed | proposing (fresh when an earlier request already took a multi-target proposal's id), or fresh on an exempt server | `consumed` / `exempt` | none | the result, truncated as native |
+| Executed | proposing, or fresh (see Pairing), or fresh on an exempt server | `consumed` / `exempt` | none | the result, truncated as native |
 | Tool raised an error a native call maps (`tool_call_error()`) | as executed | as executed | the mapped error; its result truncated | the original exception's text |
 | Tool raised `LimitExceededError` | as executed | as executed | `limit` | `ToolError` with the mapped message |
 | Decisive exception is a termination (bare or a group leaf), or unmapped with a termination in its history | as executed | as executed | `failed` | `Terminating: ...`; the sample ends |
@@ -301,7 +287,7 @@ ran); the host event then sits at a different level from that replacement
 | Tool raised an unexpected exception | as executed | as executed | `failed` | the original text; the sample fails |
 | Operator cancel | as executed | as executed | `timeout` | `ToolError("Command timed out before completing.")` |
 | Outer cancellation (bridge teardown, sample limit) that escapes the tool | as executed | as executed | `cancelled` | nothing (the request is abandoned) |
-| Outer cancellation the tool catches | as executed | as executed | what the tool then does: a return, an error or an unexpected exception, as above | the reply, if teardown lets it go out |
+| Outer cancellation the tool catches | as executed | as executed | as for what the tool then returns or raises | the reply, if teardown lets it go out |
 
 The `permission` type is the one the native path gives a `PermissionError`
 from a tool, and it renders in the viewer, which hides `approval` errors on
@@ -356,29 +342,20 @@ Cancellation:
 - **Operator cancel.** `event._set_cancel_fn(scope.cancel)` makes the pending
   event cancellable from the TUI, `sample cancel-tool-call` and ACP's
   `inspect/cancel_tool_call`. A cancelled call is recorded as the native
-  `timeout` error and raises `ToolError` with the native message, even if the
-  tool absorbed the cancellation and returned; an error raised while it
-  unwinds is superseded by the timeout.
+  `timeout` error and the agent receives `ToolError` with the native
+  message, whatever the tool did after the cancel.
 - **Outer cancellation** (bridge teardown, a sample limit) that escapes the
   tool is recorded as `cancelled` ("Host tool call was cancelled before
-  completing.") and propagates. Finalising is synchronous, so it needs no
-  shielding. Only the operator's per-call scope takes precedence over what
-  the tool does: a tool that catches an outer cancellation is recorded by
-  what it does next, as if uncancelled. A return records success, a mapped
-  error its mapped error, and an unexpected exception `failed=True` with
-  `bridge.request_fail()`. A recorded success does not mean the agent
-  received the reply, since the teardown may abandon the request.
+  completing.") and propagates; the request gets no reply. A tool that
+  catches it is recorded by what it then does. Only the operator's cancel
+  overrides the tool's outcome (`_execute_granted()`).
 - **ACP turn cancel.** The event is registered with the execution observer
   (`track_tool_call`), so `cancel_current_turn` marks it cancelled and failed
-  and names it in the `InterruptEvent`. It does not fire the per-call scope,
-  but when the session is bound to an agent channel it also interrupts that
-  channel, which cancels the channel's active `turn_scope()`; if that scope
-  encloses the bridge, the host tool sees an outer cancellation and unwinds.
-  Otherwise (no bound channel, or a scope that does not enclose the bridge)
-  the tool keeps running. Either way finalisation records whatever result was
-  produced (empty when the tool unwound) and the timing, while
-  `_set_result()` keeps the cancel marker. Hooks and ACP see two non-pending
-  updates, as for a native tool.
+  and names it in the `InterruptEvent`; `_set_result()` keeps that marker
+  when the call later finalises. It does not fire the per-call scope: the
+  tool runs on unless ACP's interrupt of a bound agent channel cancels a turn
+  scope that encloses the bridge. Hooks and ACP see two non-pending updates,
+  as for a native tool.
 
 Grant consumption mutates the store on the event-loop thread with no `await`
 between match and delete, so concurrent requests need no lock.
@@ -417,9 +394,9 @@ finalised. `agent` is `None`; `agent_span_id` is the tool's, as natively.
 - **ACP.** `_map_tool_event()` pops the call from `_BridgeToolState.pending`,
   so the card synthesized for the proposal is updated with the real result
   and is not settled again from the agent's `ChatMessageTool`; the update
-  also marks the card cancelable. A later execution of a multi-target
-  proposal, and an unpaired call on an exempt server, carry fresh ids and map
-  as their own cards. Replay synthesizes no card for an id that has a real
+  also marks the card cancelable. An event of a multi-target proposal that
+  did not take the proposing id, and an unpaired call on an exempt server,
+  carry fresh ids and map as their own cards. Replay synthesizes no card for an id that has a real
   `ToolEvent`. The sub-agent filter places an event by its `span_id` as well
   as by span order, so a host call recorded in a sub-agent span that has
   already closed stays filtered, live and on replay.
@@ -490,10 +467,10 @@ finalised. `agent` is `None`; `agent_span_id` is the tool's, as natively.
 ## Compatibility
 
 - **Logs.** No schema change. Bridged samples that call host tools have
-  `tool` events and `tool` spans. Images in any tool result are stored as
-  attachments (`log_images=True`) or removed (`log_images=False`); an older
-  Inspect reading such a log shows the `attachment://` reference in the
-  result.
+  `tool` events and `tool` spans. Data-URI images in any tool result are
+  stored as attachments (`log_images=True`) or removed (`log_images=False`);
+  URL and file-path image sources stay inline. An older Inspect reading such
+  a log shows the `attachment://` reference in the result.
 - **Agent-facing behaviour.** Compared with a bridge that did not record
   events: arguments over 100 levels deep are rejected with the native depth
   error, text results are truncated at the native limit, and a limit raised
