@@ -1357,7 +1357,9 @@ take a metric, `dict[int, Metric]` (its keys become strings),
 with other values, and dictionary options on unannotated or
 unresolvable parameters. The message says dictionary options are not
 supported in merges and gives the registered-metric fix. The referenced
-metrics are checked by `_check_embedded`. Built-in
+metrics are checked by `_check_embedded`, which walks a metric's option
+map and an embedded metric's `params` by argument value, so arguments
+named `type`, `name` and `params` are never read as an encoded metric. Built-in
 `frequency(categories=[...])` and MLRC's `list[str]` options merge;
 ANIMA's `dimension_normalized_avg(dims_by_name: dict[str, AnimaDimension])`
 is refused until wrapped in a registered metric.
