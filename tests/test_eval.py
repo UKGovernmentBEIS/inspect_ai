@@ -1615,3 +1615,28 @@ def test_retry_resumes_from_own_checkpoint_or_discards_it(
     assert retried.status == "success"
     assert seen[-1] is None
     assert not (Path(eval_checkpoints_dir(retried.location, None)) / "s__1").exists()
+
+
+@pytest.mark.parametrize("max_tasks", [1, 2])
+def test_debug_errors_raises_a_task_error_whatever_max_tasks(
+    tmp_path: Path, max_tasks: int
+) -> None:
+    @solver
+    def failing() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            raise RuntimeError("debug this")
+
+        return solve
+
+    with pytest.raises(RuntimeError, match="debug this"):
+        eval(
+            [
+                Task(name="ok", dataset=[Sample(input="x")]),
+                Task(name="fails", dataset=[Sample(input="x")], solver=failing()),
+            ],
+            model="mockllm/model",
+            max_tasks=max_tasks,
+            debug_errors=True,
+            display="none",
+            log_dir=str(tmp_path),
+        )

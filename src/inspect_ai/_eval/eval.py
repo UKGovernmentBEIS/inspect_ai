@@ -1106,10 +1106,7 @@ async def _eval_async_inner(
                         metadata=metadata,
                         run_samples=run_samples,
                         score=score,
-                        # passed only at parallel == 1 or for a TaskSource run
-                        # (a multi-task run never set it — preserved asymmetry)
-                        debug_errors=debug_errors is True
-                        and (parallel == 1 or task_source is not None),
+                        debug_errors=debug_errors is True,
                         task_retry_attempts=task_retry_attempts,
                         task_source=task_source,
                         **kwargs,
@@ -1146,10 +1143,7 @@ async def _eval_async_inner(
             # cleanup sample buffers if required
             await cleanup_sample_buffers(log_dir)
 
-            try:
-                await emit_run_end(eval_set_id, run_id, logs)
-            except UnboundLocalError:
-                await emit_run_end(eval_set_id, run_id, EvalLogs([]))
+            await emit_run_end(eval_set_id, run_id, logs)
 
     except BaseException as e:
         # a second Ctrl-C while finishing a cancelled trio run does not start
