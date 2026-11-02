@@ -9,7 +9,7 @@ from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai._util.content import Content, ContentText
 from inspect_ai.approval._apply import approval as approval_context
 from inspect_ai.approval._policy import ApprovalPolicy
-from inspect_ai.model._call_tools import execute_tools
+from inspect_ai.model._call_tools import execute_tools, watch_handoffs
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -307,12 +307,16 @@ def react(
                             # resolve tool calls (if any)
                             if state.output.message.tool_calls:
                                 # call tool functions
-                                messages, output = await execute_tools(
-                                    state.messages,
-                                    tools,
-                                    approval=approval,
-                                    review=review,
-                                )
+                                with watch_handoffs() as handoffs:
+                                    messages, output = await execute_tools(
+                                        state.messages,
+                                        tools,
+                                        approval=approval,
+                                        review=review,
+                                    )
+                                # a turn that handed off is not asked about its
+                                # submission, which may not be its own
+                                handed_off = handoffs.called
                                 state.messages.extend(messages)
                                 if output:
                                     state.output = output
@@ -343,7 +347,9 @@ def react(
                                     # with fresh attempts if the gate says so)
                                     attempt_count += 1
                                     if attempt_count >= attempts.attempts:
-                                        if await after_answer(ch, state):
+                                        if not handed_off and await after_answer(
+                                            ch, state
+                                        ):
                                             attempt_count = 0
                                             continue
                                         break
@@ -354,7 +360,9 @@ def react(
                                         attempts.score_value(answer_scores[0].value)
                                         == 1.0
                                     ):
-                                        if await after_answer(ch, state):
+                                        if not handed_off and await after_answer(
+                                            ch, state
+                                        ):
                                             attempt_count = 0
                                             continue
                                         break
@@ -536,6 +544,9 @@ def react_no_submit(
                                 model, state, tools, retry_refusals, compact, approval
                             )
                             _absorb(state, generated)
+                            # a handoff can replace the output with the child's,
+                            # so whether the turn replied is read before tools run
+                            replied = not state.output.message.tool_calls
 
                             # check for context window overflow
                             if state.output.stop_reason == "model_length":
@@ -560,10 +571,8 @@ def react_no_submit(
                             else:
                                 consecutive_content_filter = 0
 
-                            # resolve tool calls (if any); a handoff can replace
-                            # the output, so note whether this turn called tools
-                            called_tools = bool(state.output.message.tool_calls)
-                            if called_tools:
+                            # resolve tool calls (if any)
+                            if state.output.message.tool_calls:
                                 # call tool functions
                                 messages, output = await execute_tools(
                                     state.messages,
@@ -594,11 +603,11 @@ def react_no_submit(
                             state.messages = do_continue.messages
                             state.output = do_continue.output
                         else:
-                            if not called_tools and await after_answer(ch, state):
+                            if replied and await after_answer(ch, state):
                                 continue
                             break
                     elif not state.output.message.tool_calls:
-                        if await after_answer(ch, state):
+                        if replied and await after_answer(ch, state):
                             continue
                         break
 
