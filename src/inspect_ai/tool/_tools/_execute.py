@@ -2,6 +2,7 @@ from inspect_ai.util import sandbox as sandbox_env
 from inspect_ai.util._sandbox.identity import (
     sandbox_identity_cwd,
     sandbox_identity_user,
+    sandbox_identity_vars,
 )
 
 from .._tool import Tool, tool
@@ -112,6 +113,7 @@ def bash(
             cwd=sandbox_identity_cwd(sbox, None),
             timeout=timeout,
             user=sandbox_identity_user(sbox, user, strict=True),
+            env=await sandbox_identity_vars(sbox),
         )
         # return output (including stderr if any)
         output = ""
@@ -176,6 +178,7 @@ def python(
             cwd=sandbox_identity_cwd(sbox, None),
             timeout=timeout,
             user=sandbox_identity_user(sbox, user, strict=True),
+            env=await sandbox_identity_vars(sbox),
         )
         # return output (including stderr if any)
         output = ""

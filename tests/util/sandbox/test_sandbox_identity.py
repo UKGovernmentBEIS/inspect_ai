@@ -1,5 +1,7 @@
 """The sandbox identity scope: resolution, default sandbox and injection target."""
 
+import os
+import subprocess
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from typing import TypeVar, overload
@@ -13,6 +15,7 @@ from inspect_ai.util import (
     sandbox,
     sandbox_default,
 )
+from inspect_ai.util._sandbox._privileged import pinned_shell_command
 from inspect_ai.util._sandbox.context import (
     SandboxInjectable,
     sandbox_default_context_var,
@@ -25,6 +28,7 @@ from inspect_ai.util._sandbox.identity import (
     sandbox_identity_active,
     sandbox_identity_cwd,
     sandbox_identity_user,
+    sandbox_identity_vars,
 )
 from inspect_ai.util._subprocess import ExecResult
 
@@ -196,6 +200,41 @@ async def test_exec_is_unchanged_inside_a_scope(default: CannedSandbox) -> None:
     with _environments(default=default), sandbox_identity("w-1"):
         await sandbox().exec(["true"])
     assert default.exec_calls == [(["true"], None)]
+
+
+async def test_vars_have_no_home_without_a_passwd_entry(
+    default: CannedSandbox,
+) -> None:
+    # `default` prints nothing for the lookup, as for a user with no entry
+    with _environments(default=default), sandbox_identity("w-1"):
+        assert await sandbox_identity_vars(default) is None
+        assert await sandbox_identity_vars(default) is None
+    [(lookup, user)] = default.exec_calls
+    assert (lookup[-1], user) == ("w-1", None)
+
+
+async def test_vars_raise_when_the_home_lookup_fails() -> None:
+    default = CannedSandbox.returning(ExecResult(False, 126, "", "no shell"))
+    with _environments(default=default), sandbox_identity("w-1"):
+        with pytest.raises(RuntimeError, match="'w-1': no shell"):
+            await sandbox_identity_vars(default)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires a POSIX shell")
+def test_home_lookup_script_reads_the_passwd_database() -> None:
+    import pwd
+
+    from inspect_ai.util._sandbox.identity import _PASSWD_HOME_SCRIPT
+
+    def lookup(user: str) -> str:
+        argv = pinned_shell_command(_PASSWD_HOME_SCRIPT, user)
+        result = subprocess.run(argv, capture_output=True, text=True, check=True)
+        return result.stdout
+
+    root_home = pwd.getpwuid(0).pw_dir
+    assert lookup(pwd.getpwuid(0).pw_name) == f"{root_home}\n"
+    assert lookup("0") == f"{root_home}\n"
+    assert lookup("no-such-user-for-inspect") == ""
 
 
 def _injectable(installed: set[SandboxEnvironment]) -> SandboxInjectable:

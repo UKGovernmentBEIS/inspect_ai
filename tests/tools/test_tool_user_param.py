@@ -158,6 +158,10 @@ async def test_exec_tools_run_as_the_scope_user(
     factory: Callable[..., Tool], args: dict[str, Any]
 ) -> None:
     default, workspace = _RecordingSandbox(), _RecordingSandbox()
+    # the home directory lookup prints the passwd home
+    workspace.policy = lambda cmd, _user: ExecResult(
+        True, 0, "/srv/w-1\n" if cmd[0] == "/bin/sh" else "out\n", ""
+    )
     with (
         _environments(default=default, workspace=workspace),
         sandbox_identity("w-1", cwd="/home/w-1", sandbox="workspace"),
@@ -165,10 +169,24 @@ async def test_exec_tools_run_as_the_scope_user(
         await factory()(**args)
         await factory(user="w-1")(**args)
     assert default.calls == []
-    assert [(user, cwd) for _cmd, user, cwd in workspace.calls] == [
+    lookup, *runs = workspace.calls
+    assert (lookup[0][-1], lookup[1]) == ("w-1", None)
+    assert [(user, cwd) for _cmd, user, cwd in runs] == [
         ("w-1", "/home/w-1"),
         ("w-1", "/home/w-1"),
     ]
+    assert workspace.envs[1:] == [{"HOME": "/srv/w-1"}, {"HOME": "/srv/w-1"}]
+
+
+@pytest.mark.parametrize("factory, args", _EXEC_TOOLS)
+async def test_exec_tools_set_no_env_outside_a_scope(
+    factory: Callable[..., Tool], args: dict[str, Any]
+) -> None:
+    default = _RecordingSandbox()
+    with _environments(default=default):
+        await factory(user="w-1")(**args)
+    assert [user for _cmd, user, _cwd in default.calls] == ["w-1"]
+    assert default.envs == [None]
 
 
 @pytest.mark.parametrize("factory, args", _EXEC_TOOLS)
@@ -194,6 +212,7 @@ async def test_exec_tools_keep_an_explicit_other_sandbox(
         await factory(user="root", sandbox="comparator")(**args)
     assert default.calls == []
     assert [(user, cwd) for _cmd, user, cwd in comparator.calls] == [("root", None)]
+    assert comparator.envs == [None]
 
 
 async def test_text_editor_runs_as_the_scope_user(

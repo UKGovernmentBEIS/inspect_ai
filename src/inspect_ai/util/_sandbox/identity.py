@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Iterator, NamedTuple
 
+from ._privileged import privileged_shell
 from .context import (
     default_sandbox_environment,
     raise_no_sandbox,
@@ -42,6 +43,14 @@ def sandbox_identity(
     scope's user and cwd when omitted and keeps explicit values. Other
     sandbox-tool launches inherit the scope's user when omitted; they keep
     their existing working-directory behavior.
+
+    The tools above set `HOME` to the home directory of `user` in the sandbox's
+    passwd database, so a `HOME` the image or container sets for its default
+    user does not carry over. `bash()`, `python()`, `grep()`, `list_files()` and
+    `read_file()` look the home directory up once per block; `bash_session()`,
+    `text_editor()` and `exec_remote()` get it from the sandbox tools when they
+    switch to `user`. If the sandbox has no passwd entry for `user`, the first
+    five tools keep the `HOME` the sandbox gives them.
 
     Inside the block `sandbox` is also the default sandbox (as with
     `sandbox_default()`), and tools that find their sandbox by injection use it.
@@ -90,7 +99,9 @@ def sandbox_identity(
             f" Available environments: {', '.join(environments)}."
         )
 
-    token = _sandbox_identity.set(SandboxIdentityScope(user, cwd, name, environment))
+    token = _sandbox_identity.set(
+        SandboxIdentityScope(user, cwd, name, environment, _ScopeHome())
+    )
     try:
         with sandbox_default(name):
             yield
@@ -147,6 +158,58 @@ def sandbox_identity_cwd(env: SandboxEnvironment, cwd: str | None) -> str | None
     return identity.cwd if identity is not None else None
 
 
+async def sandbox_identity_vars(env: SandboxEnvironment) -> dict[str, str] | None:
+    """Environment variables for a command the scope's user runs in `env`.
+
+    None outside a `sandbox_identity()` scope for `env`. Inside one, `HOME` set
+    to the user's home directory from the sandbox's passwd database, or None if
+    it has no entry for the user. The lookup runs once per scope and is cached;
+    concurrent first calls may each run it, which is harmless.
+
+    Args:
+       env: Sandbox environment the command runs in.
+
+    Raises:
+       RuntimeError: If the lookup command fails.
+    """
+    identity = sandbox_identity_scope(env)
+    if identity is None:
+        return None
+    if not identity.home.resolved:
+        identity.home.value = await _passwd_home(env, identity.user)
+        identity.home.resolved = True
+    return {"HOME": identity.home.value} if identity.home.value else None
+
+
+# Prints the home directory of the user named (or numbered) $1, or nothing when
+# the passwd database has no entry for it. Uses getent so NSS sources count, and
+# reads /etc/passwd on images without getent.
+_PASSWD_HOME_SCRIPT = """
+if command -v getent >/dev/null 2>&1; then
+    getent passwd "$1" | cut -d: -f6
+    exit 0
+fi
+[ -r /etc/passwd ] || exit 0
+while IFS=: read -r name _ uid _ _ home _; do
+    if [ "$name" = "$1" ] || [ "$uid" = "$1" ]; then
+        printf '%s\\n' "$home"
+        exit 0
+    fi
+done < /etc/passwd
+"""
+
+
+async def _passwd_home(env: SandboxEnvironment, user: str) -> str | None:
+    """The home directory of `user` in the passwd database of `env`, if any."""
+    result = await privileged_shell(env, _PASSWD_HOME_SCRIPT, user, user=None)
+    if not result.success:
+        raise RuntimeError(
+            f"Could not look up the home directory of sandbox user '{user}': "
+            f"{result.stderr.strip() or f'exit status {result.returncode}'}"
+        )
+    return result.stdout.strip() or None
+
+
 def sandbox_identity_active(env: SandboxEnvironment | None = None) -> bool:
     """Whether a `sandbox_identity()` scope is active.
 
@@ -195,6 +258,14 @@ def check_sandbox_identity_supported(env: SandboxEnvironment, tool: str) -> None
         )
 
 
+class _ScopeHome:
+    """Cache for the home directory of a scope's user."""
+
+    def __init__(self) -> None:
+        self.resolved = False
+        self.value: str | None = None
+
+
 class SandboxIdentityScope(NamedTuple):
     """An active `sandbox_identity()` scope."""
 
@@ -203,6 +274,8 @@ class SandboxIdentityScope(NamedTuple):
     sandbox: str
     """Name of the sandbox environment."""
     environment: SandboxEnvironment
+    home: _ScopeHome
+    """The user's home directory, looked up on first use."""
 
 
 def sandbox_identity_scope(env: SandboxEnvironment) -> SandboxIdentityScope | None:
