@@ -1332,7 +1332,9 @@ class SandboxManager:
     entry, with the run's provider state so far set. The ContextVars it sets
     are added to the run's provider state, which each task starts with (the
     latest value of each wins), and its config's ``task_cleanup`` runs with
-    the state as it was right after it.
+    the state as it was right after it. Provider state is therefore per run,
+    not per config: a provider resolves config-specific values from the
+    config ``sample_init`` gets.
 
     The manager also binds the run's sandbox lifecycle state (the registries
     a provider's ``task_cleanup`` reads) on entry, before any task of the run

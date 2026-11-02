@@ -141,6 +141,8 @@ The `task_cleanup()` has a number of important functions:
 
 To implement `task_cleanup()` properly, you'll likely need to track running environments using a per-coroutine `ContextVar`. The `DockerSandboxEnvironment` provides an example of this. Note that the `cleanup` argument passed to `task_cleanup()` indicates whether to actually clean up (it would be `False` if `--no-sandbox-cleanup` was passed to `inspect eval`). In this case you might want to print a list of the resources that were not cleaned up and provide directions on how to clean them up manually.
 
+ContextVars set in `task_init()` are shared by the whole eval run, not kept per sandbox configuration: when several configurations are set up, the value set by the latest `task_init()` is the one later tasks and samples see. Use them for per-run state (e.g. the list of running sandboxes, an API client). Resolve anything that depends on the configuration from the `config` passed to `sample_init()` rather than storing it in a ContextVar.
+
 The `cli_cleanup()` function is a global cleanup handler that should be able to do the following:
 
 1.  Cleanup *all* environments created by this provider (corresponds to e.g. `inspect sandbox cleanup docker` at the CLI).

@@ -638,3 +638,129 @@ async def test_sample_source_state_stays_with_its_task(provider: str) -> None:
     )
     _ok(logs)
     assert sample_state(provider, "later/1") == init_of(provider, "A")
+
+
+# --- E2B-style kill list: every started sandbox is killed ----------------------
+
+_e2b_running: ContextVar[list[str]] = ContextVar("e2b_fake_running")
+_e2b_ids = itertools.count(1)
+E2B_STARTED: list[str] = []
+E2B_KILLED: list[str] = []
+
+
+@sandboxenv(name="e2b_fake")
+class E2BFake(_FakeBase):
+    """E2B's pattern for tracking running sandboxes.
+
+    ``task_init`` sets a fresh list of running sandbox ids, ``sample_init``
+    appends to the list it sees, and ``task_cleanup`` kills every id in its
+    list and clears it.
+    """
+
+    provider = "e2b_fake"
+
+    @override
+    @classmethod
+    async def task_init(
+        cls, task_name: str, config: SandboxEnvironmentConfigType | None
+    ) -> None:
+        _e2b_running.set([])
+
+    @override
+    @classmethod
+    async def sample_init(
+        cls,
+        task_name: str,
+        config: SandboxEnvironmentConfigType | None,
+        metadata: dict[str, str],
+    ) -> dict[str, SandboxEnvironment]:
+        sandbox_id = f"{_name(config)}-{next(_e2b_ids)}"
+        _e2b_running.get().append(sandbox_id)
+        E2B_STARTED.append(sandbox_id)
+        return {"default": cls()}
+
+    @override
+    @classmethod
+    async def sample_cleanup(
+        cls,
+        task_name: str,
+        config: SandboxEnvironmentConfigType | None,
+        environments: dict[str, SandboxEnvironment],
+        interrupted: bool,
+    ) -> None:
+        pass
+
+    @override
+    @classmethod
+    async def task_cleanup(
+        cls, task_name: str, config: SandboxEnvironmentConfigType | None, cleanup: bool
+    ) -> None:
+        running = _e2b_running.get()
+        E2B_KILLED.extend(running)
+        running.clear()
+
+
+@solver
+def add_e2b_child() -> Solver:
+    # sample 1 adds `child_c` (config C) and holds until it has a sample
+    # running, so the parent's 2nd sample starts after C's task_init
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        if state.sample_id == 1:
+            enqueue_task([fake_task("child_c", "e2b_fake", "C")], start="when_free")
+            with anyio.fail_after(30):
+                while not any(i.startswith("C-") for i in E2B_STARTED):
+                    await anyio.sleep(0.01)
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize("path", ["seed_two_configs", "enqueue_task", "sample_source"])
+async def test_e2b_style_provider_kills_every_sandbox(path: str) -> None:
+    """Every sandbox an E2B-style provider starts is killed at the end of the run.
+
+    The run's provider state is shared across configs, so every sandbox id a
+    sample registers is in some config's list, which its ``task_cleanup``
+    kills.
+    """
+
+    class _Src(SampleSource):
+        def __init__(self) -> None:
+            self._produced = False
+
+        async def next_samples(self) -> list[Sample] | None:
+            if not self._produced:
+                self._produced = True
+                return [Sample(input="added", target="ok", id=1, metadata={"n": "1"})]
+            return None
+
+    E2B_STARTED.clear()
+    E2B_KILLED.clear()
+    tasks: list[Task]
+    if path == "seed_two_configs":
+        tasks = [
+            fake_task("seed_a", "e2b_fake", "A", samples=2),
+            fake_task("seed_b", "e2b_fake", "B", samples=2),
+        ]
+    elif path == "enqueue_task":
+        tasks = [fake_task("parent", "e2b_fake", "A", add_e2b_child(), samples=2)]
+    else:
+        tasks = [
+            fake_task("seed_a", "e2b_fake", "A"),
+            Task(
+                name="sourced",
+                dataset=_Src(),
+                solver=noop(),
+                sandbox=SandboxEnvironmentSpec("e2b_fake", FakeConfig(name="S")),
+            ),
+        ]
+    logs = await eval_async(tasks, model="mockllm/model", max_tasks=2, max_samples=1)
+    _ok(logs)
+
+    expected_configs = {
+        "seed_two_configs": {"A", "B"},
+        "enqueue_task": {"A", "C"},
+        "sample_source": {"A", "S"},
+    }[path]
+    assert {i.split("-")[0] for i in E2B_STARTED} == expected_configs
+    assert sorted(E2B_KILLED) == sorted(E2B_STARTED)
