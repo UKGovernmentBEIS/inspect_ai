@@ -964,11 +964,12 @@ class TaskDispatcher:
         shared with an earlier record) holds them at once: that starts
         nothing new, and it can start as soon as they are done.
 
-        The record to start is chosen by :func:`pick_balanced` from the
-        unpaused records that can start, ahead of the first one not prepared
-        yet: preparing runs in queue order, so waiting for it keeps the start
-        order deterministic when every setup is done (a retry keeps its
-        setups and would otherwise overtake records added before it).
+        Records behind the first one not prepared yet request no new setups
+        and do not start: preparing runs in queue order, so waiting for it
+        keeps setups and starts in queue order (a retry keeps its sandbox
+        configs and would otherwise overtake records added before it). The
+        record to start is chosen by :func:`pick_balanced` from the unpaused
+        records ahead of that one that can start.
         """
         limit = effective_max_tasks(self.parallel)
         free = len(self.queue.running) < limit
@@ -982,7 +983,10 @@ class TaskDispatcher:
             if (
                 record.setups is None
                 and record.setup_keys is not None
-                and (window >= 0 or self.setups.has_jobs(record.setup_keys))
+                and (
+                    (window >= 0 and not blocked)
+                    or self.setups.has_jobs(record.setup_keys)
+                )
             ):
                 record.setups = self.setups.request(record.setup_keys)
             blocked = blocked or not record.prepared

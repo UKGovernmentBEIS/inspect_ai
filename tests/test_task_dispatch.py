@@ -780,7 +780,7 @@ async def test_retry_follows_tasks_its_failed_attempt_added(
     run_task = harness.run_task
 
     async def adding_run_task(
-        options: TaskRunOptions, can_retry: bool = False
+        options: TaskRunOptions, can_retry: bool = False, **kwargs: Any
     ) -> TaskRunResult:
         result = await run_task(options, can_retry)
         if result.log is not None and result.log.status == "error":
@@ -1031,6 +1031,58 @@ async def test_failed_setup_ends_its_waiters_then_their_retry_sets_up_again(
         ("a@m1", "success"),
         ("b@m1", "success"),
         ("c@m1", "success"),
+    ]
+
+
+async def test_retry_sets_up_after_the_task_added_ahead_of_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # a's setup fails and, as it ends, a adds n, so a's retry is queued behind
+    # n; n's configs are still being resolved, and its setup still runs before
+    # the retry sets up again
+    m1 = get_model("mockllm/m1")
+    harness = Harness([m1], parallel=2, retries=1)
+    _install(monkeypatch, harness)
+    harness.keys["a@m1"] = ["X"]
+    harness.keys["n@m1"] = ["Y"]
+    harness.resolving["n@m1"] = anyio.Event()
+    run_task = harness.run_task
+
+    async def adding_run_task(
+        options: TaskRunOptions, can_retry: bool = False, **kwargs: Any
+    ) -> TaskRunResult:
+        result = await run_task(options, can_retry)
+        if result.log is not None and result.log.status == "error":
+            harness.queue.put([_task("n")], start="when_free")
+        return result
+
+    monkeypatch.setattr("inspect_ai._eval.run._run_task", adding_run_task)
+
+    async def drive() -> None:
+        await _wait_started(harness, "s@m1")
+        harness.queue.put([_task("a")], start="when_free")
+        await harness.setup_began_event("X").wait()
+        harness.finish_setup("X", RuntimeError("pull failed"))
+        await _wait_until(lambda: len(harness.queue.queued) == 2)
+        for key in ("X", "Y"):
+            harness.finish_setup(key)
+        for label in ("n@m1", "a@m1"):
+            harness.finish[label].set()
+        for _ in range(10):
+            await anyio.sleep(0)
+        harness.resolving["n@m1"].set()
+        await _wait_until(
+            lambda: {"end n@m1 success", "end a@m1 success"} <= set(harness.events)
+        )
+        harness.finish["s@m1"].set()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(drive)
+        await harness.run(_resolve(["s"], [m1]))
+    assert [e.split()[1] for e in harness.events if e.startswith("setup ")][::2] == [
+        "X",
+        "Y",
+        "X",
     ]
 
 
