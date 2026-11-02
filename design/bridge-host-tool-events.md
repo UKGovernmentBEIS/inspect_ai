@@ -358,10 +358,15 @@ Cancellation:
   received the reply, since the teardown may abandon the request.
 - **ACP turn cancel.** The event is registered with the execution observer
   (`track_tool_call`), so `cancel_current_turn` marks it cancelled and failed
-  and names it in the `InterruptEvent`. It does not fire the per-call scope:
-  the tool keeps running, and its later finalisation records the result and
-  timing while `_set_result()` keeps the cancel marker. Hooks and ACP see two
-  non-pending updates, as for a native tool.
+  and names it in the `InterruptEvent`. It does not fire the per-call scope,
+  but when the session is bound to an agent channel it also interrupts that
+  channel, which cancels the channel's active `turn_scope()`; if that scope
+  encloses the bridge, the host tool sees an outer cancellation and unwinds.
+  Otherwise (no bound channel, or a scope that does not enclose the bridge)
+  the tool keeps running. Either way finalisation records whatever result was
+  produced (empty when the tool unwound) and the timing, while
+  `_set_result()` keeps the cancel marker. Hooks and ACP see two non-pending
+  updates, as for a native tool.
 
 Grant consumption mutates the store on the event-loop thread with no `await`
 between match and delete, so concurrent requests need no lock.
