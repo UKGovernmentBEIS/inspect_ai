@@ -1199,6 +1199,41 @@ async def test_finished_added_task_is_released_while_the_run_continues(
         await harness.run(_resolve(["a"], [m1]))
 
 
+async def test_task_cancelled_while_its_configs_resolve_is_released(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # the resolution fails after the record ended: its failure, whose
+    # traceback holds the task, is not stored on the record
+    m1 = get_model("mockllm/m1")
+    harness = Harness([m1], parallel=2)
+    _install(monkeypatch, harness)
+    harness.resolving["b@m1"] = anyio.Event()
+    harness.resolve_errors["b@m1"] = ValueError("bad compose file")
+    refs: list[weakref.ref[Task]] = []
+    records: list[TaskRecord] = []
+
+    async def drive() -> None:
+        await _wait_started(harness, "a@m1")
+        [b] = harness.queue.put([_task("b")], start="when_free")
+        refs.append(weakref.ref(cast(ConfiguredTask, b.configured).resolved.task))
+        records.append(b)
+        del b
+        await _wait_until(lambda: "resolve b@m1" in harness.events)
+        abandon_task_retry(records[0].task_id)
+        await _wait_until(lambda: records[0].ended)
+        harness.resolving["b@m1"].set()
+        await _wait_until(lambda: "b@m1" not in harness.resolve_errors)
+        gc.collect()
+        assert refs[0]() is None
+        harness.finish["a@m1"].set()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(drive)
+        logs = await harness.run(_resolve(["a"], [m1]))
+    assert [(log.eval.task, log.status) for log in logs] == [("a@m1", "success")]
+    assert not records[0].prepared
+
+
 # ------------------------------------------------------------- cancellation
 
 

@@ -926,21 +926,27 @@ class TaskDispatcher:
     async def prepare(self, record: TaskRecord) -> None:
         """Resolve a record's sandbox configs.
 
-        A failure to resolve them ends the record's next attempt.
+        A failure to resolve them ends the record's next attempt. A record
+        that ended meanwhile (an operator cancelled it) keeps nothing: a
+        failure's traceback would keep its task alive.
         """
         assert record.configured is not None
+        keys: frozenset[Any] | None = None
+        failure: SetupFailure | None = None
         try:
-            record.setup_keys = await self.startup.prepare(record.configured)
+            keys = await self.startup.prepare(record.configured)
         except Exception as ex:
             if self.debug_errors:
                 raise
-            record.setup_failure = SetupFailure.of(ex)
+            failure = SetupFailure.of(ex)
         except anyio.get_cancelled_exc_class() as ex:
             if run_cancelled():
                 raise
-            record.setup_failure = SetupFailure.of(
+            failure = SetupFailure.of(
                 RuntimeError(f"Sandbox resolution raised {ex!r}.")
             )
+        if not record.ended:
+            record.setup_keys, record.setup_failure = keys, failure
 
     def pick(self) -> TaskRecord | None:
         """Request the look-ahead window's setups and pick the next record to start.
