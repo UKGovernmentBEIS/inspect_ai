@@ -279,6 +279,8 @@ def cls_json_schema(
 
     if is_dataclass(cls):
         for name, (field, field_type) in dataclass_fields(cls).items():
+            if not field.init:
+                continue
             properties[name] = _json_schema(field_type, expanding)
             if field.default is MISSING and field.default_factory is MISSING:
                 required.append(name)

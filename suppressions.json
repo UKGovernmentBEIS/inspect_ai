@@ -1316,10 +1316,6 @@
     "type: ignore[arg-type]": {
       "count": 3,
       "undescribed": 3
-    },
-    "type: ignore[attr-defined]": {
-      "count": 2,
-      "undescribed": 2
     }
   },
   "tests/agent/test_acp/test_tui/test_plan.py": {
@@ -1333,10 +1329,6 @@
       "count": 1,
       "undescribed": 1
     },
-    "type: ignore[attr-defined]": {
-      "count": 1,
-      "undescribed": 1
-    },
     "type: ignore[method-assign]": {
       "count": 1,
       "undescribed": 1
@@ -1346,10 +1338,6 @@
     "type: ignore[arg-type]": {
       "count": 3,
       "undescribed": 3
-    },
-    "type: ignore[attr-defined]": {
-      "count": 1,
-      "undescribed": 1
     },
     "type: ignore[method-assign]": {
       "count": 5,
@@ -1363,21 +1351,11 @@
     }
   },
   "tests/agent/test_acp/test_tui/test_session_screen.py": {
-    "type: ignore[attr-defined]": {
-      "count": 36,
-      "undescribed": 36
-    },
     "type: ignore[comparison-overlap]": {
       "count": 1,
       "undescribed": 1
     },
     "type: ignore[method-assign]": {
-      "count": 1,
-      "undescribed": 1
-    }
-  },
-  "tests/agent/test_acp/test_tui/test_session_screen_phase2.py": {
-    "type: ignore[attr-defined]": {
       "count": 1,
       "undescribed": 1
     }
