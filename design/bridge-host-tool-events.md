@@ -91,10 +91,18 @@ shape a native denial has. Where the recorded arguments must be an object, a
 non-object or over-deep value is recorded as `{}`; the message the agent
 receives does not change.
 
-Every exception that leaves `call_tool` reaches the agent through the service
-dispatcher as the RPC error `Error calling method call_tool: <message>`, which
-the in-sandbox proxy returns as a JSON-RPC `-32603` error. Tracebacks stay on
-the host.
+The service dispatcher turns an exception that leaves `call_tool` into an RPC
+error reply, which the in-sandbox proxy returns as a JSON-RPC `-32603` error:
+
+- an ordinary exception becomes `Error calling method call_tool: <message>`,
+  with the traceback kept on the host; a teardown the exception triggers (an
+  unexpected exception failing the sample) may pre-empt the reply;
+- an exception with a `TerminateSampleError` anywhere in its history (group
+  leaves, causes or context, as `find_control_flow()` searches) gets a bounded
+  attempt at the reply `Terminating: <termination>`, after which the
+  dispatcher raises the termination out of the service task, ending the
+  sample;
+- a cancellation sends no reply: the request is abandoned.
 
 ### Event layout
 
@@ -253,7 +261,8 @@ neither.
 | Executed | proposing (fresh after the first execution of a multi-target proposal), or fresh on an exempt server | `consumed` / `exempt` | none | the result, truncated as native |
 | Tool raised an error a native call maps (`tool_call_error()`) | as executed | as executed | the mapped error; its result truncated | the original exception's text |
 | Tool raised `LimitExceededError` | as executed | as executed | `limit` | `ToolError` with the mapped message |
-| Tool raised a termination | as executed | as executed | `failed` | the dispatcher answers and ends the sample |
+| Decisive exception is a termination (bare or a group leaf), or unmapped with a termination in its history | as executed | as executed | `failed` | `Terminating: ...`; the sample ends |
+| Decisive exception is mapped (an error or a limit), with a termination in its cause or context | as executed | as executed | the mapped error | `Terminating: ...`; the sample ends |
 | Tool raised an unexpected exception | as executed | as executed | `failed` | the original text; the sample fails |
 | Operator cancel | as executed | as executed | `timeout` | `ToolError("Command timed out before completing.")` |
 | Outer cancellation (bridge teardown, sample limit) | as executed | as executed | `cancelled` | nothing (the request is abandoned) |
@@ -275,7 +284,8 @@ decisive leaf (`decisive_tool_exception()`) and classified with
   output, truncated like any result). The original exception propagates, so
   the agent reads its own text: a `TimeoutError("tool-specific timeout")`
   reaches it as that string while the event shows the native "Command timed
-  out before completing."
+  out before completing." (A termination in its history changes the reply;
+  see Termination.)
 - **Limit.** A `LimitExceededError` that decides the outcome, bare or as a
   group's decisive leaf, is recorded as the mapped `limit` error and raised as
   a `ToolError` with the same message (chained from the original). It does not
@@ -284,13 +294,22 @@ decisive leaf (`decisive_tool_exception()`) and classified with
   natively. A sample-level limit is then enforced at the agent's next bridged
   generation, which records it for `sandbox_agent_bridge()` to raise once the
   agent has unwound. A limit with a termination in its history propagates
-  unchanged (decision: Ransom, with Charles, 2026-10-27).
-- **Termination** (`TerminateSampleError` anywhere in the exception, as
-  `find_control_flow()` finds it): recorded as `failed` and propagated; the
-  dispatcher answers the RPC and propagates it out of the service task, which
-  ends the sample.
-- **Unexpected exception** (unmapped): recorded as `failed=True` with no
-  error, the native shape, and the decisive exception is passed to
+  unchanged, as a termination (below) (decision: Ransom, with Charles,
+  2026-10-27).
+- **Termination.** The event and the propagation are decided separately.
+  The event is classified by the decisive leaf alone, which looks at group
+  leaves, not causes or context. A termination that is the exception itself or
+  a group leaf is unmapped, and so is an unexpected exception raised from one;
+  either is recorded as `failed=True` with no error and is not passed to
+  `bridge.request_fail()`. A mapped exception (a `ToolError`, a
+  limit) whose cause or context holds a termination keeps its mapped event.
+  Propagation is sticky: whenever `find_control_flow()` finds a termination
+  anywhere in the exception's history, the original exception propagates
+  unchanged (a limit is not replaced by a `ToolError`), and the dispatcher
+  replies `Terminating: ...` and raises the termination out of the service
+  task, which ends the sample.
+- **Unexpected exception** (unmapped, and no termination in its history):
+  recorded as `failed=True` with no error, the native shape, and the decisive exception is passed to
   `bridge.request_fail()`, whose monitor task raises it in the bridge's task
   group so the sample fails as it would natively. The original still
   propagates so the RPC unwinds; the teardown may pre-empt the reply. The
