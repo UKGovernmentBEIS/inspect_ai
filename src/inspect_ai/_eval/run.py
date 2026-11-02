@@ -68,7 +68,6 @@ from inspect_ai.approval._policy import ApprovalPolicy, config_from_approval_pol
 from inspect_ai.dataset._dataset import Dataset, Sample
 from inspect_ai.log import EvalConfig, EvalLog
 from inspect_ai.log._file import EvalLogInfo
-from inspect_ai.log._log import eval_error
 from inspect_ai.log._recorders import Recorder
 from inspect_ai.model import GenerateConfigArgs
 from inspect_ai.model._model import Model, ModelName, ensure_model_controller
@@ -107,6 +106,7 @@ from .task.run import (
     plan_agent_name,
     resolve_plan,
     task_run,
+    unwritten_task_log,
 )
 from .task.sandbox import (
     TaskSandboxEnvironment,
@@ -675,16 +675,7 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
             f"Task '{options.task.name}' encountered an error while starting "
             f"or writing its log: {inner}"
         )
-        # location points at the log file the write was destined for — it may
-        # not exist (a failed log_start() header flush, or a retry's failed
-        # checkpoint startup copy) or may hold a partial log (a failed
-        # error-status log_finish())
-        result = EvalLog(
-            status="error",
-            eval=options.logger.eval,
-            error=eval_error(inner, type(inner), inner, inner.__traceback__),
-            location=options.logger.location,
-        )
+        result = unwritten_task_log(options.logger, ex)
     finally:
         # Startup can fail before log_finish owns teardown. Release the
         # cached prior on every exit without removing a written destination.

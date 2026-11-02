@@ -471,10 +471,13 @@ class Hooks:
     async def on_task_end(self, data: TaskEnd) -> None:
         """On task end.
 
-        Called once for every task whose `on_task_start` was called, with the
-        task's final log: on success, and also when the task errors or is
-        cancelled (`data.log.status` is then `"error"` or `"cancelled"`, and
-        `data.log.results` may be partial or missing).
+        Called once for every `on_task_start` call (each task retry attempt
+        has its own pair), with the task's final log: on success, and also
+        when the task errors or is cancelled. `data.log.status` is then
+        `"error"` or `"cancelled"`, and `data.log.results` may be partial or
+        missing. If the final log could not be written, or `debug_errors` is
+        set, `data.log` is an errored log that was not written to the log
+        directory.
 
         Args:
            data: Task end data.

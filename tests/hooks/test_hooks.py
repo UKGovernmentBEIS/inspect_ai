@@ -47,6 +47,7 @@ from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.scorer import match
 from inspect_ai.solver._solver import Generate, Solver, generate, solver
 from inspect_ai.solver._task_state import TaskState
+from inspect_ai.util import LimitExceededError
 
 
 class MockHooks(Hooks):
@@ -713,6 +714,102 @@ def test_task_end_hook_not_called_without_task_start(mock_hooks: MockHooks) -> N
     assert log.status == "error"
     assert mock_hooks.task_start_events == []
     assert mock_hooks.task_end_events == []
+
+
+def test_task_end_hook_runs_for_each_retry_attempt(mock_hooks: MockHooks) -> None:
+    # each task retry attempt is its own start/end pair, with that attempt's log
+    (log,) = eval(
+        Task(dataset=[Sample("sample_1")], solver=_fail_n_times_solver(2)),
+        model="mockllm/model",
+        task_retry_attempts=1,
+    )
+
+    assert log.status == "success"
+    assert len(mock_hooks.task_start_events) == 2
+    assert [event.log.status for event in mock_hooks.task_end_events] == [
+        "error",
+        "success",
+    ]
+    assert [event.eval_id for event in mock_hooks.task_end_events] == [
+        event.eval_id for event in mock_hooks.task_start_events
+    ]
+
+
+def test_task_end_hook_runs_before_debug_errors_reraise(
+    mock_hooks: MockHooks,
+) -> None:
+    with patch(
+        "inspect_ai._eval.task.run.eval_results", side_effect=RuntimeError("boom")
+    ):
+        with pytest.raises(RuntimeError, match="boom"):
+            eval(
+                Task(dataset=[Sample("sample_1")], solver=generate(), scorer=match()),
+                model="mockllm/model",
+                debug_errors=True,
+            )
+
+    (task_end,) = mock_hooks.task_end_events
+    assert task_end.log.status == "error"
+    assert task_end.log.error is not None
+    assert "boom" in task_end.log.error.message
+
+
+def test_task_end_hook_runs_when_log_write_fails(mock_hooks: MockHooks) -> None:
+    # with no final log written, the hook gets the errored log that eval returns
+    with patch(
+        "inspect_ai._eval.task.run._finish_task_log",
+        side_effect=OSError("log storage unreachable"),
+    ):
+        (log,) = eval(Task(dataset=[Sample("sample_1")]), model="mockllm/model")
+
+    assert log.status == "error"
+    assert log.error is not None
+    assert "log storage unreachable" in log.error.message
+    (task_end,) = mock_hooks.task_end_events
+    assert task_end.log.status == "error"
+    assert task_end.log.error is not None
+    assert task_end.log.error.message == log.error.message
+
+
+class LimitRaisingTaskEndHooks(Hooks):
+    def __init__(self) -> None:
+        self.task_end_events: list[TaskEnd] = []
+
+    async def on_task_end(self, data: TaskEnd) -> None:
+        self.task_end_events.append(data)
+        raise LimitExceededError("custom", value=1, limit=0)
+
+
+async def test_task_end_hook_error_does_not_replace_aborted_task_log(
+    mock_hooks: MockHooks,
+) -> None:
+    # a hook that raises in the shielded cancel path must not stop the aborted
+    # task's log from being returned
+    @solver
+    def abort_self_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            (start,) = mock_hooks.task_start_events
+            cancel_task(start.spec.task_id)
+            await anyio.sleep_forever()
+            return state
+
+        return solve
+
+    with _hook_context(
+        "test_limit_raising_task_end_hooks", LimitRaisingTaskEndHooks
+    ) as raising_hooks:
+        with anyio.fail_after(60):
+            (log,) = await eval_async(
+                Task(dataset=[Sample("sample_1")], solver=abort_self_solver()),
+                model="mockllm/model",
+                ctl_server=False,
+            )
+
+    assert log.status == "error"
+    assert log.error is not None
+    assert "Task cancelled by user" in log.error.message
+    (task_end,) = raising_hooks.task_end_events
+    assert task_end.log.status == "error"
 
 
 def test_hooks_do_not_need_to_subscribe_to_all_events(
