@@ -30,8 +30,7 @@ def rich_initialise(
     plain = plain if plain is not None else display_type_plain()
     size_kwargs = _dumb_terminal_size_kwargs()
 
-    # reflect ansi prefs (always reconfiguring, so that settings left by an
-    # earlier display, e.g. quiet from display == none, don't carry over)
+    # reflect ansi prefs
     if plain:
         rich.reconfigure(
             no_color=True,
@@ -41,12 +40,14 @@ def rich_initialise(
         )
     elif rich_no_color(plain):
         rich.reconfigure(no_color=True, **size_kwargs)
-    else:
+    elif size_kwargs:
         rich.reconfigure(**size_kwargs)
 
-    # reflect display == none
+    # reflect display == none (and undo quiet left by an earlier "none" display)
     if display == "none":
         rich.reconfigure(quiet=True)
+    else:
+        rich.get_console().quiet = False
 
     # consistent markdown code bock background
     from rich.markdown import CodeBlock, Markdown
