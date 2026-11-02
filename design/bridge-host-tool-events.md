@@ -66,7 +66,8 @@ order:
    `ToolParsingError`. The recorded arguments enter the log, and the log's
    writer, readers and condensation handle only bounded nesting.
 3. **Grant.** For object arguments, `consume_tool_execution_grant(server,
-   tool, arguments)` takes the oldest matching grant. If none matches and the
+   tool, arguments)` consumes a matching grant (its selection order is that
+   helper's). If none matches and the
    server requires proposals, the request is denied: recorded as a
    `permission` error, raised as `PermissionError` with the denial message,
    and logged once with the `require_proposal=False` guidance. Arguments that
@@ -156,8 +157,10 @@ class _ToolExecutionGrant(NamedTuple):
 ```
 
 `consume_tool_execution_grant()` returns the matched grant (or `None`), and
-the event takes `proposal.take_id()`, the proposal's `call.view` and its
-model-facing function name. A call that denotes several indistinguishable
+the event takes `proposal.take_id()` as its id and the proposal's
+`call.view`, and records its model-facing function name in
+`metadata.bridge.function` (`ToolEvent.function` stays the bridged tool
+name). A call that denotes several indistinguishable
 bridged tools has a grant for each, so it can run more than once; one of
 those events takes the proposing id and the rest get fresh ids, since
 `ToolEvent.id` is what ACP cards, the viewer's approval and navigation maps,
@@ -325,7 +328,9 @@ decisive leaf (`decisive_tool_exception()`) and classified with
   either is recorded as `failed=True` with no error and is not passed to
   `bridge.request_fail()`. A mapped exception (a `ToolError`, a
   limit) whose cause or context holds a termination keeps its mapped event.
-  Propagation is sticky: whenever `find_control_flow()` finds a termination
+  Propagation is sticky unless the operator cancelled the call (whose
+  timeout takes precedence, above): whenever `find_control_flow()` finds a
+  termination
   anywhere in the exception's history, the original exception propagates
   unchanged (a limit is not replaced by a `ToolError`), and the dispatcher
   replies `Terminating: ...` and raises the termination out of the service
