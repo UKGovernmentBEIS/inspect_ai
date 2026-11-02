@@ -63,6 +63,7 @@ from .._stream import (
 )
 from .util import (
     forced_tool_choice_degraded_metadata,
+    is_claude_4_0_model,
     is_claude_fable_5_1_model,
     is_claude_opus_5_5_model,
     is_forced_tool_choice,
@@ -628,9 +629,7 @@ class BedrockAPI(ModelAPI):
         misclassify them as 4.6+/4.7+ and emit adaptive thinking on a model
         that only accepts `budget_tokens`.
         """
-        return self._is_claude_4_x(0) or (
-            re.search(r"claude-[a-zA-Z]+-4[-@]20\d{6}", self.model_family()) is not None
-        )
+        return is_claude_4_0_model(self.model_family())
 
     def is_claude_4_6_or_later(self) -> bool:
         """Mirrors `is_claude_frontier` in the native anthropic provider.

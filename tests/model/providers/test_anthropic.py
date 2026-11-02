@@ -2204,15 +2204,63 @@ def test_anthropic_fable_5_1_binding_applies_without_thinking_blocks() -> None:
     }
 
 
-@pytest.mark.parametrize("model_name", ["claude-fable-5", "claude-opus-5"])
-def test_anthropic_fable_5_no_binding_on_base_model(model_name: str) -> None:
-    """The base Fable 5 and Opus 5 models do not bind thinking blocks."""
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        "claude-saga-5",
+        "claude-saga-5-2",
+        "claude-saga",
+        "claude-opus-6",
+        "claude-opus-4-9",
+    ],
+)
+def test_anthropic_thinking_block_binding_unrecognised_model(model_name: str) -> None:
+    """Names newer than any known release get the opt-in on the first-party API."""
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    request = _request_with_thinking_history()
+    betas: list[str] = []
+    api.apply_thinking_block_binding(request, betas)
+    assert betas == ["thinking-binding-controls-2026-08-01"]
+    assert request["thinking"] == {
+        "type": "adaptive",
+        "block_binding": {"prefix_mismatch_behavior": "drop_block"},
+    }
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        "claude-fable-5",
+        "claude-opus-5",
+        "claude-sonnet-5",
+        "claude-opus-5-1",
+        "claude-opus-4-8",
+        "claude-sonnet-4",
+        "claude-opus-4",
+        "claude-2.1",
+        "deepseek-chat",
+        "glm-4.6",
+    ],
+)
+def test_anthropic_no_binding_on_non_binding_model(model_name: str) -> None:
+    """Known non-binding Claude models and non-Claude names get no opt-in."""
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
     request = _request_with_thinking_history()
     betas: list[str] = []
     api.apply_thinking_block_binding(request, betas)
     assert betas == []
     assert "thinking" not in request
+
+
+@pytest.mark.parametrize("model_name", ["claude-sonnet-4", "claude-opus-4"])
+def test_anthropic_claude_4_0_base_name_uses_extended_thinking(model_name: str) -> None:
+    """Base Claude 4 names get budget thinking; adaptive is a 400 on Claude 4.0."""
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    params, _e, _h, _b = api.completion_config(
+        GenerateConfig(max_tokens=64, reasoning_effort="medium")
+    )
+    assert params["thinking"]["type"] == "enabled"
+    assert "output_config" not in params
 
 
 @pytest.mark.parametrize(
@@ -2229,9 +2277,12 @@ def test_anthropic_fable_5_no_binding_on_base_model(model_name: str) -> None:
         "bedrock/anthropic.claude-haiku-5-5",
         "vertex/claude-haiku-5-5",
         "azure/claude-haiku-5-5",
+        "bedrock/anthropic.claude-saga-5",
+        "vertex/claude-saga-5",
+        "azure/claude-saga-5",
     ],
 )
-def test_anthropic_fable_5_1_no_binding_off_first_party(model_name: str) -> None:
+def test_anthropic_no_binding_off_first_party(model_name: str) -> None:
     """The thinking-binding beta is first-party only, except Sonnet 5.5 on Bedrock."""
     setenv_if_unset("AWS_REGION", "us-east-1")
     setenv_if_unset("AWS_ACCESS_KEY_ID", "fake")
@@ -2264,9 +2315,10 @@ def test_anthropic_sonnet_5_5_between_tools_has_no_binding_config() -> None:
     assert request["thinking"] == {"type": "between_tools"}
 
 
-def test_anthropic_haiku_5_5_disabled_thinking_has_no_binding_config() -> None:
+@pytest.mark.parametrize("model_name", ["claude-haiku-5-5", "claude-opus-6"])
+def test_anthropic_disabled_thinking_has_no_binding_config(model_name: str) -> None:
     """`block_binding` is accepted only with adaptive thinking, not `disabled`."""
-    api = AnthropicAPI(model_name="claude-haiku-5-5", api_key="test-key")
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
     params, _e, _h, _b = api.completion_config(
         GenerateConfig(max_tokens=64, reasoning_effort="none")
     )
@@ -2300,9 +2352,12 @@ def test_anthropic_sonnet_5_5_binding_on_bedrock(model_name: str) -> None:
     }
 
 
-def test_anthropic_mythos_5_1_no_binding() -> None:
-    """Mythos 5.1 does not run the binding check, so no opt-in is sent."""
-    api = AnthropicAPI(model_name="claude-mythos-5-1", api_key="test-key")
+@pytest.mark.parametrize(
+    "model_name", ["claude-mythos-5-1", "claude-mythos-5-2", "claude-mythos-preview"]
+)
+def test_anthropic_mythos_no_binding(model_name: str) -> None:
+    """Mythos does not run the binding check, so no opt-in is sent."""
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
     request = _request_with_thinking_history()
     betas: list[str] = []
     api.apply_thinking_block_binding(request, betas)
