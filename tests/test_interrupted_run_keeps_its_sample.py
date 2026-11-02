@@ -16,7 +16,6 @@ import inspect_ai.util._display as display_type_module
 from inspect_ai import Task, eval, eval_async
 from inspect_ai._display.core.display import TaskScreen, TaskSpec
 from inspect_ai._eval.run import _run_task_screen
-from inspect_ai._util._async import current_async_backend
 from inspect_ai._util.background import background_task_group
 from inspect_ai._util.error import is_cancellation_message
 from inspect_ai.dataset import Sample
@@ -183,12 +182,9 @@ async def _interrupted_eval(
     logs = await list_eval_logs_async(str(tmp_path))
     assert len(logs) == 1
     log = await read_eval_log_async(logs[0].name)
-    if log.status == "cancelled" and current_async_backend() == "asyncio":
-        # asyncio returns no logs for a run whose task group is cancelled
-        assert returned == []
-    else:
-        assert [r.eval.eval_id for r in returned] == [log.eval.eval_id]
-        assert returned[0].status == log.status
+    # the written log is returned, also for a cancelled run
+    assert [r.eval.eval_id for r in returned] == [log.eval.eval_id]
+    assert returned[0].status == log.status
     return log
 
 

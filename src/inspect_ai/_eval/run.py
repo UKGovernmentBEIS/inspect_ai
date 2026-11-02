@@ -631,7 +631,11 @@ class TaskRunResult(NamedTuple):
     """How the task was cancelled (``None`` if it ran to completion)."""
 
 
-async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRunResult:
+async def _run_task(
+    options: TaskRunOptions,
+    can_retry: bool = False,
+    on_log: Callable[[EvalLog], None] = lambda log: None,
+) -> TaskRunResult:
     """Run one task in its own cancel scope so cancelling it can't affect siblings.
 
     Returns the task's log (``None`` if an operator abandoned the attempt
@@ -651,7 +655,8 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
     stops the retry). The run's ``TaskSource`` gets ``task_complete`` after
     the scope has exited (for every attempt except a failed write), so it
     runs whether or not the task was cancelled; an exception it raises ends
-    the run.
+    the run. ``on_log`` gets the attempt's log before that callback runs, so
+    a cancellation of the run while it awaits keeps the log.
     """
     result: EvalLog | None = None
     cancel_type: CancelType = None
@@ -751,6 +756,7 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                         result = options.logger.header_log(
                             eval_error(cancel_ex, TerminateTaskError, cancel_ex, None)
                         )
+                    on_log(result)
                     try:
                         await notify_task_source(options, result)
                     except Exception as ex:
@@ -1000,7 +1006,11 @@ class TaskDispatcher:
         await open_log(logger, retry=record.attempt > 1)
         options = self.attempt_options(record, logger)
         try:
-            run = await _run_task(options, can_retry=record.retries_remaining > 0)
+            run = await _run_task(
+                options,
+                can_retry=record.retries_remaining > 0,
+                on_log=functools.partial(setattr, record, "log"),
+            )
         except BaseException:
             # the run failed or was cancelled while the attempt ran
             await _release_unfinished(logger)

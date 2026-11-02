@@ -271,7 +271,10 @@ class Harness:
         self.events.append(f"setup {key} done")
 
     async def run_task(
-        self, options: TaskRunOptions, can_retry: bool = False
+        self,
+        options: TaskRunOptions,
+        can_retry: bool = False,
+        on_log: Callable[[EvalLog], None] = lambda log: None,
     ) -> TaskRunResult:
         logger = cast(FakeLogger, options.logger)
         label = logger.label
@@ -1324,6 +1327,41 @@ async def test_loop_cancel_while_tasks_run_or_wait_for_a_slot_is_absorbed(
                 assert logs == []
     # the queued task never made a logger
     assert harness.loggers["c@m1"] == []
+
+
+async def test_cancel_during_task_complete_keeps_the_written_log(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # the task's log is written before TaskSource.task_complete runs, so a
+    # cancellation of the run while the callback awaits still returns it
+    m1 = get_model("mockllm/m1")
+    harness = Harness([m1], parallel=1)
+    notified = anyio.Event()
+
+    async def task_run(options: TaskRunOptions, task_cancel: Any) -> EvalLog:
+        cast(FakeLogger, options.logger).finished = True
+        return EvalLog(eval=options.logger.eval, status="success")
+
+    async def notify_task_source(options: TaskRunOptions, eval_log: EvalLog) -> None:
+        notified.set()
+        await anyio.sleep_forever()
+
+    monkeypatch.setattr("inspect_ai._eval.run.task_run", task_run)
+    monkeypatch.setattr("inspect_ai._eval.run.notify_task_source", notify_task_source)
+    returned: list[list[EvalLog]] = []
+    with anyio.fail_after(10):
+        with anyio.CancelScope() as scope:
+            async with harness.startup.setups, anyio.create_task_group() as tg:
+
+                async def cancel_when_notified() -> None:
+                    await notified.wait()
+                    scope.cancel()
+
+                tg.start_soon(cancel_when_notified)
+                returned.append(
+                    await harness.dispatcher().run(harness.seed(_resolve(["a"], [m1])))
+                )
+    assert [(log.eval.task, log.status) for log in returned[0]] == [("a@m1", "success")]
 
 
 async def test_queued_seed_task_logger_is_discarded_when_the_run_is_cancelled(

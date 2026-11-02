@@ -1122,9 +1122,9 @@ def run(case, display, log_dir):
 
 
 # the Ctrl-C lands while the added task's sandbox is set up or while
-# next_tasks() waits; the interrupted task has no log. On trio, eval() raises
-# KeyboardInterrupt after every Ctrl-C (run_main); on asyncio it returns the
-# logs written so far
+# next_tasks() waits; the interrupted task has no log, and a task running
+# beside it writes a cancelled one. On trio, eval() raises KeyboardInterrupt
+# after every Ctrl-C (run_main); on asyncio it returns the logs written so far
 trio = os.environ["INSPECT_ASYNC_BACKEND"] == "trio"
 expected = {
     "default": [("parent", "success")],
@@ -1142,10 +1142,10 @@ for case, logs in expected.items():
             assert trio, (case, display)
         else:
             assert not trio, (case, display)
-            # (asyncio returns no log for a task the cancellation interrupted)
-            assert [(log.eval.task, log.status) for log in returned] == [
-                log for log in logs if log[1] != "cancelled"
-            ], (case, display)
+            assert [(log.eval.task, log.status) for log in returned] == logs, (
+                case,
+                display,
+            )
         assert signal.getsignal(signal.SIGINT) is signal.default_int_handler
         on_disk = [
             (log.eval.task, log.status)
