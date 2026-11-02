@@ -31,7 +31,8 @@ SETUP_UV_ACTION = ACTIONS + "setup-uv"
 # inputs that set what gets installed (install.sh reads these; python-version
 # and actions-cache select the Python and the cache, not the install shape).
 # The package job installs twice: the hashed build toolchain, then the locked
-# dist extra for the check tools.
+# dist extra for the check tools. No call is versions: unlocked: an unlocked
+# install has no cooldown and belongs only in meridianlabs-ai/canaries.
 INSTALL_CALLS = {
     ("build.yml", "mypy"): [{"versions": "locked"}],
     ("build.yml", "pre-commit"): [{"versions": "locked"}],
@@ -136,16 +137,15 @@ def verify_install_calls(configs: dict[str, dict[str, Any]]) -> None:
     assert collected_install_calls(configs) == INSTALL_CALLS
 
 
-def shared_action_steps() -> list[tuple[str, str, dict[str, Any]]]:
-    """Every step that calls a shared action: (workflow, uses ref, with)."""
-    steps: list[tuple[str, str, dict[str, Any]]] = []
-    for path in sorted(WORKFLOWS.glob("*.yml")):
-        for job in yaml.safe_load(path.read_text())["jobs"].values():
-            for step in job.get("steps", []):
-                uses = step.get("uses", "")
-                if uses.split("@")[0].startswith(ACTIONS):
-                    steps.append((path.name, uses, step.get("with") or {}))
-    return steps
+def shared_action_uses(configs: dict[str, dict[str, Any]]) -> list[tuple[str, str]]:
+    """Every step that calls a shared action: (workflow, uses ref)."""
+    return [
+        (workflow, uses)
+        for workflow, config in configs.items()
+        for job in config["jobs"].values()
+        for step in job.get("steps", [])
+        if (uses := step.get("uses", "")).split("@")[0].startswith(ACTIONS)
+    ]
 
 
 def run_lines(job: dict[str, Any]) -> list[str]:
@@ -274,8 +274,10 @@ def test_pinned_uv_versions_meet_required_version() -> None:
     assert required, uv_config()["required-version"]
     # Only build.yml still pins uv directly (sandbox-tools-unit installs uv
     # outside the shared action); every other install gets uv from the shared
-    # setup-uv action, whose pin a test in the actions repo checks. Removing the
-    # local pins keeps one source of truth for the uv version per install path.
+    # setup-uv action. A test in the actions repo checks that pin against a
+    # fixed floor (0.13.5), not against this repository's required-version.
+    # Removing the local pins keeps one source of truth for the uv version per
+    # install path.
     pin = yaml.safe_load((WORKFLOWS / "build.yml").read_text())["env"]["UV_VERSION"]
     assert version(pin) >= version(required[1]), f"build.yml: uv {pin}"
     for workflow in [
@@ -341,11 +343,11 @@ def test_removed_install_call_is_caught() -> None:
         verify_install_calls(configs)
 
 
-def test_shared_action_calls_pin_one_sha() -> None:
-    # Step e re-pins every call to the release tag's SHA at once; a call left on
-    # a different ref (or an unpinned tag) would ship unreviewed action code.
+def verify_shared_action_pins(configs: dict[str, dict[str, Any]]) -> None:
+    # One review covers one action SHA; a call on another ref (or an unpinned
+    # tag) would ship action code nobody reviewed.
     refs = set()
-    for where, uses, _ in shared_action_steps():
+    for where, uses in shared_action_uses(configs):
         ref = uses.split("@", 1)[1] if "@" in uses else ""
         assert re.fullmatch(r"[0-9a-f]{40}", ref), f"{where}: {uses} is not SHA-pinned"
         refs.add(ref)
@@ -353,11 +355,24 @@ def test_shared_action_calls_pin_one_sha() -> None:
     assert len(refs) == 1, f"shared actions pinned to several SHAs: {sorted(refs)}"
 
 
-def test_read_write_jobs_prune_the_uv_cache() -> None:
+def test_shared_action_calls_pin_one_sha() -> None:
+    verify_shared_action_pins(all_configs())
+
+
+def test_shared_action_call_on_a_second_sha_is_caught() -> None:
+    configs = all_configs()
+    steps = configs["log_viewer.yml"]["jobs"]["check-schema-and-types"]["steps"]
+    step = next(s for s in steps if s.get("uses", "").startswith(ACTIONS))
+    step["uses"] = step["uses"].split("@")[0] + "@" + "0" * 40
+    with pytest.raises(AssertionError):
+        verify_shared_action_pins(configs)
+
+
+def verify_uv_cache_prunes(configs: dict[str, dict[str, Any]]) -> None:
     # setup-uv makes an Action save with actions-cache: read-write (the
     # default); without a prune the saved uv cache grows unbounded.
-    for path in sorted(WORKFLOWS.glob("*.yml")):
-        for name, job in yaml.safe_load(path.read_text())["jobs"].items():
+    for workflow, config in configs.items():
+        for name, job in config["jobs"].items():
             calls = [
                 step.get("with") or {}
                 for step in job.get("steps", [])
@@ -370,8 +385,20 @@ def test_read_write_jobs_prune_the_uv_cache() -> None:
                 continue
             runs = [step.get("run", "") for step in job["steps"]]
             assert any("uv cache prune --ci" in run for run in runs), (
-                f"{path.name}:{name}"
+                f"{workflow}:{name}"
             )
+
+
+def test_read_write_jobs_prune_the_uv_cache() -> None:
+    verify_uv_cache_prunes(all_configs())
+
+
+def test_read_write_job_without_a_prune_is_caught() -> None:
+    configs = all_configs()
+    steps = configs["log_viewer.yml"]["jobs"]["check-schema-and-types"]["steps"]
+    steps[:] = [s for s in steps if "uv cache prune --ci" not in s.get("run", "")]
+    with pytest.raises(AssertionError):
+        verify_uv_cache_prunes(configs)
 
 
 def test_sandbox_tools_unit_installs_from_its_hashed_lock() -> None:
@@ -437,12 +464,3 @@ def test_no_workflow_opts_out_of_the_cooldown() -> None:
         if re.search(r"--exclude-newer(=|\s+)false", line)
     ]
     assert floating == []
-    # An unlocked install (versions: unlocked) resolves at run time with no
-    # cooldown. It belongs only in the canary (meridianlabs-ai/canaries), never
-    # in this repository's CI.
-    unlocked = [
-        (where, uses)
-        for where, uses, params in shared_action_steps()
-        if params.get("versions") == "unlocked"
-    ]
-    assert unlocked == []

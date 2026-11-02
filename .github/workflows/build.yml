@@ -95,8 +95,7 @@ jobs:
 
       # A locked install here, then `uv run --no-sync` below, syncs the project
       # environment once: `uv run` on its own would sync to uv.lock again before
-      # mypy runs. versions: locked fails on a uv.lock that is out of date
-      # instead of re-resolving it.
+      # mypy runs.
       - name: Install Python dependencies
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
         uses: meridianlabs-ai/actions/install-python-dependencies@29a0bf7e59e74ad3ad6464a72135df91bdea1a1d # epatey/install-python-dependencies
@@ -845,8 +844,7 @@ jobs:
       # toolchain, wheels only and no project config (as .github/actions/
       # build-dist), so nothing is resolved at build time and the project's
       # exclude-newer, which Dependabot's day-granular cooldown can undercut,
-      # does not apply. This first call also sets up the uv the check-tools
-      # call below reuses.
+      # does not apply.
       - name: Install the build toolchain
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' || steps.filter.outputs.package_readme == 'true'
         uses: meridianlabs-ai/actions/install-python-dependencies@29a0bf7e59e74ad3ad6464a72135df91bdea1a1d # epatey/install-python-dependencies
@@ -871,8 +869,7 @@ jobs:
           "$RUNNER_TEMP/build-env/bin/python" -m build --no-isolation
           ls -l dist
 
-      # twine and check-wheel-contents come from uv.lock (the dist extra). This
-      # second call reuses the uv set up for the build toolchain above.
+      # twine and check-wheel-contents come from uv.lock (the dist extra).
       - name: Install check tools
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' || steps.filter.outputs.package_readme == 'true'
         uses: meridianlabs-ai/actions/install-python-dependencies@29a0bf7e59e74ad3ad6464a72135df91bdea1a1d # epatey/install-python-dependencies
