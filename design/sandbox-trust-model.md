@@ -302,6 +302,15 @@ comes from the scope as well as from tool construction:
   scope only if it was created under the same user and sandbox; outside any
   scope a saved shell can still be used and keeps running as the user it was
   created as. Nested scopes raise.
+- **Bridge token.** A sandbox agent bridge whose sandbox is the scope's
+  requires a token on every request to its model proxy, including bridged
+  tools' MCP endpoints. The host passes the proxy only the scope's user and a
+  file name; the proxy mints the token, publishes it readable only by that
+  user (and root) once it is listening, and removes it when it exits, and
+  the host removes it again after killing the proxy. The token does not
+  cross the host channel: the host waits for the file by its size alone, and
+  the proxy drops the key headers before forwarding a request. Outside a
+  scope the proxy accepts any request.
 - **Unchanged.** `SandboxEnvironment.exec()`, `read_file()` and `write_file()`
   do not read the scope: they run as the sandbox's default user unless given
   `user`. Framework operations that call them (tool injection, identity
@@ -564,7 +573,8 @@ directory instead (`ai/util/_sandbox/local.py:67-71`, `:96-101`).
 
 `ensure_private_server_dir` (`server_dir.py:60-135`):
 
-- creates the directory with mode `0700` under `umask 077`;
+- creates the directory with mode `0700` under `umask 077` (or `0711`, for
+  the bridge token directory below);
 - opens it with `O_NOFOLLOW | O_DIRECTORY` and checks the descriptor with
   `fstat`: a symbolic link, a non-directory, or an owner other than the
   effective uid is refused with an error telling the user to remove it;
@@ -595,6 +605,14 @@ Further guest-side state follows the same contract:
   regular file (`guest/_in_process_tools/_text_editor/text_editor.py:290-347`).
   Its directory view passes the path to `find` as one argument, never through
   a shell (`text_editor.py:39-41`).
+- A model proxy started inside a sandbox identity scope publishes its bridge
+  token in `/var/tmp/.inspect-bridge`, a directory owned by the tools user
+  with mode `0711` and adopted with no repair, so other users can open a file
+  whose name they know but cannot list, create or replace entries. The token
+  is written to a temporary file created with `O_EXCL | O_NOFOLLOW`, set to
+  `0400` and given to the scope's user through its descriptor, then linked to
+  its final name; an existing entry at either name is refused
+  (`guest/_agent_bridge/bridge_token.py`).
 - `exec_remote`'s `kill()` signals a job's process group only after checking,
   through a handle taken at spawn that records creation time, that the group
   leader is still the process the job started

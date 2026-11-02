@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import hmac
 import json
 import os
 import re
+import signal
 import sys
 import time
 import traceback
@@ -21,6 +23,14 @@ from typing import (
     TypeAlias,
 )
 from urllib.parse import parse_qs, unquote, urlparse
+
+from inspect_sandbox_tools._agent_bridge.bridge_token import (
+    TokenRequest,
+    new_token,
+    publish_token,
+    remove_token,
+    token_request,
+)
 
 # ---------- Types ----------
 RequestHandler: TypeAlias = Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]
@@ -42,6 +52,17 @@ STREAM_CHUNK = 8192
 # than joined like a list-valued header.
 _SINGLE_VALUE_REQUEST_HEADERS = frozenset({"content-length", "content-type", "host"})
 
+# Request headers that carry a client's key in the dialects the proxy serves:
+# a bearer token (OpenAI, Anthropic's auth-token form, MCP), Anthropic's
+# x-api-key and Google's x-goog-api-key.
+_TOKEN_HEADERS = frozenset({"authorization", "x-api-key", "x-goog-api-key"})
+
+_TOKEN_REQUIRED_MESSAGE = (
+    "This bridge runs in a sandbox identity scope and requires its token: send "
+    "the contents of the file named by SandboxAgentBridge.token_file as an "
+    "Authorization bearer token, x-api-key or x-goog-api-key."
+)
+
 HOP_BY_HOP = {
     "connection",
     "keep-alive",
@@ -57,9 +78,13 @@ HOP_BY_HOP = {
 class AsyncHTTPServer:
     """Async HTTP server supporting GET/POST with streaming + proxy utilities."""
 
-    def __init__(self, host: str = "127.0.0.1", port: int = 8000) -> None:
+    def __init__(
+        self, host: str = "127.0.0.1", port: int = 8000, token: str | None = None
+    ) -> None:
         self.host = host
         self.port = port
+        self.token = token
+        """Token every request must carry, or None to accept any request."""
         self.routes: MethodRoutes = {"GET": {}, "POST": {}}
         self.server: asyncio.Server | None = None
         self.server_name: str = "asyncio-proxy"
@@ -419,6 +444,30 @@ class AsyncHTTPServer:
             path = unquote(parsed.path)
             query = parse_qs(parsed.query)
 
+            if self.token is not None:
+                if not _carries_token(headers, self.token):
+                    writer.write(
+                        self._build_response(
+                            401,
+                            {
+                                "error": {
+                                    "message": _TOKEN_REQUIRED_MESSAGE,
+                                    "type": "authentication_error",
+                                    "code": 401,
+                                }
+                            },
+                            extra_headers={"WWW-Authenticate": "Bearer"},
+                        )
+                    )
+                    await writer.drain()
+                    return
+                # the token goes no further than this check: not to the host
+                headers = {
+                    key: value
+                    for key, value in headers.items()
+                    if key not in _TOKEN_HEADERS
+                }
+
             # No browser clients, so no preflight: OPTIONS is not a served method
             if method == "OPTIONS":
                 response_bytes = self._build_response(
@@ -540,12 +589,15 @@ class AsyncHTTPServer:
                 pass
 
     # -------- Lifecycle --------
-    async def start(self) -> None:
+    async def start(self, on_listening: Callable[[], None] | None = None) -> None:
+        """Serve until cancelled, calling `on_listening` once the listener is bound."""
         self.server = await asyncio.start_server(
             self._handle_client, self.host, self.port
         )
         print(f"Server running on http://{self.host}:{self.port}")
         async with self.server:
+            if on_listening is not None:
+                on_listening()
             await self.server.serve_forever()
 
     async def stop(self) -> None:
@@ -553,6 +605,22 @@ class AsyncHTTPServer:
             self.server.close()
             await self.server.wait_closed()
             self.server = None
+
+
+def _carries_token(headers: dict[str, str], token: str) -> bool:
+    """Whether any key header of the request holds `token` (constant-time compare)."""
+    expected = token.encode("utf-8")
+    found = False
+    for name in _TOKEN_HEADERS:
+        value = headers.get(name)
+        if value is None:
+            continue
+        if name == "authorization":
+            scheme, _, value = value.partition(" ")
+            if scheme.lower() != "bearer":
+                continue
+        found |= hmac.compare_digest(value.strip().encode("utf-8"), expected)
+    return found
 
 
 def _http_date() -> str:
@@ -690,14 +758,14 @@ def _google_error_body(status: int, message: str) -> dict[str, Any]:
 
 
 async def model_proxy_server(
-    port: int, call_bridge_model_service_async: Any = None
+    port: int, call_bridge_model_service_async: Any = None, token: str | None = None
 ) -> AsyncHTTPServer:
     """Create and configure the model proxy server.
 
     Args:
         port: Port to run the server on
-        instance: Instance of service
         call_bridge_model_service_async: Optional bridge service function for testing
+        token: Token every request must carry, or None to accept any request
 
     Returns:
         Configured AsyncHTTPServer instance
@@ -708,7 +776,7 @@ async def model_proxy_server(
     )
 
     # setup server
-    server = AsyncHTTPServer(port=port)
+    server = AsyncHTTPServer(port=port, token=token)
 
     def _sse_bytes(payload: dict[str, Any]) -> bytes:
         # data-only SSE, as used by OpenAI's Chat Completions stream
@@ -1511,7 +1579,7 @@ async def model_proxy_server(
 
         except Exception as ex:
             _handle_model_proxy_error(ex)
-            os._exit(1)
+            _exit_proxy(1)
 
     @server.route("/v1/chat/completions", method="POST")
     async def chat_completions(request: dict[str, Any]) -> dict[str, Any]:
@@ -1738,7 +1806,7 @@ async def model_proxy_server(
                 return {"status": 200, "body": completion}
         except Exception as ex:
             _handle_model_proxy_error(ex)
-            os._exit(1)
+            _exit_proxy(1)
 
     @server.route("/v1/messages", method="POST")
     async def anthropic(request: dict[str, Any]) -> dict[str, Any]:
@@ -2118,7 +2186,7 @@ async def model_proxy_server(
                 return {"status": 200, "body": completion}
         except Exception as ex:
             _handle_model_proxy_error(ex)
-            os._exit(1)
+            _exit_proxy(1)
 
     # ---------- Google Gemini API routes ----------
     # Route patterns for Google's Gemini API using wildcard matching
@@ -2182,7 +2250,7 @@ async def model_proxy_server(
 
         except Exception as ex:
             _handle_model_proxy_error(ex)
-            os._exit(1)
+            _exit_proxy(1)
 
     # -------- MCP HTTP Server Endpoint --------
 
@@ -2313,22 +2381,75 @@ def _mcp_tool_content_block(content: JsonValue) -> JsonValue:
     return content
 
 
+_published_token: TokenRequest | None = None
+"""The token file this process published, removed when it exits."""
+
+
 async def run_model_proxy_server() -> None:
     """Run the model proxy server."""
     # determine port
     port = int(os.getenv("BRIDGE_MODEL_SERVICE_PORT", "13131"))
 
-    # Create server
-    server = await model_proxy_server(port)
-
-    # Run server
     try:
-        await server.start()
+        request = token_request(os.environ)
+        if request is not None:
+            signal.signal(signal.SIGTERM, _terminate_proxy)
+        await serve_model_proxy(port, request)
     except Exception as ex:
         sys.stderr.write(f"Unexpected error running model proxy: {ex}\n")
         sys.stderr.write(traceback.format_exc())
         sys.stderr.flush()
-        os._exit(1)
+        _exit_proxy(1)
+
+
+async def serve_model_proxy(
+    port: int,
+    request: TokenRequest | None,
+    call_bridge_model_service_async: Any = None,
+) -> None:
+    """Serve the model proxy until cancelled.
+
+    With a token `request`, every request must carry a token minted here, which
+    is published at `request.file` once the listener is bound and removed when
+    serving ends.
+    """
+    token = new_token() if request is not None else None
+    server = await model_proxy_server(port, call_bridge_model_service_async, token)
+
+    def publish() -> None:
+        global _published_token
+        assert token is not None and request is not None
+        publish_token(token, request)
+        _published_token = request
+
+    try:
+        await server.start(on_listening=publish if request is not None else None)
+    finally:
+        _remove_published_token()
+
+
+def _remove_published_token() -> None:
+    global _published_token
+    if _published_token is not None:
+        remove_token(_published_token.file)
+        _published_token = None
+
+
+def _exit_proxy(code: int) -> None:
+    """Exit at once, removing the published token file first."""
+    try:
+        _remove_published_token()
+    finally:
+        os._exit(code)
+
+
+def _terminate_proxy(signum: int, _frame: Any) -> None:
+    """On SIGTERM, remove the published token file, then die of the signal."""
+    try:
+        _remove_published_token()
+    finally:
+        signal.signal(signum, signal.SIG_DFL)
+        os.kill(os.getpid(), signum)
 
 
 def _handle_model_proxy_error(ex: Exception) -> None:
