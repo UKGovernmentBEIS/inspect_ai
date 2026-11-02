@@ -3,8 +3,11 @@
 import asyncio
 import os
 import pwd
+import signal
 import socket
 import stat
+import subprocess
+import sys
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
@@ -270,3 +273,62 @@ async def test_without_a_token_request_a_dummy_key_succeeds(
     path, body = route
     headers = {"Authorization": "Bearer sk-dummy", "x-api-key": "sk-dummy"}
     assert await unscoped_proxy.post(path, body, headers) == 200
+
+
+# ---------- termination during publication ----------
+
+_PAUSED_PROXY = """
+import asyncio, os, sys, time
+from pathlib import Path
+
+from inspect_sandbox_tools._agent_bridge import bridge_token, proxy
+
+file, stage = Path(sys.argv[1]), sys.argv[2]
+bridge_token.TOKEN_DIR = file.parent
+real = getattr(os, stage)
+
+def paused(*args, **kwargs):
+    result = real(*args, **kwargs)
+    print("paused", flush=True)
+    time.sleep(1)
+    return result
+
+setattr(os, stage, paused)
+os.environ[bridge_token.TOKEN_FILE_ENV] = str(file)
+os.environ[bridge_token.TOKEN_USER_ENV] = sys.argv[3]
+os.environ["BRIDGE_MODEL_SERVICE_PORT"] = sys.argv[4]
+asyncio.run(proxy.run_model_proxy_server())
+"""
+
+
+@pytest.mark.parametrize("stage", ["fchown", "link"])
+def test_sigterm_during_publication_leaves_no_token_entry(
+    request_in: TokenRequest, stage: str
+) -> None:
+    """A proxy killed while it publishes (after the write, after the link) removes both names."""
+    child = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            _PAUSED_PROXY,
+            str(request_in.file),
+            stage,
+            USER,
+            str(_free_port()),
+        ],
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        assert child.stdout is not None
+        for line in child.stdout:
+            if line.strip() == "paused":
+                break
+        else:
+            raise AssertionError("proxy did not reach publication")
+        child.send_signal(signal.SIGTERM)
+        assert child.wait(timeout=30) == -signal.SIGTERM
+    finally:
+        child.kill()
+        child.wait()
+    assert os.listdir(request_in.file.parent) == []

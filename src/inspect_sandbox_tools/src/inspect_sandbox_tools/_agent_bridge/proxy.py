@@ -2419,8 +2419,15 @@ async def serve_model_proxy(
     def publish() -> None:
         global _published_token
         assert token is not None and request is not None
-        publish_token(token, request)
-        _published_token = request
+        # A SIGTERM during publication would kill the process with its
+        # temporary or final file in place, before it is recorded for removal,
+        # so the signal waits until the file is recorded.
+        blocked = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGTERM})
+        try:
+            publish_token(token, request)
+            _published_token = request
+        finally:
+            signal.pthread_sigmask(signal.SIG_SETMASK, blocked)
 
     try:
         await server.start(on_listening=publish if request is not None else None)
