@@ -2949,6 +2949,45 @@ def test_batch_request_dict_omits_automatic_continuation() -> None:
     assert request["generation_config"] == {"temperature": 0.5}
 
 
+def test_batch_request_dict_encodes_bytes_as_base64() -> None:
+    """Thought signatures and inline media in a batch request serialize as base64."""
+    from inspect_ai.model._providers._google_batch import batch_request_dict
+
+    signature = b"\xfb\xffSIG"
+    image = b"\x89PNG\xff"
+    config = GenerateContentConfig(
+        system_instruction=[
+            Part.from_text(text="be brief"),
+            Part.from_bytes(data=image, mime_type="image/png"),
+        ]
+    )
+    request = batch_request_dict(
+        config,
+        [
+            Content(role="user", parts=[Part(text="hi")]),
+            Content(
+                role="model",
+                parts=[
+                    Part(
+                        function_call=FunctionCall(name="ls", args={}),
+                        thought_signature=signature,
+                    )
+                ],
+            ),
+        ],
+    )
+
+    # the batcher sizes and writes each request with json.dumps
+    json.dumps(request)
+    # URL-safe base64, as the SDK sends on the live path
+    assert request["contents"][1]["parts"][0]["thought_signature"] == (
+        base64.urlsafe_b64encode(signature).decode()
+    )
+    assert request["system_instruction"]["parts"][1]["inline_data"]["data"] == (
+        base64.urlsafe_b64encode(image).decode()
+    )
+
+
 @pytest.mark.anyio
 async def test_batch_continuation_is_not_continued() -> None:
     """The batch API has no continuations, so a batch response is never continued."""
