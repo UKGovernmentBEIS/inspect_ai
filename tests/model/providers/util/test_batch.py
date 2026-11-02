@@ -344,6 +344,24 @@ class TestBatcher:
 
         await self._run_with_task_group(test_logic)
 
+    async def test_result_send_failure_fails_batch_without_crashing_worker(self):
+        """A failure while sending results fails the batch, not the eval."""
+
+        class UnknownResultIdBatcher(FakeBatcher):
+            async def _handle_batch_result(self, batch, completion_info):
+                results = await super()._handle_batch_result(batch, completion_info)
+                return {"unknown-id": "stray", **results}
+
+        async def test_logic():
+            batcher = UnknownResultIdBatcher()
+
+            with pytest.raises(KeyError):
+                await batcher.generate_for_request({"prompt": "test"})
+
+            assert batcher._inflight_batches == {}
+
+        await self._run_with_task_group(test_logic)
+
     async def test_batch_size_limits(self):
         """Test that batch minimum size controls when batches are sent."""
 
