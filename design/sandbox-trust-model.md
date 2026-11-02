@@ -248,7 +248,8 @@ Evaluations that depend on tool-level auditing should use Pattern 1.
 ### Tool user confinement
 
 The user a tool runs as is host-side configuration, chosen by the eval author
-when the tool is constructed: `bash(user=...)`, `python(user=...)`,
+when the tool is constructed (or by a sandbox identity scope, below):
+`bash(user=...)`, `python(user=...)`,
 `bash_session(user=...)`, `text_editor(user=...)`, or `user` on the
 `exec_remote` options (`ai/util/_sandbox/exec_remote.py:107`). It is captured
 in the tool's closure and is not part of the model-facing schema: `bash()`'s
@@ -261,8 +262,9 @@ chooses what to run, not as whom.**
 use_tools([bash_session(user="nobody")])
 ```
 
-Omitting `user` means the sandbox's default user for every one of these
-tools. For plain `bash()` and `python()` the omitted user goes to
+Outside a sandbox identity scope (below), omitting `user` means the
+sandbox's default user for every one of these tools. For plain `bash()` and
+`python()` the omitted user goes to
 `sandbox.exec()` unchanged. For the injected tools, when the tools user is
 root the host captures the default exec identity (uid, gid, groups and
 `HOME`, `sandbox.py:427-470`) at injection and supplies it with every call
@@ -274,6 +276,45 @@ root therefore requires an explicit grant from the eval author:
 or an `exec_remote` user of `"root"`. In a sandbox whose default user is root,
 omitting `user` runs the tool as root. A tools process that is not root never
 switches user (`guest/_util/user_switch.py:36-50`).
+
+#### Sandbox identity scopes
+
+A host-side scope, `sandbox_identity(user, cwd=..., sandbox=...)`
+(`ai/util/_sandbox/identity.py`), lets a framework such as inspect_swarm run
+model-facing work as a chosen user for the duration of a block, without
+reconstructing the tools. It is private to inspect_ai. Inside the block the user
+comes from the scope as well as from tool construction:
+
+- **Inherit the scope.** `bash()`, `python()`, `grep()`, `list_files()` and the
+  `read_file()` tool run as the scope's user and start in its `cwd`.
+  `bash_session()` and `text_editor()` run as the scope's user; a new
+  `bash_session()` shell starts (and restarts) in the `cwd`, and fails to start
+  if the user cannot enter it; `text_editor()` resolves relative paths against
+  the `cwd`. `exec_remote()` uses the scope's user and `cwd` when its options
+  omit them and keeps explicit values; the agent bridge launches its proxy
+  this way, as root when the tools user is root. The sandbox MCP server runs
+  as the scope's user (`ai/util/_sandbox/_cli.py`, `tools_user_param()`).
+- **Refuse.** The model-facing tools above, configured with a different user
+  (`bash(user="root")`), raise `SandboxIdentityError` at their first call
+  rather than run as that user. `computer()` and `web_browser()`, which cannot
+  run as a user, and `skill()`, which does not yet install skills as a user,
+  raise inside a scope. A saved `bash_session()` shell can be reused inside a
+  scope only if it was created under the same user and sandbox; outside any
+  scope a saved shell can still be used and keeps running as the user it was
+  created as. Nested scopes raise.
+- **Unchanged.** `SandboxEnvironment.exec()`, `read_file()` and `write_file()`
+  do not read the scope: they run as the sandbox's default user unless given
+  `user`. Framework operations that call them (tool injection, identity
+  probes, checkpointing, scorers) are unaffected, and so is a scope on another
+  sandbox.
+
+A custom tool that runs model-chosen work by calling `exec()`, `read_file()` or
+`write_file()` does not run as the scope's user. Inside a scope it runs as the
+sandbox's default user, which is often root, unless it passes `user`
+explicitly. Today it can learn the scope's user only through the private
+helper `sandbox_identity_user()` (`ai/util/_sandbox/identity.py`). This is a
+known gap in the scope: the confinement holds for the built-in tools listed
+above, not for custom tools that do not resolve the user themselves.
 
 ### File-operation users
 
