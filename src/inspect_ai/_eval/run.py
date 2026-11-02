@@ -890,13 +890,11 @@ class TaskDispatcher:
         an earlier record) holds them at once: that sets up nothing new, and
         it can start as soon as they are done.
         """
-        window = effective_max_tasks(self.parallel)
-        for record in self.tasks.queued:
-            if _dispatch_paused(record):
-                continue
-            window -= 1
+        limit = effective_max_tasks(self.parallel)
+        unpaused = [r for r in self.tasks.queued if not _dispatch_paused(r)]
+        for i, record in enumerate(unpaused):
             if record.setups is None and (
-                window >= 0 or self.setups.has_jobs(record.setup_keys)
+                i < limit or self.setups.has_jobs(record.setup_keys)
             ):
                 record.setups = self.setups.request(record.setup_keys)
 
