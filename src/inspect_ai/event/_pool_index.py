@@ -180,8 +180,16 @@ class MessagePoolIndex:
         if msg.id is None:
             return None
         for stored, index in self._buckets.get(msg.id, ()):
-            if stored is msg or (stored == msg and _strict_eq(stored, msg)):
+            if stored is msg:
                 return index
+            # a value whose __eq__ doesn't return a bool (numpy array, pandas
+            # Series, torch tensor) makes the comparison raise: a miss, so
+            # the hash lookup decides
+            try:
+                if stored == msg and _strict_eq(stored, msg):
+                    return index
+            except Exception:
+                pass
         return None
 
     def get_by_hash(self, hash_value: str) -> int | None:

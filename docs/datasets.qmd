@@ -98,6 +98,8 @@ dataset = json_dataset(
 
 To read `Sample.description` (a short statement of what the sample asks of the agent) from a dataset field, name the field with `FieldSpec(description=...)`. Descriptions are not read unless the field is named, so existing datasets with a `description` column are unaffected. The description is recorded with the sample in the eval log and appears as the `description` column of `samples_df()`.
 
+A `checkpoint` field is read as the sample's checkpoint configuration (`Sample.checkpoint`). Use `FieldSpec(checkpoint=...)` to read it from a different field, or `FieldSpec(checkpoint=None)` if your dataset has an unrelated `checkpoint` column. Dataset records cannot set the checkpoint `trigger`; set it on the task or eval instead.
+
 If you need to do more than just map field names and actually do custom processing of the data, you can instead pass a function which takes a `record` (represented as a `dict`) from the underlying file and returns a `Sample`. For example:
 
 ``` python

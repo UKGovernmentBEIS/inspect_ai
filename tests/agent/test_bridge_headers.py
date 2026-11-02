@@ -37,7 +37,7 @@ from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 
 # brotli ships no type stubs; binding it via importlib keeps mypy clean without a
-# suppression. requirements-dev.txt installs it for these tests; Inspect does not
+# suppression. the dev extra installs it for these tests; Inspect does not
 # depend on it. PyPy gets brotlicffi instead, as httpx does.
 try:
     brotli = importlib.import_module("brotli")
@@ -714,8 +714,8 @@ class TestSandboxAnthropicRequest:
         [request] = provider_requests
         assert request.headers["anthropic-beta"] == "allowed-beta-2026-01-01"
         assert request.headers["accept-encoding"] == "br"
-        assert request.headers["x-api-key"] == "test-key"
-        assert "authorization" not in request.headers
+        assert request.headers.get_list("authorization") == ["Bearer test-key"]
+        assert "x-api-key" not in request.headers
         assert any("unlisted-beta-2026-01-01" in m for m in _logged_drops())
 
     @pytest.mark.anyio
@@ -1089,4 +1089,4 @@ class TestSandboxRoutesKeepHostCredentials:
             await model.api.aclose()
 
         [request] = requests
-        self._assert_host_credentials(request, {"x-api-key": "host-key"})
+        self._assert_host_credentials(request, {"authorization": "Bearer host-key"})

@@ -121,10 +121,18 @@ class HttpHooks:
         self._requests[request_id] = RequestInfo(0, time.monotonic())
         return request_id
 
-    def restart_request(self, request_id: str) -> None:
-        """Count the next attempt as a new request, not a retry (e.g. a fallback)."""
-        if request_id in self._requests:
-            self._requests[request_id] = RequestInfo(0, time.monotonic())
+    def restart_request(self, request_id: str) -> float:
+        """Count the next attempt as a new request, not a retry (e.g. a fallback).
+
+        Returns the time since the current attempt started, as `end_request`
+        does (0 if the request is not registered).
+        """
+        request_info = self._requests.get(request_id)
+        if request_info is None:
+            return 0
+        now = time.monotonic()
+        self._requests[request_id] = RequestInfo(0, now)
+        return now - request_info.last_request
 
     def end_request(self, request_id: str) -> float:
         # read the request info (if available) and purge from dict

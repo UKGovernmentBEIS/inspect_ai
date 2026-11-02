@@ -31,6 +31,7 @@ from inspect_ai._eval.evalset import task_identifier
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog, list_eval_logs, read_eval_log
+from inspect_ai.model._cache import CachePolicy
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.scorer import Score, Scorer, Target, exact, scorer
 from inspect_ai.scorer._metrics import accuracy
@@ -765,6 +766,42 @@ def test_eval_set_selection_run_wide_overrides_reach_a_worker(
     assert success
     assert logs[0].eval.config.max_samples == 3
     assert logs[0].eval.config.max_sandboxes == 5
+
+
+@pytest.mark.parametrize("from_worker", [False, True], ids=["run-wide", "worker"])
+def test_eval_set_selection_cache_override_that_never_expires(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, from_worker: bool
+) -> None:
+    """A cache override with a null `expiry` reaches the run as never expiring.
+
+    `CachePolicy` defaults `expiry` to "1W", so the explicit null is the whole
+    instruction; dropping it as an empty value turns it into the default.
+    """
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path / "cache"))
+    capture = enumerate_eval_set(monkeypatch, tmp_path)
+    selected = capture.tasks[0]
+
+    never_expires = {"cache": {"expiry": None}}
+    run_wide: dict[str, Any] = {"timeout": 60}
+    if not from_worker:
+        run_wide |= never_expires
+    overrides_path = tmp_path / "overrides.json"
+    overrides_path.write_text(
+        json.dumps({"generate_config": run_wide}), encoding="utf-8"
+    )
+    monkeypatch.setenv(INSPECT_EVAL_SET_OVERRIDES, str(overrides_path))
+
+    selection = selection_for(selected.identifier)
+    if from_worker:
+        selection.overrides = EvalSetOverrides.model_validate(
+            {"generate_config": never_expires}
+        )
+
+    success, logs = run_selection(monkeypatch, tmp_path, selection, tmp_path / "logs")
+
+    assert success
+    assert logs[0].plan.config.cache == CachePolicy(expiry=None)
+    assert logs[0].plan.config.timeout == 60
 
 
 def test_eval_set_selection_limit_override(

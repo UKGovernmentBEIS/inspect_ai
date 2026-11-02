@@ -141,7 +141,7 @@ ContentImage(image="picture.png", detail="low")
 
 The following models currently support audio inputs:
 
--   Open AI: `gpt-4o-audio-preview`
+-   Open AI: `gpt-audio-1.5`
 -   Google: All Gemini models
 -   Mistral: All Voxtral models
 
@@ -270,7 +270,7 @@ input = [
 
 Some models can generate multimodal output along with text:
 
-- OpenAI `gpt-4o` and `gpt-5` models support image generation
+- OpenAI models that support the Responses API `image_generation` tool (e.g. `gpt-6-luna`) can generate images
 
 - Google models `gemini-2.5-flash-image`, `gemini-3-pro-image-preview`, and `gemini-3.1-flash-image-preview` support image generation.
 
@@ -284,10 +284,10 @@ Text output is always implicitly included—you only need to specify additional 
 
 ### OpenAI
 
-Image generation uses `gpt-image-1` / `gpt-image-1.5` under the hood (you can custmize this using `ImageOutput` options).
+Image generation uses the Responses API `image_generation` tool with OpenAI's default GPT Image model. To choose a model such as `gpt-image-2.5-flare` or `gpt-image-2.5-sunburst`, set `model` in `ImageOutput` options.
 
 ``` python
-model = get_model("openai/gpt-5.4")
+model = get_model("openai/gpt-6-luna")
 output = await model.generate(
     input=[ChatMessageUser(content="Generate an image of a sunset")],
     config=GenerateConfig(modalities=["image"]),
@@ -305,7 +305,7 @@ config = GenerateConfig(modalities=[
             "quality": "high", 
             "size": "1024x1024", 
             "output_format": "png",
-            "model": "gpt-image-1.5"
+            "model": "gpt-image-2.5-flare"
         }
     })
 ])
