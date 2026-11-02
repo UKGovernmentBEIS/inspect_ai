@@ -67,8 +67,3 @@ description: Built-in and custom tool functions.
 ## Decorator
 
 ### tool
-
-
-## Removed Tools
-
-### web_browser

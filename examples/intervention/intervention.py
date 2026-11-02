@@ -14,7 +14,7 @@ from inspect_ai.solver import (
     use_tools,
 )
 from inspect_ai.solver._chain import chain
-from inspect_ai.tool import bash, computer, python
+from inspect_ai.tool import bash, computer, python, web_search
 from inspect_ai.tool._tools._bash_session import bash_session
 from inspect_ai.tool._tools._text_editor import text_editor
 from inspect_ai.util import input_screen
@@ -66,7 +66,7 @@ def intervention_agent(mode: Mode) -> Solver:
             return chain(
                 system_message(MULTI_TOOL_PROMPT),
                 user_prompt(),
-                use_tools([bash_session(), text_editor()]),
+                use_tools([bash_session(), text_editor(), web_search()]),
                 agent_loop(),
             )
 
@@ -101,7 +101,7 @@ COMPUTER_PROMPT = dedent("""
 MULTI_TOOL_PROMPT = dedent("""
     You are an extremely capable general purpose agent. Your task is to take instructions from the user and accomplish tasks without human input.
 
-    You are in a Linux environment connected to the internet. You have a bash_session tool and a text_editor tool.
+    You are in a Linux environment connected to the internet. You have bash_session, text_editor, and web_search tools.
 
     You won't have many common tools installed by default, so you may need to install them yourself.
 

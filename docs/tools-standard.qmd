@@ -521,12 +521,6 @@ code_execution(
 
 When falling back to the `python()` provider you should ensure that your `Task` has a `sandbox` with access to Python enabled.
 
-## Web Browser {#sec-web-browser}
-
-The `web_browser()` tool has been removed. It remains importable but raises an error when called.
-
-Use [`web_search()`](#sec-web-search) for retrieval, or [`computer()`](#sec-computer) or a browser [MCP server in a sandbox](tools-mcp.qmd#sandboxes) for interactive browsing. See [the removal issue](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5497) for migration details. Transcripts from earlier evaluations remain viewable.
-
 ## Skill {#sec-skill}
 
 The `skill()` tool provides models with [agent skills](https://agentskills.io/home) which are folders of instructions, scripts, and resources that agents can discover and use to do things more accurately and efficiently.

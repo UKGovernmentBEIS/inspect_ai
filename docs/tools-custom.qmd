@@ -155,69 +155,81 @@ Note that a single unbounded result is not the same risk as an unbounded *accumu
 
 Some tools need to retain state across invocations (for example, the `bash_session()` tool interacts with a stateful remote process). You can create stateful tools by using the `store_as()` function to access discrete storage for your tool and/or specific instances of your tool.
 
-For example, imagine we were creating a `bash_explorer()` tool that builds on the `bash_session()` tool to run sequences of shell commands to explore a sandbox. We might want to ask multiple questions of the explorer and have it retain its message history and shell state.
+For example, imagine we were creating a `web_surfer()` tool that builds on the `web_search()` tool to complete sequences of web searches in service of researching a topic. We might want to ask multiple questions of the web surfer and have it retain its message history.
 
-Here's the complete source code for this tool. 
+Here's the complete source code for this tool.
 
 ```python
 from textwrap import dedent
 
 from pydantic import Field
+
 from inspect_ai.model import (
   ChatMessage, ChatMessageSystem, ChatMessageUser, get_model
 )
-from inspect_ai.tool import Tool, tool, bash_session
+from inspect_ai.tool import Tool, tool, web_search
 from inspect_ai.util import StoreModel, store_as
 
-class BashExplorerState(StoreModel):
+class WebSurferState(StoreModel):
     messages: list[ChatMessage] = Field(default_factory=list)
 
 @tool
-def bash_explorer(instance: str | None = None) -> Tool:
-    """Explore a sandbox using a persistent shell.
+def web_surfer(instance: str | None = None) -> Tool:
+    """Web surfer tool for researching topics.
 
-    Input can be a request to run commands or a question about previous
-    commands and their results.
+    The web_surfer tool builds on the web_search tool to complete
+    sequences of web searches in service of researching a topic.
+    Input can either be requests to do research or questions about
+    previous research.
     """
     async def execute(input: str, clear_history: bool = False) -> str:
-        """Explore the sandbox or answer a question about previous commands.
+        """Use the web to research a topic.
+
+        You may ask the web surfer any question. These questions can
+        either prompt new web searches or be clarifying or follow up
+        questions about previous web searches.
 
         Args:
-           input: Request to run commands or answer a question.
-           clear_history: Clear the conversation history, preserving shell state.
+           input: Message to the web surfer. This can be a prompt to
+              do research or a question about previous research.
+           clear_history: Clear memory of previous searches.
 
         Returns:
-           Answer to the request or question.
+           Answer to research prompt or question.
         """
         # keep track of message history in the store
-        explorer_state = store_as(BashExplorerState, instance=instance)
+        surfer_state = store_as(WebSurferState, instance=instance)
 
         # clear history if requested.
         if clear_history:
-            explorer_state.messages.clear()
+            surfer_state.messages.clear()
 
         # provide system prompt if we are at the beginning
-        if len(explorer_state.messages) == 0:
-            explorer_state.messages.append(
+        if len(surfer_state.messages) == 0:
+            surfer_state.messages.append(
                 ChatMessageSystem(
                     content=dedent("""
-                Use the shell to explore the sandbox and answer questions.
-                The shell retains its working directory and environment
-                between calls. You can also answer questions about previous
-                commands by consulting the conversation history.
+                You are a helpful assistant that can use web search to
+                answer questions. You can perform multiple searches to
+                gather the information needed to answer the question.
+
+                In some cases questions will be about your previous
+                web searches, in those cases you don't always need
+                to use the web search tool but can answer by
+                consulting previous conversation messages.
                 """)
                 )
             )
 
         # append the latest question
-        explorer_state.messages.append(ChatMessageUser(content=input))
+        surfer_state.messages.append(ChatMessageUser(content=input))
 
         messages, output = await get_model().generate_loop(
-            explorer_state.messages, tools=[bash_session(instance=instance)]
+            surfer_state.messages, tools=[web_search()]
         )
 
         # update state
-        explorer_state.messages.extend(messages)
+        surfer_state.messages.extend(messages)
 
         # return response
         return output.completion
@@ -225,14 +237,14 @@ def bash_explorer(instance: str | None = None) -> Tool:
     return execute
 ```
 
-We make available an `instance` parameter that enables creation of multiple instances of the `bash_explorer()` tool. We then pass this `instance` to the `store_as()` function (to store our own tool's message history) and the `bash_session()` function (so that we also use a unique shell for the explorer session).
+We make available an `instance` parameter that enables creation of multiple instances of the `web_surfer()` tool. We pass this `instance` to `store_as()` so each instance retains its own message history.
 
-For example, this creates a distinct instance of the `bash_explorer()` with its own state and shell:
+For example, this creates a distinct instance of the `web_surfer()` with its own message history:
 
 ```{python}
 from shortuuid import uuid
 
-react(..., tools=[bash_explorer(instance=uuid())])
+react(..., tools=[web_surfer(instance=uuid())])
 ```
 
 To keep separate state for agents that run in their own [tool state scope](agent-custom.qmd#tool-state-scopes), pass `tool_state_instance(instance)` to `store_as()` instead of `instance`.
