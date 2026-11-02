@@ -334,13 +334,13 @@ def _task_cancel_directive(
 
     state = latest_eval_for_task(task_id)
     found = find_active_task(task_id)
-    # a first attempt that has not registered (queued, or picked and still
-    # starting), or that is waiting to start while an EvalState from an
-    # earlier eval() of the same eval set exists
+    # a first attempt that has not registered in this run (queued, or picked
+    # and still starting); the task's latest EvalState, if any, is then from
+    # an earlier eval() of the same eval set
     if (
         found is not None
         and found.record.attempt == 1
-        and (state is None or found.record in found.queue.unstarted())
+        and (state is None or state.run_id != found.queue.run_id)
     ):
         return _cancel_not_started(found.record, stamp=stamp, dry_run=dry_run)
     if state is None:

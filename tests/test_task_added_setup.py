@@ -15,7 +15,7 @@ import pytest
 from typing_extensions import override
 
 from inspect_ai import Task, TaskSource, enqueue_task, eval_async
-from inspect_ai._control.eval_state import get_eval_states
+from inspect_ai._control.eval_state import get_eval_states, register_completed_eval
 from inspect_ai._eval.task.constants import TASK_RUN_DIR_ATTR
 from inspect_ai._eval.task.enqueue import TaskOutcome, get_run_queue
 from inspect_ai._util.registry import _registry, registry_lookup
@@ -578,11 +578,17 @@ async def test_operator_cancel_of_a_task_waiting_for_its_setup(
     assert _box["cleanups"] == ["_AddedSetupBox"]
 
 
+@pytest.mark.parametrize("earlier_pass", [False, True])
 async def test_operator_cancel_of_a_task_as_it_starts(
-    tmp_path: Path, lifecycle: _Lifecycle, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    lifecycle: _Lifecycle,
+    monkeypatch: pytest.MonkeyPatch,
+    earlier_pass: bool,
 ) -> None:
     # a cancel by id that lands after the loop started the task's attempt but
-    # before it registered: the attempt bails, and the task ends with no log
+    # before it registered: the attempt bails, and the task ends with no log.
+    # With `earlier_pass`, the task also has the finished EvalState of an
+    # earlier eval() of its eval set, as a retried task in a later pass does.
     from inspect_ai._control.cancel import cancel_task
     from inspect_ai._eval import run as run_module
 
@@ -592,6 +598,16 @@ async def test_operator_cancel_of_a_task_as_it_starts(
     async def open_log_then_cancel(logger: Any, *, retry: bool) -> None:
         await open_log(logger, retry=retry)
         if logger.eval.task == "child":
+            if earlier_pass:
+                register_completed_eval(
+                    "earlier-attempt",
+                    total=1,
+                    completed=0,
+                    errored=1,
+                    task="child",
+                    task_id=logger.eval.task_id,
+                    run_id="earlier-run",
+                )
             seen["result"] = cancel_task(logger.eval.task_id)
 
     monkeypatch.setattr(run_module, "open_log", open_log_then_cancel)
@@ -620,6 +636,9 @@ async def test_operator_cancel_of_a_task_as_it_starts(
     assert seen["result"].get("not_started")
     assert _statuses(logs) == [("parent", "success")]
     assert seen["outcome"] == TaskOutcome(None)
+    if earlier_pass:
+        assert lifecycle.states is not None
+        del lifecycle.states["earlier-attempt"]
     assert await _checked_attempts(lifecycle, tmp_path / "logs") == [
         ("parent", "success")
     ]
