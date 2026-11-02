@@ -21,8 +21,11 @@ and prints every rule that grew so the override is loud in the run log
 
 Scanned directives (found via tokenize, so directive text inside string
 literals is never counted):
-  line-level: noqa / noqa: <codes> (ruff), type: ignore /
-    type: ignore[<codes>] (mypy), pyright: ignore / pyright: ignore[<rules>]
+  line-level: noqa / noqa: <codes> / ruff: ignore[<codes>] (ruff),
+    type: ignore / type: ignore[<codes>] (mypy), pyright: ignore /
+    pyright: ignore[<rules>]
+  range: ruff: disable[<codes>] (to its ruff: enable, or the end of the
+    enclosing block)
   file-wide: ruff: noqa / flake8: noqa (optionally with codes),
     mypy: ignore-errors, mypy: disable-error-code=<codes>
 
@@ -63,15 +66,18 @@ _BRACKET = r"\[\s*(?P<{name}>[\w-]+(?:\s*,\s*[\w-]+)*)\s*\]"
 # The colon-and-codes tails mirror ruff's parse (all verified): a colon
 # with no parseable code list — codes are case-sensitive uppercase, so
 # "noqa:" or "noqa: e501" — invalidates the whole directive (ruff warns
-# and suppresses nothing); _rules maps that to no records. A line-level
-# code list opens only when the colon is attached ("noqa : F401" is a
-# BLANKET noqa with trailing junk), hence no \s* before noqa_colon; the
-# file-level form tolerates whitespace around its second colon, hence
-# the \s* before file_noqa_colon.
+# and suppresses nothing); _rules maps that to no records. Whitespace is
+# tolerated before either colon ("noqa : F401" is coded).
+#
+# ruff: disable[...] and ruff: ignore[...] take a closed bracket list split
+# on commas; ruff applies each uppercase code in it and skips the other
+# entries (verified: "[e501, F401]" suppresses F401, "[F401 E401]" and
+# "[unused-import]" suppress nothing). The prefix and verb are lowercase only.
 DIRECTIVE_RE = re.compile(
     r"""\#+\s*(?:
         (?:ruff|flake8)\s*:\s*(?P<file_noqa>(?i:noqa))(?:\s*(?P<file_noqa_colon>:)\s*(?P<file_noqa_codes>{noqa_codes})?)?
-      | (?P<noqa>(?i:noqa))(?![\w])(?:(?P<noqa_colon>:)\s*(?P<noqa_codes>{noqa_codes})?)?
+      | (?P<noqa>(?i:noqa))(?![\w])(?:\s*(?P<noqa_colon>:)\s*(?P<noqa_codes>{noqa_codes})?)?
+      | ruff\s*:\s*(?P<ruff_verb>disable|ignore)\s*\[(?P<ruff_codes>[^\]]*)\]
       | type:\s*(?P<type_ignore>ignore)(?![\w])(?:\s*{type_codes})?
       | pyright:\s*(?P<pyright>ignore)(?![\w])(?:\s*{pyright_codes})?
       | mypy:\s*(?:
@@ -97,6 +103,9 @@ _SEPARATORS_RE = re.compile(r"[#\s—–-]+")
 # The lookahead keeps a leading `type: ignore` directive from qualifying as
 # a type comment, so its duplicate/reason segments stay inert.
 _LEGACY_TYPE_COMMENT_RE = re.compile(r"#\s*type:(?!\s*ignore\b)[^#]*")
+
+
+_RUFF_CODE_RE = re.compile(r"[A-Z]+[0-9]+")
 
 
 class Suppression(NamedTuple):
@@ -126,6 +135,9 @@ def _rules(m: re.Match[str]) -> list[str]:
         return [rule + FILE_WIDE for rule in rules]
     if m.group("noqa"):
         return _noqa_rules(m.group("noqa_colon"), m.group("noqa_codes"))
+    if verb := m.group("ruff_verb"):
+        codes = [c.strip() for c in m.group("ruff_codes").split(",")]
+        return [f"ruff: {verb}[{c}]" for c in codes if _RUFF_CODE_RE.fullmatch(c)]
     if m.group("type_ignore"):
         codes = m.group("type_codes")
         if codes:
@@ -155,22 +167,27 @@ def _active(m: re.Match[str], text: str, own_line: bool, col: int) -> bool:
     # mypy honors `type: ignore` and `mypy:` config comments only when they
     # open the comment (verified: `# prose  # type: ignore` and
     # `## type: ignore` suppress nothing), except for a `type: ignore`
-    # trailing a legacy type comment (see _LEGACY_TYPE_COMMENT_RE). ruff's
-    # file-level directives (`ruff: noqa` / `flake8: noqa` opening a
-    # comment) must open the comment the same way, and are additionally
+    # trailing a legacy type comment (see _LEGACY_TYPE_COMMENT_RE). mypy
+    # config comments must further start at column 0: an indented own-line
+    # `mypy: ignore-errors` comment suppresses nothing (verified).
+    #
+    # ruff's file-level directives (`ruff: noqa` / `flake8: noqa`) are
     # honored only on a comment line of their own — trailing code, they
-    # draw a ruff warning and suppress nothing (all verified; the quoted
-    # spellings here avoid a literal hash before the directive because
-    # newer ruff warns on that even inside prose). mypy config comments
-    # must further start at column 0: an indented own-line
-    # `mypy: ignore-errors` comment suppresses nothing (verified), while
-    # ruff's file-level forms are honored even indented (verified).
-    # Line-level ruff/pyright directives count in any comment segment.
+    # draw a ruff warning and suppress nothing — but there in any comment
+    # segment, `##` and indented included (all verified). An own-line
+    # `ruff: disable[...]` or `ruff: ignore[...]` must open the comment, with
+    # a single hash, and `ruff: disable[...]` trailing code suppresses
+    # nothing (verified). Other line-level ruff/pyright directives count in
+    # any comment segment.
     if m.group("type_ignore") and m.start() != 0:
         return bool(_LEGACY_TYPE_COMMENT_RE.fullmatch(text, 0, m.start()))
-    if _is_mypy(m) or m.group("file_noqa"):
-        if m.start() != 0 or text.startswith("##"):
+    opens_comment = m.start() == 0 and not text.startswith("##")
+    if _is_mypy(m) and not opens_comment:
+        return False
+    if verb := m.group("ruff_verb"):
+        if own_line and not opens_comment:
             return False
+        return own_line or verb == "ignore"
     if _is_file_wide(m):
         return own_line if m.group("file_noqa") else own_line and col == 0
     return True

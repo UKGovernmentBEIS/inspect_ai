@@ -137,9 +137,9 @@ limitations, and validation.
 
 ## Suppression gate
 
-- Do NOT suppress lint or type errors (`# noqa`, `# type: ignore`,
-  `# pyright: ignore`, or the file-wide `# ruff: noqa` /
-  `# mypy: ignore-errors`). Fix the code. A deterministic gate enforces
+- Do NOT suppress lint or type errors (`# noqa`, `# ruff: ignore[...]`,
+  `# type: ignore`, `# pyright: ignore`, the range `# ruff: disable[...]`,
+  or the file-wide `# ruff: noqa` / `# mypy: ignore-errors`). Fix the code. A deterministic gate enforces
   this (`make suppressions-check` against `suppressions.json`); maintainers
   reject suppressions that just make an error go away.
 - In the rare case a suppression is correct, it requires both: a reason in
