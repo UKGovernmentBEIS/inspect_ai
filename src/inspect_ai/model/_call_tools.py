@@ -33,6 +33,7 @@ from typing import (
 
 if TYPE_CHECKING:
     from inspect_ai.approval import ApprovalPolicy
+    from inspect_ai.approval._approval import Approval
     from inspect_ai.review import ReviewPolicy
 
 import anyio
@@ -854,10 +855,7 @@ async def call_tool(
     shown = shown_to_callbacks(call)
 
     # if we have a tool approver, apply it now
-    from inspect_ai.approval._apply import (
-        apply_tool_approval,
-        modified_function_error,
-    )
+    from inspect_ai.approval._apply import apply_tool_approval
 
     approved, approval = await apply_tool_approval(
         message, call, tool_def.viewer, conversation
@@ -869,22 +867,19 @@ async def call_tool(
             raise TerminateSampleError(message)
         else:
             raise ToolApprovalError(approval.explanation if approval else None)
+    error = approver_result_error(shown, call, approval)
+    if error is not None:
+        await record_pending_tool_event()
+        if approval is not None and approval.decision == "modify":
+            raise RuntimeError(error)
+        raise ToolApprovalError(error)
     if (
         approval is not None
         and approval.decision == "modify"
         and approval.modified is not None
     ):
-        error = modified_function_error(shown, approval.modified) or (
-            _modified_id_error("An approver", shown, approval.modified)
-        )
-        if error is not None:
-            await record_pending_tool_event()
-            raise RuntimeError(error)
         call, arguments = await revalidated_tool_call(approval.modified, tool_def)
         shown = shown_to_callbacks(call)
-    elif approval is not None and _changed_in_place(call, shown):
-        await record_pending_tool_event()
-        raise ToolApprovalError(_CHANGED_IN_PLACE)
 
     if checks_tool_calls():
         from inspect_ai._sentinel._dispatch import (
@@ -992,6 +987,30 @@ def _changed_in_place(call: ToolCall, shown: ToolCall) -> bool:
         or call.function != shown.function
         or not json_equal(call.arguments, shown.arguments)
     )
+
+
+def approver_result_error(
+    shown: ToolCall, reviewed: ToolCall, approval: "Approval | None"
+) -> str | None:
+    """Error for an approver's decision on `reviewed`, judged against `shown`, else `None`.
+
+    `shown` is a snapshot of the call taken before the approver saw it, so a
+    callback that changed `reviewed` in place cannot change what its decision
+    is judged against. A `modify` may change only the arguments: a different
+    function or id is an error in the approver. An `approve` must leave the
+    call as shown (`_changed_in_place`). Callers decide the consequence.
+    """
+    from inspect_ai.approval._apply import modified_function_error
+
+    if approval is None:
+        return None
+    if approval.decision == "modify" and approval.modified is not None:
+        return modified_function_error(shown, approval.modified) or (
+            _modified_id_error("An approver", shown, approval.modified)
+        )
+    if approval.decision == "approve" and _changed_in_place(reviewed, shown):
+        return _CHANGED_IN_PLACE
+    return None
 
 
 async def _apply_tool_review(
@@ -1704,7 +1723,19 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
             return typeddict_data
         elif is_dataclass(type_hint):
             dataclass_data: dict[str, Any] = {}
-            for name, (_, field_type) in dataclass_fields(type_hint).items():
+            fields = dataclass_fields(type_hint)
+            non_init_fields = [
+                name
+                for name, (field, _) in fields.items()
+                if not field.init and name in input
+            ]
+            if non_init_fields:
+                raise ToolParsingError(
+                    f"Unexpected non-init dataclass fields: {', '.join(non_init_fields)}"
+                )
+            for name, (field, field_type) in fields.items():
+                if not field.init:
+                    continue
                 dataclass_data[name] = tool_param(field_type, input.get(name))
             return type_hint(**dataclass_data)
         elif issubclass(type_hint, BaseModel):

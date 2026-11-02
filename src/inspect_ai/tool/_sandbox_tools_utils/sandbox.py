@@ -815,16 +815,32 @@ def _get_install_state() -> InstallState:
     return _check_main_divergence(editable_url)
 
 
+def _injectable_pathspecs() -> list[str]:
+    """Git pathspecs for everything whose contents feed the built binary.
+
+    Read from ``injectable_paths.txt`` beside this module — the single source of
+    truth shared with the CI version-bump gate (the ``detect-slow`` job in
+    ``.github/workflows/build.yml``), so a change is classified the same way at
+    runtime and in CI. Full-line ``#`` comments and blank lines are ignored.
+    """
+    text = (Path(__file__).parent / "injectable_paths.txt").read_text()
+    return [
+        line
+        for raw in text.splitlines()
+        if (line := raw.strip()) and not line.startswith("#")
+    ]
+
+
 def _check_main_divergence(url: str) -> Literal["clean", "edited"]:
     """Check if there are changes to sandbox tools files relative to main.
 
-    Only changes that ship in the built binary count: docs (`*.md`,
-    `design/`) and `tests/` under the injectable tree are excluded, mirroring
-    the CI `injectable_src` paths-filter (`.github/workflows/build.yml`,
-    `detect-slow` job) — keep the two in sync. CI skips the `-dev` build for
-    such changes, so classifying them "edited" would resolve a `-dev` binary
-    that never gets built (and prompt local developers to build one for a
-    doc-only edit).
+    Only changes that ship in the built binary count. The injectable pathspecs
+    come from ``injectable_paths.txt`` (see `_injectable_pathspecs`), the same
+    file the CI `injectable_src` detection reads, so docs/design/test edits are
+    excluded identically in both places. CI skips the `-dev` build for excluded
+    changes, so classifying them "edited" would resolve a `-dev` binary that
+    never gets built (and prompt local developers to build one for a doc-only
+    edit).
 
     Returns:
         Literal["clean", "edited"]: The state of changes to sandbox tools files.
@@ -863,16 +879,11 @@ def _check_main_divergence(url: str) -> Literal["clean", "edited"]:
             return "clean"
 
         # Check for staged or unstaged changes to relevant paths. Each entry
-        # is a pathspec list: the injectable tree carries excludes matching
-        # the CI injectable_src filter (see docstring).
+        # is a pathspec list: the version file, and the injectable inputs read
+        # from injectable_paths.txt (see docstring).
         pathspecs_to_check = [
             ["src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt"],
-            [
-                "src/inspect_sandbox_tools",
-                ":(exclude)src/inspect_sandbox_tools/tests",
-                ":(exclude)src/inspect_sandbox_tools/design",
-                ":(exclude,glob)src/inspect_sandbox_tools/**/*.md",
-            ],
+            _injectable_pathspecs(),
         ]
 
         for pathspecs in pathspecs_to_check:

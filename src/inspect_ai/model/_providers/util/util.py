@@ -137,6 +137,17 @@ def normalize_stream_arg(value: Any, arg_name: str = "stream") -> bool | None:
     )
 
 
+# the -4-0 alias, dated IDs (-4-20250514, -4@20250514), and the undated base
+# names in the model database (claude-sonnet-4), but not a minor (-4-5, -4.5)
+# or another suffix (-4-latest)
+_CLAUDE_4_0 = re.compile(r"claude-[a-zA-Z]+-4(?:-0|[-@]20\d{6}|(?![-.\w]))")
+
+
+def is_claude_4_0_model(model_name: str) -> bool:
+    """Claude Opus 4 or Sonnet 4 (the 4.0 release)."""
+    return _CLAUDE_4_0.search(model_name) is not None
+
+
 # point releases match (5-1, 5.1, 5-2, ...) but not the base release (-5 or
 # -5-0), 1M-context style suffixes (-5-1m), or date suffixes (-5-20260901)
 _CLAUDE_FABLE_5_POINT_RELEASE = re.compile(

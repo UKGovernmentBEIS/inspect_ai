@@ -2724,6 +2724,11 @@ def eval_retry_command(
 ) -> None:
     """Retry failed evaluation(s).
 
+    This runs code named by the log (its task file, scorers and solver, or for
+    an `hf/` task the Hugging Face repo it names, whose `eval.yaml` chooses the
+    dataset and the solver and scorer arguments) and uses the model endpoint,
+    sandbox and other settings recorded in it. Only run it on logs you trust.
+
     Monitor a running eval from another shell with `inspect ctl`
     (see `inspect ctl --help`).
     """
