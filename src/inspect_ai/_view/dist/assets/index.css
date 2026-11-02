@@ -22075,6 +22075,29 @@ a._turnButton_loteg_100 {
   font-style: italic;
   opacity: 0.7;
 }
+/* Agent names keep their case; the row title is otherwise uppercased. */
+._agent_nut6q_2 {
+  text-transform: none;
+  cursor: pointer;
+}
+
+._line_nut6q_7 {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+._refused_nut6q_21 {
+  color: var(--bs-danger);
+}
 ._panel_8zdtn_1 {
   margin: 0.5em 0;
 }
@@ -22827,6 +22850,14 @@ a._turnButton_loteg_100 {
 
 ._subtaskLabel_ac4z2_17 {
   padding: 0 2em;
+}
+._member_1tvjx_1 {
+  margin-left: 0.5em;
+  text-transform: none;
+}
+
+._panel_1tvjx_6 {
+  margin: 0.2em 0;
 }
 ._summary_ddafu_1 {
   margin: 0.5em 0;

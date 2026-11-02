@@ -399,6 +399,14 @@ def test_registry_types_include_sentinel_kinds() -> None:
     assert {"monitor", "protocol"} <= set(get_args(RegistryType))
 
 
+def test_registry_types_include_ranges_kinds() -> None:
+    from typing import get_args
+
+    from inspect_ai._util.registry import RegistryType
+
+    assert "range_goal" in set(get_args(RegistryType))
+
+
 def test_registry_has_matches_by_type_and_name() -> None:
     async def predicate() -> None:
         pass
