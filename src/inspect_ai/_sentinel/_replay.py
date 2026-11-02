@@ -84,7 +84,7 @@ def steps_from_events(
 
     Every step's `agent_messages` is None: the log does not record the agent's own messages, and model input can hold messages the agent kept out of them.
 
-    The tool steps of an agent bridge's calls are not rebuilt, recorded or not: a call the bridged scaffold ran itself leaves no `ToolEvent`, and for a call a sandbox bridge ran on the host (`ToolEvent.metadata["bridge"]`) the log records neither which model call produced it (the bridge can hand over a response filter's output, or one of several generations under one call id) nor its result as the bridge's service delivered it (the error text a scaffold received, for one). Replay skips these steps until the log records which message made each call, and logs a warning naming the calls. A `human()` decision at a skipped step, and a person's approval of a host call, still reach the later steps of the conversation, as live. A native call's tool steps are rebuilt from the checks of its own execution under its id; if a bridge checked a call under the same id while the native call ran, replay can take the bridge's check as the native call's.
+    The tool steps of an agent bridge's calls are not rebuilt, recorded or not: a call the bridged scaffold ran itself leaves no `ToolEvent`, and for a call a sandbox bridge ran on the host (`ToolEvent.metadata["bridge"]`) the log records neither which model call produced it (the bridge can hand over a response filter's output, or one of several generations under one call id) nor its result as the bridge's service delivered it (the error text a scaffold received, for one). Replay skips these steps until the log records which message made each call, and logs a warning naming the calls. A `human()` decision at a skipped step, and a person's approval of a host call, still reach the later steps of the conversation, as live. A native result check is attached only when it immediately follows that call's execution span; a later check under the same id is ambiguous and skipped.
 
     Args:
         messages: The sample's messages (`EvalSample.messages`).
@@ -369,6 +369,7 @@ class _Driver:
         self.span_steps: dict[str, tuple["Step", str]] = {}
         # the ids of the calls whose tool steps replay skips
         self.skipped: list[str] = []
+        self.ambiguous_results: set[str] = set()
         # call id -> the indexes of the model events that proposed it
         self.proposed: dict[str, list[int]] = {}
         # each model event's input view and producer, shared by its steps
@@ -710,11 +711,19 @@ class _Driver:
         before_span = self._tool_span_of(
             ("tool_call", event.id), call.produced_at, begin
         )
-        after_span = self._tool_span_of(
-            ("tool_result", event.id),
-            end if end is not None else call.index,
-            ending=event.failed is True,
+        # A native result check starts immediately after its tool span closes.
+        # A later check under the same id may belong to a bridge invocation
+        # and cannot establish ownership.
+        after_span = (
+            self._tool_span_of(("tool_result", event.id), end, end + 2)
+            if end is not None
+            else None
         )
+        if after_span is None and any(
+            self.begins[span][0] > (end if end is not None else call.index)
+            for span in self.tool_spans.get(("tool_result", event.id), [])
+        ):
+            self.ambiguous_results.add(event.id)
         proposal = call.proposal
         if proposal is None or call.assistant is None:
             return
@@ -828,8 +837,6 @@ class _Driver:
         key: tuple[SentinelStage, str],
         after: int,
         before: int | None = None,
-        *,
-        ending: bool = False,
     ) -> str | None:
         """The first sentinel span with this tool step id that no call has taken and begins between the events at `after` and `before`.
 
@@ -837,27 +844,14 @@ class _Driver:
         own execution. A span no call takes is an agent bridge's check (a call
         the bridged scaffold ran, a host call, or a check of a result the
         scaffold reported), which replay does not rebuild, including one under
-        an id a native call used too. With `ending`, the call failed, and the
-        span is its result check only if the check is what failed it: live
-        checks a result only once the tool has returned.
+        an id a native call used too.
         """
         spans = self.tool_spans.get(key, [])
         for at, span in enumerate(spans):
             position = self.begins[span][0]
             if position > after and (before is None or position < before):
-                if ending and not self._ended_call(span):
-                    return None
                 return spans.pop(at)
         return None
-
-    def _ended_call(self, span: str) -> bool:
-        """Whether the check in `span` failed, or decided to terminate."""
-        return span in self.failed or any(
-            event.kind == "decision"
-            and event.status == "reported"
-            and event.action == "terminate"
-            for event in self.span_events.get(span, [])
-        )
 
     def _skip_bridge_checks(self) -> None:
         """Publish the `human()` decisions of the tool steps no call took, which are an agent bridge's, and warn that replay skips them."""
@@ -871,6 +865,13 @@ class _Driver:
                 "ran (%s): the log does not record which model call made each of "
                 "them.",
                 ", ".join(dict.fromkeys(self.skipped)),
+            )
+        if self.ambiguous_results:
+            logger.warning(
+                "Replay could not establish which invocation owns a tool result "
+                "check under call id(s) %s; no native result step was built from "
+                "those checks.",
+                ", ".join(sorted(self.ambiguous_results)),
             )
 
     def _checks_tool_calls(self, event: ToolEvent, producer: ModelEvent | None) -> bool:

@@ -1083,15 +1083,15 @@ def test_a_native_call_reusing_a_bridged_call_id_replays_its_own_checks() -> Non
         if isinstance(e, SentinelEvent) and e.path == "r7_probe"
     ]
     tools = [
-        (key, step.call.function)
+        (key, step.call.arguments)
         for key, step in live
         if isinstance(step, BeforeToolCall | AfterToolCall)
     ]
     assert tools == [
-        (("tool_call", "shared"), "mcp__host__addition"),
-        (("tool_result", "shared"), "mcp__host__addition"),
-        (("tool_call", "shared"), "addition"),
-        (("tool_result", "shared"), "addition"),
+        (("tool_call", "shared"), {"x": 1, "y": 1}),
+        (("tool_result", "shared"), {"x": 1, "y": 1}),
+        (("tool_call", "shared"), {"x": 5, "y": 5}),
+        (("tool_result", "shared"), {"x": 5, "y": 5}),
     ]
     # the bridge's checks of the id are skipped, and the native call's are
     # replayed after its own turn, as live checked them
@@ -1099,7 +1099,7 @@ def test_a_native_call_reusing_a_bridged_call_id_replays_its_own_checks() -> Non
         (key, step)
         for key, step in live
         if not isinstance(step, BeforeToolCall | AfterToolCall)
-        or step.call.function == "addition"
+        or step.call.arguments == {"x": 5, "y": 5}
     ]
     replay = replayed(log)
     assert [(s.stage, s.id) for s in replay] == [key for key, _ in native]
@@ -3125,13 +3125,13 @@ def test_a_native_call_run_while_a_bridged_call_waits_replays_its_own_checks(
         n
         for n, (_, step) in enumerate(live)
         if isinstance(step, BeforeToolCall | AfterToolCall)
-        and step.call.function == "mcp__host__addition"
+        and step.call.arguments == {"x": 1, "y": 1}
     ]
     native = [
         n
         for n, (_, step) in enumerate(live)
         if isinstance(step, BeforeToolCall | AfterToolCall)
-        and step.call.function == "addition"
+        and step.call.arguments == {"x": 5, "y": 5}
     ]
     [_, turn] = [n for n, (key, _) in enumerate(live) if key[0] == "model_input"]
     assert bridged[0] < turn < native[0]
@@ -3145,7 +3145,60 @@ def test_a_native_call_run_while_a_bridged_call_waits_replays_its_own_checks(
         assert_step_equals_live(key, rebuilt, step)
 
 
-def test_a_failed_native_call_takes_no_later_bridge_result_check() -> None:
+def test_a_native_result_check_inside_its_invocation_is_replayed() -> None:
+    log = run_logged(
+        as_solver(r7_defers_a_bridged_host_call(native_first=True)),
+        outputs(
+            r7_tool_calls(
+                ToolCall(
+                    id="shared",
+                    function="mcp__host__addition",
+                    arguments={"x": 1, "y": 1},
+                )
+            ),
+            r7_tool_calls(
+                ToolCall(id="shared", function="addition", arguments={"x": 5, "y": 5})
+            ),
+        ),
+        sentinel=[r7_probe({})],
+    )
+    native_results = [
+        step.step
+        for step in replayed(log)
+        if isinstance(step.step, AfterToolCall)
+        and step.step.call.arguments == {"x": 5, "y": 5}
+    ]
+    assert len(native_results) == 1
+    assert native_results[0].result.text == "10"
+
+
+@protocol
+def r7_bridge_result_outcome(outcome: str) -> Protocol:
+    async def after(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
+        if step.call.arguments == {"x": 1, "y": 1}:
+            if outcome == "terminate":
+                return Decision.terminate("stop host result")
+        return None
+
+    return after
+
+
+@monitor
+def r7_bridge_result_failure() -> MonitorGroup:
+    async def after(context: Context, step: AfterToolCall) -> Observation | None:
+        if step.call.arguments == {"x": 1, "y": 1}:
+            raise RuntimeError("host result failed")
+        return None
+
+    return MonitorGroup(after)
+
+
+@pytest.mark.parametrize("bridge_outcome", ["normal", "terminate", "fail"])
+def test_a_failed_native_call_takes_no_later_bridge_result_check(
+    bridge_outcome: str, caplog: pytest.LogCaptureFixture
+) -> None:
     seen: dict[str, Step] = {}
     log = run_logged(
         as_solver(r7_defers_a_bridged_host_call(native_first=True, native="explodes")),
@@ -3159,7 +3212,11 @@ def test_a_failed_native_call_takes_no_later_bridge_result_check() -> None:
             ),
             r7_tool_calls(ToolCall(id="shared", function="explodes", arguments={})),
         ),
-        sentinel=[r7_probe(seen, copies=True)],
+        sentinel=[
+            r7_probe(seen, copies=True),
+            r7_bridge_result_outcome(bridge_outcome),
+            *([r7_bridge_result_failure()] if bridge_outcome == "fail" else []),
+        ],
     )
     events = logged_sample(log).events
     [failed] = [
@@ -3176,15 +3233,16 @@ def test_a_failed_native_call_takes_no_later_bridge_result_check() -> None:
         and e.stage.startswith("tool")
     ]
     assert live == [
-        ("tool_call", "mcp__host__addition"),
+        ("tool_call", "addition"),
         ("tool_call", "explodes"),
-        ("tool_result", "mcp__host__addition"),
+        ("tool_result", "addition"),
     ]
     assert [
         (s.stage, s.step.call.function)
         for s in replayed(log)
         if isinstance(s.step, BeforeToolCall | AfterToolCall)
     ] == [("tool_call", "explodes")]
+    assert "call id(s) shared" in caplog.text
 
 
 @agent
