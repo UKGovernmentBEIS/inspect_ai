@@ -329,7 +329,7 @@ makes it the active one for `enqueue_task`, starts up the seed and runs the
   by task id.
 - **Preparing.** A queued record is prepared (one record at a time, in queue
   order): its sandbox configs are resolved. The loop then requests the
-  setups of the records in the look-ahead window (`request_setups`: the first
+  setups of the records in the look-ahead window (as it picks: the first
   `max_tasks` unpaused queued records, read live, so a queued task's
   sandboxes are not created long before a slot can be free for it; a record
   behind the window whose configs all have a job already holds them at once)

@@ -789,7 +789,7 @@ class TaskDispatcher:
     (``after_batch`` tasks, then the ``TaskSource``'s ``next_tasks()``) until
     there is nothing left. A record can start once it is prepared (its
     sandbox configs resolved), its setups are requested (see
-    :meth:`request_setups`) and they are done, or failed: a record whose
+    :meth:`pick`) and they are done, or failed: a record whose
     setup is still running keeps its place but does not hold back a later
     one. A record whose setup failed starts like any other and its attempt
     ends with that error, so it has a log, hooks and a ``TaskSource``
@@ -867,10 +867,8 @@ class TaskDispatcher:
                 raise self.setups.fatal
             self.take(self.queue.take("when_free"))
             await self.end_abandoned()
-            self.request_setups()
             while (record := self.pick()) is not None:
                 self.start_attempt(tg, record)
-                self.request_setups()
             if self.stopped:
                 break
             if self.queue.queued or self.running:
@@ -940,19 +938,29 @@ class TaskDispatcher:
                 RuntimeError(f"Sandbox resolution raised {ex!r}.")
             )
 
-    def request_setups(self) -> None:
-        """Request the setups of the prepared records in the look-ahead window.
+    def pick(self) -> TaskRecord | None:
+        """Request the look-ahead window's setups and pick the next record to start.
 
-        The window is the first ``max_tasks`` (read live) unpaused queued
-        records, so a queued task's sandboxes (often billed cloud resources)
-        are not created long before a slot can be free for it. The window
-        advances as records start, and its size follows ``ctl config
-        --max-tasks``. A record behind the window whose configs all have a
-        job already (none, or shared with an earlier record) holds them at
-        once: that starts nothing new, and it can start as soon as they are
-        done.
+        Setups are requested for the prepared records in the window: the
+        first ``max_tasks`` (read live) unpaused queued records, so a queued
+        task's sandboxes (often billed cloud resources) are not created long
+        before a slot can be free for it. The window advances as records
+        start, and its size follows ``ctl config --max-tasks``. A record
+        behind the window whose configs all have a job already (none, or
+        shared with an earlier record) holds them at once: that starts
+        nothing new, and it can start as soon as they are done.
+
+        The record to start is chosen by :func:`pick_balanced` from the
+        unpaused records that can start, ahead of the first one not prepared
+        yet: preparing runs in queue order, so waiting for it keeps the start
+        order deterministic when every setup is done (a retry keeps its
+        setups and would otherwise overtake records added before it).
         """
-        window = effective_max_tasks(self.parallel)
+        limit = effective_max_tasks(self.parallel)
+        free = len(self.running) < limit
+        window = limit
+        candidates: list[TaskRecord] = []
+        blocked = False
         for record in self.queue.queued:
             if _dispatch_paused(record):
                 continue
@@ -965,25 +973,8 @@ class TaskDispatcher:
                 record.setups = self.setups.request(
                     record.setup_keys, self.queue.wake.set
                 )
-
-    def pick(self) -> TaskRecord | None:
-        """The next record to start, if a task slot is free (see :func:`pick_balanced`).
-
-        Candidates are the unpaused records that can start, ahead of the first
-        one not prepared yet: preparing runs in queue order, so waiting for it
-        keeps the start order deterministic when every setup is done (a retry
-        keeps its setups and would otherwise overtake records added before
-        it).
-        """
-        if len(self.running) >= effective_max_tasks(self.parallel):
-            return None
-        candidates: list[TaskRecord] = []
-        for record in self.queue.queued:
-            if _dispatch_paused(record):
-                continue
-            if not record.prepared:
-                break
-            if record.can_start:
+            blocked = blocked or not record.prepared
+            if free and not blocked and record.can_start:
                 candidates.append(record)
         return pick_balanced(candidates, Counter(r.model for r in self.running))
 
