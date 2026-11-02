@@ -727,22 +727,24 @@ class _Driver:
         # the span has ended
         begin = self.begins[tool_span][0] if tool_span else call.index
         end = self.ends.get(tool_span) if tool_span is not None else None
+        invocation = self._native_invocation(tool_span)
         self.native_ends.setdefault(event.id, []).append(
             end if end is not None else call.index
         )
         before_span = self._tool_span_of(
             ("tool_call", event.id), call.produced_at, begin
         )
-        # A native result check belongs to this invocation only until another
-        # proposal or execution under the same id starts. A reviewer can log
-        # model calls between the tool span and its result check.
+        # The result check must be a child of this native invocation. A reviewer
+        # can log model calls before that check, and a bridge can check a result
+        # under the same id without entering this invocation.
         after_span = (
             self._tool_span_of(
                 ("tool_result", event.id),
                 end,
                 self._next_invocation(event.id, end),
+                parent=invocation,
             )
-            if end is not None
+            if end is not None and invocation is not None
             else None
         )
         proposal = call.proposal
@@ -859,16 +861,30 @@ class _Driver:
         index = bisect_right(starts, after)
         return starts[index] if index < len(starts) else None
 
+    def _native_invocation(self, tool_span: str | None) -> str | None:
+        """The recorded native invocation enclosing a tool's execution span."""
+        parent = self.begins[tool_span][1].parent_id if tool_span else None
+        while parent is not None:
+            begin = self.begins.get(parent)
+            if begin is None:
+                return None
+            if begin[1].type == "tool_invocation":
+                return parent
+            parent = begin[1].parent_id
+        return None
+
     def _tool_span_of(
         self,
         key: tuple[SentinelStage, str],
         after: int,
         before: int | None = None,
+        *,
+        parent: str | None = None,
     ) -> str | None:
         """The first sentinel span with this tool step id that no call has taken and begins between the events at `after` and `before`.
 
-        A call takes the steps recorded under its id in log order, within its
-        own execution. A span no call takes is an agent bridge's check (a call
+        A native result check must also be a child of its recorded invocation
+        span. A span no call takes is an agent bridge's check (a call
         the bridged scaffold ran, a host call, or a check of a result the
         scaffold reported), which replay does not rebuild, including one under
         an id a native call used too.
@@ -876,7 +892,11 @@ class _Driver:
         spans = self.tool_spans.get(key, [])
         for at, span in enumerate(spans):
             position = self.begins[span][0]
-            if position > after and (before is None or position < before):
+            if (
+                position > after
+                and (before is None or position < before)
+                and (parent is None or self.begins[span][1].parent_id == parent)
+            ):
                 return spans.pop(at)
         return None
 

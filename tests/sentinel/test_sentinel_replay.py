@@ -3276,7 +3276,7 @@ def r7_bridge_result_outcome(outcome: str) -> Protocol:
     async def after(
         context: Context, step: AfterToolCall, escalations: Escalations
     ) -> Decision | None:
-        if step.call.arguments == {"x": 1, "y": 1}:
+        if step.call.arguments == {"x": 1, "y": 1} or step.call.function == "echo":
             if outcome == "terminate":
                 return Decision.terminate("stop host result")
         return None
@@ -3287,7 +3287,7 @@ def r7_bridge_result_outcome(outcome: str) -> Protocol:
 @monitor
 def r7_bridge_result_failure() -> MonitorGroup:
     async def after(context: Context, step: AfterToolCall) -> Observation | None:
-        if step.call.arguments == {"x": 1, "y": 1}:
+        if step.call.arguments == {"x": 1, "y": 1} or step.call.function == "echo":
             raise RuntimeError("host result failed")
         return None
 
@@ -3295,10 +3295,73 @@ def r7_bridge_result_failure() -> MonitorGroup:
 
 
 @pytest.mark.parametrize("bridge_outcome", ["normal", "terminate", "fail"])
-def test_a_failed_native_call_takes_no_later_bridge_result_check(
-    bridge_outcome: str, caplog: pytest.LogCaptureFixture
+def test_a_native_call_takes_no_later_bridge_result_check(
+    bridge_outcome: str,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    seen: dict[str, Step] = {}
+    if bridge_outcome != "terminate":
+        from inspect_ai._sentinel import _replay
+
+        seen: dict[str, Step] = {}
+        log = run_logged(
+            as_solver(
+                r7_scaffold_reports_after_a_failed_native_call(
+                    "normal", "unchecked_addition"
+                )
+            ),
+            outputs(
+                r7_tool_calls(
+                    ToolCall(id="shared", function="echo", arguments={"text": "x"})
+                ),
+                r7_tool_calls(
+                    ToolCall(
+                        id="shared", function="addition", arguments={"x": 5, "y": 5}
+                    )
+                ),
+                done(),
+            ),
+            sentinel=[
+                r7_probe(seen, copies=True),
+                *([r7_bridge_result_failure()] if bridge_outcome == "fail" else []),
+            ],
+        )
+        [bridge_span] = [
+            event.span_id
+            for event in logged_sample(log).events
+            if isinstance(event, SentinelEvent)
+            and event.path == "r7_probe"
+            and event.stage == "tool_result"
+            and seen[event.explanation or ""].call.function == "echo"
+        ]
+        assert not any(
+            isinstance(event, SentinelEvent)
+            and event.stage == "tool_result"
+            and event.path == "r7_probe"
+            and seen[event.explanation or ""].call.function == "addition"
+            for event in logged_sample(log).events
+        )
+        selected: list[str | None] = []
+        built = _replay._Driver._built
+
+        def record(
+            self: Any, step_id: str, stage: SentinelStage, step: Step, span: str | None
+        ) -> None:
+            if stage == "tool_result":
+                selected.append(span)
+            built(self, step_id, stage, step, span)
+
+        monkeypatch.setattr(_replay._Driver, "_built", record)
+        replay = replayed(log)
+        assert [
+            (step.stage, step.step.call.function)
+            for step in replay
+            if isinstance(step.step, BeforeToolCall | AfterToolCall)
+        ] == [("tool_call", "addition"), ("tool_result", "addition")]
+        assert selected == [None], bridge_span
+        return
+
+    seen = {}
     log = run_logged(
         as_solver(r7_defers_a_bridged_host_call(native_first=True, native="explodes")),
         outputs(
@@ -3341,6 +3404,100 @@ def test_a_failed_native_call_takes_no_later_bridge_result_check(
         for s in replayed(log)
         if isinstance(s.step, BeforeToolCall | AfterToolCall)
     ] == [("tool_call", {})]
+    assert "call id(s) shared" in caplog.text
+
+
+@agent
+def r7_scaffold_reports_after_a_failed_native_call(
+    outcome: str, native: str = "explodes"
+) -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        from inspect_ai.agent._bridge.completions import inspect_completions_api_request
+
+        bridge, tools = await r7_host_bridge(state)
+        tools.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": "echo",
+                    "description": "Echo text",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"text": {"type": "string"}},
+                    },
+                },
+            }
+        )
+        messages: list[Any] = [{"role": "user", "content": "echo"}]
+        completion = await inspect_completions_api_request(
+            {"model": "inspect", "messages": messages, "tools": tools}, None, bridge
+        )
+        [proposed] = completion.choices[0].message.tool_calls or []
+        messages.append(completion.choices[0].message.model_dump(exclude_none=True))
+        history: list[ChatMessage] = [ChatMessageUser(content="native")]
+        native_tool = addition() if native == "unchecked_addition" else explodes()
+        output = await get_model().generate(history, tools=[native_tool])
+        history.append(output.message)
+        if native == "explodes":
+            with pytest.raises(RuntimeError, match="boom"):
+                await execute_tools(history, [native_tool])
+        else:
+            from inspect_ai._sentinel._scope import sentinel_scope
+
+            with sentinel_scope("review", final=True):
+                await execute_tools(history, [native_tool])
+        messages.append(
+            {"role": "tool", "tool_call_id": proposed.id, "content": "scaffold result"}
+        )
+        if outcome == "terminate":
+            with pytest.raises(TerminateSampleError, match="stop host result"):
+                await inspect_completions_api_request(
+                    {"model": "inspect", "messages": messages, "tools": tools},
+                    None,
+                    bridge,
+                )
+        else:
+            await inspect_completions_api_request(
+                {"model": "inspect", "messages": messages, "tools": tools}, None, bridge
+            )
+        return state
+
+    return execute
+
+
+def test_scaffold_result_does_not_become_failed_native_result(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    for outcome in ("normal", "terminate"):
+        seen: dict[str, Step] = {}
+        log = run_logged(
+            as_solver(r7_scaffold_reports_after_a_failed_native_call(outcome)),
+            outputs(
+                r7_tool_calls(
+                    ToolCall(id="shared", function="echo", arguments={"text": "x"})
+                ),
+                r7_tool_calls(ToolCall(id="shared", function="explodes", arguments={})),
+                done(),
+            ),
+            sentinel=[r7_probe(seen, copies=True), r7_bridge_result_outcome(outcome)],
+        )
+        live = [
+            (event.stage, seen[event.explanation or ""].call.function)
+            for event in logged_sample(log).events
+            if isinstance(event, SentinelEvent)
+            and event.path == "r7_probe"
+            and event.stage.startswith("tool")
+        ]
+        assert live == [
+            ("tool_call", "echo"),
+            ("tool_call", "explodes"),
+            ("tool_result", "echo"),
+        ]
+        assert [
+            (step.stage, step.step.call.function)
+            for step in replayed(log)
+            if isinstance(step.step, BeforeToolCall | AfterToolCall)
+        ] == [("tool_call", "explodes")]
     assert "call id(s) shared" in caplog.text
 
 
