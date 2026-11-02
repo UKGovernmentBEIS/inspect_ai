@@ -136,8 +136,13 @@ async def inspect_google_api_request_impl(
     call_ids = active_sentinel() is not None
 
     # translate messages
+    issued_ids = (
+        set(bridge._sentinel_results.identities)
+        if call_ids and bridge._sentinel_results is not None
+        else set()
+    )
     messages = messages_from_google_contents(
-        contents, system_instruction, call_ids=call_ids
+        contents, system_instruction, call_ids=call_ids, issued_ids=issued_ids
     )
     await validate_bridge_media(bridge, messages)
     debug_log("INSPECT MESSAGES", messages)
@@ -375,6 +380,7 @@ def messages_from_google_contents(
     system_instruction: dict[str, Any] | list[Any] | None,
     *,
     call_ids: bool = False,
+    issued_ids: set[str] | None = None,
 ) -> list[ChatMessage]:
     """Inspect messages for a Gemini request's contents.
 
@@ -442,7 +448,7 @@ def messages_from_google_contents(
 
         if role == "user":
             user_content, tool_messages = _extract_user_parts(
-                parts, pending_tool_calls, call_ids
+                parts, pending_tool_calls, call_ids, issued_ids
             )
             if user_content:
                 # strip duplicate system prompt prefix
@@ -464,12 +470,14 @@ def messages_from_google_contents(
             func_response_parts = [p for p in parts if _is_function_response_part(p)]
             if func_response_parts:
                 _, tool_messages = _extract_user_parts(
-                    func_response_parts, pending_tool_calls, call_ids
+                    func_response_parts, pending_tool_calls, call_ids, issued_ids
                 )
                 messages.extend(tool_messages)
 
             other_parts = [p for p in parts if not _is_function_response_part(p)]
-            assistant_content, tool_calls = _extract_model_parts(other_parts, call_ids)
+            assistant_content, tool_calls = _extract_model_parts(
+                other_parts, call_ids, issued_ids
+            )
 
             if tool_calls:
                 pending_tool_calls.clear()
@@ -538,17 +546,25 @@ def _strip_system_prompt_prefix(
     return user_content
 
 
-def _function_part_id(part: dict[str, Any], name: str) -> str | None:
+def _function_part_id(
+    part: dict[str, Any], name: str, issued_ids: set[str] | None = None
+) -> str | None:
     """The id a functionCall or functionResponse carries, as the bridge handed it over.
 
-    gemini-cli prefixes the id it is handed with the function's name and
-    `__` (and keeps the prefix in its history), so that is removed.
+    An exact issued id takes precedence over the prefix gemini-cli may add.
     """
     part_id = part.get("id")
     if not isinstance(part_id, str) or not part_id:
         return None
     prefix = f"{name.strip() or 'generic_tool'}__"
-    return part_id.removeprefix(prefix) or None
+    if issued_ids is None:
+        return part_id.removeprefix(prefix) or None
+    if issued_ids is not None and part_id in issued_ids:
+        return part_id
+    stripped = part_id.removeprefix(prefix)
+    if issued_ids is not None and stripped in issued_ids:
+        return stripped
+    return part_id
 
 
 def _is_function_response_part(part: Any) -> bool:
@@ -561,6 +577,7 @@ def _extract_user_parts(
     parts: list[dict[str, Any]],
     pending_tool_calls: dict[str, list[str]],
     call_ids: bool = False,
+    issued_ids: set[str] | None = None,
 ) -> tuple[list[Content] | str | None, list[ChatMessageTool]]:
     # pending_tool_calls maps function_name -> list of call_ids from the previous
     # model message, used to match functionResponse with the correct tool_use_id.
@@ -599,7 +616,9 @@ def _extract_user_parts(
             response = func_response.get("response", {})
 
             response_id = (
-                _function_part_id(func_response, func_name) if call_ids else None
+                _function_part_id(func_response, func_name, issued_ids)
+                if call_ids
+                else None
             )
             pending = pending_tool_calls.get(func_name, [])
             if response_id is not None:
@@ -638,6 +657,7 @@ def _extract_user_parts(
 def _extract_model_parts(
     parts: list[dict[str, Any]],
     call_ids: bool = False,
+    issued_ids: set[str] | None = None,
 ) -> tuple[list[Content] | None, list[ToolCall]]:
     """Extract assistant content and function calls from model parts.
 
@@ -720,7 +740,9 @@ def _extract_model_parts(
             # sends back; otherwise (or failing that), deterministic for
             # message ID stability
             call_id = (
-                _function_part_id(func_call, func_name) if call_ids else None
+                _function_part_id(func_call, func_name, issued_ids)
+                if call_ids
+                else None
             ) or ""
             if not call_id:
                 args_str = json.dumps(args, sort_keys=True) if args else ""

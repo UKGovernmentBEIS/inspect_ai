@@ -558,7 +558,7 @@ async def test_a_call_a_monitor_changed_in_place_is_rejected(
     assert output.message.tool_calls == [proposed]
     tool.assert_awaited_once_with(path="notes.txt")
     # the second look saw the call as the model made it
-    target = "read_file" if dispatched else proposed.function
+    target = "read_file"
     assert (seen[1].call.function, seen[1].call.arguments) == (
         target,
         {"path": "notes.txt"},
@@ -1017,11 +1017,11 @@ async def test_host_tool_result_is_checked_in_the_service() -> None:
 
     _, after = seen
     assert isinstance(after, AfterToolCall)
-    assert after.call == read
+    assert after.call == replace(read, function="read_file")
     assert after.output == "host contents"
     assert after.truncated is False
     assert after.result.tool_call_id == read.id
-    assert after.result.function == read.function
+    assert after.result.function == "read_file"
     assert after.result.text == "host contents"
     assert observations() == [(read.id, "tool_call"), (read.id, "tool_result")]
 
@@ -1701,6 +1701,91 @@ async def test_google_identical_results_of_repeated_calls_are_each_checked() -> 
     assert [s.call.id for s in afters] == ["read_0", "read_1", "read_2"]
     # each with the input of the generation that proposed it
     assert [s.input for s in afters] == model.inputs[:3]
+
+
+@pytest.mark.parametrize("cli_prefix", [False, True])
+async def test_google_echoes_preserve_distinct_issued_call_ids(
+    cli_prefix: bool,
+) -> None:
+    from inspect_ai.agent._bridge.google_api import inspect_google_api_request
+
+    seen: Steps = []
+    calls = [
+        replace(READ, id="123", arguments={"path": "one"}),
+        replace(READ, id="read_file__123", arguments={"path": "two"}),
+    ]
+    model = Scripted(calls_output(*calls), calls_output())
+    bridge = AgentBridge(
+        AgentState(messages=[]), model_aliases={"inspect": model.model}
+    )
+    tools: Any = [{"functionDeclarations": [{"name": "read_file"}]}]
+    contents: list[Any] = [{"role": "user", "parts": [{"text": TASK}]}]
+
+    with active([bridge_recording(seen)]):
+        first: Any = await inspect_google_api_request(
+            {"model": "inspect", "contents": contents, "tools": tools},
+            None,
+            None,
+            bridge,
+        )
+        parts = first["candidates"][0]["content"]["parts"]
+        if cli_prefix:
+            # The CLI-prefixed form of the second id has no exact collision.
+            for part in parts:
+                if part.get("functionCall", {}).get("id") == "read_file__123":
+                    part["functionCall"]["id"] = "read_file__read_file__123"
+        response_parts = [
+            {
+                "functionResponse": {
+                    "id": part["functionCall"]["id"],
+                    "name": "read_file",
+                    "response": {"out": "same"},
+                }
+            }
+            for part in parts
+            if "functionCall" in part
+        ]
+        contents += [
+            {"role": "model", "parts": parts},
+            {"role": "user", "parts": response_parts},
+        ]
+        await inspect_google_api_request(
+            {"model": "inspect", "contents": contents, "tools": tools},
+            None,
+            None,
+            bridge,
+        )
+
+    before = [step for step in seen if isinstance(step, BeforeToolCall)]
+    after = [step for step in seen if isinstance(step, AfterToolCall)]
+    assert [step.call.arguments for step in before] == [
+        {"path": "one"},
+        {"path": "two"},
+    ]
+    assert sorted(
+        (step.call.arguments for step in after), key=lambda args: args["path"]
+    ) == [
+        {"path": "one"},
+        {"path": "two"},
+    ]
+    parsed = model.inputs[1]
+    assert [
+        call.id
+        for message in parsed
+        if isinstance(message, ChatMessageAssistant)
+        for call in message.tool_calls or []
+    ] == [
+        "123",
+        "read_file__123",
+    ]
+    assert [
+        message.tool_call_id
+        for message in parsed
+        if isinstance(message, ChatMessageTool)
+    ] == [
+        "123",
+        "read_file__123",
+    ]
 
 
 OLD_REQUEST = "Old request: confidential context"
@@ -3289,10 +3374,13 @@ async def test_a_host_tool_exception_group_is_decided_before_its_result_check(
         assert bridge._failure is bug
         assert raised.value is group
     elif decided_by == "limit":
-        # the limit ends the sample
-        assert after == []
+        # main turns a limit into a model-facing tool error
+        [checked] = after
+        assert checked.result.error is not None
+        assert checked.result.error.type == "limit"
         assert bridge._failure is None
-        assert raised.value is limit
+        assert isinstance(raised.value, ToolError)
+        assert "message limit of 1" in str(raised.value)
     else:
         # the scaffold receives the group's error, which is checked as such
         [checked] = after
@@ -4300,7 +4388,7 @@ async def test_an_exempt_host_result_is_checked(proposed: bool) -> None:
 
     (after,) = seen
     assert isinstance(after, AfterToolCall)
-    assert after.call.function == (call.function if proposed else "read_file")
+    assert after.call.function == "read_file"
     assert after.call.arguments == READ.arguments
     assert after.message_id == (output.message.id if output is not None else "")
     # what the model was sent when it proposed the call, else nothing
