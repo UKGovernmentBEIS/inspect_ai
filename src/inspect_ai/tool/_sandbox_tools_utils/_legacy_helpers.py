@@ -25,6 +25,7 @@ from inspect_ai.tool._sandbox_tools_utils._error_mapper import (
 from inspect_ai.util._sandbox._json_rpc_transport import SandboxJSONRPCTransport
 from inspect_ai.util._sandbox.context import sandbox_with
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
+from inspect_ai.util._sandbox.identity import check_sandbox_identity_supported
 
 LEGACY_SANDBOX_CLI = "inspect-tool-support"
 _INSPECT_TOOL_SUPPORT_IMAGE_DOCKERHUB = "aisiuk/inspect-tool-support"
@@ -35,6 +36,8 @@ async def legacy_tool_support_sandbox(
     tool_name: str, *, sandbox_name: str | None = None
 ) -> tuple[SandboxEnvironment, semver.Version]:
     if sb := await sandbox_with(LEGACY_SANDBOX_CLI, True, name=sandbox_name):
+        # its commands run with no user, so refuse before running any of them
+        check_sandbox_identity_supported(sb, tool_name)
         current_version = await _get_sandbox_tool_support_version(sb)
         return (sb, current_version)
 
