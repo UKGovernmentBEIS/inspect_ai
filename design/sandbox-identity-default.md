@@ -22,9 +22,11 @@ rather than reading or writing as the default user. The scope and the marker
 stay private to inspect_ai.
 
 Companion packages that install shared tooling into the sandbox follow one
-rule. A shared artifact at a fixed path is written inside the marker, and its
-ownership is verified before any member executes it. Per-user discovery and
-installs follow the member.
+rule. A shared artifact at a fixed path is provisioned with the default
+user's authority inside the marker, in a location created or adopted under
+the existing verified-directory contract. Everything executed or loaded from
+it is protected from member modification, and it is verified again before any
+member executes it. Per-user discovery and installs follow the member.
 
 ## Why
 
@@ -293,7 +295,9 @@ def framework_sandbox_operation() -> Iterator[None]:
     resolution are unchanged.
 
     Wrap only calls whose `user=None` means the sandbox's default user, and
-    never code that runs model-chosen work.
+    never code that runs model-chosen work. The one deliberate exception is
+    in-loop scoring: `score()` wraps the task's scorer, which may execute
+    submitted code as the default user.
     """
     token = _framework_operation.set(True)
     try:
@@ -354,25 +358,29 @@ ways of calling it:
   marker, `install_skills(..., user="root", dir="/root/skills")` inside a
   member's scope would write as the member and fail with `PermissionError`
   before it could hand the files to root.
-- **Omitted `user`** inside a scope for the sandbox installs as the member.
-  `install_skills()` resolves the member once, with
-  `sandbox_identity_user(sbox, None, strict=False)`, and passes it explicitly
-  to every step: `write_file(..., user=member)`, `pwd` for a relative `dir`,
-  and `chmod +x`. It skips the `chown`, because the writer already owns the
-  files. The write names the member rather than relying on the boundary
-  default, because an enclosing `framework_sandbox_operation()` (in-loop
-  scoring, for example) would otherwise turn an omitted user back into the
-  default user. The write would then run as root while `chmod` ran as the
-  member and failed on a root-owned script, and a root write would land in
-  the member's directory. This branch stays separate from the explicit-user
-  branch, which keeps the legacy marked write. On a provider whose
-  `write_file()` takes no `user`, the explicit member raises
-  `SandboxUserUnsupportedError`, as any member file write does there. The skills land owned by the member, like every other write
-  the member's scaffold makes. Keeping the legacy root write here would put
-  root-owned files into a directory the member controls, typically its home,
-  with no ownership change after it, and a member could redirect that root
-  write through a symbolic link it plants in that directory. Outside a scope,
-  an omitted `user` behaves as today.
+- **Omitted `user`** chooses one authority, with the same marker-aware rule
+  the proxy uses, and applies it to every step. `install_skills()` calls
+  `sandbox_operation_user(sbox, None)` once:
+  - When it returns the member (inside a scope for the sandbox, outside any
+    marked block), the install runs as the member. The member is passed
+    explicitly to `write_file(..., user=member)`, to `pwd` for a relative
+    `dir`, and to `chmod +x`, and the `chown` is skipped, because the writer
+    already owns the files. Naming the member on each step keeps the steps
+    consistent: no step can fall back to the default user while another runs
+    as the member. The skills land owned by the member, like every other
+    write the member's scaffold makes. Keeping the legacy root write here
+    would put root-owned files into a directory the member controls,
+    typically its home, with no ownership change after it, and a member could
+    redirect that root write through a symbolic link it plants there. On a
+    provider whose `write_file()` takes no `user`, the explicit member raises
+    `SandboxUserUnsupportedError`, as any member file write does there.
+  - When it returns `None` (outside a scope, or inside a marked block such as
+    in-loop scoring), the install takes the legacy path unchanged: a write
+    with the default user's authority and no `chown`. An in-loop scorer that
+    installs skills therefore behaves as the same scorer does at final
+    scoring, which runs outside every scope.
+
+  This branch stays separate from the explicit-user branch above.
 
 Outside a scope, nothing changes for either form. Because the marked write
 passes no user, a provider whose `write_file()` takes no `user` keeps working
@@ -429,7 +437,13 @@ scorer is trusted task code, and the marker gives it no authority it would not
 have in final scoring. (decision: Ransom, 2026-11-02: in-loop scoring keeps
 the sandbox's default user.) The cost is that an in-loop scorer's report can
 tell a member about files the member cannot read itself, as final scoring's
-report can.
+report can. There is also a timing limitation. A scorer can execute submitted
+code (SWE-bench runs the tests of the modified repository,
+`inspect_evals: src/inspect_evals/swe_bench/scorers.py:68`; Frontier-CS runs the
+submitted program, `src/inspect_evals/frontier_cs/scorer.py:305`). In-loop, it
+does so as the default user while other members are still running, so member
+user isolation does not protect peers from that scorer. Final scoring runs the
+same code only after every member has finished.
 
 ### Providers that cannot take a file user
 
@@ -481,7 +495,10 @@ follows:
   `read_file()` and `write_file()` on the scope's sandbox run as the scope's
   user when given none, and keep an explicit user. Inspect's own operations,
   listed with their marker sites, keep the default user. In-loop scoring keeps
-  the default user. Calls through `as_type()` bypass the default.
+  the default user, so a scorer that executes submitted code does so as the
+  default user while other members are still running, and member user
+  isolation does not protect peers from it. Calls through `as_type()` bypass
+  the default.
 - **Custom tools.** The paragraph that calls custom tools "a known gap" is
   replaced. Custom tools inherit the scope's user with no change of their own.
   A custom tool that passes an explicit user, such as `user="root"`, keeps it.
@@ -496,10 +513,14 @@ follows:
   scope supplies it". The section also states that providers without file
   users raise inside a scope, and describes `install_skills()` inside a scope:
   an explicit `user` keeps the default-authority write followed by `chown`,
-  and an omitted `user` installs as the member.
+  and an omitted `user` installs as the member, except inside a marked block,
+  where it takes the legacy path.
 - **Verify before use.** A paragraph states the companion rule: a shared
-  artifact at a fixed path that agents execute is written inside the marker and
-  verified before a member executes it.
+  artifact at a fixed path that agents execute is provisioned inside the
+  marker with `user=None`, in a location created or adopted under the
+  contract before provisioning and bound to it, with its executed and loaded
+  contents protected from member modification, and it is verified again
+  before a member executes it.
 
 The `sandbox_identity()` docstring's sentence "`SandboxEnvironment.exec()`,
 `read_file()` and `write_file()` themselves are unchanged ..." is replaced in
@@ -574,14 +595,10 @@ Inside a scope:
   one rule before they run inside a scope. The identity a call needs is the
   identity of whoever uses its result:
   - *A shared artifact at a fixed path*, one that several agents execute or
-    load, is created or written inside `framework_sandbox_operation()`, so it
-    stays owned by the default user. Before any member executes or loads an
-    existing artifact, it is checked under the trust model's
-    [verify-before-use](sandbox-trust-model.md#verify-before-use) rule,
-    against the existing
+    load, is built and checked as follows. The contract every check below
+    uses is the trust model's
     [verified-directory contract](sandbox-trust-model.md#host-verified-directories)
-    (`util/_sandbox/_framework_directory.py:13-39`), which distinguishes three
-    levels:
+    (`util/_sandbox/_framework_directory.py:13-39`), at three levels:
     - the artifact, or the install directory that holds it, is owned by the
       default user (or root), is not a symbolic link, and is not writable by
       group or others;
@@ -592,22 +609,58 @@ Inside a scope:
       root-owned and not writable by others, as `/var` and `/` are for
       `/var/tmp/<name>`.
 
-    An artifact that fails the check is refused, not reused. Marking the write alone is not enough,
-    because a member may have created the path before any marked write ran.
+    The rule then has four parts:
+    1. **Default-user authority.** Each operation that creates or writes the
+       artifact runs inside `framework_sandbox_operation()` and passes
+       `user=None`. The marker changes only an omitted user, so a call that
+       forwards the agent's configured `user` keeps that user and gains
+       nothing from the marker. A call that names an explicit installation
+       identity on purpose, such as `user="root"`, is an explicit grant and
+       stays as it is.
+    2. **Create or adopt before provisioning.** Before any privileged step
+       writes into the artifact's location or executes code from it, the
+       location is created or adopted under the contract
+       (`ensure_framework_directory()`), and those steps are bound to the
+       verified object under the trust model's
+       [verify-before-use](sandbox-trust-model.md#verify-before-use) rule
+       (`exec_in_framework_directory()`), not re-resolved by pathname later.
+       A location a member created first fails this check and is refused.
+       Checking only when a member later runs the artifact is too late: the
+       provisioning itself writes and executes there with the default user's
+       authority.
+    3. **Protected contents.** Every file that is executed or loaded, and every
+       directory between the install directory and those files, must be
+       protected from modification by any member. Trusted construction
+       establishes this (for example, extracting an archive with ownership
+       normalized to the installing user and group and other write bits
+       removed, so archive metadata cannot hand a file to a member's uid), or
+       a verification of the whole tree does. Protecting the outer directory
+       alone does not protect code loaded from inside it. For a standalone
+       file (a single binary, an interpreter, a source file) whose containing
+       path satisfies the contract, a direct check of that file is enough.
+    4. **Verify before member use.** Before any member executes or loads an
+       existing artifact, it is checked again under the contract and part 3.
+       An artifact that fails is refused, not reused.
   - *Per-user discovery and installation* (`which`, `test -x`, `uv tool
     install` into the member's home, `post_install` steps) stay unmarked and
     follow the member. The member launches the result through `exec_remote()`,
     so the result must be something the member can find and execute.
   - *Per-agent configuration* stays unmarked and follows the member.
 
-  Antigravity's SDK virtualenv shows why both halves of the first point are
-  needed. `ensure_antigravity_sdk()` creates `/var/tmp/.antigravity-sdk-venv`
-  with `exec(user=user)` and reuses whatever interpreter it finds there.
-  Without the rule, the first member to provision it would own the
-  interpreter and its SDK, and every later member would run them as itself.
-  Under the rule, the venv is created inside the marker, and before any member
-  runs its interpreter, the venv's ownership is verified. A per-member private
-  venv would also satisfy the rule, because it is a per-user install.
+  Antigravity's SDK virtualenv shows why every part is needed.
+  `ensure_antigravity_sdk()` creates `/var/tmp/.antigravity-sdk-venv` with
+  `exec(user=user)`, runs that venv's Python to `pip install` the SDK in the
+  same shell, and reuses whatever interpreter it later finds there. Without
+  the rule, the first member to provision it would own the interpreter and
+  its SDK, and every later member would run them as itself. Under the rule,
+  the creation command passes `user=None` inside the marker (part 1), since
+  wrapping the existing `user=user` call would leave a configured user in
+  place. The venv directory is created or adopted under the contract before
+  the shell runs, and the shell runs bound to it (part 2). The interpreter,
+  the SDK's packages and the directories between them are protected from
+  member modification (part 3). Before any member runs the interpreter, the
+  venv is checked again (part 4). A per-member private venv would also
+  satisfy the rule, because it is a per-user install.
 
   The application of this rule to each inspect_swe installer (agent binaries,
   Node and npm bundles, ripgrep, uv and the wheel installer's staging,
@@ -637,14 +690,23 @@ marker wraps single calls in helpers whose arguments Inspect fixes. It affects
 only calls that pass no user, never the model-facing tools' resolved users. And
 the tripwire test makes every new site a reviewed allowlist change. The one
 block that runs task code, in-loop scoring, runs code the eval author already
-trusts as root at final scoring.
+trusts as root at final scoring. Unlike final scoring, it runs while other
+members are active, so a scorer that executes submitted code does so as the
+default user alongside them, and member user isolation does not protect peers
+from that scorer (see [Context inheritance](#context-inheritance)).
 
 **Shared artifacts (companion packages).** Without the companion rule, the
 default would let the first member own a binary, interpreter or source file
 that every later member executes or loads, and so run code as each peer. The
-rule closes this in two steps. Marked writes keep the artifact owned by the
-default user, and verify-before-use refuses an artifact at the fixed path that
-a member created or can modify. The marker covers only those writes.
+rule closes this in four parts. Marked writes that pass no user keep the
+artifact owned by the default user. Creating or adopting the location under
+the verified-directory contract before provisioning, with each privileged
+step bound to the verified object, refuses a location a member planted
+first. Protecting every executed or loaded file and the directories between
+them stops a member from changing code inside a protected outer directory,
+for example through ownership carried in an archive. A check before member
+use refuses an artifact that a member created or can modify. The marker
+covers only the writes.
 Discovery and per-user installation run as the member, so a member executes
 only what it installed itself or what the check found owned by the default
 user.
@@ -655,7 +717,8 @@ known exposure, a destination that an agent can redirect through symbolic
 links, is unchanged and is tracked in the trust model's "File-operation users"
 section. An omitted-user install inside a scope writes as the member and does
 no privileged `chown`, so it adds no root operation in a directory the member
-controls.
+controls. Under the marker (in-loop scoring), an omitted-user install takes the
+legacy default-user path, as at final scoring.
 
 **Providers without file users fail closed.** See
 [Providers that cannot take a file user](#providers-that-cannot-take-a-file-user).
@@ -730,12 +793,17 @@ Other files:
   - `test_install_skills_omitted_user_in_a_scope`: inside the scope, an
     install with no `user` writes with `user="w-1"`, runs `pwd` and
     `chmod +x` as `w-1`, and runs no `chown`.
-  - `test_install_skills_omitted_user_in_a_scope_under_marker`: the same
-    install, with a relative `dir` and a script, run inside
-    `framework_sandbox_operation()` within the scope. `pwd`, the writes and
+  - `test_install_skills_omitted_user_in_a_scope_relative_dir`: the same
+    install, with a relative `dir` and a script. `pwd`, the writes and
     `chmod +x` all name `w-1`, and the recorded script ends up owned by `w-1`
     and executable. On a provider whose `write_file()` takes no `user`, the
     same call raises `SandboxUserUnsupportedError` before writing anything.
+  - `test_install_skills_omitted_user_under_marker_matches_final_scoring`:
+    the same install run inside `framework_sandbox_operation()` within the
+    scope, into a directory only the default user can write. No step names
+    `w-1`: the writes pass no user, `pwd` and `chmod +x` run as the default
+    user, and there is no `chown`. The recorded calls equal those of the same
+    install made outside any scope, and both succeed.
   - `test_install_skills_omitted_user_outside_a_scope`: the same call outside
     a scope writes with no user and runs no `chown`, as today.
   - The existing `test_install_keeps_legacy_write_interface`
