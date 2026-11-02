@@ -114,9 +114,9 @@ The layout is the native one. The event is constructed before the `tool`
 span opens, so `BaseEvent` stamps it with the enclosing span; the span is the
 event's sibling, and events the tool emits (a `SandboxEvent`, a nested
 `ModelEvent`) carry the tool span's id. The stream is `span_begin(tool)`,
-`tool`, nested events, `span_end`. The viewer renders this as a tool panel
-followed by a `tool` span node holding the nested events, and drops the span
-node when it is empty. A host tool that calls a model records its
+`tool`, nested events, `span_end`. The viewer renders the `ToolEvent` as a
+tool panel beside its `tool` span node, which holds the nested events, and
+omits the span node when it is empty. A host tool that calls a model records its
 `ModelEvent` under the tool span, where a native tool's nested generation
 goes: no bridge sink is active in the service task.
 
@@ -529,3 +529,8 @@ The untrusted input is the agent's `tools/call`: `server`, `tool` and
   proposal's span has closed is placed under the current span instead. Not
   needed for the known sinks, and both event trees nest by `span_id`.
 - **Agent-run tool calls** stay without `ToolEvent`s.
+- **Google bridge result ids.** The Google adapter does not round-trip the
+  proposing call's id: the agent's function response comes back with a
+  reconstructed id, so the later `ChatMessageTool` does not share the host
+  event's id and the viewer does not hide it as the host event's result.
+  Pairing with the proposal itself is unaffected.
