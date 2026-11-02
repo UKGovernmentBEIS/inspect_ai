@@ -5,7 +5,7 @@
 Inside a `sandbox_identity(user, ...)` scope, the sample's sandbox proxy
 fills in the scope's user for every `exec()`, `read_file()` and
 `write_file()` call on the scope's sandbox that names no user. A caller that
-names a user keeps it. Custom tools, scaffold code and agent install steps that
+names a user keeps it. Custom tools, scaffold code and per-user install steps that
 run inside a scope therefore act as the scope's user with no change of their
 own, as the built-in tools already do.
 
@@ -43,7 +43,7 @@ member's home and does not find that configuration (`inspect_swe:
 src/inspect_swe/_codex_cli/codex_cli.py:675`,
 `_gemini_cli/gemini_cli.py:161-170`, `_opencode/opencode.py:176-209`).
 
-The inspect_swarm isolation design rejected applying the identity inside
+The inspect_swarm isolation design rejects applying the identity inside
 `exec()` because Inspect's own commands and scorers also pass no user, to mean
 the default user, and `exec()` cannot tell them apart from a custom tool
 ([swarm-sandbox-isolation.md, Alternatives](https://github.com/meridianlabs-ai/inspect_swarm/blob/main/design/swarm-sandbox-isolation.md#alternatives-considered)).
@@ -125,7 +125,7 @@ Current callers of the resolver:
 scope. `test_exec_is_unchanged_inside_a_scope`
 (`tests/util/sandbox/test_sandbox_identity.py:194-198`) pins this:
 `sandbox().exec(["true"])` inside `sandbox_identity("w-1")` reaches the
-provider with `user=None`. That test passes at the base of this design.
+provider with `user=None`.
 
 ### Every sample sandbox is a proxy
 
@@ -193,26 +193,55 @@ which `_supports_file_user()` deliberately does not treat as support
 
 ### Who sets a scope, and who runs inside one
 
-No package sets a scope yet. inspect_swarm's users isolation, which will set one
-for each member, is designed but not built. A grep for `sandbox_identity`
-across the satellite checkouts finds only its design document. Inside a
-member, the code that calls the three operations with no user is:
+inspect_swarm's users isolation sets a scope around each member's agent
+([swarm-sandbox-isolation.md](https://github.com/meridianlabs-ai/inspect_swarm/blob/main/design/swarm-sandbox-isolation.md)).
+Inside a member, the code that calls the three operations, passing either no
+user or the agent's configured user (usually `None`), is:
 
 - The custom tools and solvers an eval author gives the member.
-- inspect_swe's scaffolds, in two groups. **Per-agent configuration** writes
-  under the agent's `$HOME` (`inspect_swe: _codex_cli/codex_cli.py:560`,
-  `:675`; `_gemini_cli/gemini_cli.py:161-170`; `_opencode/opencode.py:176-209`;
-  `_kimi_code/kimi_code.py:266-290`; `_antigravity/antigravity.py:353-437`;
-  `acp/_agents/*/`). **Shared installs** write binaries into the fixed
-  directory `SANDBOX_INSTALL_DIR = /var/tmp/.5c95f967ca830048`
-  (`_util/sandbox.py:14`) and probe or `chmod` them as root
-  (`_util/agentbinary.py:367-386`, `_util/agentwheel.py:107`, `:295`,
-  `_util/node.py:98`, `:240`, `_util/ripgrep.py:46`,
-  `_mini_swe_agent/setup.py:54`). The install is shared: a later agent skips
-  the write when the root probe `test -x` succeeds (`agentbinary.py:364-370`).
-  inspect_swe also runs an MCP readiness probe with `exec()` and no user
-  (`_util/mcp_ready.py:234`). The swarm design wants that probe to run as the
-  member.
+- inspect_swe's scaffolds (paths below are in `inspect_swe:
+  src/inspect_swe/`). Their calls fall into three kinds, and the kind decides
+  which identity each call needs:
+  - **Discovery and per-user installation.** These calls find or install the
+    executable the agent will launch. They pass the agent's `user`:
+    - `ensure_agent_binary_installed()`'s `which` for `version="auto"` or
+      `"sandbox"` (`_util/agentbinary.py:247`) and its `post_install` step
+      (`:388-391`);
+    - `ensure_node_available()`'s `test -x` and `which node`
+      (`_util/node.py:36`, `:41`);
+    - `ensure_ripgrep_available()`'s `command -v rg` and `test -x`
+      (`_util/ripgrep.py:33`, `:39`);
+    - `install_npm_bundle()`'s final `test -x` (`_util/node.py:256`);
+    - `ensure_uv_in_sandbox()`'s `test -x` (`_util/agentwheel.py:283-285`);
+    - the whole of `ensure_agent_wheel_installed()` after uv. That function
+      writes a staging tarball (`agentwheel.py:107`), runs
+      `uv tool install` as `user`, which installs into that user's
+      `$HOME/.local/bin`, and finds the result with `which` under that
+      `$HOME` (`:113-135`). Its only caller is mini-swe-agent
+      (`_mini_swe_agent/mini_swe_agent.py:151`), which launches the returned
+      path through `exec_remote()` (`:225`). Inside a scope, that launch runs
+      as the member.
+  - **Shared artifact writes.** These write files into fixed locations that
+    every agent in the sandbox then executes or loads. They are the
+    userless `write_file()` calls `agentbinary.py:375` and `:386` (binary or
+    archive into `SANDBOX_INSTALL_DIR = /var/tmp/.5c95f967ca830048`,
+    `_util/sandbox.py:14`), `node.py:98` (node binary), `node.py:240`
+    (npm bundle), `ripgrep.py:46` (rg binary), `agentwheel.py:295` (uv at
+    `/var/tmp/.uv`) together with the `chmod` that follows it and passes the
+    agent's `user` (`:298`), and `_mini_swe_agent/setup.py:54` (the
+    `resumable_agent.py` source that every mini-swe-agent loads). The
+    surrounding `mkdir`, `chmod`, extraction and existence probes already
+    pass `user="root"` (for example `agentbinary.py:367-386`,
+    `node.py:97-99`, `:236-246`). The artifacts are shared: a later agent
+    skips the write when the root probe `test -x` succeeds
+    (`agentbinary.py:364-370`).
+  - **Per-agent configuration.** These calls write config under the agent's
+    `$HOME`: `_codex_cli/codex_cli.py:560`, `:675`;
+    `_gemini_cli/gemini_cli.py:161-170`; `_opencode/opencode.py:176-209`;
+    `_kimi_code/kimi_code.py:266-290`; `_antigravity/antigravity.py:353-437`;
+    and `acp/_agents/*/`. inspect_swe also runs an MCP readiness probe with
+    `exec()` and no user (`_util/mcp_ready.py:234`), which the swarm design
+    wants to run as the member.
 
 ## Design
 
@@ -362,7 +391,10 @@ identity it was written for, which matches what the swarm design specifies for
 scorers. A scorer that calls a built-in tool still runs that tool as the
 member, as it does today. Tasks the scorer starts inherit the marker. The
 scorer is trusted task code, and the marker gives it no authority it would not
-have in final scoring. This is Open question 1.
+have in final scoring. (decision: Ransom, 2026-11-02: in-loop scoring keeps
+the sandbox's default user.) The cost is that an in-loop scorer's report can
+tell a member about files the member cannot read itself, as final scoring's
+report can.
 
 ### Providers that cannot take a file user
 
@@ -393,14 +425,13 @@ file operations are marked. Outside a scope, nothing changes on any provider.
 
 ### Public surface
 
-Ransom decided on 2026-10-30 that the scope and its helpers stay internal.
-`sandbox_identity()` is set only by inspect_swarm and read only by inspect_ai's
-tools and by inspect_swe, and both of those already import inspect_ai
-internals. This design removes the reason the review gave for exporting them:
-with the default at the boundary, a custom tool no longer needs
-`sandbox_identity_user()` to run as the member. The marker stays private for
-the same reason. Its callers are inspect_ai and, through the companion change
-below, inspect_swe. The public docstrings of `SandboxEnvironment.exec()`,
+The scope and its helpers stay internal (decision: Ransom, 2026-10-30). Their
+callers outside inspect_ai, inspect_swarm (which sets the scope) and
+inspect_swe (which reads it), already import inspect_ai internals. With the
+default at the boundary, a custom tool needs no helper to run as the scope's
+user, so custom-tool authors have no reason to import one. The marker stays
+private on the same terms: its callers are inspect_ai and, through the
+companion change below, inspect_swe. The public docstrings of `SandboxEnvironment.exec()`,
 `read_file()` and `write_file()` do not mention the private scope. The
 `sandbox_identity()` docstring and the trust model do.
 
@@ -482,8 +513,8 @@ under [Providers that cannot take a file user](#providers-that-cannot-take-a-fil
 
 Outside a scope, nothing changes. The proxy resolves `None` to `None`, and the
 marker is a ContextVar that no code reads outside the proxy. Calls on sandboxes
-other than the scope's are unchanged too. Since no released package sets a
-scope, no existing eval changes behaviour.
+other than the scope's are unchanged too. Only code that runs inside a scope
+sees the changes below.
 
 Inside a scope:
 
@@ -496,18 +527,44 @@ Inside a scope:
   its options, where it was absent before. `options` is a free-form dict, and
   existing logs read back unchanged. No schema or generated TypeScript type
   changes.
-- **inspect_swe** (companion change, required before any scope is set for its
-  agents). Its per-agent configuration writes and its MCP readiness probe need
-  no change: they start following the member, which fixes the `$HOME` mismatch
-  described under [Why](#why). Its shared installs must keep their current
-  identity. Otherwise the first member writes the binary into
-  `/var/tmp/.5c95f967ca830048` as itself, and later members skip the write and
-  execute that member-owned file (see [Security](#security)).
-  `ensure_agent_binary_installed()`, `ensure_agent_wheel_installed()`, the
-  node, npm-bundle and ripgrep installers, and mini-swe-agent's setup each wrap
-  their install body in `framework_sandbox_operation()`. The marker keeps the
-  default-user meaning of `None` on every provider. An explicit `user="root"`
-  would instead raise on providers without file users.
+- **inspect_swe** (companion change, required before its agents run inside a
+  scope). The rule for each call follows the three kinds surveyed under
+  [Who sets a scope](#who-sets-a-scope-and-who-runs-inside-one): the
+  identity a call needs is the identity of whoever later uses its result.
+  - *Discovery and per-user installation stay unmarked* and follow the
+    member. The agent's executable is launched through `exec_remote()` as the
+    member, so it must be found and installed from the member's point of view.
+    `which`, `command -v` and `test -x` must answer for the member's `PATH`
+    and permissions. `ensure_agent_wheel_installed()` must run
+    `uv tool install` as the member, so the tool lands in the member's
+    `$HOME/.local/bin`, a path the member can execute. Under a marker it would
+    land in the default user's home (`/root/.local/bin/mini`), which a member
+    cannot traverse. `post_install` likewise runs as the member, as the agent
+    does.
+  - *Shared artifact writes are marked.* Each userless `write_file()` that
+    creates a file every agent executes or loads is wrapped, one call at a
+    time, in `framework_sandbox_operation()`: `agentbinary.py:375` and `:386`,
+    `node.py:98` and `:240`, `ripgrep.py:46`, `agentwheel.py:295` and
+    `_mini_swe_agent/setup.py:54`. The artifact stays owned by the default
+    user, as today. Without the marker, the first member would own a file
+    that every later member executes or loads (see [Security](#security)).
+    The `chmod` after the uv write (`agentwheel.py:298`) passes the agent's
+    user today. It changes to `user="root"`, like the `chmod` after every
+    other shared write, because a member cannot `chmod` a root-owned file.
+    The marker, not an explicit `user="root"` on the write, keeps the
+    default-user meaning of `None` on every provider: an explicit user raises
+    on providers without file users.
+  - *Per-user staging moves to a private directory.*
+    `ensure_agent_wheel_installed()` stages its wheels at fixed names in
+    world-writable `/var/tmp` (`/var/tmp/.<package>-<version>.tar.gz` and
+    `/var/tmp/<package>-wheels`, `agentwheel.py:105-121`). As the member, one
+    member could create those names first and hand another member its own
+    wheels. The staging files are written and consumed by the member's own
+    install, so they stay unmarked, but they move into a directory the member
+    creates with `mktemp -d` and removes afterwards.
+  - *Per-agent configuration and the MCP readiness probe need no change.*
+    They start following the member, which fixes the `$HOME` mismatch
+    described under [Why](#why).
 - **inspect_swarm's design.** Its "What it does not touch", "Custom tools",
   "In-loop scoring", "The harness reads everything" and `foreign_execs` passages
   and its third alternative describe today's boundary. They are updated in that
@@ -532,11 +589,16 @@ the tripwire test makes every new site a reviewed allowlist change. The one
 block that runs task code, in-loop scoring, runs code the eval author already
 trusts as root at final scoring.
 
-**Shared installs (inspect_swe).** Without the companion change, the default
-would let the first member own a binary that every later member executes. That
-member could replace the binary and so run code as each peer. This is why the
-companion change is required before inspect_swe agents run in a scope, and why
-it uses the marker rather than letting installs follow the member.
+**Shared artifacts and staging (inspect_swe).** Without the companion
+change, the default would let the first member own a binary, bundle or
+Python source that every later member executes or loads. That member could
+replace the file and so run code as each peer. This is why the shared writes
+are marked and stay owned by the default user. The marker covers only those
+writes. Discovery and per-user installation run as the member, so a member's
+executable is one it installed itself or one owned by the default user. The
+wheel installer's fixed staging names in `/var/tmp` would let one member plant
+wheels for another, which is why the staging moves to a private `mktemp -d`
+directory.
 
 **Providers without file users fail closed.** See
 [Providers that cannot take a file user](#providers-that-cannot-take-a-file-user).
@@ -610,8 +672,30 @@ Other files:
   identity. PR CI runs the slow tests under `tests/tools/`
   (`.github/workflows/build.yml:612`).
 
-No test needs a model provider or network. Apart from the Docker test, all of
-them use fakes and run in the ordinary test job.
+No inspect_ai test needs a model provider or network. Apart from the Docker
+test, all of them use fakes and run in the ordinary test job.
+
+inspect_swe (companion change):
+
+- `tests/test_ensure_wheels_install.py` and `tests/test_agentbinary_install.py`,
+  with recording sandboxes behind `SandboxEnvironmentProxy`, inside
+  `sandbox_identity("w-1")`. The shared `write_file()` calls reach the provider
+  with `user=None`. The discovery, `uv tool install` and verification calls
+  reach it with `"w-1"`. The wheel installer returns `w-1`'s
+  `$HOME/.local/bin/<binary>` and stages under a `mktemp -d` path, not a fixed
+  `/var/tmp` name.
+- A Docker test (`skip_if_no_docker`, `slow`) with two users whose homes are
+  0700. Inside each user's scope, it calls `ensure_agent_wheel_installed()`
+  for mini-swe-agent, `ensure_agent_binary_installed()` for one binary agent,
+  `install_npm_bundle()`, `ensure_ripgrep_available()` and
+  `install_resumable_agent()`. It then executes each returned path as that
+  user through `exec_remote()` (`<binary> --version` for each returned
+  executable, `<bin dir>/rg --version`), checks that the user can read the
+  resumable source, and asserts success. It also
+  asserts that each shared artifact is owned by root, and that each user's
+  wheel binary is under that user's own home. The test needs network to
+  download the agents, or a warm inspect_swe download cache, and runs where
+  inspect_swe runs its other Docker tests.
 
 ## Implementation plan
 
@@ -631,32 +715,31 @@ them use fakes and run in the ordinary test job.
    `test_exec_is_unchanged_inside_a_scope` and add the remaining tests,
    including the Docker test. Steps 1 and 2 may ship as one inspect_ai PR, as
    two commits.
-3. **inspect_swe companion.** Wrap the shared install bodies listed under
-   [Compatibility](#compatibility-and-migration) in
-   `framework_sandbox_operation()`, with a test that an install inside a scope
-   writes with `user=None`. This needs step 1, and it must land before
-   inspect_swarm sets a scope around inspect_swe agents.
+3. **inspect_swe companion.** Wrap each shared artifact `write_file()` listed
+   under [Compatibility](#compatibility-and-migration) in
+   `framework_sandbox_operation()`. Change the uv `chmod` to `user="root"`.
+   Move the wheel installer's staging into a `mktemp -d` directory. Leave
+   discovery, per-user installation and configuration unmarked. Add the
+   inspect_swe tests under [Testing](#testing), including the two-user Docker
+   test that executes each returned path. Files: `_util/agentbinary.py`,
+   `_util/agentwheel.py`, `_util/node.py`, `_util/ripgrep.py`,
+   `_mini_swe_agent/setup.py`. This needs step 1, and it is required before
+   inspect_swe agents run inside a scope.
 4. **inspect_swarm design.** Update the passages listed under
    [Compatibility](#compatibility-and-migration) in its repository.
 
 ## Open questions
 
-1. **Should in-loop scoring keep the sandbox's default user inside a scope?**
-   Recommendation: yes. `score()` wraps the scorer call in the marker, so a
-   scorer gives the same verdict in-loop and at the end of the sample. This
-   matches what the swarm design already specifies for scorers. The
-   alternative is to let in-loop scorers run as the member. That would also
-   stop a member from learning, through a scorer's report, what it cannot read
-   itself, but the same scorer could then return a different verdict in-loop
-   than at the end.
-   Confidence: high.
+None. In-loop scoring keeps the default user
+(decision: Ransom, 2026-11-02; see [Context inheritance](#context-inheritance)).
 
 ## Not this design
 
 - **`human_cli()` inside a scope.** Its `.bashrc` install and session-log reads
   take the human's configured user, while `connection()` logs the human in
-  with no scope. Nothing wraps a human agent in a scope today. If something
-  does, `human_cli()` should refuse the scope as `computer()` does.
+  with no scope. A human agent inside a scope is not a shape this design
+  supports. If one is needed, `human_cli()` should refuse the scope as
+  `computer()` does until it is designed.
 - **User switching without usable root.** A tools server that runs as the
   default user cannot switch to the scope's user, so `bash_session()` and
   `text_editor()` cannot honour a scope there. This predates the scope and is
@@ -670,5 +753,6 @@ them use fakes and run in the ordinary test job.
   providers need `user` on `read_file()` and `write_file()` before custom file
   operations work inside a scope there. That work belongs in each provider's
   repository.
-- **The scope's `cwd` for raw `exec()`**, which raises the relative-path
-  question discussed in the review of the scope.
+- **The scope's `cwd` for raw `exec()`.** Applying it to `exec()` alone
+  would make `exec()` and `read_file()` resolve the same relative path
+  differently (see [Goals and non-goals](#goals-and-non-goals)).
