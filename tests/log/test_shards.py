@@ -5,7 +5,7 @@ import json
 import os
 import sys
 import zipfile
-from collections.abc import Callable, Hashable, Iterator, Sequence
+from collections.abc import Callable, Coroutine, Hashable, Iterator, Sequence
 from io import BytesIO
 from pathlib import Path
 from typing import Annotated, Any, Literal, cast
@@ -3432,8 +3432,9 @@ async def test_a_cancelled_merge_leaves_no_lock_or_temp_files(
     assert _files(str(tmp_path)) == before
 
 
+@pytest.mark.parametrize("cancels", [1, 2])
 def test_a_cancelled_publish_finishes_before_a_later_merge(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, cancels: int
 ) -> None:
     import asyncio
     import shutil
@@ -3464,11 +3465,16 @@ def test_a_cancelled_publish_finishes_before_a_later_merge(
             written.append(first)
 
     monkeypatch.setattr(_publish, "_replace_local", paused)
+    waiting = _waiting_for_owned_workers(monkeypatch)
 
     async def scenario() -> tuple[bool, bytes]:
         merge = asyncio.ensure_future(merge_eval_log_shards_async(merged))
         assert await asyncio.to_thread(copying.wait, 30)
         merge.cancel()
+        if cancels == 2:
+            # a second delivery, once the first has reached the wait
+            assert await asyncio.to_thread(waiting.wait, 30)
+            merge.cancel()
         # the cancelled merge must hold its lock until its worker has written
         done, _ = await asyncio.wait({merge}, timeout=0.5)
         release.set()
@@ -3489,6 +3495,223 @@ def test_a_cancelled_publish_finishes_before_a_later_merge(
     # no worker of the cancelled merge is left to overwrite the later merge
     assert written == [True, False]
     assert Path(merged).read_bytes() == retried
+
+
+def _waiting_for_owned_workers(monkeypatch: pytest.MonkeyPatch) -> Any:
+    """An event set when a cancelled `run_owned` starts waiting for its worker."""
+    import threading
+
+    from inspect_ai.log._shards import _owned
+
+    waiting = threading.Event()
+    finish = _owned._finish
+
+    async def entered(finished: threading.Event) -> None:
+        waiting.set()
+        await finish(finished)
+
+    monkeypatch.setattr(_owned, "_finish", entered)
+    return waiting
+
+
+async def test_run_owned_returns_the_result_and_raises_the_error() -> None:
+    from inspect_ai.log._shards._owned import run_owned
+
+    def fail() -> None:
+        raise ValueError("worker failed")
+
+    assert await run_owned(lambda: 42) == 42
+    with pytest.raises(ValueError, match="worker failed"):
+        await run_owned(fail)
+
+
+async def test_run_owned_never_runs_work_cancelled_before_it_starts() -> None:
+    import threading
+
+    from inspect_ai.log._shards._owned import run_owned
+
+    limiter = anyio.to_thread.current_default_thread_limiter()
+    tokens = limiter.total_tokens
+    limiter.total_tokens = 1
+    try:
+        busy, release, ran = threading.Event(), threading.Event(), []
+
+        def block() -> None:
+            busy.set()
+            release.wait(30)
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(anyio.to_thread.run_sync, block)
+            await anyio.to_thread.run_sync(
+                busy.wait, 30, limiter=anyio.CapacityLimiter(1)
+            )
+            with anyio.CancelScope() as scope:
+                scope.cancel()
+                # waits for the busy limiter, so the work never starts
+                await run_owned(lambda: ran.append(True))
+            release.set()
+        # the limiter is free again: work left queued would have run by now
+        await anyio.to_thread.run_sync(lambda: None)
+    finally:
+        limiter.total_tokens = tokens
+    assert ran == []
+
+
+async def test_run_owned_finishes_started_work_under_a_cancel_scope() -> None:
+    import threading
+
+    from inspect_ai.log._shards._owned import run_owned
+
+    started, release, done = threading.Event(), threading.Event(), []
+
+    def work() -> None:
+        started.set()
+        release.wait(30)
+        done.append(True)
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(run_owned, work)
+        await anyio.to_thread.run_sync(started.wait, 30)
+        tg.cancel_scope.cancel()
+        release.set()
+    assert done == [True]
+
+
+def test_run_owned_waits_through_repeated_native_cancellations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import asyncio
+    import threading
+
+    from inspect_ai.log._shards._owned import run_owned
+
+    waiting = _waiting_for_owned_workers(monkeypatch)
+    started, release, done = threading.Event(), threading.Event(), []
+
+    def work() -> str:
+        started.set()
+        release.wait(30)
+        done.append(True)
+        return "written"
+
+    async def scenario() -> bool:
+        owned = asyncio.ensure_future(run_owned(work))
+        assert await asyncio.to_thread(started.wait, 30)
+        owned.cancel()
+        assert await asyncio.to_thread(waiting.wait, 30)
+        returned = False
+        for _ in range(3):
+            owned.cancel()
+            finished, _ = await asyncio.wait({owned}, timeout=0.2)
+            returned = returned or bool(finished)
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await owned
+        return returned
+
+    assert not asyncio.run(scenario()), "returned before its worker finished"
+    assert done == [True]
+
+
+@pytest.mark.parametrize("target", ["merge", "local", "file", "s3", "log"])
+def test_a_cancelled_deletion_finishes_before_a_later_write(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    request: pytest.FixtureRequest,
+    target: str,
+) -> None:
+    import asyncio
+    import threading
+
+    from inspect_ai.log import merge_eval_log_shards_async
+    from inspect_ai.log._shards import _delete
+    from inspect_ai.log._shards._delete import remove_shards_dir
+
+    if target == "s3":
+        root = f"s3://test-bucket/{request.getfixturevalue('s3_root')}"
+    elif target == "file":
+        root = tmp_path.as_uri()
+    else:
+        root = str(tmp_path)
+    merged, shards = _paths(root)
+    later = f"{shards}/0/later.eval"
+    if target == "merge":
+        _run(shards, "0", sample_id=[1, 2, 3])
+        _run(shards, "1", sample_id=[4, 5, 6])
+    elif target == "s3":
+        key = merged.removeprefix("s3://test-bucket/")
+        client = boto3.client("s3")
+        client.put_object(Bucket="test-bucket", Key=key, Body=b"merged")
+        shard_key = f"{key.removesuffix('.eval')}.shards/0/a.eval"
+        client.put_object(Bucket="test-bucket", Key=shard_key, Body=b"x")
+    else:
+        os.makedirs(local_path(f"{shards}/0"))
+        Path(local_path(merged)).write_bytes(b"merged")
+        Path(local_path(f"{shards}/0/a.eval")).write_bytes(b"x")
+
+    reached, release, finished = threading.Event(), threading.Event(), threading.Event()
+    paused = {
+        "log": "_remove_local_file",
+        "s3": "_remove_s3_prefix",
+    }.get(target, "_remove_local_dir")
+    remove = getattr(_delete, paused)
+
+    def pausing(*args: Any) -> None:
+        reached.set()
+        assert release.wait(30)
+        try:
+            remove(*args)
+        finally:
+            finished.set()
+
+    monkeypatch.setattr(_delete, paused, pausing)
+
+    def write_later() -> None:
+        if target == "s3":
+            client.put_object(
+                Bucket="test-bucket",
+                Key=later.removeprefix("s3://test-bucket/"),
+                Body=b"later",
+            )
+        elif target == "log":
+            Path(local_path(merged)).write_bytes(b"later")
+        else:
+            os.makedirs(local_path(f"{shards}/0"), exist_ok=True)
+            Path(local_path(later)).write_bytes(b"later")
+
+    def survived() -> bool:
+        if target == "s3":
+            return later.removeprefix("s3://test-bucket/") in _s3_keys(
+                later.removeprefix("s3://test-bucket/")
+            )
+        written = merged if target == "log" else later
+        return Path(local_path(written)).read_bytes() == b"later"
+
+    async def scenario() -> bool:
+        operation: Coroutine[Any, Any, Any] = (
+            merge_eval_log_shards_async(merged, delete_shards=True)
+            if target == "merge"
+            else remove_shards_dir(merged, include_log=target == "log")
+        )
+        deletion = asyncio.ensure_future(operation)
+        assert await asyncio.to_thread(reached.wait, 30)
+        deletion.cancel()
+        done, _ = await asyncio.wait({deletion}, timeout=0.5)
+        if not done:
+            release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await deletion
+        # a later operation, once the cancelled one has returned
+        write_later()
+        release.set()
+        assert await asyncio.to_thread(finished.wait, 30)
+        return bool(done)
+
+    returned_early = asyncio.run(scenario())
+    assert not returned_early, "the cancelled deletion returned before its worker"
+    assert survived()
+    if target == "merge":
+        assert not os.path.exists(merged.replace(".eval", ".merge.lock"))
 
 
 def _crc_failures(

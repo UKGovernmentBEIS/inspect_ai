@@ -6,6 +6,7 @@ guaranteed otherwise. An interrupted deletion leaves objects behind; running
 it again, or deleting the directory by hand, finishes it.
 """
 
+import os
 import re
 import shutil
 from contextlib import suppress
@@ -23,6 +24,7 @@ from inspect_ai._util.file import local_path
 from inspect_ai._util.log_layout import eval_shards_dir
 
 from ._errors import ShardSetError
+from ._owned import run_owned
 from ._publish import check_supported_location, is_local
 from ._walk import check_s3_location
 
@@ -68,15 +70,17 @@ async def remove_shards_dir(
         log = local_path(log)
     shards_dir = eval_shards_dir(log)
     if include_log:
-        with suppress(FileNotFoundError):
+        if is_local(log):
+            await run_owned(partial(_remove_local_file, log))
+        else:
             await fs.delete_file(log)
     if is_local(shards_dir):
-        await anyio.to_thread.run_sync(_remove_local_dir, shards_dir)
+        await run_owned(partial(_remove_local_dir, shards_dir))
         return
     bucket, prefix = s3_bucket_and_key(shards_dir)
     # boto3, not fsspec, so a worker thread is safe
-    await anyio.to_thread.run_sync(
-        _remove_s3_prefix, fs.s3_client(), bucket, prefix.rstrip("/") + "/"
+    await run_owned(
+        partial(_remove_s3_prefix, fs.s3_client(), bucket, prefix.rstrip("/") + "/")
     )
     # a bulk delete can return normally while objects remain
     remnant = await _remnant(fs, shards_dir)
@@ -152,6 +156,11 @@ def _delete_s3_keys(s3: Any, bucket: str, keys: list[str]) -> None:
             f"{first.get('Message')}); {len(errors)} objects were not deleted. "
             "Delete them, or merge again with delete_shards."
         )
+
+
+def _remove_local_file(path: str) -> None:
+    with suppress(FileNotFoundError):
+        os.remove(path)
 
 
 def _remove_local_dir(path: str) -> None:

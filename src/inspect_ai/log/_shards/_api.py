@@ -41,6 +41,7 @@ from inspect_ai.log._recorders.recorder import SampleRecordKey
 
 from ._delete import check_deletable, remove_shards_dir
 from ._errors import ShardSetError, ShardSetIncomplete
+from ._owned import run_owned
 from ._plan import (
     AttemptRead,
     Selection,
@@ -505,12 +506,12 @@ async def _merge_pass(
                 assert existing is not None
                 copy = await merged_log_copy(fs, merged_path, existing.etag, temp_dir)
                 carried_zip = zipfile.ZipFile(copy)
-                carried_summaries = await anyio.to_thread.run_sync(
-                    _read_carried_summaries, carried_zip, merged_path
+                carried_summaries = await run_owned(
+                    functools.partial(_read_carried_summaries, carried_zip, merged_path)
                 )
                 if base.eval.config.epochs_reducer:
-                    carried_reductions = await anyio.to_thread.run_sync(
-                        _read_carried_reductions, carried_zip
+                    carried_reductions = await run_owned(
+                        functools.partial(_read_carried_reductions, carried_zip)
                     )
             summaries = []
             for key in keys:
@@ -531,8 +532,10 @@ async def _merge_pass(
                     reader = readers[read.shard]
                     return await reader.read_member_fully(read.members[key])
                 assert carried_zip is not None
-                return await anyio.to_thread.run_sync(
-                    carried_zip.read, _sample_filename(key.sample_id, key.epoch)
+                return await run_owned(
+                    functools.partial(
+                        carried_zip.read, _sample_filename(key.sample_id, key.epoch)
+                    )
                 )
 
             name = log_basename(merged_path)

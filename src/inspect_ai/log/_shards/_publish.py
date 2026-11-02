@@ -9,12 +9,9 @@ merge supports no other storage (see :func:`check_supported_location`).
 import os
 import shutil
 import socket
-import threading
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import BinaryIO
-
-import anyio
 
 from inspect_ai._util.asyncfiles import AsyncFilesystem, is_s3_filename
 from inspect_ai._util.atomic_write import atomic_write
@@ -22,6 +19,7 @@ from inspect_ai._util.dateutil import iso_now
 from inspect_ai._util.file import acquire_exclusive_lock, filesystem, local_path
 from inspect_ai._util.log_layout import log_basename
 
+from ._owned import run_owned
 from ._walk import _name
 
 _LOCK_SUFFIX = ".merge.lock"
@@ -114,49 +112,13 @@ async def publish(
     source.seek(0)
     if is_local(merged):
         path = local_path(merged)
-        await _in_owned_thread(lambda: _replace_local(path, source))
+        await run_owned(lambda: _replace_local(path, source))
         return None
     assert is_s3_filename(merged), "the merge supports local and S3 logs only"
     if exists:
         assert etag is not None, "S3 reads report an ETag"
         return await fs.write_file_conditional(merged, source, if_match=etag)
     return await fs.write_file_conditional(merged, source, if_none_match=True)
-
-
-async def _in_owned_thread(work: Callable[[], None]) -> None:
-    """Run `work` in a worker thread that the caller outlives.
-
-    A directly cancelled asyncio task (``Task.cancel()``, a timeout) can
-    leave a ``to_thread`` await while its thread runs on, which would close
-    the source and release the merge lock under a worker still replacing
-    the merged log, so a later merge's log could be overwritten by this
-    one. On cancellation this waits, shielded, for a worker that has
-    started to finish, then re-raises.
-    """
-    lock = threading.Lock()
-    finished = threading.Event()
-    state = {"started": False, "abandoned": False}
-
-    def run() -> None:
-        with lock:
-            if state["abandoned"]:
-                return
-            state["started"] = True
-        try:
-            work()
-        finally:
-            finished.set()
-
-    try:
-        await anyio.to_thread.run_sync(run)
-    except BaseException:
-        with lock:
-            state["abandoned"] = True
-            started = state["started"]
-        if started:
-            with anyio.CancelScope(shield=True):
-                await anyio.to_thread.run_sync(finished.wait)
-        raise
 
 
 def _replace_local(path: str, source: BinaryIO) -> None:

@@ -761,7 +761,8 @@ version moves and needs no code change.
 functions), `_walk.py` (shared with ctl, "Code shared with ctl log-dir
 mode"), `_plan.py` (pure functions: validation, sample set, status, header),
 `_write.py` (building the merged zip), `_publish.py` (guards and
-publication), `_delete.py` (companion deletion).
+publication), `_delete.py` (companion deletion), `_owned.py` (the worker
+threads the merge outlives).
 
 One pass, in order. Steps 1–9 run on every call; the merged log is
 downloaded and rewritten only when step 10 says so.
@@ -1722,20 +1723,27 @@ there again.
 - Cancellation before publication leaves the merged log and shards
   untouched; temp files are closed in `finally`, and the local lock is
   removed in `finally`. Cancellation during publication is covered under
-  "Overlap guards". A local publication runs its atomic replace in a
-  worker thread that the merge outlives: a directly cancelled asyncio
-  task (`Task.cancel()`, a timeout) could otherwise leave the
-  `to_thread` await while the worker still writes, close the source and
-  release the lock, and let the worker overwrite a later merge's log.
-  On cancellation the merge waits, shielded, for a started worker to
-  finish, then re-raises. S3 publication is a conditional upload, which
-  a later merge's write makes fail rather than overwrite.
+  "Overlap guards".
+- Every worker thread the merge and its deletion start goes through one
+  helper, `run_owned` (`_owned.py`; decision: Ransom, 2026-11-02): the
+  local atomic replace, the local recursive delete, the S3 bulk delete,
+  the local merged-log unlink of `include_log`, the reads of the carried
+  merged log and the writes of the temporary zip. AnyIO's `to_thread`
+  holds off cancel-scope cancellation until its thread finishes, but a
+  directly cancelled asyncio task (`Task.cancel()`, a timeout) leaves the
+  await while the thread runs on. The merge would then release its lock
+  and close its sources under a worker that could overwrite a later
+  merge's log or delete a later operation's objects. When the await
+  raises, work not yet started never runs, and started work is waited
+  for, shielded and through any further cancellations, before the
+  exception is re-raised; a worker's own exception propagates. The S3
+  listings that check for remnants are read-only and hold nothing the
+  merge releases, so they use `to_thread` directly. S3 publication is a
+  conditional upload, which a later merge's write makes fail rather than
+  overwrite.
 - Shard listing (`<k>/` listings) is bounded at 32 concurrent, shard reads
   at 16, all within the pass's one `AsyncFilesystem` scope, through
-  `tg_collect`. Blocking zip work (compressing, `zipfile` writes) runs in
-  `anyio.to_thread.run_sync` with `anyio.from_thread.check_cancelled()`
-  between members, as `copy_live_members(..., cancellable=True)` does
-  (`src/inspect_ai/_util/zipfile.py:212`).
+  `tg_collect`.
 - The pass holds no lock across `await` other than the local lock file,
   which is a filesystem object, not an in-process lock.
 
@@ -2888,7 +2896,15 @@ Per PR (numbers from "Implementation plan"):
      (`read_eval_log`, `list_eval_logs`, `evals_df`) calls the merge;
    - cancellation mid-pass (after reads, during the build, during the S3
      upload) leaves the merged log and shards as they were and no temp or
-     lock file behind; run with `--runtrio`.
+     lock file behind; run with `--runtrio`;
+   - owned workers: `run_owned` returns its result, propagates a worker's
+     exception, never runs work cancelled before it started, and waits for
+     started work through one or more native cancellations; a local
+     publication paused before its commit and cancelled once or twice
+     returns only after its worker, and a later merge's log stays final;
+     a deletion paused before it mutates (local path, `file://`, S3, and
+     the merged log of `include_log`) and cancelled returns only after its
+     worker, and an object recreated afterwards survives.
    `tests/cli/test_log.py`: `merge-shards` on a merged log and on a
    companion; `--sample-id` and `--sample-count`, and the usage error for
    both; `--delete-shards`; a `-recovered` `LOG` and a directory `LOG`

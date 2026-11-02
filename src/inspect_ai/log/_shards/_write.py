@@ -12,8 +12,6 @@ import zipfile
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from typing import TYPE_CHECKING, Any, BinaryIO, NamedTuple
 
-import anyio
-
 from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai._util.json import to_json_safe
 from inspect_ai._util.zipfile import zipfile_compress_kwargs
@@ -38,6 +36,7 @@ from inspect_ai.scorer._metric import SampleScore, Score
 from inspect_ai.scorer._reducer.types import ScoreReducer
 
 from ._errors import ShardSetError
+from ._owned import run_owned
 
 if TYPE_CHECKING:
     from inspect_ai._eval.task.results import ScorerInfo
@@ -664,7 +663,9 @@ async def write_merged_zip(
         inputs: list[_SampleInputs] = []
         for key in keys:
             data = await read_member(key)
-            inputs.append(await anyio.to_thread.run_sync(_write_sample, zf, key, data))
+            inputs.append(
+                await run_owned(functools.partial(_write_sample, zf, key, data))
+            )
         results, reductions = await _recompute_results(
             template, inputs, total_samples, held_reductions
         )
@@ -674,8 +675,8 @@ async def write_merged_zip(
                 invalidated=any(sample.invalidated for sample in inputs),
             )
         )
-        await anyio.to_thread.run_sync(
-            _write_members, zf, list(summaries), reductions, header
+        await run_owned(
+            functools.partial(_write_members, zf, list(summaries), reductions, header)
         )
     return header
 
