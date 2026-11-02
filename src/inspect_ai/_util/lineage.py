@@ -15,6 +15,7 @@ they hand in as read-only.
 
 import builtins
 import dataclasses
+import math
 import random
 import sys
 from collections.abc import Callable, Hashable, Iterator, Sequence
@@ -37,8 +38,8 @@ def strict_eq(a: object, b: object) -> bool:
     content hashes differ. An ``==``-based merge of such values would reuse
     an entry whose stored bytes round-trip to the *other* value — silent
     data corruption. This comparison requires matching types for scalars
-    (recursing into models, dataclasses, dicts, and lists), so a merge
-    implies identical serialization.
+    and matching signs for float zeros (recursing into models, dataclasses,
+    dicts, and lists), so a merge implies identical serialization.
     """
     if a is b:
         return True
@@ -46,7 +47,7 @@ def strict_eq(a: object, b: object) -> bool:
     if ta is not tb:
         return False
     if isinstance(a, BaseModel):
-        return strict_eq(a.__dict__, b.__dict__)  # type: ignore[attr-defined]
+        return strict_eq(vars(a), vars(b))
     if dataclasses.is_dataclass(a) and not isinstance(a, type):
         return strict_eq(vars(a), vars(b))
     if type(a) is dict and type(b) is dict:
@@ -68,6 +69,8 @@ def strict_eq(a: object, b: object) -> bool:
         return True
     if (type(a) is list and type(b) is list) or (type(a) is tuple and type(b) is tuple):
         return len(a) == len(b) and all(strict_eq(x, y) for x, y in zip(a, b))
+    if type(a) is float and type(b) is float:
+        return a == b and math.copysign(1.0, a) == math.copysign(1.0, b)
     return a == b
 
 

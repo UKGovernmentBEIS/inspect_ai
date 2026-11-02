@@ -1,4 +1,5 @@
 import contextvars
+import json
 from typing import Any
 
 from pydantic import JsonValue
@@ -81,3 +82,15 @@ def test_interner_keeps_json_distinct_values_apart() -> None:
     assert isinstance(msgs, list) and isinstance(msgs[0], dict)
     assert type(msgs[0]["n"]) is float
     assert msgs[0] is not first.request["messages"][0]
+
+
+def test_interner_keeps_signed_zero_distinct() -> None:
+    def run() -> ModelCall:
+        init_call_interner()
+        ModelCall.create({"messages": [{"x": 0.0}]}, None)
+        return ModelCall.create({"messages": [{"x": -0.0}, {"role": "user"}]}, None)
+
+    call: ModelCall = _in_fresh_context(run)
+    msgs: JsonValue = call.request["messages"]
+    assert isinstance(msgs, list) and isinstance(msgs[0], dict)
+    assert json.dumps(msgs[0]["x"]) == "-0.0"
