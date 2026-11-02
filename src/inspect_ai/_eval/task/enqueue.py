@@ -362,7 +362,8 @@ class EnqueuedTasks:
     ``await enqueue_task(tasks)`` adds the tasks and gives a
     :class:`TaskHandle` per task added (one per task and model), in start
     order. ``async with enqueue_task(task) as handle:`` adds one task, gives
-    its handle, and cancels the task when the block exits.
+    its handle, and cancels the task when the block exits; if the call added
+    several (one per model), it cancels them all and raises.
     """
 
     def __init__(self, add: Coroutine[Any, Any, list[TaskHandle]]) -> None:
@@ -375,6 +376,9 @@ class EnqueuedTasks:
     async def __aenter__(self) -> TaskHandle:
         handles = await self._add
         if len(handles) != 1:
+            # no handle reaches the caller, and __aexit__ is not called
+            for handle in handles:
+                handle.cancel()
             raise ValueError(
                 f"enqueue_task() added {len(handles)} tasks (one per task and "
                 "model), so there is no single task to enter; await it and use "

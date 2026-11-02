@@ -1368,3 +1368,40 @@ async def test_generator_stops_its_worker_with_hooks_and_ctl() -> None:
         ("worker", "error"),
     ]
     assert done == ["s0", "s1", "s2"]
+
+
+async def test_task_handles_of_a_multi_model_call() -> None:
+    # one call adds a task per model: awaiting gives each handle, and
+    # `async with`, which needs a single task, cancels the tasks it added
+    # before it raises
+    seen: dict[str, object] = {}
+
+    @solver
+    def add_per_model() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if str(state.model) != "mockllm/model":
+                return state
+            handles = await enqueue_task(_task_named("both"))
+            seen["awaited"] = len(handles)
+            for handle in handles:
+                await handle.wait()
+            release = anyio.Event()
+            with pytest.raises(ValueError, match="added 2 tasks"):
+                async with enqueue_task(_held_task("entered", release)):
+                    pass
+            return state
+
+        return solve
+
+    init_display_type("none")
+    logs = await eval_async(
+        _parent(add_per_model()),
+        model=["mockllm/model", "mockllm/model2"],
+        max_tasks=6,
+    )
+    assert seen["awaited"] == 2
+    # the two `entered` tasks never ran: they were cancelled while queued
+    # (no log) or aborted as they started (an error log)
+    statuses = sorted((log.eval.task, log.status) for log in logs)
+    assert ("entered", "success") not in statuses
+    assert statuses.count(("both", "success")) == 2
