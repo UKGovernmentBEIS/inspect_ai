@@ -1044,15 +1044,21 @@ class TaskDispatcher:
     def attempt_options(self, record: TaskRecord, logger: TaskLogger) -> TaskRunOptions:
         """The run options of a record's next attempt."""
         assert record.configured is not None
-        options = replace(
-            record.configured.options(logger), setup_failure=record.failure
+        options = record.configured.options(logger)
+        return replace(
+            options,
+            setup_failure=record.failure,
+            sample_source=(
+                options.sample_source
+                if record.retry_source is None
+                else record.retry_source
+            ),
+            display_name=(
+                None
+                if record.attempt == 1
+                else f"{record.task} (retry {record.attempt - 1} of {record.retries})"
+            ),
         )
-        if record.retry_source is not None:
-            options = replace(options, sample_source=record.retry_source)
-        if record.attempt == 1:
-            return options
-        retry = f"retry {record.attempt - 1} of {record.retries}"
-        return replace(options, display_name=f"{record.task} ({retry})")
 
     def settle(self, record: TaskRecord, task_log: EvalLog | None, retry: bool) -> None:
         """Free an attempt's slot and record its log; queue its retry or end the record.
