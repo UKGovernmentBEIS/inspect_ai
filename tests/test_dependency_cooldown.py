@@ -255,8 +255,8 @@ def test_sandbox_tools_unit_installs_from_its_hashed_lock() -> None:
 
 
 def test_ruff_action_pins_ruff_by_version_file() -> None:
-    # ruff-action takes the ruff version from version-file. A `version` input
-    # would replace the pyproject.toml pin, so neither step may set it.
+    # ruff-action must read the ruff pin from pyproject.toml. A `version` input
+    # in place of version-file would replace the pin.
     steps = [
         step
         for step in build_job("ruff")["steps"]
