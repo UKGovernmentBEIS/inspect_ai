@@ -120,7 +120,8 @@ class RunTasks:
     """The records of every task of one eval run.
 
     ``queued`` holds the records that may start, in the order they were
-    added, and ``running`` those that have started (including one between
+    added (a ``next_tasks()`` batch ahead of the records added while it was
+    made, see :meth:`add_ahead`), and ``running`` those that have started (including one between
     attempts); the scheduling loop moves a record from one to the other with
     :meth:`start`. Every way a record ends goes through :meth:`end`. Every
     method that changes the records rings :attr:`changed`, so whoever changes
