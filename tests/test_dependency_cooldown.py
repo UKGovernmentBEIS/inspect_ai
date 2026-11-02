@@ -27,22 +27,50 @@ BUILD = WORKFLOWS / "build.yml"
 ACTIONS = "meridianlabs-ai/actions/"
 INSTALL_ACTION = ACTIONS + "install-python-dependencies"
 SETUP_UV_ACTION = ACTIONS + "setup-uv"
-# Each install-python-dependencies call of a build.yml job, as
-# (versions, requirements-file). The package job installs twice: the hashed
-# build toolchain, then the locked dist extra for the check tools.
+# Every install-python-dependencies call, keyed by (workflow, job), as the
+# inputs that set what gets installed (install.sh reads these; python-version
+# and actions-cache select the Python and the cache, not the install shape).
+# The package job installs twice: the hashed build toolchain, then the locked
+# dist extra for the check tools.
 INSTALL_CALLS = {
-    "mypy": [("locked", None)],
-    "pre-commit": [("locked", None)],
-    "test": [("locked", None)],
-    "slow-tests": [("locked", None)],
-    "slow-tool-tests-dev": [("locked", None)],
-    "slow-tool-tests-release": [("locked", None)],
-    "docs": [("locked", None)],
-    "package": [
-        ("hashed-requirements", "scripts/build-dist/requirements.txt"),
-        ("locked", None),
+    ("build.yml", "mypy"): [{"versions": "locked"}],
+    ("build.yml", "pre-commit"): [{"versions": "locked"}],
+    ("build.yml", "test"): [
+        {"versions": "locked", "also-install-without-deps": "./tests/test_package"}
+    ],
+    ("build.yml", "slow-tests"): [{"versions": "locked"}],
+    ("build.yml", "slow-tool-tests-dev"): [{"versions": "locked"}],
+    ("build.yml", "slow-tool-tests-release"): [{"versions": "locked"}],
+    ("build.yml", "docs"): [
+        {"versions": "locked", "extras": "doc", "default-dependency-groups": "exclude"}
+    ],
+    ("build.yml", "package"): [
+        {
+            "versions": "hashed-requirements",
+            "requirements-file": "scripts/build-dist/requirements.txt",
+            "environment-dir": "${{ runner.temp }}/build-env",
+            "package-format": "wheels-only",
+            "project-uv-settings": "ignore",
+        },
+        {
+            "versions": "locked",
+            "extras": "dist",
+            "default-dependency-groups": "exclude",
+            "project-install": "skip",
+        },
+    ],
+    ("log_viewer.yml", "check-schema-and-types"): [{"versions": "locked"}],
+    ("sandbox-tools-build.yml", "validate"): [{"versions": "locked"}],
+    ("sync_model_data.yml", "generate"): [
+        {
+            "versions": "locked",
+            "script": "src/inspect_ai/model/_model_data/sync_models.py",
+            "project-uv-settings": "ignore",
+        }
     ],
 }
+# Inputs that select the Python or the cache, not what the job installs.
+NON_SHAPE_INPUTS = {"python-version", "actions-cache"}
 SANDBOX_TOOLS_TEST_LOCK = "src/inspect_sandbox_tools/tests/requirements.txt"
 PROVIDERS = REPO / "src" / "inspect_ai" / "model" / "_providers"
 SYNC_MODELS = REPO / "src" / "inspect_ai" / "model" / "_model_data" / "sync_models.py"
@@ -76,12 +104,36 @@ def build_job(name: str) -> dict[str, Any]:
     return job
 
 
-def install_calls(job: dict[str, Any]) -> list[dict[str, Any]]:
+def all_configs() -> dict[str, dict[str, Any]]:
+    return {
+        path.name: yaml.safe_load(path.read_text())
+        for path in sorted(WORKFLOWS.glob("*.yml"))
+    }
+
+
+def install_shapes(job: dict[str, Any]) -> list[dict[str, Any]]:
+    """The install-shape inputs of each install call in the job, in order."""
     return [
-        step.get("with") or {}
+        {k: v for k, v in (step.get("with") or {}).items() if k not in NON_SHAPE_INPUTS}
         for step in job.get("steps", [])
         if step.get("uses", "").split("@")[0] == INSTALL_ACTION
     ]
+
+
+def collected_install_calls(
+    configs: dict[str, dict[str, Any]],
+) -> dict[tuple[str, str], list[dict[str, Any]]]:
+    """Install-shape inputs of every install call, keyed by (workflow, job)."""
+    return {
+        (workflow, name): shapes
+        for workflow, config in configs.items()
+        for name, job in config["jobs"].items()
+        if (shapes := install_shapes(job))
+    }
+
+
+def verify_install_calls(configs: dict[str, dict[str, Any]]) -> None:
+    assert collected_install_calls(configs) == INSTALL_CALLS
 
 
 def shared_action_steps() -> list[tuple[str, str, dict[str, Any]]]:
@@ -268,13 +320,25 @@ def test_no_workflow_uses_the_pre_commit_action() -> None:
         assert "pre-commit/action" not in workflow.read_text(), workflow.name
 
 
-@pytest.mark.parametrize("name,expected", INSTALL_CALLS.items())
+@pytest.mark.parametrize("key,expected", INSTALL_CALLS.items())
 def test_install_jobs_declare_their_versions(
-    name: str, expected: list[tuple[str, str | None]]
+    key: tuple[str, str], expected: list[dict[str, Any]]
 ) -> None:
-    calls = install_calls(build_job(name))
-    got = [(call.get("versions"), call.get("requirements-file")) for call in calls]
-    assert got == expected
+    # Per-job check for a readable failure; test_every_install_call_is_covered
+    # also catches a new or moved call the parametrize list would miss.
+    assert collected_install_calls(all_configs()).get(key) == expected
+
+
+def test_every_install_call_is_covered() -> None:
+    verify_install_calls(all_configs())
+
+
+def test_removed_install_call_is_caught() -> None:
+    configs = all_configs()
+    steps = configs["log_viewer.yml"]["jobs"]["check-schema-and-types"]["steps"]
+    steps[:] = [s for s in steps if s.get("uses", "").split("@")[0] != INSTALL_ACTION]
+    with pytest.raises(AssertionError):
+        verify_install_calls(configs)
 
 
 def test_shared_action_calls_pin_one_sha() -> None:

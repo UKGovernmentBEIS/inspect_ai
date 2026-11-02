@@ -93,13 +93,13 @@ jobs:
           fetch-tags: true
           filter: "blob:none"
 
-      # A locked install here, then `uv run --no-sync` below, reaches the
-      # project environment once: `uv run` on its own would re-sync to uv.lock
-      # before mypy ran, undoing any unlocked install. versions: locked fails
-      # on a uv.lock that is out of date instead of re-resolving it.
+      # A locked install here, then `uv run --no-sync` below, syncs the project
+      # environment once: `uv run` on its own would sync to uv.lock again before
+      # mypy runs. versions: locked fails on a uv.lock that is out of date
+      # instead of re-resolving it.
       - name: Install Python dependencies
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        uses: meridianlabs-ai/actions/install-python-dependencies@f908b8a0378231e0bbe8c3c207f607ce992126c5 # epatey/install-python-dependencies
+        uses: meridianlabs-ai/actions/install-python-dependencies@195af861d5f8cc87325bf6bd13e8cb4c6b691acc # epatey/install-python-dependencies
         with:
           versions: locked
           python-version: ${{ matrix.python-version }}
@@ -125,7 +125,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Python dependencies
-        uses: meridianlabs-ai/actions/install-python-dependencies@f908b8a0378231e0bbe8c3c207f607ce992126c5 # epatey/install-python-dependencies
+        uses: meridianlabs-ai/actions/install-python-dependencies@195af861d5f8cc87325bf6bd13e8cb4c6b691acc # epatey/install-python-dependencies
         with:
           versions: locked
           python-version: "3.11"
@@ -219,7 +219,7 @@ jobs:
       # restores the Actions cache but makes no Action save.
       - name: Install Python dependencies
         if: steps.render-cache.outputs.cache-hit != 'true'
-        uses: meridianlabs-ai/actions/install-python-dependencies@f908b8a0378231e0bbe8c3c207f607ce992126c5 # epatey/install-python-dependencies
+        uses: meridianlabs-ai/actions/install-python-dependencies@195af861d5f8cc87325bf6bd13e8cb4c6b691acc # epatey/install-python-dependencies
         with:
           versions: locked
           python-version: "3.11"
@@ -305,7 +305,7 @@ jobs:
       # paid by whichever test calls it first).
       - name: Install Python dependencies
         if: env.RUN_TESTS == 'true'
-        uses: meridianlabs-ai/actions/install-python-dependencies@f908b8a0378231e0bbe8c3c207f607ce992126c5 # epatey/install-python-dependencies
+        uses: meridianlabs-ai/actions/install-python-dependencies@195af861d5f8cc87325bf6bd13e8cb4c6b691acc # epatey/install-python-dependencies
         with:
           versions: locked
           python-version: ${{ matrix.python-version }}
@@ -566,7 +566,7 @@ jobs:
         run: git branch main origin/main
 
       - name: Install Python dependencies
-        uses: meridianlabs-ai/actions/install-python-dependencies@f908b8a0378231e0bbe8c3c207f607ce992126c5 # epatey/install-python-dependencies
+        uses: meridianlabs-ai/actions/install-python-dependencies@195af861d5f8cc87325bf6bd13e8cb4c6b691acc # epatey/install-python-dependencies
         with:
           versions: locked
           python-version: "3.11"
@@ -626,7 +626,7 @@ jobs:
       # The project installs editable, so `_binaries_dir()` resolves to the
       # source tree the published binaries are downloaded into below.
       - name: Install Python dependencies
-        uses: meridianlabs-ai/actions/install-python-dependencies@f908b8a0378231e0bbe8c3c207f607ce992126c5 # epatey/install-python-dependencies
+        uses: meridianlabs-ai/actions/install-python-dependencies@195af861d5f8cc87325bf6bd13e8cb4c6b691acc # epatey/install-python-dependencies
         with:
           versions: locked
           python-version: "3.11"
@@ -797,7 +797,7 @@ jobs:
           submodules: true
 
       - name: Install Python dependencies
-        uses: meridianlabs-ai/actions/install-python-dependencies@f908b8a0378231e0bbe8c3c207f607ce992126c5 # epatey/install-python-dependencies
+        uses: meridianlabs-ai/actions/install-python-dependencies@195af861d5f8cc87325bf6bd13e8cb4c6b691acc # epatey/install-python-dependencies
         with:
           versions: locked
           python-version: "3.11"
@@ -849,7 +849,7 @@ jobs:
       # call below reuses.
       - name: Install the build toolchain
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' || steps.filter.outputs.package_readme == 'true'
-        uses: meridianlabs-ai/actions/install-python-dependencies@f908b8a0378231e0bbe8c3c207f607ce992126c5 # epatey/install-python-dependencies
+        uses: meridianlabs-ai/actions/install-python-dependencies@195af861d5f8cc87325bf6bd13e8cb4c6b691acc # epatey/install-python-dependencies
         with:
           versions: hashed-requirements
           python-version: "3.11"
@@ -875,7 +875,7 @@ jobs:
       # second call reuses the uv set up for the build toolchain above.
       - name: Install check tools
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' || steps.filter.outputs.package_readme == 'true'
-        uses: meridianlabs-ai/actions/install-python-dependencies@f908b8a0378231e0bbe8c3c207f607ce992126c5 # epatey/install-python-dependencies
+        uses: meridianlabs-ai/actions/install-python-dependencies@195af861d5f8cc87325bf6bd13e8cb4c6b691acc # epatey/install-python-dependencies
         with:
           versions: locked
           python-version: "3.11"

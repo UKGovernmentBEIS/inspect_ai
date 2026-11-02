@@ -51,7 +51,7 @@ jobs:
       # the lockfile.
       - name: Install Python dependencies
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        uses: meridianlabs-ai/actions/install-python-dependencies@f908b8a0378231e0bbe8c3c207f607ce992126c5 # epatey/install-python-dependencies
+        uses: meridianlabs-ai/actions/install-python-dependencies@195af861d5f8cc87325bf6bd13e8cb4c6b691acc # epatey/install-python-dependencies
         with:
           versions: locked
           python-version: "3.11"
