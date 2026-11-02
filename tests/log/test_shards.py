@@ -1572,6 +1572,25 @@ def shard_sum_of(metrics: list[Metric]) -> Metric:
     return compute
 
 
+@metric(name="shard_named")
+def shard_named(type: str, name: str, params: dict[str, Metric]) -> Metric:
+    """A metric whose arguments are named like a registry dict's keys."""
+
+    def compute(scores: list[SampleScore]) -> Value:
+        total = sum(
+            cast(float, cast(MetricProtocol, m)(scores)) for m in params.values()
+        )
+        return total + float(type == "metric") + float(name == "some-label")
+
+    return compute
+
+
+def _named(label: str) -> Metric:
+    return shard_named(
+        type="metric", name=label, params={"points": aggregate("points", mean())}
+    )
+
+
 @metric(name="shard_key_sum")
 class ShardKeySum(MetricDeprecated):
     """A class metric with a string option (class metrics get `Score`s)."""
@@ -1606,6 +1625,9 @@ async def _verdict(state: TaskState, target: Target) -> Score:
         shard_sum_of([aggregate("points", mean()), aggregate("verdict", accuracy())]),
         shard_metric_map(by_name={"points": aggregate("points", mean())}),
         shard_scaled(plain=2),
+        _named("some-label"),
+        grouped(_named("mean"), "group"),
+        shard_sum_of([_named("some-label")]),
     ]
 )
 def verdicts() -> Scorer:
@@ -1696,6 +1718,10 @@ def test_metrics_with_their_own_converters_merge_to_the_unsharded_values(
     assert expected[("labels", "P")] == 0.0
     assert expected[("verdicts", "shard_metric_map")] == 1.75
     assert expected[("verdicts", "shard_scaled")] == 2.0
+    # an argument map holding type, name and params is not an encoded metric
+    assert expected[("verdicts", "shard_named")] == 1.75 + 2
+    assert expected[("verdicts", "shard_sum_of2")] == 1.75 + 2
+    assert expected[("verdicts", "odd3")] == 1.5 + 1
     assert expected[("verdicts", "shard_quoted")] == 1
     assert ("ratings", "krippendorff_alpha") in expected
 

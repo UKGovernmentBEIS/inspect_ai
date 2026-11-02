@@ -164,12 +164,21 @@ def _restored_header(header: EvalLog) -> EvalLog:
             if factory is None or registry_info(factory).name != metric.name:
                 raise LookupError(_unregistered("Metric", metric.name))
             options = _check_function_options(metric.name, factory, metric.options)
-            metric.options = _check_embedded(options)
+            metric.options = _check_embedded_options(options)
     if header.eval.scorers is None:
         return header
     return header.model_copy(
         update={"eval": header.eval.model_copy(update={"scorers": scorers_copy})}
     )
+
+
+def _check_embedded_options(options: Mapping[str, Any]) -> dict[str, Any]:
+    """:func:`_check_embedded` over each argument of a keyword map.
+
+    The map itself is never an encoded object, even when its argument names
+    are `type`, `name` and `params`.
+    """
+    return {argument: _check_embedded(value) for argument, value in options.items()}
 
 
 def _check_embedded(value: Any) -> Any:
@@ -190,7 +199,7 @@ def _check_embedded(value: Any) -> Any:
         params = value["params"]
         if value["type"] == "metric":
             params = _check_function_options(value["name"], factory, params)
-        return {**value, "params": _check_embedded(params)}
+        return {**value, "params": _check_embedded_options(params)}
     elif isinstance(value, dict):
         return {key: _check_embedded(item) for key, item in value.items()}
     elif isinstance(value, (list, tuple)):
