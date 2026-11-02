@@ -20,7 +20,7 @@ class SandboxEvent(BaseEvent):
     """Command (for exec)"""
 
     options: dict[str, JsonValue] | None = Field(default=None)
-    """Options (for exec)"""
+    """Options for exec, read_file and write_file."""
 
     file: str | None = Field(default=None)
     """File (for read_file and write_file)"""

@@ -28,6 +28,12 @@ inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval
 
 This will use the scorers and metrics that were declared when the evaluation was run, applying them to score each sample and generate metrics for the evaluation.
 
+::: {.callout-warning appearance="simple"}
+`inspect score` runs code named by the log (its task file and scorers) and uses the model endpoint and other settings recorded in it. Only run it on logs you trust. With `--scorer`, the log's metrics are rebuilt without importing its task file; the log's model and model roles are still used.
+
+When a scorer is not registered, `inspect score` imports the task file the log records to find it, and prints the path it imported. When it scores with the log's model at a base URL the log records, it prints the model and URL.
+:::
+
 You may choose to use a different scorer than the task scorer to score a log file. In this case, you can use the `--scorer` option to pass the name of a scorer (including one in a package) or the path to a source code file containing a scorer to use. For example:
 
 ``` bash
@@ -129,6 +135,8 @@ for model, scored_log in zip(grader_models, scoring_logs):
     output_file = f"{base}_{model.replace('/', '_')}{ext}"
     write_eval_log(scored_log, output_file)
 ```
+
+`score()` uses the model (unless you pass `model`) and model roles recorded in the log, with their base URLs and model args, so only score logs you trust. The log's metrics are rebuilt without importing its task file.
 
 ## Editing Scores
 

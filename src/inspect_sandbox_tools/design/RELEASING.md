@@ -20,7 +20,7 @@ either way:
 
 | Step | Who |
 |------|-----|
-| Change `src/inspect_sandbox_tools/` and bump the version (`check-version-bump` requires both in the same PR) | PR author |
+| Change an injectable build input (the source or a build file; see "Build inputs") and bump the version (`check-version-bump` requires both in the same PR) | PR author |
 | Review and approve | Reviewer |
 | Dispatch the CI build at the approved head commit, upload to S3, commit `SHA256SUMS` to the PR branch | Maintainer (S3 credentials), via the wizard |
 | Merge once `slow-tool-tests-release` is green | Maintainer |
@@ -133,16 +133,25 @@ comparison sees only a link's target path while the build reads its content. Lim
   doesn't cover it.
 - `slow-tool-tests-release` is not a required check, so a red result blocks
   the merge only because maintainers don't merge on red.
-- A change to the build files alone (a lockfile, a Dockerfile) is not
-  "injectable source" to `check-version-bump`, so it can't be released without
-  also changing `src/inspect_sandbox_tools/`. Until that rule covers the build
-  files, ship such a change together with an injectable change.
 
 The same script builds a single variant locally (`--arch {amd64,arm64} [--musl]`,
 `-dev` suffix by default), as the runtime's local-build fallback and the
 `slow-tool-tests-dev` CI job do.
 
 #### Build inputs
+
+A change to anything that feeds the built binary must be paired with a version
+bump in the same PR; `check-version-bump` enforces this. The bump-triggering
+set is the git pathspecs in
+`src/inspect_ai/tool/_sandbox_tools_utils/injectable_paths.txt` — the injectable
+source under `src/inspect_sandbox_tools/` (minus docs/design/tests) plus the
+build files listed below. One file, read by both the CI gate and the runtime
+install-state check (`_check_main_divergence` in `sandbox.py`). So a change to a
+build file alone — a lockfile, a Dockerfile, or a security re-lock of
+`requirements.txt` — is released like any other content change: bump, publish,
+and commit the digests in the same PR. (This set is narrower than `BUILD_INPUTS`
+above, which also covers host-side files such as `sandbox.py` that must not force
+a bump.)
 
 The builders install only pinned inputs, so a build doesn't depend on what
 PyPI or conda-forge serve that day. Everything below lives in
@@ -242,6 +251,7 @@ The install state detection (`_get_install_state`) determines which tiers are at
 | File | Purpose |
 |------|---------|
 | `src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt` | Version (simple integer) |
+| `src/inspect_ai/tool/_sandbox_tools_utils/injectable_paths.txt` | Pathspecs of the inputs that feed the binary; a change to any requires a version bump (read by `check-version-bump` and `sandbox.py`) |
 | `src/inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS` | Pinned digests for the four published artifacts (written by `upload_to_s3.py`; see `BINARY_INTEGRITY.md`) |
 | `.github/workflows/sandbox-tools-build.yml` | Release build (dispatched by a maintainer) |
 | `src/inspect_ai/tool/_sandbox_tools_utils/build_within_container.py` | Build orchestrator |

@@ -1,21 +1,231 @@
 import random
+from pathlib import Path
 from typing import Sequence
 
+import anyio
+import pytest
 from test_helpers.utils import failing_solver_deterministic, skip_if_github_action
 
-from inspect_ai import Task, eval
-from inspect_ai.dataset import example_dataset
-from inspect_ai.log import read_eval_log, transcript
-from inspect_ai.solver import Generate, TaskState, solver
+from inspect_ai import Task, eval, eval_async
+from inspect_ai._util.asyncfiles import AsyncFilesystem, get_async_filesystem
+from inspect_ai.dataset import Sample, example_dataset
+from inspect_ai.log import read_eval_log, read_eval_log_async, transcript
+from inspect_ai.scorer import Score, Scorer, Target, accuracy, scorer
+from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.solver._prompt import system_message
+from inspect_ai.util import CheckpointConfig, checkpointer
 
 
-def test_retry_on_error():
-    task = Task(solver=failing_solver_deterministic([True, False]))
+@pytest.mark.parametrize("checkpoint", [None, True, False])
+def test_retry_on_error(checkpoint: bool | None) -> None:
+    task = Task(
+        solver=failing_solver_deterministic([True, False]), checkpoint=checkpoint
+    )
     log = eval(task, retry_on_error=1)[0]
     assert log.status == "success"
     assert log.samples is not None
+    assert log.samples[0].error_retries is not None
     assert len(log.samples[0].error_retries) == 1
+
+
+async def test_retry_on_error_checkpoint_without_filesystem_context() -> None:
+    log = (
+        await eval_async(
+            Task(solver=failing_solver_deterministic([True, False]), checkpoint=True),
+            model="mockllm/model",
+            retry_on_error=1,
+        )
+    )[0]
+    assert log.status == "success"
+    assert log.samples is not None
+    assert log.samples[0].error is None
+    assert log.samples[0].error_retries is not None
+    assert len(log.samples[0].error_retries) == 1
+
+
+async def test_retry_checkpoint_lookup_error_is_sample_local(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lookups = 0
+
+    async def failed_lookup(
+        eval_checkpoints_dir: str | None, sample_id: int | str, epoch: int
+    ) -> None:
+        nonlocal lookups
+        lookups += 1
+        raise OSError("checkpoint storage unavailable")
+
+    monkeypatch.setattr(
+        "inspect_ai._eval.task.run.resolve_resume_checkpoint", failed_lookup
+    )
+
+    @solver
+    def fail_sample() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.sample_id == "failed":
+                raise RuntimeError("solver failed")
+            return state
+
+        return solve
+
+    log = (
+        await eval_async(
+            Task(
+                dataset=[
+                    Sample(id="failed", input="fail"),
+                    Sample(id="ok", input="ok"),
+                ],
+                solver=fail_sample(),
+                checkpoint=True,
+            ),
+            model="mockllm/model",
+            retry_on_error=1,
+            fail_on_error=False,
+        )
+    )[0]
+    assert lookups == 1
+    assert log.status == "success"
+    assert log.samples is not None
+    samples = {sample.id: sample for sample in log.samples}
+    assert samples["ok"].error is None
+    assert samples["failed"].error is not None
+    assert "checkpoint storage unavailable" in samples["failed"].error.message
+    assert samples["failed"].error_retries is not None
+    assert len(samples["failed"].error_retries) == 1
+
+
+async def test_retry_checkpoint_lookup_cancellation_closes_filesystem(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lookup_started = anyio.Event()
+    closed = anyio.Event()
+    lookup_filesystems: list[AsyncFilesystem] = []
+    original_close = AsyncFilesystem.close
+
+    async def blocked_lookup(
+        eval_checkpoints_dir: str | None, sample_id: int | str, epoch: int
+    ) -> None:
+        lookup_filesystems.append(get_async_filesystem())
+        lookup_started.set()
+        await anyio.sleep_forever()
+
+    async def tracked_close(self: AsyncFilesystem) -> None:
+        if lookup_filesystems and self is lookup_filesystems[0]:
+            await anyio.lowlevel.checkpoint()
+            closed.set()
+        await original_close(self)
+
+    monkeypatch.setattr(
+        "inspect_ai._eval.task.run.resolve_resume_checkpoint", blocked_lookup
+    )
+    monkeypatch.setattr(AsyncFilesystem, "close", tracked_close)
+
+    async def run_eval() -> None:
+        await eval_async(
+            Task(solver=failing_solver_deterministic([True, False]), checkpoint=True),
+            model="mockllm/model",
+            retry_on_error=1,
+        )
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(run_eval)
+        await lookup_started.wait()
+        tg.cancel_scope.cancel()
+    assert closed.is_set()
+    with pytest.raises(RuntimeError, match="No AsyncFilesystem is available"):
+        get_async_filesystem()
+
+
+@pytest.mark.slow
+async def test_retry_on_error_resumes_latest_checkpoint(tmp_path: Path) -> None:
+    entered_turns: list[int] = []
+
+    @solver
+    def checkpoint_then_fail() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            async with checkpointer() as cp:
+                turn = cp.track("turn", lambda: turn, 0)
+                entered_turns.append(turn)
+                if turn < 2:
+                    turn += 1
+                    await cp.checkpoint()
+                    raise RuntimeError("failure after checkpoint")
+            return state
+
+        return solve
+
+    task = Task(
+        solver=checkpoint_then_fail(),
+        checkpoint=CheckpointConfig(checkpoints_location=str(tmp_path / "checkpoints")),
+    )
+    log = (
+        await eval_async(
+            task,
+            model="mockllm/model",
+            retry_on_error=2,
+            log_dir=str(tmp_path / "logs"),
+        )
+    )[0]
+    assert entered_turns == [0, 1, 2]
+    assert log.status == "success"
+    assert log.samples is not None
+    assert log.samples[0].error is None
+    assert log.samples[0].error_retries is not None
+    assert len(log.samples[0].error_retries) == 2
+    persisted = await read_eval_log_async(log.location)
+    assert persisted.samples is not None
+    assert persisted.samples[0].error_retries == log.samples[0].error_retries
+
+
+@pytest.mark.slow
+async def test_retry_on_error_resumes_for_scoring(tmp_path: Path) -> None:
+    attempts: list[str] = []
+    agent_runs = 0
+    scoring_runs = 0
+
+    @solver
+    def checkpointed_agent() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            nonlocal agent_runs
+            async with checkpointer() as cp:
+                attempts.append(cp.attempt)
+                if cp.attempt != "resume_for_scoring":
+                    agent_runs += 1
+            return state
+
+        return solve
+
+    @scorer(metrics=[accuracy()])
+    def failing_scorer() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            nonlocal scoring_runs
+            scoring_runs += 1
+            if scoring_runs < 3:
+                raise RuntimeError("scoring failed")
+            return Score(value=1)
+
+        return score
+
+    log = (
+        await eval_async(
+            Task(
+                solver=checkpointed_agent(),
+                scorer=failing_scorer(),
+                checkpoint=True,
+            ),
+            model="mockllm/model",
+            retry_on_error=2,
+            log_dir=str(tmp_path / "logs"),
+        )
+    )[0]
+    assert log.status == "success"
+    assert attempts == ["initial", "resume_for_scoring", "resume_for_scoring"]
+    assert agent_runs == 1
+    assert scoring_runs == 3
+    assert log.samples is not None
+    assert log.samples[0].error is None
+    assert log.samples[0].error_retries is not None
+    assert len(log.samples[0].error_retries) == 2
 
 
 def test_no_retry_on_error():
