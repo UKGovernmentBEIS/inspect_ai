@@ -1,7 +1,7 @@
-"""Tests for a run's records and queue, its scheduling loop, and readying tasks.
+"""Tests for a run's records and queue, its scheduling loop, and preparing tasks.
 
 The loop tests drive `TaskDispatcher` without a full eval: tasks are real
-resolved tasks, but their loggers are fakes, readying a task returns the
+resolved tasks, but their loggers are fakes, preparing a task returns the
 sandbox configs (here plain strings) the test gives it, those configs are set
 up by a real `SetupCache` whose setups the test finishes, and running a task
 is replaced by a scripted `_run_task`, so each test controls exactly when every
@@ -160,7 +160,7 @@ def _options(task: ResolvedTask, logger: FakeLogger) -> TaskRunOptions:
 
 
 class FakeStartup:
-    """Readies tasks by script: their sandbox configs, and when they are known."""
+    """Prepares tasks by script: their sandbox configs, and when they are known."""
 
     def __init__(self, harness: "Harness") -> None:
         self.harness = harness

@@ -898,8 +898,9 @@ def abandon_task_retry(task_id: str) -> None:
     """Abandon a task's queued/requested eval-set retry (task drain/cancel).
 
     Stamps the task in the retry-abandoned registry — consumed by the run
-    dispatcher, which drops a queued retry at its next pick, skips
-    constructing one at its retry decision, and bails a retry attempt that
+    dispatcher, which ends a task waiting to start (a queued retry or first
+    attempt) on its next cycle, skips constructing a retry at its retry
+    decision, and bails a retry attempt that
     was dequeued but has not yet registered its :class:`EvalState` (see
     ``_eval/run.py``). A cancel of a task whose first attempt has not
     registered (still queued, or starting) abandons that attempt the same

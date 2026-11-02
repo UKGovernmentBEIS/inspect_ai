@@ -719,8 +719,8 @@ def dispatch_model_name(model: "Model") -> str:
 def note_dispatch_models(models: list[str]) -> None:
     """Record the primary model names of tasks handed to the run dispatcher.
 
-    Called by ``TaskDispatcher`` as tasks become ready (initial and
-    added alike), so the model directives can validate a model name
+    Called up front for the initial tasks and by ``TaskDispatcher`` as it
+    queues added ones, so the model directives can validate a model name
     against tasks that haven't started — which have no ``EvalState`` to
     check. Reset with the task gates.
     """

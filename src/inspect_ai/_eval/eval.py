@@ -861,7 +861,7 @@ async def _eval_async_inner(
 
         # make every resolved task's model addressable by the model pause
         # directives up-front, ahead of the dispatcher's own registration
-        # (which happens as each group of tasks is prepared). This is also the
+        # (which happens as it queues added tasks). This is also the
         # first dispatch_model_name call, so the latch's name snapshots are
         # taken here — before any generate can rewrite a provider's model name
         note_dispatch_models([dispatch_model_name(t.model) for t in resolved_tasks])

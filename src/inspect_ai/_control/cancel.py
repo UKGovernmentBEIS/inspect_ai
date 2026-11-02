@@ -261,8 +261,38 @@ def drain_task(task_id: str, *, dry_run: bool = False) -> CancelTaskResult | Non
     return _task_cancel_directive(task_id, stamp="drain", action=None, dry_run=dry_run)
 
 
+def _base_result(
+    task_id: str,
+    task: str,
+    eval_id: str,
+    *,
+    action: TaskCancelAction | None,
+    queued: int,
+    dry_run: bool,
+    in_flight: int,
+) -> _CancelTaskResult:
+    """The fields of an accepted reply: ``action`` for a cancel, ``queued`` for a drain."""
+    result: _CancelTaskResult = {
+        "ok": True,
+        "task_id": task_id,
+        "task": task,
+        "eval_id": eval_id,
+        "dry_run": dry_run,
+        "in_flight": in_flight,
+    }
+    if action is not None:
+        result["action"] = action
+    else:
+        result["queued"] = queued
+    return result
+
+
 def _cancel_unregistered(
-    record: "TaskRecord", *, stamp: "CancelStamp", dry_run: bool
+    record: "TaskRecord",
+    *,
+    stamp: "CancelStamp",
+    action: TaskCancelAction | None,
+    dry_run: bool,
 ) -> CancelTaskResult:
     """Cancel or drain a task of the live run none of whose attempts has registered.
 
@@ -285,18 +315,15 @@ def _cancel_unregistered(
                 "drain) to end it without running"
             ),
         }
-    result: _CancelTaskResult = {
-        "ok": True,
-        "task_id": record.task_id,
-        "task": record.task,
-        "eval_id": "",
-        "dry_run": dry_run,
-        "in_flight": 0,
-    }
-    if stamp == "drain":
-        result["queued"] = 0
-    else:
-        result["action"] = "cancel"
+    result = _base_result(
+        record.task_id,
+        record.task,
+        "",
+        action=action,
+        queued=0,
+        dry_run=dry_run,
+        in_flight=0,
+    )
     if record.ended:
         reason = (
             "task already finished" if record.log else "task ended before it started"
@@ -350,26 +377,25 @@ def _task_cancel_directive(
     # starting or ended); the task's latest EvalState, if any, is then from an
     # earlier eval() of the same eval set
     if found is not None and (state is None or state.run_id != found.queue.run_id):
-        return _cancel_unregistered(found.record, stamp=stamp, dry_run=dry_run)
+        return _cancel_unregistered(
+            found.record, stamp=stamp, action=action, dry_run=dry_run
+        )
     if state is None:
         return None
 
     active = _active_eval_samples(state.eval_id)
     in_flight = [sample for sample in active if sample.started is not None]
-    result: _CancelTaskResult = {
-        "ok": True,
-        "task_id": state.task_id,
-        "task": state.task,
-        "eval_id": state.eval_id,
-        "dry_run": dry_run,
-        "in_flight": len(in_flight),
-    }
-    if action is not None:
-        result["action"] = action
-    else:
-        # drain reports the other half of the split too: queued samples are
-        # what a drain abandons
-        result["queued"] = state.queued(len(in_flight))
+    # drain reports the other half of the split too: queued samples are what
+    # a drain abandons
+    result = _base_result(
+        state.task_id,
+        state.task,
+        state.eval_id,
+        action=action,
+        queued=state.queued(len(in_flight)),
+        dry_run=dry_run,
+        in_flight=len(in_flight),
+    )
     # the registry is consulted first so a repeat of *any* stamp after an
     # abandonment lands on the honest reason rather than "task already
     # finished" — or, while the abandoned attempt is still tearing down or

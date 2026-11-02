@@ -660,7 +660,6 @@ async def _run_task(
     """
     result: EvalLog | None = None
     cancel_type: CancelType = None
-    abandoned = False
     scope_exited = False
     try:
         with trace_action(
@@ -711,7 +710,7 @@ async def _run_task(
                 task_cancel.cancel_task = cancel_task
 
                 async def run() -> None:
-                    nonlocal result, abandoned, scope_exited
+                    nonlocal result, scope_exited
                     write_failed = False
                     with task_scope:
                         try:
@@ -719,9 +718,9 @@ async def _run_task(
                         except TaskRetryAbandonedError:
                             # an operator-requested outcome, not a task error
                             # (caught inside the trace action so it is not
-                            # traced as one); the previous attempt's log stays
-                            # the task's final state
-                            abandoned = True
+                            # traced as one): no log, and the previous
+                            # attempt's stays the task's final state
+                            return
                         except Exception as ex:
                             # errors generally don't escape from task_run: this
                             # is a failure to write the log itself (or a
@@ -744,7 +743,7 @@ async def _run_task(
                             )
                             write_failed = True
                     scope_exited = True
-                    if abandoned or write_failed:
+                    if write_failed:
                         return
                     # task_scope swallows only its own cancellation, so no
                     # log here means the task's abort/retry interrupted it
@@ -767,8 +766,6 @@ async def _run_task(
                         raise
 
                 task_tg.start_soon(run)
-        if abandoned:
-            return TaskRunResult(None, None)
     finally:
         # Startup can fail before log_finish owns teardown. Release the
         # cached prior on every exit without removing a written destination.
@@ -828,11 +825,11 @@ class TaskDispatcher:
         self.parallel = parallel
         """The launch ``max_tasks`` (``ctl config --max-tasks`` overrides it live)."""
         self.source = source
+        """The ``TaskSource`` asked for more tasks when idle (``None`` once its
+        ``next_tasks()`` returns nothing)."""
         self.debug_errors = debug_errors
         self.stopped = False
         """An attempt ended cancelled (the run was cancelled): start no more."""
-        self.source_done = False
-        """The ``TaskSource``'s ``next_tasks()`` returned nothing."""
         self.prepare_wake = Wake()
         """Set when a record that needs preparing is queued."""
 
@@ -895,12 +892,12 @@ class TaskDispatcher:
         records = self.queue.take("when_free") or self.queue.take("after_batch")
         if records:
             self.take(records)
-        elif self.source is not None and not self.source_done:
+        elif self.source is not None:
             more = await self.source.next_tasks()
             if more:
                 self.take(self.queue.add(self.queue.resolve(more)))
             else:
-                self.source_done = True
+                self.source = None
         else:
             return not self.queue.close_if_idle()
         return True
@@ -1113,8 +1110,7 @@ class TaskDispatcher:
             if record.attempt == 1 and record in self.queue.queued:
                 display().update_task_count(-1)
             self.queue.remove(record)
-            await _release_queued(record)
-            self.queue.end(record)
+            await self._end_unstarted(record)
 
     async def end_unfinished(self) -> None:
         """End the records a cancelled or failed run leaves unfinished.
@@ -1124,10 +1120,14 @@ class TaskDispatcher:
         :meth:`run_one`. Each keeps its latest attempt's log, if any.
         """
         for record in self.queue.close():
-            await _release_queued(record)
-            self.queue.end(record)
+            await self._end_unstarted(record)
         for record in list(self.queue.running):
             self.queue.end(record)
+
+    async def _end_unstarted(self, record: TaskRecord) -> None:
+        """End a record that will not start again, releasing the logger it holds."""
+        await _release_queued(record)
+        self.queue.end(record)
 
 
 async def open_log(logger: TaskLogger, *, retry: bool) -> None:

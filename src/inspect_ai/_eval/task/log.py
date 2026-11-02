@@ -970,9 +970,10 @@ class TaskLogger:
         exists" and "logger is a live fan-out target": from :meth:`init`, to
         snapshot retunes that predate the log (a retry attempt or a later
         eval-set child); and from ``task_run`` immediately before
-        ``register_eval``, because each task's logger is init()ed when its
-        group starts up while retunes fan out only
-        to *registered* evals — without the catch-up, a task queued behind
+        ``register_eval``, because a task's logger can be init()ed long
+        before its attempt registers (the seed's are, before the run starts)
+        while retunes fan out only to *registered* evals — without the
+        catch-up, a task queued behind
         ``--max-tasks`` would never record a retune applied while it waited,
         even though the process-global override still governs it. The
         catch-up must precede ``register_eval``: both run on the eval's
