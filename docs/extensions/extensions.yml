@@ -183,6 +183,12 @@
   author: "[Meridian](https://github.com/meridianlabs-ai/inspect_sandboxes)"
   categories: ["Sandboxes"]
 
+- name: "[E2B Sandbox](https://meridianlabs-ai.github.io/inspect_sandboxes/e2b.html)"
+  description: |
+    Sandbox environment for Inspect using E2B's cloud infrastructure.
+  author: "[Meridian](https://github.com/meridianlabs-ai/inspect_sandboxes)"
+  categories: ["Sandboxes"]
+
 
 - name: "[Lizard Sandboxes](https://github.com/lizard-build/integrations/tree/main/packages/inspect-lizard)"
   description: |
