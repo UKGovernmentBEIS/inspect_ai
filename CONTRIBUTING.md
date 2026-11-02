@@ -106,7 +106,7 @@ cd inspect_ai
 uv sync
 ```
 
-`uv sync` installs Inspect in editable mode with its development dependencies (the `dev` dependency group, which uv installs by default) at the versions recorded in `uv.lock`. Inspect's dependencies are declared in the `requirements*.txt` files and exposed through `pyproject.toml`. If you are changing dependencies, update the relevant requirements file and run `uv lock` rather than using `uv add`.
+`uv sync` installs Inspect in editable mode with its development dependencies (the `dev` dependency group, which uv installs by default) at the versions recorded in `uv.lock`. Inspect's dependencies are declared in `pyproject.toml`, in `dependencies` and the `optional-dependencies` extras. If you are changing dependencies, edit them there and run `uv lock`.
 
 uv only resolves releases that have been on PyPI for at least seven days (`exclude-newer` in `pyproject.toml`), so a compromised or broken release can be found and yanked before it reaches `uv.lock`, CI, or your machine. Each model provider's own SDK or integration package (for example `openai`, `transformers` or `vllm`), Inspect's own packages, and the CA bundle (`certifi`) have a six-hour cooldown instead (`exclude-newer-package`), so support for a new release can land the day it ships. A `certifi` release usually removes a compromised root certificate. Infrastructure that providers also need, such as `torch` and `accelerate`, stays under the seven-day cooldown. To adopt a specific new release deliberately, run `uv lock --upgrade-package <package>`. If the release is less than seven days old and the package isn't in `exclude-newer-package`, also add it there with `"6 hours"`, and add it to `cooldown.exclude` in `.github/dependabot.yml`.
 

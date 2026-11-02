@@ -1719,8 +1719,9 @@ class ZipLogFile:
                 if await anyio.to_thread.run_sync(
                     zip_needs_rewrite,
                     seeded,
-                    lambda name: not name.startswith(f"{SAMPLES_DIR}/")
-                    or name in kept_names,
+                    lambda name: (
+                        not name.startswith(f"{SAMPLES_DIR}/") or name in kept_names
+                    ),
                 ):
                     restricted = await anyio.to_thread.run_sync(
                         compact_zip, seeded, kept_names
