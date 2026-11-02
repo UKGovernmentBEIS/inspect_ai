@@ -28,10 +28,10 @@ Each skill includes a helper bash script that provides structured output.
 
 ```bash
 # Run with default model
-inspect eval examples/skills/task.py --model openai/gpt-4o
+inspect eval examples/skills/task.py --model openai/gpt-6-luna
 
 # Run with a specific sample
-inspect eval examples/skills/task.py --model openai/gpt-4o --limit 1
+inspect eval examples/skills/task.py --model openai/gpt-6-luna --limit 1
 ```
 
 The evaluation runs in a Docker container (Ubuntu 24.04) where the agent can execute system commands. Its internal Docker network provides an interface for the network-information task but does not permit Internet access.

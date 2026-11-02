@@ -45,6 +45,7 @@ from ._recorders import (
     recorder_type_for_format,
     recorder_type_for_location,
 )
+from ._recorders.recorder import SampleRecordKey
 from ._shard_listing import filter_merged_shards, merged_logs_to_check
 
 logger = getLogger(__name__)
@@ -1084,22 +1085,46 @@ def read_eval_log_samples(
             + "Specify all_samples_required=False to read the samples that exist."
         )
 
+    # the header's sample_ids describe the seed dataset only, so add the
+    # samples a SampleSource / enqueue_sample added at runtime from the log.
+    # Keyed by string id like the recorders, since a retry can record "1" in
+    # the header for a reused sample stored as 1.
+    location = (
+        log_file
+        if isinstance(log_file, str)
+        else log_file.as_posix()
+        if isinstance(log_file, Path)
+        else log_file.name
+    )
+    recorder_type = (
+        recorder_type_for_location(location)
+        if format == "auto"
+        else recorder_type_for_format(format)
+    )
+    sample_keys = dict.fromkeys(
+        [
+            SampleRecordKey(str(sample_id), epoch_id)
+            for sample_id in log_header.eval.dataset.sample_ids
+            for epoch_id in range(1, (log_header.eval.config.epochs or 1) + 1)
+        ]
+        + run_coroutine(recorder_type.read_log_sample_keys(location))
+    )
+
     # loop over samples and epochs
-    for sample_id in log_header.eval.dataset.sample_ids:
-        for epoch_id in range(1, (log_header.eval.config.epochs or 1) + 1):
-            try:
-                sample = read_eval_log_sample(
-                    log_file=log_file,
-                    id=sample_id,
-                    epoch=epoch_id,
-                    resolve_attachments=resolve_attachments,
-                    format=format,
-                    exclude_fields=exclude_fields,
-                )
-                yield sample
-            except IndexError:
-                if all_samples_required:
-                    raise
+    for sample_id, epoch_id in sample_keys:
+        try:
+            sample = read_eval_log_sample(
+                log_file=log_file,
+                id=sample_id,
+                epoch=epoch_id,
+                resolve_attachments=resolve_attachments,
+                format=format,
+                exclude_fields=exclude_fields,
+            )
+            yield sample
+        except IndexError:
+            if all_samples_required:
+                raise
 
 
 def manifest_eval_log_name(info: EvalLogInfo, log_dir: str, sep: str) -> str:

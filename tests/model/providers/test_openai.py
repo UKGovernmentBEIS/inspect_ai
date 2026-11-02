@@ -87,7 +87,7 @@ async def test_openai_compact_propagates_other_endpoint_errors() -> None:
 @skip_if_no_openai
 async def test_openai_api() -> None:
     model = get_model(
-        "openai/gpt-3.5-turbo",
+        "openai/gpt-4o-mini",
         config=GenerateConfig(
             frequency_penalty=0.0,
             stop_seqs=None,
@@ -162,7 +162,7 @@ async def test_openai_o_series_developer_messages() -> None:
             ]
         )
 
-    await check_developer_messages("openai/o3-mini")
+    await check_developer_messages("openai/o3")
 
 
 @skip_if_no_openai
@@ -176,7 +176,7 @@ async def test_openai_o_series_reasoning_effort() -> None:
         response = await model.generate(input=[message])
         assert len(response.completion) >= 1
 
-    await check_reasoning_effort("openai/o3-mini")
+    await check_reasoning_effort("openai/o3")
     await check_reasoning_effort("openai/gpt-5-mini", "minimal")
 
 
@@ -191,14 +191,14 @@ async def test_openai_o_series_max_tokens() -> None:
         response = await model.generate(input=[message])
         assert len(response.completion) >= 1
 
-    await check_max_tokens("openai/o3-mini")
+    await check_max_tokens("openai/o3")
 
 
 @skip_if_no_openai
 def test_openai_flex_requests():
     log = eval(
         Task(),
-        model="openai/o4-mini",
+        model="openai/gpt-5-mini",
         model_args=dict(service_tier="flex", client_timeout=1200),
     )[0]
     assert log.status == "success"
@@ -908,6 +908,29 @@ async def test_openai_gpt_6_1_sol_low_effort_with_temperature() -> None:
 @skip_if_no_openai_model("gpt-6.1-sol")
 async def test_openai_gpt_6_1_sol_max_reasoning_effort() -> None:
     await _gpt_6_max_effort("gpt-6.1-sol")
+
+
+# -- GPT-6.1 Terra (live) --
+#
+# Unlike GPT-6.1 Sol, Terra accepts `none` like GPT-6 Sol and Luna.
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.1-terra")
+async def test_openai_gpt_6_1_terra_generate() -> None:
+    await _gpt_6_generate("gpt-6.1-terra")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.1-terra")
+async def test_openai_gpt_6_1_terra_none_effort_with_temperature() -> None:
+    await _gpt_6_none_effort_with_temperature("gpt-6.1-terra")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.1-terra")
+async def test_openai_gpt_6_1_terra_max_reasoning_effort() -> None:
+    await _gpt_6_max_effort("gpt-6.1-terra")
 
 
 # -- skip_if_no_openai_model gate (no network) --

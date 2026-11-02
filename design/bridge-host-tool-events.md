@@ -26,6 +26,16 @@ the proposed call then runs with a fresh id and `grant: "exempt"`. Execution
 is unaffected. The bridge docs state this limitation, a test pins it, and the
 matching is unchanged.
 
+A limit raised in a host tool now matches a native tool (decision: Ransom,
+with Charles, 2026-10-27). A `LimitExceededError` that decides the outcome,
+bare or as the decisive leaf of a group (`decisive_tool_exception`), is
+recorded as the mapped `limit` error and reaches the scaffold as a
+`ToolError` carrying the same message ("The tool exceeded its token limit of
+1,000."). It no longer reaches the service dispatcher's limit branch, so the
+sample is not ended; a sample-level limit is enforced at the agent's next
+generation, as natively. A limit with a termination in its history still
+propagates unchanged and terminates. The sections below are updated to match.
+
 All `path:line` references are to `main` at `472cf7dd2` (2026-09-22, which
 includes #5464) unless a different tree is named. Viewer references are to
 the `ts-mono` submodule at the commit that tree pins (`02f2c5ad`), under
@@ -236,8 +246,10 @@ After #5428 (the tree this design targets, head `e5e3cab8f`):
   and an object `Arguments`), denoting that tool with the inner `Arguments`.
   The name gate is what stops an ordinary call whose arguments happen to
   carry those fields from minting a grant for, or borrowing the approval
-  policy of, a bridged tool; approval and grant resolution share the one
-  function so they cannot disagree. Tools that cannot be told apart (a
+  policy of, a bridged tool. Approval reviews each call through the same
+  `_proposed_call` resolution (`SandboxAgentBridge.reviewed_calls`), under
+  the name of each bridged tool it denotes, so approval and grants cannot
+  disagree about what a call runs. Tools that cannot be told apart (a
   shared description, whatever their schemas; `warn_indistinct_tools` names
   them at setup) each get a grant bound to the call's arguments, so one
   proposal authorises one execution of each of them.
@@ -540,9 +552,9 @@ Capturing the proposing event's span, in `bridge_generate`
 
 - When the bridge has a `model_event_sink`, `bridge_generate` wraps it for
   the `model.generate()` call in a `_SpanCapturingSink` (private, in
-  `util.py`) that forwards `on_pending` and `on_complete` to the inner sink
-  and, after `on_complete`, remembers `event.span_id`. The sink protocol is
-  not widened and the inner sink is unaware. When the bridge has no sink,
+  `util.py`) that forwards `on_start` (when the inner sink has one),
+  `on_pending` and `on_complete` to the inner sink and, after `on_complete`,
+  remembers `event.span_id`. The inner sink is unaware. When the bridge has no sink,
   nothing is installed (installing one would disable partial-output
   publishing, `_model.py:1394-1401`); the `ModelEvent` was stamped with
   `current_span_id()` in this same task.
@@ -550,7 +562,10 @@ Capturing the proposing event's span, in `bridge_generate`
   span_id=captured)`, `declarations` being the `[*tools, *declared_in_input(...)]`
   list #5428 builds today, where `captured` is the remembered span if it
   differs from `current_span_id()` at the sink's `on_pending` and at its
-  `on_complete`, else `None`. The comparison is made in the callbacks, not at
+  `on_complete`, else `None`. When the sink's `on_start` named another span,
+  the generation runs under it, so `current_span_id()` in those callbacks is
+  that span: the wrapper then compares against the span current when
+  `on_start` was called, and a span equal to the `on_start` span is captured. The comparison is made in the callbacks, not at
   registration: a checkpoint can rotate while the calls await approval, and
   the earlier checkpoint span is not a sink's choice. Storing only a
   differing span keeps executions under the checkpointer's rotating
@@ -778,11 +793,9 @@ def tool_call_error(ex: Exception, function: str) -> MappedToolCallError | None:
 #5464 also settled what happens over the bridge: a mapped exception
 propagates as the RPC error the scaffold reads as tool output, an unmapped
 one is signalled through `bridge.request_fail(inner_ex)` so the sample fails
-as it would natively, and in every case the original exception is what
-leaves `call_tool`, so the sandbox service dispatcher sees what it saw
-before (a bare `LimitExceededError` still reaches its limit branch,
-`util/_sandbox/service.py:552-560`). This design keeps all of that and adds
-the event:
+as it would natively, and the original exception is what leaves
+`call_tool`, except for a limit (below). This design keeps all of that and
+adds the event:
 
 - Mapped exception: `error=mapped.error`, `result=mapped.result` when it is
   not `None` (a timeout's or output-limit's truncated output), else the
@@ -790,9 +803,12 @@ the event:
   the native wording ("Command timed out before completing.") while the
   scaffold still sees `str(ex)`, as today; the two are deliberately not
   unified, because changing the wire text is out of scope.
-- `LimitExceededError`: mapped to `limit` by `tool_call_error`; re-raise the
-  original so the dispatcher still calls `active.limit_exceeded(ex)` for a
-  bare one.
+- `LimitExceededError`, bare or deciding a group: mapped to `limit` by
+  `tool_call_error`; raise a `ToolError` with the mapped message, from the
+  original. The dispatcher's limit branch would end the sample
+  (`active.limit_exceeded(ex)`); natively the model reads the limit as a tool
+  error and the agent continues. A termination anywhere in the exception's
+  history still propagates the original, which the dispatcher enacts.
 - Unmapped exception: `failed=True`, `error=None`, the native shape
   (`_call_tools.py:326-331`), then `bridge.request_fail(inner_ex)` exactly
   where #5464 calls it (after the event is finalised, before the re-raise),
@@ -874,8 +890,9 @@ the `ToolEvent` docstring and in `docs/agent-bridge.qmd`.
   `checkpoint N` span via the shared `_SpanCell`
   (`src/inspect_ai/util/_span.py:135-152`,
   `src/inspect_ai/util/_checkpoint/checkpointer_impl.py:293`).
-- `ModelEventSink` is not widened. The bridge's private wrapper reads the
-  span the sink assigned; the sink neither sees tool events nor needs to.
+- `ModelEventSink`'s tool-event surface is not widened (its optional
+  `on_start` names the span a generation runs under; see the protocol's
+  docstring). The bridge's private wrapper reads the span the sink assigned; the sink neither sees tool events nor needs to.
   The span is read when `on_complete` returns, so a sink must assign it by
   then. The host `ToolEvent` is emitted at once; a span assigned later, or a
   `ModelEvent` the sink holds back and emits later, is not coordinated with
@@ -1075,7 +1092,7 @@ either way.
 | Unknown tool on a known server | fresh | `null` | `parsing` | `None` | `null` | unchanged ("Unknown tool '<tool>' in server '<server>'") |
 | Arguments fail #5464's schema validation | fresh | `null` | `parsing` | `None` | `null` | unchanged (`ToolParsingError` text) |
 | Arguments nested over 100 deep | fresh | `null` | `parsing` | `None` | `null` | **changed**: the native depth `ToolParsingError` instead of execution |
-| Tool raised `LimitExceededError` | as executed | as executed | `limit` | `None` | as executed | unchanged (limit handling and error text) |
+| Tool raised `LimitExceededError` | as executed | as executed | `limit` | `None` | as executed | **changed**: MCP error with the native limit message; the sample is not ended |
 | Operator cancel | as executed | as executed | `timeout` | `None` | as executed | new: MCP error "Command timed out before completing." |
 | Bridge teardown mid-call | as executed | as executed | `cancelled` | `None` | as executed | none (request abandoned, as today) |
 
@@ -1339,7 +1356,9 @@ tests do, and subscribe a recorder to count emissions):
   `error is None` for the unmapped one with `bridge.request_fail` called
   with the unwrapped exception (and not called for the mapped ones), and
   that the exception propagated to the caller is the original object with
-  its original message (RPC text preservation). A `ToolError` raised inside
+  its original message (RPC text preservation), except for the limit, which
+  propagates as a `ToolError` with the mapped message and does not reach the
+  dispatcher's limit branch. A `ToolError` raised inside
   an `anyio` task group in the tool is classified from the unwrapped
   exception and does not fail the sample.
 - Cancellation: operator cancel via `event._cancel()` from a sibling task

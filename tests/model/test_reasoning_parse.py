@@ -1,4 +1,8 @@
-from inspect_ai.model._reasoning import parse_content_with_reasoning
+from inspect_ai.model._reasoning import (
+    ReasoningCapsule,
+    parse_content_with_reasoning,
+    split_content_with_reasoning,
+)
 
 
 def test_reasoning_parse_basic():
@@ -453,3 +457,20 @@ def test_reasoning_parse_redacted_collapses_wrapped_payload():
     assert reasoning.reasoning == encrypted
     assert reasoning.redacted is True
     assert content == "Content"
+
+
+def test_split_content_with_reasoning_keeps_every_block_in_order():
+    segments = split_content_with_reasoning(
+        '<think>first</think>\nvisible\n<think redacted="true">second</think>\ntail'
+    )
+    assert segments == [
+        ReasoningCapsule(reasoning="first"),
+        "visible",
+        ReasoningCapsule(reasoning="second", redacted=True),
+        "tail",
+    ]
+
+
+def test_split_content_with_reasoning_without_think_tag():
+    assert split_content_with_reasoning("plain text") == ["plain text"]
+    assert split_content_with_reasoning("") == []

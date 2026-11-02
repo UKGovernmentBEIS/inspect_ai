@@ -5,11 +5,10 @@ from dataclasses import dataclass
 from functools import wraps
 from typing import TYPE_CHECKING, Any
 
-from inspect_ai.log._samples import sample_active
 from inspect_ai.model._chat_message import ChatMessage
-from inspect_ai.util._span import current_agent_span_id
 
 from ._context import active_sentinel
+from ._conversation import current_conversation
 
 if TYPE_CHECKING:
     from inspect_ai.agent._agent import Agent, AgentState
@@ -30,14 +29,6 @@ class _Running:
 
 
 _running: ContextVar[_Running | None] = ContextVar("sentinel_agent_state", default=None)
-
-
-def current_conversation() -> str:
-    agent_span_id = current_agent_span_id()
-    if agent_span_id is not None:
-        return agent_span_id
-    active = sample_active()
-    return active.sample_uuid if active is not None else ""
 
 
 def _registered(conversation: str) -> _Running | None:
