@@ -203,6 +203,50 @@ async def test_kill_after_leader_exited_returns_output_without_signalling(
     assert stderr == ""
 
 
+async def _wait_for_exit(job: Job) -> None:
+    """Wait for the leader's exit without waiting for its pipes to close."""
+    with anyio.fail_after(5):
+        while job._process.returncode is None:
+            await anyio.sleep(0.01)
+
+
+@pytest.mark.asyncio
+async def test_poll_during_kill_of_exited_job_reports_its_exit_code() -> None:
+    """A leader that exited on its own before kill() completed, whatever it is asked."""
+    controller = Controller()
+    # The background child holds the pipes open, so kill() and poll() both
+    # wait for the readers and the poll reads the job's state during the kill.
+    pid = await controller.submit("(sleep 0.5) & exit 3")
+    job = controller._jobs[pid]
+    await _wait_for_exit(job)
+
+    try:
+        _, result = await asyncio.gather(
+            controller.kill(pid, ack_seq=0), controller.poll(pid, ack_seq=0)
+        )
+    finally:
+        await _stop_job(job)
+
+    assert (result.state, result.exit_code) == ("completed", 3)
+
+
+@pytest.mark.asyncio
+async def test_shutdown_keeps_the_exit_code_of_an_exited_job(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(job_module, "terminate_process_tree", AsyncMock())
+    job = await Job.create("exit 3")
+    await _wait_for_exit(job)
+
+    try:
+        await job.shutdown()
+        result = await job.poll(ack_seq=0)
+    finally:
+        await _stop_job(job)
+
+    assert (result.state, result.exit_code) == ("completed", 3)
+
+
 @pytest.mark.asyncio
 async def test_kill_treats_reused_pid_as_exited(
     monkeypatch: pytest.MonkeyPatch,
