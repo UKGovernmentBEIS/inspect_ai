@@ -66,9 +66,9 @@ def _forward_provider_errors(
     reply too. The first limit reached is recorded in `bridge.generation_limit`:
     once the agent has unwound, `sandbox_agent_bridge` raises it, so the scope
     that applied it (`run()`, or the sample) handles it, as for a native agent.
-    A later limit replaces it only when it encloses it (see `_encloses`), so a
-    sample limit reached by a concurrent generation is not lost behind an inner
-    limit that a caller catches.
+    A later limit replaces it only when it encloses it in the same limit tree
+    (see `_encloses`), so a sample token limit reached by a concurrent
+    generation is not lost behind an inner token limit that a caller catches.
     A limit only in an exception's cause or context is not recorded: it was
     handled, or replaced by the error that escaped (a refusal reduced from a
     response filter's group, a `ResponseFilterError`, a fallback's provider
@@ -130,19 +130,15 @@ def _forward_provider_errors(
 def _encloses(outer: LimitExceededError, inner: LimitExceededError) -> bool:
     """Whether the limit that raised `outer` encloses the one that raised `inner`.
 
-    It does when it is an ancestor of `inner`'s in the same limit tree, or the
-    root of its tree while `inner`'s is not. In a sample every limit tree's
-    root is the sample's own limit, which encloses every other limit. A limit
-    error with no source, or a source in no limit tree, encloses nothing and is
-    enclosed by nothing.
+    It does when it is an ancestor of `inner`'s in the same limit tree. Limits
+    in different trees (types) are not compared: a tree's root is not always
+    the sample's own limit (scorers run after the sample's limits have exited),
+    so nesting across trees cannot be told. A limit error with no source, or a
+    source in no limit tree, encloses nothing and is enclosed by nothing.
     """
     outer_node, inner_node = outer.source, inner.source
     if not _in_tree(outer_node) or not _in_tree(inner_node):
         return False
-    if inner_node.parent is None:
-        return False
-    if outer_node.parent is None:
-        return True
     node: _Node | None = inner_node.parent
     while node is not None:
         if node is outer_node:

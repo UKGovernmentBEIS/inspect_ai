@@ -862,13 +862,42 @@ async def test_forward_provider_errors_keeps_the_first_beside_an_unentered_limit
     unentered = LimitExceededError("token", value=2, limit=1, source=make_fresh())
     with token_limit(10) as root, token_limit(5) as inner:
         if fresh == "kept":
-            # a sample-root limit, which would replace any entered inner limit
+            # a root limit, which would replace an entered limit below it
             later = LimitExceededError("token", value=11, limit=10, source=root)
             errors = [unentered, later]
         else:
             # an inner limit, which a root limit would replace
             kept = LimitExceededError("token", value=6, limit=5, source=inner)
             errors = [kept, unentered]
+        first = errors[0]
+
+        async def over_limit(
+            json_data: dict[str, Any], headers: dict[str, str] | None = None
+        ) -> dict[str, Any]:
+            raise errors.pop(0)
+
+        bridge = _bridge()
+        forward = _forward_provider_errors(over_limit, bridge)
+        for _ in range(2):
+            assert PROVIDER_ERROR_KEY in await forward({})
+        assert bridge.generation_limit is first
+
+
+async def test_forward_provider_errors_keeps_the_first_of_limits_in_different_trees() -> (
+    None
+):
+    """A later limit in another limit tree does not replace the first, even a root.
+
+    Scorers run after the sample's limits have exited, so a `run()` limit can
+    be the root of its tree while a limit of another type encloses it. Here an
+    enclosing token limit is reached first and an inner message limit, the
+    root of the message tree, second: the token limit is kept.
+    """
+    with token_limit(100), token_limit(50) as enclosing, message_limit(10) as inner:
+        errors = [
+            LimitExceededError("token", value=51, limit=50, source=enclosing),
+            LimitExceededError("message", value=11, limit=10, source=inner),
+        ]
         first = errors[0]
 
         async def over_limit(
@@ -1480,15 +1509,16 @@ def test_limit_in_a_bridged_generation_during_shutdown_is_raised(
 
 
 @pytest.mark.parametrize("first", ["sample", "agent"])
-def test_concurrent_bridged_generations_raise_the_sample_limit(
+def test_concurrent_bridged_generations_raise_the_first_limit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, first: str
 ) -> None:
-    """Of limits reached by concurrent bridged generations, the sample's is raised.
+    """Of limits reached by concurrent bridged generations, the first is raised.
 
     One request reaches the sample's token limit, another the `run()` message
-    limit, in either order. The sample's limit encloses the `run()` limit, so
-    it is raised even when it is reached second: the sample ends with it
-    rather than continuing past it.
+    limit, in either order. A native agent stops at the first limit it reaches,
+    so the scope that applied the first one handles it. When that is the
+    `run()` limit, the sample's limit reached after the error reply is not
+    raised, since nothing generates again in the sample.
     """
     # 7 tokens: over the sample's token limit
     sample_request = _Request(after_first=first == "agent")
@@ -1507,7 +1537,10 @@ def test_concurrent_bridged_generations_raise_the_sample_limit(
         sample_token_limit=5,
     )
 
-    _assert_sample_token_limit(outcome)
+    if first == "sample":
+        _assert_sample_token_limit(outcome)
+    else:
+        _assert_agent_limit(outcome, limit)
     _assert_error_replies(outcome.replies, count=2)
 
 
