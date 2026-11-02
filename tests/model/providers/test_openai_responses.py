@@ -1145,8 +1145,8 @@ def _compact_response_with_user_items(items: list[Any]) -> Any:
     )
 
 
-def test_chat_messages_from_compact_response_user_media() -> None:
-    """User messages echoed with images and files convert to image/document content."""
+def test_chat_messages_from_compact_response_user_content_edge_cases() -> None:
+    """Echoed user media with optional fields absent, a non-default detail, and a refusal."""
     from openai.types.responses import ResponseOutputRefusal, ResponseOutputText
 
     from inspect_ai._util.content import ContentDocument, ContentImage
@@ -1154,22 +1154,16 @@ def test_chat_messages_from_compact_response_user_media() -> None:
     from inspect_ai.model._openai_responses import chat_messages_from_compact_response
 
     # the SDK parses input_image/input_file items as ResponseOutputText with the
-    # real `type` and the other fields in model_extra
+    # real `type` and the other fields as extra attributes
     image_url = "data:image/png;base64,AAAA"
     file_data = "data:application/pdf;base64,BBBB"
     response = _compact_response_with_user_items(
         [
-            ResponseOutputText.model_construct(type="input_text", text="look"),
             ResponseOutputText.model_construct(
                 type="input_image", image_url=image_url, detail="high"
             ),
-            ResponseOutputText.model_construct(
-                type="input_file", file_data=file_data, filename="r.pdf", detail="auto"
-            ),
-            # optional fields absent
             ResponseOutputText.model_construct(type="input_image", image_url=image_url),
             ResponseOutputText.model_construct(type="input_file", file_data=file_data),
-            ResponseOutputText(type="output_text", text="reply", annotations=[]),
             ResponseOutputRefusal(type="refusal", refusal="no"),
         ]
     )
@@ -1179,12 +1173,9 @@ def test_chat_messages_from_compact_response_user_media() -> None:
     message = result[0]
     assert isinstance(message, ChatMessageUser)
     assert message.content == [
-        ContentText(text="look"),
         ContentImage(image=image_url, detail="high"),
-        ContentDocument(document=file_data, filename="r.pdf"),
         ContentImage(image=image_url),
         ContentDocument(document=file_data),
-        ContentText(text="reply"),
         ContentText(text="no", refusal=True),
     ]
 
