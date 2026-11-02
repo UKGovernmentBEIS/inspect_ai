@@ -76,8 +76,9 @@ class TaskRecord:
     setup_keys: tuple[Any, ...]
     """The sandbox configs its selected samples use, in sample order."""
     logger: TaskLogger | None = None
-    """A seed task's first logger, created when the seed starts up and taken
-    by its first attempt. Other tasks create theirs when they start."""
+    """A seed task's first logger, created (not yet initialised) when the seed
+    starts up and taken by its first attempt. Other tasks create theirs when
+    they start."""
     setups: list[SetupJob[Any]] | None = None
     """The setup jobs of ``setup_keys`` (``None`` until they are requested)."""
     log: EvalLog | None = None
@@ -238,14 +239,27 @@ class RunTasks:
         self._closed = True
         return True
 
-    def close(self) -> list[TaskRecord]:
-        """Refuse further additions and empty the queue.
+    def cancel_waiting(self, record: TaskRecord) -> None:
+        """End a queued record that will now never start (an operator cancelled it).
 
-        Returns the records that will now never start.
+        It leaves the task display's count, as it will have no row there.
+        """
+        self.queued.remove(record)
+        self.end(record)
+        display().update_task_count(-1)
+        self.changed.set()
+
+    def close(self) -> None:
+        """Refuse further additions and end every record that has not ended.
+
+        Called as the run ends: a cancelled or failed run leaves records
+        queued, which will now never start, and running ones, whose attempts
+        it interrupted. Each keeps its latest attempt's log, if any.
         """
         self._closed = True
-        unstarted, self.queued = self.queued, []
-        return unstarted
+        for record in [*self.queued, *self.running]:
+            self.end(record)
+        self.queued = []
 
     def results(self) -> list[EvalLog]:
         """The final log of each task that has one, in the order they were queued."""

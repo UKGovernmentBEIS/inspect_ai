@@ -1179,8 +1179,8 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             )
 
             # must run immediately before register_eval (see its docstring):
-            # catches up on ctl retunes applied while this task sat queued
-            # between its up-front logger init and starting here
+            # catches up on ctl retunes applied between this attempt's logger
+            # init and here
             await logger.record_inherited_config_updates()
 
             # A task drain/cancel abandoned this attempt while it was

@@ -594,25 +594,16 @@ class TaskStartup:
         """Set up the seed's sandboxes and create its loggers, before the task display opens.
 
         Setups run one at a time with their output streamed to the terminal,
-        and any failure raises before a log exists. Then each seed's first
-        logger is created (so a log's ``created`` time, which names its file,
-        follows the setups); if that fails, the loggers are discarded.
+        and any failure raises before a log exists. Then each seed task's
+        first logger is created, so a log's ``created`` time (which names its
+        file) follows the setups; it is initialised as the task starts.
         """
         await self.sandboxes.setup_seed(
             dict.fromkeys(key for record in seed for key in record.setup_keys)
         )
-        try:
-            for record in seed:
-                assert record.configured is not None
-                record.logger = record.configured.new_logger()
-                await record.logger.init()
-        except BaseException:
-            with anyio.CancelScope(shield=True):
-                for record in seed:
-                    if record.logger is not None:
-                        await record.logger.discard()
-                        record.logger = None
-            raise
+        for record in seed:
+            assert record.configured is not None
+            record.logger = record.configured.new_logger()
 
     def _sample_setup(self, resolved_task: ResolvedTask) -> SampleSandboxSetup | None:
         """Sets up the sandboxes of samples the task's ``SampleSource`` adds."""
@@ -862,7 +853,9 @@ class TaskDispatcher:
                     remove_task_dispatcher(self.stats)
                     clear_task_screen()
         finally:
-            await self.end_unfinished()
+            # a cancelled or failed run leaves records unfinished: those
+            # interrupted while running released their loggers in run_one
+            self.tasks.close()
         return self.tasks.results()
 
     async def loop(self, tg: TaskGroup) -> None:
@@ -870,7 +863,6 @@ class TaskDispatcher:
         while not self.run_cancelled:
             if self.setups.fatal is not None:
                 raise self.setups.fatal
-            await self.end_abandoned()
             while True:
                 self.queue_upcoming_setups()
                 record = self.next_task_to_start()
@@ -1050,59 +1042,17 @@ class TaskDispatcher:
             pending=len(self.tasks.queued),
         )
 
-    async def end_abandoned(self) -> None:
-        """End the records waiting to start whose next attempt was abandoned.
-
-        A ctl cancel or drain abandons a task's next attempt (main's
-        process-wide set, :func:`abandon_task_retry`): one waiting to start
-        ends with no log, and leaves the task display's count, as it will
-        have no row there. An attempt the loop has already started bails in
-        ``task_run`` before it registers.
-        """
-        abandoned = [r for r in self.tasks.queued if task_retry_abandoned(r.task_id)]
-        for record in abandoned:
-            display().update_task_count(-1)
-            self.tasks.queued.remove(record)
-            await self._end_unstarted(record)
-
-    async def end_unfinished(self) -> None:
-        """End the records a cancelled or failed run leaves unfinished.
-
-        Those waiting to start release the loggers they hold; those whose
-        attempt the run's failure interrupted released theirs in
-        :meth:`run_one`. Each keeps its latest attempt's log, if any.
-        """
-        for record in self.tasks.close():
-            await self._end_unstarted(record)
-        for record in list(self.tasks.running):
-            self.tasks.end(record)
-
-    async def _end_unstarted(self, record: TaskRecord) -> None:
-        """End a record that will not start again, releasing the logger it holds."""
-        await _release_queued(record)
-        self.tasks.end(record)
-
 
 async def open_log(logger: TaskLogger, *, retry: bool) -> None:
-    """Create the log entry of an attempt's logger, if it has none yet.
+    """Create the log entry of an attempt's logger.
 
     A retry reinitialises the failed attempt's logger for a fresh entry; a
-    new logger is initialised; a seed's first logger already has one.
+    first attempt initialises its new (or seed) logger.
     """
     if retry:
         await logger.reinit()
-    elif logger.location == "":
+    else:
         await logger.init()
-
-
-async def _release_queued(record: TaskRecord) -> None:
-    """Discard the logger a seed record holds for an attempt that will not start.
-
-    It has written nothing.
-    """
-    if record.logger is not None:
-        with anyio.CancelScope(shield=True):
-            await record.logger.discard()
 
 
 async def _release_unfinished(logger: TaskLogger) -> None:

@@ -90,7 +90,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from typing_extensions import NotRequired, TypedDict
 
 if TYPE_CHECKING:
-    from inspect_ai._eval.task.enqueue import TaskRecord
+    from inspect_ai._eval.task.enqueue import ActiveTask
     from inspect_ai.event._tool import ToolEvent
     from inspect_ai.log._samples import ActiveSample, SampleCancelAction
 
@@ -288,7 +288,7 @@ def _base_result(
 
 
 def _cancel_unregistered(
-    record: "TaskRecord",
+    found: "ActiveTask",
     *,
     stamp: "CancelStamp",
     action: TaskCancelAction | None,
@@ -298,14 +298,15 @@ def _cancel_unregistered(
 
     It is waiting to start, starting (a first attempt, or a retry of an
     attempt that ended before it registered), or ended. It ends without
-    running again: the cancel abandons the task's next attempt
-    (:func:`abandon_task_retry`), so the run's scheduling loop ends the task
-    if it is waiting, and an attempt it has already started bails before it
-    registers; the task keeps its last attempt's log, if any. A score/error resolution is
+    running again: a task waiting to start ends at once, with no log; for
+    one starting, the cancel abandons its next attempt
+    (:func:`abandon_task_retry`), which bails before it registers, and the
+    task keeps its last attempt's log, if any. A score/error resolution is
     rejected (no attempt has samples to resolve).
     """
     from inspect_ai._control.eval_state import abandon_task_retry, task_retry_abandoned
 
+    record = found.record
     if stamp in ("score", "error"):
         return {
             "ok": False,
@@ -332,7 +333,10 @@ def _cancel_unregistered(
     if task_retry_abandoned(record.task_id):
         return {**result, "changed": False, "reason": "cancel already requested"}
     if not dry_run:
-        abandon_task_retry(record.task_id)
+        if record in found.tasks.queued:
+            found.tasks.cancel_waiting(record)
+        else:
+            abandon_task_retry(record.task_id)
     if record.log is None:
         return {**result, "changed": True, "not_started": True}
     return {
@@ -377,9 +381,7 @@ def _task_cancel_directive(
     # starting or ended); the task's latest EvalState, if any, is then from an
     # earlier eval() of the same eval set
     if found is not None and (state is None or state.run_id != found.tasks.run_id):
-        return _cancel_unregistered(
-            found.record, stamp=stamp, action=action, dry_run=dry_run
-        )
+        return _cancel_unregistered(found, stamp=stamp, action=action, dry_run=dry_run)
     if state is None:
         return None
 

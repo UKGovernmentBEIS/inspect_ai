@@ -103,29 +103,28 @@ class TestResolveTaskDistribution:
 
 
 @pytest.mark.anyio
-async def test_eval_run_discards_loggers_when_setup_fails(
+async def test_eval_run_releases_a_logger_whose_init_fails(
     monkeypatch,
 ) -> None:
-    # the second task's log init fails: both loggers of the group are
-    # discarded, including the failed one (its recorder entry may exist)
+    # a seed task's logger is created before the run and initialised as the
+    # task starts: when that fails the run fails, the failed logger is
+    # released, and the queued task's logger, never initialised, holds nothing
     created_loggers: list[object] = []
-    discarded_loggers: list[object] = []
-    init_count = 0
+    released_loggers: list[object] = []
 
     class FakeTaskLogger:
+        finished = False
+
         def __init__(self, *args: object, **kwargs: object) -> None:
             created_loggers.append(self)
 
         async def init(self) -> None:
-            nonlocal init_count
-            init_count += 1
-            if init_count == 2:
-                raise RuntimeError("setup failed")
+            raise RuntimeError("setup failed")
 
         async def discard(
             self, *, keep_destination: bool = False, keep_buffer: bool = False
         ) -> None:
-            discarded_loggers.append(self)
+            released_loggers.append(self)
 
     monkeypatch.setattr("inspect_ai._eval.run.TaskLogger", FakeTaskLogger)
 
@@ -136,7 +135,8 @@ async def test_eval_run_discards_loggers_when_setup_fails(
     model = get_model("mockllm/model")
     resolved_tasks = resolve_tasks(tasks, {}, model, None, None, None)
 
-    with pytest.raises(RuntimeError, match="setup failed"):
+    # raised from the started task, inside the run's task group
+    with pytest.raises(ExceptionGroup) as raised:
         await eval_run(
             eval_set_id=None,
             run_id="run-id",
@@ -150,8 +150,9 @@ async def test_eval_run_discards_loggers_when_setup_fails(
             run_samples=False,
         )
 
+    assert raised.group_contains(RuntimeError, match="setup failed")
     assert len(created_loggers) == 2
-    assert discarded_loggers == created_loggers
+    assert released_loggers == created_loggers[:1]
 
 
 def _sample() -> EvalSample:

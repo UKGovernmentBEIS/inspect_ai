@@ -331,14 +331,12 @@ class Harness:
         )
 
     async def seed(self, tasks: list[ResolvedTask]) -> list[TaskRecord]:
-        """Seed records, ready as after the seed start-up (no setups, loggers made)."""
+        """Seed records, as after the seed start-up (no setups, loggers created)."""
         seed = await self.tasks.create(tasks)
         self.tasks.enqueue(seed)
         for record in seed:
             record.setup_keys = ()
-            logger = cast(FakeLogger, self.new_logger(_labels([record])[0]))
-            logger.location = f"{logger.label}.eval"
-            record.logger = cast(TaskLogger, logger)
+            record.logger = self.new_logger(_labels([record])[0])
         return seed
 
     async def dispatch(
@@ -446,7 +444,7 @@ async def test_run_tasks_add_creates_records_and_raises_on_invalid_tasks() -> No
     assert _labels(harness.tasks.queued) == ["a@m1"]
 
 
-async def test_run_tasks_close_refuses_add_and_returns_unstarted() -> None:
+async def test_run_tasks_close_refuses_add_and_ends_unstarted() -> None:
     m1 = get_model("mockllm/m1")
     resolved: list[Tasks] = []
     harness = Harness([m1])
@@ -466,8 +464,8 @@ async def test_run_tasks_close_refuses_add_and_returns_unstarted() -> None:
     [added] = await run_tasks.add([_task("w")])
     [queued] = await run_tasks.create(_resolve(["ready"], [m1]))
     run_tasks.enqueue([queued])
-    assert run_tasks.close() == [added, queued]
-    assert run_tasks.queued == []
+    run_tasks.close()
+    assert run_tasks.queued == [] and added.ended and queued.ended
     with pytest.raises(RuntimeError, match="run 'run' has finished dispatching"):
         await run_tasks.add([_task("late")])
 
@@ -1171,11 +1169,24 @@ async def test_abandoning_a_retry_between_attempts_keeps_the_failed_attempts_log
     ]
 
 
+def _not_started(record: TaskRecord) -> dict[str, Any]:
+    """The fields of a cancel's reply for a task that has not started."""
+    return {
+        "ok": True,
+        "task_id": record.task_id,
+        "task": record.task,
+        "eval_id": "",
+        "dry_run": False,
+        "in_flight": 0,
+        "action": "cancel",
+    }
+
+
 async def test_tasks_cancelled_before_they_start_leave_the_display_count(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # the display counts every queued task; one cancelled before it starts has
-    # no row, so it leaves the count
+    # the display counts every queued task; a cancel ends one waiting to start
+    # at once, and as it has no row, it leaves the count
     m1 = get_model("mockllm/m1")
     harness = Harness([m1], parallel=1)
     _install(monkeypatch, harness)
@@ -1195,18 +1206,27 @@ async def test_tasks_cancelled_before_they_start_leave_the_display_count(
     async def drive() -> None:
         await _wait_started(harness, "a@m1")
         [c] = await harness.tasks.add([_task("c")])
-        await _wait_until(lambda: c in harness.tasks.queued)
-        for record in harness.tasks.queued:
-            abandon_task_retry(record.task_id)
-        await _wait_until(lambda: harness.tasks.queued == [])
+        for record in list(harness.tasks.queued):
+            assert cancel_task(record.task_id) == {
+                **_not_started(record),
+                "changed": True,
+                "not_started": True,
+            }
+            assert record.ended
+        assert cancel_task(c.task_id) == {
+            **_not_started(c),
+            "changed": False,
+            "reason": "task ended before it started",
+        }
         harness.finish["a@m1"].set()
 
+    token = register_run_tasks(harness.tasks)
     try:
         async with anyio.create_task_group() as tg:
             tg.start_soon(drive)
             logs = await harness.run(_resolve(["a", "b"], [m1]))
     finally:
-        reset_retry_abandoned()
+        clear_run_tasks(token)
     assert [(log.eval.task, log.status) for log in logs] == [("a@m1", "success")]
     # the seed's two rows, then c added, then b and c cancelled
     assert counts == [2, 1, -1, -1]
@@ -1360,7 +1380,7 @@ async def test_cancel_during_task_complete_keeps_the_written_log(
     assert [(log.eval.task, log.status) for log in returned[0]] == [("a@m1", "success")]
 
 
-async def test_queued_seed_task_logger_is_discarded_when_the_run_is_cancelled(
+async def test_queued_seed_task_logger_is_never_initialised_when_the_run_is_cancelled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     m1 = get_model("mockllm/m1")
@@ -1376,7 +1396,9 @@ async def test_queued_seed_task_logger_is_discarded_when_the_run_is_cancelled(
 
                 tg.start_soon(cancel_when_running)
                 await harness.dispatch(_resolve(["a", "b"], [m1]))
-    assert [lg.discarded for lg in harness.loggers["b@m1"]] == [1]
+    # a seed logger is initialised as its task starts, so b's holds nothing
+    [b_logger] = harness.loggers["b@m1"]
+    assert not b_logger.initialised and b_logger.discarded == 0
 
 
 # ------------------------------------------------------------- end to end
