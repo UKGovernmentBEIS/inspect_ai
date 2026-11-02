@@ -216,16 +216,20 @@ def _check_function_options(
     so another parameter's or the return annotation does not affect it.
     Other scalar option values are checked only for an enum parameter.
 
-    A log records the elements of a list, tuple or dictionary option only
-    as plain values, and a tuple as a list. A container option is accepted
-    only when its parameter's annotation resolves to lists, sequences and
-    dictionaries (with `str` keys) whose elements are `str`, numbers,
-    `None`, `Literal`s of those or such containers; anything else, an
-    unannotated or unresolvable parameter, and a `**kwargs` option are
-    refused (decision: Ransom, 2026-10-30). An embedded registered metric
-    is checked by :func:`_check_embedded`; a container of only those needs
-    lists, sequences or `str`-keyed dictionaries ending in `Metric` (see
-    :func:`_metric_container`).
+    A log records the elements of a list or tuple option only as plain
+    values, and a tuple as a list. A list option is accepted only when its
+    parameter's annotation resolves to lists or sequences whose elements
+    are `str`, numbers, `None`, `Literal`s of those or such lists; anything
+    else, an unannotated or unresolvable parameter, and a `**kwargs` option
+    are refused (decision: Ransom, 2026-10-30).
+
+    A dictionary, at any depth, is accepted only as a registered metric
+    reference where the annotation takes a metric: `Metric`, or lists,
+    sequences and `str`-keyed dictionaries ending in `Metric` (see
+    :func:`_metric_container`). The log cannot tell plain data from an
+    encoded metric or model, so every other dictionary is refused
+    (decision: Ransom, 2026-11-02). The referenced metrics are checked by
+    :func:`_check_embedded`.
 
     A log records an enum option by its value when the enum derives from
     `str`, `int` or `float`, and by its member name otherwise; the option
@@ -245,27 +249,41 @@ def _check_function_options(
     from inspect_ai._util.registry import is_registry_dict
 
     for argument, value in options.items():
-        if is_registry_dict(value):
-            continue
         resolved = _parameter_annotation(factory, argument)
-        if isinstance(value, (list, tuple, dict)):
-            restorable = (
-                _metric_container if _registered_only(value) else _plain_container
-            )
-            reason = resolved.reason
-            if reason is None and not restorable(resolved.annotation):
-                reason = "whose element types are not plain"
-            if reason is not None:
+        if _holds_dict(value):
+            if not (
+                resolved.reason is None
+                and _metrics_only(value)
+                and (
+                    _metric_type(resolved.annotation)
+                    if is_registry_dict(value)
+                    else _metric_container(resolved.annotation)
+                )
+            ):
                 kind = "a dictionary" if isinstance(value, dict) else "a list"
                 raise ShardSetError(
-                    f"The metric '{name}' was given {kind} for '{argument}', "
-                    f"{reason}. A log records the elements of a list or "
-                    "dictionary option only as plain values (strings, numbers, "
-                    "booleans, None), so the merge cannot recreate other "
-                    "elements and does not merge such shards. Annotate "
-                    f"'{argument}' with plain element types, such as list[str] "
-                    "or dict[str, float], or use a registered metric that "
-                    "builds the configuration inside its factory."
+                    f"The metric '{name}' was given {kind} for '{argument}' "
+                    "holding a dictionary that is not a registered metric where "
+                    "the parameter takes one. Dictionary options are not "
+                    "supported in merges: the log cannot tell plain data from "
+                    "an encoded metric or model, so the merge does not merge "
+                    "such shards. Use a registered metric that builds the "
+                    "configuration inside its factory."
+                )
+            continue
+        if isinstance(value, (list, tuple)):
+            reason = resolved.reason
+            if reason is None and not _plain_container(resolved.annotation):
+                reason = "whose element types are not plain"
+            if reason is not None:
+                raise ShardSetError(
+                    f"The metric '{name}' was given a list for '{argument}', "
+                    f"{reason}. A log records the elements of a list option "
+                    "only as plain values (strings, numbers, booleans, None), so "
+                    "the merge cannot recreate other elements and does not "
+                    f"merge such shards. Annotate '{argument}' with plain "
+                    "element types, such as list[str], or use a registered "
+                    "metric that builds the configuration inside its factory."
                 )
             continue
         if (
@@ -419,11 +437,10 @@ def _metric_container(annotation: object) -> bool:
     `Metric`s or such containers, alone or in a union with `None` or a
     class; a tuple becomes a list and other keys become strings.
     """
-    from inspect_ai.scorer._metric import MetricDeprecated, MetricProtocol
 
     def element(annotation: object) -> bool:
         return all(
-            member in (MetricProtocol, MetricDeprecated) or _metric_container(member)
+            _metric_type(member) or _metric_container(member)
             for member in _members(_unannotated(annotation))
         )
 
@@ -452,17 +469,34 @@ def _enum_literal(annotation: object) -> bool:
     )
 
 
-def _registered_only(value: object) -> bool:
-    """Whether `value` is a registry dict, or a container of only those."""
+def _metric_type(annotation: object) -> bool:
+    """Whether the type is `Metric` (alone or with `None`)."""
+    from inspect_ai.scorer._metric import MetricDeprecated, MetricProtocol
+
+    members = _members(_unannotated(annotation))
+    return any(m in (MetricProtocol, MetricDeprecated) for m in members) and all(
+        m in (MetricProtocol, MetricDeprecated, type(None)) for m in members
+    )
+
+
+def _metrics_only(value: object) -> bool:
+    """Whether `value` is a metric's registry dict, or a container of only those."""
     from inspect_ai._util.registry import is_registry_dict
 
     if is_registry_dict(value):
-        return True
+        return value["type"] == "metric"
     if isinstance(value, dict):
-        return bool(value) and all(_registered_only(v) for v in value.values())
+        return bool(value) and all(_metrics_only(v) for v in value.values())
     if isinstance(value, (list, tuple)):
-        return bool(value) and all(_registered_only(v) for v in value)
+        return bool(value) and all(_metrics_only(v) for v in value)
     return False
+
+
+def _holds_dict(value: object) -> bool:
+    """Whether `value` is a dictionary or a list holding one, at any depth."""
+    if isinstance(value, dict):
+        return True
+    return isinstance(value, (list, tuple)) and any(_holds_dict(v) for v in value)
 
 
 def _plain_container(annotation: object) -> bool:
@@ -481,8 +515,8 @@ def _plain(annotation: object) -> bool:
     """Whether every value of this type is recorded and restored unchanged.
 
     `str`, `int`, `float`, `bool`, `None` and `Literal`s of those, and
-    lists, sequences and `str`-keyed dictionaries of such values, alone or
-    in a union. Enums, tuples, sets and every other type are not.
+    lists and sequences of such values, alone or in a union. Enums,
+    dictionaries, tuples, sets and every other type are not.
     """
     for member in _members(_unannotated(annotation)):
         member = _unannotated(member)
@@ -492,8 +526,6 @@ def _plain(annotation: object) -> bool:
             plain = all(type(value) in _PLAIN for value in args)
         elif origin in (list, collections.abc.Sequence) and len(args) == 1:
             plain = _plain(args[0])
-        elif origin in (dict, collections.abc.Mapping) and len(args) == 2:
-            plain = _str_keys(args[0]) and _plain(args[1])
         else:
             plain = member in _PLAIN
         if not plain:

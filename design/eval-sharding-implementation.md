@@ -1306,9 +1306,9 @@ check. For a class metric the parameters are its constructor's
 message names the metric and the argument and gives the fixes: annotate
 the parameter with a resolvable type whose values cannot be functions, or
 use a registered metric that creates the function inside its factory. The
-refusal comes before anything is written, published or deleted. Numbers,
-booleans, lists and dictionaries, and the registry dicts of embedded
-metrics are not checked otherwise.
+refusal comes before anything is written, published or deleted. Numbers
+and booleans are not checked otherwise; lists and dictionaries follow
+"Container options" below.
 
 Enum options. The producer records an enum member by its value when the
 enum derives from `str`, `int` or `float` (`IntEnum`, `IntFlag`, a `str`
@@ -1326,31 +1326,41 @@ recorded as the member's value or name) is refused whatever its recorded
 value, since the merge restores members only for a directly annotated
 enum.
 
-Container options (decision: Ransom, 2026-10-30). The producer records
-a list, tuple or dictionary option with each element as a plain value
-(a tuple becomes a list; an enum, function or model element becomes its
-value, its name or a dictionary), so a container's elements cannot be
-restored. A container option is accepted
-only when its parameter's own annotation resolves to lists, sequences
-and dictionaries with `str` keys whose elements are `str`, numbers,
-`None`, `Literal`s of those or such containers, at any depth (`Annotated`
-unwrapped; a `type[...]` member of the union, recorded as a class name,
-is ignored). A container of enums, functions, models or any other type,
-a tuple or set annotation, an unannotated or unresolvable parameter, and
-a `**kwargs` option are refused with `ShardSetError` in
+Container options (decisions: Ransom, 2026-10-30 and 2026-11-02). The
+producer records a list or tuple option with each element as a plain
+value (a tuple becomes a list; an enum, function or model element
+becomes its value, its name or a dictionary), so a list's elements
+cannot be restored. A list option is accepted only when its parameter's
+own annotation resolves to lists or sequences whose elements are `str`,
+numbers, `None`, `Literal`s of those or such lists, at any depth
+(`Annotated` unwrapped; a `type[...]` member of the union, recorded as a
+class name, is ignored). A list of enums, functions, models or any other
+type, a tuple or set annotation, an unannotated or unresolvable
+parameter, and a `**kwargs` option are refused with `ShardSetError` in
 `recreate_scorers`, naming the metric and argument; the fix is plain
 element types or a registered metric that builds the configuration
-inside its factory. There is no restoration inside containers. An
-embedded registered metric given directly stays supported and is checked
-by `_check_embedded`. A container whose leaves are all registered metrics
-(a `list[Metric]` option records registry dicts) needs an annotation of
-lists, sequences or `str`-keyed dictionaries ending in `Metric`, at any
-depth: `dict[int, Metric]` (its keys become strings) and
-`tuple[Metric, ...]` (it becomes a list) are refused, and a container
-mixing metrics with other values follows the plain-element rule. Built-in `frequency(categories=[...])` and MLRC's
-`list[str]` options merge; ANIMA's `dimension_normalized_avg(dims_by_name:
-dict[str, AnimaDimension])` is refused until wrapped in a registered
-metric.
+inside its factory. There is no restoration inside containers.
+
+Dictionaries are refused in metric options, at any depth, except as a
+registered metric reference where the annotation takes a metric. The
+shared decoder (`registry_kwargs`) turns a registry-shaped dictionary
+back into a metric and a `ModelDict`-shaped one into a model, so the log
+cannot tell plain data from an encoded object; rather than detect those
+shapes, the merge accepts a dictionary only when it is a metric's
+registry dict in a position annotated `Metric`, or when the option is
+made only of such references and annotated as lists, sequences or
+`str`-keyed dictionaries ending in `Metric`, at any depth. Every other
+dictionary is refused: plain data (`dict[str, float]`), a dictionary in
+a list, registry- or model-shaped data where the annotation does not
+take a metric, `dict[int, Metric]` (its keys become strings),
+`tuple[Metric, ...]` (it becomes a list), a container mixing metrics
+with other values, and dictionary options on unannotated or
+unresolvable parameters. The message says dictionary options are not
+supported in merges and gives the registered-metric fix. The referenced
+metrics are checked by `_check_embedded`. Built-in
+`frequency(categories=[...])` and MLRC's `list[str]` options merge;
+ANIMA's `dimension_normalized_avg(dims_by_name: dict[str, AnimaDimension])`
+is refused until wrapped in a registered metric.
 
 `recreate_scorers` is the only place the merge recreates metrics
 (decision: Ransom, 2026-10-30): the writing passes call it before
@@ -2287,12 +2297,13 @@ today.
   enum or a `Literal` of plain values; other types (`Any`, `Hashable`,
   ...) and unannotated or unresolvable parameters are refused. Enum
   options reach the recreated metric as members; an enum in a union with
-  other types and a `Literal` of enum members are refused. A list or
-  dictionary option merges only when its parameter is annotated with plain
-  element types, or with `list[Metric]`/`dict[str, Metric]` shapes for
-  registered metrics; containers of enums, functions or models (ANIMA's
-  `dict[str, AnimaDimension]`), non-`str` keys, tuples and unannotated
-  containers are refused. The
+  other types and a `Literal` of enum members are refused. A list option
+  merges only when its parameter is annotated with plain element types.
+  Dictionary options are refused except registered metric references
+  where the parameter takes a metric (`dict[str, Metric]`, a metric in a
+  `list[Metric]`): a `dict[str, float]` option, ANIMA's
+  `dict[str, AnimaDimension]`, lists of enums, functions or models,
+  non-`str` metric keys, tuples and unannotated containers are refused. The
   `@metric` wrapper now sets
   `__wrapped__`, so `inspect.signature()` of a metric factory reports the
   factory's parameters instead of `(*args, **kwargs)`.
@@ -2759,9 +2770,11 @@ Per PR (numbers from "Implementation plan"):
      scored samples, and converter lists, dictionaries and tuples over
      unscored samples, and an unannotated list, are refused on fresh and
      writing incremental merges with and without deletion, on asyncio
-     and Trio, with every file byte-identical, while `list[str]` and
-     `dict[str, float]` options (MLRC-style), `frequency(categories=...)`
-     and a list of registered metrics merge to the native values;
+     and Trio, with every file byte-identical, as are registry-shaped
+     plain data (direct, inside a mixed list and inside `grouped()`),
+     model-shaped plain data and a plain `dict[str, float]` option, while
+     `list[str]` options (MLRC-style), `frequency(categories=...)` and a
+     list of registered metrics merge to the native values;
      registered metrics in `dict[int, Metric]`, nested
      `dict[str, dict[int, Metric]]` and `tuple[Metric, ...]` options
      (direct and inside `grouped()`), and `Literal`s of `IntEnum`,

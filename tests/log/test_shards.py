@@ -1502,6 +1502,36 @@ def shard_scaled(
     return compute
 
 
+# registry- and model-shaped data that Inspect's decoder would recreate
+_REGISTRY_SHAPED: dict[str, str | dict[str, str]] = {
+    "type": "metric",
+    "name": "mean",
+    "params": {},
+}
+_MODEL_SHAPED: dict[str, str | dict[str, str] | None] = {
+    "model": "mockllm/model",
+    "config": {},
+    "base_url": None,
+    "model_args": {},
+}
+
+
+@metric(name="shard_spec")
+def shard_spec(
+    spec: dict[str, str | dict[str, str]] | None = None,
+    specs: list[str | dict[str, str | dict[str, str]]] | None = None,
+    model: dict[str, str | dict[str, str] | None] | None = None,
+    weights: dict[str, float] | None = None,
+) -> Metric:
+    """A metric given plain dictionaries, which it tells from objects."""
+
+    def compute(scores: list[SampleScore]) -> Value:
+        values = [spec, *(specs or []), model, weights]
+        return float(all(v is None or isinstance(v, (str, dict)) for v in values))
+
+    return compute
+
+
 @metric(name="shard_untyped_list")
 def shard_untyped_list(labels=None) -> Metric:
     """A metric whose list parameter has no annotation."""
@@ -1515,14 +1545,14 @@ def shard_untyped_list(labels=None) -> Metric:
 @metric(name="shard_mean_keys")
 def shard_mean_keys(
     keys: list[str],
-    weights: dict[str, float],
+    weight: float,
     excluded_sample_ids: list[str] | None = None,
 ) -> Metric:
-    """A metric with plain container options, like MLRC's numeric-keys mean."""
+    """A metric with plain list options, like MLRC's numeric-keys mean."""
 
     def compute(scores: list[SampleScore]) -> Value:
         values = [
-            weights[key] * float(score.score.as_dict()[key] or 0)
+            weight * float(score.score.as_dict()[key] or 0)
             for score in scores
             if str(score.sample_id) not in (excluded_sample_ids or [])
             for key in keys
@@ -1572,7 +1602,7 @@ async def _verdict(state: TaskState, target: Target) -> Score:
             shard_enums(Mode.HIGH, Label.ARS, Level.TWO, Perm.R | Perm.W, Colour.BLUE),
             "group",
         ),
-        shard_mean_keys(["points"], {"points": 2.0}, excluded_sample_ids=["1"]),
+        shard_mean_keys(["points"], 2.0, excluded_sample_ids=["1"]),
         shard_sum_of([aggregate("points", mean()), aggregate("verdict", accuracy())]),
         shard_metric_map(by_name={"points": aggregate("points", mean())}),
         shard_scaled(plain=2),
@@ -1677,11 +1707,12 @@ def _not_plain(kind: str, argument: str) -> str:
     )
 
 
+def _dict_refused(metric: str, kind: str, argument: str) -> str:
+    return f"'{metric}' was given {kind} for '{argument}' holding a dictionary"
+
+
 def _metric_container_refused(kind: str, argument: str) -> str:
-    return (
-        f"'shard_metric_map' was given {kind} for '{argument}', whose element "
-        "types are not plain"
-    )
+    return _dict_refused("shard_metric_map", kind, argument)
 
 
 def _enum_literal_refused(argument: str) -> str:
@@ -1752,7 +1783,7 @@ _FUNCTION_OPTIONS: dict[str, tuple[Callable[[], list[Any]], str, bool]] = {
     ),
     "enum-dicts": (
         lambda: [shard_containers(enum_dicts={"a": {"b": Mode.HIGH}})],
-        _not_plain("a dictionary", "enum_dicts"),
+        _dict_refused("shard_containers", "a dictionary", "enum_dicts"),
         True,
     ),
     "enum-tuple": (
@@ -1772,7 +1803,7 @@ _FUNCTION_OPTIONS: dict[str, tuple[Callable[[], list[Any]], str, bool]] = {
     ),
     "converter-map": (
         lambda: [shard_containers(converter_map={"a": value_to_float(correct=2)})],
-        _not_plain("a dictionary", "converter_map"),
+        _dict_refused("shard_containers", "a dictionary", "converter_map"),
         False,
     ),
     "converter-tuple": (
@@ -1818,6 +1849,31 @@ _FUNCTION_OPTIONS: dict[str, tuple[Callable[[], list[Any]], str, bool]] = {
     "enum-literal-grouped": (
         lambda: [grouped(shard_scaled(scale=Scale.HIGH), "group")],
         _enum_literal_refused("scale"),
+        True,
+    ),
+    "registry-shaped": (
+        lambda: [shard_spec(spec=_REGISTRY_SHAPED)],
+        _dict_refused("shard_spec", "a dictionary", "spec"),
+        True,
+    ),
+    "registry-shaped-in-list": (
+        lambda: [shard_spec(specs=["a", _REGISTRY_SHAPED])],
+        _dict_refused("shard_spec", "a list", "specs"),
+        True,
+    ),
+    "registry-shaped-grouped": (
+        lambda: [grouped(shard_spec(spec=_REGISTRY_SHAPED), "group")],
+        _dict_refused("shard_spec", "a dictionary", "spec"),
+        True,
+    ),
+    "model-shaped": (
+        lambda: [shard_spec(model=_MODEL_SHAPED)],
+        _dict_refused("shard_spec", "a dictionary", "model"),
+        True,
+    ),
+    "plain-dict": (
+        lambda: [shard_spec(weights={"points": 2.0})],
+        _dict_refused("shard_spec", "a dictionary", "weights"),
         True,
     ),
     "untyped-list": (
