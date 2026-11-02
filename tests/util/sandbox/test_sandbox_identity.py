@@ -4,6 +4,7 @@ import os
 import subprocess
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
+from pathlib import Path
 from typing import TypeVar, overload
 
 import anyio
@@ -250,14 +251,51 @@ def test_home_lookup_script_reads_the_passwd_database() -> None:
         ("return 2", 0, ""),
         ("echo database-failed >&2; return 1", 1, ""),
         ("return 3", 1, ""),
+        ("echo 'w:x:1000:1000:/srv/w'", 1, ""),
+        ("return 0", 1, ""),
+        ("echo 'w:x:1000:1000:: /srv/w :/bin/sh'", 0, " /srv/w \n"),
     ],
-    ids=["entry", "no-entry", "failed", "unsupported"],
+    ids=["entry", "no-entry", "failed", "unsupported", "malformed", "empty", "spaces"],
 )
 def test_home_lookup_script_fails_unless_getent_answers(
     getent: str, status: int, stdout: str
 ) -> None:
     result = _run_lookup("w", getent)
     assert (result.returncode, result.stdout) == (status, stdout), result
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires a POSIX shell")
+@pytest.mark.parametrize("newline", ["\n", ""], ids=["terminated", "unterminated"])
+def test_home_lookup_script_reads_passwd_without_getent(
+    tmp_path: Path, newline: str
+) -> None:
+    from inspect_ai.util._sandbox.identity import _PASSWD_HOME_SCRIPT
+
+    passwd = tmp_path / "passwd"
+    passwd.write_text(
+        "root:x:0:0::/root:/bin/sh\nw:x:1000:1000:: /srv/w :/bin/sh" + newline
+    )
+    has_getent = "command -v getent >/dev/null 2>&1"
+    assert has_getent in _PASSWD_HOME_SCRIPT and "/etc/passwd" in _PASSWD_HOME_SCRIPT
+    script = _PASSWD_HOME_SCRIPT.replace(has_getent, "false").replace(
+        "/etc/passwd", str(passwd)
+    )
+
+    def lookup(user: str) -> tuple[int, str]:
+        argv = pinned_shell_command(script, user)
+        result = subprocess.run(argv, capture_output=True, text=True, check=False)
+        return result.returncode, result.stdout
+
+    assert lookup("w") == (0, " /srv/w \n")
+    assert lookup("1000") == (0, " /srv/w \n")
+    assert lookup("root") == (0, "/root\n")
+    assert lookup("missing") == (0, "")
+
+
+async def test_vars_keep_whitespace_in_the_home() -> None:
+    sb = CannedSandbox.returning(ExecResult(True, 0, " /srv/w \n", ""))
+    with _environments(default=sb), sandbox_identity("w"):
+        assert await sandbox_identity_vars(sb, None) == {"HOME": " /srv/w "}
 
 
 class _LookupSandbox(CannedSandbox):
