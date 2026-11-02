@@ -18,6 +18,7 @@ from anyio.streams.memory import MemoryObjectReceiveStream
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
 
+from inspect_ai._util.log_context import set_run_shape
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.event import InfoEvent
 from inspect_ai.event._logger import LoggerEvent, LoggingMessage
@@ -31,6 +32,13 @@ from inspect_ai.log import _samples
 from inspect_ai.log._samples import ActiveSample, _sample_active
 from inspect_ai.log._transcript import Transcript, init_transcript
 from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
+
+
+@pytest.fixture(autouse=True)
+def _reset_run_shape() -> None:
+    # eval() leaves its run shape in module globals; a prior multi-epoch or
+    # multi-task eval would add epoch=/task= to the warning prefixes below.
+    set_run_shape([], 1)
 
 
 def test_emit_sample_event_unbounded_stream_never_blocks() -> None:
