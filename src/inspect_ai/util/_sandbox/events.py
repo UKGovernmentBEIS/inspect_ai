@@ -1,6 +1,7 @@
 import contextlib
 import inspect
 import shlex
+from contextvars import ContextVar
 from datetime import datetime, timezone
 from typing import Any, Iterator, Literal, Type, Union, overload
 
@@ -17,9 +18,9 @@ from .environment import (
     SandboxConnection,
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
+    SandboxUserUnsupportedError,
 )
 from .limits import OutputLimitExceededError, SandboxEnvironmentLimits
-from .service import is_sandbox_service_command
 
 
 class SandboxTimeoutError(TimeoutError):
@@ -35,7 +36,6 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
     def __init__(self, sandbox: SandboxEnvironment) -> None:
         super().__init__()
         self._sandbox = sandbox
-        self._events = True
 
     @override
     async def exec(
@@ -79,10 +79,6 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
                 str(ex), truncated_output=getattr(ex, "truncated_output", None)
             ) from ex
 
-        # skip sandbox service events
-        if is_sandbox_service_command(cmd):
-            return result
-
         # yield event
         options: dict[str, JsonValue] = {}
         if cwd:
@@ -96,7 +92,7 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
         if timeout_retry is not True:
             options["timeout_retry"] = timeout_retry
 
-        if self._events:
+        if self._events_enabled():
             transcript()._event(
                 SandboxEvent(
                     timestamp=timestamp,
@@ -140,24 +136,28 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
         )
 
     @override
-    async def write_file(self, file: str, contents: str | bytes) -> None:
+    async def write_file(
+        self, file: str, contents: str | bytes, *, user: str | None = None
+    ) -> None:
         from inspect_ai.event._sandbox import SandboxEvent
         from inspect_ai.log._transcript import transcript
 
         timestamp = datetime.now(timezone.utc)
+        params = self._file_user_params("write_file", user)
 
         # make call
         try:
-            await self._sandbox.write_file(file, contents)
+            await self._sandbox.write_file(file, contents, **params)
         except TimeoutError as ex:
             raise SandboxTimeoutError(str(ex)) from ex
 
         # yield event
-        if self._events:
+        if self._events_enabled():
             transcript()._event(
                 SandboxEvent(
                     timestamp=timestamp,
                     action="write_file",
+                    options=params or None,
                     file=file,
                     input=content_display(contents),
                     completed=datetime.now(timezone.utc),
@@ -165,33 +165,43 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
             )
 
     @overload
-    async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
+    async def read_file(
+        self, file: str, text: Literal[True] = True, *, user: str | None = None
+    ) -> str: ...
 
     @overload
-    async def read_file(self, file: str, text: Literal[False]) -> bytes: ...
+    async def read_file(
+        self, file: str, text: Literal[False], *, user: str | None = None
+    ) -> bytes: ...
 
     @override
-    async def read_file(self, file: str, text: bool = True) -> Union[str | bytes]:
+    async def read_file(
+        self, file: str, text: bool = True, *, user: str | None = None
+    ) -> Union[str | bytes]:
         from inspect_ai.event._sandbox import SandboxEvent
         from inspect_ai.log._transcript import transcript
 
         timestamp = datetime.now(timezone.utc)
+        params = self._file_user_params("read_file", user)
 
         # make call
         try:
             if text is True:
-                output: str | bytes = await self._sandbox.read_file(file, True)
+                output: str | bytes = await self._sandbox.read_file(
+                    file, True, **params
+                )
             else:
-                output = await self._sandbox.read_file(file, False)
+                output = await self._sandbox.read_file(file, False, **params)
         except TimeoutError as ex:
             raise SandboxTimeoutError(str(ex)) from ex
 
         # yield event
-        if self._events:
+        if self._events_enabled():
             transcript()._event(
                 SandboxEvent(
                     timestamp=timestamp,
                     action="read_file",
+                    options=params or None,
                     file=file,
                     output=content_display(output),
                     completed=datetime.now(timezone.utc),
@@ -200,6 +210,24 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
 
         # return result
         return output
+
+    @override
+    def _supports_file_user(
+        self, operation: Literal["read_file", "write_file"]
+    ) -> bool:
+        return self._sandbox._supports_file_user(operation)
+
+    def _file_user_params(
+        self, operation: Literal["read_file", "write_file"], user: str | None
+    ) -> dict[str, Any]:
+        if user is None:
+            return {}
+        if not self._supports_file_user(operation):
+            raise SandboxUserUnsupportedError(
+                f"{type(self._sandbox).__name__}.{operation} does not support "
+                f"user={user!r}. Update the sandbox provider to support file users."
+            )
+        return {"user": user}
 
     @override
     async def connection(self, *, user: str | None = None) -> SandboxConnection:
@@ -219,14 +247,22 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
     def default_polling_interval(self) -> float:
         return self._sandbox.default_polling_interval()
 
+    def _events_enabled(self) -> bool:
+        return self not in _no_events_proxies.get()
+
     @contextlib.contextmanager
     def no_events(self) -> Iterator[None]:
-        self._events = False
+        """Record no events for calls made inside the block.
+
+        Applies to the current task and tasks it starts inside the block;
+        other tasks using this sandbox still record theirs.
+        """
+        token = _no_events_proxies.set(_no_events_proxies.get() | {self})
         try:
             with untracked_sandbox_execs():
                 yield
         finally:
-            self._events = True
+            _no_events_proxies.reset(token)
 
     @classmethod
     async def sample_cleanup(
@@ -237,6 +273,25 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
         interrupted: bool,
     ) -> None:
         pass
+
+
+# proxies inside `no_events()` in the current context
+_no_events_proxies: ContextVar[frozenset[SandboxEnvironmentProxy]] = ContextVar(
+    "sandbox_no_events_proxies", default=frozenset()
+)
+
+
+def without_sandbox_events(
+    sandbox: SandboxEnvironment,
+) -> contextlib.AbstractContextManager[None]:
+    """Suppress transcript events for commands run on ``sandbox`` inside the block.
+
+    Only the event-recording proxy that wraps sample sandboxes emits events; any
+    other sandbox object (a provider used directly, or a test fake) needs nothing.
+    """
+    if isinstance(sandbox, SandboxEnvironmentProxy):
+        return sandbox.no_events()
+    return contextlib.nullcontext()
 
 
 def content_display(content: str | bytes) -> str:

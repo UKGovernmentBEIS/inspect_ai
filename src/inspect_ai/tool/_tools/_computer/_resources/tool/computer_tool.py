@@ -11,7 +11,7 @@ from _args import parse_arguments
 from _constants import Action
 from _logger import setup_logger
 from _tool_result import ToolResult
-from _x11_client import X11Client
+from _x11_client import X11Client, X11CoordinateError
 
 
 class ComputerToolError(Exception):
@@ -47,6 +47,10 @@ def main():
             )
         )
         my_logger.debug("SUCCESS")
+    except X11CoordinateError as e:
+        # exit 0 with an `error` so the host raises a ToolError the model can retry
+        my_logger.warning(f"Invalid coordinate: {e}")
+        print(json.dumps({"output": None, "error": str(e), "base64_image": None}))
     except Exception as e:
         my_logger.warning(f"An error occurred: {e}")
         print(f"An error occurred: {e}", file=sys.stderr)
