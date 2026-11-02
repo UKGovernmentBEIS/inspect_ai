@@ -73,9 +73,9 @@ class TaskRecord:
     """The logger the record's next attempt uses: a seed task's first one
     (created when the seed starts up), or a failed attempt's, which its retry
     reinitialises. Other first attempts create theirs when they start."""
-    setup_keys: frozenset[Any] | None = None
-    """The sandbox configs its selected samples use (``None`` until the record
-    is prepared)."""
+    setup_keys: tuple[Any, ...] | None = None
+    """The sandbox configs its selected samples use, in sample order (``None``
+    until the record is prepared)."""
     setups: list[SetupJob[Any]] | None = None
     """The setup jobs of ``setup_keys`` (``None`` until they are requested)."""
     setup_failure: SetupFailure | None = None

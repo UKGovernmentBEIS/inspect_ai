@@ -167,7 +167,7 @@ class FakeStartup:
             harness.setup, on_done=harness.queue.wake.set
         )
 
-    async def prepare(self, configured: ConfiguredTask) -> frozenset[str]:
+    async def prepare(self, configured: ConfiguredTask) -> tuple[str, ...]:
         label = _label(configured.resolved)
         self.harness.events.append(f"resolve {label}")
         gate = self.harness.resolving.get(label)
@@ -176,7 +176,7 @@ class FakeStartup:
         error = self.harness.resolve_errors.pop(label, None)
         if error is not None:
             raise error
-        return frozenset(self.harness.keys.get(label, []))
+        return tuple(self.harness.keys.get(label, []))
 
     def apply_provider_state(self) -> None:
         pass
@@ -321,7 +321,7 @@ class Harness:
         seed = self.queue.add(tasks)
         self.queue.enqueue(seed)
         for record in seed:
-            record.setup_keys = frozenset()
+            record.setup_keys = ()
             logger = cast(FakeLogger, self.new_logger(_labels([record])[0]))
             logger.location = f"{logger.label}.eval"
             record.logger = cast(TaskLogger, logger)
@@ -1490,6 +1490,7 @@ class _Box(SandboxEnvironment):
     async def task_init(
         cls, task_name: str, config: SandboxEnvironmentConfigType | None
     ) -> None:
+        _box_init.setdefault("configs", []).append(config)
         hook = _box_init.get("task_init")
         if hook is not None:
             await hook()
@@ -1667,6 +1668,25 @@ def test_seed_sandbox_startup_failure_fails_before_any_task_runs(
         )
     assert events == []
     assert list(tmp_path.glob("*.eval")) == []
+
+
+def test_seed_configs_are_set_up_in_queue_and_sample_order(tmp_path: Path) -> None:
+    def boxed(name: str, configs: list[str]) -> Task:
+        return Task(
+            name=name,
+            dataset=[
+                Sample(input="x", sandbox=("task_dispatch_box", config))
+                for config in configs
+            ],
+        )
+
+    eval(
+        [boxed("a", ["c3", "c1", "c4", "c1"]), boxed("b", ["c5", "c9", "c2", "c6"])],
+        model="mockllm/model",
+        display="none",
+        log_dir=str(tmp_path),
+    )
+    assert _box_init["configs"] == ["c3", "c1", "c4", "c5", "c9", "c2", "c6"]
 
 
 async def test_running_sample_never_overlaps_seed_sandbox_startup(

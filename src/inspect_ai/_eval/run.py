@@ -557,14 +557,14 @@ class TaskStartup:
 
     async def prepare(
         self, configured: ConfiguredTask
-    ) -> frozenset[TaskSandboxEnvironment]:
+    ) -> tuple[TaskSandboxEnvironment, ...]:
         """Prepare a task to start; the sandbox configs its selected samples use.
 
         Creates the model's controller eagerly, so ``ctl config`` can retune
         ``max_connections`` during a long sandbox setup.
         """
         if not self.settings.run_samples:
-            return frozenset()
+            return ()
         resolved_task = configured.resolved
         await ensure_model_controller(
             resolved_task.model,
@@ -591,7 +591,7 @@ class TaskStartup:
             assert record.configured is not None
             record.setup_keys = await self.prepare(record.configured)
         await self.sandboxes.setup_seed(
-            set().union(*(record.setup_keys or () for record in seed))
+            dict.fromkeys(key for record in seed for key in record.setup_keys or ())
         )
         try:
             for record in seed:
@@ -786,7 +786,7 @@ class Startup(Protocol):
     @property
     def setups(self) -> "SetupCache[Any]": ...
 
-    async def prepare(self, configured: ConfiguredTask) -> frozenset[Any]: ...
+    async def prepare(self, configured: ConfiguredTask) -> tuple[Any, ...]: ...
 
     def apply_provider_state(self) -> None: ...
 
@@ -935,7 +935,7 @@ class TaskDispatcher:
         failure's traceback would keep its task alive.
         """
         assert record.configured is not None
-        keys: frozenset[Any] | None = None
+        keys: tuple[Any, ...] | None = None
         failure: SetupFailure | None = None
         try:
             keys = await self.startup.prepare(record.configured)
@@ -1450,10 +1450,11 @@ class SandboxManager:
 
     async def resolve(
         self, task: ResolvedTask, samples: Iterable[Sample]
-    ) -> frozenset[TaskSandboxEnvironment]:
+    ) -> tuple[TaskSandboxEnvironment, ...]:
         """The sandbox configs ``samples`` of ``task`` use; registers their limiters.
 
-        Each sample's config is deduped and sandbox-less samples are skipped.
+        The configs are in sample order, each once; sandbox-less samples are
+        skipped.
         The limiter of each sandbox type is registered here, before any setup,
         so a ``ctl config --max-sandboxes`` retune reaches a type whose tasks
         are still waiting. Full resolution reads the sandbox config (and, for
@@ -1463,7 +1464,8 @@ class SandboxManager:
         resolve (their config may interpolate it into a per-sample init
         environment).
         """
-        sandboxenvs: set[TaskSandboxEnvironment] = set()
+        # a dict keeps the first occurrence of each, in sample order
+        sandboxenvs: dict[TaskSandboxEnvironment, None] = {}
         resolved = self._resolved_no_metadata.setdefault(task.task, {})
         for sample in samples:
             sandboxenv: TaskSandboxEnvironment | None = None
@@ -1486,14 +1488,14 @@ class SandboxManager:
                 if sandboxenv is not None and cache_key is not None:
                     resolved[cache_key] = sandboxenv
             if sandboxenv is not None:
-                sandboxenvs.add(sandboxenv)
+                sandboxenvs[sandboxenv] = None
         for sandbox_type in {env.sandbox.type for env in sandboxenvs}:
             await ensure_sandbox_limiter(
                 registry_find_sandboxenv(sandbox_type),
                 sandbox_type,
                 self._config.max_sandboxes,
             )
-        return frozenset(sandboxenvs)
+        return tuple(sandboxenvs)
 
     async def _init_one(self, sandboxenv: TaskSandboxEnvironment) -> None:
         """Set up one sandbox config: its provider's `task_init` (a setup job).
