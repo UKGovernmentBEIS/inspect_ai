@@ -843,6 +843,36 @@ async def test_forward_provider_errors_keeps_only_the_first_limit() -> None:
     assert later() is None
 
 
+async def test_forward_provider_errors_releases_displaced_limits() -> None:
+    """A limit replaced by an enclosing one is released once answered.
+
+    Each request reaches a limit enclosing the one before. The last is kept;
+    the ones it displaced, with the request frames in their tracebacks, are
+    not kept until the agent unwinds.
+    """
+    with token_limit(100) as outer, token_limit(50) as middle, token_limit(10) as inner:
+        errors = [
+            LimitExceededError("token", value=101, limit=10, source=inner),
+            LimitExceededError("token", value=101, limit=50, source=middle),
+            LimitExceededError("token", value=101, limit=100, source=outer),
+        ]
+        displaced = [weakref.ref(error) for error in errors[:2]]
+        last = errors[2]
+
+        async def over_limit(
+            json_data: dict[str, Any], headers: dict[str, str] | None = None
+        ) -> dict[str, Any]:
+            raise errors.pop(0)
+
+        bridge = _bridge()
+        forward = _forward_provider_errors(over_limit, bridge)
+        for _ in range(3):
+            assert PROVIDER_ERROR_KEY in await forward({})
+    gc.collect()
+    assert bridge.generation_limit is last
+    assert [ref() for ref in displaced] == [None, None]
+
+
 @pytest.mark.parametrize("fresh", ["kept", "later"])
 @pytest.mark.parametrize(
     "make_fresh",
@@ -1509,16 +1539,15 @@ def test_limit_in_a_bridged_generation_during_shutdown_is_raised(
 
 
 @pytest.mark.parametrize("first", ["sample", "agent"])
-def test_concurrent_bridged_generations_raise_the_first_limit(
+def test_concurrent_bridged_generations_raise_the_sample_limit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, first: str
 ) -> None:
-    """Of limits reached by concurrent bridged generations, the first is raised.
+    """Of limits reached by concurrent bridged generations, the sample's is raised.
 
     One request reaches the sample's token limit, another the `run()` message
-    limit, in either order. A native agent stops at the first limit it reaches,
-    so the scope that applied the first one handles it. When that is the
-    `run()` limit, the sample's limit reached after the error reply is not
-    raised, since nothing generates again in the sample.
+    limit, in either order. The sample's limit encloses the `run()` limit, so
+    it is raised even when it is reached second: the sample ends with it
+    rather than continuing past it.
     """
     # 7 tokens: over the sample's token limit
     sample_request = _Request(after_first=first == "agent")
@@ -1537,28 +1566,35 @@ def test_concurrent_bridged_generations_raise_the_first_limit(
         sample_token_limit=5,
     )
 
-    if first == "sample":
-        _assert_sample_token_limit(outcome)
-    else:
-        _assert_agent_limit(outcome, limit)
+    _assert_sample_token_limit(outcome)
     _assert_error_replies(outcome.replies, count=2)
 
 
-@pytest.mark.parametrize("enclosing", ["sample", "run"])
+@pytest.mark.parametrize("enclosing", ["sample", "run", "sample-other-type"])
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
 def test_overlapping_bridged_generations_raise_the_enclosing_limit(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, enclosing: str, backend: str
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    request: pytest.FixtureRequest,
+    enclosing: str,
+    backend: str,
 ) -> None:
     """A limit enclosing the first reached by overlapping generations is raised.
 
     Two requests are in flight together. The first reply reaches the bridged
-    agent's `run()` token limit, the second a token limit enclosing it: the
-    sample's, or an enclosing `run()`'s. The enclosing limit is raised, so its
-    scope handles it, and the inner `run()` does not catch it.
+    agent's `run()` token limit (or, for `sample-other-type`, its cost limit),
+    the second a token limit enclosing it: the sample's, or an enclosing
+    `run()`'s. The enclosing limit is raised, so its scope handles it, and the
+    inner `run()` does not catch it.
     """
     monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
     # 7 tokens per generation: the first is over the inner limit only
-    inner = token_limit(5)
+    inner: Limit = token_limit(5)
+    inner_value: float = 5
+    if enclosing == "sample-other-type":
+        # $0.007 per generation at $1000 per million tokens
+        request.getfixturevalue("_model_cost")
+        inner, inner_value = cost_limit(0.005), 0.005
     outer = token_limit(10) if enclosing == "run" else None
 
     outcome = _run_bridged_agent(
@@ -1566,7 +1602,7 @@ def test_overlapping_bridged_generations_raise_the_enclosing_limit(
         monkeypatch,
         inner,
         scaffold=_Scaffold([_Request(), _Request()], overlap=True),
-        sample_token_limit=10 if enclosing == "sample" else None,
+        sample_token_limit=None if outer is not None else 10,
         outer_limit=outer,
     )
 
@@ -1575,7 +1611,7 @@ def test_overlapping_bridged_generations_raise_the_enclosing_limit(
         for event in outcome.sample.events
         if isinstance(event, SampleLimitEvent)
     ]
-    assert reached == [5, 10]
+    assert reached == [inner_value, 10]
     if outer is None:
         _assert_sample_token_limit(outcome, limit=10)
     else:

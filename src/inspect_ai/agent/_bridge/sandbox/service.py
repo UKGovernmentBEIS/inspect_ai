@@ -4,6 +4,7 @@ from typing import Awaitable, Callable, Protocol, TypeGuard, cast
 import anyio
 from pydantic import JsonValue
 
+from inspect_ai._sentinel._scope import solving
 from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._model import ModelRefusalError
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
@@ -13,6 +14,7 @@ from inspect_ai.util._limit import (
     LimitExceededError,
     _Node,
     check_turn_limit,
+    sample_limits,
 )
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
 from inspect_ai.util._sandbox.service import find_control_flow
@@ -66,9 +68,9 @@ def _forward_provider_errors(
     reply too. The first limit reached is recorded in `bridge.generation_limit`:
     once the agent has unwound, `sandbox_agent_bridge` raises it, so the scope
     that applied it (`run()`, or the sample) handles it, as for a native agent.
-    A later limit replaces it only when it encloses it in the same limit tree
-    (see `_encloses`), so a sample token limit reached by a concurrent
-    generation is not lost behind an inner token limit that a caller catches.
+    A later limit replaces it only when it encloses it (see `_encloses`), so a
+    sample limit reached by a concurrent generation is not lost behind an inner
+    limit that a caller catches.
     A limit only in an exception's cause or context is not recorded: it was
     handled, or replaced by the error that escaped (a refusal reduced from a
     response filter's group, a `ResponseFilterError`, a fallback's provider
@@ -95,9 +97,12 @@ def _forward_provider_errors(
                 raise
             control = _first_control(ex)
             if isinstance(control, LimitExceededError):
-                # only one is raised, so the others are not kept
-                kept = bridge.generation_limit
-                if kept is None or _encloses(control, kept):
+                # only one is raised, so the others are not kept; no local
+                # holds a displaced one, since this frame stays in the
+                # traceback of the error that replaces it
+                if bridge.generation_limit is None or _encloses(
+                    control, bridge.generation_limit
+                ):
                     bridge.generation_limit = control
                 _warn_other_errors(ex)
                 return {PROVIDER_ERROR_KEY: cast(JsonValue, provider_error_payload(ex))}
@@ -130,21 +135,41 @@ def _forward_provider_errors(
 def _encloses(outer: LimitExceededError, inner: LimitExceededError) -> bool:
     """Whether the limit that raised `outer` encloses the one that raised `inner`.
 
-    It does when it is an ancestor of `inner`'s in the same limit tree. Limits
-    in different trees (types) are not compared: a tree's root is not always
-    the sample's own limit (scorers run after the sample's limits have exited),
-    so nesting across trees cannot be told. A limit error with no source, or a
-    source in no limit tree, encloses nothing and is enclosed by nothing.
+    It does when it is an ancestor of `inner`'s in the same limit tree, or,
+    while the solvers run, one of the sample's own limits (the roots of the
+    live limit trees) while `inner`'s is not. Other limits in different trees
+    are not compared: outside the solve (scorers run after the sample's limits
+    have exited) a tree's root can be an agent's limit, so nesting across trees
+    cannot be told. A limit error with no source, or a source in no limit tree,
+    encloses nothing and is enclosed by nothing.
     """
     outer_node, inner_node = outer.source, inner.source
     if not _in_tree(outer_node) or not _in_tree(inner_node):
         return False
+    roots = _sample_roots()
+    if any(outer.source is root for root in roots):
+        return not any(inner.source is root for root in roots)
     node: _Node | None = inner_node.parent
     while node is not None:
         if node is outer_node:
             return True
         node = node.parent
     return False
+
+
+def _sample_roots() -> list[Limit]:
+    """The sample's own limits while its solvers run, else none."""
+    if not solving():
+        return []
+    limits = sample_limits()
+    return [
+        limits.token,
+        limits.cost,
+        limits.message,
+        limits.turn,
+        limits.working,
+        limits.time,
+    ]
 
 
 def _in_tree(source: Limit | None) -> TypeGuard[_Node]:
