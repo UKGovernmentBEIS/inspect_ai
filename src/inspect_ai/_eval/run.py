@@ -1,10 +1,10 @@
 """One eval run: configuring its tasks, sandbox setup, and the scheduling loop.
 
-The scheduler's state (the run's task records and queue, its
-:class:`SetupCache`) is used only from the run's event loop and changed
-without locks: code on one event loop does not interleave between ``await``
-points, so a method that does not await (``RunTasks.put``,
-``TaskDispatcher.start_attempt`` and ``settle``, the setup cache's
+The scheduler's state (the run's :class:`RunTasks`, its :class:`SetupCache`)
+is used only from the run's event loop and changed without locks: code on one
+event loop does not interleave between ``await`` points, so a method that does
+not await (``RunTasks.enqueue``, ``start`` and ``end``, the dispatcher's
+``queue_upcoming_setups`` and ``next_task_to_start``, the setup cache's
 bookkeeping) changes it as one step.
 """
 
@@ -27,7 +27,6 @@ from typing import (
     Callable,
     Iterable,
     NamedTuple,
-    Protocol,
     cast,
 )
 
@@ -240,7 +239,8 @@ async def eval_run(
             sandboxes.collect_output = True
             dispatcher = TaskDispatcher(
                 run_tasks,
-                startup,
+                sandboxes.setups,
+                sandboxes.apply_provider_state,
                 parallel=parallel,
                 retries=task_retry_attempts or 0,
                 next_tasks=task_source.next_tasks if task_source else None,
@@ -538,10 +538,6 @@ class TaskStartup:
     enclosing eval set's (a retry runs only some of them), then each task's
     as it is added, so an added task sees the tasks before it."""
 
-    @property
-    def setups(self) -> "SetupCache[TaskSandboxEnvironment]":
-        return self.sandboxes.setups
-
     def configure(self, group: list[ResolvedTask]) -> list[ConfiguredTask]:
         """Configure tasks added together.
 
@@ -586,9 +582,6 @@ class TaskStartup:
         return await self.sandboxes.resolve(
             resolved_task, configured.selected_samples()
         )
-
-    def apply_provider_state(self) -> None:
-        self.sandboxes.apply_provider_state()
 
     async def start_seed(self, seed: list[TaskRecord]) -> None:
         """Set up the seed's sandboxes and create its loggers, before the task display opens.
@@ -776,21 +769,13 @@ async def _run_task(
     return TaskRunResult(result, cancel_type)
 
 
-class Startup(Protocol):
-    """What the scheduling loop needs to start tasks (:class:`TaskStartup`)."""
-
-    @property
-    def setups(self) -> "SetupCache[Any]": ...
-
-    def apply_provider_state(self) -> None: ...
-
-
 class TaskDispatcher:
     """The scheduling loop of one eval run.
 
     Starts the queued records with bounded, model-balanced concurrency as
     they can start, and when nothing is queued or running asks the
-    ``TaskSource`` for more (``next_tasks()``) until there is nothing left. A record can start once its setups are requested
+    ``TaskSource`` for more (``next_tasks()``) until there is nothing left.
+    A record can start once its setups are requested
     (see :meth:`queue_upcoming_setups`) and they are done, or failed: a
     record whose setup is still running keeps its place but does not hold
     back a later one. A record whose setup failed starts like any other and
@@ -807,7 +792,8 @@ class TaskDispatcher:
     def __init__(
         self,
         tasks: RunTasks,
-        startup: Startup,
+        setups: "SetupCache[Any]",
+        apply_provider_state: Callable[[], None],
         *,
         parallel: int,
         retries: int,
@@ -815,8 +801,10 @@ class TaskDispatcher:
         debug_errors: bool,
     ) -> None:
         self.tasks = tasks
-        self.startup = startup
-        self.setups = startup.setups
+        self.setups = setups
+        """Sets up the run's sandbox configs."""
+        self.apply_provider_state = apply_provider_state
+        """Sets the run's sandbox provider state in the current context."""
         self.parallel = parallel
         """The launch ``max_tasks`` (``ctl config --max-tasks`` overrides it live)."""
         self.retries = retries
@@ -831,8 +819,9 @@ class TaskDispatcher:
     async def run(self) -> list[EvalLog]:
         """Run the queued tasks and every task added while the run is in progress.
 
-        Returns the logs in the order the tasks were queued. A cancellation of the run (Ctrl-C) wherever the loop
-        is returns the logs written so far.
+        Returns the logs in the order the tasks were queued. A cancellation
+        of the run (Ctrl-C) wherever the loop is returns the logs written so
+        far.
         """
         try:
             async with _run_task_screen(task_specs(self.tasks.queued)) as screen:
@@ -869,8 +858,6 @@ class TaskDispatcher:
                 if record is None:
                     break
                 self.start_in_background(tg, record)
-            if self.run_cancelled:
-                break
             if self.tasks.queued or self.tasks.running:
                 await self.tasks.changed.wait()
             elif not await self.add_more_tasks():
@@ -930,7 +917,7 @@ class TaskDispatcher:
         """Start running a record's attempts, with the run's provider state."""
         self.tasks.start(record)
         # tasks inherit the loop's context: the latest provider state
-        self.startup.apply_provider_state()
+        self.apply_provider_state()
         tg.start_soon(self.run_one, record)
 
     async def run_one(self, record: TaskRecord) -> None:
@@ -973,9 +960,7 @@ class TaskDispatcher:
                 record.log = run.log
                 if run.log.status == "cancelled":
                     self.run_cancelled = True
-                if run.log.status == "cancelled" or not wants_retry(
-                    run.cancel_type, run.log, record, retries_left
-                ):
+                if not wants_retry(run.cancel_type, run.log, record, retries_left):
                     # unwind the task runner's retry-pending mark (a no-op if a
                     # cancel stamp during the log write already cleared it)
                     clear_eval_retry_pending(run.log.eval.eval_id)
@@ -1094,14 +1079,17 @@ def _dispatch_paused(record: TaskRecord) -> bool:
 def wants_retry(
     cancel_type: CancelType, task_log: EvalLog, record: TaskRecord, retries_left: int
 ) -> bool:
-    """Whether a finished, not cancelled, attempt of a record should be retried.
+    """Whether a finished attempt of a record should be retried.
 
     It is retried after an error or its own retry request while retries
     remain (``retries_left`` counts this attempt's retry), unless a ctl
-    drain/cancel has abandoned its retry. An abort, a drain or a graceful
-    sample resolution (``score``/``error``) is a user cancel and is never
-    retried, even when its log has an error status.
+    drain/cancel has abandoned its retry. An attempt the run's cancellation
+    ended is never retried. An abort, a drain or a graceful sample
+    resolution (``score``/``error``) is a user cancel and is never retried,
+    even when its log has an error status.
     """
+    if task_log.status == "cancelled":
+        return False
     task = record.task
     match cancel_type:
         case "retry":

@@ -164,18 +164,6 @@ def _options(task: ResolvedTask, logger: FakeLogger) -> TaskRunOptions:
     )
 
 
-class FakeStartup:
-    """Sets up sandbox configs (here plain strings) by script."""
-
-    def __init__(self, harness: "Harness") -> None:
-        self.setups: SetupCache[str] = SetupCache(
-            harness.setup, on_done=harness.tasks.changed.set
-        )
-
-    def apply_provider_state(self) -> None:
-        pass
-
-
 class Harness:
     """A dispatcher whose tasks are set up and run by script, recording what happens."""
 
@@ -221,7 +209,10 @@ class Harness:
             changed=Wake(),
             sequence_order=parallel == 1,
         )
-        self.startup = FakeStartup(self)
+        self.setups: SetupCache[str] = SetupCache(
+            self.setup, on_done=self.tasks.changed.set
+        )
+        """Sets up sandbox configs (here plain strings) by script."""
 
     def configure(self, group: list[ResolvedTask]) -> list[ConfiguredTask]:
         for task in group:
@@ -323,7 +314,8 @@ class Harness:
     def dispatcher(self, source: TaskSource | None = None) -> TaskDispatcher:
         return TaskDispatcher(
             self.tasks,
-            self.startup,
+            self.setups,
+            lambda: None,
             parallel=self.parallel,
             retries=self.retries,
             next_tasks=source.next_tasks if source else None,
@@ -349,7 +341,7 @@ class Harness:
     async def run(
         self, seed: list[ResolvedTask], source: TaskSource | None = None
     ) -> list[EvalLog]:
-        async with self.startup.setups:
+        async with self.setups:
             return await self.dispatch(seed, self.dispatcher(source))
 
 
@@ -515,6 +507,8 @@ async def test_pick_balanced_prefers_least_used_model_then_queue_order() -> None
         ("drain", "error", 1, False),
         ("score", "error", 1, False),
         ("error", "error", 1, False),
+        # the run was cancelled
+        ("retry", "cancelled", 1, False),
     ],
 )
 async def test_wants_retry(
@@ -992,7 +986,7 @@ async def test_retry_sets_up_its_failed_config_ahead_of_waiting_setups(
         await harness.setup_began_event("X").wait()
         harness.finish_setup("X", RuntimeError("pull failed"))
         await harness.setup_began_event("Y").wait()
-        await _wait_until(lambda: "X" in harness.startup.setups._jobs)
+        await _wait_until(lambda: "X" in harness.setups._jobs)
         for key in ("Y", "X", "Z"):
             harness.finish_setup(key)
         for label in ("a@m1", "n@m1", "m@m1"):
@@ -1047,7 +1041,7 @@ async def test_only_the_look_ahead_window_is_set_up(
         harness.keys[f"{name}@m1"] = [name]
 
     def requested() -> list[str]:
-        return sorted(cast(dict[str, Any], harness.startup.setups._jobs))
+        return sorted(cast(dict[str, Any], harness.setups._jobs))
 
     async def drive() -> None:
         await _wait_started(harness, "a@m1", "b@m1")
@@ -1055,7 +1049,7 @@ async def test_only_the_look_ahead_window_is_set_up(
         for name in ["t1", "t2"]:
             await harness.setup_began_event(name).wait()
             harness.finish_setup(name)
-        await _wait_until(lambda: _done(harness.startup.setups, ["t1", "t2"]))
+        await _wait_until(lambda: _done(harness.setups, ["t1", "t2"]))
         assert requested() == ["t1", "t2"]
         harness.finish["a@m1"].set()
         await _wait_started(harness, "t1@m1")
@@ -1106,7 +1100,7 @@ async def test_task_behind_the_window_joins_setups_already_requested(
         await harness.setup_began_event("image").wait()
         harness.finish["a@m1"].set()
         await _wait_started(harness, "plain@m1")
-        jobs = cast(dict[str, Any], harness.startup.setups._jobs)
+        jobs = cast(dict[str, Any], harness.setups._jobs)
         assert sorted(jobs) == ["image"]
         harness.finish_setup("image")
         harness.finish["plain@m1"].set()
@@ -1286,7 +1280,7 @@ async def test_loop_cancel_while_readying_added_tasks_is_absorbed(
     returned: list[Any] = []
     with anyio.fail_after(10):
         with anyio.CancelScope() as scope:
-            async with harness.startup.setups, anyio.create_task_group() as tg:
+            async with harness.setups, anyio.create_task_group() as tg:
 
                 async def cancel_when_blocked() -> None:
                     await _wait_started(harness, "a@m1")
@@ -1327,7 +1321,7 @@ async def test_loop_cancel_while_tasks_run_or_wait_for_a_slot_is_absorbed(
     harness.keys["c@m1"] = ["image"]
     with anyio.fail_after(10):
         with anyio.CancelScope() as scope:
-            async with harness.startup.setups, anyio.create_task_group() as tg:
+            async with harness.setups, anyio.create_task_group() as tg:
 
                 async def cancel_when_running() -> None:
                     await _wait_started(harness, "a@m1")
@@ -1336,7 +1330,7 @@ async def test_loop_cancel_while_tasks_run_or_wait_for_a_slot_is_absorbed(
                     await harness.tasks.add([_task("c")])
                     await harness.setup_began_event("image").wait()
                     harness.finish_setup("image")
-                    await _wait_until(lambda: _done(harness.startup.setups, ["image"]))
+                    await _wait_until(lambda: _done(harness.setups, ["image"]))
                     scope.cancel()
 
                 tg.start_soon(cancel_when_running)
@@ -1369,7 +1363,7 @@ async def test_cancel_during_task_complete_keeps_the_written_log(
     returned: list[list[EvalLog]] = []
     with anyio.fail_after(10):
         with anyio.CancelScope() as scope:
-            async with harness.startup.setups, anyio.create_task_group() as tg:
+            async with harness.setups, anyio.create_task_group() as tg:
 
                 async def cancel_when_notified() -> None:
                     await notified.wait()
@@ -1388,7 +1382,7 @@ async def test_queued_seed_task_logger_is_never_initialised_when_the_run_is_canc
     _install(monkeypatch, harness)
     with anyio.fail_after(10):
         with anyio.CancelScope() as scope:
-            async with harness.startup.setups, anyio.create_task_group() as tg:
+            async with harness.setups, anyio.create_task_group() as tg:
 
                 async def cancel_when_running() -> None:
                     await _wait_started(harness, "a@m1")
