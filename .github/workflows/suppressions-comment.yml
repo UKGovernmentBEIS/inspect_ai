@@ -66,7 +66,7 @@ jobs:
           filter: "blob:none"
 
       - name: Install uv
-        uses: meridianlabs-ai/actions/setup-uv@49975ef545f849387c5857831fb4b10c8f8148c5 # epatey/install-python-dependencies
+        uses: meridianlabs-ai/actions/setup-uv@29a0bf7e59e74ad3ad6464a72135df91bdea1a1d # epatey/install-python-dependencies
         with:
           python-version: "3.11"
           actions-cache: none
