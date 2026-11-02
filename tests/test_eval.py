@@ -273,14 +273,17 @@ def _peak_model_concurrency(max_tasks: int | None) -> int:
     return peak
 
 
+@pytest.mark.parametrize("vscode", [False, True])
 def test_eval_display_follows_display_arg_across_evals(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    vscode: bool,
 ) -> None:
-    import inspect_ai._display.core.active as active
-    import inspect_ai.util._display as util_display
+    import inspect_ai._display.core.rich as display_rich
 
-    monkeypatch.setattr(util_display, "_display_type", None)
-    monkeypatch.setattr(active, "_active_display", None)
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: vscode)
     task = Task(dataset=[Sample(input="hi", target="hi")], scorer=match())
 
     eval(task, model="mockllm/model", display="plain", log_dir=str(tmp_path))
@@ -288,6 +291,9 @@ def test_eval_display_follows_display_arg_across_evals(
 
     eval(task, model="mockllm/model", display="none", log_dir=str(tmp_path))
     assert capsys.readouterr().out == ""
+
+    eval(task, model="mockllm/model", display="rich", log_dir=str(tmp_path))
+    assert "Log:" in capsys.readouterr().out
 
 
 def test_max_tasks_bounds_concurrent_models_single_task():
