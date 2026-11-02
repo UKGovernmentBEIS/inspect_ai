@@ -76,7 +76,8 @@ order:
    (`validate_tool_input()`), as a native call is. A failure is recorded as a
    `parsing` error and raised as `ToolParsingError`. This runs after the grant
    check: an unproposed call with invalid arguments is denied, and a proposed
-   one consumes its grant and is recorded with its proposal's id and span.
+   one consumes its grant and is recorded under its proposal's span, taking
+   the proposing id by the same rule as an execution (below).
    The arguments are otherwise forwarded as the agent sent them; they are not
    converted to the tool's parameter types.
 5. **Execute** under the proposal's span (below): construct a pending
@@ -157,11 +158,13 @@ class _ToolExecutionGrant(NamedTuple):
 `consume_tool_execution_grant()` returns the matched grant (or `None`), and
 the event takes `proposal.take_id()`, the proposal's `call.view` and its
 model-facing function name. A call that denotes several indistinguishable
-bridged tools has a grant for each, so it can execute more than once; only
-the first execution takes the proposing id, since `ToolEvent.id` is what ACP
-cards, the viewer's approval and navigation maps, `sample cancel-tool-call`
-and `InterruptEvent` key on. Every execution records the proposing id in
-`metadata.bridge.proposal_id`.
+bridged tools has a grant for each, so it can execute more than once. Only
+the first request to consume one of its grants takes the proposing id, since
+`ToolEvent.id` is what ACP cards, the viewer's approval and navigation maps,
+`sample cancel-tool-call` and `InterruptEvent` key on; the id is taken before
+schema validation, so that first request may be a schema rejection, and a
+later execution then gets a fresh id. Every request that consumes a grant
+records the proposing id in `metadata.bridge.proposal_id`.
 
 A `_Proposal` is referenced only by its grants, so pairing state lives in the
 bounded grant store (1024 entries) and is dropped with the last of its grants,
@@ -229,16 +232,25 @@ types, so the key needs no type generation.
 
 ## Placement
 
-A paired execution is recorded under the span its generation's `ModelEvent`
-was recorded in (when a sink placed it; see Capture), so the host `ToolEvent`
-sits at the same level as that event and as the later `ModelEvent` whose
-input carries its result. Capture wraps only the bridge's default
-generation, so a response a request filter supplied, whether generated
+A paired execution is recorded under the span captured from the bridge's
+default generation (when a sink placed its `ModelEvent`; see Capture), or
+else under the span current in the service task. In the ordinary case that
+is the span of the `ModelEvent` that proposed the call, so the host
+`ToolEvent` sits at the same level as that event and as the later
+`ModelEvent` whose input carries its result. The viewer's per-level rules
+(below) and Messages-tab navigation depend on this; a host event one level
+above a sub-agent's proposal and result would pair with neither, and ACP
+filters a sub-agent's cards by the host event's span.
+
+Capture wraps only the bridge's default generation, so filters can break
+that adjacency. A response a request filter supplied, whether generated
 inside the filter or fabricated, has no captured span, and its executions
-follow the span current in the service task. The viewer's
-per-level rules (below) and Messages-tab navigation depend on this; a host
-event one level above a sub-agent's proposal and result would pair with
-neither.
+follow the span current in the service task. A response filter runs after
+the default generation, so its output's calls keep the span captured from
+that generation, even when the filter generated replacement output whose own
+`ModelEvent` was recorded elsewhere (in the span current where the filter
+ran); the host event then sits at a different level from that replacement
+`ModelEvent`.
 
 - **Capture.** When the bridge has a `ModelEventSink`, `bridge_generate()`
   wraps it per attempt in a private `_SpanCapturingSink` that forwards
@@ -260,8 +272,8 @@ neither.
 - **Unpaired requests, and requests rejected before a grant is consumed**
   (unknown server or tool, arguments too deep, denials), are recorded under
   the span current in the service task. A proposed call whose arguments then
-  fail the schema is recorded under its proposal's span, with the proposing
-  id, like an execution.
+  fail the schema is recorded under its proposal's span, and takes the
+  proposing id by the same rule as an execution.
 - **Sinks.** The sink protocol is not widened; the wrapper reads the span the
   sink assigned, so a sink must assign it by the time `on_complete` returns.
   The two known sinks (inspect_swe's Claude Code and Codex CLI event
@@ -279,9 +291,9 @@ neither.
 | Unknown server or tool | fresh | `null` | `parsing` | the `ValueError` text |
 | Arguments over 100 levels deep | fresh | `null` | `parsing` (native depth message) | `ToolParsingError` |
 | No matching proposal, server requires one | fresh | `denied` | `permission` | `PermissionError` |
-| Proposed; arguments fail the schema | proposing | `consumed` | `parsing` | `ToolParsingError` |
+| Proposed; arguments fail the schema | proposing (fresh when an earlier request already took a multi-target proposal's id) | `consumed` | `parsing` | `ToolParsingError` |
 | Exempt, unproposed; arguments fail the schema | fresh | `exempt` | `parsing` | `ToolParsingError` |
-| Executed | proposing (fresh after the first execution of a multi-target proposal), or fresh on an exempt server | `consumed` / `exempt` | none | the result, truncated as native |
+| Executed | proposing (fresh when an earlier request already took a multi-target proposal's id), or fresh on an exempt server | `consumed` / `exempt` | none | the result, truncated as native |
 | Tool raised an error a native call maps (`tool_call_error()`) | as executed | as executed | the mapped error; its result truncated | the original exception's text |
 | Tool raised `LimitExceededError` | as executed | as executed | `limit` | `ToolError` with the mapped message |
 | Decisive exception is a termination (bare or a group leaf), or unmapped with a termination in its history | as executed | as executed | `failed` | `Terminating: ...`; the sample ends |
