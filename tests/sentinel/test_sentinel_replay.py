@@ -38,7 +38,6 @@ from inspect_ai.approval._approval import ApprovalDecision
 from inspect_ai.dataset import Sample
 from inspect_ai.event import (
     ApprovalEvent,
-    CompactionEvent,
     Event,
     ModelEvent,
     SentinelEvent,
@@ -1268,8 +1267,8 @@ def r7_generate_fails() -> Protocol:
     ],
     ids=["terminate", "failure", "protocol-failure"],
 )
-def test_a_model_input_step_no_model_call_followed_is_not_replayed_yet(
-    sentinel: Callable[[], Any], status: str
+def test_a_model_input_check_without_a_model_call_is_skipped_with_warning(
+    sentinel: Callable[[], Any], status: str, caplog: pytest.LogCaptureFixture
 ) -> None:
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target="2")],
@@ -1282,8 +1281,10 @@ def test_a_model_input_step_no_model_call_followed_is_not_replayed_yet(
     assert not [e for e in events if isinstance(e, ModelEvent)]
     checked = {(e.stage, e.step_id) for e in events if isinstance(e, SentinelEvent)}
     assert [stage for stage, _ in checked] == ["model_input"]
-    with pytest.raises(NotImplementedError, match="model_input step"):
-        replay_events(log, events)
+    assert replay_events(log, events) == []
+    assert [r.message for r in caplog.records if "Skipped" in r.message] == [
+        "Skipped 1 sentinel model check(s) without a matching model call in this transcript."
+    ]
 
 
 @monitor
@@ -1339,7 +1340,7 @@ def r7_generates_again_after_a_failure() -> Solver:
     ids=["later-check-recorded", "later-check-abstains"],
 )
 def test_a_model_input_step_without_its_model_call_is_not_replayed_after_a_later_turn(
-    monitor_fails: Callable[[], Any], recorded: int
+    monitor_fails: Callable[[], Any], recorded: int, caplog: pytest.LogCaptureFixture
 ) -> None:
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target="2")],
@@ -1358,35 +1359,50 @@ def test_a_model_input_step_without_its_model_call_is_not_replayed_after_a_later
     )
     assert len(called) + 1 == recorded
     assert called in ([turn.uuid], []) and orphan != turn.uuid
-    with pytest.raises(NotImplementedError, match=f"model_input step {orphan!r}"):
-        replay_events(log, events)
-
-
-def test_a_log_with_message_based_generate_ids_keeps_its_recorded_ids() -> None:
-    seen: dict[str, Step] = {}
-    log = run_logged(tool_loop(addition()), agent_model(), sentinel=[r7_probe(seen)])
-    events = logged_sample(log).events
-    # rewrite the generate stages' ids as sentinel 0.1.x recorded them: the
-    # last input message's id before (with ":<n>" when the same input was
-    # checked again, here the second), and the output message's id after
-    turns = [e for e in events if isinstance(e, ModelEvent)]
-    old: dict[str, tuple[str, str]] = {
-        turn.uuid or "": (
-            f"{turn.input[-1].id}{':2' if n else ''}",
-            turn.output.message.id or "",
-        )
-        for n, turn in enumerate(turns)
-    }
-    for event in events:
-        if isinstance(event, SentinelEvent) and event.step_id in old:
-            before, after = old[event.step_id]
-            event.step_id = before if event.stage == "model_input" else after
     replay = replay_events(log, events)
-    assert {(s.stage, s.id) for s in replay if s.stage.startswith("model")} == {
-        (stage, id)
-        for before, after in old.values()
-        for stage, id in (("model_input", before), ("model_output", after))
-    }
+    assert [s.id for s in replay if s.stage == "model_input"] == [turn.uuid]
+    assert [r.message for r in caplog.records if "Skipped" in r.message] == [
+        "Skipped 1 sentinel model check(s) without a matching model call in this transcript."
+    ]
+
+
+def test_unmatched_checks_emit_one_counted_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    events: list[Event] = []
+    for index in range(2):
+        span_id = f"check-{index}"
+        events.extend(
+            [
+                SpanBeginEvent(id=span_id, name="probe", type="sentinel"),
+                SentinelEvent(
+                    factory="probe",
+                    path="probe",
+                    function="check",
+                    step_id=f"missing-{index}",
+                    conversation="sample",
+                    stage="model_input" if index == 0 else "model_output",
+                    kind="observation",
+                    status="reported",
+                    suspicion=0.1,
+                    span_id=span_id,
+                ),
+                SpanEndEvent(id=span_id),
+            ]
+        )
+    assert (
+        steps_from_events(
+            [],
+            events,
+            [],
+            sample_uuid="sample",
+            eval_info=EvalInfo(inspect_ai_version=None, sentinel=True),
+        )
+        == []
+    )
+    assert [r.message for r in caplog.records if "Skipped" in r.message] == [
+        "Skipped 2 sentinel model check(s) without a matching model call in this transcript."
+    ]
 
 
 @solver
@@ -1437,68 +1453,29 @@ def test_a_stored_timeline_gives_one_conversation_per_branch() -> None:
     ] == ["target", "rollback"]
 
 
-@solver
-def r7_rolls_back() -> Solver:
-    """A turn, then two alternatives to the next turn, each in a span of its own as Petri's rollbacks are, the second carried on."""
-
-    async def solve(state: TaskState, generate: Generate) -> TaskState:
-        model = get_model()
-        task = ChatMessageUser(content="What is 1 + 1?")
-        async with span("target", type="trajectory"):
-            first = (await model.generate([task])).message
-        async with span("first", type="trajectory"):
-            await model.generate([task, first, ChatMessageUser(content="Try A.")])
-        async with span("second", type="trajectory"):
-            asked: list[ChatMessage] = [task, first, ChatMessageUser(content="Try B.")]
-            answer = (await model.generate(asked)).message
-            state.output = await model.generate(
-                [*asked, answer, ChatMessageUser(content="Go on.")]
-            )
-        return state
-
-    return solve
-
-
-def test_a_stored_timeline_s_branches_keep_their_turns_without_origins() -> None:
-    # Ransom's review B1: inferred over the span tree, the rollback's
-    # branches are one conversation, so carrying on the second alternative
-    # made the first branch's generate utility
-    log = run_logged(
-        r7_rolls_back(),
-        outputs(done("Two."), done("A."), done("B."), done("Done.")),
-        inferred="without a stored timeline, the branches are one conversation",
-    )
-    events = logged_sample(log).events
-    spans = {e.name: e.id for e in events if isinstance(e, SpanBeginEvent)}
-    target, first, second = [
-        [
-            TimelineEvent(event=e)
-            for e in events
-            if isinstance(e, ModelEvent) and e.span_id == spans[branch]
-        ]
-        for branch in ("target", "first", "second")
-    ]
-    timeline = Timeline(
+def test_a_stored_timeline_does_not_change_turn_inference_without_origins() -> None:
+    log = run_logged(r7_runs_two_branches(), "mockllm/model")
+    events = without_origins(logged_sample(log).events)
+    model_events = [e for e in events if isinstance(e, ModelEvent)]
+    stored = Timeline(
         name="target",
         description="",
         root=TimelineSpan(
             id="target",
             name="target",
-            content=list(target),
+            content=[TimelineEvent(event=model_events[0])],
             branches=[
-                TimelineSpan(id="first", name="first", content=list(first)),
-                TimelineSpan(id="second", name="second", content=list(second)),
+                TimelineSpan(
+                    id="rollback",
+                    name="rollback",
+                    content=[TimelineEvent(event=model_events[1])],
+                )
             ],
         ),
     )
-
-    def steps(steps: Sequence["ReplayStep"]) -> list[Any]:
-        return [(s.stage, s.id, s.segment, comparable(s.step)) for s in steps]
-
-    recorded = replay_events(log, events, timeline=timeline)
-    inferred = replay_events(log, without_origins(events), timeline=timeline)
-    assert len([s for s in recorded if s.stage == "model_input"]) == 4
-    assert steps(inferred) == steps(recorded)
+    without = replay_events(log, events)
+    with_stored = replay_events(log, events, timeline=stored)
+    assert [(s.stage, s.id) for s in with_stored] == [(s.stage, s.id) for s in without]
 
 
 # the shared continuity fixtures, whose "expected_continuity" (else
@@ -1554,137 +1531,6 @@ def test_replay_infers_the_turns_of_the_continuity_fixtures(fixture: str) -> Non
         ]
 
     assert steps(events) == steps(recorded)
-
-
-@pytest.mark.parametrize(
-    "compaction", ["omitted", "included", "included without uuid", "no timeline"]
-)
-def test_a_stored_timeline_s_compaction_keeps_the_summarizer_a_helper(
-    compaction: str,
-) -> None:
-    # Ransom's ninth review B1: the replay driver puts a compaction a stored
-    # timeline omits (or holds without a uuid) in the conversation of its
-    # span, which the stored timeline's agent span also names; continuity
-    # follows it there, so the summarizer `sm` stays utility
-    import json
-
-    from pydantic import TypeAdapter
-
-    data = json.loads(
-        (CONTINUITY_FIXTURES / "continuity_summary_logged.json").read_text()
-    )
-    events = TypeAdapter(list[Event]).validate_python(data["events"])
-    if compaction == "included without uuid":
-        events = [
-            e.model_copy(update={"uuid": None}) if isinstance(e, CompactionEvent) else e
-            for e in events
-        ]
-    held = [
-        e
-        for e in events
-        if isinstance(e, ModelEvent)
-        or (isinstance(e, CompactionEvent) and compaction.startswith("included"))
-    ]
-    stored = (
-        Timeline(
-            name="target",
-            description="",
-            root=TimelineSpan(
-                id="agent",
-                name="agent",
-                content=[TimelineEvent(event=e) for e in held],
-            ),
-        )
-        if compaction != "no timeline"
-        else None
-    )
-    recorded = [
-        e.model_copy(update={"origin": "helper" if e.uuid == "sm" else "agent"})
-        if isinstance(e, ModelEvent)
-        else e
-        for e in events
-    ]
-
-    def steps(events: list[Event]) -> list[Any]:
-        return [
-            (s.stage, s.id, s.segment, comparable(s.step))
-            for s in steps_from_events(
-                [],
-                events,
-                [],
-                sample_uuid="sample",
-                eval_info=EvalInfo(inspect_ai_version=None, sentinel=False),
-                timeline=stored,
-            )
-        ]
-
-    inferred = steps(events)
-
-    assert inferred == steps(recorded)
-    assert not any(id == "sm" for _, id, _, _ in inferred)
-
-
-def test_a_stored_timeline_s_omitted_calls_keep_the_conversation_of_a_later_span() -> (
-    None
-):
-    # self-review after Ransom's ninth review: the conversation of each event
-    # a stored timeline omits was resolved at the first call without an
-    # origin, before the spans that begin later were known, so B1 and B2
-    # joined X1's conversation and X1, which X2 continues, became utility
-    task = ChatMessageUser(content="Solve it.")
-    x1 = linked_call("X1", "solvers", [task], "Working.", None)
-    asked: list[ChatMessage] = [ChatMessageUser(content="Check it.")]
-    b1 = linked_call("B1", "B", asked, "Checked.", None)
-    b2 = linked_call(
-        "B2",
-        "B",
-        [*asked, b1.output.message, ChatMessageUser(content="More.")],
-        "Done.",
-        None,
-    )
-    x2 = linked_call(
-        "X2",
-        "solvers",
-        [task, x1.output.message, ChatMessageUser(content="Go on.")],
-        "Finished.",
-        None,
-    )
-    events: list[Event] = [
-        SpanBeginEvent(id="solvers", name="solvers", type="solvers"),
-        x1,
-        SpanBeginEvent(id="B", name="checker", type="agent", parent_id="solvers"),
-        b1,
-        b2,
-        SpanEndEvent(id="B"),
-        x2,
-        SpanEndEvent(id="solvers"),
-    ]
-    stored = Timeline(
-        name="target",
-        description="",
-        root=TimelineSpan(id="target", name="target", content=[]),
-    )
-
-    def steps(events: list[Event]) -> list[tuple[str, str]]:
-        return sorted(
-            (s.stage, s.id)
-            for s in steps_from_events(
-                [],
-                events,
-                [],
-                sample_uuid="sample",
-                eval_info=EvalInfo(inspect_ai_version=None, sentinel=False),
-                timeline=stored,
-            )
-        )
-
-    recorded = [
-        e.model_copy(update={"origin": "agent"}) if isinstance(e, ModelEvent) else e
-        for e in events
-    ]
-
-    assert steps(events) == steps(recorded)
-    assert ("model_input", "X1") in steps(events)
 
 
 @pytest.mark.parametrize("phases", [True, False])
@@ -1744,8 +1590,8 @@ def test_a_solver_s_call_after_the_only_agent_is_not_judged_by_its_prompt(
     assert ("model_input", "M1") in steps(events)
 
 
-def checked_m3(check_id: str, later_turn: bool, recorded: bool) -> list[Event]:
-    """`continuity_none`, whose m3 (a foreign-prompt call, inferred as utility) a sentinel checked as `check_id`: m3's uuid, or as sentinel 0.1.x did, the id of the last message of its input (`u3`) with a repeat suffix or without. `recorded`, every call records `origin="agent"`, as m3 was a turn live."""
+def checked_m3(later_turn: bool, recorded: bool) -> list[Event]:
+    """`continuity_none` with a sentinel check of m3, a call inferred as utility unless its origin is recorded."""
     import json
 
     from pydantic import TypeAdapter
@@ -1769,7 +1615,7 @@ def checked_m3(check_id: str, later_turn: bool, recorded: bool) -> list[Event]:
                     factory="probe",
                     path="probe",
                     function="check",
-                    step_id=check_id,
+                    step_id="m3",
                     conversation="agent",
                     stage="model_input",
                     kind="observation",
@@ -1784,19 +1630,16 @@ def checked_m3(check_id: str, later_turn: bool, recorded: bool) -> list[Event]:
 
 
 @pytest.mark.parametrize("later_turn", [True, False])
-@pytest.mark.parametrize("check_id", ["m3", "u3", "u3:1"])
 def test_a_checked_call_inferred_not_a_turn_has_no_steps(
-    check_id: str, later_turn: bool
+    later_turn: bool,
 ) -> None:
     # a log whose only checked model_input step is a call inferred as utility
     # (where inference differs from live): the call was made, so the check is
-    # not an orphan, and the conversation's next turn keeps its own id and is
-    # not handed the check. Ransom's eighth review B1: a check sentinel 0.1.x
-    # identified by the last message of the call's input goes with the call
-    # that input was sent in, as one identified by the call's uuid does
+    # The call was made, so the conversation's next turn keeps its own id and
+    # is not handed the check.
     replay = steps_from_events(
         [],
-        checked_m3(check_id, later_turn, recorded=False),
+        checked_m3(later_turn, recorded=False),
         [],
         sample_uuid="sample",
         eval_info=EvalInfo(inspect_ai_version="0.3.200", sentinel=True),
@@ -1810,13 +1653,12 @@ def test_a_checked_call_inferred_not_a_turn_has_no_steps(
 
 
 @pytest.mark.parametrize("later_turn", [True, False])
-@pytest.mark.parametrize("check_id", ["m3", "u3", "u3:1"])
 def test_a_checked_call_recorded_as_a_turn_keeps_its_check(
-    check_id: str, later_turn: bool
+    later_turn: bool,
 ) -> None:
     replay = steps_from_events(
         [],
-        checked_m3(check_id, later_turn, recorded=True),
+        checked_m3(later_turn, recorded=True),
         [],
         sample_uuid="sample",
         eval_info=EvalInfo(inspect_ai_version="0.3.200", sentinel=True),
@@ -1825,158 +1667,9 @@ def test_a_checked_call_recorded_as_a_turn_keeps_its_check(
     assert [s.id for s in replay if s.stage == "model_input"] == [
         "m1",
         "m2",
-        check_id,
+        "m3",
         *(["m4"] if later_turn else []),
     ]
-
-
-@pytest.mark.parametrize("recorded", [False, True])
-@pytest.mark.parametrize("check_id", ["m3", "u3", "u3:1"])
-def test_a_checked_call_keeps_its_check_under_a_stored_timeline(
-    check_id: str, recorded: bool
-) -> None:
-    # self-review after Ransom's ninth review: checks name the conversation
-    # live, the agent span; a stored timeline names it otherwise ("target"),
-    # and looking a check up by that left it an orphan
-    events = checked_m3(check_id, True, recorded)
-    stored = Timeline(
-        name="target",
-        description="",
-        root=TimelineSpan(
-            id="target",
-            name="target",
-            content=[
-                TimelineEvent(event=e) for e in events if isinstance(e, ModelEvent)
-            ],
-        ),
-    )
-    replay = steps_from_events(
-        [],
-        events,
-        [],
-        sample_uuid="sample",
-        eval_info=EvalInfo(inspect_ai_version="0.3.200", sentinel=True),
-        timeline=stored,
-    )
-
-    assert [s.id for s in replay if s.stage == "model_input"] == [
-        "m1",
-        "m2",
-        *([check_id] if recorded else []),
-        "m4",
-    ]
-    assert {s.step.conversation for s in replay} == {"target"}
-
-
-def checked_m3_after_an_equal_message(
-    check_id: str, later_turn: bool, recorded: bool, inputs: str
-) -> tuple[list[ChatMessage], list[Event], list[ChatMessage]]:
-    """`checked_m3`, m3's input holding before `u3` an equal message under another id, which condensing the inputs keeps in `u3`'s place. `inputs`: "expanded" (no sample messages), or "condensed" (the sample messages holding `u3`): the messages, events and pool."""
-    events: list[Event] = []
-    last: ChatMessage | None = None
-    for event in checked_m3(check_id, later_turn, recorded):
-        if isinstance(event, ModelEvent) and event.uuid == "m3":
-            last = event.input[-1]
-            asked = [
-                *event.input[:-1],
-                last.model_copy(update={"id": "u0"}),
-                ChatMessageAssistant(content="Noted."),
-                last,
-            ]
-            event = event.model_copy(update={"input": asked})
-        events.append(event)
-    assert last is not None
-    if inputs == "expanded":
-        return [], events, []
-    condensed, _, entries = condense_model_event_inputs(events, 0, {})
-    return [last], condensed, [message for _, message in entries]
-
-
-@pytest.mark.parametrize("inputs", ["expanded", "condensed"])
-@pytest.mark.parametrize("later_turn", [True, False])
-@pytest.mark.parametrize("check_id", ["m3", "u3", "u3:1"])
-@pytest.mark.parametrize("recorded", [False, True])
-def test_a_legacy_check_names_its_call_s_message_after_condensing(
-    recorded: bool, check_id: str, later_turn: bool, inputs: str
-) -> None:
-    # Ransom's ninth review B2: condensing keeps one message of those equal
-    # but for their ids, so m3's input ends in the pool row of the earlier
-    # `u0`; a check sentinel 0.1.x identified by `u3` still names m3's input,
-    # by the id m3 was sent with or the sample messages keep
-    messages, events, pool = checked_m3_after_an_equal_message(
-        check_id, later_turn, recorded, inputs
-    )
-    replay = steps_from_events(
-        messages,
-        events,
-        pool,
-        sample_uuid="sample",
-        eval_info=EvalInfo(inspect_ai_version="0.3.200", sentinel=True),
-    )
-
-    assert [s.id for s in replay if s.stage == "model_input"] == [
-        "m1",
-        "m2",
-        *([check_id] if recorded else []),
-        *(["m4"] if later_turn else []),
-    ]
-
-
-def test_a_pending_legacy_check_hashes_a_shared_last_message_once(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    # self-review after Ransom's ninth review: while a check's other keys
-    # stay pending, each call inferred not a turn looked its last message up
-    # by content, hashing a pool row as often as inputs ended on it
-    from inspect_ai.event._pool import _msg_hash
-
-    def hashes(calls: int) -> int:
-        big = ChatMessageUser(content="x" * 1000, id="big")
-        events: list[Event] = [
-            SpanBeginEvent(id="agent", name="agent", type="agent"),
-            SpanBeginEvent(
-                id="check", name="probe", type="sentinel", parent_id="agent"
-            ),
-            SentinelEvent(
-                factory="probe",
-                path="probe",
-                function="check",
-                step_id="big:1",
-                conversation="agent",
-                stage="model_input",
-                kind="observation",
-                status="reported",
-                suspicion=0.1,
-                span_id="check",
-            ),
-            SpanEndEvent(id="check"),
-        ]
-        for n in range(calls):
-            events += [
-                SpanBeginEvent(id=f"t{n}", name="f", type="tool", parent_id="agent"),
-                linked_call(f"m{n}", f"t{n}", [big], f"Done {n}.", None),
-                SpanEndEvent(id=f"t{n}"),
-            ]
-        events.append(SpanEndEvent(id="agent"))
-        count = 0
-
-        def counted(message: ChatMessage) -> str:
-            nonlocal count
-            count += 1
-            return _msg_hash(message)
-
-        with monkeypatch.context() as patch:
-            patch.setattr("inspect_ai._sentinel._replay._msg_hash", counted)
-            steps_from_events(
-                [],
-                events,
-                [],
-                sample_uuid="sample",
-                eval_info=EvalInfo(inspect_ai_version="0.3.200", sentinel=True),
-            )
-        return count
-
-    assert hashes(100) == hashes(200) <= 4
 
 
 def test_a_fork_at_the_end_without_phase_spans_keeps_the_final_messages_call() -> None:
@@ -2067,74 +1760,6 @@ def test_a_sub_agent_s_equal_answer_does_not_take_the_final_messages(
     )
 
     assert [s.id for s in replay if s.stage == "model_input"] == ["m1", "m2", "s1"]
-
-
-def test_a_stored_conversation_across_source_agent_spans_drops_the_unused_alternative() -> (
-    None
-):
-    # Ransom's fifth review B6: one stored span (as Petri groups a target's
-    # trajectory) holds a first turn and two alternatives to the next in one
-    # source agent span, and a continuation of the second in another;
-    # continuity follows the stored conversation across them
-    system = ChatMessageSystem(content="You are the target.")
-    user = ChatMessageUser(content="Begin.")
-
-    def turn(uuid: str, span: str, input: list[ChatMessage], text: str) -> ModelEvent:
-        return ModelEvent(
-            uuid=uuid,
-            span_id=span,
-            model="mockllm/model",
-            input=input,
-            tools=[],
-            tool_choice="auto",
-            config=GenerateConfig(),
-            output=ModelOutput.from_content("mockllm/model", text),
-        )
-
-    m1 = turn("m1", "a1", [system, user], "First.")
-    asked: list[ChatMessage] = [
-        system,
-        user,
-        m1.output.message,
-        ChatMessageUser(content="Next?"),
-    ]
-    m2 = turn("m2", "a1", asked, "Alternative A.")
-    m3 = turn("m3", "a1", asked, "Alternative B.")
-    m4 = turn(
-        "m4",
-        "a2",
-        [*asked, m3.output.message, ChatMessageUser(content="Go on.")],
-        "Carried on.",
-    )
-    events: list[Event] = [
-        SpanBeginEvent(id="a1", name="target", type="agent"),
-        m1,
-        m2,
-        m3,
-        SpanEndEvent(id="a1"),
-        SpanBeginEvent(id="a2", name="target", type="agent"),
-        m4,
-        SpanEndEvent(id="a2"),
-    ]
-    stored = Timeline(
-        name="target",
-        description="",
-        root=TimelineSpan(
-            id="target",
-            name="target",
-            content=[TimelineEvent(event=e) for e in (m1, m2, m3, m4)],
-        ),
-    )
-    replay = steps_from_events(
-        [],
-        events,
-        [],
-        sample_uuid="sample",
-        eval_info=EvalInfo(inspect_ai_version=None, sentinel=False),
-        timeline=stored,
-    )
-
-    assert [s.id for s in replay if s.stage == "model_input"] == ["m1", "m3", "m4"]
 
 
 def test_a_person_s_approval_is_a_human_decision_without_a_sentinel(
@@ -3499,8 +3124,8 @@ def side_calls(
 
 def region_with_side_calls(
     region: str, count: int, recorded: bool, tooled: bool
-) -> tuple[list[ChatMessage], list[Event], Timeline | None]:
-    """An agent's turns, and `count` linked calls in a region that is not the agent's: between a scorer's `StepEvent`s (a log from before spans), in a sentinel's span, or in a tool's span that a stored conversation joins to the agent's. `tooled`, the agent has a system prompt and the linked calls make tool calls under another."""
+) -> tuple[list[ChatMessage], list[Event]]:
+    """An agent's turns and `count` linked calls in a scorer, sentinel, or tool region. `tooled` gives the agent and helper calls different system prompts."""
     agent = "agent" if recorded else None
     opening: list[ChatMessage] = [ChatMessageUser(content="Solve it.")]
     if tooled:
@@ -3525,31 +3150,18 @@ def region_with_side_calls(
             m2,
             SpanEndEvent(id="agent"),
         ]
-        stored = Timeline(
-            name="target",
-            description="",
-            root=TimelineSpan(
-                id="target",
-                name="target",
-                content=[TimelineEvent(event=e) for e in (m1, *helpers, m2)],
-            ),
-        )
-        return [*opening, m1.output.message, result, m2.output.message], events, stored
+        return [*opening, m1.output.message, result, m2.output.message], events
     m1 = linked_call("m1", "agent", opening, "Solved.", agent)
     messages: list[ChatMessage] = [*opening, m1.output.message]
     if region == "scorer":
         graders = side_calls(count, None, "scorer" if recorded else None, tooled)
         m1.span_id = None
-        return (
-            messages,
-            [
-                m1,
-                StepEvent(action="begin", type="scorer", name="match"),
-                *graders,
-                StepEvent(action="end", type="scorer", name="match"),
-            ],
-            None,
-        )
+        return messages, [
+            m1,
+            StepEvent(action="begin", type="scorer", name="match"),
+            *graders,
+            StepEvent(action="end", type="scorer", name="match"),
+        ]
     monitors = side_calls(count, "check", "helper" if recorded else None, tooled)
     return (
         messages,
@@ -3563,7 +3175,6 @@ def region_with_side_calls(
             SpanEndEvent(id="check"),
             SpanEndEvent(id="agent"),
         ],
-        None,
     )
 
 
@@ -3574,15 +3185,13 @@ def test_linked_calls_outside_the_agent_s_turns_leave_its_turns(
     region: str, count: int, tooled: bool
 ) -> None:
     # Ransom's sixth review B1: calls a region shows are not the agent's (a
-    # scorer's, a sentinel's, or a tool's that a stored conversation joins to
-    # the agent's) are left out of continuity, so linked ones cannot make
+    # scorer's, a sentinel's, or a tool's) are left out of continuity, so
+    # linked ones cannot make
     # the agent's turn utility; replay without origins gives the steps it
     # gives with them. Review 7 B1: tool-calling ones under another system
     # prompt cannot set the prompt the agent's turns are classified by
     def steps(recorded: bool) -> list[tuple[str, str]]:
-        messages, events, stored = region_with_side_calls(
-            region, count, recorded, tooled
-        )
+        messages, events = region_with_side_calls(region, count, recorded, tooled)
         return [
             (s.stage, s.id)
             for s in steps_from_events(
@@ -3591,7 +3200,6 @@ def test_linked_calls_outside_the_agent_s_turns_leave_its_turns(
                 [],
                 sample_uuid="sample",
                 eval_info=EvalInfo(inspect_ai_version=None, sentinel=False),
-                timeline=stored,
             )
         ]
 
@@ -3604,8 +3212,8 @@ def test_linked_calls_outside_the_agent_s_turns_leave_its_turns(
 
 def handoff_with_side_calls(
     count: int, recorded: bool, inputs: str
-) -> tuple[list[ChatMessage], list[Event], list[ChatMessage], Timeline]:
-    """An agent's turns around a legacy handoff whose `ToolEvent` nests `count` linked calls, a stored conversation joining them. `inputs`: "expanded", "pooled" (the nested calls' too), or "adapter" (only the top-level calls pooled, as the companion adapter pools them)."""
+) -> tuple[list[ChatMessage], list[Event], list[ChatMessage]]:
+    """An agent's turns around a handoff whose `ToolEvent` nests `count` linked calls. `inputs`: "expanded", "pooled", or "adapter"."""
     agent = "agent" if recorded else None
     user = ChatMessageUser(content="Solve it.")
     call = ToolCall(id="c1", function="transfer_to_checker", arguments={})
@@ -3616,15 +3224,6 @@ def handoff_with_side_calls(
     m2 = linked_call("m2", "agent", [user, m1.output.message, result], "Done.", agent)
     helpers: list[Event] = list(
         side_calls(count, "agent", "tool" if recorded else None, False)
-    )
-    stored = Timeline(
-        name="target",
-        description="",
-        root=TimelineSpan(
-            id="target",
-            name="target",
-            content=[TimelineEvent(event=e) for e in (m1, *helpers, m2)],
-        ),
     )
     pool: list[ChatMessage] = []
     if inputs == "pooled":
@@ -3652,7 +3251,7 @@ def handoff_with_side_calls(
         events, _, entries = condense_model_event_inputs(events, 0, {})
         pool = [message for _, message in entries]
     messages: list[ChatMessage] = [user, m1.output.message, result, m2.output.message]
-    return messages, events, pool, stored
+    return messages, events, pool
 
 
 @pytest.mark.parametrize("count", [1, 2])
@@ -3665,9 +3264,7 @@ def test_calls_nested_in_a_handoff_leave_the_agent_s_turns(
     # continuity whether the log's inputs are expanded, pooled, or pooled at
     # the top level only
     def steps(recorded: bool) -> list[tuple[str, str]]:
-        messages, events, pool, stored = handoff_with_side_calls(
-            count, recorded, inputs
-        )
+        messages, events, pool = handoff_with_side_calls(count, recorded, inputs)
         return [
             (s.stage, s.id)
             for s in steps_from_events(
@@ -3676,7 +3273,6 @@ def test_calls_nested_in_a_handoff_leave_the_agent_s_turns(
                 pool,
                 sample_uuid="sample",
                 eval_info=EvalInfo(inspect_ai_version=None, sentinel=False),
-                timeline=stored,
             )
         ]
 

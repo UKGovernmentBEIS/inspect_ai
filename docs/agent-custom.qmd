@@ -428,6 +428,8 @@ Spans are automatically created for sample initialisation, solvers, scorers, sub
 
 Each `ModelEvent` records where the call was made in its `origin` field. During the solve a call is `"agent"`, one of its conversation's agent turns, unless it is made by a tool, a compaction, an approver, a reviewer, MCP sampling, a sentinel or a scorer, which Inspect marks itself (`"tool"`, `"compaction"`, `"approval"`, `"review"`, `"sampling"`, `"sentinel"`, `"scorer"`). A scorer's calls are `"scorer"`, including those of an agent run inside it, and a sentinel does not check a scorer's tool calls. Any other call outside the solve, such as one made at sample init, is `"setup"`. A sentinel checks only agent turns at its generate stages, and the transcript timeline shows other calls as utility.
 
+When replaying an older log without `origin`, Inspect infers turns from the event span tree. A stored timeline passed to sentinel replay can group the resulting steps into conversations, but its branches and spans do not change which calls are inferred as turns. Recorded sentinel checks pair with model calls by exact call id. Checks without a matching call are skipped with a warning.
+
 If your agent makes model calls that are part of the solve but are not the evaluated agent's turns, mark them with `model_origin()`. Use `"environment"` for the setup being evaluated against, such as an auditor model or a simulated user, and `"helper"` for a scaffold's own helper calls, such as its own summarizer:
 
 ``` python
