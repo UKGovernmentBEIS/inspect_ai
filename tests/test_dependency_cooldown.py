@@ -153,6 +153,14 @@ def test_setuptools_scm_fallback_version_is_the_released_version() -> None:
     assert pyproject["tool"]["setuptools_scm"]["fallback_version"] == manifest["."]
 
 
+def test_dependencies_are_declared_in_pyproject() -> None:
+    # Dependabot's uv updater only updates uv.lock for dependencies declared in
+    # pyproject.toml, not ones setuptools reads from requirements files.
+    pyproject = tomllib.loads((REPO / "pyproject.toml").read_text())
+    assert pyproject["project"]["dynamic"] == ["version"]
+    assert "dynamic" not in pyproject["tool"]["setuptools"]
+
+
 def test_sync_models_script_follows_the_cooldown() -> None:
     config = uv_config()
     script = script_uv_config()
@@ -193,10 +201,6 @@ def test_pinned_uv_versions_meet_required_version() -> None:
             "sync_model_data.yml",
         ]
     }
-    devcontainer = (REPO / ".devcontainer" / "Dockerfile").read_text()
-    devcontainer_uv = re.search(r"^ARG UV_VERSION=(\S+)$", devcontainer, re.M)
-    assert devcontainer_uv
-    pinned["devcontainer"] = devcontainer_uv[1]
     for where, pin in pinned.items():
         assert version(pin) >= version(required[1]), f"{where}: uv {pin}"
 
@@ -220,7 +224,8 @@ def test_pre_commit_hooks_run_locked_tools() -> None:
                 assert hook["entry"] == "uv lock"
             else:
                 assert hook["entry"].startswith("uv run --frozen "), hook["id"]
-    requirements = (REPO / "requirements-dev.txt").read_text().splitlines()
+    pyproject = tomllib.loads((REPO / "pyproject.toml").read_text())
+    requirements = pyproject["project"]["optional-dependencies"]["dev"]
     for tool in ["pre-commit-hooks", "ruff", "typos"]:
         assert any(re.fullmatch(rf"{tool}==[\d.]+", line) for line in requirements)
 

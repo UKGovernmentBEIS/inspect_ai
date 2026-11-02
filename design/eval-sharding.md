@@ -84,7 +84,7 @@ Constraints and decisions that shape the design:
 - **Self-contained logs, relaxed for sharded output only.** The #420 design
   adopted the constraint that *every log file stays self-contained, and the
   newest log for a task stays the whole truth about that task*
-  (`design/retry-seeded-attempt-log.md:19`). Decision (Ransom, 2026-09-18):
+  (`design/retry-seeded-attempt-log.md`, "Self-contained logs"). Decision (Ransom, 2026-09-18):
   this feature may relax it, and it continues to hold in every other case.
   The boundary of the relaxation is the `<name>.shards/` companion directory (Ransom,
   2026-09-21): a file outside such a directory is an ordinary log, and

@@ -1150,8 +1150,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             gated_sample_semaphore = PauseGatedSemaphore(
                 sample_semaphore,
                 task_id=logger.eval.task_id,
-                escape=lambda: task_cancel is not None
-                and task_cancel.cancel_type is not None,
+                escape=lambda: (
+                    task_cancel is not None and task_cancel.cancel_type is not None
+                ),
                 model=pause_model_name,
             )
 

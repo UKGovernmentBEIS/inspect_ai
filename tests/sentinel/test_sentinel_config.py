@@ -624,10 +624,11 @@ REPO = Path(__file__).parents[2]
 
 
 def test_dev_requirements_floor_is_the_minimum_version() -> None:
+    pyproject = tomllib.loads((REPO / "pyproject.toml").read_text())
     [floor] = [
-        line.removeprefix("inspect-sentinel")
-        for line in (REPO / "requirements-dev.txt").read_text().splitlines()
-        if line.startswith("inspect-sentinel")
+        requirement.removeprefix("inspect-sentinel")
+        for requirement in pyproject["project"]["optional-dependencies"]["dev"]
+        if requirement.startswith("inspect-sentinel")
     ]
     assert floor == f">={SENTINEL_MIN_VERSION}"
 
