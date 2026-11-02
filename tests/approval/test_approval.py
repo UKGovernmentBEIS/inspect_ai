@@ -11,6 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Literal, NamedTuple
 
+import anyio
 import pytest
 from pydantic import (
     BaseModel,
@@ -1976,6 +1977,53 @@ def test_human_approver_rejects_modify_as_the_only_choice() -> None:
 
     with pytest.raises(ValueError, match="does not support the 'modify' choice"):
         human_approver(["modify"])
+
+
+async def test_panel_approval_answered_after_cancel_stays_cancelled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An answer that lands after the sample is cancelled doesn't replace the cancel."""
+    from inspect_ai.approval._human import panel as panel_module
+    from inspect_ai.approval._human.manager import (
+        human_approval_manager,
+        init_human_approval_manager,
+    )
+
+    async def no_panel(panel: object) -> None:
+        return None
+
+    monkeypatch.setattr(panel_module, "input_panel", no_panel)
+    monkeypatch.setattr(
+        "inspect_ai.log._samples.sample_active",
+        lambda: SimpleNamespace(
+            task="task", model="model", sample=SimpleNamespace(id=1), epoch=1
+        ),
+    )
+    init_human_approval_manager()
+    approvals = human_approval_manager()
+    requested = anyio.Event()
+    approvals.on_change(lambda action: requested.set())
+
+    answers: list[Approval] = []
+
+    async def ask() -> None:
+        call = ToolCall(id="t1", function="bash", arguments={"cmd": "ls"})
+        answers.append(
+            await panel_module.panel_approval(
+                "run it?", call, ToolCallView(), [], ["approve"]
+            )
+        )
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(ask)
+        await requested.wait()
+        ((request_id, _),) = approvals.approval_requests()
+        # the human answers before the cancelled sample task gets to run again
+        tg.cancel_scope.cancel()
+        approvals.complete_approval(request_id, Approval(decision="approve"))
+
+    assert answers == []
+    assert approvals.approval_requests() == []
 
 
 async def routed(call: ToolCall, tools: str | list[str], **arguments: str) -> bool:
