@@ -79,7 +79,29 @@ class _BridgeSandbox(CannedSandbox):
         self.checks = 0
         self.proxy = _FakeProxy(exit_stderr)
         self.launches: list[ExecRemoteStreamingOptions] = []
-        self.removed: list[tuple[str, str | None]] = []
+        self.removed: list[tuple[tuple[str, ...], str | None]] = []
+        self.saturated = False
+        """Commands that respect the sandbox's concurrency limits find no capacity."""
+
+    async def exec(
+        self,
+        cmd: list[str],
+        input: str | bytes | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
+        user: str | None = None,
+        timeout: int | None = None,
+        timeout_retry: bool = True,
+        concurrency: bool = True,
+    ) -> ExecResult[str]:
+        if concurrency and self.saturated:
+            # stands in for a provider waiting for capacity; bounded so a
+            # regression fails rather than hangs the shielded cleanup
+            with anyio.fail_after(2):
+                await anyio.sleep_forever()
+        return await super().exec(
+            cmd, input, cwd, env, user, timeout, timeout_retry, concurrency
+        )
 
     def _answer(self, cmd: list[str], user: str | None) -> ExecResult[str]:
         if cmd[-1] == "exec":
@@ -92,8 +114,10 @@ class _BridgeSandbox(CannedSandbox):
             if self.publish_after is not None and self.checks > self.publish_after:
                 return ExecResult(True, 0, "64\n", "")
             return ExecResult(False, 1, "", "")
-        if cmd[-4:-1] == ["rm", "-f", "--"]:
-            self.removed.append((cmd[-1], user))
+        if "rm" in cmd:
+            start = cmd.index("rm")
+            assert cmd[start : start + 3] == ["rm", "-f", "--"]
+            self.removed.append((tuple(cmd[start + 3 :]), user))
             return ExecResult(True, 0, "", "")
         raise AssertionError(f"unexpected exec {cmd}")
 
@@ -172,7 +196,8 @@ async def test_bridge_in_a_scope_waits_for_its_token_and_removes_it(
     assert all(cmd[-1] == token_file for cmd in checks)
     assert {user for cmd, user in sandbox.exec_calls} == {"root"}
     assert sandbox.proxy.killed.is_set()
-    assert sandbox.removed == [(token_file, "root")]
+    temp_file = f"{BRIDGE_TOKEN_DIR}/.{token_file.rsplit('/', 1)[1]}.tmp"
+    assert sandbox.removed == [((token_file, temp_file), "root")]
 
 
 async def test_bridge_outside_a_scope_asks_for_no_token(
@@ -234,6 +259,22 @@ async def test_cancellation_ends_the_wait_at_once(
 
     assert scope.cancelled_caught
     assert sandbox.proxy.killed.is_set()
+    assert len(sandbox.removed) == 1
+
+
+async def test_token_removal_does_not_wait_for_sandbox_capacity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cleanup is shielded, so the removal must not queue behind other commands."""
+    sandbox = _BridgeSandbox()
+    with _sandbox(monkeypatch, sandbox), sandbox_identity("w-1"):
+        with anyio.fail_after(10):
+            with anyio.move_on_after(0.5) as scope:
+                async with sandbox_agent_bridge():
+                    sandbox.saturated = True
+                    await anyio.sleep_forever()
+
+    assert scope.cancelled_caught
     assert len(sandbox.removed) == 1
 
 

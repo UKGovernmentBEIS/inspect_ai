@@ -307,7 +307,8 @@ comes from the scope as well as from tool construction:
   tools' MCP endpoints. The host passes the proxy only the scope's user and a
   file name; the proxy mints the token, publishes it readable only by that
   user (and root) once it is listening, and removes it when it exits, and
-  the host removes it again after killing the proxy. The token does not
+  the host removes it and its temporary file after killing the proxy, in
+  case the proxy was killed outright. The token does not
   cross the host channel: the host waits for the file by its size alone, and
   the proxy drops the key headers before forwarding a request. Outside a
   scope the proxy accepts any request.

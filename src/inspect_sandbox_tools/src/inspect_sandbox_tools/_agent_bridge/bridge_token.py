@@ -91,6 +91,7 @@ def publish_token(token: str, request: TokenRequest) -> None:
     ensure_private_server_dir(directory, mode=TOKEN_DIR_MODE, repair_mode=False)
     dir_fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:
+        # The host removes this name too (inspect_ai.agent._bridge.sandbox.bridge).
         temp = f".{request.file.name}.tmp"
         try:
             fd = os.open(

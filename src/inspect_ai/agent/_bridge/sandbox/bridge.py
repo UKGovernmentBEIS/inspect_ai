@@ -1,4 +1,5 @@
 import contextlib
+import posixpath
 from collections.abc import Mapping, Sequence
 from logging import getLogger
 from typing import TYPE_CHECKING, AsyncIterator
@@ -498,13 +499,21 @@ async def _wait_for_token_file(
 
 
 async def _remove_token_file(sandbox_env: SandboxEnvironment, token_file: str) -> None:
-    """Remove the token file, which the proxy cannot do if it was killed outright."""
+    """Remove the token file and its temporary file after the proxy has stopped.
+
+    A proxy killed outright (SIGKILL, out of memory) cannot remove them itself,
+    and one killed while publishing can leave the temporary file holding the
+    whole token. The command runs outside the sandbox's concurrency limits:
+    cleanup is shielded, so waiting there for capacity could stall shutdown.
+    """
+    directory, name = posixpath.split(token_file)
     try:
         result = await privileged_exec(
             sandbox_env,
-            ["rm", "-f", "--", token_file],
+            ["rm", "-f", "--", token_file, posixpath.join(directory, f".{name}.tmp")],
             user=sandbox_env._tools_user,
             timeout=_TOKEN_EXEC_TIMEOUT,
+            concurrency=False,
         )
         if not result.success:
             logger.warning(

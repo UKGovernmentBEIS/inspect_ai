@@ -301,17 +301,16 @@ asyncio.run(proxy.run_model_proxy_server())
 """
 
 
-@pytest.mark.parametrize("stage", ["fchown", "link"])
-def test_sigterm_during_publication_leaves_no_token_entry(
-    request_in: TokenRequest, stage: str
+def _kill_during_publication(
+    request: TokenRequest, stage: str, signum: signal.Signals
 ) -> None:
-    """A proxy killed while it publishes (after the write, after the link) removes both names."""
+    """Run the proxy, pause it in publication after `stage`, and send `signum`."""
     child = subprocess.Popen(
         [
             sys.executable,
             "-c",
             _PAUSED_PROXY,
-            str(request_in.file),
+            str(request.file),
             stage,
             USER,
             str(_free_port()),
@@ -326,9 +325,39 @@ def test_sigterm_during_publication_leaves_no_token_entry(
                 break
         else:
             raise AssertionError("proxy did not reach publication")
-        child.send_signal(signal.SIGTERM)
-        assert child.wait(timeout=30) == -signal.SIGTERM
+        child.send_signal(signum)
+        assert child.wait(timeout=30) == -signum
     finally:
         child.kill()
         child.wait()
+
+
+@pytest.mark.parametrize("stage", ["fchown", "link"])
+def test_sigterm_during_publication_leaves_no_token_entry(
+    request_in: TokenRequest, stage: str
+) -> None:
+    """A proxy terminated while it publishes (after the write, after the link) removes both names."""
+    _kill_during_publication(request_in, stage, signal.SIGTERM)
+    assert os.listdir(request_in.file.parent) == []
+
+
+@pytest.mark.parametrize(
+    ("stage", "left"),
+    [("fchown", {".proxy_abc.tmp"}), ("link", {"proxy_abc", ".proxy_abc.tmp"})],
+)
+def test_sigkill_during_publication_leaves_only_the_names_the_host_removes(
+    request_in: TokenRequest, stage: str, left: set[str]
+) -> None:
+    """A proxy killed outright leaves only the final and temporary names.
+
+    The bridge removes exactly these two names after stopping the proxy
+    (tests/agent/test_bridge_token.py pins that side).
+    """
+    _kill_during_publication(request_in, stage, signal.SIGKILL)
+    assert set(os.listdir(request_in.file.parent)) == left
+    host_removes = [
+        str(request_in.file),
+        str(request_in.file.parent / f".{request_in.file.name}.tmp"),
+    ]
+    subprocess.run(["rm", "-f", "--", *host_removes], check=True)
     assert os.listdir(request_in.file.parent) == []
