@@ -3,7 +3,7 @@
 import json
 import re
 from collections.abc import AsyncIterator, Iterator
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager, nullcontext
 from pathlib import Path
 from typing import Any
 
@@ -33,6 +33,7 @@ from inspect_ai.util._sandbox.exec_remote import (
     ExecOutput,
     ExecRemoteStreamingOptions,
     ExecStderr,
+    exec_remote_streaming,
 )
 from inspect_ai.util._sandbox.identity import SandboxIdentityError, sandbox_identity
 from inspect_ai.util._subprocess import ExecResult
@@ -276,6 +277,82 @@ async def test_token_removal_does_not_wait_for_sandbox_capacity(
 
     assert scope.cancelled_caught
     assert len(sandbox.removed) == 1
+
+
+class _DelayedKillSandbox(_BridgeSandbox):
+    """A sandbox with a real proxy process handle whose kill RPC takes a while.
+
+    The proxy never publishes its token and its polls never return. A readiness
+    check cancelled mid-flight finishes after a short delay, so on an enclosing
+    cancellation the monitor's own kill of the proxy starts first.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(publish_after=None)
+        self.events: list[str] = []
+
+    async def exec(
+        self,
+        cmd: list[str],
+        input: str | bytes | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
+        user: str | None = None,
+        timeout: int | None = None,
+        timeout_retry: bool = True,
+        concurrency: bool = True,
+    ) -> ExecResult[str]:
+        method = json.loads(input)["method"] if isinstance(input, str) else None
+        if method == "exec_remote_start":
+            return _rpc_result({"pid": 42})
+        if method == "exec_remote_poll":
+            await anyio.sleep_forever()
+        if method == "exec_remote_kill":
+            self.events.append("kill_started")
+            await anyio.sleep(0.5)
+            self.events.append("kill_finished")
+            return _rpc_result({"seq": 0, "stdout": "", "stderr": ""})
+        if "wc -c" in " ".join(cmd):
+            try:
+                await anyio.sleep_forever()
+            finally:
+                with anyio.CancelScope(shield=True):
+                    await anyio.sleep(0.1)
+        if "rm" in cmd:
+            self.events.append("remove")
+        return await super().exec(
+            cmd, input, cwd, env, user, timeout, timeout_retry, concurrency
+        )
+
+    async def fake_exec_remote(
+        self, cmd: list[str], options: ExecRemoteStreamingOptions
+    ) -> Any:
+        self.launches.append(options)
+        return await exec_remote_streaming(self, cmd, 5, options)
+
+    def no_events(self) -> AbstractContextManager[None]:
+        return nullcontext()
+
+
+def _rpc_result(result: dict[str, object]) -> ExecResult[str]:
+    return ExecResult(
+        True, 0, json.dumps({"jsonrpc": "2.0", "result": result, "id": 1}), ""
+    )
+
+
+async def test_token_removal_waits_for_the_monitors_kill_of_the_proxy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A proxy still being killed could publish after an earlier removal."""
+    sandbox = _DelayedKillSandbox()
+    with _sandbox(monkeypatch, sandbox), sandbox_identity("w-1"):
+        with anyio.fail_after(10):
+            with anyio.move_on_after(0.5) as scope:
+                async with sandbox_agent_bridge():
+                    raise AssertionError("bridge yielded")
+
+    assert scope.cancelled_caught
+    assert sandbox.events == ["kill_started", "kill_finished", "remove"]
 
 
 async def test_bridge_in_a_scope_refuses_tools_that_cannot_mint_tokens(

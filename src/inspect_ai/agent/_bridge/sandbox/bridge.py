@@ -280,7 +280,10 @@ async def sandbox_agent_bridge(
 
     bridge: SandboxAgentBridge | None = None
     try:
-        async with anyio.create_task_group() as tg:
+        async with (
+            _token_file_removed(sandbox_env, token_file),
+            anyio.create_task_group() as tg,
+        ):
             # event to signal startup of model service
             started = anyio.Event()
 
@@ -366,8 +369,6 @@ async def sandbox_agent_bridge(
                 with anyio.CancelScope(shield=True):
                     # ensure the process terminates (no-op if already dead)
                     await proxy.kill()
-                    if token_file is not None:
-                        await _remove_token_file(sandbox_env, token_file)
 
                 # ensure the scope is cancelled
                 tg.cancel_scope.cancel()
@@ -496,6 +497,25 @@ async def _wait_for_token_file(
             f"Model proxy did not publish its bridge token within "
             f"{BRIDGE_TOKEN_TIMEOUT} seconds: {''.join(proxy_stderr)}"
         ) from None
+
+
+@contextlib.asynccontextmanager
+async def _token_file_removed(
+    sandbox_env: SandboxEnvironment, token_file: str | None
+) -> AsyncIterator[None]:
+    """Remove the token file on exit, once the proxy has stopped.
+
+    Entered outside the task group that holds the proxy's monitor, so the
+    removal follows the monitor's own kill of the proxy, which a cancellation
+    can start before the bridge's: a proxy still publishing could otherwise
+    create the file after it was removed.
+    """
+    try:
+        yield
+    finally:
+        if token_file is not None:
+            with anyio.CancelScope(shield=True):
+                await _remove_token_file(sandbox_env, token_file)
 
 
 async def _remove_token_file(sandbox_env: SandboxEnvironment, token_file: str) -> None:
