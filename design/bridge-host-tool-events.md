@@ -237,8 +237,11 @@ neither.
   current in the service task: the agent span, or the checkpointer's current
   `checkpoint N` span. Storing only a span a sink chose keeps executions under
   the rotating checkpoint span when no sink moved the generation.
-- **Unpaired and rejected requests** are recorded under the span current in
-  the service task.
+- **Unpaired requests, and requests rejected before a grant is consumed**
+  (unknown server or tool, arguments too deep, denials), are recorded under
+  the span current in the service task. A proposed call whose arguments then
+  fail the schema is recorded under its proposal's span, with the proposing
+  id, like an execution.
 - **Sinks.** The sink protocol is not widened; the wrapper reads the span the
   sink assigned, so a sink must assign it by the time `on_complete` returns.
   The two known sinks (inspect_swe's Claude Code and Codex CLI event
@@ -344,8 +347,12 @@ them) as a list; anything else as text, a `str` verbatim and other values as
 `to_json_str_safe()`. Text is truncated by `truncate_tool_output()` at the
 tool's `ToolDef.max_output`, else the eval's `max_tool_output`, else 16 KiB,
 with the native wrapper text and `truncated=(raw_bytes, limit)`; content is
-not truncated. The agent receives exactly the recorded text; image results
-are sent as MCP image blocks and other content as JSON text.
+not truncated. The agent receives exactly the recorded text. A single image,
+or a list of only text and images that holds an image, is sent as MCP content
+blocks: an image given as a data URI becomes an image block, an image given as
+a URL or file path becomes a text block holding that source, and text stays
+text. Any other content (text alone, or a list that also holds audio, video or
+documents) is sent as its JSON serialization in text.
 
 Output truncation follows the native limit, including its 16 KiB default
 (confirmed by Ransom, 2026-10-07). This replaces the 2026-09-15 decision to
