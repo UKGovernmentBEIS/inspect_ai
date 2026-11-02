@@ -8,12 +8,15 @@ service, which runs the tool in the Inspect process. Every such request is
 recorded in the sample transcript as one `ToolEvent`, in the same layout as a
 native tool call: executed, denied, or rejected before execution.
 
-A call the model proposed in a bridged generation takes the proposing tool
-call's id and is recorded in the span of the `ModelEvent` that proposed it, so
-the viewer, ACP clients, dataframes and scanners pair it with its proposal as
-they pair native tool events. The pairing comes from the execution grant the
-bridge records for each proposed call, which carries the proposing call and,
-when a `ModelEventSink` placed the generation in another span, that span.
+A call proposed in a bridged generation takes the id of the proposing tool
+call in the response handed to the agent and is recorded in the span of the
+`ModelEvent` that generated it, so the viewer, ACP clients, dataframes and
+scanners pair it with its proposal as they pair native tool events. The
+pairing comes from the execution grant the bridge records for each proposed
+call, which carries the proposing call and, when a `ModelEventSink` placed the
+generation in another span, that span. When a bridge filter edits or
+replaces the response, the proposal is the call the agent received, which
+the logged `ModelEvent` may not contain.
 `metadata["bridge"]` on the event names the bridged server and tool, the name
 the model called it by, the proposing call and whether a proposal matched.
 While it runs the event is pending and the operator can cancel it. Errors
@@ -176,6 +179,16 @@ proposal's grant and id, and the proposed call then runs with a fresh id and
 `grant: "exempt"`. Execution is unaffected; the user docs state this
 limitation (decision: Ransom, 2026-10-14).
 
+The proposal is the call in the response handed to the agent, not
+necessarily one a `ModelEvent` logged. A response filter runs on a copy of
+the provider output after the `ModelEvent` is recorded, so a call id it
+changes, or a call it adds, appears on the host event and in
+`proposal_id` but not in that `ModelEvent`'s output; a request filter that
+returns a `ModelOutput` skips generation, so its calls have no `ModelEvent`
+at all. Consumers that pair by id (ACP, the viewer) then find no proposal
+for the event, which still carries the id the agent saw. Filters own that
+divergence; the bridge records what the agent ran.
+
 Pairing inherits the grant matching, so it is exact for every agent whose
 proposals match at all. Two proposals in flight for the same tool with the
 same arguments are consumed oldest first, so if the agent runs them in the
@@ -213,9 +226,12 @@ types, so the key needs no type generation.
 
 ## Placement
 
-A paired execution is recorded under the span the proposing `ModelEvent` was
-recorded in, so the host `ToolEvent` sits at the same level as that event and
-as the later `ModelEvent` whose input carries its result. The viewer's
+A paired execution is recorded under the span its generation's `ModelEvent`
+was recorded in (when a sink placed it; see Capture), so the host `ToolEvent`
+sits at the same level as that event and as the later `ModelEvent` whose
+input carries its result. A response a request filter supplied has no
+`ModelEvent` and no captured span, so its executions follow the span current
+in the service task. The viewer's
 per-level rules (below) and Messages-tab navigation depend on this; a host
 event one level above a sub-agent's proposal and result would pair with
 neither.
@@ -268,7 +284,8 @@ neither.
 | Decisive exception is mapped (an error or a limit), with a termination in its cause or context | as executed | as executed | the mapped error | `Terminating: ...`; the sample ends |
 | Tool raised an unexpected exception | as executed | as executed | `failed` | the original text; the sample fails |
 | Operator cancel | as executed | as executed | `timeout` | `ToolError("Command timed out before completing.")` |
-| Outer cancellation (bridge teardown, sample limit) | as executed | as executed | `cancelled` | nothing (the request is abandoned) |
+| Outer cancellation (bridge teardown, sample limit) that escapes the tool | as executed | as executed | `cancelled` | nothing (the request is abandoned) |
+| Outer cancellation the tool catches | as executed | as executed | what the tool then does: a return, an error or an unexpected exception, as above | the reply, if teardown lets it go out |
 
 The `permission` type is the one the native path gives a `PermissionError`
 from a tool, and it renders in the viewer, which hides `approval` errors on
@@ -326,9 +343,15 @@ Cancellation:
   `timeout` error and raises `ToolError` with the native message, even if the
   tool absorbed the cancellation and returned; an error raised while it
   unwinds is superseded by the timeout.
-- **Outer cancellation** (bridge teardown, a sample limit) is recorded as
-  `cancelled` ("Host tool call was cancelled before completing.") and
-  propagates. Finalising is synchronous, so it needs no shielding.
+- **Outer cancellation** (bridge teardown, a sample limit) that escapes the
+  tool is recorded as `cancelled` ("Host tool call was cancelled before
+  completing.") and propagates. Finalising is synchronous, so it needs no
+  shielding. Only the operator's per-call scope takes precedence over what
+  the tool does: a tool that catches an outer cancellation is recorded by
+  what it does next, as if uncancelled. A return records success, a mapped
+  error its mapped error, and an unexpected exception `failed=True` with
+  `bridge.request_fail()`. A recorded success does not mean the agent
+  received the reply, since the teardown may abandon the request.
 - **ACP turn cancel.** The event is registered with the execution observer
   (`track_tool_call`), so `cancel_current_turn` marks it cancelled and failed
   and names it in the `InterruptEvent`. It does not fire the per-call scope:
