@@ -58,16 +58,20 @@ def throttle(seconds: float) -> Callable[[Callable[P, R]], Callable[P, R]]:
 
         async def _deferred_fire() -> None:
             nonlocal last_called, last_result, pending, deferred_scheduled
-            remaining = seconds - (time.time() - (last_called or 0))
-            if remaining > 0:
-                await anyio.sleep(remaining)
-            # Re-check: a synchronous call may have fired and reset state
-            # while we slept
-            if pending is not None and time.time() - (last_called or 0) >= seconds:
-                last_result = func(*pending[0], **pending[1])
-                last_called = time.time()
-                pending = None
-            deferred_scheduled = False
+            try:
+                remaining = seconds - (time.time() - (last_called or 0))
+                if remaining > 0:
+                    await anyio.sleep(remaining)
+                # Re-check: a synchronous call may have fired and reset state
+                # while we slept
+                if pending is not None and time.time() - (last_called or 0) >= seconds:
+                    last_result = func(*pending[0], **pending[1])
+                    last_called = time.time()
+                    pending = None
+            finally:
+                # Reset on error or cancellation too; otherwise no later
+                # trailing fire is scheduled. An error from func still propagates.
+                deferred_scheduled = False
 
         @wraps(func)
         def wrapped(*args: P.args, **kwargs: P.kwargs) -> R:
