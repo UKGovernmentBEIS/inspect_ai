@@ -1,5 +1,6 @@
 """Tests for trailing-edge throttle decorator."""
 
+import asyncio
 from collections.abc import Callable
 from unittest.mock import patch
 
@@ -578,6 +579,37 @@ class TestThrottleAsyncNoTaskGroup:
             await _flush_background()
             assert len(calls) == 2
             assert calls[1][1] == ("trailing",)
+
+    @skip_if_trio
+    async def test_asyncio_trailing_fire_resumes_after_fallback_cancelled_before_start(
+        self,
+    ) -> None:
+        """Cancelling the fallback task before its first step must not stop later trailing fires."""
+        clock = FakeClock()
+        with (
+            patch("inspect_ai.util._throttle.time") as mock_time,
+            patch("inspect_ai.util._throttle.anyio") as mock_anyio,
+        ):
+            mock_time.time = clock.time
+
+            async def fake_sleep(secs: float) -> None:
+                clock.advance(secs)
+
+            mock_anyio.sleep = fake_sleep
+            fn, calls = _make_recorder(1.0, clock)
+            fn("first")
+            before = asyncio.all_tasks()
+            fn("cancelled")
+            (deferred,) = asyncio.all_tasks() - before
+            deferred.cancel()
+            await _flush_background()
+            assert deferred.cancelled()
+            assert [c[1] for c in calls] == [("first",)]
+
+            # still within the first window
+            fn("later")
+            await _flush_background()
+            assert [c[1] for c in calls] == [("first",), ("later",)]
 
     async def test_trio_no_task_group_falls_back_to_sync(self) -> None:
         """Trio without task group: no deferred scheduled, falls back to sync behavior."""
