@@ -1249,7 +1249,13 @@ score and no `SampleInitEvent` (a sample whose record could not be
 serialized is logged without its events) is refused with
 `ShardSetError` before publishing or deleting. Reduced views take the
 metadata of the sample's first score, so grouped and clustered metrics see
-the same groups reduced or not. A task that declares one scorer twice
+the same groups reduced or not. The metadata is the value as stored in the
+log, as JSON (decision: Ransom, 2026-10-29): a tuple becomes a list and a
+datetime or enum a string, so samples whose dataset metadata differed only
+in such types can share a group in the merge where a native run kept them
+apart (a tuple and a list group value merge into one group). The merge
+cannot detect this from the log; eval authors use JSON values in metadata
+that metrics read, and shards already run with other types are re-run. A task that declares one scorer twice
 (score keys `name`, `name1`) is refused in `recreate_scorers`,
 before any sample is read: a fresh run names the suffixed scores' scorer
 `name`, a retry names it `name1`. After the last sample it calls
@@ -1342,24 +1348,26 @@ element types or a registered metric that builds the configuration
 inside its factory. There is no restoration inside containers.
 
 Dictionaries are refused in metric options, at any depth, except as a
-registered metric reference where the annotation takes a metric. The
-shared decoder (`registry_kwargs`) turns a registry-shaped dictionary
-back into a metric and a `ModelDict`-shaped one into a model, so the log
-cannot tell plain data from an encoded object; rather than detect those
-shapes, the merge accepts a dictionary only when it is a metric's
-registry dict in a position annotated `Metric`, or when the option is
-made only of such references and annotated as lists, sequences or
-`str`-keyed dictionaries ending in `Metric`, at any depth. Every other
-dictionary is refused: plain data (`dict[str, float]`), a dictionary in
-a list, registry- or model-shaped data where the annotation does not
-take a metric, `dict[int, Metric]` (its keys become strings),
-`tuple[Metric, ...]` (it becomes a list), a container mixing metrics
-with other values, and dictionary options on unannotated or
-unresolvable parameters. The message says dictionary options are not
-supported in merges and gives the registered-metric fix. The referenced
-metrics are checked by `_check_embedded`, which walks a metric's option
-map and an embedded metric's `params` by argument value, so arguments
-named `type`, `name` and `params` are never read as an encoded metric. Built-in
+single registered metric reference where the annotation takes a metric
+(decisions: Ransom, 2026-11-02). The shared decoder (`registry_kwargs`)
+turns a registry-shaped dictionary back into a metric and a
+`ModelDict`-shaped one into a model, so the log cannot tell plain data
+from an encoded object; rather than detect those shapes, the merge
+accepts a dictionary only when it is a metric's registry dict in a
+position annotated `Metric`, or when the option is a list made only of
+such references and annotated as lists or sequences ending in `Metric`,
+at any depth. Every other dictionary is refused: plain data
+(`dict[str, float]`), dictionaries of metrics (`dict[str, Metric]`,
+nested or in a list, whose keys could also read as a `ModelDict`), a
+dictionary in a list, registry- or model-shaped data where the
+annotation does not take a metric, `tuple[Metric, ...]` (it becomes a
+list), a container mixing metrics with other values, and dictionary
+options on unannotated or unresolvable parameters. The message says
+dictionary options are not supported in merges and gives the
+registered-metric fix. The referenced metrics are checked by
+`_check_embedded`, which walks a metric's option map and an embedded
+metric's `params` by argument value, so arguments named `type`, `name`
+and `params` are never read as an encoded metric. Built-in
 `frequency(categories=[...])` and MLRC's `list[str]` options merge;
 ANIMA's `dimension_normalized_avg(dims_by_name: dict[str, AnimaDimension])`
 is refused until wrapped in a registered metric.
@@ -2301,14 +2309,20 @@ today.
   options reach the recreated metric as members; an enum in a union with
   other types and a `Literal` of enum members are refused. A list option
   merges only when its parameter is annotated with plain element types.
-  Dictionary options are refused except registered metric references
-  where the parameter takes a metric (`dict[str, Metric]`, a metric in a
-  `list[Metric]`): a `dict[str, float]` option, ANIMA's
+  No dictionary option is accepted except a single registered metric,
+  alone or in a `list[Metric]`, where the parameter takes one: a
+  `dict[str, float]` option, a `dict[str, Metric]` option, ANIMA's
   `dict[str, AnimaDimension]`, lists of enums, functions or models,
-  non-`str` metric keys, tuples and unannotated containers are refused. The
+  tuples and unannotated containers are refused. The
   `@metric` wrapper now sets
   `__wrapped__`, so `inspect.signature()` of a metric factory reports the
   factory's parameters instead of `(*args, **kwargs)`.
+- **Sample metadata** reaches merged metrics as stored in the log, as
+  JSON (decision: Ransom, 2026-10-29): a tuple and a list, or a datetime
+  or enum and its string, are the same to the merge, so groups and custom
+  metrics can differ from the native run when dataset metadata used such
+  types. Authors use JSON values in metadata metrics read; affected shards
+  are re-run. No producer or log-format change, and no detection.
 - **`eval_retry` of a merged log** is refused unless it was merged with
   no selection (`"none"`), which excludes every merged log `eval_set()`
   writes; `eval_set()` over the directory finishes those. An older Inspect
@@ -2777,13 +2791,21 @@ Per PR (numbers from "Implementation plan"):
      model-shaped plain data and a plain `dict[str, float]` option, while
      `list[str]` options (MLRC-style), `frequency(categories=...)` and a
      list of registered metrics merge to the native values;
-     registered metrics in `dict[int, Metric]`, nested
-     `dict[str, dict[int, Metric]]` and `tuple[Metric, ...]` options
-     (direct and inside `grouped()`), and `Literal`s of `IntEnum`,
-     `IntFlag` (inside `Annotated`) and `float`-mixin enum members (direct
-     and inside `grouped()`), are refused the same way, while
-     `dict[str, Metric]` and a numeric `Literal[1, 2]` merge to the native
+     registered metrics in `dict[str, Metric]` (ordinary keys, and the
+     `ModelDict` keys `model`, `config`, `base_url` and `model_args`
+     directly, in a list and inside `grouped()`), `dict[int, Metric]`,
+     nested `dict[str, dict[int, Metric]]` and `tuple[Metric, ...]`
+     options (direct and inside `grouped()`), and `Literal`s of
+     `IntEnum`, `IntFlag` (inside `Annotated`) and `float`-mixin enum
+     members (direct and inside `grouped()`), are refused the same way,
+     while a single `Metric` argument (with arguments named `type`,
+     `name` and `params`, directly, inside `grouped()` and in a
+     `list[Metric]`) and a numeric `Literal[1, 2]` merge to the native
      values;
+   - metadata as stored: two samples whose group metadata is the tuple
+     `("a", "b")` and the list `["a", "b"]` form two groups in a native
+     run and one group (0.5) in the merge, as documented, while string
+     group metadata merges to the native groups;
    - delete-only S3 identity: `remove_shards_dir` refuses a merged log
      with `#`, a tab, CR, LF or a leading key slash, with and without
      `include_log`, on asyncio and Trio, deleting nothing (including the

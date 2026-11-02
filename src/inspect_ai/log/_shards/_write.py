@@ -232,12 +232,12 @@ def _check_function_options(
     else, an unannotated or unresolvable parameter, and a `**kwargs` option
     are refused (decision: Ransom, 2026-10-30).
 
-    A dictionary, at any depth, is accepted only as a registered metric
-    reference where the annotation takes a metric: `Metric`, or lists,
-    sequences and `str`-keyed dictionaries ending in `Metric` (see
-    :func:`_metric_container`). The log cannot tell plain data from an
-    encoded metric or model, so every other dictionary is refused
-    (decision: Ransom, 2026-11-02). The referenced metrics are checked by
+    A dictionary, at any depth, is accepted only as a single registered
+    metric reference where the annotation takes a metric: `Metric`, or
+    lists and sequences ending in `Metric` (see :func:`_metric_container`).
+    The log cannot tell plain data from an encoded metric or model, so
+    every other dictionary is refused, dictionaries of metrics included
+    (decisions: Ransom, 2026-11-02). The referenced metrics are checked by
     :func:`_check_embedded`.
 
     A log records an enum option by its value when the enum derives from
@@ -442,9 +442,9 @@ def _holds_no_function(annotation: object) -> bool:
 def _metric_container(annotation: object) -> bool:
     """Whether a container of registered metrics is restored for this type.
 
-    Lists, sequences and `str`-keyed dictionaries whose elements are
-    `Metric`s or such containers, alone or in a union with `None` or a
-    class; a tuple becomes a list and other keys become strings.
+    Lists and sequences whose elements are `Metric`s or such lists, alone
+    or in a union with `None` or a class; a tuple becomes a list.
+    Dictionaries of metrics are refused (decision: Ransom, 2026-11-02).
     """
 
     def element(annotation: object) -> bool:
@@ -458,13 +458,11 @@ def _metric_container(annotation: object) -> bool:
         args = typing.get_args(member)
         if member is type(None) or origin is type:
             continue
-        if origin in (list, collections.abc.Sequence) and len(args) == 1:
-            if not element(args[0]):
-                return False
-        elif origin in (dict, collections.abc.Mapping) and len(args) == 2:
-            if not (_str_keys(args[0]) and element(args[1])):
-                return False
-        else:
+        if not (
+            origin in (list, collections.abc.Sequence)
+            and len(args) == 1
+            and element(args[0])
+        ):
             return False
     return True
 
@@ -489,13 +487,11 @@ def _metric_type(annotation: object) -> bool:
 
 
 def _metrics_only(value: object) -> bool:
-    """Whether `value` is a metric's registry dict, or a container of only those."""
+    """Whether `value` is a metric's registry dict, or a list of only those."""
     from inspect_ai._util.registry import is_registry_dict
 
     if is_registry_dict(value):
         return value["type"] == "metric"
-    if isinstance(value, dict):
-        return bool(value) and all(_metrics_only(v) for v in value.values())
     if isinstance(value, (list, tuple)):
         return bool(value) and all(_metrics_only(v) for v in value)
     return False
@@ -540,18 +536,6 @@ def _plain(annotation: object) -> bool:
         if not plain:
             return False
     return True
-
-
-def _str_keys(annotation: object) -> bool:
-    """Whether a dictionary key type survives the log's JSON unchanged."""
-    return all(
-        member is str
-        or (
-            typing.get_origin(member) is typing.Literal
-            and all(type(value) is str for value in typing.get_args(member))
-        )
-        for member in _members(_unannotated(annotation))
-    )
 
 
 def _enums(annotation: object) -> list[type[enum.Enum]]:

@@ -1466,6 +1466,7 @@ def shard_metric_map(
     by_group: dict[str, dict[int, Metric]] | None = None,
     ordered: tuple[Metric, ...] | None = None,
     by_name: dict[str, Metric] | None = None,
+    nested: list[dict[str, Metric]] | None = None,
 ) -> Metric:
     """A metric given registered metrics in containers."""
 
@@ -1573,22 +1574,18 @@ def shard_sum_of(metrics: list[Metric]) -> Metric:
 
 
 @metric(name="shard_named")
-def shard_named(type: str, name: str, params: dict[str, Metric]) -> Metric:
+def shard_named(type: str, name: str, params: Metric) -> Metric:
     """A metric whose arguments are named like a registry dict's keys."""
 
     def compute(scores: list[SampleScore]) -> Value:
-        total = sum(
-            cast(float, cast(MetricProtocol, m)(scores)) for m in params.values()
-        )
+        total = cast(float, cast(MetricProtocol, params)(scores))
         return total + float(type == "metric") + float(name == "some-label")
 
     return compute
 
 
 def _named(label: str) -> Metric:
-    return shard_named(
-        type="metric", name=label, params={"points": aggregate("points", mean())}
-    )
+    return shard_named(type="metric", name=label, params=aggregate("points", mean()))
 
 
 @metric(name="shard_key_sum")
@@ -1623,7 +1620,6 @@ async def _verdict(state: TaskState, target: Target) -> Score:
         ),
         shard_mean_keys(["points"], 2.0, excluded_sample_ids=["1"]),
         shard_sum_of([aggregate("points", mean()), aggregate("verdict", accuracy())]),
-        shard_metric_map(by_name={"points": aggregate("points", mean())}),
         shard_scaled(plain=2),
         _named("some-label"),
         grouped(_named("mean"), "group"),
@@ -1716,7 +1712,6 @@ def test_metrics_with_their_own_converters_merge_to_the_unsharded_values(
     assert expected[("verdicts", "shard_mean_keys")] == 4.0
     assert expected[("verdicts", "shard_sum_of")] == 1.75 + 0.5
     assert expected[("labels", "P")] == 0.0
-    assert expected[("verdicts", "shard_metric_map")] == 1.75
     assert expected[("verdicts", "shard_scaled")] == 2.0
     # an argument map holding type, name and params is not an encoded metric
     assert expected[("verdicts", "shard_named")] == 1.75 + 2
@@ -1735,6 +1730,12 @@ def _not_plain(kind: str, argument: str) -> str:
 
 def _dict_refused(metric: str, kind: str, argument: str) -> str:
     return f"'{metric}' was given {kind} for '{argument}' holding a dictionary"
+
+
+def _model_keyed_metrics() -> dict[str, Metric]:
+    """Metrics keyed like a ModelDict, which Inspect's decoder reads as a model."""
+    keys = ["model", "config", "base_url", "model_args"]
+    return {key: aggregate("points", mean()) for key in keys}
 
 
 def _metric_container_refused(kind: str, argument: str) -> str:
@@ -1857,6 +1858,26 @@ _FUNCTION_OPTIONS: dict[str, tuple[Callable[[], list[Any]], str, bool]] = {
         _metric_container_refused("a dictionary", "by_index"),
         True,
     ),
+    "metric-dict": (
+        lambda: [shard_metric_map(by_name={"points": aggregate("points", mean())})],
+        _metric_container_refused("a dictionary", "by_name"),
+        True,
+    ),
+    "metric-dict-model-keys": (
+        lambda: [shard_metric_map(by_name=_model_keyed_metrics())],
+        _metric_container_refused("a dictionary", "by_name"),
+        True,
+    ),
+    "metric-dict-model-keys-in-list": (
+        lambda: [shard_metric_map(nested=[_model_keyed_metrics()])],
+        _metric_container_refused("a list", "nested"),
+        True,
+    ),
+    "metric-dict-model-keys-grouped": (
+        lambda: [grouped(shard_metric_map(by_name=_model_keyed_metrics()), "group")],
+        _metric_container_refused("a dictionary", "by_name"),
+        True,
+    ),
     "enum-literal": (
         lambda: [shard_scaled(scale=Scale.HIGH)],
         _enum_literal_refused("scale"),
@@ -1915,7 +1936,7 @@ _FUNCTION_OPTIONS: dict[str, tuple[Callable[[], list[Any]], str, bool]] = {
 def test_a_metric_given_a_function_is_refused(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, option: str, merge: str
 ) -> None:
-    from inspect_ai.log._shards import _write
+    from inspect_ai.log._shards import _api, _write
 
     metrics, message, scored = _FUNCTION_OPTIONS[option]
 
@@ -1924,16 +1945,13 @@ def test_a_metric_given_a_function_is_refused(
 
     merged, shards = _paths(tmp_path)
     if merge == "incremental":
-        # a merged log written before the refusal, from a shard with no samples
+        # a merged log written before the refusal, from a shard with no
+        # samples, so no metric is recreated
         running = _run(shards, "0", task(), sample_id=[1, 2, 3])
         _as_running(running, keep=set())
         with monkeypatch.context() as patched:
-            patched.setattr(
-                _write,
-                "_check_function_options",
-                lambda name, factory, options: dict(options or {}),
-                raising=False,
-            )
+            for module in (_write, _api):
+                patched.setattr(module, "recreate_scorers", lambda header: [])
             assert merge_eval_log_shards(merged, allow_incomplete=True).written
     _run(shards, "0", task(), sample_id=[1, 2, 3])
     _run(shards, "1", task(), sample_id=[4, 5, 6])
@@ -1944,6 +1962,63 @@ def test_a_metric_given_a_function_is_refused(
         with pytest.raises(ShardSetError, match=message):
             _merge_on("trio", monkeypatch, merged, delete_shards=delete)
     assert _files(str(tmp_path)) == before
+
+
+async def _group_score(state: TaskState, target: Target) -> Score:
+    return Score(value=state.metadata["value"])
+
+
+@scorer(metrics=[grouped(mean(), "group", all=False)])
+def group_valued() -> Scorer:
+    return _group_score
+
+
+def _group_task(groups: dict[int, Any]) -> Task:
+    """Sample `id` scores `id - 1`, in the group its metadata names."""
+    return Task(
+        dataset=[
+            Sample(
+                id=id, input=f"question {id}", metadata={"group": g, "value": id - 1}
+            )
+            for id, g in groups.items()
+        ],
+        solver=generate(),
+        scorer=group_valued(),
+        name=TASK,
+    )
+
+
+@pytest.mark.parametrize("kind", ["tuple-list", "strings"])
+def test_merged_metrics_see_metadata_as_stored_in_the_log(
+    tmp_path: Path, kind: str
+) -> None:
+    # decision: Ransom, 2026-10-29: merge equality is over the JSON values a
+    # log stores; a tuple and a list are stored alike, so their groups merge
+    groups: dict[int, Any] = (
+        {1: ("a", "b"), 2: ["a", "b"]} if kind == "tuple-list" else {1: "x", 2: "y"}
+    )
+    native = eval(
+        _group_task(groups),
+        model="mockllm/model",
+        log_dir=str(tmp_path / "unsharded"),
+        display="none",
+    )[0]
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", _group_task(groups), sample_id=[1])
+    _run(shards, "1", _group_task(groups), sample_id=[2])
+    log = merge_eval_log_shards(merged, delete_shards=True).log
+    if kind == "tuple-list":
+        assert _metric_values(native) == {
+            ("group_valued", "('a', 'b')"): 0.0,
+            ("group_valued", "['a', 'b']"): 1.0,
+        }
+        assert _metric_values(log) == {("group_valued", "['a', 'b']"): 0.5}
+    else:
+        assert _metric_values(log) == _metric_values(native)
+        assert _metric_values(log) == {
+            ("group_valued", "x"): 0.0,
+            ("group_valued", "y"): 1.0,
+        }
 
 
 def _check_invalidated(merged: str, expected: bool) -> None:
