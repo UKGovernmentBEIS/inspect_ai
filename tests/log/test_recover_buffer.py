@@ -1,13 +1,17 @@
 """Tests for reading recovery data from the sample buffer database."""
 
+import math
 import os
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any, cast
 
 from test_helpers.buffer import DEAD_PID, simulate_crashed_buffer_db
 
+from inspect_ai.dataset import Sample
 from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.log._log import EvalSampleSummary
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 from inspect_ai.log._recorders.types import SampleEvent
@@ -251,3 +255,32 @@ def test_read_buffer_recovery_data_picks_newest_db() -> None:
         assert recovery.completed[0].id == 10
         assert len(recovery.in_progress) == 1
         assert recovery.in_progress[0].id == 11
+
+
+def test_buffer_events_keep_non_finite_floats() -> None:
+    """Buffered event rows write NaN/Inf as JSON constants, not null.
+
+    Each row dumps one event as its own root rather than inside an
+    `EvalSample`, so the event models must carry the non-finite config.
+    The realtime viewer and crash recovery both read these rows.
+    """
+    with tempfile.TemporaryDirectory() as temp_dir:
+        location = os.path.join(temp_dir, "test.eval")
+        buffer = SampleBufferDatabase(location, create=True, db_dir=Path(temp_dir))
+        buffer.start_sample(_make_started_summary(1))
+        init = SampleInitEvent(
+            sample=Sample(input="input", metadata={"nan": float("nan")}),
+            state={},
+        )
+        model = _make_model_event()
+        model.output.metadata = {"inf": float("inf")}
+        buffer.log_events(
+            [SampleEvent(id=1, epoch=1, event=event) for event in (init, model)]
+        )
+
+        data = buffer.get_sample_data(1, 1)
+        assert data is not None
+        init_data, model_data = (cast(Any, event.event) for event in data.events)
+        assert math.isnan(init_data["sample"]["metadata"]["nan"])
+        assert model_data["output"]["metadata"]["inf"] == float("inf")
+        buffer.cleanup()

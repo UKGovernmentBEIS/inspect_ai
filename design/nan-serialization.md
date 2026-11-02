@@ -30,7 +30,9 @@ JSON; see reader tolerance below).
 Pydantic reads `ser_json_inf_nan` from the **dump-root model only** — config
 on a nested model is ignored, so configuring `Score` alone does nothing when
 it is serialized inside `EvalSample`. Every model that is itself a
-serialization root for score-bearing data must therefore repeat the config:
+serialization root for score-bearing data must therefore repeat the config.
+The same loss hits other non-finite floats under a root, such as dataset
+metadata in `SampleInitEvent`, so events carry the config too:
 
 | Wire root | Serialized at |
 | --- | --- |
@@ -38,7 +40,7 @@ serialization root for score-bearing data must therefore repeat the config:
 | `EvalSampleSummary` | `summaries.json` and journal summaries |
 | `EvalSampleReductions` | `reductions.json` |
 | `EvalLog` | `header.json`; entire `.json`-format logs |
-| `ScoreEvent`, `ScoreEditEvent` | realtime buffer db event rows |
+| every `Event` member (via `BaseEvent`) | realtime buffer db event rows; events chunks of chunked samples |
 | `Samples`, `SampleData`, `Manifest` | buffer filestore sync, view server responses |
 | `Score`, `ScoreEdit` | direct dumps (defensive; unit-level consistency) |
 | `IntermediateScoring` | `store_jsonable()` dumps `HumanAgentState.scorings` entries directly |
