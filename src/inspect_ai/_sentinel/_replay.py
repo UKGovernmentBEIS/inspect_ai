@@ -370,8 +370,11 @@ class _Driver:
         # the ids of the calls whose tool steps replay skips
         self.skipped: list[str] = []
         self.ambiguous_results: set[str] = set()
+        self.native_ends: dict[str, list[int]] = {}
         # call id -> the indexes of the model events that proposed it
         self.proposed: dict[str, list[int]] = {}
+        # call id -> proposal, checked call, and execution starts in log order
+        self.invocations: dict[str, list[int]] = {}
         # each model event's input view and producer, shared by its steps
         self._views: dict[int, PoolView] = {}
         self._producers: dict[int, Producer] = {}
@@ -480,6 +483,22 @@ class _Driver:
                 calls.append(entry)
 
         self._check_generated(candidates, turn_ids)
+        for call_id, positions in self.proposed.items():
+            self.invocations.setdefault(call_id, []).extend(positions)
+        for entry in calls:
+            position = (
+                self.begins[entry.tool_span][0]
+                if entry.tool_span is not None
+                else entry.index
+            )
+            self.invocations.setdefault(entry.event.id, []).append(position)
+        for (stage, call_id), spans in self.tool_spans.items():
+            if stage == "tool_call":
+                self.invocations.setdefault(call_id, []).extend(
+                    self.begins[span][0] for span in spans
+                )
+        for positions in self.invocations.values():
+            positions.sort()
         for group in generates:
             self._generate(group)
         for entry in calls:
@@ -708,22 +727,24 @@ class _Driver:
         # the span has ended
         begin = self.begins[tool_span][0] if tool_span else call.index
         end = self.ends.get(tool_span) if tool_span is not None else None
+        self.native_ends.setdefault(event.id, []).append(
+            end if end is not None else call.index
+        )
         before_span = self._tool_span_of(
             ("tool_call", event.id), call.produced_at, begin
         )
-        # A native result check starts immediately after its tool span closes.
-        # A later check under the same id may belong to a bridge invocation
-        # and cannot establish ownership.
+        # A native result check belongs to this invocation only until another
+        # proposal or execution under the same id starts. A reviewer can log
+        # model calls between the tool span and its result check.
         after_span = (
-            self._tool_span_of(("tool_result", event.id), end, end + 2)
+            self._tool_span_of(
+                ("tool_result", event.id),
+                end,
+                self._next_invocation(event.id, end),
+            )
             if end is not None
             else None
         )
-        if after_span is None and any(
-            self.begins[span][0] > (end if end is not None else call.index)
-            for span in self.tool_spans.get(("tool_result", event.id), [])
-        ):
-            self.ambiguous_results.add(event.id)
         proposal = call.proposal
         if proposal is None or call.assistant is None:
             return
@@ -832,6 +853,12 @@ class _Driver:
         self._at_point(after_cut, call.seq + 2, build_after)
         self._settle_at_end(after_span)
 
+    def _next_invocation(self, call_id: str, after: int) -> int | None:
+        """Start of the next proposal or execution under this call id, if any."""
+        starts = self.invocations.get(call_id, [])
+        index = bisect_right(starts, after)
+        return starts[index] if index < len(starts) else None
+
     def _tool_span_of(
         self,
         key: tuple[SentinelStage, str],
@@ -855,10 +882,15 @@ class _Driver:
 
     def _skip_bridge_checks(self) -> None:
         """Publish the `human()` decisions of the tool steps no call took, which are an agent bridge's, and warn that replay skips them."""
-        for (_, call_id), spans in self.tool_spans.items():
+        for (stage, call_id), spans in self.tool_spans.items():
             for span in spans:
                 self._settle_at_end(span)
                 self.skipped.append(call_id)
+                if stage == "tool_result" and any(
+                    end < self.begins[span][0]
+                    for end in self.native_ends.get(call_id, [])
+                ):
+                    self.ambiguous_results.add(call_id)
         if self.skipped:
             logger.warning(
                 "Replay skipped the tool steps of calls an agent bridge checked or "

@@ -42,6 +42,7 @@ from inspect_ai.event import (
     ModelEvent,
     SentinelEvent,
     SpanBeginEvent,
+    SpanEndEvent,
     Timeline,
     TimelineEvent,
     TimelineSpan,
@@ -67,6 +68,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.model._providers.mockllm import MockLLM
+from inspect_ai.review import Review, Reviewer, ReviewPolicy, reviewer
 from inspect_ai.scorer import Score, Scorer, Target, scorer
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
 from inspect_ai.tool import (
@@ -75,6 +77,7 @@ from inspect_ai.tool import (
     ToolCallContent,
     ToolCallView,
     ToolInfo,
+    ToolResult,
     tool,
 )
 from inspect_ai.tool._tool import ToolApprovalError, ToolParsingError
@@ -3070,7 +3073,11 @@ def r7_defers_a_bridged_host_call(
         )
         [proposed] = completion.choices[0].message.tool_calls or []
         assert proposed.type == "function"
-        native_tools = [explodes() if native == "explodes" else addition()]
+        native_tools = (
+            [addition(), explodes()]
+            if native == "both"
+            else [explodes() if native == "explodes" else addition()]
+        )
         history: list[ChatMessage] = [ChatMessageUser(content="What is 5 + 5?")]
         output = await get_model().generate(history, tools=native_tools)
         history.append(output.message)
@@ -3084,7 +3091,7 @@ def r7_defers_a_bridged_host_call(
             try:
                 await execute_tools(history, native_tools)
             except RuntimeError:
-                assert native == "explodes"
+                assert native in ("explodes", "both")
 
         for run in (native_call, host) if native_first else (host, native_call):
             await run()
@@ -3147,7 +3154,7 @@ def test_a_native_call_run_while_a_bridged_call_waits_replays_its_own_checks(
 
 def test_a_native_result_check_inside_its_invocation_is_replayed() -> None:
     log = run_logged(
-        as_solver(r7_defers_a_bridged_host_call(native_first=True)),
+        as_solver(r7_defers_a_bridged_host_call(native_first=True, native="both")),
         outputs(
             r7_tool_calls(
                 ToolCall(
@@ -3157,19 +3164,111 @@ def test_a_native_result_check_inside_its_invocation_is_replayed() -> None:
                 )
             ),
             r7_tool_calls(
-                ToolCall(id="shared", function="addition", arguments={"x": 5, "y": 5})
+                ToolCall(
+                    id="native_ok", function="addition", arguments={"x": 5, "y": 5}
+                ),
+                ToolCall(id="shared", function="explodes", arguments={}),
             ),
         ),
-        sentinel=[r7_probe({})],
+        sentinel=[r7_probe({}), r7_bridge_result_outcome("terminate")],
     )
     native_results = [
-        step.step
-        for step in replayed(log)
-        if isinstance(step.step, AfterToolCall)
-        and step.step.call.arguments == {"x": 5, "y": 5}
+        step.step for step in replayed(log) if isinstance(step.step, AfterToolCall)
     ]
     assert len(native_results) == 1
+    assert native_results[0].call.id == "native_ok"
     assert native_results[0].result.text == "10"
+
+
+@reviewer
+def r7_reviewer_logs_a_model_call() -> Reviewer:
+    async def review_result(
+        message: str,
+        call: ToolCall,
+        result: ChatMessageTool,
+        output: ToolResult,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Review:
+        await get_model("mockllm/reviewer").generate("Review this result")
+        return Review(decision="continue")
+
+    return review_result
+
+
+def test_a_native_result_check_follows_an_interleaved_reviewer_model_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai._sentinel import _replay
+
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        as_solver(r7_defers_a_bridged_host_call(native_first=True, native="both")),
+        outputs(
+            r7_tool_calls(
+                ToolCall(
+                    id="shared",
+                    function="mcp__host__addition",
+                    arguments={"x": 1, "y": 1},
+                )
+            ),
+            r7_tool_calls(
+                ToolCall(
+                    id="native_ok", function="addition", arguments={"x": 5, "y": 5}
+                ),
+                ToolCall(id="shared", function="explodes", arguments={}),
+            ),
+        ),
+        sentinel=[r7_probe(seen, copies=True), r7_bridge_result_outcome("terminate")],
+        review=[ReviewPolicy(r7_reviewer_logs_a_model_call(), "addition")],
+    )
+    sample = logged_sample(log)
+    [recorded_span] = [
+        event.span_id
+        for event in sample.events
+        if isinstance(event, SentinelEvent)
+        and event.stage == "tool_result"
+        and event.step_id == "native_ok"
+        and event.path == "r7_probe"
+    ]
+    assert recorded_span is not None
+    reviewer_event = next(
+        index
+        for index, event in enumerate(sample.events)
+        if isinstance(event, ModelEvent) and event.model == "mockllm/reviewer"
+    )
+    result_begin = next(
+        index
+        for index, event in enumerate(sample.events)
+        if isinstance(event, SpanBeginEvent) and event.id == recorded_span
+    )
+    tool_event = next(
+        index
+        for index, event in enumerate(sample.events)
+        if isinstance(event, ToolEvent) and event.id == "native_ok"
+    )
+    tool_begin = sample.events[tool_event - 1]
+    assert isinstance(tool_begin, SpanBeginEvent) and tool_begin.type == "tool"
+    tool_span = tool_begin.id
+    tool_end = next(
+        index
+        for index, event in enumerate(sample.events)
+        if isinstance(event, SpanEndEvent) and event.id == tool_span
+    )
+    assert tool_end < reviewer_event < result_begin
+    selected: list[tuple[str, str | None]] = []
+    built = _replay._Driver._built
+
+    def record(
+        self: Any, step_id: str, stage: SentinelStage, step: Step, span: str | None
+    ) -> None:
+        if stage == "tool_result":
+            selected.append((step_id, span))
+        built(self, step_id, stage, step, span)
+
+    monkeypatch.setattr(_replay._Driver, "_built", record)
+    replayed(log)
+    assert selected == [("native_ok", recorded_span)]
 
 
 @protocol
@@ -3226,22 +3325,22 @@ def test_a_failed_native_call_takes_no_later_bridge_result_check(
     # the native call raised, so live checked no result of it; the bridge
     # checked its host call's result under the same id afterwards
     live = [
-        (e.stage, seen[e.explanation or ""].call.function)
+        (e.stage, seen[e.explanation or ""].call.arguments)
         for e in events
         if isinstance(e, SentinelEvent)
         and e.path == "r7_probe"
         and e.stage.startswith("tool")
     ]
     assert live == [
-        ("tool_call", "addition"),
-        ("tool_call", "explodes"),
-        ("tool_result", "addition"),
+        ("tool_call", {"x": 1, "y": 1}),
+        ("tool_call", {}),
+        ("tool_result", {"x": 1, "y": 1}),
     ]
     assert [
-        (s.stage, s.step.call.function)
+        (s.stage, s.step.call.arguments)
         for s in replayed(log)
         if isinstance(s.step, BeforeToolCall | AfterToolCall)
-    ] == [("tool_call", "explodes")]
+    ] == [("tool_call", {})]
     assert "call id(s) shared" in caplog.text
 
 
