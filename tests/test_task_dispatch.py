@@ -569,29 +569,25 @@ class _ScriptedSource(TaskSource):
 async def test_dispatcher_idle_rule(
     source: list[list[str] | None] | None, idle_groups: list[list[str]]
 ) -> None:
-    # the loop's side of the tasks, without running any: add_more_tasks asks
-    # the source for its next batch until it returns nothing, then closes
+    # the loop's side of the tasks, without running any: ask_source_for_more
+    # adds the source's next batch until it returns nothing
     scripted = None if source is None else _ScriptedSource(source)
     harness = Harness([get_model("mockllm/m1")], parallel=2)
     dispatcher = harness.dispatcher(scripted)
-    # nothing runs here, so empty the queue between idle steps
-    while True:
-        harness.tasks.queued.clear()
-        if not await dispatcher.add_more_tasks():
-            break
+    while dispatcher.next_tasks is not None:
+        await dispatcher.ask_source_for_more()
 
     groups = [[label.split("@")[0] for label in g] for g in harness.queued_groups]
     assert groups == idle_groups
     # every scripted batch was asked for, and none beyond (a further call raises)
     assert scripted is None or scripted.batches == []
-    with pytest.raises(RuntimeError, match="finished dispatching"):
-        await harness.tasks.add([_task("late")])
 
 
-async def test_dispatcher_runs_tasks_added_during_final_next_tasks() -> None:
-    # next_tasks() blocks; tasks added meanwhile are queued at once, so the
-    # run goes on once it returns None, and the ended source is never asked
-    # again
+async def test_dispatcher_runs_tasks_added_during_final_next_tasks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # next_tasks() blocks; a task added meanwhile is queued, so the run goes
+    # on once it returns None, and the ended source is never asked again
     entered = anyio.Event()
     release = anyio.Event()
 
@@ -606,24 +602,28 @@ async def test_dispatcher_runs_tasks_added_during_final_next_tasks() -> None:
             await release.wait()
             return None
 
+    m1 = get_model("mockllm/m1")
     source = BlockingSource()
-    harness = Harness([get_model("mockllm/m1")], parallel=2)
-    dispatcher = harness.dispatcher(source)
-    first: list[bool] = []
+    harness = Harness([m1], parallel=2)
+    _install(monkeypatch, harness)
 
-    async def idle() -> None:
-        first.append(await dispatcher.add_more_tasks())
-
-    async with anyio.create_task_group() as tg:
-        tg.start_soon(idle)
+    async def drive() -> None:
+        await _wait_started(harness, "a@m1")
+        harness.finish["a@m1"].set()
         await entered.wait()
         await harness.tasks.add([_task("w")])
         release.set()
+        await _wait_started(harness, "w@m1")
+        harness.finish["w@m1"].set()
 
-    assert first == [True] and harness.queued_groups == [["w@m1"]]
-    harness.tasks.queued.clear()
-    assert not await dispatcher.add_more_tasks()
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(drive)
+        logs = await harness.run(_resolve(["a"], [m1]), source)
+
+    assert [log.eval.task for log in logs] == ["a@m1", "w@m1"]
     assert source.calls == 1
+    with pytest.raises(RuntimeError, match="finished dispatching"):
+        await harness.tasks.add([_task("late")])
 
 
 # ------------------------------------------------------------- the loop

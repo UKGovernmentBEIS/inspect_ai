@@ -124,9 +124,10 @@ class RunTasks:
     ``queued`` holds the records that may start, in the order they were
     added, and ``running`` those that have started (including one between
     attempts); the scheduling loop moves a record from one to the other with
-    :meth:`start`. Every way a record ends goes through :meth:`end`. Only
-    adding tasks awaits (to resolve them), and the lists change only after it
-    has, so they need no lock.
+    :meth:`start`. Every way a record ends goes through :meth:`end`. Every
+    method that changes the records rings :attr:`changed`, so whoever changes
+    them never has to. Only adding tasks awaits (to resolve them), and the
+    lists change only after it has, so they need no lock.
     """
 
     def __init__(
@@ -146,9 +147,10 @@ class RunTasks:
             resolve: Resolves tasks against the run's models and config.
             configure: Configures tasks for the run.
             prepare: Resolves a configured task's sandbox configs.
-            changed: Set whenever the scheduling loop should look at the tasks
-                again: as tasks are queued, and by the run's ``SetupCache`` as
-                each setup ends.
+            changed: Rung whenever the scheduling loop should look at the
+                tasks again: by every change to them, by the run's
+                ``SetupCache`` as each setup ends, and by ``inspect ctl`` as a
+                setting that decides what can start changes.
             sequence_order: Order the tasks of each addition by sequence (at a
                 launch limit of 1: the scheduling loop breaks ties in queue
                 order, so all of a task's model fan-outs then run before the
@@ -238,6 +240,7 @@ class RunTasks:
         """Move a queued record to the running ones as its attempt starts."""
         self.queued.remove(record)
         self.running.add(record)
+        self.changed.set()
 
     def end(self, record: TaskRecord) -> None:
         """End a record, keeping its latest log; it drops what only its attempts need.
@@ -253,16 +256,7 @@ class RunTasks:
         record.configured = None
         record.logger = None
         record.setups = None
-
-    def close_if_idle(self) -> bool:
-        """Refuse additions once nothing is running or queued; whether it closed.
-
-        A single call, so nothing can be added between the check and the close.
-        """
-        if self.running or self.queued:
-            return False
-        self._closed = True
-        return True
+        self.changed.set()
 
     def cancel_waiting(self, record: TaskRecord) -> None:
         """End a queued record that will now never start (an operator cancelled it).
@@ -272,14 +266,14 @@ class RunTasks:
         self.queued.remove(record)
         self.end(record)
         display().update_task_count(-1)
-        self.changed.set()
 
     def close(self) -> None:
         """Refuse further additions and end every record that has not ended.
 
-        Called as the run ends: a cancelled or failed run leaves records
-        queued, which will now never start, and running ones, whose attempts
-        it interrupted. Each keeps its latest attempt's log, if any.
+        Called by the scheduling loop once nothing is queued, running or
+        coming, and again as the run ends: a cancelled or failed run leaves
+        records queued, which will now never start, and running ones, whose
+        attempts it interrupted. Each keeps its latest attempt's log, if any.
         """
         self._closed = True
         for record in [*self.queued, *self.running]:

@@ -4,8 +4,8 @@ The scheduler's state (the run's :class:`RunTasks`, its :class:`SetupCache`)
 is used only from the run's event loop and changed without locks: code on one
 event loop does not interleave between ``await`` points, so a method that does
 not await (``RunTasks.enqueue``, ``start`` and ``end``, the dispatcher's
-``queue_upcoming_setups`` and ``next_task_to_start``, the setup cache's
-bookkeeping) changes it as one step.
+``prepare_sandboxes_for_next_tasks`` and ``next_task_to_start``, the setup
+cache's bookkeeping) changes it as one step.
 """
 
 import functools
@@ -775,8 +775,8 @@ class TaskDispatcher:
     Starts the queued records with bounded, model-balanced concurrency as
     they can start, and when nothing is queued or running asks the
     ``TaskSource`` for more (``next_tasks()``) until there is nothing left.
-    A record can start once its setups are requested
-    (see :meth:`queue_upcoming_setups`) and they are done, or failed: a
+    A record can start once its setups are requested (see
+    :meth:`prepare_sandboxes_for_next_tasks`) and they are done, or failed: a
     record whose setup is still running keeps its place but does not hold
     back a later one. A record whose setup failed starts like any other and
     its attempt ends with that error, so it has a log, hooks and a
@@ -813,8 +813,6 @@ class TaskDispatcher:
         """Asked for more tasks when nothing is queued or running: the
         ``TaskSource``'s ``next_tasks()`` (``None`` once it returns nothing)."""
         self.debug_errors = debug_errors
-        self.run_cancelled = False
-        """An attempt ended cancelled (the run was cancelled): start no more."""
 
     async def run(self) -> list[EvalLog]:
         """Run the queued tasks and every task added while the run is in progress.
@@ -848,39 +846,49 @@ class TaskDispatcher:
         return self.tasks.results()
 
     async def loop(self, tg: TaskGroup) -> None:
-        """Start records while there is capacity; when idle, add more or finish."""
-        while not self.run_cancelled:
+        """Start the queued tasks as they can start, then ask for more or finish.
+
+        Each pass takes the first step that applies: start one task that can
+        start now; else, while tasks are queued or running, sleep until
+        something changes; else (nothing queued or running) ask the
+        ``TaskSource`` for more; else close the run's tasks and return.
+        ``RunTasks.changed`` wakes it: the run's tasks ring it whenever they
+        change (a task added, started, ended, or cancelled while waiting), the
+        setup cache as each setup ends, and ``inspect ctl`` as a setting that
+        decides what can start changes (pause, resume, ``max_tasks``). A
+        cancellation of the run reaches the loop where it awaits.
+        """
+        while True:
             if self.setups.fatal is not None:
                 raise self.setups.fatal
-            while True:
-                self.queue_upcoming_setups()
-                record = self.next_task_to_start()
-                if record is None:
-                    break
+            self.prepare_sandboxes_for_next_tasks()
+            if (record := self.next_task_to_start()) is not None:
                 self.start_in_background(tg, record)
-            if self.tasks.queued or self.tasks.running:
+            elif self.tasks.queued or self.tasks.running:
                 await self.tasks.changed.wait()
-            elif not await self.add_more_tasks():
-                break
+            elif self.next_tasks is not None:
+                await self.ask_source_for_more()
+            else:
+                # nothing is queued, running or coming: a late add raises
+                self.tasks.close()
+                return
 
-    async def add_more_tasks(self) -> bool:
-        """Ask for more tasks once nothing is queued or running; whether any came.
+    async def ask_source_for_more(self) -> None:
+        """Ask the ``TaskSource`` for its next batch and add it.
 
-        ``next_tasks`` is asked until it first returns nothing; its batch is
-        added as ``enqueue_task`` adds tasks, after any added while it ran.
-        Then the run takes no more tasks, unless some were added while the
-        last call ran.
+        Its batch is added as ``enqueue_task`` adds tasks, after any added
+        while ``next_tasks()`` ran. Once it returns nothing it is not asked
+        again.
         """
-        if self.next_tasks is not None:
-            more = await self.next_tasks()
-            if more:
-                await self.tasks.add(more)
-                return True
+        assert self.next_tasks is not None
+        more = await self.next_tasks()
+        if more:
+            await self.tasks.add(more)
+        else:
             self.next_tasks = None
-        return not self.tasks.close_if_idle()
 
-    def queue_upcoming_setups(self) -> None:
-        """Request the setups of the queued records that will start soonest.
+    def prepare_sandboxes_for_next_tasks(self) -> None:
+        """Request the sandbox setups of the queued records that will start soonest.
 
         Those are the first ``max_tasks`` (read live) unpaused queued records,
         so a queued task's sandboxes (often billed cloud resources) are not
@@ -956,8 +964,6 @@ class TaskDispatcher:
                     await logger.discard()
                     break
                 record.log = run.log
-                if run.log.status == "cancelled":
-                    self.run_cancelled = True
                 if not wants_retry(run.cancel_type, run.log, record, retries_left):
                     # unwind the task runner's retry-pending mark (a no-op if a
                     # cancel stamp during the log write already cleared it)
@@ -978,7 +984,6 @@ class TaskDispatcher:
             await _release_unfinished(logger)
             raise
         self.tasks.end(record)
-        self.tasks.changed.set()
 
     async def set_up_again(self, record: TaskRecord) -> None:
         """Set up whatever of a record's setups failed, ahead of those waiting.
