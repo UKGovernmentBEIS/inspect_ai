@@ -48,6 +48,7 @@ from inspect_ai.agent._bridge.sandbox.bridge import sandbox_agent_bridge
 from inspect_ai.agent._bridge.sandbox.service import _forward_provider_errors
 from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
 from inspect_ai.dataset import Sample
+from inspect_ai.event import SampleLimitEvent
 from inspect_ai.log import EvalSample
 from inspect_ai.model import (
     ChatMessage,
@@ -817,7 +818,7 @@ async def test_forward_provider_errors_logs_other_errors_beside_a_limit(
 
 
 async def test_forward_provider_errors_keeps_only_the_first_limit() -> None:
-    """Only the first limit is recorded; later ones are released once answered.
+    """A later limit that does not enclose the first is released once answered.
 
     A scaffold can keep sending requests after its error reply. Their limit
     errors, with the request frames in their tracebacks, are not kept until
@@ -1025,7 +1026,9 @@ class _Scaffold:
     `slow_kill`, killing the model proxy lasts until an enclosing scope has
     cancelled the model service. With `cancel_on_kill`, killing it cancels the
     scope enclosing the bridge (`enclosing`), as an enclosing time limit
-    expiring then would.
+    expiring then would. With `overlap`, every request reaches the model
+    before any generation returns, and each returns only once the reply to the
+    one before it has been written.
     """
 
     requests: list[_Request]
@@ -1034,13 +1037,30 @@ class _Scaffold:
     response_filter: ModelResponseFilter | None = None
     slow_kill: bool = False
     cancel_on_kill: bool = False
+    overlap: bool = False
     enclosing: anyio.CancelScope = field(init=False)
 
     def arm(self) -> None:
         self.killing = anyio.Event()
         self.service_cancelled = anyio.Event()
+        self.generations = 0
+        self.in_flight = anyio.Event()
+        self.written = [anyio.Event() for _ in self.requests]
         for request in self.requests:
             request.arm()
+
+    async def generated(self) -> None:
+        """Hold a generation at the model as `overlap` says."""
+        if not self.overlap:
+            return
+        arrival = self.generations
+        self.generations += 1
+        if self.generations == len(self.requests):
+            self.in_flight.set()
+        with anyio.fail_after(10):
+            await self.in_flight.wait()
+            if arrival > 0:
+                await self.written[arrival - 1].wait()
 
     @property
     def during_shutdown(self) -> _Request | None:
@@ -1149,6 +1169,7 @@ def _serve_generations(
                 if request.held:
                     await anyio.sleep_forever()
                 replies.append((result, error))
+                scaffold.written[len(replies) - 1].set()
                 request.replied.set()
                 await anyio.sleep(0.01)
 
@@ -1223,6 +1244,10 @@ def _run_bridged_agent(
     errors: list[LimitExceededError | None] = []
     outer_errors: list[LimitExceededError | None] = []
 
+    async def outputs(*args: Any) -> ModelOutput:
+        await scaffold.generated()
+        return output
+
     @agent
     def outer_agent() -> Agent:
         async def execute(state: AgentState) -> AgentState:
@@ -1256,7 +1281,7 @@ def _run_bridged_agent(
             solver=run_bridged(),
             token_limit=sample_token_limit,
         ),
-        model=get_model("mockllm/model", custom_outputs=[output] * 3),
+        model=get_model("mockllm/model", custom_outputs=outputs),
         log_dir=str(tmp_path),
         display="none",
     )[0]
@@ -1414,16 +1439,15 @@ def test_limit_in_a_bridged_generation_during_shutdown_is_raised(
 
 
 @pytest.mark.parametrize("first", ["sample", "agent"])
-def test_concurrent_bridged_generations_raise_the_first_limit(
+def test_concurrent_bridged_generations_raise_the_sample_limit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, first: str
 ) -> None:
-    """Of limits reached by concurrent bridged generations, the first is raised.
+    """Of limits reached by concurrent bridged generations, the sample's is raised.
 
     One request reaches the sample's token limit, another the `run()` message
-    limit, in either order. A native agent stops at the first limit it reaches,
-    so the scope that applied the first one handles it. When that is the
-    `run()` limit, the sample's limit reached after the error reply is not
-    raised, since nothing generates again in the sample.
+    limit, in either order. The sample's limit encloses the `run()` limit, so
+    it is raised even when it is reached second: the sample ends with it
+    rather than continuing past it.
     """
     # 7 tokens: over the sample's token limit
     sample_request = _Request(after_first=first == "agent")
@@ -1442,10 +1466,52 @@ def test_concurrent_bridged_generations_raise_the_first_limit(
         sample_token_limit=5,
     )
 
-    if first == "sample":
-        _assert_sample_token_limit(outcome)
+    _assert_sample_token_limit(outcome)
+    _assert_error_replies(outcome.replies, count=2)
+
+
+@pytest.mark.parametrize("enclosing", ["sample", "run"])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_overlapping_bridged_generations_raise_the_enclosing_limit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, enclosing: str, backend: str
+) -> None:
+    """A limit enclosing the first reached by overlapping generations is raised.
+
+    Two requests are in flight together. The first reply reaches the bridged
+    agent's `run()` token limit, the second a token limit enclosing it: the
+    sample's, or an enclosing `run()`'s. The enclosing limit is raised, so its
+    scope handles it, and the inner `run()` does not catch it.
+    """
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    # 7 tokens per generation: the first is over the inner limit only
+    inner = token_limit(5)
+    outer = token_limit(10) if enclosing == "run" else None
+
+    outcome = _run_bridged_agent(
+        tmp_path,
+        monkeypatch,
+        inner,
+        scaffold=_Scaffold([_Request(), _Request()], overlap=True),
+        sample_token_limit=10 if enclosing == "sample" else None,
+        outer_limit=outer,
+    )
+
+    reached = [
+        event.limit
+        for event in outcome.sample.events
+        if isinstance(event, SampleLimitEvent)
+    ]
+    assert reached == [5, 10]
+    if outer is None:
+        _assert_sample_token_limit(outcome, limit=10)
     else:
-        _assert_agent_limit(outcome, limit)
+        sample = outcome.sample
+        assert sample.error is None, sample.error
+        assert sample.limit is None
+        assert sample.store.get("continued") is True
+        assert outcome.errors == []
+        [error] = outcome.outer_errors
+        assert error is not None and error.source is outer
     _assert_error_replies(outcome.replies, count=2)
 
 
