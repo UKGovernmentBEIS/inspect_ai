@@ -57,8 +57,8 @@ def throttle(seconds: float) -> Callable[[Callable[P, R]], Callable[P, R]]:
         last_result: R = None  # type: ignore[assignment]
         pending: tuple[tuple[Any, ...], dict[str, Any]] | None = None
         # The scheduled trailing fire. Once its coroutine is closed (it returned,
-        # raised, or was cancelled, even before it started), another can be
-        # scheduled.
+        # raised, or was cancelled), another can be scheduled. Task groups start
+        # a task before delivering its cancellation, so it always closes.
         deferred: Coroutine[Any, Any, None] | None = None
 
         async def _deferred_fire() -> None:
@@ -93,13 +93,13 @@ def throttle(seconds: float) -> Callable[[Callable[P, R]], Callable[P, R]]:
                 pending = (args, kwargs)
                 if deferred is None or getcoroutinestate(deferred) == CORO_CLOSED:
                     if (tg := background_task_group()) is not None:
-                        coro = _deferred_fire()
-                        tg.start_soon(lambda: coro)
-                        deferred = coro
+                        deferred = _deferred_fire()
+                        tg.create_task(deferred)
                     elif current_async_backend() == "asyncio":
                         # Not run_in_background: its fallback task wraps this
                         # coroutine, so cancelling that task before it starts
-                        # would leave this coroutine unstarted, not closed.
+                        # would leave this coroutine unstarted, not closed. As
+                        # the task's own coroutine, cancelling closes it.
                         deferred = _deferred_fire()
                         asyncio.create_task(deferred)
                     else:
