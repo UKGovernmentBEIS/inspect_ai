@@ -955,7 +955,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         defer_fractional=sample_feed is not None,
     )
 
-    # a task drain/cancel abandoned this queued retry before it started: bail
+    # a task drain/cancel abandoned this attempt before it started: bail
     # before anything that needs unwinding is set up — the paged-to-disk
     # sample store below (its temp file is only unlinked by the close in the
     # finally, which an abandoned attempt never reaches), the log_start
@@ -1190,8 +1190,8 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # between its up-front logger init and starting here
             await logger.record_inherited_config_updates()
 
-            # A task drain/cancel abandoned this queued retry while the
-            # attempt was starting (after the dispatcher's pick, before this
+            # A task drain/cancel abandoned this attempt while it was
+            # starting (after the dispatcher started it, before this
             # registration): bail before registering so the retry never runs
             # after the operator was told it was abandoned. Synchronous with
             # register_eval below (no awaits between), so on the eval's

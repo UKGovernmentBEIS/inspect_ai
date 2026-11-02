@@ -125,9 +125,21 @@ class SetupCache(Generic[K]):
                     raise
                 return None
 
-    def request(self, keys: Iterable[K]) -> list[SetupJob[K]]:
-        """The jobs of ``keys``, adding those it lacks."""
-        return [self._job(key) for key in keys]
+    def request(self, keys: Iterable[K], *, first: bool = False) -> list[SetupJob[K]]:
+        """The jobs of ``keys``, adding those it lacks.
+
+        With ``first``, those still waiting go ahead of the other jobs
+        waiting: for a caller that needs them now (a retry, a running task's
+        ``SampleSource`` adding samples with a new config, the seed before the
+        run starts). Other jobs are for queued tasks, which can wait.
+        """
+        jobs = [self._job(key) for key in keys]
+        if first:
+            waiting = [job for job in jobs if job in self._waiting]
+            for job in waiting:
+                self._waiting.remove(job)
+            self._waiting.extendleft(reversed(waiting))
+        return jobs
 
     def has_jobs(self, keys: Iterable[K]) -> bool:
         """Whether every key has a job (waiting, running or succeeded), so requesting them adds none."""
@@ -136,20 +148,10 @@ class SetupCache(Generic[K]):
     async def ensure(self, keys: Iterable[K]) -> None:
         """Set up ``keys``, ahead of the jobs waiting, and wait until they are.
 
-        For a caller that needs them now: a running task whose
-        ``SampleSource`` adds samples with a new config, or the seed before the
-        run starts. Jobs :meth:`request` added are for queued tasks, which can
-        wait.
-
         Raises:
             BaseException: What the first failed job raised.
         """
-        jobs = [self._job(key) for key in keys]
-        waiting = [job for job in jobs if job in self._waiting]
-        for job in waiting:
-            self._waiting.remove(job)
-        self._waiting.extendleft(reversed(waiting))
-        for job in jobs:
+        for job in self.request(keys, first=True):
             await job.done.wait()
             if job.failure is not None:
                 job.failure.raise_again()

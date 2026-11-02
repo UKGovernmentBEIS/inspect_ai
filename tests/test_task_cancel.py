@@ -1246,8 +1246,8 @@ async def test_retry_interrupting_error_log_write_retries_task(
             ("a", "success"),
             ("b", "success"),
         ]
-        # the retry is queued behind b
-        assert runs == ["a", "b", "a"]
+        # the retry runs in a's slot, before b
+        assert runs == ["a", "a", "b"]
         assert await _disk_statuses(tmp_path) == [
             ("a", "started"),
             ("a", "success"),
@@ -1505,10 +1505,11 @@ async def test_task_source_told_when_cancel_interrupts_error_log_write(
             "next_tasks",
         ]
     else:
+        # the retry runs in a's slot, before b
         assert source.events == [
             interrupted,
-            "task_complete:b:success:mockllm/model:",
             "task_complete:a:success:mockllm/a-model:",
+            "task_complete:b:success:mockllm/model:",
             "next_tasks",
         ]
 

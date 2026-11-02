@@ -751,7 +751,7 @@ def fire_dispatch_wakers() -> None:
     Called on every dispatch-relevant state change: the pause/resume
     transitions in this module, the ``max_tasks`` retune in
     :mod:`inspect_ai._control.max_tasks`, and a task drain/cancel abandoning
-    a queued retry (the dispatch pick drops it — see
+    a task waiting to start (the dispatcher ends it — see
     ``eval_state.abandon_task_retry``).
     """
     for waker in list(_dispatch_wakers):

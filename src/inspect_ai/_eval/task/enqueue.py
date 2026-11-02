@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from inspect_ai._display.core.display import TaskSpec
     from inspect_ai._eval.task.log import TaskLogger
     from inspect_ai._eval.task.resolved import ResolvedTask
-    from inspect_ai._eval.task.run import EvalSampleSource, TaskRunOptions
+    from inspect_ai._eval.task.run import TaskRunOptions
     from inspect_ai._eval.task.setup_cache import SetupFailure, SetupJob
     from inspect_ai._eval.task.tasks import Tasks
     from inspect_ai.dataset import Dataset
@@ -61,43 +61,31 @@ samples use, in sample order; raises on configs it can't resolve."""
 
 @dataclass(eq=False)
 class TaskRecord:
-    """A task of the run, from the moment it is added until it ends.
+    """A task of the run, from the moment it is queued until it ends.
 
     An attempt's own state (its log, the control channel's ``EvalState``) is
     created when the attempt starts; the record carries what lasts across
-    attempts. When the record ends it drops the configured task and its
-    logger, so a finished task's dataset is not kept until the run ends.
+    attempts. When the record ends it drops the configured task, so a
+    finished task's dataset is not kept until the run ends.
     """
 
     task_id: str
     task: str
     model: Model
     configured: ConfiguredTask | None
-    retries: int
-    """How many times the task is retried after an attempt that fails."""
     setup_keys: tuple[Any, ...]
     """The sandbox configs its selected samples use, in sample order."""
     logger: TaskLogger | None = None
-    """The logger the record's next attempt uses: a seed task's first one
-    (created when the seed starts up), or a failed attempt's, which its retry
-    reinitialises. Other first attempts create theirs when they start."""
+    """A seed task's first logger, created when the seed starts up and taken
+    by its first attempt. Other tasks create theirs when they start."""
     setups: list[SetupJob[Any]] | None = None
     """The setup jobs of ``setup_keys`` (``None`` until they are requested)."""
-    attempt: int = 1
-    retry_source: EvalSampleSource | None = None
-    """Where a retry attempt reads the completed samples of the failed one
-    (``None``: the task's own sample source)."""
     log: EvalLog | None = None
     """The log of its latest attempt; once it has ended, its final log
     (``None`` if no attempt started: it was cancelled while queued, or the
     run ended first)."""
     ended: bool = False
     """Whether it has ended (set only by :meth:`RunTasks.end`)."""
-
-    @property
-    def retries_remaining(self) -> int:
-        """Retry attempts left after the current one."""
-        return self.retries - (self.attempt - 1)
 
     @property
     def failure(self) -> SetupFailure | None:
@@ -116,11 +104,11 @@ class RunTasks:
     """The records of every task of one eval run.
 
     ``queued`` holds the records that may start, in the order they were
-    added, and ``running`` those with an attempt running; the scheduling loop
-    moves a record from one to the other with :meth:`start` and back to the
-    end of ``queued`` with :meth:`retry`. Every way a record ends goes
-    through :meth:`end`. Only adding tasks awaits (to resolve them), and the
-    lists change only after it has, so they need no lock.
+    added, and ``running`` those that have started (including one between
+    attempts); the scheduling loop moves a record from one to the other with
+    :meth:`start`. Every way a record ends goes through :meth:`end`. Only
+    adding tasks awaits (to resolve them), and the lists change only after it
+    has, so they need no lock.
     """
 
     def __init__(
@@ -131,7 +119,6 @@ class RunTasks:
         prepare: PrepareFn,
         *,
         changed: Wake,
-        retries: int,
         sequence_order: bool,
     ) -> None:
         """Create the tasks of one run.
@@ -145,7 +132,6 @@ class RunTasks:
             changed: Set whenever the scheduling loop should look at the tasks
                 again: as tasks are queued, and by the run's ``SetupCache`` as
                 each setup ends.
-            retries: How many times a task that fails is retried.
             sequence_order: Order the tasks of each addition by sequence (at a
                 launch limit of 1: the scheduling loop breaks ties in queue
                 order, so all of a task's model fan-outs then run before the
@@ -155,7 +141,6 @@ class RunTasks:
         self.resolve = resolve
         self._configure = configure
         self._prepare = prepare
-        self._retries = retries
         self._sequence_order = sequence_order
         self.queued: list[TaskRecord] = []
         self.running: set[TaskRecord] = set()
@@ -184,7 +169,6 @@ class RunTasks:
                 task=configured.resolved.task.name,
                 model=configured.resolved.model,
                 configured=configured,
-                retries=self._retries,
                 setup_keys=await self._prepare(configured),
             )
             for configured in configured_tasks
@@ -229,12 +213,6 @@ class RunTasks:
         self.queued.remove(record)
         self.running.add(record)
 
-    def retry(self, record: TaskRecord) -> None:
-        """Put a running record whose attempt failed back at the end of the queue."""
-        self.running.remove(record)
-        record.attempt += 1
-        self.queued.append(record)
-
     def end(self, record: TaskRecord) -> None:
         """End a record, keeping its latest log; it drops what only its attempts need.
 
@@ -246,7 +224,6 @@ class RunTasks:
         record.ended = True
         record.configured = None
         record.logger = None
-        record.retry_source = None
         record.setups = None
 
     def close_if_idle(self) -> bool:

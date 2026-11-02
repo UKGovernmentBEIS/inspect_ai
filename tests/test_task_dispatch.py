@@ -25,12 +25,17 @@ from typing_extensions import override
 
 from inspect_ai import Epochs, Task, TaskSource, enqueue_task, eval, eval_async
 from inspect_ai._control.cancel import cancel_task, drain_task
-from inspect_ai._control.eval_state import abandon_task_retry, reset_retry_abandoned
+from inspect_ai._control.eval_state import (
+    abandon_task_retry,
+    reset_retry_abandoned,
+    task_retry_abandoned,
+)
 from inspect_ai._control.max_tasks import (
     reset_max_tasks_override,
     set_max_tasks_override,
     task_dispatcher_stats,
 )
+from inspect_ai._control.pause import _task_gate, reset_task_pause_gates
 from inspect_ai._display import display
 from inspect_ai._display.core.display import CancelType, TaskSpec
 from inspect_ai._eval.loader import resolve_tasks
@@ -182,6 +187,7 @@ class Harness:
         retries: int = 0,
     ) -> None:
         self.parallel = parallel
+        self.retries = retries
         self.events: list[str] = []
         self.loggers: dict[str, list[FakeLogger]] = {}
         self.finish: dict[str, anyio.Event] = {}
@@ -195,6 +201,7 @@ class Harness:
         self.setup_errors: dict[str, Exception] = {}
         self.setup_began: dict[str, anyio.Event] = {}
         self.configured: list[list[str]] = []
+        self.task_ids: dict[str, str] = {}
         self.queued_groups: list[list[str]] = []
         """The labels of each group of records queued, the seed's first."""
 
@@ -212,7 +219,6 @@ class Harness:
             self.configure,
             self.prepare,
             changed=Wake(),
-            retries=retries,
             sequence_order=parallel == 1,
         )
         self.startup = FakeStartup(self)
@@ -225,6 +231,7 @@ class Harness:
         configured = []
         for task in group:
             label = _label(task)
+            self.task_ids[label] = task.id
             self.loggers[label] = []
             self.finish[label] = anyio.Event()
             self.started[label] = anyio.Event()
@@ -284,6 +291,10 @@ class Harness:
     ) -> TaskRunResult:
         logger = cast(FakeLogger, options.logger)
         label = logger.label
+        if task_retry_abandoned(self.task_ids[label]):
+            # as task_run bails an attempt abandoned before it registers
+            self.events.append(f"abandoned {label}")
+            return TaskRunResult(None, None)
         if options.setup_failure is not None:
             self.events.append(f"failed {label}")
             logger.finished = True
@@ -314,6 +325,7 @@ class Harness:
             self.tasks,
             self.startup,
             parallel=self.parallel,
+            retries=self.retries,
             source=source,
             debug_errors=False,
         )
@@ -449,7 +461,6 @@ async def test_run_tasks_close_refuses_add_and_returns_unstarted() -> None:
         harness.configure,
         harness.prepare,
         changed=Wake(),
-        retries=0,
         sequence_order=False,
     )
     [added] = await run_tasks.add([_task("w")])
@@ -512,18 +523,16 @@ async def test_wants_retry(
     cancel_type: CancelType, status: EvalStatus, retries: int, expected: bool
 ) -> None:
     [record] = await _records([("a", get_model("mockllm/m1"))])
-    record.retries = retries
     task_log = EvalLog(eval=FakeLogger("a", 1).eval, status=status)
-    assert wants_retry(cancel_type, task_log, record) is expected
+    assert wants_retry(cancel_type, task_log, record, retries) is expected
 
 
 async def test_wants_retry_not_after_operator_abandoned_it() -> None:
     [record] = await _records([("a", get_model("mockllm/m1"))])
-    record.retries = 1
     abandon_task_retry(record.task_id)
     try:
         task_log = EvalLog(eval=FakeLogger("a", 1).eval, status="error")
-        assert not wants_retry(None, task_log, record)
+        assert not wants_retry(None, task_log, record, 1)
     finally:
         reset_retry_abandoned()
 
@@ -684,9 +693,11 @@ async def test_loop_reads_max_tasks_live(monkeypatch: pytest.MonkeyPatch) -> Non
     assert [log.status for log in logs] == ["success"] * 3
 
 
-async def test_loop_retry_goes_to_the_back_and_reinitialises_its_logger(
+async def test_retry_runs_in_its_slot_and_reinitialises_its_logger(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # a's retry starts in a's slot as its first attempt ends, ahead of b and
+    # of c, added while a ran
     m1 = get_model("mockllm/m1")
     harness = Harness([m1], parallel=1, retries=1)
     _install(monkeypatch, harness)
@@ -695,21 +706,20 @@ async def test_loop_retry_goes_to_the_back_and_reinitialises_its_logger(
     async def drive() -> None:
         await _wait_started(harness, "a@m1")
         await harness.tasks.add([_task("c")])
-        await _wait_until(lambda: len(harness.tasks.queued) == 2)
-        harness.finish["a@m1"].set()
-        await _wait_started(harness, "b@m1")
-        harness.finish["b@m1"].set()
-        await _wait_started(harness, "c@m1")
         harness.started["a@m1"] = anyio.Event()
-        harness.finish["c@m1"].set()
-        await _wait_started(harness, "a@m1")
         harness.finish["a@m1"].set()
+        await _wait_started(harness, "a@m1")
+        await _wait_stats(in_flight=1, pending=2)
+        harness.finish["a@m1"].set()
+        for label in ("b@m1", "c@m1"):
+            await _wait_started(harness, label)
+            harness.finish[label].set()
 
     async with anyio.create_task_group() as tg:
         tg.start_soon(drive)
         logs = await harness.run(_resolve(["a", "b"], [m1]))
 
-    assert _starts(harness) == ["a@m1", "b@m1", "c@m1", "a@m1"]
+    assert _starts(harness) == ["a@m1", "a@m1", "b@m1", "c@m1"]
     # the retry reinitialised the failed attempt's logger; the added task's
     # logger was made when it started
     assert [lg.attempt for lg in harness.loggers["a@m1"]] == [2]
@@ -722,41 +732,11 @@ async def test_loop_retry_goes_to_the_back_and_reinitialises_its_logger(
     ]
 
 
-async def test_retry_is_balanced_against_queued_tasks_at_once(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    # a retry keeps its (done) setups, so it competes for the freed slot in
-    # the same cycle: m2 has nothing running, so a@m2's retry starts before
-    # the older y@m1
-    m1, m2 = get_model("mockllm/m1"), get_model("mockllm/m2")
-    harness = Harness([m1, m2], parallel=2, retries=1)
-    _install(monkeypatch, harness)
-    harness.fail_next.add("a@m2")
-
-    async def drive() -> None:
-        await _wait_started(harness, "a@m2", "x@m1")
-        harness.started["a@m2"] = anyio.Event()
-        harness.finish["a@m2"].set()
-        await _wait_started(harness, "a@m2")
-        for label in ("a@m2", "x@m1"):
-            harness.finish[label].set()
-        await _wait_started(harness, "y@m1")
-        harness.finish["y@m1"].set()
-
-    async with anyio.create_task_group() as tg:
-        tg.start_soon(drive)
-        await harness.run(
-            [*_resolve(["a"], [m2]), *_resolve(["x"], [m1]), *_resolve(["y"], [m1])]
-        )
-    assert _starts(harness)[2:] == ["a@m2", "y@m1"]
-
-
-async def test_retry_follows_tasks_its_failed_attempt_added(
+async def test_retry_starts_before_tasks_its_failed_attempt_added(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # a failing attempt adds a follow-up as it ends (as TaskSource.task_complete
-    # does): the follow-up was added first, so it starts before the retry,
-    # however the loop and the attempt's teardown interleave
+    # does): the retry keeps the slot, so it runs before the follow-up
     m1 = get_model("mockllm/m1")
     harness = Harness([m1], parallel=1, retries=1)
     _install(monkeypatch, harness)
@@ -775,17 +755,49 @@ async def test_retry_follows_tasks_its_failed_attempt_added(
 
     async def drive() -> None:
         await _wait_started(harness, "a@m1")
-        harness.finish["a@m1"].set()
-        await _wait_started(harness, "f@m1")
         harness.started["a@m1"] = anyio.Event()
-        harness.finish["f@m1"].set()
+        harness.finish["a@m1"].set()
         await _wait_started(harness, "a@m1")
         harness.finish["a@m1"].set()
+        await _wait_started(harness, "f@m1")
+        harness.finish["f@m1"].set()
 
     async with anyio.create_task_group() as tg:
         tg.start_soon(drive)
         await harness.run(_resolve(["a"], [m1]))
-    assert _starts(harness) == ["a@m1", "f@m1", "a@m1"]
+    assert _starts(harness) == ["a@m1", "a@m1", "f@m1"]
+
+
+async def test_retry_waits_while_its_task_is_paused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # a pause holds a retry back, as it holds a queued task
+    m1 = get_model("mockllm/m1")
+    harness = Harness([m1], parallel=1, retries=1)
+    _install(monkeypatch, harness)
+    harness.fail_next.add("a@m1")
+
+    async def drive() -> None:
+        await _wait_started(harness, "a@m1")
+        task_id = harness.tasks.records[0].task_id
+        _task_gate(task_id).pause()
+        harness.started["a@m1"] = anyio.Event()
+        harness.finish["a@m1"].set()
+        await _wait_until(lambda: "end a@m1 error" in harness.events)
+        for _ in range(10):
+            await anyio.sleep(0)
+        assert not harness.started["a@m1"].is_set()
+        _task_gate(task_id).resume()
+        await _wait_started(harness, "a@m1")
+        harness.finish["a@m1"].set()
+
+    try:
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(drive)
+            logs = await harness.run(_resolve(["a"], [m1]))
+    finally:
+        reset_task_pause_gates()
+    assert [(log.eval.task, log.status) for log in logs] == [("a@m1", "success")]
 
 
 async def test_loop_asks_source_only_when_idle_until_exhausted(
@@ -924,9 +936,10 @@ async def test_tasks_on_a_config_set_up_earlier_start_without_waiting(
 async def test_failed_setup_ends_its_waiters_then_their_retry_sets_up_again(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # b and c wait for the same setup
+    # b and c wait for the same setup; when it fails both attempts end with
+    # it, and their retries, in their slots, share one new setup
     m1 = get_model("mockllm/m1")
-    harness = Harness([m1], parallel=2, retries=1)
+    harness = Harness([m1], parallel=3, retries=1)
     _install(monkeypatch, harness)
     harness.keys["b@m1"] = ["image"]
     harness.keys["c@m1"] = ["image"]
@@ -964,51 +977,39 @@ async def test_failed_setup_ends_its_waiters_then_their_retry_sets_up_again(
     ]
 
 
-async def test_retry_sets_up_after_the_task_added_ahead_of_it(
+async def test_retry_sets_up_its_failed_config_ahead_of_waiting_setups(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # a's setup fails and, as it ends, a adds n, so a's retry is queued behind
-    # n; n's setup runs before the retry sets up again
+    # a's setup X fails while n's Y and m's Z wait; the worker moves on to Y,
+    # and a's retry sets X up again ahead of Z
     m1 = get_model("mockllm/m1")
-    harness = Harness([m1], parallel=2, retries=1)
+    harness = Harness([m1], parallel=4, retries=1)
     _install(monkeypatch, harness)
-    harness.keys["a@m1"] = ["X"]
-    harness.keys["n@m1"] = ["Y"]
-    run_task = harness.run_task
-
-    async def adding_run_task(
-        options: TaskRunOptions, can_retry: bool = False, **kwargs: Any
-    ) -> TaskRunResult:
-        result = await run_task(options, can_retry)
-        if result.log is not None and result.log.status == "error":
-            await harness.tasks.add([_task("n")])
-        return result
-
-    monkeypatch.setattr("inspect_ai._eval.run._run_task", adding_run_task)
+    for name, key in (("a", "X"), ("n", "Y"), ("m", "Z")):
+        harness.keys[f"{name}@m1"] = [key]
 
     async def drive() -> None:
         await _wait_started(harness, "s@m1")
-        await harness.tasks.add([_task("a")])
+        await harness.tasks.add([_task("a"), _task("n"), _task("m")])
         await harness.setup_began_event("X").wait()
         harness.finish_setup("X", RuntimeError("pull failed"))
-        await _wait_until(lambda: len(harness.tasks.queued) == 2)
-        for key in ("X", "Y"):
+        await harness.setup_began_event("Y").wait()
+        await _wait_until(lambda: "X" in harness.startup.setups._jobs)
+        for key in ("Y", "X", "Z"):
             harness.finish_setup(key)
-        for label in ("n@m1", "a@m1"):
+        for label in ("a@m1", "n@m1", "m@m1"):
             harness.finish[label].set()
         await _wait_until(
-            lambda: {"end n@m1 success", "end a@m1 success"} <= set(harness.events)
+            lambda: {f"end {label}@m1 success" for label in "anm"}
+            <= set(harness.events)
         )
         harness.finish["s@m1"].set()
 
     async with anyio.create_task_group() as tg:
         tg.start_soon(drive)
         await harness.run(_resolve(["s"], [m1]))
-    assert [e.split()[1] for e in harness.events if e.startswith("setup ")][::2] == [
-        "X",
-        "Y",
-        "X",
-    ]
+    setups = [e.split()[1] for e in harness.events if e.startswith("setup ")]
+    assert setups[::2] == ["X", "Y", "X", "Z"]
 
 
 async def test_failed_resolution_raises_to_whoever_adds_the_tasks(
@@ -1125,70 +1126,48 @@ async def test_task_behind_the_window_joins_setups_already_requested(
     assert _starts(harness) == ["a@m1", "plain@m1", "first@m1", "shared@m1", "other@m1"]
 
 
-async def test_abandoning_a_queued_retry_keeps_the_failed_attempts_log(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    m1 = get_model("mockllm/m1")
-    harness = Harness([m1], parallel=1, retries=2)
-    _install(monkeypatch, harness)
-    harness.fail_next.add("a@m1")
-
-    async def drive() -> None:
-        await _wait_started(harness, "a@m1")
-        harness.finish["a@m1"].set()
-        await _wait_started(harness, "b@m1")
-        # a's retry is queued behind b
-        await _wait_until(lambda: len(harness.tasks.queued) == 1)
-        abandon_task_retry(harness.tasks.records[0].task_id)
-        await _wait_until(lambda: harness.tasks.queued == [])
-        harness.finish["b@m1"].set()
-
-    async with anyio.create_task_group() as tg:
-        tg.start_soon(drive)
-        logs = await harness.run(_resolve(["a", "b"], [m1]))
-    assert _starts(harness) == ["a@m1", "b@m1"]
-    assert [(log.eval.task, log.status) for log in logs] == [
-        ("a@m1", "error"),
-        ("b@m1", "success"),
-    ]
-
-
-@pytest.mark.parametrize("directive", [cancel_task, drain_task])
-async def test_cancel_abandons_a_queued_retry_whose_attempt_never_registered(
+@pytest.mark.parametrize("directive", [abandon_task_retry, cancel_task, drain_task])
+async def test_abandoning_a_retry_between_attempts_keeps_the_failed_attempts_log(
     monkeypatch: pytest.MonkeyPatch, directive: Callable[[str], Any]
 ) -> None:
-    # an attempt can end before it registers its EvalState (its log_start
-    # write failed); the harness's attempts never register, so a's retry is
-    # such a task
+    # a's setup fails, and its retry waits in a's slot for the setup to run
+    # again; a cancel or drain then abandons the retry. The harness's attempts
+    # never register an EvalState, as an attempt whose log_start write
+    # failed doesn't, so the directives find the task by its record
     m1 = get_model("mockllm/m1")
-    harness = Harness([m1], parallel=1, retries=2)
+    harness = Harness([m1], parallel=2, retries=2)
     _install(monkeypatch, harness)
-    harness.fail_next.add("a@m1")
+    harness.keys["a@m1"] = ["X"]
     results: list[Any] = []
 
     async def drive() -> None:
-        await _wait_started(harness, "a@m1")
-        harness.finish["a@m1"].set()
-        await _wait_started(harness, "b@m1")
-        await _wait_until(lambda: len(harness.tasks.queued) == 1)
-        results.append(directive(harness.tasks.records[0].task_id))
-        await _wait_until(lambda: harness.tasks.queued == [])
-        harness.finish["b@m1"].set()
+        await _wait_started(harness, "s@m1")
+        [a] = await harness.tasks.add([_task("a")])
+        await harness.setup_began_event("X").wait()
+        harness.finish_setup("X", RuntimeError("pull failed"))
+        await _wait_until(lambda: "failed a@m1" in harness.events)
+        await harness.setup_began_event("X").wait()
+        results.append(directive(a.task_id))
+        harness.finish_setup("X")
+        await _wait_until(lambda: a.ended)
+        harness.finish["s@m1"].set()
 
     token = register_run_tasks(harness.tasks)
     try:
         async with anyio.create_task_group() as tg:
             tg.start_soon(drive)
-            logs = await harness.run(_resolve(["a", "b"], [m1]))
+            logs = await harness.run(_resolve(["s"], [m1]))
     finally:
         clear_run_tasks(token)
         reset_retry_abandoned()
-    assert results[0] is not None and results[0]["changed"]
-    assert results[0].get("retry_abandoned")
-    assert _starts(harness) == ["a@m1", "b@m1"]
+    if directive is not abandon_task_retry:
+        assert results[0] is not None and results[0]["changed"]
+        assert results[0].get("retry_abandoned")
+    assert _starts(harness) == ["s@m1"]
+    assert harness.events.count("failed a@m1") == 1
     assert [(log.eval.task, log.status) for log in logs] == [
+        ("s@m1", "success"),
         ("a@m1", "error"),
-        ("b@m1", "success"),
     ]
 
 
@@ -1196,12 +1175,10 @@ async def test_tasks_cancelled_before_they_start_leave_the_display_count(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # the display counts every queued task; one cancelled before it starts has
-    # no row, so it leaves the count, while an abandoned retry keeps its
-    # task's finished row
+    # no row, so it leaves the count
     m1 = get_model("mockllm/m1")
-    harness = Harness([m1], parallel=1, retries=1)
+    harness = Harness([m1], parallel=1)
     _install(monkeypatch, harness)
-    harness.fail_next.add("a@m1")
     counts: list[int] = []
     shown = display
 
@@ -1222,10 +1199,7 @@ async def test_tasks_cancelled_before_they_start_leave_the_display_count(
         for record in harness.tasks.queued:
             abandon_task_retry(record.task_id)
         await _wait_until(lambda: harness.tasks.queued == [])
-        reset_retry_abandoned()
         harness.finish["a@m1"].set()
-        await _wait_until(lambda: len(harness.tasks.queued) == 1)
-        abandon_task_retry(harness.tasks.records[0].task_id)
 
     try:
         async with anyio.create_task_group() as tg:
@@ -1233,7 +1207,7 @@ async def test_tasks_cancelled_before_they_start_leave_the_display_count(
             logs = await harness.run(_resolve(["a", "b"], [m1]))
     finally:
         reset_retry_abandoned()
-    assert [(log.eval.task, log.status) for log in logs] == [("a@m1", "error")]
+    assert [(log.eval.task, log.status) for log in logs] == [("a@m1", "success")]
     # the seed's two rows, then c added, then b and c cancelled
     assert counts == [2, 1, -1, -1]
 

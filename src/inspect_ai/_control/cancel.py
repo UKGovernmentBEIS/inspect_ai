@@ -296,12 +296,12 @@ def _cancel_unregistered(
 ) -> CancelTaskResult:
     """Cancel or drain a task of the live run none of whose attempts has registered.
 
-    It is waiting to start (a first attempt, or a retry of an attempt that
-    ended before it registered), still starting, or ended. It ends without
+    It is waiting to start, starting (a first attempt, or a retry of an
+    attempt that ended before it registered), or ended. It ends without
     running again: the cancel abandons the task's next attempt
     (:func:`abandon_task_retry`), so the run's scheduling loop ends the task
-    if it is waiting, keeping its last attempt's log, and an attempt it has
-    already started bails before it registers. A score/error resolution is
+    if it is waiting, and an attempt it has already started bails before it
+    registers; the task keeps its last attempt's log, if any. A score/error resolution is
     rejected (no attempt has samples to resolve).
     """
     from inspect_ai._control.eval_state import abandon_task_retry, task_retry_abandoned
