@@ -19,6 +19,7 @@ from inspect_ai._util._async import current_async_backend
 from inspect_ai._util.asyncfiles import (
     AsyncFilesystem,
     s3_bucket_and_key,
+    s3_delete_object,
 )
 from inspect_ai._util.file import local_path
 from inspect_ai._util.log_layout import eval_shards_dir
@@ -72,8 +73,12 @@ async def remove_shards_dir(
     if include_log:
         if is_local(log):
             await run_owned(partial(_remove_local_file, log))
-        else:
+        elif current_async_backend() == "asyncio":
             await fs.delete_file(log)
+        else:
+            await run_owned(
+                partial(s3_delete_object, fs.s3_client(), *s3_bucket_and_key(log))
+            )
     if is_local(shards_dir):
         await run_owned(partial(_remove_local_dir, shards_dir))
         return

@@ -3562,6 +3562,34 @@ async def test_run_owned_finishes_started_work_under_a_cancel_scope() -> None:
 
     from inspect_ai.log._shards._owned import run_owned
 
+    started, release, done, after = threading.Event(), threading.Event(), [], []
+
+    def work() -> None:
+        started.set()
+        release.wait(30)
+        done.append(True)
+
+    with anyio.CancelScope() as scope:
+        async with anyio.create_task_group() as tg:
+
+            async def cancel() -> None:
+                await anyio.to_thread.run_sync(started.wait, 30)
+                scope.cancel()
+                release.set()
+
+            tg.start_soon(cancel)
+            await run_owned(work)
+            after.append(True)
+    assert done == [True]
+    # the cancellation is raised once the work has finished
+    assert after == [] and scope.cancelled_caught
+
+
+async def test_run_owned_raises_a_deadline_that_passed_during_the_work() -> None:
+    import threading
+
+    from inspect_ai.log._shards._owned import run_owned
+
     started, release, done = threading.Event(), threading.Event(), []
 
     def work() -> None:
@@ -3569,12 +3597,83 @@ async def test_run_owned_finishes_started_work_under_a_cancel_scope() -> None:
         release.wait(30)
         done.append(True)
 
-    async with anyio.create_task_group() as tg:
-        tg.start_soon(run_owned, work)
-        await anyio.to_thread.run_sync(started.wait, 30)
-        tg.cancel_scope.cancel()
-        release.set()
+    with pytest.raises(TimeoutError):
+        with anyio.fail_after(30) as deadline:
+            async with anyio.create_task_group() as tg:
+
+                async def expire() -> None:
+                    await anyio.to_thread.run_sync(started.wait, 30)
+                    deadline.deadline = anyio.current_time()
+                    release.set()
+
+                tg.start_soon(expire)
+                await run_owned(work)
     assert done == [True]
+
+
+@pytest.mark.parametrize(
+    "target,backend", [("local", "asyncio"), ("local", "trio"), ("s3", "trio")]
+)
+def test_a_merged_log_unlink_under_a_cancel_scope_finishes_and_raises(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    request: pytest.FixtureRequest,
+    target: str,
+    backend: str,
+) -> None:
+    import threading
+
+    from inspect_ai.log._shards import _delete
+    from inspect_ai.log._shards._delete import remove_shards_dir
+
+    prefix = request.getfixturevalue("s3_root") if target == "s3" else ""
+    if target == "s3":
+        merged, shards = _paths(f"s3://test-bucket/{prefix}")
+        client = boto3.client("s3")
+        for name in [f"{NAME}.eval", f"{NAME}.shards/0/a.eval"]:
+            client.put_object(Bucket="test-bucket", Key=f"{prefix}/{name}", Body=b"x")
+        paused = "s3_delete_object"
+    else:
+        merged, shards = _paths(tmp_path)
+        os.makedirs(f"{shards}/0")
+        Path(merged).write_bytes(b"merged")
+        Path(f"{shards}/0/a.eval").write_bytes(b"x")
+        paused = "_remove_local_file"
+
+    reached, release, calls = threading.Event(), threading.Event(), []
+    remove = getattr(_delete, paused)
+
+    def pausing(*args: Any) -> None:
+        reached.set()
+        assert release.wait(30)
+        remove(*args)
+        calls.append(True)
+
+    monkeypatch.setattr(_delete, paused, pausing)
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    after: list[bool] = []
+
+    async def scenario() -> bool:
+        with anyio.CancelScope() as scope:
+            async with anyio.create_task_group() as tg:
+
+                async def cancel() -> None:
+                    await anyio.to_thread.run_sync(reached.wait, 30)
+                    scope.cancel()
+                    release.set()
+
+                tg.start_soon(cancel)
+                await remove_shards_dir(merged, include_log=True)
+                after.append(True)
+        return scope.cancelled_caught
+
+    assert anyio.run(scenario, backend=backend)
+    # the unlink finished once, then the cancellation stopped the deletion
+    assert calls == [True] and after == []
+    if target == "s3":
+        assert _s3_keys(f"{prefix}/") == [f"{prefix}/{NAME}.shards/0/a.eval"]
+    else:
+        assert not os.path.exists(merged) and os.path.exists(f"{shards}/0/a.eval")
 
 
 def test_run_owned_waits_through_repeated_native_cancellations(

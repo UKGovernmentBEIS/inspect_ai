@@ -19,8 +19,10 @@ async def run_owned(work: Callable[[], T]) -> T:
     worker still writing or deleting, which could overwrite or delete what a
     later operation wrote. So when the await raises, work that has not
     started never runs, and work that has started is waited for, through any
-    further cancellations, before the exception is re-raised. An exception
-    from `work` propagates.
+    further cancellations, before the exception is re-raised. A cancel
+    scope's cancellation, which ``to_thread`` holds off rather than raises,
+    is raised once the work has finished. An exception from `work`
+    propagates.
     """
     lock = threading.Lock()
     finished = threading.Event()
@@ -46,6 +48,7 @@ async def run_owned(work: Callable[[], T]) -> T:
         if started:
             await _finish(finished)
         raise
+    await anyio.lowlevel.checkpoint_if_cancelled()
     return result[0]
 
 

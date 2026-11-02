@@ -1727,7 +1727,9 @@ there again.
 - Every worker thread the merge and its deletion start goes through one
   helper, `run_owned` (`_owned.py`; decision: Ransom, 2026-11-02): the
   local atomic replace, the local recursive delete, the S3 bulk delete,
-  the local merged-log unlink of `include_log`, the reads of the carried
+  the merged-log unlink of `include_log` (local, and on S3 under Trio,
+  where it is a boto3 call; asyncio keeps the shared asynchronous
+  `delete_file` request), the reads of the carried
   merged log and the writes of the temporary zip. AnyIO's `to_thread`
   holds off cancel-scope cancellation until its thread finishes, but a
   directly cancelled asyncio task (`Task.cancel()`, a timeout) leaves the
@@ -1736,7 +1738,10 @@ there again.
   merge's log or delete a later operation's objects. When the await
   raises, work not yet started never runs, and started work is waited
   for, shielded and through any further cancellations, before the
-  exception is re-raised; a worker's own exception propagates. The S3
+  exception is re-raised. A cancel scope's cancellation, which
+  `to_thread` holds off until its thread returns, is raised once the work
+  has finished, so an expired deadline still fails the operation. A
+  worker's own exception propagates. The S3
   listings that check for remnants are read-only and hold nothing the
   merge releases, so they use `to_thread` directly. S3 publication is a
   conditional upload, which a later merge's write makes fail rather than
@@ -2904,7 +2909,9 @@ Per PR (numbers from "Implementation plan"):
      returns only after its worker, and a later merge's log stays final;
      a deletion paused before it mutates (local path, `file://`, S3, and
      the merged log of `include_log`) and cancelled returns only after its
-     worker, and an object recreated afterwards survives.
+     worker, and an object recreated afterwards survives; a cancel scope or
+     deadline that ends during the work is raised after it, also through
+     the `include_log` unlink (local on asyncio and Trio, S3 on Trio).
    `tests/cli/test_log.py`: `merge-shards` on a merged log and on a
    companion; `--sample-id` and `--sample-count`, and the usage error for
    both; `--delete-shards`; a `-recovered` `LOG` and a directory `LOG`
