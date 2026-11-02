@@ -30,7 +30,7 @@ from pydantic import BaseModel
 from typing_extensions import override
 
 from inspect_ai import SampleSource, Task, TaskSource, eval_async
-from inspect_ai._eval.task.enqueue import TaskStartPolicy, enqueue_task
+from inspect_ai._eval.task.enqueue import enqueue_task
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog
 from inspect_ai.solver import Generate, Solver, TaskState, solver
@@ -290,10 +290,6 @@ def fake_task(
     )
 
 
-async def _enqueue(tasks: list[Task], start: TaskStartPolicy | None) -> None:
-    await enqueue_task(tasks, start=start)
-
-
 async def _wait_for_sample_init(task: str) -> None:
     with anyio.fail_after(30):
         while not any(
@@ -303,19 +299,18 @@ async def _wait_for_sample_init(task: str) -> None:
 
 
 @solver
-def add_children(provider: str, start: TaskStartPolicy | None, wait: bool) -> Solver:
+def add_children(provider: str, wait: bool) -> Solver:
     # Sample 1 adds `child_b` (config B) and `child_a2` (config A, already
     # started) and, if `wait`, holds until `child_b` has a sample running, so the
     # parent's later sample starts after `child_b`'s `task_init`.
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         if state.sample_id == 1:
-            await _enqueue(
+            await enqueue_task(
                 [
                     fake_task("child_b", provider, "B"),
                     fake_task("child_a2", provider, "A"),
-                ],
-                start,
+                ]
             )
             if wait:
                 await _wait_for_sample_init("child_b")
@@ -410,9 +405,7 @@ async def test_added_when_free_overlapping(provider: str, driver: str) -> None:
     # A running parent (config A, 2 samples run one at a time) adds `child_b`
     # (config B) and `child_a2` (config A); the parent's 2nd sample starts after
     # `child_b`'s task_init.
-    parent = fake_task(
-        "parent", provider, "A", add_children(provider, "when_free", True), 2
-    )
+    parent = fake_task("parent", provider, "A", add_children(provider, True), 2)
     tasks: Any = TaskSource.from_tasks([parent]) if driver == "task_source" else parent
     logs = await eval_async(tasks, model="mockllm/model", max_tasks=3, max_samples=1)
     _ok(logs)
@@ -440,16 +433,11 @@ async def test_added_when_free_overlapping(provider: str, driver: str) -> None:
 
 
 @pytest.mark.parametrize("provider", PROVIDERS)
-@pytest.mark.parametrize(
-    "driver,start",
-    [("eval", "after_batch"), ("eval", None), ("task_source", "after_batch")],
-)
-async def test_added_after_batch(
-    provider: str, driver: str, start: TaskStartPolicy | None
-) -> None:
-    # The parent (config A) adds `child_b` (B) and `child_a2` (A); they start
-    # once the parent has finished.
-    parent = fake_task("parent", provider, "A", add_children(provider, start, False))
+@pytest.mark.parametrize("driver", ["eval", "task_source"])
+async def test_added_while_parent_ends(provider: str, driver: str) -> None:
+    # The parent (config A) adds `child_b` (B) and `child_a2` (A) and ends
+    # without waiting for them.
+    parent = fake_task("parent", provider, "A", add_children(provider, False))
     tasks: Any = TaskSource.from_tasks([parent]) if driver == "task_source" else parent
     logs = await eval_async(tasks, model="mockllm/model", max_tasks=3)
     _ok(logs)
@@ -561,7 +549,7 @@ class ScreenProbeFake(CtxVarFake):
         await super().task_cleanup(task_name, config, cleanup)
 
 
-@pytest.mark.parametrize("how", ["when_free", "after_batch", "next_tasks"])
+@pytest.mark.parametrize("how", ["enqueued", "next_tasks"])
 async def test_task_cleanup_sees_only_provider_state(how: str) -> None:
     # a config first started for an added task (while the task display is
     # open) is cleaned up after the display has closed: its cleanup sees the
@@ -572,9 +560,7 @@ async def test_task_cleanup_sees_only_provider_state(how: str) -> None:
     @solver
     def add_child() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            await _enqueue(
-                [child], "after_batch" if how == "after_batch" else "when_free"
-            )
+            await enqueue_task([child])
             return state
 
         return solve
@@ -708,9 +694,7 @@ def add_e2b_child() -> Solver:
     # running, so the parent's 2nd sample starts after C's task_init
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         if state.sample_id == 1:
-            await enqueue_task(
-                [fake_task("child_c", "e2b_fake", "C")], start="when_free"
-            )
+            await enqueue_task([fake_task("child_c", "e2b_fake", "C")])
             with anyio.fail_after(30):
                 while not any(i.startswith("C-") for i in E2B_STARTED):
                     await anyio.sleep(0.01)

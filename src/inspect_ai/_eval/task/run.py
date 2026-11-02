@@ -728,7 +728,7 @@ async def _enqueue_source_tasks(tasks: list[Task] | None) -> None:
     if tasks:
         run_tasks = get_run_tasks()
         if run_tasks is not None:
-            await run_tasks.put(tasks)
+            await run_tasks.add(tasks)
 
 
 async def notify_task_source(options: TaskRunOptions, eval_log: EvalLog) -> None:

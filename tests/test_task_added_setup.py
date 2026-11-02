@@ -168,7 +168,7 @@ def add_and_wait(*tasks: Task) -> Solver:
     """Add tasks to the run and wait for them to end."""
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        await enqueue_task(list(tasks), start="when_free")
+        await enqueue_task(list(tasks))
         await _wait_ended(*(task.name for task in tasks))
         return state
 
@@ -202,7 +202,7 @@ async def test_setup_overlaps_running_sample_without_changing_its_process(
     @solver
     def add_and_observe() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            await enqueue_task(_boxed("b", task_dir), start="when_free")
+            await enqueue_task(_boxed("b", task_dir))
             with anyio.fail_after(10):
                 await init_running.wait()
             seen["cwd"] = os.getcwd()
@@ -418,7 +418,7 @@ def add_child_and_watch(child: Task, seen: dict[str, Any]) -> Solver:
     """Add `child` and watch for it as other tasks can: hooks and eval state."""
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        await enqueue_task(child, start="when_free")
+        await enqueue_task(child)
         await _wait_ended("child")
         seen["child_ended_while_parent_ran"] = True
         return state
@@ -533,10 +533,10 @@ async def test_operator_cancel_of_a_task_waiting_for_its_setup(
     @solver
     def add_and_cancel() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            await enqueue_task(_boxed("child"), start="when_free")
+            await enqueue_task(_boxed("child"))
             run_tasks = get_run_tasks()
             assert run_tasks is not None
-            [child] = run_tasks.unstarted()
+            [child] = run_tasks.queued
             with anyio.fail_after(10):
                 await in_setup.wait()
             assert cancel_task(child.task_id, action="score") == {
@@ -615,10 +615,10 @@ async def test_operator_cancel_of_a_task_as_it_starts(
     @solver
     def add_and_wait_for_child() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            await enqueue_task(_plain("child"), start="when_free")
+            await enqueue_task(_plain("child"))
             run_tasks = get_run_tasks()
             assert run_tasks is not None
-            [child] = run_tasks.unstarted()
+            [child] = run_tasks.queued
             with anyio.fail_after(10):
                 while not child.ended:
                     await anyio.sleep(0.01)
@@ -659,7 +659,7 @@ async def test_run_cancel_during_setup_beside_a_running_task(
     @solver
     def add_child_and_wait() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            await enqueue_task(_boxed("child"), start="when_free")
+            await enqueue_task(_boxed("child"))
             await anyio.sleep_forever()
             return state
 
@@ -756,7 +756,7 @@ async def test_task_init_that_finishes_during_a_run_cancel_is_cleaned_up(
     @solver
     def add_and_block() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            await enqueue_task(_boxed("child"), start="when_free")
+            await enqueue_task(_boxed("child"))
             await anyio.sleep_forever()
             return state
 

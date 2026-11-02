@@ -134,7 +134,7 @@ class HooksFake(SandboxEnvironment):
 def adds(added: list[Task]) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         if added:
-            await enqueue_task(added.pop(), start="when_free")
+            await enqueue_task(added.pop())
         return state
 
     return solve
@@ -227,7 +227,7 @@ async def test_cleanup_sees_only_its_own_init_state() -> None:
 async def test_added_task_init_swallowing_run_cancel(tmp_path: Path) -> None:
     """The run is cancelled while an added task's task_init runs; it swallows it.
 
-    tA (config A) adds tS (config S) when_free; tS's task_init catches the
+    tA (config A) adds tS (config S); tS's task_init catches the
     cancellation and returns. Both cleanups run and only tA's cancelled log is
     on disk. The run returns (asyncio does not return the cancelled log).
     """

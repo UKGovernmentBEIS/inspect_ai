@@ -63,7 +63,8 @@ class TaskSource:
         indefinitely; return ``None`` to end the run.
 
         Tasks added while it runs (with ``enqueue_task``, including by code it
-        started) start only after it returns, so it must not wait for them.
+        started) start only after it returns, ahead of the batch it returns,
+        so it must not wait for them.
         """
         return None
 

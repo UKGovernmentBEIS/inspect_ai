@@ -14,19 +14,14 @@ from __future__ import annotations
 
 from contextvars import ContextVar, Token
 from dataclasses import dataclass
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Awaitable,
-    Callable,
-    Literal,
-    NamedTuple,
-    get_args,
-)
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, NamedTuple
 
+from inspect_ai._control.pause import dispatch_model_name, note_dispatch_models
+from inspect_ai._display import display
 from inspect_ai._util._async import Wake
 
 if TYPE_CHECKING:
+    from inspect_ai._display.core.display import TaskSpec
     from inspect_ai._eval.task.log import TaskLogger
     from inspect_ai._eval.task.resolved import ResolvedTask
     from inspect_ai._eval.task.run import EvalSampleSource, TaskRunOptions
@@ -40,15 +35,14 @@ ResolveTasksFn = Callable[["Tasks"], "list[ResolvedTask]"]
 """Resolves submitted tasks against the run's models, config and sandbox (built
 by the eval runner, which owns that state); raises on tasks it can't resolve."""
 
-TaskStartPolicy = Literal["when_free", "after_batch"]
-"""When an enqueued task starts (see :func:`enqueue_task`)."""
-
 
 @dataclass(frozen=True)
 class ConfiguredTask:
     """A task configured for the run: everything its attempts need but a logger."""
 
     resolved: ResolvedTask
+    spec: TaskSpec
+    """Its row in the task display."""
     options: Callable[[TaskLogger], TaskRunOptions]
     """The run options of an attempt that logs to the given logger."""
     new_logger: Callable[[], TaskLogger]
@@ -121,15 +115,12 @@ class TaskRecord:
 class RunTasks:
     """The records of every task of one eval run.
 
-    ``queued`` holds the records that may start, in start order, and
-    ``running`` those with an attempt running; the scheduling loop moves a
-    record from one to the other with :meth:`start` and back to the end of
-    ``queued`` with :meth:`retry`. Added records wait by start policy until
-    the loop takes them: ``when_free`` ones on each of its cycles,
-    ``after_batch`` ones once nothing is queued or running. Every way a
-    record ends goes through :meth:`end`. Only adding tasks awaits (to
-    resolve them), and the lists change only after it has, so they need no
-    lock.
+    ``queued`` holds the records that may start, in the order they were
+    added, and ``running`` those with an attempt running; the scheduling loop
+    moves a record from one to the other with :meth:`start` and back to the
+    end of ``queued`` with :meth:`retry`. Every way a record ends goes
+    through :meth:`end`. Only adding tasks awaits (to resolve them), and the
+    lists change only after it has, so they need no lock.
     """
 
     def __init__(
@@ -142,7 +133,6 @@ class RunTasks:
         changed: Wake,
         retries: int,
         sequence_order: bool,
-        default_start: TaskStartPolicy,
     ) -> None:
         """Create the tasks of one run.
 
@@ -153,19 +143,16 @@ class RunTasks:
             configure: Configures tasks for the run.
             prepare: Resolves a configured task's sandbox configs.
             changed: Set whenever the scheduling loop should look at the tasks
-                again: as tasks are added, and by the run's
-                ``SetupCache`` as each setup ends.
+                again: as tasks are queued, and by the run's ``SetupCache`` as
+                each setup ends.
             retries: How many times a task that fails is retried.
             sequence_order: Order the tasks of each addition by sequence (at a
                 launch limit of 1: the scheduling loop breaks ties in queue
                 order, so all of a task's model fan-outs then run before the
                 next task's).
-            default_start: The policy of ``put(start=None)``: ``when_free`` in a
-                ``TaskSource`` run, ``after_batch`` otherwise.
         """
         self.run_id = run_id
         self.resolve = resolve
-        self.default_start = default_start
         self._configure = configure
         self._prepare = prepare
         self._retries = retries
@@ -174,16 +161,12 @@ class RunTasks:
         self.running: set[TaskRecord] = set()
         self.changed = changed
         self.records: list[TaskRecord] = []
-        """Every record the loop has taken, in the order it took them."""
+        """Every record queued, in the order it was queued."""
         self._by_id: dict[str, TaskRecord] = {}
-        self._added: dict[TaskStartPolicy, list[TaskRecord]] = {
-            "when_free": [],
-            "after_batch": [],
-        }
         self._closed = False
 
     async def create(self, resolved: list[ResolvedTask]) -> list[TaskRecord]:
-        """Records for resolved tasks, in start order (not yet filed).
+        """Records for resolved tasks, in start order (not yet queued).
 
         Configures every task first, so an invalid one raises before any is
         prepared; then resolves each one's sandbox configs.
@@ -195,7 +178,7 @@ class RunTasks:
         if self._sequence_order:
             resolved = sorted(resolved, key=lambda t: t.sequence)
         configured_tasks = self._configure(resolved)
-        records = [
+        return [
             TaskRecord(
                 task_id=configured.resolved.id,
                 task=configured.resolved.task.name,
@@ -206,21 +189,17 @@ class RunTasks:
             )
             for configured in configured_tasks
         ]
-        self._by_id.update((record.task_id, record) for record in records)
-        return records
 
     def find(self, task_id: str) -> TaskRecord | None:
         """The record of the run's task with this id, if there is one."""
         return self._by_id.get(task_id)
 
-    async def put(
-        self, tasks: Tasks, *, start: TaskStartPolicy | None = None
-    ) -> list[TaskRecord]:
-        """Create the records of tasks added to the run, and file them by start policy.
+    async def add(self, tasks: Tasks) -> list[TaskRecord]:
+        """Resolve tasks added to the run, create their records and queue them.
 
         Resolution, configuration and sandbox config errors surface to the
-        caller; no record is filed for any of the tasks then. Returns the
-        records in start order.
+        caller; none of the tasks is queued then. Returns the records in
+        start order.
         """
         records = await self.create(self.resolve(tasks))
         if self._closed:
@@ -228,20 +207,22 @@ class RunTasks:
                 f"enqueue_task(): run '{self.run_id}' has finished dispatching "
                 "tasks, so an added task would never run."
             )
-        policy = start or self.default_start
-        self._added[policy].extend(records)
-        self.changed.set()
+        self.enqueue(records)
         return records
 
-    def take(self, start: TaskStartPolicy) -> list[TaskRecord]:
-        """Remove and return the added records waiting with this start policy."""
-        taken, self._added[start] = self._added[start], []
-        return taken
-
     def enqueue(self, records: list[TaskRecord]) -> None:
-        """Make records eligible to start, after those already queued."""
+        """Queue records to start, after those already queued.
+
+        Notes their models for the model pause directives (a task that has not
+        started has no ``EvalState`` to check) and grows the task display's
+        count.
+        """
         self.records.extend(records)
         self.queued.extend(records)
+        self._by_id.update((record.task_id, record) for record in records)
+        note_dispatch_models([dispatch_model_name(r.model) for r in records])
+        display().update_task_count(len(records))
+        self.changed.set()
 
     def start(self, record: TaskRecord) -> None:
         """Move a queued record to the running ones as its attempt starts."""
@@ -253,18 +234,6 @@ class RunTasks:
         self.running.remove(record)
         record.attempt += 1
         self.queued.append(record)
-
-    def unstarted(self) -> list[TaskRecord]:
-        """Every record waiting to start: queued, then added and not yet taken."""
-        return [*self.queued, *self._added["when_free"], *self._added["after_batch"]]
-
-    def remove(self, record: TaskRecord) -> None:
-        """Take a record that is waiting to start out of the queue or the intake."""
-        for waiting in (self.queued, *self._added.values()):
-            if record in waiting:
-                waiting.remove(record)
-                return
-        raise ValueError(f"Task '{record.task}' is not waiting to start.")
 
     def end(self, record: TaskRecord) -> None:
         """End a record, keeping its latest log; it drops what only its attempts need.
@@ -281,11 +250,11 @@ class RunTasks:
         record.setups = None
 
     def close_if_idle(self) -> bool:
-        """Refuse additions once nothing is running or left to start; whether it closed.
+        """Refuse additions once nothing is running or queued; whether it closed.
 
         A single call, so nothing can be added between the check and the close.
         """
-        if self.running or self.unstarted():
+        if self.running or self.queued:
             return False
         self._closed = True
         return True
@@ -296,13 +265,11 @@ class RunTasks:
         Returns the records that will now never start.
         """
         self._closed = True
-        unstarted = self.unstarted()
-        self.queued = []
-        self._added = {"when_free": [], "after_batch": []}
+        unstarted, self.queued = self.queued, []
         return unstarted
 
     def results(self) -> list[EvalLog]:
-        """The final log of each task that has one, in the order the loop took them."""
+        """The final log of each task that has one, in the order they were queued."""
         return [
             record.log
             for record in self.records
@@ -355,30 +322,25 @@ def find_active_task(task_id: str) -> ActiveTask | None:
     return None
 
 
-async def enqueue_task(
-    tasks: "Tasks",
-    *,
-    run_id: str | None = None,
-    start: TaskStartPolicy | None = None,
-) -> None:
+async def enqueue_task(tasks: "Tasks", *, run_id: str | None = None) -> None:
     """Add one or more tasks to the running eval.
 
     The tasks run in this process under the current run's ``run_id`` (a fresh
     ``eval_id``/``task_id`` each, their own log files), resolved against the
-    run's models and config, under the run's ``max_tasks`` limit (which
-    ``inspect ctl config --max-tasks`` changes live). The call returns once
+    run's models and config. Each starts when a task slot is free, under the
+    run's ``max_tasks`` limit (which ``inspect ctl config --max-tasks``
+    changes live), after the tasks queued before it. The call returns once
     the tasks are queued: it resolves each task's sandbox configs first, so
     an invalid config raises here and adds none of the tasks. A task whose
     sandboxes are still being set up does not hold back a later task that is
     ready. If an added task's sandbox setup fails, that task ends with an
     error log (its retries apply) and the run continues.
 
-    A task that waits for a ``"when_free"`` task it added needs a free slot
-    for it: ``eval()`` defaults ``max_tasks`` to the number of models, so
-    without a higher ``max_tasks`` the run hangs. In a
-    :class:`~inspect_ai.TaskSource` run, tasks added while ``next_tasks()``
-    runs start only after it returns, so ``next_tasks()`` must not wait for
-    them.
+    A task that waits for a task it added needs a free slot for it:
+    ``eval()`` defaults ``max_tasks`` to the number of models, so without a
+    higher ``max_tasks`` the run hangs. In a :class:`~inspect_ai.TaskSource`
+    run, tasks added while ``next_tasks()`` runs start only after it returns,
+    so ``next_tasks()`` must not wait for them.
 
     Call from the eval's event loop, not from another thread: from a solver,
     scorer or tool, a ``TaskSource`` callback, or a hook Inspect calls during
@@ -389,15 +351,10 @@ async def enqueue_task(
         tasks: A ``Task`` (or list of tasks) to add to the running eval.
         run_id: Optionally, the ``run_id`` the caller believes is running; if
             given it must match the active run, else the call is rejected.
-        start: When the added tasks start. ``"when_free"``: as soon as there is
-            free task capacity. ``"after_batch"``: once no task is queued or
-            running, including tasks added later with ``"when_free"``. ``None``
-            (the default): ``"when_free"`` in a run driven by a
-            :class:`~inspect_ai.TaskSource`, ``"after_batch"`` otherwise.
 
     Raises:
-        ValueError: If ``start`` is not one of the values above, or the tasks
-            can't be resolved (propagated from resolution).
+        ValueError: If the tasks can't be resolved (propagated from
+            resolution).
         PrerequisiteError: If a task can't run with the run's settings (for
             example duplicate sample ids).
         Exception: What resolving a task's sandbox configs raised (for
@@ -406,11 +363,6 @@ async def enqueue_task(
             ``run_id`` doesn't match the active run, or the run has finished
             starting tasks.
     """
-    if start is not None and start not in get_args(TaskStartPolicy):
-        raise ValueError(
-            "enqueue_task(): start must be 'when_free', 'after_batch' or None, "
-            f"not {start!r}."
-        )
     run_tasks = get_run_tasks()
     if run_tasks is None:
         raise RuntimeError(
@@ -422,4 +374,4 @@ async def enqueue_task(
             f"enqueue_task() run_id '{run_id}' does not match the running eval "
             f"'{run_tasks.run_id}'."
         )
-    await run_tasks.put(tasks, start=start)
+    await run_tasks.add(tasks)

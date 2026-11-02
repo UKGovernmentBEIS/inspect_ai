@@ -1,10 +1,8 @@
 """Tests for adding tasks to a running eval via `enqueue_task`.
 
 `enqueue_task` is the in-process primitive: a task added while the eval runs
-joins the run's dispatcher under the same run_id, and starts either once every
-task already in the run has finished (`start="after_batch"`, the default
-outside a `TaskSource` run) or as soon as there is free task capacity
-(`start="when_free"`). Here the trigger is a solver (the simplest in-run
+joins the run's dispatcher under the same run_id, and starts as soon as there
+is free task capacity. Here the trigger is a solver (the simplest in-run
 caller); the ergonomic trigger surface — hooks, a callback, etc. — is layered on
 top and tested separately.
 """
@@ -16,7 +14,6 @@ import sys
 import weakref
 from contextvars import Context, copy_context
 from pathlib import Path
-from typing import cast
 
 import anyio
 import pytest
@@ -32,17 +29,9 @@ from inspect_ai._eval.eval_set_selection import (
 )
 from inspect_ai._eval.loader import resolve_tasks
 from inspect_ai._eval.task.enqueue import (
-    ConfiguredTask,
-    RunTasks,
-    TaskStartPolicy,
-    clear_run_tasks,
     enqueue_task,
-    register_run_tasks,
 )
 from inspect_ai._eval.task.log import TaskLogger
-from inspect_ai._eval.task.resolved import ResolvedTask
-from inspect_ai._eval.task.tasks import Tasks
-from inspect_ai._util._async import Wake
 from inspect_ai._util.content import ContentImage
 from inspect_ai._util.registry import _registry
 from inspect_ai.dataset import MemoryDataset, Sample
@@ -378,10 +367,6 @@ async def test_enqueue_task_from_run_end_hook_of_ended_run_raises(
     assert "can only be called while an eval is running" in errors[0]
 
 
-async def _no_sandboxes(configured: ConfiguredTask) -> tuple[()]:
-    return ()
-
-
 async def _enqueue_in(context: Context) -> RuntimeError | None:
     """What enqueue_task() raises when called from a task started in ``context``."""
     raised: list[RuntimeError] = []
@@ -395,33 +380,6 @@ async def _enqueue_in(context: Context) -> RuntimeError | None:
     async with anyio.create_task_group() as tg:
         context.run(tg.start_soon, add)
     return raised[0] if raised else None
-
-
-async def test_enqueue_task_invalid_start_raises_before_resolving() -> None:
-    resolved: list[Tasks] = []
-
-    def resolve(tasks: Tasks) -> list[ResolvedTask]:
-        resolved.append(tasks)
-        return []
-
-    run_tasks = RunTasks(
-        "run",
-        resolve,
-        lambda group: [],
-        _no_sandboxes,
-        changed=Wake(),
-        retries=0,
-        sequence_order=False,
-        default_start="after_batch",
-    )
-    token = register_run_tasks(run_tasks)
-    try:
-        with pytest.raises(ValueError, match="start must be .* not 'now'"):
-            await enqueue_task(child(), start=cast(TaskStartPolicy, "now"))
-    finally:
-        clear_run_tasks(token)
-    assert resolved == []
-    assert run_tasks.take("when_free") == run_tasks.take("after_batch") == []
 
 
 def _child_signalling(started: anyio.Event) -> Task:
@@ -453,9 +411,7 @@ async def _wait_until_child_held() -> None:
 
 
 @solver
-def enqueue_child_and_wait(
-    start: TaskStartPolicy | None = "when_free", raise_max_tasks: int | None = None
-) -> Solver:
+def enqueue_child_and_wait(raise_max_tasks: int | None = None) -> Solver:
     """Enqueue a child and record, in sample metadata, when it started.
 
     `started_while_parent_ran` is whether the child started (within 30 s)
@@ -466,7 +422,7 @@ def enqueue_child_and_wait(
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         started = anyio.Event()
-        await enqueue_task(_child_signalling(started), start=start)
+        await enqueue_task(_child_signalling(started))
         if raise_max_tasks is not None:
             await _wait_until_child_held()
             state.metadata["held_at_launch_limit"] = not started.is_set()
@@ -577,13 +533,9 @@ def test_enqueue_task_when_free_waits_for_capacity_until_limit_raised() -> None:
     assert metadata["started_while_parent_ran"] is True
 
 
-@pytest.mark.parametrize("start", ["when_free", None])
-def test_enqueue_task_when_free_in_task_source_run(
-    start: TaskStartPolicy | None,
-) -> None:
-    # in a TaskSource run, no `start` means when_free
+def test_enqueue_task_when_free_in_task_source_run() -> None:
     logs = eval(
-        TaskSource.from_tasks([_parent(enqueue_child_and_wait(start=start))]),
+        TaskSource.from_tasks([_parent(enqueue_child_and_wait())]),
         model="mockllm/model",
         max_tasks=2,
         display="none",
@@ -593,17 +545,12 @@ def test_enqueue_task_when_free_in_task_source_run(
     assert _parent_metadata(logs)["started_while_parent_ran"] is True
 
 
-@pytest.mark.parametrize("start", ["when_free", None])
-def test_enqueue_task_when_free_in_task_source_run_at_max_tasks_one(
-    start: TaskStartPolicy | None,
-) -> None:
+def test_enqueue_task_when_free_in_task_source_run_at_max_tasks_one() -> None:
     # a TaskSource run at max_tasks=1 also feeds the running dispatcher: the
     # child is queued behind the parent until the limit is raised
     try:
         logs = eval(
-            TaskSource.from_tasks(
-                [_parent(enqueue_child_and_wait(start=start, raise_max_tasks=2))]
-            ),
+            TaskSource.from_tasks([_parent(enqueue_child_and_wait(raise_max_tasks=2))]),
             model="mockllm/model",
             max_tasks=1,
             display="none",
@@ -617,15 +564,10 @@ def test_enqueue_task_when_free_in_task_source_run_at_max_tasks_one(
     assert metadata["started_while_parent_ran"] is True
 
 
-@pytest.mark.parametrize(
-    "driver,start",
-    [("eval", None), ("eval", "after_batch"), ("task_source", "after_batch")],
-)
-def test_enqueue_task_after_batch_waits_for_every_running_task(
-    driver: str, start: TaskStartPolicy | None
-) -> None:
-    # with free capacity (max_tasks=3), an after_batch child still starts only
-    # once the parent and its longer-running sibling have both finished, and
+@pytest.mark.parametrize("driver", ["eval", "task_source"])
+def test_enqueue_task_starts_while_other_tasks_run(driver: str) -> None:
+    # with free capacity (max_tasks=3), the child starts while the parent's
+    # longer-running sibling still runs, in a TaskSource run or not, and
     # before a TaskSource's next_tasks() is consulted
     order: list[str] = []
     parent_done = anyio.Event()
@@ -646,8 +588,7 @@ def test_enqueue_task_after_batch_waits_for_every_running_task(
                     dataset=[Sample(input="hi")],
                     solver=record("child-start"),
                     name="child",
-                ),
-                start=start,
+                )
             )
             order.append("parent-end")
             parent_done.set()
@@ -658,7 +599,7 @@ def test_enqueue_task_after_batch_waits_for_every_running_task(
     @solver
     def outlast_parent() -> Solver:
         # ends only once the parent's task has finished and this is the one
-        # task running, so a child that started when free would start first
+        # task running, so after the child has run
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             with anyio.fail_after(30):
                 await parent_done.wait()
@@ -691,7 +632,7 @@ def test_enqueue_task_after_batch_waits_for_every_running_task(
 
     assert sorted(log.eval.task for log in logs) == ["child", "parent", "sibling"]
     assert all(log.status == "success" for log in logs)
-    expected = ["parent-end", "sibling-end", "child-start"]
+    expected = ["parent-end", "child-start", "sibling-end"]
     assert order == expected + (["next_tasks"] if driver == "task_source" else [])
 
 
@@ -722,7 +663,6 @@ def test_enqueue_task_when_free_group_keeps_sequence_grouping_at_max_tasks_one()
                         Task(dataset=[Sample(input="x")], solver=record("c"), name="c"),
                         Task(dataset=[Sample(input="x")], solver=record("d"), name="d"),
                     ],
-                    start="when_free",
                 )
             return state
 
@@ -758,7 +698,6 @@ def test_enqueue_task_when_free_child_runs_when_parent_fails() -> None:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             await enqueue_task(
                 Task(dataset=[Sample(input="hi")], solver=record_child(), name="child"),
-                start="when_free",
             )
             raise RuntimeError("parent failed")
 
@@ -795,7 +734,6 @@ def test_enqueue_task_when_free_child_is_retried() -> None:
                     solver=fail_first_attempt(),
                     name="child",
                 ),
-                start="when_free",
             )
             return state
 
@@ -850,7 +788,7 @@ async def test_enqueue_task_finished_added_task_is_released_before_run_ends(
                 sandbox=sandbox,
             )
             dataset = weakref.ref(added.dataset)
-            await enqueue_task(added, start="when_free")
+            await enqueue_task(added)
             del added
             with anyio.move_on_after(10):
                 while dataset() is not None:
@@ -874,9 +812,8 @@ async def test_enqueue_task_finished_added_task_is_released_before_run_ends(
     assert released == [True]
 
 
-@pytest.mark.parametrize("start", ["after_batch", "when_free"])
 async def test_enqueue_task_cancel_while_added_tasks_create_their_logs(
-    monkeypatch: pytest.MonkeyPatch, start: TaskStartPolicy
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # the run is cancelled (as by Ctrl-C) while two added tasks with nothing
     # to set up have started, right after the second one's log init: as for
@@ -912,8 +849,7 @@ async def test_enqueue_task_cancel_while_added_tasks_create_their_logs(
                 [
                     Task(dataset=[Sample(input="x")], name="c"),
                     Task(dataset=[Sample(input="x")], name="d"),
-                ],
-                start=start,
+                ]
             )
             return state
 
@@ -951,7 +887,7 @@ async def test_enqueue_task_cancel_while_when_free_child_queued(
     @solver
     def enqueue_then_cancel_run() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            await enqueue_task(_child_signalling(child_started), start="when_free")
+            await enqueue_task(_child_signalling(child_started))
             await _wait_until_child_held()
             contexts.append(copy_context())
             scope.cancel()
@@ -1008,9 +944,7 @@ async def test_enqueue_task_when_free_file_task_log_init_keeps_running_cwd(
     def enqueue_file_task_and_watch_cwd() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             cwds.append(os.getcwd())
-            await enqueue_task(
-                f"{task_dir / 'filetask.py'}@filetask", start="when_free"
-            )
+            await enqueue_task(f"{task_dir / 'filetask.py'}@filetask")
             await init_started.wait()
             cwds.append(os.getcwd())
             init_release.set()
@@ -1059,14 +993,12 @@ LocalSandboxEnvironment.task_init = classmethod(interrupted_init)
 
 
 @solver
-def add_task(start, hold):
+def add_task():
     async def solve(state, generate):
         await enqueue_task(
-            Task(dataset=[Sample(input="x")], name="added", sandbox="local"),
-            start=start,
+            Task(dataset=[Sample(input="x")], name="added", sandbox="local")
         )
-        if hold:
-            await anyio.sleep(60)
+        await anyio.sleep(60)
         return state
 
     return solve
@@ -1090,7 +1022,7 @@ def run(case, display, log_dir):
     else:
         tasks = Task(
             dataset=[Sample(input="x")],
-            solver=add_task(None if case == "default" else case, case == "when_free"),
+            solver=add_task(),
             name="parent",
         )
     return eval(
@@ -1103,15 +1035,13 @@ def run(case, display, log_dir):
     )
 
 
-# the Ctrl-C lands while the added task's sandbox is set up or while
-# next_tasks() waits; the interrupted task has no log, and a task running
-# beside it writes a cancelled one. On trio, eval() raises KeyboardInterrupt
+# the Ctrl-C lands while the added task's sandbox is set up (while the task
+# that added it waits) or while next_tasks() waits; the interrupted task has no
+# log, and a task running beside it writes a cancelled one. On trio, eval() raises KeyboardInterrupt
 # after every Ctrl-C (run_main); on asyncio it returns the logs written so far
 trio = os.environ["INSPECT_ASYNC_BACKEND"] == "trio"
 expected = {
-    "default": [("parent", "success")],
-    "after_batch": [("parent", "success")],
-    "when_free": [("parent", "cancelled")],
+    "added": [("parent", "cancelled")],
     "source": [("seed", "success")],
 }
 for case, logs in expected.items():
@@ -1154,8 +1084,7 @@ def test_ctrl_c_while_adding_tasks_ends_the_run(backend: str) -> None:
 
     As for a Ctrl-C anywhere else, eval() returns the logs written so far on
     asyncio and raises KeyboardInterrupt on trio, with the rich, plain and
-    log displays, for an added task under each start policy and for a
-    TaskSource's next_tasks(). Tasks that already finished keep their logs, a
+    log displays, for an added task and for a TaskSource's next_tasks(). Tasks that already finished keep their logs, a
     task running beside the interrupted preparation is cancelled, and a later
     eval() still runs.
     """
