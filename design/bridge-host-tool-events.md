@@ -350,7 +350,7 @@ Cancellation:
   catches it is recorded by what it then does (`_execute_granted()`).
 - **ACP turn cancel.** The event is registered with the execution observer
   (`track_tool_call`), so `cancel_current_turn` marks it cancelled and failed
-  and names it in the `InterruptEvent`; `_set_result()` keeps that marker
+  and records an `InterruptEvent`; `_set_result()` keeps that marker
   when the call later finalises. It does not fire the per-call scope: the
   tool runs on unless ACP's interrupt of a bound agent channel cancels a turn
   scope that encloses the bridge. Hooks and ACP see two non-pending updates,
