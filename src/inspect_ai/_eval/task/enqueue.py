@@ -267,6 +267,10 @@ class RunTasks:
         self.end(record)
         display().update_task_count(-1)
 
+    async def wait_for_change(self) -> None:
+        """Wait until :attr:`changed` rings (since the last wait returned)."""
+        await self.changed.wait()
+
     def close(self) -> None:
         """Refuse further additions and end every record that has not ended.
 

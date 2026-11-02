@@ -13,7 +13,6 @@ import functools
 import gc
 import os
 import weakref
-from collections import Counter
 from operator import contains
 from pathlib import Path
 from types import SimpleNamespace
@@ -43,7 +42,6 @@ from inspect_ai._eval.run import (
     _TASK_OVERRIDABLE,
     TaskDispatcher,
     TaskRunResult,
-    pick_balanced,
     wants_retry,
 )
 from inspect_ai._eval.task.enqueue import (
@@ -497,13 +495,22 @@ async def _records(labels: list[tuple[str, Model]]) -> list[TaskRecord]:
     ]
 
 
-async def test_pick_balanced_prefers_least_used_model_then_queue_order() -> None:
+async def test_earliest_of_least_busy_model_then_queue_order() -> None:
     m1, m2 = get_model("mockllm/m1"), get_model("mockllm/m2")
-    ready = await _records([("a", m1), ("b", m1), ("c", m2), ("d", m2)])
-    assert pick_balanced(ready, Counter()) is ready[0]
-    assert pick_balanced(ready, Counter({m1: 1})) is ready[2]
-    assert pick_balanced(ready, Counter({m1: 1, m2: 1})) is ready[0]
-    assert pick_balanced([], Counter()) is None
+    harness = Harness([m1], parallel=2)
+    dispatcher = harness.dispatcher()
+    queued = await harness.seed(_resolve(["a", "b"], [m1]) + _resolve(["c", "d"], [m2]))
+    for record in queued:
+        record.setups = []
+    assert dispatcher.earliest_of_least_busy_model() is queued[0]
+    harness.tasks.start(queued[0])
+    assert dispatcher.earliest_of_least_busy_model() is queued[2]
+    harness.tasks.start(queued[2])
+    assert dispatcher.earliest_of_least_busy_model() is queued[1]
+    # a record whose setups are not done is not prepared
+    queued[1].setups = None
+    queued[3].setups = None
+    assert dispatcher.earliest_of_least_busy_model() is None
 
 
 @pytest.mark.parametrize(
@@ -569,13 +576,13 @@ class _ScriptedSource(TaskSource):
 async def test_dispatcher_idle_rule(
     source: list[list[str] | None] | None, idle_groups: list[list[str]]
 ) -> None:
-    # the loop's side of the tasks, without running any: ask_source_for_more
+    # the loop's side of the tasks, without running any: add_tasks_from_source
     # adds the source's next batch until it returns nothing
     scripted = None if source is None else _ScriptedSource(source)
     harness = Harness([get_model("mockllm/m1")], parallel=2)
     dispatcher = harness.dispatcher(scripted)
-    while dispatcher.next_tasks is not None:
-        await dispatcher.ask_source_for_more()
+    while await dispatcher.add_tasks_from_source():
+        pass
 
     groups = [[label.split("@")[0] for label in g] for g in harness.queued_groups]
     assert groups == idle_groups
@@ -1039,12 +1046,12 @@ async def test_failed_resolution_raises_to_whoever_adds_the_tasks(
     assert _starts(harness) == ["a@m1"]
 
 
-async def test_only_the_look_ahead_window_is_set_up(
+async def test_only_the_front_of_the_queue_is_set_up(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # the window is the first max_tasks queued tasks: with a and b in the two
-    # slots, t1 and t2 set up (one at a time, in queue order) and t3 waits
-    # until t1 starts; raising max_tasks widens the window at once
+    # the front of the queue is the first max_tasks queued tasks: with a and b
+    # in the two slots, t1 and t2 set up (one at a time, in queue order) and t3
+    # waits until t1 starts; raising max_tasks widens the front at once
     m1 = get_model("mockllm/m1")
     harness = Harness([m1], parallel=2)
     _install(monkeypatch, harness)
@@ -1091,10 +1098,10 @@ async def test_only_the_look_ahead_window_is_set_up(
     assert _starts(harness)[2:] == ["t1@m1", "t2@m1", "t3@m1", "t4@m1"]
 
 
-async def test_task_behind_the_window_joins_setups_already_requested(
+async def test_task_behind_the_front_joins_setups_already_requested(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # at max_tasks 1, `shared` is behind the window (`first` fills it) but
+    # at max_tasks 1, `shared` is behind the front (`first` fills it) but
     # its config's job exists, so it holds it, and `plain` (no sandbox)
     # starts in the free slot while `first`'s setup runs
     m1 = get_model("mockllm/m1")
@@ -1349,8 +1356,12 @@ async def test_loop_cancel_while_tasks_run_or_wait_for_a_slot_is_absorbed(
                 logs = await harness.dispatch(_resolve(["a"], [m1]))
                 # the task screen absorbs it: the run returns what it has
                 assert logs == []
-    # the queued task never made a logger
+    # the running task's logger is released, the queued task never made one,
+    # and every record has ended
+    assert harness.loggers["a@m1"][0].discarded == 1
     assert harness.loggers["c@m1"] == []
+    assert all(record.ended for record in harness.tasks.records)
+    assert task_dispatcher_stats() is None
 
 
 async def test_cancel_during_task_complete_keeps_the_written_log(

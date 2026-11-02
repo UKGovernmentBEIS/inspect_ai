@@ -75,7 +75,7 @@ limit — no new wakeup machinery.
 
 - **Raising** takes effect immediately: the dispatch wakers fire, the
   dispatcher re-evaluates, and pending tasks start (model-balanced, pause
-  latches respected — `pick_balanced`'s model-balancing and pause
+  latches respected — `earliest_of_least_busy_model`'s model-balancing and pause
   filtering apply as before) up to the new limit.
   Raising beyond `in_flight + pending` changes nothing until more tasks
   arrive (an enqueued task, a `TaskSource` batch); the
@@ -232,7 +232,7 @@ implementation should prefer the handle's value when available.
 ### Interactions and edge cases
 
 - **Pause latches**: orthogonal and composable. A paused task stays held
-  regardless of headroom (`pick_balanced` filters it out); raising
+  regardless of headroom (`earliest_of_least_busy_model` filters it out); raising
   `max_tasks` on a fully paused run dispatches nothing until resume — and
   resume's waker re-evaluates against the raised limit.
 - **The `parallel == 1` batch shape**: originally `run_batches` carved a

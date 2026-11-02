@@ -4,8 +4,8 @@ The scheduler's state (the run's :class:`RunTasks`, its :class:`SetupCache`)
 is used only from the run's event loop and changed without locks: code on one
 event loop does not interleave between ``await`` points, so a method that does
 not await (``RunTasks.enqueue``, ``start`` and ``end``, the dispatcher's
-``prepare_sandboxes_for_next_tasks`` and ``next_task_to_start``, the setup
-cache's bookkeeping) changes it as one step.
+``prepare_front_of_queue`` and ``start_prepared_tasks``, the setup cache's
+bookkeeping) changes it as one step.
 """
 
 import functools
@@ -87,7 +87,7 @@ from inspect_ai.log._file import EvalLogInfo
 from inspect_ai.log._log import eval_error
 from inspect_ai.log._recorders import Recorder
 from inspect_ai.model import GenerateConfigArgs
-from inspect_ai.model._model import Model, ModelName, ensure_model_controller
+from inspect_ai.model._model import ModelName, ensure_model_controller
 from inspect_ai.review._policy import ReviewPolicy, config_from_review_policies
 from inspect_ai.scorer._metric import to_metric_specs
 from inspect_ai.scorer._reducer import ScoreReducer, reducer_log_names
@@ -776,7 +776,7 @@ class TaskDispatcher:
     they can start, and when nothing is queued or running asks the
     ``TaskSource`` for more (``next_tasks()``) until there is nothing left.
     A record can start once its setups are requested (see
-    :meth:`prepare_sandboxes_for_next_tasks`) and they are done, or failed: a
+    :meth:`prepare_front_of_queue`) and they are done, or failed: a
     record whose setup is still running keeps its place but does not hold
     back a later one. A record whose setup failed starts like any other and
     its attempt ends with that error, so it has a log, hooks and a
@@ -848,53 +848,58 @@ class TaskDispatcher:
     async def loop(self, tg: TaskGroup) -> None:
         """Start the queued tasks as they can start, then ask for more or finish.
 
-        Each pass takes the first step that applies: start one task that can
-        start now; else, while tasks are queued or running, sleep until
-        something changes; else (nothing queued or running) ask the
-        ``TaskSource`` for more; else close the run's tasks and return.
-        ``RunTasks.changed`` wakes it: the run's tasks ring it whenever they
-        change (a task added, started, ended, or cancelled while waiting), the
-        setup cache as each setup ends, and ``inspect ctl`` as a setting that
-        decides what can start changes (pause, resume, ``max_tasks``). A
-        cancellation of the run reaches the loop where it awaits.
+        Each pass recomputes, from the run's tasks as they are now, two
+        stages: prepare the front of the queue (request its sandbox setups),
+        then start prepared tasks while a slot is free. Starting tasks moves
+        the front of the queue, so the pass repeats before sleeping. With
+        nothing to start it sleeps until something changes while tasks are
+        queued or running, and otherwise asks the ``TaskSource`` for more,
+        finishing once it has nothing more.
+
+        :meth:`RunTasks.wait_for_change` wakes it: the run's tasks change
+        (a task added, started, ended, or cancelled while waiting), a setup
+        ends, or ``inspect ctl`` changes a setting that decides what can
+        start (pause, resume, ``max_tasks``). A cancellation of the run
+        reaches the loop where it awaits.
         """
         while True:
             if self.setups.fatal is not None:
                 raise self.setups.fatal
-            self.prepare_sandboxes_for_next_tasks()
-            if (record := self.next_task_to_start()) is not None:
-                self.start_in_background(tg, record)
-            elif self.tasks.queued or self.tasks.running:
-                await self.tasks.changed.wait()
-            elif self.next_tasks is not None:
-                await self.ask_source_for_more()
-            else:
-                # nothing is queued, running or coming: a late add raises
-                self.tasks.close()
-                return
+            self.prepare_front_of_queue()
+            if self.start_prepared_tasks(tg):
+                continue
+            if self.tasks.running or self.tasks.queued:
+                await self.tasks.wait_for_change()
+            elif not await self.add_tasks_from_source():
+                break
+        # nothing is queued, running or coming: a late add raises
+        self.tasks.close()
 
-    async def ask_source_for_more(self) -> None:
+    async def add_tasks_from_source(self) -> bool:
         """Ask the ``TaskSource`` for its next batch and add it.
 
-        Its batch is added as ``enqueue_task`` adds tasks, after any added
-        while ``next_tasks()`` ran. Once it returns nothing it is not asked
-        again.
+        Returns whether the source was asked: ``False`` once it has returned
+        nothing, after which it is not asked again. Its batch is added as
+        ``enqueue_task`` adds tasks, after any added while ``next_tasks()``
+        ran.
         """
-        assert self.next_tasks is not None
+        if self.next_tasks is None:
+            return False
         more = await self.next_tasks()
         if more:
             await self.tasks.add(more)
         else:
             self.next_tasks = None
+        return True
 
-    def prepare_sandboxes_for_next_tasks(self) -> None:
+    def prepare_front_of_queue(self) -> None:
         """Request the sandbox setups of the queued records that will start soonest.
 
         Those are the first ``max_tasks`` (read live) unpaused queued records,
         so a queued task's sandboxes (often billed cloud resources) are not
-        created long before a slot can be free for it; the window moves as
+        created long before a slot can be free for it; the front moves as
         records start, and follows ``ctl config --max-tasks``. A record behind
-        the window whose configs all have a job already (none, or shared with
+        the front whose configs all have a job already (none, or shared with
         an earlier record) holds them at once: that sets up nothing new, and
         it can start as soon as they are done.
         """
@@ -906,18 +911,38 @@ class TaskDispatcher:
             ):
                 record.setups = self.setups.request(record.setup_keys)
 
-    def next_task_to_start(self) -> TaskRecord | None:
-        """The record to start now, if a slot is free and one can start.
+    def start_prepared_tasks(self, tg: TaskGroup) -> bool:
+        """Start prepared records while a slot is free; whether any started.
 
-        Chosen by :func:`pick_balanced` from the unpaused queued records whose
-        setups are done or failed.
+        A record is prepared once its setups are done or failed. Each start
+        takes :meth:`earliest_of_least_busy_model`, against ``max_tasks``
+        read live.
         """
-        if len(self.tasks.running) >= effective_max_tasks(self.parallel):
-            return None
-        ready = [
+        running_before = len(self.tasks.running)
+        while len(self.tasks.running) < effective_max_tasks(self.parallel):
+            record = self.earliest_of_least_busy_model()
+            if record is None:
+                break
+            self.start_in_background(tg, record)
+        return len(self.tasks.running) > running_before
+
+    def earliest_of_least_busy_model(self) -> TaskRecord | None:
+        """The prepared record to start next, or ``None`` if there is none.
+
+        Of the unpaused queued records whose setups are done or failed, the
+        earliest whose model has the fewest running records, so as many
+        models as possible run at once. Ties go to queue order, so at a
+        launch limit of 1 a sequence-ordered queue keeps all of a task's
+        model fan-outs together (while every setup they need is done).
+        """
+        prepared = [
             r for r in self.tasks.queued if not _dispatch_paused(r) and r.can_start
         ]
-        return pick_balanced(ready, Counter(r.model for r in self.tasks.running))
+        if not prepared:
+            return None
+        running = Counter(r.model for r in self.tasks.running)
+        fewest = min(running[r.model] for r in prepared)
+        return next(r for r in prepared if running[r.model] == fewest)
 
     def start_in_background(self, tg: TaskGroup, record: TaskRecord) -> None:
         """Start running a record's attempts, with the run's provider state."""
@@ -1052,22 +1077,6 @@ async def _release_unfinished(logger: TaskLogger) -> None:
     if not logger.finished:
         with anyio.CancelScope(shield=True):
             await logger.discard(keep_destination=True, keep_buffer=True)
-
-
-def pick_balanced(
-    ready: list[TaskRecord], model_counts: Counter[Model]
-) -> TaskRecord | None:
-    """The next record to start, or ``None`` if there is none.
-
-    The earliest record whose model has the fewest running attempts, so as
-    many models as possible run at once. Ties go to queue order, so at a
-    launch limit of 1 a sequence-ordered queue keeps all of a task's model
-    fan-outs together (while every setup they need is done).
-    """
-    if not ready:
-        return None
-    fewest = min(model_counts[r.model] for r in ready)
-    return next(r for r in ready if model_counts[r.model] == fewest)
 
 
 def _dispatch_paused(record: TaskRecord) -> bool:

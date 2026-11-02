@@ -86,14 +86,16 @@ eval() / eval_async()              tasks=<TaskSource>
   └─ eval_run(seed)               # once per run, one run_id,
         │                           # one control/ACP server scope
         └─ TaskDispatcher (the run's one scheduling loop):
-              while not run_cancelled:
-                  start queued tasks as slots free ─► task_run / task_run_sample
+              while True:
+                  prepare_front_of_queue(): request the next tasks' setups
+                  start_prepared_tasks() ───────────► task_run / task_run_sample
                                               │            │
                                               │            └─ sample_complete(sample, task) ─┐ (per sample)
                                               └─ task_complete(log) ──────────────────┤ (per task)
                                                  returned tasks ─► enqueue_task() ◄───┘
-                  if anything is queued or running: wait for a change
-                  else (add_more_tasks): add await next_tasks()'s batch;
+                  if any started: go round again
+                  elif anything is queued or running: wait_for_change()
+                  else add_tasks_from_source(): add await next_tasks()'s batch;
                        nothing left: close the run's tasks and end the run
 ```
 
@@ -126,7 +128,7 @@ Key locations:
   exited. Whatever a callback **returns** is passed to
   `_enqueue_source_tasks`, which calls `enqueue_task` with it — so returned
   tasks and `enqueue_task` additions are the same thing.
-- **The batch boundary** — `TaskDispatcher.add_more_tasks()` in
+- **The batch boundary** — `TaskDispatcher.add_tasks_from_source()` in
   [run.py](../src/inspect_ai/_eval/run.py): the loop calls it only when nothing
   is queued or running. It awaits the source's `next_tasks()` (the dispatcher
   holds only that hook, not the source) and adds the batch with `RunTasks.add`,
@@ -316,9 +318,9 @@ makes it the active one for `enqueue_task`, starts up the seed and runs the
   and `inspect ctl` act on the same record), and `wait()` waits for the
   record's end event and returns its final log.
 - **Setups.** As tasks start, the loop requests the setups of the records in
-  the look-ahead window (`queue_upcoming_setups`: the first `max_tasks`
+  front of the queue (`prepare_front_of_queue`: the first `max_tasks`
   unpaused queued records, read live, so a queued task's sandboxes are not
-  created long before a slot can be free for it; a record behind the window
+  created long before a slot can be free for it; a record behind the front
   whose configs all have a job already holds them at once — that is how a
   task with no sandbox never waits) from the run's `SetupCache`
   ([setup_cache.py](../src/inspect_ai/_eval/task/setup_cache.py)), which keeps
@@ -330,17 +332,19 @@ makes it the active one for `enqueue_task`, starts up the seed and runs the
 - **The seed** is set up before the task display opens: every seed setup runs
   (output streamed, the first failure raises before any log exists), then
   each seed logger is created; it is initialised as the task starts.
-- **The loop** (`TaskDispatcher.loop`): while the run is not cancelled, start
-  tasks while one can start (`next_task_to_start`: a free slot under the
-  live `max_tasks` limit, then model-balanced among the unpaused queued
-  records whose setups are done or failed, `pick_balanced`; a record whose
-  setup is still running does not hold back a later ready one), requesting
-  the window's setups before each start. Then wait for a completion, an
-  addition, a setup or a control change while anything is queued or running.
-  Once nothing is, `add_more_tasks()` asks `next_tasks()` (until it first
-  returns nothing; tasks added while it runs start only after it returns, so
-  `next_tasks()` must not wait for them). With nothing left, the loop closes
-  the run's tasks and ends.
+- **The loop** (`TaskDispatcher.loop`) recomputes two stages from the run's
+  tasks on each pass: `prepare_front_of_queue` requests the setups of the
+  front of the queue, then `start_prepared_tasks` starts tasks while a slot
+  is free under the live `max_tasks` limit, each the
+  `earliest_of_least_busy_model` among the unpaused queued records whose
+  setups are done or failed (a record whose setup is still running does not
+  hold back a later prepared one). If any started, the front of the queue
+  moved, so the pass repeats. Otherwise, while anything is queued or running
+  it waits (`RunTasks.wait_for_change`) for a completion, an addition, a
+  setup or a control change. Once nothing is, `add_tasks_from_source()` asks
+  `next_tasks()` (until it first returns nothing; tasks added while it runs
+  start only after it returns, so `next_tasks()` must not wait for them).
+  With nothing left, the loop closes the run's tasks and ends.
 - **Attempts** run in their slots (`run_one`: the task's logger is created or
   taken from the seed and initialised here, then the shared `_run_task`
   helper, a per-task cancel scope around `task_run`). The dispatcher also

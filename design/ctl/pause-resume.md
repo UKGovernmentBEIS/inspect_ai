@@ -60,7 +60,7 @@ When one provider degrades (or one model's spend needs to stop) in a multi-model
 The model latch is a third gate registry alongside the task gates and the process latch — one latch that the same dispatch points check, not a fan-out over task pauses (the same construction as the process latch):
 
 - A sample dispatches only if (in addition to the task gate and the process latch) its task's model gate is open (`PauseGatedSemaphore` carries the model name).
-- The eval-set scheduler does not dequeue a pending task whose model is latched (`pick_balanced` in `_eval/run.py` passes each pending task's model name alongside its task id — a pending task has no `EvalState` for the gate to resolve against, which is exactly why the name rides along). This covers task retries too (a queued retry attempt is a pending task).
+- The eval-set scheduler does not dequeue a pending task whose model is latched (`_dispatch_paused` in `_eval/run.py` passes each pending task's model name alongside its task id — a pending task has no `EvalState` for the gate to resolve against, which is exactly why the name rides along). This covers task retries too (a queued retry attempt is a pending task).
 - Everything else is inherited from the shared gate machinery: quiesce semantics, the auto-flush at quiesce, cancel escalating over pause, dry-run, idempotence, and the waker path on resume.
 
 Decisions (the issue's open questions):
