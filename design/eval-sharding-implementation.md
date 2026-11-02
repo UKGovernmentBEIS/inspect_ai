@@ -1356,7 +1356,7 @@ from an encoded object; rather than detect those shapes, the merge
 accepts a dictionary only when it is a metric's registry dict in a
 position annotated `Metric`, or when the option is a list made only of
 such references and annotated as lists or sequences ending in `Metric`,
-at any depth. Every other dictionary is refused: plain data
+at any depth (empty lists, and empty lists beside metrics, included). Every other dictionary is refused: plain data
 (`dict[str, float]`), dictionaries of metrics (`dict[str, Metric]`,
 nested or in a list, whose keys could also read as a `ModelDict`), a
 dictionary in a list, registry- or model-shaped data where the
@@ -2800,8 +2800,10 @@ Per PR (numbers from "Implementation plan"):
      members (direct and inside `grouped()`), are refused the same way,
      while a single `Metric` argument (with arguments named `type`,
      `name` and `params`, directly, inside `grouped()` and in a
-     `list[Metric]`) and a numeric `Literal[1, 2]` merge to the native
-     values;
+     `list[Metric]`), empty metric lists (`list[Metric]` given `[]`,
+     `Sequence[list[Metric]]` given `[[]]` and `[[], [metric]]`, and
+     `grouped()` around an empty list) and a numeric `Literal[1, 2]`
+     merge to the native values;
    - metadata as stored: two samples whose group metadata is the tuple
      `("a", "b")` and the list `["a", "b"]` form two groups in a native
      run and one group (0.5) in the merge, as documented, while string

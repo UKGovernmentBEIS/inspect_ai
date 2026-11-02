@@ -282,7 +282,11 @@ def _check_function_options(
             continue
         if isinstance(value, (list, tuple)):
             reason = resolved.reason
-            if reason is None and not _plain_container(resolved.annotation):
+            if not (
+                reason is not None
+                or _plain_container(resolved.annotation)
+                or (_metrics_only(value) and _metric_container(resolved.annotation))
+            ):
                 reason = "whose element types are not plain"
             if reason is not None:
                 raise ShardSetError(
@@ -487,13 +491,16 @@ def _metric_type(annotation: object) -> bool:
 
 
 def _metrics_only(value: object) -> bool:
-    """Whether `value` is a metric's registry dict, or a list of only those."""
+    """Whether `value` is a metric's registry dict, or a list of only those.
+
+    Empty lists, at any depth, hold only metrics.
+    """
     from inspect_ai._util.registry import is_registry_dict
 
     if is_registry_dict(value):
         return value["type"] == "metric"
     if isinstance(value, (list, tuple)):
-        return bool(value) and all(_metrics_only(v) for v in value)
+        return all(_metrics_only(v) for v in value)
     return False
 
 

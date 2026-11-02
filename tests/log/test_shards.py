@@ -5,7 +5,7 @@ import json
 import os
 import sys
 import zipfile
-from collections.abc import Callable, Hashable, Iterator
+from collections.abc import Callable, Hashable, Iterator, Sequence
 from io import BytesIO
 from pathlib import Path
 from typing import Annotated, Any, Literal, cast
@@ -1588,6 +1588,20 @@ def _named(label: str) -> Metric:
     return shard_named(type="metric", name=label, params=aggregate("points", mean()))
 
 
+@metric(name="shard_nested_sum")
+def shard_nested_sum(groups: Sequence[list[Metric]]) -> Metric:
+    """A metric given a sequence of lists of registered metrics."""
+
+    def compute(scores: list[SampleScore]) -> Value:
+        return sum(
+            cast(float, cast(MetricProtocol, m)(scores))
+            for metrics in groups
+            for m in metrics
+        )
+
+    return compute
+
+
 @metric(name="shard_key_sum")
 class ShardKeySum(MetricDeprecated):
     """A class metric with a string option (class metrics get `Score`s)."""
@@ -1624,6 +1638,11 @@ async def _verdict(state: TaskState, target: Target) -> Score:
         _named("some-label"),
         grouped(_named("mean"), "group"),
         shard_sum_of([_named("some-label")]),
+        # empty lists of metrics, direct, nested and beside a metric
+        shard_sum_of([]),
+        shard_nested_sum([[]]),
+        shard_nested_sum([[], [aggregate("points", mean())]]),
+        grouped(shard_sum_of([]), "group"),
     ]
 )
 def verdicts() -> Scorer:
@@ -1717,6 +1736,11 @@ def test_metrics_with_their_own_converters_merge_to_the_unsharded_values(
     assert expected[("verdicts", "shard_named")] == 1.75 + 2
     assert expected[("verdicts", "shard_sum_of2")] == 1.75 + 2
     assert expected[("verdicts", "odd3")] == 1.5 + 1
+    # empty metric lists: direct, nested, beside a metric, and grouped
+    assert expected[("verdicts", "shard_sum_of3")] == 0
+    assert expected[("verdicts", "shard_nested_sum")] == 0
+    assert expected[("verdicts", "shard_nested_sum2")] == 1.75
+    assert expected[("verdicts", "odd4")] == 0
     assert expected[("verdicts", "shard_quoted")] == 1
     assert ("ratings", "krippendorff_alpha") in expected
 
