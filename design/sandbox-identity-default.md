@@ -355,11 +355,19 @@ ways of calling it:
   member's scope would write as the member and fail with `PermissionError`
   before it could hand the files to root.
 - **Omitted `user`** inside a scope for the sandbox installs as the member.
-  `install_skills()` resolves the member with
-  `sandbox_identity_user(sbox, None, strict=False)` and then writes unmarked
-  (the boundary supplies the member), runs `pwd` for a relative `dir` and
-  `chmod +x` as the member, and skips the `chown`, because the writer already
-  owns the files. The skills land owned by the member, like every other write
+  `install_skills()` resolves the member once, with
+  `sandbox_identity_user(sbox, None, strict=False)`, and passes it explicitly
+  to every step: `write_file(..., user=member)`, `pwd` for a relative `dir`,
+  and `chmod +x`. It skips the `chown`, because the writer already owns the
+  files. The write names the member rather than relying on the boundary
+  default, because an enclosing `framework_sandbox_operation()` (in-loop
+  scoring, for example) would otherwise turn an omitted user back into the
+  default user. The write would then run as root while `chmod` ran as the
+  member and failed on a root-owned script, and a root write would land in
+  the member's directory. This branch stays separate from the explicit-user
+  branch, which keeps the legacy marked write. On a provider whose
+  `write_file()` takes no `user`, the explicit member raises
+  `SandboxUserUnsupportedError`, as any member file write does there. The skills land owned by the member, like every other write
   the member's scaffold makes. Keeping the legacy root write here would put
   root-owned files into a directory the member controls, typically its home,
   with no ownership change after it, and a member could redirect that root
@@ -568,11 +576,23 @@ Inside a scope:
   - *A shared artifact at a fixed path*, one that several agents execute or
     load, is created or written inside `framework_sandbox_operation()`, so it
     stays owned by the default user. Before any member executes or loads an
-    existing artifact, its ownership is verified under the trust model's
-    [verify-before-use](sandbox-trust-model.md#verify-before-use) contract:
-    the artifact and the directories above it must be owned by the default
-    user (or root) and not writable by group or others. A file that fails the
-    check is refused, not reused. Marking the write alone is not enough,
+    existing artifact, it is checked under the trust model's
+    [verify-before-use](sandbox-trust-model.md#verify-before-use) rule,
+    against the existing
+    [verified-directory contract](sandbox-trust-model.md#host-verified-directories)
+    (`util/_sandbox/_framework_directory.py:13-39`), which distinguishes three
+    levels:
+    - the artifact, or the install directory that holds it, is owned by the
+      default user (or root), is not a symbolic link, and is not writable by
+      group or others;
+    - its immediate parent is owned by that uid or by root and is either not
+      writable by group or others or sticky. `/var/tmp` (root-owned `1777`)
+      therefore qualifies, and a non-sticky `0777` parent does not;
+    - the ancestors above that parent are the caller's choice and must be
+      root-owned and not writable by others, as `/var` and `/` are for
+      `/var/tmp/<name>`.
+
+    An artifact that fails the check is refused, not reused. Marking the write alone is not enough,
     because a member may have created the path before any marked write ran.
   - *Per-user discovery and installation* (`which`, `test -x`, `uv tool
     install` into the member's home, `post_install` steps) stay unmarked and
@@ -708,8 +728,14 @@ Other files:
     and `chmod +x` for scripts as root, and succeeds where a write as `w-1`
     would be refused.
   - `test_install_skills_omitted_user_in_a_scope`: inside the scope, an
-    install with no `user` writes as `w-1`, runs `pwd` and `chmod +x` as
-    `w-1`, and runs no `chown`.
+    install with no `user` writes with `user="w-1"`, runs `pwd` and
+    `chmod +x` as `w-1`, and runs no `chown`.
+  - `test_install_skills_omitted_user_in_a_scope_under_marker`: the same
+    install, with a relative `dir` and a script, run inside
+    `framework_sandbox_operation()` within the scope. `pwd`, the writes and
+    `chmod +x` all name `w-1`, and the recorded script ends up owned by `w-1`
+    and executable. On a provider whose `write_file()` takes no `user`, the
+    same call raises `SandboxUserUnsupportedError` before writing anything.
   - `test_install_skills_omitted_user_outside_a_scope`: the same call outside
     a scope writes with no user and runs no `chown`, as today.
   - The existing `test_install_keeps_legacy_write_interface`
