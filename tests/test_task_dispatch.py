@@ -355,6 +355,11 @@ class _RecordingTasks(RunTasks):
         self.harness.queued_groups.append(_labels(records))
         super().enqueue(records)
 
+    @override
+    def enqueue_ahead(self, records: list[TaskRecord]) -> None:
+        self.harness.queued_groups.append(_labels(records))
+        super().enqueue_ahead(records)
+
 
 def _labels(records: list[TaskRecord]) -> list[str]:
     return [f"{r.task}@{str(r.model).split('/')[-1]}" for r in records]
@@ -421,6 +426,17 @@ async def test_run_tasks_queue_added_tasks_in_the_order_added() -> None:
     assert run_tasks.changed._event.is_set()
     assert _labels(run_tasks.queued) == ["a@m1", "w1@m1", "w2@m1"]
     assert run_tasks.records == run_tasks.queued
+
+
+async def test_run_tasks_add_ahead_queues_and_lists_ahead_of_the_queued() -> None:
+    harness = Harness([get_model("mockllm/m1")], parallel=2)
+    run_tasks = harness.tasks
+    [started] = await run_tasks.add([_task("a")])
+    run_tasks.start(started)
+    await run_tasks.add([_task("w1"), _task("w2")])
+    await run_tasks.add_ahead([_task("b1"), _task("b2")])
+    assert _labels(run_tasks.queued) == ["b1@m1", "b2@m1", "w1@m1", "w2@m1"]
+    assert _labels(run_tasks.records) == ["a@m1", "b1@m1", "b2@m1", "w1@m1", "w2@m1"]
 
 
 async def test_run_tasks_add_creates_records_and_raises_on_invalid_tasks() -> None:
@@ -823,7 +839,7 @@ async def test_loop_asks_source_only_when_idle_until_exhausted(
         async def next_tasks(self) -> list[Task] | None:
             calls.append([e for e in harness.events if not e.startswith("resolve")])
             if len(calls) == 1:
-                # added while next_tasks() runs: queued ahead of its batch
+                # added while next_tasks() runs: queued behind its batch
                 await harness.tasks.add([_task("late")])
                 return [_task("n1"), _task("n2")]
             return None
@@ -831,11 +847,11 @@ async def test_loop_asks_source_only_when_idle_until_exhausted(
     async def drive() -> None:
         await _wait_started(harness, "a@m1")
         harness.finish["a@m1"].set()
-        await _wait_started(harness, "late@m1", "n1@m1")
-        harness.finish["late@m1"].set()
-        await _wait_started(harness, "n2@m1")
+        await _wait_started(harness, "n1@m1", "n2@m1")
         harness.finish["n1@m1"].set()
+        await _wait_started(harness, "late@m1")
         harness.finish["n2@m1"].set()
+        harness.finish["late@m1"].set()
 
     async with anyio.create_task_group() as tg:
         tg.start_soon(drive)
@@ -846,7 +862,7 @@ async def test_loop_asks_source_only_when_idle_until_exhausted(
     assert calls[0] == ["start a@m1", "end a@m1 success"]
     # the batch was queued whole, when the call returned
     assert harness.queued_groups == [["a@m1"], ["late@m1"], ["n1@m1", "n2@m1"]]
-    assert [log.eval.task for log in logs] == ["a@m1", "late@m1", "n1@m1", "n2@m1"]
+    assert [log.eval.task for log in logs] == ["a@m1", "n1@m1", "n2@m1", "late@m1"]
     with pytest.raises(RuntimeError, match="finished dispatching"):
         await harness.tasks.add([_task("after_end")])
 
@@ -2070,11 +2086,11 @@ def test_invalid_follow_up_from_sample_complete_is_handled_like_its_exceptions(
     assert run(Source()) == run(Raising()) == [("seed", "error")]
 
 
-def test_tasks_enqueued_during_next_tasks_start_before_its_batch(
+def test_tasks_enqueued_during_next_tasks_start_after_its_batch(
     tmp_path: Path,
 ) -> None:
     # tasks enqueued while next_tasks() runs are queued at once, and its batch
-    # when it returns
+    # when it returns, ahead of them (in start order and in the results)
     started: list[str] = []
 
     class Source(TaskSource):
@@ -2097,5 +2113,5 @@ def test_tasks_enqueued_during_next_tasks_start_before_its_batch(
         log_dir=str(tmp_path),
         max_tasks=1,
     )
-    assert started == ["seed", "late", "batch"]
-    assert [log.eval.task for log in logs] == ["seed", "late", "batch"]
+    assert started == ["seed", "batch", "late"]
+    assert [log.eval.task for log in logs] == ["seed", "batch", "late"]

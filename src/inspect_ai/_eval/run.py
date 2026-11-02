@@ -817,7 +817,7 @@ class TaskDispatcher:
     async def run(self) -> list[EvalLog]:
         """Run the queued tasks and every task added while the run is in progress.
 
-        Returns the logs in the order the tasks were queued. A cancellation
+        Returns the logs in the order of :attr:`RunTasks.records`. A cancellation
         of the run (Ctrl-C) wherever the loop is returns the logs written so
         far.
         """
@@ -879,15 +879,15 @@ class TaskDispatcher:
         """Ask the ``TaskSource`` for its next batch and add it.
 
         Returns whether the source was asked: ``False`` once it has returned
-        nothing, after which it is not asked again. Its batch is added as
-        ``enqueue_task`` adds tasks, after any added while ``next_tasks()``
-        ran.
+        nothing, after which it is not asked again. Its batch is queued ahead
+        of any tasks added (with ``enqueue_task``) while ``next_tasks()`` ran,
+        as it was asked for before them (see :meth:`RunTasks.add_ahead`).
         """
         if self.next_tasks is None:
             return False
         more = await self.next_tasks()
         if more:
-            await self.tasks.add(more)
+            await self.tasks.add_ahead(more)
         else:
             self.next_tasks = None
         return True

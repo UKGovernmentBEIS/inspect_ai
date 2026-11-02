@@ -131,8 +131,10 @@ Key locations:
 - **The batch boundary** — `TaskDispatcher.add_tasks_from_source()` in
   [run.py](../src/inspect_ai/_eval/run.py): the loop calls it only when nothing
   is queued or running. It awaits the source's `next_tasks()` (the dispatcher
-  holds only that hook, not the source) and adds the batch with `RunTasks.add`,
-  the function `enqueue_task` uses. A cancelled task ends the run.
+  holds only that hook, not the source) and adds the batch with
+  `RunTasks.add_ahead`, which resolves tasks as `RunTasks.add` (the function
+  `enqueue_task` uses) does but queues them ahead of any added while
+  `next_tasks()` ran. A cancelled task ends the run.
 
 ### Rejected elsewhere
 
@@ -189,7 +191,8 @@ All three share the same downstream machinery:
   limit), and every record: `queued`, `running`, and all in the order queued.
   `add()` resolves, configures and prepares the tasks, then queues them and
   sets the wake the loop waits on. A `next_tasks()` batch is added when the
-  call returns, after any task added while it ran.
+  call returns, ahead of any task added while it ran (in the queue and in the
+  results).
 - When the dispatcher finds nothing more to run it closes the run's tasks
   before returning (and on a cancelled or failed run; `eval_run` closes them
   when the run fails before dispatch). A later `add()` raises `RuntimeError`
@@ -342,8 +345,10 @@ makes it the active one for `enqueue_task`, starts up the seed and runs the
   moved, so the pass repeats. Otherwise, while anything is queued or running
   it waits (`RunTasks.wait_for_change`) for a completion, an addition, a
   setup or a control change. Once nothing is, `add_tasks_from_source()` asks
-  `next_tasks()` (until it first returns nothing; tasks added while it runs
-  start only after it returns, so `next_tasks()` must not wait for them).
+  `next_tasks()` (until it first returns nothing) and queues its batch with
+  `RunTasks.add_ahead`, ahead of any tasks added while it ran: those start
+  only after it returns, behind its batch, so `next_tasks()` must not wait
+  for them.
   With nothing left, the loop closes the run's tasks and ends.
 - **Attempts** run in their slots (`run_one`: the task's logger is created or
   taken from the seed and initialised here, then the shared `_run_task`
@@ -353,7 +358,8 @@ makes it the active one for `enqueue_task`, starts up the seed and runs the
   failed is set up again, ahead of queued tasks' setups — and the retry
   reinitialises the failed attempt's logger for a fresh log entry. Results
   are in the order the tasks were queued: the seed's input order, then added
-  tasks in the order added.
+  tasks in the order added, except that a `next_tasks()` batch comes ahead
+  of the tasks added while it ran.
 
 A cancellation (Ctrl-C, or a cancelled scope around `eval_async`) that lands
 once the task display is open is absorbed (`_run_task_screen`) wherever the

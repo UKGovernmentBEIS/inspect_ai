@@ -165,7 +165,9 @@ class RunTasks:
         self.running: set[TaskRecord] = set()
         self.changed = changed
         self.records: list[TaskRecord] = []
-        """Every record queued, in the order it was queued."""
+        """Every record queued, in the order it was queued, except that a
+        ``next_tasks()`` batch is ahead of the records queued while it was
+        made (see :meth:`add_ahead`)."""
         self._by_id: dict[str, TaskRecord] = {}
         self._closed = False
 
@@ -202,29 +204,63 @@ class RunTasks:
 
         The one way tasks are added once the run has started: by
         :func:`enqueue_task`, which tasks a ``TaskSource`` callback returns
-        go through too, and by the scheduling loop for a ``next_tasks()``
-        batch. Resolution, configuration and sandbox config errors surface to
-        the caller; none of the tasks is queued then. Returns the records in
-        start order.
+        go through too, and (with :meth:`add_ahead`) by the scheduling loop
+        for a ``next_tasks()`` batch. Resolution, configuration and sandbox
+        config errors surface to the caller; none of the tasks is queued
+        then. Returns the records in start order.
         """
+        records = await self._create_added(tasks)
+        self.enqueue(records)
+        return records
+
+    async def add_ahead(self, tasks: Tasks) -> list[TaskRecord]:
+        """Add tasks as :meth:`add` does, but queue them ahead of the queued records.
+
+        How the scheduling loop adds a ``next_tasks()`` batch: it asks for
+        one only when nothing is queued or running, so the records queued by
+        the time the batch is ready were added while it was being made, and
+        the batch goes ahead of them.
+        """
+        records = await self._create_added(tasks)
+        self.enqueue_ahead(records)
+        return records
+
+    async def _create_added(self, tasks: Tasks) -> list[TaskRecord]:
+        """Records for tasks added to the run, unless it has finished starting tasks."""
         records = await self.create(self._resolve(tasks))
         if self._closed:
             raise RuntimeError(
                 f"enqueue_task(): run '{self.run_id}' has finished dispatching "
                 "tasks, so an added task would never run."
             )
-        self.enqueue(records)
         return records
 
     def enqueue(self, records: list[TaskRecord]) -> None:
-        """Queue records to start, after those already queued.
-
-        Notes their models for the model pause directives (a task that has not
-        started has no ``EvalState`` to check) and grows the task display's
-        count.
-        """
+        """Queue records to start, after those already queued."""
         self.records.extend(records)
         self.queued.extend(records)
+        self._note_queued(records)
+
+    def enqueue_ahead(self, records: list[TaskRecord]) -> None:
+        """Queue records to start, ahead of those already queued.
+
+        They are also listed in :attr:`records` (so in the run's results)
+        ahead of the first queued record.
+        """
+        position = (
+            self.records.index(self.queued[0]) if self.queued else len(self.records)
+        )
+        self.records[position:position] = records
+        self.queued[:0] = records
+        self._note_queued(records)
+
+    def _note_queued(self, records: list[TaskRecord]) -> None:
+        """Take note of records just queued.
+
+        Indexes them by task id, notes their models for the model pause
+        directives (a task that has not started has no ``EvalState`` to
+        check) and grows the task display's count.
+        """
         self._by_id.update((record.task_id, record) for record in records)
         note_dispatch_models([dispatch_model_name(r.model) for r in records])
         display().update_task_count(len(records))
@@ -285,7 +321,7 @@ class RunTasks:
         self.queued = []
 
     def results(self) -> list[EvalLog]:
-        """The final log of each task that has one, in the order they were queued."""
+        """The final log of each task that has one, in :attr:`records` order."""
         return [
             record.log
             for record in self.records
@@ -465,7 +501,7 @@ def enqueue_task(tasks: "Tasks", *, run_id: str | None = None) -> EnqueuedTasks:
     ``eval()`` defaults ``max_tasks`` to the number of models, so without a
     higher ``max_tasks`` the run hangs. In a :class:`~inspect_ai.TaskSource`
     run, tasks added while ``next_tasks()`` runs start only after it returns,
-    so ``next_tasks()`` must not wait for them.
+    behind the batch it returns, so ``next_tasks()`` must not wait for them.
 
     Call from the eval's event loop, not from another thread: from a solver,
     scorer or tool, a ``TaskSource`` callback, or a hook Inspect calls during

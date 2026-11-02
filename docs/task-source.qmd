@@ -186,7 +186,7 @@ A cancel through a handle is the same as `inspect ctl task cancel` with the hand
 
 ## Concurrency
 
-A task added mid-run (returned from a callback, or passed to `enqueue_task()`) starts as soon as there is free capacity, rather than waiting for the tasks already running to finish. `next_tasks()` is called only once no task is queued or running. Tasks added while `next_tasks()` runs start only after it returns (ahead of the batch it returns), so `next_tasks()` must not wait for them.
+A task added mid-run (returned from a callback, or passed to `enqueue_task()`) starts as soon as there is free capacity, rather than waiting for the tasks already running to finish. `next_tasks()` is called only once no task is queued or running. Tasks added while `next_tasks()` runs start only after it returns (behind the batch it returns), so `next_tasks()` must not wait for them.
 
 Capacity is bounded by `max_tasks` (the number of concurrent task × model units). If the seed fills every slot, a follow-up waits until a slot frees, so to run follow-ups alongside the seed, set `max_tasks` above the number of seed units. A seed of two tasks across two models is four units, so `--max-tasks 6` leaves room:
 
