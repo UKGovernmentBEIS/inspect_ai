@@ -1476,3 +1476,87 @@ async def test_openai_file_batcher_sends_each_header_set_separately() -> None:
         call.kwargs["extra_headers"] for call in client.batches.create.call_args_list
     ]
     assert sorted(create_headers, key=str) == [{"x-org": "a"}, {"x-org": "b"}]
+
+
+@pytest.mark.parametrize("status", ["cancelled", "expired"])
+async def test_openai_batcher_fails_requests_missing_from_ended_batch(
+    status: str,
+) -> None:
+    """Requests an ended batch has no result for fail instead of waiting forever.
+
+    A cancelled batch has only the partial results (if any) in its output file,
+    so it can end with no result files or with results for some requests.
+    """
+    from unittest.mock import AsyncMock, MagicMock
+
+    from openai.types import Batch as OpenAIBatch
+    from openai.types.chat import ChatCompletion
+
+    from inspect_ai.model._providers._openai_batch import OpenAIBatcher
+    from inspect_ai.model._providers.util.batch import Batch
+
+    def openai_batch(output_file_id: str | None) -> OpenAIBatch:
+        return OpenAIBatch.model_validate(
+            {
+                "id": "batch-1",
+                "completion_window": "24h",
+                "created_at": 0,
+                "endpoint": "/v1/chat/completions",
+                "input_file_id": "file-in",
+                "object": "batch",
+                "status": status,
+                "output_file_id": output_file_id,
+            }
+        )
+
+    completion = {
+        "id": "chatcmpl-1",
+        "object": "chat.completion",
+        "created": 0,
+        "model": "gpt-test",
+        "choices": [],
+    }
+    output_file = json.dumps(
+        {"custom_id": "answered", "response": {"body": completion}}
+    ).encode()
+
+    async def run(output_file_id: str | None) -> dict[str, object]:
+        client = MagicMock()
+        client.batches.retrieve = AsyncMock(return_value=openai_batch(output_file_id))
+        client.files.content = AsyncMock(
+            return_value=MagicMock(aread=AsyncMock(return_value=output_file))
+        )
+        batcher = OpenAIBatcher(
+            client,
+            BatchConfig(tick=0.001),
+            model_retry_config(
+                "test", 3, None, lambda e: True, lambda ex: None, lambda m, s: None
+            ),
+            ChatCompletion,
+        )
+        receivers = {}
+        requests = {}
+        for custom_id in ["answered", "unanswered"]:
+            send, receivers[custom_id] = anyio.create_memory_object_stream[
+                ChatCompletion | Exception
+            ](1)
+            requests[custom_id] = BatchRequest[ChatCompletion](
+                request={}, result_stream=send, custom_id=custom_id
+            )
+        batcher._inflight_batches["batch-1"] = Batch(id="batch-1", requests=requests)
+
+        with anyio.fail_after(5):
+            await batcher._batch_worker()
+
+        return {
+            custom_id: receiver.receive_nowait()
+            for custom_id, receiver in receivers.items()
+        }
+
+    no_files = await run(None)
+    assert all(isinstance(result, RuntimeError) for result in no_files.values())
+    assert status in str(no_files["unanswered"])
+
+    partial = await run("file-out")
+    assert isinstance(partial["answered"], ChatCompletion)
+    assert isinstance(partial["unanswered"], RuntimeError)
