@@ -412,8 +412,13 @@ async def test_vars_raise_on_a_bad_entry_and_retry_later(
 @pytest.mark.skipif(os.name != "posix", reason="requires a POSIX shell")
 @pytest.mark.parametrize(
     "before",
-    ["1000:x:2000:2000::/home/numeric:/bin/sh", "#old:x:1000:1000::/home/old:/bin/sh"],
-    ids=["numeric-name", "comment"],
+    [
+        "1000:x:2000:2000::/home/numeric:/bin/sh",
+        "#old:x:1000:1000::/home/old:/bin/sh",
+        "  #old:x:1000:1000::/home/old:/bin/sh",
+        "\t#old:x:1000:1000::/home/old:/bin/sh",
+    ],
+    ids=["numeric-name", "comment", "indented-comment", "tabbed-comment"],
 )
 async def test_vars_find_a_bare_uid_by_its_uid_field(
     tmp_path: Path, before: str
@@ -430,6 +435,22 @@ async def test_vars_find_a_bare_uid_by_its_uid_field(
         assert await sandbox_identity_vars(sb, None) is None
         assert await sandbox_identity_vars(sb, None) is None
     assert len(sb.exec_calls) == 3
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires a POSIX shell")
+async def test_vars_raise_unless_passwd_is_a_file_and_retry_later(
+    tmp_path: Path,
+) -> None:
+    passwd = tmp_path / "passwd"
+    passwd.mkdir()
+    sb = _LookupSandbox(passwd=passwd)
+    with _environments(default=sb), sandbox_identity("w"):
+        with pytest.raises(RuntimeError, match="'w': .*not a readable file"):
+            await sandbox_identity_vars(sb, None)
+        passwd.rmdir()
+        passwd.write_text("w:x:1000:1000::/home/w:/bin/sh\n")
+        assert await sandbox_identity_vars(sb, None) == {"HOME": "/home/w"}
+    assert len(sb.exec_calls) == 2
 
 
 @pytest.mark.parametrize("timeout, expected", [(None, 30), (5, 5), (60, 30)])

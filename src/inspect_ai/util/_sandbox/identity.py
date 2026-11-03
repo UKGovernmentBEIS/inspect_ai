@@ -205,8 +205,9 @@ PASSWD_LOOKUP_TIMEOUT = 30
 # count (exit status 2 means no entry), and reads /etc/passwd on images without
 # getent. Like getent, the fallback matches an all-digit $1 against the uid
 # field as a number and anything else against the name field, and like glibc
-# it skips lines starting with #. Entries are split with parameter expansion,
-# which cannot fail.
+# it skips lines whose first non-blank character is #. It fails unless
+# /etc/passwd is a readable regular file. Entries are split with parameter
+# expansion, which cannot fail.
 _PASSWD_HOME_SCRIPT = """
 print_home() {
     case $1 in
@@ -231,8 +232,8 @@ if command -v getent >/dev/null 2>&1; then
     fi
     print_home "$entry" "getent passwd"
 fi
-if [ ! -r /etc/passwd ]; then
-    echo "no getent and no readable /etc/passwd" >&2
+if [ ! -f /etc/passwd ] || [ ! -r /etc/passwd ]; then
+    echo "no getent and /etc/passwd is not a readable file" >&2
     exit 1
 fi
 case $1 in
@@ -240,7 +241,7 @@ case $1 in
     *) by_uid=true ;;
 esac
 while IFS= read -r entry || [ -n "$entry" ]; do
-    case $entry in
+    case ${entry#"${entry%%[! \t]*}"} in
         "#"*) continue ;;
     esac
     if [ "$by_uid" = true ]; then
