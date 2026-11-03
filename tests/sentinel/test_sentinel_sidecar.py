@@ -9,6 +9,7 @@ from test_helpers.stand_in_sidecar import StandInSidecar, Turn
 
 from inspect_ai import Task
 from inspect_ai import eval as inspect_eval
+from inspect_ai import score as score_log
 from inspect_ai._sentinel._sidecar._endpoint import (
     SentinelProxyError,
     Sidecar,
@@ -1348,6 +1349,28 @@ def test_a_retry_is_scored_on_its_own_attempts_monitor_state(
     # that makes no call through it never reads, as in process
     assert (sample.scores or {})["_reads_monitor_state"].value == read
     assert len(_registered(stand_in, "sample_result")) == (1 if retry_calls else 0)
+
+
+def test_a_failed_sample_is_saved_with_its_monitor_state() -> None:
+    stand_in = StandInSidecar(methods={"sample_result": _kept({"Tally:lookups": 1})})
+    task = Task(
+        dataset=[Sample(input="Hi.")],
+        solver=_calls_then_fails(retry_calls=False),
+        scorer=_reads_monitor_state(),
+    )
+
+    [log] = eval(task, model=_model(stand_in), display="none")
+
+    # not scored, as it failed, but saved with the state, as in process, so
+    # that scoring the log later reads it
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.error is not None and not sample.scores
+    assert sample.store["Tally:lookups"] == 1
+    rescored = score_log(log, _reads_monitor_state(), display="none")
+    assert rescored.samples is not None
+    [again] = rescored.samples
+    assert (again.scores or {})["_reads_monitor_state"].value == 1
     # the sidecar the first attempt called is still told the sample ended
     assert _ended(stand_in) == [sample.uuid]
 
@@ -1410,6 +1433,44 @@ def test_two_sidecars_that_keep_the_same_key_fail_the_sample() -> None:
     error = log.samples[0].error
     assert error is not None
     assert "both keep 'Tally:lookups'" in error.message
+    # once each, though the sample failed after the copy
+    assert len(_registered(first, "sample_result")) == 1
+    assert len(_registered(second, "sample_result")) == 1
+
+
+@solver
+def _asks_both_then_fails(other: Model) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        state = await generate(state)
+        await other.generate(state.messages)
+        raise RuntimeError("The agent fails.")
+
+    return solve
+
+
+def test_a_failed_sample_whose_sidecars_keep_the_same_key_says_why_it_has_none() -> (
+    None
+):
+    first = StandInSidecar(methods={"sample_result": _kept({"Tally:lookups": 2})})
+    second = StandInSidecar(methods={"sample_result": _kept({"Tally:lookups": 5})})
+    assigned, other = _two_models(first, second)
+    task = Task(
+        dataset=[Sample(input="Hi.")],
+        solver=_asks_both_then_fails(other),
+        scorer=_reads_monitor_state(),
+    )
+
+    [log] = eval(task, model=assigned, display="none")
+
+    # saved with its own error, and scoring the log later is told why the
+    # monitor state is missing
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.error is not None and "The agent fails." in sample.error.message
+    rescored = score_log(log, _reads_monitor_state(), display="none")
+    assert rescored.samples is not None
+    explanation = (rescored.samples[0].scores or {})["_reads_monitor_state"].explanation
+    assert explanation is not None and "both keep 'Tally:lookups'" in explanation
 
 
 @solver
