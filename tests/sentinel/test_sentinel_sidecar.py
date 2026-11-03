@@ -1458,6 +1458,28 @@ def test_a_refused_turn_counts_the_usage_the_provider_billed() -> None:
     assert sample.limit is not None and sample.limit.type == "token"
 
 
+def test_a_refused_turn_past_the_token_limit_is_counted_once() -> None:
+    withheld = {
+        "message": _turn_json(("call_1", "Tokyo")),
+        "results": {"call_1": "Tokyo is not allowed."},
+    }
+    refused = {"outcome": "reject", "withheld": withheld, "usage": _BILLED}
+    stand_in = StandInSidecar(turns=[Turn(status=400, sentinel=refused)])
+    task = Task(
+        dataset=[Sample(input="What's the weather?")],
+        solver=[use_tools(weather()), generate()],
+        token_limit=6,
+    )
+
+    [log] = eval(task, model=_model(stand_in), display="none")
+
+    # the limit stops the sample at the refused reply, whose tokens count once
+    assert log.samples is not None
+    [sample] = log.samples
+    assert _total_tokens(sample) == 7
+    assert sample.limit is not None and sample.limit.type == "token"
+
+
 def test_a_bridged_agent_is_never_handed_a_rejected_call() -> None:
     withheld = {
         "message": _turn_json(("call_1", "Tokyo")),
