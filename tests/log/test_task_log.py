@@ -15,9 +15,7 @@ import pytest
 from test_helpers.task_logger import TaskLoggerShim
 from test_helpers.utils import skip_if_trio
 
-from inspect_ai import Task, eval
-from inspect_ai._eval.loader import resolve_tasks
-from inspect_ai._eval.run import eval_run
+from inspect_ai import Task, eval, eval_async
 from inspect_ai._eval.task import log as task_log_module
 from inspect_ai._eval.task.log import (
     TaskLogger,
@@ -54,7 +52,7 @@ from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 from inspect_ai.log._recorders.eval import ComposePrefixInvariantError, EvalRecorder
 from inspect_ai.log._recorders.json import JSONRecorder
 from inspect_ai.log._recorders.recorder import Recorder, SampleRecordKey
-from inspect_ai.model import GenerateConfig, ModelOutput, get_model
+from inspect_ai.model import GenerateConfig, ModelOutput
 from inspect_ai.model._chat_message import ChatMessageUser
 
 
@@ -103,56 +101,43 @@ class TestResolveTaskDistribution:
 
 
 @pytest.mark.anyio
-async def test_eval_run_releases_a_logger_whose_init_fails(
-    monkeypatch,
+async def test_a_logger_whose_init_fails_errors_its_task_and_is_released(
+    monkeypatch, tmp_path: Path
 ) -> None:
-    # a seed task's logger is created before the run and initialised as the
-    # task starts: when that fails the run fails, the failed logger is
-    # released, and the queued task's logger, never initialised, holds nothing
-    created_loggers: list[object] = []
-    released_loggers: list[object] = []
+    # a seed task's logger is initialised as the task starts: when that fails,
+    # the task ends with an error log (its header), the run goes on to the
+    # next task, and the failed logger is released
+    init = TaskLogger.init
+    discard = TaskLogger.discard
+    released: list[str] = []
 
-    class FakeTaskLogger:
-        finished = False
+    async def failing_init(logger: TaskLogger) -> None:
+        if logger.eval.task == "bad":
+            raise RuntimeError("log init failed")
+        await init(logger)
 
-        def __init__(self, *args: object, **kwargs: object) -> None:
-            created_loggers.append(self)
+    async def recording_discard(logger: TaskLogger, **kwargs: Any) -> None:
+        released.append(logger.eval.task)
+        await discard(logger, **kwargs)
 
-        async def init(self) -> None:
-            raise RuntimeError("setup failed")
-
-        async def discard(
-            self, *, keep_destination: bool = False, keep_buffer: bool = False
-        ) -> None:
-            released_loggers.append(self)
-
-    monkeypatch.setattr("inspect_ai._eval.run.TaskLogger", FakeTaskLogger)
-
-    tasks = [
-        Task(dataset=[Sample(input="input", target="target")]),
-        Task(dataset=[Sample(input="input", target="target")]),
+    monkeypatch.setattr(TaskLogger, "init", failing_init)
+    monkeypatch.setattr(TaskLogger, "discard", recording_discard)
+    logs = await eval_async(
+        [
+            Task(name="bad", dataset=[Sample(input="input", target="target")]),
+            Task(name="good", dataset=[Sample(input="input", target="target")]),
+        ],
+        model="mockllm/model",
+        max_tasks=1,
+        log_dir=str(tmp_path),
+    )
+    assert [(log.eval.task, log.status) for log in logs] == [
+        ("bad", "error"),
+        ("good", "success"),
     ]
-    model = get_model("mockllm/model")
-    resolved_tasks = resolve_tasks(tasks, {}, model, None, None, None)
-
-    # raised from the started task, inside the run's task group
-    with pytest.raises(ExceptionGroup) as raised:
-        await eval_run(
-            eval_set_id=None,
-            run_id="run-id",
-            tasks=resolved_tasks,
-            parallel=1,
-            eval_config=EvalConfig(log_realtime=True),
-            eval_checkpoint=None,
-            recorder=cast(Recorder, object()),
-            header_only=False,
-            resolve_added_tasks=lambda tasks: [],
-            run_samples=False,
-        )
-
-    assert raised.group_contains(RuntimeError, match="setup failed")
-    assert len(created_loggers) == 2
-    assert released_loggers == created_loggers[:1]
+    assert logs[0].error is not None
+    assert "log init failed" in logs[0].error.message
+    assert released == ["bad"]
 
 
 def _sample() -> EvalSample:
@@ -272,6 +257,7 @@ def _flush_logger(
     logger = TaskLoggerShim(buffer_db or _FlushBufferDB())
     logger.recorder = cast(Recorder, recorder or _FlushRecorder())
     logger.eval = _eval_spec()
+    logger._location = "opened.eval"
     logger.flush_buffer = flush_buffer
     logger.flush_pending = []
     logger._samples_completed = 0
@@ -3118,3 +3104,16 @@ async def test_task_logger_destination_written_finished_without_recorder() -> No
     logger._finished = True
     assert logger.destination_written is True
     assert recorder.asked == 1
+
+
+async def test_task_logger_destination_written_never_opened_without_recorder() -> None:
+    """A log never opened (``log_init`` failed) has nothing written.
+
+    The recorder never tracked the eval, so asking it would raise.
+    """
+    recorder = _DestinationRecorder(written=True)
+    logger = _flush_logger(recorder=recorder)
+    logger._location = ""
+
+    assert logger.destination_written is False
+    assert recorder.asked == 0

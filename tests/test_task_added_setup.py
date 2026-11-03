@@ -781,23 +781,60 @@ async def test_task_init_that_finishes_during_a_run_cancel_is_cleaned_up(
     assert _box["cleanups"] == ["_AddedSetupBox"]
 
 
-async def test_added_task_whose_log_cannot_be_created_fails_the_run(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize("added", [False, True])
+@pytest.mark.parametrize("retries", [0, 1])
+async def test_a_log_that_cannot_be_opened_errors_only_its_task(
+    monkeypatch: pytest.MonkeyPatch, added: bool, retries: int
 ) -> None:
-    # an added task's logger is created when it starts; as for a log that
-    # cannot be created at the start of the run, that fails the run
+    # a task's log is opened as its attempt starts, while other tasks run
+    # (the parent waits for the failure): opening the child's log fails the
+    # first time, so that attempt ends with an error log, its retries apply,
+    # and the parent goes on
     from inspect_ai._eval.task.log import TaskLogger
 
     init = TaskLogger.init
+    init_failed = anyio.Event()
 
     async def failing_init(logger: TaskLogger) -> None:
-        if logger.eval.task == "child":
+        if logger.eval.task == "child" and not init_failed.is_set():
+            init_failed.set()
             raise OSError("log directory unreachable")
         await init(logger)
 
     monkeypatch.setattr(TaskLogger, "init", failing_init)
-    with (
-        anyio.fail_after(30),
-        pytest.raises(OSError, match="log directory unreachable"),
-    ):
-        await eval_async(_parent(_plain("child")), model="mockllm/model", max_tasks=2)
+
+    @solver
+    def wait_for_the_failure() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            with anyio.fail_after(10):
+                await init_failed.wait()
+            return state
+
+        return solve
+
+    @solver
+    def add_child_and_wait() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            [handle] = await enqueue_task(_plain("child"))
+            await handle.wait()
+            return state
+
+        return solve
+
+    tasks = (
+        _plain("parent", add_child_and_wait(), wait_for_the_failure())
+        if added
+        else [_plain("parent", wait_for_the_failure()), _plain("child")]
+    )
+    with anyio.fail_after(30):
+        logs = await eval_async(
+            tasks, model="mockllm/model", max_tasks=2, task_retry_attempts=retries
+        )
+    [child_log] = [log for log in logs if log.eval.task == "child"]
+    assert dict(_statuses(logs))["parent"] == "success"
+    if retries:
+        assert child_log.status == "success"
+    else:
+        assert child_log.status == "error"
+        assert child_log.error is not None
+        assert "log directory unreachable" in child_log.error.message

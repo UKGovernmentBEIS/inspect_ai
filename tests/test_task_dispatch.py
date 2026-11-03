@@ -42,6 +42,7 @@ from inspect_ai._eval.run import (
     _TASK_OVERRIDABLE,
     TaskDispatcher,
     TaskRunResult,
+    open_log,
     wants_retry,
 )
 from inspect_ai._eval.task.enqueue import (
@@ -275,9 +276,12 @@ class Harness:
     async def run_task(
         self,
         options: TaskRunOptions,
-        can_retry: bool = False,
+        *,
+        retry: bool,
+        can_retry: bool,
         on_log: Callable[[EvalLog], None] = lambda log: None,
     ) -> TaskRunResult:
+        await open_log(options.logger, retry=retry)
         logger = cast(FakeLogger, options.logger)
         label = logger.label
         if task_retry_abandoned(self.task_ids[label]):
@@ -771,9 +775,9 @@ async def test_retry_starts_before_tasks_its_failed_attempt_added(
     run_task = harness.run_task
 
     async def adding_run_task(
-        options: TaskRunOptions, can_retry: bool = False, **kwargs: Any
+        options: TaskRunOptions, *, retry: bool, can_retry: bool, **kwargs: Any
     ) -> TaskRunResult:
-        result = await run_task(options, can_retry)
+        result = await run_task(options, retry=retry, can_retry=can_retry)
         if result.log is not None and result.log.status == "error":
             await harness.tasks.add([_task("f")])
         return result

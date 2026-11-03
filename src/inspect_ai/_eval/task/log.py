@@ -527,11 +527,15 @@ class TaskLogger:
 
         A finished log was written by definition (``log_finish`` sets
         ``_finished`` only after the recorder's final flush succeeded, and
-        the recorder stops tracking the eval at that point). Otherwise the
-        recorder reports whether any flush has landed.
+        the recorder stops tracking the eval at that point). A log that was
+        never opened (``log_init`` failed, so it has no location) has
+        nothing written. Otherwise the recorder reports whether any flush
+        has landed.
         """
         if self._finished:
             return True
+        if not self._location:
+            return False
         return self.recorder.destination_written(self.eval)
 
     @property

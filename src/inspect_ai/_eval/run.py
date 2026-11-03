@@ -625,19 +625,24 @@ class TaskRunResult(NamedTuple):
 
 async def _run_task(
     options: TaskRunOptions,
-    can_retry: bool = False,
+    *,
+    retry: bool,
+    can_retry: bool,
     on_log: Callable[[EvalLog], None] = lambda log: None,
 ) -> TaskRunResult:
-    """Run one task in its own cancel scope so cancelling it can't affect siblings.
+    """Open an attempt's log and run the task in its own cancel scope.
 
-    Returns the task's log (``None`` if an operator abandoned the attempt
-    before it registered) and the ``CancelType`` it was cancelled with, so the
+    The scope keeps cancelling the task from affecting its siblings. Returns
+    the task's log (``None`` if an operator abandoned the attempt before it
+    registered) and the ``CancelType`` it was cancelled with, so the
     dispatcher can tell a retry/abort request from an ordinary error. A
-    run-level cancellation raises. ``can_retry`` is surfaced to the task
+    run-level cancellation raises. ``retry`` says whether the attempt is a
+    retry (see :func:`open_log`); ``can_retry`` is surfaced to the task
     through ``TaskCancel``.
 
-    An attempt left without a log by an error escaping ``task_run`` (a
-    failure to write the log itself) or by its own abort or retry request
+    An attempt left without a log by an error opening its log or escaping
+    ``task_run`` (a failure to write the log itself) or by its own abort or
+    retry request
     (which cancels its scope, possibly mid-write) gets an errored header log
     (``TaskLogger.header_log``), so the dispatcher ends or retries only this
     task. The failed write is re-raised when ``debug_errors`` is set.
@@ -706,6 +711,7 @@ async def _run_task(
                     write_failed = False
                     with task_scope:
                         try:
+                            await open_log(options.logger, retry=retry)
                             result = await task_run(options, task_cancel=task_cancel)
                         except TaskRetryAbandonedError:
                             # an operator-requested outcome, not a task error
@@ -715,8 +721,8 @@ async def _run_task(
                             return
                         except Exception as ex:
                             # errors generally don't escape from task_run: this
-                            # is a failure to write the log itself (or a
-                            # retry's checkpoint copy). Rather than tear down
+                            # is a failure to open or write the log itself (or
+                            # a retry's checkpoint copy). Rather than tear down
                             # the run, record an errored log, which the
                             # dispatcher and eval_set() retry.
                             if options.debug_errors:
@@ -974,12 +980,12 @@ class TaskDispatcher:
                         record.task_id, model=dispatch_model_name(record.model)
                     )
                     await self.set_up_again(record)
-                await open_log(logger, retry=attempt > 1)
                 options = self.attempt_options(
                     configured.options(logger), record, attempt, sample_source
                 )
                 run = await _run_task(
                     options,
+                    retry=attempt > 1,
                     can_retry=retries_left > 0,
                     on_log=functools.partial(setattr, record, "log"),
                 )
