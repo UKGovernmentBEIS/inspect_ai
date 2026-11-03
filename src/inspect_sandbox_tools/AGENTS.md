@@ -37,15 +37,17 @@ When a tool needs to run in a container, the system automatically injects the ap
 1. Tool requests a sandbox via `sandbox_with_injected_tools()`
 2. System checks for a trustworthy existing installation: `/var/tmp/.da7be258e003d428`
    must be a real directory owned by the tools user with mode 0700, in a parent that
-   other users cannot use to replace it, and must hold `inspect-sandbox-tools` as a
-   regular file. The check runs as root when the root-access verdict is usable,
+   other users cannot use to replace it, must hold `inspect-sandbox-tools` as a
+   regular file, and must hold `inspect-sandbox-tools.version` naming this release's
+   `sandbox_tools_version.txt`. A tree without that file, or naming another version,
+   counts as missing and is replaced. The check runs as root when the root-access verdict is usable,
    or as the default user when unusable or ambiguous; a failed probe is an error.
    `resolve_root_access` in `inspect_ai/tool/_sandbox_tools_utils/sandbox.py`
    decides once per sandbox at sample init, before solver/agent execution, or on
    first use outside that lifecycle. Whichever user the tools are
    found (or installed) under becomes the tools user. A merely readable launcher is
    not enough.
-3. If missing, the injection process:
+3. If missing or from another version, the injection process:
    - Detects container architecture (amd64/arm64) and libc (glibc/musl)
    - Selects the matching pre-built artifact from local binaries, S3, or a local Docker build
    - Creates `/var/tmp/.da7be258e003d428` with mode 0700 as the tools user through the
@@ -57,8 +59,11 @@ When a tool needs to run in a container, the system automatically injects the ap
      directory that user owns is tightened to 0700 and reused instead, which is the
      shape older releases left behind (including on the host for the `local` sandbox).
    - Writes the gzipped onedir tar into the container and extracts it with the verified
-     directory as the working directory, then re-verifies the directory immediately
-     before starting the server from it.
+     directory as the working directory. If the tree holds server state (`.server`),
+     stops that server with the new launcher's `stop-server`, then writes the version
+     file. It re-verifies the directory immediately before starting the server from it.
+     See "Replacing an install from another version" in
+     [design/sandbox-trust-model.md](../../design/sandbox-trust-model.md).
    - A root-owned 0700 tree prevents access by other, non-root users in the sandbox;
      it is not a boundary against a process running in the sandbox as root.
 

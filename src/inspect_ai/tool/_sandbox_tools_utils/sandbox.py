@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from importlib import resources
 from logging import getLogger
 from pathlib import Path
-from typing import AsyncIterator, BinaryIO, Literal, get_args
+from typing import AsyncIterator, BinaryIO, Literal, NamedTuple, get_args
 from urllib.parse import unquote, urlparse
 
 import anyio
@@ -30,12 +30,12 @@ from inspect_ai.util._sandbox._cli import (
     SANDBOX_TOOLS_DIR,
 )
 from inspect_ai.util._sandbox._framework_directory import (
+    _STAT_ENTRY,
     FrameworkDirectoryError,
     FrameworkDirectoryNotFoundError,
     ensure_framework_directory,
     exec_in_framework_directory,
     expected_uid_for,
-    stat_in_framework_directory,
     verify_framework_directory,
 )
 from inspect_ai.util._sandbox._privileged import privileged_shell
@@ -129,9 +129,12 @@ async def _sandbox_tools_installed(sandbox: SandboxEnvironment) -> bool:
     """Detect a trustworthy existing sandbox-tools installation.
 
     An installation is reused only when ``SANDBOX_TOOLS_DIR`` satisfies the
-    framework-directory contract for the tools user and the launcher inside it is a
-    regular file. A merely readable launcher is not enough: a tree owned by another
-    principal could substitute its own launcher.
+    framework-directory contract for the tools user, the launcher inside it is a
+    regular file, and its version file names this release's sandbox tools version.
+    A merely readable launcher is not enough: a tree owned by another principal
+    could substitute its own launcher. A tree from another version (one an older
+    release left on the host for the ``local`` sandbox, or in a reused container)
+    is reported as not installed, so injection replaces it.
 
     The check runs as the tools user only: the user an injection on this sandbox
     object already recorded, or else the one the sandbox's root-access decision
@@ -234,29 +237,107 @@ async def _set_tools_user(sandbox: SandboxEnvironment, user: str | None) -> None
         warn_once(logger, _AMBIGUOUS_ROOT_ACCESS_WARNING)
 
 
-async def _tools_installed_as(sandbox: SandboxEnvironment, user: str | None) -> bool:
-    """Check for a trustworthy installation from ``user``'s point of view.
+_VERSION_FILE = f"{SANDBOX_TOOLS_BASE_NAME}.version"
+"""Name, inside ``SANDBOX_TOOLS_DIR``, of the file recording the installed version.
 
-    Returns False when the tools directory is missing, violates the contract, or
-    does not hold a regular-file launcher (injection then creates it, fails loudly,
-    or re-extracts; a symlink at the launcher name reports its own type and is
-    rejected). Raises when the check did not run (the provider cannot exec as
-    ``user``) or could not be performed.
+The host writes it after a complete installation (see ``_finish_install``). It holds
+the ``sandbox_tools_version.txt`` value the tree was installed for. A tree without
+it was installed by a release that predates the file and is replaced.
+"""
+
+# Also defined in inspect_sandbox_tools._util.server_dir — keep in sync.
+_SERVER_STATE_DIR = ".server"
+"""The server's state directory inside the tools tree, when no other is supplied."""
+
+
+class _Installation(NamedTuple):
+    """What the detector found in a verified ``SANDBOX_TOOLS_DIR``."""
+
+    launcher_mode: int | None
+    """Raw ``st_mode`` of the launcher; ``None`` when nothing is at its name."""
+
+    version: str | None
+    """Contents of the version file; ``None`` when it is missing."""
+
+
+# $1 = launcher name, $2 = version file name. Prints the launcher's raw st_mode as
+# `stat_in_framework_directory` does, then the version file's first line, each as
+# "missing" when absent. The version file is read only when it is a regular file, so
+# a FIFO planted in a rootless tree cannot block detection, and with the shell's own
+# `read`, so detection needs no tool beyond those the helper already requires.
+_READ_INSTALLATION = (
+    f"{_STAT_ENTRY} && "
+    'if [ -f "$2" ] && [ ! -L "$2" ]; then '
+    'v=; IFS= read -r v < "$2"; printf "%s\\n" "$v"; '
+    "else echo missing; fi"
+)
+
+
+async def _read_installation(
+    sandbox: SandboxEnvironment, user: str | None
+) -> _Installation:
+    """Read the launcher type and installed version in one verified command.
+
+    Detection runs on every tool call, so both values come from a single exec.
+
+    Raises:
+        RuntimeError: The command failed or printed something unexpected.
+        Everything ``exec_in_framework_directory`` raises.
+    """
+    result = await exec_in_framework_directory(
+        sandbox,
+        SANDBOX_TOOLS_DIR,
+        ["sh", "-c", _READ_INSTALLATION, "sh", SANDBOX_TOOLS_BASE_NAME, _VERSION_FILE],
+        user=user,
+        expected_uid=expected_uid_for(user),
+    )
+    if not result.success:
+        raise RuntimeError(
+            f"Cannot read the sandbox tools installation in {SANDBOX_TOOLS_DIR}: "
+            f"{result.stderr.strip()}"
+        )
+    mode_line, _, version_line = result.stdout.partition("\n")
+    mode_text, version = mode_line.strip(), version_line.strip()
+    try:
+        launcher_mode = None if mode_text == "missing" else int(mode_text, 16)
+    except ValueError:
+        raise RuntimeError(
+            f"Unexpected output from the sandbox tools installation check: "
+            f"{result.stdout!r}"
+        ) from None
+    return _Installation(launcher_mode, None if version == "missing" else version)
+
+
+async def _tools_installed_as(sandbox: SandboxEnvironment, user: str | None) -> bool:
+    """Check for a trustworthy, current installation from ``user``'s point of view.
+
+    Returns False when the tools directory is missing, violates the contract, does
+    not hold a regular-file launcher, or records a version other than this
+    release's ``sandbox_tools_version.txt`` (or none). Injection then creates the
+    directory, fails loudly, or replaces the tree. A symlink at the launcher name
+    reports its own type and is rejected. Raises when the check did not run (the
+    provider cannot exec as ``user``) or could not be performed.
     """
     try:
-        st_mode = await stat_in_framework_directory(
-            sandbox,
-            SANDBOX_TOOLS_DIR,
-            SANDBOX_TOOLS_BASE_NAME,
-            user=user,
-            expected_uid=expected_uid_for(user),
-        )
+        installation = await _read_installation(sandbox, user)
     except FrameworkDirectoryNotFoundError:
         return False
     except FrameworkDirectoryError as ex:
         trace_message(logger, TRACE_SANDBOX_TOOLS, f"tools dir not reusable: {ex}")
         return False
-    return st_mode is not None and stat.S_ISREG(st_mode)
+    mode = installation.launcher_mode
+    if mode is None or not stat.S_ISREG(mode):
+        return False
+    expected = _get_sandbox_tools_version()
+    if installation.version != expected:
+        trace_message(
+            logger,
+            TRACE_SANDBOX_TOOLS,
+            f"tools in {SANDBOX_TOOLS_DIR} are version "
+            f"{installation.version or 'unknown'}, expected {expected}: replacing",
+        )
+        return False
+    return True
 
 
 async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
@@ -283,6 +364,7 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
         await _set_tools_user(sandbox, user)
 
         await _extract_tools_tree(sandbox, name, gz_bytes, user)
+        await _finish_install(sandbox, user)
 
         # Re-verify immediately before the launcher runs with the tools user's
         # authority. Extraction targets the verified directory object, so this
@@ -518,6 +600,61 @@ async def _extract_tools_tree(
     )
     if not result.success:
         raise RuntimeError(f"Failed to extract sandbox tools: {result.stderr}")
+
+
+_FINISH_TIMEOUT = 120
+"""Bounds ``_finish_install``: the launcher's ``stop-server`` waits up to 45 seconds
+for a server's shutdown status."""
+
+# $1 = version, $2 = version file name. Runs with the verified tools tree as cwd.
+_FINISH_INSTALL = (
+    f"if [ -e {_SERVER_STATE_DIR} ] || [ -L {_SERVER_STATE_DIR} ]; then "
+    f"./{SANDBOX_TOOLS_BASE_NAME} stop-server || exit; fi; "
+    'printf "%s\\n" "$1" > "$2.$$" && mv -f -- "$2.$$" "$2"'
+)
+
+
+async def _finish_install(sandbox: SandboxEnvironment, user: str | None) -> None:
+    """Stop a server left by an earlier installation, then record the version.
+
+    A tree that already held server state (``.server``) may still have a server
+    running from the files just replaced, and ``start-server`` would reuse it, so the
+    new launcher's ``stop-server`` stops it first. In a fresh tree there is no
+    state and the launcher is not run. The ``local`` sandbox gives each sample its
+    own state directory, so the servers of samples already running on the host are
+    not stopped.
+
+    The version file is written last, by renaming a complete file into place. A
+    stale tree therefore keeps its old version file (or none) until extraction
+    and the stop have both succeeded, and the next tool call reinstalls.
+
+    Raises:
+        RuntimeError: The old server could not be stopped or the version file
+            could not be written.
+        Everything ``exec_in_framework_directory`` raises.
+    """
+    result = await exec_in_framework_directory(
+        sandbox,
+        SANDBOX_TOOLS_DIR,
+        [
+            "sh",
+            "-c",
+            _FINISH_INSTALL,
+            "sh",
+            _get_sandbox_tools_version(),
+            _VERSION_FILE,
+        ],
+        user=user,
+        expected_uid=expected_uid_for(user),
+        timeout=_FINISH_TIMEOUT,
+    )
+    if not result.success:
+        raise RuntimeError(
+            f"Could not stop the sandbox tools server of the previous installation "
+            f"in {SANDBOX_TOOLS_DIR}, or record the new version: "
+            f"{(result.stderr or result.stdout).strip()}. Restart the sandbox, or "
+            f"remove {SANDBOX_TOOLS_DIR} inside it, and retry."
+        )
 
 
 def _uncompressed_tar_bytes(name: str, gz_bytes: bytes) -> bytes:

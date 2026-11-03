@@ -42,6 +42,7 @@ from inspect_ai.tool import (
 )
 from inspect_ai.tool._sandbox_tools_utils.sandbox import (
     _AMBIGUOUS_ROOT_ACCESS_WARNING,
+    _get_sandbox_tools_version,
 )
 from inspect_ai.util import (
     ExecRemoteAwaitableOptions,
@@ -755,6 +756,56 @@ def _scoped_shell_across_a_server_restart() -> Solver:
         return state
 
     return solve
+
+
+_TOOLS_SERVER_PID = (
+    "python3 -c 'import json, sys; "
+    f'print(json.load(open(sys.argv[1]))["pid"])\' {SERVER_DIR}/server.pid'
+)
+
+
+@solver
+def _stale_tools_with_a_running_server_are_replaced() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        sb = sandbox()
+        out = str(
+            await bash_session(instance="before")(action="type_submit", input="id -un")
+        )
+        assert "nonroot" in out, out
+        old_pid = (await sb.exec(["sh", "-c", _TOOLS_SERVER_PID], user="root")).stdout
+        assert old_pid.strip(), "the first call must start a server"
+
+        # What a release before the version file leaves in a reused container: the
+        # tree without it, its server still running.
+        version_file = f"{SANDBOX_TOOLS_DIR}/inspect-sandbox-tools.version"
+        assert (await sb.exec(["rm", version_file], user="root")).success
+
+        out = str(
+            await bash_session(instance="after")(action="type_submit", input="id -un")
+        )
+        assert "nonroot" in out, out
+        recorded = await sb.exec(["cat", version_file], user="root")
+        assert recorded.stdout.strip() == _get_sandbox_tools_version(), recorded
+        new_pid = (await sb.exec(["sh", "-c", _TOOLS_SERVER_PID], user="root")).stdout
+        assert new_pid.strip() and new_pid != old_pid
+        gone = await sb.exec(["kill", "-0", old_pid.strip()], user="root")
+        assert not gone.success, "the old server must have been stopped"
+        return state
+
+    return solve
+
+
+# A tree from another release in a reused container is replaced, and the server
+# it left running is stopped, so the new tools do not talk to the old server.
+@pytest.mark.slow
+def test_stale_tools_with_a_running_server_are_replaced() -> None:
+    task = Task(
+        dataset=[Sample(input="x")],
+        solver=_stale_tools_with_a_running_server_are_replaced(),
+        sandbox=("docker", NONROOT_COMPOSE),
+    )
+    log = eval(task, model=get_model("mockllm/model"))[0]
+    assert log.status == "success", log.error
 
 
 # A scoped shell is bound to its tools server: after the server is replaced
