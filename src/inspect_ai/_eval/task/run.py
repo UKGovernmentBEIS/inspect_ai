@@ -2146,25 +2146,34 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
 
     assert eval_log is not None
 
+    # the log is written: an abort or retry that cancels the completion
+    # consumers below still returns it, so the dispatcher does not read the
+    # task as externally cancelled
     try:
-        # Log file locations are emitted to the "new" hooks via the "task end" event,
-        if (
-            await send_telemetry_legacy("eval_log_location", eval_log.location)
-            == "not_handled"
-        ):
-            # Converting the eval log to JSON is expensive. Only do so if
-            # eval_log_location was not handled.
-            await send_telemetry_legacy("eval_log", eval_log_json_str(eval_log))
-    except Exception as ex:
-        py_logger.warning(f"Error occurred sending telemetry: {exception_message(ex)}")
+        try:
+            # Log file locations are emitted to the "new" hooks via the "task end" event,
+            if (
+                await send_telemetry_legacy("eval_log_location", eval_log.location)
+                == "not_handled"
+            ):
+                # Converting the eval log to JSON is expensive. Only do so if
+                # eval_log_location was not handled.
+                await send_telemetry_legacy("eval_log", eval_log_json_str(eval_log))
+        except Exception as ex:
+            py_logger.warning(
+                f"Error occurred sending telemetry: {exception_message(ex)}"
+            )
 
-    # restore sandbox limits
-    reset_sandbox_limits(limit_tokens)
+        # restore sandbox limits
+        reset_sandbox_limits(limit_tokens)
 
-    # notify a TaskSource (if the run has one) that this task is complete
-    # (it may return follow-up tasks to add to the run)
-    if options.task_source is not None:
-        _enqueue_source_tasks(await options.task_source.task_complete(eval_log))
+        # notify a TaskSource (if the run has one) that this task is complete
+        # (it may return follow-up tasks to add to the run)
+        if options.task_source is not None:
+            _enqueue_source_tasks(await options.task_source.task_complete(eval_log))
+    except anyio.get_cancelled_exc_class():
+        if task_cancel is None or task_cancel.cancel_type not in ("abort", "retry"):
+            raise
 
     # return eval log
     return eval_log

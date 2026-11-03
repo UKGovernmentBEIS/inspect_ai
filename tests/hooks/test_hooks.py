@@ -9,7 +9,7 @@ import pytest
 from pydantic import JsonValue
 
 import inspect_ai.hooks._startup as hooks_startup_module
-from inspect_ai import eval, eval_async
+from inspect_ai import TaskSource, eval, eval_async
 from inspect_ai._control.cancel import cancel_task
 from inspect_ai._eval.task.task import Task
 from inspect_ai._util._async import current_async_backend
@@ -884,11 +884,17 @@ async def test_task_end_hook_runs_when_cancel_results_fail(
     assert task_end.log.error.message == log.error.message
 
 
+@pytest.mark.parametrize("consumer", [None, "task_source", "legacy_telemetry"])
 async def test_task_end_hook_abort_during_error_end_keeps_log(
-    first_hooks: TaskPairHooks, mock_hooks: MockHooks, tmp_path: Path
+    first_hooks: TaskPairHooks,
+    mock_hooks: MockHooks,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    consumer: str | None,
 ) -> None:
     # an abort landing while an errored task's end hook runs must not discard
-    # its written log, change the log later hooks get, or stop queued tasks
+    # its written log, change the log later hooks get, or stop queued tasks,
+    # even when a completion consumer awaits after the end hooks
     first_hooks.end_entered = anyio.Event()
     first_hooks.end_release = anyio.Event()
 
@@ -921,19 +927,33 @@ async def test_task_end_hook_abort_during_error_end_keeps_log(
         assert result is not None and result.get("changed") is True
         first_hooks.end_release.set()
 
+    async def task_complete(log: EvalLog) -> list[Task] | None:
+        await anyio.lowlevel.checkpoint()
+        return None
+
+    async def send_telemetry(type: str, json: str) -> bool:
+        await anyio.lowlevel.checkpoint()
+        return True
+
+    if consumer == "legacy_telemetry":
+        monkeypatch.setattr("inspect_ai.hooks._legacy._send_telemetry", send_telemetry)
+
+    tasks = [
+        Task(
+            dataset=[Sample("a")],
+            early_stopping=FailingEarlyStopping(),
+            name="victim",
+        ),
+        Task(dataset=[Sample("b")], name="queued"),
+    ]
     logs: list[EvalLog] = []
 
     async def run_eval() -> None:
         logs.extend(
             await eval_async(
-                [
-                    Task(
-                        dataset=[Sample("a")],
-                        early_stopping=FailingEarlyStopping(),
-                        name="victim",
-                    ),
-                    Task(dataset=[Sample("b")], name="queued"),
-                ],
+                TaskSource.from_tasks(tasks, task_complete=task_complete)
+                if consumer == "task_source"
+                else tasks,
                 model="mockllm/model",
                 max_tasks=1,
                 log_dir=str(tmp_path),
