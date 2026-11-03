@@ -13,6 +13,7 @@ import json
 import pathlib
 import re
 import tomllib
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
@@ -76,18 +77,9 @@ SANDBOX_TOOLS_TEST_LOCK = "src/inspect_sandbox_tools/tests/requirements.txt"
 PROVIDERS = REPO / "src" / "inspect_ai" / "model" / "_providers"
 SYNC_MODELS = REPO / "src" / "inspect_ai" / "model" / "_model_data" / "sync_models.py"
 DEPENDENCY_CHECKS = {"pip_dependency_error", "verify_required_version"}
-# Packages providers need that do not qualify for the six-hour cooldown (see
-# CONTRIBUTING.md). They keep the seven-day cooldown.
-PROVIDER_INFRASTRUCTURE = {
-    "accelerate",
-    "aiobotocore",
-    "nnterp",
-    "sglang",
-    "torch",
-    "transformer-lens",
-    "transformers",
-    "vllm",
-}
+# A direct dependency that providers need but that is not a provider SDK (see
+# CONTRIBUTING.md). It keeps the seven-day cooldown.
+PROVIDER_INFRASTRUCTURE = {"aiobotocore"}
 # The cooldown for packages in exclude-newer-package, and how uv.lock records it.
 EXEMPT_COOLDOWN = "6 hours"
 EXEMPT_COOLDOWN_SPAN = "PT6H"
@@ -97,6 +89,26 @@ def uv_config() -> dict[str, Any]:
     pyproject = tomllib.loads((REPO / "pyproject.toml").read_text())
     config: dict[str, Any] = pyproject["tool"]["uv"]
     return config
+
+
+def normalize(package: str) -> str:
+    return re.sub(r"[-_.]+", "-", package).lower()
+
+
+def direct_dependencies() -> set[str]:
+    """Packages in the pyproject.toml `dependencies` or the `dev` extra."""
+    project = tomllib.loads((REPO / "pyproject.toml").read_text())["project"]
+    requirements = project["dependencies"] + project["optional-dependencies"]["dev"]
+    return {
+        normalize(re.split(r"[^A-Za-z0-9._-]", requirement, maxsplit=1)[0])
+        for requirement in requirements
+    }
+
+
+def cooldown_days(exclude_newer: str) -> int:
+    days = re.fullmatch(r"(\d+) days", exclude_newer)
+    assert days, exclude_newer
+    return int(days[1])
 
 
 def dependabot_uv() -> dict[str, Any]:
@@ -199,34 +211,89 @@ def provider_packages() -> set[str]:
                             f"{path}:{call.lineno}: can't resolve the package name"
                         )
                         packages.add(constants[name.id])
-    return {re.sub(r"[-_.]+", "-", package).lower() for package in packages}
+    return {normalize(package) for package in packages}
 
 
 def test_provider_packages_are_exempt() -> None:
     packages = provider_packages()
     assert {"openai", "transformers", "vllm"} <= packages
+    # Only direct dependencies can have the six-hour cooldown.
     missing = (
-        packages - PROVIDER_INFRASTRUCTURE - set(uv_config()["exclude-newer-package"])
+        (packages & direct_dependencies())
+        - PROVIDER_INFRASTRUCTURE
+        - set(uv_config()["exclude-newer-package"])
     )
     assert not missing, f"add to exclude-newer-package and Dependabot: {missing}"
 
 
-def test_dependabot_cooldown_matches_pyproject() -> None:
+def verify_exclude_newer_package(
+    config: dict[str, Any], direct: set[str], now: datetime
+) -> None:
+    # Each entry is "6 hours" or a dated entry younger than the cooldown.
+    max_age = timedelta(days=cooldown_days(config["exclude-newer"]))
+    for package, cooldown in config["exclude-newer-package"].items():
+        assert normalize(package) in direct, f"{package} is not a direct dependency"
+        if cooldown != EXEMPT_COOLDOWN:
+            age = now - datetime.fromisoformat(cooldown)
+            assert age < max_age, f'delete the dated entry {package} = "{cooldown}"'
+
+
+def test_exclude_newer_package_entries() -> None:
+    verify_exclude_newer_package(uv_config(), direct_dependencies(), datetime.now(UTC))
+
+
+def test_non_direct_entry_is_caught() -> None:
     config = uv_config()
-    days = re.fullmatch(r"(\d+) days", config["exclude-newer"])
-    assert days, config["exclude-newer"]
-    dependabot = dependabot_uv()
+    config["exclude-newer-package"]["torch"] = EXEMPT_COOLDOWN
+    with pytest.raises(AssertionError):
+        verify_exclude_newer_package(config, direct_dependencies(), datetime.now(UTC))
+
+
+def test_fresh_dated_entry_passes() -> None:
+    config = uv_config()
+    now = datetime.now(UTC)
+    config["exclude-newer-package"]["boto3"] = (now - timedelta(days=6)).isoformat()
+    verify_exclude_newer_package(config, direct_dependencies(), now)
+    verify_dependabot_cooldown(config, dependabot_uv())
+
+
+def test_stale_dated_entry_is_caught() -> None:
+    config = uv_config()
+    now = datetime.now(UTC)
+    config["exclude-newer-package"]["boto3"] = (now - timedelta(days=7)).isoformat()
+    with pytest.raises(AssertionError):
+        verify_exclude_newer_package(config, direct_dependencies(), now)
+
+
+def test_other_cooldown_value_is_caught() -> None:
+    config = uv_config()
+    config["exclude-newer-package"]["boto3"] = "1 day"
+    with pytest.raises(ValueError):
+        verify_exclude_newer_package(config, direct_dependencies(), datetime.now(UTC))
+
+
+def verify_dependabot_cooldown(
+    config: dict[str, Any], dependabot: dict[str, Any]
+) -> None:
     cooldown = dependabot["cooldown"]
-    assert cooldown["default-days"] == int(days.group(1))
-    exempt = config["exclude-newer-package"]
-    assert set(exempt.values()) == {EXEMPT_COOLDOWN}
-    # Dependabot's cooldown counts whole days, so it leaves these to uv.
-    assert sorted(cooldown["exclude"]) == sorted(exempt)
+    assert cooldown["default-days"] == cooldown_days(config["exclude-newer"])
+    # Dependabot's cooldown counts whole days, so it leaves the "6 hours"
+    # entries to uv. Dated entries are locked by hand.
+    exempt = sorted(
+        package
+        for package, cooldown in config["exclude-newer-package"].items()
+        if cooldown == EXEMPT_COOLDOWN
+    )
+    assert sorted(cooldown["exclude"]) == exempt
     # The exempt packages have their own group, listed before the catch-all.
     groups = dependabot["groups"]
     assert list(groups) == ["provider-sdks", "python-packages"]
-    assert sorted(groups["provider-sdks"]["patterns"]) == sorted(exempt)
+    assert sorted(groups["provider-sdks"]["patterns"]) == exempt
     assert groups["python-packages"]["patterns"] == ["*"]
+
+
+def test_dependabot_cooldown_matches_pyproject() -> None:
+    verify_dependabot_cooldown(uv_config(), dependabot_uv())
 
 
 def script_uv_config() -> dict[str, Any]:
@@ -259,19 +326,28 @@ def test_sync_models_script_follows_the_cooldown() -> None:
     script = script_uv_config()
     lock = tomllib.loads((SYNC_MODELS.parent / "sync_models.py.lock").read_text())
     assert script["exclude-newer"] == config["exclude-newer"]
-    # The script exempts the packages it locks that pyproject.toml exempts.
+    # The script repeats the pyproject.toml entries for the packages it locks.
     locked = {package["name"] for package in lock["package"]}
-    exempt = locked & set(config["exclude-newer-package"])
-    assert script.get("exclude-newer-package", {}) == dict.fromkeys(
-        exempt, EXEMPT_COOLDOWN
-    )
-    # The lock was written with these settings.
-    days = re.fullmatch(r"(\d+) days", script["exclude-newer"])
-    assert days
-    assert lock["options"]["exclude-newer-span"] == f"P{days[1]}D"
-    assert lock["options"].get("exclude-newer-package", {}) == {
+    entries = {
+        package: cooldown
+        for package, cooldown in config["exclude-newer-package"].items()
+        if normalize(package) in locked
+    }
+    assert script.get("exclude-newer-package", {}) == entries
+    # The lock was written with these settings. The sync workflow's --locked run
+    # runs weekly and accepts a lock written with an earlier timestamp.
+    days = cooldown_days(script["exclude-newer"])
+    assert lock["options"]["exclude-newer-span"] == f"P{days}D"
+    # uv writes a dated entry as a UTC timestamp ending in "Z".
+    options = lock["options"].get("exclude-newer-package", {})
+    assert {
+        package: datetime.fromisoformat(value) if isinstance(value, str) else value
+        for package, value in options.items()
+    } == {
         package: {"timestamp": "0001-01-01T00:00:00Z", "span": EXEMPT_COOLDOWN_SPAN}
-        for package in exempt
+        if cooldown == EXEMPT_COOLDOWN
+        else datetime.fromisoformat(cooldown)
+        for package, cooldown in entries.items()
     }
 
 
