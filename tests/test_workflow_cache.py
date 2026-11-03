@@ -162,8 +162,9 @@ def verify_cache_modes(configs: dict[str, dict[str, Any]]) -> None:
                 if key in NO_CACHE_MODE_JOBS:
                     assert mode is None, f"{key}: expected no cache-mode, got {mode}"
                 else:
-                    assert mode is not None, (
-                        f"{key}: restore-only job needs a cache-mode"
+                    assert mode in ("read", "none"), (
+                        f"{key}: restore-only job needs cache-mode read or none, "
+                        f"got {mode}"
                     )
             # read-write saves, so it needs no cache-mode.
     # The specific values the plan fixes.
@@ -182,4 +183,13 @@ def test_cache_mode_removed_is_caught() -> None:
     configs = all_configs()
     del configs["sync_model_data.yml"]["jobs"]["generate"]["cache-mode"]
     with pytest.raises(AssertionError):
+        verify_cache_modes(configs)
+
+
+def test_restore_only_cache_mode_write_is_caught() -> None:
+    configs = all_configs()
+    configs["build.yml"]["jobs"]["slow-tool-tests-dev"]["cache-mode"] = "write"
+    # The match shows that the restore-only check fails, not the
+    # CACHE_MODE_JOBS check.
+    with pytest.raises(AssertionError, match="needs cache-mode read or none"):
         verify_cache_modes(configs)

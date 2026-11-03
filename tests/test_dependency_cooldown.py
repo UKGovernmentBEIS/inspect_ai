@@ -277,7 +277,10 @@ def test_pinned_uv_versions_meet_required_version() -> None:
     # setup-uv action. A test in the actions repo checks that pin against a
     # fixed floor (0.13.5), not against this repository's required-version.
     # Removing the local pins keeps one source of truth for the uv version per
-    # install path.
+    # install path. So, before a required-version increase, the shared
+    # setup-uv action must release a uv that meets it. This test does not
+    # check that. The sync_model_data generate job also does not: it runs uv
+    # with --no-config, so uv does not read required-version there.
     pin = yaml.safe_load((WORKFLOWS / "build.yml").read_text())["env"]["UV_VERSION"]
     assert version(pin) >= version(required[1]), f"build.yml: uv {pin}"
     for workflow in [
@@ -344,8 +347,9 @@ def test_removed_install_call_is_caught() -> None:
 
 
 def verify_shared_action_pins(configs: dict[str, dict[str, Any]]) -> None:
-    # One review covers one action SHA; a call on another ref (or an unpinned
-    # tag) would ship action code nobody reviewed.
+    # All shared-action calls use one 40-character SHA. This check does not
+    # make sure that the SHA is on meridianlabs-ai/actions main; a reviewer
+    # does that.
     refs = set()
     for where, uses in shared_action_uses(configs):
         ref = uses.split("@", 1)[1] if "@" in uses else ""
