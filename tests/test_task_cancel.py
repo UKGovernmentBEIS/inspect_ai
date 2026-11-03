@@ -1224,20 +1224,65 @@ async def test_cancel_during_error_log_write_ends_only_that_task(
         ]
 
 
-@pytest.mark.anyio
-async def test_abort_of_stuck_error_log_write_times_out(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """An abort ends an error-log write that never finishes, after the timeout.
+def _record_task_display_results(
+    monkeypatch: pytest.MonkeyPatch,
+) -> dict[str, list[object]]:
+    """Record each task display's `complete()` results, keyed by task display name."""
+    import inspect_ai._eval.task.run as task_run_module
+    from inspect_ai._display import display as real_display
 
-    The task is then reported like a failed log write and the run continues.
+    results: dict[str, list[object]] = {}
+
+    class _RecordingTaskDisplay:
+        def __init__(self, inner: Any, name: str) -> None:
+            self.inner = inner
+            self.name = name
+
+        def __getattr__(self, attr: str) -> Any:
+            return getattr(self.inner, attr)
+
+        def complete(self, result: object) -> None:
+            results.setdefault(self.name, []).append(result)
+            self.inner.complete(result)
+
+    class _RecordingDisplay:
+        def __init__(self, inner: Any) -> None:
+            self.inner = inner
+
+        def __getattr__(self, attr: str) -> Any:
+            return getattr(self.inner, attr)
+
+        @contextmanager
+        def task(self, profile: Any) -> Iterator[Any]:
+            with self.inner.task(profile) as td:
+                yield _RecordingTaskDisplay(td, profile.name)
+
+    monkeypatch.setattr(
+        task_run_module, "display", lambda: _RecordingDisplay(real_display())
+    )
+    return results
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("cancel_type", ["abort", "retry"])
+async def test_abort_of_stuck_error_log_write_times_out(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    cancel_type: Literal["abort", "retry"],
+) -> None:
+    """An abort or retry request ends an error-log write that never finishes, after the timeout.
+
+    The task is then reported like a failed log write, its display shows
+    it finished with the sample's error, and the run continues.
     """
     import inspect_ai._eval.task.run as task_run_module
     from inspect_ai import eval_async
+    from inspect_ai._display.core.display import TaskError
 
     monkeypatch.setattr(task_run_module, "ABORTED_LOG_WRITE_TIMEOUT", 0.2)
+    displayed = _record_task_display_results(monkeypatch)
     runs: list[str] = []
-    _fire_on_log_finish(monkeypatch, "a", "error", "abort", hang=True)
+    _fire_on_log_finish(monkeypatch, "a", "error", cancel_type, hang=True)
     logs = await eval_async(
         [_failing_task("a", runs, failures=1), _plain_task("b", runs)],
         model="mockllm/model",
@@ -1246,14 +1291,25 @@ async def test_abort_of_stuck_error_log_write_times_out(
         task_retry_attempts=1,
     )
 
-    assert [(log.eval.task, log.status) for log in logs] == [
-        ("a", "error"),
-        ("b", "success"),
-    ]
-    assert logs[0].error is not None
-    assert "did not finish within 0.2 seconds" in logs[0].error.message
-    assert runs == ["a", "b"]
-    assert await _disk_statuses(tmp_path) == [("a", "started"), ("b", "success")]
+    first_attempt = displayed["a"][0]
+    assert isinstance(first_attempt, TaskError)
+    assert "sample failure" in str(first_attempt.exc_value)
+    if cancel_type == "abort":
+        assert [(log.eval.task, log.status) for log in logs] == [
+            ("a", "error"),
+            ("b", "success"),
+        ]
+        assert logs[0].error is not None
+        assert "did not finish within 0.2 seconds" in logs[0].error.message
+        assert runs == ["a", "b"]
+        assert await _disk_statuses(tmp_path) == [("a", "started"), ("b", "success")]
+    else:
+        # the failed write is retried like any failed write, behind b
+        assert [(log.eval.task, log.status) for log in logs] == [
+            ("a", "success"),
+            ("b", "success"),
+        ]
+        assert runs == ["a", "b", "a"]
 
 
 @pytest.mark.anyio

@@ -2166,14 +2166,22 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 collect_eval_data(stats)
 
                 # finish with error status
-                with abort_bounded_write(task_cancel):
-                    eval_log = await finish_task_log(
-                        status="error",
-                        stats=stats,
-                        results=results,
-                        reductions=reductions,
-                        error=error,
+                try:
+                    with abort_bounded_write(task_cancel):
+                        eval_log = await finish_task_log(
+                            status="error",
+                            stats=stats,
+                            results=results,
+                            reductions=reductions,
+                            error=error,
+                        )
+                except TimeoutError:
+                    # the dispatcher reports the attempt as a failed write and
+                    # moves on, so the display must still show it finished
+                    td.complete(
+                        TaskError(logger.samples_completed, type, value, traceback)
                     )
+                    raise
 
                 # display it
                 td.complete(TaskError(logger.samples_completed, type, value, traceback))
