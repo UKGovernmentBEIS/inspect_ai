@@ -245,6 +245,7 @@ def model_graded_qa(
             answer=state.output.completion,
             criterion=target.text,
             instructions=instructions,
+            grader_nonce=secrets.token_hex(4),
         )
 
         # query the model for the score
