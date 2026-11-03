@@ -58,11 +58,12 @@ Goals:
   terminal outcome per method for every way the task can end; no wait
   hangs.
 - Samples sent through a handle never change which of the receiving task's
-  own samples run (`--limit`, `--sample-id`, ids), including across task
-  retries, and a bad request fails only its sender.
-- The search example works at the default `max_tasks=1`; a wait that
-  sandbox capacity would block forever is refused with a clear error rather
-  than exceeding `max_sandboxes`.
+  own samples run (`--limit`, `--sample-id`, ids), and a bad request fails
+  only its sender. A retry never reuses one sample's result for another:
+  a task that has received samples through a handle is not retried in-run.
+- The search example works at the default `max_tasks=1`; a wait that a
+  held sandbox or sample permit would block for ever is refused with a
+  clear error rather than exceeding `max_sandboxes`.
 
 Non-goals:
 
@@ -129,7 +130,7 @@ synchronous, one handle per task × model it added, in resolution order
 (decision: Ransom, 2026-11-03). Existing callers, which ignore the `None`
 returned today, are unaffected. New exports from `inspect_ai`:
 `TaskHandle`, `TaskEndedError`, `SampleAbandonedError`,
-`SandboxCapacityError`.
+`TaskDeadlockError`.
 
 ```python
 class TaskHandle:
@@ -232,9 +233,9 @@ Everything else is refused with a clear error:
   dispatcher sets a `ContextVar` around that await, and the handle checks
   it before waiting. Calling `enqueue_task()` there, and `cancel()` or
   `close()` on its handles, stays allowed.
-- A wait whose target could never get a sandbox because waiting samples
-  hold every permit of a provider it needs: `SandboxCapacityError` (see
-  "Slot lending").
+- A wait, or a sample's wait for a sandbox or `max_samples` permit, that
+  would never end because the permit's holders are themselves waiting on
+  it: `TaskDeadlockError` (see "Waits that would never end").
 
 ### What the handles add to the run queue
 
@@ -260,7 +261,7 @@ ordinary count excluding records running on a loan:
 The creator is the attempt whose context `enqueue_task()` was called in (a
 `ContextVar` that `_run_task` sets per attempt); `TaskSource` callbacks fired
 by a task count as that task. `RunQueue.end` also clears `loan` and closes
-the port, releasing the requests it kept for retry replay.
+the port, releasing its requests.
 
 ### Sending samples
 
@@ -312,12 +313,9 @@ and records which of three things happened:
   samples still fails the task, as today.
 - **`dropped`**: `add_samples` reserved its runs, and gave it an automatic
   id if it had none, before `--sample-id` or `--limit` filtered it out
-  (`task/run.py:1749-1755`). Its futures fail with `SampleAbandonedError`,
-  so a caller never waits for a sample that will not run, and the port
-  keeps the id and runs it was given, because they are part of the
-  attempt's id history: with seed id 1 and `sample_id=[1, 3]`, an anonymous
-  request is given id 2 and dropped, and the source's next anonymous
-  follow-up is given id 3 and runs.
+  (`task/run.py:1749-1755`), as it does for the source's own samples. Its
+  futures fail with `SampleAbandonedError`, so a caller never waits for a
+  sample that will not run.
 - **`admitted`**: `add_samples` accepted it, with the id it was given.
 
 **Results.** At the sites that already report samples to the source (see
@@ -419,40 +417,35 @@ created outside any task attempt has its port closed from the start. So a
 creator that forgets `close()` cannot keep a rollout task open past its own
 attempt.
 
-### Retries: replaying requests
+### Retries of a task that has received samples
 
-If the target's attempt ends and no retry follows, every unresolved future
-fails with `TaskEndedError(log=<final log>)` (the table above). If a retry
-follows, the futures stay pending and the port replays requests into the
-retry attempt by their recorded state, so a replay never changes the
-admitted plan:
+A task attempt that has received at least one request through its port
+(any request reached `add_samples`, whatever its outcome) is not retried
+in-run: when it ends in error, the dispatcher's retry decision treats it as
+having no retries left (`can_retry=False` at `src/inspect_ai/_eval/run.py:860`,
+`:923`). Its error log is its final log, every unresolved future fails with
+`TaskEndedError(log=<that log>)` (the table above), and `result()` returns
+that log. The creator, which holds the search state, decides what to do:
+typically it enqueues a fresh rollout task and sends the outstanding
+samples again. A task whose port has delivered nothing (for example, its
+first attempt failed in sandbox setup before any request arrived) is
+retried as today, and its `sent` requests are delivered into the retry as
+new arrivals.
 
-- **Delivered requests reserve their ids first.** Before the retry
-  attempt's feeder starts, the runs and id of every `dropped`, `admitted`
-  and `done` request are added to the attempt's reservations and used ids
-  (`reserved_runs`, `seen_ids`), so the runner's automatic ids, which only
-  ever move up past used ones, give the source's regenerated follow-ups the
-  ids they had in the first attempt. In the `sample_id=[1, 3]` example,
-  the retry's follow-up is again given id 3 and runs, where without the
-  reservation it would be given id 2 and filtered out.
-- **`dropped` and `refused` requests never run again.** Their futures have
-  already failed; a `dropped` request keeps only its reservation, is not
-  admitted and is not charged to `--limit`, and a `refused` request
-  reserved nothing. Example, with `limit=2`: seed S produces follow-up A,
-  and port request D arrives while A runs and is dropped by the limit. If
-  A then errors and the task retries, D stays dropped, S is reused and
-  regenerates A, and A runs again in the second place.
-- **`admitted` and `done` requests are re-admitted first, with their
-  budget.** Before the retry attempt's feeder starts, their ids also join the
-  attempt's limit set (`admitted_ids`) and the limit's remaining budget is
-  reduced by their count, so they take exactly the places they held and
-  cannot displace a regenerated follow-up; each keeps the id the first
-  attempt gave it, so completed runs are reused from the prior log (their
-  re-fired `sample_complete` does not resolve a future twice) and the rest
-  run again. Their ids are seeded from the prior log as a limited feed's
-  admissions are today.
-- **`sent` requests** (never delivered) are delivered as new arrivals after
-  the retry starts, under the delivery rules above.
+The reason is identity. A retry reuses completed samples by id and epoch
+(`task/run.py:1410`, `:1423`, `:3875`), so it is correct only if every
+sample gets the id it had in the first attempt. Automatic ids are handed out
+in admission order, and with a port that order interleaves three producers:
+the source's pulls, its callbacks (including callbacks fired by port
+samples), and port deliveries. With an empty seed, source sample A gets id 1,
+port request P id 2, and P's callback follow-up B id 3; a retry that
+replays P before the source's pull regenerates A gives B id 1 and silently
+reuses A's result for B. Replaying faithfully would mean recording and
+re-enforcing the first attempt's whole admission order across pulls,
+callbacks and deliveries. The rollout tasks this design serves are driven by
+their creator, which can resubmit, so in-run retry is refused for them
+rather than made approximately right. (Reservations and limit budgets alone,
+tried in earlier drafts, do not fix the order.)
 
 ### Slot lending
 
@@ -498,31 +491,9 @@ class Loan:
   Loans nest: a target running on a loan that waits on its own child lends
   to that child. The number of running loans is bounded by the number of
   distinct tasks that running tasks are waiting on.
-- **Waits that sandbox capacity would block forever.** A loan lends a task
-  slot, not a sandbox: `max_sandboxes` is never exceeded. A sandboxed
-  waiting sample keeps its sandbox, and so its permit of
-  `sandboxes/<provider>`, while it waits, and the target's samples need
-  permits of the providers their sandboxes use. If every permit of one of
-  those providers is held by samples that are themselves waiting through a
-  handle, none is ever released and the target's sample would wait for
-  ever. So each wait that would block (`started()`, `result()` or
-  `enqueue_sample()` on a target that has not finished) first registers its
-  sample as a waiter holding the providers it holds, then checks each
-  provider the target can need (the task's sandbox type, its seed samples'
-  and, for `enqueue_sample()`, the sent sample's): when the permits held by
-  waiting samples equal that provider's current limit, the wait
-  unregisters and raises `SandboxCapacityError` (a `RuntimeError`, exported
-  from `inspect_ai`): "waiting on task 'rollout' would never end: all 1
-  'docker' sandboxes (max_sandboxes) are held by samples waiting on tasks
-  that need a 'docker' sandbox; raise max_sandboxes, or run the waiting
-  task without a sandbox". The check runs at every new wait, so the wait
-  that would complete the cycle is the one refused, and the samples already
-  waiting keep waiting for capacity that the refused sample's cleanup then
-  releases. A provider with no limit is never checked. Waiting while other
-  samples hold the permits is ordinary waiting: they release them when they
-  finish. `max_samples` is per task and model connections are held only
-  inside `generate`, so neither can be held by a waiting sample on the
-  target's behalf, and neither needs a rule here.
+- **Loans never lend sandboxes.** A loan lends a task slot only:
+  `max_sandboxes` is never exceeded. A wait that capacity would block for
+  ever is refused instead; see "Waits that would never end".
 - **Waits on a target that cannot run.** A loan only starts a startable
   target. A target whose setup failed becomes startable, starts and ends
   with an error log; a target cancelled while queued, whose admission
@@ -533,6 +504,61 @@ class Loan:
   handle docs in `docs/task-source.qmd` state the exception: a task that a
   running task is waiting on through a handle may run beyond `max_tasks`,
   one extra task per awaited task.
+
+### Waits that would never end
+
+A sandboxed sample keeps its sandbox, and so its permit of
+`sandboxes/<provider>`, from before `sample_init` to after
+`sample_cleanup`, including while it waits through a handle (see "Current
+behaviour"). So a waiting sample can hold the permit its target's samples
+need, and the target's sample can wait for a permit that only the waiter
+will release. That can arise when the wait starts (the target already has
+a sample waiting for the permit) or later (the target admits a sample
+needing the provider from a pull, a callback or the port), so a check at
+the wait alone is not enough. Inspect keeps a wait-for graph and checks it
+at every event that makes a sample block:
+
+- **Blocking events.** A sample awaiting `result()` or `enqueue_sample()`
+  on a task that has not ended; a sample about to wait for a permit of a
+  limited resource it cannot take at once, namely a `sandboxes/<provider>`
+  permit (`task/sandbox.py:128`) or a slot of its own task's `max_samples`
+  limiter (`task/run.py:3898`). `started()` is not a blocking event here:
+  the start of an attempt needs a task slot, which a loan provides, and
+  setup, neither of which waits for a sample (the attempt registers at
+  `task/run.py:1185`, before its samples fan out at `:1928` and acquire
+  sandboxes at `:2520`), so a parent holding the only sandbox can await its
+  child's start, finish, and release the sandbox to the child's sample.
+  Model connections are held only inside `generate`
+  (`src/inspect_ai/model/_model.py:1066`), never by a blocked sample, and
+  a provider with no limit has no permits, so neither appears.
+- **Liveness**, recomputed as a least fixpoint over the samples currently
+  blocked: a sample that is running and not blocked is live; a sample
+  waiting for a permit is live if a permit is free or a live sample holds
+  one; a sample in `result()` is live if its target has not started yet
+  (its samples will be checked when they block) or every blocked sample of
+  the target is live; a sample in `enqueue_sample()` is live if the
+  request's samples have not blocked or are live.
+- **Refusal.** If the sample that is about to block would not be live, it
+  does not block: the operation raises `TaskDeadlockError` (a
+  `RuntimeError`, exported from `inspect_ai`) naming the resource and the
+  chain, for example "sample 3 of task 'rollout' would wait for ever for a
+  'docker' sandbox: all 1 (max_sandboxes) are held by samples waiting on
+  task 'rollout' (sample 1 of task 'search'); raise max_sandboxes, or run
+  the waiting task without a sandbox". Raised from a handle wait, the
+  caller gets it; raised in a sample's permit wait, that sample fails with
+  it as an ordinary sample error (logged on the sample; a port request's
+  future resolves with that `EvalSample`; the source's `sample_complete`
+  sees it). Because every transition to blocked is checked, the samples
+  already blocked were all live before it, and refusing the new one keeps
+  them so: the cycle is never closed, and the cap is never exceeded.
+- **Scope of the check.** Waiting while live samples hold the permits is
+  ordinary waiting. A source whose own `next_samples()` blocks for ever is
+  the source's behaviour, not a resource wait, and is not checked.
+
+The graph lives in a new module, `src/inspect_ai/_eval/task/wait_graph.py`:
+process-level, in-memory, updated without awaits (no lock needed, as the
+eval runs on one event loop), with entries removed when a wait or a permit
+wait ends.
 
 ## Alternatives considered
 
@@ -582,12 +608,14 @@ class Loan:
   rejection would then have to be told apart from a limit drop; checking
   the seed reservations at the call refuses the common case at once, and
   the delivery check covers the race.
-- **Replaying every sent request on a retry.** Simple, but a request the
-  limit dropped could take a place a regenerated follow-up held, changing
-  which samples the task runs.
-- **Forgetting dropped requests on a retry.** Also simple, but the ids
-  they consumed would go to the source's follow-ups instead, and
-  `--sample-id` would then select different follow-ups.
+- **Replaying port requests into an in-run retry** (earlier drafts: replay
+  admitted requests first with their limit budget, keep dropped requests'
+  ids reserved). Each fix closed one id mismatch, but a retry reuses
+  results by id, and ids follow the first attempt's admission order across
+  source pulls, callbacks and port deliveries; nothing short of recording
+  and re-enforcing that whole order keeps a callback follow-up from taking
+  a source sample's id and reusing its result. Refusing in-run retry for a
+  task that has received samples is exact, and the creator can resubmit.
 - **Slot lending counted globally** (raise the limit by the number of
   waits and pick as usual). An earlier unrelated queued task takes the
   borrowed slot and can hold it while the awaited task and its creator stay
@@ -609,7 +637,7 @@ Public API (additive):
 - `enqueue_task()` returns `list[TaskHandle]` instead of `None`; signature
   and synchronous behaviour unchanged.
 - New `inspect_ai.TaskHandle`, `TaskEndedError`, `SampleAbandonedError`,
-  `SandboxCapacityError`.
+  `TaskDeadlockError`.
 - `SampleSource` docstrings: samples sent through a handle start while
   `next_samples()` is awaiting, and their callbacks may fire meanwhile;
   what `next_samples()` itself enqueues is admitted after the batch it
@@ -668,14 +696,23 @@ test touched), with mockllm models:
     ordinary slot; several samples waiting on one queued task share one
     loan; repeated `enqueue_sample()` calls on a running task lend nothing;
     the loan is returned when C ends; a nested loan;
-  - sandbox capacity, with a stub provider: a sandboxed search sample
-    waiting on a rollout task of the same provider at `max_sandboxes=1`
-    raises `SandboxCapacityError` at the wait instead of hanging, and the
-    rollout then runs once the search sample's sandbox is cleaned up; the
-    same at `max_sandboxes=2` runs the rollout; a rollout on a different
-    provider runs at `max_sandboxes=1`; two search samples at
-    `max_sandboxes=2` that wait in turn, where the second wait is refused;
-    a provider with no limit is not checked.
+  - waits that would never end (`tests/test_enqueue_task.py`, stub sandbox
+    providers with `max_sandboxes` set): a parent sample holding the only
+    sandbox awaits its child's `started()`, then finishes, and the child's
+    sample then gets the sandbox and runs; with the child's sample already
+    waiting for that sandbox, the parent's `result()` raises
+    `TaskDeadlockError`; with the parent already in `result()`, a child
+    sample that needs the sandbox and was added by the child's
+    `next_samples()`, and one added by a completion callback, each fail with
+    `TaskDeadlockError` while the parent's `result()` returns the child's
+    log; the same shapes at `max_sandboxes=2`, with a child on a different
+    provider, and with a provider that has no limit run to completion; two
+    parents at `max_sandboxes=2` whose children both need the sandbox: the
+    second child sample to block is refused and the other completes; a
+    two-provider cycle (parent holds X and waits on a child needing Y, whose
+    holder waits on a task needing X) is refused at the event that would
+    close it; a cycle through a task's `max_samples` slot is refused the
+    same way.
 - `tests/test_sample_source.py`:
   - port validation: an id equal to a seed id, its int/str equivalent
     (`1` and `"1"`), and a seed id excluded by `--sample-id` or `--limit`
@@ -685,14 +722,14 @@ test touched), with mockllm models:
     the source's own addition reserved first is refused at delivery, keeps
     no reservation, and the target task completes;
   - abandoned and limit-dropped requests raise `SampleAbandonedError`;
-  - retry replay: the `limit=2` S/A/D case under "Retries", where D stays
-    dropped and A runs again in the retry; with seed id 1 and
-    `sample_id=[1, 3]`, an anonymous port request dropped as id 2 and an
-    anonymous source follow-up run as id 3, the follow-up again gets id 3
-    and runs in the retry while the request does not run; an admitted request is reused
-    from the prior log when it completed and re-run when it did not, with
-    its id and without resolving its future twice; a request sent while
-    the attempt was ending is delivered in the retry;
+  - retries: a rollout task that has received a port request and then
+    errors is not retried even with `task_retry_attempts` set, its
+    outstanding requests raise `TaskEndedError` with its error log, and the
+    log holds each sample under the input it was sent with (the empty-seed
+    A/P/B case: source sample A, port request P and P's callback follow-up
+    B keep ids 1, 2 and 3, and nothing is reused across them); a rollout
+    task whose first attempt fails in setup before any request arrives is
+    retried and receives its pending requests in the retry;
   - the feeder: a sample sent through a handle while `next_samples()` stays
     blocked runs at once; the blocked pull is cancelled when the task is
     cancelled, when the run is cancelled and when the sample limit is
@@ -712,16 +749,18 @@ This design is step 5 of the plan in
 step 3 (the run queue and dispatcher) and independent of step 4:
 
 5. **Task handles.** `_eval/task/enqueue.py` (`TaskHandle`, `SamplePort`,
-   `PortRequest`, errors including `SandboxCapacityError`, `Loan`, the
-   `next_tasks()` wait refusal, the waiting-sample sandbox check;
+   `PortRequest`, errors including `TaskDeadlockError`, `Loan`, the
+   `next_tasks()` wait refusal; `_eval/task/wait_graph.py` (new: the
+   wait-for graph and its liveness check);
    `enqueue_task()` returns handles), `_eval/task/run.py` (port attach and
    per-request delivery, the result sites, the feeder's owned pull, pull
-   buffer and open port, retry replay by request state (reservations of
-   delivered requests first), attempt
-   `ContextVar`), `_eval/task/sandbox.py` (records which provider permits
-   a sample holds), `_eval/task/sample_source.py` (`SampleEnqueuer` routes
+   buffer and open port, attempt
+   `ContextVar`, the `max_samples` permit wait reported to the wait graph),
+   `_eval/task/sandbox.py` (the sandbox permit wait reported to the wait
+   graph), `_eval/task/sample_source.py` (`SampleEnqueuer` routes
    calls made in the pull scope to the pull buffer; docstrings),
-   `_eval/run.py` (port close on attempt end, loans in the dispatcher, the
+   `_eval/run.py` (no in-run retry once a port has delivered, port close on
+   attempt end, loans in the dispatcher, the
    `next_tasks()` scope), `_eval/eval.py` and `_eval/evalset.py`
    (`max_tasks` docstrings), `__init__.py` (exports), `docs/task-source.qmd`,
    `docs/parallelism.qmd` and `docs/reference`. Tests: those above.

@@ -422,7 +422,7 @@ loop:
         await queue.wake; continue
     if source_done: break
     more = await task_source.next_tasks() if task_source else None
-    if more is None: source_done = True
+    if not more: source_done = True          # None or [] ends the source, as today
     else: queue.add(resolve(more), ahead=True)
 ```
 
@@ -443,6 +443,11 @@ loop:
   abandons the retry as today (`run.py:871`, `:1064`): only the retry's
   unstarted logger is discarded and the stored log stays the record's
   log.
+- **An empty batch.** `next_tasks()` returning `None` or `[]` ends the
+  source, and the resolver is never called for it, as both drivers do today
+  (`src/inspect_ai/_eval/eval.py:1196-1199`, `:1214-1215`): the resolver
+  reads `resolve_tasks([])` as "discover tasks in the working directory"
+  (`src/inspect_ai/_eval/loader.py:129`).
 - **`next_tasks()` call point** is unchanged in meaning: it is awaited only
   when nothing is queued, running, being set up or being admitted, so no
   completion can add a task while it blocks. Under plain `eval()` that is the
@@ -482,15 +487,31 @@ as a task cancel, as if it had arrived just after registration. A record
 that ends before its first attempt starts leaves the registry when it ends.
 A retry never enters this registry (see "Retries" under "The dispatcher").
 
-- `GET /tasks` (`current_eval_summaries`) appends one row per queued record
-  with `status: "queued"`, `attempts: 0`, `samples` totals of zero, and
+A queued record's `task_id` can already have `EvalState`s from earlier
+`eval()` calls in the same process: `eval_set(retry_immediate=False)` runs
+each retry round as its own `eval()` and keeps the task id
+(`PreviousTask`, `src/inspect_ai/_eval/evalset.py:1531`,
+`src/inspect_ai/_eval/loader.py:362`), and `EvalState`s persist across those
+calls (`src/inspect_ai/_eval/eval.py:1284`). The queued registry therefore
+takes precedence over that history wherever both have the task:
+
+- `GET /tasks` (`current_eval_summaries`) shows one row per task id, as
+  it does today by folding `EvalState`s by task id
+  (`src/inspect_ai/_control/state.py:191`). A queued record with no
+  history adds a row with `status: "queued"`, `attempts: 0` and `samples`
+  totals of zero; a queued record whose task already has a row (a legacy
+  retry round) overlays that row instead, setting `status: "queued"` and
+  keeping its attempts and history, so no task is listed twice. Both carry
   `setup: "admitting" | "waiting" | "running" | "failed" | null`
   (`"admitting"` until admission has requested the setups; `null` when the
-  task needs none). Selector resolution in the
-  CLI uses this listing, so `inspect ctl task cancel <id>` resolves a queued
-  task by any selector it accepts for running ones.
-- `_task_cancel_directive` consults the registry when `latest_eval_for_task`
-  returns `None`. A plain cancel or a drain of a queued record ends it with no
+  task needs none). Selector resolution in the CLI uses this listing, so
+  `inspect ctl task cancel <id>` resolves a queued task by any selector it
+  accepts for running ones.
+- `_task_cancel_directive` looks in the queued registry first and uses
+  `latest_eval_for_task` only when the task is not queued, so a finished
+  `EvalState` from an earlier round can no longer answer "task already
+  finished" (`src/inspect_ai/_control/cancel.py:332`) while the queued
+  attempt goes on to run. A plain cancel or a drain of a queued record ends it with no
   log (`changed: true`, `queued: true` in the result; `dry_run` reports
   without acting). `action=score|error` on a queued record answers 409:
   "task … has not started, so there are no samples for a resolution to apply
@@ -1051,7 +1072,9 @@ does (a new list per call):
 - `tests/test_task_source.py`: Ctrl-C (cancelling the run) while
   `next_tasks()` blocks returns the completed logs, at `max_tasks` 1 and > 1;
   the existing live-injection test also passes for a plain task list with
-  `enqueue_task()`.
+  `enqueue_task()`; `next_tasks()` returning `[]` ends the source at
+  `max_tasks` 1 and 2 without calling the resolver (a resolver spy, and a
+  working directory holding an unrelated task file that must not load).
 - `tests/test_sample_source.py`: a mid-run configuration through
   `setups.ensure()`; a failure fails only that task.
 - `tests/test_task_cancel.py` and `tests/_control/test_ctl.py`: queued rows
@@ -1065,7 +1088,13 @@ does (a new list per call):
   cancelled, and a cancel or drain, while a task waits in the queue for its
   retry keep the prior attempt's error log (the existing between-attempts
   test, extended to the run-cancel case) and add nothing to the
-  cancelled-before-starting set.
+  cancelled-before-starting set; under `eval_set(retry_immediate=False)`,
+  while the admission of the second round's record is blocked, the task is
+  listed once (queued, with its first round's attempts), selectors resolve
+  it, and cancel and drain end the queued record rather than answering
+  "task already finished" from the first round's `EvalState` (a different
+  case from an in-run retry waiting in the queue, which has no queued
+  record).
 - `tests/test_eval_set.py`: with seed tasks A and B and B cancelled while
   queued, the eval set reports failure and its message names B, under
   immediate retries and under the legacy retry loop (with A first erroring,
