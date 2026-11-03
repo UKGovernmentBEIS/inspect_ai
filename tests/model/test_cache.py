@@ -198,6 +198,45 @@ def test_cache_model_args_key_refuses_json_subclasses(
         )
 
 
+@pytest.mark.parametrize("enum_first", [True, False])
+@pytest.mark.parametrize("with_client", [False, True])
+async def test_cache_memoized_models_keep_refused_args_separate(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    enum_first: bool,
+    with_client: bool,
+) -> None:
+    """Memoization sees an enum and its value as equal; caching must not."""
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+    monkeypatch.setattr("inspect_ai.model._model._models", {})
+    client_args: dict[str, Any] = (
+        {"http_client": httpx2.AsyncClient()} if with_client else {}
+    )
+
+    def anthropic_model(system: str) -> Model:
+        return get_model(
+            "anthropic/claude-sonnet-4-5",
+            api_key="test",
+            extra_body={"system": system},
+            **client_args,
+        )
+
+    if enum_first:
+        refused = anthropic_model(_System.THREE)
+        plain = anthropic_model("3")
+    else:
+        plain = anthropic_model("3")
+        refused = anthropic_model(_System.THREE)
+
+    async def generate_output(*args: Any, **kwargs: Any) -> ModelOutput:
+        return ModelOutput.from_content(model="anthropic", content="3")
+
+    monkeypatch.setattr(plain.api, "generate", generate_output)
+    assert (await plain.generate("Hello", cache=True)).completion == "3"
+    with pytest.raises(TypeError, match="does not support the model argument"):
+        await refused.generate("Hello", cache=True)
+
+
 async def test_cache_opaque_model_args_track_mutated_request_defaults(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

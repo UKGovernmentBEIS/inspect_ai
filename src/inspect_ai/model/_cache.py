@@ -280,6 +280,22 @@ def _is_json_value(value: Any) -> bool:
 _JSON_TYPES = (str, int, float, bool, list, dict)
 
 
+def cache_refuses_model_args(model_args: dict[str, Any]) -> bool:
+    """Whether output caching refuses these model args.
+
+    Refused values (such as an enum) and their plain JSON values look the same
+    to `get_model()` memoization, so it must not reuse a model across them.
+    """
+    try:
+        _model_args_tree(model_args, set())
+    except UnsupportedModelArgError:
+        return True
+    except RecursionError:
+        # too deep to check here; caching reports it if it is used
+        return False
+    return False
+
+
 class UnsupportedModelArgError(TypeError):
     """A model arg value that output caching cannot fingerprint."""
 

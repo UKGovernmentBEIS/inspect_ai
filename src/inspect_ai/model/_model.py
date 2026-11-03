@@ -114,6 +114,7 @@ from ._cache import (
     cache_fetch,
     cache_instance_model_args_key,
     cache_model_args_key,
+    cache_refuses_model_args,
     cache_store,
     epoch,
 )
@@ -2561,7 +2562,9 @@ def get_model(
     # see if we can return a memoized model instance
     # (exclude mockllm since custom_outputs is an infinite generator)
     model_cache_key: str = ""  # for mypy below
-    if model.startswith("mockllm/"):
+    if model.startswith("mockllm/") or (
+        memoize and cache_refuses_model_args(model_args)
+    ):
         memoize = False
     if memoize:
         model_cache_key = (
