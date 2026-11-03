@@ -3552,8 +3552,9 @@ def test_a_task_spec_is_built_in_the_recorded_model_context(
             env=env,
         )
         assert result.returncode == 0, result.stderr
-        # the caller's own active model and roles are kept
-        assert json.loads(result.stdout) == {
+        # the caller's own active model and roles are kept (the last line:
+        # startup can print enabled hooks first)
+        assert json.loads(result.stdout.splitlines()[-1]) == {
             "value": expected,
             "active": "ambient",
             "grader": "ambient",
