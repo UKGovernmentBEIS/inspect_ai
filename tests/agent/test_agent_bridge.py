@@ -722,10 +722,17 @@ def google_web_search_agent() -> Agent:
     return execute
 
 
-def test_google_bridge_normalizes_sdk_thought_signature() -> None:
-    """A URL-safe SDK signature remains replayable by the Google provider."""
+@pytest.mark.parametrize("urlsafe", [False, True])
+@pytest.mark.parametrize("padded", [False, True])
+def test_google_bridge_normalizes_sdk_thought_signature(
+    urlsafe: bool, padded: bool
+) -> None:
+    """All Google signature encodings remain replayable by the provider."""
     signature = b"\xfb\xff\xfe\xfa"
-    sdk_signature = base64.urlsafe_b64encode(signature).decode()
+    encoded = (
+        base64.urlsafe_b64encode(signature) if urlsafe else base64.b64encode(signature)
+    ).decode()
+    sdk_signature = encoded if padded else encoded.rstrip("=")
 
     content, calls = _extract_model_parts(
         [

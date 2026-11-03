@@ -595,6 +595,21 @@ def _extract_user_parts(
     return None, tool_messages
 
 
+def _canonical_thought_signature(signature: str | bytes) -> str:
+    """Return standard base64 for a Google thought signature.
+
+    The SDK uses URL-safe base64 for bytes, while other Google clients send
+    standard base64. Either form may omit padding.
+    """
+    if isinstance(signature, str):
+        signature = base64.b64decode(
+            signature + "=" * (-len(signature) % 4),
+            altchars=b"-_",
+            validate=True,
+        )
+    return base64.b64encode(signature).decode()
+
+
 def _extract_model_parts(
     parts: list[dict[str, Any]],
 ) -> tuple[list[Content] | None, list[ToolCall]]:
@@ -649,18 +664,16 @@ def _extract_model_parts(
                     thought_sig = embedded_capsule.reasoning
 
             if thought_sig and not first_fc_signature_captured:
-                if isinstance(thought_sig, str):
-                    # The SDK serializes signature bytes as URL-safe base64.
-                    sig_str = base64.b64encode(
-                        base64.b64decode(thought_sig, altchars=b"-_", validate=True)
-                    ).decode()
-                else:
-                    sig_str = base64.b64encode(thought_sig).decode()
+                sig_str = _canonical_thought_signature(thought_sig)
 
-                if embedded_capsule and embedded_capsule.reasoning == sig_str:
+                if (
+                    embedded_capsule
+                    and _canonical_thought_signature(embedded_capsule.reasoning)
+                    == sig_str
+                ):
                     content_parts.append(
                         ContentReasoning(
-                            reasoning=embedded_capsule.reasoning,
+                            reasoning=sig_str,
                             signature=embedded_capsule.signature,
                             redacted=embedded_capsule.redacted,
                             summary=embedded_capsule.summary,
