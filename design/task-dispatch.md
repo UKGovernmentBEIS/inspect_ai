@@ -343,26 +343,55 @@ adds `creator`, `port` and `loan` fields to the record and a loaned-start
 step to the dispatch loop.
 
 `RunQueue.add` is synchronous. It orders the addition sequence-major (the
-order `run_batches` uses at `max_tasks == 1` today), then configures each
-task: assigns missing sample ids, checks id uniqueness, applies the eval-level
-overrides and the `SampleSource` prerequisite checks, and constructs the
-`TaskLogger`. That is today's `prepare_options` body minus its awaits, moved
-into a function `configure_task()` in `run.py`. Configuration errors
-(`PrerequisiteError`, duplicate ids, unresolvable tasks) therefore raise to
-the caller: to `eval()` for the seed, to the `enqueue_task()` caller for an
-added task, and into the dispatcher for a `next_tasks()` batch (ending the
-run, as today). `enqueue_task()` appends to the end of the queue; a
-`next_tasks()` batch goes ahead of any tasks enqueued while `next_tasks()`
-was running (`ahead=True`), matching the order `run_batches` produces today.
-The set of task names the run has seen, used to resolve `task:id` sample
-selectors, moves from `eval_run` into the queue.
+order `run_batches` uses at `max_tasks == 1` today), adds the tasks' names to
+the run's set of task names (which moves from `eval_run` into the queue),
+assigns each record its `task_id` (`resolved_task.id`, or a new id, which
+the `TaskLogger` later receives), and configures each task's name-independent
+part: assigns missing sample ids, checks id uniqueness, applies the
+eval-level overrides other than `sample_id`, and runs the `SampleSource`
+prerequisite checks. That is the part of today's `prepare_options` body that
+needs no other task's name, moved into a function `configure_task()` in
+`run.py`. Its errors (`PrerequisiteError`, duplicate ids, unresolvable
+tasks) raise to the caller: to `eval()` for the seed, to the
+`enqueue_task()` caller for an added task, and into the dispatcher for a
+`next_tasks()` batch (ending the run, as today). `enqueue_task()` appends to
+the end of the queue; a `next_tasks()` batch goes ahead of any tasks
+enqueued while `next_tasks()` was running (`ahead=True`), matching the order
+`run_batches` produces today.
+
+**Sample selection waits for admission.** A `task:id` selector names a task
+only when that task's name is in the run's set
+(`resolve_task_sample_ids`, `src/inspect_ai/_eval/task/util.py:80-123`);
+otherwise the colon is part of a literal id, which `slice_dataset` requires
+to exist (`:179`). Today `prepare_options` adds a whole buffered batch's
+names before resolving any of its selectors (`run.py:215-219`, `:264`), so a
+parent that enqueues A and then B under `sample_id=["parent:1", "B:1"]` runs
+no sample of A. Resolving A's selectors inside its own `enqueue_task()` call
+would not yet know B and would read `B:1` as a literal id of A. So the
+name-dependent part of configuration runs at admission instead, in
+`admit_task()`: it resolves the task's `sample_id` against the run's set of
+names as it stands then, logs the existing "No sample_id selector names
+task" warning, constructs the `TaskLogger` with that `sample_id`, and
+requests the sandbox setups for the samples that selection keeps, so the
+logger, the setup keys and the attempt all use one resolved selection, as
+`SandboxManager.start` and `prepare_options` share one today
+(`run.py:1179`). Admission is a background job, which cannot run until the
+code that called `enqueue_task()` next awaits, so every task added before
+that `await` (one call with several tasks, or consecutive calls) is in the
+set when any of them resolves its selectors, and so is every task added
+earlier. The seed is added in one step, so its selectors resolve against
+the whole seed as today. A selection error (a literal id the dataset does
+not have) is an admission failure: for the seed it raises from `eval()` as
+today, and for an added task it ends that record with no log, keeping the
+error for its handles.
 
 `RunQueue.add` also registers each new record with the control channel as
 queued, in the same synchronous step, so a record is listed and cancellable
 from the moment `add` returns, before anything about it is awaited (see
 "Control channel").
 
-**Admission** prepares a record to start: it awaits
+**Admission** prepares a record to start: it resolves the record's sample
+selection and constructs its `TaskLogger` (above), awaits
 `ensure_model_controller` and `logger.init()` (as `prepare_options` does
 today), requests the record's sandbox setups, and grows the display's task
 count. Admissions run one record at a time, in queue order, in a background
@@ -783,7 +812,7 @@ def sandbox_setup() -> SandboxSetup | None:
   `os.getcwd()`, which older versions set to the task directory, so it needs
   no raised dependency floor.
 - What remains: one synchronous `with chdir(task_run_dir(task))` block
-  around `TaskLogger` construction in `configure_task()` (it reads
+  around `TaskLogger` construction in `admit_task()` (it reads
   `git_context()` and `cwd_relative_path()` against the task directory). It
   contains no `await`, so no other coroutine observes it; worker threads can,
   as today. `await logger.init()` moves out of it.
@@ -954,6 +983,20 @@ inputs, sandbox and model):
 - `next_tasks()` batches go through the same queue; their order relative to
   concurrent `enqueue_task()` calls is today's.
 
+Sample selection (`task:id` selectors, which can change which samples
+run):
+
+- Tasks added before the creator's next `await` (one `enqueue_task()` call
+  or consecutive ones) and every earlier task are known when any of them
+  resolves its selectors, so they select what they select today. Today a
+  whole batch's names were known, so a creator that adds A, awaits, then
+  adds B shared one batch; now A may be admitted first, and for A a `B:1`
+  selector is a literal id: an admission failure if A has no sample `B:1`
+  (loud, with the `slice_dataset` error), or that sample if it has one.
+  Adding the tasks in one call, or naming each selected task before the
+  `await`, keeps today's result. Literal namespaced ids
+  (`user:cybergym/arvo_6008`) resolve as today.
+
 Failure reporting (the run's outcome changes only where today it fails):
 
 - A failed setup ends only the tasks that need it, each with an error log and
@@ -1064,7 +1107,16 @@ does (a new list per call):
   `fail_after`); under eval-set selection mode in-process; ordering at
   `max_tasks == 1` (sequence-major per addition, `next_tasks()` batch ahead of
   concurrent enqueues); configuration errors raise at the call; admission
-  failure ends one task; a setup failure ends only the tasks that need it,
+  failure ends one task; sample selection under
+  `sample_id=["parent:1", "B:1"]`: a parent that enqueues A and then B
+  (consecutive calls, and one call with both) runs no sample of A even when
+  A's dataset has a literal `B:1` sample, and no error is raised at either
+  `enqueue_task()` call or at A's admission; a literal namespaced id
+  (`user:cybergym/arvo_6008`) with no task of that name still selects that
+  sample; a `task:id` selector for an unknown task with no such literal id
+  in an added task fails that task's admission with the `slice_dataset`
+  error and its handles report it; the logger's recorded `sample_id` and
+  the sandbox setups requested match the samples the attempt runs; a setup failure ends only the tasks that need it,
   with error logs and `on_task_start`/`on_task_end`; the retry rule (a shared
   broken key set up at most once per attempt number); a sandbox-free task
   starts while a setup blocks; an ended record no longer references its
@@ -1145,7 +1197,8 @@ batch has its own `eval_run` and cleans up its own state).
    release. Independent of step 1.
 3. **One queue, one dispatcher, queued tasks in the control channel.**
    `_eval/task/enqueue.py` (`RunQueue`, `TaskRecord`; `enqueue_task()` still
-   returns `None`), `_eval/run.py` (`configure_task()`, `dispatch_tasks()`,
+   returns `None`), `_eval/run.py` (`configure_task()`, `admit_task()` with
+   sample selection and logger construction, `dispatch_tasks()`,
    `eval_run` owns the queue; `TaskInjection`/`PreparedFeed`/`_empty_feed`
    removed), `_eval/eval.py` (one `eval_run` call), `_eval/task/run.py`
    (`_enqueue_source_tasks`), `_control/queued_tasks.py` (new),

@@ -728,6 +728,23 @@ So a log that a port has contributed to is never reused:
   no creator, a rerun would lack the samples it was sent and could end
   `success` while missing them. After a restart, the creator's own task
   reruns and enqueues fresh rollout tasks.
+- **Restarting under `eval_set()` needs `log_dir_allow_dirty=True`.** Every
+  added task writes its own log into the eval set's log directory, under
+  its own task identifier, which is not one of the tasks passed to
+  `eval_set()`. `validate_eval_set_prerequisites()` rejects such a log
+  before any classification unless `log_dir_allow_dirty` is set
+  (`src/inspect_ai/_eval/evalset.py:1091`, `:2085-2095`; it defaults to
+  false, `:999`), both in a later legacy retry round of the same call
+  (`retry_immediate=False`) and in a later invocation over the same
+  directory. This holds for any added task today, with or without handles.
+  The supported configuration for an eval set whose tasks add tasks is
+  `log_dir_allow_dirty=True`: the check then keeps only logs whose
+  identifiers are requested tasks (`:2085-2086`), so the rollout logs are
+  ignored, never reused, and the creator's task reruns and enqueues fresh
+  rollout tasks. Without it, the existing prerequisite error names the
+  option. The `enqueue_task()` docstring and the handle docs in
+  `docs/task-source.qmd` state the requirement; making added tasks' logs
+  pass the default check is listed under "Not this design".
 
 ### Slot lending
 
@@ -1051,7 +1068,13 @@ test touched), with mockllm models:
     checkpoint, and the A/P/B ids are not crossed;
   - `convert_eval_logs` from a marked `.eval` log to `.json` and back,
     `inspect score` and `write_eval_log` keep the field, and `eval_retry()`
-    refuses the converted `.json` log; `eval_set()` over a log directory
+    refuses the converted `.json` log; under `eval_set(log_dir_allow_dirty=True)`,
+    a parent that adds a rollout task, sends it a sample and then fails is
+    retried in a legacy round (`retry_immediate=False`) and in a second
+    invocation over the same directory: the rollout logs are ignored, the
+    parent reruns and adds fresh rollout tasks, and nothing is reused from
+    the rollout logs; without the flag, the existing prerequisite error is
+    raised and names the option; `eval_set()` over a log directory
     holding a marked successful log of a requested empty-seed task (so
     `planned == 0`), and over a marked crashed log that recovery under
     `incomplete_action="error"` finalizes as `success`, reruns the task
@@ -1201,6 +1224,10 @@ loan specific to it ("Slot lending").
   `enqueue_task()` returns handles).
 - Recording the creator in the eval log; see
   [task-dispatch.md](task-dispatch.md#interactions-with-related-changes).
+- Making the logs of tasks added under `eval_set()` pass its log-directory
+  check without `log_dir_allow_dirty=True` (for example by recording which
+  task added them); it applies to every added task, not only those with
+  handles.
 - Detecting waits that cannot finish because sandbox or `max_samples`
   permits are held by their own waiters; see the wait-for graph under
   "Alternatives considered".
