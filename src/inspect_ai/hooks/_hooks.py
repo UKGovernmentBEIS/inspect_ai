@@ -475,9 +475,10 @@ class Hooks:
         has its own pair), with the task's final log: on success, and also
         when the task errors or is cancelled. `data.log.status` is then
         `"error"` or `"cancelled"`, and `data.log.results` may be partial or
-        missing. If the final log could not be written, or `debug_errors` is
-        set, `data.log` is an errored log that was not written to the log
-        directory.
+        missing. If the final log could not be written, or `debug_errors`
+        re-raised an exception before it was written, `data.log` is an
+        errored log that was not written to the log directory. A log that
+        was written is passed as is.
 
         Args:
            data: Task end data.
