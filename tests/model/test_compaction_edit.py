@@ -2,6 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from inspect_ai._util.citation import UrlCitation
 from inspect_ai._util.content import ContentReasoning, ContentText, ContentToolUse
 from inspect_ai.model import (
     ChatMessage,
@@ -11,8 +12,56 @@ from inspect_ai.model import (
     ChatMessageUser,
 )
 from inspect_ai.model._compaction.edit import TOOL_RESULT_REMOVED, CompactionEdit
+from inspect_ai.model._message_ids import edited_message
 from inspect_ai.model._model import get_model
 from inspect_ai.tool import ToolCall
+
+
+async def test_citation_only_edit_compaction_keeps_message_id() -> None:
+    """Removing only citations leaves the visible message identity intact."""
+    citation = UrlCitation(url="https://example.com", cited_text="answer")
+    assistant = ChatMessageAssistant(
+        id="cited",
+        content=[ContentText(text="answer", citations=[citation])],
+    )
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="Question"),
+        assistant,
+        ChatMessageUser(content="Continue"),
+    ]
+    strategy = CompactionEdit(memory=False, keep_thinking_turns="all")
+
+    compacted, _ = await strategy.compact(get_model("mockllm/model"), messages, [])
+
+    assert compacted[1].id == assistant.id
+    assert isinstance(compacted[1].content, list)
+    assert isinstance(compacted[1].content[0], ContentText)
+    assert compacted[1].content[0].citations is None
+
+
+async def test_reasoning_and_citation_edit_has_deterministic_id() -> None:
+    """The final citation pass preserves an earlier deterministic edit."""
+    citation = UrlCitation(url="https://example.com", cited_text="answer")
+    assistant = ChatMessageAssistant(
+        id="cited-reasoning",
+        content=[
+            ContentReasoning(reasoning="private thought"),
+            ContentText(text="answer", citations=[citation]),
+        ],
+    )
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="Question"),
+        assistant,
+        ChatMessageUser(content="Continue"),
+    ]
+    strategy = CompactionEdit(memory=False, keep_thinking_turns=0)
+    model = get_model("mockllm/model")
+
+    first, _ = await strategy.compact(model, messages, [])
+    second, _ = await strategy.compact(model, messages, [])
+    expected = edited_message(assistant, content=[ContentText(text="answer")])
+
+    assert first[1].id == second[1].id == expected.id
 
 
 @pytest.fixture

@@ -685,9 +685,9 @@ class AgentBridge:
         """Give each message of a request the id the bridge knows it by, or a new one.
 
         Messages that line up with the tracked thread (`_align_with_tracked`) take
-        its ids. Others take the first id recorded for their strongest key that
-        isn't already used in the request, so the k-th repeat of a message gets the
-        k-th id.
+        its ids unless a recorded id matches a stronger key. Others take the
+        first id recorded for their strongest key that isn't already used in the
+        request, so the k-th repeat of a message gets the k-th id.
         """
         keys = [_message_id_keys(message) for message in messages]
         aligned = self._align_with_tracked(messages, keys)
@@ -711,7 +711,30 @@ class AgentBridge:
 
         recognized: list[str | None] = []
         for index, (message, message_keys) in enumerate(zip(messages, keys)):
-            message_id = aligned.get(index) or recorded_id(message_keys)
+            aligned_id = aligned.get(index)
+            message_id = aligned_id
+            if aligned_id is None:
+                message_id = recorded_id(message_keys)
+            else:
+                aligned_keys = self._keys_by_id.get(aligned_id, set())
+                aligned_strength = max(
+                    (_key_strength(key) for key in message_keys if key in aligned_keys),
+                    default=0,
+                )
+                if aligned_strength < 3:
+                    candidate_id = recorded_id(message_keys)
+                    if candidate_id is not None:
+                        candidate_keys = self._keys_by_id.get(candidate_id, set())
+                        candidate_strength = max(
+                            (
+                                _key_strength(key)
+                                for key in message_keys
+                                if key in candidate_keys
+                            ),
+                            default=0,
+                        )
+                        if candidate_strength > aligned_strength:
+                            message_id = candidate_id
             recognized.append(message_id)
             if message_id is None:
                 message.id = uuid()
@@ -915,11 +938,14 @@ class AgentBridge:
           further calls (candidate promotion) or by the longer-descending-call
           displacement above when it makes only one.
         """
-        if output.message.id is not None:
-            self._record_message_id(_message_id_keys(output.message), output.message.id)
-            self._content_by_id.setdefault(
-                output.message.id, content_hash(output.message)
-            )
+        for choice in output.choices:
+            if choice.message.id is not None:
+                self._record_message_id(
+                    _message_id_keys(choice.message), choice.message.id
+                )
+                self._content_by_id.setdefault(
+                    choice.message.id, content_hash(choice.message)
+                )
 
         messages = input + [output.message]
         fps = [_message_fingerprint(m) for m in messages]

@@ -5,6 +5,7 @@ from shortuuid import uuid
 from inspect_ai._util.content import Content, ContentText
 
 from ._chat_message import ChatMessage
+from ._message_ids import edited_message
 
 
 async def trim_messages(
@@ -146,9 +147,7 @@ def strip_citations(messages: list[ChatMessage]) -> list[ChatMessage]:
                 else:
                     new_content.append(content)
             if modified:
-                result.append(
-                    msg.model_copy(update={"id": uuid(), "content": new_content})
-                )
+                result.append(edited_message(msg, content=new_content))
             else:
                 result.append(msg)
         else:

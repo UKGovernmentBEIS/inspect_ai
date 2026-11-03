@@ -558,6 +558,24 @@ async def test_trim_messages_strips_citations() -> None:
     assert content_text.citations is None
 
 
+async def test_trim_messages_citation_only_keeps_id() -> None:
+    """Trim's shared citation pass keeps the original message ID."""
+    citation = UrlCitation(url="https://example.com", cited_text="answer")
+    assistant = ChatMessageAssistant(
+        id="trim-cited",
+        content=[ContentText(text="answer", citations=[citation])],
+    )
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="Question", source="input"),
+        assistant,
+        ChatMessageUser(content="Continue"),
+    ]
+
+    trimmed = await trim_messages(messages, preserve=1.0)
+
+    assert trimmed[1].id == assistant.id
+
+
 def test_strip_citations_removes_citations() -> None:
     """Test that strip_citations removes citations from ContentText blocks."""
     citation = UrlCitation(url="https://example.com", cited_text="text")

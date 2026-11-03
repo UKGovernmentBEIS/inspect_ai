@@ -51,6 +51,7 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._message_ids import edited_message
+from inspect_ai.model._model_output import ChatCompletionChoice
 from inspect_ai.solver import generate, user_message
 from inspect_ai.tool import Tool, ToolCall, ToolResult, tool
 from inspect_ai.util import store
@@ -636,6 +637,83 @@ def test_repeated_exchanges_keep_ids_through_dialect(
         events[1].input[2].id,
     ]
     assert events[2].input[3].id == events[1].output.message.id
+
+
+def test_completions_non_primary_choice_keeps_generated_id(tmp_path: Path) -> None:
+    """A scaffold can continue with an unchanged alternate choice."""
+
+    @agent
+    def choose_alternate() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            async with agent_bridge(state) as bridge:
+                async with AsyncOpenAI(api_key="inspect") as client:
+                    messages: list[dict[str, Any]] = [
+                        {"role": "user", "content": "Choose a reply."}
+                    ]
+                    first = await client.chat.completions.create(
+                        model="inspect", messages=cast(Any, messages)
+                    )
+                    messages.append(
+                        first.choices[1].message.model_dump(exclude_none=True)
+                    )
+                    messages.append({"role": "user", "content": "Continue."})
+                    await client.chat.completions.create(
+                        model="inspect", messages=cast(Any, messages)
+                    )
+                return bridge.state
+
+        return execute
+
+    choices = ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(message=ChatMessageAssistant(content="choice-zero")),
+            ChatCompletionChoice(message=ChatMessageAssistant(content="choice-one")),
+        ],
+    )
+    log = eval(
+        Task(dataset=[Sample(input="Choose a reply.")], solver=choose_alternate()),
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[choices, ModelOutput.from_content("mockllm/model", "Done")],
+        ),
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    assert log.samples
+    first_event, second_event = [
+        event for event in log.samples[0].events if isinstance(event, ModelEvent)
+    ]
+    assert second_event.input[1].id == first_event.output.choices[1].message.id
+
+
+@pytest.mark.parametrize("dialect", DIALECTS)
+async def test_recorded_side_reply_beats_loose_tracked_match(
+    dialect: Dialect,
+) -> None:
+    """A recorded call ID keeps a side reply distinct from an equal main reply."""
+    task = ChatMessageUser(content="Read a file.")
+    a_id, b_id = {
+        "completions": ("call_a", "call_b"),
+        "responses": ("fc_a", "fc_b"),
+        "anthropic": ("toolu_a", "toolu_b"),
+        "google": ("call_bash_a", "call_bash_b"),
+    }[dialect]
+    main = _call(a_id)
+    side = _call(b_id)
+    bridge = AgentBridge(AgentState(messages=[task]))
+    scaffold = _Scaffold(bridge)
+    await scaffold.request([task], main)
+    await scaffold.request([ChatMessageUser(content="Is ls safe?")], side)
+    if dialect == "google":
+        bridge._record_transported_reply(side, [side])
+    [event] = _awaiting(bridge, side)
+    result = _result(b_id)
+
+    ids = await scaffold.request([task, side, result])
+
+    assert ids[1] == side.id
+    assert event.message_id == ids[2]
 
 
 @pytest.mark.parametrize("second_edit", [False, True])
