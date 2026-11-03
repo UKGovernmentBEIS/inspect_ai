@@ -2108,9 +2108,10 @@ def test_pooled_prompt_fallback_without_system_message_reads_pool_once() -> None
     assert work[-1] <= 4.2 * work[0], work
 
 
+@pytest.mark.parametrize("setup", [False, True])
 @pytest.mark.parametrize("empty", [True, False])
 def test_bridge_result_lookup_with_empty_results_stays_bounded(
-    empty: bool, monkeypatch: pytest.MonkeyPatch
+    empty: bool, setup: bool, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from inspect_ai.event import _timeline
 
@@ -2132,7 +2133,23 @@ def test_bridge_result_lookup_with_empty_results_stays_bounded(
     monkeypatch.setattr(_timeline._Inputs, "_pool_tool_rows", counted_rows)
     for rounds in (100, 200, 400):
         pool: list[ChatMessage] = [ChatMessageUser(content="Start")]
-        events: list[Event] = [SpanBeginEvent(id="main", name="main", type="agent")]
+        events: list[Event] = []
+        if setup:
+            events.extend(
+                [
+                    SpanBeginEvent(id="init", name="init", type="init"),
+                    linked_call("setup", "init", [], "Ready", None),
+                    SpanEndEvent(id="init"),
+                ]
+            )
+        events.extend(
+            [
+                SpanBeginEvent(id="solvers", name="solvers", type="solvers"),
+                SpanBeginEvent(
+                    id="main", name="main", type="agent", parent_id="solvers"
+                ),
+            ]
+        )
         for n in range(rounds):
             task = ToolCall(id=f"task-{n}", function="task", arguments={})
             call = linked_call(f"m{n}", "main", [], "", None, task)
@@ -2161,6 +2178,7 @@ def test_bridge_result_lookup_with_empty_results_stays_bounded(
             )
         )
         events.append(SpanEndEvent(id="main"))
+        events.append(SpanEndEvent(id="solvers"))
         work.append(0)
         replay = steps_from_events(
             [],
@@ -2868,7 +2886,7 @@ def test_a_call_a_fail_fast_tool_halted_has_no_tool_steps() -> None:
         ]
 
 
-@pytest.mark.parametrize("version", ["0.3.200", None])
+@pytest.mark.parametrize("version", ["0.3.94", "0.3.200", None])
 def test_an_inspect_log_s_calls_without_a_tool_span_keep_no_tool_steps(
     version: str | None,
 ) -> None:
@@ -2886,6 +2904,61 @@ def test_an_inspect_log_s_calls_without_a_tool_span_keep_no_tool_steps(
     )
 
     assert tool_steps(replay) == []
+
+
+@pytest.mark.parametrize("inputs", ["expanded", "pooled"])
+@pytest.mark.parametrize("message_ids", [False, True])
+@pytest.mark.parametrize("uuids", [False, True])
+@pytest.mark.parametrize("version", ["0.3.43", "0.3.93"])
+def test_successful_native_tool_before_tool_spans_keeps_both_stages(
+    inputs: str, message_ids: bool, uuids: bool, version: str
+) -> None:
+    from inspect_ai._sentinel import _replay
+
+    user = ChatMessageUser(content="Find the setting")
+    call = ToolCall(id="lookup-call", function="lookup", arguments={})
+    first = linked_call("first", "agent", [user], "Looking", None, call)
+    first.tools = [ToolInfo(name="lookup", description="Find the setting")]
+    result = ChatMessageTool(content="found", tool_call_id=call.id, function="lookup")
+    second = linked_call(
+        "second", "agent", [user, first.output.message, result], "Done", None
+    )
+    if not message_ids:
+        user.id = None
+        first.output.message.id = None
+        result.id = None
+        second.output.message.id = None
+    if not uuids:
+        first.uuid = None
+        second.uuid = None
+    events: list[Event] = [
+        SpanBeginEvent(id="agent", name="agent", type="agent"),
+        first,
+        ToolEvent(
+            id=call.id,
+            function="lookup",
+            arguments={},
+            result="found",
+            message_id=result.id,
+            span_id="agent",
+        ),
+        second,
+        SpanEndEvent(id="agent"),
+    ]
+    pool: list[ChatMessage] = []
+    if inputs == "pooled":
+        events, pool = _replay._condensed(events, [])
+    replay = steps_from_events(
+        [user, first.output.message, result, second.output.message],
+        events,
+        pool,
+        sample_uuid="sample",
+        eval_info=EvalInfo(inspect_ai_version=version, sentinel=False),
+    )
+    assert tool_steps(replay) == [
+        ("tool_call", call.id, "lookup", {}, None),
+        ("tool_result", call.id, "lookup", {}, "found"),
+    ]
 
 
 def answers_as_a_person(decision: str, monkeypatch: pytest.MonkeyPatch) -> None:

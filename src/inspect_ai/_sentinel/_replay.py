@@ -92,7 +92,7 @@ def steps_from_events(
 
     Inspect logs record origins on every model call or on none. If a transcript mixes calls with and without origins, recorded calls retain their recorded classification and calls without origins are inferred; continuity across that mixed sequence is not guaranteed.
 
-    In logs without origins, recorded sentinel checks and human decisions are used only when their step id pairs with a model call's exact id. Inferred turns may differ from those seen by a sentinel that ran before origins were recorded; reproducing that sentinel's live steps is outside this replay contract.
+    In logs without origins, recorded sentinel checks and human decisions are used only when their step id pairs with a model call's exact id. Inferred turns may differ from those seen by a sentinel that ran before origins were recorded; reproducing that sentinel's live steps is outside this replay contract. Successful native tool events in logs before 0.3.94 have no tool span and themselves mark execution; in newer logs, a tool span distinguishes executed calls from halted ones.
 
     Args:
         messages: The sample's messages (`EvalSample.messages`).
@@ -702,6 +702,13 @@ class _Driver:
         recorded = before_span is not None or after_span is not None
         if not recorded and not self._checks_tool_calls(event, call.producer):
             return
+        legacy_executed = (
+            tool_span is None
+            and _before_tool_spans(self.eval_info.inspect_ai_version)
+            and event.error is None
+            and not event.failed
+            and not event.pending
+        )
         approver_modified = (
             approval.modified
             if approval is not None
@@ -709,24 +716,33 @@ class _Driver:
             and approval.modified is not None
             else None
         )
-        checked = before_span is not None or (
-            tool_span is not None
-            # the call was rejected before its step was built: by validation
-            # or a viewer that raised, or with every instance abstaining, by
-            # a tool that raised ToolParsingError or ToolApprovalError itself,
-            # which reads the same
-            and (event.error is None or event.error.type not in ("parsing", "approval"))
-            and proposal.parse_error is None
-            and (
-                call.producer is None
-                or any(tool.name == proposal.function for tool in call.producer.tools)
-            )
-            and (
-                approval is None
-                or approval.decision == "approve"
-                or (
-                    approver_modified is not None
-                    and approver_modified.function == proposal.function
+        checked = (
+            before_span is not None
+            or legacy_executed
+            or (
+                tool_span is not None
+                # the call was rejected before its step was built: by validation
+                # or a viewer that raised, or with every instance abstaining, by
+                # a tool that raised ToolParsingError or ToolApprovalError itself,
+                # which reads the same
+                and (
+                    event.error is None
+                    or event.error.type not in ("parsing", "approval")
+                )
+                and proposal.parse_error is None
+                and (
+                    call.producer is None
+                    or any(
+                        tool.name == proposal.function for tool in call.producer.tools
+                    )
+                )
+                and (
+                    approval is None
+                    or approval.decision == "approve"
+                    or (
+                        approver_modified is not None
+                        and approver_modified.function == proposal.function
+                    )
                 )
             )
         )
@@ -1197,6 +1213,21 @@ def _records_truncation(version: str | None) -> bool:
     if parsed["pre"]:
         return False
     return bool(parsed["post"]) or not parsed["dev"]
+
+
+def _before_tool_spans(version: str | None) -> bool:
+    """Whether this Inspect version predates native tool spans (0.3.94)."""
+    if version is None:
+        return False
+    parsed = _VERSION.fullmatch(version.strip())
+    if parsed is None or int(parsed["epoch"] or 0) > 0:
+        return False
+    release = [int(part) for part in parsed["release"].split(".")]
+    while len(release) > 1 and release[-1] == 0:
+        release.pop()
+    if release != [0, 3, 94]:
+        return release < [0, 3, 94]
+    return bool(parsed["pre"] or parsed["dev"]) and not parsed["post"]
 
 
 def _event_key(event: Event) -> object:

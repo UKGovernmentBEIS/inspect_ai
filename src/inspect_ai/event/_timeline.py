@@ -1099,7 +1099,9 @@ class _Inputs:
         self._events = events
         self._pool = pool
         self._all_inputs_pooled = pool is not None and all(
-            not isinstance(event, ModelEvent) or event.input_refs is not None
+            not isinstance(event, ModelEvent)
+            or event.input_refs is not None
+            or not event.input
             for event in events
         )
         self.outside = outside
