@@ -180,13 +180,18 @@ _theme: RichTheme | None = None
 def record_console_interaction(console: Console, record_event: bool) -> Iterator[None]:
     """Record console output and input during an input screen as an `InputEvent`.
 
-    Records to a separate buffer, so the event holds only this interaction and
-    the caller's own recording (if any) is kept and restored afterwards.
+    Records to a separate buffer, so the event holds only this interaction. The
+    caller's own recording (if any) is kept, with the interaction added to it.
+    Output held by a caller's `console.capture()` is set aside, so the
+    interaction reaches the terminal and the event, and restored afterwards.
     """
     with console._record_buffer_lock:
         record, buffer = console.record, console._record_buffer
         console._record_buffer = []
     console.record = True
+    thread_locals = console._thread_locals
+    pending, pending_index = thread_locals.buffer, thread_locals.buffer_index
+    thread_locals.buffer, thread_locals.buffer_index = [], 0
 
     # monkey patch .input method to record inputs
     input_original = Console.input
@@ -204,9 +209,12 @@ def record_console_interaction(console: Console, record_event: bool) -> Iterator
         yield
     finally:
         Console.input = input_original  # type: ignore
-        input = console.export_text(clear=False, styles=False)
-        input_ansi = console.export_text(clear=True, styles=True)
+        thread_locals.buffer, thread_locals.buffer_index = pending, pending_index
         with console._record_buffer_lock:
+            if record:
+                buffer.extend(console._record_buffer)
+            input = console.export_text(clear=False, styles=False)
+            input_ansi = console.export_text(clear=True, styles=True)
             console._record_buffer = buffer
         console.record = record
         if record_event:

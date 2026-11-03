@@ -87,15 +87,10 @@ def _textual_task_screen() -> Iterator[TaskScreen]:
     yield TextualTaskScreen(cast(Any, app))
 
 
-@pytest.mark.parametrize("task_screen", [_rich_task_screen, _textual_task_screen])
-def test_input_screen_keeps_caller_recording(
-    fresh_display: None,
-    task_screen: Callable[[], contextlib.AbstractContextManager[TaskScreen]],
-) -> None:
-    rich.reconfigure(record=True, file=io.StringIO())
-    console = rich.get_console()
-    console.print("before the eval")
+TaskScreenFactory = Callable[[], contextlib.AbstractContextManager[TaskScreen]]
 
+
+def _run_input_screen(task_screen: TaskScreenFactory) -> InputEvent:
     transcript = Transcript()
     token = _transcript.set(transcript)
     try:
@@ -104,9 +99,44 @@ def test_input_screen_keeps_caller_recording(
                 screen_console.print("approve the tool call?")
     finally:
         _transcript.reset(token)
-
     [event] = [e for e in transcript.events if isinstance(e, InputEvent)]
+    return event
+
+
+@pytest.mark.parametrize("task_screen", [_rich_task_screen, _textual_task_screen])
+def test_input_screen_keeps_caller_recording(
+    fresh_display: None, task_screen: TaskScreenFactory
+) -> None:
+    rich.reconfigure(record=True, file=io.StringIO())
+    console = rich.get_console()
+    console.print("before the eval")
+    event = _run_input_screen(task_screen)
+    console.print("after the eval")
+
     assert "approve the tool call?" in event.input
     assert "before the eval" not in event.input
     assert console.record
-    assert "before the eval" in console.export_text()
+    recording = console.export_text()
+    for text in ["before the eval", "approve the tool call?", "after the eval"]:
+        assert recording.count(text) == 1
+
+
+@pytest.mark.parametrize("task_screen", [_rich_task_screen, _textual_task_screen])
+def test_input_screen_shows_interaction_during_caller_capture(
+    fresh_display: None, task_screen: TaskScreenFactory
+) -> None:
+    output = io.StringIO()
+    rich.reconfigure(file=output)
+    console = rich.get_console()
+    with console.capture() as capture:
+        console.print("before the eval")
+        event = _run_input_screen(task_screen)
+        console.print("after the eval")
+
+    assert "approve the tool call?" in event.input
+    assert "approve the tool call?" in event.input_ansi
+    assert "approve the tool call?" in output.getvalue()
+    captured = capture.get()
+    assert "before the eval" in captured
+    assert "after the eval" in captured
+    assert "approve the tool call?" not in captured
