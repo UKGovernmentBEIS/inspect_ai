@@ -49,3 +49,15 @@ def test_restore_keeps_console_changed_between_initialises(
 
     rich_restore_defaults()
     assert rich.get_console().no_color
+
+
+def test_restore_after_repeated_initialise_removes_display_settings(
+    fresh_display: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # outside VS Code, where rich_initialise turns off color
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
+    rich_initialise("full", plain=False)
+    rich_initialise("full", plain=False)
+
+    rich_restore_defaults()
+    assert not rich.get_console().no_color
