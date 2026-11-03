@@ -1,15 +1,20 @@
 ---
 name: release-sandbox-tools
-description: Land a PR that requires new inspect-sandbox-tools injectable binaries to be built and published. Use when asked to land/merge a PR that changed code under src/inspect_sandbox_tools/ (typically its slow-tool-tests-release check fails on missing published binaries), or when asked to build/validate/upload sandbox tools binaries.
+description: Land a PR that requires new inspect-sandbox-tools injectable binaries to be built and published. Use when asked to land/merge a PR that changed an injectable build input (code under src/inspect_sandbox_tools/, or a build file like requirements.txt, a Dockerfile, or a conda lock under src/inspect_ai/tool/_sandbox_tools_utils/; see injectable_paths.txt) and bumped the version (typically its slow-tool-tests-release check fails on missing published binaries), or when asked to build/validate/upload sandbox tools binaries.
 ---
 
 # Landing a PR that ships new sandbox tools injectables
 
-Unblocks landing a PR that changed code under `src/inspect_sandbox_tools/` and
-bumped the injectable version: has CI build and validate the four artifacts
+Unblocks landing a PR that changed an injectable build input and bumped the
+injectable version: has CI build and validate the four artifacts
 (amd64/arm64 × glibc/musl) at the PR's head commit, verifies their
 attestations, publishes them to S3, and commits the pinned digests back to the
-PR branch.
+PR branch. An injectable build input is the source under
+`src/inspect_sandbox_tools/` or a build file that feeds the binary (a lockfile,
+a Dockerfile, the `requirements.txt` build lock); the full list is
+`src/inspect_ai/tool/_sandbox_tools_utils/injectable_paths.txt`. A build-file-only
+change — including a security re-lock of `requirements.txt` — releases through
+this same flow.
 
 The whole procedure is scripted as an interactive wizard:
 
