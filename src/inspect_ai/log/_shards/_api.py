@@ -39,7 +39,7 @@ from inspect_ai.log._recorders.eval import (
 )
 from inspect_ai.log._recorders.recorder import SampleRecordKey
 
-from ._delete import check_deletable, remove_shards_dir
+from ._delete import check_deletable, remove_shards_dir, shards_remain
 from ._errors import ShardSetError, ShardSetIncomplete
 from ._owned import run_owned
 from ._plan import (
@@ -257,7 +257,8 @@ class _Pass(NamedTuple):
     check_retained: bool
     """Whether deleting the shards must first check that the merged log keeps
     trusted reductions (no edited score, none missing): nothing was written
-    and shard attempts remain."""
+    and objects remain under the shards directory (attempts, checkpoints,
+    buffers or anything else)."""
 
 
 async def merge_shards(
@@ -419,7 +420,10 @@ async def _merge_pass(
             raise FileNotFoundError(
                 f"Neither {merged_path} nor any shard in {shards_dir} exists."
             )
-        return _recorded_pass(existing, given, allow_incomplete, shards_gone=True)
+        # an interrupted deletion can leave checkpoints or buffers with no
+        # attempt; the retained checks still run before they are deleted
+        gone = not await shards_remain(fs, shards_dir)
+        return _recorded_pass(existing, given, allow_incomplete, shards_gone=gone)
 
     ledger = (
         {e.shard: e for e in _ledger(existing.header)} if existing is not None else {}

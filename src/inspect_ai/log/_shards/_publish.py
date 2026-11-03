@@ -7,6 +7,7 @@ merge supports no other storage (see :func:`supported_location`).
 """
 
 import os
+import re
 import shutil
 import socket
 from collections.abc import Iterator
@@ -35,32 +36,49 @@ def supported_location(location: str) -> str:
 
     The merge supports only local paths, ``file://`` URIs and ``s3://`` URLs
     (decision: Ransom, 2026-10-30): other fsspec backends differ in how they
-    list, name and version objects. A ``file://`` URI is decoded once to
-    its local path, and that path is checked and returned, so nothing later
-    decodes it again (decision: Ransom, 2026-11-03). A location is accepted
-    only in one of these forms: an ``s3://`` URL, or a path in which fsspec
-    reads no protocol (a plain path, including a Windows drive path or a
-    name holding a colon), with no ``::`` anywhere. Any other protocol
-    fsspec reads, such as ``data:`` without slashes, and a chained URL
-    (``simplecache::s3://...``, also when percent-encoded in a ``file://``
-    URI) are refused. The location is checked as text, so nothing is
+    list, name and version objects. A location is accepted only as an
+    ``s3://`` URL, a ``file://`` URI, or a plain local path (see
+    :func:`_plain_local_path`), with no ``::`` anywhere. A ``file://`` URI is
+    decoded once to its local path, which must itself be a plain local path;
+    that path is returned, so nothing later decodes it again (decisions:
+    Ransom, 2026-11-03). Everything else is refused: another protocol, with
+    or without slashes (``data:``, ``file:/``, ``local:/``), and a chained
+    URL (``simplecache::s3://...``, also when percent-encoded in a
+    ``file://`` URI). The location is checked as text, so nothing is
     constructed, listed or read first.
 
     Raises:
         ValueError: `location` is not in an accepted form.
     """
-    if location.startswith("file://"):
-        target = local_path(location)
-        supported = url_protocol(target) is None
+    if location.startswith("s3://"):
+        target, supported = location, "::" not in location
     else:
-        target = location
-        supported = location.startswith("s3://") or url_protocol(location) is None
-    if "::" in target or not supported:
+        target = local_path(location) if location.startswith("file://") else location
+        supported = _plain_local_path(target)
+    if not supported:
         raise ValueError(
             f"{location} cannot be merged: shard merging supports local paths, "
             "file:// URIs and s3:// URLs only."
         )
     return target
+
+
+_DRIVE = re.compile(r"[A-Za-z]:[\\/]")
+
+
+def _plain_local_path(path: str) -> bool:
+    """Whether `path` is an absolute path, a drive path or a plain relative path.
+
+    A relative path's first component holds no colon, so a ``name:`` prefix
+    (``file:/x``, ``local:/x``, any other scheme) is refused while later
+    colons (``/logs/a:b``, ``./name:x``) are not. fsspec must read no
+    protocol in the path, and it holds no ``::``.
+    """
+    if "::" in path or url_protocol(path) is not None:
+        return False
+    if path.startswith(("/", "\\")) or _DRIVE.match(path):
+        return True
+    return ":" not in re.split(r"[\\/]", path, maxsplit=1)[0]
 
 
 def is_local(location: str) -> bool:

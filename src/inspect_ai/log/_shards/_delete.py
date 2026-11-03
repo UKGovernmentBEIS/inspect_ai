@@ -91,6 +91,18 @@ async def remove_shards_dir(
         )
 
 
+async def shards_remain(fs: AsyncFilesystem, shards_dir: str) -> bool:
+    """Whether any object remains under `shards_dir`.
+
+    Any file counts (an attempt, a checkpoint, a sample buffer or anything
+    else); on S3 any key does, folder markers included. Empty local
+    directories do not.
+    """
+    if is_local(shards_dir):
+        return await run_owned(partial(_holds_a_file, shards_dir))
+    return await _remnant(fs, shards_dir) is not None
+
+
 def check_deletable(log: str) -> None:
     """Refuse to delete the shards of a remote `log` whose URL holds glob characters.
 
@@ -156,6 +168,10 @@ def _delete_s3_keys(s3: Any, bucket: str, keys: list[str]) -> None:
             f"{first.get('Message')}); {len(errors)} objects were not deleted. "
             "Delete them, or merge again with delete_shards."
         )
+
+
+def _holds_a_file(path: str) -> bool:
+    return any(files for _, _, files in os.walk(path))
 
 
 def _remove_local_file(path: str) -> None:

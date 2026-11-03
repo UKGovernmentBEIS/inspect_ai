@@ -257,6 +257,17 @@ def _check_function_options(
         if value is None:
             continue
         resolved = _parameter_annotation(factory, argument)
+        if resolved.reason is None and (
+            _nullable_metric_list(resolved.annotation)
+            or (_metric_container(resolved.annotation) and _holds_none(value))
+        ):
+            raise ShardSetError(
+                f"The metric '{name}' was given a list of metrics for "
+                f"'{argument}' whose elements may be None. A list of metrics "
+                "holds only registered metrics in a merge, so the merge does "
+                f"not merge such shards. Annotate '{argument}' as list[Metric] "
+                "and pass only metrics."
+            )
         if _holds_dict(value):
             if not (
                 resolved.reason is None
@@ -440,6 +451,37 @@ def _metric_type(annotation: object) -> bool:
     members = _members(_unannotated(annotation))
     return any(m in (MetricProtocol, MetricDeprecated) for m in members) and all(
         m in (MetricProtocol, MetricDeprecated, type(None)) for m in members
+    )
+
+
+def _nullable_metric_list(annotation: object) -> bool:
+    """Whether a list or sequence of metrics in the type admits None elements.
+
+    `list[Metric | None]`, `list[list[Metric] | None]` and such lists at
+    any depth. A list of metrics holds only metric references (decision:
+    Ransom, 2026-11-03); a single `Metric | None` option is not such a list.
+    """
+    for member in _members(_unannotated(annotation)):
+        args = typing.get_args(member)
+        if typing.get_origin(member) in (list, collections.abc.Sequence) and (
+            len(args) == 1
+        ):
+            elements = _members(_unannotated(args[0]))
+            if type(None) in elements and any(
+                _metric_type(element) or _metric_container(element)
+                for element in elements
+                if element is not type(None)
+            ):
+                return True
+            if _nullable_metric_list(args[0]):
+                return True
+    return False
+
+
+def _holds_none(value: object) -> bool:
+    """Whether `value` is a list holding None, at any depth."""
+    return isinstance(value, (list, tuple)) and any(
+        item is None or _holds_none(item) for item in value
     )
 
 

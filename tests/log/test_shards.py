@@ -1185,6 +1185,70 @@ def test_missing_retained_reductions_refuse_deleting_shards(
     assert (Path(merged).read_bytes(), _files(shards)) == before
 
 
+@pytest.mark.parametrize("damage", ["absent", "empty", "partial", "edited", "none"])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+@pytest.mark.parametrize("storage", ["local", "s3"])
+def test_an_attempt_less_remnant_keeps_the_retained_checks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    request: pytest.FixtureRequest,
+    storage: str,
+    backend: str,
+    damage: str,
+) -> None:
+    merged, shards = _paths(tmp_path)
+    task = _graded_task(Epochs(2, at_least(1, value=0.5)))
+    _run(shards, "0", task, sample_id=[1, 2, 3])
+    _run(shards, "1", task, sample_id=[4, 5, 6])
+    merge_eval_log_shards(merged)
+    if damage == "edited":
+        _edit_bypassing_the_writer_check(merged)
+    elif damage != "none":
+        with zipfile.ZipFile(merged) as zf:
+            reductions = json.loads(zf.read("reductions.json"))
+        if damage == "absent":
+            _remove_member(merged, "reductions.json")
+        elif damage == "empty":
+            _replace_member(merged, "reductions.json", b"[]")
+        else:
+            reductions[0]["samples"] = reductions[0]["samples"][1:]
+            _replace_member(merged, "reductions.json", json.dumps(reductions).encode())
+    # what an interrupted deletion can leave: no attempt, but a checkpoint
+    # and a sample buffer
+    for attempt in Path(shards).glob("*/*.eval"):
+        attempt.unlink()
+    for remnant in ["0/.buffer/segment", "1/run.checkpoints/1/data"]:
+        os.makedirs(os.path.dirname(f"{shards}/{remnant}"), exist_ok=True)
+        Path(f"{shards}/{remnant}").write_bytes(b"x")
+
+    if storage == "s3":
+        prefix = request.getfixturevalue("s3_root")
+        client = boto3.client("s3")
+        for name, data in _files(str(tmp_path)).items():
+            client.put_object(Bucket="test-bucket", Key=f"{prefix}/{name}", Body=data)
+        location = f"s3://test-bucket/{prefix}/{NAME}.eval"
+
+        def stored() -> dict[str, bytes]:
+            return _s3_objects(f"{prefix}/")
+    else:
+        location = merged
+
+        def stored() -> dict[str, bytes]:
+            return _files(str(tmp_path))
+
+    before = stored()
+    merged_name = next(name for name in before if name.endswith(f"{NAME}.eval"))
+    if damage == "none":
+        result = _merge_on(backend, monkeypatch, location, delete_shards=True)
+        assert not result.written and result.shards_deleted
+        assert stored() == {merged_name: before[merged_name]}
+        return
+    message = "was edited" if damage == "edited" else "no epoch reduction"
+    with pytest.raises(ShardSetError, match=f"{message}.*shards were not deleted"):
+        _merge_on(backend, monkeypatch, location, delete_shards=True)
+    assert stored() == before
+
+
 # armed while a test merges: an unreduced metric that must not run
 _GUARD_ARMED: list[bool] = []
 
@@ -1677,6 +1741,19 @@ ConverterAlias = TypeAliasType("ConverterAlias", ValueToFloat)
 LevelAlias = TypeAliasType("LevelAlias", Level)
 
 
+@metric(name="shard_nullable_metrics")
+def shard_nullable_metrics(
+    metrics: list[Metric | None] | None = None,
+    nested: list[list[Metric] | None] | None = None,
+) -> Metric:
+    """A metric whose lists of metrics admit None elements."""
+
+    def compute(scores: list[SampleScore]) -> Value:
+        return 0.0
+
+    return compute
+
+
 @metric(name="shard_union_options")
 def shard_union_options(
     convert: str | ValueToFloat | None = None,
@@ -1899,6 +1976,13 @@ def _not_restored(metric: str, argument: str) -> str:
     return f"'{metric}' was given a \\w+ for '{argument}', {_NOT_RESTORED}"
 
 
+def _nullable_metrics_refused(metric: str, argument: str) -> str:
+    return (
+        f"'{metric}' was given a list of metrics for '{argument}' whose elements "
+        "may be None"
+    )
+
+
 def _dict_refused(metric: str, kind: str, argument: str) -> str:
     return f"'{metric}' was given {kind} for '{argument}' holding a dictionary"
 
@@ -2021,6 +2105,27 @@ _FUNCTION_OPTIONS: dict[str, tuple[Callable[[], list[Any]], str, bool]] = {
         lambda: [grouped(shard_generic_converters(ratio=GenericRatio(0.5)), "group")],
         _not_restored("shard_generic_converters", "ratio"),
         False,
+    ),
+    # a list of metrics holds only metrics (decision: Ransom, 2026-11-03)
+    "nullable-metric-list": (
+        lambda: [shard_nullable_metrics(metrics=[mean(), None])],
+        _nullable_metrics_refused("shard_nullable_metrics", "metrics"),
+        True,
+    ),
+    "nullable-metric-nested": (
+        lambda: [shard_nullable_metrics(nested=[[mean()], None])],
+        _nullable_metrics_refused("shard_nullable_metrics", "nested"),
+        True,
+    ),
+    "nullable-metric-none": (
+        lambda: [shard_nullable_metrics(metrics=[None])],
+        _nullable_metrics_refused("shard_nullable_metrics", "metrics"),
+        True,
+    ),
+    "nullable-metric-grouped": (
+        lambda: [grouped(shard_nullable_metrics(metrics=[mean(), None]), "group")],
+        _nullable_metrics_refused("shard_nullable_metrics", "metrics"),
+        True,
     ),
     # a listed type in a union or list beside an unlisted one
     "union-function": (
@@ -2291,6 +2396,11 @@ _REFUSED_ANNOTATIONS: list[tuple[object, object]] = [
     (list[ValueToFloat], []),
     (type[str] | list[str], ["a"]),
     (list[Metric] | type[str], []),
+    # a list of metrics holds only metrics
+    (list[Metric], [None]),
+    (list[list[Metric]], [[None]]),
+    (list[Metric | None], []),
+    (Sequence[list[Metric] | None] | None, []),
 ]
 
 
@@ -4971,6 +5081,9 @@ _UNSUPPORTED_ROOTS = [
     "sftp://host/logs",
     # fsspec reads data: as a protocol without slashes
     "data:text/plain,worker",
+    # fsspec strips these prefixes; native path operations keep them
+    "file:/tmp/logs",
+    "local:/tmp/logs",
     "simplecache::s3://test-bucket/logs",
     "file:///tmp/cache::memory://bucket/logs",
     "s3://test-bucket/cache::memory://bucket/logs",
@@ -5062,7 +5175,8 @@ def test_a_merge_of_unsupported_storage_is_refused_before_any_io(
             "logs/2026-09-30T10:30:00+00:00_task.eval",
             "logs/2026-09-30T10:30:00+00:00_task.eval",
         ),
-        ("run:1.eval", "run:1.eval"),
+        ("./run:1.eval", "./run:1.eval"),
+        ("/tmp/logs:a/run:1.eval", "/tmp/logs:a/run:1.eval"),
         # decoded once: encoded spaces, a literal percent sequence, a colon
         ("file:///tmp/my%20logs/run.eval", "/tmp/my logs/run.eval"),
         ("file:///tmp/run%252D1.eval", "/tmp/run%2D1.eval"),
@@ -5074,6 +5188,47 @@ def test_supported_locations_are_accepted(location: str, used: str) -> None:
     from inspect_ai.log._shards._publish import supported_location
 
     assert supported_location(location) == used
+
+
+@pytest.mark.parametrize(
+    "location",
+    ["run:1.eval", "file:/tmp/run.eval", "local:/tmp/run.eval", "C:run.eval"],
+)
+def test_a_relative_path_with_a_name_prefix_is_refused(location: str) -> None:
+    from inspect_ai.log._shards._publish import supported_location
+
+    with pytest.raises(ValueError, match=_UNSUPPORTED):
+        supported_location(location)
+
+
+@pytest.mark.parametrize("prefix", ["file:", "local:"])
+def test_a_prefixed_absolute_path_never_deletes_a_shadow_tree(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, prefix: str
+) -> None:
+    from inspect_ai.log._shards._delete import remove_shards_dir
+
+    merged, shards = _paths(tmp_path / "target")
+    cwd = tmp_path / "cwd"
+    # the intended tree, and the relative tree native path operations would
+    # read the prefixed path as
+    for root in ["", f"{cwd}/{prefix}"]:
+        os.makedirs(f"{root}{shards}/0")
+        Path(f"{root}{merged}").write_bytes(b"merged")
+        Path(f"{root}{shards}/0/a.eval").write_bytes(b"x")
+    monkeypatch.chdir(cwd)
+    before = _files(str(tmp_path))
+    for backend in ("asyncio", "trio"):
+        for include_log in (False, True):
+            with pytest.raises(ValueError, match=_UNSUPPORTED):
+                anyio.run(
+                    functools.partial(
+                        remove_shards_dir, f"{prefix}{merged}", include_log=include_log
+                    ),
+                    backend=backend,
+                )
+        with pytest.raises(ValueError, match=_UNSUPPORTED):
+            _merge_on(backend, monkeypatch, f"{prefix}{merged}", delete_shards=True)
+    assert _files(str(tmp_path)) == before
 
 
 def _s3_keys(prefix: str) -> list[str]:

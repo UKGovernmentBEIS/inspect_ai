@@ -774,11 +774,16 @@ common entry check of the merge and of `remove_shards_dir`, decodes a
 `file://` URI once to its local path (`local_path`), checks that decoded
 path, and returns it; only that path is used downstream, so nothing later
 decodes it again (decision: Ransom, 2026-11-03). It accepts a location
-only in one of these forms, reading only text: an `s3://` URL, or a path
-in which fsspec reads no protocol (`url_protocol`, a plain path,
-including a Windows drive path or a name holding a colon), with no `::`
-anywhere (decision: Ransom, 2026-11-03). Everything else is refused with
-`ValueError`: another
+only in one of these forms, reading only text: an `s3://` URL, or a plain
+local path: an absolute path, a Windows drive path (`C:\...`, `C:/...`)
+or a relative path whose first component holds no colon, in which fsspec
+reads no protocol (`url_protocol`), with no `::` anywhere (decisions:
+Ransom, 2026-11-03). Colons later in a path are kept (`/logs/a:b`,
+`./name:x`); a relative `name:x` is refused, since fsspec's local
+filesystem strips `file:` and `local:` prefixes that native path
+operations keep, so the two would address different trees. Everything else is refused with
+`ValueError`: `file:/...`, `local:/...` and any other `name:` prefix,
+another
 protocol (`az://`, `abfs://`, `gs://`, `webhdfs://`, `memory://`, ...,
 and `data:`, which fsspec reads without slashes) or any `::` chain,
 before or after a supported prefix (`simplecache::s3://...`,
@@ -833,13 +838,14 @@ version objects, and each needs its own support and tests.
    ledger entry whose `<k>` is missing from the listing, or holds no `.eval`
    file, is *vanished*. Vanished shards are refused in "Validation", with
    one exception for re-running an interrupted `delete_shards`. This
-   classification applies only while the companion exists. The companion
-   counts as *gone* when `<name>.shards/` is absent, or when the listing
-   finds no attempt in any `<k>/` and no stray file (for example only the
-   checkpoint directories or empty directories an interrupted deletion
-   leaves). With a merged log and a gone companion (shards deleted
-   after a verified merge), steps 5–7 are skipped and step 10's
-   companion-gone branch returns the self-contained merged log. With
+   classification applies only while the companion exists. When the
+   listing finds no attempt in any `<k>/` and no stray file, steps 5–7 are
+   skipped and step 10's companion-gone branch returns the merged log as
+   recorded. The companion counts as *gone* only when it holds no object
+   at all (`shards_remain`: no file locally, no key on S3); while anything
+   remains, such as the checkpoints or sample buffers an interrupted
+   deletion leaves, `delete_shards` still runs step 12's retained checks
+   before deleting it (decision: Ransom, 2026-11-03). With
    neither a merged log nor an attempt, the call raises
    `FileNotFoundError`, as when neither path exists.
 6. **Read changed and new shards**, bounded (16 concurrent), each through
@@ -1322,7 +1328,10 @@ in a union, optionally with `None` (`Annotated` unwrapped):
 - a single enum, given a value that restores to a member (below);
 - `Metric`, given a registered metric reference, or lists and sequences
   ending in `Metric`, given a list of such references or empty lists
-  (below).
+  (below). A list of metrics holds only metric references: a `None`
+  element, and an annotation admitting one (`list[Metric | None]`,
+  `list[list[Metric] | None]`), are refused whatever the value (decision:
+  Ransom, 2026-11-03); a single `Metric | None` option is unchanged.
 
 Every branch of the annotation, at every depth, must be listed before any
 branch is matched against the value: a union with an unlisted branch
@@ -1526,8 +1535,9 @@ With reducers recorded, a score with an edit history (from `edit_score`,
 in a shard or the merged log) is refused too: its recorded reduction
 predates the edit or was recomputed with a recreated reducer. A pass that
 writes checks the samples it parses; a pass that writes nothing but would
-delete shard attempts (no shard changed, or an interrupted deletion's
-remnant) reads every sample member of the merged log in step 12, before
+delete shard data (no shard changed, or an interrupted deletion's
+remnant, including one with no attempt left but other objects) reads
+every sample member of the merged log in step 12, before
 deleting, for the same check, since summaries drop edit histories. That
 pass also checks the merged log's `reductions.json`: every reduced view
 (the declared scorers resolved from the header, the only scores a writing
@@ -2775,7 +2785,8 @@ Per PR (numbers from "Implementation plan"):
      `list_shard_set`, keeping the qualified URL, and an empty component
      at either depth is refused there (asyncio and Trio); a merge of an
      `az://`, `abfs://`, `abfss://`, `gs://`, `webhdfs://`, `memory://`,
-     `hdfs://`, `sftp://`, `data:` or `simplecache::s3://` location, or a
+     `hdfs://`, `sftp://`, `data:`, `file:/`, `local:/` or
+     `simplecache::s3://` location, or a
      `file://` URI whose decoded path is a `::` chain, as the merged log
      or its `.shards` form, is refused with `ValueError` through
      `merge_eval_log_shards_async` (asyncio and Trio), the sync API,
@@ -2785,7 +2796,11 @@ Per PR (numbers from "Implementation plan"):
      `memory://` shard set stays intact; the entry check returns a
      `file://` URI's decoded path (encoded spaces, a literal `%2D`, an
      encoded colon) and leaves plain paths with colons, drive letters and
-     literal percent sequences as given; two dated attempts of shard 0 named by the
+     literal percent sequences as given, and refuses a relative path with
+     a colon in its first component; `file:/<abs>` and `local:/<abs>`
+     refuse merging and deletion (with and without `include_log`) with a
+     relative shadow tree of that name and the intended tree both kept;
+     two dated attempts of shard 0 named by the
      pattern `{task}\worker` are refused on a fresh merge, beside a merge
      of the newer one and after that one is removed, with and without
      deletion, through a path, a `file://` URI and `mock_s3`, everything
@@ -2855,7 +2870,10 @@ Per PR (numbers from "Implementation plan"):
      and inside `grouped()`, are refused on fresh and writing incremental
      merges, and so are a function given for `str | ValueToFloat`, in a
      list of that union, nested in lists and inside `grouped()`, and an
-     empty `list[ValueToFloat]`; lists with `None` elements (direct,
+     empty `list[ValueToFloat]`; a `None` in a list of metrics and a
+     `list[Metric | None]` or `list[list[Metric] | None]` annotation
+     (`[mean(), None]`, `[None]`, nested, inside `grouped()`) are refused
+     the same way; lists with `None` elements (direct,
      nested, a `None` list node and inside `grouped()`) merge to the
      native values; at unit level each accepted annotation shape takes a value
      of its type, and each other form (callable, generic, alias,
@@ -2932,7 +2950,10 @@ Per PR (numbers from "Implementation plan"):
      and the shards intact; two reducers named `at_least_1` are refused
      with `delete_shards=True`; a score edited in the merged log refuses
      the next pass that writes, and refuses `delete_shards=True` with no
-     shard changed and on an interrupted deletion's remnant, leaving the
+     shard changed and on an interrupted deletion's remnant (also one
+     with no attempt left, only a checkpoint and a sample buffer, local
+     and `mock_s3`, asyncio and Trio, where a valid merged log lets the
+     remnant be deleted), leaving the
      merged log and shards byte-identical; on both of those paths a merged
      `reductions.json` that is absent, empty or partial refuses
      `delete_shards=True` the same way; an incomplete merge beside a
