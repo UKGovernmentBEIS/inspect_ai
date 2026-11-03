@@ -22,7 +22,7 @@ from inspect_ai.agent import react
 from inspect_ai.agent._bridge.util import bridge_model_generate
 from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
 from inspect_ai.dataset import Sample
-from inspect_ai.event import InfoEvent, SentinelEvent, ToolEvent
+from inspect_ai.event import InfoEvent, ModelEvent, SentinelEvent, ToolEvent
 from inspect_ai.log import EvalSample
 from inspect_ai.model import (
     ChatMessageAssistant,
@@ -1044,6 +1044,36 @@ def test_a_retried_sample_numbers_its_attempts_and_is_ended_once() -> None:
 
 def _sentinel_events(sample: EvalSample) -> list[SentinelEvent]:
     return [e for e in sample.events if isinstance(e, SentinelEvent)]
+
+
+def test_both_generate_stages_report_the_generates_id() -> None:
+    proceed = {"action": "proceed"}
+    stand_in = StandInSidecar(
+        turns=[
+            Turn(
+                calls=[("call_1", "weather", {"city": "Oslo"})],
+                sentinel={
+                    "outcome": "proceed",
+                    "steps": [
+                        {"stage": "model_input", "decision": proceed},
+                        {"stage": "model_output", "decision": proceed},
+                        {"stage": "tool_call", "call": "call_1", "decision": proceed},
+                    ],
+                },
+            ),
+            Turn(),
+        ]
+    )
+
+    sample = _run_agent(stand_in)
+
+    # as in process: the uuid of the generate's first model event, and the call's id
+    first = next(e for e in sample.events if isinstance(e, ModelEvent))
+    assert [(e.stage, e.step_id) for e in _sentinel_events(sample)] == [
+        ("model_input", first.uuid),
+        ("model_output", first.uuid),
+        ("tool_call", "call_1"),
+    ]
 
 
 _RECORDED = [
