@@ -182,16 +182,14 @@ injects during its setup, before the agent starts.)
 
 The tools are not baked into images. On first use the host:
 
-1. Checks for a trustworthy, current install: the tools tree
-   (`/var/tmp/.da7be258e003d428`, `ai/util/_sandbox/_cli.py:31-33`) must satisfy
+1. Checks for a trustworthy existing install: the tools tree for this
+   release's tools version (`/var/tmp/.da7be258e003d428-v<version>`, from
+   `sandbox_tools_version.txt`; `ai/util/_sandbox/_cli.py:40-53`) must satisfy
    the [verified-directory contract](#host-verified-directories) for the tools
-   user, hold the launcher as a regular file, and hold a version file naming
-   this release's sandbox tools version. The check runs as the tools
+   user and hold the launcher as a regular file. The check runs as the tools
    user that the root-access decision selects; when root is usable the default
    user's view is never consulted, so a tree planted under the agent's uid is
-   never adopted (`sandbox.py:128-179`, `:240-358`). A tree from another
-   version is replaced (see [Replacing an install from another
-   version](#replacing-an-install-from-another-version)).
+   never adopted (`sandbox.py:125-176`, `:247-269`).
 2. Selects the artifact for the sandbox's architecture and libc: the copy
    bundled in the installed package, a download from S3, or a local build
    (`sandbox.py:608-660`). A downloaded artifact is checked against the
@@ -200,62 +198,23 @@ The tools are not baked into images. On first use the host:
    directory (`sandbox.py:685-756`). Bundled artifacts are trusted as part of
    the installed package (see BINARY_INTEGRITY.md).
 3. Creates or adopts the tools tree as a verified framework directory owned by
-   the tools user (`sandbox.py:371-382`).
+   the tools user (`sandbox.py:285-292`).
 4. Streams the gzipped archive on stdin into `tar` running with the verified
    directory as its working directory, so no copy of the archive exists at a
-   path another principal could write to (`sandbox.py:571-648`).
-5. Re-verifies the tree, then stops a server that `start-server` would reuse
-   (`sandbox.py:389-395`, `:651-686`).
-6. Records the installed version in a verified command, which is also the
-   check immediately before starting the server from the tree by absolute
-   path (`sandbox.py:396-404`, `:689-721`).
+   path another principal could write to (`sandbox.py:478-530`).
+5. Re-verifies the tree immediately before starting the server from it by
+   absolute path (`sandbox.py:297-311`).
 
-#### Replacing an install from another version
-
-A tools tree outlives the release that installed it: on the host for the
-`local` sandbox, in a reused container, or in an image with the tools
-preinstalled. A tree from another release can serve an RPC protocol the host
-no longer speaks, so it is replaced rather than reused.
-
-- **Version.** After a complete install the host writes
-  `inspect-sandbox-tools.version` in the tree, holding the value of
-  `sandbox_tools_version.txt`. Detection reads it with shell builtins in the
-  same verified command that checks the launcher, so no installed binary runs
-  to learn its version. It reads the file only when it is a regular file, so a
-  FIFO cannot block detection. Where the agent shares the tools user's uid it
-  can rewrite the file, as it can the launcher (Boundary A is absent there; see
-  [Principals and privilege zones](#principals-and-privilege-zones)).
-- **Policy.** Only an exact match is reused. A missing file (a tree from a
-  release before the file existed), an empty one, or any other version is
-  reported as not installed, so injection extracts this release's tree over
-  it. Builds with local edits to the tools (`-dev` artifacts) record the same
-  version as the release, so switching between them does not reinstall.
-- **Concurrent installers.** Installers that share a tree (every `local`
-  sample on a host, from any process and any release) extract and publish one
-  at a time, each holding an exclusive `flock` on `inspect-sandbox-tools.lock`
-  in the tree; the kernel releases it if an installer dies. Extraction first
-  removes the version file and `inspect-sandbox-tools.extracted`, then writes
-  the version it extracted to the latter. Publication writes the version
-  file only when the last completed extraction was its own version, and
-  otherwise fails. The version file therefore names the version whose files
-  are in place. An installer that finds its own version already extracted
-  does not extract again. An image without `flock` installs without the lock.
-- **Old server.** A server started from the replaced files keeps running the
-  old code, and `start-server` reuses any server that answers. Before
-  publishing, the new launcher's `stop-server` runs exactly as `start-server`
-  will, so it stops the server in the state directory `start-server` would
-  use: the tree's `.server` in a container, or an `INSPECT_SANDBOX_TOOLS_DIR`
-  the sandbox sets. The `local` sandbox gives each sample its own state
-  directory (`ai/util/_sandbox/local.py:67-71`), so only that sample's server
-  is stopped; the servers of other samples on the host keep running, and
-  their later launcher calls use the new launcher. The tree is rewritten in
-  place, so a sample that runs the launcher while another installs can fail,
-  as on a fresh host where several samples install at once.
-- **Failure.** The version file is written only after extraction and the stop
-  succeed, so a failed replacement leaves no version recorded and the next
-  use tries again. Every failure raises `SandboxInjectionError`; a stop
-  failure names the tree and asks the user to restart the sandbox or remove
-  the tree. An install from another version is never used.
+A tree outlives the release that installed it: on the host for the `local`
+sandbox, in a reused container, or in an image with the tools preinstalled. A
+tree from another version may not speak this release's RPC protocol, so each
+version has its own tree and only that version ever adopts it. Trees from other
+versions, including the unversioned `/var/tmp/.da7be258e003d428` that earlier
+releases used, are never read, modified or removed, and a
+server running from one keeps running until its sample or container ends. On a
+host that runs the `local` sandbox, one tree per tools version used there stays
+in `/var/tmp` until the system's temporary-file cleanup removes it. Builds with
+local edits to the tools (`-dev` artifacts) use their release's tree.
 
 ### Pattern 1: host-driven agent
 

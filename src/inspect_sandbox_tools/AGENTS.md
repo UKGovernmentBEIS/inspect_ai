@@ -35,22 +35,21 @@ Linux executables are built via PyInstaller `--onedir` and packaged as a gzipped
 When a tool needs to run in a container, the system automatically injects the appropriate executable:
 
 1. Tool requests a sandbox via `sandbox_with_injected_tools()`
-2. System checks for a trustworthy existing installation: `/var/tmp/.da7be258e003d428`
+2. System checks for a trustworthy existing installation: `/var/tmp/.da7be258e003d428-v<version>`
+   (one tree per `sandbox_tools_version.txt` value, so a tree another version installed is never adopted)
    must be a real directory owned by the tools user with mode 0700, in a parent that
-   other users cannot use to replace it, must hold `inspect-sandbox-tools` as a
-   regular file, and must hold `inspect-sandbox-tools.version` naming this release's
-   `sandbox_tools_version.txt`. A tree without that file, or naming another version,
-   counts as missing and is replaced. The check runs as root when the root-access verdict is usable,
+   other users cannot use to replace it, and must hold `inspect-sandbox-tools` as a
+   regular file. The check runs as root when the root-access verdict is usable,
    or as the default user when unusable or ambiguous; a failed probe is an error.
    `resolve_root_access` in `inspect_ai/tool/_sandbox_tools_utils/sandbox.py`
    decides once per sandbox at sample init, before solver/agent execution, or on
    first use outside that lifecycle. Whichever user the tools are
    found (or installed) under becomes the tools user. A merely readable launcher is
    not enough.
-3. If missing or from another version, the injection process:
+3. If missing, the injection process:
    - Detects container architecture (amd64/arm64) and libc (glibc/musl)
    - Selects the matching pre-built artifact from local binaries, S3, or a local Docker build
-   - Creates `/var/tmp/.da7be258e003d428` with mode 0700 as the tools user through the
+   - Creates `/var/tmp/.da7be258e003d428-v<version>` with mode 0700 as the tools user through the
      verified framework-directory helper (`inspect_ai/util/_sandbox/_framework_directory.py`).
      A pre-existing entry that is a symlink, not a directory, or owned by another uid
      fails injection with an error naming the path and the reason; it is never adopted
@@ -59,13 +58,8 @@ When a tool needs to run in a container, the system automatically injects the ap
      directory that user owns is tightened to 0700 and reused instead, which is the
      shape older releases left behind (including on the host for the `local` sandbox).
    - Writes the gzipped onedir tar into the container and extracts it with the verified
-     directory as the working directory, holding an exclusive `flock` on
-     `inspect-sandbox-tools.lock` so installers sharing the tree take turns. It
-     re-verifies the directory, stops any server `start-server` would reuse with the new
-     launcher's `stop-server`, writes the version file (only if no other version was
-     extracted meanwhile), and starts the server.
-     See "Replacing an install from another version" in
-     [design/sandbox-trust-model.md](../../design/sandbox-trust-model.md).
+     directory as the working directory, then re-verifies the directory immediately
+     before starting the server from it.
    - A root-owned 0700 tree prevents access by other, non-root users in the sandbox;
      it is not a boundary against a process running in the sandbox as root.
 
@@ -77,7 +71,7 @@ Tools communicate through a two-layer RPC architecture:
 
 **Layer 1 - Host to Container (stateless):**
 1. Tool creates JSON-RPC request on host
-2. `SandboxJSONRPCTransport` executes: `sandbox.exec(["/var/tmp/.da7be258e003d428/inspect-sandbox-tools", "exec"], input=json_rpc_request)`
+2. `SandboxJSONRPCTransport` executes: `sandbox.exec(["/var/tmp/.da7be258e003d428-v<version>/inspect-sandbox-tools", "exec"], input=json_rpc_request)`
 3. JSON-RPC payload passed via stdin to the injected executable
 4. Response returns via stdout. A response larger than the host's exec output limit is
    spilled to a chunk file in `.server/chunks` (private to the tools user) and fetched

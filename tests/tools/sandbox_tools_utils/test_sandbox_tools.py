@@ -42,7 +42,6 @@ from inspect_ai.tool import (
 )
 from inspect_ai.tool._sandbox_tools_utils.sandbox import (
     _AMBIGUOUS_ROOT_ACCESS_WARNING,
-    _get_sandbox_tools_version,
 )
 from inspect_ai.util import (
     ExecRemoteAwaitableOptions,
@@ -758,50 +757,54 @@ def _scoped_shell_across_a_server_restart() -> Solver:
     return solve
 
 
-_TOOLS_SERVER_PID = (
-    "python3 -c 'import json, sys; "
-    f'print(json.load(open(sys.argv[1]))["pid"])\' {SERVER_DIR}/server.pid'
-)
+# Trees an older release left in a reused container: one from before per-version
+# directories and one from an older version, each with a launcher that fails.
+_OLD_TOOLS_TREES = ["/var/tmp/.da7be258e003d428", "/var/tmp/.da7be258e003d428-v1"]
+_FAILING_LAUNCHER = "#!/bin/sh\nexit 99\n"
 
 
 @solver
-def _stale_tools_with_a_running_server_are_replaced() -> Solver:
+def _tools_from_other_releases_are_left_alone() -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         sb = sandbox()
-        out = str(
-            await bash_session(instance="before")(action="type_submit", input="id -un")
-        )
-        assert "nonroot" in out, out
-        old_pid = (await sb.exec(["sh", "-c", _TOOLS_SERVER_PID], user="root")).stdout
-        assert old_pid.strip(), "the first call must start a server"
+        for tree in _OLD_TOOLS_TREES:
+            planted = await sb.exec(
+                [
+                    "sh",
+                    "-c",
+                    'mkdir -m 700 "$1" "$1/.server" && printf "$2" > "$1/$3" && '
+                    'chmod 700 "$1/$3"',
+                    "sh",
+                    tree,
+                    _FAILING_LAUNCHER,
+                    "inspect-sandbox-tools",
+                ],
+                user="root",
+            )
+            assert planted.success, planted.stderr
 
-        # What a release before the version file leaves in a reused container: the
-        # tree without it, its server still running.
-        version_file = f"{SANDBOX_TOOLS_DIR}/inspect-sandbox-tools.version"
-        assert (await sb.exec(["rm", version_file], user="root")).success
-
-        out = str(
-            await bash_session(instance="after")(action="type_submit", input="id -un")
-        )
+        out = str(await bash_session()(action="type_submit", input="id -un"))
         assert "nonroot" in out, out
-        recorded = await sb.exec(["cat", version_file], user="root")
-        assert recorded.stdout.strip() == _get_sandbox_tools_version(), recorded
-        new_pid = (await sb.exec(["sh", "-c", _TOOLS_SERVER_PID], user="root")).stdout
-        assert new_pid.strip() and new_pid != old_pid
-        gone = await sb.exec(["kill", "-0", old_pid.strip()], user="root")
-        assert not gone.success, "the old server must have been stopped"
+
+        for tree in _OLD_TOOLS_TREES:
+            listing = await sb.exec(["ls", "-A", tree], user="root")
+            assert listing.stdout.split() == [".server", "inspect-sandbox-tools"]
+            launcher = await sb.exec(
+                ["cat", f"{tree}/inspect-sandbox-tools"], user="root"
+            )
+            assert launcher.stdout == "#!/bin/sh\nexit 99\n"
         return state
 
     return solve
 
 
-# A tree from another release in a reused container is replaced, and the server
-# it left running is stopped, so the new tools do not talk to the old server.
+# A reused container may hold trees other releases installed. This release installs
+# and uses its own version's tree and leaves theirs alone.
 @pytest.mark.slow
-def test_stale_tools_with_a_running_server_are_replaced() -> None:
+def test_tools_from_other_releases_are_left_alone() -> None:
     task = Task(
         dataset=[Sample(input="x")],
-        solver=_stale_tools_with_a_running_server_are_replaced(),
+        solver=_tools_from_other_releases_are_left_alone(),
         sandbox=("docker", NONROOT_COMPOSE),
     )
     log = eval(task, model=get_model("mockllm/model"))[0]
