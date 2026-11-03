@@ -1,26 +1,23 @@
 """The sidecar's reports in Inspect's transcript, as `SentinelEvent`s like an in-process sentinel's."""
 
-from collections.abc import Sequence
 from typing import Any
 
 from inspect_ai.event._sentinel import SentinelEvent, SentinelSidecar
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageAssistant
 
 from .._conversation import current_conversation
 from ._endpoint import Sidecar
-from ._field import ReceivedField, SentinelField, SentinelStep, parse_field
+from ._field import ReceivedField, SentinelField, parse_field
 
 
 def record_sidecar_reports(
     field: SentinelField,
     sidecar: Sidecar,
     request: str | None,
-    input: Sequence[ChatMessage],
-    output: ChatMessageAssistant | None,
+    generate_id: str,
 ) -> None:
     """Write each report in the field into the transcript: one event per monitor and protocol report, or, from a sidecar that sends only what Inspect acts on, one per step's decision.
 
-    Each step is tied to Inspect's own ids: a tool stage's to the call's id, `model_output` to the assistant message the reply became, and `model_input` to the last message of the call's input.
+    Each step is tied to Inspect's own ids, as an in-process sentinel's: a tool stage's to the call's id, and both generate stages to the generate's id, the `uuid` of its first `ModelEvent`.
     """
     from inspect_ai.log._transcript import transcript
 
@@ -33,7 +30,7 @@ def record_sidecar_reports(
     )
     conversation = current_conversation()
     for step in field.steps:
-        step_id = _step_id(step, input, output)
+        step_id = step.call if step.call is not None else generate_id
         if field.trimmed or step.recorded is None:
             # a step without its records holds only what Inspect acts on
             trimmed = where.model_copy(update={"trimmed": True})
@@ -70,26 +67,13 @@ def record_sidecar_reports(
 
 
 def record_refusal_reports(
-    received: ReceivedField, sidecar: Sidecar, input: Sequence[ChatMessage]
+    received: ReceivedField, sidecar: Sidecar, generate_id: str
 ) -> None:
     """Write the reports of a refusal that stands as the call's error into the transcript, as a bridged agent's rejected turn does: the agent is handed the error, and the transcript still shows what the sidecar decided."""
     if received.field is not None:
         record_sidecar_reports(
-            parse_field(received.field), sidecar, received.request_id, input, None
+            parse_field(received.field), sidecar, received.request_id, generate_id
         )
-
-
-def _step_id(
-    step: SentinelStep,
-    input: Sequence[ChatMessage],
-    output: ChatMessageAssistant | None,
-) -> str:
-    if step.call is not None:
-        return step.call
-    if step.stage == "model_output" and output is not None and output.id:
-        return output.id
-    last = input[-1].id if input else None
-    return last or ""
 
 
 def _report(record: dict[str, Any]) -> dict[str, Any]:

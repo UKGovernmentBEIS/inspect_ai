@@ -1129,7 +1129,7 @@ class Model:
                             )
 
                             record_refusal_reports(
-                                receiving, through_sidecar.sidecar, prepared.input
+                                receiving, through_sidecar.sidecar, generate_id
                             )
                         raise
                     output, event = recovered, None
@@ -1190,8 +1190,7 @@ class Model:
                 field,
                 through_sidecar.sidecar,
                 receiving.request_id if receiving is not None else None,
-                prepared.input,
-                output.message if output.choices else None,
+                generate_id,
             )
             end_if_terminated(field, output, _bridged())
 
