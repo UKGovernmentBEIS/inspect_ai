@@ -41,6 +41,9 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
 )
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.model._providers._google_computer_use import (
+    gemini_action_from_tool_call,
+)
 from inspect_ai.tool._tool import Tool, ToolResult
 from inspect_ai.tool._tool_call import ToolCall, ToolCallError, ToolCallViewer
 from inspect_ai.tool._tool_def import ToolDef
@@ -182,14 +185,13 @@ class _ResultChecks:
         issued: list[SentinelCheck] = []
         for check in checks:
             token = check.handed.id
-            while not token or self._ambiguous_token(token, check.handed.function):
+            names = self._wire_names(check.handed)
+            while not token or self._ambiguous_token(token, names):
                 token = f"call_{uuid()}"
             self.identities[token] = _Identity(
                 check.call.id, check.handed.function, _call_key(check.handed)
             )
-            self.prefixed_tokens.add(
-                f"{check.handed.function.strip() or 'generic_tool'}__{token}"
-            )
+            self.prefixed_tokens.update(f"{name}__{token}" for name in names)
             issued.append(check._replace(token=token))
             self.proposals[token] = issued[-1]
             while len(self.proposals) > _MAX_PROPOSALS:
@@ -204,18 +206,25 @@ class _ResultChecks:
                 )
         return issued
 
-    def _ambiguous_token(self, token: str, function: str) -> bool:
+    def _wire_names(self, call: ToolCall) -> set[str]:
+        """Names a scaffold can use to echo this call's id."""
+        names = {call.function.strip() or "generic_tool"}
+        if call.function == "computer":
+            action, _ = gemini_action_from_tool_call(call)
+            names.add(action.strip() or "generic_tool")
+        return names
+
+    def _ambiguous_token(self, token: str, names: set[str]) -> bool:
         """Whether this token could be a CLI-prefixed echo of another issued token.
 
         The Google bridge receives both unchanged and function-prefixed echoes.
         Issuing either side of a prefix pair would make one wire id denote two
         calls, so mint a fresh token instead.
         """
-        prefix = f"{function.strip() or 'generic_tool'}__"
         return (
             token in self.identities
             or token in self.prefixed_tokens
-            or prefix + token in self.identities
+            or any(f"{name}__{token}" in self.identities for name in names)
         )
 
     def claim(self, input: list[ChatMessage]) -> _Claimed:

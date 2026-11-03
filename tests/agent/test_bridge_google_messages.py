@@ -19,11 +19,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
 from inspect_ai.agent._bridge._errors import BridgePolicyError
+from inspect_ai.agent._bridge._sentinel import SentinelCheck, _ResultChecks
 from inspect_ai.agent._bridge.google_api_impl import (
     gemini_response_from_output,
     messages_from_google_contents,
@@ -33,6 +35,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
 )
 from inspect_ai.model._model_output import Logprob, Logprobs, ModelOutput, TopLogprob
+from inspect_ai.tool import ToolCall
 
 _FIXTURE = json.loads(
     (
@@ -241,6 +244,77 @@ def test_google_ids_the_scaffold_echoes_are_kept(prefixed: bool) -> None:
     tool = next(m for m in messages if isinstance(m, ChatMessageTool))
     assert [call.id for call in assistant.tool_calls or []] == ["tok_1"]
     assert tool.tool_call_id == "tok_1"
+
+
+@pytest.mark.parametrize(
+    ("action", "wire_name"),
+    [("left_click", "click_at"), ("mouse_move", "hover_at")],
+)
+@pytest.mark.parametrize("short_id_first", [True, False])
+def test_google_computer_action_ids_round_trip_in_both_issuance_orders(
+    action: str, wire_name: str, short_id_first: bool
+) -> None:
+    ids = ["c", f"{wire_name}__c"]
+    if not short_id_first:
+        ids.reverse()
+    calls = [
+        ToolCall(
+            id=call_id,
+            function="computer",
+            arguments={"action": action, "coordinate": [10, 20]},
+        )
+        for call_id in ids
+    ]
+    checks = [
+        SentinelCheck(
+            handed=call,
+            call=call,
+            viewer=None,
+            message="",
+            message_id=None,
+            history=[],
+        )
+        for call in calls
+    ]
+    issued = _ResultChecks().issue(checks)
+    output = ModelOutput.for_tool_call("mockllm/model", "computer", calls[0].arguments)
+    output.message.tool_calls = [
+        replace(call, id=check.token or call.id) for call, check in zip(calls, issued)
+    ]
+    parts = gemini_response_from_output(output, "model", call_ids=True)["candidates"][
+        0
+    ]["content"]["parts"]
+    function_calls = [part["functionCall"] for part in parts if "functionCall" in part]
+    assert [part["name"] for part in function_calls] == [wire_name, wire_name]
+    for index, function_call in enumerate(function_calls):
+        if ids[index] == "c":
+            function_call["id"] = f"{wire_name}__{function_call['id']}"
+    responses = [
+        {
+            "functionResponse": {
+                "id": function_call["id"],
+                "name": wire_name,
+                "response": {"out": str(index)},
+            }
+        }
+        for index, function_call in enumerate(function_calls)
+    ]
+    contents = [
+        {"role": "model", "parts": parts},
+        {"role": "user", "parts": responses},
+    ]
+    messages = messages_from_google_contents(
+        contents,
+        None,
+        call_ids=True,
+        issued_ids={check.token for check in issued if check.token},
+    )
+    assistant = next(m for m in messages if isinstance(m, ChatMessageAssistant))
+    result_ids = [m.tool_call_id for m in messages if isinstance(m, ChatMessageTool)]
+    issued_ids = [check.token for check in issued]
+    assert len(set(issued_ids)) == 2
+    assert [call.id for call in assistant.tool_calls or []] == issued_ids
+    assert result_ids == issued_ids
 
 
 def test_google_calls_without_ids_keep_their_deterministic_ids() -> None:

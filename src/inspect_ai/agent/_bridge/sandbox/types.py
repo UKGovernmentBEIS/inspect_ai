@@ -426,6 +426,10 @@ class SandboxAgentBridge(AgentBridge):
                 for target in proposed.targets
             ],
             proposed.dispatch,
+            [
+                ToolDef(self.bridged_tools[target.server][target.tool]).viewer
+                for target in proposed.targets
+            ],
         )
 
     def request_fail(self, error: Exception) -> None:

@@ -2,6 +2,7 @@
 
 import re
 from bisect import bisect_left, bisect_right
+from collections import Counter
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, replace
 from functools import partial
@@ -370,8 +371,10 @@ class _Driver:
         # the ids of the calls whose tool steps replay skips
         self.skipped: list[str] = []
         self.shared_bridge_ids: set[str] = set()
+        self.uncertain_bridge_ids: set[str] = set()
         # call id -> the indexes of the model events that proposed it
         self.proposed: dict[str, list[int]] = {}
+        self.bridge_proposed: set[str] = set()
         # each model event's input view and producer, shared by its steps
         self._views: dict[int, PoolView] = {}
         self._producers: dict[int, Producer] = {}
@@ -419,6 +422,8 @@ class _Driver:
                     for tool_call in message.tool_calls or []:
                         produced[tool_call.id] = (message, event, tool_call, index)
                         self.proposed.setdefault(tool_call.id, []).append(index)
+                        if event.requested_model is not None:
+                            self.bridge_proposed.add(tool_call.id)
                 if not is_agent_turn(event.origin):
                     continue
                 turn_ids.add(event.uuid)
@@ -498,10 +503,11 @@ class _Driver:
         A native call has a ToolEvent even when it fails. Match its preceding
         tool_call check, if any; an unmatched check under that ID came from the
         bridge. A scaffold call with only a result check has no before check or
-        ToolEvent, but its proposing ModelEvent remains in the log.
+        ToolEvent, but its proposing ModelEvent records a requested_model.
         """
         native = [call for call in calls if not _bridged(call.event)]
         native_ids = {call.event.id for call in native}
+        execution_counts = Counter(call.event.id for call in calls)
         shared = {
             call.event.id
             for call in calls
@@ -525,10 +531,14 @@ class _Driver:
                 for span in self.tool_spans.get(("tool_call", call_id), [])
             ):
                 shared.add(call_id)
-            if self.tool_spans.get(("tool_result", call_id)) and len(
-                self.proposed.get(call_id, [])
-            ) > sum(call.event.id == call_id for call in calls):
-                shared.add(call_id)
+            if (
+                self.tool_spans.get(("tool_result", call_id))
+                and len(self.proposed.get(call_id, [])) > execution_counts[call_id]
+            ):
+                if call_id in self.bridge_proposed:
+                    shared.add(call_id)
+                elif call_id not in shared:
+                    self.uncertain_bridge_ids.add(call_id)
         return shared
 
     def _sentinel_event(
@@ -926,6 +936,13 @@ class _Driver:
                 "ran (%s): the log does not record which model call made each of "
                 "them.",
                 ", ".join(dict.fromkeys(self.skipped)),
+            )
+        if self.uncertain_bridge_ids:
+            logger.warning(
+                "Replay cannot tell whether extra proposals under call id(s) %s "
+                "came from a bridge or unused native candidates; keeping native "
+                "tool results under those ids.",
+                ", ".join(sorted(self.uncertain_bridge_ids)),
             )
 
     def _checks_tool_calls(self, event: ToolEvent, producer: ModelEvent | None) -> bool:

@@ -3468,6 +3468,96 @@ def test_result_only_sentinel_skips_shared_scaffold_result(
     assert "call id(s) shared" in caplog.text
 
 
+@agent
+def r6_executes_one_of_two_native_proposals() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        tool = addition()
+        await get_model().generate(state.messages, tools=[tool])
+        output = await get_model().generate(state.messages, tools=[tool])
+        state.messages.append(output.message)
+        result = await execute_tools(state.messages, [tool])
+        state.messages.extend(result.messages)
+        return state
+
+    return execute
+
+
+def test_unused_native_candidate_does_not_hide_native_result(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        as_solver(r6_executes_one_of_two_native_proposals()),
+        outputs(
+            r7_tool_calls(
+                ToolCall(id="shared", function="addition", arguments={"x": 1, "y": 1})
+            ),
+            r7_tool_calls(
+                ToolCall(id="shared", function="addition", arguments={"x": 2, "y": 2})
+            ),
+        ),
+        sentinel=[r7_probe(seen)],
+    )
+    live = [
+        seen[event.explanation or ""]
+        for event in logged_sample(log).events
+        if isinstance(event, SentinelEvent)
+        and event.path == "r7_probe"
+        and event.stage.startswith("tool")
+    ]
+    assert [type(step) for step in live] == [BeforeToolCall, AfterToolCall]
+    replay = [
+        step
+        for step in replayed(log)
+        if isinstance(step.step, BeforeToolCall | AfterToolCall)
+    ]
+    assert [type(step.step) for step in replay] == [BeforeToolCall, AfterToolCall]
+    for actual, rebuilt in zip(live, replay):
+        assert_step_equals_live((rebuilt.stage, rebuilt.id), rebuilt, actual)
+    assert "cannot tell whether extra proposals" in caplog.text
+
+
+def test_shared_id_preprocessing_counts_executions_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai._sentinel import _replay
+
+    driver = _replay._Driver([], [], [], "sample", EvalInfo(None, True), None, [])
+    count = 128
+    calls = [
+        _replay._Call(
+            index=index,
+            event=ToolEvent(id=f"call_{index}", function="addition", arguments={}),
+            conversation="sample",
+            assistant=None,
+            proposal=None,
+            producer=None,
+            produced_at=-1,
+            approval=None,
+            seq=index,
+            tool_span=None,
+        )
+        for index in range(count)
+    ]
+    for index in range(count):
+        call_id = f"call_{index}"
+        driver.tool_spans[("tool_result", call_id)] = [f"span_{index}"]
+        driver.proposed[call_id] = [index, index + count]
+    original = ToolEvent.__getattribute__
+    reads = 0
+
+    def counted(event: ToolEvent, name: str) -> Any:
+        nonlocal reads
+        if name == "id":
+            reads += 1
+        return original(event, name)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(ToolEvent, "__getattribute__", counted)
+        driver._shared_bridge_ids(calls)
+    assert reads <= 8 * count
+
+
 def test_human_decision_at_shared_id_result_reaches_later_replay_steps(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

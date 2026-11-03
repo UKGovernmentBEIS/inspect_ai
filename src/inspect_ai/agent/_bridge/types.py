@@ -63,6 +63,9 @@ class ReviewedCalls(NamedTuple):
     dispatch: Callable[[dict[str, Any]], dict[str, Any]]
     """Arguments for the tool call that make a reviewed call with the given ones."""
 
+    viewers: list[ToolCallViewer | None]
+    """The registered viewer for each reviewed target, in the same order."""
+
 
 def _unchanged(arguments: dict[str, Any]) -> dict[str, Any]:
     return arguments
@@ -338,8 +341,12 @@ class AgentBridge:
         """
         dispatched = self.dispatched_call(call)
         if dispatched is not None:
-            return ReviewedCalls([dispatched.target], dispatched.dispatch)
-        return ReviewedCalls([call], _unchanged)
+            return ReviewedCalls(
+                [dispatched.target],
+                dispatched.dispatch,
+                [self._host_tool_viewer(call, tools)],
+            )
+        return ReviewedCalls([call], _unchanged, [self._host_tool_viewer(call, tools)])
 
     def compaction(
         self, tools: Sequence[ToolInfo | Tool], model: Model
