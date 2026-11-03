@@ -293,6 +293,7 @@ def test_home_lookup_script_reads_passwd_without_getent(
     passwd = tmp_path / "passwd"
     passwd.write_text(
         "root:x:0:0::/root:/bin/sh\ne:x:1001:1001:::/bin/sh\n"
+        "m:x:1002:1002::/srv/m\njunk\n"
         "w:x:1000:1000:: /srv/w :/bin/sh" + newline
     )
 
@@ -304,6 +305,8 @@ def test_home_lookup_script_reads_passwd_without_getent(
     assert lookup("1000") == (0, " /srv/w \n")
     assert lookup("root") == (0, "/root\n")
     assert lookup("e") == (0, "\n")
+    assert lookup("m") == (1, "")
+    assert lookup("1002") == (1, "")
     assert lookup("missing") == (0, "")
 
 
@@ -359,11 +362,19 @@ async def test_vars_raise_when_getent_fails_and_retry_later() -> None:
 
 @pytest.mark.skipif(os.name != "posix", reason="requires a POSIX shell")
 @pytest.mark.parametrize("source", ["getent", "passwd"])
-async def test_vars_raise_on_an_empty_home_and_retry_later(
-    tmp_path: Path, source: str
+@pytest.mark.parametrize(
+    "record, error",
+    [
+        ("e:x:1001:1001:::/bin/sh", "empty home directory"),
+        ("e:x:1001:1001::/srv/e", "malformed entry"),
+    ],
+    ids=["empty-home", "malformed"],
+)
+async def test_vars_raise_on_a_bad_entry_and_retry_later(
+    tmp_path: Path, source: str, record: str, error: str
 ) -> None:
     passwd = tmp_path / "passwd"
-    passwd.write_text("e:x:1001:1001:::/bin/sh\n")
+    passwd.write_text(record + "\n")
     if source == "getent":
         sb = _LookupSandbox(getent=f'grep "^$2:" {passwd} || return 2')
     else:
@@ -375,9 +386,9 @@ async def test_vars_raise_on_an_empty_home_and_retry_later(
         assert await sandbox_identity_vars(sb, None) is None
     assert len(sb.exec_calls) == 1
 
-    # an entry with an empty home raises, is not cached, and is looked up again
+    # a bad entry raises, is not cached, and is looked up again
     with _environments(default=sb), sandbox_identity("e"):
-        with pytest.raises(RuntimeError, match="'e': .* empty home directory"):
+        with pytest.raises(RuntimeError, match=f"'e': .*{error}"):
             await sandbox_identity_vars(sb, None)
         passwd.write_text("e:x:1001:1001::/srv/e:/bin/sh\n")
         assert await sandbox_identity_vars(sb, None) == {"HOME": "/srv/e"}

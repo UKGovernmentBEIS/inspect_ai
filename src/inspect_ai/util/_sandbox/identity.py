@@ -196,11 +196,21 @@ PASSWD_LOOKUP_TIMEOUT = 30
 
 # Prints the home directory of the user named (or numbered) $1, followed by a
 # newline (a bare newline when the home field is empty), or nothing when the
-# passwd database has no entry for it; any other failure exits non-zero. Uses
-# getent so NSS sources count (exit status 2 means no entry), and reads
-# /etc/passwd on images without getent. The getent entry is split with
-# parameter expansion, which cannot fail.
+# passwd database has no entry for it; any other failure, a malformed entry
+# included, exits non-zero. Uses getent so NSS sources count (exit status 2
+# means no entry), and reads /etc/passwd on images without getent. Entries are
+# split with parameter expansion, which cannot fail.
 _PASSWD_HOME_SCRIPT = """
+print_home() {
+    case $1 in
+        *:*:*:*:*:*:*) ;;
+        *) echo "$2 has a malformed entry for the user" >&2; exit 1 ;;
+    esac
+    rest=$1
+    for _ in 1 2 3 4 5; do rest=${rest#*:}; done
+    printf '%s\\n' "${rest%%:*}"
+    exit 0
+}
 if command -v getent >/dev/null 2>&1; then
     entry=$(getent passwd "$1")
     status=$?
@@ -209,23 +219,18 @@ if command -v getent >/dev/null 2>&1; then
         echo "getent passwd exited with status $status" >&2
         exit 1
     fi
-    case $entry in
-        *:*:*:*:*:*:*) ;;
-        *) echo "getent passwd returned a malformed entry" >&2; exit 1 ;;
-    esac
-    rest=$entry
-    for _ in 1 2 3 4 5; do rest=${rest#*:}; done
-    printf '%s\\n' "${rest%%:*}"
-    exit 0
+    print_home "$entry" "getent passwd"
 fi
 if [ ! -r /etc/passwd ]; then
     echo "no getent and no readable /etc/passwd" >&2
     exit 1
 fi
-while IFS=: read -r name _ uid _ _ home _ || [ -n "$name" ]; do
+while IFS= read -r entry || [ -n "$entry" ]; do
+    name=${entry%%:*}
+    uid=${entry#*:*:}
+    uid=${uid%%:*}
     if [ "$name" = "$1" ] || [ "$uid" = "$1" ]; then
-        printf '%s\\n' "$home"
-        exit 0
+        print_home "$entry" /etc/passwd
     fi
 done < /etc/passwd
 """
