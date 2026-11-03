@@ -16,7 +16,6 @@ from shortuuid import uuid
 from inspect_ai._util.content import ContentReasoning, ContentText, ContentToolUse
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.hash import mm3_hash
-from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.log._condense import ATTACHMENT_PROTOCOL
 from inspect_ai.model._assistant_internal import copy_assistant_internal
@@ -697,11 +696,21 @@ class AgentBridge:
         its ids unless a recorded id matches a stronger key. Others take the
         first id recorded for their strongest key that isn't already used in the
         request, so the k-th repeat of a message gets the k-th id.
+
+        A result matched only by a reused call id under a different awaiting
+        reply is a fresh answer. Keeping the earlier result's id as an edit
+        parent would prevent that reply's host event from linking to it.
         """
         keys = [_message_id_keys(message) for message in messages]
         aligned = self._align_with_tracked(messages, keys)
         reserved = set(aligned.values())
         used: set[str] = set()
+        linked_result_owner = {
+            entry.message_id: reply_id
+            for reply_id, calls in self._awaited_results.items()
+            for entry in calls.values()
+            if entry.message_id is not None
+        }
         # per key, the first recorded id not yet taken (ids only become taken)
         cursors: dict[str, int] = {}
 
@@ -719,6 +728,7 @@ class AgentBridge:
             return None
 
         recognized: list[str | None] = []
+        preceding_reply_id: str | None = None
         for index, (message, message_keys) in enumerate(zip(messages, keys)):
             aligned_id = aligned.get(index)
             message_id = aligned_id
@@ -744,6 +754,23 @@ class AgentBridge:
                         )
                         if candidate_strength > aligned_strength:
                             message_id = candidate_id
+            if isinstance(message, ChatMessageTool) and message_id is not None:
+                ancestor = message_id
+                while ancestor in self._result_edit_parent:
+                    ancestor = self._result_edit_parent[ancestor]
+                owner = linked_result_owner.get(ancestor)
+                if (
+                    owner is not None
+                    and preceding_reply_id is not None
+                    and preceding_reply_id in self._awaited_results
+                    and preceding_reply_id != owner
+                    and not any(
+                        key.startswith(("content:", "loose:"))
+                        and key in self._keys_by_id.get(message_id, set())
+                        for key in message_keys
+                    )
+                ):
+                    message_id = None
             recognized.append(message_id)
             if message_id is None:
                 message.id = uuid()
@@ -753,6 +780,8 @@ class AgentBridge:
                 message.id = self._version_id(message_id, message)
             used.add(message.id)
             self._record_message_id(message_keys, message.id)
+            if isinstance(message, ChatMessageAssistant):
+                preceding_reply_id = message_id
         self._link_result_messages(messages, recognized)
 
     def _version_id(self, message_id: str, message: ChatMessage) -> str:
@@ -1098,14 +1127,12 @@ def message_json_hash(message_json: str) -> str:
 def _message_id_keys(message: ChatMessage) -> list[str]:
     """Keys a message sent back by a scaffold is recognized by, strongest first.
 
-    Scaffolds don't echo message ids. Besides the exact content, an assistant
+    Scaffolds don't echo message ids. Besides the displayed content, an assistant
     message keeps its tool call ids (every dialect but Google), a tool message
     its call id, and the loose key
     ignores whitespace, JSON key order, call ids and reasoning.
     """
-    keys = [
-        message_json_hash(to_json_str_safe(message.model_copy(update={"id": None})))
-    ]
+    keys = ["content:" + content_hash(message)]
     if isinstance(message, ChatMessageAssistant) and message.tool_calls:
         keys.append("calls:" + "\n".join(call.id for call in message.tool_calls))
     if isinstance(message, ChatMessageTool) and message.tool_call_id:

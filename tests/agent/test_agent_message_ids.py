@@ -833,6 +833,80 @@ async def test_compaction_after_re_derived_ids_keeps_the_latest_replys_id() -> N
     assert event.message_id == ids[2]
 
 
+@pytest.mark.parametrize(
+    "field", ["metadata", "model", "source", "text_form", "reasoning_signature"]
+)
+async def test_non_content_fields_do_not_override_aligned_reply(field: str) -> None:
+    """A side reply's serialized form cannot take an aligned main reply's ID."""
+    task = ChatMessageUser(content="Keep the main reply.")
+    if field == "metadata":
+        main = ChatMessageAssistant(content="same", metadata={"origin": "main"})
+        returned = main.model_copy(update={"metadata": None})
+    elif field == "model":
+        main = ChatMessageAssistant(content="same", model="main/model")
+        returned = main.model_copy(update={"model": None})
+    elif field == "source":
+        main = ChatMessageAssistant(content="same", source="generate")
+        returned = main.model_copy(update={"source": None})
+    elif field == "text_form":
+        main = ChatMessageAssistant(content=[ContentText(text="same")])
+        returned = main.model_copy(update={"content": "same"})
+    else:
+        main = ChatMessageAssistant(
+            content=[
+                ContentReasoning(reasoning="opaque", redacted=True, signature="main")
+            ]
+        )
+        returned = main.model_copy(
+            update={"content": [ContentReasoning(reasoning="opaque", redacted=True)]}
+        )
+    side = returned.model_copy(deep=True)
+    side.id = uuid()
+    scaffold = _Scaffold(AgentBridge(AgentState(messages=[task])))
+    await scaffold.request([task], main)
+    await scaffold.request([ChatMessageUser(content="Side question")], side)
+    assert main.id is not None and side.id is not None and main.id != side.id
+
+    ids = await scaffold.request([task, returned])
+
+    assert ids[1] == main.id
+
+
+@pytest.mark.parametrize("regenerated", [False, True])
+async def test_fresh_compacted_result_is_not_an_edit_of_earlier_answer(
+    regenerated: bool,
+) -> None:
+    """A later equal call receives its own result ID after compaction."""
+    task = ChatMessageUser(content="List the files twice.")
+    first_id, second_id, returned_id = (
+        ("toolu_1", "toolu_2", "call_bash_1")
+        if regenerated
+        else ("reused", "reused", "reused")
+    )
+    first, second = _call(first_id), _call(second_id)
+    first_back = _transported(first, returned_id) if regenerated else first
+    second_back = _transported(second, returned_id) if regenerated else second
+    bridge = AgentBridge(AgentState(messages=[task]))
+    scaffold = _Scaffold(bridge)
+    await scaffold.request([task], first)
+    if regenerated:
+        bridge._record_transported_reply(first, [first_back])
+    [first_event] = _awaiting(bridge, first)
+    first_ids = await scaffold.request(
+        [task, first_back, _result(returned_id, "OLD")], second
+    )
+    assert first_event.message_id == first_ids[2]
+    if regenerated:
+        bridge._record_transported_reply(second, [second_back])
+    [second_event] = _awaiting(bridge, second)
+    summary = ChatMessageUser(content="Summary: listed once.")
+
+    ids = await scaffold.request([summary, second_back, _result(returned_id, "NEW")])
+
+    assert ids[2] != first_ids[2]
+    assert second_event.message_id == ids[2]
+
+
 async def _google_compacting() -> None:
     """Two equal calls, then compaction keeping the second call with a new result."""
     from google.genai import types
