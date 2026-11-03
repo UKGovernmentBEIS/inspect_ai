@@ -19,7 +19,12 @@ from inspect_ai._sentinel._sidecar._endpoint import (
     proxy_client,
 )
 from inspect_ai._sentinel._sidecar._field import receiving_field
-from inspect_ai._sentinel._sidecar._task import SampleFacts, TaskFacts, TaskSidecars
+from inspect_ai._sentinel._sidecar._task import (
+    MONITOR_STATE_COPY,
+    SampleFacts,
+    TaskFacts,
+    TaskSidecars,
+)
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent import react
@@ -48,7 +53,7 @@ from inspect_ai.scorer import (
 )
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
 from inspect_ai.tool import Tool, ToolCall, tool
-from inspect_ai.util import StoreModel
+from inspect_ai.util import Store, StoreModel
 
 _MODELS = {
     "anthropic": "anthropic/claude-haiku-4-5",
@@ -1551,13 +1556,39 @@ def test_a_sidecar_that_keeps_an_in_process_sentinels_key_fails_the_sample() -> 
 
 
 class _HungCopy(StandInSidecar):
-    # a sidecar that never answers `sample_result`
+    # a sidecar that never answers `sample_result`, while `hangs`
+    hangs = True
+
     async def _handle(self, request: httpx2.Request) -> httpx2.Response:  # type: ignore[override]
-        if request.url.path == "/sentinel/v1":
+        if request.url.path == "/sentinel/v1" and self.hangs:
             if json.loads(request.content)["method"] == "sample_result":
                 self.requests.append(request)
                 await anyio.sleep_forever()
         return super()._handle(request)
+
+
+async def test_a_copy_cut_short_keeps_the_record_of_what_earlier_copies_wrote() -> None:
+    # a copy, then one an interim scoring's deadline cuts short, then the
+    # final one: the keys the first wrote are still the copy's, not taken for
+    # a sentinel's inside Inspect
+    stand_in = _HungCopy(methods={"sample_result": _kept({"Tally:lookups": 1})})
+    stand_in.hangs = False
+    sidecars = TaskSidecars("required", _FACTS)
+    sidecar = await sidecars.sidecar(_model(stand_in).api)
+    assert sidecar is not None
+    sidecars.called_through("sample_123", 1, sidecar)
+    store = Store()
+
+    await sidecars.copy_monitor_state("sample_123", 1, store)
+    stand_in.hangs = True
+    with anyio.move_on_after(0.1):
+        await sidecars.copy_monitor_state("sample_123", 1, store)
+    stand_in.hangs = False
+    await sidecars.copy_monitor_state("sample_123", 1, store)
+
+    assert store.get("Tally:lookups") == 1
+    marker = store.get(MONITOR_STATE_COPY)
+    assert marker["copied"] is True
 
 
 def test_a_copy_cut_short_by_the_scoring_deadline_says_the_state_is_missing() -> None:

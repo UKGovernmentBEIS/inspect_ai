@@ -172,7 +172,11 @@ class TaskSidecars:
         # deadline, still says the monitor state is missing
         store.set(
             MONITOR_STATE_COPY,
-            {"copied": False, "reason": "the copy from the sidecar didn't finish"},
+            {
+                "copied": False,
+                "reason": "the copy from the sidecar didn't finish",
+                "keys": sorted(copies),
+            },
         )
         copied: dict[str, Any] = {}
         written_by: dict[str, str] = {}
@@ -196,7 +200,12 @@ class TaskSidecars:
                         conflict = f"The sentinel inside Inspect and the one in the sidecar at {sidecar.origin} both keep {key!r} for the sample."
                     if conflict is not None:
                         store.set(
-                            MONITOR_STATE_COPY, {"copied": False, "reason": conflict}
+                            MONITOR_STATE_COPY,
+                            {
+                                "copied": False,
+                                "reason": conflict,
+                                "keys": sorted(copies),
+                            },
                         )
                         raise SentinelProxyError(conflict)
                     written_by[key] = sidecar.origin
