@@ -4,7 +4,7 @@ import string
 import types
 import typing
 from collections.abc import Collection
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager
 from contextvars import ContextVar
 from copy import copy, deepcopy
 from dataclasses import dataclass, is_dataclass, replace
@@ -216,6 +216,8 @@ async def execute_tools(
     Returns:
        Messages added to the conversation and final model output (if any)
     """
+    from contextlib import nullcontext
+
     from inspect_ai.approval._apply import approval as approval_context
     from inspect_ai.review._apply import review as review_context
 
@@ -539,30 +541,20 @@ async def _execute_tools_impl(
                 send_stream, receive_stream = anyio.create_memory_object_stream[
                     StreamItem
                 ]()
-
-                async def invoke_and_review() -> None:
-                    # The result check runs after the tool span closes. Keep
-                    # both within one recorded invocation for replay ownership.
-                    async with (
-                        span(name=call.function, type="tool_invocation")
-                        if checks_tool_calls()
-                        else nullcontext()
-                    ):
-                        await call_tool_task(
-                            call,
-                            event,
-                            messages,
-                            send_stream,
-                            record_review_cancellation,
-                        )
-
                 try:
                     # Per-call task group nested inside the stage's outer
                     # task group. Its cancel_scope is exposed via
                     # event._set_cancel_fn so an operator-driven cancel of
                     # this specific call doesn't disturb its siblings.
                     async with anyio.create_task_group() as tg:
-                        tg.start_soon(invoke_and_review)
+                        tg.start_soon(
+                            call_tool_task,
+                            call,
+                            event,
+                            messages,
+                            send_stream,
+                            record_review_cancellation,
+                        )
                         event._set_cancel_fn(tg.cancel_scope.cancel)
                         async with receive_stream:
                             item = await receive_stream.receive()
