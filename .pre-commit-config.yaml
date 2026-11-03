@@ -23,7 +23,7 @@ repos:
         name: ruff-format
         entry: uv run --frozen ruff format --force-exclude
         language: unsupported
-        types_or: [python, pyi, jupyter]
+        types_or: [python, pyi, jupyter, markdown]
         require_serial: true
       # Update the uv lockfile, with the uv on PATH (CI pins it).
       - id: uv-lock

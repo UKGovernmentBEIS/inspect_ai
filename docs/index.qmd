@@ -19,7 +19,7 @@ Inspect is a framework for frontier AI evaluations developed by the [UK AI Secur
 -   Composable building blocks—datasets, agents, tools, and scorers—that make evaluations easy to write and reuse.
 -   A collection of over 200 pre-built evaluations ready to run on any model.
 -   Extensive tooling, including a web-based Inspect View tool for monitoring and visualizing evaluations and a VS Code Extension that assists with authoring and debugging.
--   Flexible support for tool calling---custom and MCP tools, as well as built-in bash, python, text editing, web search, web browsing, and computer tools.
+-   Flexible support for tool calling---custom and MCP tools, as well as built-in bash, python, text editing, web search, and computer tools.
 -   Support for agent evaluations, including flexible built-in agents, multi-agent primitives, and the ability to run arbitrary external agents like Claude Code, Codex CLI, and Gemini CLI.
 -   A sandboxing system that supports running untrusted model code in Docker, Kubernetes, Modal, Proxmox, Vagrant, and other systems via an extension API.
 :::
