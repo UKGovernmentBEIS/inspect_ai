@@ -79,8 +79,8 @@ updates:
     ignore:
       - dependency-name: "quarto-cli"
         versions: [">=1.6.0"]
+      # Bumped by hand: a new ruff can reformat files across the repo.
       - dependency-name: "ruff"
-        versions: [">=0.9.5"]
       - dependency-name: "textual"
         versions: [">=2.0.0"]
       - dependency-name: "rich"
