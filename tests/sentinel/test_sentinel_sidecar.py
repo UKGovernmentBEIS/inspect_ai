@@ -7,7 +7,8 @@ import httpx2
 import pytest
 from test_helpers.stand_in_sidecar import StandInSidecar, Turn
 
-from inspect_ai import Task, eval
+from inspect_ai import Task
+from inspect_ai import eval as inspect_eval
 from inspect_ai._sentinel._sidecar._endpoint import (
     SentinelProxyError,
     Sidecar,
@@ -23,7 +24,7 @@ from inspect_ai.agent._bridge.util import bridge_model_generate
 from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
 from inspect_ai.dataset import Sample
 from inspect_ai.event import InfoEvent, ModelEvent, SentinelEvent, ToolEvent
-from inspect_ai.log import EvalSample
+from inspect_ai.log import EvalLog, EvalSample
 from inspect_ai.model import (
     ChatMessageAssistant,
     ChatMessageTool,
@@ -50,6 +51,13 @@ _MODELS = {
     # no reasoning options, so no side request to check for reasoning summaries
     "openai": "openai/gpt-4.1-mini",
 }
+
+
+def eval(tasks: Any, **kwargs: Any) -> list[EvalLog]:
+    # each test opts in, as an eval that uses a sidecar must; one of the
+    # default passes None
+    kwargs.setdefault("sentinel_proxy", "auto")
+    return inspect_eval(tasks, **kwargs)
 
 
 @pytest.fixture(autouse=True)
@@ -214,27 +222,29 @@ def test_an_eval_that_requires_a_sidecar_fails_its_task_without_one() -> None:
     assert log.eval.config.sentinel_proxy == "required"
 
 
-@pytest.mark.parametrize("sentinel_proxy", ["auto", None])
-def test_an_eval_finds_a_sidecar_unless_told_not_to(
-    sentinel_proxy: Any,
-) -> None:
+def test_an_eval_told_to_look_finds_a_sidecar() -> None:
     stand_in = StandInSidecar()
 
-    [log] = eval(
-        _task(), model=_model(stand_in), sentinel_proxy=sentinel_proxy, display="none"
-    )
+    [log] = eval(_task(), model=_model(stand_in), sentinel_proxy="auto", display="none")
 
     assert log.status == "success"
     assert len(stand_in.probes) == 1
 
 
-def test_an_eval_told_not_to_look_never_probes() -> None:
+@pytest.mark.parametrize("sentinel_proxy", [None, "off"], ids=["not set", "off"])
+def test_an_eval_not_told_to_look_sends_nothing_new(sentinel_proxy: Any) -> None:
     stand_in = StandInSidecar()
+    task = Task(dataset=[Sample(input="Hi.")], solver=generate())
 
-    [log] = eval(_task(), model=_model(stand_in), sentinel_proxy="off", display="none")
+    [log] = eval(
+        task, model=_model(stand_in), sentinel_proxy=sentinel_proxy, display="none"
+    )
 
+    # a base URL is set, and still no probe, no registration and no header
     assert log.status == "success"
     assert stand_in.probes == []
+    assert stand_in.calls == []
+    assert [_context(r) for r in stand_in.model_calls] == [None]
 
 
 def _registered(stand_in: StandInSidecar, method: str) -> list[dict[str, Any]]:
@@ -292,7 +302,7 @@ def test_a_task_the_sidecar_wont_register_fails(
     assert log.error is not None
     assert says in log.error.message
     # under `auto` too: a sidecar was found, so the task needs it
-    assert log.eval.config.sentinel_proxy is None
+    assert log.eval.config.sentinel_proxy == "auto"
 
 
 def _sample(sample_id: str | int = 1) -> SampleFacts:
