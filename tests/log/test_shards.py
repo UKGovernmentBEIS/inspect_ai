@@ -1307,11 +1307,11 @@ def test_a_companion_that_cannot_be_inspected_is_not_deleted(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, code: int, backend: str
 ) -> None:
     from inspect_ai.log._shards import _api
+    from inspect_ai.log._shards._walk import list_shard_set
 
     merged, shards = _attempt_less_companion(tmp_path, "absent")
     before = _tree(str(tmp_path))
     lstat = os.lstat
-    list_shard_set = _api.list_shard_set
     listed: list[bool] = []
     failed: list[str] = []
 
