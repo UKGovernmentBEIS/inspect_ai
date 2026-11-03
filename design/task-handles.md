@@ -145,11 +145,13 @@ Non-goals:
   (`src/inspect_ai/log/_recorders/eval.py:281`, `:1133`), header reads of an
   unfinished `.eval` log read the journal (`_read_header_async`, `:2135`;
   `_read_header`, `:2266`), and `log_finish` consolidates it into the header
-  (`:365`). The `.json` recorder keeps it on the in-memory log
-  (`src/inspect_ai/log/_recorders/json.py:203`), writes the whole file on
-  `flush` (`:292`), and its streaming header reader lists header keys one by
-  one (`:613`). Only these two recorders exist
-  (`src/inspect_ai/log/_recorders/create.py:7`).
+  (`:365`). The deprecated `.json` recorder keeps it on the in-memory log
+  (`src/inspect_ai/log/_recorders/json.py:203`) and writes the whole file
+  on `flush` without fsync (`:292-296`), through a snapshot write that
+  skips the file on `PermissionError` (`src/inspect_ai/log/_recorders/file.py:33-38`,
+  `:60-70`), so a mid-run `.json` write is not guaranteed to reach disk.
+  Its streaming header reader lists header keys one by one (`json.py:613`).
+  Only these two recorders exist (`src/inspect_ai/log/_recorders/create.py:7`).
 - The sites that report a sample to the source are `task/run.py:1480`,
   `:1619` and `:3372` (`sample_complete`, and `sample_abandoned` for a
   sample cancelled before it was logged).
@@ -181,7 +183,8 @@ order (decision: Ransom, 2026-11-03). New exports from `inspect_ai`:
 `TaskHandle`, `TaskEndedError`, `SampleAbandonedError`.
 
 `send_samples` decides whether the handles can send samples, and only then
-does a task wait for its handles (see "Keeping the task open"). With the
+does a task wait for its handles (see "Keeping the task open") (decision:
+Ransom, 2026-11-03). With the
 default `False` the added tasks run and end exactly as today, so existing
 callers, which ignore the `None` returned today, are unaffected: a parent
 that ignores the return value and waits for its child to finish (for
@@ -199,7 +202,15 @@ example on its `TaskSource.task_complete` event) still sees it finish.
   of samples sent through a handle depend on when they arrive, so a prior
   lookup keyed on id and epoch could hand one sample another's result (see
   "Logs of tasks that received samples"). Those inputs stay supported with
-  `send_samples=False`.
+  `send_samples=False`;
+- that the run logs in the `.eval` format (the log format `eval()` or
+  `eval_set()` resolved for its loggers): with the deprecated `.json`
+  format it raises `ValueError` ("send_samples=True needs the .eval log
+  format: a task that receives samples records that in its log, durably,
+  before each first delivery, and only .eval logs are written that way")
+  (decision: Ransom, 2026-11-03). See "Logs of tasks that received
+  samples" for why the record must be durable; the `enqueue_task()`
+  docstring and the handle docs in `docs/task-source.qmd` say the same.
 
 Nothing is enqueued when a check fails.
 
@@ -290,10 +301,13 @@ Everything else is refused with a clear error:
 
 - `enqueue_task(..., send_samples=True)` outside a running task attempt
   (for example in `TaskSource.next_tasks()`), for a task whose dataset is
-  not a `SampleSource`, or for a task with prior state: the errors under
-  "The handle API".
+  not a `SampleSource`, for a task with prior state, or in a run that logs
+  in the `.json` format: the errors under "The handle API".
 - `TaskHandle.enqueue_sample()` on a handle created with
   `send_samples=False`, or after `close()`: `RuntimeError`.
+- `TaskHandle.enqueue_sample()` after a drain, or a `score` or `error`
+  cancel, of its task: `SampleAbandonedError` (see "Keeping the task
+  open").
 - `TaskHandle.enqueue_sample()` after the task has ended: `TaskEndedError`
   as in the table.
 - Awaiting `started()`, `result()` or `enqueue_sample()` inside
@@ -338,8 +352,8 @@ the port, releasing its requests.
 
 A record added by `enqueue_task(..., send_samples=True)` has a
 `SamplePort` (in `enqueue.py`), created when the record is configured;
-no other record has one. It keeps one
-`PortRequest` per `enqueue_sample()` call:
+no other record has one. It keeps a `PortRequest` for each
+`enqueue_sample()` call until the call's outcome is settled:
 
 ```python
 @dataclass(eq=False)
@@ -348,7 +362,25 @@ class PortRequest:
     epoch: int | None
     state: Literal["sent", "admitted", "dropped", "refused", "done"]
     futures: dict[int, Future[EvalSample]]   # one per planned epoch
+
+class SamplePort:
+    pending: list[PortRequest]       # not yet settled, in send order
+    runs: set[tuple[str, int]]       # (str(id), epoch) of every request that reserved runs
+    stopped: bool                    # closed, or stopped by a graceful directive
 ```
+
+**Retention.** A request stays in `pending`, with its sample, until every
+epoch's future has settled (a result, `SampleAbandonedError`,
+`ValueError` or `TaskEndedError`). The port then drops it: the
+`enqueue_sample()` call holds the futures and returns their values, and
+neither the port nor the record keeps the sample, the futures or the
+`EvalSample`s after that. Only the request's `(str(id), epoch)` runs stay,
+in `runs`, for the duplicate check below; a refused request never adds
+any. A pending request is kept until it is delivered and settled, or
+settled without delivery, including across an in-run retry. So an
+hours-long rollout task's port holds its pending requests and one small
+tuple per run, while the runner releases each completed sample as it
+does for any injected sample (`task/run.py:1018-1028`, `:1040-1059`).
 
 **Validation at the call.** `enqueue_sample()` validates `epoch` as the
 task-side `enqueue_sample()` does. For a sample with an id it computes the
@@ -364,7 +396,7 @@ the caller, without reaching the task, when they intersect:
   excluded seed id is refused while the target is still queued; a seed id
   at an explicit epoch above `epochs` is accepted, as the runner accepts
   it;
-- the runs of earlier requests on this port;
+- the runs of earlier requests on this port (`SamplePort.runs`);
 - while an attempt runs, that attempt's own reservations.
 
 A sample without an id is given one at delivery by the runner's auto-id
@@ -407,8 +439,8 @@ steps:
 resolves the matching future with the `EvalSample` (an errored or
 operator-cancelled sample is returned, with its `error`); before
 `sample_abandoned` it fails the future with `SampleAbandonedError`.
-`enqueue_sample()` returns when every epoch's future has resolved, and the
-request is then `done`.
+`enqueue_sample()` returns when every epoch's future has resolved; the
+request is then `done` and leaves the port (see "Retention").
 
 ### The feeder services the port while the source blocks
 
@@ -449,7 +481,7 @@ async with task group tg:                  # owned by the feeder
             port_during_pull = False
             pull = start next_samples() in tg
             continue
-        if port is open: await feeder_wake.wait(); continue
+        if port is open: await feeder_wake.wait(); continue   # a stopped port counts as closed
         break
     cancel tg                              # an outstanding pull is cancelled, then joined
 ```
@@ -515,6 +547,35 @@ So a creator that forgets `close()` cannot keep a rollout task open past
 its own attempt, and a task added without `send_samples` ends when its
 source is done, as today.
 
+**Graceful directives stop the port.** A control-channel drain, or a task
+cancel with `action="score"` or `action="error"`, stamps the attempt's
+`TaskCancel` through its `cancel_task` callback
+(`src/inspect_ai/_control/cancel.py:403-430`), which `_run_task` defines
+(`src/inspect_ai/_eval/run.py:620-639`) and which cancels the task's scope
+only for abort and retry. That callback is the one shared hook: for
+`drain`, `score` and `error` it also calls `SamplePort.stop()` on the
+attempt's port, if it has one. `stop()` is synchronous and idempotent:
+
+- it sets `stopped`, so the port admits nothing more: a later
+  `enqueue_sample()` raises `SampleAbandonedError` at once, and the feeder
+  delivers no further request;
+- it settles every `sent` request (accepted but not yet delivered) with
+  `SampleAbandonedError`, as the directive abandons the task's queued
+  samples;
+- it leaves `admitted` requests to the directive's existing rules: under a
+  drain an in-flight sample finishes naturally and resolves its future with
+  its `EvalSample`, and a queued one is abandoned as it leaves the queue
+  (`SampleAbandonedError`); under `score` or `error` an in-flight sample is
+  interrupted and resolves with the scored or errored `EvalSample`, as
+  under "Results";
+- it rings `feeder_wake`, so a feeder parked on an open port sees it
+  stopped and goes on as it does today for that directive, and the task
+  finishes.
+
+An abort (including `TaskHandle.cancel()`) or a run cancellation tears the
+attempt down and closes the port as above; a `retry` directive leaves the
+port open, so its `sent` requests reach the retry.
+
 ### Logs of tasks that received samples
 
 A task's sample ids depend on the order in which samples were admitted,
@@ -532,18 +593,24 @@ So a log that a port has contributed to is never reused:
   "the task received samples through a `TaskHandle`; its sample ids depend
   on when they arrived, so no later run reuses its samples or checkpoints,
   and `eval_retry()` refuses it". `TaskLogger.log_handle_samples()` sets it
-  once per attempt, at step 2 of "Delivery", through a new abstract
-  `Recorder.log_handle_samples(eval)`, which both registered recorders
-  implement:
-  - `.eval` appends `_journal/handle_samples.json` and flushes the log at
-    once, as a config update is journalled and flushed (see "Current
-    behaviour"), but with fsync, which a config update's flush skips. The header readers of an unfinished log
-    (`_read_header_async`, `_read_header`) and `log_init`'s re-read of an
-    existing destination (`eval.py:181`) read the member, and `log_finish`
-    writes the field into `header.json`.
-  - `.json` sets the field on the in-memory log and flushes the whole file
-    at once; `_read_header_streaming` reads the key with the others
-    (`json.py:613`).
+  once per attempt, at step 2 of "Delivery", through a new
+  `Recorder.log_handle_samples(eval)`:
+  - `.eval` (`EvalRecorder`) appends `_journal/handle_samples.json` and
+    flushes the log at once, as a config update is journalled and flushed
+    (see "Current behaviour"), but with fsync, which a config update's
+    flush skips; a failed write raises, and nothing is delivered. The
+    header readers of an unfinished log (`_read_header_async`,
+    `_read_header`) and `log_init`'s re-read of an existing destination
+    (`eval.py:181`) read the member, and `log_finish` writes the field
+    into `header.json`.
+  - `.json` is never written with the marker: its mid-run writes are not
+    durable (see "Current behaviour"), so `send_samples=True` refuses a run
+    that logs in that format (see "The handle API"), and the base
+    `Recorder.log_handle_samples` raises `NotImplementedError` naming the
+    format for any recorder that reaches it anyway. A `.json` log carries
+    the field only when converted from a marked `.eval` log, so
+    `_read_header_streaming` reads the key with the others (`json.py:613`)
+    and the reuse and `eval_retry()` rules below apply to such a log too.
   - Every site that copies `config_updates` from one log into another
     carries the field too: whole-log writes (`eval.py:654`, `:774`),
     `convert_eval_logs` (`src/inspect_ai/log/_convert.py:174`), `inspect
@@ -842,7 +909,8 @@ Eval logs:
 - New header field `EvalLog.handle_samples` (default `False`), and in
   unfinished `.eval` logs the journal member `_journal/handle_samples.json`.
   Logs without it read as `False`, so every existing log behaves as today.
-  Producers: `TaskLogger` through both recorders. Consumers:
+  Producers: `TaskLogger` through the `.eval` recorder, and conversion of
+  a marked `.eval` log to `.json`. Consumers:
   `eval_log_sample_source()` (no reuse), `eval_retry()` (refusal), the
   dispatcher's retry decision, the header readers, and the copy sites
   listed under "Logs of tasks that received samples". It is part of
@@ -854,6 +922,9 @@ Eval logs:
   has the field.
 - `eval_retry()` of a marked log raises `PrerequisiteError` instead of
   rerunning it.
+- `enqueue_task(..., send_samples=True)` is refused in a run that logs in
+  the deprecated `.json` format; `send_samples=False` works with either
+  format.
 - No control-channel or config file changes.
 
 ## Security
@@ -907,8 +978,8 @@ test touched), with mockllm models:
     handle wait that starts while every permit of the target's provider is
     held logs the warning once per provider, and none when the target uses
     another provider or the provider has no limit.
-- `tests/test_eval_retry.py` and `tests/test_eval_set.py` (the marker,
-  `.eval` and `.json` each):
+- `tests/test_eval_retry.py` and `tests/test_eval_set.py` (the marker, in
+  `.eval` logs):
   - a rollout task that has received a port request and then errors: its
     log carries `handle_samples` (read from the journal while unfinished,
     from the header when finished, and after `recover_eval_log`); it is not
@@ -918,14 +989,16 @@ test touched), with mockllm models:
     case: source sample A, port request P and P's callback follow-up B keep
     ids 1, 2 and 3);
   - the same log after a simulated crash (process killed after the first
-    delivery): the marker is on disk;
+    delivery): the marker is on disk; a failing marker write (stub
+    filesystem) fails the task and delivers nothing;
   - `eval_retry()` of a marked log raises `PrerequisiteError` before any
     recovery writes; eval-set resume (ordinary and legacy
     `retry_immediate=False` rounds) and selection-worker resume of a marked
     log with a requested task's identifier reuse no sample and copy no
     checkpoint, and the A/P/B ids are not crossed;
-  - `convert_eval_logs` between `.eval` and `.json`, `inspect score` and
-    `write_eval_log` keep the field; an existing log without it reads as
+  - `convert_eval_logs` from a marked `.eval` log to `.json` and back,
+    `inspect score` and `write_eval_log` keep the field, and `eval_retry()`
+    refuses the converted `.json` log; an existing log without it reads as
     `False` and is reused as today;
   - a request refused at delivery (the source reserved its id first),
     followed by an otherwise retryable error: no marker; the task is
@@ -958,7 +1031,25 @@ test touched), with mockllm models:
     handles raises `RuntimeError`;
   - with `send_samples=True` and a fresh task, P sent before the source's
     first pull gets its own id and result (initial admission), as in the
-    retry case above.
+    retry case above;
+  - `send_samples=True` in a run with `log_format="json"` raises
+    `ValueError` naming the `.eval` requirement and enqueues nothing, while
+    `send_samples=False` in the same run still adds the task;
+  - graceful directives, for each of `inspect ctl` drain, `cancel
+    action=score` and `cancel action=error`: with an idle open port and an
+    exhausted source, the target finishes and `result()` returns its log;
+    with an in-flight request, that request resolves under the directive's
+    rule (its natural `EvalSample` under drain, the scored or errored one
+    under score or error); with an accepted request still waiting for
+    delivery (sent while a pull holds the feeder, or while `max_samples` is
+    full), it fails with `SampleAbandonedError`, and a later
+    `enqueue_sample()` fails at once the same way (each bounded with
+    `fail_after`);
+  - retention: a rollout task that receives many requests (successful,
+    errored, dropped and refused) holds, after each call returns, no
+    reference to its sample, futures or `EvalSample` (checked with weak
+    references), while its `runs` still refuse a duplicate id; a request
+    still pending across an in-run retry is kept and delivered.
 - `tests/test_sample_source.py`:
   - port validation: an id equal to a seed id, its int/str equivalent
     (`1` and `"1"`), and a seed id excluded by `--sample-id` or `--limit`
@@ -1005,13 +1096,15 @@ step 3 (the run queue and dispatcher) and independent of step 4:
    owned pull and held buffer, the open port, the attempt `ContextVar`, the
    marker check in `eval_log_sample_source()`), `_eval/task/log.py`
    (`TaskLogger.log_handle_samples()`, the field at `log_finish`),
-   `log/_log.py` (`EvalLog.handle_samples`), `log/_recorders/recorder.py`,
-   `eval.py` and `json.py` (`log_handle_samples`, the journal member and
-   header reads), the copy sites (`log/_convert.py`, `_cli/score.py`,
+   `log/_log.py` (`EvalLog.handle_samples`), `log/_recorders/recorder.py`
+   and `eval.py` (`log_handle_samples`, the journal member and header
+   reads), `json.py` (the streaming header key), the copy sites (`log/_convert.py`, `_cli/score.py`,
    `log/_recover/`), `_eval/task/sample_source.py` (docstrings),
    `_eval/run.py` (the retry decision reads the logger's flag and the
    marker, the fallback log carries it, an open-port retry gets the empty
-   sample source, port close on attempt end, loans in the dispatcher, the `next_tasks()` scope),
+   sample source, port close on attempt end, `SamplePort.stop()` from the
+   `cancel_task` callback for drain, score and error, loans in the
+   dispatcher, the `next_tasks()` scope),
    `_eval/eval.py` (the `eval_retry()` refusal, `max_tasks`, `max_samples`
    and `max_sandboxes` docstrings), `_eval/evalset.py` (docstrings),
    `__init__.py` (exports), `docs/task-source.qmd`, `docs/parallelism.qmd`
@@ -1023,9 +1116,10 @@ step 3 (the run queue and dispatcher) and independent of step 4:
 ## Open questions
 
 None. Ransom decided (2026-11-03) that `enqueue_task()` stays synchronous
-and returns `list[TaskHandle]` ("The handle API"), and that a task a running
-task waits on borrows a slot through a loan specific to it ("Slot
-lending").
+and returns `list[TaskHandle]`, that sending samples is enabled by the
+keyword-only `send_samples=False` and refused for `.json` logs ("The handle
+API"), and that a task a running task waits on borrows a slot through a
+loan specific to it ("Slot lending").
 
 ## Not this design
 
