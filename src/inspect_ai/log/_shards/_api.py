@@ -550,30 +550,31 @@ def _check_task(
 def recorded_context(header: EvalLog) -> Context:
     """A copy of the caller's context with the model context the shards ran with.
 
-    The active model is built from the recorded model, generate config, base
-    URL and model arguments, and the recorded model roles are installed, as
-    `eval()` sets them before building tasks and running them and as offline
-    scoring rebuilds them. The merge builds a task spec and computes the
-    results in it, so a task factory, metric or epoch reducer that calls
-    `get_model()` or `get_model(role=...)` sees what the shards ran with.
-    The caller's own context is not changed.
+    As a task run installs them (`init_task_context`): the active model is
+    built from the recorded model with its own generate config
+    (`model_generate_config`), base URL and model arguments, the active
+    generate config is the task's (`plan.config`), and the recorded model
+    roles are resolved as `eval()` resolves them, each model a copy labelled
+    with its role. The merge builds a task spec and computes the results in
+    it, so a task factory, metric or epoch reducer that calls `get_model()`
+    or `get_model(role=...)` sees what the shards ran with. The caller's own
+    context is not changed.
     """
     from inspect_ai.model import get_model
     from inspect_ai.model._model import init_active_model, init_model_roles
     from inspect_ai.model._model_config import model_roles_config_to_model_roles
+    from inspect_ai.model._util import resolve_model_roles
 
     def init() -> None:
-        config = header.plan.config.merge(header.eval.model_generate_config)
         model = get_model(
             model=header.eval.model,
-            config=config,
+            config=header.eval.model_generate_config,
             base_url=header.eval.model_base_url,
             **header.eval.model_args,
         )
-        init_model_roles(
-            model_roles_config_to_model_roles(header.eval.model_roles) or {}
-        )
-        init_active_model(model, config)
+        roles = model_roles_config_to_model_roles(header.eval.model_roles)
+        init_model_roles(resolve_model_roles(roles) or {})
+        init_active_model(model, header.plan.config)
 
     context = copy_context()
     context.run(init)

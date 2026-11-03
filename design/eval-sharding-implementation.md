@@ -1215,9 +1215,14 @@ before it builds tasks (`eval_resolve_tasks`) and keeps them while the
 task runs, so a task factory, metric or epoch reducer may call
 `get_model()` or `get_model(role=...)`. The merge builds one context from
 the template shard's header (`recorded_context`, `_api.py`): a copy of
-the caller's context with the active model built from the recorded model,
-generate config, base URL and model arguments and with the recorded model
-roles, as `score_async` rebuilds them for offline scoring. It loads a task
+the caller's context with the model context a task run installs
+(`init_task_context`): the active model built from the recorded model with
+its own generate config (`eval.model_generate_config`), base URL and model
+arguments; the task's generate config (`plan.config`) as the active
+generate config, kept apart from the model's, as a task run keeps them;
+and the recorded model roles resolved as `eval()` resolves them
+(`resolve_model_roles`), each model a copy labelled with its role, list
+bindings included. It loads a task
 spec and runs `eval_results` in that context, for a spec and a supplied
 `Task` alike; the caller's own context is never changed, whether the merge
 returns, raises or is cancelled.
@@ -2164,7 +2169,9 @@ Per PR (numbers from "Implementation plan"):
    - the model context: in fresh processes, a task whose factory, metric
      and epoch reducer call `get_model()`, or with a recorded task argument
      `get_model(role="grader", required=True)` under a single or a list
-     role binding, merges to the native results and reductions, fresh and
+     role binding (every member labelled `grader`), and read the model's
+     own temperature and the task's (the task sets 0.8; the model none, or
+     a conflicting 0.2), merges to the native results and reductions, fresh and
      incremental, on asyncio and Trio: as a spec and as a supplied `Task`
      under an unrelated active model and role, which the caller keeps, and
      through the CLI with none;

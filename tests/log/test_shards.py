@@ -3452,7 +3452,8 @@ def test_cli_json_stdout_holds_only_the_object_when_metric_code_prints(
 _MODEL_TASK = f"""
 from inspect_ai import Epochs, Task, task
 from inspect_ai.dataset import Sample
-from inspect_ai.model import get_model
+from inspect_ai.model import GenerateConfig, get_model, model_roles
+from inspect_ai.model._generate_config import active_generate_config
 from inspect_ai.scorer import (
     Metric,
     SampleScore,
@@ -3466,8 +3467,17 @@ from inspect_ai.scorer import (
 
 def _ran_with(role: bool) -> bool:
     if role:
-        return get_model(role="grader", required=True).name == "grader"
+        grader = get_model(role="grader", required=True)
+        bound = model_roles()["grader"]
+        labels = [m.role for m in (bound if isinstance(bound, list) else [bound])]
+        return (grader.name, grader.role, set(labels)) == ("grader", "grader", {{"grader"}})
     return get_model().name == "model"
+
+
+def _settings() -> float:
+    # the model's own temperature, and the task's as the active config
+    model = get_model().config.temperature or 0.0
+    return model + 10 * (active_generate_config().temperature or 0.0)
 
 
 @metric
@@ -3486,10 +3496,26 @@ def run_with(role: bool) -> Metric:
     return compute
 
 
+@metric
+def built_config(temperature: float) -> Metric:
+    def compute(scores: list[SampleScore]) -> float:
+        return temperature
+
+    return compute
+
+
+@metric
+def run_config() -> Metric:
+    def compute(scores: list[SampleScore]) -> float:
+        return _settings()
+
+    return compute
+
+
 @score_reducer(name="model_check")
 def model_check(role: bool) -> ScoreReducer:
     def reduce(scores: list[Score]) -> Score:
-        return Score(value=1.0 if _ran_with(role) else 0.0)
+        return Score(value=(1.0 if _ran_with(role) else 0.0) + _settings())
 
     return reduce
 
@@ -3498,14 +3524,21 @@ def model_check(role: bool) -> ScoreReducer:
 def {TASK}(role: bool = False) -> Task:
     # the model the task is built for, as browse_comp does
     if role:
-        name = get_model(role="grader", required=True).name
+        grader = get_model(role="grader", required=True)
+        name = grader.name if grader.role == "grader" else "unlabelled"
     else:
         name = get_model().name
     return Task(
         dataset=[Sample(id=i, input="q", target="x") for i in range(1, 5)],
         scorer=match(),
-        metrics=[built_with(name), run_with(role)],
+        metrics=[
+            built_with(name),
+            run_with(role),
+            built_config(get_model().config.temperature or 0.0),
+            run_config(),
+        ],
         epochs=Epochs(1, model_check(role)),
+        config=GenerateConfig(temperature=0.8),
     )
 """
 
@@ -3525,16 +3558,16 @@ from inspect_ai.model._model import model_roles
 
 backend, mode, incomplete = sys.argv[1], sys.argv[2], sys.argv[3] == "1"
 roles = json.loads(sys.argv[4])
+temperature = json.loads(sys.argv[5])
 
 
 def build():
     from custom_task import {TASK}
+    from inspect_ai.model._util import resolve_model_roles
 
-    init_active_model(get_model("mockllm/model"), GenerateConfig())
-    init_model_roles({{
-        role: [get_model(m) for m in bound] if isinstance(bound, list) else get_model(bound)
-        for role, bound in roles.items()
-    }})
+    model = get_model("mockllm/model", config=GenerateConfig(temperature=temperature))
+    init_active_model(model, GenerateConfig())
+    init_model_roles(resolve_model_roles(roles) or {{}})
     return {TASK}(role=bool(roles))
 
 
@@ -3573,8 +3606,16 @@ def test_a_merge_runs_the_task_in_the_recorded_model_context(
 ) -> None:
     import subprocess
 
+    from inspect_ai.model import GenerateConfig, get_model
+
     monkeypatch.chdir(tmp_path)
     Path("custom_task.py").write_text(_MODEL_TASK)
+    # the task sets temperature 0.8: with role bindings the model sets its
+    # own 0.2, which a task run keeps apart from the task's
+    temperature = None if binding == "active" else 0.2
+    model = get_model(
+        "mockllm/model", config=GenerateConfig(temperature=temperature), memoize=False
+    )
     kwargs: dict[str, Any] = {}
     if binding != "active":
         grader = ["mockllm/grader", "mockllm/other"]
@@ -3586,7 +3627,7 @@ def test_a_merge_runs_the_task_in_the_recorded_model_context(
     def shard(k: str, ids: list[int]) -> None:
         eval(
             "custom_task.py",
-            model="mockllm/model",
+            model=model,
             log_dir=f"{NAME}.shards/{k}",
             display="none",
             sample_id=ids,
@@ -3607,6 +3648,7 @@ def test_a_merge_runs_the_task_in_the_recorded_model_context(
         Path("merge.py").write_text(_MERGE_SCRIPT)
         roles = json.dumps(kwargs.get("model_roles", {}))
         args = [backend, entry, "1" if incomplete else "0", roles]
+        args += [json.dumps(temperature)]
         result = subprocess.run(
             [sys.executable, "merge.py", *args], capture_output=True, text=True, env=env
         )
@@ -3624,14 +3666,21 @@ def test_a_merge_runs_the_task_in_the_recorded_model_context(
 
     native = eval(
         "custom_task.py",
-        model="mockllm/model",
+        model=model,
         log_dir="native",
         display="none",
         **kwargs,
     )[0]
     assert native.reductions is not None
-    assert {v for v in _metric_values(native).values()} == {1.0}
-    assert {s.value for s in native.reductions[0].samples} == {1.0}
+    settings = (temperature or 0.0) + 10 * 0.8
+    assert _metric_values(native) == {
+        ("match", "built_with"): 1.0,
+        ("match", "run_with"): 1.0,
+        ("match", "built_config"): temperature or 0.0,
+        ("match", "run_config"): settings,
+    }
+    values = [s.value for s in native.reductions[0].samples]
+    assert values == pytest.approx([1.0 + settings] * 4)
     merged = read_eval_log(f"{NAME}.eval")
     assert _metric_values(merged) == _metric_values(native)
     assert merged.reductions == native.reductions
