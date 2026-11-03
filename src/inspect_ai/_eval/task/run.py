@@ -2103,12 +2103,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     reductions=reductions,
                     error=error,
                 )
-                # shielded, so an abort landing while a hook runs cannot
-                # discard the log just written
-                with anyio.CancelScope(shield=True):
-                    await emit_task_end(
-                        logger, eval_log, task_end_pending, raise_limits=False
-                    )
+                await emit_task_end(
+                    logger, eval_log, task_end_pending, raise_limits=False
+                )
 
                 # display it
                 td.complete(TaskError(logger.samples_completed, type, value, traceback))
@@ -2132,13 +2129,12 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # results, a hook raising cancellation) leaves started hooks
             # without their end: give them the log _run_task returns for it
             if task_end_pending and (escaping := sys.exc_info()[1]) is not None:
-                with anyio.CancelScope(shield=True):
-                    await emit_task_end(
-                        logger,
-                        logger.finished_log or unwritten_task_log(logger, escaping),
-                        task_end_pending,
-                        raise_limits=False,
-                    )
+                await emit_task_end(
+                    logger,
+                    logger.finished_log or unwritten_task_log(logger, escaping),
+                    task_end_pending,
+                    raise_limits=False,
+                )
 
     # notify the view module that an eval just completed
     # (in case we have a view polling for new evals)

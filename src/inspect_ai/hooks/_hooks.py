@@ -738,9 +738,14 @@ async def emit_task_end(
     """Call `on_task_end` on each hook in `pending`, removing it first.
 
     `pending` holds the hooks `emit_task_start` entered, so each gets exactly
-    one end, even when this is called again after an interrupted call. With
-    `raise_limits=False`, a `LimitExceededError` from one hook is logged and
-    the remaining hooks are still called.
+    one end, even when this is called again after an interrupted call.
+
+    With `raise_limits=False` (the error, cancel and fallback paths), the
+    calls run shielded, so an abort cannot discard a log already written, and
+    a `LimitExceededError` or cancellation exception raised by one hook is
+    logged and the remaining hooks are still called. Under the shield such a
+    cancellation can only come from the hook; a cancelled enclosing scope is
+    delivered again after the shield exits.
     """
     data = TaskEnd(
         eval_set_id=logger.eval.eval_set_id,
@@ -748,10 +753,14 @@ async def emit_task_end(
         eval_id=logger.eval.eval_id,
         log=log,
     )
-    while pending:
-        await _call_hook_safely(
-            pending.pop(0), lambda hook: hook.on_task_end(data), raise_limits
-        )
+    with anyio.CancelScope(shield=not raise_limits):
+        while pending:
+            await _call_hook_safely(
+                pending.pop(0),
+                lambda hook: hook.on_task_end(data),
+                raise_limits,
+                contain_cancellation=not raise_limits,
+            )
 
 
 async def emit_sample_init(
@@ -1207,6 +1216,7 @@ async def _call_hook_safely(
     hook: Hooks,
     callable: Callable[[Hooks], Awaitable[None]],
     raise_limits: bool = True,
+    contain_cancellation: bool = False,
 ) -> None:
     try:
         await callable(hook)
@@ -1215,5 +1225,9 @@ async def _call_hook_safely(
         if raise_limits:
             raise
         logger.warning(f"Limit exceeded in hook '{hook.__class__.__name__}': {ex}")
+    except anyio.get_cancelled_exc_class():
+        if not contain_cancellation:
+            raise
+        logger.warning(f"Cancellation raised in hook '{hook.__class__.__name__}'")
     except Exception as ex:
         logger.warning(f"Exception calling hook '{hook.__class__.__name__}': {ex}")

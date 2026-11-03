@@ -822,6 +822,14 @@ def first_hooks() -> Generator[TaskPairHooks, None, None]:
     yield from _create_mock_hooks("test_first_hooks", TaskPairHooks)
 
 
+@pytest.fixture
+def second_hooks(
+    first_hooks: TaskPairHooks,
+) -> Generator[TaskPairHooks, None, None]:
+    # registered after first_hooks; request before mock_hooks
+    yield from _create_mock_hooks("test_second_hooks", TaskPairHooks)
+
+
 @solver
 def _abort_task_solver(hooks: MockHooks, skip_first: bool = False) -> Solver:
     """Aborts its own task; with `skip_first`, the first sample completes."""
@@ -1029,17 +1037,64 @@ async def test_task_end_hook_abort_during_error_end_keeps_log(
     await _assert_victim_log_kept(logs, first_hooks, mock_hooks)
 
 
+@pytest.mark.parametrize("cancelling", [1, 2])
 async def test_task_end_hook_raising_cancellation_keeps_log(
-    first_hooks: TaskPairHooks, mock_hooks: MockHooks, tmp_path: Path
+    first_hooks: TaskPairHooks,
+    second_hooks: TaskPairHooks,
+    mock_hooks: MockHooks,
+    tmp_path: Path,
+    cancelling: int,
 ) -> None:
-    # an end hook raising a cancellation exception of its own, with nothing
-    # cancelled, must not discard the written log or stop queued tasks; the
-    # later hook gets the written log and the raising hook gets no second end
+    # end hooks raising a cancellation exception of their own, with nothing
+    # cancelled, must not discard the written log or stop queued tasks; every
+    # later hook gets the written log and a raising hook gets no second end
+    for hooks_ in (first_hooks, second_hooks)[:cancelling]:
+        hooks_.end_cancelled_task = "victim"
+    with anyio.fail_after(60):
+        logs = await _eval_victim_and_queued(_victim_and_queued_tasks(), tmp_path)
+
+    await _assert_victim_log_kept(logs, first_hooks, second_hooks, mock_hooks)
+
+
+async def test_task_end_hook_raising_cancellation_keeps_write_error(
+    first_hooks: TaskPairHooks,
+    mock_hooks: MockHooks,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # with the victim's final log write failing, an end hook raising a
+    # cancellation exception must not replace the write error, stop the
+    # later hook's end, or stop queued tasks
+    recorder_log_finish = EvalRecorder.log_finish
+
+    async def log_finish(
+        self: EvalRecorder, eval: EvalSpec, *args: Any, **kwargs: Any
+    ) -> EvalLog:
+        if eval.task == "victim":
+            raise OSError("log storage unreachable")
+        return await recorder_log_finish(self, eval, *args, **kwargs)
+
+    monkeypatch.setattr(EvalRecorder, "log_finish", log_finish)
     first_hooks.end_cancelled_task = "victim"
     with anyio.fail_after(60):
         logs = await _eval_victim_and_queued(_victim_and_queued_tasks(), tmp_path)
 
-    await _assert_victim_log_kept(logs, first_hooks, mock_hooks)
+    assert {log.eval.task: log.status for log in logs} == {
+        "victim": "error",
+        "queued": "success",
+    }
+    (victim,) = [log for log in logs if log.eval.task == "victim"]
+    assert victim.error is not None
+    assert "log storage unreachable" in victim.error.message
+    for hooks_ in (first_hooks, mock_hooks):
+        assert sorted(
+            (
+                event.log.eval.task,
+                event.log.status,
+                event.log.error.message if event.log.error else None,
+            )
+            for event in hooks_.task_end_events
+        ) == [("queued", "success", None), ("victim", "error", victim.error.message)]
 
 
 async def test_task_end_hook_abort_after_log_write_keeps_log(
