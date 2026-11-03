@@ -284,7 +284,7 @@ def cache_refuses_model_args(model_args: dict[str, Any]) -> bool:
     """Whether output caching refuses these model args.
 
     Refused values (such as an enum) and their plain JSON values look the same
-    to `get_model()` memoization, so it must not reuse a model across them.
+    to `get_model()` memoization, so it keeps models with refused args apart.
     """
     try:
         _model_args_tree(model_args, set())
@@ -308,9 +308,9 @@ def _reject_json_subclass(value: Any) -> None:
     """
     if isinstance(value, _JSON_TYPES) and type(value) not in _JSON_TYPES:
         raise UnsupportedModelArgError(
-            f"Model output caching does not support the model argument value "
-            f"{value!r} of type {type(value).__name__}. Pass a plain str, int, "
-            f"float, bool, list or dict instead (for an enum, use its .value)."
+            f"Model output caching does not support model argument values of "
+            f"type {type(value).__name__}. Pass a plain str, int, float, bool, "
+            f"list or dict instead (for an enum, use its .value)."
         )
 
 

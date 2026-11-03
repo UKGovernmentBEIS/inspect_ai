@@ -2562,11 +2562,10 @@ def get_model(
     # see if we can return a memoized model instance
     # (exclude mockllm since custom_outputs is an infinite generator)
     model_cache_key: str = ""  # for mypy below
-    if model.startswith("mockllm/") or (
-        memoize and cache_refuses_model_args(model_args)
-    ):
+    if model.startswith("mockllm/"):
         memoize = False
     if memoize:
+        refused = cache_refuses_model_args(model_args)
         model_cache_key = (
             model
             + str(role)
@@ -2574,9 +2573,14 @@ def get_model(
             + str(base_url)
             + str(api_key)
             + str(to_jsonable_python(model_args, fallback=lambda _: None))
+            + str(refused)
         )
         cached = cached_model(model_cache_key)
-        if cached is not None:
+        # a memoized model's args may have changed since it was stored
+        if (
+            cached is not None
+            and cache_refuses_model_args(cached.model_args) == refused
+        ):
             return cached
 
     # split model into api name and model name if necessary

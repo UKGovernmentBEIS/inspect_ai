@@ -34,6 +34,7 @@ from inspect_ai.model._cache import (
     _CACHE_KEY_DROPPED_FIELDS,
     _CACHE_KEY_NEUTRALIZED_FIELDS,
     CacheEntry,
+    UnsupportedModelArgError,
     _cache_key_config,
     cache_clear,
     cache_fetch,
@@ -189,7 +190,7 @@ def test_cache_model_args_key_refuses_json_subclasses(
     extra_body: dict[Any, Any], instance_key: str | None
 ) -> None:
     """Providers send these as JSON, but the fingerprint would see them as opaque."""
-    with pytest.raises(TypeError, match="does not support the model argument"):
+    with pytest.raises(TypeError, match="does not support model argument values"):
         cache_model_args_key(
             {"client": object(), "extra_body": extra_body}
             if instance_key
@@ -233,8 +234,68 @@ async def test_cache_memoized_models_keep_refused_args_separate(
 
     monkeypatch.setattr(plain.api, "generate", generate_output)
     assert (await plain.generate("Hello", cache=True)).completion == "3"
-    with pytest.raises(TypeError, match="does not support the model argument"):
+    with pytest.raises(TypeError, match="does not support model argument values"):
         await refused.generate("Hello", cache=True)
+
+
+@pytest.mark.parametrize("with_client", [False, True])
+async def test_cache_memoized_model_with_args_changed_to_refused_is_not_reused(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, with_client: bool
+) -> None:
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+    monkeypatch.setattr("inspect_ai.model._model._models", {})
+    client_args: dict[str, Any] = (
+        {"http_client": httpx2.AsyncClient()} if with_client else {}
+    )
+    shared: dict[str, Any] = {"system": "3"}
+    first = get_model(
+        "anthropic/claude-sonnet-4-5", api_key="test", extra_body=shared, **client_args
+    )
+    shared["system"] = _System.THREE
+    second = get_model(
+        "anthropic/claude-sonnet-4-5",
+        api_key="test",
+        extra_body={"system": "3"},
+        **client_args,
+    )
+    assert second is not first
+
+    async def generate_output(*args: Any, **kwargs: Any) -> ModelOutput:
+        return ModelOutput.from_content(model="anthropic", content="3")
+
+    monkeypatch.setattr(second.api, "generate", generate_output)
+    assert (await second.generate("Hello", cache=True)).completion == "3"
+
+
+def test_cache_memoizes_models_with_refused_args(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without caching, refused args are fine, so their models are still reused."""
+    monkeypatch.setattr("inspect_ai.model._model._models", {})
+
+    def anthropic_model() -> Model:
+        return get_model(
+            "anthropic/claude-sonnet-4-5",
+            api_key="test",
+            extra_body={"system": _System.THREE},
+        )
+
+    assert anthropic_model() is anthropic_model()
+
+
+class _UnprintableSystem(str):
+    def __repr__(self) -> str:
+        raise RuntimeError("no repr")
+
+
+async def test_cache_refusal_does_not_format_the_value(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+    model = get_model("mockllm/model", extra_body={"system": _UnprintableSystem("3")})
+    assert (await model.generate("Hello")).completion
+    with pytest.raises(UnsupportedModelArgError, match="_UnprintableSystem"):
+        await model.generate("Hello", cache=True)
 
 
 async def test_cache_opaque_model_args_track_mutated_request_defaults(
