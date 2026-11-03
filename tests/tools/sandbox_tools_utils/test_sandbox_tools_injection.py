@@ -7,7 +7,7 @@ import warnings
 from contextlib import asynccontextmanager
 from io import BytesIO
 from pathlib import Path
-from typing import AsyncIterator, BinaryIO, Iterator
+from typing import Any, AsyncIterator, BinaryIO, Iterator
 
 import anyio
 import pytest
@@ -675,6 +675,31 @@ def test_tools_dir_is_per_version() -> None:
     """Each tools version installs into, and adopts, only its own tree."""
     assert SANDBOX_TOOLS_DIR == f"/var/tmp/.da7be258e003d428-v{VERSION}"
     assert SANDBOX_CLI == f"{SANDBOX_TOOLS_DIR}/inspect-sandbox-tools"
+
+
+def test_tools_version_is_read_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An upgrade under a running process cannot split directory and artifact.
+
+    The directory is fixed at import; the artifact must name the same version even
+    if ``sandbox_tools_version.txt`` changes afterwards.
+    """
+    read_text = Path.read_text
+
+    def upgraded(self: Path, *args: Any, **kwargs: Any) -> str:
+        if self.name == "sandbox_tools_version.txt":
+            return f"{int(VERSION) + 1}\n"
+        return read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", upgraded)
+    assert sandbox_tools._get_sandbox_tools_version() == VERSION
+    variants: list[tuple[Architecture, bool, bool]] = [
+        ("amd64", False, False),
+        ("arm64", True, True),
+    ]
+    for arch, dev, musl in variants:
+        name = sandbox_tools._get_executable_name(arch, dev, musl)
+        assert f"-v{VERSION}" in name, name
+    assert SANDBOX_TOOLS_DIR.endswith(f"-v{VERSION}")
 
 
 def _launcher_script(tag: str, log: Path) -> str:

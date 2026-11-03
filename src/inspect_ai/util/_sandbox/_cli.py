@@ -37,8 +37,7 @@ if TYPE_CHECKING:
 SANDBOX_TOOLS_BASE_NAME = "inspect-sandbox-tools"
 
 
-def sandbox_tools_version() -> str:
-    """The version of the sandbox tools this release injects."""
+def _read_sandbox_tools_version() -> str:
     version_file = (
         Path(__file__).parents[2]
         / "tool"
@@ -48,7 +47,14 @@ def sandbox_tools_version() -> str:
     return version_file.read_text().strip()
 
 
-SANDBOX_TOOLS_DIR = f"/var/tmp/.da7be258e003d428-v{sandbox_tools_version()}"
+SANDBOX_TOOLS_VERSION = _read_sandbox_tools_version()
+"""The version of the sandbox tools this process injects.
+
+Read once, so the install directory and the artifact chosen for it always name the
+same version, even if the package is upgraded under a running process.
+"""
+
+SANDBOX_TOOLS_DIR = f"/var/tmp/.da7be258e003d428-v{SANDBOX_TOOLS_VERSION}"
 
 SANDBOX_CLI = f"{SANDBOX_TOOLS_DIR}/{SANDBOX_TOOLS_BASE_NAME}"
 
