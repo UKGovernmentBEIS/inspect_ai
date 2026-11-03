@@ -791,9 +791,16 @@ class _Driver:
         # the span has ended
         begin = self.begins[tool_span][0] if tool_span else call.index
         end = self.ends.get(tool_span) if tool_span is not None else None
-        before_span = self._tool_span_of(
-            ("tool_call", event.id), call.produced_at, begin
-        )
+        if event.id in self.shared_bridge_ids:
+            before_span = (
+                self._native_before_span(event.id, begin)
+                if tool_span is not None
+                else None
+            )
+        else:
+            before_span = self._tool_span_of(
+                ("tool_call", event.id), call.produced_at, begin
+            )
         # An ID shared with the bridge cannot identify a native result check.
         # For other IDs, retain the original replay span selection.
         after_span = (
@@ -938,6 +945,25 @@ class _Driver:
                 if ending and not self._ended_call(span):
                     return None
                 return spans.pop(at)
+        return None
+
+    def _native_before_span(self, call_id: str, begin: int) -> str | None:
+        """Take a native before-check only when it directly precedes its tool span.
+
+        Native ``call_tool`` opens the tool span synchronously after its sentinel
+        check returns. A bridge check under the same id can finish earlier, but
+        cannot sit between that native check and the native tool span.
+        """
+        if begin == 0:
+            return None
+        previous = self.events[begin - 1]
+        if not isinstance(previous, SpanEndEvent):
+            return None
+        ended = previous.id
+        spans = self.tool_spans.get(("tool_call", call_id), [])
+        if ended in spans:
+            spans.remove(ended)
+            return ended
         return None
 
     def _ended_call(self, span: str) -> bool:

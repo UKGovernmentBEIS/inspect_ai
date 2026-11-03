@@ -3164,6 +3164,114 @@ def test_a_native_call_run_while_a_bridged_call_waits_replays_its_own_checks(
     )
 
 
+@agent
+def r9_native_before_a_filtered_bridge_call() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        from inspect_ai.agent._bridge.completions import (
+            inspect_completions_api_request,
+        )
+
+        native_tool = addition()
+        history: list[ChatMessage] = [ChatMessageUser(content="native")]
+        output = await get_model().generate(history, tools=[native_tool])
+        history.append(output.message)
+
+        bridge, tools = await r7_host_bridge(state)
+
+        async def replace_response(
+            model: Any, output: ModelOutput, generate_input: Any
+        ) -> ModelOutput | None:
+            if not output.message.tool_calls:
+                return None
+            return r7_tool_calls(
+                ToolCall(
+                    id="shared",
+                    function="mcp__host__addition",
+                    arguments={"x": 1, "y": 1},
+                )
+            )
+
+        bridge.response_filter = replace_response
+        await inspect_completions_api_request(
+            {
+                "model": "inspect",
+                "messages": [{"role": "user", "content": "bridge"}],
+                "tools": tools,
+            },
+            None,
+            bridge,
+        )
+        await inspect_completions_api_request(
+            {
+                "model": "inspect",
+                "messages": [{"role": "user", "content": "INTERLEAVED"}],
+            },
+            None,
+            bridge,
+        )
+        await execute_tools(history, [native_tool])
+        return state
+
+    return execute
+
+
+def test_native_before_check_follows_interleaved_turn_after_bridge_filter() -> None:
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        as_solver(r9_native_before_a_filtered_bridge_call()),
+        outputs(
+            r7_tool_calls(
+                ToolCall(id="shared", function="addition", arguments={"x": 5, "y": 5})
+            ),
+            r7_tool_calls(
+                ToolCall(
+                    id="raw", function="mcp__host__addition", arguments={"x": 1, "y": 1}
+                )
+            ),
+            done("INTERLEAVED"),
+        ),
+        sentinel=[r7_probe(seen, copies=True)],
+    )
+    events = logged_sample(log).events
+    live = [
+        seen[event.explanation or ""]
+        for event in events
+        if isinstance(event, SentinelEvent)
+        and event.path == "r7_probe"
+        and event.stage == "tool_call"
+    ]
+    native = next(step for step in live if step.call.arguments == {"x": 5, "y": 5})
+    native_report = next(
+        i
+        for i, event in enumerate(events)
+        if isinstance(event, SentinelEvent)
+        and event.path == "r7_probe"
+        and event.stage == "tool_call"
+        and seen[event.explanation or ""].call.arguments == {"x": 5, "y": 5}
+    )
+    interleaved_event = next(
+        i
+        for i, event in enumerate(events)
+        if isinstance(event, ModelEvent) and event.output.message.text == "INTERLEAVED"
+    )
+    assert native_report > interleaved_event
+
+    steps = replayed(log)
+    replay = [
+        step.step for step in steps if step.stage == "tool_call" and step.id == "shared"
+    ]
+    assert len(replay) == 1
+    assert isinstance(replay[0], BeforeToolCall)
+    assert replay[0].call.arguments == native.call.arguments == {"x": 5, "y": 5}
+    assert any(message.text == "INTERLEAVED" for message in native.history)
+    assert comparable(replay[0].history) == comparable(native.history)
+    native_at = next(i for i, step in enumerate(steps) if step.stage == "tool_call")
+    interleaved_at = max(
+        i for i, step in enumerate(steps) if step.stage == "model_output"
+    )
+    assert native_at > interleaved_at
+
+
 def test_a_native_result_check_inside_its_invocation_is_replayed() -> None:
     log = run_logged(
         as_solver(r7_defers_a_bridged_host_call(native_first=True, native="both")),

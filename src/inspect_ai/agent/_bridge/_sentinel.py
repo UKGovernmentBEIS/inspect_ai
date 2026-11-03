@@ -35,6 +35,7 @@ from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._bridge.types import AgentBridge
+from inspect_ai.model._call_tools import decisive_sentinel_exception
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -52,7 +53,6 @@ from inspect_ai.tool._tool_call import (
     ToolCallViewError,
 )
 from inspect_ai.tool._tool_def import ToolDef
-from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._span import in_agent_span
 
@@ -629,7 +629,7 @@ async def _guarded(bridge: AgentBridge, run: Callable[[], Awaitable[T]]) -> T:
     except TerminateSampleError as ex:
         bridge.request_terminate(str(ex))
     except SentinelFailure as ex:
-        inner = inner_exception(ex.error)
+        inner = decisive_sentinel_exception(ex.error)
         if isinstance(inner, LimitExceededError):
             raise inner from ex
         if isinstance(inner, TerminateSampleError):

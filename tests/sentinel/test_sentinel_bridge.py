@@ -61,6 +61,7 @@ from inspect_ai.tool import (
 from inspect_ai.tool._tool import ToolParsingError
 from inspect_ai.tool._tool_call import default_tool_call_viewer
 from inspect_ai.tool._tool_params import ToolParam, ToolParams
+from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._span import span
 
 # mypy checks the tests against inspect_sentinel's API; they run on the fake
@@ -1064,6 +1065,74 @@ async def test_sentinel_errors_fail_the_sample(after: bool) -> None:
 
     assert isinstance(bridge._failure, SentinelFailure)
     assert isinstance(bridge._failure.error, PermissionError)
+
+
+@protocol
+def bridge_grouped_failure(after: bool, reverse: bool) -> ProtocolGroup:
+    async def before(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        if not after:
+            fail()
+        return None
+
+    async def later(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
+        if after:
+            fail()
+        return None
+
+    def fail() -> None:
+        limit = LimitExceededError("working", value=10, limit=5)
+        defect = RuntimeError("grouped sentinel defect")
+        leaves = [limit, defect]
+        raise ExceptionGroup("sentinel failures", leaves[::-1] if reverse else leaves)
+
+    return ProtocolGroup(before, later)
+
+
+@tool
+def bridge_unused_tool() -> Tool:
+    async def execute() -> str:
+        """A host tool that this test never calls."""
+        return "ok"
+
+    return execute
+
+
+@pytest.mark.parametrize("sandbox", [False, True])
+@pytest.mark.parametrize("after", [False, True])
+async def test_grouped_bridge_sentinel_defect_fails_in_both_leaf_orders(
+    sandbox: bool, after: bool
+) -> None:
+    for reverse in (False, True):
+        model = Scripted(calls_output(READ), calls_output())
+        bridge = (
+            sandbox_bridge(tools={"unused": bridge_unused_tool()})
+            if sandbox
+            else in_process_bridge([])
+        )
+        with active(bridge_grouped_failure(after, reverse)):
+            with pytest.raises(SentinelFailure) as raised:
+                output = await generate(bridge, model, [ChatMessageUser(content=TASK)])
+                await generate(
+                    bridge,
+                    model,
+                    [
+                        ChatMessageUser(content=TASK),
+                        output.message,
+                        ChatMessageTool(content="x", tool_call_id=READ.id),
+                    ],
+                )
+        assert isinstance(raised.value.error, ExceptionGroup)
+        assert any(
+            isinstance(error, RuntimeError) and str(error) == "grouped sentinel defect"
+            for error in raised.value.error.exceptions
+        )
+        if sandbox:
+            assert isinstance(bridge, SandboxAgentBridge)
+            assert isinstance(bridge._failure, SentinelFailure)
 
 
 async def test_cancellation_during_the_tool_call_stage_propagates() -> None:
