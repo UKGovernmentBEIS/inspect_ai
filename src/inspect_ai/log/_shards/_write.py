@@ -295,7 +295,7 @@ def _check_function_options(
             if _enums(annotation):
                 restored[argument] = _restore_enum(name, argument, annotation, value)
                 continue
-            if _plain_value(annotation, value):
+            if _plain_type(annotation) and _plain_value(annotation, value):
                 continue
             reason = "whose annotation is not one the merge restores"
         raise ShardSetError(
@@ -400,7 +400,7 @@ def _metric_container(annotation: object) -> bool:
     """Whether a container of registered metrics is restored for this type.
 
     Lists and sequences whose elements are `Metric`s or such lists, alone
-    or in a union with `None` or a class; a tuple becomes a list.
+    or in a union with `None`; a tuple becomes a list.
     Dictionaries of metrics are refused (decision: Ransom, 2026-11-02).
     """
 
@@ -413,7 +413,7 @@ def _metric_container(annotation: object) -> bool:
     for member in _members(_unannotated(annotation)):
         origin = typing.get_origin(member)
         args = typing.get_args(member)
-        if member is type(None) or origin is type:
+        if member is type(None):
             continue
         if not (
             origin in (list, collections.abc.Sequence)
@@ -464,13 +464,36 @@ def _holds_dict(value: object) -> bool:
     return isinstance(value, (list, tuple)) and any(_holds_dict(v) for v in value)
 
 
+def _plain_type(annotation: object) -> bool:
+    """Whether every branch of the type, at every depth, is a listed plain type.
+
+    `str`, `int`, `float`, `bool`, `None`, a `Literal` of such values, and
+    lists and sequences of such types, alone or in a union (`Annotated`
+    unwrapped). A union with any other branch is not, so a value one listed
+    branch would take is not accepted when another branch could have been
+    recorded in the same form (a function's name for `str | Callable`).
+    """
+    for member in _members(_unannotated(annotation)):
+        origin = typing.get_origin(member)
+        args = typing.get_args(member)
+        if origin is typing.Literal:
+            listed = all(type(arg) in _PLAIN for arg in args)
+        elif origin in (list, collections.abc.Sequence) and len(args) == 1:
+            listed = _plain_type(args[0])
+        else:
+            listed = member in _PLAIN
+        if not listed:
+            return False
+    return True
+
+
 def _plain_value(annotation: object, value: object) -> bool:
     """Whether a member of this type takes `value` as the log records it.
 
     `str`, `int`, `float` and `bool` take a value of that type (`float` also
-    an `int`), a `Literal` of plain values one of them, and a list or
-    sequence of such types a list of values each takes. No other type takes
-    a value here: enums and metrics are checked by their callers.
+    an `int`), `None` takes None, a `Literal` of plain values one of them,
+    and a list or sequence of such types a list of values each takes. The
+    caller checks first that every branch is listed (:func:`_plain_type`).
     """
     for member in _members(_unannotated(annotation)):
         origin = typing.get_origin(member)
@@ -485,6 +508,9 @@ def _plain_value(annotation: object, value: object) -> bool:
             if isinstance(value, (list, tuple)) and all(
                 _plain_value(args[0], item) for item in value
             ):
+                return True
+        elif member is type(None):
+            if value is None:
                 return True
         elif member is float:
             if isinstance(value, (int, float)):

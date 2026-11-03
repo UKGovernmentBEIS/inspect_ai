@@ -1317,14 +1317,19 @@ in a union, optionally with `None` (`Annotated` unwrapped):
 - `str`, `int`, `float` or `bool`, or a `Literal` of such values, given a
   value of that type (`float` also an `int`), or one of the `Literal`'s
   values;
-- lists and sequences of those, at any depth, given a list of such values;
+- lists and sequences of those, at any depth, given a list of such values
+  (a `None` element where the element type includes `None`);
 - a single enum, given a value that restores to a member (below);
 - `Metric`, given a registered metric reference, or lists and sequences
   ending in `Metric`, given a list of such references or empty lists
   (below).
 
-Every other annotation is refused with `ShardSetError`, whatever the
-recorded value: a callable type or class (`ValueToFloat`,
+Every branch of the annotation, at every depth, must be listed before any
+branch is matched against the value: a union with an unlisted branch
+(`str | ValueToFloat`, which records a function as its name), a list of
+one, and an empty list of an unlisted element type are refused, even for
+a value a listed branch would take. Every other annotation is refused
+with `ShardSetError`, whatever the recorded value: a callable type or class (`ValueToFloat`,
 `Callable[...]`, an `int` subclass with `__call__`), a parameterized
 generic (`Converter[float]`), a type alias (`type Converter = ...`, a
 `TypeAliasType`), `Any`, `object`, `Hashable`, a tuple or set, an
@@ -2848,7 +2853,11 @@ Per PR (numbers from "Implementation plan"):
      level; callable `int` and `float` subclasses, parameterized callable
      classes and type aliases of `ValueToFloat` and of an `IntEnum`, direct
      and inside `grouped()`, are refused on fresh and writing incremental
-     merges; at unit level each accepted annotation shape takes a value
+     merges, and so are a function given for `str | ValueToFloat`, in a
+     list of that union, nested in lists and inside `grouped()`, and an
+     empty `list[ValueToFloat]`; lists with `None` elements (direct,
+     nested, a `None` list node and inside `grouped()`) merge to the
+     native values; at unit level each accepted annotation shape takes a value
      of its type, and each other form (callable, generic, alias,
      `Annotated` of an unlisted type, `Any`, `object`, tuple, set, a value
      of the wrong type, an enum union, an enum `Literal`) is refused;

@@ -1544,6 +1544,19 @@ def shard_untyped_list(labels=None) -> Metric:
     return compute
 
 
+@metric(name="shard_nullable_lists")
+def shard_nullable_lists(
+    labels: list[str | None], nested: list[list[str | None] | None] | None = None
+) -> Metric:
+    """A metric given lists whose elements may be None, at any depth."""
+
+    def compute(scores: list[SampleScore]) -> Value:
+        lists = [labels, *[items or [] for items in nested or []]]
+        return float(sum(item is None for items in lists for item in items))
+
+    return compute
+
+
 @metric(name="shard_mean_keys")
 def shard_mean_keys(
     keys: list[str],
@@ -1664,6 +1677,28 @@ ConverterAlias = TypeAliasType("ConverterAlias", ValueToFloat)
 LevelAlias = TypeAliasType("LevelAlias", Level)
 
 
+@metric(name="shard_union_options")
+def shard_union_options(
+    convert: str | ValueToFloat | None = None,
+    converters: list[str | ValueToFloat] | None = None,
+    nested: list[list[str | ValueToFloat]] | None = None,
+    unlisted: list[ValueToFloat] | None = None,
+) -> Metric:
+    """A metric whose options' annotations mix listed and unlisted types."""
+
+    def compute(scores: list[SampleScore]) -> Value:
+        given = [
+            convert,
+            *(converters or []),
+            *sum(nested or [], []),
+            *(unlisted or []),
+        ]
+        functions = [option for option in given if callable(option)]
+        return {"converted": functions[0](CORRECT)} if functions else -1.0
+
+    return compute
+
+
 @metric(name="shard_aliased")
 def shard_aliased(
     to_float: ConverterAlias | None = None, level: LevelAlias | None = None
@@ -1742,6 +1777,10 @@ async def _verdict(state: TaskState, target: Target) -> Score:
         shard_nested_sum([[]]),
         shard_nested_sum([[], [aggregate("points", mean())]]),
         grouped(shard_sum_of([]), "group"),
+        # None elements, direct, nested, as a list node and embedded
+        shard_nullable_lists(["a", None]),
+        shard_nullable_lists(["a"], [["b", None], None]),
+        grouped(shard_nullable_lists([None, None]), "group"),
     ]
 )
 def verdicts() -> Scorer:
@@ -1840,6 +1879,10 @@ def test_metrics_with_their_own_converters_merge_to_the_unsharded_values(
     assert expected[("verdicts", "shard_nested_sum")] == 0
     assert expected[("verdicts", "shard_nested_sum2")] == 1.75
     assert expected[("verdicts", "odd4")] == 0
+    # None list elements: direct, nested, as a list node and grouped
+    assert expected[("verdicts", "shard_nullable_lists")] == 1
+    assert expected[("verdicts", "shard_nullable_lists2")] == 1
+    assert expected[("verdicts", "odd5")] == 2
     assert expected[("verdicts", "shard_quoted")] == 1
     assert ("ratings", "krippendorff_alpha") in expected
 
@@ -1977,6 +2020,32 @@ _FUNCTION_OPTIONS: dict[str, tuple[Callable[[], list[Any]], str, bool]] = {
     "generic-float-converter-grouped": (
         lambda: [grouped(shard_generic_converters(ratio=GenericRatio(0.5)), "group")],
         _not_restored("shard_generic_converters", "ratio"),
+        False,
+    ),
+    # a listed type in a union or list beside an unlisted one
+    "union-function": (
+        lambda: [shard_union_options(convert=value_to_float())],
+        _not_restored("shard_union_options", "convert"),
+        False,
+    ),
+    "union-function-list": (
+        lambda: [shard_union_options(converters=[value_to_float()])],
+        _not_restored("shard_union_options", "converters"),
+        False,
+    ),
+    "union-function-nested": (
+        lambda: [shard_union_options(nested=[[value_to_float()]])],
+        _not_restored("shard_union_options", "nested"),
+        False,
+    ),
+    "unlisted-empty-list": (
+        lambda: [shard_union_options(unlisted=[])],
+        _not_restored("shard_union_options", "unlisted"),
+        False,
+    ),
+    "union-function-grouped": (
+        lambda: [grouped(shard_union_options(convert=value_to_float()), "group")],
+        _not_restored("shard_union_options", "convert"),
         False,
     ),
     # type aliases, which the merge does not restore
@@ -2190,6 +2259,8 @@ _ACCEPTED_ANNOTATIONS: list[tuple[object, object]] = [
     (Level | None, 2),
     (Label, "ARS"),
     (list[Metric], []),
+    (list[str | None], ["a", None]),
+    (list[list[str | None] | None], [["a", None], None]),
 ]
 
 _REFUSED_ANNOTATIONS: list[tuple[object, object]] = [
@@ -2213,6 +2284,13 @@ _REFUSED_ANNOTATIONS: list[tuple[object, object]] = [
     (set[str], ["a"]),
     (Mode | str, "HIGH"),
     (Literal[Scale.HIGH], 2),
+    (list[str], ["a", None]),
+    (str | ValueToFloat, "x"),
+    (list[str | ValueToFloat], ["x"]),
+    (list[list[str | ValueToFloat]], [[]]),
+    (list[ValueToFloat], []),
+    (type[str] | list[str], ["a"]),
+    (list[Metric] | type[str], []),
 ]
 
 
