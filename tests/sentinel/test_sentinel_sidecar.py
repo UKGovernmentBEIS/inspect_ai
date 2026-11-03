@@ -1559,12 +1559,15 @@ class _HungCopy(StandInSidecar):
     # a sidecar that never answers `sample_result`, while `hangs`
     hangs = True
 
-    async def _handle(self, request: httpx2.Request) -> httpx2.Response:  # type: ignore[override]
-        if request.url.path == "/sentinel/v1" and self.hangs:
-            if json.loads(request.content)["method"] == "sample_result":
-                self.requests.append(request)
-                await anyio.sleep_forever()
-        return super()._handle(request)
+    def http_client(self) -> httpx2.AsyncClient:
+        async def handle(request: httpx2.Request) -> httpx2.Response:
+            if self.hangs and request.url.path == "/sentinel/v1":
+                if json.loads(request.content)["method"] == "sample_result":
+                    self.requests.append(request)
+                    await anyio.sleep_forever()
+            return self._handle(request)
+
+        return httpx2.AsyncClient(transport=httpx2.MockTransport(handle))
 
 
 async def test_a_copy_cut_short_keeps_the_record_of_what_earlier_copies_wrote() -> None:
