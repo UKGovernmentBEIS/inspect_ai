@@ -519,6 +519,14 @@ def recover_command(
 @log_command.command("merge-shards")
 @click.argument("log", type=str)
 @click.option(
+    "--task",
+    "task_spec",
+    type=str,
+    required=True,
+    help="The task the shards ran (file.py@name, file.py or a registered name), "
+    "loaded as inspect eval loads it, with the task arguments the shards recorded.",
+)
+@click.option(
     "--sample-id",
     type=str,
     default=None,
@@ -538,14 +546,6 @@ def recover_command(
     help="Write a 'started' or 'error' merged log when the shards are incomplete.",
 )
 @click.option(
-    "--delete-shards",
-    type=bool,
-    is_flag=True,
-    default=False,
-    help="Delete the shards directory after a complete merge. Every worker must "
-    "have exited.",
-)
-@click.option(
     "--json",
     "json_output",
     type=bool,
@@ -557,17 +557,19 @@ def recover_command(
 @common_options
 def merge_shards_command(
     log: str,
+    task_spec: str,
     sample_id: str | None,
     sample_count: int | None,
     allow_incomplete: bool,
-    delete_shards: bool,
     json_output: bool,
     **common: Unpack[CommonOptions],
 ) -> None:
     """Merge the shard logs of a sharded run into one eval log.
 
     LOG is the merged log (<name>.eval) or its shards directory (<name>.shards),
-    as a local path, file:// URI or s3:// URL.
+    as a local path, file:// URI or s3:// URL. Results are computed with the
+    task given by --task. The shards are not deleted: once you have checked the
+    merged log, delete <name>.shards yourself.
     """
     from inspect_ai._cli.eval import _stdout_owned_for_json
     from inspect_ai._util._async import run_coroutine
@@ -578,8 +580,8 @@ def merge_shards_command(
     from inspect_ai.log._shards._api import merge_shards
 
     # with --json, stdout carries only the result or error object: startup
-    # messages (enabled hooks) and output from metric and reducer code go to
-    # stderr
+    # messages (enabled hooks) and output from task, metric and reducer code
+    # go to stderr
     owned = _stdout_owned_for_json() if json_output else nullcontext(sys.stdout)
     with owned as stdout, _json_failures(json_output, stdout):
         process_common_options(common)
@@ -594,10 +596,10 @@ def merge_shards_command(
             outcome = run_coroutine(
                 merge_shards(
                     log,
+                    task_spec,
                     sample_ids=parse_sample_id(sample_id),
                     sample_count=sample_count,
                     allow_incomplete=allow_incomplete,
-                    delete_shards=delete_shards,
                 )
             )
         except (
@@ -607,12 +609,6 @@ def merge_shards_command(
             FileNotFoundError,
             ValueError,
         ) as ex:
-            _merge_failure(json_output, ex, stdout)
-        except LookupError as ex:
-            # an unregistered metric; KeyError and IndexError are
-            # bugs, not refusals
-            if isinstance(ex, (KeyError, IndexError)):
-                raise
             _merge_failure(json_output, ex, stdout)
 
         header = outcome.result.log
@@ -630,7 +626,6 @@ def merge_shards_command(
                 "missing": status.missing,
                 "running": status.running,
                 "failed": status.failed,
-                "shards_deleted": outcome.result.shards_deleted,
             }
             click.echo(dumps(result, indent=2), file=stdout)
             return
@@ -647,8 +642,6 @@ def merge_shards_command(
             line += f", running: {', '.join(status.running)}"
         if status.failed:
             line += f", failed: {', '.join(status.failed)}"
-    if outcome.result.shards_deleted:
-        line += ", shards deleted"
     click.echo(line)
 
 

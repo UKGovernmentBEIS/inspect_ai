@@ -513,14 +513,16 @@ revisit when a distributed caller exists.
 **Trust.** Confirmed (Ransom, 2026-09-21): the merged log is created only by
 a trusted Python step (the Python API or CLI, called by the launcher or by
 hand, or `eval_set()` at startup). The viewer, `list_eval_logs` and the dataframe layer never create or
-recompute it. Recomputation needs the task's metric code importable: a
-runner or an `eval_set()` process has it; a CLI merge from a laptop may not,
-and then `resolve_scorers_info`'s `task_file` fallback imports log-named code
-exactly as recovery does today. The merge records which of the two it did
-and fails rather than store metrics from a lossy input. The CLI merge may
-follow the fallback with a visible notice and no opt-in (decision: Ransom,
-2026-09-21), because the CLI is run deliberately on a directory the user
-chose; this is revisited with the general policy under "Not this design".
+recompute it. The merge computes results only with the task the caller
+passes: the Python API's `task` (a `Task`, or a task spec loaded as `eval()`
+loads it) and the CLI's required `--task <spec>`, loaded as `inspect eval`
+loads it with the task arguments the shards recorded. It never rebuilds
+metric, reducer or scorer code from what a log records. The caller names
+that code, as with `inspect eval`, and must pass the task the shards ran:
+the merge refuses a task whose name, scorer names, metric names, number of
+epochs or epoch reducer names differ from what the shards recorded, and
+does not compare options (decision: Ransom, 2026-11-03). The launcher and
+`eval_set()` already hold the task.
 
 **Membership validation, strict.** Membership is by location, so a stray `.eval`
 file in the directory is a candidate member. Before combining, every member
@@ -688,19 +690,19 @@ have grown, and additional shards added later.
   contract and the guard.
 
 **Shard disposition.** Merged shards stay in `<name>.shards/`, listed
-beside the merged log by enumerators other than the viewer (see "Listing"),
-until the merged log is verified; delete is an explicit option, never the
-default, and also the way to clear the extra rows once a run is done,
-because it is the one choice that cannot
-be undone after a bad merge (Ransom, 2026-09-18, restated under the companion
-layout). This is the second difference from checkpoints, whose retention
-default is documented as deleting the companion on success (`retention:
-Literal["delete", "retain"] = "delete"`, `util/_checkpoint/config.py:233`;
-not implemented on `main` as of 2026-10-09, meridianlabs-ai/inspect_ai#582,
-so checkpoint companions currently stay, and shard deletion leaves them in
-place, see the implementation plan's "Deleting shards"); shards flip the
-default because re-merge after a merge bug and adding shards later
-both need the shards to still exist. When the merged log itself is deleted,
+beside the merged log by enumerators other than the viewer (see "Listing").
+Step 1's merge does not delete them (decision: Ransom, 2026-11-03): once
+the user has checked the merged log, they remove `<name>.shards/` by hand
+(for example `rm -r`, or `aws s3 rm --recursive` on S3), which also clears
+the extra rows. Deletion is the one choice that cannot be undone after a bad
+merge (Ransom, 2026-09-18). Shard deletion through Inspect is a later step
+of the plan, designed then with one rule. This is the second difference
+from checkpoints, whose retention default is documented as deleting the
+companion on success (`retention: Literal["delete", "retain"] = "delete"`,
+`util/_checkpoint/config.py:233`; not implemented on `main` as of
+2026-10-09, meridianlabs-ai/inspect_ai#582, so checkpoint companions
+currently stay); shards are kept because re-merge after a merge bug and
+adding shards later both need the shards to still exist. When the merged log itself is deleted,
 the shards go with it (see "Provenance and ledger"). No move is needed. For reference, an
 S3 move would be a server-side copy plus a delete, one API round trip per
 shard, not a transfer through the client.

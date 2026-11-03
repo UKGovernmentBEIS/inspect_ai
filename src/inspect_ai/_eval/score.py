@@ -49,7 +49,6 @@ from inspect_ai.log._headline import headline_metric_ref, resolve_headline_metri
 from inspect_ai.log._log import EvalMetricDefinition, EvalSample
 from inspect_ai.log._resolve import rebind_sample_timelines
 from inspect_ai.log._score import _find_scorers_span
-from inspect_ai.log._shards._live import check_shards_merged_async
 from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 from inspect_ai.model import ModelName
 from inspect_ai.model._model import Model, ModelRoles, get_model
@@ -94,11 +93,6 @@ def score(
 ) -> EvalLog:
     """Score an evaluation log.
 
-    A merged log (`merge_eval_log_shards()`) is refused while its
-    `<name>.shards/` directory still exists, since rescoring would replace
-    the epoch reductions its shards recorded; a log with no `location` is
-    not checked.
-
     Args:
        log (EvalLog): Evaluation log.
        scorers (Scorer): List of Scorers to apply to log
@@ -118,9 +112,6 @@ def score(
 
     Returns:
        Log with scores yielded by scorer.
-
-    Raises:
-       ShardSetError: The log is a merged log whose shards still exist.
     """
     # standard platform init for top level entry points
     platform_init()
@@ -235,11 +226,6 @@ async def score_async(
 ) -> EvalLog:
     """Score an evaluation log.
 
-    A merged log (`merge_eval_log_shards()`) is refused while its
-    `<name>.shards/` directory still exists, since rescoring would replace
-    the epoch reductions its shards recorded; a log with no `location` is
-    not checked.
-
     Args:
        log (EvalLog):
          Evaluation log. Only the headers are needed if `samples`
@@ -265,43 +251,6 @@ async def score_async(
 
     Returns:
        Log with scores yielded by scorer.
-
-    Raises:
-       ShardSetError: The log is a merged log whose shards still exist.
-    """
-    await check_shards_merged_async(log, "rescoring")
-    return await score_checked_log_async(
-        log,
-        scorers,
-        metrics,
-        epochs_reducer,
-        model=model,
-        model_roles=model_roles,
-        action=action,
-        display=display,
-        copy=copy,
-        samples=samples,
-    )
-
-
-async def score_checked_log_async(
-    log: EvalLog,
-    scorers: "Scorers",
-    metrics: list[Metric | dict[str, list[Metric]]]
-    | dict[str, list[Metric]]
-    | None = None,
-    epochs_reducer: ScoreReducers | None = None,
-    model: str | Model | None = None,
-    model_roles: ModelRoles | None = None,
-    action: ScoreAction | None = None,
-    display: DisplayType | None = None,
-    copy: bool = True,
-    samples: Callable[[int], AsyncContextManager[EvalSample]] | None = None,
-) -> EvalLog:
-    """`score_async` for a caller that has already run its shard check.
-
-    `inspect score` runs `check_shards_merged_async` itself, before a
-    streamed score starts writing its output, and calls this.
     """
     if samples is None and log.samples is None:
         raise ValueError("There are no samples to score in the log.")

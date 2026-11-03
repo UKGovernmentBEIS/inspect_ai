@@ -6,66 +6,20 @@ Inspect will merge per-worker eval logs ("shards", written under
 `<name>.shards/<k>/` beside the log they belong to) into one canonical
 `<name>.eval` with whole-task results. A Python API and an `inspect log
 merge-shards` command validate the shards, merge only what changed since
-the last pass, record which shard attempts the merged log holds, publish
-it with a guard against overlapping merges, and optionally delete the
-shards directory afterwards. `eval_set()` runs
-the same merge at startup and then resumes the task from the merged log
-like any other. The work is split into eight PRs, two of them already
-landed, and shares its layout and directory-walk helpers with the
-read-only `inspect ctl --log-dir` mode.
+the last pass, compute the results with the task the caller passes,
+record which shard attempts the merged log holds, and publish it with a
+guard against overlapping merges. The merge does not delete shards; the
+user removes the shards directory once the merged log is checked.
+`eval_set()` runs the same merge at startup and then resumes the task from
+the merged log like any other. The work is split into nine PRs, two of
+them already landed, and shares its layout and directory-walk helpers
+with the read-only `inspect ctl --log-dir` mode.
 
-Status: proposed, 2026-09-24; revised the same day after Ransom removed
-viewer changes from Step 1 and asked for simple shard deletion. Issue:
+Status: proposed, 2026-09-24; current as of 2026-11-03, when the merge
+took its metrics from the caller's task and shard deletion moved to its
+own PR (decisions: Ransom, 2026-11-03). Issue:
 https://github.com/meridianlabs-ai/inspect_ai/issues/529 (part of #509).
-Author: agent (Claude), reviewed by Codex; see the PR. Verified against
-`43ebaebc38`; updated on 2026-09-29 (`18acb828a2`) for what has landed
-since: the layout helpers (UKGovernmentBEIS/inspect_ai#5541), ctl log-dir
-mode steps 1–2 with `list_dir` and the CRC check (#5542) and the viewer's
-hiding of merged shards (#5591). Revised on 2026-09-29 so that the merged
-header carries no per-sample data beyond the `dataset.sample_ids` list
-every log header has (decision: Ransom, 2026-09-29): the ledger holds a
-count and a selection digest per shard instead of each shard's exact keys,
-and the recorded selection lives in the ordinary header fields. Revised
-on 2026-10-05 for the shared walk as PR 3 (UKGovernmentBEIS/inspect_ai#5622)
-implements it: `is_shard_path` is true only for the files the walk lists,
-so a log nested deeper in a companion is an ordinary log, and ctl log-dir
-mode lists it as one, matching eval-set (decision: Ransom, 2026-10-05).
-Revised on 2026-10-08 for the sign-off review: deletion removes each
-shard's current attempt last, the merge restarts on every torn-read error,
-`eval_retry` refuses every eval-set merged log (stated), a `-recovered`
-output argument is refused, the CLI's `--json` has one object per
-companion, and a companion with no header to match is refused. Revised on
-2026-10-09 for the second sign-off review, against `5180bdf39a`: the
-re-run of an interrupted `delete_shards` keeps vanished ledger entries as
-recorded; deletion leaves checkpoint directories in place instead of
-refusing them, as it refuses scan output (decision: Ransom, 2026-10-09); retry cleanup builds on
-UKGovernmentBEIS/inspect_ai#5396 and PR 3 is marked landed
-(UKGovernmentBEIS/inspect_ai#5622), both now on `main`; the merged log's
-`task_id` is derived from `<name>` when `<name>` does not carry it; an
-eval set whose selection is narrower than its shards, or empty, stops
-with `PrerequisiteError` (decision: Ransom, 2026-10-09). A companion with no
-attempt, such as the checkpoint-only remnant a deletion leaves, holds no
-shard set for the merge, eval-set and ctl alike. Revised on 2026-10-13
-for the third sign-off review, against `9030255165`: a `<k>/` with no
-attempt is not a shard, so the merge ignores it and the template is the
-first shard with an attempt; deletion refuses every object other than
-shard attempts, their buffers and checkpoint directories;
-`shards_deleted` means the shard files were deleted, not the companion
-directory; and the merged log's `task_id` is stable only while the file
-name pattern is unchanged, a limit Step 1 accepts (decision: Ransom,
-2026-10-13). Revised on 2026-10-21 to simplify PR 5 (decision: Ransom,
-2026-10-21): deletion removes the whole companion directory, checkpoint
-directories and scan results included, with no per-object rules or
-delete order; `inspect log merge-shards` takes one `LOG`; and a torn
-shard read fails the merge with its own error instead of restarting the
-pass.
-Revised on 2026-10-22 (decision: Ransom): remote deletion is one
-recursive delete of the location the caller gave, and the merge never
-imports the log's task file, resolving metrics from the registry only.
-Revised on 2026-10-23 (decision: Ransom): the merge does not recreate
-epoch reducers; it carries each sample's reduced scores from the shard
-that ran it. Revised on 2026-10-26 (decision: Ransom): the writers that
-recreate reducers refuse a merged log whose shards still exist.
+Author: agent (Claude), reviewed by Codex.
 
 This is the follow-on document that [`eval-sharding.md`](eval-sharding.md)
 ("the parent design") names: the public surface, the shape of the stored
@@ -98,9 +52,9 @@ diverge.
 Goals:
 
 - A public Python API and CLI command for the merge, with every parameter
-  the parent requires: the intended selection as an id list or a count, the
-  option to write an incomplete (`started` or `error`) merged log, and the
-  option to delete shards after a verified complete merge.
+  the parent requires: the intended selection as an id list or a count and
+  the option to write an incomplete (`started` or `error`) merged log, and
+  the task whose scorers, metrics and epoch reducer compute the results.
 - The typed `EvalSpec` field that carries provenance and the ledger, with its
   JSON schema and `ts-mono` impact.
 - A merge algorithm specified to the level of data flow, validation,
@@ -126,13 +80,15 @@ Non-goals:
 - Viewer changes of any kind (decision: Ransom, 2026-09-24: "for stage 1,
   we are not planning any viewer changes"). The shard hiding in #5591
   landed separately and needs nothing from this plan. `/log-delete` keeps
-  deleting the one file requested; see "Deleting shards" for the limitation this
-  leaves.
-- Deletion that is safe against concurrent deleters or resumable after a
-  crash (decision: Ransom, 2026-09-24, "keep deletion simple"). Earlier
-  revisions of this document specified a deletion marker, recorded object
-  identities and a `detached` state for this; each review round found new
-  holes in that machinery, so it was removed rather than patched.
+  deleting the one file requested; see "Removing shards" for the
+  limitation this leaves.
+- Shard deletion in PR 5 (decision: Ransom, 2026-11-03). The merge reads
+  the shards and writes the merged log; the user removes the shards
+  directory by hand. Deletion through Inspect is its own PR after PR 6,
+  with one rule designed then ("Implementation plan").
+- Rebuilding metric, reducer or scorer code from what a log records
+  (decision: Ransom, 2026-11-03). The results come from the caller's task
+  ("Matching the task").
 
 ## Current behaviour
 
@@ -377,11 +333,11 @@ pattern:
 ```python
 def merge_eval_log_shards(
     log: str,
+    task: Task | str,
     *,
     sample_ids: Sequence[str | int] | None = None,
     sample_count: int | None = None,
     allow_incomplete: bool = False,
-    delete_shards: bool = False,
 ) -> ShardMergeResult: ...
 
 
@@ -395,13 +351,6 @@ class ShardMergeResult:
 
     written: bool
     """False when nothing had changed since the last merge and nothing was written."""
-
-    shards_deleted: bool
-    """True when this call deleted the companion directory, or found it
-    gone. Whenever the call returns, this equals `delete_shards`: with it
-    set, an incomplete set raises `ShardSetIncomplete`, a failed
-    verification raises `ShardSetError` and a failed delete raises its
-    storage error."""
 
 
 class ShardSetError(Exception):
@@ -440,6 +389,14 @@ Parameters:
   `task_id`, beside the one the next startup merge writes. Refusing is
   chosen over silently writing `<name>.eval` instead, because the caller
   named a different output file.
+- `task`: the task the shards ran, as a `Task` or a task spec of the kind
+  `eval()` takes (`file.py@name`, `file.py` or a registered name). A spec
+  is loaded with `load_task_spec` (`_eval/loader.py`), as `eval()` loads
+  it, with the task arguments the shards recorded
+  (`eval.task_args_passed`, as `eval_retry` uses), and must name exactly
+  one task (`ValueError` otherwise). The merge computes results with it
+  ("Results") and refuses one that does not match the shards ("Matching
+  the task").
 - `sample_ids` / `sample_count`: the intended selection, mutually exclusive
   (`ValueError` if both). Ids are compared as `str(id)`, the readers' sample
   key. An empty `sample_ids` or a `sample_count` below 1 raises
@@ -457,46 +414,26 @@ Parameters:
   merge writes the `started` or `error` log (parent "Completeness",
   "Errored shards"). This is the issue's "write `started`" option; it is
   named for both statuses because an errored set writes `error`.
-- `delete_shards`: when the merged log is `success`, whether written by
-  this call or already current, verify it and delete the whole companion,
-  checkpoint directories and anything else in it included (see "Deleting
-  shards"). Precondition, stated in the docstring:
-  every worker has exited and nothing else operates on this log or its
-  companion while the call runs (no other merge, no other deletion); the
-  merge cannot tell a finished shard from a paused one, and nothing is
-  guaranteed when the precondition is broken. If deletion is interrupted,
-  the call raises the storage error; re-running it, or deleting
-  `<name>.shards/` by hand, finishes the job. Combined with
-  `allow_incomplete=True` it
-  is a `ValueError` at call time, since a deletion that happens only
-  sometimes is the wrong contract for the one irreversible option.
+
+The merge does not delete shards ("Removing shards").
 
 `ShardSetIncomplete.missing` lists the ids with at least one selected epoch
 that no shard holds (`None` for a count selection).
 
 Raises: `ShardSetError` (and its subclass `ShardSelectionError`, for
-shards that hold samples the selection does not include, "Validation"),
-`ShardSetIncomplete`, `WriteConflictError` (another
-merge holds the lock or published first; re-run later),
-`FileNotFoundError` (neither the merged log nor any shard attempt exists), and
-storage errors as they occur.
+shards that hold samples the selection does not include, "Validation";
+also for a task that does not match the shards), `ShardSetIncomplete`,
+`WriteConflictError` (another merge holds the lock or published first;
+re-run later), `FileNotFoundError` (neither the merged log nor any shard
+attempt exists), `ValueError` (invalid arguments, or a task spec that does
+not name one task), and storage errors as they occur.
 
-Trust (decision: Ransom, 2026-10-22): the merge never imports the log's
-`task_file`. Merging shards is a read of logs, and in the trust model of
-UKGovernmentBEIS/inspect_ai#6007 a read imports nothing a log names
-unless the caller trusts the log; this PR has no trust option, so it
-never imports. Every scorer's metric (the header records the task's
-`eval.metrics` with each scorer they replace) must be in the registry: built in, from an installed package, or imported by the
-caller. When one is not, the merge raises `LookupError` before writing
-anything (the type `recompute_metrics` raises for a missing metric),
-naming it and saying to import the module that defines it and merge from
-Python. The `eval_set()` startup merge (PR 6) runs with the task loaded,
-so its metrics are registered. Epoch reducers are never recreated
-("Metric recomputation"), so they need no registry entry. Follow-up, not
-this PR: once #6007 lands, add `trust_log` / `--trust-log` to the merge
-through its `LogTaskFileImport`, so there is one trust contract.
-Parent "Trust": the merge runs only as a trusted step; no reader path
-calls it.
+Trust (decision: Ransom, 2026-11-03): the merge computes results only with
+the task the caller passes and never rebuilds metric, reducer or scorer
+code from what a log records. The caller names that code, as with
+`inspect eval`. The launcher and the `eval_set()` startup merge (PR 6)
+already hold the task. Parent "Trust": the merge runs only as a trusted
+step; no reader path calls it.
 
 #### CLI
 
@@ -505,14 +442,19 @@ calls it.
 2026-10-21):
 
 ```
-inspect log merge-shards LOG
+inspect log merge-shards LOG --task SPEC
     [--sample-id IDS | --sample-count N]
-    [--allow-incomplete] [--delete-shards] [--json]
+    [--allow-incomplete] [--json]
 ```
 
 - `LOG` is one merged log path or its companion directory, as the API's
   `log`. There is no directory discovery and no batch of targets: to
   merge several, run the command once per log.
+- `--task` (required) is the task the shards ran, as `inspect eval` takes
+  it (`file.py@name`, `file.py` or a registered name), loaded through the
+  same path with the task arguments the shards recorded. There is no `-T`
+  override: membership already requires the shards' task arguments to be
+  equal.
 - `--sample-id` takes comma-separated ids (`parse_sample_id`,
   `src/inspect_ai/_util/samples.py:17`), concrete ids only; `--sample-count`
   an integer. Passing both is a usage error (exit 2).
@@ -522,19 +464,18 @@ inspect log merge-shards LOG
 - `--json` (decision: Ransom, 2026-10-21: a model or launcher calling the
   command needs machine-readable output): one JSON object on stdout. On
   success: `log`, `status`, `written`, `shards`, `samples`,
-  `new_samples`, `missing` (ids or null), `running`, `failed`,
-  and `shards_deleted`. For the whole merge, stdout is redirected to
-  stderr at the file-descriptor level (`_stdout_owned_for_json`, as
-  `inspect eval --json` does) and the object is written to the saved
-  stdout, so output from metric or reducer code or its subprocesses goes
+  `new_samples`, `missing` (ids or null), `running` and `failed`. For
+  the whole merge, stdout is redirected to stderr at the file-descriptor
+  level (`_stdout_owned_for_json`, as `inspect eval --json` does) and the
+  object is written to the saved stdout, so output from task, metric or
+  reducer code or its subprocesses goes
   to stderr and stdout stays parseable. Before fd 1 is restored the helper
   flushes Python's original stdout and the C library's buffers
   (`fflush(NULL)`), so native output buffered during the merge also lands
   on stderr.
 - Exit 0 when the merge wrote or had nothing new. The API's documented
   errors (`ShardSetError`, `ShardSetIncomplete`, `WriteConflictError`,
-  `FileNotFoundError`, `ValueError`, and `LookupError` for an
-  unregistered metric or reducer) print their message and exit 1; an
+  `FileNotFoundError` and `ValueError`) print their message and exit 1; an
   incomplete set without `--allow-incomplete` raises. With `--json`, each
   of them and the usage error for both selection options goes through
   one helper that prints `{"error": {"type", "message"}}` on stdout
@@ -760,9 +701,9 @@ version moves and needs no code change.
 `src/inspect_ai/log/_shards/` (new package): `_api.py` (the public
 functions), `_walk.py` (shared with ctl, "Code shared with ctl log-dir
 mode"), `_plan.py` (pure functions: validation, sample set, status, header),
-`_write.py` (building the merged zip), `_publish.py` (guards and
-publication), `_delete.py` (companion deletion), `_owned.py` (the worker
-threads the merge outlives).
+`_write.py` (matching the task, building the merged zip and its results),
+`_publish.py` (guards and publication), `_owned.py` (the worker threads
+the merge outlives).
 
 One pass, in order. Steps 1–9 run on every call; the merged log is
 downloaded and rewritten only when step 10 says so.
@@ -770,7 +711,7 @@ downloaded and rewritten only when step 10 says so.
 The merge supports a local path, a `file://` URI and an `s3://` URL, the
 forms every Inspect path-handling feature supports (decision: Ransom,
 2026-10-30). Before step 1, `supported_location` (`_publish.py`), the
-common entry check of the merge and of `remove_shards_dir`, decodes a
+merge's entry check, decodes a
 `file://` URI once to its local path (`local_path`), checks that decoded
 path, and returns it; only that path is used downstream, so nothing later
 decodes it again (decision: Ransom, 2026-11-03). It accepts a location
@@ -789,8 +730,7 @@ and `data:`, which fsspec reads without slashes) or any `::` chain,
 before or after a supported prefix (`simplecache::s3://...`,
 `s3://bucket/cache::memory://...`), also when percent-encoded in a
 `file://` URI (`file:///tmp/cache%3A%3Amemory%3A//...`). Nothing is
-constructed, listed, read, written or deleted first, with or without
-`delete_shards`. Other fsspec backends differ in how they list, name and
+constructed, listed, read or written first. Other fsspec backends differ in how they list, name and
 version objects, and each needs its own support and tests.
 
 1. **Derive the pair.** From `log`, derive `<name>.eval` (or the given
@@ -817,8 +757,7 @@ version objects, and each needs its own support and tests.
    `<name>.shards/` or in a directory under it whose name starts with `.`,
    or a `.json` log in any `<k>/`) raises `ShardSetError`; the walk itself
    only reports them. Ancillary entries (scan results, checkpoint
-   directories) do not affect merging; deletion removes them with the
-   rest of the companion ("Deleting shards"). A
+   directories) do not affect merging. A
    log nested inside an ancillary directory is an ordinary log,
    not a shard ("Code shared with ctl log-dir mode"), and the merge does
    not read it.
@@ -836,22 +775,13 @@ version objects, and each needs its own support and tests.
    for `<k>` with the same `log` name and equal ETag (or equal `size` and
    `mtime` where either side has no ETag); otherwise *changed* or *new*. A
    ledger entry whose `<k>` is missing from the listing, or holds no `.eval`
-   file, is *vanished*. Vanished shards are refused in "Validation", with
-   one exception for re-running an interrupted `delete_shards`. This
-   classification applies only while the companion exists. When the
-   listing finds no attempt in any `<k>/` and no stray file, steps 5–7 are
-   skipped and step 10's companion-gone branch returns the merged log as
-   recorded. The companion counts as *gone* only when it does not exist
-   (`shards_remain`: locally an `lstat` of its path raises
-   `FileNotFoundError`, and any other error propagates; on S3 no key is
-   under its prefix). Nothing inside it is listed or followed. While it
-   exists, empty or holding the checkpoints, sample buffers or links an
-   interrupted deletion leaves, `delete_shards` still runs step 12's
-   retained checks before deleting it; they read only the merged log, so
-   a valid one lets an empty companion be deleted (decision: Ransom,
-   2026-11-03). With
-   neither a merged log nor an attempt, the call raises
-   `FileNotFoundError`, as when neither path exists.
+   file, is *vanished*. Vanished shards are refused in "Validation". When
+   the listing finds no attempt in any `<k>/` and no stray file (the user
+   removed the companion, "Removing shards"), steps 5–7 are skipped and
+   step 10's no-shards branch returns the merged log as recorded, after
+   matching the task against the merged header. With neither a merged log
+   nor an attempt, the call raises `FileNotFoundError`, as when neither
+   path exists.
 6. **Read changed and new shards**, bounded (16 concurrent), each through
    one `AsyncZipReader`: the central directory, the header (synthesised from
    `_journal/start.json` for a running attempt), the summaries (journal
@@ -866,7 +796,9 @@ version objects, and each needs its own support and tests.
    and its central directory has the sample member. A read attempt's
    *selection* `S_k` is its header's `eval.dataset.sample_ids`, as
    `str(id)`.
-7. **Validate** ("Validation"). Refuse with `ShardSetError` on any failure.
+7. **Validate** ("Validation") and **match the task** against the
+   template's header ("Matching the task"), loading a task spec first.
+   Refuse with `ShardSetError` on any failure.
 8. **Plan** the sample set ("The sample set"), the status ("Status") and
    the header ("Building the merged log"), from the ledger entries of
    unchanged shards, the merged records `M` and the attempts read in step
@@ -877,23 +809,19 @@ version objects, and each needs its own support and tests.
 10. **Decide whether to write.** With the companion present: write when
     there is no merged log, or any shard is changed or new, or the
     effective selection differs from the recorded one; otherwise nothing is
-    written (`written=False`). With the companion gone (shards deleted after
-    a verified merge, parent "Provenance and ledger"): nothing is written;
-    a supplied selection must equal the recorded one, else `ShardSetError`
-    ("the shards of `<name>.eval` were deleted; its selection can no longer
-    change"), and the status in steps 8–9 is the recorded one.
+    written (`written=False`). With no shard attempt left (the user removed
+    the shards): nothing is written; a supplied selection must equal the
+    recorded one, else `ShardSetError` ("the shards of `<name>.eval` were
+    deleted; its selection can no longer change"), and the status in steps
+    8–9 is the recorded one.
 11. **Build and publish**, only when step 10 writes: copy the merged log to
     a local temp file (local: read in place under the lock; S3: bounded,
     ETag-pinned ranged download, "Overlap guards"), build the merged zip in
-    a second temp file ("Building the merged log"), recomputing metrics as
-    members stream through ("Metric recomputation"), and publish it: local
+    a second temp file ("Building the merged log"), computing results with
+    the task over all its samples ("Results"), and publish it: local
     `atomic_write`; S3 conditional upload with `IfMatch: E0`, or
     `IfNoneMatch: *` for a first merge.
-12. **Delete shards** when `delete_shards` is set and the merged log's
-    status is `success` ("Deleting shards"). This runs whether or not step
-    11 wrote; when it did not and shard attempts remain, the merged log's
-    samples are first checked for edited scores ("Metric recomputation").
-13. **Release** the local guard and remove temp files, in `finally`.
+12. **Release** the local guard and remove temp files, in `finally`.
 
 #### Validation
 
@@ -921,8 +849,8 @@ the merged header, the unchanged ones:
   `<k>` is the number the launcher assigns ("Shard layout" in
   [`eval-sharding.md`](eval-sharding.md)), and the merge refuses every
   directory directly in `<name>.shards/` whose name is not one or more
-  ASCII digits, before any directory is listed further, read, published
-  or deleted (`list_shard_set(..., numeric_shards=True)`). That includes
+  ASCII digits, before any directory is listed further, read or
+  published (`list_shard_set(..., numeric_shards=True)`). That includes
   dot directories and ancillary directories in the companion root, which
   ctl lists (below). Odd names are not supported one at a time: a name
   such as `prefix\0`, which a backslash split would read as shard `0`, is
@@ -936,7 +864,7 @@ the merged header, the unchanged ones:
   `worker.eval` and lose the timestamp that orders them. The merge
   refuses any attempt whose raw file name (`raw_name`, a `file://` name
   percent-decoded) contains a backslash, right after the listing and
-  before any ledger lookup, read, publication or deletion
+  before any ledger lookup, read or publication
   (`check_attempt_names`), and a merged log whose ledger records an
   attempt name with a backslash, when it is read. These names are not
   supported one at a time; `_name` is unchanged.
@@ -951,8 +879,7 @@ the merged header, the unchanged ones:
   attempt is read). A drain landing while a sample starts, or a sample
   cancel during a task drain or cancel, keeps the cancelled sample's
   transcript but leaves it out of that count, so eval-set runs it again;
-  counted as merged coverage, it would complete the set and let its shards
-  be deleted. Refusing keeps native drain, retry and the log format as
+  counted as merged coverage, it would complete the set. Refusing keeps native drain, retry and the log format as
   they are; the message names the attempt and says to run the shard again.
   An attempt with no results records no count even after a drain (a
   drain as its only sample starts leaves no scored sample); there a held
@@ -960,12 +887,7 @@ the merged header, the unchanged ones:
   unresolved, and the attempt is refused the same way. Otherwise an
   attempt with results but no recorded count (ordinary, running and older
   logs) resolved every record it holds. (Eval-set's check, unlike the
-  merge, treats any attempt with no results as incomplete.) A pass that
-  deletes shards without reading their attempts (unchanged, or the
-  interrupted-deletion exception below) reads the headers of the recorded
-  attempts still present, and their sample summaries when a header has no
-  results, and applies the same check against their ledger `samples`
-  first. A drain that abandoned queued samples holds fewer
+  merge, treats any attempt with no results as incomplete.) A drain that abandoned queued samples holds fewer
   records and is not refused: it leaves the set `started` ("Status").
 - **One current attempt.** When two distinct attempts of a shard share
   the latest `attempt_sort_key` (the same name timestamp and mtime, as S3
@@ -977,43 +899,15 @@ the merged header, the unchanged ones:
   before the attempt its ledger entry records (`attempt_sort_key`); that
   happens only when the recorded attempt was deleted from `<k>/` while an
   older one was kept, and merging the older attempt would replace current
-  records with obsolete ones. Refused, naming both files. Besides a
-  deletion by hand, an interrupted `delete_shards` can leave it, since
-  deletion keeps no order ("Deleting shards"); a re-run with
-  `delete_shards=True` treats such a shard as left over (the exception
-  under the next rule).
-- **No vanished shard.** While the companion exists, every ledger entry
-  still has a current attempt in its `<k>/`. (A companion that is gone,
-  step 5, is not checked; step 10 returns the merged log as it is.) A
-  vanished shard means shard files were deleted after they
-  were merged: by hand, or by a `delete_shards` that was interrupted
-  ("Deleting shards"). Merging the remainder would overwrite the merged log
-  with fewer records, so the merge refuses, naming the vanished shards and
-  saying to finish deleting `<name>.shards/` (re-run with `delete_shards`,
-  or delete the directory by hand) or to restore the files. The one
-  exception: a call with `delete_shards=True` on a merged log whose
-  recorded status is `success`, in which every shard still present is
-  unchanged or *regressed* (its current attempt sorts before the recorded
-  one, as above), none is new or otherwise changed, and at least one has
-  vanished or regressed. Such a call reads no shard and writes nothing
-  (the merged log already holds every recorded shard's records), and it is
-  planned as step 10's companion-gone branch plans: the plan is the merged
-  header as recorded. Its ledger keeps every entry, vanished ones included,
-  with their recorded `samples`, status and statistics; the status,
-  `error`, `stats`, `results` and `dataset.sample_ids` are the recorded
-  ones, whether some or all of the shards have vanished; and a supplied
-  selection must equal the recorded one, else `ShardSetError`. The other
-  checks in this list run against that plan, so "The merged log matches its ledger"
-  still counts the vanished entries' `samples`. The verification before
-  deletion ("Deleting shards") then compares the stored ledger with this
-  plan, which is the stored ledger, and the sample members with the
-  recorded selection times every epoch; it fails only if the merged log
-  itself was changed. The call then deletes what remains; this is what
-  makes re-running an interrupted `delete_shards` finish the job. The
-  exception needs a `success` merged log because `delete_shards` deletes
-  nothing until one is verified, so an interrupted deletion always leaves
-  one; a vanished shard under a `started` or `error` merged log is
-  refused.
+  records with obsolete ones. Refused, naming both files.
+- **No vanished shard.** While any shard attempt remains, every ledger
+  entry still has a current attempt in its `<k>/`. (With no attempt left,
+  step 5, nothing is checked; step 10 returns the merged log as it is.) A
+  vanished shard means shard files were deleted by hand after they were
+  merged. Merging the remainder would overwrite the merged log with fewer
+  records, so the merge refuses, naming the vanished shards and saying to
+  delete the rest of `<name>.shards/` to keep the merged log as it is, or
+  to restore the files.
 - **A recorded selection that covers what the shard holds.** Every read
   attempt has `eval.dataset.sample_ids` (not `None`), and every key it holds
   has its id in `S_k`. Otherwise refused, naming the shard: the merge
@@ -1137,12 +1031,12 @@ Consequences, documented in the API docstring:
   the companion is deleted or the files are restored. Deleting the whole
   companion leaves the merged log as it is (step 10).
 - Edits to the merged log: header edits (`log_updates`, `tags`) are
-  carried to every later pass. `edit_score()`, `recompute_metrics()` and
-  `score()` refuse a merged log while its shards exist ("Writers", under
-  "Metric recomputation"). A sample changed some other way survives while
-  the shard holding the sample is unchanged, and is replaced by the
-  shard's copy when that shard changes; with an epoch reducer configured,
-  an edited score refuses any pass that writes.
+  carried to every later pass. A sample changed in the merged log (by
+  `edit_score()`, for example) survives while the shard holding the sample
+  is unchanged, and is replaced by the shard's copy when that shard
+  changes; every pass that writes recomputes the results over the samples
+  it writes ("Results"). `edit_score()`, `recompute_metrics()` and
+  `score()` treat a merged log like any other log.
   `invalidated` follows the samples: it is true when a merged sample
   carries an `invalidation`, so a sample invalidated in a shard or in the
   merged log sets it, and replacing the last such sample clears it.
@@ -1191,8 +1085,8 @@ well-defined shard, so fresh and incremental merges agree.
 | `eval.eval_set_id` | the entries' common `eval_set_id`, else absent |
 | `eval.dataset.sample_ids` | the selection ids when given as ids, else the sorted distinct held ids, typed as in the summaries written ("Recorded selection") |
 | `eval.config.sample_id`, `eval.config.limit` | `None` ("Recorded selection") |
-| `eval.shards` | the new field: ledger entries for every current attempt (a read shard's with `samples` the number of keys taken, `selected` the size of its `S_k` and the digest of `S_k`; an unchanged shard's carried as they were), `selection` and `sample_count` ("Recorded selection"). A pass under the vanished-shard exception ("Validation") writes nothing and keeps the recorded ledger, vanished entries included |
-| `results` | from "Metric recomputation"; `total_samples` is the selection size (or, without one, the distinct held ids) times epochs, `completed_samples` the merged samples without `error`; `early_stopping`, `logged_samples`, `metadata` absent |
+| `eval.shards` | the new field: ledger entries for every current attempt (a read shard's with `samples` the number of keys taken, `selected` the size of its `S_k` and the digest of `S_k`; an unchanged shard's carried as they were), `selection` and `sample_count` ("Recorded selection") |
+| `results` | from "Results"; `total_samples` is the selection size (or, without one, the distinct held ids) times epochs, `completed_samples` the merged samples without `error`; `early_stopping`, `logged_samples`, `metadata` absent |
 | `stats` | from the ledger entries: `started_at` the earliest, `completed_at` the latest (`""` while any entry's is empty), `model_usage` and `role_usage` summed per key with `ModelUsage.__add__`; `connection_limit_history` empty (per-process history stays in the shards) |
 | `log_updates`, `tags` | carried from the existing merged header (merged-log edits), absent at the first merge |
 | `invalidated` | whether any merged sample has an `invalidation`, accumulated as the samples are parsed (step 11) |
@@ -1202,8 +1096,8 @@ well-defined shard, so fresh and incremental merges agree.
 `eval.task_id`, `cleanup_older_eval_logs` filters on it, and an eval set's
 unsharded retry inherits it (`as_previous_tasks`), so it must be distinct
 per sharded run, stable across passes, and the same when a merged log
-deleted by retry cleanup is rebuilt from a leftover companion ("Deleting
-shards"), within the limit stated below. The launcher puts a freshly minted id in `<name>`'s `{id}` slot
+deleted by retry cleanup is rebuilt from a leftover companion, within the
+limit stated below. The launcher puts a freshly minted id in `<name>`'s `{id}` slot
 (parent, "The launcher mints `<name>`"), but `_try_parse_filename`
 (`src/inspect_ai/log/_file.py:1168`) does not always return it: it returns
 `""` for a two-part name (`INSPECT_EVAL_LOG_FILE_PATTERN={task}`) and
@@ -1254,184 +1148,86 @@ settings (`zipfile_compress_kwargs`):
 - `summaries.json`: the planned keys' summaries, from the shards'
   summaries for changed shards and the merged log's `summaries.json` for
   carried keys.
-- `reductions.json` from "Metric recomputation" (with an epoch reducer
-  configured and a sample whose reduction is not recorded, the recorded
-  reductions of the held samples), and `header.json` last.
+- `reductions.json` from "Results", and `header.json` last.
 - No `_journal/` members: the merged log is written finished, whatever its
   status, so readers never take the running-log path for it.
 
 The merge never builds an `EvalLog` holding samples; it holds one sample at
-a time plus the metric inputs.
+a time plus its scores.
 
-#### Metric recomputation
+#### Matching the task
+
+Decision (Ransom, 2026-11-03): the merge computes results only with the
+task the caller passes, and never rebuilds a metric, reducer or scorer
+from what a log records. A log records metric and reducer options lossily
+(a function by its name, an enum member by its value, a reducer by a name
+without its arguments), so code rebuilt from a log can differ from the
+code that ran; the caller's task is the code that ran.
+
+Before anything is written, the merge compares the task (loaded first when
+given as a spec, "Python API") with what the shards recorded, by name only
+(`check_task_matches`, `_write.py`), against the template shard's header,
+or the merged header when no shard attempt is left:
+
+- the task name (`Task.name` against `eval.task`);
+- the scorer names, in order (`as_scorer_spec` and `resolve_eval_scorers`,
+  as the task logger records them, against `eval.scorers`);
+- the metric names of each scorer and of the task (`eval.scorers[].metrics`
+  and `eval.metrics`, options dropped, groups kept);
+- the number of epochs (`Task.epochs`, default 1, against
+  `config.epochs`);
+- the epoch reducer names (`reducer_log_names(Task.epochs_reducer)`
+  against `config.epochs_reducer`).
+
+A difference raises `ShardSetError` naming the field, both values and the
+shard log or merged log it was compared with, and nothing is written.
+Options are not compared: passing the task the shards ran, with the same
+options, is the caller's responsibility, and the docs say so. Membership
+("Validation") still compares the shards with each other in full.
+
+#### Results
 
 As each planned sample passes through step 11, the merge parses it once and
-keeps `SampleScore(score=..., sample_id=..., sample_metadata=...)` per
-scorer, the dataset metadata its `SampleInitEvent` records, whether
-`error` is set, which scores carry an edit history and whether the
-sample has an `invalidation`; everything else in the sample is discarded
-before the next. The metric inputs are those of a fresh run (decision:
-Ransom, 2026-10-27), as the log stores them (see "Stored form" below). A declared scorer's scores get the sample's dataset
-metadata, before any solver changed it, as `run.py` passes
-`sample.metadata`, and `SampleScore.scorer` set to the scorer's name from
-the header (its unqualified registry name, as the task runner records
-it). `EvalSample.metadata` is the final `TaskState.metadata`, so the
-dataset metadata is taken from the `SampleInitEvent`, which holds it for
-fresh and retry-reused samples alike. A sample with a declared scorer's
-score and no `SampleInitEvent` (a sample whose record could not be
-serialized is logged without its events) is refused with
-`ShardSetError` before publishing or deleting. Reduced views take the
-metadata of the sample's first score, so grouped and clustered metrics see
-the same groups reduced or not. A task that declares one scorer twice
-(score keys `name`, `name1`) is refused in `recreate_scorers`,
-before any sample is read: a fresh run names the suffixed scores' scorer
-`name`, a retry names it `name1`. After the last sample it calls
-`eval_results(samples=..., scores=..., reducers=..., scorers=recreate_scorers(h),
-metrics=None, completed_samples=...,
-headline_metric=h.eval.headline_metric)` with the template header `h`
-(`eval_results` applies task metrics only to solver-set scores, which
-the merge refuses). It also passes `scorer_names`, the names the worker
-scored samples under (each declared scorer's name), so aggregation does
-not derive a later scorer's name from earlier result names: a per-key result named like a later declared scorer would
-otherwise rename that scorer and leave it without scores.
-Carried samples are read from the merged log's temp copy on every pass that
+keeps its scores, the dataset metadata its `SampleInitEvent` records,
+whether `error` is set and whether the sample has an `invalidation`;
+everything else in the sample is discarded before the next. Carried
+samples are read from the merged log's temp copy on every pass that
 writes, because the merged log's sample members are the only lossless
-source (summaries are lossy, parent "Constraints"). Before reading any
-sample the merge checks that the registry resolves every metric of `h`
-(`recreate_scorers`: a registry lookup per metric name, including
-the metrics that wrappers such as `grouped()` and `aggregate()` record as
-registry dicts in their options, at any depth), so `resolve_scorers_info`
-never reaches its `task_file` import ("Trust" under "Python API"); an
-unregistered one raises `LookupError` and nothing is written (parent:
-"fails rather than store metrics from a lossy input"). A scorer's own
-metric must resolve to a factory registered under the recorded name: a
-lookup of a short name falls back to the built-in, so a task's
-`@metric(name="mean")`, recorded as `mean`, would otherwise be replaced by
-`inspect_ai/mean`. Metrics embedded in a wrapper's options are recorded
-without the `inspect_ai/` prefix, so there a custom metric with a
-built-in's short name cannot be told from the built-in; this is a
-documented limitation, and custom metrics should have names that differ
-from the built-ins or are package-qualified (decision: Ransom,
-2026-10-29).
+source (summaries are lossy, parent "Constraints"), so every pass that
+writes computes the results over all the merged samples.
 
-Metric options (decisions: Ransom, 2026-10-30 and 2026-11-03). A log
-records a metric option as a plain value (`registry_params`): a function
-by its name, so `mean(to_float=value_to_float(correct=2))` is recorded as
-`{"to_float": "to_float"}`; an enum member by its value or name; a
-callable or other object as whatever plain value it encodes to. At each
-metric definition it visits, direct or embedded at any depth,
-`recreate_scorers` accepts a recorded value other than `None` only when
-that parameter's own annotation resolves to one of these shapes, alone or
-in a union, optionally with `None` (`Annotated` unwrapped):
+After the last sample the merge calls `eval_results` (`_eval/task/results.py`)
+as the task runner does (`run.py`), with the task's scorers
+(`Task.scorer`), metrics (`Task.metrics`), epoch reducer
+(`Task.epochs_reducer`) and headline metric, `scorer_names` from
+`unique_scorer_name` over the scorers, `samples` the selection size (or,
+without one, the distinct held ids) times epochs, and `completed_samples`
+the merged samples without `error`. The results and the per-sample epoch
+reductions it returns become the header's `results` and the merged log's
+`reductions.json`. An incomplete merge computes them over the samples it
+holds, as a cancelled native run computes partial results.
 
-- `str`, `int`, `float` or `bool`, or a `Literal` of such values, given a
-  value of that type (`float` also an `int`), or one of the `Literal`'s
-  values;
-- lists and sequences of those, at any depth, given a list of such values
-  (a `None` element where the element type includes `None`);
-- a single enum, given a value that restores to a member (below);
-- `Metric`, given a registered metric reference, or lists and sequences
-  ending in `Metric`, given a list of such references or empty lists
-  (below). A list of metrics holds only metric references: a `None`
-  element, and an annotation admitting one (`list[Metric | None]`,
-  `list[list[Metric] | None]`), are refused whatever the value (decision:
-  Ransom, 2026-11-03); a single `Metric | None` option is unchanged.
+The metric inputs are those of a fresh run (decision: Ransom,
+2026-10-27): each declared scorer's score gets the sample's dataset
+metadata, before any solver changed it, as `run.py` passes
+`sample.metadata`, and `SampleScore.scorer` set to the scorer's
+unqualified registry name. `EvalSample.metadata` is the final
+`TaskState.metadata`, so the dataset metadata is taken from the
+`SampleInitEvent`, which holds it for fresh and retry-reused samples
+alike. A sample with scores and no `SampleInitEvent` (a sample whose
+record could not be serialized is logged without its events) is refused
+with `ShardSetError` before publishing.
 
-Every branch of the annotation, at every depth, must be listed before any
-branch is matched against the value: a union with an unlisted branch
-(`str | ValueToFloat`, which records a function as its name), a list of
-one, and an empty list of an unlisted element type are refused, even for
-a value a listed branch would take. Every other annotation is refused
-with `ShardSetError`, whatever the recorded value: a callable type or class (`ValueToFloat`,
-`Callable[...]`, an `int` subclass with `__call__`), a parameterized
-generic (`Converter[float]`), a type alias (`type Converter = ...`, a
-`TypeAliasType`), `Any`, `object`, `Hashable`, a tuple or set, an
-`Annotated` form whose inner type is not listed, a parameter with no
-annotation or one whose annotation does not resolve, and an option that
-matches no named parameter (the producer records `**kwargs` options under
-their own names). This is an allowlist rather than a search for
-unrestorable types, so a new spelling of one cannot pass. Each annotation is resolved on
-its own with `typing.get_type_hints` over a stand-in holding only that
-parameter, so quoted and nested forward references resolve, in the
-factory's module (for a class, the module and namespace of the class
-defining its constructor); another parameter's annotation or the return
-annotation neither disables nor triggers the check. For a class metric
-the parameters are its constructor's (`__init__` or `__new__`, inherited
-or generated by a dataclass). The message names the metric, the argument
-and the kind of value, lists the accepted types and gives the fixes:
-annotate the parameter with one of them, or use a registered metric that
-creates the option inside its factory. The refusal comes before anything
-is written, published or deleted.
-
-Enum options. The producer records an enum member by its value when the
-enum derives from `str`, `int` or `float` (`IntEnum`, `IntFlag`, a `str`
-mixin such as Fortress's `GroupKey`), and by its member name otherwise.
-`recreate_scorers` restores the members in a copy of the header, never
-written, and builds the metrics (`resolve_scorers_info`) from it, so a
-metric that
-compares or formats its enum options gets the same members as the live
-run. A value that is not a member (a composite plain `Flag`, whose name
-the merge does not parse, or a corrupted log) and an enum in a union with
-other types are refused before anything is written. A `Literal` holds
-plain values only (strings, numbers, booleans, `None`): an option whose
-annotation includes a `Literal` of enum members (`Literal[Scale.HIGH]`,
-recorded as the member's value or name) is refused whatever its recorded
-value, since the merge restores members only for a directly annotated
-enum.
-
-Container options (decisions: Ransom, 2026-10-30 and 2026-11-02). The
-producer records a list or tuple option with each element as a plain
-value (a tuple becomes a list; an enum, function or model element
-becomes its value, its name or a dictionary), so a list's elements
-cannot be restored. A list option is accepted only when its parameter's
-own annotation resolves to lists or sequences whose elements are `str`,
-numbers, `None`, `Literal`s of those or such lists, at any depth, and
-each element is of such a type (`Annotated` unwrapped). A list of enums, functions, models or any other
-type, a tuple or set annotation, an unannotated or unresolvable
-parameter, and a `**kwargs` option are refused with `ShardSetError` in
-`recreate_scorers`, naming the metric and argument; the fix is plain
-element types or a registered metric that builds the configuration
-inside its factory. There is no restoration inside containers.
-
-Dictionaries are refused in metric options, at any depth, except as a
-single registered metric reference where the annotation takes a metric
-(decisions: Ransom, 2026-11-02). The shared decoder (`registry_kwargs`)
-turns a registry-shaped dictionary back into a metric and a
-`ModelDict`-shaped one into a model, so the log cannot tell plain data
-from an encoded object; rather than detect those shapes, the merge
-accepts a dictionary only when it is a metric's registry dict in a
-position annotated `Metric`, or when the option is a list made only of
-such references and annotated as lists or sequences ending in `Metric`,
-at any depth (empty lists, and empty lists beside metrics, included). Every other dictionary is refused: plain data
-(`dict[str, float]`), dictionaries of metrics (`dict[str, Metric]`,
-nested or in a list, whose keys could also read as a `ModelDict`), a
-dictionary in a list, registry- or model-shaped data where the
-annotation does not take a metric, `tuple[Metric, ...]` (it becomes a
-list), a container mixing metrics with other values, and dictionary
-options on unannotated or unresolvable parameters. The message says
-dictionary options are not supported in merges and gives the
-registered-metric fix. The referenced metrics are checked by
-`_check_embedded`, which walks a metric's option map and an embedded
-metric's `params` by argument value, so arguments named `type`, `name`
-and `params` are never read as an encoded metric. Built-in
-`frequency(categories=[...])` and MLRC's `list[str]` options merge;
-ANIMA's `dimension_normalized_avg(dims_by_name: dict[str, AnimaDimension])`
-is refused until wrapped in a registered metric.
-
-`recreate_scorers` is the only place the merge recreates metrics
-(decision: Ransom, 2026-10-30): the writing passes call it before
-anything is written (and again when recomputing), and the unchanged and
-interrupted-deletion passes call it to check the retained reductions, so
-every path gets the same checks and the same restored options, and a
-refusal is raised from one place. No other merge code calls
-`resolve_scorers_info` or reads metric options.
-
-The `@metric` wrapper sets `__wrapped__` to the factory so its signature
-can be read. Of the 135 `@metric` factories in inspect_evals, inspect_swe,
-inspect_scout and the examples, none has an unannotated parameter, and
-their string options are annotated `str`, `Literal`, `str` enums or lists
-and dictionaries of `str`; the built-in metrics' only refused parameters
-are their converters.
+Solver-set scores (decision: Ransom, 2026-10-28). A score whose key
+matches no declared scorer (a solver set it in `state.scores`) is refused
+with `ShardSetError` before publishing, whether or not the task declares
+a scorer; the message names the sample and the score key. A fresh run
+passes such a score to metrics with `SampleScore.scorer` unset, while
+`eval_retry` reuse sets it to the stored key, so the merge cannot
+establish one set of metric inputs; and `eval_results` would build its
+scorer info with `ScorerInfo.from_name`, which loads a file-qualified name
+(`task.py@scorer`, or an existing file) as a module. A score name in a log
+therefore never imports a file.
 
 Stored form (decisions: Ransom, 2026-10-29, extended 2026-11-02).
 Merged metrics see samples, scores and metadata exactly as the log stores
@@ -1447,41 +1243,11 @@ shards already run with other types are re-run. The unscored NaN
 sentinel behaves as before. The merge does no detection or type recovery,
 and the producer, serializer and log format are unchanged.
 
-Solver-set scores (decision: Ransom, 2026-10-28). A score whose key
-matches no declared scorer (a solver set it in `state.scores`) is refused
-with `ShardSetError` before publishing or deleting, whether or not the
-task declares a scorer; the message names the sample, its log and the
-score key. A fresh run passes such a score to metrics with
-`SampleScore.scorer` unset, while `eval_retry` reuse sets it to the
-stored key, so the merge cannot establish one set of metric inputs; and
-`eval_results` would build its scorer info with `ScorerInfo.from_name`,
-which loads a file-qualified name (`task.py@scorer`, or an existing
-file) as a module. No task in inspect_evals, the examples or inspect_swe
-sets one. A score name in a log therefore never imports a file.
-
 Metric order (decision: Ransom, 2026-10-29). The merge computes metrics
 over the samples in sample ID order (by `str(id)`), then epoch, and its
 results equal those of an unsharded run of the same samples in that order.
 A metric whose results depend on sample order can differ from a particular
 unsharded run, just as it differs between runs with a shuffled dataset.
-
-Epoch reducers (decision: Ransom, 2026-10-23). A log records each reducer
-by name only (`config.epochs_reducer`, from `reducer_log_name`), without
-its arguments: `at_least(k=1, value=0.5)` is `at_least_1`, and a `mean`
-with a value converter is `mean`. A reducer recreated from the name is
-therefore not the one that ran, so the merge never recreates one. Every
-epoch of a sample runs in one shard (parent "Slicing"), and a shard
-writes `reductions.json` (one reduced score per sample, per scorer and
-reducer) at log finish, whatever its final status; a running attempt has
-none. With reducers recorded, the merge passes `eval_results` a
-`RecordedReductions` (`results.py`): the reducer names and a lookup that
-returns each sample's recorded reduced score, with the sample's metadata
-attached, so the reduced and unreduced views, metric names and headline
-are computed by the live code. Each sample's reduction comes from the log
-it is merged from: a changed shard's current attempt, or for carried
-samples the merged log, which holds what their unchanged shard recorded
-when it was merged. The reductions of a recovered attempt are not used:
-recovery recomputes them with reducers recreated by name.
 
 Known limitation (decision: Ransom, 2026-10-27): native `eval_retry`
 builds the metric inputs of the samples it reuses differently from a
@@ -1491,104 +1257,12 @@ differ from a fresh run's when a solver changes metadata a metric reads.
 The merge follows the fresh run; `eval_retry` and the log format are not
 changed.
 
-Known limitation (decision: Ransom, 2026-10-29): a shard finished by
-`eval_retry()` carries the reductions `eval_retry()` wrote, and
-`eval_retry()` recreates epoch reducers from their recorded names
-(`Epochs(config.epochs, config.epochs_reducer)` in `_eval/eval.py`), so a
-reducer's options are lost, as in an unsharded retry. The merge takes
-those reductions as recorded. The docs say to re-run a shard rather
-than retry it when a reducer has options.
+The merged log is an ordinary log for `recompute_metrics()`, `score()`
+and `edit_score()`: they behave on it as on any other log.
 
-Known limitation (decision: Ransom, 2026-10-23): a recovered attempt is
-recognised only by the `-recovered` suffix `inspect log recover` gives
-its output by default. A shard log recovered with `--overwrite`, or to
-another output path, records no recovery marker and cannot be told apart
-from a finished log, so its recomputed reductions are used. When the task
-sets an epoch reducer with arguments or a value converter, the merged
-metrics for its samples may then be wrong; default reducers recompute
-correctly. The log format gains no recovery-provenance field, here or in
-another PR. The docs say not to recover a shard's log and to re-run the
-shard instead.
-
-With no reducer
-recorded (`None`), the reducer is the default `mean_score()` and the merge
-passes `reducers=None`, exactly as the live run does; `[]` (reduction
-disabled) is passed as it is. A one-epoch run is not an exception: the
-live run applies the reducer to the single score too
-(`at_least(1, value=0.5)` turns 0.75 into 1).
-
-When held samples have no recorded reduction and all of them belong to
-shards whose current attempt is still running (`started`), the merge
-writes an incomplete merged log with no `results` and the recorded
-reductions of the other held samples, which carried samples read on a
-later pass (decision: Ransom, 2026-10-23). A running read attempt's status
-is in its header; an unchanged shard's is in its ledger entry, and its
-header is read for its selected ids only in this case. No partial metrics
-are computed. Everything else is refused with `ShardSetError` before
-publishing or deleting, whether the merge is complete or not: a finished
-attempt (success, error or cancelled) or the merged log without the
-entry, and a recovered attempt. Readers attach `reductions.json` only when
-`results` is set, so the partial reductions are not shown. This is
-settled before any metric runs: the scorers whose metrics include reduced
-ones (a reduced view; `_filter_metrics_by_scores`, as `eval_results`
-selects them) and their samples are checked against the recorded
-reductions first, so no metric sees a partial set, and the lookup
-`eval_results` calls then always finds an entry.
-
-With reducers recorded, a score with an edit history (from `edit_score`,
-in a shard or the merged log) is refused too: its recorded reduction
-predates the edit or was recomputed with a recreated reducer. A pass that
-writes checks the samples it parses; a pass that writes nothing but would
-delete shard data (no shard changed, or an interrupted deletion's
-remnant, including an existing companion with no attempt left) reads
-every sample member of the merged log in step 12, before
-deleting, for the same check, since summaries drop edit histories. That
-pass also checks the merged log's `reductions.json`: every reduced view
-(the declared scorers resolved from the header, the only scores a writing
-pass accepts) must hold every merged sample that has the score,
-since once the shards are deleted it is the only copy of their
-reductions. A missing member, an empty list or a partial one is refused.
-A merge that neither writes nor deletes is not checked. Two reducers recorded under one name
-(`at_least(1, value=0.5)` and `at_least(1)` are both `at_least_1`; two
-`mean` with different converters) are refused before any sample is read,
-because their recorded reductions cannot be told apart. The messages name
-the sample, score, reducer and log, and say to re-run the shard or delete
-the merged log so the next merge rebuilds it from the shards.
-
-Writers (decision: Ransom, 2026-10-26). `recompute_metrics()`,
-`score()`/`score_async()` (append and overwrite, and with them `inspect
-score`) and `edit_score()` recreate epoch reducers from their recorded
-names, so on a merged log they would replace the reductions the shards
-recorded, and a later merge or deletion would then trust the rewritten
-ones. Each refuses (`ShardSetError`) a log that has `eval.shards` while the
-`<name>.shards/` directory beside its `location` exists with any entry:
-one shared helper (`log/_shards/_live.py`). A local directory is read with
-`os.scandir` in both the sync and async writers (through `run_owned` in the
-async ones), so any entry counts, links included and never followed, and the
-path is taken as the merge and deletion take it (fsspec's local filesystem
-would expand a leading `~`). On S3 the sync writers make a boto3
-`list_objects_v2` call, since s3fs is not supported under a configured Trio
-backend, and the async ones use `AsyncFilesystem.list_dir`. Only a missing
-directory counts as absent: any other error
-inspecting it (a denied listing) propagates and the writer changes
-nothing; fsspec's `exists()` is not used, since it returns false on any
-error. Each operation
-checks once: `edit_score()` recomputes through `recompute_checked_metrics`,
-and `inspect score` checks right after reading the log, before a streamed
-score starts writing its output, then scores through
-`score_checked_log_async`. For an incomplete merged log (`started` or
-`error`), where `delete_shards` is refused, the message says to re-run the
-incomplete shards and merge with `delete_shards`, or to delete the shards
-directory by hand to abandon them. Once the merge has deleted the shards the check
-passes and the writers behave as before; ordinary logs (no `eval.shards`)
-and logs with no `location` (built in memory) are not checked. The merge
-keeps its edit-history and retained-reduction checks as a backstop for
-changes made without these writers, and the log format gains no
-provenance field.
-
-Memory: the current sample plus every sample's `SampleScore`s, as the
-parent's "Scale" accepts. The baseline parses each sample whole, so peak
-memory follows the largest sample; "Scale items" bounds it.
+Memory: the current sample plus every sample's scores, as the parent's
+"Scale" accepts. The baseline parses each sample whole, so peak memory
+follows the largest sample; "Scale items" bounds it.
 
 #### Consistent reads
 
@@ -1617,133 +1291,33 @@ itself does not parse, and fails the merge the same way. The merged log
 itself is read from a local copy pinned to `E0` (S3) or under the local
 lock.
 
-#### Deleting shards
+#### Removing shards
 
-Decision (Ransom, 2026-09-24): keep deletion simple; revised on 2026-10-21
-(decision: Ransom): delete the whole companion. Two callers delete a
-companion: `delete_shards` (keeps the merged log) and eval-set retry
-cleanup (removes the merged log too). Both use one routine,
-`remove_shards_dir(log: str, *, include_log: bool = False) -> None` in
-`_delete.py`, under this contract:
+The merge does not delete shards (decision: Ransom, 2026-11-03). It reads
+the shards and writes the merged log, and that is all it does. Once the
+user has checked the merged log, they remove `<name>.shards/` by hand
+(`rm -r`, or `aws s3 rm --recursive` on S3); later merges then find no
+shard attempt and return the merged log as it is (step 10). Removing only
+some shard directories makes later merges refuse until the rest is
+removed or the files are restored ("Validation"). Shard deletion through
+Inspect, by the merge or by eval-set retry cleanup, is a later PR, after
+PR 6, with one rule designed then ("Implementation plan").
 
-- **Only after a verified merge.** `delete_shards` runs it after its own
-  pass has published or confirmed a `success` merged log and verified it:
-  it reopens the merged log (S3: checking the reader's ETag equals the
-  publish response's ETag, or `E0` when nothing was written), checks that
-  its central directory's sample members are exactly the planned keys
-  (every selected id with every epoch, numbering the sum of the ledger's
-  `samples`), and that its `eval.shards.ledger` matches the plan (in the
-  vanished-shard exception the plan's ledger is the recorded one, vanished
-  entries included, "Validation"); a failed verification raises
-  `ShardSetError` with nothing deleted. Retry cleanup runs it only for a
-  merged log that an unsharded `success` log has superseded ("Eval-set
-  integration").
-- **The caller is the only one operating on that log.** No worker is
-  still writing into the companion and no other merge or deletion of the
-  same log runs at the same time. Nothing is guaranteed when that is not
-  true: two deletions can interleave, a concurrent merge can publish a
-  merged log from a partly deleted companion, and a file written into the
-  companion during the deletion may be left behind.
-- **The whole companion.** The routine deletes `<name>.shards/` and
-  everything in it: shard attempts, buffers, checkpoint directories, scan
-  results and any other file. Locally that is one recursive delete of the
-  directory by its exact path (`shutil.rmtree`, which does not follow
-  symbolic links). On S3 the merge does not use s3fs, which a configured
-  Trio backend (`INSPECT_ASYNC_BACKEND=trio`) refuses: it lists every key
-  under `<name>.shards/`, folder markers included, with the
-  `AsyncFilesystem` boto3 client (its endpoint and client settings, in a
-  worker thread, which is safe for boto3) and deletes each page of at most
-  1000 keys with one `DeleteObjects` call. A per-object error in the
-  response raises `ShardSetError` naming the key. A marker-only remnant is
-  deleted too, and a sibling `<name>.shards-other/` is left alone.
-  An S3 log whose URL holds `*`, `?` or `[` anywhere is refused with
-  `ValueError` before anything is deleted, by `delete_shards` before the
-  merge reads anything and by `remove_shards_dir` itself (for retry
-  cleanup); such a companion is deleted by hand. The boto3 deletion
-  matches keys literally, so this is stricter than S3 needs; it is kept. Local paths are deleted
-  by their exact path and are not refused. It neither classifies objects
-  nor orders the deletes, and a missing companion is not an error.
-  The S3 helpers take a URL's bucket and key with `urlparse`, which drops
-  a `#` or `?` and the text after it, removes tab, CR and LF, and strips
-  a key's leading slashes, so `s3://bucket/logs/run#tag.eval` would read,
-  write and delete `logs/run`. `check_s3_location` (`log/_shards/_walk.py`)
-  refuses an S3 URL whose bucket and key do not give back the URL: the
-  merge argument's merged log and companion (`ValueError`, before any
-  merge I/O, with or without deletion), the same two at the delete-only
-  entry `remove_shards_dir` (`ValueError`, before any storage access,
-  with or without `include_log`), and a located merged log in the
-  writer guards (`ShardSetError`, before the presence check). Listed
-  names are checked in one place, `list_shard_set` (`ShardSetError`): the
-  companion it is given and every name its listings return, in the
-  companion and in each `<k>/`, before anything listed is filtered or
-  listed further. A directory `1#tag/` would otherwise list as the absent
-  `1/` and be dropped as empty, and its unmerged attempt deleted. A
-  literal `%23` is kept and merges. The same listing check refuses an
-  entry that is not a non-empty name directly in the directory listed:
-  S3 lists `run.shards//x.eval` (and `///`, or `0//x.eval` in a shard) as
-  the directory listed itself, which would hide the key from the merge
-  and leave it to be deleted.
-  With `include_log`, the merged log is deleted first. An S3 delete is
-  then checked by a fresh listing, because a bulk delete can return
-  normally while objects remain. The check is one `list_objects_v2` call
-  with prefix `<name>.shards/` and `MaxKeys=1`, made with the
-  `AsyncFilesystem` client, so any key counts, a folder marker included
-  (the `AsyncFilesystem` listings skip keys ending in `/`), and a sibling
-  `<name>.shards-other/` does not. An object left
-  behind raises
-  `ShardSetError` naming it, `shards_deleted` is never reported, the
-  merged log is kept, and a re-run finishes the deletion.
-- **No resumption protocol.** An interrupted deletion raises its storage
-  error and leaves some objects behind; the user re-runs the command or
-  removes the rest by hand. Nothing records that a deletion was in
-  progress.
-
-Why the whole companion (decision: Ransom, 2026-10-21). Revisions from
-2026-10-09 to 2026-10-13 deleted only shard attempts and buffers, in two
-ordered phases, kept checkpoint directories and refused scan results and
-any other object; each review round found a new boundary in that
-classification. Nothing needs the companion after a verified complete
-merge: the merged log holds every selected sample, so no sample will
-resume from a shard's checkpoints, and retry cleanup deletes a companion
-only once an unsharded `success` log has superseded it. Scan rows written
-by workers are deleted with it; an eval set with scanners scans the merged
-log's samples again under `<dir>/scans/`.
-
-Why the merged log goes first when it is removed too: if the routine is
-interrupted, what remains is part of a companion with no merged log. The
-next `eval_set()` startup merges that remainder into a new merged log with
-the same `task_id` (it is computed from `<name>`, under an unchanged file
-name pattern, "The merged log's `task_id`"), and retry cleanup removes it
-again, because the unsharded `success` log that superseded it is kept
-("Retry cleanup": a failed removal also stops cleanup of that task group
-for the rest of the `eval_set()` call). A merge running concurrently that had
-read the merged log before the deletion has its conditional publish
-refused, since the object it expected is gone ("Overlap guards"); one that
-starts after it is the concurrent case the contract excludes.
-
-Re-running an interrupted `delete_shards`: the merged log stays and holds
-every record. Deletes run in no order, so an interruption can leave each
-`<k>/` with its recorded current attempt (unchanged), with no attempt
-(vanished), or with only an older attempt whose recorded successor was
-deleted (regressed, for example `X-recovered.eval` left after `X.eval`).
-An ordinary merge refuses a remnant with a vanished or regressed shard
-("Validation"), so such a remnant is never merged over the complete log;
-when every recorded current attempt is still unchanged, or no attempt is
-left, it returns the merged log as it is. A re-run with
-`delete_shards=True` on the `success` merged log takes them as left over
-when no shard is new or otherwise changed, verifies the merged log against
-its recorded ledger and deletes the rest. Once no `<k>/` has an attempt,
-every later pass returns the merged log as it is. The companion counts as
-gone only once it does not exist ("The merge", step 5); while it exists,
-even empty or holding only checkpoints, buffers or links, `delete_shards`
-runs step 12's retained checks before deleting it.
-
-What the user sees after an interruption:
-
-| Interrupted | What is left | What the user sees | What to do |
-|---|---|---|---|
-| `delete_shards` (API or `inspect log merge-shards --delete-shards`) | the complete merged log and part of `<name>.shards/` | the storage error; until the rest is gone, a merge of the log without `delete_shards`, including the `eval_set()` startup merge, refuses with "shards vanished" or an attempt regression when a shard vanished or regressed (and `eval_set()` stops with `PrerequisiteError`, "Eval-set integration"), and returns the merged log as it is when every recorded current attempt remains or none does | re-run the same call with `delete_shards=True`, or delete `<name>.shards/` by hand |
-| retry cleanup in `eval_set()` | the unsharded `success` log, part of `<name>.shards/`, no merged log, and every other log of that task group (cleanup of the group stops for the rest of the call) | a warning naming the companion and the error and asking for it to be deleted | delete `<name>.shards/` by hand. If it is left, the next `eval_set()` with `retry_cleanup` normally rebuilds a merged log from the remnant and removes it again; that is a fallback, not a guarantee (a remnant the merge refuses stops `eval_set()` with `PrerequisiteError`) |
+S3 names. The S3 helpers take a URL's bucket and key with `urlparse`,
+which drops a `#` or `?` and the text after it, removes tab, CR and LF,
+and strips a key's leading slashes, so `s3://bucket/logs/run#tag.eval`
+would read and write `logs/run`. `check_s3_location`
+(`log/_shards/_walk.py`) refuses an S3 URL whose bucket and key do not
+give back the URL: the merge argument's merged log and companion
+(`ValueError`, before any merge I/O). Listed names are checked in one
+place, `list_shard_set` (`ShardSetError`): the companion it is given and
+every name its listings return, in the companion and in each `<k>/`,
+before anything listed is filtered or listed further. A directory
+`1#tag/` would otherwise list as the absent `1/` and be dropped as empty.
+A literal `%23` is kept and merges. The same listing check refuses an
+entry that is not a non-empty name directly in the directory listed: S3
+lists `run.shards//x.eval` (and `///`, or `0//x.eval` in a shard) as the
+directory listed itself, which would hide the key from the merge.
 
 **The viewer is not a deleter.** `/log-delete` is unchanged (decision:
 Ransom, 2026-09-24): deleting a merged log in the viewer deletes only that
@@ -1756,10 +1330,9 @@ docs.
 
 Compatibility boundary for ancillary output: Step 1 does not merge
 per-shard scan results or checkpoints. Scan rows written by workers stay in
-their `<k>/scans/` until the companion is deleted, which deletes them with
-the checkpoint directories; an `eval_set()` with scanners over the parent
-directory looks under `<dir>/scans/` and scans the merged log's samples
-there again.
+their `<k>/scans/` until the companion is removed; an `eval_set()` with
+scanners over the parent directory looks under `<dir>/scans/` and scans
+the merged log's samples there again.
 
 #### Cancellation and concurrency
 
@@ -1767,19 +1340,15 @@ there again.
   untouched; temp files are closed in `finally`, and the local lock is
   removed in `finally`. Cancellation during publication is covered under
   "Overlap guards".
-- Every worker thread the merge and its deletion start goes through one
-  helper, `run_owned` (`_owned.py`; decision: Ransom, 2026-11-02): the
-  local atomic replace, the local recursive delete, the S3 bulk delete,
-  the merged-log unlink of `include_log` (local, and on S3 under Trio,
-  where it is a boto3 call; asyncio keeps the shared asynchronous
-  `delete_file` request), the reads of the carried
-  merged log, the writes of the temporary zip and, on Trio, the S3
-  listing that checks for remnants. AnyIO's `to_thread`
+- Every worker thread the merge starts goes through one helper,
+  `run_owned` (`_owned.py`; decision: Ransom, 2026-11-02): the local
+  atomic replace, the reads of the carried merged log and the writes of
+  the temporary zip. AnyIO's `to_thread`
   holds off cancel-scope cancellation until its thread finishes, but a
   directly cancelled asyncio task (`Task.cancel()`, a timeout) leaves the
   await while the thread runs on. The merge would then release its lock
   and close its sources under a worker that could overwrite a later
-  merge's log or delete a later operation's objects. When the await
+  merge's log. When the await
   raises, work not yet started never runs, and started work is waited
   for, shielded and through any further cancellations, before the
   exception is re-raised. A cancel scope's cancellation, which
@@ -1815,10 +1384,7 @@ overridden (the parent's test list). The lock sits beside the merged log
 rather than in the companion so that the companion holds only shard files
 (parent: nothing else is written into `<name>.shards/`); its extension
 keeps it out of every log listing (`_filter_log_files` keys on extensions,
-`_file.py:1118`). `delete_shards` runs inside the merge pass and so under
-this lock; retry cleanup does not take it (its callers are covered by the
-"only one operating on that log" contract in "Deleting shards"). The lock
-does not cover a viewer edit of the merged log
+`_file.py:1118`). The lock does not cover a viewer edit of the merged log
 made during a merge; the merge's `os.replace` wins. S3's `IfMatch` does
 catch that case.
 
@@ -1868,7 +1434,7 @@ async def write_file_conditional(
   `WriteConflictError`; the multipart upload is aborted. Under `if_match`, a
   missing object (the pre-check's 404, or S3's 404 or 412 on the final
   call) is also a conflict: that is how a merge that read `E0` is refused
-  after retry cleanup removed the merged log ("Deleting shards", step 3).
+  after retry cleanup removed the merged log (PR 9).
 - **The final call is sent once.** Both shared clients are created with
   `retries={"max_attempts": 10, "mode": "adaptive"}`
   (`asyncfiles.py:1057`, `:1141`), and the SDK retries a `500` on its own
@@ -1998,12 +1564,12 @@ never scans the directory.
    | Invalid shard set: mismatched identifier, scorers, metrics, dataset size, epochs, reducer or format version; overlapping shard selections; a shard with no recorded selection or holding samples outside it (a `SampleSource` task); a shard whose selection changed across attempts; a shard holding samples a drain or cancel left unresolved; a shard directory not named with digits; an attempt file name with a backslash; an entry the listing would hide (a key with an empty path component); stray files; chunked-shape samples | `ShardSetError` | fix the shards named in the message (remove or move the offending files; for a changed selection, move the new attempt to its own `<k>/` or delete `<name>.eval`), then re-run |
    | The eval set's selection is narrower than what the shards hold | `ShardSelectionError` | the message says the selection is narrower than the shards and lists up to ten held ids outside it with the total; widen `sample_id` or `limit` to include every sharded sample (or drop the selection for the whole dataset), or remove the task from the eval set, or move `<name>.eval` and `<name>.shards/` out of the log directory; if the ids are not ones the run should hold, remove the shard named as holding them; then re-run |
    | Merged log does not match its ledger (its samples were changed outside the merge) | `ShardSetError` | delete `<name>.eval` so the next merge rebuilds it from the shards, then re-run |
-   | Vanished shard (shard files deleted after they were merged, for example an interrupted `delete_shards`) | `ShardSetError` | finish the deletion (`inspect log merge-shards <name>.eval --delete-shards`, or delete `<name>.shards/` by hand) or restore the files, then re-run |
+   | Vanished shard (shard files deleted by hand after they were merged) | `ShardSetError` | delete the rest of `<name>.shards/` by hand, or restore the files, then re-run |
    | Attempt regression (a shard's current attempt deleted by hand while an older attempt was kept) | `ShardSetError` | restore the deleted attempt; or delete `<name>.shards/` by hand to keep the merged log as it is; or delete `<name>.eval` to rebuild it from the attempts now present; then re-run |
    | An ordinary `<name>.eval` (no `eval.shards` field) where the merged log belongs | `ShardSetError` | move or rename that log, or the companion, then re-run |
    | Local merge lock held (`<name>.merge.lock`), including one left by a crashed merge | `WriteConflictError` | wait for the other merge to finish and re-run; if no merge is running (the lock's `pid`/`host` shown in the message), delete the lock file and re-run |
    | Lost S3 publish race (another merge published first, or the merged log changed during the pass) | `WriteConflictError` | re-run once the other merge has finished; the merge is idempotent |
-   | Anything else (a storage or transport error, a metric the merge cannot resolve) | the original exception | the cause is in the message and the chained exception; fix it and re-run |
+   | Anything else (a storage or transport error) | the original exception | the cause is in the message and the chained exception; fix it and re-run |
 6. If any merge wrote, list again; otherwise reuse the listing.
 
 **Shard skip before header reads.** `list_all_eval_logs` gains
@@ -2037,7 +1603,10 @@ a `started` merged log (which has no buffer; the startup merge has already
 brought it up to date). The retry then seeds from the merged log and re-runs
 the missing samples as an ordinary unsharded log (parent).
 
-**Retry cleanup.** In `latest_completed_task_eval_logs`, for each `task_id`
+**Retry cleanup.** Its removal of merged logs with their companions
+(`remove_shards_dir` below) belongs to the shard-deletion PR (PR 9,
+"Implementation plan"), which designs one deletion rule; this paragraph is
+revised with it. In `latest_completed_task_eval_logs`, for each `task_id`
 group, with `M` the logs carrying `eval.shards` and `U` the rest. Today's
 rule, since UKGovernmentBEIS/inspect_ai#5396, removes a non-latest
 `started` log only when its `eval.run_id` is in `owned_run_ids` and its
@@ -2046,8 +1615,8 @@ merged log: its `run_id` is minted by the merge ("Building the merged
 log"), never by an `eval()` call, so it is never owned, and a `started`
 merged log would never be removed. It also has no sample buffer (the merge
 writes finished logs, with no `_journal/`), and no process writes it
-except a merge, which the "only one operating on that log" contract
-("Deleting shards") excludes during cleanup. So `M` has its own rule:
+except a merge, which the deletion contract (PR 9) excludes during
+cleanup. So `M` has its own rule:
 
 - **`M` non-empty and some log in `U` is `success`** (an unsharded retry
   of a merged log succeeded): the latest log is chosen from `U` alone, by
@@ -2062,7 +1631,7 @@ except a merge, which the "only one operating on that log" contract
   non-`started` log, and a `started` one only when this process ran it and
   its buffer has shut down, with its buffers. One exception: unless every
   log of `M` was removed completely (the merged log and its whole
-  companion, "Deleting shards"), the newest `success` log in `U` is kept
+  companion, PR 9), the newest `success` log in `U` is kept
   even when it is not the latest. It
   is the evidence that `M` is superseded; without it, the next
   classification would fall into the branch below, pick `M` (or a merged
@@ -2073,7 +1642,7 @@ except a merge, which the "only one operating on that log" contract
   `started` merged log, never owned, is kept; a removed non-latest merged
   log (any other status) goes through `remove_shards_dir(...,
   include_log=True)` instead of `fs.rm`.
-- A `remove_shards_dir` failure (a failed delete; "Deleting shards") logs a
+- A `remove_shards_dir` failure (a failed delete; PR 9) logs a
   warning naming the companion and the error and asking the user to delete
   it, and stops
   cleanup of that task group for the rest of the `eval_set()` call: the
@@ -2180,7 +1749,7 @@ The shard-set rules, one implementation for both consumers:
   directory whose name starts with `.`, and a `.json` log in a `<k>/`. The
   walk never raises for them. It raises `ShardSetError` for the companion
   or any listed name on S3 that S3 would read as another key
-  (`check_s3_location`, "Deleting shards"), and for a listed entry that is
+  (`check_s3_location`, "Removing shards"), and for a listed entry that is
   not a non-empty name directly in the directory listed; ctl reports both
   as a `storage_error`. Local and S3 listings keep each entry's raw name,
   so the walk checks the names returned; other fsspec backends (which ctl
@@ -2233,8 +1802,8 @@ Ransom, 2026-10-05). A log in a shard's ancillary directory (for example
 companion, is not a shard path, so no consumer drops it unreported:
 eval-set keeps it in pairing and header reads, ctl log-dir mode lists it as
 an ordinary log by descending `unlisted_dirs` (its "Walking the
-directory") and the merge ignores it. Deleting the enclosing companion
-deletes it with everything else ("Deleting shards"). A companion nested in
+directory") and the merge ignores it. Removing the enclosing companion
+removes it with everything else. A companion nested in
 an ancillary directory follows
 the same rule: from a root above the outer companion its logs are
 ordinary logs, and from a root that is the outer companion or a directory
@@ -2287,22 +1856,23 @@ PR 2. Neither depends on the merge.
   deletion marker, recorded object identities, a `detached` header state,
   resumption rules and a per-object viewer authorization cascade; each
   round's review found new races in that machinery. Rejected (Ransom,
-  2026-09-24): Step 1 makes no viewer changes and keeps deletion simple
-  (only after a verified merge, no concurrent operation on the same log,
-  finish by re-running or by hand). The vanished-shard
-  refusal in "Validation" is what keeps an interrupted `delete_shards` from
-  being merged over the complete log without any of that state.
+  2026-09-24): Step 1 makes no viewer changes.
 - **Merge scan results and checkpoints into the merged log's locations.**
   Would keep worker scan rows and checkpoints once the companion is
   deleted, but it is a new relocation feature with its own compatibility
   rules (Scout's scan directory layout, checkpoint retention); Step 1
-  deletes them with the companion instead ("Deleting shards").
-- **Delete only shard attempts and buffers, in two ordered phases, keeping
-  checkpoint directories and refusing scan results and any other object**
-  (this document's revisions from 2026-10-09 to 2026-10-13; decision:
-  Ransom, 2026-10-09). Replaced (Ransom, 2026-10-21): each review round
-  found new edge cases in classifying the companion's objects, and nothing
-  needs them after a verified complete merge.
+  leaves them in the companion, which the user removes.
+- **Delete shards in the merge** (`delete_shards`, revisions up to
+  2026-11-02). Removed (Ransom, 2026-11-03): every guard the deletion
+  needed (verification of the published log, retained reductions,
+  remnant classification, S3 markers and glob characters) had another way
+  past it. The merge reads and writes; deletion is its own PR after PR 6.
+- **Rebuild metrics, reducers and scorers from what the log records**
+  (revisions up to 2026-11-02: registry lookups, an allowlist of metric
+  option annotations, enum restoration, and epoch reductions carried from
+  the shards). Removed (Ransom, 2026-11-03): the log records options
+  lossily, and each guard on the rebuilt code had another way past it.
+  The caller passes the task ("Matching the task").
 - **Restart the pass on a torn shard read**, up to three times, with an
   `is_torn_read` predicate shared with ctl log-dir mode (revisions up to
   2026-10-13). Removed (Ransom, 2026-10-21): the restart crossed task-group
@@ -2385,33 +1955,22 @@ today.
   the ordinary finished `.eval` members. Shard headers are unchanged.
   The merged header's only per-sample data is what an ordinary header
   carries (`dataset.sample_ids`; `config.sample_id` is left unset).
-- **Storage.** The merge, with or without deletion, supports local
+- **Storage.** The merge supports local
   paths, `file://` URIs and `s3://` URLs and refuses other storage before
   any I/O (a known limitation, decision: Ransom, 2026-10-30). Workers can
   still write shards elsewhere, and ctl's read-only discovery lists them;
   merging them needs support for that backend in its own change.
-- **Metrics given a function as an option** (`mean(to_float=...)`,
-  `aggregate(..., to_float=...)`) are refused by the merge, because the
-  log records only the function's name (a known limitation, decision:
-  Ransom, 2026-10-30); a registered metric that creates the function
-  inside its factory merges. Any option merges only when its parameter's
-  annotation resolves to `str`, `int`, `float`, `bool`, a `Literal` of
-  those, a single enum, lists of those, `Metric` or `list[Metric]`
-  (optionally with `None`); other annotations (callable types and
-  classes, generics, type aliases, `Any`, `Hashable`, ...) and
-  unannotated or unresolvable parameters are refused (decision: Ransom,
-  2026-11-03). Enum
-  options reach the recreated metric as members; an enum in a union with
-  other types and a `Literal` of enum members are refused. A list option
-  merges only when its parameter is annotated with plain element types.
-  No dictionary option is accepted except a single registered metric,
-  alone or in a `list[Metric]`, where the parameter takes one: a
-  `dict[str, float]` option, a `dict[str, Metric]` option, ANIMA's
-  `dict[str, AnimaDimension]`, lists of enums, functions or models,
-  tuples and unannotated containers are refused. The
-  `@metric` wrapper now sets
-  `__wrapped__`, so `inspect.signature()` of a metric factory reports the
-  factory's parameters instead of `(*args, **kwargs)`.
+- **The task.** The merge computes results with the task the caller
+  passes (`task`, `--task`), and refuses one whose name, scorer names,
+  metric names, number of epochs or epoch reducer names differ from what
+  the shards recorded; options are not compared, so passing the task the
+  shards ran is the caller's responsibility (decision: Ransom,
+  2026-11-03). A CLI spec is loaded with the shards' recorded task
+  arguments and has no `-T` override.
+- **No deletion.** The merge never deletes shards; the user removes
+  `<name>.shards/` by hand once the merged log is checked. `score()`,
+  `recompute_metrics()` and `edit_score()` are unchanged and treat a
+  merged log like any other log.
 - **Stored form.** Merged metrics see samples, scores and metadata as the
   log stores them, as JSON (decisions: Ransom, 2026-10-29 and
   2026-11-02); types the log does not keep (tuples, datetimes, enums,
@@ -2449,9 +2008,8 @@ today.
   and stray files only; a log nested deeper in a companion is listed and
   read as today), merged
   logs classified by their status and recorded selection, not recovered, and, once an
-  unsharded retry succeeds, never chosen as latest and removed with their
-  whole companions (including a `started` merged log, which no run owns),
-  checkpoint directories and scan results included. Ordering among
+  unsharded retry succeeds, never chosen as latest (their removal with
+  their companions comes with PR 9). Ordering among
   unsharded attempts and the
   `owned_run_ids` rule for unsharded `started` logs are unchanged. A
   directory whose companion the startup merge refuses (for any reason,
@@ -2461,8 +2019,8 @@ today.
   cause and the next step, before any task runs. Today an eval set whose
   `sample_id` names only other tasks treats such a task as complete.
 - **Scan results and checkpoints written by workers** stay in their
-  `<k>/` until the companion is deleted, which deletes them; Step 1 neither
-  merges nor relocates them, and an eval set with scanners over the parent
+  `<k>/` until the companion is removed; Step 1 neither merges nor
+  relocates them, and an eval set with scanners over the parent
   directory scans the merged log's samples again under `<dir>/scans/`.
 - **The merged log's `task_id`** is the id in `<name>`'s `{id}` slot when
   the file name pattern lets it be read back, else derived from `<name>`;
@@ -2484,9 +2042,6 @@ today.
   startup merge rebuilds the merged log. To remove a sharded run for
   good, delete the companion directory as well. The sharding docs (PR 5)
   say so.
-- **Deletion guarantees.** `delete_shards` and retry cleanup assume they
-  are the only operation on that log; an interrupted deletion reports what
-  is left and is finished by re-running or by hand ("Deleting shards").
 - **`AsyncFilesystem`.** New `get_file_if_match` and
   `write_file_conditional`, and a second, non-retrying S3 client used
   only by the conditional final call; existing
@@ -2511,24 +2066,17 @@ today.
   selection) refuses a stray or
   hostile file rather than skipping it; a merge never overwrites a
   `<name>.eval` without the field.
-- **Code execution.** The merge never imports the header's `task_file`:
-  metrics come from the registry, and an unregistered one is refused
-  ("Trust" under "Python API"); epoch reducers are never recreated.
-  Metric code that is registered runs, as in any recomputation. The merge runs only in
+- **Code execution.** The merge runs the task the caller passes, loading
+  a spec as `inspect eval` does, and never loads code a log names: no
+  metric, reducer or scorer is rebuilt from the log, and a score key that
+  names a file is refused rather than loaded ("Results"). The merge runs only in
   trusted steps (API, CLI, `eval_set()` startup). No reader path (viewer
   server, `read_eval_log*`, dataframes, ctl log-dir mode) calls it.
 - **Viewer.** No change to the viewer server; its delete endpoint still
   authorizes and deletes only the requested file, so the new companion
   layout widens nothing it can delete.
-- **Destructive cleanup.** Only trusted Python steps delete companions
-  (`delete_shards`, retry cleanup), and only after a verified merge or a
-  superseding unsharded `success` log. Both delete the whole companion
-  (a local recursive delete does not follow symbolic links, so it deletes
-  nothing outside the directory). They assume no
-  concurrent operation on the same log; with one, a file written during the
-  deletion may be deleted or left, which is a correctness limit, not an
-  access-control boundary (anyone able to write into the companion can
-  already delete it).
+- **No deletion.** The merge deletes nothing; companion removal through
+  Inspect is designed in PR 9.
 - **Resource use.** A hostile shard can make a merge expensive (huge
   samples, many keys), as the same files make `read_eval_log` expensive
   today. The scale PRs bound memory by the largest sample's metric inputs
@@ -2610,423 +2158,86 @@ Per PR (numbers from "Implementation plan"):
    after an exception and after cancellation.
 5. **Merge core, API and CLI.** `tests/log/test_shards.py`, local and
    `mock_s3`:
-   - arguments: `<name>-recovered.eval` raises `ValueError` naming
-     `<name>.eval` and the companion, reads nothing and writes no second
-     merged log (with and without `<name>.eval` present); `sample_ids=[]`
-     and `sample_count=0` raise `ValueError`;
-   - complete merges: shards from `--sample-id` subsets and from `limit`
-     ranges; recomputed metrics equal an unsharded run's for a built-in
-     metric and for a custom metric reading `answer` and `sample_metadata`,
-     with epochs and a reducer;
-   - status: running shards give `started`; an `error` and a `cancelled`
-     shard give `error` with the message in the ledger and the first as the
-     log's error; a rerun in the same `<k>/` clears it; `allow_incomplete`
-     off raises `ShardSetIncomplete` with the missing ids and writes
-     nothing; selection by ids, by count, and absent (whole dataset); a
-     drained `success` shard holding fewer records leaves the set
-     `started`;
-   - shard names: a worker for the last sample in `a/`, `1#tag/` or
-     `prefix\0/` is refused on fresh merges and beside an existing merge,
-     with and without deletion, through local paths, `file://` URIs and
-     `mock_s3`, leaving every file and object byte-identical; a ledger
-     recording a shard twice is refused; `0/` and `00/` with disjoint
-     selections merge;
-   - unresolved samples: a shard whose drain cancelled sample 4 as it
-     started (the native producer of
-     `test_drain_resolution_cancels_materializing_sample`) is refused on a
-     fresh merge, and on a writing incremental merge after a queued drain's
-     `started` merge, with and without deletion, writing nothing and
-     leaving every file byte-identical; with a ledger that holds such an
-     attempt (the check bypassed), an unchanged and an interrupted
-     `delete_shards` refuse before deleting; each refusal also through the
-     async API on Trio (the producer itself runs on asyncio); an errored sample under
-     `fail_on_error=False` and a queued drain still merge;
-   - partial epochs: with two epochs, a running shard holding only `(x, 1)`
-     is recorded with exactly that key (`samples: 1`), and after another
-     shard changes the next pass still holds `(x, 1)` only and stays
-     `started`; two shards selecting one id are refused; fresh and
-     incremental merges make the same completeness decisions and, for
-     disjoint selections, the same conflict decisions;
-   - attribution: the recorded selection round-trips in all three forms
-     (`selection` `"ids"` with `dataset.sample_ids`, `"count"` with
-     `sample_count`, `"none"`), and a later pass without a selection reads
-     it back; the digest is independent of id order and of `1` versus
-     `"1"`; a merged header of a 3-epoch, 100-sample set holds no
-     per-sample list other than `dataset.sample_ids`: `config.sample_id` is
-     unset, and its `header.json` is no larger than an unsharded log's of
-     the same selection plus a per-shard bound; `eval_retry` of an incomplete
-     merged log with `selection` `"ids"` (including one whose template shard
-     used `limit` and `sample_shuffle`) and with `"count"` raises
-     `ValueError` naming the log and runs no sample, while one with
-     `"none"` retries the missing samples and reuses the merged records; an
-     ordinary retry of a `--sample-id` pattern log and of a shuffled log
-     behaves as before; a new attempt in `<k>/` with a
-     different `--sample-id` is refused with both files named, and deleting
-     `<name>.eval` then merges it; a new shard whose selection meets a
-     carried record is refused; a changed shard whose merged records were
-     reduced by hand (a member removed from the merged log) is refused, as
-     is a pass over unchanged shards after the same edit; a shard of a
-     `SampleSource` task that adds a sample is refused once it holds the
-     added sample, and a shard header without `sample_ids` is refused;
-     overlapping selections where neither shard holds the shared id yet
-     are accepted incrementally and refused when the overlapped shard
-     next changes, while a fresh merge refuses them at once;
-   - validation: identifier, scorer, metric, dataset-size, epochs, reducer
-     and format-version mismatches (a scorer change that keeps the
-     identifier included), overlapping selections, a held id outside the
-     selection (`ShardSelectionError` with `outside` listing exactly those
-     ids, and a message saying the selection is narrower than the shards;
-     with a count smaller than the distinct held ids, `outside` is `None`),
-     a chunked-shape sample, a slash-containing id
-     (`group/item`, a monolith, accepted), stray files, and an existing
-     ordinary `<name>.eval`, each refused (or accepted) with nothing
-     written on refusal;
-   - incremental: when a shard grows, every key its current attempt holds
-     is taken from the shard again, its earlier samples included (a spy on
-     member reads shows them read from the shard, not the merged log),
-     while the other shards' records are carried; the merged log gains the
-     new samples, and a sample rewritten in the shard (an `edit_score` on
-     the shard) replaces the merged copy; an unchanged
-     shard is not opened (a spy on `AsyncZipReader` construction); a pass
-     over unchanged shards writes nothing and returns `written=False`; a
-     new attempt in `<k>/` replaces `<k>`'s samples and drops ones it
-     lacks; a deleted `<k>/` is refused as a vanished shard while removing
-     the whole companion returns the existing header unchanged; an added
-     shard returns a
-     `success` log to `started`; `eval_id`, `run_id` and `task_id` are
-     stable across passes;
-   - attempt-less `<k>/` directories: a companion whose first `<k>/` in
-     shard order holds only `scans/`, another only `.buffer/` objects and
-     another only a `<shard>.checkpoints/`, before and between shards with
-     attempts: the merge ignores them (no ledger entry, no effect on the
-     status), the template and `ledger[0].shard` are the first shard with
-     an attempt, and a fresh merge and an incremental one (the
-     attempt-less directories added after the first pass) write the same
-     header; when one of them later gains an attempt it is a new shard,
-     becomes the template if it sorts first, and the header again equals
-     a fresh merge's;
-   - `task_id`: under the default pattern and `{task}_{model}_{id}`, the
-     merged log's `task_id` is the id in `<name>`; under
-     `INSPECT_EVAL_LOG_FILE_PATTERN` set to `{task}` (a two-part name,
-     parsed id `""`), `{id}_{task}` (parsed id the task name) and
-     `{model}_{task}` (no `{id}`, parsed id the task name), it is
-     `shortuuid.uuid(name=<name>)`: non-empty, different for two runs in
-     one directory, and the same after `<name>.eval` is deleted and rebuilt
-     from the companion under the same pattern; `merged_log_task_id` is
-     tested directly for each pattern in
-     `tests/log/test_log_filename.py`; header edits (`tags`) survive a pass;
-   - writers: `recompute_metrics`, `score_async` (overwrite and append),
-     `edit_score` and the `inspect score` CLI path (streamed, overwriting)
-     refuse a merged log read while its shards exist, leaving the merged
-     log and shards byte-identical, and succeed on the same log after a
-     merge with `delete_shards=True`; ordinary logs are not affected; the
-     refusal of an incomplete merged log says to re-run the incomplete
-     shards or delete the shards directory; `edit_score` and the CLI path
-     check once; `recompute_metrics` and `edit_score` (also with
-     `recompute_metrics=False`) propagate a denied inspection of the shards
-     directory and leave the log unchanged, and on `mock_s3` under a
-     configured Trio backend refuse while the shards exist and succeed
-     after a merge with `delete_shards=True`; with a location of
-     `~/logs/<name>.eval` (a directory named `~`), `./~/...` or an
-     absolute path, and shards that are files or a lone directory link,
-     the sync and async writers and the async guard on asyncio and Trio
-     refuse and leave the log, its reductions and the files unchanged;
-   - scorer identity: an unreduced metric counting the raw scores whose
-     `scorer` is the declared scorer gives the unsharded run's value in
-     fresh and incremental merges, with a configured reducer and with
-     reduction disabled (`Epochs(2, [])`); a scorer declared twice is
-     refused with nothing written or deleted;
-   - metric metadata: a solver that changes the metadata a grouped
-     (reduced view) and an unreduced metric read gives the unsharded run's
-     results, with fresh shards and with a shard finished by `eval_retry`
-     reusing samples; a sample with a declared score and no
-     `SampleInitEvent` is refused with nothing written or deleted;
-   - fresh equals incremental: after replacing one shard's attempt, after
-     adding a shard whose name sorts before the template shard (so the
-     template changes), and after a sequence where shard A fails,
-     then B fails, then A recovers, the incremental header equals a fresh
-     merge's (`stats` with distinct per-shard usage, `error` with full
-     traceback fields, `eval_set_id`, template fields, results, ledger
-     counts and digests) and the member lists are equal;
-   - no-write paths keep the contract: after an `allow_incomplete=True`
-     merge, an unchanged call without it raises `ShardSetIncomplete`; after
-     a `success` merge that kept shards, an unchanged call with
-     `delete_shards=True` verifies and deletes; with the companion gone, a
-     different selection raises `ShardSetError` and an equal one returns the
-     header; each also through the CLI;
-   - S3 cost: an unchanged pass over a large merged log reads only its
-     suffix and `header.json` (a botocore hook counts `GetObject` ranges and
-     bytes) and holds no more memory than a small one; a writing pass
-     downloads it in bounded ranges;
-   - overlap: two first merges started together yield one merged log and
-     one `eval_id`, the other refused (local lock; S3 `IfNoneMatch`); a
-     merge whose shard snapshot is older publishing after a newer one is
-     refused (S3 `IfMatch`; locally blocked by the lock) and a re-run then
-     merges cleanly; a stale lock file is reported;
-   - shard read failures: a CRC error in a concurrent header read, an S3
-     `InvalidRange` in a sample read and an `AccessDenied` `ClientError`
-     each fail the merge with the very exception raised, after one read,
-     and write nothing; a shard member that passes its CRC but fails
-     validation fails at once;
-   - `delete_shards`: after a verified `success` publish it deletes the
-     whole companion (superseded and current attempts, a buffer, a
-     checkpoint directory, scan results, a file directly in the companion
-     and a log below a dot-directory) and returns `shards_deleted` true; a
-     following merge returns the merged log unchanged (`written` false); a
-     verification failure leaves the shards; combined with
-     `allow_incomplete` it is a `ValueError`; local names with reserved
-     characters are deleted by their exact path, and neighbours with the
-     decoded names are kept; on `mock_s3`, an S3 log whose name or parent
-     holds `*` or `[` is refused by `delete_shards` and by
-     `remove_shards_dir` (with `include_log`), and every neighbouring
-     companion and log the glob would match is kept; a merge argument with `#` in
-     its name, its `.shards` form or a parent, `?` in its name, or a
-     leading key slash is refused with and without deletion while a shard
-     set at the key S3 would read and the intended companion stay
-     byte-identical; a shard directory or attempt with `#` is refused with
-     deletion enabled, the decoy object S3 would read included; a real
-     worker at `1#tag/worker.eval` or `1?tag/worker.eval`, with no decoy at
-     `1/`, is refused by an unchanged merge selected for the other shard's
-     samples and by a fresh merge with that selection, deletion enabled,
-     every object and the merged log byte-identical (asyncio and Trio);
-     a real worker at `run.shards//`, `run.shards///` or `0//` (an empty
-     path component) is refused the same way, with and without deletion,
-     beside an unchanged merge and on a fresh one, under asyncio and Trio,
-     while ordinary folder markers and an attempt named with a literal
-     `%23` still merge; a qualified `webhdfs://user@host:port/` shard
-     set (only the name node's answer faked) lists its shards, attempts and
-     ancillary files at both depths through ctl's walk and
-     `list_shard_set`, keeping the qualified URL, and an empty component
-     at either depth is refused there (asyncio and Trio); a merge of an
-     `az://`, `abfs://`, `abfss://`, `gs://`, `webhdfs://`, `memory://`,
-     `hdfs://`, `sftp://`, `data:`, `file:/`, `local:/` or
-     `simplecache::s3://` location, or a
-     `file://` URI whose decoded path is a `::` chain, as the merged log
-     or its `.shards` form, is refused with `ValueError` through
-     `merge_eval_log_shards_async` (asyncio and Trio), the sync API,
-     `remove_shards_dir` (with and without `include_log`) and
-     `inspect log merge-shards --json`, with and without deletion, while
-     every fsspec filesystem constructor and `AsyncFilesystem` raise, and a
-     `memory://` shard set stays intact; the entry check returns a
-     `file://` URI's decoded path (encoded spaces, a literal `%2D`, an
-     encoded colon) and leaves plain paths with colons, drive letters and
-     literal percent sequences as given, and refuses a relative path with
-     a colon in its first component; `file:/<abs>` and `local:/<abs>`
-     refuse merging and deletion (with and without `include_log`) with a
-     relative shadow tree of that name and the intended tree both kept;
-     two dated attempts of shard 0 named by the
-     pattern `{task}\worker` are refused on a fresh merge, beside a merge
-     of the newer one and after that one is removed, with and without
-     deletion, through a path, a `file://` URI and `mock_s3`, everything
-     byte-identical, and a merged log whose ledger records an attempt name
-     with a backslash is refused;
-     ctl log-dir mode reports such a name as a `storage_error`; the sync
-     and async writer guards (asyncio and Trio) and `recompute_metrics`,
-     `edit_score` (with and without recomputation) and `score` refuse a
-     merged log located at a `#` name, leaving it and S3 unchanged, while a
-     literal `%23` name merges and its guard reports the live shards;
-   - interrupted `delete_shards`: locally, a companion left with an older
-     attempt in one `<k>/` (its recorded attempt deleted) and only a
-     checkpoint directory in another: an ordinary merge refuses (attempt
-     regression), a re-run with a different selection is refused, and a
-     re-run with `delete_shards=True` deletes the rest, leaving the merged
-     log byte-identical; a new attempt beside a vanished shard makes the
-     re-run refuse rather than delete; a vanished shard under a `started`
-     merged log is refused even with `delete_shards=True`. On `mock_s3` a
-     storage hook fails the recursive delete; the call raises that error
-     and a re-run finishes; a delete that returns normally but leaves an
-     object (as s3fs does on a per-object error) raises `ShardSetError`,
-     and a re-run finishes;
-   - a merge that read the merged log before a retry-cleanup removal
-     deleted it has its conditional publish refused (`WriteConflictError`),
-     on `mock_s3` with a pause between the read and the publish;
-   - trust: an unregistered scorer metric, an unregistered metric
-     wrapped in `grouped()` (and, at unit level, nested in
-     `grouped(aggregate(...))`) each raise `LookupError` naming
-     it, write nothing and import nothing; the same merge succeeds once
-     the module that defines it is imported; a task's own
-     `@metric(name="mean")`, when not imported, is refused with
-     `delete_shards=True` on fresh and writing incremental merges (files
-     byte-identical) and merges to its own value once imported, while a
-     built-in (`inspect_ai/mean`) and a package-qualified metric merge to
-     an unsharded run's results; solver-set score names that
-     are a file-qualified scorer spec or an existing file, beside a
-     declared scorer, are refused and import no file; declared scorers
-     whose names collide with a per-key result name (`parts` reporting
-     `other`, then `other`) merge to the same results as an unsharded
-     run, with deletion enabled;
-   - function options: `mean(to_float=value_to_float(correct=2))`,
-     `aggregate(..., to_float=value_to_float())`,
-     `grouped(aggregate(..., mean(to_float=...)))` and a keyed
-     `{"verdict": [accuracy(to_float=...)]}` are refused on fresh and
-     writing incremental merges, with and without deletion, on asyncio
-     and Trio, with every file byte-identical; default converters, nested
-     wrappers with default converters, string and scalar options
-     (`grouped(group_key=...)`, `krippendorff_alpha(level=...)`) and a
-     registered metric that creates its converter merge to an unsharded
-     run's values; a class metric whose constructor takes a converter,
-     direct and inside `grouped()`, is refused the same way over unscored
-     samples (where the failure would otherwise become NaN and publish),
-     while a class metric with a string option merges; inherited
-     `__init__`, `__new__` and dataclass constructors are refused at unit
-     level; a string given to an unannotated parameter, and a converter
-     on a factory whose postponed return annotation does not resolve, are
-     refused the same way over unscored samples; at unit level, an
-     unresolvable or unannotated parameter, a `**kwargs` option and `Any`
-     are refused, `str`, `str | None`, a `Literal` and an enum are
-     accepted, and an unresolvable sibling or return annotation, on a
-     function and on a class constructor, direct and embedded, neither
-     disables nor triggers the check; a `Hashable` option given `len` is
-     refused over scored samples, and `Any`, `object`, `Hashable`,
-     `Hashable | None`, `Annotated[Hashable, ...]` and `list[str]` at unit
-     level; callable `int` and `float` subclasses, parameterized callable
-     classes and type aliases of `ValueToFloat` and of an `IntEnum`, direct
-     and inside `grouped()`, are refused on fresh and writing incremental
-     merges, and so are a function given for `str | ValueToFloat`, in a
-     list of that union, nested in lists and inside `grouped()`, and an
-     empty `list[ValueToFloat]`; a `None` in a list of metrics and a
-     `list[Metric | None]` or `list[list[Metric] | None]` annotation
-     (`[mean(), None]`, `[None]`, nested, inside `grouped()`) are refused
-     the same way; lists with `None` elements (direct,
-     nested, a `None` list node and inside `grouped()`) merge to the
-     native values; at unit level each accepted annotation shape takes a value
-     of its type, and each other form (callable, generic, alias,
-     `Annotated` of an unlisted type, `Any`, `object`, tuple, set, a value
-     of the wrong type, an enum union, an enum `Literal`) is refused;
-     quoted postponed annotations (`"'str'"`, on a function and a
-     constructor) are accepted, with a public control merging to the
-     native value; enum options (a plain `Enum` by name, a `str` mixin, an
-     `IntEnum`, an `IntFlag` composite, a plain `Flag` and `None`), direct
-     and inside `grouped()`, merge to the native value with deletion, and
-     restore to members of the right type at unit level, while a value
-     that is not a member and an enum in a union with `str` are refused;
-     with a configured reducer and an enum option read as `mode.value`,
-     direct and inside `grouped()`, a merge without deletion followed by
-     an unchanged or interrupted `delete_shards=True` pass writes nothing,
-     keeps the merged bytes and results and deletes the shards, on
-     asyncio and Trio; a source check keeps `resolve_scorers_info` to the
-     one call in `recreate_scorers`; enum lists, nested enum
-     dictionaries, enum tuples and a `grouped()` enum-list metric over
-     scored samples, and converter lists, dictionaries and tuples over
-     unscored samples, and an unannotated list, are refused on fresh and
-     writing incremental merges with and without deletion, on asyncio
-     and Trio, with every file byte-identical, as are registry-shaped
-     plain data (direct, inside a mixed list and inside `grouped()`),
-     model-shaped plain data and a plain `dict[str, float]` option, while
-     `list[str]` options (MLRC-style), `frequency(categories=...)` and a
-     list of registered metrics merge to the native values;
-     registered metrics in `dict[str, Metric]` (ordinary keys, and the
-     `ModelDict` keys `model`, `config`, `base_url` and `model_args`
-     directly, in a list and inside `grouped()`), `dict[int, Metric]`,
-     nested `dict[str, dict[int, Metric]]` and `tuple[Metric, ...]`
-     options (direct and inside `grouped()`), and `Literal`s of
-     `IntEnum`, `IntFlag` (inside `Annotated`) and `float`-mixin enum
-     members (direct and inside `grouped()`), are refused the same way,
-     while a single `Metric` argument (with arguments named `type`,
-     `name` and `params`, directly, inside `grouped()` and in a
-     `list[Metric]`), empty metric lists (`list[Metric]` given `[]`,
-     `Sequence[list[Metric]]` given `[[]]` and `[[], [metric]]`, and
-     `grouped()` around an empty list) and a numeric `Literal[1, 2]`
-     merge to the native values;
-   - stored form: two samples whose group metadata is the tuple
-     `("a", "b")` and the list `["a", "b"]` form two groups in a native
-     run and one group (0.5) in the merge, while string group metadata
-     merges to the native groups; a tuple `Score.value` (read by an
-     unreduced metric) and a tuple in `Score.metadata` are tuples to
-     native metrics and lists to merged ones, while list controls match
-     the native run;
-   - delete-only S3 identity: `remove_shards_dir` refuses a merged log
-     with `#`, a tab, CR, LF or a leading key slash, with and without
-     `include_log`, on asyncio and Trio, deleting nothing (including the
-     keys S3 would read), while a literal `%23` name deletes exactly its
-     own log and companion;
-   - solver-set scores: with `delete_shards=True`, a solver-set score on a
-     task with no scorer and task metrics, on a task with no scorer whose
-     workers recorded the default `accuracy` and `stderr`, and beside a
-     declared scorer is refused, with no merged log published and the
-     shards intact;
-   - metric order: with ids `[2, 10]` (merge order `"10"`, `"2"`) and a
-     `{"*": [mean()]}` scorer, dictionary scores with the same keys in
-     different orders merge, fresh and incrementally, to an unsharded
-     run's value for each key;
-   - epoch reducers: `at_least(1, value=0.5)` with one epoch and with two,
-     `pass_at(2, value=0.5)`, `pass_k(2, value=0.5)` and a `mean` with a
-     value converter, beside a default-reducer control, on a scorer with
-     reduced and unreduced metrics, merge to an unsharded run's results
-     and reductions, fresh and incrementally (the first pass, made while a
-     shard runs, has no results; the next carries the finished shard's
-     reductions from the merged log), with `delete_shards=True`, and two
-     reducers with distinct names; a cold custom reducer registered as
-     `pass_at_1` merges with its recorded reductions; a finished shard
-     without `reductions.json`, a recovered attempt and a score edited in a
-     shard are refused, both with `delete_shards=True` and in an
-     incomplete merge beside a running shard, with no merged log published
-     and the shards intact; two reducers named `at_least_1` are refused
-     with `delete_shards=True`; a score edited in the merged log refuses
-     the next pass that writes, and refuses `delete_shards=True` with no
-     shard changed and on an interrupted deletion's remnant (also one
-     with no attempt left, only a checkpoint and a sample buffer, local
-     and `mock_s3`, asyncio and Trio, where a valid merged log lets the
-     remnant be deleted; locally also only a directory link, whose target
-     is kept, or only empty directories; a companion whose `lstat` fails
-     raises, and a nested directory that cannot be listed refuses or
-     raises, deleting nothing), leaving the
-     merged log and shards byte-identical; on both of those paths a merged
-     `reductions.json` that is absent, empty or partial refuses
-     `delete_shards=True` the same way; an incomplete merge beside a
-     running shard, on a scorer with reduced and unreduced metrics, runs no
-     metric (an unreduced metric that raises when called) and writes no
-     results;
-   - `invalidated`: a fresh merge of an invalidated shard sample sets it, a
-     replacement without the last invalidated sample clears it, and an
-     invalidated replacement in an incremental merge sets it again; each
-     time the merged samples and header agree and `all_evals_succeeded()`
-     follows; a spy
-     asserts no
-     reader path
-     (`read_eval_log`, `list_eval_logs`, `evals_df`) calls the merge;
-   - cancellation mid-pass (after reads, during the build, during the S3
-     upload) leaves the merged log and shards as they were and no temp or
-     lock file behind; run with `--runtrio`;
-   - owned workers: `run_owned` returns its result, propagates a worker's
-     exception, never runs work cancelled before it started, and waits for
-     started work through one or more native cancellations; a local
-     publication paused before its commit and cancelled once or twice
-     returns only after its worker, and a later merge's log stays final;
-     a deletion paused before it mutates (local path, `file://`, S3, and
-     the merged log of `include_log`) and cancelled returns only after its
-     worker, and an object recreated afterwards survives; a cancel scope or
-     deadline that ends during the work is raised after it, also through
-     the `include_log` unlink (local on asyncio and Trio, S3 on Trio) and
-     the final S3 remnant listing on Trio (with empty and nonempty
-     listings as controls); an S3 publication, create and replace,
-     cancelled natively once or repeatedly during its source read keeps
-     the source open until the read finishes, then raises (an uncancelled
-     and a scope-cancelled publication as controls); `OwnedReads` refuses
-     a read after release; no module outside `_owned.py` dispatches a
-     thread;
-   `tests/cli/test_log.py`: `merge-shards` on a merged log and on a
-   companion; `--sample-id` and `--sample-count`, and the usage error for
-   both; `--delete-shards`; a `-recovered` `LOG` and a directory `LOG`
-   refused with exit 1; exit codes; `--json` on success, and its error
-   object for each failure the command handles (usage error, missing log,
-   `-recovered` name, incomplete set, held lock, stray log, unregistered
-   metric) and for an unexpected error (`PermissionError`, `ImportError`,
-   `KeyError`: traceback on stderr; propagated without `--json`), a
-   `PrerequisiteError` (message on stderr), a startup error (from common
-   options or platform initialization) and, in a fresh process, a missing
-   required hook; with a metric that prints, success and a metric failure:
-   `--json` stdout parses and the output is on stderr, also in a real
-   subprocess whose metric writes through the C library's buffered
-   `printf`. `mock_s3` deletion
-   removes directory markers, including a marker-only remnant and on a
-   repeated call; a delete that leaves an object, the root marker, a
-   shard's marker or a nested checkpoint marker (silently, or reported as
-   a `DeleteObjects` error) raises with the merged log intact, and a
-   re-run finishes; a `<name>.shards-other/` sibling is not a remnant; the
-   deletion succeeds with `INSPECT_ASYNC_BACKEND=trio` set inside a Trio
-   loop; `remove_shards_dir` refuses a location other than local or S3
-   before deleting anything.
+   - arguments: `<name>-recovered.eval` (also percent-encoded, and as a
+     companion name) raises `ValueError`, reads nothing and writes no
+     second merged log; `sample_ids=[]`, `sample_count=0` and both
+     together raise `ValueError`; neither a merged log nor a shard raises
+     `FileNotFoundError`;
+   - results with the caller's task, equal to an unsharded run of the same
+     task and samples: built-in metrics with two epochs and a reducer;
+     configured reducers with options (`at_least(1, value=0.5)`,
+     `pass_at`, `pass_k`, `mean_score(value_to_float=...)` and two
+     reducers), fresh and incremental after a running shard's merge;
+     metrics with options a log records lossily (converters, `grouped()`
+     over a metric with a converter, a class metric with a converter, a
+     dictionary of metrics, enum members, list options), merged on Trio;
+     a scorer declared twice; a per-key result named like a later scorer;
+     dictionary scores whose samples merge in another order; a reducer a
+     task file defines under a built-in shorthand name, through a
+     `file.py@name` spec in a fresh registry;
+   - matching the task: a task with another name, other scorers, other
+     metrics, another number of epochs or another reducer is refused on a
+     fresh, incremental, unchanged and shards-removed merge, on asyncio
+     and Trio, with every file byte-identical; a spec naming two tasks
+     raises `ValueError` and writes nothing;
+   - metric inputs: raw scores keep their declared scorer; declared
+     metrics take the dataset metadata from the `SampleInitEvent`; a
+     sample with scores and no such event is refused; a solver-set score
+     is refused (with and without a declared scorer, with task metrics or
+     the recorded defaults), and a score key naming a file never imports
+     it; metrics see metadata and score values as the log stores them;
+     an incomplete merge holding no scored sample has empty results;
+     `invalidated` follows the merged samples;
+   - status and completeness: `limit` range shards; an incomplete set
+     raises `ShardSetIncomplete` and writes nothing; running, failed and
+     cancelled shards; a drained `success` shard stays `started`; a shard
+     holding a sample a drain cancelled as it started is refused (fresh
+     and incremental, also on Trio), while errored samples and a queued
+     drain merge; a running shard's exact records;
+   - shard names and attempts: non-digit shard directories, backslashes
+     in attempt names and ledgers, a ledger recording a shard twice,
+     attempts that tie as latest, and the S3 forms of each are refused;
+     `0/` and `00/` merge; attempt-less `<k>/` directories are not shards,
+     and one that gains an attempt becomes the template;
+   - selection and attribution: each selection form round-trips; the
+     digest ignores order and id type; the merged header holds no
+     per-sample list other than `dataset.sample_ids`; a new attempt with
+     another selection, a new shard meeting a carried record, a shard
+     holding samples outside its selection or with no recorded selection,
+     overlapping selections, and a merged log changed outside the merge
+     are refused;
+   - incremental: only changed shards are read; a new attempt replaces its
+     shard's records; an added shard returns `success` to `started`;
+     incremental merges equal fresh ones; a removed `<k>/`, also under an
+     incomplete merged log, and a hand-deleted current attempt are
+     refused, while a removed companion keeps the merged log; header
+     edits and the ids minted at the first merge are kept; `task_id`
+     follows the file name pattern;
+   - `eval_retry` refuses an id- or count-selected merged log and retries
+     an unselected one;
+   - storage: every location other than a local path, `file://` URI or
+     `s3://` URL is refused before any filesystem is constructed, on the
+     sync API and the async API on asyncio and Trio; the accepted forms
+     decode once; a relative `name:` path is refused; reserved characters
+     in a `file://` URI and a literal `%23` in S3 names merge; S3 names S3
+     would read as another key are refused;
+   - publication and ownership: a held local lock is reported, and an
+     overlapping local merge refused; a cancelled merge leaves no lock or
+     temp file; a cancelled publish finishes before a later merge; on S3,
+     concurrent first merges publish once, an older snapshot and a merged
+     log removed meanwhile are refused; `run_owned` and `OwnedReads`
+     behave as "Cancellation and concurrency" states, and no module of
+     the merge dispatches a thread outside `_owned.py`; a failed shard
+     read fails the merge with its error, and a sample that does not
+     validate fails it at once;
+   - CLI (`tests/cli/test_log.py`, and the stdout tests in
+     `tests/log/test_shards.py`): `--task` with a `file.py@name` spec,
+     merged log and companion arguments, selections, refused arguments,
+     `--json` success and error objects (incomplete, conflict, stray,
+     unsupported storage, a task that does not match, unexpected,
+     prerequisite and startup errors, a missing required hook), and stdout
+     holding only the object while task or metric code prints, also from
+     native code in a real process.
 6. **Eval-set integration.** `tests/test_eval_set.py`: `log_samples_complete`
    on a `success` merged log is true when its `dataset.sample_ids` equals the
    eval set's selection (for each recorded form: ids, count, neither) and
@@ -3116,7 +2327,7 @@ enforce) is recommended and reported in the PR's "Slow tests" section.
 
 ## Implementation plan
 
-Step 1 in eight PRs, of which PRs 1 and 3 have landed. There is no viewer
+Step 1 in nine PRs, of which PRs 1 and 3 have landed. There is no viewer
 PR (decision: Ransom, 2026-09-24).
 
 | PR | Depends on | Can run in parallel with |
@@ -3129,6 +2340,7 @@ PR (decision: Ransom, 2026-09-24).
 | 6 eval-set integration | 5 | 7 |
 | 7 streaming recomputation | 5 | 6 |
 | 8 raw member copy | 5, 7 | 6 |
+| 9 shard deletion | 6 | 7, 8 |
 
 1. **Layout and naming helpers** (#530): landed as
    UKGovernmentBEIS/inspect_ai#5541. `src/inspect_ai/_util/log_layout.py`
@@ -3161,32 +2373,33 @@ PR (decision: Ransom, 2026-09-24).
    `_util/file.py`, `tests/util/test_asyncfiles.py`,
    `tests/util/test_file.py`.
 5. **Merge core, public API and CLI.** `log/_shards/{_api,_plan,_write,
-   _publish,_delete}.py` (`_plan.py` holds the member-name parser, the
-   selection digest, attribution by id and the ledger checks), the
+   _publish,_owned,_errors}.py` (`_plan.py` holds the member-name parser,
+   the selection digest, attribution by id and the ledger checks;
+   `_write.py` matches the task and computes the results with it), the
    `eval_retry` refusal for id- and count-selected merged logs (`_eval/eval.py`), exports and
    the reference section, `merged_log_task_id` in `_util/log_layout.py`
    (unless ctl's step 4 added it first), `inspect log
-   merge-shards`, docs (a "Sharding" section in `docs/parallelism.qmd`
+   merge-shards --task`, docs (a "Sharding" section in `docs/parallelism.qmd`
    covering the layout, the launcher's job (disjoint `--sample-id` or
    `limit` selections, fixed per `<k>/`; no `SampleSource` tasks) and the harness notes from the
-   parent, and the limitations: deletion is not safe against concurrent
-   operations, `eval_retry` refuses a merged log merged with a selection
+   parent, the task the caller passes, removing shards by hand, and the
+   limitations: `eval_retry` refuses a merged log merged with a selection
    (every one `eval_set()` writes), `INSPECT_EVAL_LOG_FILE_PATTERN` must not
    change while a companion exists, and a viewer delete of a merged log
    leaves its companion,
    whose shards the viewer lists again until the next eval set re-merges
-   them), CHANGELOG entry. Depends on 2 and 4 (3 landed). Files as listed
+   them). Depends on 2 and 4 (3 landed). Files as listed
    plus `log/__init__.py`, `_cli/log.py`, `_eval/eval.py`,
    `_util/log_layout.py`, `tests/log/test_log_filename.py`,
    `_control/log_dir/snapshot.py` (ctl keys a shard set with no readable
    merged log by `merged_log_task_id`), `tests/_control/test_log_dir.py`,
    `docs/reference/inspect_ai.log.qmd`, `docs/parallelism.qmd`,
-   `CHANGELOG.md`, `tests/log/test_shards.py`, `tests/cli/test_log.py`.
+   `tests/log/test_shards.py`, `tests/cli/test_log.py`.
    Uses the landed `ZipEntry` CRC and `verify_crc=True` reads
    ("Consistent reads").
 6. **Eval-set integration.** Startup merge, `selected_sample_ids`,
    `skip_shards`, completeness branch, no recovery of merged logs, cleanup
-   ordering and companion deletion, `docs/eval-sets.qmd` note (including
+   ordering (companion removal comes with PR 9), `docs/eval-sets.qmd` note (including
    that `eval_retry` refuses an eval set's merged log, and that an eval
    set whose selection is narrower than its shards, or empty, stops),
    CHANGELOG entry. Depends on 5. Builds on the `owned_run_ids` cleanup
@@ -3202,6 +2415,10 @@ PR (decision: Ransom, 2026-09-24).
    measurements are separable. Files:
    `_util/zipfile.py`, `log/_shards/_write.py`, `tests/util/test_zipfile.py`,
    `tests/log/test_shards.py`.
+9. **Shard deletion.** One rule for removing a merged log's companion,
+   used by the merge (an option) and by eval-set retry cleanup, designed
+   in this PR. Until it lands, the user removes `<name>.shards/` by hand
+   ("Removing shards"). Depends on 6.
 
 PRs 5 and 6 each carry a CHANGELOG line; 1–4, 7 and 8 are internal or
 performance-only. Each PR reports its
@@ -3209,8 +2426,7 @@ performance-only. Each PR reports its
 
 ## Open questions
 
-None. Resolved by Ransom on 2026-09-24: Step 1 makes no viewer changes and
-keeps deletion simple ("Deleting shards"), and a refused startup merge
+None. Resolved by Ransom on 2026-09-24: Step 1 makes no viewer changes, and a refused startup merge
 stops `eval_set()` with `PrerequisiteError` in all cases ("Eval-set
 integration"). Resolved by Ransom on 2026-09-29: the merged header carries
 no per-sample data beyond `dataset.sample_ids` (a count and digest per
@@ -3218,16 +2434,15 @@ shard, attribution by id, the selection in the ordinary header fields).
 This document decides the one case that left open: a shard with no usable
 selection (a `SampleSource` task, or no `sample_ids`) is refused, not
 merged by a fallback ("Validation"). Resolved by Ransom on 2026-10-09:
-deletion leaves checkpoint directories in place instead of refusing them
-("Deleting shards"), and an eval set whose selection is narrower than what
+an eval set whose selection is narrower than what
 its shards hold, or empty, stops with `PrerequisiteError` ("Eval-set
 integration"). Resolved by Ransom on 2026-10-13: the merged log's
 `task_id` is stable only while the file name pattern is unchanged, with
 no pattern-independent check ("The merged log's `task_id`"). Resolved
-by Ransom on 2026-10-21, simplifying PR 5: deletion removes the whole
-companion, checkpoint directories included (superseding the 2026-10-09
-decision), `inspect log merge-shards` takes one `LOG`, and a torn shard
-read fails the merge instead of restarting it.
+by Ransom on 2026-10-21: `inspect log merge-shards` takes one `LOG`, and a
+torn shard read fails the merge instead of restarting it. Resolved by
+Ransom on 2026-11-03: the merge takes its metrics from the caller's task
+and does not delete shards; deletion is PR 9.
 
 Stale local locks are report-only, as the parent's test list requires; a
 same-host dead-pid check can be added if crashed merges turn out to happen.
@@ -3238,9 +2453,8 @@ same-host dead-pid check can be added if crashed merges turn out to happen.
   companion, with per-object authorization (removed from Step 1 by
   Ransom, 2026-09-24); until then the viewer deletes only the log and the
   next `eval_set()` startup rebuilds it.
-- Deletion that is safe against concurrent operations or resumable after a
-  crash, if interrupted or concurrent deletions turn out to matter in
-  practice.
+- Shard deletion through Inspect, by the merge or by eval-set retry
+  cleanup: PR 9, after PR 6, designs one rule ("Implementation plan").
 
 - An exact-key sample selection for `eval_retry` (and `--sample-id`
   generally): the current selector matches normalised patterns, which is
@@ -3256,13 +2470,13 @@ same-host dead-pid check can be added if crashed merges turn out to happen.
   provenance field" needs one) and a helper that selects merged logs.
 - Merging or relocating per-shard scan results (`<k>/scans/`) and
   checkpoints into the merged log's locations, so that scanner resume
-  reuses worker rows after the companion is deleted. Step 1 deletes them
-  with the companion ("Deleting shards").
+  reuses worker rows after the companion is removed. Step 1 leaves them
+  in the companion.
 - Deleting checkpoint data: `CheckpointConfig.retention` is documented but
   not implemented, and no cleanup path removes a log's
   `<log>.checkpoints/`, sharded or not (meridianlabs-ai/inspect_ai#582,
-  the checkpoint feature's job). Shard checkpoint directories are deleted
-  with their companion.
+  the checkpoint feature's job). Shard checkpoint directories go with their
+  companion when it is removed.
 - `seed_from_prior_log` keeps unknown zip members (`_prune_prior_members`
   prunes a fixed list), so any future extra member in a log would be copied
   into retries seeded from it.

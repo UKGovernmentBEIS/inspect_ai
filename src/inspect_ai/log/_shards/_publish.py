@@ -32,7 +32,7 @@ _LOCK_SUFFIX = ".merge.lock"
 
 
 def supported_location(location: str) -> str:
-    """`location` as the merge and its deletion use it, once its form is checked.
+    """`location` as the merge uses it, once its form is checked.
 
     The merge supports only local paths, ``file://`` URIs and ``s3://`` URLs
     (decision: Ransom, 2026-10-30): other fsspec backends differ in how they

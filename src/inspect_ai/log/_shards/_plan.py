@@ -22,7 +22,6 @@ from inspect_ai._util.zip_common import ZipEntry
 from inspect_ai.log._log import (
     EvalLog,
     EvalResults,
-    EvalSampleReductions,
     EvalSampleSummary,
     EvalShardEntry,
     EvalShards,
@@ -165,11 +164,6 @@ class AttemptRead(NamedTuple):
     etag: str | None
     """ETag of the bytes read, when the store reports one."""
 
-    reductions: list[EvalSampleReductions] | None
-    """Its recorded epoch reductions: read only when the header records
-    epoch reducers and the attempt finished, and never from a recovered
-    attempt, whose reductions recovery recomputed with recreated reducers."""
-
     @property
     def selection(self) -> frozenset[str] | None:
         ids = self.header.eval.dataset.sample_ids
@@ -262,10 +256,9 @@ def check_resolved(
     A drain landing while a sample starts, or a sample cancel during a task
     drain or cancel, keeps the cancelled sample's transcript in the log but
     leaves it out of `results.logged_samples`, so a later run picks it up
-    again. Counting the record as merged coverage would complete the set and
-    let its shards be deleted. An attempt with no results (no sample was
-    scored) records no count, so there a held sample whose error is a
-    cancellation is unresolved. Otherwise, without a recorded count
+    again. Counting the record as merged coverage would complete the set. An
+    attempt with no results (no sample was scored) records no count, so there
+    a held sample whose error is a cancellation is unresolved. Otherwise, without a recorded count
     (ordinary, running and older attempts) every held sample counts, as in
     eval-set's check.
 
@@ -460,9 +453,8 @@ def check_vanished(vanished: list[str], merged_location: str, shards_dir: str) -
     if vanished:
         raise ShardSetError(
             f"Shards vanished from {shards_dir} after they were merged into "
-            f"{merged_location}: {', '.join(vanished)}. Finish deleting the shards "
-            f"(merge again with delete_shards, or delete {shards_dir} by hand), or "
-            "restore the files."
+            f"{merged_location}: {', '.join(vanished)}. Delete {shards_dir} to "
+            "keep the merged log as it is, or restore the files."
         )
 
 

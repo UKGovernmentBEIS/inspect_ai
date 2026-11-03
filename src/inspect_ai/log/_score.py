@@ -7,8 +7,7 @@ from inspect_ai.event._tree import EventTree, EventTreeSpan, event_tree, walk_no
 from inspect_ai.scorer._metric import Score, ScoreEdit
 
 from ._log import EvalLog
-from ._metric import recompute_checked_metrics
-from ._shards._live import check_shards_merged
+from ._metric import recompute_metrics as _recompute_metrics
 
 
 def edit_score(
@@ -20,10 +19,6 @@ def edit_score(
     epoch: int | None = None,
 ) -> None:
     """Edit or add a score in-place.
-
-    A merged log (`merge_eval_log_shards()`) is refused while its
-    `<name>.shards/` directory still exists, since the merge takes epoch
-    reductions from it; a log with no `location` is not checked.
 
     Args:
         log: The evaluation log containing the samples and scores
@@ -45,9 +40,7 @@ def edit_score(
         ValueError: If the sample cannot be found, if epoch is not specified
             and there are multiple matching samples for an ID, or if creating
             a new score without providing a value.
-        ShardSetError: The log is a merged log whose shards still exist.
     """
-    check_shards_merged(log, "editing scores in")
     if log.samples is None:
         raise ValueError("Log contains no samples")
 
@@ -151,7 +144,7 @@ def edit_score(
     sample.events.insert(end_index, score_edit_event)
 
     if recompute_metrics:
-        recompute_checked_metrics(log)
+        _recompute_metrics(log)
 
 
 def _find_scorers_span(tree: EventTree) -> EventTreeSpan | None:

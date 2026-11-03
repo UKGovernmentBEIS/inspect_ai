@@ -42,25 +42,48 @@ def _shard(shards: Path, k: str, ids: list[int]) -> None:
     )
 
 
-def _merge(*args: str) -> Any:
-    return CliRunner().invoke(log_command, ["merge-shards", *args])
+_TASK_FILE = """
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.scorer import {scorer}
+
+
+@task
+def shardy() -> Task:
+    return Task(
+        dataset=[Sample(id=i, input="q", target="x") for i in range(1, 5)],
+        scorer={scorer}(),
+    )
+"""
+
+
+def _task_spec(directory: Path, scorer: str = "match") -> str:
+    """A `file.py@name` spec for the task `_shard` runs, or one with `scorer`."""
+    path = directory / f"task_{scorer}.py"
+    path.write_text(_TASK_FILE.format(scorer=scorer))
+    return f"{path}@shardy"
+
+
+def _merge(*args: str, task: str = "tasks.py@shardy") -> Any:
+    return CliRunner().invoke(log_command, ["merge-shards", *args, "--task", task])
 
 
 def test_merge_shards_of_a_merged_log_and_a_shards_dir(tmp_path: Path) -> None:
     shards = tmp_path / f"{NAME}.shards"
     _shard(shards, "0", [1, 2])
     merged = tmp_path / f"{NAME}.eval"
+    spec = _task_spec(tmp_path)
 
-    result = _merge(str(merged))
+    result = _merge(str(merged), task=spec)
     assert result.exit_code == 1
     assert "incomplete" in result.output
 
-    result = _merge(str(merged), "--allow-incomplete")
+    result = _merge(str(merged), "--allow-incomplete", task=spec)
     assert result.exit_code == 0, result.output
     assert "started, 2 samples (2 new) from 1 shards" in result.output
 
     _shard(shards, "1", [3, 4])
-    result = _merge(f"{shards}/")
+    result = _merge(f"{shards}/", task=spec)
     assert result.exit_code == 0, result.output
     assert f"{merged}: success, 4 samples (2 new) from 2 shards" in result.output
 
@@ -69,10 +92,11 @@ def test_merge_shards_selections(tmp_path: Path) -> None:
     shards = tmp_path / f"{NAME}.shards"
     _shard(shards, "0", [1, 2])
     merged = str(tmp_path / f"{NAME}.eval")
-    result = _merge(merged, "--sample-id", "1,2,3", "--allow-incomplete")
+    spec = _task_spec(tmp_path)
+    result = _merge(merged, "--sample-id", "1,2,3", "--allow-incomplete", task=spec)
     assert result.exit_code == 0, result.output
     assert "started, 2 samples (2 new) from 1 shards, 1 missing" in result.output
-    result = _merge(merged, "--sample-count", "2")
+    result = _merge(merged, "--sample-count", "2", task=spec)
     assert result.exit_code == 0, result.output
     assert "success" in result.output
     result = _merge(merged, "--sample-id", "1", "--sample-count", "1")
@@ -88,15 +112,6 @@ def test_merge_shards_reports_an_argument_it_cannot_merge(tmp_path: Path) -> Non
     assert "Expected a merged log" in result.output
 
 
-def test_merge_shards_deletes_shards(tmp_path: Path) -> None:
-    shards = tmp_path / f"{NAME}.shards"
-    _shard(shards, "0", [1, 2, 3, 4])
-    result = _merge(str(tmp_path / f"{NAME}.eval"), "--delete-shards")
-    assert result.exit_code == 0, result.output
-    assert "shards deleted" in result.output
-    assert not shards.exists()
-
-
 def _json(result: Any) -> Any:
     return json.loads(result.stdout)
 
@@ -105,7 +120,10 @@ def test_merge_shards_json(tmp_path: Path) -> None:
     shards = tmp_path / f"{NAME}.shards"
     _shard(shards, "0", [1, 2])
     merged = tmp_path / f"{NAME}.eval"
-    result = _merge(str(merged), "--sample-id", "1,2,3", "--allow-incomplete", "--json")
+    spec = _task_spec(tmp_path)
+    result = _merge(
+        str(merged), "--sample-id", "1,2,3", "--allow-incomplete", "--json", task=spec
+    )
     assert result.exit_code == 0, result.output
     assert _json(result) == {
         "log": str(merged),
@@ -117,19 +135,21 @@ def test_merge_shards_json(tmp_path: Path) -> None:
         "missing": ["3"],
         "running": [],
         "failed": [],
-        "shards_deleted": False,
     }
     _shard(shards, "1", [3, 4])
-    result = _merge(str(merged), "--sample-count", "4", "--delete-shards", "--json")
+    result = _merge(str(merged), "--sample-count", "4", "--json", task=spec)
     assert result.exit_code == 0, result.output
     item = _json(result)
     assert item["status"] == "success" and item["samples"] == 4
-    assert item["shards_deleted"] is True and not shards.exists()
+    # the shards are kept
+    assert len(list(shards.glob("*/*.eval"))) == 2
 
 
 def test_merge_shards_json_errors(tmp_path: Path) -> None:
-    def error(*args: str) -> dict[str, Any]:
-        result = _merge(*args, "--json")
+    spec = _task_spec(tmp_path)
+
+    def error(*args: str, task: str = spec) -> dict[str, Any]:
+        result = _merge(*args, "--json", task=task)
         assert result.exit_code == 1, result.output
         [(key, value)] = _json(result).items()
         assert key == "error"
@@ -152,6 +172,11 @@ def test_merge_shards_json_errors(tmp_path: Path) -> None:
     assert incomplete["type"] == "ShardSetIncomplete"
     assert incomplete["status"] == "started" and incomplete["missing"] is None
     assert incomplete["running"] == [] and incomplete["failed"] == []
+
+    # a task other than the one the shards ran
+    other = error(merged, "--allow-incomplete", task=_task_spec(tmp_path, "includes"))
+    assert other["type"] == "ShardSetError" and "in its scorers" in other["message"]
+    assert not Path(merged).exists()
 
     lock = tmp_path / f"{NAME}.merge.lock"
     lock.write_text('{"pid": 1, "host": "elsewhere"}')
@@ -191,16 +216,15 @@ def test_merge_shards_json_refuses_unsupported_storage(
     monkeypatch.setattr(AsyncFilesystem, "s3_client", refuse)
     monkeypatch.setattr(AsyncFilesystem, "s3_client_async", refuse)
     merged = f"{root}/{NAME}.eval"
-    for args in ([], ["--delete-shards"]):
-        result = _merge(merged, *args, "--json")
-        assert result.exit_code == 1, result.output
-        assert _json(result) == {
-            "error": {
-                "type": "ValueError",
-                "message": f"{merged} cannot be merged: shard merging supports "
-                "local paths, file:// URIs and s3:// URLs only.",
-            }
+    result = _merge(merged, "--json")
+    assert result.exit_code == 1, result.output
+    assert _json(result) == {
+        "error": {
+            "type": "ValueError",
+            "message": f"{merged} cannot be merged: shard merging supports "
+            "local paths, file:// URIs and s3:// URLs only.",
         }
+    }
 
 
 def _merge_raising(monkeypatch: pytest.MonkeyPatch, ex: Exception) -> None:
@@ -279,8 +303,9 @@ def test_merge_shards_json_reports_a_missing_required_hook(tmp_path: Path) -> No
     env = {**os.environ, "INSPECT_REQUIRED_HOOKS": "review_missing_hook"}
     command = [sys.executable, "-m", "inspect_ai", "log", "merge-shards"]
     merged = str(tmp_path / f"{NAME}.eval")
+    command += [merged, "--task", "tasks.py@shardy"]
     result = subprocess.run(
-        [*command, merged, "--json"], capture_output=True, text=True, env=env
+        [*command, "--json"], capture_output=True, text=True, env=env
     )
     assert result.returncode == 1, result.stderr
     error = json.loads(result.stdout)["error"]
@@ -289,6 +314,6 @@ def test_merge_shards_json_reports_a_missing_required_hook(tmp_path: Path) -> No
     assert "review_missing_hook" in result.stderr and "Traceback" not in result.stderr
 
     # without --json the message is printed as before
-    result = subprocess.run([*command, merged], capture_output=True, text=True, env=env)
+    result = subprocess.run(command, capture_output=True, text=True, env=env)
     assert result.returncode == 1
     assert "review_missing_hook" in result.stdout + result.stderr

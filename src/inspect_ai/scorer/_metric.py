@@ -1,4 +1,3 @@
-import functools
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from logging import getLogger
@@ -556,9 +555,6 @@ def metric(
             )
             return metric
 
-        # only __wrapped__, so inspect.signature() and inspect.unwrap() reach
-        # the factory's own parameters
-        functools.update_wrapper(metric_wrapper, metric_type, assigned=(), updated=())
         return metric_register(metric_wrapper, metric_name, metadata=metadata)
 
     # bare @metric: name is the metric_type

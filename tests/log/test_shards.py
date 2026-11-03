@@ -1,23 +1,18 @@
-import dataclasses
 import enum
-import errno
 import functools
 import json
 import os
 import sys
 import zipfile
-from collections.abc import Callable, Coroutine, Hashable, Iterator, Sequence
-from io import BytesIO
+from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import Annotated, Any, BinaryIO, Generic, Literal, TypeVar, cast
+from typing import Any, BinaryIO, cast
 
 import anyio
 import boto3
 import pytest
-from test_helpers.utils import skip_if_asyncio
-from typing_extensions import TypeAliasType
 
-from inspect_ai import Epochs, Task, eval, eval_retry, task
+from inspect_ai import Epochs, Task, eval, eval_retry, task, task_with
 from inspect_ai._util.async_zip import AsyncZipReader, ZipCrcError
 from inspect_ai._util.asyncfiles import AsyncFilesystem, DirListing
 from inspect_ai._util.error import WriteConflictError
@@ -29,14 +24,12 @@ from inspect_ai.log import (
     ShardSelectionError,
     ShardSetError,
     ShardSetIncomplete,
-    edit_score,
     merge_eval_log_shards,
     read_eval_log,
     read_eval_log_async,
     write_eval_log,
 )
 from inspect_ai.log._file import is_log_file
-from inspect_ai.log._log import EvalMetricDefinition
 from inspect_ai.log._shards._plan import parse_sample_member, selection_digest
 from inspect_ai.log._shards._walk import (
     ShardDir,
@@ -70,7 +63,7 @@ from inspect_ai.scorer import (
     scorer,
     value_to_float,
 )
-from inspect_ai.scorer._metric import MetricDeprecated, MetricProtocol
+from inspect_ai.scorer._metric import MetricProtocol
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 
 T1 = "2026-09-30T10-00-00-00-00"
@@ -782,13 +775,13 @@ def test_merge_refuses_a_recovered_log_name(tmp_path: Path) -> None:
     _run(shards, "0", sample_id=[1, 2])
     recovered = f"{tmp_path}/{NAME}-recovered.eval"
     with pytest.raises(ValueError, match=f"{NAME}.eval.*{NAME}.shards"):
-        merge_eval_log_shards(recovered)
+        merge_eval_log_shards(recovered, _task())
     assert not os.path.exists(recovered) and not os.path.exists(merged)
 
-    merge_eval_log_shards(merged, allow_incomplete=True)
+    merge_eval_log_shards(merged, _task(), allow_incomplete=True)
     before = Path(merged).read_bytes()
     with pytest.raises(ValueError, match="recovered"):
-        merge_eval_log_shards(recovered)
+        merge_eval_log_shards(recovered, _task())
     assert not os.path.exists(recovered)
     assert Path(merged).read_bytes() == before
 
@@ -799,19 +792,18 @@ def test_merge_refuses_a_recovered_log_name(tmp_path: Path) -> None:
         ({"sample_ids": []}, "non-empty"),
         ({"sample_count": 0}, "at least 1"),
         ({"sample_ids": [1], "sample_count": 1}, "at most one"),
-        ({"allow_incomplete": True, "delete_shards": True}, "delete_shards"),
     ],
 )
 def test_merge_refuses_invalid_arguments(
     tmp_path: Path, kwargs: dict[str, Any], message: str
 ) -> None:
     with pytest.raises(ValueError, match=message):
-        merge_eval_log_shards(_paths(tmp_path)[0], **kwargs)
+        merge_eval_log_shards(_paths(tmp_path)[0], _task(), **kwargs)
 
 
 def test_merge_with_neither_log_nor_shards_raises(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError):
-        merge_eval_log_shards(_paths(tmp_path)[0])
+        merge_eval_log_shards(_paths(tmp_path)[0], _task())
 
 
 def test_merge_of_sample_id_shards_matches_an_unsharded_run(tmp_path: Path) -> None:
@@ -823,8 +815,8 @@ def test_merge_of_sample_id_shards_matches_an_unsharded_run(tmp_path: Path) -> N
         task, model="mockllm/model", log_dir=str(tmp_path / "unsharded"), display="none"
     )[0]
 
-    result = merge_eval_log_shards(f"{shards}/")
-    assert result.written and not result.shards_deleted
+    result = merge_eval_log_shards(f"{shards}/", task)
+    assert result.written
     header = result.log
     assert header.location == merged
     assert header.status == "success"
@@ -880,24 +872,28 @@ def test_merge_keeps_declared_scorer_names_that_collide_with_result_names(
     )[0]
     assert unsharded.results is not None
 
-    result = merge_eval_log_shards(merged, delete_shards=True)
-    assert result.shards_deleted and result.log.results is not None
+    result = merge_eval_log_shards(merged, task)
+    assert result.log.results is not None
     assert result.log.results.scores == unsharded.results.scores
     [declared] = [s for s in result.log.results.scores if "accuracy" in s.metrics]
     assert declared.metrics["accuracy"].value == pytest.approx(4 / 6)
     assert declared.scored_samples == 6
 
 
-def test_a_scorer_declared_twice_is_refused(tmp_path: Path) -> None:
+def test_a_scorer_declared_twice_merges_to_the_unsharded_values(
+    tmp_path: Path,
+) -> None:
     task = _task()
     task.scorer = [other(), other()]
     merged, shards = _paths(tmp_path)
     _run(shards, "0", task, sample_id=[1, 2, 3])
     _run(shards, "1", task, sample_id=[4, 5, 6])
-    before = _files(shards)
-    with pytest.raises(ShardSetError, match="other more than once"):
-        merge_eval_log_shards(merged, delete_shards=True)
-    assert not os.path.exists(merged) and _files(shards) == before
+    unsharded = eval(
+        task, model="mockllm/model", log_dir=str(tmp_path / "unsharded"), display="none"
+    )[0]
+    log = merge_eval_log_shards(merged, task).log
+    assert _metric_values(log) == _metric_values(unsharded)
+    assert ("other1", "accuracy") in _metric_values(log)
 
 
 @metric(scores="unreduced")
@@ -956,8 +952,8 @@ def test_configured_reducers_merge_with_the_workers_results(
     merged, shards = _paths(tmp_path / "fresh")
     _run(shards, "0", task, sample_id=[1, 2, 3])
     _run(shards, "1", task, sample_id=[4, 5, 6])
-    result = merge_eval_log_shards(merged, delete_shards=True)
-    assert result.shards_deleted and result.log.results is not None
+    result = merge_eval_log_shards(merged, task)
+    assert result.log.results is not None
     assert result.log.results.scores == unsharded.results.scores
     assert read_eval_log(merged).reductions == unsharded.reductions
 
@@ -966,27 +962,26 @@ def test_configured_reducers_merge_with_the_workers_results(
     merged, shards = _paths(tmp_path / "incremental")
     _run(shards, "0", task, sample_id=[1, 2, 3])
     _as_running(_run(shards, "1", task, sample_id=[4, 5, 6]), keep={(4, 1)})
-    first = merge_eval_log_shards(merged, allow_incomplete=True).log
-    assert first.status == "started"
-    reduced = not isinstance(epochs, int)
-    assert (first.results is None) == reduced
+    first = merge_eval_log_shards(merged, task, allow_incomplete=True).log
+    assert first.status == "started" and first.results is not None
     _run(shards, "1", task, sample_id=[4, 5, 6])
-    result = merge_eval_log_shards(merged, delete_shards=True)
-    assert result.shards_deleted and result.log.results is not None
+    result = merge_eval_log_shards(merged, task)
+    assert result.log.results is not None
     assert result.log.results.scores == unsharded.results.scores
     assert read_eval_log(merged).reductions == unsharded.reductions
 
 
-def test_a_cold_reducer_named_like_built_in_shorthand_merges(
+def test_a_task_spec_merges_with_the_reducer_its_file_defines(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from inspect_ai._util import registry
 
     monkeypatch.chdir(tmp_path)
     _run_task_file(_SHORTHAND_REDUCER_TASK)
-    # as in a fresh process; recreated, `pass_at_1` would be pass_at(k=1)
+    # as in a fresh process: loading the spec registers the file's reducer,
+    # named like built-in shorthand (pass_at(k=1))
     monkeypatch.delitem(registry._registry, "score_reducer:pass_at_1")
-    header = merge_eval_log_shards(f"{NAME}.eval", delete_shards=True).log
+    header = merge_eval_log_shards(f"{NAME}.eval", f"custom_task.py@{TASK}").log
     assert header.results is not None
     assert header.results.scores[0].metrics["mean"].value == 1.0
     reductions = read_eval_log(f"{NAME}.eval").reductions
@@ -1027,121 +1022,6 @@ def {TASK}() -> Task:
 """
 
 
-@pytest.mark.parametrize("incomplete", [False, True])
-@pytest.mark.parametrize(
-    "case", ["no_reductions", "recovered", "recovered_untimestamped", "edited"]
-)
-def test_a_reduction_the_merge_cannot_take_from_its_shard_is_refused(
-    tmp_path: Path, case: str, incomplete: bool
-) -> None:
-    import shutil
-
-    from inspect_ai.scorer import ScoreEdit
-
-    merged, shards = _paths(tmp_path)
-    task = _graded_task(Epochs(2, at_least(1, value=0.5)))
-    shard = _run(shards, "0", task, sample_id=[1, 2, 3])
-    other = _run(shards, "1", task, sample_id=[4, 5, 6])
-    if incomplete:
-        # a running shard's samples alone would leave the log without results
-        _as_running(other, keep={(4, 1)})
-    if case == "no_reductions":
-        _remove_member(shard.location, "reductions.json")
-    elif case == "recovered":
-        # recovery recomputes reductions with reducers recreated by name
-        shutil.copy2(
-            local_path(shard.location), shard.location[:-5] + "-recovered.eval"
-        )
-    elif case == "recovered_untimestamped":
-        # the shard's only attempt, under a name with no timestamp
-        os.rename(local_path(shard.location), f"{shards}/0/worker-recovered.eval")
-    else:
-        _rewrite(
-            shard,
-            lambda log: edit_score(log, 1, "graded", ScoreEdit(value=0.25), epoch=1),
-        )
-    before = _files(shards)
-    message = "was edited" if case == "edited" else "no epoch reduction .*at_least_1"
-    with pytest.raises(ShardSetError, match=message) as raised:
-        if incomplete:
-            merge_eval_log_shards(merged, allow_incomplete=True)
-        else:
-            merge_eval_log_shards(merged, delete_shards=True)
-    assert ("recovered log" in str(raised.value)) == case.startswith("recovered")
-    assert not os.path.exists(merged)
-    assert _files(shards) == before
-
-
-def test_epoch_reducers_sharing_a_name_are_refused(tmp_path: Path) -> None:
-    # both are recorded as `at_least_1`
-    task = _graded_task(Epochs(2, [at_least(1, value=0.5), at_least(1)]))
-    merged, shards = _paths(tmp_path)
-    _run(shards, "0", task, sample_id=[1, 2, 3])
-    _run(shards, "1", task, sample_id=[4, 5, 6])
-    before = _files(shards)
-    with pytest.raises(ShardSetError, match="name at_least_1 more than once"):
-        merge_eval_log_shards(merged, delete_shards=True)
-    assert not os.path.exists(merged)
-    assert _files(shards) == before
-
-
-def _edit_bypassing_the_writer_check(merged: str) -> None:
-    """Edit a score in a merged log whose shards exist, as an outside writer could.
-
-    `edit_score()` refuses such a log (see the writer tests below); one read
-    without its `location` is not checked, which leaves the merge's own
-    edit-history check as the backstop.
-    """
-    from inspect_ai.scorer import ScoreEdit
-
-    log = read_eval_log(merged)
-    log.location = ""
-    # edit_score recomputes the reductions with reducers recreated by name
-    edit_score(log, 1, "graded", ScoreEdit(value=0.25), epoch=1)
-    write_eval_log(log, merged)
-
-
-def test_an_edited_carried_score_refuses_the_next_merge(tmp_path: Path) -> None:
-    merged, shards = _paths(tmp_path)
-    task = _graded_task(Epochs(2, at_least(1, value=0.5)))
-    _run(shards, "0", task, sample_id=[1, 2, 3])
-    _run(shards, "1", task, sample_id=[4, 5, 6])
-    merge_eval_log_shards(merged)
-    _edit_bypassing_the_writer_check(merged)
-    before = Path(merged).read_bytes()
-
-    _run(shards, "1", task, sample_id=[4, 5, 6])
-    with pytest.raises(ShardSetError, match=f"sample '1' in {merged} was edited"):
-        merge_eval_log_shards(merged, delete_shards=True)
-    assert Path(merged).read_bytes() == before
-    assert len(list(Path(shards).glob("*/*.eval"))) == 3
-
-
-@pytest.mark.parametrize("remnant", ["unchanged", "interrupted"])
-def test_an_edited_score_refuses_deleting_unchanged_shards(
-    tmp_path: Path, remnant: str
-) -> None:
-    import shutil
-
-    merged, shards = _paths(tmp_path)
-    task = _graded_task(Epochs(2, at_least(1, value=0.5)))
-    _run(shards, "0", task, sample_id=[1, 2, 3])
-    _run(shards, "1", task, sample_id=[4, 5, 6])
-    merge_eval_log_shards(merged)
-    _edit_bypassing_the_writer_check(merged)
-    if remnant == "interrupted":
-        # what an interrupted deletion leaves
-        shutil.rmtree(f"{shards}/1")
-    before = Path(merged).read_bytes(), _files(shards)
-
-    with pytest.raises(ShardSetError, match="was edited.*shards were not deleted"):
-        merge_eval_log_shards(merged, delete_shards=True)
-    assert (Path(merged).read_bytes(), _files(shards)) == before
-    if remnant == "unchanged":
-        # without deletion, a merge with nothing to do still returns the log
-        assert not merge_eval_log_shards(merged).written
-
-
 def _replace_member(location: str, name: str, data: bytes | None) -> None:
     """Replace (or, with `None`, remove) a member of a log, keeping the rest."""
     path = local_path(location)
@@ -1152,281 +1032,6 @@ def _replace_member(location: str, name: str, data: bytes | None) -> None:
             dst.writestr(info.filename, member)
         if data is not None:
             dst.writestr(name, data)
-
-
-@pytest.mark.parametrize("damage", ["absent", "empty", "partial"])
-@pytest.mark.parametrize("remnant", ["unchanged", "interrupted"])
-def test_missing_retained_reductions_refuse_deleting_shards(
-    tmp_path: Path, remnant: str, damage: str
-) -> None:
-    import shutil
-
-    merged, shards = _paths(tmp_path)
-    task = _graded_task(Epochs(2, at_least(1, value=0.5)))
-    _run(shards, "0", task, sample_id=[1, 2, 3])
-    _run(shards, "1", task, sample_id=[4, 5, 6])
-    merge_eval_log_shards(merged)
-    with zipfile.ZipFile(merged) as zf:
-        reductions = json.loads(zf.read("reductions.json"))
-    if damage == "absent":
-        _remove_member(merged, "reductions.json")
-    elif damage == "empty":
-        _replace_member(merged, "reductions.json", b"[]")
-    else:
-        reductions[0]["samples"] = reductions[0]["samples"][1:]
-        _replace_member(merged, "reductions.json", json.dumps(reductions).encode())
-    if remnant == "interrupted":
-        shutil.rmtree(f"{shards}/1")
-    before = Path(merged).read_bytes(), _files(shards)
-
-    with pytest.raises(
-        ShardSetError, match="no epoch reduction .*shards were not deleted"
-    ):
-        merge_eval_log_shards(merged, delete_shards=True)
-    assert (Path(merged).read_bytes(), _files(shards)) == before
-
-
-def _attempt_less_companion(tmp_path: Path, damage: str) -> tuple[str, str]:
-    """A merged log damaged by `damage`, and a companion left with no attempt.
-
-    What an interrupted deletion can leave: a checkpoint and a sample buffer.
-    """
-    merged, shards = _paths(tmp_path)
-    task = _graded_task(Epochs(2, at_least(1, value=0.5)))
-    _run(shards, "0", task, sample_id=[1, 2, 3])
-    _run(shards, "1", task, sample_id=[4, 5, 6])
-    merge_eval_log_shards(merged)
-    if damage == "edited":
-        _edit_bypassing_the_writer_check(merged)
-    elif damage != "none":
-        with zipfile.ZipFile(merged) as zf:
-            reductions = json.loads(zf.read("reductions.json"))
-        if damage == "absent":
-            _remove_member(merged, "reductions.json")
-        elif damage == "empty":
-            _replace_member(merged, "reductions.json", b"[]")
-        else:
-            reductions[0]["samples"] = reductions[0]["samples"][1:]
-            _replace_member(merged, "reductions.json", json.dumps(reductions).encode())
-    # what an interrupted deletion can leave: no attempt, but a checkpoint
-    # and a sample buffer
-    for attempt in Path(shards).glob("*/*.eval"):
-        attempt.unlink()
-    for remnant in ["0/.buffer/segment", "1/run.checkpoints/1/data"]:
-        os.makedirs(os.path.dirname(f"{shards}/{remnant}"), exist_ok=True)
-        Path(f"{shards}/{remnant}").write_bytes(b"x")
-    return merged, shards
-
-
-@pytest.mark.parametrize("damage", ["absent", "empty", "partial", "edited", "none"])
-@pytest.mark.parametrize("backend", ["asyncio", "trio"])
-@pytest.mark.parametrize("storage", ["local", "s3"])
-def test_an_attempt_less_remnant_keeps_the_retained_checks(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    request: pytest.FixtureRequest,
-    storage: str,
-    backend: str,
-    damage: str,
-) -> None:
-    merged, _ = _attempt_less_companion(tmp_path, damage)
-    if storage == "s3":
-        prefix = request.getfixturevalue("s3_root")
-        client = boto3.client("s3")
-        for name, data in _files(str(tmp_path)).items():
-            client.put_object(Bucket="test-bucket", Key=f"{prefix}/{name}", Body=data)
-        location = f"s3://test-bucket/{prefix}/{NAME}.eval"
-
-        def stored() -> dict[str, bytes]:
-            return _s3_objects(f"{prefix}/")
-    else:
-        location = merged
-
-        def stored() -> dict[str, bytes]:
-            return _files(str(tmp_path))
-
-    before = stored()
-    merged_name = next(name for name in before if name.endswith(f"{NAME}.eval"))
-    if damage == "none":
-        result = _merge_on(backend, monkeypatch, location, delete_shards=True)
-        assert not result.written and result.shards_deleted
-        assert stored() == {merged_name: before[merged_name]}
-        return
-    message = "was edited" if damage == "edited" else "no epoch reduction"
-    with pytest.raises(ShardSetError, match=f"{message}.*shards were not deleted"):
-        _merge_on(backend, monkeypatch, location, delete_shards=True)
-    assert stored() == before
-
-
-def _tree(root: str) -> dict[str, Any]:
-    """Every entry under `root`, links recorded by their target, never followed."""
-    entries: dict[str, Any] = {}
-    for parent, dirs, files in os.walk(root):
-        for name in dirs + files:
-            path = os.path.join(parent, name)
-            relative = os.path.relpath(path, root)
-            if os.path.islink(path):
-                entries[relative] = ("link", os.readlink(path))
-            elif os.path.isdir(path):
-                entries[relative] = ("dir",)
-            else:
-                entries[relative] = ("file", Path(path).read_bytes())
-    return entries
-
-
-@pytest.mark.parametrize("backend", ["asyncio", "trio"])
-@pytest.mark.parametrize("unlistable", ["0/.buffer", "1/run.checkpoints/1"])
-def test_a_remnant_that_cannot_be_listed_is_not_deleted(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, unlistable: str, backend: str
-) -> None:
-    import shutil
-
-    merged, shards = _attempt_less_companion(tmp_path, "absent")
-    # the unlistable directory holds the only remnant left
-    other = "1/run.checkpoints" if unlistable == "0/.buffer" else "0/.buffer"
-    shutil.rmtree(f"{shards}/{other}")
-    before = _tree(str(tmp_path))
-    scandir = os.scandir
-
-    def denying(path: Any = ".") -> Any:
-        # shutil.rmtree lists by file descriptor
-        if not isinstance(path, int) and os.fspath(path) == f"{shards}/{unlistable}":
-            raise PermissionError(13, "Permission denied", os.fspath(path))
-        return scandir(path)
-
-    with monkeypatch.context() as patched:
-        patched.setattr(os, "scandir", denying)
-        with pytest.raises((ShardSetError, PermissionError)):
-            _merge_on(backend, monkeypatch, merged, delete_shards=True)
-    assert _tree(str(tmp_path)) == before
-
-
-@pytest.mark.parametrize("backend", ["asyncio", "trio"])
-@pytest.mark.parametrize("code", [errno.EACCES, errno.EIO], ids=["denied", "io"])
-def test_a_companion_that_cannot_be_inspected_is_not_deleted(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, code: int, backend: str
-) -> None:
-    from inspect_ai.log._shards import _api
-    from inspect_ai.log._shards._walk import list_shard_set
-
-    merged, shards = _attempt_less_companion(tmp_path, "absent")
-    before = _tree(str(tmp_path))
-    lstat = os.lstat
-    listed: list[bool] = []
-    failed: list[str] = []
-
-    async def listing(*args: Any, **kwargs: Any) -> Any:
-        result = await list_shard_set(*args, **kwargs)
-        listed.append(True)
-        return result
-
-    def failing(path: Any, *args: Any, **kwargs: Any) -> Any:
-        # once, after the shard listing: the inspection that decides whether
-        # the companion is gone, not the deletion
-        if listed and not failed and os.fspath(path) == shards:
-            failed.append(shards)
-            raise OSError(code, os.strerror(code), shards)
-        return lstat(path, *args, **kwargs)
-
-    with monkeypatch.context() as patched:
-        patched.setattr(_api, "list_shard_set", listing)
-        patched.setattr(os, "lstat", failing)
-        with pytest.raises(OSError, match=os.strerror(code)):
-            _merge_on(backend, monkeypatch, merged, delete_shards=True)
-    assert failed
-    assert _tree(str(tmp_path)) == before
-
-
-@pytest.mark.parametrize("damage", ["absent", "edited", "none"])
-@pytest.mark.parametrize("backend", ["asyncio", "trio"])
-@pytest.mark.parametrize("remnant", ["directory-link", "empty-directories"])
-def test_a_companion_with_no_file_keeps_the_retained_checks(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    remnant: str,
-    backend: str,
-    damage: str,
-) -> None:
-    import shutil
-
-    merged, shards = _attempt_less_companion(tmp_path / "run", damage)
-    shutil.rmtree(shards)
-    os.makedirs(f"{shards}/0")
-    target = tmp_path / "target"
-    _touch(target / "1" / "data")
-    if remnant == "directory-link":
-        os.symlink(target, f"{shards}/0/checkpoints", target_is_directory=True)
-    else:
-        os.makedirs(f"{shards}/1/run.checkpoints/1")
-    kept = _tree(str(target))
-    before = _tree(str(tmp_path / "run"))
-
-    if damage == "none":
-        result = _merge_on(backend, monkeypatch, merged, delete_shards=True)
-        assert not result.written and result.shards_deleted
-        assert _tree(str(tmp_path / "run")) == {f"{NAME}.eval": before[f"{NAME}.eval"]}
-    else:
-        message = "was edited" if damage == "edited" else "no epoch reduction"
-        with pytest.raises(ShardSetError, match=f"{message}.*shards were not deleted"):
-            _merge_on(backend, monkeypatch, merged, delete_shards=True)
-        assert _tree(str(tmp_path / "run")) == before
-    assert _tree(str(target)) == kept
-
-
-def test_shards_remain_counts_an_existing_directory_and_raises_on_lstat_errors(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from inspect_ai.log._shards._delete import _exists
-
-    root = tmp_path / "run.shards"
-    assert not _exists(str(root))
-    os.makedirs(root)
-    assert _exists(str(root))
-
-    def failing(path: Any, *args: Any, **kwargs: Any) -> Any:
-        raise OSError(errno.EIO, "I/O error", os.fspath(path))
-
-    monkeypatch.setattr(os, "lstat", failing)
-    with pytest.raises(OSError, match="I/O error"):
-        _exists(str(root))
-
-
-# armed while a test merges: an unreduced metric that must not run
-_GUARD_ARMED: list[bool] = []
-
-
-@metric(scores="unreduced")
-def shard_unreduced_guard() -> Metric:
-    def compute(scores: list[SampleScore]) -> float:
-        if _GUARD_ARMED:
-            raise AssertionError("an unreduced metric ran on partial data")
-        return float(len(scores))
-
-    return compute
-
-
-def test_a_running_shard_without_reductions_computes_no_metrics(
-    tmp_path: Path,
-) -> None:
-    task = _graded_task(Epochs(2, at_least(1, value=0.5)))
-    task.scorer = [graded_guarded()]
-    merged, shards = _paths(tmp_path)
-    _run(shards, "0", task, sample_id=[1, 2, 3])
-    _as_running(_run(shards, "1", task, sample_id=[4, 5, 6]), keep={(4, 1)})
-    _GUARD_ARMED.append(True)
-    try:
-        header = merge_eval_log_shards(merged, allow_incomplete=True).log
-    finally:
-        _GUARD_ARMED.clear()
-    assert header.status == "started" and header.results is None
-    assert _keys(merged) == {(str(i), e) for i in (1, 2, 3) for e in (1, 2)} | {
-        ("4", 1)
-    }
-
-
-@scorer(metrics=[mean(), shard_unreduced_guard()])
-def graded_guarded() -> Scorer:
-    return graded()
 
 
 @solver
@@ -1466,9 +1071,9 @@ def test_a_solver_set_score_is_refused(
     before = _files(shards)
     with pytest.raises(
         ShardSetError,
-        match="Sample '1' .* has the score 'simple'.* cannot merge solver-set scores",
+        match="Sample '1' has the score 'simple'.* cannot merge solver-set scores",
     ):
-        merge_eval_log_shards(merged, delete_shards=True)
+        merge_eval_log_shards(merged, task)
     assert not os.path.exists(merged) and _files(shards) == before
 
 
@@ -1518,15 +1123,15 @@ def test_dictionary_scores_merge_to_the_unsharded_values_in_another_order(
     merged, shards = _paths(tmp_path)
     _run(shards, "0", _keyed_task(values), sample_id=[2])
     if incremental:
-        merge_eval_log_shards(merged, allow_incomplete=True)
+        merge_eval_log_shards(merged, _keyed_task(values), allow_incomplete=True)
     _run(shards, "1", _keyed_task(values), sample_id=[10])
-    log = merge_eval_log_shards(merged, delete_shards=True).log
+    log = merge_eval_log_shards(merged, _keyed_task(values)).log
     assert _metric_values(log) == _metric_values(unsharded)
     assert _metric_values(log) == {("alpha", "mean"): 1.0, ("beta", "mean"): 0.5}
 
 
 @pytest.mark.parametrize("snapshot", ["startup", "unscored"])
-def test_a_merge_holding_no_scores_needs_no_recorded_reductions(
+def test_a_merge_holding_no_scores_has_no_scored_samples(
     tmp_path: Path, failing: set[int], snapshot: str
 ) -> None:
     task = _graded_task(Epochs(2, at_least(1, value=0.5)))
@@ -1539,17 +1144,11 @@ def test_a_merge_holding_no_scores_needs_no_recorded_reductions(
         # a failed shard holding a sample that errored before scoring
         failing.add(1)
         _run(shards, "0", task, sample_id=[1])
-    header = merge_eval_log_shards(merged, allow_incomplete=True).log
+    header = merge_eval_log_shards(merged, task, allow_incomplete=True).log
     assert header.status == ("started" if snapshot == "startup" else "error")
     assert header.results is not None and header.results.scores[0].scored_samples == 0
     held = _keys(merged)
     assert held == (set() if snapshot == "startup" else {("1", 1), ("1", 2)})
-
-
-@metric
-def shard_verdict_mean_2() -> Metric:
-    """A registered metric that creates its converter itself."""
-    return aggregate("verdict", mean(), to_float=value_to_float(correct=2))
 
 
 @metric(name="shard_converted")
@@ -1561,50 +1160,6 @@ class ShardConverted(MetricProtocol):
 
     def __call__(self, scores: list[SampleScore]) -> Value:
         return {"converted": self.to_float(CORRECT)}
-
-
-@metric(name="shard_untyped")
-def shard_untyped(to_float=None) -> Metric:
-    """A metric whose converter parameter has no annotation."""
-
-    def compute(scores: list[SampleScore]) -> Value:
-        return {"converted": to_float(CORRECT)}
-
-    return compute
-
-
-def _hidden_return(to_float: ValueToFloat = value_to_float()) -> Metric:
-    def compute(scores: list[SampleScore]) -> Value:
-        return {"converted": to_float(CORRECT)}
-
-    return compute
-
-
-# postponed annotations whose return type is imported only for type checking
-_hidden_return.__annotations__ = {"to_float": "ValueToFloat", "return": "HiddenReturn"}
-shard_hidden_return = metric(name="shard_hidden_return")(_hidden_return)
-
-
-@metric(name="shard_hashable")
-def shard_hashable(option: Hashable) -> Metric:
-    """A metric whose option type can also hold a function."""
-
-    def compute(scores: list[SampleScore]) -> Value:
-        return float(callable(option))
-
-    return compute
-
-
-def _quoted(label: str) -> Metric:
-    def compute(scores: list[SampleScore]) -> Value:
-        return float(label == "points")
-
-    return compute
-
-
-# a quoted annotation under postponed annotations is recorded as "'str'"
-_quoted.__annotations__ = {"label": "'str'", "return": "Metric"}
-shard_quoted = metric(name="shard_quoted")(_quoted)
 
 
 class Mode(enum.Enum):
@@ -1636,7 +1191,7 @@ class Colour(enum.Flag):
 def shard_enums(
     mode: Mode, label: Label, level: Level, perm: Perm, colour: Colour | None = None
 ) -> Metric:
-    """A metric that tells its enum options from their recorded values."""
+    """A metric that tells its enum options from the values it was given."""
 
     def compute(scores: list[SampleScore]) -> Value:
         return (
@@ -1650,115 +1205,14 @@ def shard_enums(
     return compute
 
 
-@metric(name="shard_containers")
-def shard_containers(
-    enum_list: list[Mode] | None = None,
-    enum_dicts: dict[str, dict[str, Mode]] | None = None,
-    enum_tuple: tuple[Mode, ...] | None = None,
-    converters: list[ValueToFloat] | None = None,
-    converter_map: dict[str, ValueToFloat] | None = None,
-    converter_tuple: tuple[ValueToFloat, ...] | None = None,
-) -> Metric:
-    """A metric whose container options hold values a log records lossily."""
-
-    def compute(scores: list[SampleScore]) -> Value:
-        return 0.0
-
-    return compute
-
-
 @metric(name="shard_metric_map")
-def shard_metric_map(
-    by_index: dict[int, Metric] | None = None,
-    by_group: dict[str, dict[int, Metric]] | None = None,
-    ordered: tuple[Metric, ...] | None = None,
-    by_name: dict[str, Metric] | None = None,
-    nested: list[dict[str, Metric]] | None = None,
-) -> Metric:
-    """A metric given registered metrics in containers."""
+def shard_metric_map(by_name: dict[str, Metric]) -> Metric:
+    """A metric given registered metrics in a dictionary."""
 
     def compute(scores: list[SampleScore]) -> Value:
         return sum(
-            cast(float, cast(MetricProtocol, m)(scores))
-            for m in (by_name or {}).values()
+            cast(float, cast(MetricProtocol, m)(scores)) for m in by_name.values()
         )
-
-    return compute
-
-
-class Scale(enum.IntEnum):
-    LOW = 1
-    HIGH = 2
-
-
-class Ratio(float, enum.Enum):
-    HALF = 0.5
-
-
-@metric(name="shard_scaled")
-def shard_scaled(
-    scale: Literal[Scale.HIGH] | None = None,
-    flags: Annotated[Literal[Perm.R], "doc"] | None = None,
-    ratio: Literal[Ratio.HALF] | None = None,
-    plain: Literal[1, 2] | None = None,
-) -> Metric:
-    """A metric with Literal options, of enum members and of plain values."""
-
-    def compute(scores: list[SampleScore]) -> Value:
-        return float(scale is Scale.HIGH) + float(plain or 0)
-
-    return compute
-
-
-# registry- and model-shaped data that Inspect's decoder would recreate
-_REGISTRY_SHAPED: dict[str, str | dict[str, str]] = {
-    "type": "metric",
-    "name": "mean",
-    "params": {},
-}
-_MODEL_SHAPED: dict[str, str | dict[str, str] | None] = {
-    "model": "mockllm/model",
-    "config": {},
-    "base_url": None,
-    "model_args": {},
-}
-
-
-@metric(name="shard_spec")
-def shard_spec(
-    spec: dict[str, str | dict[str, str]] | None = None,
-    specs: list[str | dict[str, str | dict[str, str]]] | None = None,
-    model: dict[str, str | dict[str, str] | None] | None = None,
-    weights: dict[str, float] | None = None,
-) -> Metric:
-    """A metric given plain dictionaries, which it tells from objects."""
-
-    def compute(scores: list[SampleScore]) -> Value:
-        values = [spec, *(specs or []), model, weights]
-        return float(all(v is None or isinstance(v, (str, dict)) for v in values))
-
-    return compute
-
-
-@metric(name="shard_untyped_list")
-def shard_untyped_list(labels=None) -> Metric:
-    """A metric whose list parameter has no annotation."""
-
-    def compute(scores: list[SampleScore]) -> Value:
-        return float(len(labels or []))
-
-    return compute
-
-
-@metric(name="shard_nullable_lists")
-def shard_nullable_lists(
-    labels: list[str | None], nested: list[list[str | None] | None] | None = None
-) -> Metric:
-    """A metric given lists whose elements may be None, at any depth."""
-
-    def compute(scores: list[SampleScore]) -> Value:
-        lists = [labels, *[items or [] for items in nested or []]]
-        return float(sum(item is None for items in lists for item in items))
 
     return compute
 
@@ -1769,7 +1223,7 @@ def shard_mean_keys(
     weight: float,
     excluded_sample_ids: list[str] | None = None,
 ) -> Metric:
-    """A metric with plain list options, like MLRC's numeric-keys mean."""
+    """A metric with plain list options."""
 
     def compute(scores: list[SampleScore]) -> Value:
         values = [
@@ -1783,189 +1237,6 @@ def shard_mean_keys(
     return compute
 
 
-@metric(name="shard_sum_of")
-def shard_sum_of(metrics: list[Metric]) -> Metric:
-    """A metric given a list of registered metrics."""
-
-    def compute(scores: list[SampleScore]) -> Value:
-        return sum(cast(float, cast(MetricProtocol, m)(scores)) for m in metrics)
-
-    return compute
-
-
-@metric(name="shard_named")
-def shard_named(type: str, name: str, params: Metric) -> Metric:
-    """A metric whose arguments are named like a registry dict's keys."""
-
-    def compute(scores: list[SampleScore]) -> Value:
-        total = cast(float, cast(MetricProtocol, params)(scores))
-        return total + float(type == "metric") + float(name == "some-label")
-
-    return compute
-
-
-def _named(label: str) -> Metric:
-    return shard_named(type="metric", name=label, params=aggregate("points", mean()))
-
-
-@metric(name="shard_nested_sum")
-def shard_nested_sum(groups: Sequence[list[Metric]]) -> Metric:
-    """A metric given a sequence of lists of registered metrics."""
-
-    def compute(scores: list[SampleScore]) -> Value:
-        return sum(
-            cast(float, cast(MetricProtocol, m)(scores))
-            for metrics in groups
-            for m in metrics
-        )
-
-    return compute
-
-
-class CallableLabel(str):
-    """A string whose instances are callable."""
-
-    def __call__(self, value: Value) -> float:
-        return 7.0
-
-
-class CallableScale(int):
-    """An integer whose instances are callable."""
-
-    def __call__(self, value: Value) -> float:
-        return 7.0
-
-
-class CallableRatio(float):
-    """A float whose instances are callable."""
-
-    def __call__(self, value: Value) -> float:
-        return 7.0
-
-
-T = TypeVar("T")
-
-
-class GenericScale(int, Generic[T]):
-    """A generic integer whose instances are callable."""
-
-    def __call__(self, value: Value) -> float:
-        return 7.0
-
-
-class GenericRatio(float, Generic[T]):
-    """A generic float whose instances are callable."""
-
-    def __call__(self, value: Value) -> float:
-        return 7.0
-
-
-class GenericWeight(int, Generic[T]):
-    """A generic integer whose instances are not callable."""
-
-
-@metric(name="shard_generic_converters")
-def shard_generic_converters(
-    scale: GenericScale[float] | None = None,
-    ratio: Annotated[GenericRatio[float], "converter"] | None = None,
-) -> Metric:
-    """A metric whose converters are parameterized callable classes."""
-
-    def compute(scores: list[SampleScore]) -> Value:
-        convert = scale if scale is not None else ratio
-        return {"converted": convert(CORRECT)} if convert is not None else 0.0
-
-    return compute
-
-
-# type aliases (as `type ConverterAlias = ValueToFloat` declares them)
-ConverterAlias = TypeAliasType("ConverterAlias", ValueToFloat)
-LevelAlias = TypeAliasType("LevelAlias", Level)
-
-
-@metric(name="shard_nullable_metrics")
-def shard_nullable_metrics(
-    metrics: list[Metric | None] | None = None,
-    nested: list[list[Metric] | None] | None = None,
-) -> Metric:
-    """A metric whose lists of metrics admit None elements."""
-
-    def compute(scores: list[SampleScore]) -> Value:
-        return 0.0
-
-    return compute
-
-
-@metric(name="shard_union_options")
-def shard_union_options(
-    convert: str | ValueToFloat | None = None,
-    converters: list[str | ValueToFloat] | None = None,
-    nested: list[list[str | ValueToFloat]] | None = None,
-    unlisted: list[ValueToFloat] | None = None,
-) -> Metric:
-    """A metric whose options' annotations mix listed and unlisted types."""
-
-    def compute(scores: list[SampleScore]) -> Value:
-        given = [
-            convert,
-            *(converters or []),
-            *sum(nested or [], []),
-            *(unlisted or []),
-        ]
-        functions = [option for option in given if callable(option)]
-        return {"converted": functions[0](CORRECT)} if functions else -1.0
-
-    return compute
-
-
-@metric(name="shard_aliased")
-def shard_aliased(
-    to_float: ConverterAlias | None = None, level: LevelAlias | None = None
-) -> Metric:
-    """A metric whose options are annotated with type aliases."""
-
-    def compute(scores: list[SampleScore]) -> Value:
-        if to_float is not None:
-            return {"converted": to_float(CORRECT)}
-        return float(level.value) if level is not None else 0.0
-
-    return compute
-
-
-@metric(name="shard_optional_converter")
-def shard_optional_converter(to_float: ValueToFloat | None = None) -> Metric:
-    """A metric whose converter parameter is optional."""
-
-    def compute(scores: list[SampleScore]) -> Value:
-        return {"converted": to_float(CORRECT) if to_float is not None else 0.0}
-
-    return compute
-
-
-@metric(name="shard_callable_scalars")
-def shard_callable_scalars(
-    label: CallableLabel | None = None, scale: CallableScale | None = None
-) -> Metric:
-    """A metric given callable `str` and `int` subclass instances."""
-
-    def compute(scores: list[SampleScore]) -> Value:
-        convert = label if label is not None else scale
-        return {"converted": convert(CORRECT)} if convert is not None else 0.0
-
-    return compute
-
-
-@metric(name="shard_key_sum")
-class ShardKeySum(MetricDeprecated):
-    """A class metric with a string option (class metrics get `Score`s)."""
-
-    def __init__(self, key: str) -> None:
-        self.key = key
-
-    def __call__(self, scores: list[Score]) -> Value:
-        return sum(float(score.as_dict()[self.key] or 0) for score in scores)
-
-
 async def _verdict(state: TaskState, target: Target) -> Score:
     index = state.metadata["index"]
     verdict = CORRECT if index % 2 else INCORRECT
@@ -1977,29 +1248,16 @@ async def _verdict(state: TaskState, target: Target) -> Score:
         aggregate("points", mean()),
         grouped(aggregate("points", mean()), "group"),
         aggregate("verdict", accuracy()),
-        shard_verdict_mean_2(),
-        ShardKeySum("points"),
-        shard_quoted("points"),
-        shard_enums(Mode.HIGH, Label.ARS, Level.TWO, Perm.R | Perm.W, Colour.BLUE),
+        # options a log records lossily: converters, metrics in a dictionary,
+        # enum members
+        aggregate("verdict", mean(), to_float=value_to_float(correct=2)),
         grouped(
-            shard_enums(Mode.HIGH, Label.ARS, Level.TWO, Perm.R | Perm.W, Colour.BLUE),
-            "group",
+            aggregate("verdict", mean(to_float=value_to_float(correct=2))), "group"
         ),
+        ShardConverted(to_float=value_to_float(correct=2)),
+        shard_metric_map(by_name={"points": aggregate("points", mean())}),
+        shard_enums(Mode.HIGH, Label.ARS, Level.TWO, Perm.R | Perm.W, Colour.BLUE),
         shard_mean_keys(["points"], 2.0, excluded_sample_ids=["1"]),
-        shard_sum_of([aggregate("points", mean()), aggregate("verdict", accuracy())]),
-        shard_scaled(plain=2),
-        _named("some-label"),
-        grouped(_named("mean"), "group"),
-        shard_sum_of([_named("some-label")]),
-        # empty lists of metrics, direct, nested and beside a metric
-        shard_sum_of([]),
-        shard_nested_sum([[]]),
-        shard_nested_sum([[], [aggregate("points", mean())]]),
-        grouped(shard_sum_of([]), "group"),
-        # None elements, direct, nested, as a list node and embedded
-        shard_nullable_lists(["a", None]),
-        shard_nullable_lists(["a"], [["b", None], None]),
-        grouped(shard_nullable_lists([None, None]), "group"),
     ]
 )
 def verdicts() -> Scorer:
@@ -2063,7 +1321,7 @@ def _verdict_task(metrics: list[Any] | None = None, scored: bool = True) -> Task
     )
 
 
-def test_metrics_with_their_own_converters_merge_to_the_unsharded_values(
+def test_metrics_with_options_merge_to_the_unsharded_values(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     unsharded = eval(
@@ -2074,505 +1332,18 @@ def test_metrics_with_their_own_converters_merge_to_the_unsharded_values(
     )[0]
     merged, shards = _paths(tmp_path)
     _run(shards, "0", _verdict_task(), sample_id=[1, 2, 3])
-    assert merge_eval_log_shards(merged, allow_incomplete=True).written
+    assert merge_eval_log_shards(merged, _verdict_task(), allow_incomplete=True).written
     _run(shards, "1", _verdict_task(), sample_id=[4, 5, 6])
-    log = _merge_on("trio", monkeypatch, merged, delete_shards=True).log
+    log = _merge_on("trio", monkeypatch, merged, _verdict_task()).log
     expected = _metric_values(unsharded)
     assert _metric_values(log) == pytest.approx(expected)
-    assert ("verdicts", "shard_verdict_mean_2") in expected
-    assert ("verdicts", "shard_key_sum") in expected
     # each enum option reached the metric as its member
     assert expected[("verdicts", "shard_enums")] == 31
-    assert expected[("verdicts", "odd2")] == 31
     # samples 2 to 6, points index / 2, weighted 2
     assert expected[("verdicts", "shard_mean_keys")] == 4.0
-    assert expected[("verdicts", "shard_sum_of")] == 1.75 + 0.5
+    assert expected[("verdicts", "shard_metric_map")] == 1.75
     assert expected[("labels", "P")] == 0.0
-    assert expected[("verdicts", "shard_scaled")] == 2.0
-    # an argument map holding type, name and params is not an encoded metric
-    assert expected[("verdicts", "shard_named")] == 1.75 + 2
-    assert expected[("verdicts", "shard_sum_of2")] == 1.75 + 2
-    assert expected[("verdicts", "odd3")] == 1.5 + 1
-    # empty metric lists: direct, nested, beside a metric, and grouped
-    assert expected[("verdicts", "shard_sum_of3")] == 0
-    assert expected[("verdicts", "shard_nested_sum")] == 0
-    assert expected[("verdicts", "shard_nested_sum2")] == 1.75
-    assert expected[("verdicts", "odd4")] == 0
-    # None list elements: direct, nested, as a list node and grouped
-    assert expected[("verdicts", "shard_nullable_lists")] == 1
-    assert expected[("verdicts", "shard_nullable_lists2")] == 1
-    assert expected[("verdicts", "odd5")] == 2
-    assert expected[("verdicts", "shard_quoted")] == 1
     assert ("ratings", "krippendorff_alpha") in expected
-
-
-def _not_plain(kind: str, argument: str) -> str:
-    return f"'shard_containers' was given {kind} for '{argument}', {_NOT_RESTORED}"
-
-
-_NOT_RESTORED = "whose annotation is not one the merge restores"
-
-
-def _not_restored(metric: str, argument: str) -> str:
-    """The refusal of a recorded string or number for `argument` of `metric`."""
-    return f"'{metric}' was given a \\w+ for '{argument}', {_NOT_RESTORED}"
-
-
-def _nullable_metrics_refused(metric: str, argument: str) -> str:
-    return (
-        f"'{metric}' was given a list of metrics for '{argument}' whose elements "
-        "may be None"
-    )
-
-
-def _dict_refused(metric: str, kind: str, argument: str) -> str:
-    return f"'{metric}' was given {kind} for '{argument}' holding a dictionary"
-
-
-def _model_keyed_metrics() -> dict[str, Metric]:
-    """Metrics keyed like a ModelDict, which Inspect's decoder reads as a model."""
-    keys = ["model", "config", "base_url", "model_args"]
-    return {key: aggregate("points", mean()) for key in keys}
-
-
-def _metric_container_refused(kind: str, argument: str) -> str:
-    return _dict_refused("shard_metric_map", kind, argument)
-
-
-def _enum_literal_refused(argument: str) -> str:
-    return (
-        f"'shard_scaled' records \\S+ for '{argument}', whose Literal holds enum "
-        "members"
-    )
-
-
-# the metrics, the refusal, and whether samples are scored: over unscored
-# samples a metric's failure would become NaN and publish
-_FUNCTION_OPTIONS: dict[str, tuple[Callable[[], list[Any]], str, bool]] = {
-    "direct": (
-        lambda: [mean(to_float=value_to_float(correct=2))],
-        _not_restored("inspect_ai/mean", "to_float"),
-        True,
-    ),
-    "aggregate": (
-        lambda: [aggregate("verdict", mean(), to_float=value_to_float())],
-        _not_restored("inspect_ai/aggregate", "to_float"),
-        True,
-    ),
-    "nested": (
-        lambda: [
-            grouped(
-                aggregate("verdict", mean(to_float=value_to_float(correct=2))),
-                "group",
-            )
-        ],
-        _not_restored("mean", "to_float"),
-        True,
-    ),
-    "keyed": (
-        lambda: [{"verdict": [accuracy(to_float=value_to_float(correct=2))]}],
-        _not_restored("inspect_ai/accuracy", "to_float"),
-        True,
-    ),
-    "class": (
-        lambda: [ShardConverted(to_float=value_to_float(correct=2))],
-        _not_restored("shard_converted", "to_float"),
-        False,
-    ),
-    "class-nested": (
-        lambda: [grouped(ShardConverted(to_float=value_to_float(correct=2)), "group")],
-        _not_restored("shard_converted", "to_float"),
-        False,
-    ),
-    "untyped": (
-        lambda: [shard_untyped(to_float=value_to_float(correct=2))],
-        "'shard_untyped' was given a string for 'to_float', which has no annotation",
-        False,
-    ),
-    "callable-str": (
-        lambda: [shard_callable_scalars(label=CallableLabel("x"))],
-        _not_restored("shard_callable_scalars", "label"),
-        False,
-    ),
-    "callable-int": (
-        lambda: [shard_callable_scalars(scale=CallableScale(3))],
-        _not_restored("shard_callable_scalars", "scale"),
-        False,
-    ),
-    "callable-str-grouped": (
-        lambda: [grouped(shard_callable_scalars(label=CallableLabel("x")), "group")],
-        _not_restored("shard_callable_scalars", "label"),
-        False,
-    ),
-    # recorded as numbers, against a converter annotation
-    "callable-int-converter": (
-        lambda: [ShardConverted(to_float=CallableScale(3))],
-        _not_restored("shard_converted", "to_float"),
-        False,
-    ),
-    "callable-float-converter": (
-        lambda: [shard_optional_converter(to_float=CallableRatio(0.5))],
-        _not_restored("shard_optional_converter", "to_float"),
-        False,
-    ),
-    "callable-int-converter-grouped": (
-        lambda: [grouped(ShardConverted(to_float=CallableScale(3)), "group")],
-        _not_restored("shard_converted", "to_float"),
-        False,
-    ),
-    "callable-float-converter-grouped": (
-        lambda: [
-            grouped(shard_optional_converter(to_float=CallableRatio(0.5)), "group")
-        ],
-        _not_restored("shard_optional_converter", "to_float"),
-        False,
-    ),
-    # parameterized callable classes, recorded as numbers
-    "generic-int-converter": (
-        lambda: [shard_generic_converters(scale=GenericScale(3))],
-        _not_restored("shard_generic_converters", "scale"),
-        False,
-    ),
-    "generic-float-converter": (
-        lambda: [shard_generic_converters(ratio=GenericRatio(0.5))],
-        _not_restored("shard_generic_converters", "ratio"),
-        False,
-    ),
-    "generic-int-converter-grouped": (
-        lambda: [grouped(shard_generic_converters(scale=GenericScale(3)), "group")],
-        _not_restored("shard_generic_converters", "scale"),
-        False,
-    ),
-    "generic-float-converter-grouped": (
-        lambda: [grouped(shard_generic_converters(ratio=GenericRatio(0.5)), "group")],
-        _not_restored("shard_generic_converters", "ratio"),
-        False,
-    ),
-    # a list of metrics holds only metrics (decision: Ransom, 2026-11-03)
-    "nullable-metric-list": (
-        lambda: [shard_nullable_metrics(metrics=[mean(), None])],
-        _nullable_metrics_refused("shard_nullable_metrics", "metrics"),
-        True,
-    ),
-    "nullable-metric-nested": (
-        lambda: [shard_nullable_metrics(nested=[[mean()], None])],
-        _nullable_metrics_refused("shard_nullable_metrics", "nested"),
-        True,
-    ),
-    "nullable-metric-none": (
-        lambda: [shard_nullable_metrics(metrics=[None])],
-        _nullable_metrics_refused("shard_nullable_metrics", "metrics"),
-        True,
-    ),
-    "nullable-metric-grouped": (
-        lambda: [grouped(shard_nullable_metrics(metrics=[mean(), None]), "group")],
-        _nullable_metrics_refused("shard_nullable_metrics", "metrics"),
-        True,
-    ),
-    # a listed type in a union or list beside an unlisted one
-    "union-function": (
-        lambda: [shard_union_options(convert=value_to_float())],
-        _not_restored("shard_union_options", "convert"),
-        False,
-    ),
-    "union-function-list": (
-        lambda: [shard_union_options(converters=[value_to_float()])],
-        _not_restored("shard_union_options", "converters"),
-        False,
-    ),
-    "union-function-nested": (
-        lambda: [shard_union_options(nested=[[value_to_float()]])],
-        _not_restored("shard_union_options", "nested"),
-        False,
-    ),
-    "unlisted-empty-list": (
-        lambda: [shard_union_options(unlisted=[])],
-        _not_restored("shard_union_options", "unlisted"),
-        False,
-    ),
-    "union-function-grouped": (
-        lambda: [grouped(shard_union_options(convert=value_to_float()), "group")],
-        _not_restored("shard_union_options", "convert"),
-        False,
-    ),
-    # type aliases, which the merge does not restore
-    "alias-converter": (
-        lambda: [shard_aliased(to_float=CallableScale(3))],
-        _not_restored("shard_aliased", "to_float"),
-        False,
-    ),
-    "alias-intenum": (
-        lambda: [shard_aliased(level=Level.TWO)],
-        _not_restored("shard_aliased", "level"),
-        False,
-    ),
-    "alias-converter-grouped": (
-        lambda: [grouped(shard_aliased(to_float=CallableScale(3)), "group")],
-        _not_restored("shard_aliased", "to_float"),
-        False,
-    ),
-    "alias-intenum-grouped": (
-        lambda: [grouped(shard_aliased(level=Level.TWO), "group")],
-        _not_restored("shard_aliased", "level"),
-        False,
-    ),
-    "hidden-return": (
-        lambda: [shard_hidden_return(to_float=value_to_float(correct=2))],
-        _not_restored("shard_hidden_return", "to_float"),
-        False,
-    ),
-    "hashable": (
-        lambda: [shard_hashable(option=len)],
-        _not_restored("shard_hashable", "option"),
-        True,
-    ),
-    "enum-list": (
-        lambda: [shard_containers(enum_list=[Mode.HIGH])],
-        _not_plain("a list", "enum_list"),
-        True,
-    ),
-    "enum-dicts": (
-        lambda: [shard_containers(enum_dicts={"a": {"b": Mode.HIGH}})],
-        _dict_refused("shard_containers", "a dictionary", "enum_dicts"),
-        True,
-    ),
-    "enum-tuple": (
-        lambda: [shard_containers(enum_tuple=(Mode.HIGH, Mode.LOW))],
-        _not_plain("a list", "enum_tuple"),
-        True,
-    ),
-    "enum-list-grouped": (
-        lambda: [grouped(shard_containers(enum_list=[Mode.HIGH]), "group")],
-        _not_plain("a list", "enum_list"),
-        True,
-    ),
-    "converter-list": (
-        lambda: [shard_containers(converters=[value_to_float(correct=2)])],
-        _not_plain("a list", "converters"),
-        False,
-    ),
-    "converter-map": (
-        lambda: [shard_containers(converter_map={"a": value_to_float(correct=2)})],
-        _dict_refused("shard_containers", "a dictionary", "converter_map"),
-        False,
-    ),
-    "converter-tuple": (
-        lambda: [shard_containers(converter_tuple=(value_to_float(correct=2),))],
-        _not_plain("a list", "converter_tuple"),
-        False,
-    ),
-    "metric-int-keys": (
-        lambda: [shard_metric_map(by_index={1: mean()})],
-        _metric_container_refused("a dictionary", "by_index"),
-        True,
-    ),
-    "metric-nested-int-keys": (
-        lambda: [shard_metric_map(by_group={"a": {1: mean()}})],
-        _metric_container_refused("a dictionary", "by_group"),
-        True,
-    ),
-    "metric-tuple": (
-        lambda: [shard_metric_map(ordered=(mean(), accuracy()))],
-        _metric_container_refused("a list", "ordered"),
-        True,
-    ),
-    "metric-int-keys-grouped": (
-        lambda: [grouped(shard_metric_map(by_index={1: mean()}), "group")],
-        _metric_container_refused("a dictionary", "by_index"),
-        True,
-    ),
-    "metric-dict": (
-        lambda: [shard_metric_map(by_name={"points": aggregate("points", mean())})],
-        _metric_container_refused("a dictionary", "by_name"),
-        True,
-    ),
-    "metric-dict-model-keys": (
-        lambda: [shard_metric_map(by_name=_model_keyed_metrics())],
-        _metric_container_refused("a dictionary", "by_name"),
-        True,
-    ),
-    "metric-dict-model-keys-in-list": (
-        lambda: [shard_metric_map(nested=[_model_keyed_metrics()])],
-        _metric_container_refused("a list", "nested"),
-        True,
-    ),
-    "metric-dict-model-keys-grouped": (
-        lambda: [grouped(shard_metric_map(by_name=_model_keyed_metrics()), "group")],
-        _metric_container_refused("a dictionary", "by_name"),
-        True,
-    ),
-    "enum-literal": (
-        lambda: [shard_scaled(scale=Scale.HIGH)],
-        _enum_literal_refused("scale"),
-        True,
-    ),
-    "flag-literal": (
-        lambda: [shard_scaled(flags=Perm.R)],
-        _enum_literal_refused("flags"),
-        True,
-    ),
-    "float-enum-literal": (
-        lambda: [shard_scaled(ratio=Ratio.HALF)],
-        _enum_literal_refused("ratio"),
-        True,
-    ),
-    "enum-literal-grouped": (
-        lambda: [grouped(shard_scaled(scale=Scale.HIGH), "group")],
-        _enum_literal_refused("scale"),
-        True,
-    ),
-    "registry-shaped": (
-        lambda: [shard_spec(spec=_REGISTRY_SHAPED)],
-        _dict_refused("shard_spec", "a dictionary", "spec"),
-        True,
-    ),
-    "registry-shaped-in-list": (
-        lambda: [shard_spec(specs=["a", _REGISTRY_SHAPED])],
-        _dict_refused("shard_spec", "a list", "specs"),
-        True,
-    ),
-    "registry-shaped-grouped": (
-        lambda: [grouped(shard_spec(spec=_REGISTRY_SHAPED), "group")],
-        _dict_refused("shard_spec", "a dictionary", "spec"),
-        True,
-    ),
-    "model-shaped": (
-        lambda: [shard_spec(model=_MODEL_SHAPED)],
-        _dict_refused("shard_spec", "a dictionary", "model"),
-        True,
-    ),
-    "plain-dict": (
-        lambda: [shard_spec(weights={"points": 2.0})],
-        _dict_refused("shard_spec", "a dictionary", "weights"),
-        True,
-    ),
-    "untyped-list": (
-        lambda: [shard_untyped_list(labels=["a"])],
-        "'shard_untyped_list' was given a list for 'labels', which has no annotation",
-        True,
-    ),
-}
-
-
-@pytest.mark.parametrize("merge", ["fresh", "incremental"])
-@pytest.mark.parametrize("option", list(_FUNCTION_OPTIONS))
-def test_a_metric_given_a_function_is_refused(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, option: str, merge: str
-) -> None:
-    from inspect_ai.log._shards import _api, _write
-
-    metrics, message, scored = _FUNCTION_OPTIONS[option]
-
-    def task() -> Task:
-        return _verdict_task(metrics(), scored)
-
-    merged, shards = _paths(tmp_path)
-    if merge == "incremental":
-        # a merged log written before the refusal, from a shard with no
-        # samples, so no metric is recreated
-        running = _run(shards, "0", task(), sample_id=[1, 2, 3])
-        _as_running(running, keep=set())
-        with monkeypatch.context() as patched:
-            for module in (_write, _api):
-                patched.setattr(module, "recreate_scorers", lambda header: [])
-            assert merge_eval_log_shards(merged, allow_incomplete=True).written
-    _run(shards, "0", task(), sample_id=[1, 2, 3])
-    _run(shards, "1", task(), sample_id=[4, 5, 6])
-    before = _files(str(tmp_path))
-    for delete in (False, True):
-        with pytest.raises(ShardSetError, match=message):
-            merge_eval_log_shards(merged, delete_shards=delete)
-        with pytest.raises(ShardSetError, match=message):
-            _merge_on("trio", monkeypatch, merged, delete_shards=delete)
-    assert _files(str(tmp_path)) == before
-
-
-_ACCEPTED_ANNOTATIONS: list[tuple[object, object]] = [
-    (int, 3),
-    (float, 3),
-    (float, 0.5),
-    (str, "x"),
-    (bool, True),
-    (int | None, 3),
-    (Literal["a", "b"], "a"),
-    (Literal[1, 2] | None, 2),
-    (Annotated[int, "doc"], 3),
-    (Annotated[str, "doc"] | None, "x"),
-    (list[str], ["a"]),
-    (list[str] | None, []),
-    (Sequence[int | float], [1, 0.5]),
-    (list[list[str]], [["a"]]),
-    (Mode, "HIGH"),
-    (Level | None, 2),
-    (Label, "ARS"),
-    (list[Metric], []),
-    (list[str | None], ["a", None]),
-    (list[list[str | None] | None], [["a", None], None]),
-]
-
-_REFUSED_ANNOTATIONS: list[tuple[object, object]] = [
-    (ValueToFloat, "to_float"),
-    (ValueToFloat | None, 3),
-    (CallableScale, 3),
-    (GenericScale[float], 3),
-    (GenericWeight[float], 3),
-    (ConverterAlias, 3),
-    (LevelAlias, 2),
-    (Annotated[ValueToFloat, "doc"], 3),
-    (Any, 3),
-    (object, 3),
-    (Hashable, "x"),
-    (Literal["a"], "b"),
-    (int, "x"),
-    (str, 3),
-    (list[str], "a"),
-    (list[str], [1]),
-    (tuple[str, ...], ["a"]),
-    (set[str], ["a"]),
-    (Mode | str, "HIGH"),
-    (Literal[Scale.HIGH], 2),
-    (list[str], ["a", None]),
-    (str | ValueToFloat, "x"),
-    (list[str | ValueToFloat], ["x"]),
-    (list[list[str | ValueToFloat]], [[]]),
-    (list[ValueToFloat], []),
-    (type[str] | list[str], ["a"]),
-    (list[Metric] | type[str], []),
-    # a list of metrics holds only metrics
-    (list[Metric], [None]),
-    (list[list[Metric]], [[None]]),
-    (list[Metric | None], []),
-    (Sequence[list[Metric] | None] | None, []),
-]
-
-
-@pytest.mark.parametrize("annotation,value", _ACCEPTED_ANNOTATIONS)
-def test_metric_options_are_accepted_for_listed_annotations(
-    annotation: object, value: object
-) -> None:
-    from inspect_ai.log._shards._write import _check_function_options
-
-    def factory(option: object = None) -> None:
-        return None
-
-    factory.__annotations__ = {"option": annotation}
-    _check_function_options("custom", factory, {"option": value})
-
-
-@pytest.mark.parametrize("annotation,value", _REFUSED_ANNOTATIONS)
-def test_metric_options_are_refused_for_other_annotations(
-    annotation: object, value: object
-) -> None:
-    from inspect_ai.log._shards._write import _check_function_options
-
-    def factory(option: object = None) -> None:
-        return None
-
-    factory.__annotations__ = {"option": annotation}
-    with pytest.raises(ShardSetError, match="'custom' "):
-        _check_function_options("custom", factory, {"option": value})
-    # None is never refused: the factory gets None either way
-    _check_function_options("custom", factory, {"option": None})
 
 
 async def _group_score(state: TaskState, target: Target) -> Score:
@@ -2617,7 +1388,7 @@ def test_merged_metrics_see_metadata_as_stored_in_the_log(
     merged, shards = _paths(tmp_path)
     _run(shards, "0", _group_task(groups), sample_id=[1])
     _run(shards, "1", _group_task(groups), sample_id=[2])
-    log = merge_eval_log_shards(merged, delete_shards=True).log
+    log = merge_eval_log_shards(merged, _group_task(groups)).log
     if kind == "tuple-list":
         assert _metric_values(native) == {
             ("group_valued", "('a', 'b')"): 0.0,
@@ -2692,7 +1463,7 @@ def test_merged_metrics_see_scores_as_stored_in_the_log(
     merged, shards = _paths(tmp_path)
     _run(shards, "0", _paired_task(kind), sample_id=[1])
     _run(shards, "1", _paired_task(kind), sample_id=[2])
-    log = merge_eval_log_shards(merged, delete_shards=True).log
+    log = merge_eval_log_shards(merged, _paired_task(kind)).log
     stored = {
         ("paired", "shard_tuple_values"): 0.0,
         ("paired", "shard_tuple_metadata"): 0.0,
@@ -2732,15 +1503,15 @@ def test_merged_invalidated_follows_the_merged_samples(tmp_path: Path) -> None:
     _run(shards, "0", sample_id=[1, 2, 3])
     invalidated(_run(shards, "1", sample_id=[4, 5, 6]))
     # fresh merge of an invalidated shard sample
-    assert merge_eval_log_shards(merged).log.invalidated
+    assert merge_eval_log_shards(merged, _task()).log.invalidated
     _check_invalidated(merged, True)
     # a replacement without the last invalidated sample clears the flag
     _run(shards, "1", sample_id=[4, 5, 6])
-    assert not merge_eval_log_shards(merged).log.invalidated
+    assert not merge_eval_log_shards(merged, _task()).log.invalidated
     _check_invalidated(merged, False)
     # an invalidated replacement in an incremental merge sets it
     invalidated(_run(shards, "1", sample_id=[4, 5, 6]))
-    assert merge_eval_log_shards(merged).log.invalidated
+    assert merge_eval_log_shards(merged, _task()).log.invalidated
     _check_invalidated(merged, True)
 
 
@@ -2748,7 +1519,7 @@ def test_merge_of_limit_range_shards(tmp_path: Path) -> None:
     merged, shards = _paths(tmp_path)
     _run(shards, "0", limit=(0, 3))
     _run(shards, "1", limit=(3, 6))
-    result = merge_eval_log_shards(merged, sample_count=6)
+    result = merge_eval_log_shards(merged, _task(), sample_count=6)
     assert result.log.status == "success"
     assert result.log.eval.shards is not None
     assert result.log.eval.shards.selection == "count"
@@ -2761,20 +1532,20 @@ def test_merge_of_an_incomplete_set_raises_and_writes_nothing(tmp_path: Path) ->
     merged, shards = _paths(tmp_path)
     _run(shards, "0", sample_id=[1, 2, 3])
     with pytest.raises(ShardSetIncomplete) as raised:
-        merge_eval_log_shards(merged, sample_ids=[1, 2, 3, 4, 5])
+        merge_eval_log_shards(merged, _task(), sample_ids=[1, 2, 3, 4, 5])
     assert raised.value.status == "started"
     assert raised.value.missing == [4, 5]
     assert raised.value.running == [] and raised.value.failed == []
     assert not os.path.exists(merged)
 
     result = merge_eval_log_shards(
-        merged, sample_ids=[1, 2, 3, 4, 5], allow_incomplete=True
+        merged, _task(), sample_ids=[1, 2, 3, 4, 5], allow_incomplete=True
     )
     assert result.log.status == "started"
     assert result.log.eval.dataset.sample_ids == [1, 2, 3, 4, 5]
     # an unchanged call without allow_incomplete still raises
     with pytest.raises(ShardSetIncomplete):
-        merge_eval_log_shards(merged)
+        merge_eval_log_shards(merged, _task())
 
 
 def test_merge_status_from_running_and_failed_shards(
@@ -2791,11 +1562,11 @@ def test_merge_status_from_running_and_failed_shards(
     _run(shards, "2", task, sample_id=[5, 6])
 
     with pytest.raises(ShardSetIncomplete) as raised:
-        merge_eval_log_shards(merged)
+        merge_eval_log_shards(merged, task)
     assert raised.value.status == "error"
     assert raised.value.running == ["0"] and raised.value.failed == ["1"]
 
-    result = merge_eval_log_shards(merged, allow_incomplete=True)
+    result = merge_eval_log_shards(merged, task, allow_incomplete=True)
     header = result.log
     assert header.status == "error"
     assert header.error is not None and "failed on 4" in header.error.message
@@ -2807,14 +1578,14 @@ def test_merge_status_from_running_and_failed_shards(
 
     # re-running the failed shard in its directory clears the error
     _run(shards, "1", task, sample_id=[3, 4])
-    header = merge_eval_log_shards(merged, allow_incomplete=True).log
+    header = merge_eval_log_shards(merged, task, allow_incomplete=True).log
     assert header.status == "started" and header.error is None
     assert header.eval.shards is not None
     assert header.eval.shards.ledger[1].log != ledger[1].log
 
     # the cancelled status counts as failed too
     _rewrite(running, lambda log: setattr(log, "status", "cancelled"))
-    header = merge_eval_log_shards(merged, allow_incomplete=True).log
+    header = merge_eval_log_shards(merged, task, allow_incomplete=True).log
     assert header.status == "error"
 
 
@@ -2829,11 +1600,11 @@ def test_merge_of_a_drained_success_shard_stays_started(tmp_path: Path) -> None:
 
     _rewrite(drained, drain)
     with pytest.raises(ShardSetIncomplete) as raised:
-        merge_eval_log_shards(merged, sample_ids=list(range(1, 7)))
+        merge_eval_log_shards(merged, _task(), sample_ids=list(range(1, 7)))
     assert raised.value.status == "started" and raised.value.missing == [6]
     # without a selection, the dataset size decides
     with pytest.raises(ShardSetIncomplete):
-        merge_eval_log_shards(merged)
+        merge_eval_log_shards(merged, _task())
 
 
 # ids whose sample a drain cancels as it starts (`_MATERIALIZING`), and ids
@@ -2913,7 +1684,11 @@ def _cancelled_while_starting(shards: str) -> EvalLog:
 
 
 def _merge_on(
-    backend: str, monkeypatch: pytest.MonkeyPatch, merged: str, **kwargs: Any
+    backend: str,
+    monkeypatch: pytest.MonkeyPatch,
+    merged: str,
+    task: Task | str,
+    **kwargs: Any,
 ) -> ShardMergeResult:
     """Merge with the async API on `backend` (the drain producers run on asyncio)."""
     from inspect_ai.log import merge_eval_log_shards_async
@@ -2921,19 +1696,14 @@ def _merge_on(
     with monkeypatch.context() as patched:
         patched.setenv("INSPECT_ASYNC_BACKEND", backend)
         return anyio.run(
-            functools.partial(merge_eval_log_shards_async, merged, **kwargs),
+            functools.partial(merge_eval_log_shards_async, merged, task, **kwargs),
             backend=backend,
         )
 
 
-@pytest.mark.parametrize("state", ["fresh", "unchanged", "interrupted"])
 def test_a_shard_whose_only_sample_a_drain_cancelled_is_refused(
-    tmp_path: Path, drains: None, monkeypatch: pytest.MonkeyPatch, state: str
+    tmp_path: Path, drains: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import shutil
-
-    from inspect_ai.log._shards import _api
-
     merged, shards = _paths(tmp_path)
     # a drain as the only sample starts: no sample scored, so no results and
     # no count, but the sample's error shows the cancellation
@@ -2942,20 +1712,12 @@ def test_a_shard_whose_only_sample_a_drain_cancelled_is_refused(
     _MATERIALIZING.clear()
     assert cancelled.status == "success" and cancelled.results is None
     _run_drained(shards, "1", [2, 3, 4])
-    if state != "fresh":
-        # a merged log written by a merge without the check
-        with monkeypatch.context() as patched:
-            patched.setattr(_api, "check_resolved", lambda *args: None)
-            assert merge_eval_log_shards(merged).written
-    if state == "interrupted":
-        shutil.rmtree(f"{shards}/1")
     before = _files(str(tmp_path))
     unresolved = "holds 1 samples but resolved only 0"
-    for delete in (False, True) if state == "fresh" else (True,):
-        with pytest.raises(ShardSetError, match=unresolved):
-            merge_eval_log_shards(merged, delete_shards=delete)
-        with pytest.raises(ShardSetError, match=unresolved):
-            _merge_on("trio", monkeypatch, merged, delete_shards=delete)
+    with pytest.raises(ShardSetError, match=unresolved):
+        merge_eval_log_shards(merged, _task())
+    with pytest.raises(ShardSetError, match=unresolved):
+        _merge_on("trio", monkeypatch, merged, _task())
     assert _files(str(tmp_path)) == before
 
 
@@ -2972,41 +1734,14 @@ def test_a_shard_holding_a_sample_cancelled_by_a_drain_is_refused(
         _DRAINING.clear()
         assert queued.samples is not None and [s.id for s in queued.samples] == [3]
         assert queued.results is not None and queued.results.logged_samples == 1
-        result = merge_eval_log_shards(merged, allow_incomplete=True)
+        result = merge_eval_log_shards(merged, _task(), allow_incomplete=True)
         assert result.written and result.log.status == "started"
     _cancelled_while_starting(shards)
     before = _files(str(tmp_path))
-    for delete in (False, True):
-        with pytest.raises(ShardSetError, match="holds 2 samples but resolved only 1"):
-            merge_eval_log_shards(merged, delete_shards=delete)
-        with pytest.raises(ShardSetError, match="holds 2 samples but resolved only 1"):
-            _merge_on("trio", monkeypatch, merged, delete_shards=delete)
-    assert _files(str(tmp_path)) == before
-
-
-@pytest.mark.parametrize("remnant", ["unchanged", "interrupted"])
-def test_deleting_merged_attempts_rechecks_their_resolved_count(
-    tmp_path: Path, drains: None, monkeypatch: pytest.MonkeyPatch, remnant: str
-) -> None:
-    import shutil
-
-    from inspect_ai.log._shards import _api
-
-    merged, shards = _paths(tmp_path)
-    _run_drained(shards, "0", [1, 2])
-    _cancelled_while_starting(shards)
-    # a merged log whose ledger holds the attempt, as one merged without the
-    # check would
-    with monkeypatch.context() as patched:
-        patched.setattr(_api, "check_resolved", lambda *args: None, raising=False)
-        assert merge_eval_log_shards(merged).log.status == "success"
-    if remnant == "interrupted":
-        shutil.rmtree(f"{shards}/0")
-    before = _files(str(tmp_path))
     with pytest.raises(ShardSetError, match="holds 2 samples but resolved only 1"):
-        merge_eval_log_shards(merged, delete_shards=True)
+        merge_eval_log_shards(merged, _task())
     with pytest.raises(ShardSetError, match="holds 2 samples but resolved only 1"):
-        _merge_on("trio", monkeypatch, merged, delete_shards=True)
+        _merge_on("trio", monkeypatch, merged, _task())
     assert _files(str(tmp_path)) == before
 
 
@@ -3023,16 +1758,17 @@ def test_errored_samples_and_queued_drains_merge(
         assert errored.status == "success" and errored.results is not None
         assert errored.results.logged_samples is None
     else:
+        task = _drained_task()
         _run_drained(shards, "0", [1, 2])
         _DRAINING.add(3)
         _run_drained(shards, "1", [3, 4])
         _DRAINING.clear()
-        header = merge_eval_log_shards(merged, allow_incomplete=True).log
+        header = merge_eval_log_shards(merged, task, allow_incomplete=True).log
         assert header.status == "started"
         assert _keys(merged) == {("1", 1), ("2", 1), ("3", 1)}
         _run_drained(shards, "1", [3, 4])
-    result = merge_eval_log_shards(merged, delete_shards=True)
-    assert result.written and result.shards_deleted
+    result = merge_eval_log_shards(merged, task)
+    assert result.written
     assert result.log.status == "success"
     assert _keys(merged) == {(str(i), 1) for i in range(1, 5)}
 
@@ -3043,14 +1779,16 @@ def test_merge_keeps_exactly_the_records_a_running_shard_holds(tmp_path: Path) -
     running = _run(shards, "0", task, sample_id=[1])
     _as_running(running, keep={(1, 1)})
     other = _run(shards, "1", task, sample_id=[2])
-    header = merge_eval_log_shards(merged, sample_ids=[1, 2], allow_incomplete=True).log
+    header = merge_eval_log_shards(
+        merged, task, sample_ids=[1, 2], allow_incomplete=True
+    ).log
     assert header.eval.shards is not None
     assert header.eval.shards.ledger[0].samples == 1
     assert _keys(merged) == {("1", 1), ("2", 1), ("2", 2)}
 
     # another shard changes; the running one is carried as it was
     _rewrite(other, lambda log: None)
-    header = merge_eval_log_shards(merged, allow_incomplete=True).log
+    header = merge_eval_log_shards(merged, task, allow_incomplete=True).log
     assert header.status == "started"
     assert _keys(merged) == {("1", 1), ("2", 1), ("2", 2)}
 
@@ -3060,7 +1798,7 @@ def test_merge_refuses_two_shards_selecting_one_id(tmp_path: Path) -> None:
     _run(shards, "0", sample_id=[1, 2])
     _run(shards, "1", sample_id=[2, 3])
     with pytest.raises(ShardSetError, match="both select sample '2'"):
-        merge_eval_log_shards(merged, allow_incomplete=True)
+        merge_eval_log_shards(merged, _task(), allow_incomplete=True)
     assert not os.path.exists(merged)
 
 
@@ -3080,17 +1818,14 @@ def test_a_shard_directory_not_named_with_digits_is_refused(
     _run(shards, "0", sample_id=[1, 2, 3])
     _run(shards, "1", sample_id=[4, 5])
     if merge == "existing":
-        result = merge_eval_log_shards(merged, sample_ids=[1, 2, 3, 4, 5])
+        result = merge_eval_log_shards(merged, _task(), sample_ids=[1, 2, 3, 4, 5])
         assert result.log.status == "success"
     # a worker for the last sample, in a directory not named with digits
     _run(shards, name, sample_id=[6])
     target = to_uri(merged) if form == "file_uri" else merged
     before = _files(str(tmp_path))
-    for delete in (False, True):
-        with pytest.raises(ShardSetError, match="must be named with digits only"):
-            merge_eval_log_shards(
-                target, sample_ids=list(range(1, 7)), delete_shards=delete
-            )
+    with pytest.raises(ShardSetError, match="must be named with digits only"):
+        merge_eval_log_shards(target, _task(), sample_ids=list(range(1, 7)))
     assert _files(str(tmp_path)) == before
 
 
@@ -3098,7 +1833,7 @@ def test_a_ledger_recording_a_shard_twice_is_refused(tmp_path: Path) -> None:
     merged, shards = _paths(tmp_path)
     _run(shards, "0", sample_id=[1, 2, 3])
     _run(shards, "1", sample_id=[4, 5, 6])
-    merge_eval_log_shards(merged)
+    merge_eval_log_shards(merged, _task())
 
     def duplicate(header: dict[str, Any]) -> None:
         ledger = header["eval"]["shards"]["ledger"]
@@ -3106,9 +1841,8 @@ def test_a_ledger_recording_a_shard_twice_is_refused(tmp_path: Path) -> None:
 
     _edit_header(merged, duplicate)
     before = _files(str(tmp_path))
-    for delete in (False, True):
-        with pytest.raises(ShardSetError, match="records a shard more than once"):
-            merge_eval_log_shards(merged, delete_shards=delete)
+    with pytest.raises(ShardSetError, match="records a shard more than once"):
+        merge_eval_log_shards(merged, _task())
     assert _files(str(tmp_path)) == before
 
 
@@ -3118,7 +1852,7 @@ def test_a_ledger_recording_an_attempt_name_with_a_backslash_is_refused(
     merged, shards = _paths(tmp_path)
     _run(shards, "0", sample_id=[1, 2, 3])
     _run(shards, "1", sample_id=[4, 5, 6])
-    merge_eval_log_shards(merged)
+    merge_eval_log_shards(merged, _task())
 
     def backslash(header: dict[str, Any]) -> None:
         entry = header["eval"]["shards"]["ledger"][0]
@@ -3126,9 +1860,8 @@ def test_a_ledger_recording_an_attempt_name_with_a_backslash_is_refused(
 
     _edit_header(merged, backslash)
     before = _files(str(tmp_path))
-    for delete in (False, True):
-        with pytest.raises(ShardSetError, match="a name with a backslash"):
-            merge_eval_log_shards(merged, delete_shards=delete)
+    with pytest.raises(ShardSetError, match="a name with a backslash"):
+        merge_eval_log_shards(merged, _task())
     assert _files(str(tmp_path)) == before
 
 
@@ -3170,7 +1903,7 @@ def _merge_unchecked(monkeypatch: pytest.MonkeyPatch, merged: str) -> None:
         patched.setattr(
             _api, "check_current_unambiguous", lambda shards: None, raising=False
         )
-        assert merge_eval_log_shards(merged).log.status == "success"
+        assert merge_eval_log_shards(merged, _task()).log.status == "success"
 
 
 _BACKSLASH = "its file name contains a backslash"
@@ -3192,9 +1925,8 @@ def test_attempt_names_with_a_backslash_are_refused(
         os.remove(newer)
     target = to_uri(merged) if form == "file_uri" else merged
     before = _files(str(tmp_path))
-    for delete in (False, True):
-        with pytest.raises(ShardSetError, match=_BACKSLASH):
-            merge_eval_log_shards(target, delete_shards=delete)
+    with pytest.raises(ShardSetError, match=_BACKSLASH):
+        merge_eval_log_shards(target, _task())
     assert _files(str(tmp_path)) == before
 
 
@@ -3202,8 +1934,8 @@ def test_distinct_shard_names_with_the_same_number_merge(tmp_path: Path) -> None
     merged, shards = _paths(tmp_path)
     _run(shards, "0", sample_id=[1, 2, 3])
     _run(shards, "00", sample_id=[4, 5, 6])
-    result = merge_eval_log_shards(merged, delete_shards=True)
-    assert result.written and result.shards_deleted
+    result = merge_eval_log_shards(merged, _task())
+    assert result.written
     assert result.log.status == "success" and result.log.eval.shards is not None
     assert [e.shard for e in result.log.eval.shards.ledger] == ["0", "00"]
 
@@ -3212,26 +1944,26 @@ def test_merge_records_and_reads_back_each_selection_form(tmp_path: Path) -> Non
     merged, shards = _paths(tmp_path)
     _run(shards, "0", sample_id=[1, 2])
     header = merge_eval_log_shards(
-        merged, sample_ids=["2", 1, 3], allow_incomplete=True
+        merged, _task(), sample_ids=["2", 1, 3], allow_incomplete=True
     ).log
     assert header.eval.shards is not None
     assert header.eval.shards.selection == "ids"
     assert header.eval.dataset.sample_ids == ["2", 1, 3]
     # a later pass without a selection uses the recorded one
     with pytest.raises(ShardSetIncomplete) as raised:
-        merge_eval_log_shards(merged)
+        merge_eval_log_shards(merged, _task())
     assert raised.value.missing == [3]
 
-    result = merge_eval_log_shards(merged, sample_count=2)
+    result = merge_eval_log_shards(merged, _task(), sample_count=2)
     assert result.written and result.log.status == "success"
     assert result.log.eval.shards is not None
     assert result.log.eval.shards.selection == "count"
     assert result.log.eval.shards.sample_count == 2
     assert result.log.eval.dataset.sample_ids == [1, 2]
-    assert not merge_eval_log_shards(merged).written
+    assert not merge_eval_log_shards(merged, _task()).written
 
     with pytest.raises(ShardSetIncomplete):
-        merge_eval_log_shards(merged, sample_count=3)
+        merge_eval_log_shards(merged, _task(), sample_count=3)
 
 
 def test_selection_digest_ignores_order_and_id_type() -> None:
@@ -3263,7 +1995,7 @@ def test_merged_header_carries_no_per_sample_list_but_sample_ids(
     task = _task(epochs=3, samples=100)
     for k in range(4):
         _run(shards, str(k), task, sample_id=list(range(k * 25 + 1, k * 25 + 26)))
-    header = merge_eval_log_shards(merged, sample_ids=list(range(1, 101))).log
+    header = merge_eval_log_shards(merged, task, sample_ids=list(range(1, 101))).log
     assert header.eval.config.sample_id is None
     with zipfile.ZipFile(merged) as zf:
         merged_header = zf.read("header.json")
@@ -3314,7 +2046,7 @@ def test_merge_refuses_shards_of_different_runs(
         sample_id=[3, 4],
     )
     with pytest.raises(ShardSetError, match=detail):
-        merge_eval_log_shards(merged, allow_incomplete=True)
+        merge_eval_log_shards(merged, _task(), allow_incomplete=True)
     assert not os.path.exists(merged)
 
 
@@ -3329,7 +2061,74 @@ def test_merge_refuses_a_scorer_change_that_keeps_the_identifier(
     other.scorer = [includes()]
     _run(shards, "1", other, sample_id=[3, 4])
     with pytest.raises(ShardSetError, match="scorers"):
-        merge_eval_log_shards(merged, allow_incomplete=True)
+        merge_eval_log_shards(merged, other, allow_incomplete=True)
+
+
+def _mismatched(field: str) -> Task:
+    """A task like `_task()` that differs from it in `field`."""
+    if field == "task name":
+        return task_with(_task(), name="another_task")
+    if field == "scorers":
+        changed = _task()
+        changed.scorer = [other()]
+        return changed
+    if field == "scorer metrics":
+        return Task(
+            dataset=_task().dataset,
+            solver=generate(),
+            scorer=match(),
+            metrics=[mean()],
+            name=TASK,
+        )
+    if field == "epochs":
+        return _task(epochs=2)
+    return _task(epochs=Epochs(1, "max"))
+
+
+_MISMATCHES = ["task name", "scorers", "scorer metrics", "epochs", "epoch reducers"]
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+@pytest.mark.parametrize("merge", ["fresh", "incremental", "unchanged", "no-shards"])
+@pytest.mark.parametrize(
+    "field", _MISMATCHES, ids=[f.replace(" ", "-") for f in _MISMATCHES]
+)
+def test_a_task_that_differs_from_the_shards_is_refused(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+    merge: str,
+    backend: str,
+) -> None:
+    import shutil
+
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", sample_id=[1, 2, 3])
+    if merge == "incremental":
+        merge_eval_log_shards(merged, _task(), allow_incomplete=True)
+    _run(shards, "1", sample_id=[4, 5, 6])
+    if merge in ("unchanged", "no-shards"):
+        merge_eval_log_shards(merged, _task())
+    if merge == "no-shards":
+        shutil.rmtree(shards)
+    before = _files(str(tmp_path))
+    with pytest.raises(ShardSetError, match=f"in its {field} "):
+        _merge_on(backend, monkeypatch, merged, _mismatched(field))
+    assert _files(str(tmp_path)) == before
+
+
+def test_a_task_spec_naming_several_tasks_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _run_task_file(_SHORTHAND_REDUCER_TASK)
+    with open("custom_task.py", "a") as file:
+        file.write(f"\n\n@task\ndef second() -> Task:\n    return {TASK}()\n")
+    before = _files(f"{NAME}.shards")
+    with pytest.raises(ValueError, match="names 2 tasks"):
+        merge_eval_log_shards(f"{NAME}.eval", "custom_task.py")
+    assert not os.path.exists(f"{NAME}.eval")
+    assert _files(f"{NAME}.shards") == before
 
 
 def test_merge_refuses_a_different_reducer_and_a_newer_format(tmp_path: Path) -> None:
@@ -3337,12 +2136,16 @@ def test_merge_refuses_a_different_reducer_and_a_newer_format(tmp_path: Path) ->
     _run(shards, "0", _task(epochs=Epochs(2, "mean")), sample_id=[1])
     second = _run(shards, "1", _task(epochs=Epochs(2, "max")), sample_id=[2])
     with pytest.raises(ShardSetError, match="epochs reducer"):
-        merge_eval_log_shards(merged, allow_incomplete=True)
+        merge_eval_log_shards(
+            merged, _task(epochs=Epochs(2, "mean")), allow_incomplete=True
+        )
     os.remove(second.location)
     third = _run(shards, "1", _task(epochs=Epochs(2, "mean")), sample_id=[2])
     _edit_header(third.location, lambda h: h.update(version=99))
     with pytest.raises(ShardSetError, match="newer"):
-        merge_eval_log_shards(merged, allow_incomplete=True)
+        merge_eval_log_shards(
+            merged, _task(epochs=Epochs(2, "mean")), allow_incomplete=True
+        )
 
 
 def test_merge_refuses_a_chunked_sample(tmp_path: Path) -> None:
@@ -3354,7 +2157,7 @@ def test_merge_refuses_a_chunked_sample(tmp_path: Path) -> None:
     convert_eval_logs_to_chunked(log.location, str(converted))
     os.replace(next(converted.glob("*.eval")), log.location)
     with pytest.raises(ShardSetError, match="chunked"):
-        merge_eval_log_shards(merged, allow_incomplete=True)
+        merge_eval_log_shards(merged, _task(), allow_incomplete=True)
 
 
 def test_merge_accepts_an_id_containing_a_slash(tmp_path: Path) -> None:
@@ -3365,7 +2168,7 @@ def test_merge_accepts_an_id_containing_a_slash(tmp_path: Path) -> None:
         name=TASK,
     )
     _run(shards, "0", task)
-    result = merge_eval_log_shards(merged)
+    result = merge_eval_log_shards(merged, task)
     assert result.log.status == "success"
     assert _members(merged) == ["samples/group/item_epoch_1.json"]
 
@@ -3376,13 +2179,13 @@ def test_merge_refuses_stray_logs_and_an_ordinary_log(tmp_path: Path) -> None:
     stray = f"{shards}/{Path(log.location).name}"
     Path(stray).write_bytes(Path(log.location).read_bytes())
     with pytest.raises(ShardSetError, match="not shard attempts"):
-        merge_eval_log_shards(merged, allow_incomplete=True)
+        merge_eval_log_shards(merged, _task(), allow_incomplete=True)
     os.remove(stray)
 
     Path(merged).write_bytes(Path(log.location).read_bytes())
     before = Path(merged).read_bytes()
     with pytest.raises(ShardSetError, match="ordinary log"):
-        merge_eval_log_shards(merged, allow_incomplete=True)
+        merge_eval_log_shards(merged, _task(), allow_incomplete=True)
     assert Path(merged).read_bytes() == before
 
 
@@ -3391,7 +2194,7 @@ def test_merge_refuses_a_shard_without_a_recorded_selection(tmp_path: Path) -> N
     log = _run(shards, "0", sample_id=[1, 2])
     _edit_header(log.location, lambda h: h["eval"]["dataset"].pop("sample_ids"))
     with pytest.raises(ShardSetError, match="records no sample selection"):
-        merge_eval_log_shards(merged, allow_incomplete=True)
+        merge_eval_log_shards(merged, _task(), allow_incomplete=True)
 
 
 def test_merge_refuses_a_shard_holding_samples_outside_its_selection(
@@ -3402,7 +2205,7 @@ def test_merge_refuses_a_shard_holding_samples_outside_its_selection(
     log = _run(shards, "0", sample_id=[1, 2])
     _edit_header(log.location, lambda h: h["eval"]["dataset"].update(sample_ids=[1]))
     with pytest.raises(ShardSetError, match="outside its recorded selection"):
-        merge_eval_log_shards(merged, allow_incomplete=True)
+        merge_eval_log_shards(merged, _task(), allow_incomplete=True)
 
 
 def test_merge_refuses_a_new_attempt_with_a_different_selection(
@@ -3410,17 +2213,17 @@ def test_merge_refuses_a_new_attempt_with_a_different_selection(
 ) -> None:
     merged, shards = _paths(tmp_path)
     first = _run(shards, "0", sample_id=[1, 2])
-    merge_eval_log_shards(merged, allow_incomplete=True)
+    merge_eval_log_shards(merged, _task(), allow_incomplete=True)
     second = _run(shards, "0", sample_id=[1, 2, 3])
     with pytest.raises(ShardSetError) as raised:
-        merge_eval_log_shards(merged, allow_incomplete=True)
+        merge_eval_log_shards(merged, _task(), allow_incomplete=True)
     message = str(raised.value)
     assert Path(first.location).name in message
     assert Path(second.location).name in message
     assert "own shard directory" in message
 
     os.remove(merged)
-    result = merge_eval_log_shards(merged, allow_incomplete=True)
+    result = merge_eval_log_shards(merged, _task(), allow_incomplete=True)
     assert _keys(merged) == {("1", 1), ("2", 1), ("3", 1)}
     assert result.log.eval.shards is not None
     assert result.log.eval.shards.ledger[0].log == Path(second.location).name
@@ -3431,10 +2234,10 @@ def test_merge_refuses_a_new_shard_whose_selection_meets_a_carried_record(
 ) -> None:
     merged, shards = _paths(tmp_path)
     _run(shards, "0", sample_id=[1, 2])
-    merge_eval_log_shards(merged, allow_incomplete=True)
+    merge_eval_log_shards(merged, _task(), allow_incomplete=True)
     _run(shards, "1", sample_id=[2, 3])
     with pytest.raises(ShardSetError, match="already merged"):
-        merge_eval_log_shards(merged, allow_incomplete=True)
+        merge_eval_log_shards(merged, _task(), allow_incomplete=True)
 
 
 def test_merge_refuses_a_merged_log_changed_outside_the_merge(
@@ -3443,15 +2246,15 @@ def test_merge_refuses_a_merged_log_changed_outside_the_merge(
     merged, shards = _paths(tmp_path)
     _run(shards, "0", sample_id=[1, 2])
     other = _run(shards, "1", sample_id=[3, 4])
-    merge_eval_log_shards(merged, allow_incomplete=True)
+    merge_eval_log_shards(merged, _task(), allow_incomplete=True)
     _remove_member(merged, "samples/1_epoch_1.json")
     # a pass over unchanged shards
     with pytest.raises(ShardSetError, match="changed outside the merge"):
-        merge_eval_log_shards(merged, allow_incomplete=True)
+        merge_eval_log_shards(merged, _task(), allow_incomplete=True)
     # and one where another shard changed
     _rewrite(other, lambda log: None)
     with pytest.raises(ShardSetError, match="changed outside the merge"):
-        merge_eval_log_shards(merged, allow_incomplete=True)
+        merge_eval_log_shards(merged, _task(), allow_incomplete=True)
 
 
 def test_overlap_without_shared_records_is_refused_once_a_shard_is_read_again(
@@ -3461,10 +2264,10 @@ def test_overlap_without_shared_records_is_refused_once_a_shard_is_read_again(
     task = _task(epochs=1)
     first = _run(shards, "0", task, sample_id=[1, 2, 3])
     _as_running(first, keep={(1, 1)})
-    merge_eval_log_shards(merged, allow_incomplete=True)
+    merge_eval_log_shards(merged, task, allow_incomplete=True)
     # a new shard selecting 3, which shard 0 selects but does not hold yet
     _run(shards, "1", task, sample_id=[3, 4])
-    merge_eval_log_shards(merged, allow_incomplete=True)
+    merge_eval_log_shards(merged, task, allow_incomplete=True)
     # a fresh merge of the same shards refuses at once
     fresh = tmp_path / "fresh"
     fresh.mkdir()
@@ -3472,11 +2275,11 @@ def test_overlap_without_shared_records_is_refused_once_a_shard_is_read_again(
 
     shutil.copytree(shards, _paths(fresh)[1], copy_function=shutil.copy2)
     with pytest.raises(ShardSetError, match="both select"):
-        merge_eval_log_shards(_paths(fresh)[0], allow_incomplete=True)
+        merge_eval_log_shards(_paths(fresh)[0], task, allow_incomplete=True)
     # and the incremental one does when shard 0 is read again
     _rewrite(first, lambda log: None)
     with pytest.raises(ShardSetError, match="selected by shard 0|both select"):
-        merge_eval_log_shards(merged, allow_incomplete=True)
+        merge_eval_log_shards(merged, task, allow_incomplete=True)
 
 
 def test_incremental_merge_reads_only_changed_shards(
@@ -3487,7 +2290,7 @@ def test_incremental_merge_reads_only_changed_shards(
     full = read_eval_log(growing.location)
     _as_running(growing, keep={(1, 1), (2, 1)})
     steady = _run(shards, "1", sample_id=[4, 5, 6])
-    first = merge_eval_log_shards(merged, allow_incomplete=True).log
+    first = merge_eval_log_shards(merged, _task(), allow_incomplete=True).log
     assert _keys(merged) == {(str(i), 1) for i in (1, 2, 4, 5, 6)}
 
     opened: list[str] = []
@@ -3510,7 +2313,7 @@ def test_incremental_merge_reads_only_changed_shards(
     monkeypatch.setattr(AsyncZipReader, "read_member_fully", spy_read)
 
     # nothing changed: nothing written, no shard opened
-    result = merge_eval_log_shards(merged, allow_incomplete=True)
+    result = merge_eval_log_shards(merged, _task(), allow_incomplete=True)
     assert not result.written
     assert opened == [merged]
 
@@ -3526,7 +2329,7 @@ def test_incremental_merge_reads_only_changed_shards(
     grow(full)
     write_eval_log(full, growing.location)
     opened.clear()
-    result = merge_eval_log_shards(merged, allow_incomplete=True)
+    result = merge_eval_log_shards(merged, _task(), allow_incomplete=True)
     assert result.written
     assert growing.location in opened and steady.location not in opened
     sample_reads = [name for file, name in member_reads if file == growing.location]
@@ -3548,10 +2351,10 @@ def test_incremental_merge_reads_only_changed_shards(
 def test_a_new_attempt_replaces_its_shards_records(tmp_path: Path) -> None:
     merged, shards = _paths(tmp_path)
     _run(shards, "0", sample_id=[1, 2, 3])
-    merge_eval_log_shards(merged, allow_incomplete=True)
+    merge_eval_log_shards(merged, _task(), allow_incomplete=True)
     retry = _run(shards, "0", sample_id=[1, 2, 3])
     _as_running(retry, keep={(1, 1)})
-    merge_eval_log_shards(merged, allow_incomplete=True)
+    merge_eval_log_shards(merged, _task(), allow_incomplete=True)
     assert _keys(merged) == {("1", 1)}
 
 
@@ -3563,43 +2366,45 @@ def test_vanished_shards_are_refused_and_a_removed_companion_keeps_the_log(
     merged, shards = _paths(tmp_path)
     _run(shards, "0", sample_id=[1, 2, 3])
     _run(shards, "1", sample_id=[4, 5, 6])
-    merge_eval_log_shards(merged, sample_ids=list(range(1, 7)))
+    merge_eval_log_shards(merged, _task(), sample_ids=list(range(1, 7)))
     before = Path(merged).read_bytes()
     shutil.rmtree(f"{shards}/1")
     with pytest.raises(ShardSetError, match="vanished.*1"):
-        merge_eval_log_shards(merged)
+        merge_eval_log_shards(merged, _task())
     assert Path(merged).read_bytes() == before
 
     shutil.rmtree(shards)
-    result = merge_eval_log_shards(merged)
+    result = merge_eval_log_shards(merged, _task())
     assert not result.written and result.log.status == "success"
     assert Path(merged).read_bytes() == before
     with pytest.raises(ShardSetError, match="can no longer change"):
-        merge_eval_log_shards(merged, sample_ids=[1, 2])
-    assert not merge_eval_log_shards(merged, sample_ids=list(range(1, 7))).written
+        merge_eval_log_shards(merged, _task(), sample_ids=[1, 2])
+    assert not merge_eval_log_shards(
+        merged, _task(), sample_ids=list(range(1, 7))
+    ).written
 
 
 def test_an_added_shard_returns_a_success_log_to_started(tmp_path: Path) -> None:
     merged, shards = _paths(tmp_path)
     _run(shards, "0", sample_id=[1, 2])
     _run(shards, "1", sample_id=[3, 4])
-    first = merge_eval_log_shards(merged, sample_ids=[1, 2, 3, 4]).log
+    first = merge_eval_log_shards(merged, _task(), sample_ids=[1, 2, 3, 4]).log
     assert first.status == "success"
     added = _run(shards, "2", sample_id=[5])
     _as_running(added)
     header = merge_eval_log_shards(
-        merged, sample_ids=[1, 2, 3, 4, 5], allow_incomplete=True
+        merged, _task(), sample_ids=[1, 2, 3, 4, 5], allow_incomplete=True
     ).log
     assert header.status == "started"
     assert header.eval.eval_id == first.eval.eval_id
     # the recorded selection is narrower than the shards' when it is not widened
     _rewrite(added, lambda log: setattr(log, "status", "success"))
     with pytest.raises(ShardSelectionError) as raised:
-        merge_eval_log_shards(merged, sample_ids=[1, 2, 3, 4])
+        merge_eval_log_shards(merged, _task(), sample_ids=[1, 2, 3, 4])
     assert raised.value.outside == ["5"]
     assert "narrower" in str(raised.value)
     with pytest.raises(ShardSelectionError) as raised:
-        merge_eval_log_shards(merged, sample_count=3)
+        merge_eval_log_shards(merged, _task(), sample_count=3)
     assert raised.value.outside is None
 
 
@@ -3607,10 +2412,10 @@ def test_merge_refuses_a_hand_deleted_current_attempt(tmp_path: Path) -> None:
     merged, shards = _paths(tmp_path)
     _run(shards, "0", sample_id=[1, 2])
     current = _run(shards, "0", sample_id=[1, 2])
-    merge_eval_log_shards(merged, allow_incomplete=True)
+    merge_eval_log_shards(merged, _task(), allow_incomplete=True)
     os.remove(current.location)
     with pytest.raises(ShardSetError, match="older than the attempt last merged"):
-        merge_eval_log_shards(merged, allow_incomplete=True)
+        merge_eval_log_shards(merged, _task(), allow_incomplete=True)
 
 
 def _fresh_merge(tmp_path: Path, shards: str, **kwargs: Any) -> tuple[EvalLog, str]:
@@ -3621,7 +2426,7 @@ def _fresh_merge(tmp_path: Path, shards: str, **kwargs: Any) -> tuple[EvalLog, s
     root.mkdir()
     fresh_merged, fresh_shards = _paths(root)
     shutil.copytree(shards, fresh_shards, copy_function=shutil.copy2)
-    return merge_eval_log_shards(fresh_merged, **kwargs).log, fresh_merged
+    return merge_eval_log_shards(fresh_merged, _task(), **kwargs).log, fresh_merged
 
 
 def _comparable(header: EvalLog) -> dict[str, Any]:
@@ -3637,7 +2442,7 @@ def test_incremental_merges_equal_fresh_merges(
     task = _task(solver=_flaky())
 
     def check() -> None:
-        incremental = merge_eval_log_shards(merged, allow_incomplete=True).log
+        incremental = merge_eval_log_shards(merged, task, allow_incomplete=True).log
         fresh, fresh_merged = _fresh_merge(tmp_path, shards, allow_incomplete=True)
         assert _comparable(incremental) == _comparable(fresh)
         assert _members(merged) == _members(fresh_merged)
@@ -3661,7 +2466,7 @@ def test_incremental_merges_equal_fresh_merges(
     failing.clear()
     _run(shards, "0", task, sample_id=[1, 2])
     check()
-    header = merge_eval_log_shards(merged, allow_incomplete=True).log
+    header = merge_eval_log_shards(merged, task, allow_incomplete=True).log
     assert header.status == "error"
     assert header.error is not None and "failed on 3" in header.error.message
 
@@ -3670,14 +2475,14 @@ def test_shard_directories_without_an_attempt_are_not_shards(tmp_path: Path) -> 
     merged, shards = _paths(tmp_path)
     _run(shards, "1", sample_id=[1, 2, 3])
     _run(shards, "4", sample_id=[4, 5, 6])
-    first = merge_eval_log_shards(merged).log
+    first = merge_eval_log_shards(merged, _task()).log
     for path in [
         f"{shards}/0/scans/scan_id=x/rows.parquet",
         f"{shards}/2/.buffer/x/segment.0.zip",
         f"{shards}/3/x.checkpoints/1",
     ]:
         _touch(Path(path))
-    second = merge_eval_log_shards(merged)
+    second = merge_eval_log_shards(merged, _task())
     assert not second.written
     assert first.eval.shards is not None
     assert [e.shard for e in first.eval.shards.ledger] == ["1", "4"]
@@ -3691,9 +2496,9 @@ def test_a_directory_that_gains_an_attempt_becomes_the_template(
     merged, shards = _paths(tmp_path)
     _touch(Path(f"{shards}/0/scans/scan_id=x/rows.parquet"))
     _run(shards, "1", sample_id=[3, 4])
-    merge_eval_log_shards(merged, allow_incomplete=True)
+    merge_eval_log_shards(merged, _task(), allow_incomplete=True)
     _run(shards, "0", sample_id=[1, 2])
-    header = merge_eval_log_shards(merged, allow_incomplete=True).log
+    header = merge_eval_log_shards(merged, _task(), allow_incomplete=True).log
     assert header.eval.shards is not None
     assert header.eval.shards.ledger[0].shard == "0"
     fresh, _ = _fresh_merge(tmp_path, shards, allow_incomplete=True)
@@ -3728,11 +2533,14 @@ def test_merged_task_id_follows_the_file_name_pattern(
     shards = f"{tmp_path}/{name}.shards"
     _run(shards, "0", sample_id=[1, 2])
     merged = f"{tmp_path}/{name}.eval"
-    task_id = merge_eval_log_shards(merged, allow_incomplete=True).log.eval.task_id
+    task_id = merge_eval_log_shards(
+        merged, _task(), allow_incomplete=True
+    ).log.eval.task_id
     assert task_id == (RUN_ID if parsed else shortuuid.uuid(name=name))
     os.remove(merged)
     assert (
-        merge_eval_log_shards(merged, allow_incomplete=True).log.eval.task_id == task_id
+        merge_eval_log_shards(merged, _task(), allow_incomplete=True).log.eval.task_id
+        == task_id
     )
 
 
@@ -3742,24 +2550,24 @@ def test_merged_log_edits_are_kept(tmp_path: Path) -> None:
     merged, shards = _paths(tmp_path)
     _run(shards, "0", sample_id=[1, 2])
     other = _run(shards, "1", sample_id=[3, 4])
-    merge_eval_log_shards(merged, allow_incomplete=True)
+    merge_eval_log_shards(merged, _task(), allow_incomplete=True)
     log = read_eval_log(merged)
     edited = edit_eval_log(
         log, [TagsEdit(tags_add=["kept"])], ProvenanceData(author="test")
     )
     write_eval_log(edited, merged)
     _rewrite(other, lambda log: None)
-    header = merge_eval_log_shards(merged, allow_incomplete=True).log
+    header = merge_eval_log_shards(merged, _task(), allow_incomplete=True).log
     assert header.tags == ["kept"]
 
 
 def test_eval_retry_refuses_an_id_or_count_selected_merged_log(tmp_path: Path) -> None:
     merged, shards = _paths(tmp_path)
     _run(shards, "0", sample_id=[1, 2])
-    merge_eval_log_shards(merged, sample_ids=[1, 2, 3], allow_incomplete=True)
+    merge_eval_log_shards(merged, _task(), sample_ids=[1, 2, 3], allow_incomplete=True)
     with pytest.raises(ValueError, match=f"{NAME}.eval.*sample ids"):
         eval_retry(merged, log_dir=str(tmp_path / "retry"), display="none")
-    merge_eval_log_shards(merged, sample_count=3, allow_incomplete=True)
+    merge_eval_log_shards(merged, _task(), sample_count=3, allow_incomplete=True)
     with pytest.raises(ValueError, match="count"):
         eval_retry(merged, log_dir=str(tmp_path / "retry"), display="none")
     assert not (tmp_path / "retry").exists()
@@ -3775,7 +2583,7 @@ def test_eval_retry_of_an_unselected_merged_log_runs_the_missing_samples(
 ) -> None:
     merged, shards = _paths(tmp_path)
     _run(shards, "0", shardy(), sample_id=[1, 2, 3])
-    header = merge_eval_log_shards(merged, allow_incomplete=True).log
+    header = merge_eval_log_shards(merged, shardy(), allow_incomplete=True).log
     assert header.status == "started"
     assert header.eval.shards is not None and header.eval.shards.selection == "none"
     prior = {s.id: s.uuid for s in read_eval_log(merged).samples or []}
@@ -3795,111 +2603,17 @@ def _files(root: str) -> dict[str, bytes]:
     }
 
 
-def test_delete_shards_deletes_the_whole_shards_directory(tmp_path: Path) -> None:
-    merged, shards = _paths(tmp_path)
-    failed = _run(shards, "0", sample_id=[1, 2, 3])
-    _run(shards, "0", sample_id=[1, 2, 3])
-    _run(shards, "1", sample_id=[4, 5, 6])
-    for other in (
-        "1/.buffer/x/segment.0.zip",
-        f"0/{Path(failed.location).stem}.checkpoints/1/data",
-        "0/scans/scan_id=x/rows.parquet",
-        "notes.txt",
-    ):
-        _touch(Path(f"{shards}/{other}"))
-
-    result = merge_eval_log_shards(merged, delete_shards=True)
-    assert result.written and result.shards_deleted
-    assert result.log.status == "success"
-    assert not os.path.exists(shards)
-    again = merge_eval_log_shards(merged)
-    assert not again.written and again.log.status == "success"
-    # an unchanged call with delete_shards verifies and returns
-    assert merge_eval_log_shards(merged, delete_shards=True).shards_deleted
-
-
-def test_delete_shards_on_an_existing_success_log(tmp_path: Path) -> None:
-    merged, shards = _paths(tmp_path)
-    _run(shards, "0", sample_id=[1, 2, 3])
-    _run(shards, "1", sample_id=[4, 5, 6])
-    merge_eval_log_shards(merged)
-    before = Path(merged).read_bytes()
-    result = merge_eval_log_shards(merged, delete_shards=True)
-    assert not result.written and result.shards_deleted
-    assert not os.path.exists(shards)
-    assert Path(merged).read_bytes() == before
-
-
-def test_delete_shards_refuses_an_incomplete_set(tmp_path: Path) -> None:
-    merged, shards = _paths(tmp_path)
-    _run(shards, "0", sample_id=[1, 2, 3])
-    with pytest.raises(ShardSetIncomplete):
-        merge_eval_log_shards(merged, delete_shards=True)
-    assert len(_files(shards)) == 1
-
-
-def test_an_interrupted_delete_is_refused_until_it_is_finished(
-    tmp_path: Path,
-) -> None:
-    merged, shards = _paths(tmp_path)
-    _run(shards, "0", sample_id=[1, 2, 3])
-    current = _run(shards, "0", sample_id=[1, 2, 3])
-    b = _run(shards, "1", sample_id=[4, 5, 6])
-    merge_eval_log_shards(merged)
-    before = Path(merged).read_bytes()
-
-    # what an interrupted deletion can leave: shard 0 without its merged
-    # attempt but with an older one, shard 1 with only its checkpoints
-    os.remove(current.location)
-    os.remove(b.location)
-    _touch(Path(f"{shards}/1/{Path(b.location).stem}.checkpoints/1/data"))
-    with pytest.raises(ShardSetError, match="older than the attempt last merged"):
-        merge_eval_log_shards(merged)
-    with pytest.raises(ShardSetError, match="can no longer change"):
-        merge_eval_log_shards(merged, sample_count=6, delete_shards=True)
-    assert Path(merged).read_bytes() == before
-
-    result = merge_eval_log_shards(merged, delete_shards=True)
-    assert result.shards_deleted and not result.written
-    assert Path(merged).read_bytes() == before
-    assert not os.path.exists(shards)
-
-
-def test_delete_shards_refuses_a_new_attempt_beside_an_interrupted_delete(
-    tmp_path: Path,
-) -> None:
-    merged, shards = _paths(tmp_path)
-    _run(shards, "0", sample_id=[1, 2, 3])
-    b = _run(shards, "1", sample_id=[4, 5, 6])
-    merge_eval_log_shards(merged)
-    os.remove(b.location)
-    _run(shards, "0", sample_id=[1, 2, 3])
-    with pytest.raises(ShardSetError, match="vanished"):
-        merge_eval_log_shards(merged, delete_shards=True)
-    assert os.path.exists(f"{shards}/0")
-
-
 def test_a_vanished_shard_under_an_incomplete_log_is_refused(tmp_path: Path) -> None:
     import shutil
 
     merged, shards = _paths(tmp_path)
     _run(shards, "0", sample_id=[1, 2, 3])
     _run(shards, "1", sample_id=[4, 5])
-    merge_eval_log_shards(merged, allow_incomplete=True)
+    merge_eval_log_shards(merged, _task(), allow_incomplete=True)
     shutil.rmtree(f"{shards}/1")
     with pytest.raises(ShardSetError, match="vanished"):
-        merge_eval_log_shards(merged, delete_shards=True)
+        merge_eval_log_shards(merged, _task())
     assert os.path.exists(f"{shards}/0")
-
-
-def test_remove_shards_dir_with_the_log(tmp_path: Path) -> None:
-    from inspect_ai.log._shards._delete import remove_shards_dir
-
-    merged, shards = _paths(tmp_path)
-    _run(shards, "0", sample_id=[1, 2, 3])
-    merge_eval_log_shards(merged, allow_incomplete=True)
-    anyio.run(lambda: remove_shards_dir(merged, include_log=True))
-    assert not os.path.exists(merged) and not os.path.exists(shards)
 
 
 def test_a_held_merge_lock_is_reported(tmp_path: Path) -> None:
@@ -3908,7 +2622,7 @@ def test_a_held_merge_lock_is_reported(tmp_path: Path) -> None:
     lock = tmp_path / f"{NAME}.merge.lock"
     lock.write_text('{"pid": 1, "host": "elsewhere"}')
     with pytest.raises(WriteConflictError, match="elsewhere"):
-        merge_eval_log_shards(merged, allow_incomplete=True)
+        merge_eval_log_shards(merged, _task(), allow_incomplete=True)
     assert not os.path.exists(merged) and lock.exists()
 
 
@@ -3948,14 +2662,14 @@ async def test_a_local_merge_overlapping_another_is_refused(
     results: list[Any] = []
 
     async def first() -> None:
-        results.append(await merge_eval_log_shards_async(merged))
+        results.append(await merge_eval_log_shards_async(merged, _task()))
 
     async with anyio.create_task_group() as tg:
         tg.start_soon(first)
         with anyio.fail_after(30):
             await reached.wait()
         with pytest.raises(WriteConflictError, match="merge.lock"):
-            await merge_eval_log_shards_async(merged)
+            await merge_eval_log_shards_async(merged, _task())
         release.set()
     assert results[0].written
     assert not os.path.exists(merged.replace(".eval", ".merge.lock"))
@@ -3970,7 +2684,7 @@ async def test_a_cancelled_merge_leaves_no_lock_or_temp_files(
     before = _files(str(tmp_path))
     reached, _ = _pause_publish(monkeypatch)
     async with anyio.create_task_group() as tg:
-        tg.start_soon(merge_eval_log_shards_async, merged)
+        tg.start_soon(merge_eval_log_shards_async, merged, _task())
         with anyio.fail_after(30):
             await reached.wait()
         tg.cancel_scope.cancel()
@@ -4013,7 +2727,7 @@ def test_a_cancelled_publish_finishes_before_a_later_merge(
     waiting = _waiting_for_owned_workers(monkeypatch)
 
     async def scenario() -> tuple[bool, bytes]:
-        merge = asyncio.ensure_future(merge_eval_log_shards_async(merged))
+        merge = asyncio.ensure_future(merge_eval_log_shards_async(merged, _task()))
         assert await asyncio.to_thread(copying.wait, 30)
         merge.cancel()
         if cancels == 2:
@@ -4032,7 +2746,7 @@ def test_a_cancelled_publish_finishes_before_a_later_merge(
             # overwritten by the worker
             return True, b""
         shutil.move(staged, newer)
-        assert (await merge_eval_log_shards_async(merged)).written
+        assert (await merge_eval_log_shards_async(merged, _task())).written
         return False, Path(merged).read_bytes()
 
     returned_early, retried = asyncio.run(scenario())
@@ -4156,71 +2870,6 @@ async def test_run_owned_raises_a_deadline_that_passed_during_the_work() -> None
     assert done == [True]
 
 
-@pytest.mark.parametrize(
-    "target,backend", [("local", "asyncio"), ("local", "trio"), ("s3", "trio")]
-)
-def test_a_merged_log_unlink_under_a_cancel_scope_finishes_and_raises(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    request: pytest.FixtureRequest,
-    target: str,
-    backend: str,
-) -> None:
-    import threading
-
-    from inspect_ai.log._shards import _delete
-    from inspect_ai.log._shards._delete import remove_shards_dir
-
-    prefix = request.getfixturevalue("s3_root") if target == "s3" else ""
-    if target == "s3":
-        merged, shards = _paths(f"s3://test-bucket/{prefix}")
-        client = boto3.client("s3")
-        for name in [f"{NAME}.eval", f"{NAME}.shards/0/a.eval"]:
-            client.put_object(Bucket="test-bucket", Key=f"{prefix}/{name}", Body=b"x")
-        paused = "s3_delete_object"
-    else:
-        merged, shards = _paths(tmp_path)
-        os.makedirs(f"{shards}/0")
-        Path(merged).write_bytes(b"merged")
-        Path(f"{shards}/0/a.eval").write_bytes(b"x")
-        paused = "_remove_local_file"
-
-    reached, release, calls = threading.Event(), threading.Event(), []
-    remove = getattr(_delete, paused)
-
-    def pausing(*args: Any) -> None:
-        reached.set()
-        assert release.wait(30)
-        remove(*args)
-        calls.append(True)
-
-    monkeypatch.setattr(_delete, paused, pausing)
-    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
-    after: list[bool] = []
-
-    async def scenario() -> bool:
-        with anyio.CancelScope() as scope:
-            async with anyio.create_task_group() as tg:
-
-                async def cancel() -> None:
-                    await anyio.to_thread.run_sync(reached.wait, 30)
-                    scope.cancel()
-                    release.set()
-
-                tg.start_soon(cancel)
-                await remove_shards_dir(merged, include_log=True)
-                after.append(True)
-        return scope.cancelled_caught
-
-    assert anyio.run(scenario, backend=backend)
-    # the unlink finished once, then the cancellation stopped the deletion
-    assert calls == [True] and after == []
-    if target == "s3":
-        assert _s3_keys(f"{prefix}/") == [f"{prefix}/{NAME}.shards/0/a.eval"]
-    else:
-        assert not os.path.exists(merged) and os.path.exists(f"{shards}/0/a.eval")
-
-
 def test_run_owned_waits_through_repeated_native_cancellations(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -4255,182 +2904,6 @@ def test_run_owned_waits_through_repeated_native_cancellations(
 
     assert not asyncio.run(scenario()), "returned before its worker finished"
     assert done == [True]
-
-
-@pytest.mark.parametrize("target", ["merge", "local", "file", "s3", "log"])
-def test_a_cancelled_deletion_finishes_before_a_later_write(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    request: pytest.FixtureRequest,
-    target: str,
-) -> None:
-    import asyncio
-    import threading
-
-    from inspect_ai.log import merge_eval_log_shards_async
-    from inspect_ai.log._shards import _delete
-    from inspect_ai.log._shards._delete import remove_shards_dir
-
-    if target == "s3":
-        root = f"s3://test-bucket/{request.getfixturevalue('s3_root')}"
-    elif target == "file":
-        root = tmp_path.as_uri()
-    else:
-        root = str(tmp_path)
-    merged, shards = _paths(root)
-    later = f"{shards}/0/later.eval"
-    if target == "merge":
-        _run(shards, "0", sample_id=[1, 2, 3])
-        _run(shards, "1", sample_id=[4, 5, 6])
-    elif target == "s3":
-        key = merged.removeprefix("s3://test-bucket/")
-        client = boto3.client("s3")
-        client.put_object(Bucket="test-bucket", Key=key, Body=b"merged")
-        shard_key = f"{key.removesuffix('.eval')}.shards/0/a.eval"
-        client.put_object(Bucket="test-bucket", Key=shard_key, Body=b"x")
-    else:
-        os.makedirs(local_path(f"{shards}/0"))
-        Path(local_path(merged)).write_bytes(b"merged")
-        Path(local_path(f"{shards}/0/a.eval")).write_bytes(b"x")
-
-    reached, release, finished = threading.Event(), threading.Event(), threading.Event()
-    paused = {
-        "log": "_remove_local_file",
-        "s3": "_remove_s3_prefix",
-    }.get(target, "_remove_local_dir")
-    remove = getattr(_delete, paused)
-
-    def pausing(*args: Any) -> None:
-        reached.set()
-        assert release.wait(30)
-        try:
-            remove(*args)
-        finally:
-            finished.set()
-
-    monkeypatch.setattr(_delete, paused, pausing)
-
-    def write_later() -> None:
-        if target == "s3":
-            client.put_object(
-                Bucket="test-bucket",
-                Key=later.removeprefix("s3://test-bucket/"),
-                Body=b"later",
-            )
-        elif target == "log":
-            Path(local_path(merged)).write_bytes(b"later")
-        else:
-            os.makedirs(local_path(f"{shards}/0"), exist_ok=True)
-            Path(local_path(later)).write_bytes(b"later")
-
-    def survived() -> bool:
-        if target == "s3":
-            return later.removeprefix("s3://test-bucket/") in _s3_keys(
-                later.removeprefix("s3://test-bucket/")
-            )
-        written = merged if target == "log" else later
-        return Path(local_path(written)).read_bytes() == b"later"
-
-    async def scenario() -> bool:
-        operation: Coroutine[Any, Any, Any] = (
-            merge_eval_log_shards_async(merged, delete_shards=True)
-            if target == "merge"
-            else remove_shards_dir(merged, include_log=target == "log")
-        )
-        deletion = asyncio.ensure_future(operation)
-        assert await asyncio.to_thread(reached.wait, 30)
-        deletion.cancel()
-        done, _ = await asyncio.wait({deletion}, timeout=0.5)
-        if not done:
-            release.set()
-        with pytest.raises(asyncio.CancelledError):
-            await deletion
-        # a later operation, once the cancelled one has returned
-        write_later()
-        release.set()
-        assert await asyncio.to_thread(finished.wait, 30)
-        return bool(done)
-
-    returned_early = asyncio.run(scenario())
-    assert not returned_early, "the cancelled deletion returned before its worker"
-    assert survived()
-    if target == "merge":
-        assert not os.path.exists(merged.replace(".eval", ".merge.lock"))
-
-
-@pytest.mark.parametrize("case", ["deadline", "scope", "empty", "remnant"])
-def test_the_final_s3_listing_raises_a_cancellation_on_trio(
-    monkeypatch: pytest.MonkeyPatch, s3_root: str, case: str
-) -> None:
-    import threading
-
-    from inspect_ai.log._shards._delete import remove_shards_dir
-
-    merged, _ = _paths(f"s3://test-bucket/{s3_root}")
-    shard_key = f"{s3_root}/{NAME}.shards/0/a.eval"
-    boto3.client("s3").put_object(Bucket="test-bucket", Key=shard_key, Body=b"x")
-    listing, release, listed = threading.Event(), threading.Event(), []
-    s3_client = AsyncFilesystem.s3_client
-
-    class PausedListing:
-        """The S3 client, its remnant listing paused (the bulk delete pages)."""
-
-        def __init__(self, s3: Any) -> None:
-            self._s3 = s3
-
-        def __getattr__(self, name: str) -> Any:
-            return getattr(self._s3, name)
-
-        def list_objects_v2(self, **kwargs: Any) -> Any:
-            listing.set()
-            assert release.wait(30)
-            response = self._s3.list_objects_v2(**kwargs)
-            listed.append(True)
-            if case == "remnant":
-                return {"Contents": [{"Key": shard_key}]}
-            return response
-
-    monkeypatch.setattr(
-        AsyncFilesystem, "s3_client", lambda fs: PausedListing(s3_client(fs))
-    )
-    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", "trio")
-    after: list[bool] = []
-    errors: list[str] = []
-
-    async def scenario() -> bool:
-        with anyio.fail_after(30) as deadline:
-            with anyio.CancelScope() as scope:
-                async with anyio.create_task_group() as tg:
-
-                    async def interrupt() -> None:
-                        await anyio.to_thread.run_sync(listing.wait, 30)
-                        if case == "deadline":
-                            deadline.deadline = anyio.current_time()
-                        elif case == "scope":
-                            scope.cancel()
-                        release.set()
-
-                    tg.start_soon(interrupt)
-                    try:
-                        await remove_shards_dir(merged)
-                    except ShardSetError as ex:
-                        errors.append(str(ex))
-                    after.append(True)
-        return scope.cancelled_caught
-
-    if case == "deadline":
-        with pytest.raises(TimeoutError):
-            anyio.run(scenario, backend="trio")
-    else:
-        assert anyio.run(scenario, backend="trio") == (case == "scope")
-    # the listing ran once; a cancellation during it stops the deletion
-    assert listed == [True]
-    assert after == ([] if case in ("deadline", "scope") else [True])
-    if case == "remnant":
-        assert len(errors) == 1 and "left objects behind" in errors[0]
-    else:
-        assert errors == []
-    assert _s3_keys(f"{s3_root}/") == []
 
 
 @pytest.mark.parametrize("exists", [False, True], ids=["create", "replace"])
@@ -4607,7 +3080,7 @@ def test_a_failed_shard_read_fails_the_merge_with_its_error(
     merged, shards = two_shards
     calls = _crc_failures(monkeypatch, shards, 100, error, member)
     with pytest.raises(type(error)) as raised:
-        merge_eval_log_shards(merged)
+        merge_eval_log_shards(merged, _task())
     assert raised.value is error
     # header reads of the two shards run concurrently; sample reads one by one
     assert 1 <= len(calls) <= (2 if member == "header.json" else 1)
@@ -4631,7 +3104,7 @@ def test_a_shard_sample_that_does_not_validate_fails_at_once(
     from pydantic import ValidationError
 
     with pytest.raises(ValidationError):
-        merge_eval_log_shards(merged)
+        merge_eval_log_shards(merged, _task())
     assert len(calls) == 1
     assert not os.path.exists(merged)
 
@@ -4647,567 +3120,6 @@ def _run_task_file(source: str) -> None:
             display="none",
             sample_id=ids,
         )
-
-
-@pytest.mark.parametrize(
-    "source,registry_key,named",
-    [
-        ("scorer_metric", "metric:shard_custom_count", "Metric 'shard_custom_count'"),
-        ("wrapped_metric", "metric:shard_custom_inner", "Metric 'shard_custom_inner'"),
-    ],
-)
-def test_an_unregistered_metric_is_refused_until_imported(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    source: str,
-    registry_key: str,
-    named: str,
-) -> None:
-    import runpy
-
-    from inspect_ai._util import registry
-
-    monkeypatch.chdir(tmp_path)
-    _run_task_file(_CUSTOM_TASKS[source])
-    # as in a fresh process: the merge never imports the recorded task file
-    monkeypatch.delitem(registry._registry, registry_key)
-    with pytest.raises(LookupError, match=named) as raised:
-        merge_eval_log_shards(f"{NAME}.eval")
-    assert "Import the module that defines it" in str(raised.value)
-    assert not os.path.exists(f"{NAME}.eval")
-    assert registry_key not in registry._registry
-
-    # the caller imports the module that defines it, and the same merge works
-    runpy.run_path("custom_task.py")
-    header = merge_eval_log_shards(f"{NAME}.eval").log
-    assert header.status == "success" and header.results is not None
-
-
-_SHADOWING_TASK = f"""
-from inspect_ai import Task, task
-from inspect_ai.dataset import Sample
-from inspect_ai.scorer import Metric, SampleScore, match, metric
-
-
-@metric(name="mean")
-def shard_shadowing_mean() -> Metric:
-    def compute(scores: list[SampleScore]) -> float:
-        return 7.0
-
-    return compute
-
-
-@task
-def {TASK}() -> Task:
-    return Task(
-        dataset=[Sample(id=i, input="q", target="x") for i in range(1, 5)],
-        scorer=match(),
-        metrics=[shard_shadowing_mean()],
-    )
-"""
-
-
-@pytest.mark.parametrize("incremental", [False, True], ids=["first", "incremental"])
-def test_a_custom_metric_with_a_builtin_name_is_refused_until_imported(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, incremental: bool
-) -> None:
-    import runpy
-
-    from inspect_ai._util import registry
-
-    # the task file registers `mean`; keep it out of later tests
-    monkeypatch.setattr(registry, "_registry", dict(registry._registry))
-    monkeypatch.chdir(tmp_path)
-    Path("custom_task.py").write_text(_SHADOWING_TASK)
-    merged, shards = _paths(".")
-
-    def run(k: str, ids: list[int]) -> None:
-        eval(
-            "custom_task.py",
-            model="mockllm/model",
-            log_dir=f"{shards}/{k}",
-            display="none",
-            sample_id=ids,
-        )
-
-    run("0", [1, 2])
-    if incremental:
-        merge_eval_log_shards(merged, allow_incomplete=True)
-    run("1", [3, 4])
-    header = read_eval_log(next(Path(f"{shards}/1").glob("*.eval")), header_only=True)
-    assert header.eval.scorers is not None
-    metrics = header.eval.scorers[0].metrics
-    assert metrics == [EvalMetricDefinition(name="mean", options={})]
-
-    # as in a fresh process, where `mean` would resolve to `inspect_ai/mean`
-    monkeypatch.delitem(registry._registry, "metric:mean")
-    before = _files(".")
-    with pytest.raises(LookupError, match="Metric 'mean' is not registered"):
-        merge_eval_log_shards(merged, delete_shards=True)
-    assert _files(".") == before
-    assert os.path.exists(merged) == incremental
-
-    runpy.run_path("custom_task.py")
-    log = merge_eval_log_shards(merged, delete_shards=True).log
-    assert log.results is not None
-    assert log.results.scores[0].metrics["mean"].value == 7.0
-
-
-@metric(name="shard_pkg/shard_qualified")
-def shard_qualified() -> Metric:
-    def compute(scores: list[SampleScore]) -> float:
-        return 7.0
-
-    return compute
-
-
-@pytest.mark.parametrize("qualified", [mean, shard_qualified])
-def test_builtin_and_package_qualified_metrics_merge(
-    tmp_path: Path, qualified: Callable[[], Metric]
-) -> None:
-    merged, shards = _paths(tmp_path)
-    task = Task(
-        dataset=[Sample(id=i, input="q", target="x") for i in range(1, 5)],
-        scorer=match(),
-        metrics=[qualified()],
-        name=TASK,
-    )
-    _run(shards, "0", task, sample_id=[1, 2])
-    _run(shards, "1", task, sample_id=[3, 4])
-    header = read_eval_log(next(Path(f"{shards}/1").glob("*.eval")), header_only=True)
-    assert header.eval.scorers is not None
-    metrics = header.eval.scorers[0].metrics
-    assert isinstance(metrics, list) and isinstance(metrics[0], EvalMetricDefinition)
-    assert "/" in metrics[0].name
-    unsharded = eval(
-        task, model="mockllm/model", log_dir=str(tmp_path / "u"), display="none"
-    )[0]
-    log = merge_eval_log_shards(merged, delete_shards=True).log
-    assert log.results is not None and unsharded.results is not None
-    assert log.results.scores[0].metrics == unsharded.results.scores[0].metrics
-
-
-_CUSTOM_TASKS = {
-    "scorer_metric": f"""
-from inspect_ai import Task, task
-from inspect_ai.dataset import Sample
-from inspect_ai.scorer import Metric, SampleScore, match, metric
-
-
-@metric
-def shard_custom_count() -> Metric:
-    def compute(scores: list[SampleScore]) -> float:
-        return float(len(scores))
-
-    return compute
-
-
-@task
-def {TASK}() -> Task:
-    return Task(
-        dataset=[Sample(id=i, input="q", target="x") for i in range(1, 5)],
-        scorer=match(),
-        metrics=[shard_custom_count()],
-    )
-""",
-    "wrapped_metric": f"""
-from inspect_ai import Task, task
-from inspect_ai.dataset import Sample
-from inspect_ai.scorer import Metric, SampleScore, grouped, match, metric
-
-
-@metric
-def shard_custom_inner() -> Metric:
-    def compute(scores: list[SampleScore]) -> float:
-        return float(len(scores))
-
-    return compute
-
-
-@task
-def {TASK}() -> Task:
-    # the custom metric is only inside a registered wrapper's options
-    return Task(
-        dataset=[
-            Sample(id=i, input="q", target="x", metadata={{"group": i % 2}})
-            for i in range(1, 5)
-        ],
-        scorer=match(),
-        metrics=[grouped(shard_custom_inner(), "group")],
-    )
-""",
-}
-
-
-def test_metrics_nested_in_wrappers_are_checked(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from inspect_ai._util import registry
-    from inspect_ai._util.registry import registry_params
-    from inspect_ai.log._shards._write import _check_embedded
-    from inspect_ai.scorer import Metric, SampleScore, aggregate, grouped, metric
-
-    @metric
-    def shard_custom_nested() -> Metric:
-        def compute(scores: list[SampleScore]) -> float:
-            return 0.0
-
-        return compute
-
-    options = registry_params(grouped(aggregate("k", shard_custom_nested()), "g"))
-    _check_embedded(options)
-    monkeypatch.delitem(registry._registry, "metric:shard_custom_nested")
-    with pytest.raises(LookupError, match="Metric 'shard_custom_nested'"):
-        _check_embedded(options)
-
-
-class _Level(enum.Enum):
-    LOW = "low"
-
-
-def test_string_options_need_a_resolvable_annotation() -> None:
-    from inspect_ai.log._shards._write import _check_function_options
-
-    def factory(to_float=None, label=None, other=None):
-        return None
-
-    def keywords(**kwargs):
-        return None
-
-    def check(annotations: dict[str, Any], options: dict[str, Any]) -> None:
-        factory.__annotations__ = annotations
-        _check_function_options("custom", factory, options)
-
-    def refused(annotations: dict[str, Any], argument: str, reason: str) -> None:
-        with pytest.raises(ShardSetError, match=f"'custom' was given {reason}"):
-            check(annotations, {argument: "x"})
-
-    # as with postponed annotations whose names are imported only for typing:
-    # another parameter's or the return annotation does not matter
-    unrelated = {"other": "NotDefined", "return": "HiddenReturn"}
-    refused(
-        {"to_float": "ValueToFloat", **unrelated},
-        "to_float",
-        f"a string for 'to_float', {_NOT_RESTORED}",
-    )
-    for annotation in ["Any", "object", "Hashable", "Hashable | None", "list[str]"]:
-        refused(
-            {"label": annotation, **unrelated},
-            "label",
-            f"a string for 'label', {_NOT_RESTORED}",
-        )
-    refused(
-        {"label": Annotated[Hashable, "doc"]},
-        "label",
-        f"a string for 'label', {_NOT_RESTORED}",
-    )
-    accepted: list[tuple[object, str]] = [
-        ("str", "x"),
-        ("str | None", "x"),
-        ("'str'", "x"),
-        (str, "x"),
-        (Literal["a", "b"], "a"),
-        (Annotated[str, "doc"], "x"),
-        ("_Level", "LOW"),
-        ("'_Level | None'", "LOW"),
-    ]
-    for annotation_type, value in accepted:
-        check({"label": annotation_type, **unrelated}, {"label": value})
-    with pytest.raises(
-        ShardSetError,
-        match="'custom' was given a number for 'other', whose annotation the "
-        "merge cannot resolve",
-    ):
-        check({"other": "NotDefined"}, {"other": 1})
-    refused({}, "label", "a string for 'label', which has no annotation")
-    refused(
-        {"label": "NotDefined"},
-        "label",
-        "a string for 'label', whose annotation the merge cannot resolve",
-    )
-    with pytest.raises(ShardSetError, match="'kw' was given a string for 'label', "):
-        _check_function_options("kw", keywords, {"label": "x"})
-
-
-def test_function_options_of_class_metrics_are_checked() -> None:
-    from inspect_ai._util.registry import registry_params
-    from inspect_ai.log._shards._write import _check_embedded, _check_function_options
-
-    class Base(MetricProtocol):
-        def __init__(self, to_float: ValueToFloat | None = None) -> None:
-            self.to_float = to_float
-
-        def __call__(self, scores: list[SampleScore]) -> Value:
-            return 0.0
-
-    @metric(name="shard_inherited")
-    class Inherited(Base):
-        pass
-
-    @metric(name="shard_constructed")
-    class Constructed(MetricProtocol):
-        def __new__(cls, to_float: ValueToFloat | None = None) -> "Constructed":
-            return super().__new__(cls)
-
-        def __call__(self, scores: list[SampleScore]) -> Value:
-            return 0.0
-
-    @metric(name="shard_fields")
-    @dataclasses.dataclass
-    class Fields:
-        to_float: ValueToFloat = value_to_float()
-
-        def __call__(self, scores: list[SampleScore]) -> Value:
-            return 0.0
-
-    recorded = {"to_float": "to_float"}
-    for name, factory in [
-        ("shard_converted", ShardConverted),
-        ("shard_inherited", Inherited),
-        ("shard_constructed", Constructed),
-        ("shard_fields", Fields),
-    ]:
-        with pytest.raises(ShardSetError, match=_not_restored(name, "to_float")):
-            _check_function_options(name, factory, recorded)
-    _check_function_options("shard_key_sum", ShardKeySum, {"key": "points"})
-    embedded = registry_params(grouped(ShardConverted(value_to_float()), "g"))
-    with pytest.raises(
-        ShardSetError, match=_not_restored("shard_converted", "to_float")
-    ):
-        _check_embedded(embedded)
-
-    class PostponedClass(MetricProtocol):
-        def __init__(self, to_float=None, label=None, other=None):
-            self.to_float = to_float
-
-        def __call__(self, scores: list[SampleScore]) -> Value:
-            return 0.0
-
-    # postponed annotations, one of them unresolvable
-    PostponedClass.__init__.__annotations__ = {
-        "to_float": "ValueToFloat",
-        "label": "str",
-        "other": "NotDefined",
-        "return": "None",
-    }
-    Postponed = metric(name="shard_postponed")(PostponedClass)
-    with pytest.raises(
-        ShardSetError, match=_not_restored("shard_postponed", "to_float")
-    ):
-        _check_function_options("shard_postponed", Postponed, recorded)
-    _check_function_options("shard_postponed", Postponed, {"label": "x"})
-    embedded = registry_params(grouped(Postponed(to_float=value_to_float()), "g"))
-    with pytest.raises(
-        ShardSetError, match=_not_restored("shard_postponed", "to_float")
-    ):
-        _check_embedded(embedded)
-    with pytest.raises(ShardSetError, match="'shard_postponed' was given a string"):
-        _check_function_options("shard_postponed", Postponed, {"other": "x"})
-    # a quoted postponed annotation on a constructor
-    PostponedClass.__init__.__annotations__ = {"label": "'str'"}
-    _check_function_options("shard_postponed", Postponed, {"label": "x"})
-
-
-@metric(name="shard_mode_scaled")
-def shard_mode_scaled(mode: Mode) -> Metric:
-    """A metric whose factory reads its enum option's value."""
-    scale = mode.value
-
-    def compute(scores: list[SampleScore]) -> Value:
-        return scale * sum(score.score.as_float() for score in scores)
-
-    return compute
-
-
-def _mode_task() -> Task:
-    """A task with a configured reducer and enum options, direct and wrapped."""
-    epochs = Epochs(2, at_least(1, value=0.5))
-    return Task(
-        dataset=_task().dataset,
-        solver=generate(),
-        scorer=graded(),
-        metrics=[
-            shard_mode_scaled(Mode.HIGH),
-            grouped(shard_mode_scaled(Mode.HIGH), "index"),
-        ],
-        epochs=epochs,
-        name=TASK,
-    )
-
-
-@pytest.mark.parametrize("backend", ["asyncio", "trio"])
-@pytest.mark.parametrize("remnant", ["unchanged", "interrupted"])
-def test_deleting_shards_after_a_merge_recreates_enum_options(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, remnant: str, backend: str
-) -> None:
-    import shutil
-
-    merged, shards = _paths(tmp_path)
-    _run(shards, "0", _mode_task(), sample_id=[1, 2, 3])
-    _run(shards, "1", _mode_task(), sample_id=[4, 5, 6])
-    first = merge_eval_log_shards(merged)
-    assert first.written and not first.shards_deleted
-    expected = _metric_values(first.log)
-    # every sample scores 0.75 in some epoch, so at_least reduces it to 1.0;
-    # Mode.HIGH.value is 2
-    assert expected[("graded", "shard_mode_scaled")] == 12.0
-    assert expected[("graded", "3")] == 2.0
-    if remnant == "interrupted":
-        shutil.rmtree(f"{shards}/1")
-    before = Path(merged).read_bytes()
-
-    result = _merge_on(backend, monkeypatch, merged, delete_shards=True)
-    assert not result.written and result.shards_deleted
-    assert _metric_values(result.log) == expected
-    assert Path(merged).read_bytes() == before
-    assert not Path(shards).exists()
-
-
-def test_merge_recreates_metrics_only_through_recreate_scorers() -> None:
-    from inspect_ai.log import _shards
-
-    calls = {
-        path.name: path.read_text().count("resolve_scorers_info(")
-        for path in Path(_shards.__file__).parent.glob("*.py")
-    }
-    assert {name: count for name, count in calls.items() if count} == {"_write.py": 1}
-
-
-def test_enum_options_are_restored_to_their_members() -> None:
-    from inspect_ai._util.registry import registry_params
-    from inspect_ai.log._shards._write import _check_embedded, _check_function_options
-
-    live = shard_enums(Mode.HIGH, Label.ARS, Level.TWO, Perm.R | Perm.W, Colour.BLUE)
-
-    def logged(metric: Metric) -> dict[str, Any]:
-        """The options as the log stores them."""
-        definition = EvalMetricDefinition(name="m", options=registry_params(metric))
-        return json.loads(definition.model_dump_json())["options"]
-
-    recorded = logged(live)
-    assert recorded == {
-        "mode": "HIGH",
-        "label": "ARS",
-        "level": 2,
-        "perm": 6,
-        "colour": "BLUE",
-    }
-    restored = _check_function_options("shard_enums", shard_enums, recorded)
-    assert restored == {
-        "mode": Mode.HIGH,
-        "label": Label.ARS,
-        "level": Level.TWO,
-        "perm": Perm.R | Perm.W,
-        "colour": Colour.BLUE,
-    }
-    assert all(type(restored[k]) is type(v) for k, v in restored.items())
-    assert _check_function_options("shard_enums", shard_enums, {"colour": None}) == {
-        "colour": None
-    }
-    embedded = logged(grouped(live, "group"))
-
-    # by enum and member name: an eval_retry() test in this module reloads it
-    # from its file, so the registered factory can hold another copy of Mode
-    def members(options: dict[str, Any]) -> dict[str, tuple[str, str | None]]:
-        return {k: (type(v).__name__, v.name) for k, v in options.items()}
-
-    assert members(_check_embedded(embedded)["metric"]["params"]) == members(restored)
-
-    # values the producer cannot have recorded, and an enum in a union
-    for argument, value in [("mode", "MIDDLE"), ("mode", 2), ("level", 7)]:
-        with pytest.raises(ShardSetError, match=f"records {value!r} for '{argument}'"):
-            _check_function_options("shard_enums", shard_enums, {argument: value})
-
-    def mixed(mode=None):
-        return None
-
-    mixed.__annotations__ = {"mode": "Mode | str"}
-    with pytest.raises(ShardSetError, match="records 'HIGH' for 'mode'"):
-        _check_function_options("mixed", mixed, {"mode": "HIGH"})
-
-
-# merged-log locations under a root, by the S3 parse that loses part of them
-_S3_READ_AS_OTHER = {
-    "hash": "s3://test-bucket/{root}/run#tag.eval",
-    "tab": "s3://test-bucket/{root}/run\ttab.eval",
-    "cr": "s3://test-bucket/{root}/run\rcr.eval",
-    "lf": "s3://test-bucket/{root}/run\nlf.eval",
-    "leading-slash": "s3://test-bucket//{root}/run.eval",
-}
-
-
-@pytest.mark.parametrize("backend", ["asyncio", "trio"])
-@pytest.mark.parametrize("include_log", [False, True])
-@pytest.mark.parametrize("name", list(_S3_READ_AS_OTHER))
-def test_s3_deletion_refuses_keys_s3_would_read_as_others(
-    s3_root: str,
-    monkeypatch: pytest.MonkeyPatch,
-    name: str,
-    include_log: bool,
-    backend: str,
-) -> None:
-    from inspect_ai.log._shards._delete import remove_shards_dir
-
-    client = boto3.client("s3")
-    # the keys S3 would read those locations as, and their neighbours
-    for key in ["run", "run/0/a.eval", "run.eval", "run.shards/0/a.eval"] + [
-        f"run{suffix}{tail}"
-        for suffix in ["tag", "tab", "cr", "lf"]
-        for tail in [".eval", ".shards/0/a.eval"]
-    ]:
-        client.put_object(Bucket="test-bucket", Key=f"{s3_root}/{key}", Body=b"x")
-    before = _s3_keys(f"{s3_root}/")
-    location = _S3_READ_AS_OTHER[name].format(root=s3_root)
-
-    with monkeypatch.context() as patched:
-        patched.setenv("INSPECT_ASYNC_BACKEND", backend)
-        with pytest.raises(ValueError, match="S3 would read it as"):
-            anyio.run(
-                functools.partial(remove_shards_dir, location, include_log=include_log),
-                backend=backend,
-            )
-    assert _s3_keys(f"{s3_root}/") == before
-
-
-@pytest.mark.parametrize("backend", ["asyncio", "trio"])
-def test_s3_deletion_of_a_literal_percent_23_name(
-    s3_root: str, monkeypatch: pytest.MonkeyPatch, backend: str
-) -> None:
-    from inspect_ai.log._shards._delete import remove_shards_dir
-
-    client = boto3.client("s3")
-    for key in ["run%23tag.eval", "run%23tag.shards/0/a.eval", "run.eval", "run"]:
-        client.put_object(Bucket="test-bucket", Key=f"{s3_root}/{key}", Body=b"x")
-    location = f"s3://test-bucket/{s3_root}/run%23tag.eval"
-    with monkeypatch.context() as patched:
-        patched.setenv("INSPECT_ASYNC_BACKEND", backend)
-        anyio.run(
-            functools.partial(remove_shards_dir, location, include_log=True),
-            backend=backend,
-        )
-    assert _s3_keys(f"{s3_root}/") == [f"{s3_root}/run", f"{s3_root}/run.eval"]
-
-
-@pytest.mark.parametrize(
-    "name", ["run*", "run[1]", "lo*s/run"], ids=["*", "[]", "parent"]
-)
-def test_s3_deletion_refuses_glob_characters(s3_root: str, name: str) -> None:
-    from inspect_ai.log._shards._delete import remove_shards_dir
-
-    client = boto3.client("s3")
-    root = f"s3://test-bucket/{s3_root}"
-    targets = [f"{name}.shards/0/a.eval", f"{name}.eval"]
-    neighbours = ["run1.shards/0/a.eval", "run1.eval"]
-    neighbours += ["logs/run1.shards/0/a.eval", "logs/run1.eval"]
-    for key in targets + neighbours:
-        client.put_object(Bucket="test-bucket", Key=f"{s3_root}/{key}", Body=b"x")
-    before = _s3_keys(f"{s3_root}/")
-
-    with pytest.raises(ValueError, match="glob character"):
-        anyio.run(lambda: remove_shards_dir(f"{root}/{name}.eval", include_log=True))
-    with pytest.raises(ValueError, match="glob character"):
-        merge_eval_log_shards(f"{root}/{name}.eval", delete_shards=True)
-    assert _s3_keys(f"{s3_root}/") == before
 
 
 _UNSUPPORTED = "supports local paths, file:// URIs and s3:// URLs only"
@@ -5271,7 +3183,6 @@ def test_a_merge_of_unsupported_storage_is_refused_before_any_io(
     import shortuuid
 
     from inspect_ai._util.file import filesystem
-    from inspect_ai.log._shards._delete import remove_shards_dir
 
     root = root.format(uuid=shortuuid.uuid())
     merged, shards = _paths(root)
@@ -5285,21 +3196,11 @@ def test_a_merge_of_unsupported_storage_is_refused_before_any_io(
     with monkeypatch.context() as patched:
         _refuse_storage(patched)
         for location in (merged, shards, f"{root}.eval"):
-            for delete in (False, True):
+            with pytest.raises(ValueError, match=_UNSUPPORTED):
+                _merge_on(backend, monkeypatch, location, _task())
+            if backend == "asyncio":
                 with pytest.raises(ValueError, match=_UNSUPPORTED):
-                    _merge_on(backend, monkeypatch, location, delete_shards=delete)
-                if backend == "asyncio":
-                    with pytest.raises(ValueError, match=_UNSUPPORTED):
-                        merge_eval_log_shards(location, delete_shards=delete)
-        for location in (merged, f"{root}.eval"):
-            for include_log in (False, True):
-                with pytest.raises(ValueError, match=_UNSUPPORTED):
-                    anyio.run(
-                        functools.partial(
-                            remove_shards_dir, location, include_log=include_log
-                        ),
-                        backend=backend,
-                    )
+                    merge_eval_log_shards(location, _task())
     if root.startswith("memory://"):
         assert before and _memory_objects(root) == before
 
@@ -5343,36 +3244,6 @@ def test_a_relative_path_with_a_name_prefix_is_refused(location: str) -> None:
         supported_location(location)
 
 
-@pytest.mark.parametrize("prefix", ["file:", "local:"])
-def test_a_prefixed_absolute_path_never_deletes_a_shadow_tree(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, prefix: str
-) -> None:
-    from inspect_ai.log._shards._delete import remove_shards_dir
-
-    merged, shards = _paths(tmp_path / "target")
-    cwd = tmp_path / "cwd"
-    # the intended tree, and the relative tree native path operations would
-    # read the prefixed path as
-    for root in ["", f"{cwd}/{prefix}"]:
-        os.makedirs(f"{root}{shards}/0")
-        Path(f"{root}{merged}").write_bytes(b"merged")
-        Path(f"{root}{shards}/0/a.eval").write_bytes(b"x")
-    monkeypatch.chdir(cwd)
-    before = _files(str(tmp_path))
-    for backend in ("asyncio", "trio"):
-        for include_log in (False, True):
-            with pytest.raises(ValueError, match=_UNSUPPORTED):
-                anyio.run(
-                    functools.partial(
-                        remove_shards_dir, f"{prefix}{merged}", include_log=include_log
-                    ),
-                    backend=backend,
-                )
-        with pytest.raises(ValueError, match=_UNSUPPORTED):
-            _merge_on(backend, monkeypatch, f"{prefix}{merged}", delete_shards=True)
-    assert _files(str(tmp_path)) == before
-
-
 def _s3_keys(prefix: str) -> list[str]:
     client = boto3.client("s3")
     pages = client.get_paginator("list_objects_v2").paginate(
@@ -5399,11 +3270,11 @@ def s3_shards(s3_root: str) -> tuple[str, str]:
 
 def test_merge_on_s3(s3_shards: tuple[str, str], s3_root: str) -> None:
     merged, shards = s3_shards
-    first = merge_eval_log_shards(merged)
+    first = merge_eval_log_shards(merged, _task())
     assert first.written and first.log.status == "success"
     assert first.log.eval.shards is not None
     assert all(e.etag for e in first.log.eval.shards.ledger)
-    assert not merge_eval_log_shards(merged).written
+    assert not merge_eval_log_shards(merged, _task()).written
 
     def change(k: str) -> None:
         # rewrite the shard's attempt in place: a re-run within the same
@@ -5421,17 +3292,13 @@ def test_merge_on_s3(s3_shards: tuple[str, str], s3_root: str) -> None:
 
     # a changed shard is merged again, carrying the other
     change("1")
-    second = merge_eval_log_shards(merged)
+    second = merge_eval_log_shards(merged, _task())
     assert second.written and second.log.eval.eval_id == first.log.eval.eval_id
     log = read_eval_log(merged)
     assert sorted(s.id for s in log.samples or []) == [1, 2, 3, 4, 5, 6]
 
-    # a call that writes, verifies the published object and deletes
-    change("0")
-    result = merge_eval_log_shards(merged, delete_shards=True)
-    assert result.written and result.shards_deleted
-    assert _s3_keys(f"{s3_root}/") == [f"{s3_root}/{NAME}.eval"]
-    assert not merge_eval_log_shards(merged).written
+    # nothing changed since: nothing is written
+    assert not merge_eval_log_shards(merged, _task()).written
 
 
 async def test_concurrent_first_merges_on_s3_publish_once(
@@ -5445,7 +3312,7 @@ async def test_concurrent_first_merges_on_s3_publish_once(
 
     async def first() -> None:
         try:
-            await merge_eval_log_shards_async(merged)
+            await merge_eval_log_shards_async(merged, _task())
         except WriteConflictError as ex:
             failures.append(ex)
 
@@ -5453,7 +3320,7 @@ async def test_concurrent_first_merges_on_s3_publish_once(
         tg.start_soon(first)
         with anyio.fail_after(30):
             await reached.wait()
-        winner = await merge_eval_log_shards_async(merged)
+        winner = await merge_eval_log_shards_async(merged, _task())
         release.set()
     assert len(failures) == 1
     header = await read_eval_log_async(merged, header_only=True)
@@ -5466,13 +3333,13 @@ async def test_an_older_snapshot_published_after_a_newer_one_is_refused_on_s3(
     from inspect_ai.log import merge_eval_log_shards_async
 
     merged, shards = s3_shards
-    await merge_eval_log_shards_async(merged, sample_ids=[1, 2, 3, 4, 5, 6])
+    await merge_eval_log_shards_async(merged, _task(), sample_ids=[1, 2, 3, 4, 5, 6])
     reached, release = _pause_publish(monkeypatch)
     failures: list[BaseException] = []
 
     async def stale() -> None:
         try:
-            await merge_eval_log_shards_async(merged, sample_count=6)
+            await merge_eval_log_shards_async(merged, _task(), sample_count=6)
         except WriteConflictError as ex:
             failures.append(ex)
 
@@ -5481,14 +3348,14 @@ async def test_an_older_snapshot_published_after_a_newer_one_is_refused_on_s3(
         with anyio.fail_after(30):
             await reached.wait()
         await merge_eval_log_shards_async(
-            merged, sample_ids=[6, 5, 4, 3, 2, 1, 7], allow_incomplete=True
+            merged, _task(), sample_ids=[6, 5, 4, 3, 2, 1, 7], allow_incomplete=True
         )
         release.set()
     assert len(failures) == 1
     header = await read_eval_log_async(merged, header_only=True)
     assert header.eval.shards is not None and header.eval.shards.selection == "ids"
     # a re-run merges cleanly
-    result = await merge_eval_log_shards_async(merged, sample_count=6)
+    result = await merge_eval_log_shards_async(merged, _task(), sample_count=6)
     assert result.written and result.log.status == "success"
 
 
@@ -5496,16 +3363,15 @@ async def test_a_merge_whose_log_was_removed_meanwhile_is_refused_on_s3(
     s3_shards: tuple[str, str], s3_root: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from inspect_ai.log import merge_eval_log_shards_async
-    from inspect_ai.log._shards._delete import remove_shards_dir
 
-    merged, shards = s3_shards
-    await merge_eval_log_shards_async(merged)
+    merged, _ = s3_shards
+    await merge_eval_log_shards_async(merged, _task())
     reached, release = _pause_publish(monkeypatch)
     failures: list[BaseException] = []
 
     async def merge() -> None:
         try:
-            await merge_eval_log_shards_async(merged, sample_count=6)
+            await merge_eval_log_shards_async(merged, _task(), sample_count=6)
         except WriteConflictError as ex:
             failures.append(ex)
 
@@ -5514,32 +3380,13 @@ async def test_a_merge_whose_log_was_removed_meanwhile_is_refused_on_s3(
         with anyio.fail_after(30):
             await reached.wait()
         try:
-            await remove_shards_dir(merged, include_log=True)
+            boto3.client("s3").delete_object(
+                Bucket="test-bucket", Key=f"{s3_root}/{NAME}.eval"
+            )
         finally:
             release.set()
     assert len(failures) == 1
-    assert _s3_keys(f"{s3_root}/") == []
-
-
-def test_an_interrupted_delete_on_s3_is_finished_by_a_rerun(
-    s3_shards: tuple[str, str], s3_root: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    merged, shards = s3_shards
-    merge_eval_log_shards(merged)
-    b = next(k for k in _s3_keys(f"{s3_root}/{NAME}.shards/1/") if k.endswith(".eval"))
-
-    from inspect_ai.log._shards import _delete
-
-    def failing_delete(s3: Any, bucket: str, keys: list[str]) -> None:
-        raise OSError(f"injected failure deleting {keys[0]}")
-
-    monkeypatch.setattr(_delete, "_delete_s3_keys", failing_delete)
-    with pytest.raises(OSError, match="injected failure"):
-        merge_eval_log_shards(merged, delete_shards=True)
-    monkeypatch.undo()
-    assert b in _s3_keys(f"{s3_root}/")
-    assert merge_eval_log_shards(merged, delete_shards=True).shards_deleted
-    assert _s3_keys(f"{s3_root}/") == [f"{s3_root}/{NAME}.eval"]
+    assert f"{s3_root}/{NAME}.eval" not in _s3_keys(f"{s3_root}/")
 
 
 def test_merge_refuses_a_recovered_shards_directory_name(tmp_path: Path) -> None:
@@ -5551,7 +3398,7 @@ def test_merge_refuses_a_recovered_shards_directory_name(tmp_path: Path) -> None
     shutil.copytree(shards, recovered)
     before = _files(str(tmp_path))
     with pytest.raises(ValueError, match=f"{NAME}.shards"):
-        merge_eval_log_shards(recovered, delete_shards=True)
+        merge_eval_log_shards(recovered, _task())
     assert _files(str(tmp_path)) == before
     assert os.path.exists(neighbour.location)
 
@@ -5567,41 +3414,13 @@ def test_merge_of_a_local_file_uri_with_reserved_characters(tmp_path: Path) -> N
     merged, shards = _paths(root)
     _run(shards, "0", sample_id=[1, 2, 3])
     uri = to_uri(merged)
-    result = merge_eval_log_shards(uri, allow_incomplete=True)
+    result = merge_eval_log_shards(uri, _task(), allow_incomplete=True)
     assert result.written and result.log.location == uri
     assert _keys(merged) == {("1", 1), ("2", 1), ("3", 1)}
     _run(shards, "1", sample_id=[4, 5, 6])
-    result = merge_eval_log_shards(to_uri(shards), delete_shards=True)
-    assert result.written and result.shards_deleted
+    result = merge_eval_log_shards(to_uri(shards), _task())
+    assert result.written
     assert read_eval_log(merged, header_only=True).status == "success"
-    assert not os.path.exists(shards)
-
-
-def test_delete_shards_keeps_exact_names_with_reserved_characters(
-    tmp_path: Path,
-) -> None:
-    root = tmp_path / _RESERVED
-    merged, shards = _paths(root)
-    old = _run(shards, "0", sample_id=[1, 2, 3])
-    current = _run(shards, "0", sample_id=[1, 2, 3])
-    # a literal %20, # and ? in an older attempt's name and a buffer's name
-    literal = f"{os.path.dirname(old.location)}/{T0}_lit%20na#me?.eval"
-    os.replace(old.location, literal)
-    _touch(Path(f"{shards}/0/.buffer/a%20b/seg#1?.zip"))
-    # neighbours whose names are the decoded forms are kept
-    neighbours = [
-        tmp_path / "sp ace d#ir?x" / "keep.eval",
-        Path(
-            f"{shards}/0/{T0}_lit na#me?.eval".replace(f"{NAME}.shards", "other.shards")
-        ),
-    ]
-    for path in neighbours:
-        _touch(path)
-    result = merge_eval_log_shards(merged, sample_ids=[1, 2, 3], delete_shards=True)
-    assert result.shards_deleted
-    assert not os.path.exists(shards)
-    assert not os.path.exists(literal) and not os.path.exists(current.location)
-    assert all(path.exists() for path in neighbours)
 
 
 @pytest.mark.parametrize("fail", [False, True])
@@ -5616,7 +3435,10 @@ def test_cli_json_stdout_holds_only_the_object_when_metric_code_prints(
     _run_task_file(_NOISY_TASK)
     if fail:
         monkeypatch.setenv("SHARD_NOISY_FAIL", "1")
-    result = CliRunner().invoke(log_command, ["merge-shards", f"{NAME}.eval", "--json"])
+    result = CliRunner().invoke(
+        log_command,
+        ["merge-shards", f"{NAME}.eval", "--task", f"custom_task.py@{TASK}", "--json"],
+    )
     assert result.exit_code == (1 if fail else 0), result.output
     output = json.loads(result.stdout)
     if fail:
@@ -5636,10 +3458,9 @@ def test_cli_json_stdout_holds_only_the_object_in_a_real_process(
     monkeypatch.chdir(tmp_path)
     _run_task_file(_NATIVE_TASK)
     Path("merge.py").write_text(
-        "import runpy\n"
-        "runpy.run_path('custom_task.py')\n"
         "from inspect_ai._cli.log import log_command\n"
-        f"log_command.main(['merge-shards', '{NAME}.eval', '--json'])\n"
+        f"log_command.main(['merge-shards', '{NAME}.eval', '--task', "
+        f"'custom_task.py@{TASK}', '--json'])\n"
     )
     # a legacy hook makes startup print a banner, which must not reach stdout
     Path("key_hook.py").write_text("def override(var, value):\n    return None\n")
@@ -5718,29 +3539,8 @@ def test_score_names_from_the_log_never_load_files(tmp_path: Path) -> None:
     marker.unlink(missing_ok=True)
 
     with pytest.raises(ShardSetError, match="cannot merge solver-set scores"):
-        merge_eval_log_shards(merged)
+        merge_eval_log_shards(merged, task)
     assert not marker.exists()
-
-
-def test_cli_json_reports_an_unregistered_metric(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from click.testing import CliRunner
-
-    from inspect_ai._cli.log import log_command
-    from inspect_ai._util import registry
-
-    monkeypatch.chdir(tmp_path)
-    _run_task_file(_CUSTOM_TASKS["scorer_metric"])
-    monkeypatch.delitem(registry._registry, "metric:shard_custom_count")
-    text = CliRunner().invoke(log_command, ["merge-shards", f"{NAME}.eval"])
-    assert text.exit_code == 1 and "shard_custom_count" in text.stderr
-    result = CliRunner().invoke(log_command, ["merge-shards", f"{NAME}.eval", "--json"])
-    assert result.exit_code == 1, result.output
-    error = json.loads(result.stdout)["error"]
-    assert error["type"] == "LookupError"
-    assert "shard_custom_count" in error["message"]
-    assert not os.path.exists(f"{NAME}.eval")
 
 
 _NOISY_TASK = f"""
@@ -5772,35 +3572,6 @@ def {TASK}() -> Task:
 """
 
 
-async def test_delete_shards_on_s3_deletes_folder_markers(
-    s3_shards: tuple[str, str], s3_root: str
-) -> None:
-    from inspect_ai.log import merge_eval_log_shards_async
-
-    merged, _ = s3_shards
-    client = boto3.client("s3")
-    markers = [
-        f"{s3_root}/{NAME}.shards/",
-        f"{s3_root}/{NAME}.shards/0/",
-        f"{s3_root}/{NAME}.shards/1/x.checkpoints/",
-    ]
-
-    def put_markers() -> None:
-        for key in markers:
-            client.put_object(Bucket="test-bucket", Key=key, Body=b"")
-
-    put_markers()
-    result = await merge_eval_log_shards_async(merged, delete_shards=True)
-    assert result.shards_deleted
-    assert _s3_keys(f"{s3_root}/") == [f"{s3_root}/{NAME}.eval"]
-    # a remnant of markers only, then a repeated call
-    put_markers()
-    for _ in range(2):
-        result = await merge_eval_log_shards_async(merged, delete_shards=True)
-        assert result.shards_deleted and not result.written
-        assert _s3_keys(f"{s3_root}/") == [f"{s3_root}/{NAME}.eval"]
-
-
 @pytest.mark.parametrize("suffix", [".shards", ".eval"])
 def test_merge_refuses_an_encoded_recovered_name(tmp_path: Path, suffix: str) -> None:
     import shutil
@@ -5814,7 +3585,7 @@ def test_merge_refuses_an_encoded_recovered_name(tmp_path: Path, suffix: str) ->
     before = _files(str(tmp_path))
     encoded = to_uri(f"{tmp_path}/{NAME}") + "%2Drecovered" + suffix
     with pytest.raises(ValueError, match="recovered"):
-        merge_eval_log_shards(encoded, delete_shards=True)
+        merge_eval_log_shards(encoded, _task())
     assert _files(str(tmp_path)) == before
     assert os.path.exists(neighbour.location)
 
@@ -5829,269 +3600,6 @@ def test_merge_paths_keep_literal_percent_signs() -> None:
     assert s3.location == "s3://bucket/run%2Drecovered.eval"
     with pytest.raises(ValueError, match="recovered"):
         merge_paths("file:///logs/run%2Drecovered.eval")
-
-
-def _write_with(writer: str, log: EvalLog) -> None:
-    """Run one of the writers that recreate epoch reducers on `log`."""
-    import functools
-
-    from inspect_ai import score_async
-    from inspect_ai._cli.score import score as cli_score
-    from inspect_ai._eval.score import ScoreAction
-    from inspect_ai.log import recompute_metrics
-    from inspect_ai.scorer import ScoreEdit
-
-    if writer == "recompute_metrics":
-        recompute_metrics(log)
-    elif writer in ("score_overwrite", "score_append"):
-        action: ScoreAction = "overwrite" if writer == "score_overwrite" else "append"
-        anyio.run(functools.partial(score_async, log, [graded()], action=action))
-    elif writer == "edit_score":
-        edit_score(log, 1, "graded", ScoreEdit(value=0.25), epoch=1)
-    elif writer == "edit_score_only":
-        edit_score(
-            log, 1, "graded", ScoreEdit(value=0.25), epoch=1, recompute_metrics=False
-        )
-    else:
-        # `inspect score --overwrite --stream`: refused before it writes
-        assert log.location is not None
-        anyio.run(
-            functools.partial(
-                cli_score,
-                log_dir=str(Path(log.location).parent),
-                log_file=log.location,
-                scorer=None,
-                s=None,
-                metric=None,
-                overwrite=True,
-                action="overwrite",
-                log_level=None,
-                stream=True,
-            )
-        )
-
-
-@pytest.mark.parametrize(
-    "writer",
-    ["recompute_metrics", "score_overwrite", "score_append", "edit_score", "cli"],
-)
-def test_writers_refuse_a_merged_log_whose_shards_exist(
-    tmp_path: Path, writer: str
-) -> None:
-    merged, shards = _paths(tmp_path)
-    task = _graded_task(Epochs(2, at_least(1, value=0.5)))
-    _run(shards, "0", task, sample_id=[1, 2, 3])
-    _run(shards, "1", task, sample_id=[4, 5, 6])
-    merge_eval_log_shards(merged)
-    before = Path(merged).read_bytes(), _files(shards)
-
-    log = read_eval_log(merged)
-    with pytest.raises(ShardSetError, match="shards that still exist"):
-        _write_with(writer, log)
-    assert (Path(merged).read_bytes(), _files(shards)) == before
-
-    # once the merge has deleted the shards, the same call is allowed
-    assert merge_eval_log_shards(merged, delete_shards=True).shards_deleted
-    _write_with(writer, read_eval_log(merged))
-
-
-@pytest.mark.parametrize("writer", ["recompute_metrics", "edit_score"])
-def test_writers_leave_ordinary_logs_alone(tmp_path: Path, writer: str) -> None:
-    log = _run(str(tmp_path), "0", _graded_task(Epochs(2, at_least(1, value=0.5))))
-    _write_with(writer, read_eval_log(log.location))
-
-
-@pytest.mark.parametrize(
-    "writer", ["recompute_metrics", "edit_score", "edit_score_only"]
-)
-def test_writers_refuse_when_the_shards_cannot_be_inspected(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, writer: str
-) -> None:
-    merged, shards = _paths(tmp_path)
-    task = _graded_task(Epochs(2, at_least(1, value=0.5)))
-    _run(shards, "0", task, sample_id=[1, 2, 3])
-    _run(shards, "1", task, sample_id=[4, 5, 6])
-    merge_eval_log_shards(merged)
-    log = read_eval_log(merged)
-    before = Path(merged).read_bytes(), _files(shards), log.model_dump_json()
-
-    scandir = os.scandir
-
-    def denied(path: Any = ".") -> Any:
-        if not isinstance(path, int) and os.fspath(path) == shards:
-            raise PermissionError(f"denied: {path}")
-        return scandir(path)
-
-    with monkeypatch.context() as patched:
-        patched.setattr(os, "scandir", denied)
-        with pytest.raises(PermissionError, match="denied"):
-            _write_with(writer, log)
-    assert (Path(merged).read_bytes(), _files(shards), log.model_dump_json()) == before
-
-    # genuine absence: once the merge has deleted the shards, the same call runs
-    assert merge_eval_log_shards(merged, delete_shards=True).shards_deleted
-    _write_with(writer, read_eval_log(merged))
-
-
-@pytest.mark.parametrize("form", ["tilde", "dot", "absolute"])
-@pytest.mark.parametrize("remnant", ["files", "directory-link"])
-def test_writers_inspect_the_companion_the_merge_uses(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, remnant: str, form: str
-) -> None:
-    import shutil
-
-    from inspect_ai.log._shards._live import check_shards_merged_async
-
-    # a relative `~` is a directory named `~`, as the merge and deletion
-    # take it; the home directory holds no companion
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    monkeypatch.chdir(tmp_path)
-    merged, shards = _paths(tmp_path / "~" / "logs")
-    task = _graded_task(Epochs(2, at_least(1, value=0.5)))
-    _run(shards, "0", task, sample_id=[1, 2, 3])
-    _run(shards, "1", task, sample_id=[4, 5, 6])
-    merge_eval_log_shards(merged)
-    if remnant == "directory-link":
-        shutil.rmtree(shards)
-        os.makedirs(shards)
-        _touch(tmp_path / "target" / "data")
-        os.symlink(tmp_path / "target", f"{shards}/0", target_is_directory=True)
-    log = read_eval_log(merged)
-    log.location = {
-        "tilde": f"~/logs/{NAME}.eval",
-        "dot": f"./~/logs/{NAME}.eval",
-        "absolute": merged,
-    }[form]
-    before = log.model_dump_json(), _tree(str(tmp_path))
-
-    for writer in ["recompute_metrics", "edit_score", "score_overwrite"]:
-        with pytest.raises(ShardSetError, match="shards that still exist"):
-            _write_with(writer, log)
-    for backend in ["asyncio", "trio"]:
-        with pytest.raises(ShardSetError, match="shards that still exist"):
-            anyio.run(check_shards_merged_async, log, "rescore", backend=backend)
-    assert (log.model_dump_json(), _tree(str(tmp_path))) == before
-
-
-@pytest.mark.parametrize(
-    "left",
-    ["object", "root-marker", "shard-marker", "checkpoint-marker", "object-reported"],
-)
-async def test_a_partial_remote_delete_is_reported_and_finished_by_a_rerun(
-    s3_shards: tuple[str, str],
-    s3_root: str,
-    monkeypatch: pytest.MonkeyPatch,
-    left: str,
-) -> None:
-    from inspect_ai.log import merge_eval_log_shards_async
-
-    merged, _ = s3_shards
-    client = boto3.client("s3")
-    shards = f"{s3_root}/{NAME}.shards"
-    markers = [f"{shards}/", f"{shards}/0/", f"{shards}/1/x.checkpoints/"]
-    for key in markers:
-        client.put_object(Bucket="test-bucket", Key=key, Body=b"")
-    await merge_eval_log_shards_async(merged)
-    merged_key = f"{s3_root}/{NAME}.eval"
-    before = client.get_object(Bucket="test-bucket", Key=merged_key)["Body"].read()
-    worker = next(k for k in _s3_keys(f"{shards}/1/") if k.endswith(".eval"))
-    kept = {
-        "object": worker,
-        "root-marker": markers[0],
-        "shard-marker": markers[1],
-        "checkpoint-marker": markers[2],
-        "object-reported": worker,
-    }[left]
-    reported = left == "object-reported"
-
-    class Denying:
-        """A client whose DeleteObjects leaves `kept`, reporting it or not."""
-
-        def __init__(self, client: Any) -> None:
-            self._client = client
-
-        def __getattr__(self, name: str) -> Any:
-            return getattr(self._client, name)
-
-        def delete_objects(self, Bucket: str, Delete: dict[str, Any]) -> Any:
-            objects = [o for o in Delete["Objects"] if o["Key"] != kept]
-            response = self._client.delete_objects(
-                Bucket=Bucket, Delete={**Delete, "Objects": objects}
-            )
-            if reported and len(objects) < len(Delete["Objects"]):
-                error = {"Key": kept, "Code": "AccessDenied", "Message": "denied"}
-                response["Errors"] = [error]
-            return response
-
-    s3_client = AsyncFilesystem.s3_client
-    monkeypatch.setattr(
-        AsyncFilesystem, "s3_client", lambda self: Denying(s3_client(self))
-    )
-    match = "AccessDenied" if reported else "left objects behind"
-    with pytest.raises(ShardSetError, match=match) as refused:
-        await merge_eval_log_shards_async(merged, delete_shards=True)
-    monkeypatch.undo()
-    assert kept in str(refused.value)
-    assert _s3_keys(f"{s3_root}/") == sorted([merged_key, kept])
-    assert (
-        client.get_object(Bucket="test-bucket", Key=merged_key)["Body"].read() == before
-    )
-    result = await merge_eval_log_shards_async(merged, delete_shards=True)
-    assert result.shards_deleted and not result.written
-    assert _s3_keys(f"{s3_root}/") == [merged_key]
-
-
-@skip_if_asyncio
-async def test_s3_shards_are_deleted_under_a_configured_trio_backend(
-    s3_shards: tuple[str, str], s3_root: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from inspect_ai.log import merge_eval_log_shards_async
-
-    merged, _ = s3_shards
-    # set after the workers ran, as a Trio program's merge would see it
-    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", "trio")
-    result = await merge_eval_log_shards_async(merged, delete_shards=True)
-    assert result.written and result.shards_deleted
-    assert _s3_keys(f"{s3_root}/") == [f"{s3_root}/{NAME}.eval"]
-
-
-@skip_if_asyncio
-async def test_sync_writers_check_s3_shards_under_a_configured_trio_backend(
-    s3_shards: tuple[str, str], s3_root: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from inspect_ai.log import merge_eval_log_shards_async, recompute_metrics
-    from inspect_ai.scorer import ScoreEdit
-
-    merged, _ = s3_shards
-    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", "trio")
-    client = boto3.client("s3")
-
-    async def merged_log() -> EvalLog:
-        # read from bytes: the S3 log reader builds s3fs, which a configured
-        # Trio backend refuses
-        key = f"{s3_root}/{NAME}.eval"
-        body = client.get_object(Bucket="test-bucket", Key=key)["Body"].read()
-        log = await read_eval_log_async(BytesIO(body))
-        log.location = merged
-        return log
-
-    def write(writer: str, log: EvalLog) -> None:
-        if writer == "recompute_metrics":
-            recompute_metrics(log)
-        else:
-            edit = ScoreEdit(value="I")
-            recompute = writer == "edit_score"
-            edit_score(log, 1, "match", edit, recompute_metrics=recompute, epoch=1)
-
-    writers = ["recompute_metrics", "edit_score", "edit_score_only"]
-    await merge_eval_log_shards_async(merged)
-    for writer in writers:
-        with pytest.raises(ShardSetError, match="shards that still exist"):
-            write(writer, await merged_log())
-    result = await merge_eval_log_shards_async(merged, delete_shards=True)
-    assert result.shards_deleted
-    for writer in writers:
-        write(writer, await merged_log())
 
 
 def _s3_copy(source: str, target: str) -> None:
@@ -6144,7 +3652,7 @@ def test_s3_locations_s3_would_read_as_another_key_are_refused(
     roots = [f"{s3_root}/", f"/{s3_root}/"]
     before = [_s3_objects(root) for root in roots]
     with pytest.raises(ValueError, match="S3 would read it as"):
-        merge_eval_log_shards(f"s3://test-bucket/{location}", delete_shards=delete)
+        merge_eval_log_shards(f"s3://test-bucket/{location}", _task())
     assert [_s3_objects(root) for root in roots] == before
 
 
@@ -6153,10 +3661,9 @@ def test_a_literal_percent_sign_in_an_s3_name_merges(
 ) -> None:
     _s3_copy(f"{s3_root}/{NAME}.shards/", f"{s3_root}/{NAME}%23tag.shards/")
     merged = f"s3://test-bucket/{s3_root}/{NAME}%23tag.eval"
-    result = merge_eval_log_shards(merged, delete_shards=True)
-    assert result.written and result.shards_deleted
+    result = merge_eval_log_shards(merged, _task())
+    assert result.written
     assert result.log.status == "success"
-    assert not _s3_keys(f"{s3_root}/{NAME}%23tag.shards/")
     assert f"{s3_root}/{NAME}%23tag.eval" in _s3_keys(f"{s3_root}/")
 
 
@@ -6187,7 +3694,7 @@ async def test_s3_shard_paths_s3_would_read_as_another_key_are_refused(
         )
     before = _s3_objects(f"{s3_root}/")
     with pytest.raises(ShardSetError, match="S3 would read it as"):
-        await merge_eval_log_shards_async(merged, delete_shards=True)
+        await merge_eval_log_shards_async(merged, _task())
     assert _s3_objects(f"{s3_root}/") == before
 
 
@@ -6223,7 +3730,9 @@ async def test_an_s3_worker_the_listing_would_hide_is_refused(
     )
     client.delete_object(Bucket="test-bucket", Key=attempt)
     if merge == "unchanged":
-        result = await merge_eval_log_shards_async(merged, sample_ids=[1, 2, 3])
+        result = await merge_eval_log_shards_async(
+            merged, _task(), sample_ids=[1, 2, 3]
+        )
         assert result.written and result.log.status == "success"
     # shard 1's unmerged worker, under a key the listing would drop: a
     # directory S3 would list as the absent `1`, or an empty path component
@@ -6235,11 +3744,8 @@ async def test_an_s3_worker_the_listing_would_hide_is_refused(
     )
     client.delete_object(Bucket="test-bucket", Key=held)
     before = _s3_objects(f"{s3_root}/")
-    for delete in (False, True):
-        with pytest.raises(ShardSetError, match=match):
-            await merge_eval_log_shards_async(
-                merged, sample_ids=[1, 2, 3], delete_shards=delete
-            )
+    with pytest.raises(ShardSetError, match=match):
+        await merge_eval_log_shards_async(merged, _task(), sample_ids=[1, 2, 3])
     assert _s3_objects(f"{s3_root}/") == before
 
 
@@ -6254,7 +3760,7 @@ def test_attempts_that_tie_as_latest_are_refused(
     older = directory / f"{T1}_{TASK}_a.eval"
     os.rename(local_path(first.location), older)
     if state == "existing":
-        assert merge_eval_log_shards(merged).written
+        assert merge_eval_log_shards(merged, _task()).written
     second = _run(shards, "0", sample_id=[1, 2, 3])
     newer = directory / f"{T1}_{TASK}_z.eval"
     os.rename(local_path(second.location), newer)
@@ -6262,11 +3768,10 @@ def test_attempts_that_tie_as_latest_are_refused(
     for path in (older, newer):
         os.utime(path, (1_700_000_000, 1_700_000_000))
     before = _files(str(tmp_path))
-    for delete in (False, True):
-        with pytest.raises(ShardSetError, match="sort as equally recent"):
-            merge_eval_log_shards(merged, delete_shards=delete)
-        with pytest.raises(ShardSetError, match="sort as equally recent"):
-            _merge_on("trio", monkeypatch, merged, delete_shards=delete)
+    with pytest.raises(ShardSetError, match="sort as equally recent"):
+        merge_eval_log_shards(merged, _task())
+    with pytest.raises(ShardSetError, match="sort as equally recent"):
+        _merge_on("trio", monkeypatch, merged, _task())
     assert _files(str(tmp_path)) == before
 
 
@@ -6294,9 +3799,8 @@ def test_s3_attempt_names_with_a_backslash_are_refused(
             Bucket="test-bucket", Key=newer.removeprefix("s3://test-bucket/")
         )
     before = _s3_objects(f"{s3_root}/")
-    for delete in (False, True):
-        with pytest.raises(ShardSetError, match=_BACKSLASH):
-            merge_eval_log_shards(merged, delete_shards=delete)
+    with pytest.raises(ShardSetError, match=_BACKSLASH):
+        merge_eval_log_shards(merged, _task())
     assert _s3_objects(f"{s3_root}/") == before
 
 
@@ -6313,8 +3817,8 @@ def test_a_literal_percent_sign_in_an_s3_attempt_name_merges(
         CopySource={"Bucket": "test-bucket", "Key": attempt},
     )
     client.delete_object(Bucket="test-bucket", Key=attempt)
-    result = merge_eval_log_shards(merged, delete_shards=True)
-    assert result.written and result.shards_deleted
+    result = merge_eval_log_shards(merged, _task())
+    assert result.written
     assert result.log.status == "success" and result.log.eval.shards is not None
     assert result.log.eval.shards.ledger[0].log == "worker%23tag.eval"
 
@@ -6343,7 +3847,7 @@ def test_an_s3_shard_directory_not_named_with_digits_is_refused(
     )
     client.delete_object(Bucket="test-bucket", Key=attempt)
     if merge == "existing":
-        result = merge_eval_log_shards(merged, sample_ids=[1, 2, 3])
+        result = merge_eval_log_shards(merged, _task(), sample_ids=[1, 2, 3])
         assert result.log.status == "success"
     # shard 1's worker, in a directory not named with digits
     client.copy_object(
@@ -6353,89 +3857,9 @@ def test_an_s3_shard_directory_not_named_with_digits_is_refused(
     )
     client.delete_object(Bucket="test-bucket", Key=held)
     before = _s3_objects(f"{s3_root}/")
-    for delete in (False, True):
-        with pytest.raises(ShardSetError, match=match):
-            merge_eval_log_shards(
-                merged, sample_ids=list(range(1, 7)), delete_shards=delete
-            )
+    with pytest.raises(ShardSetError, match=match):
+        merge_eval_log_shards(merged, _task(), sample_ids=list(range(1, 7)))
     assert _s3_objects(f"{s3_root}/") == before
-
-
-def _merged_at(s3_shards: tuple[str, str], s3_root: str, name: str) -> EvalLog:
-    """The merged log of `s3_shards`, located at `name` with its shards copied beside it."""
-    merged, _ = s3_shards
-    log = merge_eval_log_shards(merged).log
-    _s3_copy(f"{s3_root}/{NAME}.shards/", f"{s3_root}/{name}.shards/")
-    full = read_eval_log(merged)
-    full.location = f"s3://test-bucket/{s3_root}/{name}.eval"
-    assert log.eval.shards is not None and full.eval.shards is not None
-    return full
-
-
-@pytest.mark.parametrize("backend", ["asyncio", "trio"])
-@pytest.mark.parametrize(
-    "name,match",
-    [(f"{NAME}#tag", "S3 would read it as"), (f"{NAME}%23tag", "still exist")],
-    ids=["fragment", "literal-percent"],
-)
-def test_s3_writer_guards_refuse_a_location_s3_would_read_as_another_key(
-    s3_shards: tuple[str, str],
-    s3_root: str,
-    monkeypatch: pytest.MonkeyPatch,
-    name: str,
-    match: str,
-    backend: str,
-) -> None:
-    from inspect_ai.log._shards._live import (
-        check_shards_merged,
-        check_shards_merged_async,
-    )
-
-    log = _merged_at(s3_shards, s3_root, name)
-    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
-    with pytest.raises(ShardSetError, match=match):
-        anyio.run(check_shards_merged_async, log, "rescore", backend=backend)
-    with pytest.raises(ShardSetError, match=match):
-        check_shards_merged(log, "rescore")
-
-
-@pytest.mark.parametrize(
-    "writer", ["recompute_metrics", "edit_score", "edit_score_only", "score"]
-)
-def test_s3_writers_refuse_a_location_s3_would_read_as_another_key(
-    s3_shards: tuple[str, str], s3_root: str, writer: str
-) -> None:
-    from inspect_ai import score
-    from inspect_ai.log import recompute_metrics
-    from inspect_ai.scorer import ScoreEdit
-
-    log = _merged_at(s3_shards, s3_root, f"{NAME}#tag")
-    before = log.model_dump_json(), _s3_objects(f"{s3_root}/")
-    with pytest.raises(ShardSetError, match="S3 would read it as"):
-        if writer == "recompute_metrics":
-            recompute_metrics(log)
-        elif writer == "score":
-            score(log, [match()], action="overwrite")
-        else:
-            edit = ScoreEdit(value="I")
-            recompute = writer == "edit_score"
-            edit_score(log, 1, "match", edit, recompute_metrics=recompute, epoch=1)
-    assert (log.model_dump_json(), _s3_objects(f"{s3_root}/")) == before
-
-
-async def test_a_sibling_prefix_is_not_a_remnant_of_a_remote_delete(
-    s3_shards: tuple[str, str], s3_root: str
-) -> None:
-    from inspect_ai.log import merge_eval_log_shards_async
-
-    merged, _ = s3_shards
-    client = boto3.client("s3")
-    sibling = [f"{s3_root}/{NAME}.shards-other/", f"{s3_root}/{NAME}.shards-other/x"]
-    for key in sibling:
-        client.put_object(Bucket="test-bucket", Key=key, Body=b"")
-    result = await merge_eval_log_shards_async(merged, delete_shards=True)
-    assert result.shards_deleted
-    assert _s3_keys(f"{s3_root}/") == sorted([f"{s3_root}/{NAME}.eval", *sibling])
 
 
 @metric(scores="unreduced")
@@ -6480,13 +3904,13 @@ def test_raw_scores_keep_their_declared_scorer(
     merged, shards = _paths(tmp_path)
     _run(shards, "0", task, sample_id=[1, 2, 3])
     _run(shards, "1", task, sample_id=[4, 5, 6])
-    first = merge_eval_log_shards(merged).log
+    first = merge_eval_log_shards(merged, task).log
     assert first.results is not None
     assert first.results.scores == unsharded.results.scores
     # incremental: shard 0's samples are carried
     _run(shards, "1", task, sample_id=[4, 5, 6])
-    result = merge_eval_log_shards(merged, delete_shards=True)
-    assert result.written and result.shards_deleted
+    result = merge_eval_log_shards(merged, task)
+    assert result.written
     assert result.log.results is not None
     assert result.log.results.scores == unsharded.results.scores
 
@@ -6565,8 +3989,8 @@ def test_declared_metrics_take_the_dataset_metadata(
         eval_retry(first, log_dir=f"{shards}/1", display="none")
     else:
         _run(shards, "1", shard_regrouped(), sample_id=[4, 5, 6])
-    result = merge_eval_log_shards(merged, delete_shards=True)
-    assert result.shards_deleted and result.log.results is not None
+    result = merge_eval_log_shards(merged, shard_regrouped())
+    assert result.log.results is not None
     assert result.log.results.scores == unsharded.results.scores
 
 
@@ -6587,46 +4011,6 @@ def test_a_declared_score_without_a_sample_init_event_is_refused(
             ]
     write_eval_log(full)
     before = _files(shards)
-    with pytest.raises(ShardSetError, match="Sample '5' .* has no sample_init event"):
-        merge_eval_log_shards(merged, delete_shards=True)
+    with pytest.raises(ShardSetError, match="Sample '5' has no sample_init event"):
+        merge_eval_log_shards(merged, _task())
     assert not os.path.exists(merged) and _files(shards) == before
-
-
-def test_writer_refusal_of_an_incomplete_merge_says_how_to_finish(
-    tmp_path: Path,
-) -> None:
-    from inspect_ai.log import recompute_metrics
-
-    merged, shards = _paths(tmp_path)
-    _run(shards, "0", sample_id=[1, 2, 3])
-    _as_running(_run(shards, "1", sample_id=[4, 5, 6]), keep={(4, 1)})
-    merge_eval_log_shards(merged, allow_incomplete=True)
-    with pytest.raises(
-        ShardSetError, match="incomplete \\(started\\): re-run the incomplete shards"
-    ):
-        recompute_metrics(read_eval_log(merged))
-
-
-def test_each_writer_checks_for_shards_once(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from inspect_ai.log._shards import _live
-
-    merged, shards = _paths(tmp_path)
-    task = _graded_task(Epochs(2, at_least(1, value=0.5)))
-    _run(shards, "0", task, sample_id=[1, 2, 3])
-    _run(shards, "1", task, sample_id=[4, 5, 6])
-    merge_eval_log_shards(merged, delete_shards=True)
-
-    checks: list[str] = []
-    shards_dir = _live._shards_dir
-
-    def counted(log: EvalLog) -> str | None:
-        checks.append(log.location)
-        return shards_dir(log)
-
-    monkeypatch.setattr(_live, "_shards_dir", counted)
-    for writer in ["edit_score", "cli"]:
-        checks.clear()
-        _write_with(writer, read_eval_log(merged))
-        assert len(checks) == 1, writer

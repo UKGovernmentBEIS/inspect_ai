@@ -1,4 +1,4 @@
-"""Worker threads that the merge and its deletion outlive."""
+"""Worker threads that the merge outlives."""
 
 import threading
 from collections.abc import Callable
@@ -14,10 +14,9 @@ async def run_owned(work: Callable[[], T]) -> T:
 
     AnyIO's ``to_thread`` holds off cancel-scope cancellation until its
     thread finishes, but a native asyncio cancellation (``Task.cancel()``, a
-    timeout) leaves the await while the thread runs on. A merge or deletion
-    that then unwound would release its lock and close its sources under a
-    worker still writing or deleting, which could overwrite or delete what a
-    later operation wrote. So when the await raises, work that has not
+    timeout) leaves the await while the thread runs on. A merge that then
+    unwound would release its lock and close its sources under a worker
+    still writing, which could overwrite what a later merge wrote. So when the await raises, work that has not
     started never runs, and work that has started is waited for, through any
     further cancellations, before the exception is re-raised. A cancel
     scope's cancellation, which ``to_thread`` holds off rather than raises,
