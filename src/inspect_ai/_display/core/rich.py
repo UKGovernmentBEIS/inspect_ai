@@ -22,8 +22,19 @@ def rich_no_color(plain: bool) -> bool:
     return plain or not is_running_in_vscode() or is_running_in_jupyterlab()
 
 
+_DISPLAY_SETTINGS = (
+    "no_color",
+    "quiet",
+    "is_interactive",
+    "_force_terminal",
+    "_color_system",
+    "_width",
+    "_height",
+)
+"""Global console attributes that rich_initialise changes for a display type."""
+
 _console_defaults: dict[str, Any] | None = None
-"""The global console's state before rich_initialise first changed it."""
+"""The global console's display settings before rich_initialise first changed them."""
 
 
 def rich_initialise(
@@ -36,25 +47,26 @@ def rich_initialise(
     plain = plain if plain is not None else display_type_plain()
     size_kwargs = _dumb_terminal_size_kwargs()
 
+    # set attributes rather than rich.reconfigure(), which would replace the
+    # user's other console options and any active capture or live display
+    console = rich.get_console()
     if _console_defaults is None:
-        _console_defaults = dict(rich.get_console().__dict__)
+        _console_defaults = {name: getattr(console, name) for name in _DISPLAY_SETTINGS}
 
     # reflect ansi prefs
     if plain:
-        rich.reconfigure(
-            no_color=True,
-            force_terminal=False,
-            force_interactive=False,
-            **size_kwargs,
-        )
+        console.no_color = True
+        console._force_terminal = False
+        console._color_system = console._detect_color_system()
+        console.is_interactive = False
     elif rich_no_color(plain):
-        rich.reconfigure(no_color=True, **size_kwargs)
-    elif size_kwargs:
-        rich.reconfigure(**size_kwargs)
+        console.no_color = True
+    if size_kwargs:
+        console.size = (size_kwargs["width"], size_kwargs["height"])
 
     # reflect display == none
     if display == "none":
-        rich.reconfigure(quiet=True)
+        console.quiet = True
 
     # consistent markdown code bock background
     from rich.markdown import CodeBlock, Markdown
@@ -80,16 +92,16 @@ def rich_initialise(
 
 
 def rich_restore_defaults() -> None:
-    """Return the global console to its state before rich_initialise changed it.
+    """Return the global console's display settings to their state before rich_initialise.
 
     rich_initialise only sets what the current display type needs, so settings
     for an earlier type (e.g. quiet for "none", or plain's terminal detection)
-    would otherwise carry over to the next one. Swapping `__dict__` is how
-    `rich.reconfigure()` replaces the console too, so references to it (e.g.
-    the logging handler's) stay valid.
+    would otherwise carry over to the next one.
     """
     if _console_defaults is not None:
-        rich.get_console().__dict__ = dict(_console_defaults)
+        console = rich.get_console()
+        for name, value in _console_defaults.items():
+            setattr(console, name, value)
 
 
 def _dumb_terminal_size_kwargs() -> dict[str, int]:
