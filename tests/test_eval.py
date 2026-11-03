@@ -1,5 +1,6 @@
 import functools
 import importlib.util
+import linecache
 import logging
 import sys
 import tempfile
@@ -760,6 +761,67 @@ def make_nested():
     log = eval(tasks.first, model="mockllm/model", log_dir=str(tmp_path / "logs"))[0]
     assert log.status == "success"
     assert log.samples and log.samples[0].input == "default: first"
+
+
+def test_eval_nested_task_function_before_same_name_module_task_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # eval_retry() reloads the file, which registers the module-level task
+    name = "eval_nested_before_module_same_name"
+    path = tmp_path / "tasks.py"
+    path.write_text(
+        _TASK_MODULE_HEADER
+        + f"""
+
+def make_nested():
+    @task(name="{name}")
+    def nested() -> Task:
+        return Task(dataset=[Sample(input="nested")])
+
+    return nested
+
+
+NESTED = make_nested()
+"""
+        + _SAME_NAME_TASK.format(name=name, fn="first")
+    )
+    tasks = _import_task_module(monkeypatch, path, "eval_nested_before_module")
+    with pytest.raises(PrerequisiteError, match="registered more than once"):
+        eval(tasks.NESTED, model="mockllm/model")
+
+
+def test_eval_task_function_redefined_in_interactive_cell(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # notebook cells have no source file and can't be retried from one, so a
+    # redefinition must not be treated as a duplicate
+    source = """
+@task(name="eval_task_function_interactive_cell")
+def cell_task() -> Task:
+    return Task(dataset=[Sample(input="{input}")])
+"""
+    namespace: dict[str, Any] = {
+        "__name__": "eval_interactive_cells",
+        "task": task,
+        "Task": Task,
+        "Sample": Sample,
+    }
+
+    def run_cell(cell: str, input: str) -> Any:
+        code = source.format(input=input)
+        # IPython registers each cell's source in linecache under its name
+        monkeypatch.setitem(
+            linecache.cache, cell, (len(code), None, code.splitlines(True), cell)
+        )
+        exec(compile(code, cell, "exec"), namespace)
+        return namespace["cell_task"]
+
+    first = run_cell("<cell-1>", "first")
+    run_cell("<cell-2>", "second")
+
+    log = eval(first, model="mockllm/model", log_dir=str(tmp_path / "logs"))[0]
+    assert log.status == "success"
+    assert log.samples and log.samples[0].input == "first"
 
 
 def test_eval_list_with_task_function_then_task_instance(caplog) -> None:

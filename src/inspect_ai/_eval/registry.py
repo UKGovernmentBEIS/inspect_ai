@@ -67,24 +67,28 @@ class _TaskDefinition(NamedTuple):
     file: str
     qualname: str
 
+    @property
+    def nested(self) -> bool:
+        """Defined inside a function, so reloading the file doesn't register it."""
+        return "<locals>" in self.qualname
+
 
 def _task_definition(factory: object) -> _TaskDefinition | None:
-    """Source file and qualified name of a module-level task function or class.
+    """Source file and qualified name of a task function or class.
 
     A file loaded twice (e.g. imported and also loaded by path) registers two
     objects with the same definition, which this treats as the same task.
-    Returns None for nested definitions, which reloading a file never
-    registers, and for objects without a source file.
+    Returns None when the source isn't a file on disk (e.g. a notebook cell).
     """
     obj = inspect.unwrap(cast(Callable[..., Any], factory))
     qualname = getattr(obj, "__qualname__", "")
-    if not qualname or "<locals>" in qualname:
-        return None
     try:
         file = inspect.getsourcefile(obj)
-    except TypeError:
+    except (TypeError, OSError):
         return None
-    return _TaskDefinition(os.path.realpath(file), qualname) if file else None
+    if not qualname or not file or not os.path.isfile(file):
+        return None
+    return _TaskDefinition(os.path.realpath(file), qualname)
 
 
 def _local_task_file(task_type: object) -> Path | None:
@@ -108,7 +112,12 @@ def _check_retry_identity(factory: object, name: str) -> None:
         return
     factory_def = _task_definition(factory)
     registered_def = _task_definition(registered)
-    if factory_def is None or registered_def is None or factory_def == registered_def:
+    if (
+        factory_def is None
+        or registered_def is None
+        or factory_def == registered_def
+        or registered_def.nested
+    ):
         return
     if _local_task_file(factory) is None or factory_def.file == registered_def.file:
         raise PrerequisiteError(
