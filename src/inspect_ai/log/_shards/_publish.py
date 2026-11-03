@@ -11,15 +11,20 @@ import shutil
 import socket
 from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import BinaryIO
+from typing import BinaryIO, cast
 
 from inspect_ai._util.asyncfiles import AsyncFilesystem, is_s3_filename
 from inspect_ai._util.atomic_write import atomic_write
 from inspect_ai._util.dateutil import iso_now
-from inspect_ai._util.file import acquire_exclusive_lock, filesystem, local_path
+from inspect_ai._util.file import (
+    acquire_exclusive_lock,
+    filesystem,
+    local_path,
+    url_protocol,
+)
 from inspect_ai._util.log_layout import log_basename
 
-from ._owned import run_owned
+from ._owned import OwnedReads, run_owned
 from ._walk import _name
 
 _LOCK_SUFFIX = ".merge.lock"
@@ -29,16 +34,19 @@ def check_supported_location(location: str) -> None:
     """Refuse a location that is not a local path, ``file://`` URI or ``s3://`` URL.
 
     The merge supports only these (decision: Ransom, 2026-10-30): other
-    fsspec backends differ in how they list, name and version objects. The
-    location is checked as text, so nothing is constructed, listed or read
-    first. A chained URL (``simplecache::s3://...``, or ``::`` after a
-    supported prefix) is refused too.
+    fsspec backends differ in how they list, name and version objects. A
+    location is accepted only in one of these forms: it starts with
+    ``s3://`` or ``file://``, or fsspec reads no protocol in it (a plain
+    path, including a Windows drive path or a name holding a colon). Any
+    other protocol fsspec reads, such as ``data:`` without slashes, and a
+    chained URL (``simplecache::s3://...``) are refused. The location is
+    checked as text, so nothing is constructed, listed or read first.
 
     Raises:
-        ValueError: `location` names another protocol.
+        ValueError: `location` is not in an accepted form.
     """
-    if "::" in location or (
-        "://" in location and not location.startswith(("s3://", "file://"))
+    if "::" in location or not (
+        location.startswith(("s3://", "file://")) or url_protocol(location) is None
     ):
         raise ValueError(
             f"{location} cannot be merged: shard merging supports local paths, "
@@ -115,10 +123,19 @@ async def publish(
         await run_owned(lambda: _replace_local(path, source))
         return None
     assert is_s3_filename(merged), "the merge supports local and S3 logs only"
-    if exists:
-        assert etag is not None, "S3 reads report an ETag"
-        return await fs.write_file_conditional(merged, source, if_match=etag)
-    return await fs.write_file_conditional(merged, source, if_none_match=True)
+    # the caller closes `source` when this returns, also when cancelled
+    reads = OwnedReads(source)
+    try:
+        if exists:
+            assert etag is not None, "S3 reads report an ETag"
+            return await fs.write_file_conditional(
+                merged, cast(BinaryIO, reads), if_match=etag
+            )
+        return await fs.write_file_conditional(
+            merged, cast(BinaryIO, reads), if_none_match=True
+        )
+    finally:
+        await reads.release()
 
 
 def _replace_local(path: str, source: BinaryIO) -> None:

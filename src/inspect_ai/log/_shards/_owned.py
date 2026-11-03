@@ -2,7 +2,7 @@
 
 import threading
 from collections.abc import Callable
-from typing import TypeVar
+from typing import BinaryIO, TypeVar
 
 import anyio
 
@@ -50,6 +50,45 @@ async def run_owned(work: Callable[[], T]) -> T:
         raise
     await anyio.lowlevel.checkpoint_if_cancelled()
     return result[0]
+
+
+class OwnedReads:
+    """A source whose reads in another component's worker threads the caller outlives.
+
+    The S3 upload reads its source in AnyIO worker threads, which a native
+    asyncio cancellation leaves running. :meth:`release` waits, through any
+    cancellations, for a read in progress, and a read that starts after it
+    is refused without touching the source, so the caller can close the
+    source once it returns.
+    """
+
+    def __init__(self, source: BinaryIO) -> None:
+        self._source = source
+        self._lock = threading.Lock()
+        self._reading = 0
+        self._released = False
+        self._idle = threading.Event()
+        self._idle.set()
+
+    def read(self, size: int = -1) -> bytes:
+        with self._lock:
+            if self._released:
+                raise ValueError("The source was released.")
+            self._reading += 1
+            self._idle.clear()
+        try:
+            return self._source.read(size)
+        finally:
+            with self._lock:
+                self._reading -= 1
+                if not self._reading:
+                    self._idle.set()
+
+    async def release(self) -> None:
+        """Refuse further reads and wait for any read in progress."""
+        with self._lock:
+            self._released = True
+        await _finish(self._idle)
 
 
 async def _finish(finished: threading.Event) -> None:

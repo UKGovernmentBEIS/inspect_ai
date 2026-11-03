@@ -13,8 +13,6 @@ from contextlib import suppress
 from functools import partial
 from typing import Any
 
-import anyio
-
 from inspect_ai._util._async import current_async_backend
 from inspect_ai._util.asyncfiles import (
     AsyncFilesystem,
@@ -127,7 +125,7 @@ async def _remnant(fs: AsyncFilesystem, shards_dir: str) -> str | None:
         client = await fs.s3_client_async()
         response = await client.list_objects_v2(**list_first)
     else:
-        response = await anyio.to_thread.run_sync(
+        response = await run_owned(
             partial(fs.s3_client().list_objects_v2, **list_first)
         )
     keys = [obj["Key"] for obj in response.get("Contents", [])]

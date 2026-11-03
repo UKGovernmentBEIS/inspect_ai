@@ -213,16 +213,21 @@ def _check_function_options(
 
     A log records a function option by its name only, so
     `mean(to_float=value_to_float(correct=2))` is recorded as
-    `{"to_float": "to_float"}` and the merge cannot recreate it. A string
-    option is accepted only when its parameter's own annotation resolves to
-    a type whose values cannot be functions: `str`, a `Literal` of plain
-    values, an enum, numbers, either with `None`. A parameter annotated with
-    any other type (a function type, `Any`, `Hashable`, ...), one with no
-    annotation or one whose annotation does not resolve, and an option that
-    matches no named parameter (one passed through `**kwargs`) are refused
-    (decision: Ransom, 2026-10-30). Each annotation is resolved on its own,
-    so another parameter's or the return annotation does not affect it.
-    Other scalar option values are checked only for an enum parameter.
+    `{"to_float": "to_float"}` and the merge cannot recreate it, and a
+    callable object (an `int` subclass with `__call__`) only as its plain
+    value. So any recorded value other than None or a metric reference is
+    refused for a parameter whose annotation admits a callable: `Callable`
+    (`ValueToFloat`), a class that defines `__call__`, or a union holding
+    one (decision: Ransom, 2026-11-03). A string option is accepted only
+    when its parameter's own annotation resolves to a type whose values
+    cannot be functions: `str`, a `Literal` of plain values, an enum,
+    numbers, either with `None`. A parameter annotated with any other type
+    (`Any`, `Hashable`, ...), one with no annotation or one whose
+    annotation does not resolve, and an option that matches no named
+    parameter (one passed through `**kwargs`) are refused (decision:
+    Ransom, 2026-10-30). Each annotation is resolved on its own, so another
+    parameter's or the return annotation does not affect it. Other scalar
+    option values are checked only for an enum parameter.
 
     A log records the elements of a list or tuple option only as plain
     values, and a tuple as a list. A list option is accepted only when its
@@ -258,6 +263,21 @@ def _check_function_options(
 
     for argument, value in options.items():
         resolved = _parameter_annotation(factory, argument)
+        # metric references are checked against the annotation below
+        if (
+            value is not None
+            and not (_holds_dict(value) or _metrics_only(value))
+            and resolved.reason is None
+            and _admits_callable(resolved.annotation)
+        ):
+            raise ShardSetError(
+                f"The metric '{name}' was given a function or callable object "
+                f"for '{argument}'. A log records it only by its name or as a "
+                "plain value, not the object, so the merge cannot recreate the "
+                "metric and does not merge such shards. Use a registered metric "
+                "that creates the function inside its factory, such as an "
+                "@metric that returns mean(to_float=value_to_float(correct=2))."
+            )
         if _holds_dict(value):
             if not (
                 resolved.reason is None
@@ -316,29 +336,8 @@ def _check_function_options(
                     name, argument, resolved.annotation, value
                 )
             continue
-        if (
-            isinstance(value, (str, int, float))
-            and resolved.reason is None
-            and _callable_class(resolved.annotation)
-        ):
-            raise ShardSetError(
-                f"The metric '{name}' was given a callable object for "
-                f"'{argument}'. A log records it as a plain value, not the "
-                "object, so the merge cannot recreate the metric and does not "
-                "merge such shards. Use a registered metric that creates the "
-                "object inside its factory."
-            )
         if not isinstance(value, str):
             continue
-        if resolved.reason is None and _is_function_type(resolved.annotation):
-            raise ShardSetError(
-                f"The metric '{name}' was given a function for '{argument}'. "
-                "A log records a function option only by its name, not its "
-                "configuration, so the merge cannot recreate the metric and "
-                "does not merge such shards. Use a registered metric that "
-                "creates the function inside its factory, such as an @metric "
-                "that returns mean(to_float=value_to_float(correct=2))."
-            )
         reason = resolved.reason
         if reason is None and not _holds_no_function(resolved.annotation):
             reason = "whose type can also hold a function"
@@ -482,16 +481,15 @@ def _metric_container(annotation: object) -> bool:
     return True
 
 
-def _callable_class(annotation: object) -> bool:
-    """Whether the type includes a callable `str`, `int` or `float` subclass.
+def _admits_callable(annotation: object) -> bool:
+    """Whether the type admits a function or callable object.
 
-    A `str`, `int` or `float` subclass with `__call__` is recorded as the
-    plain value, so its instances do not survive the log.
+    `Callable` (and aliases such as `ValueToFloat`), or a class that defines
+    `__call__` (a callable `int` subclass, `Metric`), alone or in a union.
     """
-    return any(
+    return _is_function_type(annotation) or any(
         isinstance(member, type)
-        and issubclass(member, (str, int, float))
-        and member not in _PLAIN
+        and typing.get_origin(member) is None
         and any("__call__" in vars(base) for base in member.__mro__)
         for member in _members(_unannotated(annotation))
     )

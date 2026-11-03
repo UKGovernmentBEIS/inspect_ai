@@ -26,6 +26,7 @@ from inspect_ai._util.file import (
     size_in_mb,
     strip_trailing_sep,
     to_uri,
+    url_protocol,
 )
 
 
@@ -42,6 +43,23 @@ def test_basename():
     assert basename(f"/opt/files/{MYDIR}/") == MYDIR
     assert basename(f"C:\\Documents\\{MYDIR}") == MYDIR
     assert basename(f"C:\\Documents\\{MYDIR}\\") == MYDIR
+
+
+@pytest.mark.parametrize(
+    "url,protocol",
+    [
+        ("s3://bucket/a.eval", "s3"),
+        ("file:///tmp/a.eval", "file"),
+        ("data:text/plain,a.eval", "data"),
+        ("simplecache::s3://bucket/a.eval", "simplecache::s3"),
+        ("/tmp/a.eval", None),
+        ("C:\\logs\\a.eval", None),
+        ("C://logs/a.eval", None),
+        ("logs/a:b.eval", None),
+    ],
+)
+def test_url_protocol(url: str, protocol: str | None) -> None:
+    assert url_protocol(url) == protocol
 
 
 def test_filesystem_file_info():

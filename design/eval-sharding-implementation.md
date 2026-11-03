@@ -770,10 +770,15 @@ downloaded and rewritten only when step 10 says so.
 The merge supports a local path, a `file://` URI and an `s3://` URL, the
 forms every Inspect path-handling feature supports (decision: Ransom,
 2026-10-30). Before step 1, `check_supported_location` (`_publish.py`)
-refuses any other location with `ValueError`, reading only the argument's
-text: another protocol (`az://`, `abfs://`, `gs://`, `webhdfs://`,
-`memory://`, ...) or any `::` chain, before or after a supported prefix
-(`simplecache::s3://...`, `s3://bucket/cache::memory://...`). Nothing is
+accepts a location only in one of these forms, reading only the
+argument's text: it starts with `s3://` or `file://`, or fsspec reads no
+protocol in it (`url_protocol`, a plain path, including a Windows drive
+path or a name holding a colon), with no `::` anywhere (decision: Ransom,
+2026-11-03). Everything else is refused with `ValueError`: another
+protocol (`az://`, `abfs://`, `gs://`, `webhdfs://`, `memory://`, ...,
+and `data:`, which fsspec reads without slashes) or any `::` chain,
+before or after a supported prefix (`simplecache::s3://...`,
+`s3://bucket/cache::memory://...`). Nothing is
 constructed, listed, read, written or deleted first, with or without
 `delete_shards`. Other fsspec backends differ in how they list, name and
 version objects, and each needs its own support and tests.
@@ -1308,10 +1313,14 @@ is unwrapped). It refuses with `ShardSetError` a parameter annotated with
 any other type (`ValueToFloat`, `Callable[...]`, `Any`, `object`,
 `Hashable`, a list, ...), one with no annotation, one whose annotation
 does not resolve, and an option that matches no named parameter (the
-producer records `**kwargs` options under their own names). A string or
-number given for a parameter annotated with a `str`, `int` or `float`
-subclass whose instances are callable is refused too: the log records
-the plain value, not the callable object. Each
+producer records `**kwargs` options under their own names). Before
+these checks, any recorded value other than `None` or a metric reference
+is refused for a parameter whose annotation admits a callable:
+`Callable` (`ValueToFloat`), a class that defines `__call__` (such as an
+`int` subclass whose instances are callable), or a union holding one
+(decision: Ransom, 2026-11-03). The log records a function by its name
+and a callable object as its plain value, so a number, string or list
+recorded there cannot be the object the metric was given. Each
 annotation is resolved on its own with `typing.get_type_hints` over a
 stand-in holding only that parameter, so quoted and nested forward
 references resolve, in the factory's module (for a class, the module and
@@ -1323,8 +1332,8 @@ message names the metric and the argument and gives the fixes: annotate
 the parameter with a resolvable type whose values cannot be functions, or
 use a registered metric that creates the function inside its factory. The
 refusal comes before anything is written, published or deleted. Numbers
-and booleans are not checked otherwise; lists and dictionaries follow
-"Container options" below.
+and booleans for other parameters are not checked otherwise; lists and
+dictionaries follow "Container options" below.
 
 Enum options. The producer records an enum member by its value when the
 enum derives from `str`, `int` or `float` (`IntEnum`, `IntFlag`, a `str`
@@ -1730,7 +1739,8 @@ there again.
   the merged-log unlink of `include_log` (local, and on S3 under Trio,
   where it is a boto3 call; asyncio keeps the shared asynchronous
   `delete_file` request), the reads of the carried
-  merged log and the writes of the temporary zip. AnyIO's `to_thread`
+  merged log, the writes of the temporary zip and, on Trio, the S3
+  listing that checks for remnants. AnyIO's `to_thread`
   holds off cancel-scope cancellation until its thread finishes, but a
   directly cancelled asyncio task (`Task.cancel()`, a timeout) leaves the
   await while the thread runs on. The merge would then release its lock
@@ -1741,11 +1751,16 @@ there again.
   exception is re-raised. A cancel scope's cancellation, which
   `to_thread` holds off until its thread returns, is raised once the work
   has finished, so an expired deadline still fails the operation. A
-  worker's own exception propagates. The S3
-  listings that check for remnants are read-only and hold nothing the
-  merge releases, so they use `to_thread` directly. S3 publication is a
-  conditional upload, which a later merge's write makes fail rather than
-  overwrite.
+  worker's own exception propagates. No module of the merge calls
+  `to_thread` or another thread dispatch outside `_owned.py`; a test
+  scans the sources for one (decision: Ransom, 2026-11-03). S3
+  publication is a conditional upload, which a later merge's write makes
+  fail rather than overwrite. The upload, in the shared
+  `AsyncFilesystem`, reads the merge's temporary file in worker threads
+  of its own, so the merge passes it wrapped in `OwnedReads`
+  (`_owned.py`): when publication returns or raises, it waits, through
+  any cancellations, for a read in progress, and refuses later reads
+  without touching the file, before the merge closes it.
 - Shard listing (`<k>/` listings) is bounded at 32 concurrent, shard reads
   at 16, all within the pass's one `AsyncFilesystem` scope, through
   `tg_collect`.
@@ -2911,7 +2926,14 @@ Per PR (numbers from "Implementation plan"):
      the merged log of `include_log`) and cancelled returns only after its
      worker, and an object recreated afterwards survives; a cancel scope or
      deadline that ends during the work is raised after it, also through
-     the `include_log` unlink (local on asyncio and Trio, S3 on Trio).
+     the `include_log` unlink (local on asyncio and Trio, S3 on Trio) and
+     the final S3 remnant listing on Trio (with empty and nonempty
+     listings as controls); an S3 publication, create and replace,
+     cancelled natively once or repeatedly during its source read keeps
+     the source open until the read finishes, then raises (an uncancelled
+     and a scope-cancelled publication as controls); `OwnedReads` refuses
+     a read after release; no module outside `_owned.py` dispatches a
+     thread;
    `tests/cli/test_log.py`: `merge-shards` on a merged log and on a
    companion; `--sample-id` and `--sample-count`, and the usage error for
    both; `--delete-shards`; a `-recovered` `LOG` and a directory `LOG`

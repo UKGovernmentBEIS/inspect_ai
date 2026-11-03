@@ -8,7 +8,7 @@ import zipfile
 from collections.abc import Callable, Coroutine, Hashable, Iterator, Sequence
 from io import BytesIO
 from pathlib import Path
-from typing import Annotated, Any, Literal, cast
+from typing import Annotated, Any, BinaryIO, Literal, cast
 
 import anyio
 import boto3
@@ -1616,6 +1616,23 @@ class CallableScale(int):
         return 7.0
 
 
+class CallableRatio(float):
+    """A float whose instances are callable."""
+
+    def __call__(self, value: Value) -> float:
+        return 7.0
+
+
+@metric(name="shard_optional_converter")
+def shard_optional_converter(to_float: ValueToFloat | None = None) -> Metric:
+    """A metric whose converter parameter is optional."""
+
+    def compute(scores: list[SampleScore]) -> Value:
+        return {"converted": to_float(CORRECT) if to_float is not None else 0.0}
+
+    return compute
+
+
 @metric(name="shard_callable_scalars")
 def shard_callable_scalars(
     label: CallableLabel | None = None, scale: CallableScale | None = None
@@ -1805,12 +1822,12 @@ def _enum_literal_refused(argument: str) -> str:
 _FUNCTION_OPTIONS: dict[str, tuple[Callable[[], list[Any]], str, bool]] = {
     "direct": (
         lambda: [mean(to_float=value_to_float(correct=2))],
-        "'inspect_ai/mean' was given a function for 'to_float'",
+        "'inspect_ai/mean' was given a function or callable object for 'to_float'",
         True,
     ),
     "aggregate": (
         lambda: [aggregate("verdict", mean(), to_float=value_to_float())],
-        "'inspect_ai/aggregate' was given a function for 'to_float'",
+        "'inspect_ai/aggregate' was given a function or callable object for 'to_float'",
         True,
     ),
     "nested": (
@@ -1820,22 +1837,22 @@ _FUNCTION_OPTIONS: dict[str, tuple[Callable[[], list[Any]], str, bool]] = {
                 "group",
             )
         ],
-        "'mean' was given a function for 'to_float'",
+        "'mean' was given a function or callable object for 'to_float'",
         True,
     ),
     "keyed": (
         lambda: [{"verdict": [accuracy(to_float=value_to_float(correct=2))]}],
-        "'inspect_ai/accuracy' was given a function for 'to_float'",
+        "'inspect_ai/accuracy' was given a function or callable object for 'to_float'",
         True,
     ),
     "class": (
         lambda: [ShardConverted(to_float=value_to_float(correct=2))],
-        "'shard_converted' was given a function for 'to_float'",
+        "'shard_converted' was given a function or callable object for 'to_float'",
         False,
     ),
     "class-nested": (
         lambda: [grouped(ShardConverted(to_float=value_to_float(correct=2)), "group")],
-        "'shard_converted' was given a function for 'to_float'",
+        "'shard_converted' was given a function or callable object for 'to_float'",
         False,
     ),
     "untyped": (
@@ -1845,22 +1862,47 @@ _FUNCTION_OPTIONS: dict[str, tuple[Callable[[], list[Any]], str, bool]] = {
     ),
     "callable-str": (
         lambda: [shard_callable_scalars(label=CallableLabel("x"))],
-        "'shard_callable_scalars' was given a callable object for 'label'",
+        "'shard_callable_scalars' was given a function or callable object for 'label'",
         False,
     ),
     "callable-int": (
         lambda: [shard_callable_scalars(scale=CallableScale(3))],
-        "'shard_callable_scalars' was given a callable object for 'scale'",
+        "'shard_callable_scalars' was given a function or callable object for 'scale'",
         False,
     ),
     "callable-str-grouped": (
         lambda: [grouped(shard_callable_scalars(label=CallableLabel("x")), "group")],
-        "'shard_callable_scalars' was given a callable object for 'label'",
+        "'shard_callable_scalars' was given a function or callable object for 'label'",
+        False,
+    ),
+    # recorded as numbers, against a converter annotation
+    "callable-int-converter": (
+        lambda: [ShardConverted(to_float=CallableScale(3))],
+        "'shard_converted' was given a function or callable object for 'to_float'",
+        False,
+    ),
+    "callable-float-converter": (
+        lambda: [shard_optional_converter(to_float=CallableRatio(0.5))],
+        "'shard_optional_converter' was given a function or callable object for "
+        "'to_float'",
+        False,
+    ),
+    "callable-int-converter-grouped": (
+        lambda: [grouped(ShardConverted(to_float=CallableScale(3)), "group")],
+        "'shard_converted' was given a function or callable object for 'to_float'",
+        False,
+    ),
+    "callable-float-converter-grouped": (
+        lambda: [
+            grouped(shard_optional_converter(to_float=CallableRatio(0.5)), "group")
+        ],
+        "'shard_optional_converter' was given a function or callable object for "
+        "'to_float'",
         False,
     ),
     "hidden-return": (
         lambda: [shard_hidden_return(to_float=value_to_float(correct=2))],
-        "'shard_hidden_return' was given a function for 'to_float'",
+        "'shard_hidden_return' was given a function or callable object for 'to_float'",
         False,
     ),
     "hashable": (
@@ -3813,6 +3855,215 @@ def test_a_cancelled_deletion_finishes_before_a_later_write(
         assert not os.path.exists(merged.replace(".eval", ".merge.lock"))
 
 
+@pytest.mark.parametrize("case", ["deadline", "scope", "empty", "remnant"])
+def test_the_final_s3_listing_raises_a_cancellation_on_trio(
+    monkeypatch: pytest.MonkeyPatch, s3_root: str, case: str
+) -> None:
+    import threading
+
+    from inspect_ai.log._shards._delete import remove_shards_dir
+
+    merged, _ = _paths(f"s3://test-bucket/{s3_root}")
+    shard_key = f"{s3_root}/{NAME}.shards/0/a.eval"
+    boto3.client("s3").put_object(Bucket="test-bucket", Key=shard_key, Body=b"x")
+    listing, release, listed = threading.Event(), threading.Event(), []
+    s3_client = AsyncFilesystem.s3_client
+
+    class PausedListing:
+        """The S3 client, its remnant listing paused (the bulk delete pages)."""
+
+        def __init__(self, s3: Any) -> None:
+            self._s3 = s3
+
+        def __getattr__(self, name: str) -> Any:
+            return getattr(self._s3, name)
+
+        def list_objects_v2(self, **kwargs: Any) -> Any:
+            listing.set()
+            assert release.wait(30)
+            response = self._s3.list_objects_v2(**kwargs)
+            listed.append(True)
+            if case == "remnant":
+                return {"Contents": [{"Key": shard_key}]}
+            return response
+
+    monkeypatch.setattr(
+        AsyncFilesystem, "s3_client", lambda fs: PausedListing(s3_client(fs))
+    )
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", "trio")
+    after: list[bool] = []
+    errors: list[str] = []
+
+    async def scenario() -> bool:
+        with anyio.fail_after(30) as deadline:
+            with anyio.CancelScope() as scope:
+                async with anyio.create_task_group() as tg:
+
+                    async def interrupt() -> None:
+                        await anyio.to_thread.run_sync(listing.wait, 30)
+                        if case == "deadline":
+                            deadline.deadline = anyio.current_time()
+                        elif case == "scope":
+                            scope.cancel()
+                        release.set()
+
+                    tg.start_soon(interrupt)
+                    try:
+                        await remove_shards_dir(merged)
+                    except ShardSetError as ex:
+                        errors.append(str(ex))
+                    after.append(True)
+        return scope.cancelled_caught
+
+    if case == "deadline":
+        with pytest.raises(TimeoutError):
+            anyio.run(scenario, backend="trio")
+    else:
+        assert anyio.run(scenario, backend="trio") == (case == "scope")
+    # the listing ran once; a cancellation during it stops the deletion
+    assert listed == [True]
+    assert after == ([] if case in ("deadline", "scope") else [True])
+    if case == "remnant":
+        assert len(errors) == 1 and "left objects behind" in errors[0]
+    else:
+        assert errors == []
+    assert _s3_keys(f"{s3_root}/") == []
+
+
+@pytest.mark.parametrize("exists", [False, True], ids=["create", "replace"])
+@pytest.mark.parametrize("cancel", ["none", "scope", "native", "native-repeated"])
+def test_an_s3_publish_keeps_its_source_until_its_read_finishes(
+    monkeypatch: pytest.MonkeyPatch, s3_root: str, exists: bool, cancel: str
+) -> None:
+    import asyncio
+    import tempfile
+    import threading
+
+    from inspect_ai.log._shards._publish import publish
+
+    key = f"{s3_root}/{NAME}.eval"
+    merged = f"s3://test-bucket/{key}"
+    etag = None
+    if exists:
+        put = boto3.client("s3").put_object(Bucket="test-bucket", Key=key, Body=b"old")
+        etag = put["ETag"].strip('"')
+    reading, release, read_done = (
+        threading.Event(),
+        threading.Event(),
+        threading.Event(),
+    )
+    read_errors: list[BaseException] = []
+
+    class PausedSource:
+        """The merge's temporary file, its first read paused."""
+
+        def __init__(self, file: Any) -> None:
+            self._file = file
+
+        def __getattr__(self, name: str) -> Any:
+            return getattr(self._file, name)
+
+        def read(self, size: int = -1) -> bytes:
+            first = not reading.is_set()
+            if first:
+                reading.set()
+                assert release.wait(30)
+            try:
+                return cast(bytes, self._file.read(size))
+            except BaseException as ex:
+                read_errors.append(ex)
+                raise
+            finally:
+                if first:
+                    read_done.set()
+
+    waiting = _waiting_for_owned_workers(monkeypatch)
+    # whether the source was still being read when the caller closed it
+    closed_during_read: list[bool] = []
+
+    async def run_publish() -> str | None:
+        async with AsyncFilesystem() as fs:
+            with tempfile.TemporaryFile() as file:
+                file.write(b"merged")
+                source = cast(BinaryIO, PausedSource(file))
+                try:
+                    return await publish(fs, merged, source, etag=etag, exists=exists)
+                finally:
+                    closed_during_read.append(not read_done.is_set())
+
+    async def scenario() -> bool:
+        if cancel == "scope":
+            after: list[bool] = []
+            with anyio.CancelScope() as scope:
+                async with anyio.create_task_group() as tg:
+
+                    async def interrupt() -> None:
+                        await anyio.to_thread.run_sync(reading.wait, 30)
+                        scope.cancel()
+                        release.set()
+
+                    tg.start_soon(interrupt)
+                    await run_publish()
+                    after.append(True)
+            assert scope.cancelled_caught and after == []
+            return False
+        task = asyncio.ensure_future(run_publish())
+        assert await asyncio.to_thread(reading.wait, 30)
+        if cancel == "none":
+            release.set()
+            assert await task
+            return False
+        task.cancel()
+        if cancel == "native-repeated":
+            assert await asyncio.to_thread(waiting.wait, 30)
+            for _ in range(3):
+                task.cancel()
+        # the cancelled publish must keep its source until the read finishes
+        done, _ = await asyncio.wait({task}, timeout=0.5)
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert await asyncio.to_thread(read_done.wait, 30)
+        return bool(done)
+
+    assert not asyncio.run(scenario()), "the publish returned before its read"
+    assert closed_during_read == [False] and read_errors == []
+    if cancel == "none":
+        body = boto3.client("s3").get_object(Bucket="test-bucket", Key=key)["Body"]
+        assert body.read() == b"merged"
+
+
+async def test_owned_reads_refuse_a_read_after_release() -> None:
+    import io
+
+    from inspect_ai.log._shards._owned import OwnedReads
+
+    reads = OwnedReads(io.BytesIO(b"merged"))
+    assert reads.read(3) == b"mer"
+    await reads.release()
+    with pytest.raises(ValueError, match="released"):
+        reads.read()
+
+
+def test_merge_thread_calls_go_through_run_owned() -> None:
+    import re
+
+    from inspect_ai.log import _shards
+
+    # direct thread dispatch outside the helper that owns it
+    dispatch = re.compile(
+        r"to_thread|run_sync|run_in_executor|threading\.Thread|ThreadPoolExecutor"
+    )
+    found = [
+        f"{path.name}:{number}"
+        for path in sorted(Path(_shards.__file__).parent.glob("*.py"))
+        if path.name != "_owned.py"
+        for number, line in enumerate(path.read_text().splitlines(), 1)
+        if dispatch.search(line)
+    ]
+    assert found == []
+
+
 def _crc_failures(
     monkeypatch: pytest.MonkeyPatch,
     shards: str,
@@ -4452,6 +4703,8 @@ _UNSUPPORTED_ROOTS = [
     "memory://{uuid}/logs",
     "hdfs://namenode/logs",
     "sftp://host/logs",
+    # fsspec reads data: as a protocol without slashes
+    "data:text/plain,worker",
     "simplecache::s3://test-bucket/logs",
     "file:///tmp/cache::memory://bucket/logs",
     "s3://test-bucket/cache::memory://bucket/logs",
@@ -4507,20 +4760,40 @@ def test_a_merge_of_unsupported_storage_is_refused_before_any_io(
         before = _memory_objects(root)
     with monkeypatch.context() as patched:
         _refuse_storage(patched)
-        for location in (merged, shards):
+        for location in (merged, shards, f"{root}.eval"):
             for delete in (False, True):
                 with pytest.raises(ValueError, match=_UNSUPPORTED):
                     _merge_on(backend, monkeypatch, location, delete_shards=delete)
                 if backend == "asyncio":
                     with pytest.raises(ValueError, match=_UNSUPPORTED):
                         merge_eval_log_shards(location, delete_shards=delete)
-        with pytest.raises(ValueError, match=_UNSUPPORTED):
-            anyio.run(
-                functools.partial(remove_shards_dir, merged, include_log=True),
-                backend=backend,
-            )
+        for location in (merged, f"{root}.eval"):
+            with pytest.raises(ValueError, match=_UNSUPPORTED):
+                anyio.run(
+                    functools.partial(remove_shards_dir, location, include_log=True),
+                    backend=backend,
+                )
     if root.startswith("memory://"):
         assert before and _memory_objects(root) == before
+
+
+@pytest.mark.parametrize(
+    "location",
+    [
+        "/tmp/logs/run.eval",
+        "logs/run.eval",
+        "file:///tmp/logs/run.eval",
+        "s3://test-bucket/logs/run.eval",
+        "C:\\logs\\run.eval",
+        "C:/logs/run.eval",
+        "logs/2026-09-30T10:30:00+00:00_task.eval",
+        "run:1.eval",
+    ],
+)
+def test_supported_locations_are_accepted(location: str) -> None:
+    from inspect_ai.log._shards._publish import check_supported_location
+
+    check_supported_location(location)
 
 
 def _s3_keys(prefix: str) -> list[str]:
