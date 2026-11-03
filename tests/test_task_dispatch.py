@@ -1157,6 +1157,44 @@ async def test_task_behind_the_front_joins_setups_already_requested(
     assert _starts(harness) == ["a@m1", "plain@m1", "first@m1", "shared@m1", "other@m1"]
 
 
+@pytest.mark.parametrize("shared", [False, True])
+async def test_a_cancelled_queued_tasks_waiting_setup_is_dropped_unless_held(
+    monkeypatch: pytest.MonkeyPatch, shared: bool
+) -> None:
+    # x and b are at the front of the queue: X sets up and B waits behind it.
+    # Cancelling b drops B, unless d (behind the front, joined to B) holds it
+    m1 = get_model("mockllm/m1")
+    harness = Harness([m1], parallel=2)
+    _install(monkeypatch, harness)
+    harness.keys.update({"x@m1": ["X"], "b@m1": ["B"], "d@m1": ["B"]})
+    names = ["x", "b", "d"] if shared else ["x", "b"]
+
+    async def drive() -> None:
+        await _wait_started(harness, "a@m1")
+        await harness.tasks.add([_task(n) for n in names])
+        await harness.setup_began_event("X").wait()
+        [b] = [r for r in harness.tasks.queued if r.task == "b"]
+        assert b.setups is not None
+        harness.tasks.cancel_waiting(b)
+        jobs = cast(dict[str, Any], harness.setups._jobs)
+        await _wait_until(lambda: ("B" in jobs) == shared)
+        harness.finish_setup("X")
+        await _wait_started(harness, "x@m1")
+        harness.finish["x@m1"].set()
+        if shared:
+            await harness.setup_began_event("B").wait()
+            harness.finish_setup("B")
+            await _wait_started(harness, "d@m1")
+            harness.finish["d@m1"].set()
+        harness.finish["a@m1"].set()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(drive)
+        await harness.run(_resolve(["a"], [m1]))
+    assert ("setup B" in harness.events) == shared
+    assert "b@m1" not in _starts(harness)
+
+
 @pytest.mark.parametrize("directive", [abandon_task_retry, cancel_task, drain_task])
 async def test_abandoning_a_retry_between_attempts_keeps_the_failed_attempts_log(
     monkeypatch: pytest.MonkeyPatch, directive: Callable[[str], Any]

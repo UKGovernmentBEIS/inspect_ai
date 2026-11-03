@@ -261,3 +261,28 @@ async def test_base_exceptions_reach_waiters_and_are_kept_for_the_run() -> None:
         # not remembered: the next request runs the setup again
         with pytest.raises(_Fatal):
             await cache.ensure(["a"])
+
+
+async def test_dropping_waiting_jobs_keeps_started_and_ensured_ones() -> None:
+    # nobody needs a, b or c any more, but a has started (it runs on) and an
+    # ensure() call waits for c: only b is dropped
+    script = Script()
+    async with SetupCache(script, on_done=lambda: None) as cache:
+        cache.request(["a", "b", "c"])
+        await script.began_event("a").wait()
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(cache.ensure, ["c"])
+            await _settle()
+            cache.drop_waiting([])
+            assert sorted(cache._jobs) == ["a", "c"]
+            script.finish("a")
+            await script.began_event("c").wait()
+            script.finish("c")
+        assert script.started == ["a", "c"]
+        assert _done(cache, ["a", "c"])
+        # a dropped key is set up again when requested again
+        [job] = cache.request(["b"])
+        await script.began_event("b").wait()
+        script.finish("b")
+        await job.done.wait()
+        assert script.started == ["a", "c", "b"]

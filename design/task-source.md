@@ -331,8 +331,11 @@ makes it the active one for `enqueue_task`, starts up the seed and runs the
   one shared job per config and runs the jobs one at a time, in the order
   they were requested, except that a config someone needs now (a retry, a
   running task's `SampleSource`, the seed) goes ahead of queued tasks'
-  setups. A record whose setup fails starts and ends with an error log (its
-  retries apply); the failure is forgotten, so the retry sets up again.
+  setups. Each pass also drops waiting jobs that no queued or running record
+  holds (a task cancelled before it started), unless a running task's
+  `SampleSource` waits for them; a job that has started always runs on. A
+  record whose setup fails starts and ends with an error log (its retries
+  apply); the failure is forgotten, so the retry sets up again.
 - **The seed** is set up before the task display opens: every seed setup runs
   (output streamed, the first failure raises before any log exists), then
   each seed logger is created; it is initialised as the task starts.

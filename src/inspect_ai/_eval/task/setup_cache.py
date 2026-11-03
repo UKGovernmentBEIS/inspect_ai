@@ -7,8 +7,10 @@ job if there is one (waiting, running or succeeded) and adds one otherwise. A
 worker runs the jobs one at a time, while there are any: in the order they
 were requested, except that a job someone waits for now (:meth:`SetupCache.ensure`)
 goes ahead of those requested ahead of need. A failed job is forgotten, so
-the next request for its key adds a new one.
-Leaving the cache cancels the job in progress and drops those still waiting.
+the next request for its key adds a new one. A waiting job nobody needs any
+more (its task was cancelled before it started) is dropped; a job that has
+started always runs on. Leaving the cache cancels the job in progress and
+drops those still waiting.
 
 The cache is used only from the run's event loop, and its bookkeeping does
 not await, so it needs no lock.
@@ -89,6 +91,8 @@ class SetupCache(Generic[K]):
         self._jobs: dict[K, SetupJob[K]] = {}
         self._waiting: deque[SetupJob[K]] = deque()
         self._working = False
+        self._ensuring: list[SetupJob[K]] = []
+        """The jobs an :meth:`ensure` call is waiting for."""
         self._tg: TaskGroup | None = None
         self._context: Context
         """The context the worker starts from (taken on entry), not that of
@@ -151,10 +155,30 @@ class SetupCache(Generic[K]):
         Raises:
             BaseException: What the first failed job raised.
         """
-        for job in self.request(keys, first=True):
-            await job.done.wait()
-            if job.failure is not None:
-                job.failure.raise_again()
+        jobs = self.request(keys, first=True)
+        self._ensuring.extend(jobs)
+        try:
+            for job in jobs:
+                await job.done.wait()
+                if job.failure is not None:
+                    job.failure.raise_again()
+        finally:
+            for job in jobs:
+                self._ensuring.remove(job)
+
+    def drop_waiting(self, keep: Iterable[K]) -> None:
+        """Drop the jobs still waiting whose keys are not in ``keep``.
+
+        For the setups of a queued task that will now never start (it was
+        cancelled): they would create resources nobody uses. A job an
+        :meth:`ensure` call waits for is kept, and so is every job that has
+        started: interrupting a ``task_init`` can leave resources that
+        nothing cleans up.
+        """
+        kept = set(keep) | {job.key for job in self._ensuring}
+        for job in [job for job in self._waiting if job.key not in kept]:
+            self._waiting.remove(job)
+            del self._jobs[job.key]
 
     def _job(self, key: K) -> SetupJob[K]:
         job = self._jobs.get(key)

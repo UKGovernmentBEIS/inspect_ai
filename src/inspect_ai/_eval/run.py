@@ -908,6 +908,9 @@ class TaskDispatcher:
         the front whose configs all have a job already (none, or shared with
         an earlier record) holds them at once: that sets up nothing new, and
         it can start as soon as they are done.
+
+        Waiting setups that no queued or running record holds any more (those
+        of a task cancelled before it started) are dropped.
         """
         limit = effective_max_tasks(self.parallel)
         unpaused = [r for r in self.tasks.queued if not _dispatch_paused(r)]
@@ -916,6 +919,12 @@ class TaskDispatcher:
                 i < limit or self.setups.has_jobs(record.setup_keys)
             ):
                 record.setups = self.setups.request(record.setup_keys)
+        self.setups.drop_waiting(
+            key
+            for record in [*self.tasks.queued, *self.tasks.running]
+            if record.setups is not None
+            for key in record.setup_keys
+        )
 
     def start_prepared_tasks(self, tg: TaskGroup) -> bool:
         """Start prepared records while a slot is free; whether any started.
