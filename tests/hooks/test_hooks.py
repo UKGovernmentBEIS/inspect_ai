@@ -1042,6 +1042,54 @@ async def test_task_end_hook_abort_during_error_end_keeps_log(
     await _assert_victim_log_kept(logs, first_hooks, mock_hooks)
 
 
+@pytest.mark.parametrize("failure", ["task_complete_error", "end_hook_limit"])
+async def test_successful_task_keeps_log_after_completion_failure(
+    first_hooks: TaskPairHooks,
+    mock_hooks: MockHooks,
+    tmp_path: Path,
+    failure: str,
+) -> None:
+    # a successful task whose TaskSource.task_complete raises, or whose end
+    # hook raises LimitExceededError, returns its written success log and is
+    # not retried, even with a retry budget
+    completed: list[EvalLog] = []
+
+    async def task_complete(log: EvalLog) -> list[Task] | None:
+        completed.append(log)
+        if failure == "task_complete_error":
+            raise RuntimeError("completion callback failure")
+        return None
+
+    first_hooks.end_limit = failure == "end_hook_limit"
+    with anyio.fail_after(60):
+        (log,) = await eval_async(
+            TaskSource.from_tasks(
+                [Task(dataset=[Sample("a")], name="succeeds")],
+                task_complete=task_complete,
+            ),
+            model="mockllm/model",
+            log_dir=str(tmp_path),
+            task_retry_attempts=1,
+            ctl_server=False,
+        )
+
+    assert log.status == "success"
+    assert log.error is None
+    written = await read_eval_log_async(log.location, header_only=True)
+    assert written.status == "success"
+    assert written.error is None
+    if failure == "task_complete_error":
+        assert [log.eval.eval_id for log in completed] == [log.eval.eval_id]
+    for hooks_ in (first_hooks, mock_hooks):
+        assert [start.eval_id for start in hooks_.task_start_events] == [
+            log.eval.eval_id
+        ]
+        assert [
+            (end.eval_id, end.log.status, end.log.error)
+            for end in hooks_.task_end_events
+        ] == [(log.eval.eval_id, "success", None)]
+
+
 @pytest.mark.parametrize("cancelling", [1, 2])
 async def test_task_end_hook_raising_cancellation_keeps_log(
     first_hooks: TaskPairHooks,
