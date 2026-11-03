@@ -4,7 +4,7 @@ import bisect
 import dataclasses
 import json
 import random
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import replace
 from functools import partial
 from pathlib import Path
@@ -2076,6 +2076,35 @@ def test_tool_call_prompt_scan_without_system_message_is_linear(
         )
         assert len([s for s in replay if s.stage == "model_input"]) == turns
         assert work[-1] <= 2 * len(pool), work
+    assert work[-1] <= 4.2 * work[0], work
+
+
+def test_pooled_prompt_fallback_without_system_message_reads_pool_once() -> None:
+    from inspect_ai.event import _timeline
+
+    class CountingPool(list[ChatMessage]):
+        reads = 0
+
+        def __getitem__(self, index: Any) -> Any:
+            self.reads += 1
+            return super().__getitem__(index)
+
+        def __iter__(self) -> Iterator[ChatMessage]:
+            for message in super().__iter__():
+                self.reads += 1
+                yield message
+
+    work: list[int] = []
+    for size in (100, 200, 400):
+        pool = CountingPool(
+            ChatMessageUser(content=f"message {n}") for n in range(size)
+        )
+        events = [turn_event([], [(0, n + 1)]) for n in range(size)]
+        inputs = _timeline._Inputs(events, pool)
+        for event in events:
+            assert _timeline._get_system_prompt_for_event(event, inputs) is None
+        work.append(pool.reads)
+        assert work[-1] <= 3 * len(pool), work
     assert work[-1] <= 4.2 * work[0], work
 
 

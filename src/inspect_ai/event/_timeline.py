@@ -1100,6 +1100,7 @@ class _Inputs:
         self._pool = pool
         self.outside = outside
         self._views: dict[int, Sequence[ChatMessage]] = {}
+        self._system_rows: list[int] | None = None
         self._fingerprints: dict[int, _Fingerprint] = {}
         # tool call id -> the pool rows holding a non-empty result of it,
         # ascending
@@ -1124,6 +1125,25 @@ class _Inputs:
         if found is None:
             found = self._views[id(event)] = PoolView(self._pool, event.input_refs)
         return found
+
+    def first_system_message(self, event: ModelEvent) -> ChatMessageSystem | None:
+        """Find the first system message in an input without expanding pooled ranges."""
+        input = self.of(event)
+        if isinstance(input, PoolView) and self._pool is not None:
+            if self._system_rows is None:
+                self._system_rows = [
+                    row
+                    for row, message in enumerate(self._pool)
+                    if isinstance(message, ChatMessageSystem)
+                ]
+            for start, end in input.refs:
+                at = bisect_left(self._system_rows, start)
+                if at < len(self._system_rows) and self._system_rows[at] < end:
+                    message = self._pool[self._system_rows[at]]
+                    assert isinstance(message, ChatMessageSystem)
+                    return message
+            return None
+        return next((msg for msg in input if isinstance(msg, ChatMessageSystem)), None)
 
     @property
     def events(self) -> Sequence[Event]:
@@ -1763,15 +1783,15 @@ def _get_system_prompt_for_event(event: ModelEvent, inputs: _Inputs) -> str | No
         empty prompts out of primary-trajectory comparisons and prompt
         inheritance.
     """
-    for msg in inputs.of(event):
-        if isinstance(msg, ChatMessageSystem):
-            if isinstance(msg.content, str):
-                raw = msg.content
-            else:
-                parts = [c.text for c in msg.content if hasattr(c, "text")]
-                raw = "\n".join(parts)
-            normalized = _normalize_system_prompt(raw)
-            return normalized if normalized else None
+    msg = inputs.first_system_message(event)
+    if msg is not None:
+        if isinstance(msg.content, str):
+            raw = msg.content
+        else:
+            parts = [c.text for c in msg.content if hasattr(c, "text")]
+            raw = "\n".join(parts)
+        normalized = _normalize_system_prompt(raw)
+        return normalized if normalized else None
     return None
 
 
