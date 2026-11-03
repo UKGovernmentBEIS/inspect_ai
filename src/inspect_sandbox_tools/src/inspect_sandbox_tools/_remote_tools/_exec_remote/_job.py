@@ -129,8 +129,7 @@ class Job:
         self._stderr_buffer = BoundedByteBuffer(_BACKPRESSURE_BUFFER_SIZE)
         self._stdout_output = DecodingBuffer(self._stdout_buffer)
         self._stderr_output = DecodingBuffer(self._stderr_buffer)
-        self._state: Literal["running", "completed", "killed"] = "running"
-        self._exit_code: int | None = None
+        self._killed = False
         self._acked_buffer: AckedChunkBuffer[tuple[str, str]] = AckedChunkBuffer()
         self._known_descendants: list[psutil.Process] = []
         self._retired = False
@@ -149,13 +148,25 @@ class Job:
         assert self._process.pid is not None
         return self._process.pid
 
+    @property
+    def _state(self) -> Literal["running", "completed", "killed"]:
+        """Read from the process, so an exit no caller has seen yet still counts.
+
+        A job is killed only if kill() or shutdown() signalled its leader while
+        it ran; a leader that exited on its own keeps its exit code.
+        """
+        if self._killed:
+            return "killed"
+        if self._process.returncode is not None:
+            return "completed"
+        return "running"
+
+    @property
+    def _exit_code(self) -> int | None:
+        return self._process.returncode if self._state == "completed" else None
+
     async def poll(self, ack_seq: int) -> PollResult:
         """Return current state and incremental output, clearing buffers."""
-        # Check if process has finished
-        if self._state == "running" and self._process.returncode is not None:
-            self._state = "completed"
-            self._exit_code = self._process.returncode
-
         # Drain the readers whenever the job is no longer running. A poll
         # cancelled here leaves the state terminal with the readers unfinished;
         # a later poll finishes the drain so its output is not lost. Once the
@@ -207,19 +218,19 @@ class Job:
         process we started. Once it has exited and been reaped, its PID, and so
         the group id, may belong to an unrelated process, which a server running
         as root would then signal. A job whose leader exited on its own is
-        treated as finished: its buffered output is returned and any children
-        that outlived it may be left running.
+        treated as finished: it keeps its exit code, its buffered output is
+        returned and any children that outlived it may be left running.
         """
-        if self._state != "running":
+        if self._killed:
             self._acked_buffer.push(("", ""))
             seq, chunks = self._acked_buffer.collect(ack_seq)
             return OutputChunk(seq, *self._combine_chunks(chunks))
 
-        self._state = "killed"
         # Check and signal are not atomic. Likelihood that leader could exit, be
         # reaped and have its PID reused between is unlikely, as the PID space must
         # wrap inside that gap.
         if self._leader_running():
+            self._killed = True
             pgid = self.pid
             try:
                 os.killpg(pgid, signal.SIGTERM)
@@ -238,7 +249,8 @@ class Job:
 
     async def shutdown(self, timeout: int = 30) -> None:
         """Forcefully terminate this server-owned job during server shutdown."""
-        self._state = "killed"
+        if self._leader_running():
+            self._killed = True
         known_descendants = [*self._known_descendants]
         try:
             await terminate_process_tree(
