@@ -1215,9 +1215,10 @@ class TaskLogger:
             if prune_unplanned and status == "success" and self._seeded_pending:
                 await self.recorder.log_prune(self.eval, set(self._seeded_pending))
 
-            # finish and get log; shielded through retaining it, so an abort
-            # cannot land between the recorder's durable write and its return
-            # and leave a written log unretained
+            # finish and get log. The write, retaining its result and the
+            # teardown it requires are shielded: an abort cannot land between
+            # the durable write and retention, or leave the realtime buffer
+            # and its sync worker behind once the log is kept
             with anyio.CancelScope(shield=True):
                 log = await self.recorder.log_finish(
                     self.eval,
@@ -1230,17 +1231,17 @@ class TaskLogger:
                 )
                 self._finished_log = log
 
-            # every completed sample is now on disk. Mark finished and drop the
-            # pending list so the still-attached flush/buffer directives (kept
-            # visible under --ctl-server=keep) report a finished no-op / accurate
-            # empty pending rather than reporting stale pending.
-            self._finished = True
-            self._seeded_pending.clear()
-            async with self._flush_pending_lock:
-                self.flush_pending.clear()
+                # every completed sample is now on disk. Mark finished and drop
+                # the pending list so the still-attached flush/buffer directives
+                # (kept visible under --ctl-server=keep) report a finished no-op
+                # / accurate empty pending rather than reporting stale pending.
+                self._finished = True
+                self._seeded_pending.clear()
+                async with self._flush_pending_lock:
+                    self.flush_pending.clear()
 
-            # cleanup the events db
-            await self._release_buffer_db(keep=False)
+                # cleanup the events db
+                await self._release_buffer_db(keep=False)
 
         # An on-demand flush_samples() that was mid-flush while we waited on
         # _flush_lock above re-arms the stale-flush timer *outside* _flush_lock
@@ -1248,8 +1249,9 @@ class TaskLogger:
         # and leave a timer armed against the now-finished eval. Now that
         # _finished is set and pending cleared, stop once more to cancel it — and
         # not while holding _flush_lock, since the stop awaits any in-flight
-        # timer flush, which takes that lock.
-        await self._stop_stale_flush_timer()
+        # timer flush, which takes that lock. Shielded like the teardown above.
+        with anyio.CancelScope(shield=True):
+            await self._stop_stale_flush_timer()
 
         # return log
         return log

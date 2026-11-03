@@ -1,3 +1,4 @@
+import threading
 from contextlib import contextmanager, nullcontext
 from pathlib import Path
 from typing import Any, Generator, Type, TypeVar
@@ -9,7 +10,7 @@ import pytest
 from pydantic import JsonValue
 
 import inspect_ai.hooks._startup as hooks_startup_module
-from inspect_ai import TaskSource, eval, eval_async
+from inspect_ai import SampleSource, TaskSource, eval, eval_async
 from inspect_ai._control.cancel import cancel_task
 from inspect_ai._eval.task.task import Task
 from inspect_ai._util._async import current_async_backend
@@ -43,6 +44,7 @@ from inspect_ai.hooks._startup import _load_registry_hooks, init_hooks
 from inspect_ai.log import EvalLog, list_eval_logs_async, read_eval_log_async
 from inspect_ai.log._file import read_eval_log
 from inspect_ai.log._log import EvalSample, EvalSpec
+from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 from inspect_ai.log._recorders.eval import EvalRecorder, ZipLogFile
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model import ModelOutput, get_model
@@ -940,7 +942,7 @@ def _victim_and_queued_tasks() -> list[Task]:
 
 
 async def _eval_victim_and_queued(
-    tasks: list[Task] | TaskSource, log_dir: Path
+    tasks: list[Task] | TaskSource, log_dir: Path, **kwargs: Any
 ) -> list[EvalLog]:
     return await eval_async(
         tasks,
@@ -948,11 +950,14 @@ async def _eval_victim_and_queued(
         max_tasks=1,
         log_dir=str(log_dir),
         ctl_server=False,
+        **kwargs,
     )
 
 
 async def _assert_victim_log_kept(
-    logs: list[EvalLog], *hooks: TaskPairHooks | MockHooks
+    logs: list[EvalLog],
+    *hooks: TaskPairHooks | MockHooks,
+    error: str = "early stopping failed",
 ) -> None:
     """The victim's written error log is returned and given to every hook."""
     assert {log.eval.task: log.status for log in logs} == {
@@ -961,7 +966,7 @@ async def _assert_victim_log_kept(
     }
     (victim,) = [log for log in logs if log.eval.task == "victim"]
     assert victim.error is not None
-    assert "early stopping failed" in victim.error.message
+    assert error in victim.error.message
     written = await read_eval_log_async(victim.location, header_only=True)
     assert written.status == "error"
     assert written.error is not None
@@ -1103,6 +1108,10 @@ def _abort_victim(eval: EvalSpec) -> None:
         assert result is not None and result.get("changed") is True
 
 
+async def _failing_next_samples() -> list[Sample] | None:
+    raise RuntimeError("sample source failed")
+
+
 @pytest.mark.parametrize("abort_at", ["durable_flush", "recorder_return"])
 async def test_task_end_hook_abort_after_log_write_keeps_log(
     first_hooks: TaskPairHooks,
@@ -1113,7 +1122,27 @@ async def test_task_end_hook_abort_after_log_write_keeps_log(
 ) -> None:
     # an abort landing once the log is durably written, either before the
     # recorder closes and returns it or while TaskLogger.log_finish still
-    # cleans up, must not discard that log
+    # cleans up, must not discard that log or skip releasing the realtime
+    # buffer: its database is deleted and its shared sync worker stopped.
+    # The victim is source-driven, so it stays abortable after its sample
+    # runs (which starts the sync worker), then fails when the source is
+    # asked for more samples.
+    buffers: list[SampleBufferDatabase] = []
+    sync_workers: list[threading.Thread] = []
+    buffer_init = SampleBufferDatabase.__init__
+    buffer_sync = SampleBufferDatabase._sync
+
+    def init(self: SampleBufferDatabase, *args: Any, **kwargs: Any) -> None:
+        buffer_init(self, *args, **kwargs)
+        buffers.append(self)
+
+    def sync(self: SampleBufferDatabase) -> None:
+        buffer_sync(self)
+        if "_victim_" in self.location and self._sync_thread is not None:
+            sync_workers.append(self._sync_thread)
+
+    monkeypatch.setattr(SampleBufferDatabase, "__init__", init)
+    monkeypatch.setattr(SampleBufferDatabase, "_sync", sync)
     if abort_at == "durable_flush":
         zip_flush = ZipLogFile.flush
 
@@ -1134,10 +1163,26 @@ async def test_task_end_hook_abort_after_log_write_keeps_log(
             return log
 
         monkeypatch.setattr(EvalRecorder, "log_finish", log_finish)
+    victim = Task(
+        dataset=SampleSource.from_samples(
+            [Sample("a")], next_samples=_failing_next_samples
+        ),
+        name="victim",
+    )
     with anyio.fail_after(60):
-        logs = await _eval_victim_and_queued(_victim_and_queued_tasks(), tmp_path)
+        logs = await _eval_victim_and_queued(
+            [victim, Task(dataset=[Sample("b")], name="queued")],
+            tmp_path,
+            log_shared=1,
+        )
 
-    await _assert_victim_log_kept(logs, first_hooks, mock_hooks)
+    await _assert_victim_log_kept(
+        logs, first_hooks, mock_hooks, error="sample source failed"
+    )
+    (victim_buffer,) = [b for b in buffers if "_victim_" in b.location]
+    assert not victim_buffer.db_path.exists()
+    assert sync_workers
+    assert not any(worker.is_alive() for worker in sync_workers)
 
 
 def test_task_end_hook_only_for_entered_start_hooks(
