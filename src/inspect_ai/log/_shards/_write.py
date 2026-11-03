@@ -485,13 +485,18 @@ def _admits_callable(annotation: object) -> bool:
     """Whether the type admits a function or callable object.
 
     `Callable` (and aliases such as `ValueToFloat`), or a class that defines
-    `__call__` (a callable `int` subclass, `Metric`), alone or in a union.
+    `__call__` (a callable `int` subclass, `Metric`), parameterized or not
+    (`Converter[float]` is checked as `Converter`), alone or in a union.
     """
+
+    def callable_class(member: object) -> bool:
+        cls = typing.get_origin(member) or member
+        return isinstance(cls, type) and any(
+            "__call__" in vars(base) for base in cls.__mro__
+        )
+
     return _is_function_type(annotation) or any(
-        isinstance(member, type)
-        and typing.get_origin(member) is None
-        and any("__call__" in vars(base) for base in member.__mro__)
-        for member in _members(_unannotated(annotation))
+        callable_class(member) for member in _members(_unannotated(annotation))
     )
 
 

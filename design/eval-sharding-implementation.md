@@ -1317,7 +1317,8 @@ producer records `**kwargs` options under their own names). Before
 these checks, any recorded value other than `None` or a metric reference
 is refused for a parameter whose annotation admits a callable:
 `Callable` (`ValueToFloat`), a class that defines `__call__` (such as an
-`int` subclass whose instances are callable), or a union holding one
+`int` subclass whose instances are callable), parameterized or not
+(`Converter[float]` is checked as `Converter`), or a union holding one
 (decision: Ransom, 2026-11-03). The log records a function by its name
 and a callable object as its plain value, so a number, string or list
 recorded there cannot be the object the metric was given. Each

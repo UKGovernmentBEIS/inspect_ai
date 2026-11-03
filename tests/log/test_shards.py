@@ -8,7 +8,7 @@ import zipfile
 from collections.abc import Callable, Coroutine, Hashable, Iterator, Sequence
 from io import BytesIO
 from pathlib import Path
-from typing import Annotated, Any, BinaryIO, Literal, cast
+from typing import Annotated, Any, BinaryIO, Generic, Literal, TypeVar, cast
 
 import anyio
 import boto3
@@ -1623,6 +1623,41 @@ class CallableRatio(float):
         return 7.0
 
 
+T = TypeVar("T")
+
+
+class GenericScale(int, Generic[T]):
+    """A generic integer whose instances are callable."""
+
+    def __call__(self, value: Value) -> float:
+        return 7.0
+
+
+class GenericRatio(float, Generic[T]):
+    """A generic float whose instances are callable."""
+
+    def __call__(self, value: Value) -> float:
+        return 7.0
+
+
+class GenericWeight(int, Generic[T]):
+    """A generic integer whose instances are not callable."""
+
+
+@metric(name="shard_generic_converters")
+def shard_generic_converters(
+    scale: GenericScale[float] | None = None,
+    ratio: Annotated[GenericRatio[float], "converter"] | None = None,
+) -> Metric:
+    """A metric whose converters are parameterized callable classes."""
+
+    def compute(scores: list[SampleScore]) -> Value:
+        convert = scale if scale is not None else ratio
+        return {"converted": convert(CORRECT)} if convert is not None else 0.0
+
+    return compute
+
+
 @metric(name="shard_optional_converter")
 def shard_optional_converter(to_float: ValueToFloat | None = None) -> Metric:
     """A metric whose converter parameter is optional."""
@@ -1900,6 +1935,31 @@ _FUNCTION_OPTIONS: dict[str, tuple[Callable[[], list[Any]], str, bool]] = {
         "'to_float'",
         False,
     ),
+    # parameterized callable classes, recorded as numbers
+    "generic-int-converter": (
+        lambda: [shard_generic_converters(scale=GenericScale(3))],
+        "'shard_generic_converters' was given a function or callable object for "
+        "'scale'",
+        False,
+    ),
+    "generic-float-converter": (
+        lambda: [shard_generic_converters(ratio=GenericRatio(0.5))],
+        "'shard_generic_converters' was given a function or callable object for "
+        "'ratio'",
+        False,
+    ),
+    "generic-int-converter-grouped": (
+        lambda: [grouped(shard_generic_converters(scale=GenericScale(3)), "group")],
+        "'shard_generic_converters' was given a function or callable object for "
+        "'scale'",
+        False,
+    ),
+    "generic-float-converter-grouped": (
+        lambda: [grouped(shard_generic_converters(ratio=GenericRatio(0.5)), "group")],
+        "'shard_generic_converters' was given a function or callable object for "
+        "'ratio'",
+        False,
+    ),
     "hidden-return": (
         lambda: [shard_hidden_return(to_float=value_to_float(correct=2))],
         "'shard_hidden_return' was given a function or callable object for 'to_float'",
@@ -2070,6 +2130,28 @@ def test_a_metric_given_a_function_is_refused(
         with pytest.raises(ShardSetError, match=message):
             _merge_on("trio", monkeypatch, merged, delete_shards=delete)
     assert _files(str(tmp_path)) == before
+
+
+@pytest.mark.parametrize(
+    "annotation,admits",
+    [
+        (ValueToFloat, True),
+        (CallableScale, True),
+        (GenericScale[float], True),
+        (GenericScale[float] | None, True),
+        (Annotated[GenericRatio[float], "converter"] | None, True),
+        (GenericWeight[float], False),
+        (GenericWeight[float] | None, False),
+        (int, False),
+        (list[str], False),
+    ],
+)
+def test_callable_annotations_include_parameterized_classes(
+    annotation: object, admits: bool
+) -> None:
+    from inspect_ai.log._shards._write import _admits_callable
+
+    assert _admits_callable(annotation) == admits
 
 
 async def _group_score(state: TaskState, target: Target) -> Score:
