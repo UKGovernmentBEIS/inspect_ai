@@ -84,7 +84,7 @@ def steps_from_events(
 
     Every step's `agent_messages` is None: the log does not record the agent's own messages, and model input can hold messages the agent kept out of them.
 
-    The tool steps of an agent bridge's calls are not rebuilt, recorded or not: a call the bridged scaffold ran itself leaves no `ToolEvent`, and for a call a sandbox bridge ran on the host (`ToolEvent.metadata["bridge"]`) the log records neither which model call produced it (the bridge can hand over a response filter's output, or one of several generations under one call id) nor its result as the bridge's service delivered it (the error text a scaffold received, for one). Replay skips these steps until the log records which message made each call, and logs a warning naming the calls. A `human()` decision at a skipped step, and a person's approval of a host call, still reach the later steps of the conversation, as live. A native result check is attached only when it immediately follows that call's execution span; a later check under the same id is ambiguous and skipped.
+    The tool steps of an agent bridge's calls are not rebuilt, recorded or not: a call the bridged scaffold ran itself leaves no `ToolEvent`, and for a call a sandbox bridge ran on the host (`ToolEvent.metadata["bridge"]`) the log records neither which model call produced it (the bridge can hand over a response filter's output, or one of several generations under one call id) nor its result as the bridge's service delivered it (the error text a scaffold received, for one). Replay skips these steps until the log records which message made each call, and logs a warning naming the calls. A `human()` decision at a skipped step, and a person's approval of a host call, still reach the later steps of the conversation, as live. When a native and bridge call share an id, replay omits the native result step because the recorded result checks cannot be attributed to it.
 
     Args:
         messages: The sample's messages (`EvalSample.messages`).
@@ -902,11 +902,10 @@ class _Driver:
         )
 
     def _skip_bridge_checks(self) -> None:
-        """Settle skipped bridge checks except ambiguous results, then warn once."""
-        for (stage, call_id), spans in self.tool_spans.items():
+        """Settle skipped checks without building their tool steps, then warn once."""
+        for (_, call_id), spans in self.tool_spans.items():
             for span in spans:
-                if stage != "tool_result" or call_id not in self.shared_bridge_ids:
-                    self._settle_at_end(span)
+                self._settle_at_end(span)
                 self.skipped.append(call_id)
         if self.shared_bridge_ids:
             logger.warning(

@@ -3439,6 +3439,48 @@ def test_scaffold_result_does_not_become_failed_native_result(
     assert "call id(s) shared" in caplog.text
 
 
+def test_human_decision_at_shared_id_result_reaches_later_replay_steps(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    Panel("approve", "allowed").install(monkeypatch)
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        as_solver(r7_scaffold_reports_after_a_failed_native_call("normal")),
+        outputs(
+            r7_tool_calls(
+                ToolCall(id="shared", function="echo", arguments={"text": "x"})
+            ),
+            r7_tool_calls(ToolCall(id="shared", function="explodes", arguments={})),
+            done(),
+        ),
+        sentinel=[
+            r7_probe(seen, copies=True),
+            h_ask("tool_result", ["approve", "reject"]),
+        ],
+    )
+    live = [
+        seen[event.explanation or ""]
+        for event in logged_sample(log).events
+        if isinstance(event, SentinelEvent)
+        and event.path == "r7_probe"
+        and event.stage.startswith("model")
+    ]
+    replay = replayed(log)
+    model_steps = [step.step for step in replay if step.stage.startswith("model")]
+    assert not any(isinstance(step.step, AfterToolCall) for step in replay)
+    assert [len(step.human_decisions or []) for step in live] == [0, 0, 0, 0, 1, 1]
+    assert [len(step.human_decisions or []) for step in model_steps] == [
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+    ]
+    for actual, rebuilt in zip(live, model_steps):
+        assert comparable(rebuilt.human_decisions) == comparable(actual.human_decisions)
+
+
 @agent
 def r7_runs_a_host_call_outside_its_producer() -> Agent:
     """A bridged conversation in an agent span of its own, whose host call the service runs in the enclosing span."""
