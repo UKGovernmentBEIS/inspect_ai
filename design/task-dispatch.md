@@ -315,6 +315,17 @@ control channel. Everything else is refused with a clear error:
   running task (for example from `TaskSource.next_tasks()`), or after
   `close()`: `RuntimeError`.
 - `TaskHandle.enqueue_sample()` after the task has ended: `TaskEndedError`.
+- Awaiting `TaskHandle.started()`, `result()` or `enqueue_sample()` inside
+  `TaskSource.next_tasks()`: `RuntimeError` ("a task handle cannot be
+  awaited inside TaskSource.next_tasks(): no task starts until
+  next_tasks() returns; return the task, and wait for it from a task or a
+  task callback"). The dispatcher awaits `next_tasks()` inline, only when
+  nothing is queued or running, so it cannot start the awaited task until
+  the call returns (verified on this branch's base on asyncio and trio: a
+  task enqueued inside `next_tasks()` starts only after it returns, at
+  `max_tasks=2`). The dispatcher sets a `ContextVar` around that await,
+  and the handle checks it before waiting. Calling `enqueue_task()` there,
+  and `cancel()` or `close()` on its handles, stays allowed.
 - `enqueue_task()` outside a running eval or with a mismatched `run_id`:
   `RuntimeError`, as today.
 
@@ -513,8 +524,49 @@ that ends without starting leaves the registry when it ends.
   leave resources nothing cleans up).
 - `CONTROL_API_VERSION` (`src/inspect_ai/_control/__init__.py:84`) increases
   by one; `inspect ctl task list` shows queued rows.
-- Under `eval_set()`, a seed task cancelled while queued has no log, so the
-  eval set reads it as not run, exactly as for a task the run never reached.
+- Under `eval_set()`, see "Queued cancels under `eval_set()`" below.
+
+#### Queued cancels under `eval_set()`
+
+A seed task cancelled or drained while queued ends with no log, but
+`eval_set()` decides success and retries from the logs it gets back:
+`try_eval()` returns only produced logs (`src/inspect_ai/_eval/evalset.py:1175`),
+and the final status (`:1232`) and selection mode (`:1664`) call
+`all_evals_succeeded()` (`:1778`), which is true for a successful subset and
+for an empty list. Without a change, a run whose only other task succeeded,
+or whose every seed task was cancelled while queued, would report "Completed
+all tasks", contradicting the documented result (`docs/eval-sets.qmd:49`).
+The no-log outcome stays; the eval set learns about it explicitly:
+
+- `_control/queued_tasks.py` keeps the `task_id`s of records ended while
+  queued by a cancel or drain directive or a handle's `cancel()`, for the
+  current run (reset when `eval_run` starts), and exposes
+  `queued_cancelled_task_ids()`.
+- `run_eval` (`evalset.py:542`), after `eval()` returns, computes the
+  requested tasks with no log: their `ResolvedTask.id`s (the run's
+  `task_id`, `run.py:425`) less the logs' `eval.task_id`s. Those in
+  `queued_cancelled_task_ids()` were cancelled explicitly. Any other
+  requested task without a log was still queued when the run was cancelled,
+  so `run_eval` raises `KeyboardInterrupt`, exactly as it does today for a
+  cancelled log (`evalset.py:632`).
+- The eval set keeps the explicitly cancelled tasks, by task identifier, for
+  the rest of the invocation. Later attempts of the legacy retry loop
+  (`retry(try_eval)`) leave them out of the tasks they run, so a retry never
+  undoes an explicit cancel. With immediate retries (`retry_immediate`) a
+  record cancelled while queued never ran, so the dispatcher has no attempt
+  to retry, as for an aborted running task.
+- The retry predicate stays `all_evals_succeeded` over the logs, so the
+  loop stops once every task that was not cancelled has succeeded. The
+  final result is `all_evals_succeeded(results)` and no task cancelled
+  while queued; the closing message names the cancelled tasks ("Did not
+  successfully complete all tasks: cancelled before starting: …").
+- Selection mode (`_run_selected`, `evalset.py:1655-1664`) applies the same
+  detection and returns `False` when one or all of its selected tasks were
+  cancelled while queued.
+- A later `eval_set()` on the same log directory finds no log for them and
+  runs them: running the remainder after all is a deliberate later action,
+  as for a drained task ("No eval-set in-run retry" in
+  [task-drain.md](ctl/task-drain.md)).
 
 ### Sandbox setup
 
@@ -837,27 +889,33 @@ future has resolved.
 (`task/run.py:1854`), so nothing buffered starts until it returns (verified
 on this branch's base: a sample enqueued while `next_samples()` blocks does
 not run until it returns). `feed_samples` changes so that a pull never
-blocks the buffer:
+blocks the buffer, while everything a pull itself adds keeps today's order:
 
 ```
 async with task group tg:                  # owned by the feeder
     pull = None                            # the one outstanding next_samples() call
     while True:
         await checkpoint()
-        if buffered := enqueuer.drain():   # port, enqueue_sample(), callback returns
-            if await add_and_start(buffered): source_done = False
-            continue
-        if pull is done:
+        if pull is done:                   # checked first: a returned batch keeps priority
             more = pull.result(); pull = None
-            if more is None: source_done = True
-            elif more: await add_and_start(more)
+            if more: await add_and_start(more)
+            own = await add_and_start(pull_buffer.drain())   # the pull's own enqueue_sample() calls
+            source_done = more is None and not own and not added_during_pull
+            continue
+        if buffered := enqueuer.drain():   # port, and callbacks of samples running meanwhile
+            if await add_and_start(buffered):
+                if pull is not None: added_during_pull = True
+                else: source_done = False
             continue
         if scheduler.outstanding > 0:
             await feeder_wake.wait(); continue   # rung by settle, enqueue, pull done, port close
         # no samples in flight or buffered
         if limit exhausted: break              # cancels an outstanding pull below
         if pull is not None: await feeder_wake.wait(); continue
-        if not source_done: pull = start next_samples() in tg; continue
+        if not source_done:
+            added_during_pull = False
+            pull = start next_samples() in tg  # with the pull scope set (below)
+            continue
         if port is open: await feeder_wake.wait(); continue
         break
     cancel tg                              # an outstanding pull is cancelled, then joined
@@ -868,15 +926,37 @@ async with task group tg:                  # owned by the feeder
   joined before the feeder returns, its exception fails the task as an
   inline pull's does today, and a task cancel, a run cancel or the task
   ending cancels it with the feeder.
-- While a pull is outstanding, everything buffered starts at once, whether
-  it came through a handle, `enqueue_sample()` or a callback's return, and
-  those samples' `sample_complete` and `sample_abandoned` may fire while
-  `next_samples()` is still awaiting. The `SampleSource` docstrings say so.
-  This changes when a sample from `enqueue_sample()` starts while
-  `next_samples()` blocks (now, instead of after it returns); the samples
-  and their inputs are the same.
-- When the pull returns `None`, the source is consulted again only after
-  more samples have been added and run, as today after a late enqueue. When the task is
+- **What a pull adds keeps today's order.** The pull task runs with a pull
+  scope set (a `ContextVar` the feeder sets inside that task only), and
+  `enqueue_sample()` called within it goes to a separate `pull_buffer`
+  that is admitted only when the pull completes, after the batch the pull
+  returns. That is today's order: the feeder awaits the pull inline, admits
+  the returned batch, and drains what was enqueued meanwhile on its next
+  pass (`task/run.py:1854-1865`). So `--limit`, `--sample-id` and assigned
+  sample ids select exactly the samples they select today; verified on this
+  branch's base: with an empty seed and `limit=1`, a `next_samples()` that
+  enqueues A and returns `[B]` runs B, and the design keeps B.
+- **Additions from elsewhere start at once.** While a pull is outstanding
+  and still blocked, samples arriving through a handle, and the follow-ups
+  returned by callbacks of the samples running meanwhile (which today
+  cannot exist, because nothing runs during a pull), are admitted as they
+  arrive, ahead of whatever the pull later returns, and their
+  `sample_complete` and `sample_abandoned` may fire while `next_samples()`
+  is still awaiting. The `SampleSource` docstrings say so. Under `--limit`
+  they take the limit in arrival order. When the feeder observes a
+  completed pull and such additions in the same pass, the pull's batch and
+  its own enqueues go first and the other additions follow. No existing
+  source sees a difference: only the new handle API adds samples while a
+  pull blocks.
+- **A late addition always earns a repull.** When the pull returns `None`,
+  the source is consulted again after the samples added during or at the
+  end of that pull have run, whichever buffer they came through:
+  `added_during_pull` records additions admitted while the pull was
+  outstanding, and `own` those the pull enqueued itself, so the pull's
+  `None` cannot erase them. That is today's rule for a late enqueue during a
+  terminal call (`task/run.py:1855-1860`, `sample_source.py:69`); verified
+  on this branch's base: a `next_samples()` that enqueues a sample and
+  returns `None` is called again and its next batch runs. When the task is
   fully idle and the sample limit is exhausted, an outstanding pull is
   cancelled and the task ends, since nothing it returned could run.
 - A port closing does not end an outstanding pull: the source still decides
@@ -1066,8 +1146,10 @@ Public API (additive):
 - New `inspect_ai.TaskHandle`, `TaskEndedError`, `SampleAbandonedError`;
   new `inspect_ai.util.SandboxSetup`, `sandbox_setup()`; new class attribute
   `SandboxEnvironment.supports_sandbox_setup` (default `False`).
-- `SampleSource` docstrings: buffered samples start while `next_samples()`
-  is awaiting, and their callbacks may fire meanwhile.
+- `SampleSource` docstrings: samples sent through a handle start while
+  `next_samples()` is awaiting, and their callbacks may fire meanwhile;
+  what `next_samples()` itself enqueues is admitted after the batch it
+  returns, as today.
 - `inspect_ai.util.subprocess()` applies the setup's directory and
   environment inside a provider's task-level calls.
 
@@ -1092,8 +1174,6 @@ inputs, sandbox and model):
   waits for an image.
 - `next_tasks()` batches go through the same queue; their order relative to
   concurrent `enqueue_task()` calls is today's.
-- A sample added by `enqueue_sample()` or a callback while
-  `next_samples()` blocks starts at once instead of after it returns.
 - Slot lending lets a task that a running task is waiting on start beyond
   `max_tasks` (new API only; no existing eval waits on a handle). A
   supervisor that sets `max_tasks` as a ceiling, such as a selection-mode
@@ -1107,6 +1187,9 @@ Failure reporting (the run's outcome changes only where today it fails):
 - Ctrl-C while `next_tasks()` blocks returns the logs so far instead of
   raising `KeyboardInterrupt` without them.
 - An added task whose admission fails ends alone; today the run fails.
+- An eval set or selection-mode worker with a seed task cancelled while
+  queued reports failure, does not re-run that task in the same
+  invocation, and names it in its closing message.
 - `debug_errors=True` now raises task errors at every `max_tasks` (explicit
   configuration only).
 - Seed setups run beside the dispatcher: a broken seed configuration ends
@@ -1224,7 +1307,10 @@ does (a new list per call):
   waits on a target whose setup failed, that was cancelled while queued, or
   whose admission failed raise `TaskEndedError` instead of hanging; an
   ended record no longer references its `ResolvedTask`, options or
-  dataset.
+  dataset; awaiting `started()` or `result()` inside
+  `TaskSource.next_tasks()` raises the `RuntimeError` above, at
+  `max_tasks=1` and `max_tasks=2`, while `enqueue_task()` there still
+  works.
 - `tests/test_task_source.py`: Ctrl-C (cancelling the run) while
   `next_tasks()` blocks returns the completed logs, at `max_tasks` 1 and > 1;
   the existing live-injection test also passes for a plain task list with
@@ -1235,7 +1321,14 @@ does (a new list per call):
   blocked runs at once (the probe in "The feeder services the port", as a
   test); the blocked pull is cancelled when the task is cancelled, when the
   run is cancelled and when the sample limit is exhausted, and a pull's
-  exception still fails the task.
+  exception still fails the task; with an empty seed and `limit=1`, a
+  `next_samples()` that enqueues A and returns `[B]` runs B, with the ids
+  assigned today; a handle sample arriving while the pull blocks is
+  admitted first and takes the limit; additions buffered when a completed
+  pull is observed follow its batch; a pull that enqueues a sample and
+  returns `None`, and a pull that returns `None` after a handle sample
+  arrived during it, are each followed by another pull once those samples
+  have run.
 - `tests/test_task_cancel.py` and `tests/_control/test_ctl.py`: queued rows
   in `GET /tasks`; cancel and drain of a queued task (no log, handle result
   `None`, its unshared waiting setups dropped, its initialised logger
@@ -1244,6 +1337,14 @@ does (a new list per call):
   record is listed and can be cancelled, and the blocked record cancelled
   during admission ends with no log once admission finishes; a cancel
   between dispatch and `register_eval` reaches the attempt.
+- `tests/test_eval_set.py`: with seed tasks A and B and B cancelled while
+  queued, the eval set reports failure and its message names B, under
+  immediate retries and under the legacy retry loop (with A first erroring,
+  so a second attempt runs A only and never B); every seed task cancelled
+  while queued reports failure, not success; selection mode with one and
+  with all selected tasks cancelled returns `False`; a run cancelled while
+  a seed task is still queued raises `KeyboardInterrupt`; a later
+  `eval_set()` on the same directory runs B.
 - inspect_sandboxes: a test per provider that two configurations and an
   added task's configuration clean up every sandbox, run against an Inspect
   build with step 2; it needs the providers' API keys, so it runs where their
@@ -1288,14 +1389,16 @@ batch has its own `eval_run` and cleans up its own state).
    removed), `_eval/eval.py` (one `eval_run` call), `_eval/task/run.py`
    (`_enqueue_source_tasks`), `_control/queued_tasks.py` (new),
    `_control/cancel.py`, `_control/state.py`, `_control/__init__.py`,
-   `_cli/ctl/_task.py`; `docs/task-source.qmd`; `design/task-source.md`
+   `_cli/ctl/_task.py`, `_eval/evalset.py` (queued cancels in success,
+   retries and selection mode); `docs/task-source.qmd`; `design/task-source.md`
    ("Live injection"), `design/ctl/task-drain.md` ("Out of scope"),
    `design/sample-source.md` (the `SandboxManager` notes). Records register
    with the control channel at `add`; admission runs as a background job.
    Setups still run at
    admission inside the dispatcher, as the live path does today. Tests:
    `tests/test_enqueue_task.py`, `tests/test_task_source.py`,
-   `tests/test_task_cancel.py`, `tests/_control/test_ctl.py`. Needs steps 1
+   `tests/test_task_cancel.py`, `tests/_control/test_ctl.py`,
+   `tests/test_eval_set.py`. Needs steps 1
    and 2.
 4. **Setup beside the dispatcher.** `_eval/sandbox_setups.py` (new; replaces
    `SandboxManager`), `_eval/run.py` (start rule, `setup_error`),
@@ -1306,14 +1409,16 @@ batch has its own `eval_run` and cleans up its own state).
    rule, sandbox-free start, output forwarding, cancel dropping waiting jobs.
    Needs step 3.
 5. **Task handles.** `_eval/task/enqueue.py` (`TaskHandle`, `SamplePort`,
-   errors, `Loan`), `_eval/task/run.py` (port attach, result sites, the
-   feeder's owned pull and open port, attempt `ContextVar`),
-   `_eval/task/sample_source.py` (docstrings), `_eval/run.py` (port close on
-   attempt end, loans in the dispatcher), `_eval/eval.py` and
-   `_eval/evalset.py` (`max_tasks` docstrings), `__init__.py` (exports),
-   `docs/task-source.qmd`, `docs/parallelism.qmd` and `docs/reference`.
-   Tests: handle and feeder tests above. Needs step 3; independent of
-   step 4.
+   errors, `Loan`, the `next_tasks()` wait refusal), `_eval/task/run.py`
+   (port attach, result sites, the feeder's owned pull, pull buffer and
+   open port, attempt `ContextVar`), `_eval/task/sample_source.py`
+   (`SampleEnqueuer` routes calls made in the pull scope to the pull
+   buffer; docstrings), `_eval/run.py` (port close on attempt end, loans in
+   the dispatcher), `_eval/eval.py` and `_eval/evalset.py` (`max_tasks`
+   docstrings), `__init__.py` (exports), `docs/task-source.qmd`,
+   `docs/parallelism.qmd` and `docs/reference`. Tests: handle and feeder
+   tests above. Needs step 3; independent of step 4.
+
 Follow-ups in provider repositories, none a gate for any step above:
 inspect_sandboxes declares `supports_sandbox_setup` for E2B, Modal and
 Daytona, with E2B's template warm-up reading `sandbox_setup().task_dir`
